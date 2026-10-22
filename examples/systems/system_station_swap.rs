@@ -8,13 +8,17 @@
 //! the controller's top and `pdc_b` on its starboard face. The player rebinds
 //! `pdc_a`, takes damage on it and docks at the living station. A swap of
 //! `pdc_a` for a thruster is refused with its reason and changes nothing.
-//! Then the player selects `pdc_a` in the Ship pane, opens the Catalogue,
-//! clicks the pierce PDC's tile and Swap on its card. The hold covers the recipe's panels and actuator; the
-//! turret body and barrel are bought from the station at ask. Then the player
-//! undocks and the hull is frozen and thawed the way a retiring cell does it.
+//! Then the player selects `pdc_a` in the Ship pane and opens the Catalogue.
+//! A click on the Map tab closes the catalogue and its camera, and it stays
+//! closed back on the Ship pane. The player selects `pdc_a` again, opens the
+//! Catalogue, clicks the pierce PDC's tile and Swap on its card. The hold
+//! covers the recipe's panels and actuator; the turret body and barrel are
+//! bought from the station at ask. Then the player undocks and the hull is
+//! frozen and thawed the way a retiring cell does it.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
+//! | 0 | `outcome: a tab switch closes the catalogue and its camera` | on the Map tab and back on the Ship pane: no catalogue camera, no gallery host, the gallery state is closed |
 //! | 1 | `outcome: a cross-family swap is refused` | the note names both kinds; the design, the section, the holds and the balances are as they were |
 //! | 2 | `outcome: a section is swapped at a station` | `pdc_a` is a pierce PDC at full health under its old code and its rebound key; the design is inline and names the new prototype; the parts and the price moved; `OnSwapped` fired once |
 //! | 3 | `outcome: a swapped section survives a freeze and thaw` | the thawed hull has `pdc_a` as a pierce PDC at full health on the same key |
@@ -22,7 +26,8 @@
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example system_station_swap --features debug
-//! # look for: `station swap probe: refused pdc_a for a thruster`,
+//! # look for: `station swap probe: a tab switch closed the catalogue`,
+//! #           `station swap probe: refused pdc_a for a thruster`,
 //! #           `station swap probe: swapped pdc_a for the pierce PDC`,
 //! #           `station swap probe: pdc_a survives the freeze and thaw`,
 //! #           `autopilot: cycle complete, no panic`
@@ -639,6 +644,65 @@ mod walk {
         );
     }
 
+    /// The catalogue's cameras, by name: the Ship pane's marker is crate
+    /// private. A renamed camera fails the open assert, not the closed one.
+    fn catalogue_cameras(world: &World) -> usize {
+        world.try_query::<&Name>().map_or(0, |mut names| {
+            names
+                .iter(world)
+                .filter(|name| name.as_str() == "ShipCatalogueCamera")
+                .count()
+        })
+    }
+
+    fn gallery_hosts(world: &World) -> usize {
+        world
+            .try_query_filtered::<(), With<GalleryHost>>()
+            .map_or(0, |mut hosts| hosts.iter(world).count())
+    }
+
+    /// The open catalogue has one camera and one host.
+    fn assert_the_catalogue_open(world: &mut World) {
+        assert_eq!(
+            catalogue_cameras(world),
+            1,
+            "station swap probe: the open catalogue has one camera"
+        );
+        assert_eq!(gallery_hosts(world), 1);
+        assert!(world.resource::<GalleryState>().open);
+    }
+
+    /// A tab switch closed the catalogue: no camera, no host, a closed state.
+    fn assert_the_catalogue_closed(world: &mut World) {
+        let pane = *world.resource::<InterfacePaneType>();
+        assert_eq!(
+            catalogue_cameras(world),
+            0,
+            "station swap probe: no catalogue camera on the {pane:?} pane"
+        );
+        assert_eq!(
+            gallery_hosts(world),
+            0,
+            "station swap probe: no gallery host on the {pane:?} pane"
+        );
+        assert!(
+            !world.resource::<GalleryState>().open,
+            "station swap probe: the catalogue is closed on the {pane:?} pane"
+        );
+    }
+
+    /// Claim 0: back on the Ship pane, the catalogue stays closed.
+    fn assert_no_reopen(world: &mut World) {
+        assert_the_catalogue_closed(world);
+        info!("station swap probe: a tab switch closed the catalogue");
+        let elapsed = world.resource::<Time>().elapsed_secs();
+        nova_probe::probe_marker(
+            world,
+            "outcome: a tab switch closes the catalogue and its camera",
+            serde_json::json!({ "t": elapsed }),
+        );
+    }
+
     /// The pierce PDC's tile in the catalogue gallery, named by its
     /// catalogue name.
     fn pierce_tile(world: &World) -> String {
@@ -942,6 +1006,49 @@ mod walk {
         .add()
         .click_named(
             "station swap: open the catalogue",
+            "ShipCatalogue",
+            ui_node_present("Gallery Grid"),
+            SESSION_SECS,
+        )
+        .step("station swap: assert the catalogue is open")
+        .on_enter(assert_the_catalogue_open)
+        .until(frames(1))
+        .add()
+        .click_named(
+            "station swap: switch to the Map tab",
+            "InterfaceTabMap",
+            the_interface_shows(InterfacePaneType::Map),
+            SESSION_SECS,
+        )
+        .step("station swap: assert the tab switch closed the catalogue")
+        .on_enter(assert_the_catalogue_closed)
+        .until(frames(1))
+        .add()
+        .click_named(
+            "station swap: return to the Ship pane",
+            "InterfaceTabShip",
+            the_interface_shows(InterfacePaneType::Ship),
+            SESSION_SECS,
+        )
+        .step("station swap: settle the returned schematic")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("station swap: assert no reopen")
+        .on_enter(assert_no_reopen)
+        .until(frames(1))
+        .add()
+        // Leaving the pane cleared the selection.
+        .step("station swap: select pdc_a again")
+        .each(step_to_the_pdc)
+        .until(when(pdc_selected))
+        .deadline(SESSION_SECS)
+        .add()
+        .step("station swap: let the viewer key up again")
+        .on_enter(release_action("viewer_next"))
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .click_named(
+            "station swap: reopen the catalogue",
             "ShipCatalogue",
             ui_node_present("Gallery Grid"),
             SESSION_SECS,

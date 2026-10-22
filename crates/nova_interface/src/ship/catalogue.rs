@@ -4,7 +4,8 @@
 //! The footer's Catalogue button opens it. [`manage_ship_gallery`] then puts a
 //! [`GalleryHost`] node over the view, the panel and the footer, with its own
 //! camera on [`GALLERY_LAYER`] rendering the part tiles into an image the node
-//! shows 1:1, and takes both away when the gallery closes or the pane goes.
+//! shows 1:1, and takes both away when the gallery closes or the pane goes:
+//! a tab switch or the interface closing closes the gallery.
 //!
 //! [`update_ship_gallery_listing`] lists the parts the station can build: a
 //! part not hidden from the editor palette whose recipe the player's hold and
@@ -65,12 +66,16 @@ pub(crate) struct ShipSplitMarker;
 #[derive(Component)]
 pub(crate) struct ShipCatalogueButton;
 
-/// The catalogue's own camera, which holds its lights, and the image it
-/// renders the tiles into. Worn by the host node, which takes the camera
-/// with it.
+/// Marks the catalogue's own camera, which holds its lights. The camera is a
+/// root entity: a despawn of the pane body takes the host node, not the
+/// camera, so [`manage_ship_gallery`] finds an orphan camera by this marker.
+#[derive(Component)]
+pub(crate) struct ShipCatalogueCameraMarker;
+
+/// The image the catalogue's camera renders the tiles into. Worn by the host
+/// node, whose [`GalleryHost`] names the camera.
 #[derive(Component)]
 pub(crate) struct ShipGalleryHost {
-    camera: Entity,
     image: Handle<Image>,
 }
 
@@ -209,7 +214,8 @@ pub(crate) fn update_ship_gallery_listing(
 /// Put the gallery over the pane while it is open and the ship is docked at
 /// a station that refits, and take it away otherwise: the host node over the
 /// pane body, showing the image its camera renders the tiles into. A gallery
-/// this pane left open when the pane went away, or the dock ended, is closed.
+/// this pane left open when the pane went away, or the dock ended, is closed,
+/// and its camera goes with it when the host went first.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system owning the host node, its camera and its image"
@@ -223,19 +229,30 @@ pub(crate) fn manage_ship_gallery(
     site: StationSite,
     images: Option<ResMut<Assets<Image>>>,
     q_split: Query<&ChildOf, With<ShipSplitMarker>>,
-    mut q_host: Query<(Entity, &ShipGalleryHost, &ComputedNode, &mut ImageNode)>,
+    q_cam: Query<Entity, With<ShipCatalogueCameraMarker>>,
+    mut q_host: Query<(
+        Entity,
+        &ShipGalleryHost,
+        &GalleryHost,
+        &ComputedNode,
+        &mut ImageNode,
+    )>,
     mut q_camera: Query<&mut Projection>,
 ) {
     // The gallery state is shared with the editor's host, so only a gallery
-    // this pane hosts is closed here: the editor's browse is not the pane's.
+    // this pane's camera draws is closed here: the editor's browse is not the
+    // pane's. A tab switch or the interface closing despawns the host with
+    // the pane body and leaves the camera, so the camera alone closes it.
     let refits = runtime.active && subject.0.is_none() && site.gate(StationServiceType::Refit);
-    if !q_host.is_empty() && (!state.open || !refits) {
+    if !q_cam.is_empty() && (q_host.is_empty() || !state.open || !refits) {
         if state.open {
             state.open = false;
             state.focused = false;
         }
-        for (host, owned, _, _) in &q_host {
-            commands.entity(owned.camera).despawn();
+        for camera in &q_cam {
+            commands.entity(camera).despawn();
+        }
+        for (host, ..) in &q_host {
             commands.entity(host).despawn();
         }
         return;
@@ -246,7 +263,7 @@ pub(crate) fn manage_ship_gallery(
     let Some(mut images) = images else {
         return;
     };
-    if let Ok((_, owned, computed, mut node)) = q_host.single_mut() {
+    if let Ok((_, owned, gallery, computed, mut node)) = q_host.single_mut() {
         // A node not laid out yet measures zero; the image keeps its size.
         let desired = computed.size().round().as_uvec2();
         if desired.cmpeq(UVec2::ZERO).any() {
@@ -259,7 +276,7 @@ pub(crate) fn manage_ship_gallery(
             &mut images,
             &owned.image,
             desired,
-            q_camera.get_mut(owned.camera).ok(),
+            q_camera.get_mut(gallery.camera).ok(),
         );
         return;
     }
@@ -273,6 +290,7 @@ pub(crate) fn manage_ship_gallery(
     let camera = commands
         .spawn((
             Name::new("ShipCatalogueCamera"),
+            ShipCatalogueCameraMarker,
             Camera3d::default(),
             Camera {
                 order: GALLERY_CAMERA_ORDER,
@@ -311,7 +329,6 @@ pub(crate) fn manage_ship_gallery(
     commands.spawn((
         Name::new("ShipCatalogueGallery"),
         ShipGalleryHost {
-            camera,
             image: image.clone(),
         },
         GalleryHost {
