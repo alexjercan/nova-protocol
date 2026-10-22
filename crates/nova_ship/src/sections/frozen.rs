@@ -462,7 +462,8 @@ pub fn freeze_shed_fixture(
 /// builds for a bolted-on fixture, with no `ChildOf` and the debris state
 /// `shed_dead_fixtures` (`fixture.rs`) gives a freshly shed one - kinematic,
 /// pivoted on its own collider's centre, carrying the velocity it drifted
-/// with.
+/// with, and with no `Collider` left on it or on any greeble it carries
+/// (`docs/sections.md` says why shed debris is untouchable).
 ///
 /// [`ShipStyle`] rides in the SAME initial bundle as the plate or decor
 /// marker, not a later `insert`: the `Add` observer that dresses a plate
@@ -506,19 +507,34 @@ pub fn thaw_shed_fixture(commands: &mut Commands, record: &FrozenShedFixture) ->
             AngularVelocity(record.angular),
         )),
     };
+    let children = record.fixture.children.clone();
+    entity.with_children(|spawned| {
+        for child in children {
+            spawn_frozen_fixture(spawned, child);
+        }
+    });
+    // Queued after `with_children` so the greebles exist when the walk below
+    // strips their colliders.
     entity.queue(|mut entity: EntityWorldMut| {
         let id = entity.id();
         let Some(collider) = entity.get::<Collider>() else {
             panic!("thaw_shed_fixture: fixture {id} carries no Collider after its body bundle");
         };
         let center = collider.center_of_mass();
-        entity.insert(CenterOfMass(center));
-    });
-    let children = record.fixture.children.clone();
-    entity.with_children(|spawned| {
-        for child in children {
-            spawn_frozen_fixture(spawned, child);
-        }
+        entity.insert(CenterOfMass(center)).remove::<Collider>();
+        let mut greebles: Vec<Entity> = entity
+            .get::<Children>()
+            .map(|children| children.iter().collect())
+            .unwrap_or_default();
+        entity.world_scope(|world| {
+            while let Some(node) = greebles.pop() {
+                let mut node = world.entity_mut(node);
+                node.remove::<Collider>();
+                if let Some(children) = node.get::<Children>() {
+                    greebles.extend(children.iter());
+                }
+            }
+        });
     });
     entity.id()
 }
@@ -631,14 +647,14 @@ mod tests {
         assert_eq!(thawed_decor_aabb.max, original_decor_aabb.max);
     }
 
-    /// A plate and a piece of decor shed off a STYLED ship through the real
-    /// `shed_dead_fixtures` path, each saved and brought back, must keep the
-    /// art they wore, the countdown they were partway through, and the pose
-    /// they drifted to - and each must freeze back to exactly the record it
-    /// thawed from.
+    /// A plate (with a greeble bolted on) and a piece of decor shed off a
+    /// STYLED ship through the real `shed_dead_fixtures` path, each saved and
+    /// brought back, must keep the art they wore, the countdown they were
+    /// partway through, and the pose they drifted to, come back as
+    /// untouchable as they left - and each must freeze back to exactly the
+    /// record it thawed from.
     #[test]
     fn a_resumed_shed_fixture_keeps_its_art_style_and_grace() {
-        use avian3d::prelude::{Collider, SimpleCollider};
         use bevy::time::TimeUpdateStrategy;
         use bevy_rand::prelude::{EntropyPlugin, WyRand};
         use nova_gameplay::prelude::{
@@ -719,12 +735,10 @@ mod tests {
             .world_mut()
             .spawn((decor_body(&decor_cfg, decor_pose), ChildOf(section)))
             .id();
-
-        let original_plate_aabb = app
-            .world()
-            .get::<Collider>(plate_entity)
-            .expect("a plate carries a collider")
-            .aabb(Vec3::ZERO, Quat::IDENTITY);
+        app.world_mut().spawn((
+            decor_body(&decor_cfg, Transform::from_xyz(0.0, 0.5, 0.0)),
+            ChildOf(plate_entity),
+        ));
 
         // Fixed-step timing, as `fixture`'s own shed rig uses: the first
         // `ManualDuration` frame has a zero delta, so the warm-up update below
@@ -752,6 +766,10 @@ mod tests {
         );
 
         let plate_pose_before = *app.world().get::<Transform>(plate_entity).unwrap();
+        let plate_center_before = *app
+            .world()
+            .get::<CenterOfMass>(plate_entity)
+            .expect("a shed plate pivots on its collider's centre");
         let decor_pose_before = *app.world().get::<Transform>(decor_entity).unwrap();
         let plate_lifetime_before = SavedLifetime::of(app.world(), plate_entity)
             .expect("a shed fixture is a TempEntity the moment it sheds");
@@ -800,14 +818,25 @@ mod tests {
         };
         app.world_mut().flush();
 
-        // Collider: the plate's rebuilds to the same bounds the original wore.
-        let thawed_plate_aabb = app
-            .world()
-            .get::<Collider>(thawed_plate)
-            .expect("the thawed plate carries a collider")
-            .aabb(Vec3::ZERO, Quat::IDENTITY);
-        assert_eq!(thawed_plate_aabb.min, original_plate_aabb.min);
-        assert_eq!(thawed_plate_aabb.max, original_plate_aabb.max);
+        // Collider: a live shed fixture is debris with no collider on itself
+        // or its greebles (`docs/sections.md`), and a thawed one must match.
+        assert_eq!(frozen_plate.fixture.children.len(), 1);
+        for thawed in [thawed_plate, thawed_decor] {
+            let mut subtree = vec![thawed];
+            while let Some(node) = subtree.pop() {
+                assert!(
+                    app.world().get::<Collider>(node).is_none(),
+                    "thawed shed debris {node} must carry no Collider"
+                );
+                if let Some(children) = app.world().get::<Children>(node) {
+                    subtree.extend(children.iter());
+                }
+            }
+        }
+        assert_eq!(
+            app.world().get::<CenterOfMass>(thawed_plate),
+            Some(&plate_center_before)
+        );
         assert_eq!(
             app.world()
                 .get::<DecorColliderSize>(thawed_decor)
