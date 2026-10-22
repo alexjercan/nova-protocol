@@ -1609,9 +1609,15 @@ impl StripTarget<'_> {
 pub struct HullStripPartner<'a> {
     /// The partner is a station that is not a derelict.
     pub living_station: bool,
+    /// The partner carries [`OwnedStationMarker`](crate::markers::OwnedStationMarker):
+    /// the player's own station, dead.
+    pub owned_station: bool,
     /// The partner may be looted: it is neutralized or carries
     /// [`LootableShipMarker`], the rule a Take reads.
     pub lootable: bool,
+    /// Hulls the player owns parked at the partner: each would despawn with
+    /// it.
+    pub owned_hulls: u32,
     /// Every live section of the partner, the berth port included.
     pub sections: Vec<StripTarget<'a>>,
     /// The Take all of the partner's hold, a dead station's storage and its
@@ -1659,8 +1665,17 @@ pub enum HullStripRefusalType {
     Busy,
     /// The partner is a living station: it trades, it is not salvage.
     LivingStation,
+    /// The partner is the player's own station: a strip would end the
+    /// ownership with no record of it.
+    OwnedStation,
     /// The partner is neither neutralized nor lootable.
     NotLootable,
+    /// Hulls the player owns are parked at the partner: they would despawn
+    /// with it.
+    OwnedHullsParked {
+        /// The parked hulls the player owns.
+        count: u32,
+    },
     /// The Take all a strip runs first would leave part of the partner's
     /// hold, a dead station's storage or its balance behind:
     /// [`HullStripPartner::loot`] is not whole. A strip never demolishes a
@@ -1701,8 +1716,16 @@ pub fn plan_hull_strip(
     if partner.living_station {
         return Err(HullStripRefusalType::LivingStation);
     }
+    if partner.owned_station {
+        return Err(HullStripRefusalType::OwnedStation);
+    }
     if !partner.lootable {
         return Err(HullStripRefusalType::NotLootable);
+    }
+    if partner.owned_hulls > 0 {
+        return Err(HullStripRefusalType::OwnedHullsParked {
+            count: partner.owned_hulls,
+        });
     }
     if !partner.loot.is_whole() {
         return Err(HullStripRefusalType::NoRoom);
@@ -2787,7 +2810,9 @@ mod strip_tests {
         let recipe = recipe();
         let partner = |living_station, lootable| HullStripPartner {
             living_station,
+            owned_station: false,
             lootable,
+            owned_hulls: 0,
             sections: vec![target(&recipe, 1.0), target(&recipe, 0.1)],
             loot: LootTake::default(),
         };
@@ -2797,9 +2822,17 @@ mod strip_tests {
             plan_hull_strip(Some(&partner(true, true)), false),
             Err(LivingStation)
         );
+        let mut owned = partner(false, false);
+        owned.owned_station = true;
+        owned.owned_hulls = 2;
+        assert_eq!(plan_hull_strip(Some(&owned), false), Err(OwnedStation));
+        owned.owned_station = false;
+        assert_eq!(plan_hull_strip(Some(&owned), false), Err(NotLootable));
+        owned.lootable = true;
+        owned.loot.stayed_cr = 1;
         assert_eq!(
-            plan_hull_strip(Some(&partner(false, false)), false),
-            Err(NotLootable)
+            plan_hull_strip(Some(&owned), false),
+            Err(OwnedHullsParked { count: 2 })
         );
         let mut stuffed = partner(false, true);
         stuffed.loot.stayed_cr = 1;
@@ -2830,7 +2863,9 @@ mod strip_tests {
         let recipe = recipe();
         let partner = |own: &ShipInventory, own_cr| HullStripPartner {
             living_station: false,
+            owned_station: false,
             lootable: true,
+            owned_hulls: 0,
             sections: vec![target(&recipe, 1.0)],
             loot: plan_loot_take(&items, own, own_cr, &wreck, 50, None),
         };

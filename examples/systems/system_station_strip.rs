@@ -941,7 +941,9 @@ mod walk {
             .collect();
         let strip = HullStripPartner {
             living_station: false,
+            owned_station: false,
             lootable: true,
+            owned_hulls: 0,
             sections,
             loot: LootTake::default(),
         }

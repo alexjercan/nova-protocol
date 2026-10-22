@@ -141,7 +141,7 @@ not a derelict, and its `services` list the service.
 | refusals | Store and Withdraw refuse in this order, on the form with Confirm disabled, and on the note line: not docked, no `Storage` service, unknown item, no quantity, quantity zero, fewer items than the quantity, then `storage full, <N> kg free` for a Store or `<SHIP> has room for <N> more` for a Withdraw |
 | persistence | the storage freezes with the station when its cell retires, thaws with it, and is in the world save; a save checks it against `storage_cap_g`. A destroyed station drops it as cargo canisters with its hold. A Take all or a strip at a dead station takes it |
 | events | `OnTraded` for a trade; `OnStored` and `OnWithdrawn` for a store or withdraw, the station as `id` and the player as `other_id`, see [Hold events](../events/#hold-events) |
-| a derelict | a dead station offers no service. Its hold is loot: Take and Give, as for a derelict ship. Your storage there is loot too: the storage column is hidden, and Take all and Strip take it after the hold, what fits for a Take all and whole or nothing for a strip |
+| a derelict | a dead station offers no service. Its hold is loot: Take and Give, as for a derelict ship. Your storage there is loot too: the storage column is hidden, and Take all and Strip take it after the hold, what fits for a Take all and whole or nothing for a strip. Strip refuses at your own dead station and while a ship you own is parked there |
 
 The proof is `system_station_storage`: on a generated world, the player docks
 at a living waystation, buys, sells and stores through the pane, leaves until

@@ -239,11 +239,15 @@ with one `ShipInventoryReport::Withdrawn` (`OnWithdrawn`) per stack. A
 strip runs the same take first and again before the berth, so it never
 demolishes a hull with loot or storage in it. `plan_hull_strip`
 (`nova_gameplay/src/inventory.rs`) refuses, in order: not docked, a strip
-already running, a living station, a partner the player may not loot, and a
-take that would leave a stack or the credits behind (`NoRoom`, read from
-`HullStripPartner::loot`). The strip block and `apply_hull_strip_commands`
-both read it through `plan_strip_press`: on `NoRoom` the Strip button is
-disabled and its tooltip names what has no room, and a press moves nothing.
+already running, a living station, the player's own station
+(`OwnedStation`, `OwnedStationMarker`), a partner the player may not loot,
+a hull the player owns parked there (`OwnedHullsParked`, a
+`ParkedHullType::Owned` entry of `ParkedHulls`, which despawns with the
+station), and a take that would leave a stack or the credits behind
+(`NoRoom`, read from `HullStripPartner::loot`). The strip block and
+`apply_hull_strip_commands` both read it through `plan_strip_press`: on
+`NoRoom`, `OwnedStation` or `OwnedHullsParked` the Strip button is disabled
+and its tooltip names the reason, and a press moves nothing.
 The plan sums each live section's `StripTarget::parts`
 (`BuildRecipe::strip_parts_at`: `floor(count * strip_yield * health share)`
 per part) and its `strip_duration_secs`: `STRIP_SECS_PER_PART` (1 s) per

@@ -13,8 +13,9 @@
 //! [`plan_strip_press`], takes the partner's whole hold, a dead station's
 //! whole storage and its balance as Take all does, and starts a
 //! [`HullStripJob`] on the player ship. When that take would leave anything
-//! behind, the strip does not start and nothing moves: the button is
-//! disabled by the same rule, and its tooltip names what has no room.
+//! behind, at the player's own dead station, or while a hull the player owns
+//! is parked at the partner, the strip does not start and nothing moves: the
+//! button is disabled by the same rule, and its tooltip names the reason.
 //! [`advance_hull_strip`] runs the job on the game clock, with the pane open
 //! or shut, so the player starts it and flies on; the TAB interface's pause
 //! holds it like any other game work.
@@ -145,7 +146,10 @@ pub(crate) struct StripPartner<'a> {
     /// The partner's port that holds the dock.
     berth: Entity,
     living_station: bool,
+    owned_station: bool,
     lootable: bool,
+    /// Hulls parked at the partner as [`ParkedHullType::Owned`].
+    owned_hulls: u32,
     design: Option<&'a ShipDesignSections>,
     live: Vec<LiveSection<'a>>,
 }
@@ -181,7 +185,9 @@ impl StripPartner<'_> {
     fn hull(&self, loot: LootTake) -> HullStripPartner<'_> {
         HullStripPartner {
             living_station: self.living_station,
+            owned_station: self.owned_station,
             lootable: self.lootable,
+            owned_hulls: self.owned_hulls,
             sections: self
                 .live
                 .iter()
@@ -237,9 +243,12 @@ pub(crate) struct StripSite<'w, 's> {
             Has<NeutralizedMarker>,
             Has<StationMarker>,
             Has<DerelictShipMarker>,
+            Has<OwnedStationMarker>,
+            Option<&'static ParkedHulls>,
         ),
         With<SpaceshipRootMarker>,
     >,
+    parked: Query<'w, 's, &'static ParkedHullType>,
     sections: Query<
         'w,
         's,
@@ -279,8 +288,13 @@ impl StripSite<'_, '_> {
         } else {
             (connection.first_ship, connection.first_section)
         };
-        let (design, children, lootable, neutralized, station, derelict) =
+        let (design, children, lootable, neutralized, station, derelict, owned_station, parked) =
             self.partners.get(entity).ok()?;
+        let owned_hulls = parked
+            .into_iter()
+            .flat_map(ParkedHulls::iter)
+            .filter(|hull| matches!(self.parked.get(*hull), Ok(ParkedHullType::Owned)))
+            .count();
         let live = children
             .into_iter()
             .flatten()
@@ -303,7 +317,9 @@ impl StripSite<'_, '_> {
             entity,
             berth,
             living_station: station && !derelict,
+            owned_station,
             lootable: lootable || neutralized,
+            owned_hulls: u32::try_from(owned_hulls).expect("parked hulls fit in u32"),
             design,
             live,
         })
@@ -341,24 +357,29 @@ pub(crate) fn plan_strip_press<'a>(
     (hull, verdict)
 }
 
-/// The note line for a strip that does not start. `hull` names what has no
-/// room on a [`HullStripRefusalType::NoRoom`].
+/// Why a strip does not start: the note line after `strip: `, and the
+/// tooltip of a disabled Strip button. `hull` names what has no room on a
+/// [`HullStripRefusalType::NoRoom`].
 fn strip_refusal_text(
     items: &GameItems,
     refusal: HullStripRefusalType,
     hull: Option<&HullStripPartner<'_>>,
 ) -> String {
     match refusal {
-        HullStripRefusalType::NotDocked => "strip: dock with a wreck first".to_string(),
-        HullStripRefusalType::Busy => "strip: a strip is already running".to_string(),
-        HullStripRefusalType::LivingStation => "strip: a living station is not salvage".to_string(),
+        HullStripRefusalType::NotDocked => "dock with a wreck first".to_string(),
+        HullStripRefusalType::Busy => "a strip is already running".to_string(),
+        HullStripRefusalType::LivingStation => "a living station is not salvage".to_string(),
+        HullStripRefusalType::OwnedStation => "this is your station".to_string(),
         HullStripRefusalType::NotLootable => {
-            "strip: the docked hull is not a wreck you may loot".to_string()
+            "the docked hull is not a wreck you may loot".to_string()
         }
-        HullStripRefusalType::NoRoom => format!(
-            "strip: {}",
+        HullStripRefusalType::OwnedHullsParked { count } => {
+            let verb = if count == 1 { "is" } else { "are" };
+            format!("{count} of your ships {verb} parked here")
+        }
+        HullStripRefusalType::NoRoom => {
             hull.map_or_else(String::new, |hull| no_room_text(items, &hull.loot))
-        ),
+        }
     }
 }
 
@@ -559,7 +580,8 @@ fn spawn_meter_row(
 
 /// Keep the strip block on the docked partner and the running job: shown only
 /// at a wreck, the Strip button while no strip runs, disabled with its
-/// tooltip while [`plan_strip_press`] refuses for room, the four meters, and
+/// tooltip while [`plan_strip_press`] refuses for room, at the player's own
+/// station or for a parked hull the player owns, the four meters, and
 /// the part tiles. A held strip reads `Held` on the Total row and names what
 /// its section needs on the Hold row, both in Danger.
 #[expect(
@@ -596,19 +618,25 @@ pub(crate) fn update_strip_block(
     let job = player.and_then(|player| q_job.get(player).ok());
     let partner = site.partner().filter(StripPartner::recyclable);
     let (hull, verdict) = plan_strip_press(&items, &ships, partner.as_ref(), job.is_some());
-    let no_room = verdict == Err(HullStripRefusalType::NoRoom);
-    let button_shown = verdict.is_ok() || no_room;
-    let reason = match (&hull, no_room) {
-        (Some(hull), true) => no_room_text(&items, &hull.loot),
-        _ => String::new(),
+    let blocked = match verdict {
+        Err(
+            refusal @ (HullStripRefusalType::NoRoom
+            | HullStripRefusalType::OwnedStation
+            | HullStripRefusalType::OwnedHullsParked { .. }),
+        ) => Some(refusal),
+        _ => None,
     };
+    let button_shown = verdict.is_ok() || blocked.is_some();
+    let reason = blocked.map_or_else(String::new, |refusal| {
+        strip_refusal_text(&items, refusal, hull.as_ref())
+    });
     for (button, mut tooltip, disabled) in &mut q_button {
         if tooltip.0 != reason {
             tooltip.0.clone_from(&reason);
         }
-        if no_room && !disabled {
+        if blocked.is_some() && !disabled {
             commands.entity(button).insert(InteractionDisabled);
-        } else if !no_room && disabled {
+        } else if blocked.is_none() && disabled {
             commands.entity(button).remove::<InteractionDisabled>();
         }
     }
@@ -809,7 +837,10 @@ pub(crate) fn apply_hull_strip_commands(
         Ok(strip) => strip,
         Err(refusal) => {
             info!("strip: refused: {refusal:?}");
-            runtime.say(strip_refusal_text(&items, refusal, hull.as_ref()));
+            runtime.say(format!(
+                "strip: {}",
+                strip_refusal_text(&items, refusal, hull.as_ref())
+            ));
             return;
         }
     };

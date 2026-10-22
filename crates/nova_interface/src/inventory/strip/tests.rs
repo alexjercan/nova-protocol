@@ -627,3 +627,85 @@ fn the_strip_block_counts_sections_and_parts_and_names_a_held_strip() {
         .map(|(_, themed)| themed.color);
     assert_eq!(hold_fill, Some(UiColor::Danger));
 }
+
+/// A strip demolishes the station and every hull parked there with it, so it
+/// refuses while a ship the player owns is parked at a dead station, and at
+/// the player's own dead station: nothing moves and the hull stays.
+#[test]
+fn a_strip_refuses_while_your_ship_is_parked_there_and_at_your_own_station() {
+    let items = test_items();
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate.id());
+    let dead_station = |app: &mut App| {
+        let (player, wreck) = dock_with_a_loaded_wreck(app.world_mut(), 1_000_000, [], 50);
+        app.world_mut().entity_mut(wreck.root).insert((
+            StationMarker,
+            DerelictShipMarker,
+            StationServices(vec![]),
+            StationBuilds(vec![]),
+            StationStorage::new(100_000),
+        ));
+        (player, wreck)
+    };
+    let refused = |app: &mut App, player: Entity, wreck: &Wreck, note: &str| {
+        app.world_mut().write_message(HullStripCommand);
+        app.update();
+        assert!(job(app, player).is_none(), "refused: no strip");
+        assert!(hold(app, player).is_empty(), "refused: no loot moves");
+        assert_eq!(
+            app.world().get::<ShipCredits>(wreck.root),
+            Some(&ShipCredits(50))
+        );
+        assert_eq!(
+            app.world().resource::<InventoryRuntime>().note(),
+            Some(note)
+        );
+        for _ in 0..80 {
+            app.update();
+        }
+        assert!(
+            app.world().get_entity(wreck.root).is_ok(),
+            "the station stays"
+        );
+    };
+
+    let mut app = strip_app();
+    let (player, wreck) = dead_station(&mut app);
+    let hull = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            ParkedHull(wreck.root),
+            ParkedHullType::Owned,
+            OwnedShipMarker,
+            ShipInventory::new(&items, 400_000, [(plate.clone(), 5)]),
+            ShipCredits(0),
+        ))
+        .id();
+    app.world_mut().spawn((
+        SpaceshipRootMarker,
+        ParkedHull(wreck.root),
+        ParkedHullType::Sale,
+    ));
+    refused(
+        &mut app,
+        player,
+        &wreck,
+        "strip: 1 of your ships is parked here",
+    );
+    assert_eq!(
+        app.world()
+            .get::<ShipInventory>(hull)
+            .expect("the parked hull keeps its hold")
+            .count(&plate),
+        5
+    );
+    assert!(app.world().get::<OwnedShipMarker>(hull).is_some());
+
+    let mut app = strip_app();
+    let (player, wreck) = dead_station(&mut app);
+    app.world_mut()
+        .entity_mut(wreck.root)
+        .insert(OwnedStationMarker);
+    refused(&mut app, player, &wreck, "strip: this is your station");
+    assert!(app.world().get::<OwnedStationMarker>(wreck.root).is_some());
+}
