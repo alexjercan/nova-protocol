@@ -2056,11 +2056,25 @@ impl InventoryShips<'_, '_> {
     }
 
     /// The Take all of `partner`'s hold and balance into `own`'s, by the
-    /// [`plan_loot_take`] rule.
+    /// [`plan_loot_take`] rule. A dead station's storage, the player's own
+    /// stored items, joins the loot after the hold; a living station's never
+    /// does, lootable or not.
+    ///
+    /// # Panics
+    ///
+    /// On a station root without [`StationStorage`]: every station spawns and
+    /// thaws with one, so the record is broken.
     pub(crate) fn loot(&self, items: &GameItems, own: Entity, partner: Entity) -> LootTake {
         let (_, hold, _, own_cr) = self.ship(own);
-        let (_, theirs, _, partner_cr) = self.ship(partner);
-        plan_loot_take(items, hold, own_cr, theirs, partner_cr)
+        let (_, theirs, lootable, partner_cr) = self.ship(partner);
+        let storage = self.station_roots.contains(partner).then(|| {
+            let (_, derelict, storage, _) = self
+                .stations
+                .get(partner)
+                .expect("a station root carries StationStorage");
+            (lootable && derelict).then_some(storage)
+        });
+        plan_loot_take(items, hold, own_cr, theirs, partner_cr, storage.flatten())
     }
 
     /// The hold and report queue of `ship`, to write.
@@ -2472,8 +2486,9 @@ pub(crate) fn apply_take_all_commands(
     }
 }
 
-/// Take what fits of every stack `partner` holds, then its credits, by the
-/// [`plan_loot_take`] rule, or say why nothing moved. Both texts are the note
+/// Take what fits of every stack `partner` holds, a dead station's storage
+/// after its hold, then its credits, by the [`plan_loot_take`] rule, or say
+/// why nothing moved. Both texts are the note
 /// line.
 fn take_all(
     items: &GameItems,
@@ -2482,16 +2497,16 @@ fn take_all(
     partner: Entity,
 ) -> Result<String, String> {
     let partner_title = ships.title(partner, InventorySideType::Partner);
-    let (_, theirs, lootable, partner_cr) = ships.ship(partner);
+    let (_, _, lootable, _) = ships.ship(partner);
     if !lootable {
         return Err(format!(
             "Refused: {partner_title} is not neutralized or lootable"
         ));
     }
-    if theirs.is_empty() && partner_cr == 0 {
+    let loot = ships.loot(items, pair.own, partner);
+    if loot.is_empty() && loot.is_whole() {
         return Err(format!("Refused: {partner_title} holds nothing"));
     }
-    let loot = ships.loot(items, pair.own, partner);
     if loot.is_empty() {
         return Err(format!(
             "Refused: no room for {}",
@@ -2513,13 +2528,16 @@ fn take_all(
     ))
 }
 
-/// Move a planned [`LootTake`] from `partner` into the player ship: each
-/// taken stack through the Take path a Confirm runs, then the credits.
+/// Move a planned [`LootTake`] from `partner` into the player ship: the hold
+/// part of each taken stack through the Take path a Confirm runs, the stored
+/// part out of the dead station's storage with one
+/// [`ShipInventoryReport::Withdrawn`] per stack, then the credits.
 ///
 /// # Panics
 ///
-/// On a take the transfer or credit rule refuses: `loot` was planned from
-/// these holds this frame, with the partner checked lootable.
+/// On a take the transfer or credit rule refuses, or a stored part past the
+/// storage or the room: `loot` was planned from these holds this frame, with
+/// the partner checked lootable.
 pub(crate) fn take_loot(
     items: &GameItems,
     ships: &mut InventoryShips,
@@ -2528,13 +2546,33 @@ pub(crate) fn take_loot(
     loot: &LootTake,
 ) {
     for (item, &count) in &loot.taken {
-        let command = InventoryActionCommand {
-            action: InventoryActionType::Take,
-            item: item.clone(),
-            quantity: Some(count),
-        };
-        transfer_items(items, ships, pair, ItemTransferType::Take, command)
-            .expect("a Take of what fits passes the transfer rule");
+        let stored = loot.taken_stored.get(item).copied().unwrap_or(0);
+        if count > stored {
+            let command = InventoryActionCommand {
+                action: InventoryActionType::Take,
+                item: item.clone(),
+                quantity: Some(count - stored),
+            };
+            transfer_items(items, ships, pair, ItemTransferType::Take, command)
+                .expect("a Take of what fits passes the transfer rule");
+        }
+        if stored > 0 {
+            let (_, mut own, _, _, _, mut reports) = ships
+                .ships
+                .get_mut(pair.own)
+                .expect("InventoryShips::pair checked the player ship");
+            let (_, _, mut storage, _) = ships
+                .stations
+                .get_mut(partner)
+                .expect("a stored take was planned from a station's storage");
+            storage.remove(item, stored);
+            own.add(items, item, stored);
+            reports.0.push(ShipInventoryReport::Withdrawn {
+                station: partner,
+                item: item.clone(),
+                count: stored,
+            });
+        }
     }
     if loot.taken_cr > 0 {
         take_credits(ships, pair.own, partner)
@@ -3157,12 +3195,13 @@ pub(crate) fn update_inventory_panel(
     let lootable = terms.as_ref().is_some_and(|terms| terms.lootable);
     let partner_cr = partner_credits.map_or_else(String::new, |credits| cr_digits(credits.into()));
     let take_credits_shown = lootable && partner_credits.unwrap_or(0) > 0;
-    let take_all_shown = take_credits_shown
-        || lootable
-            && partner
-                .stacks
-                .as_ref()
-                .is_some_and(|stacks| !stacks.is_empty());
+    // Shown while there is anything to take, fit or not: the hold, a dead
+    // station's storage or the balance. The same plan refuses `holds nothing`.
+    let take_all_shown = lootable
+        && pair.partner.is_some_and(|other| {
+            let loot = ships.loot(items, pair.own, other);
+            !(loot.is_empty() && loot.is_whole())
+        });
     let side = |which: InventorySideType| match which {
         InventorySideType::Own => Some(&own),
         InventorySideType::Partner => Some(&partner),

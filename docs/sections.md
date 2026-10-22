@@ -231,9 +231,13 @@ with the plan's mass or a held section's need). Part tiles show the job's
 health, recomputed each frame; `yielded` is what the strip recovered, not
 what the hold carries now. The
 Credits row's Take all writes `TakeAllCommand`: `plan_loot_take` plans
-what fits of every stack in id order, then the credits, and each moves
-through the Take rule. A strip runs the same take first and again before
-the berth, so it never demolishes a hull with loot in it. `plan_hull_strip`
+what fits of every hold stack in id order, then of every stack in a dead
+station's `StationStorage` (`LootTake::taken_stored`, the player's own
+stored items; `None` for a ship or a living station), then the credits. A
+hold part moves through the Take rule; a stored part leaves the storage
+with one `ShipInventoryReport::Withdrawn` (`OnWithdrawn`) per stack. A
+strip runs the same take first and again before the berth, so it never
+demolishes a hull with loot or storage in it. `plan_hull_strip`
 (`nova_gameplay/src/inventory.rs`) refuses, in order: not docked, a strip
 already running, a living station, a partner the player may not loot, and a
 take that would leave a stack or the credits behind (`NoRoom`, read from
@@ -271,7 +275,7 @@ into the wreck during the strip, moves what fits through `take_loot`, folds
 it into `HullStripJob::looted` for the end note, and holds under `HoldFull`
 (`need_g` the mass that stayed) until the rest fits. The berth's parts end
 the strip: the job triggers `DockingReleaseRequest` for the player and
-despawns the wreck, its hold and balance empty; a retiring cell freezes
+despawns the wreck, its hold, storage and balance empty; a retiring cell freezes
 only the bodies still live in it, so the wreck stays gone. An undock, or a
 dock with another hull, stops the job and keeps what it took; the job is not
 saved.

@@ -1455,10 +1455,11 @@ pub struct StrippedEventInfo {
 pub struct OnStoredEvent;
 
 /// A Withdraw at a docked station moved items from the station's storage
-/// into the ship's hold (`onwithdrawn`).
+/// into the ship's hold (`onwithdrawn`); a Take all or a Strip at a dead
+/// station fires it once per stored stack it takes.
 ///
-/// One event per confirmed Withdraw; a refused one fires nothing. No credits
-/// move.
+/// One event per confirmed Withdraw or taken stack; a refused one fires
+/// nothing. No credits move.
 #[derive(Debug, Clone, EventKind, Reflect)]
 #[event_name("onwithdrawn")]
 #[event_info(StorageEventInfo)]

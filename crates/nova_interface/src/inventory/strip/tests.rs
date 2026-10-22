@@ -392,6 +392,86 @@ fn a_strip_takes_the_whole_hold_first_or_does_nothing() {
     );
 }
 
+/// A dead station's storage, the player's own stored items, is loot a strip
+/// takes whole first, after the hold, or refuses as it does the hold. The
+/// stored part leaves one `Withdrawn` report per stack, and the station never
+/// leaves the world with the storage in it.
+#[test]
+fn a_strip_takes_a_dead_stations_storage_first_or_does_nothing() {
+    let items = test_items();
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate.id());
+    // Six 10 kg plates stored: 60 kg, and the strip's 80 kg of parts after.
+    let dead_station = |world: &mut World, capacity_g: u32| {
+        let (player, wreck) = dock_with_a_wreck(world, capacity_g);
+        let mut storage = StationStorage::new(100_000);
+        storage.add(&items, &plate, 6);
+        world.entity_mut(wreck.root).insert((
+            StationMarker,
+            DerelictShipMarker,
+            StationServices(vec![StationServiceType::Storage]),
+            StationBuilds(vec![]),
+            storage,
+        ));
+        (player, wreck)
+    };
+    let stored = |app: &App, root: Entity| {
+        app.world()
+            .get::<StationStorage>(root)
+            .expect("the station root keeps its storage")
+            .count(&plate)
+    };
+
+    let mut app = strip_app();
+    let (player, wreck) = dead_station(app.world_mut(), 59_999);
+    app.world_mut().write_message(HullStripCommand);
+    app.update();
+    assert!(job(&app, player).is_none(), "no room: no strip");
+    assert!(hold(&app, player).is_empty(), "no room: no partial take");
+    assert_eq!(stored(&app, wreck.root), 6);
+    assert_eq!(
+        app.world().resource::<InventoryRuntime>().note(),
+        Some("strip: no room for 1 Hull plate")
+    );
+
+    let mut app = strip_app();
+    let (player, wreck) = dead_station(app.world_mut(), 1_000_000);
+    app.world_mut().write_message(HullStripCommand);
+    app.update();
+    assert!(job(&app, player).is_some(), "the strip starts");
+    assert_eq!(stored(&app, wreck.root), 0);
+    assert_eq!(hold(&app, player).count(&plate), 6);
+    let withdrawn: Vec<&ShipInventoryReport> = app
+        .world()
+        .get::<ShipInventoryReports>(player)
+        .expect("the player ship queues reports")
+        .0
+        .iter()
+        .filter(|report| matches!(report, ShipInventoryReport::Withdrawn { .. }))
+        .collect();
+    assert_eq!(
+        withdrawn,
+        [&ShipInventoryReport::Withdrawn {
+            station: wreck.root,
+            item: plate.clone(),
+            count: 6,
+        }]
+    );
+    assert_eq!(
+        app.world().resource::<InventoryRuntime>().note(),
+        Some("took 6 Hull plate; stripping the wreck: 17 s")
+    );
+    run_until(&mut app, 200, |app| {
+        app.world().get_entity(wreck.root).is_err()
+    });
+    assert_eq!(
+        app.world().resource::<InventoryRuntime>().note(),
+        Some(
+            "the wreck is stripped and gone: took 6 Hull plate, \
+             stripped 1 Frame spar, 6 Section panel"
+        )
+    );
+}
+
 /// Cargo and credits that reach the wreck during a strip, as a Give leaves
 /// them, come off at the port: what fits at once, and the strip holds there
 /// until the rest fits. The wreck never leaves the world with loot in it.

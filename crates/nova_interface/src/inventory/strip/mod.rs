@@ -310,11 +310,11 @@ impl StripSite<'_, '_> {
 }
 
 /// The Strip rule the strip block's button and the press share:
-/// [`plan_hull_strip`] of the docked `partner`, with the Take all of its hold
-/// and balance into the player's ([`InventoryShips::loot`]) that a strip runs
-/// first. Returns the partner as the rule read it beside the verdict: its
-/// loot is what a start takes, or what a [`HullStripRefusalType::NoRoom`]
-/// leaves behind.
+/// [`plan_hull_strip`] of the docked `partner`, with the Take all of its hold,
+/// a dead station's storage and its balance into the player's
+/// ([`InventoryShips::loot`]) that a strip runs first. Returns the partner
+/// as the rule read it beside the verdict: its loot is what a start takes,
+/// or what a [`HullStripRefusalType::NoRoom`] leaves behind.
 ///
 /// # Panics
 ///
@@ -778,8 +778,9 @@ fn on_strip_button(
 }
 
 /// Apply [`HullStripCommand`]s by the [`plan_strip_press`] rule: take the
-/// partner's whole hold and balance into the player's, as Take all does,
-/// then start a [`HullStripJob`] on the player ship. No section moves until
+/// partner's whole hold, a dead station's whole storage and its balance into
+/// the player's, as Take all does, then start a [`HullStripJob`] on the
+/// player ship. No section moves until
 /// its timer ends. A refusal moves nothing, the loot included, and shows its
 /// reason on the note line.
 pub(crate) fn apply_hull_strip_commands(
@@ -936,6 +937,9 @@ pub(crate) fn advance_hull_strip(
             );
             for (item, &count) in &sweep.taken {
                 *job.looted.taken.entry(item.clone()).or_insert(0) += count;
+            }
+            for (item, &count) in &sweep.taken_stored {
+                *job.looted.taken_stored.entry(item.clone()).or_insert(0) += count;
             }
             job.looted.taken_cr += sweep.taken_cr;
         }

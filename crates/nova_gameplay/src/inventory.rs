@@ -1029,11 +1029,15 @@ pub fn plan_credit_take(
 /// hold and balance, and what stays behind for want of room.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Reflect)]
 pub struct LootTake {
-    /// The count to move of each partner stack, in id order; each above
-    /// zero.
+    /// The count to move of each stack, the partner's hold and a dead
+    /// station's storage summed, in id order; each above zero.
     pub taken: BTreeMap<ItemDesignId, u32>,
-    /// The count left in the partner of each stack the hold has no room for,
-    /// in id order; each above zero.
+    /// The part of each `taken` count that comes out of a dead station's
+    /// storage; each above zero and at most its `taken` count.
+    pub taken_stored: BTreeMap<ItemDesignId, u32>,
+    /// The count left behind of each stack the hold has no room for, the
+    /// partner's hold and a dead station's storage summed, in id order; each
+    /// above zero.
     pub stayed: BTreeMap<ItemDesignId, u32>,
     /// Credits to move: the partner's whole balance, or zero when it holds
     /// none or the ship's balance would overflow.
@@ -1055,13 +1059,15 @@ impl LootTake {
     }
 }
 
-/// Plan a Take all of `partner`'s hold and `partner_cr` into the ship's
-/// `own` hold and `own_cr` balance.
+/// Plan a Take all of `partner`'s hold, a dead station's `storage`, and
+/// `partner_cr` into the ship's `own` hold and `own_cr` balance.
 ///
-/// Each stack, in id order, moves as many units as the hold still has room
-/// for after the stacks before it; the rest stays. The balance moves whole
-/// unless the ship's balance would overflow, by [`plan_credit_take`]. Whether
-/// the partner may be looted is not read here: [`plan_item_transfer`] and
+/// Each hold stack, in id order, moves as many units as the hold still has
+/// room for; then each storage stack the same way against the room left;
+/// the rest stays. The credits move whole or stay whole: a balance that
+/// would overflow the ship's stays. `storage` is `None` for a ship partner
+/// and for a living station, whose storage is not loot. Whether the partner
+/// may be looted is not read here: [`plan_item_transfer`] and
 /// [`plan_credit_take`] check it for each move.
 pub fn plan_loot_take(
     items: &GameItems,
@@ -1069,10 +1075,11 @@ pub fn plan_loot_take(
     own_cr: u32,
     partner: &ShipInventory,
     partner_cr: u32,
+    storage: Option<&StationStorage>,
 ) -> LootTake {
     let mut take = LootTake::default();
     let mut free_g = u64::from(own.free_g(items));
-    for (item, held) in partner.stacks() {
+    let mut fit = |item: &ItemDesignId, held: u32, stored: bool| {
         let mass_g = u64::from(items.design(item).mass_g);
         let fits = if mass_g == 0 {
             held
@@ -1082,11 +1089,20 @@ pub fn plan_loot_take(
         };
         if fits > 0 {
             free_g -= u64::from(fits) * mass_g;
-            take.taken.insert(item.clone(), fits);
+            *take.taken.entry(item.clone()).or_insert(0) += fits;
+            if stored {
+                take.taken_stored.insert(item.clone(), fits);
+            }
         }
         if fits < held {
-            take.stayed.insert(item.clone(), held - fits);
+            *take.stayed.entry(item.clone()).or_insert(0) += held - fits;
         }
+    };
+    for (item, held) in partner.stacks() {
+        fit(item, held, false);
+    }
+    for (item, held) in storage.into_iter().flat_map(StationStorage::stacks) {
+        fit(item, held, true);
     }
     match plan_credit_take(true, own_cr, partner_cr) {
         Ok(amount) => take.taken_cr = amount,
@@ -2815,16 +2831,17 @@ mod strip_tests {
             living_station: false,
             lootable: true,
             sections: vec![target(&recipe, 1.0)],
-            loot: plan_loot_take(&items, own, own_cr, &wreck, 50),
+            loot: plan_loot_take(&items, own, own_cr, &wreck, 50, None),
         };
 
         // Room for everything: it all moves and the strip starts.
         let roomy = hold(&items, 130_000);
-        let whole = plan_loot_take(&items, &roomy, 0, &wreck, 50);
+        let whole = plan_loot_take(&items, &roomy, 0, &wreck, 50, None);
         assert_eq!(
             whole,
             LootTake {
                 taken: [(spar.clone(), 1), (panel.clone(), 3), (plate.clone(), 6)].into(),
+                taken_stored: BTreeMap::new(),
                 stayed: BTreeMap::new(),
                 taken_cr: 50,
                 stayed_cr: 0,
@@ -2835,7 +2852,7 @@ mod strip_tests {
         // Ten kilograms short: the panels are last in id order, so two of
         // the three fit and one stays. The strip refuses.
         let short = hold(&items, 120_000);
-        let take = plan_loot_take(&items, &short, 0, &wreck, 50);
+        let take = plan_loot_take(&items, &short, 0, &wreck, 50, None);
         assert_eq!(take.taken.get(&panel), Some(&2));
         assert_eq!(take.stayed, [(panel.clone(), 1)].into());
         assert_eq!(take.taken_cr, 50);
@@ -2845,7 +2862,7 @@ mod strip_tests {
         );
 
         // A balance that would overflow stays whole and refuses the strip.
-        let overflow = plan_loot_take(&items, &roomy, u32::MAX, &wreck, 50);
+        let overflow = plan_loot_take(&items, &roomy, u32::MAX, &wreck, 50, None);
         assert_eq!((overflow.taken_cr, overflow.stayed_cr), (0, 50));
         assert_eq!(
             plan_hull_strip(Some(&partner(&roomy, u32::MAX)), false),
@@ -2853,8 +2870,32 @@ mod strip_tests {
         );
 
         // An empty wreck takes nothing and leaves nothing.
-        let empty = plan_loot_take(&items, &short, 0, &hold(&items, 0), 0);
+        let empty = plan_loot_take(&items, &short, 0, &hold(&items, 0), 0, None);
         assert!(empty.is_empty() && empty.is_whole());
+
+        // A dead station's storage is loot after the hold: with 140 kg of
+        // room the hold's 130 kg fits whole, one of two stored plates fills
+        // the rest, and the other stays. The stored part is counted apart.
+        let mut storage = StationStorage::new(100_000);
+        storage.add(&items, &plate, 2);
+        let stored = plan_loot_take(
+            &items,
+            &hold(&items, 140_000),
+            0,
+            &wreck,
+            50,
+            Some(&storage),
+        );
+        assert_eq!(
+            stored,
+            LootTake {
+                taken: [(spar.clone(), 1), (panel.clone(), 3), (plate.clone(), 7)].into(),
+                taken_stored: [(plate.clone(), 1)].into(),
+                stayed: [(plate.clone(), 1)].into(),
+                taken_cr: 50,
+                stayed_cr: 0,
+            }
+        );
     }
 
     /// A finished section's parts go in while they fit; a hold short by one

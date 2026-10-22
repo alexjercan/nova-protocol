@@ -1821,7 +1821,7 @@ fn the_strip_block_and_take_all_show_only_at_a_wreck() {
     rig.app
         .world_mut()
         .entity_mut(partner)
-        .insert(StationMarker);
+        .insert((StationMarker, StationStorage::new(0)));
     settle(&mut rig.app);
     assert!(!shown(&mut rig.app).0, "a living station");
 
@@ -1831,6 +1831,49 @@ fn the_strip_block_and_take_all_show_only_at_a_wreck() {
         .insert(DerelictShipMarker);
     settle(&mut rig.app);
     assert_eq!(shown(&mut rig.app), (true, true), "a dead station");
+
+    // A dead station with an empty hold and stored items still offers Take
+    // all, which takes the stored items; emptied, it offers only the strip.
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate);
+    {
+        let mut station = rig.app.world_mut().entity_mut(partner);
+        let held = station.get::<ShipInventory>().unwrap().count(&plate);
+        station
+            .get_mut::<ShipInventory>()
+            .unwrap()
+            .remove(&plate, held);
+        let mut storage = StationStorage::new(100_000);
+        storage.add(&test_items(), &plate, 2);
+        station.insert(storage);
+    }
+    settle(&mut rig.app);
+    assert_eq!(
+        shown(&mut rig.app),
+        (true, true),
+        "a dead station with only stored items"
+    );
+    let before = plates(rig.app.world(), player);
+    take_cues(&mut rig.app);
+    assert_eq!(
+        take_all(&mut rig.app),
+        (
+            Some("Took 2 Hull plate from Derelict".to_string()),
+            vec![UiSfx::MenuSelect]
+        )
+    );
+    assert_eq!(plates(rig.app.world(), player), before + 2);
+    assert!(rig
+        .app
+        .world()
+        .get::<StationStorage>(partner)
+        .expect("the station keeps its storage")
+        .is_empty());
+    settle(&mut rig.app);
+    assert_eq!(
+        shown(&mut rig.app),
+        (true, false),
+        "an emptied dead station"
+    );
 }
 
 /// Confirm follows the live plan: disabled on each refusal the summary shows,

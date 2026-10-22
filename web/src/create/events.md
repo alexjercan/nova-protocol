@@ -61,7 +61,7 @@ The whole vocabulary at a glance:
 | [`OnStationBought`](#hold-events) | `id`, `type_name`, `station`, `price_cr` | the Ship pane buys the docked station from its civilization |
 | [`OnStripped`](#hold-events) | `id`, `type_name`, `hull`, `section`, `parts` | an Inventory pane strip takes a section off a docked wreck, once per section, the berth port last; or a Ship pane delete takes a section off the ship itself |
 | [`OnStored`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player stores a stack in a docked station's storage |
-| [`OnWithdrawn`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player withdraws a stack from a docked station's storage |
+| [`OnWithdrawn`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player withdraws a stack from a docked station's storage, or Take all or Strip takes one from a dead station's |
 
 Entity payload fields are what an `Entity` filter can match: `id` /
 `type_name` name the event's SUBJECT, `other_id` / `other_type_name` its other
@@ -840,7 +840,7 @@ inventory, so a handler counts occurrences, not frames.
 | `OnStationBought` | the ship that bought | none | `station` (the station's id, `sector_0_n1_0_cluster_0_n1_0_station_0`), `price_cr` (its sections, hold and credits at ask, times 2) |
 | `OnStripped` | the ship that stripped | none | `hull` (the wreck's id, or the ship's own id for a delete), `section` (the stripped section's code on that hull, `PDC-1`; a strip's last is the port the player docked through), `parts` (every part the strip put in the hold, item id to count) |
 | `OnStored` | the station whose storage took the stack | the player's ship | `item`, `count` |
-| `OnWithdrawn` | the station whose storage gave the stack | the player's ship | `item`, `count` |
+| `OnWithdrawn` | the station whose storage gave the stack, a dead one looted by Take all or Strip included | the player's ship | `item`, `count` |
 
 <details class="explain">
 <summary>Show explanation</summary>
