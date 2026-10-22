@@ -10,7 +10,13 @@
 //! must pass the post-build checks. The start docks the player at the
 //! session's starting station, the living Ally station nearest the origin;
 //! the walk waits for that dock, checks the docked station is the one the
-//! session names, undocks and waits for the crossing save. It then jettisons one unit of
+//! session names, accepts every job but an escort off the station's board
+//! as the Jobs pane's Accept does, stamps the first one done and completed
+//! IN PLACE (disclosed fixture state: the save must carry a completed job
+//! beside the held ones), undocks and waits for the save. THE SHIP IS THEN
+//! MOVED ONE CELL ALONG +X (a disclosed fixture move in place of the flight):
+//! the crossing retires the cells it leaves and writes the crossing save, and
+//! the walk reads the records that save holds. It then jettisons one unit of
 //! the kit's first item through its cargo intake, as the Inventory pane's
 //! Jettison does, and waits for the canister to leave the door. THE CANISTER
 //! IS THEN PUT IN THE INTAKE'S TRIGGER each frame, moving with the ship: a
@@ -20,8 +26,10 @@
 //! credit. THAT CREDIT IS DISCLOSED FIXTURE STATE: a change the save never
 //! saw, so the reload can show it came from disk. Load last save reopens the
 //! world from disk: the session's role, the hull, the kit and the bindings
-//! must be back, and the extra credit gone. Back to Main Menu leaves through
-//! the leave save, and the next role starts.
+//! must be back, and the extra credit gone; once the window streams in, the
+//! chart's stations, the jobs, the boards, the play clock and the retired
+//! cells must be the crossing save's. Back to Main Menu leaves through the
+//! leave save, and the next role starts.
 //!
 //! Seed 10's start is the same allied station for every role, so every role
 //! docks at a generated station of the same world.
@@ -34,8 +42,9 @@
 //! | 4 | `outcome: the start hull docks at a generated station` | the start docks the player at the session's starting station, a living Ally one, and the walk undocks |
 //! | 5 | `outcome: the start hull jettisons and takes an item back in` | one kit unit planned by `plan_item_jettison` leaves the intake as a canister, the intake takes it back, and the hold is the kit again |
 //! | 6 | `outcome: the start role survives a save and a load` | after Load last save the session's role, hull, kit and bindings are the role's, and the unsaved credit is gone |
-//! | 7 | `outcome: every start role started` | the walk started every role in the catalogue |
-//! | 8 | `outcome: every start role streams the same stations from one seed` | every role's sorted live station ids on seed 10 are non-empty and equal |
+//! | 7 | `outcome: load last save keeps the saved records` | after Load last save the chart's stations, the held and completed jobs, the posted boards and the cells the crossing retired are the crossing save's, and the play clock is past the crossing's |
+//! | 8 | `outcome: every start role started` | the walk started every role in the catalogue |
+//! | 9 | `outcome: every start role streams the same stations from one seed` | every role's sorted live station ids on seed 10 are non-empty and equal |
 //!
 //! Each role's hull price and kit value at ask are logged for review, not
 //! asserted.
@@ -47,6 +56,7 @@
 //! #           `start roles: <role> docked at <station>`,
 //! #           `start roles: <role> jettisoned and took back one <item>`,
 //! #           `start roles: <role> came back from its save`,
+//! #           `start roles: <role> kept its records through the load`,
 //! #           `start roles: PASS every start role started`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
@@ -113,9 +123,14 @@ mod walk {
 
     use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
     use nova_input::prelude::InputSource;
-    use nova_protocol::nova_debug::harness::{AutopilotPlugin, Predicate};
+    use nova_protocol::{
+        nova_debug::harness::{AutopilotPlugin, Predicate},
+        nova_interface::prelude::JobAcceptCommand,
+    };
     use nova_ui::widget::TextFieldValue;
-    use nova_world::prelude::{desired_sectors, SectorRoot, WorldConfig};
+    use nova_world::prelude::{
+        desired_sectors, CurrentSector, FrozenSectors, SectorRoot, WorldConfig,
+    };
 
     use super::*;
 
@@ -173,6 +188,39 @@ mod walk {
         /// Sorted generated station ids streamed for each role on the pinned
         /// seed.
         stations_by_role: BTreeMap<String, Vec<GeneratedBodyId>>,
+        /// How many board offers the walk asked to accept.
+        accepting: usize,
+        /// The save generation before the crossing, so the crossing save
+        /// can be told from the earlier ones.
+        generation_before: u64,
+        /// The cell the crossing moves the player into.
+        next: Option<SectorCoord>,
+        /// The play clock when the crossing was made: the crossing save's
+        /// clock is at or past it.
+        clock_at_crossing: f64,
+        /// What the crossing save holds, read off the live records once it
+        /// is on disk.
+        saved: Option<SavedRecords>,
+    }
+
+    /// The records a Load must bring back, as they stood when the crossing
+    /// save was on disk. The jobs and the start station's board stand still
+    /// from the save to the Load; the chart and the other boards may grow as
+    /// the new window's stations come into sensor range, so those are
+    /// checked for what the save held, not for equality.
+    #[derive(Debug)]
+    struct SavedRecords {
+        /// The start station, found while docked.
+        start: GeneratedBodyId,
+        /// The stations the chart knew, the start station among them.
+        stations: Vec<GeneratedBodyId>,
+        jobs: Jobs,
+        /// Every board; the start station's is the one compared whole.
+        postings: JobPostings,
+        /// The cells the crossing retired. Off the new window, their records
+        /// stay in the ledger through the reload; the window's own are
+        /// consumed as its cells materialize.
+        retired: BTreeSet<SectorCoord>,
     }
 
     /// Count a canister the watched intake dropped.
@@ -255,10 +303,10 @@ mod walk {
         })
     }
 
-    /// The full desired window around the player's cell is live and the
-    /// start has docked the player before station ids are compared, so query
-    /// timing cannot change a role's recorded set.
-    fn station_window_streamed() -> Arc<Predicate> {
+    /// The full desired window around the player's cell is live, so query
+    /// timing cannot change a role's recorded station set and every saved
+    /// window cell has been thawed before the records are compared.
+    fn window_streamed() -> Arc<Predicate> {
         when(|world| {
             let Some(config) = world.get_resource::<WorldConfig<NovaLayeredWorld>>() else {
                 return false;
@@ -273,8 +321,238 @@ mod walk {
                 .map(|mut roots| roots.iter(world).map(|root| root.0).collect())
                 .unwrap_or_default();
             live == desired_sectors(home, config.active_radius)
-                && the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_some())
         })
+    }
+
+    /// The generation of the session's last save, once it is on disk and
+    /// nothing is wanted or writing.
+    fn saved_generation(world: &World) -> Option<u64> {
+        world
+            .get_resource::<WorldSaveSession>()
+            .and_then(|session| match session.status() {
+                WorldSaveStatus::Saved { generation } if session.is_idle() => Some(*generation),
+                _ => None,
+            })
+    }
+
+    /// Accept every job the start station's board posts but an escort, as
+    /// the Jobs pane's Accept does. An escort's hauler flies its leg on its
+    /// own and a hauler lost on the way drops the job, which would change
+    /// the records between the save and the reload.
+    fn accept_the_board(world: &mut World, id: &str) {
+        let start = world.resource::<OpenWorldSession>().start.id.clone();
+        let offers: Vec<JobId> = world
+            .resource::<JobPostings>()
+            .board(&start)
+            .map(|slots| {
+                slots
+                    .iter()
+                    .filter(|slot| !matches!(slot.offer.kind, JobType::Escort { .. }))
+                    .map(|slot| slot.offer.id.clone())
+                    .collect()
+            })
+            .unwrap_or_default();
+        assert!(
+            !offers.is_empty(),
+            "start roles: '{id}' start station '{start}' posts no job but escorts"
+        );
+        info!(
+            "start roles: {id} accepts {} job(s) off '{start}'",
+            offers.len()
+        );
+        world.resource_mut::<RolesWatch>().accepting = offers.len();
+        for offer in offers {
+            world.write_message(JobAcceptCommand { id: offer });
+        }
+    }
+
+    /// Every accept the walk asked for landed.
+    fn board_accepted() -> Arc<Predicate> {
+        when(|world| {
+            let accepting = world.resource::<RolesWatch>().accepting;
+            accepting > 0 && world.resource::<Jobs>().held().len() == accepting
+        })
+    }
+
+    /// Disclosed fixture state: the first held job is stamped done and
+    /// completed in place, as a hand-in leaves it, so the save carries a
+    /// completed job beside the held ones.
+    fn complete_one_job(world: &mut World, id: &str) {
+        let mut jobs = world.resource_mut::<Jobs>();
+        let first = jobs
+            .held()
+            .first()
+            .map(|job| job.id.clone())
+            .unwrap_or_else(|| panic!("start roles: '{id}' holds no job to complete"));
+        jobs.mark_done(&first);
+        jobs.complete(&first);
+    }
+
+    /// Disclosed fixture move: the undocked player one cell along +X, the
+    /// crossing a flight would make. The crossing retires the cells it
+    /// leaves behind and writes the crossing save.
+    fn cross_one_cell(world: &mut World, id: &str) {
+        let player = player(world);
+        let edge = world
+            .resource::<WorldConfig<NovaLayeredWorld>>()
+            .sector_edge;
+        let generation = saved_generation(world)
+            .unwrap_or_else(|| panic!("start roles: '{id}' crosses before its save is on disk"));
+        let at = world
+            .get::<Position>(player)
+            .expect("start roles: the player stands")
+            .0;
+        let home = SectorCoord::containing(Meters3::from_engine(at), edge);
+        let next = SectorCoord::new(home.x + 1, home.y, home.z);
+        let clock = world.resource::<WorldClock>().play_seconds;
+        assert!(clock > 0.0, "start roles: '{id}' crosses at play time zero");
+        world
+            .entity_mut(player)
+            .insert(Position(at + Vec3::X * edge.to_engine()));
+        let mut watch = world.resource_mut::<RolesWatch>();
+        watch.generation_before = generation;
+        watch.next = Some(next);
+        watch.clock_at_crossing = clock;
+        info!("start roles: {id} crosses from {home} into {next} at {clock:.1} s of play");
+    }
+
+    /// The player stands in the next cell and the crossing save is on disk.
+    fn crossing_saved() -> Arc<Predicate> {
+        when(|world| {
+            let watch = world.resource::<RolesWatch>();
+            let Some(next) = watch.next else {
+                return false;
+            };
+            world
+                .get_resource::<CurrentSector>()
+                .is_some_and(|current| current.0 == next)
+                && saved_generation(world)
+                    .is_some_and(|generation| generation > watch.generation_before)
+        })
+    }
+
+    /// Read the records the crossing save holds off the live resources: the
+    /// save took them this way, and nothing changes them before the Load.
+    fn record_the_save(world: &mut World, id: &str) {
+        let start = world.resource::<OpenWorldSession>().start.id.clone();
+        let radius = world
+            .resource::<WorldConfig<NovaLayeredWorld>>()
+            .active_radius;
+        let chart = world.resource::<Chart>();
+        assert!(
+            chart.station(&start).is_some(),
+            "start roles: '{id}' chart does not hold the start station it docked at"
+        );
+        let stations: Vec<GeneratedBodyId> = chart
+            .stations()
+            .iter()
+            .map(|station| station.id.clone())
+            .collect();
+        let jobs = world.resource::<Jobs>().clone();
+        assert!(
+            !jobs.held().is_empty() || !jobs.completed().is_empty(),
+            "start roles: '{id}' saves with no job held or completed"
+        );
+        let postings = world.resource::<JobPostings>().clone();
+        assert!(
+            !postings.is_empty(),
+            "start roles: '{id}' saves with no board posted"
+        );
+        let next = world
+            .resource::<RolesWatch>()
+            .next
+            .expect("start roles: the crossing recorded its cell");
+        let home = SectorCoord::new(next.x - 1, next.y, next.z);
+        let retired: BTreeSet<SectorCoord> = desired_sectors(home, radius)
+            .difference(&desired_sectors(next, radius))
+            .copied()
+            .collect();
+        assert!(
+            !retired.is_empty(),
+            "start roles: '{id}' crossing retired no cell"
+        );
+        info!(
+            "start roles: {id} saved {} station(s), {} held and {} completed job(s), {} retired \
+             cell(s)",
+            stations.len(),
+            jobs.held().len(),
+            jobs.completed().len(),
+            retired.len()
+        );
+        world.resource_mut::<RolesWatch>().saved = Some(SavedRecords {
+            start,
+            stations,
+            jobs,
+            postings,
+            retired,
+        });
+    }
+
+    /// Load last save brought the records back: the chart's stations, the
+    /// jobs, the boards and the retired cells are the crossing save's, and
+    /// the play clock is past the crossing's. A `Cleanup` run behind the
+    /// restore would have emptied every one of them and restarted the clock.
+    fn assert_the_records(world: &mut World, id: &str) {
+        let saved = world
+            .resource_mut::<RolesWatch>()
+            .saved
+            .take()
+            .expect("start roles: the crossing save was recorded");
+        let stations: Vec<GeneratedBodyId> = world
+            .resource::<Chart>()
+            .stations()
+            .iter()
+            .map(|station| station.id.clone())
+            .collect();
+        let lost: Vec<&GeneratedBodyId> = saved
+            .stations
+            .iter()
+            .filter(|station| !stations.contains(station))
+            .collect();
+        assert!(
+            lost.is_empty(),
+            "start roles: '{id}' chart after the load lost the stations {lost:?}"
+        );
+        assert_eq!(
+            *world.resource::<Jobs>(),
+            saved.jobs,
+            "start roles: '{id}' jobs after the load"
+        );
+        assert_eq!(
+            world.resource::<JobPostings>().board(&saved.start),
+            saved.postings.board(&saved.start),
+            "start roles: '{id}' start station board after the load"
+        );
+        let clock = world.resource::<WorldClock>().play_seconds;
+        let crossed_at = world.resource::<RolesWatch>().clock_at_crossing;
+        assert!(
+            clock >= crossed_at,
+            "start roles: '{id}' play clock {clock:.1} s after the load is behind the crossing's \
+             {crossed_at:.1} s"
+        );
+        let frozen: BTreeSet<SectorCoord> = world
+            .resource::<FrozenSectors>()
+            .iter()
+            .map(|(coord, _)| coord)
+            .collect();
+        let forgotten: Vec<&SectorCoord> = saved.retired.difference(&frozen).collect();
+        assert!(
+            forgotten.is_empty(),
+            "start roles: '{id}' ledger after the load lost the retired cells {forgotten:?}"
+        );
+        nova_probe::probe_marker(
+            world,
+            "outcome: load last save keeps the saved records",
+            serde_json::json!({
+                "role": id,
+                "stations": stations.len(),
+                "held": saved.jobs.held().len(),
+                "completed": saved.jobs.completed().len(),
+                "retired": saved.retired.len(),
+                "clock": clock,
+            }),
+        );
+        info!("start roles: {id} kept its records through the load");
     }
 
     /// The design section ids of `root`, in design order.
@@ -835,16 +1113,32 @@ mod walk {
             .step(label(
                 "the station window streams in and the start docks the player",
             ))
-            .until(and(station_window_streamed(), player_docked()))
+            .until(and(window_streamed(), player_docked()))
             .deadline(SESSION_SECS)
             .add()
             .step(label("assert the docked station is the start"))
             .on_enter(move |world: &mut World| choose_the_station(world, id))
             .add()
+            .step(label("accept the board's jobs"))
+            .on_enter(move |world: &mut World| accept_the_board(world, id))
+            .until(board_accepted())
+            .deadline(BEAT_SECS)
+            .add()
+            .step(label("complete one held job"))
+            .on_enter(move |world: &mut World| complete_one_job(world, id))
+            .add()
             .step(label("report the dock and undock"))
             .on_enter(move |world: &mut World| report_the_dock(world, id))
             .until(player_free_and_saved())
             .deadline(SESSION_SECS)
+            .add()
+            .step(label("cross into the next cell"))
+            .on_enter(move |world: &mut World| cross_one_cell(world, id))
+            .until(crossing_saved())
+            .deadline(SESSION_SECS)
+            .add()
+            .step(label("record the crossing save"))
+            .on_enter(move |world: &mut World| record_the_save(world, id))
             .add()
             .step(label("jettison one kit item"))
             .on_enter(move |world: &mut World| jettison_one_item(world, id))
@@ -884,6 +1178,13 @@ mod walk {
         .add()
         .step(label("assert the reload"))
         .on_enter(move |world: &mut World| assert_the_reload(world, id))
+        .add()
+        .step(label("the reloaded window streams in"))
+        .until(window_streamed())
+        .deadline(SESSION_SECS)
+        .add()
+        .step(label("assert the records survived the load"))
+        .on_enter(move |world: &mut World| assert_the_records(world, id))
         .add();
         tap_key(
             script,

@@ -208,7 +208,9 @@ pub(crate) fn sync_leave_overlay(
             |(pending, session)| match (pending.target, session.status()) {
                 (LeaveTarget::Retry, _) => (
                     "Loading last save...".to_string(),
-                    "Progress since the last save is discarded.".to_string(),
+                    "Progress since the last save is discarded. A ship saved docked resumes \
+                     undocked beside its partner."
+                        .to_string(),
                     false,
                 ),
                 // A spent session wants no leave save, so none can fail.

@@ -716,6 +716,29 @@ impl<G: SectorGenerator> Default for NovaWorldPlugin<G> {
     }
 }
 
+/// Whether [`NovaWorldSystems::Cleanup`] runs this frame: the config was
+/// removed since the last frame, no scenario is live, the scenario changed,
+/// or the config was inserted or replaced.
+///
+/// One system that reads every term every frame, not an `or_else` chain of
+/// bevy conditions. A chain stops at the first true term, and a skipped
+/// change-detection term keeps a stale baseline, so when the scenario changed
+/// and the config armed in ONE frame (the pause menu's Load last save) the
+/// config term fired a second `Cleanup` on the quiet frame behind the
+/// restore, and the restored ledger, chart, jobs and clock were discarded.
+fn world_cleanup_wanted<G: SectorGenerator>(
+    config: Option<Res<WorldConfig<G>>>,
+    current: Res<CurrentScenario>,
+    mut existed: Local<bool>,
+) -> bool {
+    let removed = *existed && config.is_none();
+    *existed = config.is_some();
+    let not_live = current.0.is_none();
+    let scenario_changed = current.is_changed();
+    let config_changed = config.as_ref().is_some_and(|config| config.is_changed());
+    removed || not_live || scenario_changed || config_changed
+}
+
 /// Which generator's [`NovaWorldPlugin`] this app installed.
 ///
 /// Not generic on purpose: a second plugin of ANOTHER generator has to find
@@ -758,18 +781,7 @@ impl<G: SectorGenerator> Plugin for NovaWorldPlugin<G> {
         app.configure_sets(
             Update,
             (
-                // `resource_removed` reads a `Local` that only advances on the
-                // frames the condition is EVALUATED, and `or_else` short-
-                // circuits, so it goes FIRST. Behind any other term it would
-                // miss a removal that lands on the frame after a scenario
-                // change, and the roots the old config built would stand in an
-                // unconfigured world until something else re-armed it.
-                NovaWorldSystems::Cleanup.run_if(
-                    resource_removed::<WorldConfig<G>>
-                        .or_else(not(scenario_is_live))
-                        .or_else(resource_changed::<CurrentScenario>)
-                        .or_else(resource_exists_and_changed::<WorldConfig<G>>),
-                ),
+                NovaWorldSystems::Cleanup.run_if(world_cleanup_wanted::<G>),
                 (
                     NovaWorldSystems::Observe.run_if(resource_exists::<WorldConfig<G>>),
                     (

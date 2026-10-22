@@ -29,8 +29,8 @@ use nova_gameplay::prelude::{
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
     resolve_ship_design, spaceship_scenario_object, station_scenario_object, AsteroidKindId,
-    BaseScenarioObjectConfig, GameShipDesigns, PendingParkedHull, PendingParkedHulls, PlanetMarker,
-    ShipDesignSource, StationMarker,
+    BaseScenarioObjectConfig, CurrentScenario, GameShipDesigns, PendingParkedHull,
+    PendingParkedHulls, PlanetMarker, ShipDesignSource, StationMarker,
 };
 use nova_ship::prelude::GameSections;
 
@@ -1165,6 +1165,7 @@ pub(crate) fn freeze_sector_bodies(
 pub fn clear_sector_work<G: SectorGenerator>(
     mut commands: Commands,
     config: Option<Res<WorldConfig<G>>>,
+    current: Res<CurrentScenario>,
     roots: Query<Entity, With<SectorRoot>>,
     loose: Query<
         Entity,
@@ -1201,7 +1202,17 @@ pub fn clear_sector_work<G: SectorGenerator>(
     };
     // Every frame this runs on, the session or the world that froze a record
     // is gone: an unload, a replaced scenario, a Retry, a swapped config. The
-    // clock goes with the records; a Load restores both after this.
+    // clock goes with the records; a Load restores both after this. A frame
+    // with the same config and the same live scenario is none of those: the
+    // run condition fired late, and clearing would discard a ledger a Load
+    // just restored, so it refuses before the records go.
+    let scenario_replaced = current.is_changed() || current.0.is_none();
+    assert!(
+        world_replaced || scenario_replaced || frozen.is_empty(),
+        "nova_world: Cleanup would forget {} frozen cell(s) with the armed config and the live \
+         scenario unchanged; a run condition fired without a world change",
+        frozen.len()
+    );
     let forgotten = frozen.clear();
     if *clock != WorldClock::default() {
         *clock = WorldClock::default();

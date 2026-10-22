@@ -24,8 +24,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   way: mined rocks, owed ore, damaged and looted ships, canisters and wrecks.
   A docked partner is no longer lost.
 - On desktop, New Game names its world and saves it on each sector crossing
-  and on leaving. Load resumes it with rounds, torpedoes and debris in flight.
-  Death keeps the last save.
+  and on leaving. Load resumes it with shots and debris in flight, undocked
+  beside its partner. Death keeps the last save.
 - Dying in New Game shows DEFEAT with Main Menu. On desktop it also offers
   Load last save, which reopens the world from its last save.
 - New Game asks for a name and seed, then a start role beside its hull card:

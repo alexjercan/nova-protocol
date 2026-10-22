@@ -1649,11 +1649,13 @@ mod arming {
     fn armed(config: WorldConfig<Rocks>) -> World {
         let mut world = World::new();
         world.insert_resource(config);
+        world.init_resource::<nova_scenario::prelude::CurrentScenario>();
         world.init_resource::<crate::streaming::ReadySectors>();
         world.init_resource::<crate::SectorJobStats>();
         world.init_resource::<crate::streaming::ClearedConfig>();
         world.init_resource::<crate::FrozenSectors>();
         world.init_resource::<crate::frozen::SettlingBodies>();
+        world.init_resource::<crate::WorldClock>();
         world.spawn((WorldObserver, GlobalTransform::default()));
         world
             .run_system_once(crate::streaming::clear_sector_work::<Rocks>)
@@ -1724,11 +1726,13 @@ mod observer {
     fn world() -> World {
         let mut world = World::new();
         world.insert_resource(rocks());
+        world.init_resource::<nova_scenario::prelude::CurrentScenario>();
         world.init_resource::<crate::streaming::ReadySectors>();
         world.init_resource::<crate::SectorJobStats>();
         world.init_resource::<crate::streaming::ClearedConfig>();
         world.init_resource::<crate::FrozenSectors>();
         world.init_resource::<crate::frozen::SettlingBodies>();
+        world.init_resource::<crate::WorldClock>();
         world
             .run_system_once(crate::streaming::clear_sector_work::<Rocks>)
             .expect("the arming frame must clear the world it replaces");
@@ -1767,5 +1771,156 @@ mod observer {
             SectorCoord::new(1, 0, 0),
             "the streamed centre must be the cell the observer stands in"
         );
+    }
+}
+
+/// [`NovaWorldSystems::Cleanup`] runs once per world change and never on
+/// the quiet frame behind it. A Load restores the ledger and the clock on
+/// the arming frame, after `Cleanup`; a second run would discard them, and
+/// the `or_else` chain this replaced did exactly that when the scenario
+/// changed and the config armed in one frame (the pause menu's Load last
+/// save).
+mod cleanup_idempotence {
+    use bevy::{ecs::system::SystemId, prelude::*};
+    use nova_gameplay::prelude::AssetRef;
+    use nova_scenario::prelude::{CurrentScenario, ScenarioConfig};
+    use nova_ship::prelude::GameSections;
+
+    use super::{rocks, Rocks};
+    use crate::{
+        prelude::WorldObserver, FrozenSectors, NovaWorldPlugin, NovaWorldSystems, SectorCoord,
+        WorldClock, WorldConfig,
+    };
+
+    /// A cell outside the fixture's window, so no stage consumes its record.
+    const SAVED_CELL: SectorCoord = SectorCoord::new(7, 0, 0);
+
+    #[derive(Resource, Default)]
+    struct CleanupRuns(u32);
+
+    fn count_cleanup_runs(mut runs: ResMut<CleanupRuns>) {
+        runs.0 += 1;
+    }
+
+    /// Stands in for `nova_world_base::save::restore_resumed_world`: the
+    /// saved clock and ledger, written on the arming frame behind `Cleanup`.
+    fn restore_when_config_arms(
+        config: Option<Res<WorldConfig<Rocks>>>,
+        mut clock: ResMut<WorldClock>,
+        mut frozen: ResMut<FrozenSectors>,
+    ) {
+        if config.is_some_and(|config| config.is_added()) {
+            clock.play_seconds = 123.0;
+            frozen.visit(SAVED_CELL, vec![]);
+        }
+    }
+
+    fn live() -> ScenarioConfig {
+        ScenarioConfig::new("probe", "Probe", AssetRef::Path(String::new()))
+    }
+
+    fn app() -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.init_resource::<CurrentScenario>();
+        app.init_resource::<CleanupRuns>();
+        app.insert_resource(GameSections::default());
+        app.add_plugins(NovaWorldPlugin::<Rocks>::default());
+        app.add_systems(Update, count_cleanup_runs.in_set(NovaWorldSystems::Cleanup));
+        app.add_systems(
+            Update,
+            restore_when_config_arms
+                .after(NovaWorldSystems::Cleanup)
+                .before(NovaWorldSystems::Observe),
+        );
+        app.world_mut()
+            .spawn((WorldObserver, GlobalTransform::default()));
+        app
+    }
+
+    /// A world armed through [`crate::streaming::clear_sector_work`] once,
+    /// with the system kept so its change baselines carry to the next run.
+    fn armed() -> (World, SystemId) {
+        let mut world = World::new();
+        world.insert_resource(CurrentScenario(Some(live())));
+        world.insert_resource(rocks());
+        world.init_resource::<crate::streaming::ReadySectors>();
+        world.init_resource::<crate::SectorJobStats>();
+        world.init_resource::<crate::streaming::ClearedConfig>();
+        world.init_resource::<FrozenSectors>();
+        world.init_resource::<crate::frozen::SettlingBodies>();
+        world.init_resource::<WorldClock>();
+        let cleanup = world.register_system(crate::streaming::clear_sector_work::<Rocks>);
+        world
+            .run_system(cleanup)
+            .expect("the arming frame clears the world it replaces");
+        world
+            .resource_mut::<FrozenSectors>()
+            .visit(SAVED_CELL, vec![]);
+        (world, cleanup)
+    }
+
+    #[test]
+    fn cleanup_runs_once_when_the_config_arms_on_the_scenario_change_frame() {
+        let mut app = app();
+        app.update(); // quiet: no scenario, no config
+
+        app.world_mut().resource_mut::<CurrentScenario>().0 = Some(live());
+        app.world_mut().insert_resource(rocks());
+        app.update(); // the scenario goes live and the config arms together
+
+        // At or past 123: `advance_world_clock` runs behind the restore.
+        let runs_after_arm = app.world().resource::<CleanupRuns>().0;
+        assert!(
+            app.world().resource::<WorldClock>().play_seconds >= 123.0,
+            "the stand-in restore lands behind Cleanup on the arming frame"
+        );
+        assert!(app
+            .world()
+            .resource::<FrozenSectors>()
+            .get(SAVED_CELL)
+            .is_some());
+
+        app.update(); // quiet: nothing changed since the arming frame
+
+        assert_eq!(
+            app.world().resource::<CleanupRuns>().0,
+            runs_after_arm,
+            "Cleanup ran again on a quiet frame behind the arming frame"
+        );
+        assert!(
+            app.world().resource::<WorldClock>().play_seconds >= 123.0,
+            "a second Cleanup reset the restored clock"
+        );
+        assert!(
+            app.world()
+                .resource::<FrozenSectors>()
+                .get(SAVED_CELL)
+                .is_some(),
+            "a second Cleanup forgot the restored ledger"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "a run condition fired without a world change")]
+    fn cleanup_refuses_to_forget_the_ledger_on_a_quiet_frame() {
+        let (mut world, cleanup) = armed();
+        world
+            .run_system(cleanup)
+            .expect("the quiet frame refuses before it clears");
+    }
+
+    #[test]
+    fn an_unloaded_scenario_forgets_the_ledger_under_an_armed_config() {
+        let (mut world, cleanup) = armed();
+        world.resource_mut::<CurrentScenario>().0 = None;
+        world
+            .run_system(cleanup)
+            .expect("the unload frame clears the ledger");
+        assert!(
+            world.resource::<FrozenSectors>().is_empty(),
+            "an unload under a config nobody disarmed keeps the ledger"
+        );
+        assert_eq!(*world.resource::<WorldClock>(), WorldClock::default());
     }
 }

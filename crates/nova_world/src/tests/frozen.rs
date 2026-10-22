@@ -21,9 +21,10 @@ use nova_gameplay::{
 };
 use nova_scenario::prelude::{
     freeze_ship, AsteroidCarvePlugin, AsteroidField, AsteroidMarker, AsteroidPlugin,
-    MinedCanisterQueue, MinedOreDrop, MiningPlugin, SectionSource, ShipDesign, ShipDesignSource,
-    SpaceshipController, SpaceshipDesign, SpaceshipPlugin, SpaceshipSectionConfig, StationBuilds,
-    StationMarker, StationServices, StationStorage, WreckCargoPlugin,
+    CurrentScenario, MinedCanisterQueue, MinedOreDrop, MiningPlugin, SectionSource, ShipDesign,
+    ShipDesignSource, SpaceshipController, SpaceshipDesign, SpaceshipPlugin,
+    SpaceshipSectionConfig, StationBuilds, StationMarker, StationServices, StationStorage,
+    WreckCargoPlugin,
 };
 use nova_ship::prelude::{
     cargo_canister, docking_section, thruster_section, AINonCombatant, BaseSectionConfig,
@@ -50,6 +51,7 @@ use crate::{
 /// cleanup has nothing to take and every stage after it accepts the config.
 fn arm<G: SectorGenerator>(world: &mut World, config: WorldConfig<G>, centre: SectorCoord) {
     world.insert_resource(config);
+    world.init_resource::<CurrentScenario>();
     world.init_resource::<ReadySectors>();
     world.init_resource::<SectorJobStats>();
     world.init_resource::<ClearedConfig>();
