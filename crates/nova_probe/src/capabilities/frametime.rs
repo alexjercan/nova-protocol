@@ -451,7 +451,7 @@ impl PerfConfig {
 impl RunMeta {
     /// Resolve the run metadata at emit time. The adapter comes from bevy's
     /// [`RenderAdapterInfo`], which `RenderPlugin` clones into the MAIN world
-    /// (bevy_render-0.19.0/src/settings.rs:197 `main_world.insert_resource`),
+    /// (bevy_render-0.19.1/src/settings.rs:197 `main_world.insert_resource`),
     /// so a plain main-world system can read it; `None` (e.g. a `--norender`
     /// build) degrades to `unknown`. The rest comes from [`probe_param`]
     /// overrides with platform fallbacks - see each helper.

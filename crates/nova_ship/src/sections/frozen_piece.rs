@@ -1484,7 +1484,7 @@ mod tests {
                         // `WorldAsset`'s mesh node never gains a real
                         // `MeshMaterial3d<StandardMaterial>` in this headless
                         // app. `bevy_gltf`'s own loader only inserts `Mesh3d`
-                        // (`bevy_gltf-0.19.0/src/loader/mod.rs:1670-1743`,
+                        // (`bevy_gltf-0.19.1/src/loader/mod.rs:1670-1743`,
                         // "TODO: could add the `GltfMaterial` here"); the
                         // material comes from a `GltfExtensionHandlerPbr`
                         // this crate cannot see or construct (private,
@@ -1847,7 +1847,7 @@ mod tests {
                 );
 
                 // Not `expect_cracked`: the same headless gap as the freeze-side
-                // check above (`bevy_gltf-0.19.0/src/loader/mod.rs:1670-1743`;
+                // check above (`bevy_gltf-0.19.1/src/loader/mod.rs:1670-1743`;
                 // `bevy_pbr-0.19.1/src/gltf.rs:13,102`;
                 // `bevy_pbr-0.19.1/src/lib.rs:255-258`) means a real glb-sourced
                 // scene mesh never carries `MeshMaterial3d<StandardMaterial>`,

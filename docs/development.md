@@ -222,7 +222,7 @@ COUNT - a summary line without a number is barely better than the noise it
 replaced.
 
 `RUST_LOG` directives are MERGED over this filter by bevy rather than replacing
-it (`bevy_log-0.19.0/src/lib.rs:406`), so `RUST_LOG=nova=trace` restores the
+it (`bevy_log-0.19.1/src/lib.rs:406`), so `RUST_LOG=nova=trace` restores the
 per-item detail without unmuting wgpu and naga.
 
 A headless run additionally clamps three bevy diagnostics it provokes by

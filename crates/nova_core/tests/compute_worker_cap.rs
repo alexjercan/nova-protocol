@@ -3,7 +3,7 @@
 //!
 //! The distinction is the whole point of the test. The three task pools are
 //! process-global statics built through `get_or_init`
-//! (`bevy_app-0.19.0/src/task_pool_plugin.rs:229-258`): the first initializer
+//! (`bevy_app-0.19.1/src/task_pool_plugin.rs:229-258`): the first initializer
 //! in the process wins, and a second `TaskPoolPlugin` - one added by a plugin
 //! group that lands before ours, or a test that built an `App` earlier in the
 //! same binary - has its pool built and dropped with no warning and no error.

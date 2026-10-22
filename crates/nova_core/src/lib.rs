@@ -298,7 +298,7 @@ impl AppBuilder {
             app.add_plugins(bevy::app::ScheduleRunnerPlugin::default());
             // Works around a bevy 0.19 hole, not a choice of ours.
             // `ExtractComponentPlugin::build` adds `SyncComponentPlugin`
-            // unconditionally (bevy_render-0.19.0/src/extract_component.rs:85),
+            // unconditionally (bevy_render-0.19.1/src/extract_component.rs:85),
             // and its `on_remove` hook does an unguarded
             // `world.resource_mut::<PendingSyncEntity>()` (sync_component.rs:55)
             // - but the resource ships with `ExtractPlugin`, which a backendless
@@ -777,7 +777,7 @@ fn window_plugin(assembly: Assembly) -> WindowPlugin {
 /// does not floor that at zero (taffy-0.10.1 `compute/flexbox.rs:1632`), so a
 /// root laid out against a 0 px viewport hands `BorderRadius::resolve` a
 /// negative node size and bevy's `radius.clamp(0., 0.5 * min_length)` panics
-/// (bevy_ui-0.19.0 `ui_node.rs:2749`). The Scenarios list reaches it on the
+/// (bevy_ui-0.19.1 `ui_node.rs:2749`). The Scenarios list reaches it on the
 /// first frame of every launch: a campaign row is indented by a 24 px left
 /// margin over `width: Auto` (`nova_menu`'s `CAMPAIGN_MEMBER_INDENT_PX`), which
 /// a zero-wide line sizes to `-24`.
@@ -836,7 +836,7 @@ fn render_plugin(assembly: Assembly) -> RenderPlugin {
     if assembly == Assembly::Headless {
         // No backend means `RenderPlugin` never asks wgpu for an adapter, so it
         // builds no device and no render sub-app at all - no extract, no
-        // prepare, no queue (bevy_render-0.19.0/src/lib.rs:357). Everything
+        // prepare, no queue (bevy_render-0.19.1/src/lib.rs:359). Everything
         // below it in `DefaultPlugins` still loads and guards on the sub-app
         // being absent, so the main schedule is untouched.
         wgpu.backends = None;
@@ -988,7 +988,7 @@ pub fn assets_plugin() -> AssetPlugin {
 /// That is more workers than this game's parallel passes have work for, and
 /// they spend the difference fighting each other: `bevy_transform`'s
 /// propagation workers share one queue behind a spin retry
-/// (`bevy_transform-0.19.0/src/systems.rs:574-610`), and in a measured 4v4
+/// (`bevy_transform-0.19.1/src/systems.rs:574-610`), and in a measured 4v4
 /// `wfc_arena` fight the sampled spin was 23-24% of all CPU at 16 workers
 /// against 8-9% at eight.
 ///
@@ -1015,7 +1015,7 @@ pub const MAX_COMPUTE_WORKERS: usize = 8;
 /// Reading this value proves nothing about a running app. The three pools are
 /// process-global statics built with `get_or_init`, so the FIRST initializer
 /// in the process wins and every later one is built and dropped without a word
-/// (`bevy_app-0.19.0/src/task_pool_plugin.rs:229-258`). Only
+/// (`bevy_app-0.19.1/src/task_pool_plugin.rs:229-258`). Only
 /// `ComputeTaskPool::get().thread_num()`, read after the app is assembled,
 /// says what the app got.
 pub fn task_pool_plugin() -> TaskPoolPlugin {

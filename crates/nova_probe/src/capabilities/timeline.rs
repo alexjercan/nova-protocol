@@ -19,7 +19,7 @@
 //!   capture metadata also records.
 //! - `state` - every [`GameStates`] / [`PauseStates`] transition, read from
 //!   bevy's [`StateTransitionEvent`] messages (a `Message` with
-//!   `exited`/`entered`; bevy_state-0.19.0/src/state/transitions.rs:67).
+//!   `exited`/`entered`; bevy_state-0.19.1/src/state/transitions.rs:67).
 //! - `scenario_event` - every fired scenario [`GameEvent`] (kill, area
 //!   enter/exit, orbit lifecycle, travel/combat lock, the per-frame update pulse),
 //!   name + payload, observed via `On<GameEvent>` WITHOUT touching the

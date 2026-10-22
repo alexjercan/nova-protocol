@@ -5,7 +5,7 @@
 //!
 //! Bevy has NO per-system timing diagnostic; per-system costs exist only as
 //! tracing SPANS compiled in under `bevy/trace`
-//! (bevy_ecs-0.19.0/src/system/function_system.rs:52 and :54,
+//! (bevy_ecs-0.19.1/src/system/function_system.rs:52 and :54,
 //! `info_span!(parent: None, "system", name = ...)` and the sibling
 //! `"system_commands"`), which bevy_log's chrome layer renders as
 //! `"system: name=<path>"` and `"system_commands: name=<path>"` entries. This

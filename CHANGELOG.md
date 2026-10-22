@@ -385,6 +385,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   used the wrong button marker, so a click did nothing.
 - The parts gallery fits a 640x600 window: its header wraps, so Close and
   paging stay on screen, and the focus card keeps Place and Back in view.
+- A click or hover under a scrolled list no longer reaches a row hidden past
+  the list's edge, so a hidden row cannot take the click or show its tooltip.
 
 ### Internals & Tooling
 

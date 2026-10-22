@@ -286,7 +286,7 @@ is ignored.
 
 The extra workers were not doing extra work. `bevy_transform`'s propagation
 workers share one queue behind a spin retry
-(`bevy_transform-0.19.0/src/systems.rs:574-610`), and in a measured 4v4
+(`bevy_transform-0.19.1/src/systems.rs:574-610`), and in a measured 4v4
 `wfc_arena` fight with infinite ammo the sampled spin was 23-24% of all CPU at
 16 workers against 8-9% at eight. Five release repeats per arm, same binary,
 same seed: the mean frame time went 18.69 ms -> 13.41 and p99 41.18 ms ->
