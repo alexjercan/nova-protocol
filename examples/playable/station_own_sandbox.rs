@@ -41,7 +41,7 @@
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the dock,
 //! buys the station from the Station tab, checks it is owned, on the Player
 //! side and named as the player's, and shoots the green `bought` notice over
-//! the scrolled panel as `station-own-sandbox-notice.png`. It then switches
+//! the panel as `station-own-sandbox-notice.png`. It then switches
 //! to the Hardware theme, asks to buy the station again and shoots the red
 //! `yours already` refusal as `station-own-sandbox-refusal-hardware.png`.
 //! Last it closes the interface and shoots `station-own-sandbox.png`, all
@@ -442,7 +442,7 @@ mod smoke {
     /// The frame the walk shoots.
     const SHOT: &str = "station-own-sandbox.png";
     /// The Station pane the frame after the buy: the green notice over the
-    /// scrolled panel, in the default Phosphor theme.
+    /// panel, in the default Phosphor theme.
     const NOTICE_SHOT: &str = "station-own-sandbox-notice.png";
     /// The Station pane after a second buy of the owned station: the red
     /// refusal notice, in the Hardware theme.
