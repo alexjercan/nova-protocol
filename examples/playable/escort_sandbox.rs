@@ -234,7 +234,7 @@ fn drive_the_sandbox(world: &mut World) {
                 info!("escort sandbox: {hired} escorts hired; undocking");
                 return;
             }
-            if let Some(note) = world.resource::<StationRuntime>().note() {
+            if let Some(note) = world.resource::<StationRuntime>().notice.text() {
                 if note.starts_with("hire:") {
                     panic!("escort sandbox: the station refused the hire: '{note}'");
                 }

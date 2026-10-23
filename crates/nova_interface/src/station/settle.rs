@@ -10,6 +10,8 @@
 //! balance to pay, so a fine is never paid undocked. A station the player
 //! owns keeps no civilization's book, and the docked station's own
 //! civilization cannot be Enemy, or it would not have admitted the ship.
+//! Every result, settled or refused, goes to the Map pane's notice line
+//! ([`MapRuntime::notice`]), where the button is, not the Station pane's.
 //!
 //! Touch this module when changing what Settle moves.
 
@@ -19,8 +21,7 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_world_base::prelude::{enemy_neighbours, settle};
 
-use super::StationRuntime;
-use crate::pane::ActionOutcomeType;
+use crate::{map::MapRuntime, pane::ActionOutcomeType};
 
 /// A request to settle with `civilization` at the docked station, raised by
 /// the Map chart's Pay fine button.
@@ -84,10 +85,11 @@ pub(crate) fn settle_refusal_text(name: &str, need: u32, have: u32) -> String {
 /// Apply [`StanceSettleCommand`]s: a civilization that is an Enemy
 /// neighbour of the docked station's and whose fine the ship holds is
 /// settled to Neutral, the fine moving with `Settle` credit changes on both
-/// sides. A refusal changes nothing and shows its reason on the notice line.
+/// sides. A refusal changes nothing and shows its reason on the Map's notice
+/// line.
 pub(crate) fn apply_station_settle_commands(
     mut messages: MessageReader<StanceSettleCommand>,
-    mut runtime: ResMut<StationRuntime>,
+    mut map: ResMut<MapRuntime>,
     dock: SettleDock,
     mut stances: ResMut<CivilizationStances>,
     clock: Res<WorldClock>,
@@ -95,7 +97,7 @@ pub(crate) fn apply_station_settle_commands(
 ) {
     for command in messages.read() {
         let Some((player, station, station_name, home)) = dock.docked() else {
-            runtime.say(
+            map.notice.say(
                 ActionOutcomeType::Refused,
                 "settle: dock at a station a civilization keeps".to_string(),
             );
@@ -106,7 +108,7 @@ pub(crate) fn apply_station_settle_commands(
             .into_iter()
             .find(|(civilization, _)| *civilization == command.civilization)
         else {
-            runtime.say(
+            map.notice.say(
                 ActionOutcomeType::Refused,
                 format!("settle: {station_name} keeps no book for {name}"),
             );
@@ -118,14 +120,14 @@ pub(crate) fn apply_station_settle_commands(
             panic!("settle: the player ship and station {station:?} each carry credits");
         };
         if own_cr.0 < fine {
-            runtime.say(
+            map.notice.say(
                 ActionOutcomeType::Refused,
                 settle_refusal_text(&name, fine, own_cr.0),
             );
             continue;
         }
         let Some(paid) = station_cr.0.checked_add(fine) else {
-            runtime.say(
+            map.notice.say(
                 ActionOutcomeType::Refused,
                 format!("settle: {station_name}'s balance after the fine does not fit"),
             );
@@ -139,7 +141,7 @@ pub(crate) fn apply_station_settle_commands(
             "stance: settled with {name} for {fine} cr at {:.1} s of play: {step:?}",
             clock.play_seconds
         );
-        runtime.say(
+        map.notice.say(
             ActionOutcomeType::Done,
             format!("settled with {name} for {}", cr_text(u64::from(fine))),
         );

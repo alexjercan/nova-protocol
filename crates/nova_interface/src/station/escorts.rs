@@ -422,7 +422,7 @@ pub(crate) fn apply_station_escort_hire_commands(
         return;
     };
     let Some((station, ..)) = resolved.partner else {
-        runtime.say(
+        runtime.notice.say(
             ActionOutcomeType::Refused,
             escort_refusal_text("", &EscortHireRefusalType::NotDocked),
         );
@@ -446,7 +446,7 @@ pub(crate) fn apply_station_escort_hire_commands(
     let plan = match plan_offer(&resolved, price, &held, &q_credits.p0(), &q_sides) {
         Ok(plan) => plan,
         Err(refusal) => {
-            runtime.say(
+            runtime.notice.say(
                 ActionOutcomeType::Refused,
                 escort_refusal_text(&name, &refusal),
             );
@@ -471,7 +471,7 @@ pub(crate) fn apply_station_escort_hire_commands(
         hull: name.clone(),
         price_cr: plan.price_cr,
     });
-    runtime.say(
+    runtime.notice.say(
         ActionOutcomeType::Done,
         format!("hired {name} for {}", cr_text(plan.price_cr)),
     );

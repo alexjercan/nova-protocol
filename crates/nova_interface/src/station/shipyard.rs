@@ -394,7 +394,7 @@ pub(crate) fn apply_station_hull_buy_commands(
         return;
     };
     let Some((station, ..)) = resolved.partner else {
-        runtime.say(
+        runtime.notice.say(
             ActionOutcomeType::Refused,
             hull_refusal_text("", &HullBuyRefusalType::NotDocked),
         );
@@ -415,7 +415,7 @@ pub(crate) fn apply_station_hull_buy_commands(
             let plan = match plan_offer(&resolved, price_cr, &q_credits.p0()) {
                 Ok(plan) => plan,
                 Err(refusal) => {
-                    runtime.say(
+                    runtime.notice.say(
                         ActionOutcomeType::Refused,
                         hull_refusal_text(&name, &refusal),
                     );
@@ -458,5 +458,5 @@ pub(crate) fn apply_station_hull_buy_commands(
     ship.repair_target = None;
     held.0 = None;
     ship.reselect = None;
-    runtime.say(ActionOutcomeType::Done, note);
+    runtime.notice.say(ActionOutcomeType::Done, note);
 }

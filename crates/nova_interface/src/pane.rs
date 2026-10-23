@@ -40,7 +40,7 @@ use crate::{
     jobs::jobs_body,
     map::{
         map_chart_button, on_map_chart_button, on_map_reframe_button, spawn_map_panel,
-        MapLegendMarker, MapRuntime, MapViewportMarker,
+        MapLegendMarker, MapNoticeMarker, MapRuntime, MapViewportMarker, MAP_NOTICE,
     },
     ship::{
         on_ship_fit_button, on_ship_reset_button, on_ship_viewport_click, on_ship_viewport_enter,
@@ -624,6 +624,101 @@ pub(crate) fn play_outcome_cue(
         ActionOutcomeType::Refused => (UiSfx::EditorDeny, EDITOR_DENY_VOLUME),
     };
     commands.play_sfx(bank.get(cue), AudioRoute::Interface, volume);
+}
+
+/// Seconds an action result stays on a pane's notice line, on the real
+/// clock: the interface holds the virtual one. Matches the HUD notice's
+/// dwell.
+pub(crate) const NOTICE_SECS: f32 = 4.0;
+
+/// Height of a pane's notice line, in logical px: a 13 px line's box, so
+/// what stands under it does not move when a notice comes and goes.
+pub(crate) const NOTICE_LINE_PX: f32 = 18.0;
+
+/// A pane's last action result: what its notice line shows, how long it has
+/// left, and the cue it owes. Each pane that reports an action holds one in
+/// its runtime resource, so the result shows on the pane the action was
+/// taken on.
+#[derive(Default, Debug)]
+pub struct ActionNotice {
+    /// The last action result, its outcome and the seconds it has left.
+    note: Option<(ActionOutcomeType, String, f32)>,
+    /// Set by [`say`](Self::say), taken by [`tick`](Self::tick) once it
+    /// plays the cue. It waits for the sound bank, so a result raised before
+    /// the bank lands is heard, not lost; it plays once whether or not the
+    /// pane body stands.
+    pending_cue: Option<ActionOutcomeType>,
+}
+
+impl ActionNotice {
+    /// The transient notice the pane shows, with its outcome, while it lasts.
+    pub fn shown(&self) -> Option<(ActionOutcomeType, &str)> {
+        self.note
+            .as_ref()
+            .map(|(outcome, note, _)| (*outcome, note.as_str()))
+    }
+
+    /// The transient notice's text, while it lasts.
+    pub fn text(&self) -> Option<&str> {
+        self.note.as_ref().map(|(_, note, _)| note.as_str())
+    }
+
+    /// Show `note` on the notice line for [`NOTICE_SECS`] in `outcome`'s
+    /// tone, and queue its cue. A second result the same frame replaces the
+    /// first and its cue, so one frame plays at most one cue.
+    pub(crate) fn say(&mut self, outcome: ActionOutcomeType, note: String) {
+        self.note = Some((outcome, note, NOTICE_SECS));
+        self.pending_cue = Some(outcome);
+    }
+
+    /// Count the dwell down by `dt`, clamped to a quarter second so one long
+    /// frame does not swallow the notice, and play the owed cue once `bank`
+    /// is present.
+    pub(crate) fn tick(
+        &mut self,
+        dt: f32,
+        bank: Option<&SoundBank<UiSfx>>,
+        commands: &mut Commands,
+    ) {
+        if let Some((.., remaining)) = self.note.as_mut() {
+            *remaining -= dt.min(0.25);
+            if *remaining <= 0.0 {
+                self.note = None;
+            }
+        }
+        if bank.is_some() {
+            if let Some(outcome) = self.pending_cue.take() {
+                play_outcome_cue(commands, bank, outcome);
+            }
+        }
+    }
+
+    /// The text and tone a notice line paints: Nominal for Done, Danger for
+    /// Refused, an empty Label line with nothing shown.
+    pub(crate) fn line(&self) -> (&str, UiColor) {
+        match self.shown() {
+            Some((ActionOutcomeType::Done, note)) => (note, UiColor::Nominal),
+            Some((ActionOutcomeType::Refused, note)) => (note, UiColor::Danger),
+            None => ("", UiColor::Label),
+        }
+    }
+}
+
+/// The fixed notice line a pane body spawns with its marker:
+/// [`NOTICE_LINE_PX`] tall, 13 px text on one line, empty until a result
+/// lands. It never wraps, so a long result widens the line instead of
+/// growing it and moving what stands under it. The pane's notice system
+/// paints it from [`ActionNotice::line`].
+pub(crate) fn notice_line() -> impl Bundle {
+    (
+        themed_label("", 13.0, UiColor::Label),
+        TextLayout::new(Justify::Left, LineBreak::NoWrap),
+        Node {
+            min_height: px(NOTICE_LINE_PX),
+            flex_shrink: 0.0,
+            ..default()
+        },
+    )
 }
 
 /// A pane's 3D view: the node its scene image fills and its blips ride on.
@@ -1240,9 +1335,29 @@ pub(crate) fn show_pane_input_hints(
     }
 }
 
-/// The map: the scene and contact panel beside it, then legend, hints, Reframe
-/// and Chart.
+/// The map: its notice line over the side panel, the scene and contact
+/// panel beside it, then legend, hints, Reframe and Chart.
 fn map_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
+    // The notice sits at the right, in a cell at least the side panel's width,
+    // so its text starts at the panel's left edge and a longer result runs
+    // left over the view instead of wrapping.
+    body.spawn(Node {
+        flex_shrink: 0.0,
+        justify_content: JustifyContent::FlexEnd,
+        ..default()
+    })
+    .with_children(|row| {
+        row.spawn((
+            Node {
+                min_width: px(SIDE_PANEL_PX),
+                flex_shrink: 0.0,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+            Pickable::IGNORE,
+        ))
+        .with_child((MapNoticeMarker, Name::new(MAP_NOTICE), notice_line()));
+    });
     body.spawn(view_split()).with_children(|split| {
         split.spawn((MapViewportMarker, viewport_node(), ImageNode::default()));
         spawn_map_panel(split, icons);

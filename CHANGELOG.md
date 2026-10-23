@@ -306,8 +306,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   green or red, with one sound: a click for a result, a buzz for a refusal.
   Buy, Board, Hire and Pay fine are silent on press.
 - The Map's chart view lists STANCES: each civilization's stance, what moves
-  or clears it, and an Enemy's fine; Pay fine works docked at the selected
-  station that takes it. Save format 25.
+  or clears it, and an Enemy's fine; Pay fine, docked at a taker, reports on
+  a Map notice line, one sound. Save format 25.
 - The Map's side panel scrolls with the wheel while the pointer is over it;
   the wheel zooms the view only away from the panel.
 - On the Ship pane a gun, torpedo bay, railgun or mining beam with no key

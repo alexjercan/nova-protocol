@@ -9,7 +9,10 @@ use nova_gameplay::{prelude::*, test_support::test_items};
 use nova_ship::prelude::*;
 
 use super::*;
-use crate::pointer_rig::{hear_ui_cues, take_cues};
+use crate::{
+    pane::{ActionOutcomeType, NOTICE_SECS},
+    pointer_rig::{hear_ui_cues, take_cues},
+};
 
 /// Real seconds each `app.update()` counts off the notice: the strategy asks
 /// for 0.5 s and `update_station_panel` clamps a frame to 0.25 s.
@@ -82,7 +85,8 @@ fn dock_at_station(world: &mut World, side: Allegiance) -> Entity {
 fn notice(app: &App) -> Option<(ActionOutcomeType, String)> {
     app.world()
         .resource::<StationRuntime>()
-        .notice()
+        .notice
+        .shown()
         .map(|(outcome, note)| (outcome, note.to_string()))
 }
 
@@ -125,7 +129,7 @@ fn a_refused_station_buy_posts_a_refusal_notice_and_buzzes_once() {
 }
 
 /// A buy that goes through posts one Done notice naming the price, clicks
-/// once, and the notice clears after [`NOTE_SECS`] of real time.
+/// once, and the notice clears after [`NOTICE_SECS`] of real time.
 #[test]
 fn a_station_buy_posts_a_done_notice_that_clicks_once_and_clears_after_its_dwell() {
     let mut app = station_app();
@@ -150,11 +154,11 @@ fn a_station_buy_posts_a_done_notice_that_clicks_once_and_clears_after_its_dwell
     while notice(&app).is_some() {
         app.update();
         shown_secs += FRAME_SECS;
-        assert!(shown_secs <= NOTE_SECS + FRAME_SECS, "the notice clears");
+        assert!(shown_secs <= NOTICE_SECS + FRAME_SECS, "the notice clears");
     }
     assert!(
-        (shown_secs - NOTE_SECS).abs() < f32::EPSILON,
-        "the notice showed for {shown_secs} s, not {NOTE_SECS} s"
+        (shown_secs - NOTICE_SECS).abs() < f32::EPSILON,
+        "the notice showed for {shown_secs} s, not {NOTICE_SECS} s"
     );
     assert!(
         take_cues(&mut app).is_empty(),

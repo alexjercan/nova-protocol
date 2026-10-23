@@ -245,7 +245,18 @@ fn map_and_ship_share_a_fixed_footer_under_the_view_and_inventory_has_none() {
         );
         let zones = world.get::<Children>(footer).map_or(0, |c| c.len());
         assert_eq!(zones, 3, "{pane:?} footer has legend, controls and summary");
-        let split = world.get::<Children>(body_id).unwrap()[0];
+        // The split is the body child that grows to fill it; the Map's
+        // notice row above it does not.
+        let split = world
+            .get::<Children>(body_id)
+            .unwrap()
+            .iter()
+            .find(|child| {
+                world
+                    .get::<Node>(*child)
+                    .is_some_and(|node| node.flex_grow > 0.0)
+            })
+            .unwrap_or_else(|| panic!("{pane:?} has a growing split"));
         let [view, panel] = world.get::<Children>(split).unwrap()[..] else {
             panic!("{pane:?} splits into a view and a panel");
         };

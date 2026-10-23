@@ -597,7 +597,8 @@ mod smoke {
         .until(when(|world| {
             world
                 .resource::<StationRuntime>()
-                .notice()
+                .notice
+                .shown()
                 .is_some_and(|(outcome, _)| outcome == ActionOutcomeType::Refused)
         }))
         .deadline(BEAT_SECS)

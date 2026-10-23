@@ -314,7 +314,7 @@ pub(crate) fn apply_station_buy_commands(
     // command this frame would plan against a station not yet owned.
     messages.clear();
     let Some(docked) = sale.docked() else {
-        runtime.say(
+        runtime.notice.say(
             ActionOutcomeType::Refused,
             station_refusal_text("", &StationBuyRefusalType::NotDocked),
         );
@@ -326,7 +326,7 @@ pub(crate) fn apply_station_buy_commands(
     let plan = match plan_station_buy(docked.price_cr, Some(docked.sale), own_cr.0) {
         Ok(plan) => plan,
         Err(refusal) => {
-            runtime.say(
+            runtime.notice.say(
                 ActionOutcomeType::Refused,
                 station_refusal_text(&docked.name, &refusal),
             );
@@ -345,7 +345,7 @@ pub(crate) fn apply_station_buy_commands(
         price_cr: plan.price_cr,
     });
     commands.entity(docked.station).insert(owned_station());
-    runtime.say(
+    runtime.notice.say(
         ActionOutcomeType::Done,
         format!("bought {} for {}", docked.name, cr_text(plan.price_cr)),
     );

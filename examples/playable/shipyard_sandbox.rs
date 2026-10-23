@@ -291,7 +291,8 @@ fn drive_the_sandbox(world: &mut World) {
             if world.resource::<Sandbox>().buy_note.is_none() {
                 let note = world
                     .resource::<StationRuntime>()
-                    .note()
+                    .notice
+                    .text()
                     .map(str::to_string);
                 if let Some(note) = note {
                     info!("shipyard sandbox: the note line reads '{note}'");
@@ -986,7 +987,8 @@ mod smoke {
         );
         let notice = world
             .resource::<StationRuntime>()
-            .notice()
+            .notice
+            .shown()
             .map(|(outcome, note)| (outcome, note.to_string()));
         assert_eq!(
             notice,

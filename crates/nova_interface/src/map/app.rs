@@ -20,8 +20,16 @@ use super::{
 };
 use crate::{
     icons::{icon_node, BodyIconType, InterfaceIcons},
-    pane::{panel_preview_frame, side_panel, themed_label, PANEL_PREVIEW_PX},
+    pane::{panel_preview_frame, side_panel, themed_label, ActionNotice, PANEL_PREVIEW_PX},
 };
+
+/// The name of the Map pane's notice line, over the side panel.
+pub const MAP_NOTICE: &str = "MapNotice";
+
+/// The Map pane's notice line, over the side panel: where a Pay fine result
+/// shows. [`update_map_notice`](super::update_map_notice) paints it.
+#[derive(Component)]
+pub(crate) struct MapNoticeMarker;
 
 /// The map pane's viewport node (holds the RTT image + blip children).
 #[derive(Component)]
@@ -287,4 +295,7 @@ pub(crate) struct MapRuntime {
     /// The live facts of every found station standing in the streamed
     /// window, in id order, as the chart view last drew them.
     pub(crate) chart_live: Vec<(GeneratedBodyId, ChartStationLive)>,
+    /// The last action result the pane reports: the STANCES block's Pay
+    /// fine, settled or refused, on the notice line over the side panel.
+    pub(crate) notice: ActionNotice,
 }

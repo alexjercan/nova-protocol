@@ -199,8 +199,8 @@ fn overview_rows(
 
 /// The rows for a selected Station mark whose civilization is `civilization`:
 /// its own entry, then a Pay fine row per Enemy neighbour. A station whose
-/// civilization reads Enemy refuses the dock, so its rows say so instead of
-/// asking for one.
+/// civilization reads Enemy refuses the dock, so its rows say so and name
+/// the charted stations that take the fine instead of asking for one.
 #[expect(
     clippy::too_many_arguments,
     reason = "the records the rows read and the live dock facts the button reads"
@@ -228,7 +228,15 @@ fn station_rows(
         let reason = if enabled {
             None
         } else if refuses {
-            Some(format!("{station_code} refuses docking"))
+            let (codes, _) = fine_takers(chart, jobs, stances, enemy, now);
+            Some(if codes.is_empty() {
+                format!("{station_code} refuses docking; no charted station takes it")
+            } else {
+                format!(
+                    "{station_code} refuses docking; pay at {}",
+                    codes.join(", ")
+                )
+            })
         } else if !docked_here {
             Some(format!("Dock at {station_code} to pay"))
         } else {
@@ -277,8 +285,8 @@ pub(crate) fn spawn_map_stance_block(panel: &mut ChildSpawnerCommands) {
 }
 
 /// Raise a [`StanceSettleCommand`] for `civilization` when its Pay fine
-/// button is activated. The press is silent: the Station notice's outcome
-/// cue is the one sound.
+/// button is activated. The press is silent: the Map notice's outcome cue
+/// is the one sound.
 fn on_pay_fine_button(
     civilization: CivilizationId,
 ) -> impl FnMut(On<Activate>, MessageWriter<StanceSettleCommand>) {
