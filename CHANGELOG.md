@@ -208,9 +208,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - At a living station the Inventory pane trades with `Trade` and stores
   items with `Storage`, kept through retire and save, firing `OnStored` and
   `OnWithdrawn`. Stock scales with advancement.
-- A `StartRole` content kind names a New Game start: icon, hull and kit of
-  credits and items. Lint refuses an unknown hull or item, an overweight kit,
-  a hull with no intake or one a docked ship blocks.
+- A `StartRole` content kind names a New Game start: icon, hull and kit.
+  Lint refuses an unknown hull or item, an overweight kit, a missing or
+  blocked intake, or a part above advancement 0.
 - **(breaking)** Section `base` now authors `advancement` and `draw_weight`;
   every civilization builds the parts at advancement 0 and knows a seeded
   subset of those above it, drawn by weight.

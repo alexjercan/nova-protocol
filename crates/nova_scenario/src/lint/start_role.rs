@@ -1,6 +1,8 @@
 //! Reference checks over one start role: its hull resolves, carries a cargo
-//! intake clear of its docking ports, its kit fits, and its goal is one a
-//! save can meet and tell apart.
+//! intake clear of its docking ports and advancement-0 parts only, its kit
+//! fits, and its goal is one a save can meet and tell apart.
+
+use std::collections::HashSet;
 
 use nova_gameplay::prelude::GameItems;
 use nova_ship::prelude::{intake_in_dock_approach, RefitPlacedSection, SectionKind, FLEET_SIDES};
@@ -17,6 +19,9 @@ use crate::prelude::*;
 ///   and takes cargo in through one;
 /// - an intake reaches a docking port's face, where a berthed hull parks
 ///   (see [`intake_in_dock_approach`]);
+/// - a hull section's advancement is above 0 (named by prototype id and
+///   value): the starting station builds advancement-0 parts only, so a lost
+///   one there could never be rebuilt;
 /// - the kit's `stock` names an item `items` does not hold, or weighs more
 ///   than the hull's hold;
 /// - the goal asks for a zero count, for more stations than jobs (a hand-in
@@ -41,6 +46,7 @@ pub fn lint_start_role(
                 sections.catalog(),
             );
             check_intake(id, role, &resolved, source, &mut issues);
+            check_advancement(id, role, &resolved, source, &mut issues);
             Some(resolved.cargo_capacity_g())
         }
         None => {
@@ -184,13 +190,40 @@ fn check_intake(
     }
 }
 
+/// Refuse a start hull with a section above advancement 0: the starting
+/// station builds the parts every civilization knows, and a section above 0
+/// is not one of them, so a lost one could never be rebuilt there.
+fn check_advancement(
+    id: &str,
+    role: &StartRole,
+    resolved: &ResolvedShipDesign,
+    source: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let hull = &role.hull;
+    let mut seen = HashSet::new();
+    for section in &resolved.sections {
+        let a = section.config.base.advancement;
+        let prototype = &section.config.base.id;
+        if a > 0.0 && seen.insert(prototype.clone()) {
+            issues.push(LintIssue::error(
+                source,
+                format!(
+                    "start role '{id}': hull '{hull}' section '{prototype}' needs \
+                     advancement {a}; a start hull carries advancement-0 parts only"
+                ),
+            ));
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nova_gameplay::prelude::{JobMixType, RoleIconType, ShipInventoryStock};
 
     use super::*;
     use crate::lint::{
-        fixtures::{sections, ships},
+        fixtures::{fixture_recipe, sections, ships},
         LintSeverity,
     };
 
@@ -372,5 +405,67 @@ mod tests {
                 .any(|m| m.contains("hull 'no_such_hull' is no known ship design")),
             "{unknown:?}"
         );
+    }
+
+    /// The starting station builds advancement-0 parts only: a hull section
+    /// above advancement 0 is refused once per prototype, not once per cube.
+    #[test]
+    fn a_start_role_whose_hull_carries_a_part_above_advancement_zero_is_refused() {
+        use bevy::prelude::{default, Quat, Vec3};
+        use nova_ship::prelude::{BaseSectionConfig, HullSectionConfig, SectionConfig};
+
+        let mut configs = sections(&["hull"]).catalog().0.clone();
+        configs.push(SectionConfig {
+            base: BaseSectionConfig {
+                id: "advanced".to_string(),
+                build: fixture_recipe(),
+                advancement: 0.3,
+                draw_weight: 1.0,
+                ..default()
+            },
+            kind: SectionKind::Hull(HullSectionConfig::default()),
+        });
+        let known_sections = KnownSections::from_configs(&configs);
+
+        let design = ShipDesign {
+            sections: vec![
+                SpaceshipSectionConfig {
+                    id: "a".to_string(),
+                    position: Vec3::ZERO,
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::prototype("advanced"),
+                },
+                SpaceshipSectionConfig {
+                    id: "b".to_string(),
+                    position: Vec3::new(0.0, 0.0, 1.0),
+                    rotation: Quat::IDENTITY,
+                    source: SectionSource::prototype("advanced"),
+                },
+            ],
+            ..default()
+        };
+        let designs = KnownShipDesigns::from_configs(&[ShipDesignPrototype {
+            id: "flagship".into(),
+            name: "Flagship".to_string(),
+            design,
+        }]);
+
+        let found = lint_start_role(
+            &role("flagship"),
+            &designs,
+            &known_sections,
+            &GameItems::default(),
+            "test",
+        );
+        let advancement_errors: Vec<&str> = found
+            .iter()
+            .filter(|issue| {
+                issue.severity == LintSeverity::Error
+                    && issue.message.contains("needs advancement 0.3")
+            })
+            .map(|issue| issue.message.as_str())
+            .collect();
+        assert_eq!(advancement_errors.len(), 1, "{found:?}");
+        assert!(advancement_errors[0].contains("'advanced'"), "{found:?}");
     }
 }

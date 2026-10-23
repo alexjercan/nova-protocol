@@ -6,9 +6,9 @@
 //! nothing; the open world plays on. It is authored once per role as a
 //! [`StartRole`] and read through [`GameStartRoles`]. The lint
 //! (`lint_start_role`) refuses a hull no visible ship design carries, a hull
-//! with no cargo intake or with an intake where a berthed ship parks, an
-//! unknown kit item, a kit the hull's hold cannot carry, and a goal no save
-//! can meet or tell apart.
+//! with no cargo intake or with an intake where a berthed ship parks, a hull
+//! section above advancement 0, an unknown kit item, a kit the hull's hold
+//! cannot carry, and a goal no save can meet or tell apart.
 //!
 //! New Game's Create and Load insert the [`OpenWorldSession`]: the seed and
 //! the role the player picked. The `SpawnStartRole` action reads it and
