@@ -24,7 +24,7 @@ use nova_world_base::prelude::{enemy_neighbours, standing};
 
 use super::{chart_mark_code, MapChartMarkType, MapRuntime};
 use crate::{
-    pane::{compact_button, divider, play_menu_select, themed_label},
+    pane::{compact_button, divider, themed_label},
     station::{settle_refusal_text, SettleDock, StanceSettleCommand},
 };
 
@@ -277,14 +277,13 @@ pub(crate) fn spawn_map_stance_block(panel: &mut ChildSpawnerCommands) {
 }
 
 /// Raise a [`StanceSettleCommand`] for `civilization` when its Pay fine
-/// button is activated.
+/// button is activated. The press is silent: the Station notice's outcome
+/// cue is the one sound.
 fn on_pay_fine_button(
     civilization: CivilizationId,
-) -> impl FnMut(On<Activate>, MessageWriter<StanceSettleCommand>, Option<Res<SoundBank<UiSfx>>>, Commands)
-{
-    move |_activate, mut settles, bank, mut commands| {
+) -> impl FnMut(On<Activate>, MessageWriter<StanceSettleCommand>) {
+    move |_activate, mut settles| {
         settles.write(StanceSettleCommand { civilization });
-        play_menu_select(&mut commands, bank.as_deref());
     }
 }
 

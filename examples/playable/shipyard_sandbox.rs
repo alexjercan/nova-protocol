@@ -86,7 +86,7 @@ use nova_input::prelude::InputSource;
 use nova_protocol::{
     nova_debug::diagnostics,
     nova_interface::{
-        pane::InterfacePaneType,
+        pane::{ActionOutcomeType, InterfacePaneType},
         ship::{ShipRuntime, ShipViewSubject},
         station::{HullBuyCommand, StationRuntime, HULL_INFO_CLOSE},
     },
@@ -984,14 +984,17 @@ mod smoke {
             world.get::<OwnedShipMarker>(left[0]).is_some(),
             "shipyard sandbox: the hull bought is the player's own"
         );
-        let note = world
+        let notice = world
             .resource::<StationRuntime>()
-            .note()
-            .map(str::to_string);
+            .notice()
+            .map(|(outcome, note)| (outcome, note.to_string()));
         assert_eq!(
-            note.as_deref(),
-            Some(format!("boarded {}; your last ship is parked here.", before.name).as_str()),
-            "shipyard sandbox: the note says the board"
+            notice,
+            Some((
+                ActionOutcomeType::Done,
+                format!("boarded {}; your last ship is parked here.", before.name)
+            )),
+            "shipyard sandbox: the notice says the board, as a result"
         );
         info!(
             "shipyard sandbox: PASS boarded '{}' for 0 cr ({} cr before and after); '{}' parked, \

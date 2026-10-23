@@ -40,9 +40,12 @@
 //!
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the dock,
 //! buys the station from the Station tab, checks it is owned, on the Player
-//! side and named as the player's, closes the interface and shoots
-//! `station-own-sandbox.png` with `NOVA_CAPTURE=1`. Unset, no walk and no
-//! deadline run.
+//! side and named as the player's, and shoots the green `bought` notice over
+//! the scrolled panel as `station-own-sandbox-notice.png`. It then switches
+//! to the Hardware theme, asks to buy the station again and shoots the red
+//! `yours already` refusal as `station-own-sandbox-refusal-hardware.png`.
+//! Last it closes the interface and shoots `station-own-sandbox.png`, all
+//! with `NOVA_CAPTURE=1`. Unset, no walk and no deadline run.
 
 #[path = "shared/open_world_stage.rs"]
 mod open_world_stage;
@@ -419,8 +422,12 @@ mod smoke {
 
     use nova_protocol::{
         nova_debug::harness::{shoot, AutopilotPlugin, Predicate, SHOT_DEADLINE_SECS},
-        nova_interface::{pane::InterfacePaneType, station::STATION_BUY_BUTTON},
+        nova_interface::{
+            pane::{ActionOutcomeType, InterfacePaneType},
+            station::{StationBuyCommand, StationRuntime, STATION_BUY_BUTTON},
+        },
     };
+    use nova_ui::theme::{SelectedUiTheme, HARDWARE_THEME_ID};
 
     use super::*;
 
@@ -434,6 +441,15 @@ mod smoke {
     const STATION_PANEL: &str = "StationPanel";
     /// The frame the walk shoots.
     const SHOT: &str = "station-own-sandbox.png";
+    /// The Station pane the frame after the buy: the green notice over the
+    /// scrolled panel, in the default Phosphor theme.
+    const NOTICE_SHOT: &str = "station-own-sandbox-notice.png";
+    /// The Station pane after a second buy of the owned station: the red
+    /// refusal notice, in the Hardware theme.
+    const REFUSAL_SHOT: &str = "station-own-sandbox-refusal-hardware.png";
+    /// Frames the theme switch gets to repaint before the refusal is raised:
+    /// few, so the notice is still up when the shot lands.
+    const THEME_FRAMES: u32 = 3;
 
     fn when(check: impl Fn(&World) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
         Arc::new(check)
@@ -562,6 +578,34 @@ mod smoke {
         )
         .step("station own sandbox: check the station is the player's")
         .on_enter(assert_the_players)
+        .add()
+        .step("station own sandbox: shoot the buy notice")
+        .on_enter(|world: &mut World| shoot(world, NOTICE_SHOT))
+        .until(shot_written(NOTICE_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
+        .add()
+        .step("station own sandbox: switch to the Hardware theme")
+        .on_enter(|world: &mut World| {
+            world.resource_mut::<SelectedUiTheme>().0 = HARDWARE_THEME_ID.to_string();
+        })
+        .until(frames(THEME_FRAMES))
+        .add()
+        .step("station own sandbox: ask to buy the owned station again")
+        .on_enter(|world: &mut World| {
+            world.write_message(StationBuyCommand);
+        })
+        .until(when(|world| {
+            world
+                .resource::<StationRuntime>()
+                .notice()
+                .is_some_and(|(outcome, _)| outcome == ActionOutcomeType::Refused)
+        }))
+        .deadline(BEAT_SECS)
+        .add()
+        .step("station own sandbox: shoot the refusal notice")
+        .on_enter(|world: &mut World| shoot(world, REFUSAL_SHOT))
+        .until(shot_written(REFUSAL_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
         .add();
         tap(
             script,

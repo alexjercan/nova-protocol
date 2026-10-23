@@ -302,6 +302,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Docked at a living station, a Station tab lists the station, ships for sale
   and escorts for hire with your fleet slots. A refused buy or hire is greyed
   with its reason. M steps to it while docked.
+- A Station action's result shows on a notice line above the lists for 4 s,
+  green or red, with one sound: a click for a result, a buzz for a refusal.
+  Buy, Board, Hire and Pay fine are silent on press.
 - The Map's chart view lists STANCES: each civilization's stance, what moves
   or clears it, and an Enemy's fine; Pay fine works docked at the selected
   station that takes it. Save format 25.

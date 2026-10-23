@@ -29,7 +29,7 @@ use super::{
 };
 use crate::{
     icons::InterfaceIcons,
-    pane::{play_menu_select, refusable_button, themed_label},
+    pane::{refusable_button, themed_label, ActionOutcomeType},
     ship::{ResolvedSite, ShipRuntime, StationSite},
 };
 
@@ -347,14 +347,11 @@ fn spawn_hull_card(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons, ro
 }
 
 /// Raise a [`HullBuyCommand`] for the parked hull `hull` when its Buy or
-/// Board button is clicked.
-fn on_hull_buy_button(
-    hull: Entity,
-) -> impl FnMut(On<Activate>, MessageWriter<HullBuyCommand>, Option<Res<SoundBank<UiSfx>>>, Commands)
-{
-    move |_activate, mut buys, bank, mut commands| {
+/// Board button is clicked. The press is silent: the outcome plays the one
+/// cue.
+fn on_hull_buy_button(hull: Entity) -> impl FnMut(On<Activate>, MessageWriter<HullBuyCommand>) {
+    move |_activate, mut buys| {
         buys.write(HullBuyCommand { hull });
-        play_menu_select(&mut commands, bank.as_deref());
     }
 }
 
@@ -365,7 +362,7 @@ fn on_hull_buy_button(
 /// that swaps the hulls, and the old ship parks as the player's own with
 /// its hold. The selection and any pending rebind or repair target clear,
 /// since every section goes. A refusal changes nothing and shows its reason
-/// on the note line.
+/// on the notice line.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system reading the parked hulls, the site and both balances"
@@ -397,7 +394,10 @@ pub(crate) fn apply_station_hull_buy_commands(
         return;
     };
     let Some((station, ..)) = resolved.partner else {
-        runtime.say(hull_refusal_text("", &HullBuyRefusalType::NotDocked));
+        runtime.say(
+            ActionOutcomeType::Refused,
+            hull_refusal_text("", &HullBuyRefusalType::NotDocked),
+        );
         return;
     };
     let Ok((parked, name, terms, design)) = q_hulls.get(command.hull) else {
@@ -415,7 +415,10 @@ pub(crate) fn apply_station_hull_buy_commands(
             let plan = match plan_offer(&resolved, price_cr, &q_credits.p0()) {
                 Ok(plan) => plan,
                 Err(refusal) => {
-                    runtime.say(hull_refusal_text(&name, &refusal));
+                    runtime.say(
+                        ActionOutcomeType::Refused,
+                        hull_refusal_text(&name, &refusal),
+                    );
                     return;
                 }
             };
@@ -455,5 +458,5 @@ pub(crate) fn apply_station_hull_buy_commands(
     ship.repair_target = None;
     held.0 = None;
     ship.reselect = None;
-    runtime.say(note);
+    runtime.say(ActionOutcomeType::Done, note);
 }

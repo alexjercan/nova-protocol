@@ -22,7 +22,7 @@ use nova_gameplay::{
     prelude::{
         cr_digits, play_time_text, AudioRoute, Chart, GameItems, ItemDesignId,
         PlayerSpaceshipMarker, SfxCommandsExt, ShipCredits, SoundBank, SpaceshipRootMarker, UiSfx,
-        WorldClock, MENU_SELECT_VOLUME, UI_TOGGLE_VOLUME,
+        WorldClock, EDITOR_DENY_VOLUME, MENU_SELECT_VOLUME, UI_TOGGLE_VOLUME,
     },
     PauseStates,
 };
@@ -596,6 +596,34 @@ pub(crate) fn play_menu_select(commands: &mut Commands, bank: Option<&SoundBank<
             MENU_SELECT_VOLUME,
         );
     }
+}
+
+/// Whether a pane action went through or was refused: a notice's tone and
+/// its cue.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ActionOutcomeType {
+    /// The action went through; the notice says what it did.
+    Done,
+    /// The action changed nothing; the notice says why.
+    Refused,
+}
+
+/// Play the one cue an action outcome gets, if the sound bank has loaded:
+/// the interface click for Done, the deny buzz for Refused. A button whose
+/// outcome plays this does not click on press, so one action is one sound.
+pub(crate) fn play_outcome_cue(
+    commands: &mut Commands,
+    bank: Option<&SoundBank<UiSfx>>,
+    outcome: ActionOutcomeType,
+) {
+    let Some(bank) = bank else {
+        return;
+    };
+    let (cue, volume) = match outcome {
+        ActionOutcomeType::Done => (UiSfx::MenuSelect, MENU_SELECT_VOLUME),
+        ActionOutcomeType::Refused => (UiSfx::EditorDeny, EDITOR_DENY_VOLUME),
+    };
+    commands.play_sfx(bank.get(cue), AudioRoute::Interface, volume);
 }
 
 /// A pane's 3D view: the node its scene image fills and its blips ride on.

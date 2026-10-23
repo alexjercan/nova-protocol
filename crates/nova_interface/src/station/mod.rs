@@ -1,7 +1,8 @@
 //! The TAB interface's Station pane: what the docked station sells.
 //!
 //! The pane's tab shows only while the player ship is docked at a living
-//! station (see [`StationDock`]). The pane holds one scrolling panel:
+//! station (see [`StationDock`]). The pane holds a notice line over one
+//! scrolling panel:
 //!
 //! - "This station": the station's price and a Buy button that raises a
 //!   `StationBuyCommand`, while a civilization keeps it. Docked at a station
@@ -17,8 +18,15 @@
 //!   price, a Hire button that raises an `EscortHireCommand`, and Info.
 //!
 //! A card's price is a credit figure, with `(missing <figure>)` in red beside
-//! it while the balance is short. A refused action keeps its button, greyed, with the
-//! reason as its tooltip.
+//! it while the balance is short. A refused action keeps its button, greyed,
+//! with the reason as its tooltip.
+//!
+//! Every action's result (bought, boarded, hired, settled, or refused) shows
+//! on the notice line above the panel for four seconds, green for a result
+//! and red for a refusal, and plays one cue: the interface click for a
+//! result, the deny buzz for a refusal (`play_outcome_cue`). The line never
+//! scrolls with the panel, so it stays in view however long the lists run.
+//! The action buttons do not click on press: the outcome is the one sound.
 //!
 //! A line says so when the station offers none of the lists and parks none
 //! of the player's ships. Refit (rebuild, swap, add) stays in the Ship pane,
@@ -42,13 +50,15 @@ mod hull_preview;
 mod settle;
 mod shipyard;
 mod station_buy;
+#[cfg(test)]
+mod tests;
 
 use bevy::{
     ecs::system::SystemParam, input::mouse::MouseWheel, picking::hover::Hovered, prelude::*,
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::{screen::drive_wheel_scroll, theme::UiColor};
+use nova_ui::{screen::drive_wheel_scroll, theme::UiColor, widget::ThemedText};
 
 pub use self::{
     escorts::EscortHireCommand,
@@ -62,7 +72,7 @@ pub(crate) use self::{
 };
 use crate::{
     icons::InterfaceIcons,
-    pane::{panel_paint, spawn_credit_figure, themed_label},
+    pane::{panel_paint, play_outcome_cue, spawn_credit_figure, themed_label, ActionOutcomeType},
 };
 
 /// Glob-import surface: `use nova_interface::station::prelude::*`.
@@ -74,33 +84,51 @@ pub mod prelude {
         settle::StanceSettleCommand,
         shipyard::HullBuyCommand,
         station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
-        StationRuntime, STATION_PANEL,
+        StationRuntime, STATION_NOTICE, STATION_PANEL,
     };
 }
 
 /// The name of the Station pane's scrolling panel.
 pub const STATION_PANEL: &str = "StationPanel";
 
-/// Seconds an action result stays on the note line.
-const NOTE_SECS: f32 = 2.5;
+/// The name of the Station pane's notice line, above the panel.
+pub const STATION_NOTICE: &str = "StationNotice";
 
-/// The Station pane's state that outlives its body: the note line.
+/// Seconds an action result stays on the notice line, on the real clock:
+/// the interface holds the virtual one. Matches the HUD notice's dwell.
+const NOTE_SECS: f32 = 4.0;
+
+/// The Station pane's state that outlives its body: the notice line.
 #[derive(Resource, Default, Debug)]
 pub struct StationRuntime {
-    /// A transient note, such as why a buy was refused, and the seconds it
-    /// has left.
-    pub(crate) note: Option<(String, f32)>,
+    /// The last action result, its outcome and the seconds it has left.
+    pub(crate) note: Option<(ActionOutcomeType, String, f32)>,
+    /// Set by [`say`](Self::say), taken by [`update_station_panel`] once it
+    /// plays the cue. It waits for the sound bank, so a result raised before
+    /// the bank lands is heard, not lost; it plays once whether or not the
+    /// pane body stands.
+    pending_cue: Option<ActionOutcomeType>,
 }
 
 impl StationRuntime {
     /// The transient note the pane shows, while it lasts.
     pub fn note(&self) -> Option<&str> {
-        self.note.as_ref().map(|(note, _)| note.as_str())
+        self.note.as_ref().map(|(_, note, _)| note.as_str())
     }
 
-    /// Show `note` on the note line for [`NOTE_SECS`].
-    pub(crate) fn say(&mut self, note: String) {
-        self.note = Some((note, NOTE_SECS));
+    /// The transient notice the pane shows, with its outcome, while it lasts.
+    pub fn notice(&self) -> Option<(ActionOutcomeType, &str)> {
+        self.note
+            .as_ref()
+            .map(|(outcome, note, _)| (*outcome, note.as_str()))
+    }
+
+    /// Show `note` on the notice line for [`NOTE_SECS`] in `outcome`'s tone,
+    /// and queue its cue. A second result the same frame replaces the first
+    /// and its cue, so one frame plays at most one cue.
+    pub(crate) fn say(&mut self, outcome: ActionOutcomeType, note: String) {
+        self.note = Some((outcome, note, NOTE_SECS));
+        self.pending_cue = Some(outcome);
     }
 }
 
@@ -136,18 +164,31 @@ impl StationDock<'_, '_> {
 #[derive(Component)]
 pub(crate) struct StationPanelMarker;
 
-/// A text of the Station panel that [`update_station_panel`] refreshes.
-#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum StationPanelField {
-    /// Shown while none of the lists is.
-    Empty,
-    /// The transient action result.
-    Note,
-}
+/// The notice line above the panel: the transient action result.
+#[derive(Component)]
+pub(crate) struct StationNoticeMarker;
 
-/// Build the Station pane body: one panel with the station block, the hull
-/// list, the escort list, the job lists, the empty line and the note line.
+/// The line inside the panel shown while none of the lists is.
+#[derive(Component)]
+pub(crate) struct StationEmptyLine;
+
+/// Height of the notice line, in logical px: a 13 px line's box, so the
+/// panel under it does not move when a notice comes and goes.
+const NOTICE_LINE_PX: f32 = 18.0;
+
+/// Build the Station pane body: the notice line, then one panel with the
+/// station block, the hull list, the escort list and the empty line.
 pub(crate) fn station_body(body: &mut ChildSpawnerCommands) {
+    body.spawn((
+        StationNoticeMarker,
+        Name::new(STATION_NOTICE),
+        themed_label("", 13.0, UiColor::Label),
+        Node {
+            min_height: px(NOTICE_LINE_PX),
+            flex_shrink: 0.0,
+            ..default()
+        },
+    ));
     body.spawn((
         StationPanelMarker,
         Name::new(STATION_PANEL),
@@ -172,16 +213,12 @@ pub(crate) fn station_body(body: &mut ChildSpawnerCommands) {
         spawn_station_hull_list(panel);
         spawn_station_escort_list(panel);
         panel.spawn((
-            StationPanelField::Empty,
+            StationEmptyLine,
             themed_label(
                 "This station sells no ships, hires no escorts and is not for sale.",
                 13.0,
                 UiColor::Label,
             ),
-        ));
-        panel.spawn((
-            StationPanelField::Note,
-            themed_label("", 12.0, UiColor::Accent),
         ));
     });
 }
@@ -316,11 +353,14 @@ pub(crate) fn scroll_station_panel(
     drive_wheel_scroll(wheel, q_panel);
 }
 
-/// Count the note down on the real clock, and show the empty line while no
-/// list shows.
+/// Count the notice down on the real clock and paint it in its outcome's
+/// tone, play the cue a result queued, and show the empty line while no list
+/// shows.
 pub(crate) fn update_station_panel(
     time: Res<Time<Real>>,
     mut runtime: ResMut<StationRuntime>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
     q_lists: Query<
         &Node,
         (
@@ -329,38 +369,45 @@ pub(crate) fn update_station_panel(
                 With<StationHullList>,
                 With<StationEscortList>,
             )>,
-            Without<StationPanelField>,
+            Without<StationEmptyLine>,
         ),
     >,
-    mut q_field: Query<(&StationPanelField, &mut Node, Option<&mut Text>)>,
+    mut q_empty: Query<&mut Node, With<StationEmptyLine>>,
+    mut q_notice: Query<(&mut Text, &mut ThemedText), With<StationNoticeMarker>>,
 ) {
-    if let Some((_, remaining)) = runtime.note.as_mut() {
+    if let Some((.., remaining)) = runtime.note.as_mut() {
         *remaining -= time.delta_secs().min(0.25);
         if *remaining <= 0.0 {
             runtime.note = None;
         }
     }
+    if bank.is_some() {
+        if let Some(outcome) = runtime.pending_cue.take() {
+            play_outcome_cue(&mut commands, bank.as_deref(), outcome);
+        }
+    }
+    let (note, tone) = match runtime.notice() {
+        Some((ActionOutcomeType::Done, note)) => (note, UiColor::Nominal),
+        Some((ActionOutcomeType::Refused, note)) => (note, UiColor::Danger),
+        None => ("", UiColor::Label),
+    };
+    for (mut text, mut themed) in &mut q_notice {
+        if text.0 != note {
+            text.0 = note.to_string();
+        }
+        if themed.color != tone {
+            themed.color = tone;
+        }
+    }
     let any_list = q_lists.iter().any(|node| node.display != Display::None);
-    for (field, mut node, text) in &mut q_field {
-        match field {
-            StationPanelField::Empty => {
-                let display = if any_list {
-                    Display::None
-                } else {
-                    Display::Flex
-                };
-                if node.display != display {
-                    node.display = display;
-                }
-            }
-            StationPanelField::Note => {
-                let note = runtime.note().unwrap_or_default();
-                if let Some(mut text) = text {
-                    if text.0 != note {
-                        text.0 = note.to_string();
-                    }
-                }
-            }
+    let display = if any_list {
+        Display::None
+    } else {
+        Display::Flex
+    };
+    for mut node in &mut q_empty {
+        if node.display != display {
+            node.display = display;
         }
     }
 }

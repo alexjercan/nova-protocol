@@ -24,7 +24,7 @@ use nova_ui::theme::UiColor;
 use super::{card_actions, offer_cell, spawn_card_price, StationRuntime};
 use crate::{
     icons::InterfaceIcons,
-    pane::{play_menu_select, refusable_button, themed_label},
+    pane::{refusable_button, themed_label, ActionOutcomeType},
 };
 
 /// The name of the station Buy button.
@@ -279,15 +279,10 @@ pub(crate) fn update_station_sale_block(
     shown.0 = row;
 }
 
-/// Raise a [`StationBuyCommand`] when the Buy button is clicked.
-fn on_station_buy_button(
-    _activate: On<Activate>,
-    mut buys: MessageWriter<StationBuyCommand>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
-) {
+/// Raise a [`StationBuyCommand`] when the Buy button is clicked. The press
+/// is silent: the outcome plays the one cue.
+fn on_station_buy_button(_activate: On<Activate>, mut buys: MessageWriter<StationBuyCommand>) {
     buys.write(StationBuyCommand);
-    play_menu_select(&mut commands, bank.as_deref());
 }
 
 /// Apply [`StationBuyCommand`]s by the [`plan_station_buy`] rule: charge the
@@ -296,7 +291,7 @@ fn on_station_buy_button(
 /// ([`owned_station`]: owned, on the Player side, no longer named for its
 /// civilization). The price goes to the civilization, so the station's
 /// balance does not move.
-/// A refusal changes nothing and shows its reason on the note line.
+/// A refusal changes nothing and shows its reason on the notice line.
 ///
 /// # Panics
 ///
@@ -319,7 +314,10 @@ pub(crate) fn apply_station_buy_commands(
     // command this frame would plan against a station not yet owned.
     messages.clear();
     let Some(docked) = sale.docked() else {
-        runtime.say(station_refusal_text("", &StationBuyRefusalType::NotDocked));
+        runtime.say(
+            ActionOutcomeType::Refused,
+            station_refusal_text("", &StationBuyRefusalType::NotDocked),
+        );
         return;
     };
     let Ok((mut own_cr, mut reports)) = q_credits.get_mut(docked.player) else {
@@ -328,7 +326,10 @@ pub(crate) fn apply_station_buy_commands(
     let plan = match plan_station_buy(docked.price_cr, Some(docked.sale), own_cr.0) {
         Ok(plan) => plan,
         Err(refusal) => {
-            runtime.say(station_refusal_text(&docked.name, &refusal));
+            runtime.say(
+                ActionOutcomeType::Refused,
+                station_refusal_text(&docked.name, &refusal),
+            );
             return;
         }
     };
@@ -344,11 +345,10 @@ pub(crate) fn apply_station_buy_commands(
         price_cr: plan.price_cr,
     });
     commands.entity(docked.station).insert(owned_station());
-    runtime.say(format!(
-        "bought {} for {}",
-        docked.name,
-        cr_text(plan.price_cr)
-    ));
+    runtime.say(
+        ActionOutcomeType::Done,
+        format!("bought {} for {}", docked.name, cr_text(plan.price_cr)),
+    );
     info!(
         "station buy: {} ({:?}) is the player's for {} cr",
         docked.name, docked.station, plan.price_cr

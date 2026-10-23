@@ -27,7 +27,7 @@ use super::{
 };
 use crate::{
     icons::InterfaceIcons,
-    pane::{play_menu_select, refusable_button, themed_label},
+    pane::{refusable_button, themed_label, ActionOutcomeType},
     ship::{ResolvedSite, StationSite},
 };
 
@@ -364,21 +364,21 @@ pub(crate) fn update_station_escort_list(
 }
 
 /// Raise an [`EscortHireCommand`] for the escort for hire `hull` when its
-/// Hire button is clicked.
+/// Hire button is clicked. The press is silent: the outcome plays the one
+/// cue.
 fn on_escort_hire_button(
     hull: Entity,
-) -> impl FnMut(On<Activate>, MessageWriter<EscortHireCommand>, Option<Res<SoundBank<UiSfx>>>, Commands)
-{
-    move |_activate, mut hires, bank, mut commands| {
+) -> impl FnMut(On<Activate>, MessageWriter<EscortHireCommand>) {
+    move |_activate, mut hires| {
         hires.write(EscortHireCommand { hull });
-        play_menu_select(&mut commands, bank.as_deref());
     }
 }
 
 /// Apply [`EscortHireCommand`]s by the [`plan_escort_hire`] rule: charge the
 /// price with `EscortHire` credit changes on both sides, queue one
 /// `EscortHired` report, and raise the [`EscortHireRequest`] that spawns the
-/// escort. A refusal changes nothing and shows its reason on the note line.
+/// escort. A refusal changes nothing and shows its reason on the notice
+/// line.
 ///
 /// # Panics
 ///
@@ -422,7 +422,10 @@ pub(crate) fn apply_station_escort_hire_commands(
         return;
     };
     let Some((station, ..)) = resolved.partner else {
-        runtime.say(escort_refusal_text("", &EscortHireRefusalType::NotDocked));
+        runtime.say(
+            ActionOutcomeType::Refused,
+            escort_refusal_text("", &EscortHireRefusalType::NotDocked),
+        );
         return;
     };
     let station_id = q_ids
@@ -443,7 +446,10 @@ pub(crate) fn apply_station_escort_hire_commands(
     let plan = match plan_offer(&resolved, price, &held, &q_credits.p0(), &q_sides) {
         Ok(plan) => plan,
         Err(refusal) => {
-            runtime.say(escort_refusal_text(&name, &refusal));
+            runtime.say(
+                ActionOutcomeType::Refused,
+                escort_refusal_text(&name, &refusal),
+            );
             return;
         }
     };
@@ -465,7 +471,10 @@ pub(crate) fn apply_station_escort_hire_commands(
         hull: name.clone(),
         price_cr: plan.price_cr,
     });
-    runtime.say(format!("hired {name} for {}", cr_text(plan.price_cr)));
+    runtime.say(
+        ActionOutcomeType::Done,
+        format!("hired {name} for {}", cr_text(plan.price_cr)),
+    );
     commands.trigger(EscortHireRequest {
         entity: resolved.player,
         station,

@@ -67,7 +67,7 @@ pub mod prelude {
         inventory::prelude::*,
         jobs::prelude::*,
         map::prelude::*,
-        pane::InterfacePaneType,
+        pane::{ActionOutcomeType, InterfacePaneType},
         ship::prelude::*,
         station::prelude::*,
         terminal::prelude::*,
