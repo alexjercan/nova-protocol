@@ -25,8 +25,10 @@
 //!    list (`Shift+F3`);
 //! 4. Esc opens the pause menu; Settings > Graphics has Pause when
 //!    unfocused;
-//! 5. jettison and take back: TAB, Inventory, click a hold row, Jettison,
-//!    pick the quantity, Confirm; the canister leaves the intake door. Then
+//! 5. jettison and take back: the start docks you at your starting station,
+//!    and a docked ship cannot jettison, so press `D` (Dock) to let go. Then
+//!    TAB, Inventory, click a hold row, Jettison, pick the quantity, Confirm;
+//!    the canister leaves the intake door. Then
 //!    fly the intake door (top or bottom face, per its label) onto the
 //!    canister: the box in front of the door is the pickup area.
 //!
@@ -47,7 +49,8 @@
 //!
 //! Under `NOVA_AUTOPILOT=1` a smoke walk waits for the window,
 //! checks the player is the role's hull with the role's kit and an intake,
-//! jettisons one unit of the kit's first item as the Inventory pane's
+//! waits for the start to dock it at its starting station, lets go of the
+//! dock, jettisons one unit of the kit's first item as the Inventory pane's
 //! Jettison applies its plan, waits for the panel to log it, and shoots
 //! `start-role-<role>.png` with `NOVA_CAPTURE=1`. Unset, no walk and no
 //! deadline run.
@@ -525,7 +528,8 @@ mod smoke {
 
     use super::*;
 
-    /// Seconds the world gets to start and stream on a software GPU.
+    /// Seconds the world gets to start, stream and dock the player on a
+    /// software GPU.
     const SETUP_SECS: f32 = 600.0;
     /// Seconds a shot gets to land.
     const SHOT_SECS: f32 = 120.0;
@@ -533,6 +537,8 @@ mod smoke {
     const SETTLE_FRAMES: u32 = 10;
     /// Seconds the intake gets to open its door and drop the canister.
     const JETTISON_SECS: f32 = 120.0;
+    /// Seconds the player gets to let go of its starting station.
+    const UNDOCK_SECS: f32 = 120.0;
 
     fn ready(world: &World) -> bool {
         world
@@ -601,6 +607,20 @@ mod smoke {
         );
     }
 
+    /// Whether the player ship is docked.
+    fn player_docked(world: &World) -> bool {
+        world
+            .try_query_filtered::<(), (With<PlayerSpaceshipMarker>, With<DockedShip>)>()
+            .is_some_and(|mut docked| docked.iter(world).next().is_some())
+    }
+
+    /// Let go of the starting station, as the Dock key does while docked: a
+    /// docked ship cannot jettison.
+    fn let_go_of_the_start(world: &mut World) {
+        let player = the_player(world).expect("start role sandbox: one player ship");
+        world.trigger(DockingReleaseRequest { entity: player });
+    }
+
     /// The kit's first item: the one the smoke jettisons.
     fn first_kit_item(world: &World) -> ItemDesignId {
         let id = world.resource::<Sandbox>().role.clone();
@@ -656,9 +676,10 @@ mod smoke {
             .is_some_and(|contents| *contents == [(item.clone(), 1)])
     }
 
-    /// The smoke walk: the world streams in, the start is the role's, one
-    /// item leaves the intake and the panel logs it, and a frame of it with
-    /// the diagnostics up is shot.
+    /// The smoke walk: the world streams in, the start is the role's, the
+    /// start docks the player and the player lets go, one item leaves the
+    /// intake and the panel logs it, and a frame of it with the diagnostics
+    /// up is shot.
     pub(super) fn script(shot: &str) -> AutopilotPlugin<GameStates> {
         let name = shot.to_string();
         AutopilotPlugin::<GameStates>::new()
@@ -669,6 +690,15 @@ mod smoke {
             .add()
             .step("start role sandbox: check the start")
             .on_enter(assert_the_start)
+            .add()
+            .step("start role sandbox: the start docks the player at its starting station")
+            .until(Arc::new(player_docked))
+            .deadline(SETUP_SECS)
+            .add()
+            .step("start role sandbox: let go of the starting station")
+            .on_enter(let_go_of_the_start)
+            .until(Arc::new(|world: &World| !player_docked(world)))
+            .deadline(UNDOCK_SECS)
             .add()
             .step("start role sandbox: jettison one kit item")
             .on_enter(jettison_one_item)
