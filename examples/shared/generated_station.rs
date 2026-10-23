@@ -55,6 +55,7 @@ pub fn generated_station_design(
         },
     )
     .unwrap_or_else(|failure| panic!("generated station: {failure}"));
-    let design = generated_station(&snapshot, items, &layout, &civilization);
+    let design = generated_station(&snapshot, items, &layout, &civilization)
+        .unwrap_or_else(|failure| panic!("generated station: {failure}"));
     (layout, design)
 }
