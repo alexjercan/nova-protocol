@@ -16,7 +16,7 @@ use nova_input::prelude::{BindingSpec, InputBindings, InputSource, RegisterInput
 use nova_ship::prelude::*;
 use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
-    widget::{ThemedFill, ThemedText},
+    widget::{ThemedFill, ThemedText, Tooltip},
 };
 use nova_world_base::prelude::{
     enemy_neighbours, standing, CivilizationField, CivilizationStatusType,
@@ -1251,13 +1251,15 @@ fn standing_table(rig: &PanePointerRig, civilization: CivilizationId) -> StanceT
 
 /// The STANCES block's Pay fine button only moves the fine while the ship is
 /// docked at the station that keeps the book, and the Map's own notice line
-/// reports each result with one cue: undocked, the button reads disabled and
-/// a click moves nothing, settles nothing, shows nothing and plays nothing;
-/// docked with the balance short, a settle command is refused on the line in
-/// red with the short-balance reason, one deny buzz, and nothing moves;
-/// docked with the fine in hand, a click pays it both ways, reports a Settle
-/// credit change on each ship's reports, settles the civilization to
-/// Neutral, and shows the settlement on the line in green with one click.
+/// reports each result with one cue: undocked, the button reads disabled, its
+/// row's hint says to dock, a Dock line says where to pay, and a click moves
+/// nothing, settles nothing, shows nothing and plays nothing; docked with the
+/// balance short, the hint gives the short-balance reason and a settle command
+/// is refused on the line in red with it, one deny buzz, and nothing moves;
+/// docked with the fine in hand, the hint says what paying does, no Dock line
+/// stands, and a click pays it both ways, reports a Settle credit change on
+/// each ship's reports, settles the civilization to Neutral, and shows the
+/// settlement on the line in green with one click.
 #[test]
 fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_it_on_the_map_notice(
 ) {
@@ -1396,12 +1398,44 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
             })
             .count()
     };
+    // The enemy's row follows the civilization's own Entry row.
+    let enemy_row = format!(
+        "MapStanceRow-{}",
+        1 + enemy_neighbours(civilization, &CivilizationStances::default())
+            .iter()
+            .position(|(id, _)| *id == enemy)
+            .expect("the enemy is a neighbour of the civilization")
+    );
+    let hint = |rig: &mut PanePointerRig| {
+        rig.app
+            .world_mut()
+            .query::<(&Name, &Tooltip)>()
+            .iter(rig.app.world())
+            .find_map(|(name, tooltip)| (name.as_str() == enemy_row).then(|| tooltip.0.clone()))
+            .expect("the enemy's Settle row spawned")
+    };
+    let dock_line = |rig: &mut PanePointerRig| {
+        rig.app
+            .world_mut()
+            .query::<&Text>()
+            .iter(rig.app.world())
+            .any(|text| text.0 == "Dock at STN-1 to pay")
+    };
     assert!(take_cues(&mut rig.app).is_empty(), "the rig starts silent");
     assert_eq!(line(&mut rig), (String::new(), UiColor::Label));
 
     assert!(
         disabled(&rig),
         "undocked: the Pay fine button reads disabled"
+    );
+    assert_eq!(
+        hint(&mut rig),
+        format!("Dock at STN-1 to pay: {} returns to NEUTRAL.", enemy.name()),
+        "undocked: the row's hint says to dock"
+    );
+    assert!(
+        dock_line(&mut rig),
+        "undocked: the Dock line says where to pay"
     );
     let at = rig_rect(&rig, button).center();
     click_at(&mut rig, at);
@@ -1509,6 +1543,11 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
         StanceType::Enemy,
         "a refusal settles nothing"
     );
+    assert_eq!(
+        hint(&mut rig),
+        settle_refusal_text(&enemy.name(), fine, fine - 1),
+        "docked with the balance short: the row's hint gives the reason"
+    );
 
     rig.app
         .world_mut()
@@ -1521,6 +1560,16 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
         rig.app.world().get::<InteractionDisabled>(button).is_none(),
         "the fine in hand again: the button reads enabled"
     );
+    assert_eq!(
+        hint(&mut rig),
+        format!(
+            "Pay {}: {} returns to NEUTRAL.",
+            cr_text(u64::from(fine)),
+            enemy.name()
+        ),
+        "docked with the fine in hand: the row's hint says what paying does"
+    );
+    assert!(!dock_line(&mut rig), "docked: no Dock line stands");
     assert_eq!(
         rig_rect(&rig, button).center(),
         at,

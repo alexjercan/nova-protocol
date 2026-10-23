@@ -308,9 +308,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A Jobs result shows for 4 s, green or red, with one sound; a hand-in names
   the payout, new balance and stance step. A job done in flight posts a HUD
   notice naming its hand-in station.
-- The Map's chart view lists STANCES: each civilization's stance, what moves
-  or clears it, and an Enemy's fine; Pay fine, docked at a taker, reports on
-  a Map notice line, one sound. Save format 25.
+- The Map's chart view lists STANCES as rows: each civilization with a stance
+  badge; a station's Enemy neighbours with fine, Pay fine and hover reasons;
+  results on a Map notice line. Save format 25.
 - The Map's side panel scrolls with the wheel while the pointer is over it;
   the wheel zooms the view only away from the panel.
 - On the Ship pane a gun, torpedo bay, railgun or mining beam with no key
