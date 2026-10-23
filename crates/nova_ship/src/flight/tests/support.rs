@@ -14,6 +14,7 @@ use crate::{
         manual::{decay_player_rcs_intent, manual_burn_system, rcs_burn_system},
         order::drive_scripted_align,
         state::remove_maneuver_telemetry,
+        station_keeping::station_keeping_system,
         NovaFlightSystems,
     },
     prelude::*,
@@ -74,6 +75,7 @@ fn unfinished_flight_app() -> App {
             // rig chains them the same way so a test cannot depend on an
             // ordering the game does not have.
             drive_scripted_align,
+            station_keeping_system,
             manual_burn_system,
             rcs_burn_system,
             decay_player_rcs_intent,

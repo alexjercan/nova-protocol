@@ -48,6 +48,7 @@ mod order;
 mod prediction;
 mod rcs_puff;
 mod state;
+mod station_keeping;
 mod thrusters;
 mod well_target;
 
@@ -73,6 +74,7 @@ pub use self::{
         resolved_arrival_standoff, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius,
         FlightArrivalStandoff, FlightCruiseCap, FlightIntent, FlightSettings, MainDriveCommanded,
         ManeuverTelemetry, OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent,
+        StationPost,
     },
     well_target::WellTargetType,
 };
@@ -83,6 +85,7 @@ use self::{
     order::{drive_scripted_align, drive_ship_orders},
     prediction::predict_flight_path,
     state::remove_maneuver_telemetry,
+    station_keeping::station_keeping_system,
 };
 pub(crate) use self::{
     capability::{
@@ -107,7 +110,7 @@ pub mod prelude {
         NovaFlightPlugin, NovaFlightSystems, OrbitPlan, PlayerAutopilotCompleted, RcsActive,
         RcsBudget, RcsIntent, RcsPuffMarker, RcsPuffPlugin, ScriptedAlign, ScriptedAlignSettled,
         ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged, ShipOrderHelmAuthority,
-        ShipOrderOutcome, ShipOrderReport, ShipOrderReported, ShipOrderReports,
+        ShipOrderOutcome, ShipOrderReport, ShipOrderReported, ShipOrderReports, StationPost,
         SuspendedArrivalStandoff, WellTargetType,
     };
 }
@@ -152,6 +155,7 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<RcsIntent>()
             .register_type::<RcsBudget>()
             .register_type::<RcsActive>()
+            .register_type::<StationPost>()
             .register_type::<ShipHelmOrder>()
             .register_type::<ShipOrderDirective>()
             .register_type::<ShipOrderHelmAuthority>()
@@ -207,6 +211,10 @@ impl Plugin for NovaFlightPlugin {
                 // family), and ordering them says which would win if they
                 // ever did.
                 drive_scripted_align,
+                // The one writer of a station's RCS command, before the burn
+                // spends it; after the autopilot so an order's maneuver on a
+                // station is seen as held.
+                station_keeping_system,
                 manual_burn_system,
                 rcs_burn_system,
                 decay_player_rcs_intent,

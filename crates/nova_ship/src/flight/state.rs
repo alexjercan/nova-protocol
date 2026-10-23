@@ -206,6 +206,37 @@ impl RcsBudget {
     }
 }
 
+/// The post a station holds with its RCS, on the station root. Engine units.
+///
+/// Derived once at spawn from the authored position and velocity
+/// (`nova_scenario`'s `assign_station_post`), frozen with the station and
+/// thawed back, never re-derived from a displaced pose: the record is what
+/// a ram moves the hull away from. `station_keeping_system` reads it on a
+/// living station only; a dead station keeps a post nothing reads, so a
+/// tow is never fought.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Reflect)]
+#[reflect(Component)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub enum StationPost {
+    /// A circular orbit of the well centred on `centre`. The centre, not the
+    /// well entity: planets are on rails and regenerate with a new entity
+    /// every materialization, so the keeper matches the well by position.
+    Orbit {
+        /// The well's centre, world units.
+        centre: Vec3,
+        /// The ring radius, world units.
+        radius: f32,
+        /// The orbit plane's unit normal; travel is `normal x radial`.
+        normal: Vec3,
+    },
+    /// At rest at `position`, outside every well.
+    Fixed {
+        /// Where the station stands, world units.
+        position: Vec3,
+    },
+}
+
 /// An engaged autopilot maneuver, on the ship root. Present = engaged; the
 /// input layer inserts it (X = STOP, G = GOTO the lock) and removes it on any
 /// flight input, so manual authority is simply "this component is absent".
@@ -543,6 +574,26 @@ pub struct FlightSettings {
     /// command pushes. A full magazine lasts about six seconds of held input -
     /// fine adjust, not a second main drive.
     pub rcs_accel: f32,
+    /// A station's RCS push as an acceleration (u/s^2), in place of
+    /// `rcs_accel` on a station root. Authored at 1 m/s^2: a 5 g shove on a
+    /// hub with tenders docked is a ram, not a trim. Kills a one percent
+    /// orbital kick in about a second and a 10 m/s ram in ten, and sits
+    /// under every generated orbit's pull on purpose: the keeper never
+    /// fights gravity, the ring velocity carries the hull.
+    pub station_rcs_accel: f32,
+    /// The fastest a station rides back onto its post, u/s. Authored at
+    /// 5 m/s: a post 100 m off is regained in about half a minute, and the
+    /// return stays under the idle AI's 1 u/s drift reading.
+    pub station_return_speed: f32,
+    /// A station's velocity error under which the keeper writes no command,
+    /// u/s. Above float noise and the linear leak of the attitude hold's
+    /// settle wobble, so a settled station spends nothing.
+    pub station_hold_deadband: f32,
+    /// How far off its post a station may stand before the keeper corrects
+    /// its position, world units. Authored at 5 m: the integrator's orbit
+    /// wobble walks a fast proof orbit to this edge about once a lap, so
+    /// the keeper puffs once a lap instead of trimming every tick.
+    pub station_post_deadband: f32,
 }
 
 impl Default for FlightSettings {
@@ -585,6 +636,10 @@ impl Default for FlightSettings {
             rcs_recovery_rate: MetersPerSecondSquared(100.0).to_engine(),
             rcs_handoff_speed: MetersPerSecond(100.0).to_engine(),
             rcs_accel: MetersPerSecondSquared(5.0 * 9.81).to_engine(),
+            station_rcs_accel: MetersPerSecondSquared(1.0).to_engine(),
+            station_return_speed: MetersPerSecond(5.0).to_engine(),
+            station_hold_deadband: MetersPerSecond(0.5).to_engine(),
+            station_post_deadband: Meters(5.0).to_engine(),
         }
     }
 }

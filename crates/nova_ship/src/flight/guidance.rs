@@ -339,7 +339,7 @@ pub(super) fn orbit_desired_velocity(
 /// Radial unit direction from the well center to the ship, projected into
 /// the plan's orbit plane; when the ship sits on the plane axis itself, any
 /// in-plane direction serves.
-fn orbit_ring_radial(r_vec: Vec3, plan: &OrbitPlan) -> Vec3 {
+pub(super) fn orbit_ring_radial(r_vec: Vec3, plan: &OrbitPlan) -> Vec3 {
     (r_vec - plan.normal * r_vec.dot(plan.normal))
         .try_normalize()
         .unwrap_or_else(|| plan.normal.any_orthonormal_vector())

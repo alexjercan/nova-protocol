@@ -2,17 +2,19 @@
 //!
 //! The base waystation is parked from the station catalog in a void beside a
 //! player ship. It stands where it was placed with a collar, a bridge and no
-//! thruster; a nudge spins it and its own flight computer turns it back; then
-//! the same `freeze_body` and `thaw_record` a retiring cell runs take it out
-//! and bring it back as the same station.
+//! thruster; a nudge spins it and its own flight computer turns it back; a
+//! shove carries it off the post it stands on and, mid-return, the same
+//! `freeze_body` and `thaw_record` a retiring cell runs take it out and bring
+//! it back as the same station, which finishes the return on its RCS.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: station spawns from content` | the catalog station is up with a Docking and a Controller section and no Thruster |
-//! | 2 | `outcome: station stands and is seen` | it stands at rest where it was placed and the player's sensors hold it |
+//! | 2 | `outcome: station stands and is seen` | it stands at rest where it was placed, posted there, and the player's sensors hold it |
 //! | 3 | `outcome: station holds its attitude` | a nudged hull comes to rest back on its spawn attitude |
-//! | 4 | `outcome: station freezes as a station` | `freeze_body` yields `FrozenBodyType::Station` carrying the catalog design's services |
-//! | 5 | `outcome: station thaws whole` | the thawed station keeps its services, pose, motion, section set and storage |
+//! | 4 | `outcome: station freezes as a station` | `freeze_body` on the shoved station yields `FrozenBodyType::Station` carrying the catalog design's services and the post |
+//! | 5 | `outcome: station thaws whole` | the thawed station keeps its services, pose, motion, section set, storage and post |
+//! | 6 | `outcome: station rides back onto its post` | the thawed station comes to rest inside the post and hold deadbands of where it was placed, with its RCS magazine not emptied |
 //!
 //! The settle beat waits on the angular SPEED alone; whether the hull came
 //! back to its spawn attitude is the assertion's question, so a dead computer
@@ -25,6 +27,7 @@
 //! # look for: `station probe: the waystation stands`,
 //! #           `station probe: the waystation holds its attitude`,
 //! #           `station probe: the thawed waystation matches`,
+//! #           `station probe: the waystation rides back onto its post`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 
@@ -103,15 +106,27 @@ fn station_script() -> Script {
         .step("assert the station holds its attitude")
         .on_enter(assert_station_holds)
         .add()
-        .step("freeze the station and thaw it")
+        .step("shove the station off its post")
+        .on_enter(shove_station)
+        .until(station_displaced())
+        .deadline(10.0)
+        .add()
+        .step("freeze the station mid-return and thaw it")
         .on_enter(freeze_and_thaw_station)
         .until(thawed_station_built())
         .deadline(20.0)
         .add()
-        // The script's last beat: `nova_screenshot` appends the capture beat
-        // behind it, so the run ends on the assertion.
         .step("assert the thawed station matches")
         .on_enter(assert_thawed_station)
+        .add()
+        .step("wait for the thawed station to ride back onto its post")
+        .until(station_on_post())
+        .deadline(300.0)
+        .add()
+        // The script's last beat: `nova_screenshot` appends the capture beat
+        // behind it, so the run ends on the assertion.
+        .step("assert the station holds its post")
+        .on_enter(assert_station_holds_post)
         .add()
 }
 
@@ -225,6 +240,9 @@ struct StationEpoch {
     storage: Option<StationStorage>,
     /// The record `freeze_body` returned, kept for the thaw comparison.
     frozen: Option<FrozenBody>,
+    /// World seconds when the record was thawed: the frozen motion carries
+    /// the station on from there while its sections build.
+    thawed_at: f32,
 }
 
 /// How far the nudge turns the hull off its spawn attitude, radians, and the
@@ -248,10 +266,21 @@ const TURNED_RAD: f32 = 0.1;
 #[cfg(feature = "debug")]
 const REST_RAD_PER_SEC: f32 = 0.01;
 
-/// The thawed pose and velocity may differ from the record by one physics
-/// step of integration and float noise, not by a cell or a turn.
+/// The thawed pose and velocity may differ from the record carried forward
+/// on its own motion by one physics step of integration, the RCS return's
+/// pull over the frames the thaw took and float noise, not by a cell or a
+/// turn.
 #[cfg(feature = "debug")]
 const THAW_TOLERANCE: f32 = 0.01;
+
+/// How far the shove carries the hull off its post, engine units, and the
+/// speed it leaves it moving away at, engine units per second: 20 m out at
+/// 2 m/s, four times the post deadband, so the return has to be flown and
+/// a hull that never moved cannot pass the hold for free.
+#[cfg(feature = "debug")]
+const SHOVE_OFFSET: Vec3 = Vec3::new(2.0, 0.0, 0.0);
+#[cfg(feature = "debug")]
+const SHOVE_SPEED: Vec3 = Vec3::new(0.2, 0.0, 0.0);
 
 /// A station root exists.
 #[cfg(feature = "debug")]
@@ -388,9 +417,18 @@ fn assert_station_stands(world: &mut World) {
         speed < REST_RAD_PER_SEC,
         "station probe: the station is moving at {speed:.3} units/s with no thruster"
     );
+    let post = world
+        .entity(station)
+        .get::<StationPost>()
+        .copied()
+        .expect("station probe: the station is posted by its first fixed tick");
+    assert!(
+        matches!(post, StationPost::Fixed { position } if position.distance(expected) < THAW_TOLERANCE),
+        "station probe: a station at rest in a void is posted where it stands, got {post:?}"
+    );
     let elapsed = world.resource::<Time>().elapsed_secs();
     info!(
-        "station probe: the waystation stands at {expected} with {} sections",
+        "station probe: the waystation stands at {expected} with {} sections, posted {post:?}",
         sections.len()
     );
     nova_probe::probe_marker(
@@ -471,9 +509,105 @@ fn assert_station_holds(world: &mut World) {
     );
 }
 
-/// Invariant 4, then the thaw: freeze the live station as a retiring cell
-/// would, check the record is a station carrying the services, despawn the
-/// live one and thaw the record under a fresh root.
+/// Carry the station [`SHOVE_OFFSET`] off its post and leave it moving away
+/// at [`SHOVE_SPEED`]: what a ram leaves behind, written the way the engine's
+/// own teleports write it, through avian's `Position` and `LinearVelocity`.
+#[cfg(feature = "debug")]
+fn shove_station(world: &mut World) {
+    let station = live_station(world).expect("station probe: the station must be up");
+    let position = world
+        .get::<Position>(station)
+        .map(|p| p.0)
+        .expect("station probe: the station has a physics position");
+    world.entity_mut(station).insert((
+        Position(position + SHOVE_OFFSET),
+        LinearVelocity(SHOVE_SPEED),
+    ));
+    info!(
+        "station probe: shoved the waystation {} u off its post at {} u/s",
+        SHOVE_OFFSET.length(),
+        SHOVE_SPEED.length()
+    );
+}
+
+/// The live station's distance from where it was placed and its speed. The
+/// live root, not the epoch's: after the thaw the station is a fresh root.
+#[cfg(feature = "debug")]
+fn post_error(world: &World) -> Option<(f32, f32)> {
+    let mut stations = world.try_query_filtered::<Entity, With<StationMarker>>()?;
+    let station = stations.iter(world).next()?;
+    let position = world.get::<Position>(station)?.0;
+    let velocity = world.get::<LinearVelocity>(station)?.0;
+    Some((
+        position.distance(STATION_POSITION.to_engine()),
+        velocity.length(),
+    ))
+}
+
+/// The shove took: the hull is outside its post deadband.
+#[cfg(feature = "debug")]
+fn station_displaced() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| {
+        let deadband = world.resource::<FlightSettings>().station_post_deadband;
+        post_error(world).is_some_and(|(offset, _)| offset > deadband)
+    })
+}
+
+/// The hull is back inside both deadbands of its post. Where it is posted
+/// and what the return cost are [`assert_station_holds_post`]'s questions.
+#[cfg(feature = "debug")]
+fn station_on_post() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    Arc::new(|world: &World| {
+        let settings = world.resource::<FlightSettings>();
+        post_error(world).is_some_and(|(offset, speed)| {
+            offset < settings.station_post_deadband && speed < settings.station_hold_deadband
+        })
+    })
+}
+
+/// Invariant 6: the thawed station rode back onto the post it was placed on
+/// with its own RCS, and its magazine was not emptied doing it.
+#[cfg(feature = "debug")]
+fn assert_station_holds_post(world: &mut World) {
+    let station = live_station(world).expect("station probe: the thawed station must be up");
+    let settings = world.resource::<FlightSettings>().clone();
+    let (offset, speed) = post_error(world).expect("station probe: the station has a pose");
+    assert!(
+        offset < settings.station_post_deadband && speed < settings.station_hold_deadband,
+        "station probe: the station rests {offset:.3} u off its post at {speed:.3} u/s \
+         (deadbands {} u, {} u/s)",
+        settings.station_post_deadband,
+        settings.station_hold_deadband
+    );
+    let budget = world
+        .get::<RcsBudget>(station)
+        .copied()
+        .expect("station probe: a station root carries its RCS magazine");
+    assert!(
+        !budget.is_empty(&settings),
+        "station probe: the return emptied the station's RCS magazine"
+    );
+    let elapsed = world.resource::<Time>().elapsed_secs();
+    info!(
+        "station probe: the waystation rides back onto its post ({offset:.4} u off at \
+         {speed:.4} u/s, {:.3} u/s of RCS spent)",
+        budget.spent
+    );
+    nova_probe::probe_marker(
+        world,
+        "outcome: station rides back onto its post",
+        serde_json::json!({
+            "t": elapsed,
+            "offset": offset,
+            "speed": speed,
+            "rcs_spent": budget.spent,
+        }),
+    );
+}
+
+/// Invariant 4, then the thaw: freeze the live station mid-return as a
+/// retiring cell would, check the record is a station carrying the services
+/// and the post, despawn the live one and thaw the record under a fresh root.
 #[cfg(feature = "debug")]
 fn freeze_and_thaw_station(world: &mut World) {
     let station = live_station(world).expect("station probe: the station must be up");
@@ -504,6 +638,21 @@ fn freeze_and_thaw_station(world: &mut World) {
         record.ship().has_section("bridge") && record.ship().has_section("port_collar"),
         "station probe: the frozen hull lost its bridge or collar"
     );
+    let live_post = world
+        .get::<StationPost>(station)
+        .copied()
+        .expect("station probe: the live station is posted");
+    assert_eq!(
+        record.post(),
+        live_post,
+        "station probe: the frozen record does not carry the live post"
+    );
+    let (offset, speed) = post_error(world).expect("station probe: the station has a pose");
+    assert!(
+        offset > world.resource::<FlightSettings>().station_post_deadband,
+        "station probe: the freeze did not catch the station mid-return ({offset:.3} u off at \
+         {speed:.3} u/s)"
+    );
     let elapsed = world.resource::<Time>().elapsed_secs();
     info!(
         "station probe: froze the waystation at {} with motion {:?}",
@@ -529,7 +678,10 @@ fn freeze_and_thaw_station(world: &mut World) {
     let mut commands = world.commands();
     thaw_record(&mut commands, root, vec![prepared], &clock);
     world.flush();
-    world.resource_mut::<StationEpoch>().frozen = Some(frozen);
+    let now = world.resource::<Time>().elapsed_secs();
+    let mut epoch = world.resource_mut::<StationEpoch>();
+    epoch.frozen = Some(frozen);
+    epoch.thawed_at = now;
 }
 
 /// A station root other than the one the freeze despawned stands with every
@@ -553,7 +705,7 @@ fn thawed_station_built() -> Arc<nova_protocol::nova_debug::harness::Predicate> 
 #[cfg(feature = "debug")]
 fn assert_thawed_station(world: &mut World) {
     let station = live_station(world).expect("station probe: the thawed station must be up");
-    let (spawned, spawn_rotation, sections, storage, frozen) = {
+    let (spawned, spawn_rotation, sections, storage, frozen, thawed_at) = {
         let epoch = world.resource::<StationEpoch>();
         (
             epoch.spawned,
@@ -561,8 +713,13 @@ fn assert_thawed_station(world: &mut World) {
             epoch.sections.clone(),
             epoch.storage.clone(),
             epoch.frozen.clone().expect("station probe: the freeze ran"),
+            epoch.thawed_at,
         )
     };
+    // The record was mid-return: carry its motion forward over the time the
+    // thaw took, and allow the return's pull over that time on top.
+    let since_thaw = world.resource::<Time>().elapsed_secs() - thawed_at;
+    let return_accel = world.resource::<FlightSettings>().station_rcs_accel;
     assert_ne!(
         Some(station),
         spawned,
@@ -598,11 +755,13 @@ fn assert_thawed_station(world: &mut World) {
         .expect("station probe: a physics body froze with motion");
     let live_linear = root.get::<LinearVelocity>().map_or(Vec3::NAN, |v| v.0);
     let live_angular = root.get::<AngularVelocity>().map_or(Vec3::NAN, |v| v.0);
-    let drift = position.distance(frozen.transform().translation);
+    let carried = frozen.transform().translation + linear * since_thaw;
+    let drift = position.distance(carried);
     let turn = rotation.angle_between(frozen.transform().rotation);
     assert!(
-        drift < THAW_TOLERANCE,
-        "station probe: the thawed station stands {drift:.3} units off where it froze"
+        drift < THAW_TOLERANCE + 0.5 * return_accel * since_thaw * since_thaw,
+        "station probe: the thawed station stands {drift:.3} units off where its record \
+         carried it in {since_thaw:.2} s"
     );
     assert!(
         turn < THAW_TOLERANCE,
@@ -613,10 +772,10 @@ fn assert_thawed_station(world: &mut World) {
         "station probe: the thawed station is off the attitude the live one was parked at"
     );
     assert!(
-        live_linear.distance(linear) < THAW_TOLERANCE
+        live_linear.distance(linear) < THAW_TOLERANCE + return_accel * since_thaw
             && live_angular.distance(angular) < THAW_TOLERANCE,
         "station probe: the thawed motion {live_linear:?}/{live_angular:?} differs from the \
-         frozen {linear:?}/{angular:?}"
+         frozen {linear:?}/{angular:?} after {since_thaw:.2} s"
     );
     let (docking, controller, thruster) = section_kinds(world, station);
     assert!(
@@ -627,6 +786,14 @@ fn assert_thawed_station(world: &mut World) {
     assert_eq!(
         thawed_sections, sections,
         "station probe: the thawed station's sections differ"
+    );
+    let FrozenBodyType::Station(record) = frozen.body() else {
+        unreachable!("station probe: the record was checked to be a station at the freeze");
+    };
+    assert_eq!(
+        root.get::<StationPost>().copied(),
+        Some(record.post()),
+        "station probe: the thawed station does not hold the post it froze with"
     );
     let elapsed = world.resource::<Time>().elapsed_secs();
     info!(

@@ -13,15 +13,19 @@
 //! the AI never flies it. A dead station has no driver.
 //!
 //! The body is a dynamic thrusterless hull, never `RigidBody::Static`:
-//! gravity pulls it and a ram shoves it. Its Controller section is the whole
-//! of its station-keeping: the controller parks its target attitude on the
-//! spawn rotation and drives the root with PD torque alone
-//! (`controller_section::insert_controller_section_target` and
+//! gravity pulls it and a ram shoves it. Its Controller section parks its
+//! target attitude on the spawn rotation and drives the root with PD torque
+//! alone (`controller_section::insert_controller_section_target` and
 //! `sync_controller_section_forces`), so a hit that spins the hull is damped
-//! back onto the parked attitude within [`STATION_LEVEL_TOLERANCE_RAD`], and
-//! nothing ever pushes the body back to where it was placed. Thrust stays
-//! zero because only a Thruster section writes thrust and the station lint
-//! refuses one (`lint::station`).
+//! back onto the parked attitude within [`STATION_LEVEL_TOLERANCE_RAD`].
+//! Its place is held by its post: [`assign_station_post`] derives a
+//! [`StationPost`] from the authored position and velocity on the first
+//! fixed tick - a circular orbit of the well that holds it, or a fixed point
+//! in flat space - and a living station rides back onto it on its RCS
+//! (`nova_ship`'s `station_keeping_system`), pushing every hull docked at it
+//! along. A dead station keeps its post and nothing reads it, so a docked
+//! player tows it freely. Thrust stays zero because only a Thruster section
+//! writes thrust and the station lint refuses one (`lint::station`).
 //!
 //! A station takes damage, collapses and is destroyed as a ship is: below
 //! the hull's authored `collapse_threshold` share of its pool (a sever that
@@ -34,23 +38,26 @@
 //!
 //! Where a cluster has a planet its station orbits it: the generator spawns
 //! it with [`station_orbit_velocity`], the circular speed the gravity layer
-//! itself integrates, and the orbit is held within
-//! [`STATION_ORBIT_TOLERANCE`] of its radius.
+//! itself integrates. A station authored in a well with any other velocity,
+//! or out of every well with a velocity at all, has no post: the scenario
+//! lint refuses it ([`derive_station_post`]) and the spawn panics.
 
+use avian3d::prelude::{LinearVelocity, Position};
 use bevy::prelude::*;
 use nova_events::prelude::{
-    EntityTypeName, MetersPerSecond3, DERELICT_STATION_TYPE_NAME, LIVING_STATION_TYPE_NAME,
+    EntityId, EntityTypeName, MetersPerSecond3, DERELICT_STATION_TYPE_NAME,
+    LIVING_STATION_TYPE_NAME,
 };
 use nova_gameplay::prelude::{
-    circular_orbit_speed, Allegiance, DerelictShipMarker, ItemDesignId, LootableShipMarker,
-    NeutralizedMarker, OwnedStationMarker, RetaliationTarget, SectionInactiveMarker, SectionMarker,
-    ShipInventoryStock, UnsettledBody,
+    circular_orbit_speed, well_accel, Allegiance, DerelictShipMarker, GravitySettings, GravityWell,
+    ItemDesignId, LootableShipMarker, NeutralizedMarker, OwnedStationMarker, RetaliationTarget,
+    SectionInactiveMarker, SectionMarker, ShipInventoryStock, UnsettledBody,
 };
 pub use nova_gameplay::prelude::{
     StationBuilds, StationDesignId, StationMarker, StationServiceType, StationServices,
     StationStorage,
 };
-use nova_ship::prelude::{AISpaceshipMarker, SectionBuildConfig, ShipCapabilities};
+use nova_ship::prelude::{AISpaceshipMarker, SectionBuildConfig, ShipCapabilities, StationPost};
 
 use crate::objects::{
     parked_hulls::prelude::{
@@ -69,11 +76,11 @@ use crate::objects::{
 /// Glob-import surface for the station content kind and object.
 pub mod prelude {
     pub use super::{
-        freeze_station, station_orbit_velocity, station_scenario_object, thaw_station,
-        FrozenStation, GameStationDesigns, StationBuilds, StationConfig, StationDesign,
-        StationDesignId, StationDesignPrototype, StationDesignSource, StationMarker,
-        StationServiceType, StationServices, StationStorage, STATION_COLLAPSE_THRESHOLD,
-        STATION_LEVEL_TOLERANCE_RAD, STATION_ORBIT_TOLERANCE,
+        derive_station_post, freeze_station, station_orbit_velocity, station_scenario_object,
+        station_well, thaw_station, FrozenStation, GameStationDesigns, StationBuilds,
+        StationConfig, StationDesign, StationDesignId, StationDesignPrototype, StationDesignSource,
+        StationMarker, StationServiceType, StationServices, StationStorage,
+        STATION_COLLAPSE_THRESHOLD, STATION_LEVEL_TOLERANCE_RAD, STATION_POST_CIRCULAR_TOLERANCE,
     };
 }
 
@@ -93,20 +100,156 @@ pub const STATION_COLLAPSE_THRESHOLD: f32 = 0.5;
 /// the collar: not a thing a docking approach notices.
 pub const STATION_LEVEL_TOLERANCE_RAD: f32 = 0.03;
 
-/// How far a station's orbital radius may drift over three orbits, as a
-/// fraction of the radius it was placed at.
+/// How far an authored station velocity may differ from the circular speed
+/// of the well that holds it, as a fraction of that speed, in magnitude and
+/// in its radial component. Room for a number copied from
+/// [`station_orbit_velocity`] and rounded in RON, and for one fixed step of
+/// the pull before the post is read; a tenth off is an ellipse the keeper
+/// would spend its magazine on, and is refused.
+pub const STATION_POST_CIRCULAR_TOLERANCE: f32 = 0.05;
+
+/// The well that holds a station at `position`: the centre and `mu` of the
+/// well whose pull there is strongest, by the rule the force system applies
+/// to a body with no incumbent well (`dominant_well_acceleration`, see
+/// `nova_gameplay::gravity`). `None` in flat space. `wells` are each a
+/// centre and its well, engine units.
+pub fn station_well(
+    position: Vec3,
+    wells: &[(Vec3, GravityWell)],
+    settings: &GravitySettings,
+) -> Option<(Vec3, f32)> {
+    wells
+        .iter()
+        .filter_map(|(centre, well)| {
+            let offset = *centre - position;
+            offset.try_normalize()?;
+            let accel = well_accel(
+                well.mu,
+                offset.length(),
+                well.body_radius,
+                well.soi_radius,
+                settings.fade_fraction,
+                settings.surface_margin,
+            );
+            (accel > 0.0).then_some((*centre, well.mu, accel))
+        })
+        .max_by(|a, b| a.2.total_cmp(&b.2))
+        .map(|(centre, mu, _)| (centre, mu))
+}
+
+/// The post a station at `position` with `velocity` holds, engine units:
+/// held by `well` (its centre and `mu`, see [`station_well`]) it rides a
+/// circular orbit, so the velocity must be tangential at the circular speed
+/// within [`STATION_POST_CIRCULAR_TOLERANCE`]; in flat space it stands at
+/// rest, so the velocity must be zero. The lint and the spawn both apply
+/// this rule, the lint as an error and the spawn as a panic.
 ///
-/// Two things spend this budget. The pull is a force held constant over each
-/// fixed step, so an orbit gains energy every step and widens: measured at
-/// about 1.5 % of its binding energy per orbit on `system_station_orbit`'s
-/// 30 s orbit, less on a generated planetoid's slower one, since the gain
-/// scales with the angle swept per step. And a hit: a tangential kick of one
-/// percent of orbital speed swings the radius about four percent (the
-/// apoapsis of the new ellipse is roughly `r (1 + 4 f)`). Three orbits of
-/// the first plus one of the second measure a tenth; 0.15 leaves the
-/// integrator's per-orbit wobble room and still refuses an orbit that is
-/// walking out of the well's unfaded core or down onto its surface clamp.
-pub const STATION_ORBIT_TOLERANCE: f32 = 0.15;
+/// # Errors
+///
+/// The authored fault, worded for the author.
+pub fn derive_station_post(
+    position: Vec3,
+    velocity: Vec3,
+    well: Option<(Vec3, f32)>,
+) -> Result<StationPost, String> {
+    let Some((centre, mu)) = well else {
+        if velocity != Vec3::ZERO {
+            return Err(format!(
+                "stands outside every well with a velocity of {:?} m/s; a station out of a well \
+                 authors (0.0, 0.0, 0.0)",
+                MetersPerSecond3::from_engine(velocity).get()
+            ));
+        }
+        return Ok(StationPost::Fixed { position });
+    };
+    let radial = position - centre;
+    let radius = radial.length();
+    let Some(radial_direction) = radial.try_normalize() else {
+        return Err("stands on the centre of a well; no orbit exists there".to_string());
+    };
+    let circular = circular_orbit_speed(mu, radius);
+    let speed = velocity.length();
+    let tolerance = STATION_POST_CIRCULAR_TOLERANCE * circular;
+    if (speed - circular).abs() > tolerance || velocity.dot(radial_direction).abs() > tolerance {
+        return Err(format!(
+            "moves at {:.2} m/s with {:.2} m/s along its radial, {:.0} m from a well whose \
+             circular speed there is {:.2} m/s; a station in a well authors \
+             station_orbit_velocity (within {:.0} percent, tangential)",
+            MetersPerSecond3::from_engine(velocity).get().length(),
+            MetersPerSecond3::from_engine(radial_direction * velocity.dot(radial_direction))
+                .get()
+                .length(),
+            nova_events::prelude::Meters::from_engine(radius).0,
+            MetersPerSecond3::from_engine(radial_direction * circular)
+                .get()
+                .length(),
+            STATION_POST_CIRCULAR_TOLERANCE * 100.0
+        ));
+    }
+    let Some(normal) = radial.cross(velocity).try_normalize() else {
+        return Err("has no orbit plane: its velocity is not tangential".to_string());
+    };
+    Ok(StationPost::Orbit {
+        centre,
+        radius,
+        normal,
+    })
+}
+
+/// Give every station root without a post the one its authored position and
+/// velocity define ([`derive_station_post`]), living or dead, so a thaw and a
+/// freeze always find one. `FixedUpdate`, on the first tick a station's
+/// avian pose is real: avian seeds `Position::PLACEHOLDER` until the body
+/// resolves its `Transform`, and a post written from the placeholder would
+/// be permanent. A thawed station carries its frozen post and is skipped.
+///
+/// # Panics
+///
+/// On a station whose authored motion defines no post. The scenario lint
+/// refuses the same authoring first (`lint::scenario`); a generated station
+/// is placed on its orbit or at rest by the generator.
+pub(crate) fn assign_station_post(
+    settings: Res<GravitySettings>,
+    mut commands: Commands,
+    q_station: Query<
+        (
+            Entity,
+            &Position,
+            &LinearVelocity,
+            Option<&EntityId>,
+            Option<&Name>,
+        ),
+        (With<StationMarker>, Without<StationPost>),
+    >,
+    q_wells: Query<(&Position, &GravityWell)>,
+) {
+    if q_station.is_empty() {
+        return;
+    }
+    let wells: Vec<(Vec3, GravityWell)> = q_wells
+        .iter()
+        .map(|(position, well)| (position.0, well.clone()))
+        .collect();
+    for (station, position, velocity, id, name) in &q_station {
+        if !position.0.is_finite() || position.0 == Position::PLACEHOLDER.0 {
+            continue;
+        }
+        let well = station_well(position.0, &wells, &settings);
+        match derive_station_post(position.0, velocity.0, well) {
+            Ok(post) => {
+                debug!("assign_station_post: station {station:?} holds {post:?}");
+                commands.entity(station).insert(post);
+            }
+            Err(fault) => {
+                let label = id
+                    .map(|id| id.0.clone())
+                    .or_else(|| name.map(ToString::to_string))
+                    .unwrap_or_else(|| station.to_string());
+                panic!("assign_station_post: station '{label}' {fault}");
+            }
+        }
+    }
+}
 
 /// The velocity a station spawns with to ride a circular orbit of the well at
 /// `well_position` with strength `mu` (engine units, as `GravityWell::mu`),
@@ -368,15 +511,17 @@ pub(crate) fn on_station_neutralized_turn_derelict(
         ));
 }
 
-/// What a station is permitted to do: receive a dock, defend itself while
-/// it is `living`, and nothing a hull under way does.
+/// What a station is permitted to do: receive a dock, and while it is
+/// `living` defend itself and hold its post on its RCS; nothing a hull under
+/// way does. The RCS flag gates `rcs_burn_system` alone: no helm reaches a
+/// living station, and a dead one is towed, never pushed.
 fn station_capabilities(living: bool) -> ShipCapabilities {
     ShipCapabilities {
         stop_enabled: false,
         goto_enabled: false,
         orbit_enabled: false,
         lock_enabled: false,
-        rcs_enabled: false,
+        rcs_enabled: living,
         point_defense_enabled: living,
         dock_enabled: true,
     }
@@ -384,11 +529,14 @@ fn station_capabilities(living: bool) -> ShipCapabilities {
 
 /// A station frozen with its cell: the services it offers, the hull record
 /// a ship freezes to, its storage, the hulls it holds (parked at its
-/// ports or coasting beside it for hire) and whether the player owns it.
+/// ports or coasting beside it for hire), whether the player owns it and
+/// the post it holds.
 ///
 /// `owned` is the one record of ownership: the live [`OwnedStationMarker`]
 /// is frozen into it and thawed out of it, so a bought station stays the
 /// player's across a retire, a thaw and a Load with no list beside it.
+/// `post` is the one record of the post: a station frozen mid-return thaws
+/// with its live pose and motion and finishes the return.
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -399,9 +547,15 @@ pub struct FrozenStation {
     storage: StationStorage,
     parked: Vec<FrozenParkedHull>,
     owned: bool,
+    post: StationPost,
 }
 
 impl FrozenStation {
+    /// The post the station holds.
+    pub fn post(&self) -> StationPost {
+        self.post
+    }
+
     /// The services the station offers.
     pub fn services(&self) -> &[StationServiceType] {
         &self.services
@@ -450,7 +604,10 @@ impl FrozenStation {
 /// # Errors
 ///
 /// [`UnsettledBody`] while the hull is collapsing, being destroyed or
-/// mid-sever, see [`freeze_ship`], or while a parked hull cannot freeze.
+/// mid-sever, see [`freeze_ship`], while a parked hull cannot freeze, or
+/// while the station has no [`StationPost`] yet: a station spawned and
+/// retired in one frame has not run the fixed tick that derives it, and the
+/// cell holds it live until it has.
 ///
 /// # Panics
 ///
@@ -462,6 +619,11 @@ pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, U
     if !root.contains::<StationMarker>() {
         panic!("freeze_station: {station} is not a station root");
     }
+    let Some(post) = root.get::<StationPost>() else {
+        return Err(UnsettledBody {
+            reason: "the station post is not derived yet",
+        });
+    };
     let Some(services) = root.get::<StationServices>() else {
         panic!("freeze_station: station {station} has no services");
     };
@@ -478,13 +640,14 @@ pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, U
         storage: storage.clone(),
         parked: freeze_parked_hulls(world, station)?,
         owned: root.contains::<OwnedStationMarker>(),
+        post: *post,
     })
 }
 
 /// Rebuild a frozen station on `entity`, which the caller spawned with its
 /// pose, identity and parent. The hull thaws through [`thaw_ship`]; the
-/// marker, the services, the storage, the parked hulls to park again
-/// ([`PendingParkedHulls`]) and, for an owned station,
+/// marker, the services, the storage, the post, the parked hulls to park
+/// again ([`PendingParkedHulls`]) and, for an owned station,
 /// [`OwnedStationMarker`] land beside it. The caller inserts the
 /// velocity after this.
 pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
@@ -495,6 +658,7 @@ pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
         storage,
         parked,
         owned,
+        post,
     } = frozen;
     let living = !ship.is_derelict();
     thaw_ship(entity, ship);
@@ -503,6 +667,7 @@ pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
         StationServices(services),
         StationBuilds(builds),
         storage,
+        post,
     ));
     entity.insert(station_type_name(living));
     if !parked.is_empty() {
@@ -546,6 +711,67 @@ mod tests {
         assert!(
             station_orbit_velocity(mu, well, well).is_none(),
             "a station on the well's centre must get no orbit"
+        );
+    }
+
+    /// The post follows the authored motion: the generator's circular
+    /// velocity in a well is an orbit of that well on that radius and plane,
+    /// rest in flat space is a fixed point, and anything else is refused.
+    #[test]
+    fn a_station_post_is_an_orbit_in_a_well_a_fixed_point_at_rest_and_refused_otherwise() {
+        let settings = GravitySettings::default();
+        let well = GravityWell::from_mass(4000.0, 21.1, &settings);
+        let centre = Vec3::new(10.0, -5.0, 2.0);
+        let wells = [(centre, well.clone())];
+        let station = centre + Vec3::new(45.0, 0.0, 0.0);
+        let velocity = station_orbit_velocity(4000.0, centre, station)
+            .expect("an orbit exists off the centre")
+            .to_engine();
+
+        let held = station_well(station, &wells, &settings);
+        assert_eq!(held, Some((centre, 4000.0)), "the planet holds the station");
+        let post = derive_station_post(station, velocity, held).expect("circular is a post");
+        let StationPost::Orbit {
+            centre: at,
+            radius,
+            normal,
+        } = post
+        else {
+            panic!("a station in a well orbits, got {post:?}");
+        };
+        assert_eq!(at, centre);
+        assert!((radius - 45.0).abs() < 1e-3, "radius {radius}");
+        assert!(
+            normal.dot((station - centre).cross(velocity).normalize()) > 0.999,
+            "the plane is r x v: {normal:?}"
+        );
+
+        let far = centre + Vec3::X * (well.soi_radius * 2.0);
+        assert_eq!(
+            station_well(far, &wells, &settings),
+            None,
+            "outside the reach no well holds it"
+        );
+        assert_eq!(
+            derive_station_post(far, Vec3::ZERO, None),
+            Ok(StationPost::Fixed { position: far }),
+            "at rest in flat space the post is the point"
+        );
+        assert!(
+            derive_station_post(far, Vec3::X, None).is_err(),
+            "a velocity out of a well has no post"
+        );
+        assert!(
+            derive_station_post(station, velocity * 1.1, held).is_err(),
+            "a tenth over circular has no post"
+        );
+        assert!(
+            derive_station_post(station, Vec3::X * velocity.length(), held).is_err(),
+            "a radial velocity at circular speed has no post"
+        );
+        assert!(
+            derive_station_post(station, Vec3::ZERO, held).is_err(),
+            "rest in a well has no post: the station would fall"
         );
     }
 }

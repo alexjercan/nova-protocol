@@ -6,16 +6,17 @@
 //! so three hulls ride the orbit docked to it, as a generated station's
 //! hulls for sale do. A scripted hit takes hit points off one of its
 //! sections without collapsing it; a kick the size of a ram spins the
-//! station and its docked hulls and its own flight computer levels them
-//! under gravity; then the damaged station rides three full orbits without
-//! its radius drifting or a hull coming loose.
+//! station and its docked hulls and shoves them along the orbit, its own
+//! flight computer levels them under gravity and its RCS rides them back
+//! onto the orbit it is posted on; then the damaged station rides three
+//! full orbits held on its post without a hull coming loose.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
-//! | 1 | `outcome: station rides its orbit` | the station moves at the circular speed of the planet's well, on the radius it was placed at, with a hull docked at each port but one |
+//! | 1 | `outcome: station rides its orbit` | the station moves at the circular speed of the planet's well, on the radius it was placed at, posted on that orbit, with a hull docked at each port but one |
 //! | 2 | `outcome: station takes a hit` | a hit on one of its sections drops the hull pool below the hull it was built with; the root is not collapsed, marked at zero, disabled, neutralized or derelict |
 //! | 3 | `outcome: station levels after a hit under gravity` | spun and shoved, the station and its docked hulls come to rest within `STATION_LEVEL_TOLERANCE_RAD` of its parked attitude while the well pulls on it |
-//! | 4 | `outcome: station holds its orbit` | after three orbits and the hit the radius never left `STATION_ORBIT_TOLERANCE` of where it started, the station is still level, every parked hull is still docked and no pool on the station or a hull changed since the hit |
+//! | 4 | `outcome: station holds its orbit` | after three orbits and the hit the radius never left the post deadband plus [`POST_OVERSHOOT`] of where it started, the RCS magazine never emptied, the station is still level, every parked hull is still docked and no pool on the station or a hull changed since the hit |
 //!
 //! The planet is scaled for the walk, not for the world. A generated
 //! planetoid is 500-1600 m with the mass that reaches 3.5 radii of influence
@@ -38,12 +39,15 @@
 //! moves the docked hulls with the station, as a ram moves a rigid
 //! assembly; a turn of the station alone would tear at its joints.
 //!
-//! The orbit the proof measures is not the kick alone. The pull is a force
+//! The hold the proof measures is the station's own. The pull is a force
 //! held constant over each fixed step, so an orbit gains energy every step:
 //! about 1.5 % of its binding energy per orbit here (the gain scales with the
 //! angle swept per step, so a generated planetoid's slower orbit gains less).
-//! Three orbits of that plus the kick's four percent is where the orbit
-//! tolerance's budget goes.
+//! Left alone the kick swings the radius four percent and three orbits of
+//! gain walk it out further; the station's RCS trims both back inside the
+//! post deadband, and the bound the proof asks is that deadband plus the
+//! return's overshoot, the same bound the flight layer's own proof asks of
+//! a lone posted hull.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`). The
 //! walk is three orbits long, so raise the harness backstop:
@@ -349,10 +353,20 @@ const KICK_RAD: f32 = 0.5;
 const KICK_RAD_PER_SEC: f32 = 0.3;
 
 /// The tangential delta-v the kick adds, as a fraction of orbital speed. One
-/// percent swings the radius about four percent, inside the orbit tolerance
-/// with room for the integrator, and is the order a ram leaves behind.
+/// percent swings the radius about four percent, ten times the post
+/// deadband, and is the order a ram leaves behind.
 #[cfg(feature = "debug")]
 const KICK_SPEED_FRACTION: f32 = 0.01;
+
+/// How far past the post deadband the radius may swing while the station
+/// holds its ring, engine units. Measured on this rig: the return from the
+/// kick's outward swing carried the docked assembly 0.53 u inside the
+/// deadband (43.97 u on the 45 u ring), where the 0.21 rad/s orbit turns
+/// the hold deadband's 0.05 u/s residual into a radial swing of its own;
+/// 7.5 m leaves room for the sampling and is still a tenth of the unheld
+/// kick's swing.
+#[cfg(feature = "debug")]
+const POST_OVERSHOOT: f32 = 0.75;
 
 /// How far off the parked attitude the kick must take the hull before the
 /// hold is asked to recover it. Above [`STATION_LEVEL_TOLERANCE_RAD`], so a
@@ -421,6 +435,10 @@ struct OrbitEpoch {
     /// The widest and the narrowest radius seen since the start.
     radius_min: f32,
     radius_max: f32,
+    /// The most RCS delta-v the station had spent at once since the start,
+    /// and whether its magazine ever ran empty.
+    rcs_spent_max: f32,
+    rcs_emptied: bool,
     /// When the hull last came under [`REST_RAD_PER_SEC`], world seconds,
     /// or `None` while it turns faster.
     rest_since: Option<f32>,
@@ -582,6 +600,24 @@ fn assert_station_orbits(world: &mut World) {
         velocity.dot(radial).abs() / (speed * radius) < START_TOLERANCE * 2.0,
         "station probe: the station's velocity {velocity:?} is not tangent to its radial {radial:?}"
     );
+    let post = root
+        .get::<StationPost>()
+        .copied()
+        .expect("station probe: the station is posted by its first fixed tick");
+    let StationPost::Orbit {
+        centre: post_centre,
+        radius: post_radius,
+        ..
+    } = post
+    else {
+        panic!("station probe: a station in a well is posted on an orbit, got {post:?}");
+    };
+    assert!(
+        post_centre.distance(centre) < f32::EPSILON
+            && ((post_radius - expected_radius) / expected_radius).abs() < START_TOLERANCE,
+        "station probe: the station is posted on {post:?}, not the {expected_radius:.2} u orbit \
+         of the planet at {centre:?}"
+    );
     let ports = station_ports(world, station);
     let parked = parked_hulls(world, station);
     assert_eq!(
@@ -629,19 +665,28 @@ fn assert_station_orbits(world: &mut World) {
     epoch.swept = 0.0;
     epoch.radius_min = radius;
     epoch.radius_max = radius;
+    epoch.rcs_spent_max = 0.0;
+    epoch.rcs_emptied = false;
 }
 
 /// Follow the station round the well from the epoch on: the angle it has
-/// swept and the widest and narrowest radius it has had. Nothing here reads
-/// a frame, so a slow frame samples a longer arc, not a different orbit.
+/// swept, the widest and narrowest radius it has had and the most its RCS
+/// magazine was drawn down. Nothing here reads a frame, so a slow frame
+/// samples a longer arc, not a different orbit.
 #[cfg(feature = "debug")]
-fn track_orbit(mut epoch: ResMut<OrbitEpoch>, q_station: Query<&Position, With<StationMarker>>) {
+fn track_orbit(
+    settings: Res<FlightSettings>,
+    mut epoch: ResMut<OrbitEpoch>,
+    q_station: Query<(&Position, &RcsBudget), With<StationMarker>>,
+) {
     let Some(station) = epoch.spawned else {
         return;
     };
-    let Ok(position) = q_station.get(station) else {
+    let Ok((position, budget)) = q_station.get(station) else {
         return;
     };
+    epoch.rcs_spent_max = epoch.rcs_spent_max.max(budget.spent);
+    epoch.rcs_emptied |= budget.is_empty(&settings);
     let radial = position.0 - epoch.well;
     let radius = radial.length();
     let Some(direction) = radial.try_normalize() else {
@@ -891,13 +936,14 @@ fn three_orbits_swept() -> Arc<nova_protocol::nova_debug::harness::Predicate> {
     })
 }
 
-/// Invariant 4: over three orbits and the hit the radius stayed within
-/// [`STATION_ORBIT_TOLERANCE`] of where it started, the hull is still level
-/// and no pool under it changed since the hit.
+/// Invariant 4: over three orbits and the hit the station held its post -
+/// the radius stayed within the post deadband plus [`POST_OVERSHOOT`] of
+/// where it started and its RCS magazine never emptied - the hull is still
+/// level and no pool under it changed since the hit.
 #[cfg(feature = "debug")]
 fn assert_station_holds_orbit(world: &mut World) {
     let station = live_station(world).expect("station probe: the station must still be up");
-    let (radius, radius_min, radius_max, swept, before) = {
+    let (radius, radius_min, radius_max, swept, before, rcs_spent_max, rcs_emptied) = {
         let epoch = world.resource::<OrbitEpoch>();
         (
             epoch.radius,
@@ -905,13 +951,21 @@ fn assert_station_holds_orbit(world: &mut World) {
             epoch.radius_max,
             epoch.swept,
             epoch.health.clone(),
+            epoch.rcs_spent_max,
+            epoch.rcs_emptied,
         )
     };
-    let drift = ((radius_max - radius) / radius).max((radius - radius_min) / radius);
+    let bound = world.resource::<FlightSettings>().station_post_deadband + POST_OVERSHOOT;
+    let drift = (radius_max - radius).max(radius - radius_min);
     assert!(
-        drift < STATION_ORBIT_TOLERANCE,
-        "station probe: the orbit drifted {drift:.3} of its radius ({radius_min:.2}..{radius_max:.2} \
-         u about {radius:.2} u) over {swept:.2} rad (tolerance {STATION_ORBIT_TOLERANCE})"
+        drift <= bound,
+        "station probe: the station strayed {drift:.3} u off its post ({radius_min:.2}..{radius_max:.2} \
+         u about {radius:.2} u) over {swept:.2} rad (bound {bound:.2} u)"
+    );
+    assert!(
+        !rcs_emptied,
+        "station probe: the station's RCS magazine ran empty holding its post (most spent \
+         {rcs_spent_max:.3} u/s)"
     );
     let error = attitude_error(world).expect("station probe: the station must be up");
     assert!(
@@ -932,8 +986,8 @@ fn assert_station_holds_orbit(world: &mut World) {
     let elapsed = world.resource::<Time>().elapsed_secs();
     info!(
         "station probe: the yard holds its orbit ({swept:.2} rad swept, radius \
-         {radius_min:.2}..{radius_max:.2} u about {radius:.2} u, drift {drift:.4}, \
-         {error:.4} rad off its attitude)"
+         {radius_min:.2}..{radius_max:.2} u about {radius:.2} u, {drift:.4} u off its post of \
+         {bound:.2} u, RCS spent at most {rcs_spent_max:.3} u/s, {error:.4} rad off its attitude)"
     );
     nova_probe::probe_marker(
         world,
@@ -945,6 +999,8 @@ fn assert_station_holds_orbit(world: &mut World) {
             "radius_min": radius_min,
             "radius_max": radius_max,
             "drift": drift,
+            "bound": bound,
+            "rcs_spent_max": rcs_spent_max,
             "error_rad": error,
             "parked": parked.len(),
         }),

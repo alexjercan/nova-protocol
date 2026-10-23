@@ -37,9 +37,9 @@ use nova_ship::prelude::{
     DestroySound, FrozenRound, FrozenTorpedo, HullSectionConfig, LockSignature, RoundSourceType,
     SavedTorpedoTarget, SectionAnimations, SectionBuildConfig, SectionConfig, SectionKind,
     SectionReload, SectionReloadConfig, ShipWreckFragmentMarker, SpaceshipCameraController,
-    SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker, SuspendedSectionAmmo,
-    TorpedoArming, TorpedoControllerMarker, TorpedoSectionConfig, TorpedoTargetChosen,
-    TorpedoTargetEntity, TorpedoTargetPosition, TorpedoWeave, TravelLock,
+    SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker, StationPost,
+    SuspendedSectionAmmo, TorpedoArming, TorpedoControllerMarker, TorpedoSectionConfig,
+    TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoWeave, TravelLock,
 };
 use nova_world::{
     prelude::{CurrentSector, FrozenBodyType, FrozenSectors, SectorCoord, WorldClock, WorldConfig},
@@ -3199,6 +3199,9 @@ fn frozen_item_holders(item: &ItemDesignId) -> Vec<(Option<&'static str>, Frozen
             ShipInventory::new(&extended, 10_000, []),
             DamageMarks::default(),
             StationMarker,
+            StationPost::Fixed {
+                position: Vec3::ZERO,
+            },
             StationServices(vec![StationServiceType::Storage]),
             StationBuilds(Vec::new()),
             ron::from_str::<StationStorage>(&format!(
@@ -3527,6 +3530,9 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
                 ShipInventory::new(&items(), 10_000, []),
                 DamageMarks::default(),
                 StationMarker,
+                StationPost::Fixed {
+                    position: Vec3::ZERO,
+                },
                 StationServices(vec![StationServiceType::Storage]),
                 StationBuilds(Vec::new()),
                 ron::from_str::<StationStorage>(&format!(

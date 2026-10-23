@@ -595,7 +595,7 @@ it lives, point defense.
 | `design` | source | required | `Prototype("<id>")` names a [station design](../stations/) by id; an id no loaded content declares fails at lint and at load. `Inline((..))` carries the station's `design` fields whole, linted as a `Station` item |
 | `allegiance` | side | required | which side the station is on: `Player`, `Enemy` or `Neutral`. Player and Enemy stations fire on hostile sides; a Neutral station fires only back at a side that hit it |
 | `derelict` | bool | required | `true` spawns a dead station: its systems inactive, its hold open to Take |
-| `initial_velocity` | 3-tuple | required | explicit initial motion in meters per second; `(0.0, 0.0, 0.0)` is an authored stationary start, not immunity to gravity |
+| `initial_velocity` | 3-tuple | required | explicit initial motion in meters per second. It must define the station's post (see [How a station behaves](../stations/#how-a-station-behaves)): in a planet's or anchor's well the circular orbit speed on the tangent, `station_orbit_velocity`, within 5 percent; out of every well `(0.0, 0.0, 0.0)`. Anything else fails at lint and at load |
 
 The hold opens with the design's `stock` and the design's `credits`; the
 storage opens empty. A station takes no `controller`, `capabilities`,

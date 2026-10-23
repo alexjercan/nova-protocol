@@ -27,7 +27,9 @@ use crate::{
         ship_design::prelude::{
             resolve_ship_design, GameShipDesigns, ResolvedShipDesign, ShipDesign, ShipDesignSource,
         },
-        station::{on_station_neutralized_turn_derelict, prelude::GameStationDesigns},
+        station::{
+            assign_station_post, on_station_neutralized_turn_derelict, prelude::GameStationDesigns,
+        },
     },
 };
 
@@ -1120,7 +1122,14 @@ impl Plugin for SpaceshipPlugin {
         app.init_resource::<GameItems>();
         // The station spawn reads the station catalog the same way.
         app.init_resource::<GameStationDesigns>();
+        // The post derivation reads the gravity tunables; the gravity plugin
+        // owns the same resource and init_resource is idempotent.
+        app.init_resource::<GravitySettings>();
         app.register_type::<OwnedStationMarker>();
+        // A station's post, from its first real avian pose. No ordering
+        // against the flight layer: the post lands through commands and the
+        // keeper reads it next tick.
+        app.add_systems(FixedUpdate, assign_station_post);
 
         app.add_observer(insert_spaceship_sections);
         app.add_observer(rebuild_design_section);

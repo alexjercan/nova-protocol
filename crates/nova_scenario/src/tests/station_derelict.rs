@@ -1,5 +1,5 @@
 //! A living station on real catalog sections loses its last turret and turns
-//! into a dead station, and a frozen copy of it thaws dead.
+//! into a dead station, and a frozen copy of it thaws dead with its post.
 
 use bevy::prelude::*;
 use nova_events::prelude::{
@@ -218,7 +218,12 @@ fn a_station_that_loses_its_last_turret_turns_into_a_dead_station() {
         health.current, health.max
     );
 
+    let post = *app
+        .world()
+        .get::<StationPost>(station)
+        .expect("a dead station keeps its post");
     let frozen = freeze_station(app.world(), station).expect("a settled station freezes");
+    assert_eq!(frozen.post(), post, "the record carries the live post");
     app.world_mut().entity_mut(station).despawn();
     let thawed = {
         let mut commands = app.world_mut().commands();
@@ -228,6 +233,11 @@ fn a_station_that_loses_its_last_turret_turns_into_a_dead_station() {
     };
     settle(&mut app);
     assert_dead(&app, thawed, "after a freeze and thaw");
+    assert_eq!(
+        app.world().get::<StationPost>(thawed),
+        Some(&post),
+        "the thawed station holds the post it froze with"
+    );
     let thawed_bridge = section(&app, thawed, "bridge");
     assert!(
         app.world()
@@ -235,4 +245,61 @@ fn a_station_that_loses_its_last_turret_turns_into_a_dead_station() {
             .contains::<SectionInactiveMarker>(),
         "the thawed flight computer stays off"
     );
+}
+
+/// [`design`] without its gun: an unarmed hulk. A turret spawned inactive
+/// never gets its look angles, so freezing a station spawned dead WITH a gun
+/// panics in `FrozenTurretHinges::freeze`; that fault is the turret's, not
+/// the post's, and this proof stays clear of it.
+fn unarmed_design() -> StationDesign {
+    let mut design = design();
+    design.hull.sections.retain(|section| section.id != "gun");
+    design
+}
+
+/// A station's post is derived on its first fixed tick, dead or living, and
+/// a freeze before then is a wait, not a record: the cell holds the body
+/// live until the post exists, then the record carries it.
+#[test]
+fn a_station_spawned_dead_gets_its_post_on_the_first_tick_and_freezes_with_it() {
+    let mut app = app();
+    let station = {
+        let mut commands = app.world_mut().commands();
+        let mut entity = commands.spawn((Transform::default(), EntityId::new("hulk")));
+        station_scenario_object(
+            &mut entity,
+            &unarmed_design(),
+            &StationConfig {
+                design: StationDesignSource::Inline(unarmed_design()),
+                allegiance: Allegiance::Neutral,
+                derelict: true,
+                initial_velocity: MetersPerSecond3::ZERO,
+            },
+        );
+        entity.id()
+    };
+    app.world_mut().flush();
+    assert!(
+        app.world().get::<StationPost>(station).is_none(),
+        "no fixed tick has run, so no post is derived"
+    );
+    let early = freeze_station(app.world(), station);
+    assert!(
+        matches!(early, Err(UnsettledBody { .. })),
+        "a station without its post is unsettled, not frozen: {early:?}"
+    );
+
+    settle(&mut app);
+    settle(&mut app);
+    assert_dead(&app, station, "spawned dead");
+    let post = app.world().get::<StationPost>(station).copied();
+    assert_eq!(
+        post,
+        Some(StationPost::Fixed {
+            position: Vec3::ZERO
+        }),
+        "at rest out of every well the post is where it stands"
+    );
+    let frozen = freeze_station(app.world(), station).expect("a posted station freezes");
+    assert_eq!(Some(frozen.post()), post, "the record carries the post");
 }

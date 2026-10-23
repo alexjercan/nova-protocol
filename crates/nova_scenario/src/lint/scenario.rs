@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::Alpha;
 use nova_events::prelude::GeneratedBodyId;
-use nova_gameplay::prelude::{GameItems, SectionClass};
+use nova_gameplay::prelude::{GameItems, GravitySettings, GravityWell, SectionClass};
 use nova_input::prelude::InputSource;
 use nova_ship::prelude::GameStyles;
 
@@ -162,6 +162,8 @@ pub fn lint_scenario(
             "menu backdrop authors no SetCamera; the menu camera would never be posed".to_string(),
         ));
     }
+
+    check_station_posts(scenario, id, &mut issues);
 
     // The menu owns the backdrop rotation: a backdrop reports that its act is
     // finished with BackdropDone and never names its successor. All three are
@@ -740,6 +742,65 @@ fn check_initial_velocity(
                 velocity.get()
             ),
         ));
+    }
+}
+
+/// Every directly spawned station has a post ([`derive_station_post`]): in
+/// the well that holds it ([`station_well`]) it rides the circular orbit
+/// the generator authors with [`station_orbit_velocity`], out of every well
+/// it stands at rest. Anything else has no post and the spawn panics, so
+/// the lint names the file first.
+///
+/// The wells are every Planet and Anchor the scenario spawns, wherever in
+/// its events; the physics reads the same figures through
+/// [`GravityWell::from_mass`] under the default [`GravitySettings`]. A
+/// scattered station template has no authored position and is not checked.
+fn check_station_posts(config: &ScenarioConfig, scenario: &str, issues: &mut Vec<LintIssue>) {
+    let settings = GravitySettings::default();
+    let mut wells = Vec::new();
+    let mut stations = Vec::new();
+    for action in config.events.iter().flat_map(|event| &event.actions) {
+        action.walk(&mut |action| {
+            let EventActionConfig::SpawnScenarioObject(object) = action else {
+                return;
+            };
+            let position = object.base.position.to_engine();
+            match &object.kind {
+                ScenarioObjectKind::Planet(planet) if planet.validate().is_ok() => wells.push((
+                    position,
+                    GravityWell::from_mass(
+                        planet.mass,
+                        planet.body_radius().to_engine(),
+                        &settings,
+                    ),
+                )),
+                ScenarioObjectKind::Anchor(anchor) => wells.push((
+                    position,
+                    GravityWell::from_mass(
+                        anchor.mass.unwrap_or(0.0),
+                        anchor.body_radius.to_engine(),
+                        &settings,
+                    ),
+                )),
+                ScenarioObjectKind::Station(station) if station.initial_velocity.is_finite() => {
+                    stations.push((
+                        object.base.id.as_str(),
+                        position,
+                        station.initial_velocity.to_engine(),
+                    ));
+                }
+                _ => {}
+            }
+        });
+    }
+    for (id, position, velocity) in stations {
+        let well = station_well(position, &wells, &settings);
+        if let Err(fault) = derive_station_post(position, velocity, well) {
+            issues.push(LintIssue::error(
+                scenario,
+                format!("station '{id}' {fault}"),
+            ));
+        }
     }
 }
 
@@ -3603,6 +3664,87 @@ mod tests {
                 .any(|issue| issue.message.contains("planet 'sound'")),
             "a well-authored planet stays clean: {issues:?}"
         );
+    }
+
+    /// A station's post is derived from its authored motion at spawn and a
+    /// motion with no post panics there, so the lint refuses it first: in a
+    /// well only the generator's circular velocity passes, out of every well
+    /// only rest. The sound pair pass.
+    #[test]
+    fn a_station_whose_motion_defines_no_post_is_an_error() {
+        let object = |id: &str, position: Meters3, kind: ScenarioObjectKind| {
+            EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                base: BaseScenarioObjectConfig {
+                    id: id.to_string(),
+                    name: id.to_string(),
+                    position,
+                    rotation: Quat::IDENTITY,
+                },
+                kind,
+            })
+        };
+        let station = |velocity: MetersPerSecond3| {
+            ScenarioObjectKind::Station(StationConfig {
+                design: StationDesignSource::Prototype("depot".into()),
+                allegiance: nova_gameplay::prelude::Allegiance::Neutral,
+                derelict: false,
+                initial_velocity: velocity,
+            })
+        };
+        // The system_station_orbit range's planet: a 21 u body whose well
+        // reaches 126 u, with the station on the 45 u orbit.
+        let planet = PlanetConfig::new(PlanetType::BarrenRock, Meters(200.0), 7, 4_000.0);
+        let planet_at = Meters3::new(0.0, 0.0, 0.0);
+        let in_well = Meters3::new(450.0, 0.0, 0.0);
+        let circular =
+            station_orbit_velocity(planet.mass, planet_at.to_engine(), in_well.to_engine())
+                .expect("off the centre an orbit exists");
+        let far = Meters3::new(0.0, 0.0, 400_000.0);
+
+        let s = scenario(
+            vec![
+                object("world", planet_at, ScenarioObjectKind::Planet(planet)),
+                object("orbiting", in_well, station(circular)),
+                object("falling", in_well, station(MetersPerSecond3::ZERO)),
+                object(
+                    "elliptic",
+                    in_well,
+                    station(MetersPerSecond3::from_engine(circular.to_engine() * 1.2)),
+                ),
+                object("resting", far, station(MetersPerSecond3::ZERO)),
+                object(
+                    "drifting",
+                    far,
+                    station(MetersPerSecond3::new(1.0, 0.0, 0.0)),
+                ),
+            ],
+            vec![],
+        );
+        let issues = lint_scenario(
+            &s,
+            &sections(&["hull"]),
+            &ships(&[]),
+            &stations(&["depot"]),
+            &known(&["test_scenario"]),
+            &GameItems::default(),
+            &GameStyles::default(),
+        );
+        let errs = errors(&issues);
+        for id in ["falling", "elliptic", "drifting"] {
+            assert!(
+                errs.iter()
+                    .any(|issue| issue.message.contains(&format!("station '{id}'"))),
+                "'{id}' must be an error: {issues:?}"
+            );
+        }
+        for id in ["orbiting", "resting"] {
+            assert!(
+                !errs
+                    .iter()
+                    .any(|issue| issue.message.contains(&format!("station '{id}'"))),
+                "'{id}' has a post: {issues:?}"
+            );
+        }
     }
 
     /// Zero is a legal margin - the hull's own face on the mark - so it must

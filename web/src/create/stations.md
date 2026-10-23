@@ -87,19 +87,24 @@ the screen that reads it is its own task.
 
 ## How a station behaves
 
-A station is a dynamic body, never a fixed one. Gravity pulls it, a ram
-shoves it, and nothing holds it where it was placed: where a hit leaves it is
-where it stays, and a world save keeps that pose and motion.
+A station is a dynamic body, never a fixed one. Gravity pulls it and a ram
+shoves it, and a living station holds its post: the place its spawn gave it,
+derived on its first physics tick from its position and `initial_velocity`
+and kept across a freeze, a thaw and a world save. Moved off it, the station
+rides back on gentle RCS and pushes every hull docked at it along. A dead
+station keeps its post but nothing reads it: where a hit leaves it is where it
+stays, and a docked player tows it freely.
 
 | behaviour | rule |
 |---|---|
-| self-levelling | the `Controller` section parks its target attitude on the spawn rotation and drives the hull with torque alone. Spun by a hit, the hull comes to rest within `STATION_LEVEL_TOLERANCE_RAD` (0.03 rad, about 1.7 degrees) of that attitude. No thrust is ever applied: only a `Thruster` section writes thrust, and the lint refuses one |
+| self-levelling | the `Controller` section parks its target attitude on the spawn rotation and drives the hull with torque alone. Spun by a hit, the hull comes to rest within `STATION_LEVEL_TOLERANCE_RAD` (0.03 rad, about 1.7 degrees) of that attitude. No main-drive thrust is ever applied: only a `Thruster` section writes thrust, and the lint refuses one |
+| the post | a living station's RCS flies it back onto its post: toward the post at up to 5 m/s, slowing on a 1 m/s^2 curve, torque-free at each hull's centre of mass so the attitude hold and the dock joints see nothing. It idles inside 5 m of the post and 0.5 m/s of the post's motion, so a settled station spends nothing and its RCS magazine refills. A station under a scenario order, a dead station and a hub whose docked ship holds the helm are left to whoever moves them |
 | damage and collapse | a station takes damage, collapses and is destroyed as a ship is. At or below `collapse_threshold` of the pool it was built with (0.5 on every base station) it is peeled apart section by section and its root is destroyed, a dead station included. A sever counts: the pieces cut away leave its pool, so a cut that leaves the kept half at or below the threshold collapses it. A destroyed station drops its hold and the player's storage as cargo canisters, releases a docked ship and is gone for good: its cell's record no longer holds it |
 | turning dead | a living station whose last turret or last `Controller` section is lost (an unarmed station: its last `Controller`) turns into a dead station on the spot: services stop, it goes Neutral and lootable, its sections other than structure and docking ports switch off, and a docked player gets the helm. Hold and storage stay. See [Dead stations](#dead-stations) |
 | the guns | a living station is AI-driven. Its turrets aim, its point defense covers it, and it answers fire; with no thruster the AI never moves it. An `Enemy` or `Player` station fires on hostile sides; a `Neutral` one only answers a ship that has dealt it 30 hit points in quick succession, so a scrape or a stray round does not provoke it. Primary fire holds while a ship is docked, and point defense never fires through the docked hull |
 | severed pieces | a piece cut off a station leaves at the separation speed while the station keeps its own velocity, so a cut never puts a station on a new orbit |
-| orbit | a station spawned in a planet's well rides a circular orbit: its `initial_velocity` is `sqrt(mass / r)` on the tangent of its radial with +Y (with +X when the radial is near +Y), in engine units, the speed the gravity pull integrates. The generator sets it; a scenario that parks a station in a well authors the same number or watches it fall |
-| orbit tolerance | over three orbits, with a hit, the radius stays within `STATION_ORBIT_TOLERANCE` (15 percent) of where it started. The pull is held constant over each physics step, so every orbit widens a little (about 1.5 percent of its energy per orbit on the proof's fast 30 s orbit, less on a real planetoid's), and a kick of one percent of orbital speed swings the radius about four percent; past the tolerance the orbit is walking out of the well or down onto the planet |
+| orbit | a station spawned in a planet's well rides a circular orbit: its `initial_velocity` is `sqrt(mass / r)` on the tangent of its radial with +Y (with +X when the radial is near +Y), in engine units, the speed the gravity pull integrates. The generator sets it. Its post is that orbit - the well's centre, the radius and the plane - and the station holds the ring against the kick and against the integrator (the pull is held constant over each physics step, so an unheld orbit widens a little every step) |
+| the post rule | the post is the one a station's authored motion defines, or the scenario fails at lint and the spawn panics: in the well that pulls on it hardest (the rule the force layer applies to a body with no well yet) the velocity is the circular speed on the tangent within `STATION_POST_CIRCULAR_TOLERANCE` (5 percent) in magnitude and radial component; out of every well it is `(0.0, 0.0, 0.0)`. A station at rest in a well would fall, and a station drifting in flat space would never stand anywhere |
 
 The proofs are `system_station_body` (a nudged station in a void) and
 `system_station_orbit` (a generated yard with a tender docked at each port

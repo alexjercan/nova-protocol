@@ -20,6 +20,7 @@ mod prediction;
 mod rcs;
 mod scripted;
 mod stacking;
+mod station_keeping;
 mod stop;
 mod support;
 mod telemetry;

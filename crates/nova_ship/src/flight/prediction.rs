@@ -317,9 +317,14 @@ pub(super) fn step_flight_body(
             helm.rcs_budget.idle = 0.0;
             let root_mass = mass.value();
             if env.capabilities.rcs_enabled && root_mass.is_finite() && root_mass > 0.0 {
-                if let Some(delta_v) =
-                    rcs_push(command, rotation, &mut helm.rcs_budget, settings, dt)
-                {
+                if let Some(delta_v) = rcs_push(
+                    command,
+                    rotation,
+                    &mut helm.rcs_budget,
+                    settings.rcs_accel,
+                    settings,
+                    dt,
+                ) {
                     apply_linear_impulse(&mut linear_velocity, delta_v * root_mass);
                 }
             }

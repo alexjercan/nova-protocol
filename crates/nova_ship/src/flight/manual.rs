@@ -226,14 +226,22 @@ pub(super) fn manual_burn_system(
 ///   `rcs_recovery_delay` with no command, so holding a command on an empty
 ///   magazine keeps it empty.
 ///
-/// Gated on the ship's `rcs_enabled` capability. A docked pair's driver
-/// translates the whole pair: each root takes the same delta-v at its own
-/// centre of mass, so the pair moves as one body and still does not turn, and
-/// only the driver pays. A suppressed partner's intent is not spent and does
-/// not hold its magazine off recovery, and a driver with no assembly pushes
-/// neither root. A refused command costs nothing.
+/// Gated on the ship's `rcs_enabled` capability. A docked driver translates
+/// its whole group: a pair's driver pushes its partner, a station hub pushes
+/// every hull docked at it (`StationDocks`). Each root takes the same
+/// delta-v at its own centre of mass, so the group moves as one body and
+/// still does not turn, the joints see no load and only the driver pays. A
+/// suppressed root's intent - a held partner, a hub that does not drive its
+/// group - is not spent and does not hold its magazine off recovery, and a
+/// driver with no assembly pushes no root. A refused command costs nothing.
+/// A station root pushes at [`FlightSettings::station_rcs_accel`], from the
+/// same magazine.
 /// Deliberately NOT gated on `Without<Autopilot>`: the autopilot follow-up
 /// drives this very primitive while engaged.
+#[expect(
+    clippy::type_complexity,
+    reason = "one query over the root's RCS state, mass, docked records and forces"
+)]
 pub(super) fn rcs_burn_system(
     time: Res<Time>,
     settings: Res<FlightSettings>,
@@ -244,16 +252,20 @@ pub(super) fn rcs_burn_system(
             &mut RcsBudget,
             &ComputedMass,
             Option<&DockedShip>,
+            Option<&DockedStation>,
+            Option<&StationDocks>,
             Option<&DockedAssembly>,
+            Has<StationMarker>,
             Forces,
         ),
         With<SpaceshipRootMarker>,
     >,
     q_connections: Query<&DockingConnection>,
     q_capabilities: ShipCapabilityQuery,
-    // Commanded drivers this tick: the driver, its partner, its body-frame
-    // command and its attitude.
-    mut requests: Local<Vec<(Entity, Option<Entity>, Vec3, Rotation)>>,
+    // Commanded drivers this tick: the driver, its partners as a range of
+    // `partners`, its body-frame command, its attitude and its push.
+    mut requests: Local<Vec<(Entity, std::ops::Range<usize>, Vec3, Rotation, f32)>>,
+    mut partners: Local<Vec<Entity>>,
     mut pushes: Local<Vec<(Entity, Vec3)>>,
     // Docked drivers whose missing assembly is already logged, so the error
     // is said once per loss, not at the fixed rate.
@@ -272,92 +284,128 @@ pub(super) fn rcs_burn_system(
     }
 
     requests.clear();
+    partners.clear();
     pushes.clear();
     missing_assembly.retain(|ship| {
         q_ship
             .get(*ship)
-            .is_ok_and(|(.., docked, assembly, _)| docked.is_some() && assembly.is_none())
+            .is_ok_and(|(.., docked, hub, _, assembly, _, _)| {
+                (docked.is_some() || hub.is_some()) && assembly.is_none()
+            })
     });
-    for (ship, intent, mut budget, mass, docked, assembly, force) in &mut q_ship {
+    for (ship, intent, mut budget, mass, docked, hub, docks, assembly, station, force) in
+        &mut q_ship
+    {
         let command = intent.map_or(Vec3::ZERO, |intent| intent.0);
-        let suppressed = docked.is_some_and(|docked| !docked.drives);
+        let suppressed =
+            docked.is_some_and(|docked| !docked.drives) || hub.is_some_and(|hub| !hub.drives);
         if command == Vec3::ZERO || suppressed {
             budget.recover(dt, &settings);
             continue;
         }
         // A held command holds the magazine off recovery, delivered or not.
         budget.idle = 0.0;
-        let partner = match (docked, assembly) {
-            (Some(_), None) => {
+        let first = partners.len();
+        match (docked.is_some() || hub.is_some(), assembly) {
+            (true, None) => {
                 if missing_assembly.insert(ship) {
                     error!(
                         "rcs_burn_system: docked driver {ship:?} has no DockedAssembly; \
-                         pushing neither root rather than its root alone"
+                         pushing no root rather than its root alone"
                     );
                 }
                 continue;
             }
-            (Some(docked), Some(_)) => {
-                let Ok(connection) = q_connections.get(docked.connection) else {
-                    continue;
+            (true, Some(_)) => {
+                let other = |connection: &DockingConnection| {
+                    if connection.first_ship == ship {
+                        connection.second_ship
+                    } else {
+                        connection.first_ship
+                    }
                 };
-                Some(if connection.first_ship == ship {
-                    connection.second_ship
-                } else {
-                    connection.first_ship
-                })
+                if let Some(docked) = docked {
+                    let Ok(connection) = q_connections.get(docked.connection) else {
+                        continue;
+                    };
+                    partners.push(other(connection));
+                }
+                if let Some(docks) = docks {
+                    partners.extend(
+                        docks
+                            .iter()
+                            .filter_map(|connection| q_connections.get(connection).ok())
+                            .map(other),
+                    );
+                }
             }
-            (None, _) => None,
-        };
+            (false, _) => {}
+        }
         // Capability gate: only a ship configured for RCS fine-adjusts, even
         // if something wrote an intent - so the capability stays authoritative
         // no matter who drives the primitive.
         if !ship_capabilities(ship, &q_capabilities).rcs_enabled {
+            partners.truncate(first);
             continue;
         }
         let mass = assembly.map_or_else(|| mass.value(), |assembly| assembly.mass);
         if !mass.is_finite() || mass <= 0.0 {
+            partners.truncate(first);
             continue;
         }
-        requests.push((ship, partner, command, *force.rotation()));
+        let accel = if station {
+            settings.station_rcs_accel
+        } else {
+            settings.rcs_accel
+        };
+        requests.push((
+            ship,
+            first..partners.len(),
+            command,
+            *force.rotation(),
+            accel,
+        ));
     }
 
-    for &(ship, partner, command, rotation) in requests.iter() {
+    for (ship, range, command, rotation, accel) in requests.iter() {
+        let group = &partners[range.clone()];
         // A partner that cannot take its share refuses the whole push, before
         // the driver pays for it.
-        if partner.is_some_and(|partner| !q_ship.contains(partner)) {
+        if group.iter().any(|partner| !q_ship.contains(*partner)) {
             continue;
         }
-        let Ok((_, _, mut budget, ..)) = q_ship.get_mut(ship) else {
+        let Ok((_, _, mut budget, ..)) = q_ship.get_mut(*ship) else {
             continue;
         };
-        let Some(delta_v) = rcs_push(command, rotation, &mut budget, &settings, dt) else {
+        let Some(delta_v) = rcs_push(*command, *rotation, &mut budget, *accel, &settings, dt)
+        else {
             continue;
         };
-        pushes.push((ship, delta_v));
-        pushes.extend(partner.map(|partner| (partner, delta_v)));
+        pushes.push((*ship, delta_v));
+        pushes.extend(group.iter().map(|partner| (*partner, delta_v)));
     }
 
     for &(root, delta_v) in pushes.iter() {
-        let Ok((.., mass, _, _, mut force)) = q_ship.get_mut(root) else {
+        let Ok((.., mass, _, _, _, _, _, mut force)) = q_ship.get_mut(root) else {
             continue;
         };
         // Scale by this root's mass so the 1/mass inside
         // apply_linear_impulse yields exactly `delta_v`, independent of hull
-        // mass, and a pair's two roots move together.
+        // mass, and every root of the group moves together.
         let mass = mass.value();
         force.apply_linear_impulse(delta_v * mass);
     }
 }
 
-/// One tick of a body-frame RCS `command` on a root at `rotation`: the world
-/// delta-v the magazine delivers, or `None` when it delivers nothing. Draws the
-/// push from `budget` and records the delivered fraction in
-/// [`RcsBudget::applied`].
+/// One tick of a body-frame RCS `command` on a root at `rotation` pushing at
+/// `accel` (u/s^2): the world delta-v the magazine delivers, or `None` when
+/// it delivers nothing. Draws the push from `budget` and records the
+/// delivered fraction in [`RcsBudget::applied`].
 pub(super) fn rcs_push(
     command: Vec3,
     rotation: Rotation,
     budget: &mut RcsBudget,
+    accel: f32,
     settings: &FlightSettings,
     dt: f32,
 ) -> Option<Vec3> {
@@ -367,8 +415,8 @@ pub(super) fn rcs_push(
     let command = command
         .clamp(Vec3::splat(-1.0), Vec3::splat(1.0))
         .clamp_length_max(1.0);
-    let step = rotation.mul_vec3(command) * settings.rcs_accel * dt;
-    let full_step = settings.rcs_accel * dt;
+    let step = rotation.mul_vec3(command) * accel * dt;
+    let full_step = accel * dt;
     let wanted = step.length();
     if wanted <= 0.0 || full_step <= 0.0 {
         return None;

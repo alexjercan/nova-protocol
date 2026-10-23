@@ -202,6 +202,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A station is a dynamic body: gravity and rams move it, its bridge levels it
   and it orbits in a well. At its `collapse_threshold` share of hull it
   collapses like a ship and drops its hold and storage.
+- **(breaking)** A living station holds its post: shoved off its orbit or spot
+  it rides back on RCS with its docked hulls. `initial_velocity` must be
+  circular in a well or zero outside. Saves refused.
 - A living station that loses its last turret or flight computer turns dead:
   services stop, its hold opens to Take and a docked player gets the helm. Its
   stock stays.
