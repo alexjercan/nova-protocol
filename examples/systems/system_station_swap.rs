@@ -11,10 +11,11 @@
 //! Then the player selects `pdc_a` in the Ship pane and opens the Catalogue.
 //! A click on the Map tab closes the catalogue and its camera, and it stays
 //! closed back on the Ship pane. The player selects `pdc_a` again, opens the
-//! Catalogue, clicks the twin kinetic PDC's tile and Swap on its card. The hold
-//! covers the recipe's panels and actuator; the turret body and the two
-//! barrels, one per muzzle, are bought from the station at ask. Then the player undocks and the hull is
-//! frozen and thawed the way a retiring cell does it.
+//! Catalogue, narrows it to Weapons, clicks the twin kinetic PDC's tile and
+//! Swap on its card. The hold covers the recipe's panels and actuator; the
+//! turret body and the two barrels, one per muzzle, are bought from the
+//! station at ask. Then the player undocks and the hull is frozen and thawed
+//! the way a retiring cell does it.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
@@ -1060,6 +1061,24 @@ mod walk {
             ui_node_present("Gallery Grid"),
             SESSION_SECS,
         )
+        .step("station swap: narrow the catalogue to Weapons")
+        .on_enter(click_named(format!(
+            "Gallery Category {}",
+            GalleryCategory::Weapons.label()
+        )))
+        .until(pointer_pressed())
+        .deadline(SESSION_SECS)
+        .add()
+        .step("station swap: let the Weapons chip up")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(when(|world| {
+            world.resource::<GalleryState>().category == GalleryCategory::Weapons
+        }))
+        .deadline(SESSION_SECS)
+        .add()
+        .step("station swap: settle the Weapons catalogue")
+        .until(frames(SETTLE_FRAMES))
+        .add()
         .step("station swap: press the twin kinetic PDC's tile")
         .on_enter(|world: &mut World| click_named(twin_kinetic_tile(world))(world))
         .until(pointer_pressed())

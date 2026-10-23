@@ -4,7 +4,7 @@
 //!
 //! Two hosts show it: the editor, full screen over its stage, and the Ship
 //! pane, over its view while docked at a refit station. A host spawns a UI
-//! node with a [`GalleryHost`] (and, to sell a subset, a [`GalleryListing`]),
+//! node with a [`GalleryHost`] (and, to price its parts, a [`GalleryListing`]),
 //! and the gallery lays itself out inside that node and draws its tiles
 //! through the host's camera. Everything else here is the gallery's own.
 //! Change this module when the browse flow changes; `catalog` owns WHAT is
@@ -108,8 +108,8 @@ pub struct GalleryHost {
     pub close_keys: &'static str,
 }
 
-/// The parts a host offers, each with its own line. Without one the gallery
-/// lists the whole browsable catalog.
+/// The parts a host offers, each with its own line, marking what it cannot
+/// craft. Without one the gallery lists the whole browsable catalog.
 #[derive(Component, Clone, Debug, Default, PartialEq)]
 pub struct GalleryListing(pub Vec<GalleryEntry>);
 
@@ -121,18 +121,29 @@ impl GalleryListing {
 }
 
 /// One listed part.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GalleryEntry {
     /// The catalog id.
     pub id: String,
     /// The short line on the part's tile, under its name: a price or a
-    /// refusal in a few words. It wraps inside the tile.
-    pub tile: String,
-    /// The whole price or refusal, on the focus card.
+    /// refusal in a few words. It wraps inside the tile. `None` draws no
+    /// line, as for a part that cannot be placed, which its muted tile says.
+    pub tile: Option<String>,
+    /// The whole price or refusal. On a placeable part the focus card draws
+    /// it as a line above Place; on one that cannot be placed it is only the
+    /// disabled Place's tooltip, why the part cannot be placed.
     pub note: String,
+    /// The recipe, one line per item in id order. The focus card draws it at
+    /// the top of the clipping details column, so a short host clips it
+    /// before it moves the buttons.
+    pub recipe: Vec<String>,
     /// A second verb on the focus card beside Place, as its button label;
     /// pressing it writes [`GalleryAlternate`].
     pub alternate: Option<String>,
+    /// Whether Place, Enter and Q put this part in hand. A host lists a part
+    /// it cannot craft with `false` and says why in `note`; the grid and the
+    /// focus card draw it muted, and the card disables Place.
+    pub placeable: bool,
 }
 
 /// The focus card's second verb was pressed for catalog id `id`. The host
@@ -273,6 +284,19 @@ impl GalleryState {
         let listed = catalog::browsable(sections, listing, self.category, &self.filter);
         let index = *listed.get(self.selected)?;
         Some(sections.get(index)?.base.id.clone())
+    }
+
+    /// The selected part's id when its entry may be placed: an unlisted host
+    /// places everything, a listed part places only when `placeable`.
+    pub fn placeable_id(
+        &self,
+        sections: &GameSections,
+        listing: Option<&GalleryListing>,
+    ) -> Option<String> {
+        let id = self.selected_id(sections, listing)?;
+        listing
+            .is_none_or(|listing| listing.entry(&id).is_some_and(|entry| entry.placeable))
+            .then_some(id)
     }
 }
 

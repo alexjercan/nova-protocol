@@ -212,7 +212,7 @@ chosen point with a price or the reason it cannot be added.
 |---|---|
 | the gate | docked to a living station whose `services` list `Refit` |
 | the point | a socket no design section mates. A lost section's socket stays reserved for its rebuild |
-| the fit | the part mates the point with the socket that keeps it as drawn, and must not overlap a section it does not mate. Parts marked `hide_in_editor`, or that the station does not build, are not offered |
+| the fit | the part mates the point with the socket that keeps it as drawn, and must not overlap a section it does not mate. Parts marked `hide_in_editor` are not offered. The catalogue lists a part the station does not build, or that neither hold can cover, dimmed and with Place off |
 | the recipe | the part's [build recipe](../sections/#build-recipe), paid as a rebuild pays it |
 | the build checks | the ship the add leaves must still join into one ship, keep every firing and exhaust lane clear, and keep enough thrust and flight computers for its mass. Only a check the add breaks refuses it |
 | the binding | the key of the first live section of its kind that has one. With none, a weapon takes an empty binding to set with Rebind and a thruster none. A mining emitter takes the first free key of `V`, `B`, `N`, `C`, refused when all are held |

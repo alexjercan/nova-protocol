@@ -64,11 +64,12 @@ pub fn gallery_keyboard(
             next.filter_focused = false;
             next.focused = !listed.is_empty();
         } else if next.focused {
-            if let Some(id) = next.selected_id(&sections, listing) {
+            // A part the host cannot craft stays on its card, hand empty.
+            if let Some(id) = next.placeable_id(&sections, listing) {
                 held.0 = Some(id);
+                next.open = false;
+                next.focused = false;
             }
-            next.open = false;
-            next.focused = false;
         } else if !listed.is_empty() {
             next.focused = true;
         }
@@ -84,7 +85,7 @@ pub fn gallery_keyboard(
             .map(|(cell, _)| cell.listed)
         {
             next.selected = cell;
-            if let Some(id) = next.selected_id(&sections, listing) {
+            if let Some(id) = next.placeable_id(&sections, listing) {
                 held.0 = Some(id);
                 next.open = false;
                 next.focused = false;
@@ -372,10 +373,20 @@ mod tests {
         });
         // The second tile is under the pointer, not the selected one - so a
         // pass that read the SELECTION instead of the hover would take "hull".
-        app.world_mut()
-            .spawn((GalleryCell { listed: 1 }, Hovered(true)));
-        app.world_mut()
-            .spawn((GalleryCell { listed: 0 }, Hovered(false)));
+        app.world_mut().spawn((
+            GalleryCell {
+                listed: 1,
+                placeable: true,
+            },
+            Hovered(true),
+        ));
+        app.world_mut().spawn((
+            GalleryCell {
+                listed: 0,
+                placeable: true,
+            },
+            Hovered(false),
+        ));
 
         tap(&mut app, KeyCode::KeyQ, Some("q"));
 
@@ -390,6 +401,63 @@ mod tests {
         );
     }
 
+    /// A part the host lists but cannot craft never reaches the hand: not by
+    /// Enter on its card, not by the Place button, not by Q over its tile.
+    /// The gallery stays up on it, and a craftable part still places.
+    #[test]
+    fn place_enter_and_pick_leave_the_hand_empty_for_a_muted_entry() {
+        let mut app = gallery_app(GalleryState {
+            open: true,
+            focused: true,
+            selected: 1,
+            ..default()
+        });
+        app.add_message::<GalleryAlternate>();
+        app.add_observer(super::super::ui::on_gallery_action);
+        let entry = |id: &str, placeable| GalleryEntry {
+            id: id.to_string(),
+            tile: None,
+            note: String::new(),
+            recipe: Vec::new(),
+            alternate: None,
+            placeable,
+        };
+        app.world_mut().spawn((
+            GalleryHost {
+                camera: Entity::PLACEHOLDER,
+                stage: Vec3::ZERO,
+                layers: default(),
+                close_keys: "Esc",
+            },
+            GalleryListing(vec![entry("hull", true), entry("thruster", false)]),
+        ));
+        let place = app.world_mut().spawn(GalleryAction::Place).id();
+
+        tap(&mut app, KeyCode::Enter, None);
+        app.world_mut()
+            .trigger(bevy::ui_widgets::Activate { entity: place });
+        app.world_mut().spawn((
+            GalleryCell {
+                listed: 1,
+                placeable: false,
+            },
+            Hovered(true),
+        ));
+        tap(&mut app, KeyCode::KeyQ, Some("q"));
+
+        assert_eq!(app.world().resource::<HeldPart>().id(), None);
+        let state = app.world().resource::<GalleryState>();
+        assert!(state.open && state.focused, "the muted card stays up");
+
+        app.world_mut().resource_mut::<GalleryState>().selected = 0;
+        tap(&mut app, KeyCode::Enter, None);
+        assert_eq!(
+            app.world().resource::<HeldPart>().id(),
+            Some("hull"),
+            "a craftable part still places"
+        );
+    }
+
     /// Q is a character too: with the caret in the filter it types, and the
     /// gallery stays up.
     #[test]
@@ -399,8 +467,13 @@ mod tests {
             filter_focused: true,
             ..default()
         });
-        app.world_mut()
-            .spawn((GalleryCell { listed: 1 }, Hovered(true)));
+        app.world_mut().spawn((
+            GalleryCell {
+                listed: 1,
+                placeable: true,
+            },
+            Hovered(true),
+        ));
 
         tap(&mut app, KeyCode::KeyQ, Some("q"));
 

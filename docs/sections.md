@@ -86,9 +86,11 @@ full health through the same per-section spawn the ship was built with.
 While docked to a station that offers `Refit`, the Ship pane footer's
 Catalogue button, left of Fit and Reset, opens the parts gallery
 (`nova_ship::gallery`, the editor's picker) over the pane
-(`nova_interface/src/ship/catalogue.rs`). A part the selected
-live section can be swapped for gets a Swap line in its note and Swap as the
-focus card's second verb (`GalleryAlternate`) when `section_swap_family`
+(`nova_interface/src/ship/catalogue.rs`). A placeable part the
+selected live section can be swapped for gets Swap as the focus card's second
+verb (`GalleryAlternate`), labelled with the swap price
+(`Swap PDC-2, 100 cr`), or a second note line with the swap refusal, when
+`section_swap_family`
 accepts the part, and only when the part's prototype is in the station's
 `StationBuilds` (`nova_gameplay::markers`, read through
 `StationPartner.builds`). The family rule is
@@ -111,14 +113,24 @@ and a save keep the inline design, so the swap persists.
 
 ### Adding a section
 
-The catalogue lists each part that is not `hide_in_editor`, that the
-station's `StationBuilds` names, and whose recipe the player's hold and the
-station's stock together carry (`plan_recipe_payment` finds no missing part).
-Credits do not filter: a part
-the ship cannot pay for shows the credit refusal. Each `GalleryEntry` carries
-a short `tile` line (`180 cr, 2 bought`, or `Needs 400 cr`) that wraps inside
-its tile, and the whole price or refusal as the focus card's `note`. Place on
-the focus card puts a part in hand (`HeldPart`, shared with the editor).
+The catalogue lists each part that is not `hide_in_editor`. A part the
+station's `StationBuilds` does not name, or whose recipe the player's hold
+and the station's stock together cannot carry (`plan_recipe_payment` finds a
+missing part), has `placeable: false`: its tile text, border and focus card
+title are muted, a theme surface veil greys its 3D preview, it has no `tile`
+line and no visible note, Place on its card is disabled with the `note` as
+its tooltip (`This station cannot craft this section`, or the missing-part
+refusal), and Enter and Q do not take it. Credits do not mute: a part the
+ship cannot pay for stays placeable with `Needs 400 cr` on its tile and the
+credit refusal as its note. A station `builds` id that `GameSections` lacks
+panics when the catalogue opens; station lint refuses it first. A placeable
+`GalleryEntry` carries a short `tile` line, its price (`180 cr`) or credit
+refusal, that wraps inside its tile, and the price or the whole refusal as
+the focus card's `note`. Every entry carries one `recipe` line per item,
+packed with no gap, at the top of the card's clipping details: its count and,
+for a part the station builds, how many come from the hold, are bought at the
+station's ask, or are short. Place on the focus card puts a part in hand
+(`HeldPart`, shared with the editor).
 While a part is in hand, the placement ghost
 (`nova_interface/src/ship/ghost.rs`) casts the pointer's ray into the Ship
 view, takes the nearest block it enters

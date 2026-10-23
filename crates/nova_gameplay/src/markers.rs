@@ -197,10 +197,10 @@ impl StationServices {
 }
 
 /// The section prototype ids a station knows how to build: what its
-/// catalogue lists and what a swap, an add or a rebuild of a lost section
-/// may craft there. Inserted beside [`StationServices`] by the spawn from
-/// its design and by the thaw from its frozen record; a station root
-/// without it is invalid, and the site that reads it panics.
+/// catalogue lets the player place and what a swap, an add or a rebuild of a
+/// lost section may craft there. Inserted beside [`StationServices`] by the
+/// spawn from its design and by the thaw from its frozen record; a station
+/// root without it is invalid, and the site that reads it panics.
 ///
 /// Knowledge, not materials: a part whose recipe both holds could cover is
 /// still refused when the station does not build it. A generated station

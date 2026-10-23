@@ -81,7 +81,8 @@ impl GalleryCategory {
 ///
 /// `hide_in_editor` is honoured exactly as the drawer honours it, so a
 /// prototype hidden from one picker is hidden from both. A host's `listing`
-/// narrows the list to its parts, as a station sells only what it can build.
+/// narrows the list to its parts; a host lists what it offers and marks what
+/// it cannot craft.
 /// The text filter is a case-insensitive substring of the display name or the
 /// catalog id. A mod whose ids carry a ship family (The Ledger's
 /// `cargoa_nose`) therefore narrows to one craft by typing the family; base's
@@ -347,23 +348,26 @@ mod tests {
         );
     }
 
-    /// A host's listing is the whole stock: a station's catalogue shows only
-    /// the parts it can build, and the category row and the filter narrow
-    /// inside it.
+    /// A host's listing is the whole stock: the grid shows only the parts it
+    /// lists, and the category row and the filter narrow inside it.
     #[test]
     fn a_listing_limits_the_grid_to_its_parts() {
         let listing = GalleryListing(vec![
             GalleryEntry {
                 id: "basic_thruster_section".to_string(),
-                tile: "40 cr".to_string(),
+                tile: Some("40 cr".to_string()),
                 note: "40 cr".to_string(),
+                recipe: Vec::new(),
                 alternate: None,
+                placeable: true,
             },
             GalleryEntry {
                 id: "hauler_nose".to_string(),
-                tile: "12 cr".to_string(),
+                tile: Some("12 cr".to_string()),
                 note: "12 cr".to_string(),
+                recipe: Vec::new(),
                 alternate: None,
+                placeable: true,
             },
         ]);
         let listed = Some(&listing);

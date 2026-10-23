@@ -60,7 +60,12 @@
 //! view and checks the view eases onto the placed section and that the panel
 //! shows the part in hand under Placing, presses Esc and checks the hand is
 //! empty, the panel back on the selection and the interface still open, rebinds the new
-//! gun to `T` and checks the selection did not step,
+//! gun to `T` and checks the selection did not step, reads the focus card of
+//! the twin kinetic PDC and of a part the station does not build in the
+//! Phosphor and Hardware themes at 640x600 and 1024x768 (Place, Swap and Back
+//! inside the card, a muted part's Place off with its note as the tooltip,
+//! every recipe line whole), presses Enter and clicks the muted Place and
+//! checks the hand stays empty, then puts the capture shape and theme back,
 //! checks the Salvage block lists the gun's yield, deletes the gun with
 //! Delete and checks the note names the parts that went to the hold, selects
 //! the port the dock holds by and checks its Delete is disabled with the
@@ -86,7 +91,9 @@
 //! `NOVA_CAPTURE=1` shoots `sandbox-berth.png`, `sandbox-sale-berth.png`,
 //! `sandbox-ship.png`,
 //! `sandbox-catalogue-all.png`, `sandbox-catalogue.png`, `sandbox-ghost.png`, `sandbox-mount.png`, `sandbox-placed.png`, `sandbox-esc-put-away.png`,
-//! `sandbox-rebind-armed.png`, `sandbox-rebind.png`, `sandbox-delete-yield.png`,
+//! `sandbox-rebind-armed.png`, `sandbox-rebind.png`,
+//! `sandbox-card-<twin|muted|muted-tooltip>-<phosphor|hardware>-<640|1024>.png`,
+//! `sandbox-delete-yield.png`,
 //! `sandbox-delete.png`,
 //! `sandbox-delete-refused.png`,
 //! `sandbox-pick.png`, `sandbox-catalogue-intake.png`,
@@ -129,8 +136,11 @@ const PARTS_PER_ITEM: u32 = 4;
 /// The three-cell intake the walk aims into the docked station. `nova_ship`
 /// exports no id for it: fixture ids stay local.
 const CARGO_INTAKE_SECTION_ID: &str = "cargo_intake_section";
+/// The twin kinetic PDC, whose focus card the walk reads: a four-item recipe
+/// and a swap for the placed PDC. Local for the same reason.
+const PDC_TWIN_KINETIC_TURRET_SECTION_ID: &str = "pdc_twin_kinetic_turret_section";
 /// The parts the walk takes from the Catalogue. The chosen station must
-/// build every one: the Catalogue hides the tiles of parts it does not.
+/// build every one: a muted tile cannot be placed.
 const WALK_PARTS: [&str; 2] = [PDC_KINETIC_TURRET_SECTION_ID, CARGO_INTAKE_SECTION_ID];
 /// How far from the station the player parks before the berth.
 const PARK_DISTANCE: Meters = Meters(2_000.0);
@@ -899,12 +909,18 @@ mod smoke {
 
     use nova_input::prelude::InputSource;
     use nova_protocol::{
-        nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
+        nova_debug::harness::{
+            press_action, release_action, shoot, AutopilotPlugin, Predicate, CAPTURE_RESOLUTION,
+        },
         nova_interface::ship::{
             ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px, SectionCode,
             ShipRuntime, SHIP_HELD_PANEL,
         },
         nova_ship::sections::docking_section::GAP_SLACK,
+    };
+    use nova_ui::{
+        theme::{ActiveUiTheme, SelectedUiTheme},
+        widget::{Tooltip, TooltipPanel},
     };
 
     use super::*;
@@ -963,8 +979,9 @@ mod smoke {
     const DELETE_REASON: &str = "ShipDeleteReason";
     /// The PNG of the Catalogue open on the kinetic PDC's category.
     const CATALOGUE_SHOT: &str = "sandbox-catalogue.png";
-    /// The PNG of the Catalogue as it opens, on every part the station
-    /// builds: each tile's name, kind and price line inside the tile.
+    /// The PNG of the Catalogue as it opens, on every part: each tile's name,
+    /// kind and price or reason inside the tile, a part the station cannot
+    /// craft muted.
     const CATALOGUE_ALL_SHOT: &str = "sandbox-catalogue-all.png";
     /// The PNG of the Catalogue open on the cargo intake's category.
     const CATALOGUE_INTAKE_SHOT: &str = "sandbox-catalogue-intake.png";
@@ -1021,6 +1038,19 @@ mod smoke {
     const EMPTY_INSET_PX: f32 = 24.0;
     /// The Ship pane's 3D view.
     const SHIP_VIEWPORT: &str = "ShipViewport";
+    /// The window shapes the focus cards are read at: the smallest the Ship
+    /// pane supports, then the editor's stock shape.
+    const CARD_SIZES: [(f32, f32); 2] = [(640.0, 600.0), (1024.0, 768.0)];
+    /// The themes the focus cards are read in, with the name their PNGs use.
+    const CARD_THEMES: [(&str, &str); 2] = [
+        (nova_ui::theme::PHOSPHOR_THEME_ID, "phosphor"),
+        (nova_ui::theme::HARDWARE_THEME_ID, "hardware"),
+    ];
+    /// Frames a theme switch gets to re-tint the open gallery.
+    const THEME_FRAMES: u32 = 10;
+    /// How far a card control may stand past the card's edge and count as
+    /// inside it, in logical pixels: layout rounding.
+    const CARD_SLACK_PX: f32 = 0.5;
 
     /// The part in hand before the pipette, and the section it picked from
     /// once Q is pressed.
@@ -2126,6 +2156,437 @@ mod smoke {
         })
     }
 
+    /// The open Catalogue's listing.
+    fn listing(world: &mut World) -> GalleryListing {
+        world
+            .query::<&GalleryListing>()
+            .single(world)
+            .expect("the open Catalogue carries one listing")
+            .clone()
+    }
+
+    /// The chosen station's [`StationBuilds`].
+    fn station_builds(world: &mut World) -> Vec<String> {
+        let (station, ..) = world
+            .resource::<Sandbox>()
+            .station
+            .clone()
+            .expect("the sandbox chose a station");
+        world
+            .query::<(&GeneratedBodyId, &StationBuilds)>()
+            .iter(world)
+            .find(|(id, _)| **id == station)
+            .map(|(_, builds)| builds.0.clone())
+            .expect("the chosen station carries StationBuilds")
+    }
+
+    /// The card the sweep reads `card` on: the twin kinetic PDC, a four-item
+    /// recipe and, with the rebound PDC selected, a Swap button; or the first
+    /// listed part the station does not build, muted. The seed-10 station
+    /// builds a subset, so a station with no such part fails here.
+    fn card_part(world: &mut World, card: &str) -> String {
+        if card == "twin" {
+            return PDC_TWIN_KINETIC_TURRET_SECTION_ID.to_string();
+        }
+        let builds = station_builds(world);
+        listing(world)
+            .0
+            .into_iter()
+            .find(|entry| !builds.contains(&entry.id))
+            .expect("the sandbox station does not build some part")
+            .id
+    }
+
+    /// The text of the tooltip panel under the focus card's Place, when the
+    /// panel shows.
+    fn place_tooltip(world: &World) -> Option<String> {
+        let place = named_entity(world, "Gallery Place Button")?;
+        let panel = world
+            .get::<Children>(place)?
+            .iter()
+            .find(|child| world.get::<TooltipPanel>(*child).is_some())?;
+        if world.get::<Node>(panel)?.display == Display::None {
+            return None;
+        }
+        world
+            .get::<Children>(panel)?
+            .iter()
+            .find_map(|line| world.get::<Text>(line).map(|text| text.0.clone()))
+    }
+
+    /// The first entity called `name`.
+    fn named_entity(world: &World, name: &str) -> Option<Entity> {
+        world
+            .try_query::<(Entity, &Name)>()?
+            .iter(world)
+            .find(|(_, named)| named.as_str() == name)
+            .map(|(entity, _)| entity)
+    }
+
+    /// The muted card's Place took nothing: the hand is empty and the card
+    /// still up. `gesture` names what was tried, for the failure.
+    fn muted_card_stays(gesture: &'static str) -> impl Fn(&mut World) + Send + Sync {
+        move |world: &mut World| {
+            let held = world.resource::<HeldPart>().id().map(str::to_string);
+            let state = world.resource::<GalleryState>().clone();
+            info!(
+                "station sandbox: {gesture} on the muted card: hand {held:?}, open {}, focused {}",
+                state.open, state.focused
+            );
+            assert_eq!(
+                held, None,
+                "{gesture} on the muted card leaves the hand empty"
+            );
+            assert!(
+                state.open && state.focused,
+                "{gesture} on the muted card keeps the card up"
+            );
+        }
+    }
+
+    /// Open the focus card of `card`'s part, as a tile click under its
+    /// category does: the page that holds the tile depends on the shape.
+    fn focus_the_card(card: &'static str) -> impl Fn(&mut World) + Send + Sync {
+        move |world: &mut World| {
+            let part = card_part(world, card);
+            let listing = listing(world);
+            let sections = world.resource::<GameSections>();
+            let category = GalleryCategory::of(
+                &sections
+                    .get_section(&part)
+                    .expect("a listed part is in the catalog")
+                    .kind,
+            );
+            let index = sections
+                .iter()
+                .position(|section| section.base.id == part)
+                .expect("a listed part is in the catalog");
+            let selected = browsable(sections, Some(&listing), category, "")
+                .iter()
+                .position(|listed| *listed == index)
+                .expect("the Catalogue lists every part");
+            *world.resource_mut::<GalleryState>() = GalleryState {
+                open: true,
+                category,
+                filter: String::new(),
+                filter_focused: false,
+                selected,
+                focused: true,
+            };
+        }
+    }
+
+    /// The focus card keeps Place, Swap and Back inside it at `shape`, a
+    /// muted part's Place is off, and the clipping details column shows
+    /// every recipe line whole. Logs every rect and the entry.
+    fn read_the_card(shape: String, card: &'static str) -> impl Fn(&mut World) + Send + Sync {
+        move |world: &mut World| {
+            let part = card_part(world, card);
+            let entry = listing(world)
+                .entry(&part)
+                .cloned()
+                .expect("the Catalogue lists every part");
+            // The twin card exists to hold the longest recipe and a Swap button;
+            // a muted twin would read only Place and Back and still pass.
+            if card == "twin" {
+                assert!(
+                    entry.placeable && entry.alternate.is_some(),
+                    "at {shape} the twin card offers Place and Swap: {entry:?}"
+                );
+            }
+            let card_rect =
+                ui_node_rect(world, "Gallery Focus Card").expect("the focus card is laid out");
+            let mut controls = vec!["Gallery Place Button", "Gallery Back Button"];
+            if entry.alternate.is_some() {
+                controls.push("Gallery Alternate Button");
+            }
+            for name in controls {
+                let rect = ui_node_rect(world, name)
+                    .unwrap_or_else(|| panic!("at {shape} the {part} card draws `{name}`"));
+                let inside = rect.min.x >= card_rect.min.x - CARD_SLACK_PX
+                    && rect.min.y >= card_rect.min.y - CARD_SLACK_PX
+                    && rect.max.x <= card_rect.max.x + CARD_SLACK_PX
+                    && rect.max.y <= card_rect.max.y + CARD_SLACK_PX;
+                info!("station sandbox: {shape} {part} `{name}` {rect:?} in card {card_rect:?}");
+                assert!(
+                    inside,
+                    "at {shape} the {part} card's `{name}` {rect:?} leaves the card {card_rect:?}"
+                );
+            }
+            let disabled = world
+                .query::<(&Name, Has<bevy::ui::InteractionDisabled>)>()
+                .iter(world)
+                .find(|(name, _)| name.as_str() == "Gallery Place Button")
+                .map(|(_, disabled)| disabled)
+                .expect("the focus card draws Place");
+            assert_eq!(
+                disabled, !entry.placeable,
+                "at {shape} the {part} card's Place is off exactly when the part cannot be placed"
+            );
+            let details =
+                ui_node_rect(world, "Gallery Focus Details").expect("the focus card has details");
+            let lines: Vec<(Rect, f32)> = world
+                .query::<(&Name, &UiGlobalTransform, &ComputedNode)>()
+                .iter(world)
+                .filter(|(name, ..)| name.as_str() == "Gallery Recipe Line")
+                .map(|(_, transform, computed)| {
+                    let scale = computed.inverse_scale_factor();
+                    let rect = Rect::from_center_size(
+                        transform.translation * scale,
+                        computed.size() * scale,
+                    );
+                    let shown =
+                        (rect.max.y.min(details.max.y) - rect.min.y.max(details.min.y)).max(0.0);
+                    (rect, shown)
+                })
+                .collect();
+            let whole = lines
+                .iter()
+                .filter(|(rect, shown)| *shown >= rect.height() - CARD_SLACK_PX)
+                .count();
+            // A muted part's note is only its Place tooltip, and its tile
+            // line is gone with it.
+            let note = ui_node_rect(world, "Gallery Note");
+            assert_eq!(
+                note.is_some(),
+                entry.placeable,
+                "at {shape} the {part} card draws its note line exactly when it can be placed"
+            );
+            assert_eq!(
+                entry.tile.is_some(),
+                entry.placeable,
+                "at {shape} the {part} tile has a line exactly when it can be placed"
+            );
+            let tooltip = world
+                .query::<(&Name, &Tooltip)>()
+                .iter(world)
+                .find(|(name, _)| name.as_str() == "Gallery Place Button")
+                .map(|(_, tooltip)| tooltip.0.clone());
+            assert_eq!(
+                tooltip,
+                (!entry.placeable).then(|| entry.note.clone()),
+                "at {shape} the {part} card's Place says why exactly when it is off"
+            );
+            info!(
+                "station sandbox: {shape} {part} card: placeable {}, tile {:?}, note {:?} \
+                 {note:?}, alternate {:?}, recipe {:?}, details {details:?}, recipe lines {} \
+                 of {} whole, shown px {:?}",
+                entry.placeable,
+                entry.tile,
+                entry.note,
+                entry.alternate,
+                entry.recipe,
+                whole,
+                lines.len(),
+                lines.iter().map(|(_, shown)| *shown).collect::<Vec<_>>()
+            );
+            assert_eq!(
+                lines.len(),
+                entry.recipe.len(),
+                "at {shape} the {part} card draws one line per recipe item"
+            );
+            // The twin's four items are the most any base part's recipe has.
+            if card == "twin" {
+                assert_eq!(
+                    lines.len(),
+                    4,
+                    "at {shape} the twin card lists its four recipe items"
+                );
+            }
+            assert_eq!(
+                whole,
+                lines.len(),
+                "at {shape} the {part} card shows every recipe line whole"
+            );
+        }
+    }
+
+    /// With the rebound PDC selected, read two focus cards in each theme at
+    /// each of [`CARD_SIZES`], and shoot each; then close the Catalogue and
+    /// put the theme and the capture shape back for the shots after.
+    fn read_the_cards(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        let mut script = script
+            .click_named(
+                "station sandbox: open the Catalogue for the cards",
+                CATALOGUE_BUTTON,
+                ui_node_present("Gallery Grid"),
+                BEAT_SECS,
+            )
+            .step("station sandbox: count the muted tiles")
+            .on_enter(|world: &mut World| {
+                let builds = station_builds(world);
+                let listing = listing(world);
+                let muted = listing.0.iter().filter(|entry| !entry.placeable).count();
+                let not_built = listing
+                    .0
+                    .iter()
+                    .filter(|entry| !builds.contains(&entry.id))
+                    .count();
+                info!(
+                    "station sandbox: the Catalogue lists {} parts, {muted} muted, {not_built} \
+                     not built here",
+                    listing.0.len()
+                );
+            })
+            .until(frames(1))
+            .add();
+        for (theme, theme_name) in CARD_THEMES {
+            script = script
+                .step(format!("station sandbox: switch to the {theme_name} theme"))
+                .on_enter(move |world: &mut World| {
+                    world.resource_mut::<SelectedUiTheme>().0 = theme.to_string();
+                })
+                .until(Arc::new(move |world: &World| {
+                    world.resource::<ActiveUiTheme>().id() == theme
+                }))
+                .deadline(BEAT_SECS)
+                .add()
+                .step(format!("station sandbox: settle the {theme_name} theme"))
+                .until(frames(THEME_FRAMES))
+                .add();
+            for (width, height) in CARD_SIZES {
+                let shape = format!("{width}x{height} {theme_name}");
+                script = script
+                    .step(format!("station sandbox: reshape to {shape}"))
+                    .on_enter(move |world: &mut World| set_size(world, width, height))
+                    .until(window_size_is(width, height))
+                    .deadline(BEAT_SECS)
+                    .add();
+                for card in ["twin", "muted"] {
+                    let shot = format!("sandbox-card-{card}-{theme_name}-{width}.png");
+                    script = script
+                        .step(format!("station sandbox: focus the {card} card at {shape}"))
+                        .on_enter(focus_the_card(card))
+                        .until(ui_node_present("Gallery Back Button"))
+                        .deadline(BEAT_SECS)
+                        .add()
+                        .step(format!(
+                            "station sandbox: settle the {card} card at {shape}"
+                        ))
+                        .until(frames(SETTLE_FRAMES))
+                        .add()
+                        .step(format!("station sandbox: read the {card} card at {shape}"))
+                        .on_enter(read_the_card(shape.clone(), card))
+                        .add()
+                        .step(format!("station sandbox: shoot the {card} card at {shape}"))
+                        .on_enter({
+                            let shot = shot.clone();
+                            move |world: &mut World| shoot(world, &shot)
+                        })
+                        .until(shot_written(shot))
+                        .deadline(SHOT_SECS)
+                        .add();
+                    if card == "muted" {
+                        script = try_the_muted_place(script, &shape, theme_name, width);
+                    }
+                }
+            }
+        }
+        let (width, height) = CAPTURE_RESOLUTION;
+        let (width, height) = (width as f32, height as f32);
+        script
+            .click_named(
+                "station sandbox: close the Catalogue after the cards",
+                "Gallery Close Button",
+                Arc::new(|world: &World| !world.resource::<GalleryState>().open),
+                BEAT_SECS,
+            )
+            .step("station sandbox: back to the capture shape and theme")
+            .on_enter(move |world: &mut World| {
+                *world.resource_mut::<SelectedUiTheme>() = SelectedUiTheme::default();
+                set_size(world, width, height);
+            })
+            .until(window_size_is(width, height))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: settle the capture shape")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+    }
+
+    /// On the focused muted card: Enter and a click on the disabled Place
+    /// take nothing, and the pointer on Place shows the note as its tooltip,
+    /// which is shot.
+    fn try_the_muted_place(
+        script: AutopilotPlugin<GameStates>,
+        shape: &str,
+        theme_name: &str,
+        width: f32,
+    ) -> AutopilotPlugin<GameStates> {
+        let shot = format!("sandbox-card-muted-tooltip-{theme_name}-{width}.png");
+        script
+            .step(format!(
+                "station sandbox: press Enter on the muted card at {shape}"
+            ))
+            .on_enter(press_key(KeyCode::Enter))
+            .until(frames(2))
+            .add()
+            .step(format!("station sandbox: let Enter up at {shape}"))
+            .on_enter(release_key(KeyCode::Enter))
+            .until(frames(2))
+            .add()
+            .step(format!("station sandbox: Enter took nothing at {shape}"))
+            .on_enter(muted_card_stays("Enter"))
+            .add()
+            .step(format!(
+                "station sandbox: point at the muted Place at {shape}"
+            ))
+            .each(|world, _, _| keep_hovering_named("Gallery Place Button")(world))
+            .until(Arc::new(|world: &World| place_tooltip(world).is_some()))
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!(
+                "station sandbox: read the muted Place tooltip at {shape}"
+            ))
+            .on_enter(|world: &mut World| {
+                let part = card_part(world, "muted");
+                let note = listing(world)
+                    .entry(&part)
+                    .expect("the Catalogue lists every part")
+                    .note
+                    .clone();
+                let shown = place_tooltip(world);
+                info!("station sandbox: the muted Place tooltip reads {shown:?}");
+                assert_eq!(shown, Some(note), "the muted Place's tooltip is its note");
+            })
+            .add()
+            .step(format!(
+                "station sandbox: shoot the muted Place tooltip at {shape}"
+            ))
+            .on_enter({
+                let shot = shot.clone();
+                move |world: &mut World| shoot(world, &shot)
+            })
+            .until(shot_written(shot))
+            .deadline(SHOT_SECS)
+            .add()
+            .step(format!("station sandbox: click the muted Place at {shape}"))
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(frames(2))
+            .add()
+            .step(format!(
+                "station sandbox: let the muted Place up at {shape}"
+            ))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(frames(2))
+            .add()
+            .step(format!(
+                "station sandbox: the click took nothing at {shape}"
+            ))
+            .on_enter(muted_card_stays("a click on Place"))
+            .add()
+    }
+
+    /// Reshape the window, the way dragging its corner does.
+    fn set_size(world: &mut World, width: f32, height: f32) {
+        world
+            .query_filtered::<&mut Window, With<bevy::window::PrimaryWindow>>()
+            .single_mut(world)
+            .expect("one primary window")
+            .resolution
+            .set(width, height);
+    }
+
     /// The smoke walk: the setup lands docked on the Ship tab, and a frame of
     /// it is shot.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
@@ -2398,7 +2859,8 @@ mod smoke {
             .on_enter(|world: &mut World| shoot(world, REBIND_SHOT))
             .until(shot_written(REBIND_SHOT))
             .deadline(SHOT_SECS)
-            .add()
+            .add();
+        let script = read_the_cards(script)
             .step("station sandbox: the rebound gun can come off")
             .until(Arc::new(|world: &World| {
                 world

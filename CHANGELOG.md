@@ -137,9 +137,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Torpedo bays are rare and railgun lances need mid
   advancement. Ships hold only ammo their weapons reload; stations stock a
   recipe of every part they build and the ammo to reload them.
-- **(breaking)** A station design lists the sections it `builds`; the
-  catalogue, swap, add and rebuild refuse any other part, whatever the holds
-  carry.
+- **(breaking)** A station design lists the sections it `builds`; swap, add
+  and rebuild refuse other parts. The Catalogue dims those and parts neither
+  hold covers, and shows recipe sources.
 
 ### Scenarios & Objectives
 

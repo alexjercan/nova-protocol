@@ -8,9 +8,9 @@
 //! walk lists every free socket of a live section, in design order, that a
 //! kinetic PDC fits at, by the pane's own rule. An add at a mated socket of
 //! the first one's section is refused with its reason and changes nothing.
-//! Then the player opens the Ship pane's Catalogue, clicks the kinetic PDC's
-//! tile and Place on its card, points at the free sockets in turn until the
-//! ghost stands valid at one, and clicks the view. In the second round the scenario is swapped
+//! Then the player opens the Ship pane's Catalogue, narrows it to Weapons,
+//! clicks the kinetic PDC's tile and Place on its card, points at the free
+//! sockets in turn until the ghost stands valid at one, and clicks the view. In the second round the scenario is swapped
 //! for one where the player flies a generated armored hull whose turrets are
 //! bound to the left mouse button, and the add goes through the pane's add
 //! command. Each round undocks, freezes and thaws the hull the way a retiring
@@ -1251,6 +1251,24 @@ mod walk {
             SESSION_SECS,
         )
         .step("station add: settle the catalogue")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("station add: narrow the catalogue to Weapons")
+        .on_enter(click_named(format!(
+            "Gallery Category {}",
+            GalleryCategory::Weapons.label()
+        )))
+        .until(pointer_pressed())
+        .deadline(SESSION_SECS)
+        .add()
+        .step("station add: let the Weapons chip up")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(when(|world| {
+            world.resource::<GalleryState>().category == GalleryCategory::Weapons
+        }))
+        .deadline(SESSION_SECS)
+        .add()
+        .step("station add: settle the Weapons catalogue")
         .until(frames(SETTLE_FRAMES))
         .add();
         let script = script

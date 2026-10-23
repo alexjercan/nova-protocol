@@ -9,19 +9,21 @@
 use bevy::{
     picking::hover::Hovered,
     prelude::*,
+    ui::InteractionDisabled,
     ui_widgets::{Activate, Button},
 };
 use nova_ui::{
     prelude::{button, panel, ButtonSpec, UiText},
     theme,
     theme::{ActiveUiTheme, UiColor},
-    widget::{ThemedBorder, ThemedFill, ThemedRadius, ThemedText},
+    widget::{ThemedBorder, ThemedFill, ThemedRadius, ThemedText, Tooltip},
 };
 
 use super::{
     catalog::{self, GalleryCategory},
     scene::spawn_tile,
-    GalleryAlternate, GalleryHost, GalleryLayout, GalleryListing, GalleryState, HeldPart,
+    GalleryAlternate, GalleryEntry, GalleryHost, GalleryLayout, GalleryListing, GalleryState,
+    HeldPart,
 };
 use crate::prelude::*;
 
@@ -35,6 +37,9 @@ pub struct GalleryRoot;
 pub struct GalleryCell {
     /// Index into the filtered list, not the catalog.
     pub listed: usize,
+    /// Whether the part may be placed: the painter mutes the border of a
+    /// part the host cannot craft.
+    pub placeable: bool,
 }
 
 /// What pressing a gallery widget does. One component + one observer, so a new
@@ -91,6 +96,25 @@ fn part_count(listed: usize, stocked: usize) -> String {
 /// grows the strip, and the preview area gives up the height.
 const LABEL_H: f32 = 34.0;
 
+/// The alpha of a part the host lists but cannot craft: its tile text and
+/// border and its focus card title. Faint enough to read as unavailable
+/// beside a craftable tile, and strong enough that its name stays legible.
+const MUTED_ALPHA: f32 = 0.45;
+
+/// The alpha of the surface veil over a muted part's 3D preview. The theme's
+/// surface, not black, so the veil greys the part in either theme and the
+/// part still shows through it.
+const VEIL_ALPHA: f32 = 0.6;
+
+/// The veil over a preview stage: a muted part's preview is drawn through
+/// the theme's surface at [`VEIL_ALPHA`], a placeable one bare.
+fn stage_veil(placeable: bool) -> impl Bundle {
+    (
+        BackgroundColor(Color::NONE),
+        ThemedFill::alpha(UiColor::Surface, if placeable { 0.0 } else { VEIL_ALPHA }),
+    )
+}
+
 /// Rebuild the overlay (and its previews) whenever the gallery state or the
 /// catalog changes.
 pub(crate) fn rebuild_gallery(
@@ -122,6 +146,12 @@ pub(crate) fn rebuild_gallery(
 
     let listing = listing.as_deref();
     let listed = catalog::browsable(&sections, listing, state.category, &state.filter);
+    // Enter does nothing on a part the host cannot craft, so the hint drops it.
+    let place_hint = if state.placeable_id(&sections, listing).is_some() {
+        "Enter place it   "
+    } else {
+        ""
+    };
     let per_page = layout.page();
     let pages = listed.len().div_ceil(per_page).max(1);
     let page = state.selected / per_page;
@@ -309,8 +339,7 @@ pub(crate) fn rebuild_gallery(
                 // and "pick a part" on the stage, which is two names for one
                 // gesture.
                 Text::new(if state.focused {
-                    "drag turn it   wheel zoom   arrows next part   Enter place it   Esc back"
-                        .to_string()
+                    format!("drag turn it   wheel zoom   arrows next part   {place_hint}Esc back")
                 } else if state.filter_focused {
                     "type filter   Enter the top hit   Esc leave the field".to_string()
                 } else {
@@ -379,10 +408,9 @@ fn grid_body(
                             .and_then(|index| sections.get(*index).map(|section| (*index, section)))
                         {
                             Some((index, section)) => {
-                                let note = listing
-                                    .and_then(|listing| listing.entry(&section.base.id))
-                                    .map(|entry| entry.tile.as_str());
-                                let stage = spawn_cell(row_node, section, note, slot);
+                                let entry =
+                                    listing.and_then(|listing| listing.entry(&section.base.id));
+                                let stage = spawn_cell(row_node, section, entry, slot);
                                 stages.push((stage, index, false));
                             }
                             // An empty slot still takes its share of the row, so a
@@ -403,17 +431,20 @@ fn grid_body(
 
 /// One tile: a transparent preview area (the 3D shows through it) over an
 /// opaque name strip. Returns the preview area, which is what a preview
-/// centres itself on.
+/// centres itself on. A part its host cannot craft draws its text muted and
+/// its preview veiled.
 fn spawn_cell(
     row: &mut ChildSpawnerCommands,
     section: &SectionConfig,
-    note: Option<&str>,
+    entry: Option<&GalleryEntry>,
     listed: usize,
 ) -> Entity {
+    let placeable = entry.is_none_or(|entry| entry.placeable);
+    let alpha = if placeable { 1.0 } else { MUTED_ALPHA };
     let mut stage = Entity::PLACEHOLDER;
     row.spawn((
         Name::new(format!("Gallery Tile {}", section.base.name)),
-        GalleryCell { listed },
+        GalleryCell { listed, placeable },
         GalleryAction::Focus(listed),
         Button,
         Hovered::default(),
@@ -443,6 +474,7 @@ fn spawn_cell(
                     flex_grow: 1.0,
                     ..default()
                 },
+                stage_veil(placeable),
                 // The preview lives behind this node; it must not eat the
                 // tile's own hover/press.
                 Pickable {
@@ -480,7 +512,7 @@ fn spawn_cell(
                         ..default()
                     },
                     TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Body),
+                    ThemedText::alpha(UiColor::Body, alpha),
                 ),
                 (
                     UiText,
@@ -490,20 +522,24 @@ fn spawn_cell(
                         ..default()
                     },
                     TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Label),
+                    ThemedText::alpha(UiColor::Label, alpha),
                 ),
             ],
         ));
-        if let Some(note) = note {
+        if let Some(tile) = entry.and_then(|entry| entry.tile.clone()) {
             strip.with_child((
                 UiText,
-                Text::new(note.to_string()),
+                Text::new(tile),
                 TextFont {
                     font_size: FontSize::Px(11.0),
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Accent),
+                if placeable {
+                    ThemedText::new(UiColor::Accent)
+                } else {
+                    ThemedText::alpha(UiColor::Label, MUTED_ALPHA)
+                },
             ));
         }
     });
@@ -527,6 +563,7 @@ fn focus_body(
     };
 
     let entry = listing.and_then(|listing| listing.entry(&section.base.id));
+    let placeable = entry.is_none_or(|entry| entry.placeable);
     let mut stage = Entity::PLACEHOLDER;
     root.spawn((
         Name::new("Gallery Focus"),
@@ -551,6 +588,7 @@ fn focus_body(
                     flex_grow: 2.0,
                     ..default()
                 },
+                stage_veil(placeable),
                 Pickable {
                     should_block_lower: false,
                     is_hoverable: false,
@@ -573,7 +611,11 @@ fn focus_body(
                 panel(),
             ))
             .with_children(|card| {
+                // Muted with the veiled stage and the disabled Place, so a
+                // keyboard user sees the part cannot be placed without the
+                // pointer on Place for its tooltip.
                 card.spawn((
+                    Name::new("Gallery Focus Title"),
                     UiText,
                     Text::new(section.base.name.clone()),
                     TextFont {
@@ -581,7 +623,7 @@ fn focus_body(
                         ..default()
                     },
                     TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Primary),
+                    ThemedText::alpha(UiColor::Primary, if placeable { 1.0 } else { MUTED_ALPHA }),
                 ));
                 // The details take the free height and clip, so the actions
                 // sit on the card floor and stay inside a short host.
@@ -598,6 +640,35 @@ fn focus_body(
                     },
                 ))
                 .with_children(|details| {
+                    // First, so a short host clips the description and the
+                    // stats before the recipe. The lines pack with no gap so
+                    // a four-item recipe fits the 640x600 card.
+                    if let Some(entry) = entry {
+                        details
+                            .spawn((
+                                Name::new("Gallery Recipe"),
+                                Node {
+                                    flex_direction: FlexDirection::Column,
+                                    flex_shrink: 0.0,
+                                    ..default()
+                                },
+                            ))
+                            .with_children(|recipe| {
+                                for line in &entry.recipe {
+                                    recipe.spawn((
+                                        Name::new("Gallery Recipe Line"),
+                                        UiText,
+                                        Text::new(line.clone()),
+                                        TextFont {
+                                            font_size: FontSize::Px(12.0),
+                                            ..default()
+                                        },
+                                        TextColor(Color::NONE),
+                                        ThemedText::new(UiColor::Body),
+                                    ));
+                                }
+                            });
+                    }
                     details.spawn((
                         UiText,
                         Text::new(section.base.description.clone()),
@@ -646,7 +717,7 @@ fn focus_body(
                         ));
                     }
                 });
-                if let Some(entry) = entry {
+                if let Some(entry) = entry.filter(|entry| entry.placeable) {
                     card.spawn((
                         Name::new("Gallery Note"),
                         UiText,
@@ -659,11 +730,20 @@ fn focus_body(
                         ThemedText::new(UiColor::Accent),
                     ));
                 }
-                card.spawn((
+                // Enter places only what may be placed, so a muted part's
+                // button carries no key chip; its tooltip is the note.
+                let mut spec = ButtonSpec::new("Place This Part").primary();
+                if placeable {
+                    spec = spec.key("Enter");
+                }
+                let mut place = card.spawn((
                     Name::new("Gallery Place Button"),
-                    button(ButtonSpec::new("Place This Part").primary().key("Enter")),
+                    button(spec),
                     GalleryAction::Place,
                 ));
+                if let Some(entry) = entry.filter(|entry| !entry.placeable) {
+                    place.insert((InteractionDisabled, Tooltip(entry.note.clone())));
+                }
                 if let Some(label) = entry.and_then(|entry| entry.alternate.as_deref()) {
                     card.spawn((
                         Name::new("Gallery Alternate Button"),
@@ -747,17 +827,22 @@ pub(crate) fn paint_gallery_cells(
 ) {
     for (cell, hovered, mut border, mut background) in &mut cells {
         let selected = cell.listed == state.selected;
-        *border = BorderColor::all(cell_border(&theme, selected, hovered.get()));
+        let color = cell_border(selected, hovered.get());
+        *border = BorderColor::all(if cell.placeable {
+            theme.color(color)
+        } else {
+            theme.color_alpha(color, MUTED_ALPHA)
+        });
         background.0 = cell_fill(&theme, selected, hovered.get());
     }
 }
 
-fn cell_border(theme: &ActiveUiTheme, selected: bool, hovered: bool) -> Color {
-    theme.color(match (selected, hovered) {
+fn cell_border(selected: bool, hovered: bool) -> UiColor {
+    match (selected, hovered) {
         (true, _) => UiColor::Primary,
         (false, true) => UiColor::Secondary,
         (false, false) => UiColor::Label,
-    })
+    }
 }
 
 /// Tile fills stay nearly transparent on purpose: whatever alpha they carry
@@ -813,9 +898,11 @@ pub(crate) fn on_gallery_action(
             state.filter_focused = false;
         }
         GalleryAction::Place => {
-            if let Some(id) = state.selected_id(&sections, listing) {
-                held.0 = Some(id);
-            }
+            // The disabled button takes no press; this is the one code check.
+            let Some(id) = state.placeable_id(&sections, listing) else {
+                return;
+            };
+            held.0 = Some(id);
             state.open = false;
             state.focused = false;
         }
