@@ -91,6 +91,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** New base hulls: `mining_tug`, `salvage_hauler`,
   `light_freighter`, `freighter_derelict`, `interceptor`, `raider`,
   `patrol_picket`, `training_picket`, `line_warship` and `debris_plate`.
+- The six start hulls are built from advancement-0 parts, so the starting
+  station rebuilds any section they lose.
 - Every open-world ship carries a cargo intake to jettison and take cargo:
   the six start hulls and every generated ship, whose intake sits on top or
   below, clear of its docking ports.

@@ -35,15 +35,15 @@ pub const MINING_TUG_SHIP_ID: &str = "mining_tug";
 /// The scavenger start hull: the biggest start hold, a cargo intake, one
 /// point-defense mount, a mining emitter and a flank collar.
 pub const SALVAGE_HAULER_SHIP_ID: &str = "salvage_hauler";
-/// The transport start hull: freight cubes and a tank pod on one vectoring
-/// drive, a cargo intake, a flank collar, unarmed.
+/// The transport start hull: a stack and a pod of light plate on nine bell
+/// drives, a cargo intake, a flank collar, unarmed.
 pub const LIGHT_FREIGHTER_SHIP_ID: &str = "light_freighter";
 /// The bounty hunter start hull: two point-defense mounts and a cargo intake.
 pub const INTERCEPTOR_SHIP_ID: &str = "interceptor";
 /// The pirate start hull: two point-defense mounts and a cargo intake.
 pub const RAIDER_SHIP_ID: &str = "raider";
 /// The military start hull: two point-defense mounts, a torpedo bay and a
-/// cargo intake on reinforced plate.
+/// cargo intake on light plate.
 pub const PATROL_PICKET_SHIP_ID: &str = "patrol_picket";
 /// The tutorial range's hull: one nose point-defense mount on light plate.
 /// Scenario-only, with no cargo intake.
@@ -51,7 +51,7 @@ pub const TRAINING_PICKET_SHIP_ID: &str = "training_picket";
 /// The Line Warship class, the military goal: six point-defense mounts, a
 /// railgun, two torpedo bays and two collars.
 pub const LINE_WARSHIP_SHIP_ID: &str = "line_warship";
-/// The light freighter with its stern and drive gone: a derelict to dock
+/// A yard-fitted freighter with its stern and drive gone: a derelict to dock
 /// with.
 pub const FREIGHTER_DERELICT_SHIP_ID: &str = "freighter_derelict";
 /// Loose debris plating: no computer, drive or gun.

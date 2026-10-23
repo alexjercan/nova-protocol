@@ -18,7 +18,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -35,7 +35,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -52,7 +52,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -69,7 +69,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -86,7 +86,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -103,7 +103,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -120,7 +120,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -137,7 +137,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -154,7 +154,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -171,7 +171,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -188,7 +188,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -205,7 +205,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -222,7 +222,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -239,7 +239,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -256,7 +256,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -273,7 +273,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -290,7 +290,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -307,7 +307,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -324,7 +324,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -341,7 +341,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "truss_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -358,7 +358,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "truss_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -534,7 +534,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -551,7 +551,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -568,7 +568,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -585,7 +585,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -602,7 +602,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -636,7 +636,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -653,7 +653,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -670,7 +670,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -687,7 +687,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -704,7 +704,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -738,7 +738,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -755,7 +755,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -772,7 +772,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -789,7 +789,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -806,7 +806,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -840,7 +840,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -857,7 +857,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -874,7 +874,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -891,7 +891,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -908,7 +908,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -942,7 +942,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -959,7 +959,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -976,7 +976,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -993,7 +993,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1010,7 +1010,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1044,7 +1044,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1061,7 +1061,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1078,7 +1078,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1095,7 +1095,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1112,7 +1112,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1146,7 +1146,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1163,7 +1163,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1180,7 +1180,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1197,7 +1197,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1214,7 +1214,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1248,7 +1248,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1265,7 +1265,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1282,7 +1282,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1299,7 +1299,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1316,7 +1316,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1350,7 +1350,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1367,7 +1367,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1384,7 +1384,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1401,7 +1401,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1418,7 +1418,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1713,7 +1713,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1730,7 +1730,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1747,7 +1747,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1764,7 +1764,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1781,7 +1781,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1798,7 +1798,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1815,7 +1815,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1832,7 +1832,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1849,7 +1849,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1866,7 +1866,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1883,7 +1883,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1900,7 +1900,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1917,7 +1917,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1934,7 +1934,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1951,7 +1951,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1968,7 +1968,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -1985,7 +1985,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2002,7 +2002,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2019,7 +2019,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2036,7 +2036,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2053,7 +2053,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2070,7 +2070,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2087,7 +2087,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2104,7 +2104,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2121,7 +2121,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2138,7 +2138,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2155,7 +2155,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2172,7 +2172,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2189,7 +2189,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "cargo_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2206,7 +2206,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "tank_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2223,7 +2223,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "tank_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2240,7 +2240,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "tank_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2257,7 +2257,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2274,7 +2274,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2291,7 +2291,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2308,7 +2308,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2325,7 +2325,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2342,7 +2342,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2359,7 +2359,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2376,7 +2376,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2393,7 +2393,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2448,74 +2448,6 @@
                     ),
                 ),
                 (
-                    id: "solar_port_inner",
-                    position: (
-                        -2.0,
-                        1.0,
-                        -1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "solar_panel_section",
-                    ),
-                ),
-                (
-                    id: "solar_port_outer",
-                    position: (
-                        -3.0,
-                        1.0,
-                        -1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "solar_panel_section",
-                    ),
-                ),
-                (
-                    id: "solar_starboard_inner",
-                    position: (
-                        2.0,
-                        1.0,
-                        -1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "solar_panel_section",
-                    ),
-                ),
-                (
-                    id: "solar_starboard_outer",
-                    position: (
-                        3.0,
-                        1.0,
-                        -1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "solar_panel_section",
-                    ),
-                ),
-                (
                     id: "cargo_intake",
                     position: (
                         0.0,
@@ -2537,7 +2469,7 @@
                     position: (
                         0.0,
                         0.0,
-                        4.5,
+                        4.0,
                     ),
                     rotation: (
                         0.0,
@@ -2546,7 +2478,143 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "vector_thruster_section",
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_port",
+                    position: (
+                        -1.0,
+                        0.0,
+                        4.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_starboard",
+                    position: (
+                        1.0,
+                        0.0,
+                        4.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_dorsal",
+                    position: (
+                        0.0,
+                        1.0,
+                        4.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_ventral",
+                    position: (
+                        0.0,
+                        -1.0,
+                        4.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_port_dorsal",
+                    position: (
+                        -1.0,
+                        1.0,
+                        4.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_starboard_dorsal",
+                    position: (
+                        1.0,
+                        1.0,
+                        4.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_port_ventral",
+                    position: (
+                        -1.0,
+                        -1.0,
+                        4.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
+                    id: "drive_starboard_ventral",
+                    position: (
+                        1.0,
+                        -1.0,
+                        4.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
                     ),
                 ),
             ],
@@ -2586,7 +2654,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2603,7 +2671,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2620,7 +2688,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2637,7 +2705,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2654,7 +2722,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2671,7 +2739,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2688,7 +2756,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2705,7 +2773,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2722,7 +2790,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2739,7 +2807,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2756,7 +2824,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2773,7 +2841,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2790,7 +2858,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2807,7 +2875,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2824,7 +2892,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2841,7 +2909,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2858,7 +2926,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2875,7 +2943,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2892,7 +2960,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2909,7 +2977,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2926,7 +2994,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2943,7 +3011,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2960,7 +3028,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2977,7 +3045,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -2994,7 +3062,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3011,7 +3079,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3028,7 +3096,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3045,7 +3113,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3062,7 +3130,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3079,7 +3147,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3255,7 +3323,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3272,7 +3340,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3289,7 +3357,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3306,7 +3374,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3323,7 +3391,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3340,7 +3408,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3357,7 +3425,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3374,7 +3442,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3391,7 +3459,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3408,7 +3476,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3425,7 +3493,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3442,7 +3510,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3459,7 +3527,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3476,7 +3544,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3493,7 +3561,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3510,7 +3578,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3527,7 +3595,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3544,7 +3612,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3561,7 +3629,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3578,7 +3646,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3595,7 +3663,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3612,7 +3680,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3629,7 +3697,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3646,7 +3714,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3663,7 +3731,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3680,7 +3748,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3697,7 +3765,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3714,7 +3782,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3731,7 +3799,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3924,7 +3992,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3941,7 +4009,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3958,7 +4026,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3975,7 +4043,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -3992,7 +4060,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -4009,7 +4077,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -4026,7 +4094,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -4043,7 +4111,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -4060,7 +4128,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -4077,7 +4145,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -4094,7 +4162,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -4111,7 +4179,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -4128,7 +4196,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -4145,7 +4213,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -4162,7 +4230,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -4179,7 +4247,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -4196,7 +4264,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (
@@ -4213,7 +4281,7 @@
                         1.0,
                     ),
                     source: Prototype(
-                        id: "reinforced_hull_section",
+                        id: "light_hull_section",
                     ),
                 ),
                 (

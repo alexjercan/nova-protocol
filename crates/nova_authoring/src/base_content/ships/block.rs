@@ -4,7 +4,11 @@
 //! A block ship is a set of cells plus a handful of placed specials. It uses no
 //! modelled part, so a hull is reproducible from this source alone. A cell
 //! takes the hull's plate unless a zone names another hull prototype for it:
-//! the freight cubes of a hold, the tanks of a freighter.
+//! the freight cubes and tanks of the derelict freighter.
+//!
+//! The six start hulls are built from parts at advancement 0 only: the
+//! starting station builds every one of those, so any section a starter
+//! loses can be rebuilt there. The start-role lint refuses a part above 0.
 //!
 //! Every hull names the style its derived skin is clad with. See
 //! `base_content::styles`.
@@ -31,12 +35,12 @@ use nova_world_base::prelude::{
 
 use crate::base_content::sections::{
     CARGO_HULL_SECTION_ID, CARGO_INTAKE_SECTION_ID, MINING_BEAM_SECTION_ID, SOLAR_PANEL_SECTION_ID,
-    TANK_HULL_SECTION_ID, TRUSS_HULL_SECTION_ID, VECTOR_THRUSTER_SECTION_ID,
+    TANK_HULL_SECTION_ID, VECTOR_THRUSTER_SECTION_ID,
 };
 
 /// The drive section ids the block fleet repeats: a pair on the beam, one on
-/// the centreline, or one vectoring drive on a transom. Content that patches
-/// a drive names these.
+/// the centreline, one vectoring drive on a transom, or the centre bell of a
+/// square of nine. Content that patches a drive names these.
 const DRIVE_PORT_SECTION_ID: &str = "drive_port";
 const DRIVE_STARBOARD_SECTION_ID: &str = "drive_starboard";
 const DRIVE_CENTRE_SECTION_ID: &str = "drive_centre";
@@ -121,19 +125,18 @@ pub(super) struct BlockShip {
     pub(super) style: &'static str,
 }
 
-/// The industrial start: a low work hull with a two-cell truss boom off the
-/// bow and a mining emitter at its tip, a cargo intake on the aft deck, a cab
-/// forward, and three bell drives.
+/// The industrial start: a low work hull of light plate with a two-cell boom
+/// off the bow and a mining emitter at its tip, a cargo intake on the aft
+/// deck, a cab forward, and three bell drives.
 ///
 /// The boom puts the emitter a hull length ahead of the cab, so the beam lane
 /// and the rock it cuts sit clear of the plating.
 pub(super) fn mining_tug() -> BlockShip {
-    let boom = vec![IVec3::new(0, 0, -4), IVec3::new(0, 0, -5)];
     BlockShip {
         cells: union(vec![
             block(IVec3::new(-1, 0, -3), IVec3::new(3, 1, 7)),
             vec![IVec3::new(0, 1, -2), IVec3::new(0, 1, -1)],
-            boom.clone(),
+            vec![IVec3::new(0, 0, -4), IVec3::new(0, 0, -5)],
         ]),
         specials: vec![
             cell_part(
@@ -168,13 +171,13 @@ pub(super) fn mining_tug() -> BlockShip {
                 IVec3::new(-2, 0, -1),
             ),
         ],
-        plate: REINFORCED_HULL_SECTION_ID,
-        zones: vec![(TRUSS_HULL_SECTION_ID, boom)],
+        plate: LIGHT_HULL_SECTION_ID,
+        zones: vec![],
         style: INDUSTRIAL_STYLE_ID,
     }
 }
 
-/// The scavenger start: a deep three-by-three hold of freight cubes, a cab on
+/// The scavenger start: a deep three-by-three hold of light plate, a cab on
 /// the nose with a mining emitter ahead of it, a cargo intake on the dorsal
 /// deck, one point-defense mount, and eight bell drives round the second
 /// computer on the square transom.
@@ -182,7 +185,6 @@ pub(super) fn mining_tug() -> BlockShip {
 /// The biggest hold of the start hulls: salvage is bulky and the hauler has
 /// to bring it home.
 pub(super) fn salvage_hauler() -> BlockShip {
-    let hold = block(IVec3::new(-1, -1, -2), IVec3::new(3, 3, 5));
     BlockShip {
         cells: union(vec![
             block(IVec3::new(-1, -1, -3), IVec3::new(3, 3, 7)),
@@ -249,14 +251,14 @@ pub(super) fn salvage_hauler() -> BlockShip {
             ),
         ],
         plate: LIGHT_HULL_SECTION_ID,
-        zones: vec![(CARGO_HULL_SECTION_ID, hold)],
+        zones: vec![],
         style: SALVAGE_STYLE_ID,
     }
 }
 
-/// The cells forward of the light freighter's stern: a flat spine, a stack of
-/// freight cubes amidships, a cab, and a tank pod on the starboard flank.
-/// Shared with the derelict, so its collar stands where the freighter's does.
+/// The cells forward of the light freighter's stern: a flat spine, a stack
+/// amidships, a cab, and a pod on the starboard flank. Shared with the
+/// derelict, so its collar stands where the freighter's does.
 fn freighter_bow() -> Vec<IVec3> {
     union(vec![
         block(IVec3::new(-1, 0, -3), IVec3::new(3, 1, 6)),
@@ -266,8 +268,10 @@ fn freighter_bow() -> Vec<IVec3> {
     ])
 }
 
-/// The light freighter's freight cubes and tanks.
-fn freighter_zones() -> Vec<(&'static str, Vec<IVec3>)> {
+/// The derelict's freight cubes and tanks: the yard fit of a freighter past
+/// ring 0, where the stack and the pod are built from parts above
+/// advancement 0.
+fn derelict_zones() -> Vec<(&'static str, Vec<IVec3>)> {
     vec![
         (
             CARGO_HULL_SECTION_ID,
@@ -280,8 +284,8 @@ fn freighter_zones() -> Vec<(&'static str, Vec<IVec3>)> {
     ]
 }
 
-/// The light freighter's forward specials: the cab, the second computer, the
-/// collar and the two solar wings off the freight stack.
+/// The light freighter's forward specials: the cab, the second computer and
+/// the collar.
 fn freighter_fittings() -> Vec<Special> {
     vec![
         cell_part(
@@ -299,46 +303,97 @@ fn freighter_fittings() -> Vec<Special> {
             FlankType::Port,
             IVec3::new(-2, 0, -2),
         ),
-        solar("solar_port_inner", IVec3::new(-2, 1, -1)),
-        solar("solar_port_outer", IVec3::new(-3, 1, -1)),
-        solar("solar_starboard_inner", IVec3::new(2, 1, -1)),
-        solar("solar_starboard_outer", IVec3::new(3, 1, -1)),
     ]
 }
 
-/// The transport start: freight cubes stacked on a flat spine, a cargo intake
-/// on top of the stack, a tank pod on the starboard flank, a solar wing either
-/// side of the stack, and one vectoring drive on a square transom. Unarmed.
+/// The light freighter's drives: one bell on each cell of the transom's aft
+/// face. Nine bells give the thrust of one vectoring drive from the part
+/// every station builds. The centre bell is `main_drive`, the one the
+/// derelict's mayday says the raid took.
+fn freighter_drives() -> Vec<Special> {
+    vec![
+        cell_part(
+            MAIN_DRIVE_SECTION_ID,
+            BASIC_THRUSTER_SECTION_ID,
+            IVec3::new(0, 0, 4),
+        ),
+        cell_part(
+            DRIVE_PORT_SECTION_ID,
+            BASIC_THRUSTER_SECTION_ID,
+            IVec3::new(-1, 0, 4),
+        ),
+        cell_part(
+            DRIVE_STARBOARD_SECTION_ID,
+            BASIC_THRUSTER_SECTION_ID,
+            IVec3::new(1, 0, 4),
+        ),
+        cell_part(
+            "drive_dorsal",
+            BASIC_THRUSTER_SECTION_ID,
+            IVec3::new(0, 1, 4),
+        ),
+        cell_part(
+            "drive_ventral",
+            BASIC_THRUSTER_SECTION_ID,
+            IVec3::new(0, -1, 4),
+        ),
+        cell_part(
+            "drive_port_dorsal",
+            BASIC_THRUSTER_SECTION_ID,
+            IVec3::new(-1, 1, 4),
+        ),
+        cell_part(
+            "drive_starboard_dorsal",
+            BASIC_THRUSTER_SECTION_ID,
+            IVec3::new(1, 1, 4),
+        ),
+        cell_part(
+            "drive_port_ventral",
+            BASIC_THRUSTER_SECTION_ID,
+            IVec3::new(-1, -1, 4),
+        ),
+        cell_part(
+            "drive_starboard_ventral",
+            BASIC_THRUSTER_SECTION_ID,
+            IVec3::new(1, -1, 4),
+        ),
+    ]
+}
+
+/// The transport start: a stack of light plate on a flat spine, a cargo
+/// intake on top of the stack, a pod on the starboard flank, and nine bell
+/// drives on a square transom. Unarmed.
 pub(super) fn light_freighter() -> BlockShip {
     let mut specials = freighter_fittings();
     specials.push(door_up_intake("cargo_intake", Vec3::new(0.0, 2.0, 0.5)));
-    specials.push(part(
-        MAIN_DRIVE_SECTION_ID,
-        VECTOR_THRUSTER_SECTION_ID,
-        Vec3::new(0.0, 0.0, 4.5),
-        Quat::IDENTITY,
-    ));
+    specials.extend(freighter_drives());
     BlockShip {
         cells: union(vec![
             freighter_bow(),
             vec![IVec3::new(2, 0, 2)],
-            // The transom: the three-by-three face the vectoring drive mates.
+            // The transom: the three-by-three face the drives mate.
             block(IVec3::new(-1, -1, 3), IVec3::new(3, 3, 1)),
         ]),
         specials,
-        plate: REINFORCED_HULL_SECTION_ID,
-        zones: freighter_zones(),
+        plate: LIGHT_HULL_SECTION_ID,
+        zones: vec![],
         style: CIVILIAN_STYLE_ID,
     }
 }
 
-/// The light freighter after a raid took its stern: no drive, no transom,
-/// the aft tank cube and the starboard wing gone. Everything forward of the
-/// tear matches [`light_freighter`] cell for cell, so the cab and the collar
-/// stand where a docking approach expects them.
+/// A yard-fitted freighter after a raid took its stern: reinforced plate,
+/// freight cubes, a tank pod and a solar wing either side of the stack, with
+/// no drive, no transom, the aft tank cube and the starboard wing's outer
+/// panel gone. Everything forward of the tear matches [`light_freighter`]
+/// cell for cell, so the cab and the collar stand where a docking approach
+/// expects them.
 pub(super) fn freighter_derelict() -> BlockShip {
     let mut specials = freighter_fittings();
-    specials.retain(|part| part.id != "solar_starboard_outer");
+    specials.extend([
+        solar("solar_port_inner", IVec3::new(-2, 1, -1)),
+        solar("solar_port_outer", IVec3::new(-3, 1, -1)),
+        solar("solar_starboard_inner", IVec3::new(2, 1, -1)),
+    ]);
     BlockShip {
         cells: carve(
             union(vec![
@@ -351,14 +406,14 @@ pub(super) fn freighter_derelict() -> BlockShip {
         ),
         specials,
         plate: REINFORCED_HULL_SECTION_ID,
-        zones: freighter_zones(),
+        zones: derelict_zones(),
         style: CIVILIAN_STYLE_ID,
     }
 }
 
-/// The bounty hunter start: a compact two-deck body with stub wings, two
-/// point-defense mounts on the top deck, a cargo intake aft of them and three
-/// bell drives.
+/// The bounty hunter start: a compact two-deck body of light plate with stub
+/// wings, two point-defense mounts on the top deck, a cargo intake aft of
+/// them and three bell drives.
 pub(super) fn interceptor() -> BlockShip {
     BlockShip {
         cells: union(vec![
@@ -396,16 +451,16 @@ pub(super) fn interceptor() -> BlockShip {
                 IVec3::new(-2, 0, 0),
             ),
         ],
-        plate: REINFORCED_HULL_SECTION_ID,
+        plate: LIGHT_HULL_SECTION_ID,
         zones: vec![],
         style: ARMOURED_STYLE_ID,
     }
 }
 
-/// The pirate start: a short hull with a nose stub, an outrigger and a gun
-/// boom on the starboard side, a dorsal mount, a cargo intake on the aft
-/// deck, and four bell drives. Its lopsided silhouette reads as a refit, not
-/// a yard design.
+/// The pirate start: a short hull of light plate with a nose stub, an
+/// outrigger and a gun boom on the starboard side, a dorsal mount, a cargo
+/// intake on the aft deck, and four bell drives. Its lopsided silhouette
+/// reads as a refit, not a yard design.
 pub(super) fn raider() -> BlockShip {
     BlockShip {
         cells: union(vec![
@@ -450,13 +505,13 @@ pub(super) fn raider() -> BlockShip {
                 IVec3::new(-2, 0, 0),
             ),
         ],
-        plate: REINFORCED_HULL_SECTION_ID,
+        plate: LIGHT_HULL_SECTION_ID,
         zones: vec![],
         style: SALVAGE_STYLE_ID,
     }
 }
 
-/// The military start: a slim dart of reinforced plate with one
+/// The military start: a slim dart of light plate with one
 /// point-defense mount on the nose face, where the hull cannot mask its
 /// forward arc, a second mount on the dorsal spine, a torpedo bay under the
 /// nose, a cargo intake on the aft deck and two bell drives.
@@ -507,7 +562,7 @@ pub(super) fn patrol_picket() -> BlockShip {
                 IVec3::new(-2, 0, 0),
             ),
         ],
-        plate: REINFORCED_HULL_SECTION_ID,
+        plate: LIGHT_HULL_SECTION_ID,
         zones: vec![],
         style: ARMOURED_STYLE_ID,
     }

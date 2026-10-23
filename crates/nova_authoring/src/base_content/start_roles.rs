@@ -76,7 +76,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             "transport",
             "Transport",
             RoleIconType::Container,
-            "A light freighter with freight cubes, a tank pod and no weapons. Buy cargo at \
+            "A light freighter with a deep stack, a flank pod and no weapons. Buy cargo at \
              one station and sell it at another.",
             LIGHT_FREIGHTER_SHIP_ID,
             2_000,
@@ -116,7 +116,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             "military",
             "Military",
             RoleIconType::Shield,
-            "A patrol picket with two point-defense mounts and a torpedo bay on reinforced \
+            "A patrol picket with two point-defense mounts and a torpedo bay on light \
              plate. The Line Warship class is its later goal.",
             PATROL_PICKET_SHIP_ID,
             1_000,
