@@ -274,7 +274,6 @@ impl<'a> RefitPlacedSection<'a> {
             )
             .0,
             exit: exit_normal(&self.config.kind),
-            port: self.config.kind.class() == SectionClass::Docking,
         }
     }
 

@@ -5,7 +5,6 @@
 use nova_authoring::generation::{
     build_section_catalog, build_ships, build_stations, build_styles,
 };
-use nova_gameplay::prelude::SectionClass;
 use nova_scenario::prelude::{resolve_ship_design, GameShipDesigns, ShipDesign, ShipDesignSource};
 use nova_ship::{
     prelude::{GameSections, PlacedPart, SectionFootprint},
@@ -63,7 +62,6 @@ fn every_base_greeble_stands_on_a_plateau_that_covers_its_footprint() {
                     section.config.base.collider.unwrap_or_default(),
                 ),
                 exit: exit_normal(&section.config.kind),
-                port: section.config.kind.class() == SectionClass::Docking,
             })
             .collect();
         let (structure, _, _) = read_structure(&parts);

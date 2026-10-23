@@ -142,16 +142,28 @@ fn a_facing_pair_inside_the_envelope_is_a_candidate() {
     );
 }
 
+/// The gap gate is `capture_distance` plus [`GAP_SLACK`], inclusive: a pair
+/// at the one-cell berth gap and one at the slack's edge are candidates, one
+/// a step past the slack is not, and a pair a half cell or a whole cell past
+/// the reach two sleeves can bridge is refused as it always was.
 #[test]
-fn a_pair_beyond_the_face_gap_is_refused() {
-    let mut app = docking_app();
-    // One and a half cells: past the one-cell reach two sleeves can bridge.
-    let (first, .., second, _) = facing_pair(&mut app, 1.5);
-
-    assert!(
-        candidate(&mut app, first, second).is_none(),
-        "a pair further apart than the sleeves reach is not a candidate"
-    );
+fn a_pair_within_the_capture_slack_docks_and_one_beyond_it_is_refused() {
+    let cases = [
+        (BERTH_GAP, true),
+        (BERTH_GAP + GAP_SLACK, true),
+        (BERTH_GAP + 2.0 * GAP_SLACK, false),
+        (BERTH_GAP + 0.5, false),
+        (BERTH_GAP + 1.0, false),
+    ];
+    for (gap, docks) in cases {
+        let mut app = docking_app();
+        let (first, .., second, _) = facing_pair(&mut app, gap);
+        assert_eq!(
+            candidate(&mut app, first, second).is_some(),
+            docks,
+            "a facing pair {gap} apart is a candidate: {docks}"
+        );
+    }
 }
 
 /// The target's combat state, not only the geometry, decides a new dock: an

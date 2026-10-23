@@ -52,7 +52,7 @@ pub use connection::{
     DockingReleaseRequest, DockingSystems, StationDock, StationDocks, UndockSeparation,
 };
 pub(crate) use port::PORT_FACE;
-pub use port::{DockingPair, DockingPorts, PortPose};
+pub use port::{DockingPair, DockingPorts, PortPose, BERTH_GAP, GAP_SLACK};
 use render::insert_docking_section_render;
 
 /// The `docking_section` spawners, its config, marker, port state, connection,

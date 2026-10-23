@@ -19,7 +19,10 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::{BuildRecipe, GameItems, SectionClass};
 
-use super::{docking_section::PORT_FACE, prelude::*};
+use super::{
+    docking_section::{BERTH_GAP, PORT_FACE},
+    prelude::*,
+};
 
 /// The parked hulls, the price rule, the plan, the pose rules
 /// and the buy request.
@@ -208,8 +211,9 @@ pub fn bought_hull_pose(
     (face - reach, turned)
 }
 
-/// Where a parked hull's root stands so its port lies on a station port:
-/// the hull port's retracted face on the station port's, facing it.
+/// Where a parked hull's root stands so its port lies at a station port:
+/// the hull port's retracted face [`BERTH_GAP`] off the station port's,
+/// facing it.
 ///
 /// `station` is the station root's world position and rotation.
 /// `station_port` and `hull_port` are each port's position and rotation in
@@ -228,7 +232,7 @@ pub fn parked_hull_pose(
     let arc = Quat::from_rotation_arc((rotation * hull_port.1 * Vec3::NEG_Z).normalize(), against);
     let turned = (arc * rotation).normalize();
     let reach = turned * (hull_port.0 + hull_port.1 * PORT_FACE);
-    (face - reach, turned)
+    (face - against * BERTH_GAP - reach, turned)
 }
 
 /// Where a hull parks at station port `berth` clear of the station and of
@@ -245,8 +249,8 @@ pub fn parked_hull_pose(
 /// [`parked_hull_pose`], then rolled a quarter turn at a time about the
 /// station port's outward axis through its face, and the first roll where
 /// no box of the hull's envelope overlaps one of the station's or an
-/// obstacle wins ([`section_colliders_overlap`]). The docking pair is
-/// exempt: its faces meet.
+/// obstacle wins ([`section_colliders_overlap`]). The docking pair needs no
+/// exemption: the hull port stands [`BERTH_GAP`] off the station port.
 ///
 /// # Panics
 ///
@@ -282,14 +286,13 @@ pub fn parked_hull_clear_pose(
                     rotation: rotation * boxed.rotation,
                     collider: boxed.collider,
                 })
-                .enumerate()
-                .all(|(index, posed)| {
-                    station_envelope.iter().enumerate().all(|(other, &boxed)| {
-                        (index == hull_port && other == berth)
-                            || !section_colliders_overlap(posed, boxed)
-                    }) && obstacles
+                .all(|posed| {
+                    station_envelope
                         .iter()
-                        .all(|&obstacle| !section_colliders_overlap(posed, obstacle))
+                        .all(|&boxed| !section_colliders_overlap(posed, boxed))
+                        && obstacles
+                            .iter()
+                            .all(|&obstacle| !section_colliders_overlap(posed, obstacle))
                 })
         })
 }
@@ -579,10 +582,11 @@ pub(crate) mod tests {
         );
     }
 
-    /// A parked hull's port face lands on the station port's face and points
-    /// against it, whatever the two ports' places in their hulls.
+    /// A parked hull's port face stands one `BERTH_GAP` out from the station
+    /// port's face along its axis and points against it, whatever the two
+    /// ports' places in their hulls.
     #[test]
-    fn a_parked_hull_is_posed_with_its_port_face_on_the_station_port_facing_it() {
+    fn a_parked_hull_is_posed_with_its_port_face_a_berth_gap_off_the_station_port_facing_it() {
         let station = (
             Vec3::new(10.0, -4.0, 2.0),
             Quat::from_rotation_y(0.7) * Quat::from_rotation_x(0.2),
@@ -601,9 +605,10 @@ pub(crate) mod tests {
         };
         let (station_face, station_axis) = face(station, station_port);
         let (hull_face, hull_axis) = face((position, rotation), hull_port);
+        let berth_face = station_face + station_axis * BERTH_GAP;
         assert!(
-            hull_face.abs_diff_eq(station_face, 1e-4),
-            "{hull_face} vs {station_face}"
+            hull_face.abs_diff_eq(berth_face, 1e-4),
+            "{hull_face} vs {berth_face}"
         );
         assert!(
             hull_axis.abs_diff_eq(-station_axis, 1e-4),
@@ -657,7 +662,8 @@ pub(crate) mod tests {
     }
 
     /// A station with a port facing +X beside `beside`, and a hull whose
-    /// three-cell wing stands one cell behind its port.
+    /// three-cell wing stands one cell behind its port. A berthed hull's dock
+    /// cell is at x 4, its wing at x 5.
     fn east_collar(beside: &[Vec3]) -> (Vec<DesignSection>, Vec<DesignSection>) {
         let mut station = vec![
             part("core", Vec3::ZERO, Quat::IDENTITY, Vec3::ONE),
@@ -689,7 +695,7 @@ pub(crate) mod tests {
     /// row beside its collar: the hull rolls about the port until it clears.
     #[test]
     fn a_hull_for_sale_rolls_about_its_port_clear_of_a_station_part() {
-        let (station, hull) = east_collar(&[Vec3::new(4.0, 0.0, 1.5)]);
+        let (station, hull) = east_collar(&[Vec3::new(5.0, 0.0, 1.5)]);
         let unrolled = parked_hull_pose(
             (Vec3::ZERO, Quat::IDENTITY),
             (station[1].position, station[1].rotation),
@@ -708,7 +714,7 @@ pub(crate) mod tests {
             }
         }
         let (dock, _) = pose;
-        assert!(dock.abs_diff_eq(Vec3::new(3.0, 0.0, 0.0), 1e-4), "{dock}");
+        assert!(dock.abs_diff_eq(Vec3::new(4.0, 0.0, 0.0), 1e-4), "{dock}");
     }
 
     /// The start station's industrial hull parked with a section flush on a
@@ -744,7 +750,7 @@ pub(crate) mod tests {
             part("collar_east", Vec3::X, east, Vec3::ONE),
             socketed(part(
                 "arm",
-                Vec3::new(2.0, 0.0, -2.0),
+                Vec3::new(3.0, 0.0, -2.0),
                 Quat::IDENTITY,
                 Vec3::ONE,
             )),
@@ -760,7 +766,7 @@ pub(crate) mod tests {
         );
         let flank_at = |pose| design_envelope(&hull, false, pose)[1].position;
         assert!(
-            flank_at(flush).abs_diff_eq(Vec3::new(2.0, 0.0, -1.0), 1e-4),
+            flank_at(flush).abs_diff_eq(Vec3::new(3.0, 0.0, -1.0), 1e-4),
             "flush, the flank touches the arm: {}",
             flank_at(flush)
         );
@@ -838,10 +844,10 @@ pub(crate) mod tests {
         assert_eq!(berth(&[2], &[]), Some((1, 0)));
         let (_, _, at, _) = outward_berth(&station, false, &ship, false, &[], &[])
             .expect("the outward port is clear");
-        assert!(at.abs_diff_eq(Vec3::new(-2.0, 0.0, 0.0), 1e-4), "{at}");
+        assert!(at.abs_diff_eq(Vec3::new(-3.0, 0.0, 0.0), 1e-4), "{at}");
         // On the port's axis, where the wing stands at every roll.
         let wing_row = PlacedSectionCollider {
-            position: Vec3::new(-3.0, 0.0, 0.0),
+            position: Vec3::new(-4.0, 0.0, 0.0),
             rotation: Quat::IDENTITY,
             collider: SectionCollider::Cuboid { size: Vec3::ONE },
         };
@@ -852,7 +858,7 @@ pub(crate) mod tests {
     /// not parked at that port.
     #[test]
     fn a_hull_blocked_at_every_roll_does_not_park_at_the_port() {
-        let (station, hull) = east_collar(&[Vec3::new(4.0, 0.0, 1.5), Vec3::new(4.0, 0.0, -1.5)]);
+        let (station, hull) = east_collar(&[Vec3::new(5.0, 0.0, 1.5), Vec3::new(5.0, 0.0, -1.5)]);
         let obstacle = |at: Vec3| PlacedSectionCollider {
             position: at,
             rotation: Quat::IDENTITY,
@@ -872,7 +878,7 @@ pub(crate) mod tests {
                 &hull,
                 &hull_boxes,
                 0,
-                &[obstacle(Vec3::new(4.0, 1.5, 0.0))]
+                &[obstacle(Vec3::new(5.0, 1.5, 0.0))]
             ),
             None
         );

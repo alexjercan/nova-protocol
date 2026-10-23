@@ -158,13 +158,13 @@ use nova_ship::prelude::{
     derive_skin, muzzle_aim_error, on_target_cone, read_plates, read_structure, section_cell,
     skin_report, skin_summary, solve_decor, AITarget, Autopilot, AutopilotAction, BodyRadius,
     CombatLock, DockedHelmType, DockedShip, DockingConnection, DockingPair, DockingPorts,
-    DockingSectionMarker, GameStyles, PlacedPart, PlateReport, PlayerAutopilotCompleted,
-    PointDefenseMount, RadarState, RailgunCharge, RailgunSectionInput, SectionAmmo, SectionExit,
-    SectionFixture, SectionFootprint, SectionLinkPoints, SectionReload, ShipCapabilities,
-    ShipDecorMarker, ShipSkin, ShipSkinMarker, ShipStyle, SkinReport, StructuralCollapseMarker,
-    TorpedoArming, TorpedoBlast, TorpedoSectionInput, TorpedoTargetEntity, TorpedoTargetPosition,
-    TorpedoType, TravelLock, TurretDefenseTarget, TurretSectionAimPoint, TurretSectionInput,
-    TurretSectionMuzzleEntity, TurretSectionTargetInput, TurretSectionTargetRadius, WeaponsHot,
+    GameStyles, PlacedPart, PlateReport, PlayerAutopilotCompleted, PointDefenseMount, RadarState,
+    RailgunCharge, RailgunSectionInput, SectionAmmo, SectionExit, SectionFixture, SectionFootprint,
+    SectionLinkPoints, SectionReload, ShipCapabilities, ShipDecorMarker, ShipSkin, ShipSkinMarker,
+    ShipStyle, SkinReport, StructuralCollapseMarker, TorpedoArming, TorpedoBlast,
+    TorpedoSectionInput, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TravelLock,
+    TurretDefenseTarget, TurretSectionAimPoint, TurretSectionInput, TurretSectionMuzzleEntity,
+    TurretSectionTargetInput, TurretSectionTargetRadius, WeaponsHot,
 };
 
 use crate::capabilities::{frametime::prelude::*, timeline::stamp};
@@ -1174,7 +1174,6 @@ fn skin_index(world: &World, root: Entity) -> Option<SkinIndex> {
         &SectionLinkPoints,
         Option<&SectionExit>,
         Option<&SectionFootprint>,
-        bool,
     )> = world
         .get::<Children>(root)?
         .iter()
@@ -1185,19 +1184,17 @@ fn skin_index(world: &World, root: Entity) -> Option<SkinIndex> {
                 world.get::<SectionLinkPoints>(child)?,
                 world.get::<SectionExit>(child),
                 world.get::<SectionFootprint>(child),
-                world.get::<DockingSectionMarker>(child).is_some(),
             ))
         })
         .collect();
     let placed: Vec<PlacedPart> = sections
         .iter()
-        .map(|(pose, sockets, exit, footprint, port)| PlacedPart {
+        .map(|(pose, sockets, exit, footprint)| PlacedPart {
             position: pose.translation,
             rotation: pose.rotation,
             link_points: sockets.as_slice(),
             footprint: footprint.map_or(UVec3::ONE, |footprint| **footprint),
             exit: exit.map(|exit| exit.0),
-            port: *port,
         })
         .collect();
 

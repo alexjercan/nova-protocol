@@ -71,7 +71,7 @@ use std::{
 
 use bevy::prelude::*;
 use nova_events::prelude::Meters;
-use nova_gameplay::prelude::{CivilizationId, Fnv32, SectionClass, SeedStream, ShipRoleType};
+use nova_gameplay::prelude::{CivilizationId, Fnv32, SeedStream, ShipRoleType};
 use nova_scenario::prelude::{
     SectionSource, ShipDesign, ShipPresentationConfig, SpaceshipSectionConfig,
 };
@@ -965,7 +965,6 @@ pub(crate) fn placed_part(
         link_points: &config.base.link_points,
         footprint: SectionFootprint::from_collider(config.base.collider.unwrap_or_default()).0,
         exit: exit_normal(&config.kind),
-        port: config.kind.class() == SectionClass::Docking,
     }
 }
 

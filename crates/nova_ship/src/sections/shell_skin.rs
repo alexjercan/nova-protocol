@@ -48,7 +48,6 @@ use crate::sections::{
     base_section::prelude::SectionFootprint,
     clearance::prelude::SectionExit,
     design_sections::SectionRemoveRequest,
-    docking_section::DockingSectionMarker,
     fixture::{
         prelude::{SectionFixture, ShedFixtureMarker},
         refill_shed_budget, shed_dead_fixtures, ShedBudget,
@@ -159,9 +158,6 @@ struct CellFaces {
 #[derive(Default, Clone, Debug)]
 pub struct SkinStructure {
     cells: HashMap<IVec3, CellFaces>,
-    /// Cells a docking port's collar bares, read by [`exit_pocket`] so the
-    /// skin leaves them clear like any other pocket.
-    collars: HashSet<IVec3>,
 }
 
 impl SkinStructure {
@@ -169,32 +165,6 @@ impl SkinStructure {
     /// firing through none of them.
     pub fn insert(&mut self, cell: IVec3, faces: [bool; 6]) {
         self.cells.entry(cell).or_default().sockets = faces;
-    }
-
-    /// Bare the collar beside a docking port that fires through `cell`'s
-    /// `out` face: the 8 cells lateral to `cell`, and the 8 lateral to
-    /// `cell + FACES[out]` where the mated hull's own port stands.
-    ///
-    /// A port's face can stand recessed in its cell, so two mated hulls both
-    /// clad the cells beside the seam and their plates meet there: about half
-    /// of the plate pairs that kept a parked hull off a generated station's
-    /// port were in this ring. Both rings are bared, the one the mated hull's
-    /// port stands in as well as the port's own.
-    pub fn insert_collar(&mut self, cell: IVec3, out: usize) {
-        let normal = FACES[out];
-        for anchor in [cell, cell + normal] {
-            for x in -1..=1 {
-                for y in -1..=1 {
-                    for z in -1..=1 {
-                        let lateral = IVec3::new(x, y, z);
-                        if lateral == IVec3::ZERO || lateral.dot(normal) != 0 {
-                            continue;
-                        }
-                        self.collars.insert(anchor + lateral);
-                    }
-                }
-            }
-        }
     }
 
     /// A cell something fires, launches or exhausts through `out`.
@@ -309,9 +279,7 @@ pub fn derive_skin(structure: &SkinStructure) -> Vec<SkinPlate> {
 /// Three things do. A neighbouring section may FIRE into the cell - a mount's
 /// muzzle, a bay's mouth, a drive's bell - and nothing may be built in the
 /// space a part's business points through, which is what leaves those mouths
-/// open without any of the three being named here. A docking port's collar
-/// bares the same way, so the cells beside its mouth stay clear for the hull
-/// that mates to it. And a plate has to bolt down
+/// open without any of the three being named here. And a plate has to bolt down
 /// to structure through one face and show an EMPTY cell through the opposite
 /// one ([`stands`]), so a cell wedged between sections on every axis has nowhere
 /// to stand.
@@ -343,25 +311,22 @@ pub fn cladding_cells(structure: &SkinStructure) -> HashSet<IVec3> {
     skin
 }
 
-/// Whether some section FIRES into this cell, or a docking port's collar
-/// bares it, which is what keeps the cladding out of it either way.
+/// Whether some section FIRES into this cell, which is what keeps the
+/// cladding out of it.
 ///
 /// The mouth of a drive bell and the muzzle of a gun are both this and nothing
 /// else: the one face a part's business points through needs the space in front
-/// of it, and a plate laid there is a ship firing into its own plating. A
-/// port's collar is the same refusal for a different reason: the cells beside
-/// its mouth are left bare so a mated hull's flank has room there too (see
-/// [`SkinStructure::insert_collar`]). Read by [`cladding_cells`] to refuse the
-/// cell, and by [`boundary_heights`] to tell a pocket like this from open space
-/// - the skin ends against a pocket, and tapers away into open space.
+/// of it, and a plate laid there is a ship firing into its own plating. Read by
+/// [`cladding_cells`] to refuse the cell, and by [`boundary_heights`] to tell a
+/// pocket like this from open space - the skin ends against a pocket, and
+/// tapers away into open space.
 ///
 /// Read off the EXIT and never off an absent socket. A fitting's flanks carry
 /// nothing to mate either and nothing comes out of them, which is the same fact
 /// [`crate::sections::clearance::exit_normal`] exists for; reading blind faces
 /// instead refused five cells round every fitting to protect one.
 pub(super) fn exit_pocket(structure: &SkinStructure, cell: IVec3) -> bool {
-    structure.collars.contains(&cell)
-        || (0..FACES.len()).any(|face| structure.fires(cell + FACES[face], face ^ 1))
+    (0..FACES.len()).any(|face| structure.fires(cell + FACES[face], face ^ 1))
 }
 
 /// Whether a plate in `cell` may show `out` to space.
@@ -907,7 +872,6 @@ type SkinSectionQuery<'w, 's> = Query<
         &'static SectionLinkPoints,
         Option<&'static SectionExit>,
         Option<&'static SectionFootprint>,
-        Has<DockingSectionMarker>,
     ),
     With<SectionMarker>,
 >;
@@ -921,7 +885,7 @@ fn skin_parts<'a>(
     let mut entities: Vec<Entity> = Vec::new();
     let mut placed: Vec<PlacedPart> = Vec::new();
     for section in q_children.get(root).into_iter().flatten() {
-        let Ok((transform, link_points, exit, footprint, port)) = q_sections.get(*section) else {
+        let Ok((transform, link_points, exit, footprint)) = q_sections.get(*section) else {
             continue;
         };
         entities.push(*section);
@@ -931,7 +895,6 @@ fn skin_parts<'a>(
             link_points: link_points.as_slice(),
             footprint: footprint.map_or(UVec3::ONE, |footprint| **footprint),
             exit: exit.map(|exit| exit.0),
-            port,
         });
     }
     (entities, placed)
@@ -1286,10 +1249,6 @@ pub struct PlacedPart<'a> {
     /// [`crate::sections::clearance::exit_normal`], which is where a kind is
     /// turned into this.
     pub exit: Option<Vec3>,
-    /// Whether the part is a docking port. The skin leaves its collar bare
-    /// (see [`SkinStructure::insert_collar`]), so a mated hull's flank has
-    /// room beside the mouth.
-    pub port: bool,
 }
 
 /// Read a set of placed parts as the structure the skin sees: the lattice they
@@ -1342,9 +1301,6 @@ pub(crate) fn read_cells(placed: &[PlacedPart], phase: Vec3) -> (SkinStructure, 
                 .is_some_and(|(face, edge)| cell.dot(FACES[face]) == edge)
                 .then_some(exit)
                 .flatten();
-            if let Some(face) = out.filter(|_| part.port && fires.is_some()) {
-                structure.insert_collar(cell, face);
-            }
             // A `Bare` socket is a dead end: it still mates, but the skin
             // reads its face as offering nothing, so no plate stands on it
             // and no plate climbs it.
@@ -1658,7 +1614,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::sections::link_points::{unit_cube_link_points, LinkPointSkinType};
+    use crate::sections::link_points::unit_cube_link_points;
 
     /// How close two floats have to be to count as the same number of cells.
     const EPSILON: f32 = 1e-5;
@@ -1949,74 +1905,6 @@ mod tests {
                 );
             }
         }
-    }
-
-    /// A docking port's collar stays bare - the ring of cells beside its
-    /// mouth, on its own cell and on the one its sleeve reaches into - and no
-    /// other cell gains or loses a plate.
-    #[test]
-    fn a_docking_port_leaves_its_collar_bare() {
-        let hull_points = unit_cube_link_points();
-        let port_points = vec![LinkPoint {
-            id: "base".to_string(),
-            position: Vec3::Z * 0.5,
-            normal: Vec3::Z,
-            skin: LinkPointSkinType::Clad,
-        }];
-        let hull_cube = PlacedPart {
-            position: Vec3::ZERO,
-            rotation: Quat::IDENTITY,
-            link_points: &hull_points,
-            footprint: UVec3::ONE,
-            exit: None,
-            port: false,
-        };
-        let port = PlacedPart {
-            position: Vec3::NEG_Z,
-            rotation: Quat::IDENTITY,
-            link_points: &port_points,
-            footprint: UVec3::ONE,
-            exit: Some(Vec3::NEG_Z),
-            port: true,
-        };
-        let bare_port = PlacedPart {
-            port: false,
-            ..port.clone()
-        };
-
-        let (clad, _, _) = read_structure(&[hull_cube.clone(), port]);
-        let (unclad, _, _) = read_structure(&[hull_cube, bare_port]);
-        let clad_cells: HashSet<IVec3> = derive_skin(&clad)
-            .into_iter()
-            .map(|plate| plate.cell)
-            .collect();
-        let unclad_cells: HashSet<IVec3> = derive_skin(&unclad)
-            .into_iter()
-            .map(|plate| plate.cell)
-            .collect();
-
-        let collar: HashSet<IVec3> = [IVec3::NEG_Z, IVec3::NEG_Z * 2]
-            .into_iter()
-            .flat_map(|anchor| {
-                (-1..=1).flat_map(move |x| {
-                    (-1..=1)
-                        .filter(move |y| x != 0 || *y != 0)
-                        .map(move |y| anchor + IVec3::new(x, y, 0))
-                })
-            })
-            .collect();
-        assert_eq!(collar.len(), 16, "the collar is two 8-cell rings");
-
-        assert!(
-            clad_cells.is_disjoint(&collar),
-            "a plate stood in the port's collar: {:?}",
-            clad_cells.intersection(&collar).collect::<Vec<_>>(),
-        );
-        let outside_collar: HashSet<IVec3> = unclad_cells.difference(&collar).copied().collect();
-        assert_eq!(
-            clad_cells, outside_collar,
-            "the port changed cladding outside its own collar",
-        );
     }
 
     /// Two plates across a seam stand the same height there.

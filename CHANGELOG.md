@@ -120,6 +120,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A `Refit` station parks a hull for sale at each port but one, its card
   turning the hull. A buy at full price hands you its helm (`OnShipBought`);
   your old ship stays parked, yours to Board free.
+- **(breaking)** A hull parked or started at a station port stands one cell
+  off it, the skin clads the cells round every port, and a dock holds 0.6 m
+  past capture distance. Save format 29.
 - Info on a Station pane card shows that hull or escort in the Ship view,
   read-only: turn, zoom and select a section; Close goes back to the Station.
 - A generated `Refit` station hires out one to three armed escorts that coast

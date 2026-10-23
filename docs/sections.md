@@ -309,11 +309,16 @@ port (`section_colliders_overlap`). A design's envelope (`design_envelope`) is
 its section colliders plus, when it wears the derived skin (`ShipSkin`), the
 collider box of each plate `derive_skin` lays: a plate stands in the empty
 cell beside its section, so two clad hulls whose sections only touch clad
-into each other. The skin leaves a docking port's collar bare (the cells one
-step to the side of the port and of the cell in front of its mouth), so a
-mated hull's flank has room there.
-Only the docking pair may touch. A hull that fits nowhere is not parked, with
-a warning, so a station sells at most its ports less one. At the session's
+into each other. The hull's port face stands one cell off the station port's
+(`BERTH_GAP`, `nova_ship/src/sections/docking_section/port.rs`): the reach
+two sleeves bridge and the `capture_distance` the dock is graded against, so
+the pair needs no exemption and a plate beside either port keeps its cell.
+The gap gate allows `GAP_SLACK` (0.0625 units, 0.625 m) over
+`capture_distance` for the f32 noise of absolute world positions, so a berth
+posed at exactly one cell holds out to the advancement saturation radius; a
+player's `DOCK` gets the same 0.625 m past the authored 10 m, and a berth a
+half cell or a cell off still fails. A hull that fits nowhere is not parked,
+with a warning, so a station sells at most its ports less one. At the session's
 starting station the fresh player ship berths first: `outward_berth`
 (`hull_buy.rs`) picks its berth, the most outward port first, with nothing
 parked; the parking keeps that port as the free one and parks the sales round

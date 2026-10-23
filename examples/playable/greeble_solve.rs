@@ -313,7 +313,6 @@ fn solve_the_hull(
             link_points: sockets.0.as_slice(),
             footprint: footprint.map_or(UVec3::ONE, |footprint| footprint.0),
             exit: exit.map(|exit| exit.0),
-            port: false,
         })
         .collect();
     let (structure, phase, _) = read_structure(&placed);

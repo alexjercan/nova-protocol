@@ -285,7 +285,6 @@ mod tests {
             link_points: POINTS.get_or_init(unit_cube_link_points),
             footprint: UVec3::ONE,
             exit: None,
-            port: false,
         }
     }
 
@@ -306,7 +305,6 @@ mod tests {
             }),
             footprint: UVec3::ONE,
             exit: Some(Vec3::Y),
-            port: false,
         }
     }
 
@@ -318,7 +316,6 @@ mod tests {
             link_points: &[],
             footprint: UVec3::new(5, 5, 3),
             exit: Some(Vec3::Z),
-            port: false,
         };
         let (_, _, cells) = super::super::shell_skin::read_structure(std::slice::from_ref(&drive));
         assert_eq!(cells[0].len(), 75);

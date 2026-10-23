@@ -464,7 +464,6 @@ fn refuse_blocked(subject: &Subject, sections: &GameSections) {
             link_points: &hull.base.link_points,
             footprint: UVec3::ONE,
             exit: None,
-            port: false,
         })
         .collect();
     for fitting in &subject.fittings {
@@ -475,7 +474,6 @@ fn refuse_blocked(subject: &Subject, sections: &GameSections) {
             link_points: &config.base.link_points,
             footprint: *SectionFootprint::from_collider(config.base.collider.unwrap_or_default()),
             exit: exit_normal(&config.kind),
-            port: config.kind.class() == SectionClass::Docking,
         });
     }
 
@@ -747,7 +745,6 @@ fn report_skins(
                 link_points: sockets.as_slice(),
                 footprint: UVec3::ONE,
                 exit: exit.map(|exit| exit.0),
-                port: false,
             })
             .collect();
         // Sections spawn a command flush after the root; come back for this

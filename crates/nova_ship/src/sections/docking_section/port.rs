@@ -24,6 +24,20 @@ use crate::sections::local_pose_in_root;
 /// sleeve grows out from here without moving it.
 pub(crate) const PORT_FACE: Vec3 = Vec3::new(0.0, 0.0, -0.5);
 
+/// Gap a scripted berth leaves between two retracted faces, engine units:
+/// one cell, the reach two full sleeves bridge, and the least that keeps a
+/// hull's plates clear of a station port recessed in a plated surface.
+pub const BERTH_GAP: f32 = 1.0;
+
+/// Slack the gap gate allows over `capture_distance`, engine units: 0.625 m
+/// past the authored 10 m, for a player's `DOCK` as much as for a scripted
+/// berth. The faces are absolute f32 world positions, so a berth posed at
+/// exactly `BERTH_GAP` reads up to about one ulp of its distance from the
+/// origin off it: 0.0024 at the start stations (within 36,300 units, the
+/// 21-seed six-role census), 0.03 at the 400,000-unit advancement saturation
+/// radius. Two ulp there. A berth a half cell off still fails.
+pub const GAP_SLACK: f32 = 0.0625;
+
 /// One port's pose in the world: the centre of its retracted face and the
 /// direction it faces.
 ///
@@ -79,7 +93,7 @@ pub struct DockingPair {
 impl DockingPair {
     /// Whether the faces are close enough.
     pub fn gap_holds(&self) -> bool {
-        self.gap <= self.envelope.capture_distance
+        self.gap <= self.envelope.capture_distance + GAP_SLACK
     }
 
     /// Whether the two axes are opposed enough.

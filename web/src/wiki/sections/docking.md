@@ -35,7 +35,7 @@ What a dock is NOT is a merge. The two ships stay two ships: two hulls, two pilo
 
 ## Flying the approach
 
-<!-- Widget values: crates/nova_authoring/src/base_content/sections/docking_port.rs:23 (DOCK_TUBE_TRAVEL 0.5 cells = 5 m), :89 (capture_distance 10 m), :92 (capture_angle 15 deg), :96-97 (5 m/s, 5 deg/s); every gate is inclusive and graded on the stricter port, gap between retracted faces, speed and spin as relative magnitudes: crates/nova_ship/src/sections/docking_section/port.rs:80-104, :218-219; a refused DOCK logs at debug only: connection.rs:193. -->
+<!-- Widget values: crates/nova_authoring/src/base_content/sections/docking_port.rs:23 (DOCK_TUBE_TRAVEL 0.5 cells = 5 m), :89 (capture_distance 10 m), :92 (capture_angle 15 deg), :96-97 (5 m/s, 5 deg/s); every gate is inclusive and graded on the stricter port, gap between retracted faces plus GAP_SLACK 0.0625 units (0.625 m) for f32 noise, speed and spin as relative magnitudes: crates/nova_ship/src/sections/docking_section/port.rs:93-119, :305-306; a refused DOCK logs at debug only: connection.rs:193. -->
 
 <div class="widget" data-widget="docking-envelope">
 <p>Two docking ports seen from the side, at the widest gap that docks: 10 m or less between the two retracted faces, the two ports facing each other within 15 degrees, moving at 5 m/s or less and turning at 5 degrees a second or less relative to each other. Roll is ignored. After the clamp, each sleeve runs 5 m out and the two meet across the gap.</p>

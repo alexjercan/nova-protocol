@@ -236,9 +236,6 @@ fn clearing(section: &PlacedSection) -> PlacedPart<'_> {
         link_points: &section.link_points,
         footprint: *SectionFootprint::from_collider(section.collider),
         exit: section.exit,
-        // The clearance rule reads cells, sockets and exits; a port's collar
-        // only keeps plates out, and no plate is read here.
-        port: false,
     }
 }
 
