@@ -155,8 +155,9 @@ it lost. The Ship pane lists each lost section under its old code (`PDC-1`)
 with a price or the reason it cannot be built. A lost section is one the
 ship's design places and the ship no longer has. A station crafts only what
 its `builds` lists, whatever its hold carries: a generated station builds the
-sections its civilization knows, and the base waystation builds the sections
-open at advancement 0.
+sections its civilization knows, which is every section at advancement 0 and
+a seeded subset of those above it, and the base waystation builds the
+sections open at advancement 0. So any station rebuilds a start hull's parts.
 
 | rule | what happens |
 |---|---|
@@ -416,7 +417,9 @@ every cell.
 
 Every generated station offers Rebuild, Refit, Trade, Storage and Jobs. Its stock
 is half goods and half the recipe parts of every section its civilization
-builds. Its goods hold at least one unit of each ammunition item that a
+builds: every part at advancement 0, and of the parts above 0 that its
+advancement opens, each with chance 0.5 keyed to the civilization and the
+part id. Its goods hold at least one unit of each ammunition item that a
 reloading weapon its civilization knows draws (`PdcRound`, `RailSlug`,
 `Torpedo`), and no other ammunition. It draws the parts its civilization knows at its advancement, by draw
 weight, those within 0.25 below its advancement first, and carries

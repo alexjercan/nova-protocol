@@ -12,8 +12,9 @@
 //! Every usable part belongs to one [`ShipPartFamilyType`] and carries the
 //! advancement and draw weight its section authors: a civilization builds a
 //! part from the part's advancement up, and a generator draws it against the
-//! other parts of its family by weight. A civilization knows only a seeded
-//! subset of the parts its advancement opens, see [`ShipPartSnapshot::known`].
+//! other parts of its family by weight. Every part at advancement 0 is known
+//! by every civilization; a part above advancement 0 is known only by the
+//! seeded draw in [`KNOWN_CHANCE`], see [`ShipPartSnapshot::known`].
 //! A valid part that a generator cannot place is excluded. A socketed part
 //! that fires or docks down a non-cardinal lane, or through a face that
 //! carries one of its own sockets, is not excluded: it is an authoring fault,
@@ -44,8 +45,9 @@ use crate::station_layout::StationArchetypeType;
 /// written, so an old pin cannot match a new form.
 const SHIP_PART_HASH_VERSION: u32 = 1;
 
-/// The chance that a civilization knows one part its advancement opens,
+/// The chance that a civilization knows one part open above advancement 0,
 /// drawn once per civilization and part, see [`ShipPartSnapshot::known`].
+/// Every part at advancement 0 is known by every civilization outright.
 pub const KNOWN_CHANCE: f32 = 0.5;
 
 /// One content pack's sections as a snapshot reads them.
@@ -512,9 +514,10 @@ impl ShipPartSnapshot {
     /// Every part `civilization` builds at `advancement`, in id order: the
     /// parts its advancement opens that it knows.
     ///
-    /// Each open part is known with [`KNOWN_CHANCE`], drawn once from the
-    /// civilization's identity and the part id, so the same part is known
-    /// or not from every cell and at any advancement that opens it. A
+    /// An open part at advancement 0 is known by every civilization. An open
+    /// part above advancement 0 is known with [`KNOWN_CHANCE`], drawn once
+    /// from the civilization's identity and the part id, so the same part is
+    /// known or not from every cell and at any advancement that opens it. A
     /// family with an open part always has a known one: when no draw knows
     /// one, the open part with the lowest draw is known. A structural cube
     /// hull and a turret are guaranteed the same way before their families
@@ -529,7 +532,7 @@ impl ShipPartSnapshot {
                 .collect();
             let mut chosen: Vec<&ShipPart> = draws
                 .iter()
-                .filter(|(_, draw)| *draw < KNOWN_CHANCE)
+                .filter(|(part, draw)| part.advancement <= 0.0 || *draw < KNOWN_CHANCE)
                 .map(|(part, _)| *part)
                 .collect();
             if family == ShipPartFamilyType::Weapon {
@@ -1177,12 +1180,14 @@ mod tests {
         );
     }
 
-    /// Across many civilizations, every family with an open part has a known
-    /// one, a structural cube hull and a turret are known wherever one is
-    /// open, no part is known before its advancement, and the subset is a
-    /// real one: some civilization lacks some open part.
+    /// Across many civilizations, every part at advancement 0 is known
+    /// outright, every family with an open part above advancement 0 still
+    /// has a known one, a structural cube hull and a turret are known
+    /// wherever one is open, no part is known before its advancement, and
+    /// the seeded subset above advancement 0 is a real one: some
+    /// civilization lacks some open part.
     #[test]
-    fn every_civilization_knows_an_open_part_of_each_family_a_cube_and_a_turret() {
+    fn every_civilization_knows_every_part_at_advancement_zero_and_a_seeded_subset_above_it() {
         let turret = |id: &str| {
             let kind = SectionKind::Turret(TurretSectionConfig {
                 bullet_damage: 10.0,
@@ -1212,6 +1217,12 @@ mod tests {
         sections.push(late);
         let snapshot =
             ShipPartSnapshot::build(&[pack("base", &[], sections)]).expect("the packs build");
+        let at_zero: BTreeSet<&str> = snapshot
+            .parts()
+            .iter()
+            .filter(|part| part.advancement <= 0.0)
+            .map(|part| part.id())
+            .collect();
 
         let mut lacking = 0;
         for world_seed in 0..4 {
@@ -1220,14 +1231,27 @@ mod tests {
                     world_seed,
                     node: [node, -node, 1],
                 };
-                let known = snapshot.known(civilization, 0.25);
-                let ids: BTreeSet<&str> = known.iter().map(|part| part.id()).collect();
+                let floor_ids: BTreeSet<&str> = snapshot
+                    .known(civilization, 0.0)
+                    .into_iter()
+                    .map(|part| part.id())
+                    .collect();
                 assert!(
-                    !ids.contains("late_drive"),
+                    at_zero.iter().all(|id| floor_ids.contains(id)),
+                    "{civilization:?} lacks a part open at advancement 0"
+                );
+
+                let below = snapshot.known(civilization, 0.25);
+                let below_ids: BTreeSet<&str> = below.iter().map(|part| part.id()).collect();
+                assert!(
+                    !below_ids.contains("late_drive"),
                     "{civilization:?} knows a part above its advancement"
                 );
+
+                let known = snapshot.known(civilization, 0.5);
+                let ids: BTreeSet<&str> = known.iter().map(|part| part.id()).collect();
                 for family in ShipPartFamilyType::ALL {
-                    let open = snapshot.open(family, 0.25).count();
+                    let open = snapshot.open(family, 0.5).count();
                     let known = known.iter().filter(|part| part.family == family).count();
                     assert!(
                         open == 0 || known >= 1,
@@ -1240,13 +1264,13 @@ mod tests {
                 );
                 assert!(ids.contains("hull"), "{civilization:?} knows no cube");
                 assert_eq!(
-                    snapshot.known(civilization, 0.25).len(),
+                    snapshot.known(civilization, 0.5).len(),
                     known.len(),
                     "{civilization:?} draws the same subset twice"
                 );
                 let open: usize = ShipPartFamilyType::ALL
                     .iter()
-                    .map(|family| snapshot.open(*family, 0.25).count())
+                    .map(|family| snapshot.open(*family, 0.5).count())
                     .sum();
                 lacking += usize::from(ids.len() < open);
             }

@@ -210,8 +210,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   credits and items. Lint refuses an unknown hull or item, an overweight kit,
   a hull with no intake or one a docked ship blocks.
 - **(breaking)** Section `base` now authors `advancement` and `draw_weight`;
-  each civilization knows a seeded subset of parts it can build, drawn by
-  weight.
+  every civilization builds the parts at advancement 0 and knows a seeded
+  subset of those above it, drawn by weight.
 
 - **(breaking)** A style places greebles by `greeble_rules`: link types,
   greebles with four link points, `near` terms and caps. `placement` is gone;

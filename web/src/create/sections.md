@@ -62,7 +62,7 @@ shared `base` block and one kind-specific block:
 | `base.name` | string | required | Display name in the editor palette and ship UI. |
 | `base.description` | string | required | Editor and tooltip description. |
 | `base.health` | number | required | Hit points before the section is destroyed. Positive and finite. |
-| `base.advancement` | number | required | Lowest civilization advancement, `0` to `1`, that builds this part in the open world. Content lint rejects a non-finite value or one outside `0..=1`. |
+| `base.advancement` | number | required | Lowest civilization advancement, `0` to `1`, that builds this part in the open world. At `0` every civilization builds it; above `0` each civilization knows it with chance 0.5. Content lint rejects a non-finite value or one outside `0..=1`. |
 | `base.draw_weight` | number | required | How often a generator draws this part against the other known parts of its family: `1.0` is common, `0.1` is rare. Positive and finite. |
 | `base.build` | build recipe | required | What a station charges to rebuild this section. See [Build recipe](#build-recipe). |
 | `base.destroy_sound` | `Option` asset ref | `None` | Sound played when this section is destroyed. Omitted means silent. |
