@@ -66,9 +66,10 @@ pub mod prelude {
     pub use super::{
         escort_raiders, job_title, offer_deadline_text, plan_job_accept, plan_job_hand_in,
         plan_job_hull_fit, station_job_offers, EscortLeg, Job, JobAcceptRefusalType, JobAccepted,
-        JobBoard, JobField, JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHull,
-        JobHullFit, JobHullRefusalType, JobId, JobMixType, JobPostings, JobType, JobWreck, Jobs,
-        SlotPosting, StarterBoardMarker, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, RAIDERS_PER_CARGO_CR,
+        JobBoard, JobDone, JobField, JobHandInPartner, JobHandInPlan, JobHandInRefusalType,
+        JobHull, JobHullFit, JobHullRefusalType, JobId, JobMixType, JobPostings, JobType, JobWreck,
+        Jobs, SlotPosting, StarterBoardMarker, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD,
+        RAIDERS_PER_CARGO_CR,
     };
 }
 
@@ -740,6 +741,16 @@ pub struct StarterBoardMarker;
 pub struct JobAccepted {
     /// The job just held.
     pub job: Job,
+}
+
+/// Raised by the open world the moment a held job's work is done, where it
+/// marks the job done ([`Jobs::mark_done`]). Only the world's completion
+/// observers raise it: a Load restores done jobs without it, a fixture marks
+/// in place, a hand-in and a drop are not a done.
+#[derive(Event, Clone, Debug)]
+pub struct JobDone {
+    /// The held job just marked done.
+    pub id: JobId,
 }
 
 /// An undone escort's leg: the mark its hauler flies to and whether the

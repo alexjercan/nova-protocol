@@ -54,11 +54,11 @@ use nova_events::prelude::{
 };
 use nova_gameplay::prelude::{
     station_job_offers, station_offers, unit_sphere_point, Allegiance, DerelictShipMarker, Fnv32,
-    GameItems, GamePriceTable, Job, JobAccepted, JobBoard, JobField, JobHull, JobId, JobMixType,
-    JobOfferRule, JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker, ObjectiveMarkerTarget,
-    PlayerSpaceshipMarker, SeedStream, ShipInventory, ShipRoleType, SlotPosting,
-    SpaceshipRootMarker, StarterBoardMarker, StationMarker, StationServiceType, StationServices,
-    JOBS_PER_BOARD,
+    GameItems, GamePriceTable, Job, JobAccepted, JobBoard, JobDone, JobField, JobHull, JobId,
+    JobMixType, JobOfferRule, JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker,
+    ObjectiveMarkerTarget, PlayerSpaceshipMarker, SeedStream, ShipInventory, ShipRoleType,
+    SlotPosting, SpaceshipRootMarker, StarterBoardMarker, StationMarker, StationServiceType,
+    StationServices, JOBS_PER_BOARD,
 };
 use nova_scenario::prelude::{
     base_scenario_object, spaceship_scenario_object, AIControllerConfig, BaseScenarioObjectConfig,
@@ -924,6 +924,7 @@ pub(crate) fn drop_on_loss(
 /// docks again and takes the rest.
 pub(crate) fn recover_on_undock(
     event: On<GameEvent>,
+    mut commands: Commands,
     mut jobs: ResMut<Jobs>,
     player: Query<&ShipInventory, With<PlayerSpaceshipMarker>>,
     holds: Query<(&GeneratedBodyId, &ShipInventory), Without<PlayerSpaceshipMarker>>,
@@ -960,6 +961,7 @@ pub(crate) fn recover_on_undock(
         let carried = own.count(item);
         if carried >= *count && aboard == 0 {
             jobs.mark_done(&job.id);
+            commands.trigger(JobDone { id: job.id.clone() });
             info!(
                 "nova_world_base: '{}' is done: the hold carries {carried} {item}, '{wreck}' none",
                 job.id
@@ -976,7 +978,11 @@ pub(crate) fn recover_on_undock(
 
 /// Mark a held escort done on the `onshipordercomplete` of its hauler's Move
 /// order. The hauler's loss is [`drop_on_loss`]'s.
-pub(crate) fn escort_on_arrival(event: On<GameEvent>, mut jobs: ResMut<Jobs>) {
+pub(crate) fn escort_on_arrival(
+    event: On<GameEvent>,
+    mut commands: Commands,
+    mut jobs: ResMut<Jobs>,
+) {
     let arrived = event.name() == OnShipOrderCompleteEvent::name()
         && event
             .info()
@@ -1005,6 +1011,7 @@ pub(crate) fn escort_on_arrival(event: On<GameEvent>, mut jobs: ResMut<Jobs>) {
             unreachable!()
         };
         jobs.mark_done(&job.id);
+        commands.trigger(JobDone { id: job.id.clone() });
         info!(
             "nova_world_base: '{}' is done: the hauler '{hauler}' reached its mark",
             job.id
@@ -1015,7 +1022,11 @@ pub(crate) fn escort_on_arrival(event: On<GameEvent>, mut jobs: ResMut<Jobs>) {
 /// Mark a held distress call done on the `ondocked` with its caller when
 /// the call is genuine, and on the caller's `onneutralized` or `ondestroyed`
 /// when it is a raider's trap.
-pub(crate) fn distress_on_answer(event: On<GameEvent>, mut jobs: ResMut<Jobs>) {
+pub(crate) fn distress_on_answer(
+    event: On<GameEvent>,
+    mut commands: Commands,
+    mut jobs: ResMut<Jobs>,
+) {
     let Some(subject) = event_subject(&event) else {
         return;
     };
@@ -1039,6 +1050,7 @@ pub(crate) fn distress_on_answer(event: On<GameEvent>, mut jobs: ResMut<Jobs>) {
         };
         if answered {
             jobs.mark_done(&job.id);
+            commands.trigger(JobDone { id: job.id.clone() });
             info!(
                 "nova_world_base: '{}' is done: the caller '{caller}' was answered ({})",
                 job.id,
@@ -1050,7 +1062,11 @@ pub(crate) fn distress_on_answer(event: On<GameEvent>, mut jobs: ResMut<Jobs>) {
 
 /// Mark a held neutralize done on the `onneutralized` or `ondestroyed` of
 /// its hull.
-pub(crate) fn neutralize_on_kill(event: On<GameEvent>, mut jobs: ResMut<Jobs>) {
+pub(crate) fn neutralize_on_kill(
+    event: On<GameEvent>,
+    mut commands: Commands,
+    mut jobs: ResMut<Jobs>,
+) {
     let Some(subject) = event_subject(&event) else {
         return;
     };
@@ -1069,6 +1085,7 @@ pub(crate) fn neutralize_on_kill(event: On<GameEvent>, mut jobs: ResMut<Jobs>) {
         };
         if is_taken_out(&event, hull) {
             jobs.mark_done(&job.id);
+            commands.trigger(JobDone { id: job.id.clone() });
             info!(
                 "nova_world_base: '{}' is done: '{hull}' was {}",
                 job.id,
@@ -1348,6 +1365,33 @@ mod tests {
 
     fn jobs(app: &App) -> &Jobs {
         app.world().resource::<Jobs>()
+    }
+
+    /// The hauler's arrival raises one `JobDone` with the escort's id; the
+    /// same arrival again, the job done, raises none.
+    #[test]
+    fn an_escort_arrival_raises_one_job_done() {
+        #[derive(Resource, Default)]
+        struct DoneRaised(Vec<JobId>);
+
+        let escort = escort(0);
+        let JobType::Escort { hauler, .. } = &escort.kind else {
+            unreachable!()
+        };
+        let mut app = held_app([escort.clone()]);
+        app.init_resource::<DoneRaised>();
+        app.add_observer(|done: On<JobDone>, mut raised: ResMut<DoneRaised>| {
+            raised.0.push(done.id.clone());
+        });
+
+        fire(&mut app, arrived(hauler));
+        fire(&mut app, arrived(hauler));
+        assert!(jobs(&app).is_done(&escort.id), "the mark marks it done");
+        assert_eq!(
+            app.world().resource::<DoneRaised>().0,
+            [escort.id.clone()],
+            "one arrival marks once and raises once"
+        );
     }
 
     #[test]

@@ -305,6 +305,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A Station action's result shows on a notice line above the lists for 4 s,
   green or red, with one sound: a click for a result, a buzz for a refusal.
   Buy, Board, Hire and Pay fine are silent on press.
+- A Jobs result shows for 4 s, green or red, with one sound; a hand-in names
+  the payout, new balance and stance step. A job done in flight posts a HUD
+  notice naming its hand-in station.
 - The Map's chart view lists STANCES: each civilization's stance, what moves
   or clears it, and an Enemy's fine; Pay fine, docked at a taker, reports on
   a Map notice line, one sound. Save format 25.

@@ -25,8 +25,10 @@
 //! [`JobHandInCommand`]; [`apply_job_commands`] plans it with
 //! [`plan_job_accept`] or [`plan_job_hand_in`], moves the goods and the
 //! credits, moves the job in [`Jobs`] and raises [`JobAccepted`] so the open
-//! world puts the job's bodies in place. The result shows on the note line
-//! under the panels.
+//! world puts the job's bodies in place. The result shows on the notice line
+//! under the panels for 4 s, green for a result, red for a refusal, with one
+//! sound; the buttons are silent on press. A hand-in's line names the
+//! payout, the new balance and the stance step it made.
 //!
 //! Touch this module when changing what the lists show, what gates an
 //! offer, or what a hand-in moves.
@@ -40,15 +42,20 @@ use bevy::{
 use nova_events::prelude::{CreditChangeCauseType, GeneratedBodyId, Meters, Meters3, SectorCoord};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::DockingSectionMarker;
-use nova_ui::{prelude::*, theme::UiColor, widget::ThemedBorder};
+use nova_ui::{
+    prelude::*,
+    theme::UiColor,
+    widget::{ThemedBorder, ThemedText},
+};
 use nova_world_base::prelude::record_merit;
 
 use crate::{
     icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
     map::{job_cell, MapChartMarkType, MapRuntime},
     pane::{
-        compact_button, control_row, divider, play_menu_select, refusable_button, side_panel,
-        spawn_credit_figure, themed_label, view_split, InterfacePaneType,
+        compact_button, control_row, divider, notice_line, play_menu_select, refusable_button,
+        side_panel, spawn_credit_figure, themed_label, view_split, ActionNotice, ActionOutcomeType,
+        InterfacePaneType,
     },
     ship::StationSite,
 };
@@ -57,7 +64,7 @@ use crate::{
 pub mod prelude {
     pub use super::{
         JobAcceptCommand, JobHandInCommand, JobsRuntime, JOBS_BOARD, JOBS_HELD, JOBS_MILESTONE,
-        JOBS_PANE, JOB_ACCEPT_PREFIX, JOB_HAND_IN_PREFIX, JOB_SHOW_ON_MAP,
+        JOBS_NOTICE, JOBS_PANE, JOB_ACCEPT_PREFIX, JOB_HAND_IN_PREFIX, JOB_SHOW_ON_MAP,
     };
 }
 
@@ -77,9 +84,8 @@ pub const JOB_ACCEPT_PREFIX: &str = "JobAccept-";
 pub const JOB_HAND_IN_PREFIX: &str = "JobHandIn-";
 /// The `Name` of the inspector's Show on Map button.
 pub const JOB_SHOW_ON_MAP: &str = "JobShowOnMap";
-
-/// Seconds an action result stays on the note line.
-const NOTE_SECS: f32 = 2.5;
+/// The `Name` of the pane's notice line, under the panels.
+pub const JOBS_NOTICE: &str = "JobsNotice";
 
 /// A request to accept the posted job `id` off the docked station's board,
 /// raised by a board row's Accept button.
@@ -98,35 +104,23 @@ pub struct JobHandInCommand {
 }
 
 /// What the Jobs pane shows beyond the records: the selected row and the
-/// note line. Kept while the interface is closed, like the pane itself. A
+/// notice line. Kept while the interface is closed, like the pane itself. A
 /// selection no row shows any more is cleared by [`update_jobs_pane`].
-#[derive(Resource, Clone, PartialEq, Debug, Default)]
+#[derive(Resource, Default, Debug)]
 pub struct JobsRuntime {
     /// The row the inspector reads.
     pub(crate) selected: Option<JobId>,
-    /// The last action result and its remaining seconds on screen.
-    pub(crate) note: Option<(String, f32)>,
-}
-
-impl JobsRuntime {
-    /// The last action result on the note line, while it shows.
-    pub fn note(&self) -> Option<&str> {
-        self.note.as_ref().map(|(note, _)| note.as_str())
-    }
-
-    /// Show `note` on the note line for [`NOTE_SECS`].
-    pub(crate) fn say(&mut self, note: String) {
-        self.note = Some((note, NOTE_SECS));
-    }
+    /// The last Accept or Hand in result, shown on the notice line.
+    pub notice: ActionNotice,
 }
 
 /// The pane's row of panels, rebuilt by [`update_jobs_pane`].
 #[derive(Component)]
 pub(crate) struct JobsPaneMarker;
 
-/// The note line under the panels.
+/// The notice line under the panels.
 #[derive(Component)]
-pub(crate) struct JobsNoteMarker;
+pub(crate) struct JobsNoticeMarker;
 
 /// A row of either list: a click selects its job.
 #[derive(Component, Clone, Debug)]
@@ -152,17 +146,10 @@ struct JobActionButton {
 #[derive(Component, Clone, Debug)]
 struct JobShowOnMap(MapChartMarkType);
 
-/// Build the Jobs pane body: the row of panels and the note line.
+/// Build the Jobs pane body: the row of panels and the notice line.
 pub(crate) fn jobs_body(body: &mut ChildSpawnerCommands) {
     body.spawn((JobsPaneMarker, Name::new(JOBS_PANE), view_split()));
-    body.spawn((
-        JobsNoteMarker,
-        themed_label("", 12.0, UiColor::Accent),
-        Node {
-            flex_shrink: 0.0,
-            ..default()
-        },
-    ));
+    body.spawn((JobsNoticeMarker, Name::new(JOBS_NOTICE), notice_line()));
 }
 
 /// The bodies a located job can name, read where they stand.
@@ -1251,14 +1238,13 @@ fn on_job_row(
     }
 }
 
-/// Raise the list's command for the button's job when it is activated.
+/// Raise the list's command for the button's job when it is activated. The
+/// press is silent: the result's notice plays the one cue.
 fn on_job_button(
     activate: On<Activate>,
     q_button: Query<&JobActionButton>,
     mut accepts: MessageWriter<JobAcceptCommand>,
     mut hand_ins: MessageWriter<JobHandInCommand>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
 ) {
     let Ok(button) = q_button.get(activate.entity) else {
         return;
@@ -1275,7 +1261,6 @@ fn on_job_button(
             });
         }
     }
-    play_menu_select(&mut commands, bank.as_deref());
 }
 
 /// Open the Map pane's chart view on the button's mark when it is
@@ -1298,22 +1283,27 @@ fn on_show_on_map(
     play_menu_select(&mut commands, bank.as_deref());
 }
 
-/// Count the note down on the real clock and write it to the note line.
-fn update_jobs_note(
+/// Tick the Jobs notice: count its dwell down on the real clock, play the
+/// cue a result owes once the sound bank is present, and paint the line in
+/// its outcome's tone. It runs whatever pane shows, like the Station pane's,
+/// so a result raised with the Jobs pane closed still plays its one cue.
+fn update_jobs_notice(
     time: Res<Time<Real>>,
     mut runtime: ResMut<JobsRuntime>,
-    mut q_note: Query<&mut Text, With<JobsNoteMarker>>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
+    mut q_notice: Query<(&mut Text, &mut ThemedText), With<JobsNoticeMarker>>,
 ) {
-    if let Some((_, remaining)) = runtime.note.as_mut() {
-        *remaining -= time.delta_secs().min(0.25);
-        if *remaining <= 0.0 {
-            runtime.note = None;
-        }
-    }
-    let note = runtime.note().unwrap_or_default();
-    for mut text in &mut q_note {
+    runtime
+        .notice
+        .tick(time.delta_secs(), bank.as_deref(), &mut commands);
+    let (note, tone) = runtime.notice.line();
+    for (mut text, mut themed) in &mut q_notice {
         if text.0 != note {
             text.0 = note.to_string();
+        }
+        if themed.color != tone {
+            themed.color = tone;
         }
     }
 }
@@ -1322,10 +1312,11 @@ fn update_jobs_note(
 /// [`JobHandInCommand`]s by the [`plan_job_hand_in`] rule: an accept holds
 /// the job and raises [`JobAccepted`]; a hand-in takes a procurement's goods
 /// out of the hold, pays the reward with `JobReward` credit changes on both
-/// sides and completes the job. A refusal changes nothing and shows its
-/// reason on the note line. An accept of a job the docked station's board
-/// no longer posts is refused as expired: the slot renewed between the click
-/// and this frame.
+/// sides and completes the job, and reports the payout, the new balance and
+/// the stance step it made on one Done notice. A refusal changes nothing and
+/// shows its reason on the notice line. An accept of a job the docked
+/// station's board no longer posts is refused as expired: the slot renewed
+/// between the click and this frame.
 ///
 /// # Panics
 ///
@@ -1373,7 +1364,10 @@ fn apply_job_commands(
     let partner = jobs_partner(&site, &q_ids);
     for command in accepts.read() {
         let Some((_, station, station_id)) = &partner else {
-            runtime.say(accept_refusal_text(&JobAcceptRefusalType::NotDocked));
+            runtime.notice.say(
+                ActionOutcomeType::Refused,
+                accept_refusal_text(&JobAcceptRefusalType::NotDocked),
+            );
             continue;
         };
         let Some(job) = q_boards
@@ -1385,7 +1379,10 @@ fn apply_job_commands(
                 "nova_interface: the accept of '{}' finds it off the board: expired",
                 command.id
             );
-            runtime.say(accept_refusal_text(&JobAcceptRefusalType::Expired));
+            runtime.notice.say(
+                ActionOutcomeType::Refused,
+                accept_refusal_text(&JobAcceptRefusalType::Expired),
+            );
             continue;
         };
         let expired = postings
@@ -1403,9 +1400,13 @@ fn apply_job_commands(
                 jobs.accept(job.clone());
                 commands.trigger(JobAccepted { job: job.clone() });
                 info!("nova_interface: accepted the job '{}' ({title})", job.id);
-                runtime.say(format!("accepted: {title}"));
+                runtime
+                    .notice
+                    .say(ActionOutcomeType::Done, format!("accepted: {title}"));
             }
-            Err(refusal) => runtime.say(accept_refusal_text(&refusal)),
+            Err(refusal) => runtime
+                .notice
+                .say(ActionOutcomeType::Refused, accept_refusal_text(&refusal)),
         }
     }
     for command in hand_ins.read() {
@@ -1421,13 +1422,16 @@ fn apply_job_commands(
             })
         });
         let Some((player, station, _)) = &partner else {
-            runtime.say(hand_in_refusal_text(
-                &job,
-                &title,
-                &JobHandInRefusalType::NotDocked,
-                &chart,
-                &items,
-            ));
+            runtime.notice.say(
+                ActionOutcomeType::Refused,
+                hand_in_refusal_text(
+                    &job,
+                    &title,
+                    &JobHandInRefusalType::NotDocked,
+                    &chart,
+                    &items,
+                ),
+            );
             continue;
         };
         let own_cr = q_credits
@@ -1443,7 +1447,10 @@ fn apply_job_commands(
         let plan = match plan_job_hand_in(&job, hand_in_partner.as_ref(), hold, own_cr, done) {
             Ok(plan) => plan,
             Err(refusal) => {
-                runtime.say(hand_in_refusal_text(&job, &title, &refusal, &chart, &items));
+                runtime.notice.say(
+                    ActionOutcomeType::Refused,
+                    hand_in_refusal_text(&job, &title, &refusal, &chart, &items),
+                );
                 continue;
             }
         };
@@ -1470,7 +1477,11 @@ fn apply_job_commands(
             "nova_interface: handed in the job '{}' ({title}) for {} cr",
             job.id, plan.reward_cr
         );
-        runtime.say(format!("handed in {title} for {}", cr_text(plan.reward_cr)));
+        let mut line = format!(
+            "handed in {title} for {}; balance {}",
+            cr_text(plan.reward_cr),
+            cr_text(own_cr.0)
+        );
         if let Ok(market) = q_markets.get(*station) {
             if let Some(step) = record_merit(&mut stances, market.civilization, clock.play_seconds)
             {
@@ -1481,13 +1492,14 @@ fn apply_job_commands(
                     step.to,
                     clock.play_seconds
                 );
-                runtime.say(format!(
-                    "{} now holds you {}",
+                line.push_str(&format!(
+                    "; {} now holds you {}",
                     step.civilization.name(),
                     format!("{:?}", step.to).to_lowercase()
                 ));
             }
         }
+        runtime.notice.say(ActionOutcomeType::Done, line);
     }
 }
 
@@ -1501,7 +1513,7 @@ impl Plugin for JobsPanePlugin {
         app.add_message::<JobHandInCommand>();
         app.add_systems(
             Update,
-            (apply_job_commands, update_jobs_pane, update_jobs_note)
+            (apply_job_commands, update_jobs_pane, update_jobs_notice)
                 .chain()
                 .in_set(JobsPaneSystems),
         );
@@ -1515,7 +1527,230 @@ pub struct JobsPaneSystems;
 
 #[cfg(test)]
 mod tests {
+    use core::time::Duration;
+    use std::collections::BTreeMap;
+
+    use bevy::{asset::AssetPlugin, time::TimeUpdateStrategy};
+    use nova_gameplay::test_support::test_items;
+    use nova_ship::prelude::*;
+    use nova_world_base::prelude::{CivilizationField, CivilizationStatusType};
+
     use super::*;
+    use crate::pointer_rig::{hear_ui_cues, take_cues};
+
+    /// A price table with every factor at one: the hand-in reads only its
+    /// offer window.
+    fn price_table() -> PriceTable {
+        PriceTable {
+            clamp: PriceClamp {
+                min: 0.25,
+                max: 3.0,
+            },
+            scarcity: ScarcityRule {
+                starved: PriceFactor::ONE,
+                glut: PriceFactor::ONE,
+                glut_share: 3.0,
+                unkept: PriceFactor::ONE,
+            },
+            restock: RestockRule {
+                recovery_seconds: 1_200.0,
+            },
+            jobs: JobOfferRule {
+                offer_seconds: 1_200.0,
+            },
+            clusters: Vec::new(),
+            roles: Vec::new(),
+        }
+    }
+
+    /// The job handler and the notice painter on a manual real clock, with
+    /// the UI sound bank captured and no UI tree: the cue must not need the
+    /// line.
+    fn jobs_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            0.5,
+        )));
+        app.insert_resource(test_items());
+        app.insert_resource(GamePriceTable(price_table()));
+        app.init_resource::<JobsRuntime>();
+        app.init_resource::<Chart>();
+        app.init_resource::<Jobs>();
+        app.init_resource::<JobPostings>();
+        app.init_resource::<WorldClock>();
+        app.init_resource::<CivilizationStances>();
+        app.add_message::<JobAcceptCommand>();
+        app.add_message::<JobHandInCommand>();
+        app.add_systems(Update, (apply_job_commands, update_jobs_notice).chain());
+        hear_ui_cues(&mut app);
+        // The first frame advances the clock by nothing.
+        app.update();
+        app
+    }
+
+    /// A living civilization whose seeded stance is Neutral: one step up is
+    /// Ally.
+    fn neutral_civilization() -> CivilizationId {
+        for seed in 0..64u32 {
+            let field = CivilizationField::new(seed);
+            for x in -2..=2i32 {
+                for y in -2..=2i32 {
+                    for z in -2..=2i32 {
+                        let civilization = field.civilization([x, y, z]);
+                        if civilization.status == CivilizationStatusType::Living
+                            && civilization.stance == StanceType::Neutral
+                        {
+                            return civilization.id;
+                        }
+                    }
+                }
+            }
+        }
+        panic!("no seed in [0, 64) holds a living Neutral civilization");
+    }
+
+    /// A player ship with 2,000 cr and 4 Iron ore docked at a living station
+    /// of `civilization` that posts jobs, holding that station's procurement
+    /// of 4 Iron ore for 146 cr. The civilization stands one hand-in short of
+    /// a step.
+    fn hand_in_fixture(app: &mut App, civilization: CivilizationId) -> (Entity, Job) {
+        let items = test_items();
+        let iron = ItemDesignId::from(ItemRoleType::IronOre.id());
+        let station_id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        let job = Job {
+            id: JobId {
+                station: station_id.clone(),
+                slot: 0,
+                posting: 0,
+            },
+            kind: JobType::Procure {
+                item: iron.clone(),
+                count: 4,
+            },
+            target: station_id.clone(),
+            reward_cr: 146,
+        };
+        let world = app.world_mut();
+        world.resource_mut::<Jobs>().accept(job.clone());
+        let mut stances = world.resource_mut::<CivilizationStances>();
+        for _ in 1..MERIT_STEP {
+            assert_eq!(
+                record_merit(&mut stances, civilization, 0.0),
+                None,
+                "the fixture stops one merit short of a step"
+            );
+        }
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                ShipDesignSections::default(),
+                ShipCredits(2_000),
+                ShipInventoryReports::default(),
+                ShipInventory::new(&items, 100_000, [(iron, 4)]),
+            ))
+            .id();
+        let station = world
+            .spawn((
+                StationMarker,
+                station_id,
+                StationServices(vec![StationServiceType::Jobs]),
+                StationBuilds(Vec::new()),
+                JobBoard(Vec::new()),
+                TraderMarket {
+                    cluster: ClusterType::RockOnly,
+                    civilization,
+                    role_preference: [1.0; 4],
+                    target: BTreeMap::new(),
+                },
+                ShipCredits(10_000),
+                ShipInventoryReports::default(),
+            ))
+            .id();
+        let connection = world
+            .spawn(DockingConnection {
+                first_ship: player,
+                first_section: Entity::PLACEHOLDER,
+                second_ship: station,
+                second_section: Entity::PLACEHOLDER,
+                helm: DockedHelmType::Neutral,
+                measurement_fault: false,
+            })
+            .id();
+        world.entity_mut(player).insert(DockedShip {
+            connection,
+            helm: Quat::IDENTITY,
+            drives: false,
+        });
+        (player, job)
+    }
+
+    fn notice(app: &App) -> Option<(ActionOutcomeType, String)> {
+        app.world()
+            .resource::<JobsRuntime>()
+            .notice
+            .shown()
+            .map(|(outcome, note)| (outcome, note.to_string()))
+    }
+
+    /// A hand-in that steps the station's civilization posts one Done notice
+    /// with the payout, the balance after and the step, and clicks once; the
+    /// frame after is silent.
+    #[test]
+    fn a_hand_in_that_steps_a_stance_shows_payout_balance_and_stance_on_one_done_notice_and_clicks_once(
+    ) {
+        let civilization = neutral_civilization();
+        let mut app = jobs_app();
+        let (player, job) = hand_in_fixture(&mut app, civilization);
+
+        app.world_mut()
+            .write_message(JobHandInCommand { id: job.id.clone() });
+        app.update();
+        assert_eq!(
+            notice(&app),
+            Some((
+                ActionOutcomeType::Done,
+                format!(
+                    "handed in Bring 4 Iron ore for 146 cr; balance 2,146 cr; {} now holds you ally",
+                    civilization.name()
+                )
+            ))
+        );
+        assert_eq!(
+            app.world().get::<ShipCredits>(player),
+            Some(&ShipCredits(2_146))
+        );
+        assert!(app.world().resource::<Jobs>().is_completed(&job.id));
+        assert_eq!(take_cues(&mut app), [UiSfx::MenuSelect]);
+        app.update();
+        assert!(take_cues(&mut app).is_empty(), "the cue plays once");
+    }
+
+    /// An accept while undocked posts one Refused notice with the reason and
+    /// buzzes once; the frame after is silent.
+    #[test]
+    fn a_refused_accept_posts_a_refusal_notice_and_buzzes_once() {
+        let mut app = jobs_app();
+        let id = JobId {
+            station: GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0),
+            slot: 0,
+            posting: 0,
+        };
+
+        app.world_mut().write_message(JobAcceptCommand { id });
+        app.update();
+        assert_eq!(
+            notice(&app),
+            Some((
+                ActionOutcomeType::Refused,
+                accept_refusal_text(&JobAcceptRefusalType::NotDocked)
+            ))
+        );
+        assert_eq!(take_cues(&mut app), [UiSfx::EditorDeny]);
+        app.update();
+        assert!(take_cues(&mut app).is_empty(), "the cue plays once");
+    }
 
     #[test]
     fn the_starter_board_hides_a_job_the_hull_cannot_do_and_a_core_board_greys_its_accept() {

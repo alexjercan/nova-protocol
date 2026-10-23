@@ -5,7 +5,9 @@
 //! the speed chip, the keybind dock. A NOTICE says that something just
 //! happened, so a status surface never swaps its own text for it. A station's
 //! dock refusal ([`FlightVerbHints::dock_refusal`]) posts here when it starts
-//! or names another station; the DOCK chip only goes dark.
+//! or names another station; the DOCK chip only goes dark. A held job whose
+//! work is done ([`JobDone`]) posts `JOB-n done: hand in at STN-m`, naming
+//! no credits: payment stays at the hand-in.
 //!
 //! One slot, no queue: a new text replaces the shown one and plays the cue; the
 //! same text again while it shows restarts the dwell and stays quiet. The dwell
@@ -120,10 +122,10 @@ pub fn hud_notice_hud() -> impl Bundle {
     )
 }
 
-/// Registers [`HudNotice`], posts a station's dock refusal to it, and runs
-/// `post_dock_refusal_notice`, `show_hud_notice` and `paint_hud_notice`
-/// chained in Update within [`NovaHudSystems`]. The box itself is a
-/// player-scoped widget spawned by `NovaHudPlugin`.
+/// Registers [`HudNotice`], posts a station's dock refusal and a held job's
+/// done to it, and runs `post_dock_refusal_notice`, `show_hud_notice` and
+/// `paint_hud_notice` chained in Update within [`NovaHudSystems`]. The box
+/// itself is a player-scoped widget spawned by `NovaHudPlugin`.
 #[derive(Default)]
 pub struct HudNoticePlugin;
 
@@ -133,6 +135,7 @@ impl Plugin for HudNoticePlugin {
         app.init_resource::<ShownNotice>();
         app.register_type::<HudNoticeMarker>();
         app.register_type::<HudNoticeText>();
+        app.add_observer(post_job_done_notice);
         app.add_systems(
             Update,
             (post_dock_refusal_notice, show_hud_notice, paint_hud_notice)
@@ -156,6 +159,32 @@ fn post_dock_refusal_notice(
         notices.write(HudNotice(line.clone()));
     }
     *last = hints.dock_refusal.clone();
+}
+
+/// Post `JOB-n done: hand in at STN-m` when a held job's work is done. The
+/// poster is charted: the accept docked there.
+///
+/// # Panics
+///
+/// When the done job is not held or its poster is not charted: the world
+/// raises [`JobDone`] for a held job it just marked, and the accept charted
+/// the poster.
+fn post_job_done_notice(
+    done: On<JobDone>,
+    jobs: Res<Jobs>,
+    chart: Res<Chart>,
+    mut notices: MessageWriter<HudNotice>,
+) {
+    let code = jobs
+        .mark_code(&done.id)
+        .expect("a done job is held: the world marks a held job done");
+    let job = jobs
+        .job(&done.id)
+        .expect("a done job is held: the world marks a held job done");
+    let station = chart
+        .station_code(&job.target)
+        .expect("a held job's poster is charted: the accept docked there");
+    notices.write(HudNotice(format!("{code} done: hand in at {station}")));
 }
 
 /// Age the shown notice and take the latest posting into the slot. A new text
@@ -351,6 +380,64 @@ mod tests {
         let cues = app.world().resource::<NoticeCues>();
         assert_eq!(cues.interface, 1, "one notice, one cue");
         assert_eq!(cues.other, 0, "the cue plays only on the interface route");
+    }
+
+    /// A held job marked done posts `JOB-n done: hand in at STN-m` once, with
+    /// one cue and no credits; a `Jobs` restored done, as a Load does, posts
+    /// nothing.
+    #[test]
+    fn a_done_job_posts_one_notice_naming_its_hand_in_station() {
+        use nova_events::prelude::{GeneratedBodyId, SectorCoord};
+
+        let mut app = notice_app();
+        let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        let id = JobId {
+            station: station.clone(),
+            slot: 0,
+            posting: 0,
+        };
+        let mut jobs = Jobs::default();
+        jobs.accept(Job {
+            id: id.clone(),
+            kind: JobType::Escort {
+                hauler: GeneratedBodyId::new(
+                    SectorCoord::ORIGIN,
+                    "cluster_0_0_0_station_job_0_0_hauler",
+                    0,
+                ),
+                cargo_cr: 1_500,
+            },
+            target: station.clone(),
+            reward_cr: 100,
+        });
+        app.insert_resource(jobs);
+        let mut chart = Chart::default();
+        chart.find_station(&station, false, false, None, 0.0);
+        app.insert_resource(chart);
+
+        app.world_mut().resource_mut::<Jobs>().mark_done(&id);
+        app.world_mut().trigger(JobDone { id: id.clone() });
+        app.update();
+        assert_eq!(rendered(&mut app).0, "JOB-1 done: hand in at STN-1");
+        assert_eq!(app.world().resource::<NoticeCues>().interface, 1);
+
+        advance(&mut app, NOTICE_DWELL_SECS + NOTICE_FADE_SECS + 1.0);
+        assert_eq!(rendered(&mut app).0, "", "the notice fades out");
+
+        // A Load restores a done job whole and raises no `JobDone`.
+        let restored = app.world().resource::<Jobs>().clone();
+        *app.world_mut().resource_mut::<Jobs>() = restored;
+        app.update();
+        assert_eq!(
+            rendered(&mut app).0,
+            "",
+            "a restored done job posts nothing"
+        );
+        assert_eq!(
+            app.world().resource::<NoticeCues>().interface,
+            1,
+            "one done, one cue"
+        );
     }
 
     #[test]
