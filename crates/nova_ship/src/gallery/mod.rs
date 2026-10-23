@@ -23,7 +23,10 @@ use bevy::{
     prelude::*,
     ui::ComputedNode,
 };
-use nova_ui::prelude::{owns_or_enters, ClaimKeyboard, InputMode, InputModeSystems};
+use nova_ui::{
+    prelude::{owns_or_enters, ClaimKeyboard, InputMode, InputModeSystems},
+    theme::UiColor,
+};
 
 pub use self::{
     catalog::GalleryCategory,
@@ -38,8 +41,8 @@ pub mod prelude {
     pub use super::{
         catalog::browsable, draw_socket, gallery_open, GalleryAction, GalleryAlternate,
         GalleryCategory, GalleryCell, GalleryEntry, GalleryGizmos, GalleryHost, GalleryItem,
-        GalleryLayout, GalleryListing, GalleryState, HeldPart, PartsGalleryPlugin,
-        PartsGallerySystems,
+        GalleryLayout, GalleryListing, GalleryRecipeItem, GalleryRecipeSupply, GalleryState,
+        HeldPart, PartsGalleryPlugin, PartsGallerySystems,
     };
 }
 
@@ -133,10 +136,10 @@ pub struct GalleryEntry {
     /// it as a line above Place; on one that cannot be placed it is only the
     /// disabled Place's tooltip, why the part cannot be placed.
     pub note: String,
-    /// The recipe, one line per item in id order. The focus card draws it at
+    /// The recipe, one row per item in id order. The focus card draws it at
     /// the top of the clipping details column, so a short host clips it
     /// before it moves the buttons.
-    pub recipe: Vec<String>,
+    pub recipe: Vec<GalleryRecipeItem>,
     /// A second verb on the focus card beside Place, as its button label;
     /// pressing it writes [`GalleryAlternate`].
     pub alternate: Option<String>,
@@ -144,6 +147,76 @@ pub struct GalleryEntry {
     /// it cannot craft with `false` and says why in `note`; the grid and the
     /// focus card draw it muted, and the card disables Place.
     pub placeable: bool,
+}
+
+/// One recipe item on the focus card: the host's icon for it, its name and
+/// how many the part needs. Every base recipe item shares one category icon,
+/// so the name carries the identity.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GalleryRecipeItem {
+    /// The item's icon mask, tinted `tint`. The host owns the icon set.
+    pub icon: Handle<Image>,
+    /// The theme colour of the icon.
+    pub tint: UiColor,
+    /// The item's name.
+    pub name: String,
+    /// How many the part needs.
+    pub count: u32,
+    /// Where the items come from. `None` when the host does not sell the
+    /// part: the row is muted, with no source marks and no price.
+    pub supply: Option<GalleryRecipeSupply>,
+}
+
+/// Where a recipe item's count comes from, and what one bought item costs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GalleryRecipeSupply {
+    held: u32,
+    bought: u32,
+    short: u32,
+    ask_cr: u32,
+}
+
+impl GalleryRecipeSupply {
+    /// `held` from the player's hold, `bought` from the host's stock at
+    /// `ask_cr` each and `short` that neither carries, of `count` items.
+    ///
+    /// # Panics
+    ///
+    /// When `held + bought + short` is not `count`: the host split the
+    /// recipe wrong, and the card would mark the wrong items.
+    pub fn new(count: u32, held: u32, bought: u32, short: u32, ask_cr: u32) -> Self {
+        assert_eq!(
+            u64::from(held) + u64::from(bought) + u64::from(short),
+            u64::from(count),
+            "a recipe supply of {held} held, {bought} bought and {short} short is not {count}"
+        );
+        Self {
+            held,
+            bought,
+            short,
+            ask_cr,
+        }
+    }
+
+    /// How many come from the player's hold.
+    pub fn held(self) -> u32 {
+        self.held
+    }
+
+    /// How many are bought from the host's stock.
+    pub fn bought(self) -> u32 {
+        self.bought
+    }
+
+    /// How many neither hold carries.
+    pub fn short(self) -> u32 {
+        self.short
+    }
+
+    /// The credits one bought item costs.
+    pub fn ask_cr(self) -> u32 {
+        self.ask_cr
+    }
 }
 
 /// The focus card's second verb was pressed for catalog id `id`. The host

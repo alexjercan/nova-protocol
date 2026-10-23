@@ -12,18 +12,19 @@ use bevy::{
     ui::InteractionDisabled,
     ui_widgets::{Activate, Button},
 };
+use nova_gameplay::prelude::cr_text;
 use nova_ui::{
-    prelude::{button, panel, ButtonSpec, UiText},
+    prelude::{badge, button, panel, BadgeKind, ButtonSpec, UiText},
     theme,
     theme::{ActiveUiTheme, UiColor},
-    widget::{ThemedBorder, ThemedFill, ThemedRadius, ThemedText, Tooltip},
+    widget::{ThemedBorder, ThemedFill, ThemedImageTint, ThemedRadius, ThemedText, Tooltip},
 };
 
 use super::{
     catalog::{self, GalleryCategory},
     scene::spawn_tile,
-    GalleryAlternate, GalleryEntry, GalleryHost, GalleryLayout, GalleryListing, GalleryState,
-    HeldPart,
+    GalleryAlternate, GalleryEntry, GalleryHost, GalleryLayout, GalleryListing, GalleryRecipeItem,
+    GalleryState, HeldPart,
 };
 use crate::prelude::*;
 
@@ -546,6 +547,68 @@ fn spawn_cell(
     stage
 }
 
+/// One recipe row on the focus card: the item's icon, count and name, then
+/// `BUY n` for the items bought and `SHORT n` for those neither hold
+/// carries. The price of one bought item is the row's tooltip. An item the
+/// host does not sell is muted, with no marks and no tooltip.
+fn recipe_row(recipe: &mut ChildSpawnerCommands, item: &GalleryRecipeItem) {
+    let alpha = if item.supply.is_some() {
+        1.0
+    } else {
+        MUTED_ALPHA
+    };
+    let mut row = recipe.spawn((
+        Name::new("Gallery Recipe Line"),
+        Node {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            column_gap: px(4),
+            ..default()
+        },
+    ));
+    if let Some(supply) = item.supply {
+        row.insert(Tooltip(format!("{} each", cr_text(supply.ask_cr()))));
+    }
+    row.with_children(|row| {
+        row.spawn((
+            ImageNode::new(item.icon.clone()),
+            Node {
+                width: px(16),
+                height: px(16),
+                flex_shrink: 0.0,
+                ..default()
+            },
+            ThemedImageTint::alpha(item.tint, alpha),
+            Pickable::IGNORE,
+        ));
+        for (text, color) in [
+            (item.count.to_string(), UiColor::Primary),
+            (item.name.clone(), UiColor::Body),
+        ] {
+            row.spawn((
+                UiText,
+                Text::new(text),
+                TextFont {
+                    font_size: FontSize::Px(12.0),
+                    ..default()
+                },
+                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                TextColor(Color::NONE),
+                ThemedText::alpha(color, alpha),
+            ));
+        }
+        let Some(supply) = item.supply else {
+            return;
+        };
+        if supply.bought() > 0 {
+            row.spawn(badge(BadgeKind::Amber, &format!("Buy {}", supply.bought())));
+        }
+        if supply.short() > 0 {
+            row.spawn(badge(BadgeKind::Red, &format!("Short {}", supply.short())));
+        }
+    });
+}
+
 /// The focus card: a turntable stage beside the prototype's stat block.
 fn focus_body(
     root: &mut ChildSpawnerCommands,
@@ -641,7 +704,7 @@ fn focus_body(
                 ))
                 .with_children(|details| {
                     // First, so a short host clips the description and the
-                    // stats before the recipe. The lines pack with no gap so
+                    // stats before the recipe. The rows pack with no gap so
                     // a four-item recipe fits the 640x600 card.
                     if let Some(entry) = entry {
                         details
@@ -654,18 +717,8 @@ fn focus_body(
                                 },
                             ))
                             .with_children(|recipe| {
-                                for line in &entry.recipe {
-                                    recipe.spawn((
-                                        Name::new("Gallery Recipe Line"),
-                                        UiText,
-                                        Text::new(line.clone()),
-                                        TextFont {
-                                            font_size: FontSize::Px(12.0),
-                                            ..default()
-                                        },
-                                        TextColor(Color::NONE),
-                                        ThemedText::new(UiColor::Body),
-                                    ));
+                                for item in &entry.recipe {
+                                    recipe_row(recipe, item);
                                 }
                             });
                     }

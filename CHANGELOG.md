@@ -138,8 +138,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   advancement. Ships hold only ammo their weapons reload; stations stock a
   recipe of every part they build and the ammo to reload them.
 - **(breaking)** A station design lists the sections it `builds`; swap, add
-  and rebuild refuse other parts. The Catalogue dims those and parts neither
-  hold covers, and shows recipe sources.
+  and rebuild refuse others. The Catalogue dims those and short parts; recipe
+  rows show icon, count, BUY/SHORT, hover price.
 
 ### Scenarios & Objectives
 

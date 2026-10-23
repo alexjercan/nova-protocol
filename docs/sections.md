@@ -126,11 +126,20 @@ credit refusal as its note. A station `builds` id that `GameSections` lacks
 panics when the catalogue opens; station lint refuses it first. A placeable
 `GalleryEntry` carries a short `tile` line, its price (`180 cr`) or credit
 refusal, that wraps inside its tile, and the price or the whole refusal as
-the focus card's `note`. Every entry carries one `recipe` line per item,
-packed with no gap, at the top of the card's clipping details: its count and,
-for a part the station builds, how many come from the hold, are bought at the
-station's ask, or are short. Place on the focus card puts a part in hand
-(`HeldPart`, shared with the editor).
+the focus card's `note`. Its `recipe` packs one `GalleryRecipeItem` row per
+item, with no gap, at the top of the card's clipping details: the item's
+icon, count and name. `GalleryRecipeItem::supply` is a `GalleryRecipeSupply`
+that splits the count into held, bought and short, with the item's
+`ask_cr`, the price `plan_recipe_payment` charges for one bought item; its
+`new` panics when the split does not sum to the count. A row shows `BUY n`
+for items bought from the station, `SHORT n` for items neither hold carries
+(a short part is not placeable but its rows stay at full alpha), and no
+badge for items the hold covers alone. Its tooltip is `<ask> cr each`.
+`supply: None` is a part the station does not build: the row is muted, with
+no badge and no tooltip. The unit price is pointer-only; a keyboard user
+reads the marks, the total on the note line and the Swap button's price.
+Place on the focus card puts a part in hand (`HeldPart`, shared with the
+editor).
 While a part is in hand, the placement ghost
 (`nova_interface/src/ship/ghost.rs`) casts the pointer's ray into the Ship
 view, takes the nearest block it enters

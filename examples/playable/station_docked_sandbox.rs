@@ -61,10 +61,12 @@
 //! shows the part in hand under Placing, presses Esc and checks the hand is
 //! empty, the panel back on the selection and the interface still open, rebinds the new
 //! gun to `T` and checks the selection did not step, reads the focus card of
-//! the twin kinetic PDC and of a part the station does not build in the
-//! Phosphor and Hardware themes at 640x600 and 1024x768 (Place, Swap and Back
-//! inside the card, a muted part's Place off with its note as the tooltip,
-//! every recipe line whole), presses Enter and clicks the muted Place and
+//! the twin kinetic PDC, of the twin buying a barrel, of the twin short of a
+//! panel and of a part the station does not build in the Phosphor and
+//! Hardware themes at 640x600 and 1024x768 (Place, Swap and Back inside the
+//! card, a muted part's Place off with its note as the tooltip, every recipe
+//! row whole with its BUY and SHORT marks, the bought row's unit price on
+//! hover), presses Enter and clicks the muted Place and
 //! checks the hand stays empty, then puts the capture shape and theme back,
 //! checks the Salvage block lists the gun's yield, deletes the gun with
 //! Delete and checks the note names the parts that went to the hold, selects
@@ -2185,7 +2187,7 @@ mod smoke {
     /// listed part the station does not build, muted. The seed-10 station
     /// builds a subset, so a station with no such part fails here.
     fn card_part(world: &mut World, card: &str) -> String {
-        if card == "twin" {
+        if card != "muted" {
             return PDC_TWIN_KINETIC_TURRET_SECTION_ID.to_string();
         }
         let builds = station_builds(world);
@@ -2200,9 +2202,13 @@ mod smoke {
     /// The text of the tooltip panel under the focus card's Place, when the
     /// panel shows.
     fn place_tooltip(world: &World) -> Option<String> {
-        let place = named_entity(world, "Gallery Place Button")?;
+        shown_tooltip(world, named_entity(world, "Gallery Place Button")?)
+    }
+
+    /// The text of the tooltip panel under `node`, when the panel shows.
+    fn shown_tooltip(world: &World, node: Entity) -> Option<String> {
         let panel = world
-            .get::<Children>(place)?
+            .get::<Children>(node)?
             .iter()
             .find(|child| world.get::<TooltipPanel>(*child).is_some())?;
         if world.get::<Node>(panel)?.display == Display::None {
@@ -2244,6 +2250,51 @@ mod smoke {
         }
     }
 
+    /// The hold the buy and short cards read the twin under: one recipe
+    /// item and its count in the player's hold and in the station's stock.
+    /// The twin needs two of each.
+    fn card_hold(card: &str) -> Option<(ItemDesignId, u32, u32)> {
+        match card {
+            // One barrel from the hold and one bought.
+            "buy" => Some(("TurretBarrel".into(), 1, 1)),
+            // One panel from the hold and one short: the twin cannot be placed.
+            "short" => Some(("SectionPanel".into(), 1, 0)),
+            _ => None,
+        }
+    }
+
+    /// The item and its counts in the player's hold and the station's stock
+    /// before a card's [`card_hold`], put back after the card.
+    #[derive(Resource)]
+    struct CardHoldBefore(ItemDesignId, u32, u32);
+
+    /// Set `item`'s count in the player's hold and in the station's stock,
+    /// and return the counts it replaced.
+    fn set_hold_counts(
+        world: &mut World,
+        item: &ItemDesignId,
+        player_count: u32,
+        station_count: u32,
+    ) -> (u32, u32) {
+        let items = world.resource::<GameItems>().clone();
+        let player = the_player(world).expect("the player ship stands");
+        let station = station_root(world).expect("the sandbox station stands");
+        let mut before = Vec::new();
+        for (ship, count) in [(player, player_count), (station, station_count)] {
+            let mut hold = world
+                .get_mut::<ShipInventory>(ship)
+                .expect("the player ship and the station carry a hold");
+            let held = hold.count(item);
+            if held > count {
+                hold.remove(item, held - count);
+            } else if count > held {
+                hold.add(&items, item, count - held);
+            }
+            before.push(held);
+        }
+        (before[0], before[1])
+    }
+
     /// Open the focus card of `card`'s part, as a tile click under its
     /// category does: the page that holds the tile depends on the shape.
     fn focus_the_card(card: &'static str) -> impl Fn(&mut World) + Send + Sync {
@@ -2276,9 +2327,80 @@ mod smoke {
         }
     }
 
+    /// Every text under `node` but its tooltip panel's, in tree order.
+    fn texts_under(world: &World, node: Entity) -> Vec<String> {
+        let mut texts = Vec::new();
+        if world.get::<TooltipPanel>(node).is_some() {
+            return texts;
+        }
+        if let Some(text) = world.get::<Text>(node) {
+            texts.push(text.0.clone());
+        }
+        for child in world.get::<Children>(node).into_iter().flatten() {
+            texts.extend(texts_under(world, *child));
+        }
+        texts
+    }
+
+    /// Each recipe row on the card draws its item's count and name, a BUY
+    /// mark for the items bought, a SHORT mark for the items short and the
+    /// unit price as its tooltip; a row with no supply has neither marks
+    /// nor a tooltip. `rows` are the card's `Gallery Recipe Line` nodes.
+    fn read_the_rows(
+        world: &World,
+        shape: &str,
+        part: &str,
+        entry: &GalleryEntry,
+        rows: &[Entity],
+    ) {
+        for (row, item) in rows.iter().zip(&entry.recipe) {
+            let texts = texts_under(world, *row);
+            let tooltip = world.get::<Tooltip>(*row).map(|tooltip| tooltip.0.clone());
+            info!("station sandbox: {shape} {part} recipe row {texts:?}, tooltip {tooltip:?}");
+            assert!(
+                texts.starts_with(&[item.count.to_string(), item.name.clone()]),
+                "at {shape} the {part} row reads `{} {}` first: {texts:?}",
+                item.count,
+                item.name
+            );
+            let marks: Vec<&String> = texts[2..].iter().collect();
+            let mut want = Vec::new();
+            if let Some(supply) = item.supply {
+                if supply.bought() > 0 {
+                    want.push(format!("BUY {}", supply.bought()));
+                }
+                if supply.short() > 0 {
+                    want.push(format!("SHORT {}", supply.short()));
+                }
+            }
+            assert_eq!(
+                marks.len(),
+                want.len(),
+                "at {shape} the {part} {} row marks {want:?}: {texts:?}",
+                item.name
+            );
+            for (mark, want) in marks.iter().zip(&want) {
+                assert!(
+                    mark.contains(want.as_str()),
+                    "at {shape} the {part} {} row marks `{want}`: {texts:?}",
+                    item.name
+                );
+            }
+            assert_eq!(
+                tooltip,
+                item.supply
+                    .map(|supply| format!("{} each", cr_text(supply.ask_cr()))),
+                "at {shape} the {part} {} row's tooltip is its unit price exactly when \
+                 the station sells it",
+                item.name
+            );
+        }
+    }
+
     /// The focus card keeps Place, Swap and Back inside it at `shape`, a
     /// muted part's Place is off, and the clipping details column shows
-    /// every recipe line whole. Logs every rect and the entry.
+    /// every recipe row whole, each with its marks and price. Logs every rect
+    /// and the entry.
     fn read_the_card(shape: String, card: &'static str) -> impl Fn(&mut World) + Send + Sync {
         move |world: &mut World| {
             let part = card_part(world, card);
@@ -2293,6 +2415,29 @@ mod smoke {
                     entry.placeable && entry.alternate.is_some(),
                     "at {shape} the twin card offers Place and Swap: {entry:?}"
                 );
+            }
+            let supplies: Vec<_> = entry.recipe.iter().map(|item| item.supply).collect();
+            match card {
+                "buy" => assert!(
+                    entry.placeable
+                        && supplies
+                            .iter()
+                            .any(|supply| supply.is_some_and(|supply| supply.bought() > 0)),
+                    "at {shape} the buy card can be placed and buys an item: {entry:?}"
+                ),
+                "short" => assert!(
+                    !entry.placeable
+                        && supplies
+                            .iter()
+                            .any(|supply| supply.is_some_and(|supply| supply.short() > 0)),
+                    "at {shape} the short card cannot be placed and is short of an item: \
+                     {entry:?}"
+                ),
+                "muted" => assert!(
+                    supplies.iter().all(Option::is_none),
+                    "at {shape} the muted card's rows carry no supply: {entry:?}"
+                ),
+                _ => {}
             }
             let card_rect =
                 ui_node_rect(world, "Gallery Focus Card").expect("the focus card is laid out");
@@ -2325,16 +2470,15 @@ mod smoke {
             );
             let details =
                 ui_node_rect(world, "Gallery Focus Details").expect("the focus card has details");
-            let lines: Vec<(Rect, f32)> = world
-                .query::<(&Name, &UiGlobalTransform, &ComputedNode)>()
-                .iter(world)
-                .filter(|(name, ..)| name.as_str() == "Gallery Recipe Line")
-                .map(|(_, transform, computed)| {
-                    let scale = computed.inverse_scale_factor();
-                    let rect = Rect::from_center_size(
-                        transform.translation * scale,
-                        computed.size() * scale,
-                    );
+            // In the card's order, which is the recipe's.
+            let rows: Vec<Entity> = named_entity(world, "Gallery Recipe")
+                .and_then(|recipe| world.get::<Children>(recipe))
+                .map(|rows| rows.to_vec())
+                .unwrap_or_default();
+            let lines: Vec<(Rect, f32)> = rows
+                .iter()
+                .map(|row| {
+                    let rect = node_rect(world, *row).expect("a recipe row is laid out");
                     let shown =
                         (rect.max.y.min(details.max.y) - rect.min.y.max(details.min.y)).max(0.0);
                     (rect, shown)
@@ -2398,6 +2542,7 @@ mod smoke {
                 lines.len(),
                 "at {shape} the {part} card shows every recipe line whole"
             );
+            read_the_rows(world, &shape, &part, &entry, &rows);
         }
     }
 
@@ -2452,11 +2597,18 @@ mod smoke {
                     .until(window_size_is(width, height))
                     .deadline(BEAT_SECS)
                     .add();
-                for card in ["twin", "muted"] {
+                for card in ["twin", "buy", "short", "muted"] {
                     let shot = format!("sandbox-card-{card}-{theme_name}-{width}.png");
                     script = script
                         .step(format!("station sandbox: focus the {card} card at {shape}"))
-                        .on_enter(focus_the_card(card))
+                        .on_enter(move |world: &mut World| {
+                            if let Some((item, player, station)) = card_hold(card) {
+                                let (player, station) =
+                                    set_hold_counts(world, &item, player, station);
+                                world.insert_resource(CardHoldBefore(item, player, station));
+                            }
+                            focus_the_card(card)(world);
+                        })
                         .until(ui_node_present("Gallery Back Button"))
                         .deadline(BEAT_SECS)
                         .add()
@@ -2476,6 +2628,24 @@ mod smoke {
                         .until(shot_written(shot))
                         .deadline(SHOT_SECS)
                         .add();
+                    if card == "buy" {
+                        script = point_at_the_bought_row(script, &shape, theme_name, width);
+                    }
+                    if card_hold(card).is_some() {
+                        script = script
+                            .step(format!(
+                                "station sandbox: put the hold back after the {card} card at \
+                                 {shape}"
+                            ))
+                            .on_enter(|world: &mut World| {
+                                let CardHoldBefore(item, player, station) = world
+                                    .remove_resource::<CardHoldBefore>()
+                                    .expect("the card changed the hold");
+                                set_hold_counts(world, &item, player, station);
+                            })
+                            .until(frames(2))
+                            .add();
+                    }
                     if card == "muted" {
                         script = try_the_muted_place(script, &shape, theme_name, width);
                     }
@@ -2501,6 +2671,96 @@ mod smoke {
             .add()
             .step("station sandbox: settle the capture shape")
             .until(frames(SETTLE_FRAMES))
+            .add()
+    }
+
+    /// The first recipe row on the card that marks a bought item.
+    fn bought_row(world: &World) -> Option<Entity> {
+        let recipe = named_entity(world, "Gallery Recipe")?;
+        world.get::<Children>(recipe)?.iter().find(|row| {
+            texts_under(world, *row)
+                .iter()
+                .any(|text| text.contains("BUY"))
+        })
+    }
+
+    /// `node`'s laid-out rect, in logical pixels.
+    fn node_rect(world: &World, node: Entity) -> Option<Rect> {
+        let transform = world.get::<UiGlobalTransform>(node)?;
+        let computed = world.get::<ComputedNode>(node)?;
+        let scale = computed.inverse_scale_factor();
+        Some(Rect::from_center_size(
+            transform.translation * scale,
+            computed.size() * scale,
+        ))
+    }
+
+    /// On the focused buy card: the pointer on the bought row shows the price
+    /// of one bought item as its tooltip, which is shot. The pointer then
+    /// rests on the card title, which has no tooltip, so the next card's
+    /// shot shows none.
+    fn point_at_the_bought_row(
+        script: AutopilotPlugin<GameStates>,
+        shape: &str,
+        theme_name: &str,
+        width: f32,
+    ) -> AutopilotPlugin<GameStates> {
+        let shot = format!("sandbox-card-buy-tooltip-{theme_name}-{width}.png");
+        script
+            .step(format!(
+                "station sandbox: point at the bought row at {shape}"
+            ))
+            .on_enter(|world: &mut World| {
+                let row = bought_row(world).expect("the buy card marks a bought row");
+                let rect = node_rect(world, row).expect("the bought row is laid out");
+                move_cursor(rect.center())(world);
+            })
+            .until(Arc::new(|world: &World| {
+                bought_row(world).is_some_and(|row| shown_tooltip(world, row).is_some())
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!(
+                "station sandbox: read the bought row's tooltip at {shape}"
+            ))
+            .on_enter(|world: &mut World| {
+                let part = card_part(world, "buy");
+                let entry = listing(world)
+                    .entry(&part)
+                    .cloned()
+                    .expect("the Catalogue lists every part");
+                let ask = entry
+                    .recipe
+                    .iter()
+                    .find_map(|item| item.supply.filter(|supply| supply.bought() > 0))
+                    .expect("the buy card buys an item")
+                    .ask_cr();
+                let shown = bought_row(world).and_then(|row| shown_tooltip(world, row));
+                info!("station sandbox: the bought row's tooltip reads {shown:?}");
+                assert_eq!(
+                    shown,
+                    Some(format!("{} each", cr_text(ask))),
+                    "the bought row's tooltip is the price of one"
+                );
+            })
+            .add()
+            .step(format!(
+                "station sandbox: shoot the bought row's tooltip at {shape}"
+            ))
+            .on_enter({
+                let shot = shot.clone();
+                move |world: &mut World| shoot(world, &shot)
+            })
+            .until(shot_written(shot))
+            .deadline(SHOT_SECS)
+            .add()
+            .step(format!("station sandbox: rest the pointer at {shape}"))
+            .on_enter(|world: &mut World| {
+                let title =
+                    ui_node_rect(world, "Gallery Focus Title").expect("the card has a title");
+                move_cursor(title.center())(world);
+            })
+            .until(frames(2))
             .add()
     }
 

@@ -40,6 +40,7 @@ use super::{
     scene::ShipRuntime,
     sections::{design_section_code, ShipViewSubject},
 };
+use crate::{icons::InterfaceIcons, inventory::category_color};
 
 /// The render layer of the catalogue's part tiles. Above the interface's own
 /// layers (20 to 22) and the menu's (23), below the hull cards' (26 on).
@@ -87,6 +88,7 @@ pub(crate) struct ShipGalleryHost {
 fn station_listing(
     runtime: &ShipRuntime,
     items: &GameItems,
+    icons: &InterfaceIcons,
     sections: &GameSections,
     site: &StationSite,
     q_holds: &Query<(&ShipInventory, &ShipCredits)>,
@@ -118,7 +120,9 @@ fn station_listing(
         .iter()
         .filter(|offered| !offered.base.hide_in_editor)
     {
-        let mut entry = offered_entry(items, offered, builds, stock, stock_cr, own, own_cr.0);
+        let mut entry = offered_entry(
+            items, icons, offered, builds, stock, stock_cr, own, own_cr.0,
+        );
         // A muted part's swap could only refuse with the reason it already
         // shows, so it offers none.
         if let Some(section) = selected.filter(|section| {
@@ -155,6 +159,7 @@ fn station_listing(
 /// ghost refuses the click.
 fn offered_entry(
     items: &GameItems,
+    icons: &InterfaceIcons,
     offered: &SectionConfig,
     builds: &[String],
     stock: &ShipInventory,
@@ -164,26 +169,19 @@ fn offered_entry(
 ) -> GalleryEntry {
     let name = &offered.base.name;
     let recipe = &offered.base.build;
-    let (tile, note, recipe_text, placeable) = if !builds.contains(&offered.base.id) {
-        // Never bought here, so the lines carry the counts and no source.
-        let counts = recipe
-            .parts
-            .iter()
-            .map(|(item, count)| format!("{count} {}", items.design(item).name))
-            .collect();
+    let built = builds.contains(&offered.base.id);
+    let rows = recipe_items(items, icons, recipe, built.then_some((stock, own)));
+    let (tile, note, placeable) = if !built {
         (
             None,
             "This station cannot craft this section".to_string(),
-            counts,
             false,
         )
     } else {
-        let recipe_text = recipe_lines(items, recipe, stock, own);
         match plan_recipe_payment(items, recipe, stock, stock_cr, own, own_cr) {
             Ok(payment) => (
                 Some(cr_text(payment.price_cr)),
                 cr_text(payment.price_cr),
-                recipe_text,
                 true,
             ),
             Err(refusal) => {
@@ -191,7 +189,6 @@ fn offered_entry(
                 (
                     placeable.then(|| tile_refusal_text(&refusal)),
                     payment_refusal_text(items, name, &refusal),
-                    recipe_text,
                     placeable,
                 )
             }
@@ -201,44 +198,41 @@ fn offered_entry(
         id: offered.base.id.clone(),
         tile,
         note,
-        recipe: recipe_text,
+        recipe: rows,
         alternate: None,
         placeable,
     }
 }
 
-/// One line per recipe item, in id order: `<count> <name>: <h> from the
-/// hold, <b> bought at <ask> each, <s> short`, each source only when nonzero.
-/// The split is [`plan_recipe_payment`]'s: the ship's hold first, then the
-/// station's stock.
-fn recipe_lines(
+/// One row per recipe item, in id order, with the item's category icon. With
+/// the station's `stock` and the ship's `own` hold, each row says how many
+/// come from the hold, how many are bought at the item's ask and how many
+/// are short: [`plan_recipe_payment`]'s split, the ship's hold first. A part
+/// the station does not build passes `None`: nothing is bought for it, so
+/// its rows carry no supply.
+fn recipe_items(
     items: &GameItems,
+    icons: &InterfaceIcons,
     recipe: &BuildRecipe,
-    stock: &ShipInventory,
-    own: &ShipInventory,
-) -> Vec<String> {
+    holds: Option<(&ShipInventory, &ShipInventory)>,
+) -> Vec<GalleryRecipeItem> {
     recipe
         .parts
         .iter()
         .map(|(item, &count)| {
             let design = items.design(item);
-            let held = own.count(item).min(count);
-            let bought = (count - held).min(stock.count(item));
-            let short = count - held - bought;
-            let mut sources = Vec::new();
-            if held > 0 {
-                sources.push(format!("{held} from the hold"));
+            let supply = holds.map(|(stock, own)| {
+                let held = own.count(item).min(count);
+                let bought = (count - held).min(stock.count(item));
+                GalleryRecipeSupply::new(count, held, bought, count - held - bought, design.ask_cr)
+            });
+            GalleryRecipeItem {
+                icon: icons.category(design.category),
+                tint: category_color(design.category),
+                name: design.name.clone(),
+                count,
+                supply,
             }
-            if bought > 0 {
-                sources.push(format!(
-                    "{bought} bought at {} each",
-                    cr_text(design.ask_cr)
-                ));
-            }
-            if short > 0 {
-                sources.push(format!("{short} short"));
-            }
-            format!("{count} {}: {}", design.name, sources.join(", "))
         })
         .collect()
 }
@@ -265,6 +259,7 @@ pub(crate) fn update_ship_gallery_listing(
     subject: Res<ShipViewSubject>,
     items: Option<Res<GameItems>>,
     sections: Option<Res<GameSections>>,
+    icons: Res<InterfaceIcons>,
     site: StationSite,
     q_holds: Query<(&ShipInventory, &ShipCredits)>,
     mut q_button: Query<&mut Node, With<ShipCatalogueButton>>,
@@ -286,7 +281,8 @@ pub(crate) fn update_ship_gallery_listing(
     let (Some(items), Some(sections)) = (items, sections) else {
         return;
     };
-    let Some(listing) = station_listing(&runtime, &items, &sections, &site, &q_holds) else {
+    let Some(listing) = station_listing(&runtime, &items, &icons, &sections, &site, &q_holds)
+    else {
         return;
     };
     if *shown != listing {
@@ -501,9 +497,31 @@ mod tests {
         vec!["pdc".to_string()]
     }
 
+    /// Blank masks: the rows' icons are not under test.
+    fn icons() -> InterfaceIcons {
+        InterfaceIcons {
+            sections: default(),
+            bodies: default(),
+            categories: default(),
+            charts: default(),
+            jobs: default(),
+            roles: default(),
+            credit: default(),
+        }
+    }
+
+    /// Each row's name, count and supply.
+    fn rows(entry: &GalleryEntry) -> Vec<(&str, u32, Option<GalleryRecipeSupply>)> {
+        entry
+            .recipe
+            .iter()
+            .map(|item| (item.name.as_str(), item.count, item.supply))
+            .collect()
+    }
+
     /// A part the station does not build is listed muted with no tile line,
     /// whatever both holds carry, and its note is the concise reason. Nothing
-    /// is ever bought for it, so its recipe lines are counts with no source.
+    /// is ever bought for it, so its recipe rows carry no supply.
     #[test]
     fn a_part_the_station_does_not_build_is_listed_muted_with_its_reason() {
         let items = test_items();
@@ -513,6 +531,7 @@ mod tests {
         );
         let entry = offered_entry(
             &items,
+            &icons(),
             &pdc(),
             &["hull".to_string()],
             &stock,
@@ -525,20 +544,33 @@ mod tests {
         assert_eq!(entry.tile, None);
         assert_eq!(entry.note, "This station cannot craft this section");
         assert_eq!(
-            entry.recipe,
-            ["2 Section panel", "1 Turret barrel", "1 Turret body"]
+            rows(&entry),
+            [
+                ("Section panel", 2, None),
+                ("Turret barrel", 1, None),
+                ("Turret body", 1, None),
+            ]
         );
     }
 
     /// A built part neither hold covers is muted with no tile line, its note
-    /// names the first short item and by how many, and its lines say which
+    /// names the first short item and by how many, and its rows say which
     /// item is short.
     #[test]
     fn a_part_short_of_a_recipe_item_names_the_item_and_the_shortfall() {
         let items = test_items();
         let own = hold(&items, &[("SectionPanel", 1)]);
         let stock = hold(&items, &[("TurretBody", 1), ("TurretBarrel", 1)]);
-        let entry = offered_entry(&items, &pdc(), &builds_pdc(), &stock, 0, &own, 10_000);
+        let entry = offered_entry(
+            &items,
+            &icons(),
+            &pdc(),
+            &builds_pdc(),
+            &stock,
+            0,
+            &own,
+            10_000,
+        );
 
         assert!(!entry.placeable);
         assert_eq!(entry.tile, None);
@@ -546,25 +578,55 @@ mod tests {
             entry.note,
             "PDC needs 1 more Section panel than both holds carry"
         );
-        assert_eq!(entry.recipe[0], "2 Section panel: 1 from the hold, 1 short");
+        let panel_ask = items.design(&"SectionPanel".into()).ask_cr;
+        assert_eq!(
+            rows(&entry)[0],
+            (
+                "Section panel",
+                2,
+                Some(GalleryRecipeSupply::new(2, 1, 0, 1, panel_ask))
+            )
+        );
     }
 
-    /// A payable part's tile is its price alone, its recipe lists each item
-    /// with its source, and the lines split the parts as the payment does.
+    /// A payable part's tile is its price alone, its recipe rows split the
+    /// parts as the payment does, and a bought row carries the item's ask.
     #[test]
-    fn a_payable_part_lists_each_recipe_item_with_its_source() {
+    fn a_payable_part_splits_each_recipe_item_as_the_payment_does() {
         let items = test_items();
         let own = hold(&items, &[("SectionPanel", 2), ("TurretBarrel", 1)]);
         let stock = hold(&items, &[("TurretBody", 3)]);
-        let entry = offered_entry(&items, &pdc(), &builds_pdc(), &stock, 0, &own, 10_000);
+        let entry = offered_entry(
+            &items,
+            &icons(),
+            &pdc(),
+            &builds_pdc(),
+            &stock,
+            0,
+            &own,
+            10_000,
+        );
 
         assert!(entry.placeable);
+        let ask = |item: &str| items.design(&item.into()).ask_cr;
         assert_eq!(
-            entry.recipe,
+            rows(&entry),
             [
-                "2 Section panel: 2 from the hold",
-                "1 Turret barrel: 1 from the hold",
-                "1 Turret body: 1 bought at 200 cr each",
+                (
+                    "Section panel",
+                    2,
+                    Some(GalleryRecipeSupply::new(2, 2, 0, 0, ask("SectionPanel")))
+                ),
+                (
+                    "Turret barrel",
+                    1,
+                    Some(GalleryRecipeSupply::new(1, 1, 0, 0, ask("TurretBarrel")))
+                ),
+                (
+                    "Turret body",
+                    1,
+                    Some(GalleryRecipeSupply::new(1, 0, 1, 0, 200))
+                ),
             ]
         );
         let payment = plan_recipe_payment(&items, &pdc().base.build, &stock, 0, &own, 10_000)
@@ -586,7 +648,7 @@ mod tests {
         let items = test_items();
         let own = hold(&items, &[("SectionPanel", 2), ("TurretBarrel", 1)]);
         let stock = hold(&items, &[("TurretBody", 1)]);
-        let entry = offered_entry(&items, &pdc(), &builds_pdc(), &stock, 0, &own, 50);
+        let entry = offered_entry(&items, &icons(), &pdc(), &builds_pdc(), &stock, 0, &own, 50);
 
         assert!(entry.placeable);
         assert_eq!(entry.tile.as_deref(), Some("Needs 300 cr"));
