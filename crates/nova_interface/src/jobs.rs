@@ -326,11 +326,11 @@ fn accept_refusal_text(refusal: &JobAcceptRefusalType) -> String {
     }
 }
 
-/// Why a hand-in of the job titled `title` is refused; the list and the
-/// handler share it.
+/// Why a hand-in of `job` is refused; the list and the handler share it.
+/// The text never names the job: every place that shows it sits beside the
+/// job's title.
 fn hand_in_refusal_text(
     job: &Job,
-    title: &str,
     refusal: &JobHandInRefusalType,
     chart: &Chart,
     items: &GameItems,
@@ -348,14 +348,14 @@ fn hand_in_refusal_text(
                 items.design(item).name
             )
         }
-        JobHandInRefusalType::NotDone => format!("{title}: not done yet"),
+        JobHandInRefusalType::NotDone => "not done yet".to_string(),
         JobHandInRefusalType::StationCannotPay { need, have } => format!(
-            "hand in: {title} pays {}, the station holds {}",
+            "hand in: it pays {}, the station holds {}",
             cr_text(*need),
             cr_text(*have)
         ),
         JobHandInRefusalType::CreditOverflow => {
-            format!("hand in: the ship's balance after {title} does not fit")
+            "hand in: the ship's balance after the reward does not fit".to_string()
         }
     }
 }
@@ -562,11 +562,10 @@ fn update_jobs_pane(
             credits_cr: q_credits.get(*station).ok()?.0,
         })
     });
-    let hand_in_refusal = |job: &Job, title: &str| {
+    let hand_in_refusal = |job: &Job| {
         let (Some(hold), Some(own_cr)) = (hold, own_cr) else {
             return Some(hand_in_refusal_text(
                 job,
-                title,
                 &JobHandInRefusalType::NotDocked,
                 &chart,
                 &items,
@@ -580,24 +579,23 @@ fn update_jobs_pane(
             jobs.is_done(&job.id),
         )
         .err()
-        .map(|refusal| hand_in_refusal_text(job, title, &refusal, &chart, &items))
+        .map(|refusal| hand_in_refusal_text(job, &refusal, &chart, &items))
     };
     let held: Vec<HeldRow> = jobs
         .held()
         .iter()
         .map(|job| {
-            let title = job.title(&items);
             let hand_in_here =
                 matches!(&partner, Some((_, _, station_id)) if *station_id == job.target);
             let (have, need) = job.progress(hold, jobs.is_done(&job.id));
             HeldRow {
                 id: job.id.clone(),
                 icon: JobIconType::of(&job.kind),
-                title: title.clone(),
+                title: job.title(&items),
                 have,
                 need,
                 hand_in_here,
-                refusal: hand_in_refusal(job, &title),
+                refusal: hand_in_refusal(job),
             }
         })
         .collect();
@@ -616,7 +614,6 @@ fn update_jobs_pane(
         runtime.selected = None;
     }
     let inspector = selected.map(|(job, held)| {
-        let title = job.title(&items);
         let done = jobs.is_done(&job.id);
         let show = if held {
             MapChartMarkType::Job(job.id.clone())
@@ -627,7 +624,7 @@ fn update_jobs_pane(
         };
         InspectorView {
             icon: JobIconType::of(&job.kind),
-            title: title.clone(),
+            title: job.title(&items),
             done,
             task: job.task(&items),
             target: format!("{}\n{}", target_name(job, &chart), place(job_cell(job))),
@@ -638,7 +635,7 @@ fn update_jobs_pane(
                 .filter(|_| !held)
                 .map(|slot| time_left(slot.remaining(rule, now))),
             progress: held.then(|| job.progress(hold, done)),
-            refusal: held.then(|| hand_in_refusal(job, &title)).flatten(),
+            refusal: held.then(|| hand_in_refusal(job)).flatten(),
             show,
         }
     });
@@ -1066,7 +1063,16 @@ fn held_panel(
                                 18.0,
                             ),
                         ));
-                        row.spawn(grow_cell(&text, 13.0, color));
+                        row.spawn((
+                            Node {
+                                flex_grow: 1.0,
+                                flex_basis: px(0),
+                                min_width: px(0),
+                                ..default()
+                            },
+                            Pickable::IGNORE,
+                            children![themed_label(&text, 13.0, color)],
+                        ));
                         match progress {
                             Some((have, need)) => {
                                 row.spawn(fixed(PROGRESS_PX, meter(ROW_METER_PX, have, need)))
@@ -1424,13 +1430,7 @@ fn apply_job_commands(
         let Some((player, station, _)) = &partner else {
             runtime.notice.say(
                 ActionOutcomeType::Refused,
-                hand_in_refusal_text(
-                    &job,
-                    &title,
-                    &JobHandInRefusalType::NotDocked,
-                    &chart,
-                    &items,
-                ),
+                hand_in_refusal_text(&job, &JobHandInRefusalType::NotDocked, &chart, &items),
             );
             continue;
         };
@@ -1449,7 +1449,7 @@ fn apply_job_commands(
             Err(refusal) => {
                 runtime.notice.say(
                     ActionOutcomeType::Refused,
-                    hand_in_refusal_text(&job, &title, &refusal, &chart, &items),
+                    hand_in_refusal_text(&job, &refusal, &chart, &items),
                 );
                 continue;
             }
@@ -1814,13 +1814,7 @@ mod tests {
             have: 2,
         };
         assert_eq!(
-            hand_in_refusal_text(
-                &job,
-                "Bring 4 Carbon ore",
-                &refusal,
-                &Chart::default(),
-                &items
-            ),
+            hand_in_refusal_text(&job, &refusal, &Chart::default(), &items),
             "the hold carries 2 of 4 Carbon ore"
         );
     }

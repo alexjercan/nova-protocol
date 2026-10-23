@@ -989,9 +989,7 @@ fn assert_the_accept(world: &mut World) {
 fn assert_the_refusal(world: &mut World) {
     let tag = tag(world);
     let (_, job) = the_job(world);
-    let items = world.resource::<GameItems>().clone();
-    let title = job.title(&items);
-    let refusal = format!("{title}: not done yet");
+    let refusal = "not done yet";
     let (disabled, tooltip) = world
         .query::<(&Name, Has<InteractionDisabled>, Option<&Tooltip>)>()
         .iter(world)
@@ -1004,7 +1002,7 @@ fn assert_the_refusal(world: &mut World) {
     );
     assert_eq!(
         tooltip.as_deref(),
-        Some(refusal.as_str()),
+        Some(refusal),
         "{tag} job: the greyed Hand in button says why"
     );
     nova_probe::probe_marker(

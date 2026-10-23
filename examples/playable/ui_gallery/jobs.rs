@@ -174,7 +174,7 @@ fn hand_in_refusal(j: &JobCard, docked: bool) -> Option<String> {
             j.have,
             j.title.trim_start_matches("Bring ")
         ),
-        _ => format!("{}: not done yet", j.title),
+        _ => "not done yet".to_string(),
     })
 }
 
