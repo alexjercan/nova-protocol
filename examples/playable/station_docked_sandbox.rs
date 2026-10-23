@@ -76,7 +76,15 @@
 //! Drive keys, rebinds it to `J` and checks the binding, closes the
 //! interface, lets go of the dock with `dock`, holds `J` and checks the
 //! thruster's throttle reaches 1, then reopens the Ship tab, rebinds and
-//! presses Backspace and checks the Main Drive line is back. `NOVA_CAPTURE=1` shoots `sandbox-ship.png`,
+//! presses Backspace and checks the Main Drive line is back. Before the
+//! Ship tab walk it closes the interface, waits for both sleeves of every
+//! berth to reach out, checks the player and every hull for sale stand one
+//! cell off their station ports with no two envelopes overlapping, and frames
+//! a close-up of the player's berth and of the first hull for sale's. A gap
+//! that a station port recessed in a plated surface hides from every eye is
+//! shot from outside, with a warning that names the blocking root.
+//! `NOVA_CAPTURE=1` shoots `sandbox-berth.png`, `sandbox-sale-berth.png`,
+//! `sandbox-ship.png`,
 //! `sandbox-catalogue-all.png`, `sandbox-catalogue.png`, `sandbox-ghost.png`, `sandbox-mount.png`, `sandbox-placed.png`, `sandbox-esc-put-away.png`,
 //! `sandbox-rebind-armed.png`, `sandbox-rebind.png`, `sandbox-delete-yield.png`,
 //! `sandbox-delete.png`,
@@ -896,6 +904,7 @@ mod smoke {
             ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px, SectionCode,
             ShipRuntime, SHIP_HELD_PANEL,
         },
+        nova_ship::sections::docking_section::GAP_SLACK,
     };
 
     use super::*;
@@ -986,6 +995,24 @@ mod smoke {
     /// The Station tab, reached with two next-tab presses from Inventory,
     /// through Jobs.
     const STATION_SHOT: &str = "sandbox-station.png";
+    /// The close-up of the player's berth at the station's port.
+    const BERTH_SHOT: &str = "sandbox-berth.png";
+    /// The close-up of the first hull for sale's berth.
+    const SALE_BERTH_SHOT: &str = "sandbox-sale-berth.png";
+    /// How far from the middle of a berth's gap the close-up may stand,
+    /// engine units, nearest first: the first with a clear line of sight wins.
+    const BERTH_VIEW_CELLS: [f32; 3] = [6.0, 9.0, 12.0];
+    /// The most a close-up's line of sight may lean along the berth's axis,
+    /// as the cosine to it: near square to the axis, so the gap shows end to
+    /// end.
+    const BERTH_VIEW_SQUARE: f32 = 0.35;
+    /// How far a port's mount may stand from its design position and count
+    /// as that section, engine units.
+    const MOUNT_EPSILON: f32 = 1e-3;
+    /// Points the close-up's line of sight is tested at, and the side of the
+    /// cube tested at each, engine units.
+    const BERTH_SIGHT_SAMPLES: u32 = 24;
+    const BERTH_SIGHT_PROBE: f32 = 0.2;
     /// Seconds a click or a key gets to land.
     const BEAT_SECS: f32 = 60.0;
     /// How far inside the Ship view's top-left corner the walk points at
@@ -1701,6 +1728,392 @@ mod smoke {
         }
     }
 
+    /// The berths the close-ups judge, as `(station port, hull, hull port)`:
+    /// the player's, then every hull for sale docked at the station, in park
+    /// order.
+    fn station_berths(world: &World) -> Vec<(Entity, Entity, Entity)> {
+        let ports = |ship: Entity| -> Option<(Entity, Entity, Entity)> {
+            let docked = world.get::<DockedShip>(ship)?;
+            let connection = world.get::<DockingConnection>(docked.connection)?;
+            Some(if connection.first_ship == ship {
+                (connection.second_section, ship, connection.first_section)
+            } else {
+                (connection.first_section, ship, connection.second_section)
+            })
+        };
+        let Some(player) = world
+            .try_query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
+            .and_then(|mut players| players.single(world).ok())
+        else {
+            return Vec::new();
+        };
+        let Some(station) = berth_station(world, player) else {
+            return Vec::new();
+        };
+        let sales = world
+            .get::<ParkedHulls>(station)
+            .into_iter()
+            .flat_map(|parked| parked.iter())
+            .filter(|&hull| world.get::<ParkedHullType>(hull) == Some(&ParkedHullType::Sale));
+        std::iter::once(player)
+            .chain(sales)
+            .filter_map(ports)
+            .collect()
+    }
+
+    /// The station `player` is docked at.
+    fn berth_station(world: &World, player: Entity) -> Option<Entity> {
+        let docked = world.get::<DockedShip>(player)?;
+        let connection = world.get::<DockingConnection>(docked.connection)?;
+        Some(if connection.first_ship == player {
+            connection.second_ship
+        } else {
+            connection.first_ship
+        })
+    }
+
+    /// `root`'s envelope ([`design_envelope`]) in `station`'s frame, from
+    /// both roots' live poses.
+    fn station_frame_envelope(
+        world: &World,
+        station: Entity,
+        root: Entity,
+    ) -> Vec<PlacedSectionCollider> {
+        let pose = |entity: Entity| {
+            (
+                world
+                    .get::<Position>(entity)
+                    .expect("a berthed root stands")
+                    .0,
+                world
+                    .get::<Rotation>(entity)
+                    .expect("a berthed root stands")
+                    .0,
+            )
+        };
+        let (station_at, station_turn) = pose(station);
+        let (at, turn) = pose(root);
+        let into_station = station_turn.inverse();
+        let design = world
+            .get::<ShipDesignSections>(root)
+            .expect("station sandbox: a berthed root has its design sections");
+        let ShipSkin(skin) = *world
+            .get::<ShipSkin>(root)
+            .expect("station sandbox: a berthed root has its skin flag");
+        design_envelope(
+            &design.0,
+            skin,
+            (into_station * (at - station_at), into_station * turn),
+        )
+    }
+
+    /// The box `port` takes in `root`'s `envelope`: the docking section of
+    /// `root`'s design mounted where the port is.
+    fn port_box(
+        world: &World,
+        root: Entity,
+        port: Entity,
+        envelope: &[PlacedSectionCollider],
+    ) -> PlacedSectionCollider {
+        let (at, _) = local_pose(world, port, root);
+        let design = world
+            .get::<ShipDesignSections>(root)
+            .expect("station sandbox: a berthed root has its design sections");
+        let index = design
+            .0
+            .iter()
+            .position(|section| {
+                section.config.kind.class() == SectionClass::Docking
+                    && section.position.distance(at) < MOUNT_EPSILON
+            })
+            .unwrap_or_else(|| {
+                panic!("station sandbox: port {port:?} is no docking section of {root:?}'s design")
+            });
+        envelope[index]
+    }
+
+    /// Every berth's measured gap between the facing faces of its two port
+    /// boxes, along the station port's axis, and every pair of the station
+    /// and its berthed hulls whose envelopes overlap
+    /// ([`section_colliders_overlap`]). Measured in the station's frame.
+    fn berth_report(world: &World) -> (Vec<(Entity, f32)>, Vec<(Entity, Entity)>) {
+        let berths = station_berths(world);
+        let Some(station) = berths
+            .first()
+            .and_then(|&(_, player, _)| berth_station(world, player))
+        else {
+            return (Vec::new(), Vec::new());
+        };
+        let bodies: Vec<(Entity, Vec<PlacedSectionCollider>)> = std::iter::once(station)
+            .chain(berths.iter().map(|&(_, hull, _)| hull))
+            .map(|root| (root, station_frame_envelope(world, station, root)))
+            .collect();
+        let gaps = berths
+            .iter()
+            .zip(&bodies[1..])
+            .map(|(&(station_port, hull, hull_port), (_, envelope))| {
+                let near = port_box(world, station, station_port, &bodies[0].1);
+                let far = port_box(world, hull, hull_port, envelope);
+                let axis = near.rotation * Vec3::NEG_Z;
+                let reach = (near.half_extents() + far.half_extents()).dot(axis.abs());
+                (hull, (far.position - near.position).dot(axis) - reach)
+            })
+            .collect();
+        let mut overlaps = Vec::new();
+        for (index, (first, first_envelope)) in bodies.iter().enumerate() {
+            for (second, second_envelope) in &bodies[index + 1..] {
+                let touches = first_envelope.iter().any(|&a| {
+                    second_envelope
+                        .iter()
+                        .any(|&b| section_colliders_overlap(a, b))
+                });
+                if touches {
+                    overlaps.push((*first, *second));
+                }
+            }
+        }
+        (gaps, overlaps)
+    }
+
+    /// Whether the player and at least one hull for sale stand berthed, each
+    /// [`BERTH_GAP`] off its station port within [`GAP_SLACK`], with no two
+    /// envelopes overlapping.
+    fn berths_hold(world: &World) -> bool {
+        let (gaps, overlaps) = berth_report(world);
+        gaps.len() >= 2
+            && gaps
+                .iter()
+                .all(|(_, gap)| (gap - BERTH_GAP).abs() <= GAP_SLACK)
+            && overlaps.is_empty()
+    }
+
+    /// Whether both sleeves of every berth are fully out.
+    fn sleeves_out(world: &World) -> bool {
+        let berths = station_berths(world);
+        berths.len() >= 2
+            && berths.iter().all(|&(station_port, _, hull_port)| {
+                [station_port, hull_port].iter().all(|&port| {
+                    world.get::<DockingSectionState>(port) == Some(&DockingSectionState::Extended)
+                })
+            })
+    }
+
+    /// A close-up of `hull`'s berth: the middle of its gap, seen near square
+    /// to the berth's axis ([`BERTH_VIEW_SQUARE`]), level, above or below,
+    /// from the nearest distance in [`BERTH_VIEW_CELLS`] whose line of sight
+    /// crosses no box of the station or a berthed hull. With none clear, the
+    /// first eye tried, and every tried eye in the station's frame with the
+    /// root whose box blocks it and how far from the middle the block stands.
+    /// `None` when `hull` is not berthed at the player's station.
+    fn berth_view(
+        world: &World,
+        hull: Entity,
+    ) -> Option<(ScriptedCameraPose, Option<Vec<(Vec3, Entity, f32)>>)> {
+        let berths = station_berths(world);
+        let station = berth_station(world, berths.first()?.1)?;
+        let &(station_port, _, hull_port) =
+            berths.iter().find(|&&(_, berthed, _)| berthed == hull)?;
+        let boxes: Vec<(Entity, PlacedSectionCollider)> = std::iter::once(station)
+            .chain(berths.iter().map(|&(_, berthed, _)| berthed))
+            .flat_map(|root| {
+                station_frame_envelope(world, station, root)
+                    .into_iter()
+                    .map(move |boxed| (root, boxed))
+            })
+            .collect();
+        let near = port_box(
+            world,
+            station,
+            station_port,
+            &station_frame_envelope(world, station, station),
+        );
+        let far = port_box(
+            world,
+            hull,
+            hull_port,
+            &station_frame_envelope(world, station, hull),
+        );
+        let middle = (near.position + far.position) * 0.5;
+        let axis = near.rotation * Vec3::NEG_Z;
+        // The first box the line from `eye` to the middle crosses, eye first.
+        let blocker = |eye: Vec3| {
+            (1..BERTH_SIGHT_SAMPLES).find_map(|step| {
+                let at = eye.lerp(middle, step as f32 / BERTH_SIGHT_SAMPLES as f32);
+                let probe = PlacedSectionCollider {
+                    position: at,
+                    rotation: Quat::IDENTITY,
+                    collider: SectionCollider::Cuboid {
+                        size: Vec3::splat(BERTH_SIGHT_PROBE),
+                    },
+                };
+                boxes
+                    .iter()
+                    .find(|&&(_, boxed)| section_colliders_overlap(probe, boxed))
+                    .map(|&(root, _)| (root, at.distance(middle)))
+            })
+        };
+        let at = world.get::<Position>(station)?.0;
+        let turn = world.get::<Rotation>(station)?.0;
+        // Every neighbour direction near square to the axis, highest in the
+        // world first: the camera's up is world +Y, so a side near it is
+        // dropped.
+        let mut sides: Vec<Vec3> = (-1..=1)
+            .flat_map(|x| (-1..=1).flat_map(move |y| (-1..=1).map(move |z| (x, y, z))))
+            .filter(|&step| step != (0, 0, 0))
+            .map(|(x, y, z)| Vec3::new(x as f32, y as f32, z as f32).normalize())
+            .filter(|side| side.dot(axis).abs() < BERTH_VIEW_SQUARE && (turn * *side).y.abs() < 0.9)
+            .collect();
+        sides.sort_by(|a, b| (turn * *b).y.total_cmp(&(turn * *a).y));
+        let pose = |eye: Vec3| ScriptedCameraPose {
+            position: Meters3::from_engine(at + turn * eye),
+            look_at: Meters3::from_engine(at + turn * middle),
+        };
+        let eyes: Vec<Vec3> = BERTH_VIEW_CELLS
+            .iter()
+            .flat_map(|&cells| sides.iter().map(move |side| middle + *side * cells))
+            .collect();
+        let mut blocked = Vec::new();
+        for &eye in &eyes {
+            match blocker(eye) {
+                None => return Some((pose(eye), None)),
+                Some((root, from_middle)) => blocked.push((eye, root, from_middle)),
+            }
+        }
+        Some((pose(*eyes.first()?), Some(blocked)))
+    }
+
+    /// Pin the scenario camera on the close-up of the `index`th berth, if it
+    /// is berthed.
+    fn frame_the_berth(index: usize) -> impl Fn(&mut World) + Send + Sync + 'static {
+        move |world: &mut World| {
+            let Some(&(_, hull, _)) = station_berths(world).get(index) else {
+                return;
+            };
+            let Some((view, blocked)) = berth_view(world, hull) else {
+                error!("station sandbox: berth {index} ({hull:?}) is not berthed");
+                return;
+            };
+            // A station port recessed in a plated surface rings the gap with
+            // its own plates: no eye sees in, so the shot shows the pocket's
+            // rim against the hull's collar from the first eye.
+            if let Some(blocked) = blocked {
+                warn!(
+                    "station sandbox: berth {index} ({hull:?}) gap is hidden; \
+                     (eye, blocking root, block's distance from the gap) {blocked:?}"
+                );
+            }
+            info!(
+                "station sandbox: berth {index} ({hull:?}) close-up from {:?} looking at {:?}",
+                view.position, view.look_at
+            );
+            let cameras: Vec<Entity> = world
+                .query_filtered::<Entity, With<ScenarioCameraMarker>>()
+                .iter(world)
+                .collect();
+            for camera in cameras {
+                world.entity_mut(camera).insert(view);
+            }
+        }
+    }
+
+    /// Whether the scenario camera is pinned on a close-up.
+    fn camera_pinned(world: &World) -> bool {
+        world
+            .try_query_filtered::<(), (With<ScenarioCameraMarker>, With<ScriptedCameraPose>)>()
+            .is_some_and(|mut cameras| cameras.iter(world).next().is_some())
+    }
+
+    /// The berth close-ups: the interface closes so the clocks run and the
+    /// sleeves reach out, the berths are measured, and the player's berth and
+    /// the first hull for sale's are shot; then the camera goes back to its
+    /// rig and the Ship tab opens again.
+    fn berth_shots(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        let script = script
+            .step("station sandbox: close the interface for the berth shots")
+            .on_enter(press_action("interface_toggle"))
+            .until(Arc::new(|world: &World| {
+                world
+                    .get_resource::<State<PauseStates>>()
+                    .is_some_and(|pause| *pause.get() == PauseStates::Unpaused)
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: let the close key up for the berth shots")
+            .on_enter(release_action("interface_toggle"))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: the berth sleeves reach out")
+            .until(Arc::new(sleeves_out))
+            .diagnose(|world| {
+                let states: Vec<_> = station_berths(world)
+                    .into_iter()
+                    .map(|(station_port, hull, hull_port)| {
+                        (
+                            hull,
+                            world.get::<DockingSectionState>(station_port).copied(),
+                            world.get::<DockingSectionState>(hull_port).copied(),
+                        )
+                    })
+                    .collect();
+                format!("berths (hull, station sleeve, hull sleeve): {states:?}")
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: the berths stand one cell off and clear")
+            .on_enter(|world: &mut World| {
+                let (gaps, overlaps) = berth_report(world);
+                info!(
+                    "station sandbox: berth gaps {gaps:?} (want {BERTH_GAP} within {GAP_SLACK}), \
+                     overlapping envelopes {overlaps:?}"
+                );
+            })
+            .until(Arc::new(berths_hold))
+            .diagnose(|world| {
+                let (gaps, overlaps) = berth_report(world);
+                format!("gaps {gaps:?}, overlaps {overlaps:?}")
+            })
+            .deadline(BEAT_SECS)
+            .add();
+        let script = [(0, BERTH_SHOT), (1, SALE_BERTH_SHOT)].into_iter().fold(
+            script,
+            |script, (index, shot)| {
+                script
+                    .step(format!("station sandbox: frame berth {index}"))
+                    .on_enter(frame_the_berth(index))
+                    .until(Arc::new(camera_pinned))
+                    .deadline(BEAT_SECS)
+                    .add()
+                    .step(format!("station sandbox: settle berth {index}"))
+                    .until(frames(SETTLE_FRAMES))
+                    .add()
+                    .step(format!("station sandbox: shoot berth {index}"))
+                    .on_enter(move |world: &mut World| shoot(world, shot))
+                    .until(shot_written(shot))
+                    .deadline(SHOT_SECS)
+                    .add()
+                    .step(format!("station sandbox: unpin berth {index}"))
+                    .on_enter(|world: &mut World| {
+                        let cameras: Vec<Entity> = world
+                            .query_filtered::<Entity, With<ScriptedCameraPose>>()
+                            .iter(world)
+                            .collect();
+                        for camera in cameras {
+                            world.entity_mut(camera).remove::<ScriptedCameraPose>();
+                        }
+                    })
+                    .until(Arc::new(|world: &World| !camera_pinned(world)))
+                    .deadline(BEAT_SECS)
+                    .add()
+            },
+        );
+        script
+            .step("station sandbox: reopen the Ship tab after the berth shots")
+            .on_enter(open_the_ship_tab)
+            .until(ready_on_the_ship_tab())
+            .deadline(BEAT_SECS)
+            .add()
+    }
+
     fn ready_on_the_ship_tab() -> Arc<Predicate> {
         Arc::new(|world: &World| {
             world
@@ -1721,7 +2134,8 @@ mod smoke {
             .until(ready_on_the_ship_tab())
             .diagnose(|world| format!("{:?}", world.get_resource::<Sandbox>()))
             .deadline(SETUP_SECS)
-            .add()
+            .add();
+        let script = berth_shots(script)
             .step("station sandbox: settle the schematic")
             .until(frames(SETTLE_FRAMES))
             .add()
