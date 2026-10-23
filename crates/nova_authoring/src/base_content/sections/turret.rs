@@ -41,9 +41,10 @@ const STOW_LIFT_JOINT_NAME: &str = "stow_lift";
 const STOW_LID_NODE_PREFIX: &str = "stow_lid_";
 
 /// The two authoring-owned mount ids. Both single mounts are named by the
-/// generator, so their ids come from `nova_ship` instead.
-const PDC_TWIN_KINETIC_TURRET_SECTION_ID: &str = "pdc_twin_kinetic_turret_section";
-pub(crate) const PDC_TWIN_PIERCE_TURRET_SECTION_ID: &str = "pdc_twin_pierce_turret_section";
+/// generator, so their ids come from `nova_ship` instead. The waystation
+/// builds the twin kinetic mount, so the stations builder names it.
+pub(crate) const PDC_TWIN_KINETIC_TURRET_SECTION_ID: &str = "pdc_twin_kinetic_turret_section";
+const PDC_TWIN_PIERCE_TURRET_SECTION_ID: &str = "pdc_twin_pierce_turret_section";
 
 /// Authored per-hit damage of the Pierce PDC: HALF the Kinetic one.
 ///
@@ -484,7 +485,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
              anything they cannot destroy.",
             DamageType::Kinetic,
             KINETIC_PDC_BULLET_DAMAGE,
-            0.25,
+            0.0,
         ),
         pdc_turret_prototype(
             meshes,
@@ -499,7 +500,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
              one.",
             DamageType::Pierce,
             PIERCE_PDC_BULLET_DAMAGE,
-            0.0,
+            0.25,
         ),
         pdc_turret_prototype(
             meshes,
@@ -513,7 +514,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
              trade is two offset streams instead of one dense one.",
             DamageType::Kinetic,
             KINETIC_PDC_BULLET_DAMAGE,
-            0.25,
+            0.0,
         ),
         pdc_turret_prototype(
             meshes,
@@ -527,7 +528,7 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
              total rate.",
             DamageType::Pierce,
             PIERCE_PDC_BULLET_DAMAGE,
-            0.0,
+            0.25,
         ),
     ]
 }

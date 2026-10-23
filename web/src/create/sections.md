@@ -610,7 +610,7 @@ between fights:
 base: (
     id: "pdc_kinetic_turret_section",
     health: 130.0,
-    advancement: 0.25,
+    advancement: 0.0,
     draw_weight: 1.0,
     collider: Some(Cuboid(size: (0.5, 0.5, 0.5))),
     link_points: [(id: "base", position: (0.0, -0.25, 0.0), normal: (0.0, -1.0, 0.0))],

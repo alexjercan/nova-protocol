@@ -53,7 +53,7 @@
 //!
 //! It needs `--features debug`, which owns the diagnostics layer. Under
 //! `NOVA_AUTOPILOT=1` a smoke walk waits for
-//! the docked Ship tab, opens the Catalogue on the pierce PDC's category and
+//! the docked Ship tab, opens the Catalogue on the kinetic PDC's category and
 //! places it in hand,
 //! points at free sockets until the ghost stands valid, rolls the part and
 //! steps its socket, steps the socket back and rolls until it fits, clicks the
@@ -123,7 +123,7 @@ const PARTS_PER_ITEM: u32 = 4;
 const CARGO_INTAKE_SECTION_ID: &str = "cargo_intake_section";
 /// The parts the walk takes from the Catalogue. The chosen station must
 /// build every one: the Catalogue hides the tiles of parts it does not.
-const WALK_PARTS: [&str; 2] = [PDC_PIERCE_TURRET_SECTION_ID, CARGO_INTAKE_SECTION_ID];
+const WALK_PARTS: [&str; 2] = [PDC_KINETIC_TURRET_SECTION_ID, CARGO_INTAKE_SECTION_ID];
 /// How far from the station the player parks before the berth.
 const PARK_DISTANCE: Meters = Meters(2_000.0);
 /// The gap the berth leaves between the two port faces, engine units: half a
@@ -963,7 +963,7 @@ mod smoke {
     const SALVAGE_BLOCK: &str = "ShipSalvage";
     /// The Salvage block's reason line.
     const DELETE_REASON: &str = "ShipDeleteReason";
-    /// The PNG of the Catalogue open on the pierce PDC's category.
+    /// The PNG of the Catalogue open on the kinetic PDC's category.
     const CATALOGUE_SHOT: &str = "sandbox-catalogue.png";
     /// The PNG of the Catalogue as it opens, on every part the station
     /// builds: each tile's name, kind and price line inside the tile.
@@ -1050,10 +1050,10 @@ mod smoke {
         design.get(&id.0).map(|section| section.position)
     }
 
-    /// Where the placed pierce PDC stands, once the add selected it.
+    /// Where the placed kinetic PDC stands, once the add selected it.
     fn placed_position(world: &World) -> Option<Vec3> {
         let section = world.resource::<ShipRuntime>().selected()?;
-        if built_part(world, section).as_deref() != Some(PDC_PIERCE_TURRET_SECTION_ID) {
+        if built_part(world, section).as_deref() != Some(PDC_KINETIC_TURRET_SECTION_ID) {
             return None;
         }
         design_position(world, section)
@@ -1743,7 +1743,7 @@ mod smoke {
             .add();
         let script = take_the_part(
             script,
-            PDC_PIERCE_TURRET_SECTION_ID,
+            PDC_KINETIC_TURRET_SECTION_ID,
             Some(CATALOGUE_ALL_SHOT),
             CATALOGUE_SHOT,
         );
@@ -1777,7 +1777,7 @@ mod smoke {
             .on_enter(release_action("ship_part_roll"))
             .until(frames(2))
             .add()
-            // The pierce PDC mounts by one socket, so F leaves it in place;
+            // The kinetic PDC mounts by one socket, so F leaves it in place;
             // the frame after it shows the view did not tilt.
             .step("station sandbox: press the socket key")
             .on_enter(press_action("ship_part_socket"))

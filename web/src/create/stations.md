@@ -196,8 +196,8 @@ cannot be paid.
 | events | `OnSwapped` and one `OnCreditsChanged` per party with `cause: Swap`, see [Hold events](../events/#hold-events) |
 
 The proof is `system_station_swap`: a ship docks, a thruster swap for a PDC is
-refused, a damaged and rebound PDC is swapped for the pierce PDC, and the new
-part keeps its binding and its health across a freeze and thaw.
+refused, a damaged and rebound PDC is swapped for the twin kinetic PDC, and
+the new part keeps its binding and its health across a freeze and thaw.
 
 ## Add
 

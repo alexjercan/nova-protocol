@@ -209,7 +209,7 @@ fn player_ship(sections: &GameSections) -> SpaceshipConfig {
                 section("drive", BASIC_THRUSTER_SECTION_ID, Vec3::Z, Quat::IDENTITY),
                 section(
                     LOST_PDC,
-                    PDC_PIERCE_TURRET_SECTION_ID,
+                    PDC_KINETIC_TURRET_SECTION_ID,
                     Vec3::new(0.0, 0.75, 0.0),
                     Quat::IDENTITY,
                 ),
@@ -217,7 +217,7 @@ fn player_ship(sections: &GameSections) -> SpaceshipConfig {
                 // against the controller's starboard face.
                 section(
                     KEPT_PDC,
-                    PDC_PIERCE_TURRET_SECTION_ID,
+                    PDC_KINETIC_TURRET_SECTION_ID,
                     Vec3::new(0.75, 0.0, 0.0),
                     Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2),
                 ),

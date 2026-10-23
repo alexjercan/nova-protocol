@@ -11,29 +11,29 @@
 //! Then the player selects `pdc_a` in the Ship pane and opens the Catalogue.
 //! A click on the Map tab closes the catalogue and its camera, and it stays
 //! closed back on the Ship pane. The player selects `pdc_a` again, opens the
-//! Catalogue, clicks the pierce PDC's tile and Swap on its card. The hold
-//! covers the recipe's panels and actuator; the turret body and barrel are
-//! bought from the station at ask. Then the player undocks and the hull is
+//! Catalogue, clicks the twin kinetic PDC's tile and Swap on its card. The hold
+//! covers the recipe's panels and actuator; the turret body and the two
+//! barrels, one per muzzle, are bought from the station at ask. Then the player undocks and the hull is
 //! frozen and thawed the way a retiring cell does it.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 0 | `outcome: a tab switch closes the catalogue and its camera` | on the Map tab and back on the Ship pane: no catalogue camera, no gallery host, the gallery state is closed |
 //! | 1 | `outcome: a cross-family swap is refused` | the note names both kinds; the design, the section, the holds and the balances are as they were |
-//! | 2 | `outcome: a section is swapped at a station` | `pdc_a` is a pierce PDC at full health under its old code and its rebound key; the design is inline and names the new prototype; the parts and the price moved; `OnSwapped` fired once |
-//! | 3 | `outcome: a swapped section survives a freeze and thaw` | the thawed hull has `pdc_a` as a pierce PDC at full health on the same key |
+//! | 2 | `outcome: a section is swapped at a station` | `pdc_a` is a twin kinetic PDC at full health under its old code and its rebound key; the design is inline and names the new prototype; the parts and the price moved; `OnSwapped` fired once |
+//! | 3 | `outcome: a swapped section survives a freeze and thaw` | the thawed hull has `pdc_a` as a twin kinetic PDC at full health on the same key |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example system_station_swap --features debug
 //! # look for: `station swap probe: a tab switch closed the catalogue`,
 //! #           `station swap probe: refused pdc_a for a thruster`,
-//! #           `station swap probe: swapped pdc_a for the pierce PDC`,
+//! #           `station swap probe: swapped pdc_a for the twin kinetic PDC`,
 //! #           `station swap probe: pdc_a survives the freeze and thaw`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the swap offer, the
-//! pierce PDC's card in the catalogue gallery, as `station-swap-offer.png`.
+//! twin kinetic PDC's card in the catalogue gallery, as `station-swap-offer.png`.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -71,6 +71,9 @@ const SWAPPED_PDC: &str = "pdc_a";
 const KEPT_PDC: &str = "pdc_b";
 const SWAPPED_CODE: &str = "PDC-1";
 
+/// The swap target. `nova_ship` exports no id for it: fixture ids stay local.
+const PDC_TWIN_KINETIC_TURRET_SECTION_ID: &str = "pdc_twin_kinetic_turret_section";
+
 /// The key `pdc_a` is authored on, and the key the player rebinds it to
 /// before the swap: the new part must fly on the rebound one.
 const AUTHORED_KEY: KeyCode = KeyCode::KeyV;
@@ -79,19 +82,20 @@ const REBOUND_KEY: KeyCode = KeyCode::KeyB;
 /// The health `pdc_a` is left at before the swap; the new part spawns whole.
 const DAMAGED_HEALTH: f32 = 40.0;
 
-/// The player's balance and the parts the hold starts with: the pierce PDC
-/// recipe's two panels and its actuator. The station sells the body and the
-/// barrel.
+/// The player's balance and the parts the hold starts with: the twin kinetic
+/// PDC recipe's two panels and its actuator. The station sells the body and
+/// the two barrels.
 const PLAYER_CREDITS: u32 = 1_000;
 const HOLD_PANELS: u32 = 2;
 const HOLD_ACTUATORS: u32 = 1;
 
-/// The pierce PDC recipe's work and the station's ask for the two bought
-/// parts.
+/// The twin kinetic PDC recipe's work and the station's ask for the bought
+/// parts: one body and one barrel per muzzle.
 const RECIPE_CREDITS: u32 = 100;
 const BODY_ASK: u32 = 200;
 const BARREL_ASK: u32 = 60;
-const PRICE: u32 = RECIPE_CREDITS + BODY_ASK + BARREL_ASK;
+const BARRELS_BOUGHT: u32 = 2;
+const PRICE: u32 = RECIPE_CREDITS + BODY_ASK + BARRELS_BOUGHT * BARREL_ASK;
 
 /// Item ids the recipe names.
 const PANEL: &str = "SectionPanel";
@@ -703,14 +707,14 @@ mod walk {
         );
     }
 
-    /// The pierce PDC's tile in the catalogue gallery, named by its
+    /// The twin kinetic PDC's tile in the catalogue gallery, named by its
     /// catalogue name.
-    fn pierce_tile(world: &World) -> String {
+    fn twin_kinetic_tile(world: &World) -> String {
         let sections = world.resource::<GameSections>();
-        let pierce = sections
-            .get_section(PDC_PIERCE_TURRET_SECTION_ID)
-            .expect("station swap: the catalogue lists the pierce PDC");
-        format!("Gallery Tile {}", pierce.base.name)
+        let twin_kinetic = sections
+            .get_section(PDC_TWIN_KINETIC_TURRET_SECTION_ID)
+            .expect("station swap: the catalogue lists the twin kinetic PDC");
+        format!("Gallery Tile {}", twin_kinetic.base.name)
     }
 
     fn pdc_selected(world: &World) -> bool {
@@ -775,13 +779,13 @@ mod walk {
         );
         assert_eq!(
             resolved_part(world, player, SWAPPED_PDC),
-            PDC_PIERCE_TURRET_SECTION_ID,
-            "station swap probe: the design resolves pdc_a to the pierce PDC"
+            PDC_TWIN_KINETIC_TURRET_SECTION_ID,
+            "station swap probe: the design resolves pdc_a to the twin kinetic PDC"
         );
         assert_eq!(
             authored_part(world, player, SWAPPED_PDC).as_deref(),
-            Some(PDC_PIERCE_TURRET_SECTION_ID),
-            "station swap probe: the owned inline design names the pierce PDC"
+            Some(PDC_TWIN_KINETIC_TURRET_SECTION_ID),
+            "station swap probe: the owned inline design names the twin kinetic PDC"
         );
         assert_eq!(
             authored_part(world, player, KEPT_PDC).as_deref(),
@@ -819,7 +823,10 @@ mod walk {
             "station swap probe: the price reaches the station"
         );
         assert_eq!(held(world, station, BODY), station_bodies - 1);
-        assert_eq!(held(world, station, BARREL), station_barrels - 1);
+        assert_eq!(
+            held(world, station, BARREL),
+            station_barrels - BARRELS_BOUGHT
+        );
 
         let watch = world.resource::<SwapWatch>();
         let swapped = watch.named("onswapped");
@@ -828,11 +835,11 @@ mod walk {
         assert_eq!(event["id"], PLAYER_ID);
         assert_eq!(event["section"], SWAPPED_CODE);
         assert_eq!(event["from"], PDC_KINETIC_TURRET_SECTION_ID);
-        assert_eq!(event["to"], PDC_PIERCE_TURRET_SECTION_ID);
+        assert_eq!(event["to"], PDC_TWIN_KINETIC_TURRET_SECTION_ID);
         assert_eq!(event["price_cr"], PRICE);
         assert_eq!(
             event["parts"],
-            serde_json::json!({ ACTUATOR: 1, PANEL: 2, BARREL: 1, BODY: 1 })
+            serde_json::json!({ ACTUATOR: 1, PANEL: 2, BARREL: BARRELS_BOUGHT, BODY: 1 })
         );
         let causes: Vec<String> = watch
             .named("oncreditschanged")
@@ -846,7 +853,7 @@ mod walk {
         );
 
         let elapsed = world.resource::<Time>().elapsed_secs();
-        info!("station swap probe: swapped pdc_a for the pierce PDC for {PRICE} cr");
+        info!("station swap probe: swapped pdc_a for the twin kinetic PDC for {PRICE} cr");
         nova_probe::probe_marker(
             world,
             "outcome: a section is swapped at a station",
@@ -906,7 +913,7 @@ mod walk {
         })
     }
 
-    /// Claim 3: the thawed hull has `pdc_a` as the pierce PDC, whole and on
+    /// Claim 3: the thawed hull has `pdc_a` as the twin kinetic PDC, whole and on
     /// its key.
     fn assert_the_thaw(world: &mut World) {
         let player = player(world);
@@ -914,8 +921,8 @@ mod walk {
             .expect("station swap probe: the thawed hull has pdc_a");
         assert_eq!(
             resolved_part(world, player, SWAPPED_PDC),
-            PDC_PIERCE_TURRET_SECTION_ID,
-            "station swap probe: the thawed pdc_a must be the pierce PDC"
+            PDC_TWIN_KINETIC_TURRET_SECTION_ID,
+            "station swap probe: the thawed pdc_a must be the twin kinetic PDC"
         );
         assert!(
             full_health(world, pdc),
@@ -1053,12 +1060,12 @@ mod walk {
             ui_node_present("Gallery Grid"),
             SESSION_SECS,
         )
-        .step("station swap: press the pierce PDC's tile")
-        .on_enter(|world: &mut World| click_named(pierce_tile(world))(world))
+        .step("station swap: press the twin kinetic PDC's tile")
+        .on_enter(|world: &mut World| click_named(twin_kinetic_tile(world))(world))
         .until(pointer_pressed())
         .deadline(SESSION_SECS)
         .add()
-        .step("station swap: release the pierce PDC's tile")
+        .step("station swap: release the twin kinetic PDC's tile")
         .on_enter(release_mouse(MouseButton::Left))
         .until(ui_node_present("Gallery Alternate Button"))
         .deadline(SESSION_SECS)
@@ -1072,7 +1079,7 @@ mod walk {
         .deadline(SHOT_DEADLINE_SECS)
         .add()
         .click_named(
-            "station swap: swap pdc_a for the pierce PDC",
+            "station swap: swap pdc_a for the twin kinetic PDC",
             "Gallery Alternate Button",
             pdc_swapped(),
             SESSION_SECS,
