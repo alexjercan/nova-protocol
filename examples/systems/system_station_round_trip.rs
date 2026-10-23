@@ -157,11 +157,6 @@ mod walk {
 
     /// How far from the station the player parks before the berth.
     const PARK_DISTANCE: Meters = Meters(2_000.0);
-    /// The gap the berth leaves between the two port faces, engine units:
-    /// half a cell, inside the 10 m capture distance.
-    const BERTH_GAP: f32 = 0.5;
-    /// Where a port's face sits in its own frame, as the docking verb reads it.
-    const PORT_FACE: Vec3 = Vec3::new(0.0, 0.0, -0.5);
 
     /// How far a station may stand from a pose it was read at, in meters, on
     /// top of what its own velocity carries it over the seconds between.
@@ -690,13 +685,12 @@ mod walk {
         let player_port = free_port(world, player);
         let pose = pose_of(world, station);
         let (port_at, port_rot) = local_pose(world, station_port, station);
-        let station_face_rot = pose.rotation * port_rot;
-        let station_face = pose.position + pose.rotation * port_at + station_face_rot * PORT_FACE;
-        let station_axis = station_face_rot * Vec3::NEG_Z;
         let (own_at, own_rot) = local_pose(world, player_port, player);
-        let rotation = Quat::from_rotation_arc((own_rot * Vec3::NEG_Z).normalize(), -station_axis);
-        let face_offset = rotation * own_at + rotation * own_rot * PORT_FACE;
-        let position = station_face + station_axis * BERTH_GAP - face_offset;
+        let (position, rotation) = parked_hull_pose(
+            (pose.position, pose.rotation),
+            (port_at, port_rot),
+            (own_at, own_rot),
+        );
         world.entity_mut(player).insert((
             Position(position),
             Rotation(rotation),

@@ -161,11 +161,6 @@ mod walk {
 
     /// How far from a target the player parks before the berth.
     const PARK_DISTANCE: Meters = Meters(2_000.0);
-    /// The gap the berth leaves between the two port faces, engine units:
-    /// half a cell, inside the 10 m capture distance.
-    const BERTH_GAP: f32 = 0.5;
-    /// Where a port's face sits in its own frame, as the docking verb reads it.
-    const PORT_FACE: Vec3 = Vec3::new(0.0, 0.0, -0.5);
     /// How many cells past the active radius the crossing lands from the
     /// wreck, so its cell retires.
     const CROSSING_MARGIN: i32 = 2;
@@ -593,13 +588,9 @@ mod walk {
             .get::<AngularVelocity>(target)
             .map_or(Vec3::ZERO, |w| w.0);
         let (port_at, port_rot) = local_pose(world, target_port, target);
-        let face_rot = rotation * port_rot;
-        let face = position + rotation * port_at + face_rot * PORT_FACE;
-        let axis = face_rot * Vec3::NEG_Z;
         let (own_at, own_rot) = local_pose(world, player_port, player);
-        let turn = Quat::from_rotation_arc((own_rot * Vec3::NEG_Z).normalize(), -axis);
-        let face_offset = turn * own_at + turn * own_rot * PORT_FACE;
-        let at = face + axis * BERTH_GAP - face_offset;
+        let (at, turn) =
+            parked_hull_pose((position, rotation), (port_at, port_rot), (own_at, own_rot));
         world.entity_mut(player).insert((
             Position(at),
             Rotation(turn),

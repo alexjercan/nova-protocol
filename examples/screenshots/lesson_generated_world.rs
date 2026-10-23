@@ -105,17 +105,6 @@ const LIVE_SECTORS: usize = 125;
 #[cfg(feature = "debug")]
 const SESSION_SECS: f32 = 90.0;
 
-/// The gap between the two retracted port faces: half the shipped 10 m
-/// capture distance.
-#[cfg(feature = "debug")]
-const BERTH_GAP: Meters = Meters(5.0);
-
-/// Where a retracted port's mouth sits in its own frame: half a cell along
-/// the section's outward axis, local -Z. The docking section's own constant is
-/// crate-private.
-#[cfg(feature = "debug")]
-const PORT_FACE: Vec3 = Vec3::new(0.0, 0.0, -0.5);
-
 /// Cells of the sheet on the docked pane before the first click.
 #[cfg(feature = "debug")]
 const TAKE_LEAD_CELLS: u32 = 2;
@@ -252,24 +241,26 @@ fn pick_the_wreck(world: &mut World) {
     });
 }
 
-/// The working docking ports of `ship`, ordered by their cell in the hull so
-/// the choice is stable across runs: every port carries the same `Name`.
+/// The working docking ports of `ship`, each port's pose in the hull's frame,
+/// ordered by their cell in the hull so the choice is stable across runs:
+/// every port carries the same `Name`.
 #[cfg(feature = "debug")]
-fn ports_of(world: &mut World, ship: Entity) -> Vec<(Vec3, GlobalTransform)> {
-    let mut ports: Vec<(Vec3, GlobalTransform)> = world
-        .query_filtered::<(&ChildOf, &Transform, &GlobalTransform), (
+fn ports_of(world: &mut World, ship: Entity) -> Vec<Transform> {
+    let mut ports: Vec<Transform> = world
+        .query_filtered::<(&ChildOf, &Transform), (
             With<DockingSectionMarker>,
             Without<SectionInactiveMarker>,
         )>()
         .iter(world)
-        .filter(|(parent, ..)| parent.parent() == ship)
-        .map(|(_, cell, at)| (cell.translation, *at))
+        .filter(|(parent, _)| parent.parent() == ship)
+        .map(|(_, cell)| *cell)
         .collect();
     ports.sort_by(|a, b| {
-        a.0.x
-            .total_cmp(&b.0.x)
-            .then(a.0.y.total_cmp(&b.0.y))
-            .then(a.0.z.total_cmp(&b.0.z))
+        a.translation
+            .x
+            .total_cmp(&b.translation.x)
+            .then(a.translation.y.total_cmp(&b.translation.y))
+            .then(a.translation.z.total_cmp(&b.translation.z))
     });
     ports
 }
@@ -280,26 +271,23 @@ fn ports_of(world: &mut World, ship: Entity) -> Vec<(Vec3, GlobalTransform)> {
 fn berth_beside_the_wreck(world: &mut World) {
     let wreck = world.resource::<Wreck>().clone();
     let player = the_player(world).expect("generated world: exactly one player ship");
-    let (wreck_port, wreck_at) = ports_of(world, wreck.entity)
+    let wreck_port = ports_of(world, wreck.entity)
         .into_iter()
         .next()
         .unwrap_or_else(|| panic!("generated world: '{}' has no docking port", wreck.name));
-    let (player_port, player_at) = ports_of(world, player)
+    let player_port = ports_of(world, player)
         .into_iter()
         .next()
         .expect("generated world: the player ship has a docking port");
-    let root = *world
-        .get::<GlobalTransform>(player)
-        .expect("generated world: the player ship has a transform");
-
-    // Engine boundary: a transform counts world units, the gap is meters.
-    let wreck_axis = wreck_at.rotation() * Vec3::NEG_Z;
-    let target_face = wreck_at.transform_point(PORT_FACE) + wreck_axis * BERTH_GAP.to_engine();
-    let to_root = root.affine().inverse();
-    let local_face = to_root.transform_point3(player_at.transform_point(PORT_FACE));
-    let local_axis = (root.rotation().inverse() * player_at.rotation()) * Vec3::NEG_Z;
-    let rotation = Quat::from_rotation_arc(local_axis, -wreck_axis);
-    let translation = target_face - rotation * local_face;
+    let wreck_root = world
+        .get::<GlobalTransform>(wreck.entity)
+        .expect("generated world: the wreck has a transform")
+        .compute_transform();
+    let (translation, rotation) = parked_hull_pose(
+        (wreck_root.translation, wreck_root.rotation),
+        (wreck_port.translation, wreck_port.rotation),
+        (player_port.translation, player_port.rotation),
+    );
 
     let mut ship = world.entity_mut(player);
     if let Some(mut transform) = ship.get_mut::<Transform>() {
@@ -328,9 +316,8 @@ fn berth_beside_the_wreck(world: &mut World) {
     }
     world.insert_resource(HoldBerth);
     info!(
-        "generated world: berthed the port at cell {player_port} against '{}' port at cell \
-         {wreck_port}",
-        wreck.name
+        "generated world: berthed the port at cell {} against '{}' port at cell {}",
+        player_port.translation, wreck.name, wreck_port.translation
     );
 }
 

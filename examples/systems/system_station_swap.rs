@@ -63,8 +63,8 @@ const STATION_TURN: f32 = std::f32::consts::FRAC_PI_2;
 
 /// Where the player's hull parks relative to the station, engine units: the
 /// turned collar's face stands 2.5 cells along +Z from the station origin and
-/// the player's port face 1.5 ahead of its hull origin, half a cell apart.
-const BERTH_OFFSET: Vec3 = Vec3::new(0.0, 0.0, 4.5);
+/// the player's port face 1.5 ahead of its hull origin, [`BERTH_GAP`] apart.
+const BERTH_OFFSET: Vec3 = Vec3::new(0.0, 0.0, 4.0 + BERTH_GAP);
 
 /// The PDC the player swaps, and its sibling.
 const SWAPPED_PDC: &str = "pdc_a";

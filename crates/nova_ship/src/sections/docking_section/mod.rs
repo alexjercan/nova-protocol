@@ -65,7 +65,7 @@ pub mod prelude {
         DockingConnectionRequest, DockingEnvelope, DockingHelmRequest, DockingPair, DockingPorts,
         DockingReleaseRequest, DockingSectionConfig, DockingSectionConfigHelper,
         DockingSectionMarker, DockingSectionPlugin, DockingSectionState, DockingSystems, PortPose,
-        StationDock, StationDocks, UndockSeparation,
+        StationDock, StationDocks, UndockSeparation, BERTH_GAP,
     };
 }
 

@@ -105,11 +105,6 @@ const STATION_READY: &str = "ready";
 #[cfg(feature = "debug")]
 const STATION_YAW_DEG: f32 = 180.0;
 
-/// The gap between the two port faces at the berth, engine units: half a
-/// cell, inside the one-cell capture distance.
-#[cfg(feature = "debug")]
-const BERTH_GAP: f32 = 0.5;
-
 /// How close a teleported hull must settle to its berth before a dock is
 /// asked for, engine units, and how slow it must be.
 #[cfg(feature = "debug")]

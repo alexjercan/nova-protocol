@@ -66,9 +66,9 @@ const STATION_TURN: f32 = std::f32::consts::FRAC_PI_2;
 /// Where the player's hull parks relative to a station, engine units: the
 /// turned collar's face stands 2.5 cells along +Z from the station origin;
 /// the player's port is the cell ahead of its controller, facing -Z, so its
-/// face sits 1.5 ahead of the hull origin. Half a cell of gap between the two
-/// faces, inside the one-cell capture distance.
-const BERTH_OFFSET: Vec3 = Vec3::new(0.0, 0.0, 4.5);
+/// face sits 1.5 ahead of the hull origin. [`BERTH_GAP`] between the two
+/// faces.
+const BERTH_OFFSET: Vec3 = Vec3::new(0.0, 0.0, 4.0 + BERTH_GAP);
 
 /// The script type, named once so the step list and its helpers agree.
 #[cfg(feature = "debug")]

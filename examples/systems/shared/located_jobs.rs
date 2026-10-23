@@ -131,10 +131,6 @@ const JOBS_TAB: &str = "InterfaceTabJobs";
 
 /// How far from a hull the player parks before the berth.
 const PARK_DISTANCE: Meters = Meters(2_000.0);
-/// The gap the berth leaves between the two port faces, engine units.
-const BERTH_GAP: f32 = 0.5;
-/// Where a port's face sits in its own frame, as the docking verb reads it.
-const PORT_FACE: Vec3 = Vec3::new(0.0, 0.0, -0.5);
 /// How far short of its mark the walk sets the hauler down, engine units,
 /// so the leg ends in frames rather than minutes on a software GPU.
 const HAULER_DROP_SHORT: f32 = 15.0;
@@ -571,13 +567,12 @@ fn berth_and_dock(world: &mut World, target: Entity) {
     };
     let (target_at, target_rot, target_velocity, target_spin) = body(target);
     let (port_at, port_rot) = local_pose(world, target_port, target);
-    let target_face_rot = target_rot * port_rot;
-    let target_face = target_at + target_rot * port_at + target_face_rot * PORT_FACE;
-    let target_axis = target_face_rot * Vec3::NEG_Z;
     let (own_at, own_rot) = local_pose(world, player_port, player);
-    let rotation = Quat::from_rotation_arc((own_rot * Vec3::NEG_Z).normalize(), -target_axis);
-    let face_offset = rotation * own_at + rotation * own_rot * PORT_FACE;
-    let position = target_face + target_axis * BERTH_GAP - face_offset;
+    let (position, rotation) = parked_hull_pose(
+        (target_at, target_rot),
+        (port_at, port_rot),
+        (own_at, own_rot),
+    );
     world.entity_mut(player).insert((
         Position(position),
         Rotation(rotation),

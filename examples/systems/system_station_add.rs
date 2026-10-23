@@ -329,11 +329,6 @@ mod walk {
             .collect();
         info!("station add: tabs after the add, pane {pane:?}: {rows:?}");
     }
-    /// Gap between the two port faces on the berth, engine units.
-    const BERTH_GAP: f32 = 0.5;
-    /// Where a port's face sits in its own frame, as the docking verb reads it.
-    const PORT_FACE: Vec3 = Vec3::new(0.0, 0.0, -0.5);
-
     /// The point a round adds at, picked by the pane's own rule.
     #[derive(Clone, Debug)]
     struct Target {
@@ -598,13 +593,12 @@ mod walk {
             .expect("a hull has a rotation")
             .0;
         let (port_at, port_rot) = local_pose(world, station_port, station);
-        let station_face_rot = station_rot * port_rot;
-        let station_face = station_at + station_rot * port_at + station_face_rot * PORT_FACE;
-        let station_axis = station_face_rot * Vec3::NEG_Z;
         let (own_at, own_rot) = local_pose(world, player_port, player);
-        let rotation = Quat::from_rotation_arc((own_rot * Vec3::NEG_Z).normalize(), -station_axis);
-        let face_offset = rotation * own_at + rotation * own_rot * PORT_FACE;
-        let position = station_face + station_axis * BERTH_GAP - face_offset;
+        let (position, rotation) = parked_hull_pose(
+            (station_at, station_rot),
+            (port_at, port_rot),
+            (own_at, own_rot),
+        );
         world.entity_mut(player).insert((
             Position(position),
             Rotation(rotation),

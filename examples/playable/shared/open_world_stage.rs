@@ -20,13 +20,6 @@ use bevy::prelude::*;
 use nova_protocol::prelude::*;
 use nova_world::prelude::{desired_sectors, SectorRoot, WorldClock, WorldConfig};
 
-/// The gap a berth leaves between the two port faces, engine units: half a
-/// cell, inside the 10 m capture distance.
-const BERTH_GAP: f32 = 0.5;
-
-/// Where a port's face sits in its own frame, as the docking verb reads it.
-const PORT_FACE: Vec3 = Vec3::new(0.0, 0.0, -0.5);
-
 /// Point this run's settings and saves at a folder of its own under
 /// `target/example-profiles/`, so no player's saved world is in the way and
 /// nothing this run does touches it. Call it first in `main`.
@@ -421,13 +414,8 @@ pub fn berth_and_dock(world: &mut World, ship: Entity, target: Entity) {
         .get::<AngularVelocity>(target)
         .map_or(Vec3::ZERO, |w| w.0);
     let (port_at, port_rot) = local_pose(world, target_port, target);
-    let target_face_rot = rotation * port_rot;
-    let target_face = position + rotation * port_at + target_face_rot * PORT_FACE;
-    let target_axis = target_face_rot * Vec3::NEG_Z;
     let (own_at, own_rot) = local_pose(world, own_port, ship);
-    let turn = Quat::from_rotation_arc((own_rot * Vec3::NEG_Z).normalize(), -target_axis);
-    let face_offset = turn * own_at + turn * own_rot * PORT_FACE;
-    let at = target_face + target_axis * BERTH_GAP - face_offset;
+    let (at, turn) = parked_hull_pose((position, rotation), (port_at, port_rot), (own_at, own_rot));
     world.entity_mut(ship).insert((
         Position(at),
         Rotation(turn),

@@ -101,12 +101,6 @@ const DEPOT_STOCK: &[(&str, u32)] = &[("Rations", 10), ("SalvagedParts", 2)];
 const DEPOT_CREDITS: u32 = 5_000;
 const HAULER_STOCK: &[(&str, u32)] = &[(ItemRoleType::HullPlate.id(), 4), ("SalvagedParts", 1)];
 
-/// The gap the berth leaves between two port faces, engine units: half a
-/// cell, inside the 10 m capture distance.
-const BERTH_GAP: f32 = 0.5;
-/// Where a port's face sits in its own frame, as the docking verb reads it.
-const PORT_FACE: Vec3 = Vec3::new(0.0, 0.0, -0.5);
-
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
     let mut app = AppBuilder::new().with_game_plugins(storage_plugin).build();
@@ -370,14 +364,10 @@ fn berth_and_dock(world: &mut World, ship: Entity, depot: Entity) {
         return;
     };
     let (port_at, port_rot) = local_pose(world, depot_port, depot);
-    let face_rot = rotation * port_rot;
-    let face = position + rotation * port_at + face_rot * PORT_FACE;
-    let axis = face_rot * Vec3::NEG_Z;
     let (own_at, own_rot) = local_pose(world, ship_port, ship);
-    let turn = Quat::from_rotation_arc((own_rot * Vec3::NEG_Z).normalize(), -axis);
-    let face_offset = turn * own_at + turn * own_rot * PORT_FACE;
+    let (at, turn) = parked_hull_pose((position, rotation), (port_at, port_rot), (own_at, own_rot));
     world.entity_mut(ship).insert((
-        Position(face + axis * BERTH_GAP - face_offset),
+        Position(at),
         Rotation(turn),
         LinearVelocity::ZERO,
         AngularVelocity::ZERO,
