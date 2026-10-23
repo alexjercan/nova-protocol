@@ -52,8 +52,12 @@
 //! waits for the start to dock it at its starting station, lets go of the
 //! dock, jettisons one unit of the kit's first item as the Inventory pane's
 //! Jettison applies its plan, waits for the panel to log it, and shoots
-//! `start-role-<role>.png` with `NOVA_CAPTURE=1`. Unset, no walk and no
-//! deadline run.
+//! `start-role-<role>.png` with `NOVA_CAPTURE=1`. The `military` walk, while
+//! still docked, also prices a kinetic PDC against the station's stock as the
+//! Catalogue does, adds one at a free socket through the Ship pane's add
+//! command, and checks the 480 cr and the four parts moved from the start
+//! station: the station stocks one recipe of every part it builds, and the
+//! poorest start can buy one. Unset, no walk and no deadline run.
 
 #[path = "shared/open_world_stage.rs"]
 mod open_world_stage;
@@ -63,7 +67,7 @@ use bevy::prelude::*;
 use clap::Parser;
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
 use nova_protocol::{nova_debug::diagnostics, prelude::*};
-use open_world_stage::{cell_of, the_player, window_settled, OpenWorldStartPlugin};
+use open_world_stage::{body_by_id, cell_of, the_player, window_settled, OpenWorldStartPlugin};
 
 #[derive(Parser)]
 #[command(name = "start_role_sandbox")]
@@ -112,7 +116,7 @@ fn main() -> bevy::app::AppExit {
         role: role.clone(),
     });
     app.insert_resource(Sandbox {
-        role,
+        role: role.clone(),
         start_km,
         phase: SandboxPhaseType::Streaming,
     });
@@ -153,8 +157,10 @@ fn main() -> bevy::app::AppExit {
             Startup,
             nova_protocol::nova_debug::harness::force_capture_resolution,
         );
+        app.init_resource::<smoke::RefitLog>();
+        app.add_observer(smoke::note_an_add);
     }
-    app.add_plugins(smoke::script(&shot));
+    app.add_plugins(smoke::script(&shot, &role));
 
     app.run()
 }
@@ -522,9 +528,16 @@ fn draw_the_intakes(
 }
 
 mod smoke {
-    use std::{collections::BTreeMap, sync::Arc};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        sync::Arc,
+    };
 
-    use nova_protocol::nova_debug::harness::{shoot, AutopilotPlugin};
+    use nova_protocol::{
+        nova_debug::harness::{shoot, AutopilotPlugin},
+        nova_events::engine::GameEvent,
+        nova_interface::ship::{SectionAddCommand, ShipRuntime},
+    };
 
     use super::*;
 
@@ -539,6 +552,26 @@ mod smoke {
     const JETTISON_SECS: f32 = 120.0;
     /// Seconds the player gets to let go of its starting station.
     const UNDOCK_SECS: f32 = 120.0;
+    /// The role whose walk buys a kinetic PDC at the start: its 1000 cr are
+    /// the least of the six roles.
+    const REFIT_ROLE: &str = "military";
+    /// The kinetic PDC's add price at the start: 100 cr of work, a 200 cr
+    /// turret body, a 60 cr barrel, an 80 cr actuator pack and two 20 cr
+    /// section panels, every part bought from the station at ask.
+    const KINETIC_PDC_PRICE_CR: u32 = 480;
+    /// The parts the add buys from the station: the start kit carries none.
+    const KINETIC_PDC_BOUGHT: [(&str, u32); 4] = [
+        ("ActuatorPack", 1),
+        ("SectionPanel", 2),
+        ("TurretBarrel", 1),
+        ("TurretBody", 1),
+    ];
+    /// Seconds the add gets to report.
+    const ADD_SECS: f32 = 120.0;
+    /// Frames an asked add gets to put its section in the design before the
+    /// walk reads it as refused and asks at the next socket: the Ship pane
+    /// applies one add command a frame.
+    const ADD_FRAMES: u32 = 5;
 
     fn ready(world: &World) -> bool {
         world
@@ -604,6 +637,318 @@ mod smoke {
             "start role sandbox: PASS '{id}' started as '{}' with {credits} cr and {held:?} in \
              cell {cell:?}",
             role.hull
+        );
+    }
+
+    /// What the refit beat recorded: both balances and the station's stock of
+    /// the bought parts before the add, the kinetic PDCs the design had, the
+    /// free sockets the kinetic PDC fits at as (section id, socket id) with
+    /// how many were asked and the step frame of the last ask, and the
+    /// `OnAdded` event payload the add fired.
+    #[derive(Resource, Default, Debug)]
+    pub(super) struct RefitLog {
+        player_cr: u32,
+        station_cr: u32,
+        stocked: BTreeMap<ItemDesignId, u32>,
+        pdcs: usize,
+        sockets: Vec<(String, String)>,
+        asked: usize,
+        asked_at: u32,
+        added: Option<serde_json::Value>,
+    }
+
+    /// Record the `OnAdded` event the add fires, as a run recorder would.
+    pub(super) fn note_an_add(event: On<GameEvent>, mut log: ResMut<RefitLog>) {
+        if event.name() != "onadded" {
+            return;
+        }
+        let data = event.info().data.clone().unwrap_or_default();
+        info!("start role sandbox: onadded {data}");
+        log.added = Some(data);
+    }
+
+    /// The station the start docked the player at.
+    fn the_start_station(world: &mut World) -> Entity {
+        let id = world.resource::<OpenWorldSession>().start.id.clone();
+        body_by_id(world, &id)
+            .unwrap_or_else(|| panic!("start role sandbox: the starting station '{id}' stands"))
+    }
+
+    /// The player's kinetic PDC sections, by its design.
+    fn kinetic_pdcs(world: &World, player: Entity) -> usize {
+        world
+            .get::<ShipDesignSections>(player)
+            .expect("start role sandbox: the player carries its design")
+            .0
+            .iter()
+            .filter(|section| section.config.base.id == PDC_KINETIC_TURRET_SECTION_ID)
+            .count()
+    }
+
+    /// Every free socket of a live section the kinetic PDC fits at, by the
+    /// Ship pane's own rule, in design order, as (section id, socket id).
+    fn kinetic_pdc_sockets(
+        world: &World,
+        player: Entity,
+        offered: &SectionConfig,
+    ) -> Vec<(String, String)> {
+        let live: BTreeSet<&str> = world
+            .get::<Children>(player)
+            .into_iter()
+            .flatten()
+            .filter(|child| world.get::<SectionMarker>(**child).is_some())
+            .filter_map(|child| world.get::<EntityId>(*child).map(|id| id.0.as_str()))
+            .collect();
+        let design = world
+            .get::<ShipDesignSections>(player)
+            .expect("start role sandbox: the player carries its design");
+        let placed: Vec<RefitPlacedSection<'_>> = design
+            .0
+            .iter()
+            .map(|section| RefitPlacedSection {
+                position: section.position,
+                rotation: section.rotation,
+                config: &section.config,
+            })
+            .collect();
+        let live_indices: Vec<usize> = design
+            .0
+            .iter()
+            .enumerate()
+            .filter(|(_, section)| live.contains(section.id.as_str()))
+            .map(|(index, _)| index)
+            .collect();
+        let mut sockets = Vec::new();
+        for &index in &live_indices {
+            let section = &design.0[index];
+            for point in free_link_points(&placed, index) {
+                if section_add_fit(
+                    &placed,
+                    &live_indices,
+                    index,
+                    point,
+                    offered,
+                    MountPose::default(),
+                    &[],
+                )
+                .is_ok()
+                {
+                    sockets.push((
+                        section.id.clone(),
+                        section.config.base.link_points[point].id.clone(),
+                    ));
+                }
+            }
+        }
+        sockets
+    }
+
+    /// Ask the Ship pane to add the kinetic PDC at the next socket, as the
+    /// Add button raises the command, on step frame `frame`.
+    fn ask_at_the_next_socket(world: &mut World, frame: u32) {
+        let (section, point) = {
+            let mut log = world.resource_mut::<RefitLog>();
+            let asked = log.asked;
+            log.asked += 1;
+            log.asked_at = frame;
+            log.sockets.get(asked).cloned().unwrap_or_else(|| {
+                panic!(
+                    "start role sandbox: every free socket refused the kinetic PDC: {:?}",
+                    world.resource::<ShipRuntime>().note()
+                )
+            })
+        };
+        info!("start role sandbox: add the kinetic PDC at {section} {point}");
+        world.write_message(SectionAddCommand {
+            section,
+            point,
+            prototype: PDC_KINETIC_TURRET_SECTION_ID.to_string(),
+            mount: MountPose::default(),
+        });
+    }
+
+    /// Price the kinetic PDC against the start station's stock and the
+    /// player's hold, as the Catalogue tile does: the station sells every
+    /// part of it, for `KINETIC_PDC_PRICE_CR`. Record the sockets to ask at.
+    fn price_the_kinetic_pdc(world: &mut World) {
+        let player = the_player(world).expect("start role sandbox: one player ship");
+        let station = the_start_station(world);
+        let offered = world
+            .resource::<GameSections>()
+            .get_section(PDC_KINETIC_TURRET_SECTION_ID)
+            .expect("start role sandbox: the catalogue has the kinetic PDC")
+            .clone();
+        let stock = world
+            .get::<ShipInventory>(station)
+            .expect("start role sandbox: the start station carries a hold")
+            .clone();
+        let station_cr = world
+            .get::<ShipCredits>(station)
+            .expect("start role sandbox: the start station carries a balance")
+            .0;
+        let own = world
+            .get::<ShipInventory>(player)
+            .expect("start role sandbox: the player carries a hold")
+            .clone();
+        let player_cr = world
+            .get::<ShipCredits>(player)
+            .expect("start role sandbox: the player carries a balance")
+            .0;
+        let stocked: Vec<(String, u32)> = stock
+            .stacks()
+            .map(|(item, count)| (item.to_string(), count))
+            .collect();
+        let payment = plan_recipe_payment(
+            world.resource::<GameItems>(),
+            &offered.base.build,
+            &stock,
+            station_cr,
+            &own,
+            player_cr,
+        )
+        .unwrap_or_else(|refusal| {
+            panic!(
+                "start role sandbox: the start station cannot sell a kinetic PDC: {refusal:?}; \
+                 it stocks {stocked:?}, the player holds {:?} and {player_cr} cr",
+                own.stacks().collect::<Vec<_>>()
+            )
+        });
+        assert!(
+            payment.from_hold.is_empty(),
+            "start role sandbox: the start kit carries no recipe part: {:?}",
+            payment.from_hold
+        );
+        let bought: BTreeMap<&str, u32> = payment
+            .bought
+            .iter()
+            .map(|(item, count)| (item.as_str(), *count))
+            .collect();
+        assert_eq!(
+            bought,
+            BTreeMap::from(KINETIC_PDC_BOUGHT),
+            "start role sandbox: the add buys the whole recipe from the station"
+        );
+        assert_eq!(
+            payment.price_cr, KINETIC_PDC_PRICE_CR,
+            "start role sandbox: the kinetic PDC's price at the start"
+        );
+        info!(
+            "start role sandbox: the start station sells the kinetic PDC for {} cr, buying \
+             {bought:?} from its stock {stocked:?}; the player has {player_cr} cr",
+            payment.price_cr
+        );
+        let sockets = kinetic_pdc_sockets(world, player, &offered);
+        assert!(
+            !sockets.is_empty(),
+            "start role sandbox: the kinetic PDC fits at a free socket of the hull"
+        );
+        let pdcs = kinetic_pdcs(world, player);
+        let mut log = world.resource_mut::<RefitLog>();
+        log.player_cr = player_cr;
+        log.station_cr = station_cr;
+        log.stocked = payment
+            .bought
+            .keys()
+            .map(|item| (item.clone(), stock.count(item)))
+            .collect();
+        log.pdcs = pdcs;
+        log.sockets = sockets;
+    }
+
+    /// Ask at the first socket, then at the next whenever an ask has put no
+    /// kinetic PDC in the design within `ADD_FRAMES`: the Ship pane refused
+    /// it, with the reason on its note line. The station and the hulls parked
+    /// at it can crowd a socket the fit alone allows.
+    fn add_at_a_free_socket(world: &mut World, _elapsed: f32, frame: u32) {
+        let player = the_player(world).expect("start role sandbox: one player ship");
+        let log = world.resource::<RefitLog>();
+        if log.asked == 0 {
+            ask_at_the_next_socket(world, frame);
+            return;
+        }
+        if kinetic_pdcs(world, player) > log.pdcs || frame < log.asked_at + ADD_FRAMES {
+            return;
+        }
+        warn!(
+            "start role sandbox: the add was refused: {:?}",
+            world.resource::<ShipRuntime>().note()
+        );
+        ask_at_the_next_socket(world, frame);
+    }
+
+    fn add_reported(world: &World) -> bool {
+        world.resource::<RefitLog>().added.is_some()
+    }
+
+    /// The add moved exactly the priced parts and credits from the start
+    /// station to the player, and the player's design carries one more
+    /// kinetic PDC.
+    fn assert_the_add(world: &mut World) {
+        let player = the_player(world).expect("start role sandbox: one player ship");
+        let station = the_start_station(world);
+        let log = world.resource::<RefitLog>();
+        let added = log
+            .added
+            .as_ref()
+            .expect("start role sandbox: the add reported");
+        assert_eq!(
+            added["part"].as_str(),
+            Some(PDC_KINETIC_TURRET_SECTION_ID),
+            "start role sandbox: the added part: {added}"
+        );
+        assert_eq!(
+            added["price_cr"].as_u64(),
+            Some(u64::from(KINETIC_PDC_PRICE_CR)),
+            "start role sandbox: the price paid: {added}"
+        );
+        let player_cr = world
+            .get::<ShipCredits>(player)
+            .expect("start role sandbox: the player carries a balance")
+            .0;
+        let station_cr = world
+            .get::<ShipCredits>(station)
+            .expect("start role sandbox: the start station carries a balance")
+            .0;
+        assert_eq!(
+            player_cr,
+            log.player_cr - KINETIC_PDC_PRICE_CR,
+            "start role sandbox: the player paid the price"
+        );
+        assert_eq!(
+            station_cr,
+            log.station_cr + KINETIC_PDC_PRICE_CR,
+            "start role sandbox: the station earned the price"
+        );
+        let stock = world
+            .get::<ShipInventory>(station)
+            .expect("start role sandbox: the start station carries a hold");
+        let mut moved = Vec::new();
+        for (item, count) in KINETIC_PDC_BOUGHT {
+            let item = ItemDesignId::from(item);
+            let before = log.stocked[&item];
+            let after = stock.count(&item);
+            assert_eq!(
+                after + count,
+                before,
+                "start role sandbox: the station sold {count} {item}: {before} -> {after}"
+            );
+            moved.push((item.to_string(), before, after));
+        }
+        assert_eq!(
+            kinetic_pdcs(world, player),
+            log.pdcs + 1,
+            "start role sandbox: the design carries one more kinetic PDC"
+        );
+        info!(
+            "start role sandbox: PASS the start station sold a kinetic PDC as {} at {} {} for \
+             {} cr: player {} -> {player_cr} cr, station {} -> {station_cr} cr, stock \
+             (item, before, after) {moved:?}",
+            added["section"],
+            added["at"],
+            added["point"],
+            KINETIC_PDC_PRICE_CR,
+            log.player_cr,
+            log.station_cr
         );
     }
 
@@ -677,12 +1022,12 @@ mod smoke {
     }
 
     /// The smoke walk: the world streams in, the start is the role's, the
-    /// start docks the player and the player lets go, one item leaves the
-    /// intake and the panel logs it, and a frame of it with the diagnostics
-    /// up is shot.
-    pub(super) fn script(shot: &str) -> AutopilotPlugin<GameStates> {
+    /// start docks the player, the military start buys a kinetic PDC from
+    /// the station, the player lets go, one item leaves the intake and the
+    /// panel logs it, and a frame of it with the diagnostics up is shot.
+    pub(super) fn script(shot: &str, role: &str) -> AutopilotPlugin<GameStates> {
         let name = shot.to_string();
-        AutopilotPlugin::<GameStates>::new()
+        let mut script = AutopilotPlugin::<GameStates>::new()
             .step("start role sandbox: the window streams in")
             .until(Arc::new(ready))
             .diagnose(|world| format!("{:?}", world.get_resource::<Sandbox>()))
@@ -694,7 +1039,21 @@ mod smoke {
             .step("start role sandbox: the start docks the player at its starting station")
             .until(Arc::new(player_docked))
             .deadline(SETUP_SECS)
-            .add()
+            .add();
+        if role == REFIT_ROLE {
+            script = script
+                .step("start role sandbox: buy a kinetic PDC from the starting station")
+                .on_enter(price_the_kinetic_pdc)
+                .each(add_at_a_free_socket)
+                .until(Arc::new(add_reported))
+                .diagnose(|world| format!("{:?}", world.get_resource::<RefitLog>()))
+                .deadline(ADD_SECS)
+                .add()
+                .step("start role sandbox: check the add")
+                .on_enter(assert_the_add)
+                .add();
+        }
+        script
             .step("start role sandbox: let go of the starting station")
             .on_enter(let_go_of_the_start)
             .until(Arc::new(|world: &World| !player_docked(world)))

@@ -132,8 +132,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   (`OnStripped`). No room, your station or your ship parked there disables it.
   Take all loots what fits; both loot storage.
 - **(breaking)** Torpedo bays are rare and railgun lances need mid
-  advancement. Ships hold only ammo their weapons reload; stations stock the
-  parts and reload ammo of what their civilization builds.
+  advancement. Ships hold only ammo their weapons reload; stations stock a
+  recipe of every part they build and the ammo to reload them.
 - **(breaking)** A station design lists the sections it `builds`; the
   catalogue, swap, add and rebuild refuse any other part, whatever the holds
   carry.

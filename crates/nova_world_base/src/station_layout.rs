@@ -102,7 +102,9 @@ const SHRINK: (f32, u32) = (0.9, 24);
 
 /// The cargo hold share a station's opening stock fills, at advancement 0 and
 /// at advancement 1, read linearly between. Half is goods, half is the parts
-/// every section its civilization builds is built from.
+/// every section its civilization builds is built from. The parts half is
+/// never below one recipe of each part: a 100 m station's share rounds a
+/// turret body to nothing, and a station that lists a part must sell it.
 const STOCK_SHARE: (f32, f32) = (0.04, 0.08);
 
 /// The goods a station stocks, by weight. Ammunition for the weapons of the
@@ -433,9 +435,11 @@ pub fn generate_station(
 /// services, every section the civilization knows as what it builds,
 /// storage and credits that rise with advancement, and an opening stock that
 /// fills a share of the hold, half goods and half the parts every section
-/// its civilization knows is built from. The goods hold at least one
-/// unit of each item a weapon the civilization knows reloads from, and no
-/// other ammunition. An extinct civilization's dead station keeps the same
+/// its civilization knows is built from. The parts hold at least the largest
+/// count any one of those recipes asks of each item, so every listed part
+/// can be built once from the station's own stock. The goods hold at least
+/// one unit of each item a weapon the civilization knows reloads from, and
+/// no other ammunition. An extinct civilization's dead station keeps the same
 /// stock and credits as loot.
 ///
 /// PURE: the same layout and civilization give the same design.
@@ -496,27 +500,31 @@ pub fn generated_station(
         }
     }
     // The parts of every section the civilization builds, so a ship it
-    // fields can be refitted and rebuilt at its stations.
+    // fields can be refitted and rebuilt at its stations. `kit` is the sum
+    // over every recipe and sets each item's share; `floor` is the most one
+    // recipe asks of it, so every listed part can be built once here.
     let mut kit: BTreeMap<&ItemDesignId, u32> = BTreeMap::new();
+    let mut floor: BTreeMap<&ItemDesignId, u32> = BTreeMap::new();
     for part in &known {
         for (item, count) in &part.config.base.build.parts {
             *kit.entry(item).or_default() += count;
+            let most = floor.entry(item).or_default();
+            *most = (*most).max(*count);
         }
     }
     let kit_g: u64 = kit
         .iter()
         .map(|(item, count)| u64::from(items.design(item).mass_g) * u64::from(*count))
         .sum();
-    // Each part item takes its share of the kit's mass, so a hold too small
-    // for a whole kit still stocks the parts it needs most of.
-    if kit_g > 0 {
-        for (item, count) in kit {
-            let units = u32::try_from(budget * u64::from(count) / kit_g)
-                .expect("a station hold's units fit a u32");
-            if units > 0 {
-                *stock.entry(item.clone()).or_default() += units;
-            }
-        }
+    // Each part item takes its share of the kit's mass, never below one
+    // recipe of it: a hold too small for a whole kit still sells one of
+    // every part, and the hold check below refuses a hull that cannot.
+    // `kit_g` is positive whenever `kit` has an entry: item authoring
+    // refuses a massless item, and lint a zero-count or unknown recipe part.
+    for (item, count) in kit {
+        let share = u32::try_from(budget * u64::from(count) / kit_g)
+            .expect("a station hold's units fit a u32");
+        *stock.entry(item.clone()).or_default() += share.max(floor[item]);
     }
 
     let stock = ShipInventoryStock::new(stock);
@@ -1848,6 +1856,124 @@ mod tests {
         }
         assert!(stocked.contains("DriveBell"), "{stocked:?}");
         assert!(!stocked.contains("WideBell"), "{stocked:?}");
+    }
+
+    /// A station stocks at least the most any one known recipe asks of each
+    /// part item, whatever its share of the kit rounds to: a 100 m station's
+    /// share of a heavy drive bell is nothing, and it still sells the three a
+    /// drive needs, so every part it lists can be built once from its stock.
+    #[test]
+    fn a_station_stocks_one_recipe_of_every_part_whatever_its_share_rounds_to() {
+        use nova_gameplay::prelude::{BuildRecipe, ItemCategoryType, ItemDesign};
+
+        use crate::civilizations::CivilizationStatusType;
+
+        let mut packs = fixture::packs();
+        let recipe = |parts: &[(&str, u32)]| BuildRecipe {
+            credits: 10,
+            parts: parts
+                .iter()
+                .map(|&(item, count)| (ItemDesignId::from(item), count))
+                .collect(),
+            strip_yield: 0.5,
+        };
+        for section in &mut packs[0].sections {
+            section.base.build = match section.base.id.as_str() {
+                "cube" | "heavy_cube" => recipe(&[("SectionPanel", 2)]),
+                "small_drive" | "wide_drive" => recipe(&[("DriveBell", 3)]),
+                _ => recipe(&[("FrameSpar", 1)]),
+            };
+        }
+        let parts = ShipPartSnapshot::build(&packs).expect("the recipe fixture builds");
+        let goods = [
+            ItemRoleType::HullPlate,
+            ItemRoleType::Rations,
+            ItemRoleType::SalvagedParts,
+        ];
+        // Three bells are 1.5 t of a 1.505 t kit; the parts budget is 2 kg
+        // per hull cell at advancement 0, so under 250 hull cells the bell's
+        // share rounds to nothing, and from 16 cells up the floor and the
+        // goods fit the hold.
+        let items = GameItems::new(
+            goods
+                .iter()
+                .map(|role| (role.id(), ItemCategoryType::Raw, 1_000))
+                .chain([
+                    ("SectionPanel", ItemCategoryType::Parts, 1_000),
+                    ("FrameSpar", ItemCategoryType::Parts, 1_000),
+                    ("DriveBell", ItemCategoryType::Parts, 500_000),
+                ])
+                .map(|(id, category, mass_g)| ItemDesign {
+                    id: id.into(),
+                    name: id.to_string(),
+                    about: String::new(),
+                    category,
+                    mass_g,
+                    ask_cr: 10,
+                    bid_cr: 5,
+                }),
+        );
+        let request = request(1, StationArchetypeType::Ring, 0.0);
+        let living = Civilization {
+            id: request.civilization,
+            centroid: nova_events::prelude::Meters3::new(0.0, 0.0, 0.0),
+            status: CivilizationStatusType::Living,
+            advancement: 0.0,
+            role_preference: [1.0; 4],
+            stance: nova_gameplay::prelude::StanceType::Neutral,
+        };
+        let layout = generate_station(&parts, request).expect("the station generates");
+        let hulls = layout
+            .design
+            .sections
+            .iter()
+            .filter(|section| {
+                matches!(
+                    parts
+                        .parts()
+                        .iter()
+                        .find(|part| part.id() == section.source.prototype_id())
+                        .expect("a generated section names a part")
+                        .config
+                        .kind,
+                    SectionKind::Hull(_)
+                )
+            })
+            .count() as u64;
+        assert!(
+            (16..250).contains(&hulls),
+            "the fixture's arithmetic holds for 16 to 249 hull cells, not {hulls}"
+        );
+
+        let station =
+            generated_station(&parts, &items, &layout, &living).expect("the stock fits the hold");
+
+        let stock: BTreeMap<&str, u32> = station
+            .stock
+            .stacks()
+            .map(|(item, count)| (item.as_str(), count))
+            .collect();
+        assert_eq!(
+            stock.get("DriveBell"),
+            Some(&3),
+            "the share rounds to nothing, the floor is one drive: {stock:?}"
+        );
+        for part in parts.known(request.civilization, 0.0) {
+            for (item, count) in &part.config.base.build.parts {
+                assert!(
+                    stock
+                        .get(item.as_str())
+                        .is_some_and(|stocked| stocked >= count),
+                    "'{}' asks {count} {item}, stocked {stock:?}",
+                    part.id()
+                );
+            }
+        }
+        assert!(
+            station.stock.mass_g(&items) <= hulls * u64::from(HULL_SECTION_CARGO_G),
+            "{} g in a {hulls}-hull hold",
+            station.stock.mass_g(&items)
+        );
     }
 
     /// A known weapon's ammunition is stocked at one unit even where its share

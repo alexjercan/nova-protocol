@@ -1,9 +1,10 @@
 //! Generated stations from the real base catalog: the snapshot the content
 //! lint checks, laid out by the world's own `generate_station` and stocked by
-//! its `generated_station`, pass the station lint at every advancement and
-//! stock the ammunition of every weapon their civilization knows.
+//! its `generated_station`, pass the station lint at every advancement, stock
+//! the ammunition of every weapon their civilization knows and one recipe of
+//! every part they build.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use nova_authoring::{
     generation::{build_items, build_section_catalog, build_styles},
@@ -183,6 +184,76 @@ fn a_seeded_station_stocks_its_known_weapons_ammunition_within_its_hold() {
         ]),
         "the stations between them stock every kind"
     );
+}
+
+/// Every seeded station of every archetype, at every quarter of advancement
+/// and for three civilizations, stocks at least the most any one recipe of a
+/// part it builds asks of each item, inside its hold: a ring-0 station whose
+/// kit share rounds a turret body to nothing still sells the one a kinetic
+/// PDC needs.
+#[test]
+fn every_base_station_stocks_one_recipe_of_every_part_it_builds() {
+    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+        .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
+    let sections = GameSections(build_section_catalog());
+    let items = GameItems::new(build_items());
+    for id in CIVILIZATIONS {
+        for archetype in StationArchetypeType::ALL {
+            for advancement in [0.0, 0.25, 0.5, 0.75, 1.0] {
+                let civilization = Civilization {
+                    id,
+                    centroid: Meters3::ZERO,
+                    status: CivilizationStatusType::Living,
+                    advancement,
+                    role_preference: [1.0; 4],
+                    stance: StanceType::Neutral,
+                };
+                for seed in 0..8 {
+                    let context =
+                        format!("{id}, {archetype}, advancement {advancement}, seed {seed}");
+                    let request = StationLayoutRequest {
+                        seed,
+                        civilization: id,
+                        archetype,
+                        advancement,
+                    };
+                    let layout = generate_station(&parts, request)
+                        .unwrap_or_else(|failure| panic!("{context}: {failure}"));
+                    let design = generated_station(&parts, &items, &layout, &civilization)
+                        .unwrap_or_else(|constraint| panic!("{context}: {constraint}"));
+                    let stock: BTreeMap<&str, u32> = design
+                        .stock
+                        .stacks()
+                        .map(|(item, count)| (item.as_str(), count))
+                        .collect();
+                    for built in &design.builds {
+                        let recipe = &sections
+                            .get_section(built)
+                            .unwrap_or_else(|| panic!("{context}: builds unknown '{built}'"))
+                            .base
+                            .build;
+                        for (item, count) in &recipe.parts {
+                            assert!(
+                                stock
+                                    .get(item.as_str())
+                                    .is_some_and(|stocked| stocked >= count),
+                                "{context}: '{built}' asks {count} {item}, stocked {stock:?}"
+                            );
+                        }
+                    }
+                    let (resolved, _) = resolve_ship_design(
+                        &ShipDesignSource::Inline(design.hull.clone()),
+                        &GameShipDesigns::default(),
+                        &sections,
+                    );
+                    assert!(
+                        design.stock.mass_g(&items) <= u64::from(resolved.cargo_capacity_g()),
+                        "{context}: the stock overfills the hold"
+                    );
+                }
+            }
+        }
+    }
 }
 
 /// A generated station builds exactly what its civilization knows, never

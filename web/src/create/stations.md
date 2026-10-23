@@ -413,15 +413,19 @@ every cell.
 | turrets, `4 + floor(12a)` | 4 | 16 |
 | storage cap | 1 t | 4 t |
 | credits | 10000 | 40000 |
-| opening stock, share of the hold | 4% | 8% |
+| opening stock, share of the hold, at least | 4% | 8% |
+| parts floor | one recipe of each built part | one recipe of each built part |
 
 Every generated station offers Rebuild, Refit, Trade, Storage and Jobs. Its stock
 is half goods and half the recipe parts of every section its civilization
 builds: every part at advancement 0, and of the parts above 0 that its
 advancement opens, each with chance 0.5 keyed to the civilization and the
-part id. Its goods hold at least one unit of each ammunition item that a
-reloading weapon its civilization knows draws (`PdcRound`, `RailSlug`,
-`Torpedo`), and no other ammunition. It draws the parts its civilization knows at its advancement, by draw
+part id. The parts hold at least one recipe of every part it builds: for each
+item, the largest count any one of those recipes asks, so the Catalogue can
+sell every part it lists from the station's own stock. Its goods hold at
+least one unit of each ammunition item that a reloading weapon its
+civilization knows draws (`PdcRound`, `RailSlug`, `Torpedo`), and no other
+ammunition. It draws the parts its civilization knows at its advancement, by draw
 weight, those within 0.25 below its advancement first, and carries
 flight computers for its mass, as a generated ship does. A dead station keeps the same stock
 and credits as loot.
