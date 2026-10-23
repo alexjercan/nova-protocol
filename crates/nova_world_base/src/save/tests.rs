@@ -3786,3 +3786,46 @@ fn a_world_whose_trader_has_no_role_preference_is_refused_on_open() {
     assert_eq!(saved.generation, 4, "a trader with a preference opens");
     drop(lock);
 }
+
+/// A save written on the frame a role goal is met must carry the stamp,
+/// so the snapshot that copies `GoalRecord` runs after the tracker that
+/// stamps it. Both touch `World`, so unordered they run in a per-build
+/// topsort tie-break that today happens to put the stamp first.
+///
+/// Asserted through Bevy's conflict list rather than an observed order,
+/// because the tie-break supplies the right order with or without the edge.
+/// The base plugin has other conflicting pairs, so only this one is checked.
+/// Systems are matched by key, not name: names need `bevy/debug`.
+#[test]
+fn the_save_snapshot_is_ordered_after_the_goal_stamp() {
+    use bevy::ecs::schedule::IntoSystemSet;
+
+    let mut app = App::new();
+    app.add_plugins((MinimalPlugins, crate::NovaWorldBasePlugin));
+    // Out of `Schedules` for the build: a system's init that inserts
+    // `Schedules` panics under `resource_scope`.
+    let mut schedule = app
+        .world_mut()
+        .resource_mut::<Schedules>()
+        .remove(Update)
+        .unwrap();
+    schedule.initialize(app.world_mut()).unwrap();
+    let key = |set: bevy::ecs::schedule::InternedSystemSet| {
+        let keys = schedule.graph().systems_in_set(set).unwrap();
+        assert_eq!(keys.len(), 1, "one system in {set:?}");
+        keys[0]
+    };
+    let stamp = key(crate::goal::track_role_goal.into_system_set().intern());
+    let snapshot = key(super::session::snapshot_world.into_system_set().intern());
+
+    let unordered = schedule
+        .graph()
+        .conflicting_systems()
+        .0
+        .iter()
+        .any(|(a, b, _)| (*a == stamp && *b == snapshot) || (*a == snapshot && *b == stamp));
+    assert!(
+        !unordered,
+        "Update leaves the goal stamp and the save snapshot in an indeterminate order"
+    );
+}

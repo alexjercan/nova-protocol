@@ -289,7 +289,9 @@ impl Plugin for NovaWorldBasePlugin {
         // before the snapshot, so a waiting save starts on the frame the
         // last one finishes. The saved transients come back after `Retire`,
         // once this frame's sector spawns are applied, and before the save
-        // looks at the window.
+        // looks at the window. The save runs after the goal stamp, so a save
+        // on the met frame holds `met_at` beside the met facts: both touch
+        // `World`, and unordered a Load would restamp at the Load-time clock.
         #[cfg(not(target_arch = "wasm32"))]
         app.add_systems(
             Update,
@@ -305,7 +307,7 @@ impl Plugin for NovaWorldBasePlugin {
                 )
                     .chain()
                     .after(NovaWorldSystems::Retire)
-                    .after(chart::chart_docked_station),
+                    .after(goal::track_role_goal),
             ),
         );
     }
