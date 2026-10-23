@@ -73,6 +73,42 @@ pub struct MainDriveCommanded(pub bool);
 #[reflect(Component)]
 pub struct FlightArrivalStandoff(pub f32);
 
+/// The fastest a GOTO or GotoPos leg flies this hull, engine units per
+/// second, on the ship root. The arrival rule still brakes below it; a hull
+/// without the component flies the arrival limit alone. A convoy hauler wears
+/// one so its escort can hold formation. Inserting a cap that is not finite
+/// and positive panics: such a cap would park the hull or let the leg plan on
+/// NaN, and no caller has a valid reason to author one.
+///
+/// The cap bounds the commanded velocity only. The published
+/// [`ManeuverTelemetry`] eta and flip point still assume the uncapped arrival
+/// limit, so a player hull that wears a cap would read a short eta on its
+/// HUD; no player hull wears one today, and the AI hauler shows no telemetry.
+#[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+#[component(on_insert = require_positive_cruise_cap)]
+pub struct FlightCruiseCap(pub f32);
+
+/// Refuse a cruise cap that is zero, negative, infinite or NaN.
+///
+/// # Panics
+///
+/// When the inserted [`FlightCruiseCap`] is not finite and greater than zero.
+fn require_positive_cruise_cap(
+    world: bevy::ecs::world::DeferredWorld,
+    context: bevy::ecs::lifecycle::HookContext,
+) {
+    let cap = world
+        .get::<FlightCruiseCap>(context.entity)
+        .map(|cap| cap.0)
+        .expect("the hook runs on the entity the cap was inserted on");
+    assert!(
+        cap.is_finite() && cap > 0.0,
+        "ship {:?} was given a FlightCruiseCap of {cap}: a cruise cap is a finite speed above zero",
+        context.entity
+    );
+}
+
 /// The navigation margin `ship` flies, world units: its own
 /// [`FlightArrivalStandoff`] when it carries one, the global
 /// [`FlightSettings::arrival_standoff`] otherwise.

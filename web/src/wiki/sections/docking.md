@@ -113,7 +113,7 @@ The other endings are damage. Shoot the port off either hull, or kill either shi
 ## Variants
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/docking_port.rs and assets/base/sections/base.content.ron. Mounted by crates/nova_authoring/src/base_content/ships/block.rs: port_collar on every crewed base hull; starboard_collar on the line warship. -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/docking_port.rs and assets/base/sections/base.content.ron. Mounted by crates/nova_authoring/src/base_content/ships/block.rs: port_collar on every crewed base hull; starboard_collar on the patrol picket and the line warship. -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-docking.png</span></span></span><span class="catalog__title">Docking - shipped prototypes</span></div>
 <table>
 <thead>

@@ -165,6 +165,9 @@ pub(super) struct FlightEnvironment<'a> {
     pub(super) wells: &'a [WellSample],
     /// The mover's resolved arrival margin.
     pub(super) arrival_standoff: f32,
+    /// The mover's [`FlightCruiseCap`], engine units per second, when it
+    /// wears one.
+    pub(super) cruise_cap: Option<f32>,
     /// What the mover is permitted to do.
     pub(super) capabilities: ShipCapabilities,
 }
@@ -538,8 +541,10 @@ pub(super) fn autopilot_system(
             Option<&ComputedCenterOfMass>,
             Option<&ManeuverTelemetry>,
             // The per-ship translation-arrival override (scenario-authored;
-            // ships without it fly the global standoff).
-            Option<&FlightArrivalStandoff>,
+            // ships without it fly the global standoff) and the per-ship
+            // cruise cap a convoy hull wears (ships without it fly the
+            // arrival limit alone).
+            (Option<&FlightArrivalStandoff>, Option<&FlightCruiseCap>),
             // This hull's own outer reach, so the arrival parks the FACE at the
             // margin rather than the origin. Absent (a hull with no live
             // sections measured yet) reads as a point.
@@ -596,7 +601,7 @@ pub(super) fn autopilot_system(
         (mass, angular_inertia),
         com,
         prev_telemetry,
-        standoff_override,
+        (standoff_override, cruise_cap),
         hull_radius,
         rcs_budget,
         mut rcs_intent,
@@ -649,6 +654,7 @@ pub(super) fn autopilot_system(
             gravity: &gravity_settings,
             wells: &wells,
             arrival_standoff: resolved_arrival_standoff(standoff_override, &settings),
+            cruise_cap: cruise_cap.map(|cap| **cap),
             capabilities: ship_capabilities(ship, &q_capabilities),
         };
         let action = autopilot.action;
@@ -822,6 +828,7 @@ pub(super) fn autopilot_step(
     let gravity_settings = env.gravity;
     let dt = env.dt;
     let arrival_standoff = env.arrival_standoff;
+    let cruise_cap = env.cruise_cap;
     let rotation = Rotation(body.rotation);
     let com_world = body.center_of_mass;
     let velocity = body.linear_velocity;
@@ -1086,6 +1093,7 @@ pub(super) fn autopilot_step(
                         lead,
                         settings.min_approach_speed,
                         gravity,
+                        cruise_cap,
                     ),
                     ManeuverTelemetry {
                         goal,

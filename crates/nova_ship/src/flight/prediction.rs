@@ -152,6 +152,8 @@ pub(super) struct FlightPredictionRun {
     dominant_well: Option<Entity>,
     /// The mover's resolved arrival margin.
     arrival_standoff: f32,
+    /// The mover's cruise cap, engine units per second, when it wears one.
+    cruise_cap: Option<f32>,
     /// What the mover is permitted to do.
     capabilities: ShipCapabilities,
     /// Predicted ticks flown.
@@ -479,6 +481,7 @@ pub(super) fn predict_flight_path(
             (
                 Option<&ManeuverTelemetry>,
                 Option<&FlightArrivalStandoff>,
+                Option<&FlightCruiseCap>,
                 Option<&HullRadius>,
             ),
             (&RcsBudget, Option<&RcsIntent>),
@@ -541,7 +544,7 @@ pub(super) fn predict_flight_path(
         pose,
         velocities,
         (mass, angular_inertia, com),
-        (telemetry, standoff_override, hull_radius),
+        (telemetry, standoff_override, cruise_cap, hull_radius),
         (rcs_budget, rcs_intent),
         (dominant_well, gravity_affected, is_well, docked),
         (mut run, published),
@@ -751,6 +754,7 @@ pub(super) fn predict_flight_path(
                     ship_feels_wells: gravity_affected && !is_well,
                     dominant_well: dominant_well.map(|well| **well),
                     arrival_standoff: resolved_arrival_standoff(standoff_override, &settings),
+                    cruise_cap: cruise_cap.map(|cap| **cap),
                     capabilities: ship_capabilities(ship, &q_capabilities),
                     ticks: 0,
                     braking_tick: None,
@@ -780,6 +784,7 @@ pub(super) fn predict_flight_path(
                 gravity: &gravity_settings,
                 wells: &run.wells,
                 arrival_standoff: run.arrival_standoff,
+                cruise_cap: run.cruise_cap,
                 capabilities: run.capabilities,
             };
             let step = autopilot_step(

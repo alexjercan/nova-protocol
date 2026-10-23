@@ -76,6 +76,7 @@ fn main() -> bevy::app::AppExit {
             refused: "outcome: the hand-in is refused until the neutralize job is done",
             done: "outcome: the world marks the neutralize job done",
             paid: "outcome: the hand-in pays the neutralize job",
+            escort: None,
         };
 
         if std::env::var_os("NOVA_AUTOPILOT").is_some() {

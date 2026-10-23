@@ -47,15 +47,16 @@ pub(crate) fn arrival_speed_limit(
 }
 
 /// The velocity a GOTO wants right now: toward the target, at the arrival
-/// rule's speed for the remaining distance (minus the standoff), floored at
-/// `min_approach` so the ship actually crosses the boundary instead of
-/// approaching it asymptotically. Zero once inside the standoff, and zero -
-/// without the floor - when `gravity_along` eats the whole brake authority:
-/// a ship that cannot stop must not be nursed inward at approach speed.
-/// (In the last few units before the standoff the arrival limit can dip
-/// below the floor even under a survivable pull; the floor still applies
-/// there - that boundary-crossing creep is what it exists for.) Pure for
-/// unit testing.
+/// rule's speed for the remaining distance (minus the standoff), capped at
+/// the hull's `cruise_cap` ([`FlightCruiseCap`]) when it wears one, and
+/// floored at `min_approach` so the ship actually crosses the boundary
+/// instead of approaching it asymptotically. Zero once inside the standoff,
+/// and zero - without the floor - when `gravity_along` eats the whole brake
+/// authority: a ship that cannot stop must not be nursed inward at approach
+/// speed. (In the last few units before the standoff the arrival limit can
+/// dip below the floor even under a survivable pull; the floor still applies
+/// there - that boundary-crossing creep is what it exists for, and it wins
+/// over a cap below it for the same reason.) Pure for unit testing.
 pub(super) fn goto_desired_velocity(
     to_target: Vec3,
     standoff: f32,
@@ -64,6 +65,7 @@ pub(super) fn goto_desired_velocity(
     lead_time: f32,
     min_approach: f32,
     gravity_along: f32,
+    cruise_cap: Option<f32>,
 ) -> Vec3 {
     let distance = to_target.length();
     let remaining = distance - standoff;
@@ -73,7 +75,9 @@ pub(super) fn goto_desired_velocity(
     if accel.max(0.0) * margin.clamp(0.0, 1.0) <= gravity_along.max(0.0) {
         return Vec3::ZERO;
     }
-    let speed = arrival_speed_limit(remaining, accel, margin, lead_time, gravity_along)
+    let limit = arrival_speed_limit(remaining, accel, margin, lead_time, gravity_along);
+    let speed = cruise_cap
+        .map_or(limit, |cap| limit.min(cap))
         .max(min_approach.max(0.0));
     (to_target / distance) * speed
 }
@@ -484,24 +488,80 @@ mod tests {
 
     #[test]
     fn goto_desired_velocity_points_at_the_target_and_rests_inside_standoff() {
-        let desired =
-            goto_desired_velocity(Vec3::new(0.0, 0.0, -300.0), 50.0, 20.0, 0.85, 1.5, 1.5, 0.0);
+        let desired = goto_desired_velocity(
+            Vec3::new(0.0, 0.0, -300.0),
+            50.0,
+            20.0,
+            0.85,
+            1.5,
+            1.5,
+            0.0,
+            None,
+        );
         assert!(desired.z < 0.0 && desired.x == 0.0 && desired.y == 0.0);
         assert!((desired.length() - arrival_speed_limit(250.0, 20.0, 0.85, 1.5, 0.0)).abs() < 1e-4);
         // Inside the standoff the goal is rest.
         assert_eq!(
-            goto_desired_velocity(Vec3::new(0.0, 0.0, -40.0), 50.0, 20.0, 0.85, 1.5, 1.5, 0.0),
+            goto_desired_velocity(
+                Vec3::new(0.0, 0.0, -40.0),
+                50.0,
+                20.0,
+                0.85,
+                1.5,
+                1.5,
+                0.0,
+                None
+            ),
             Vec3::ZERO
         );
         // Just outside the boundary the floor keeps a closing speed, so the
         // ship crosses instead of stalling on the asymptote.
-        let creeping =
-            goto_desired_velocity(Vec3::new(0.0, 0.0, -50.01), 50.0, 20.0, 0.85, 1.5, 1.5, 0.0);
+        let creeping = goto_desired_velocity(
+            Vec3::new(0.0, 0.0, -50.01),
+            50.0,
+            20.0,
+            0.85,
+            1.5,
+            1.5,
+            0.0,
+            None,
+        );
         assert!((creeping.length() - 1.5).abs() < 1e-3);
         // Degenerate zero offset is safe.
         assert_eq!(
-            goto_desired_velocity(Vec3::ZERO, 50.0, 20.0, 0.85, 1.5, 1.5, 0.0),
+            goto_desired_velocity(Vec3::ZERO, 50.0, 20.0, 0.85, 1.5, 1.5, 0.0, None),
             Vec3::ZERO
+        );
+    }
+
+    #[test]
+    fn a_cruise_cap_bounds_the_goto_speed_and_the_approach_floor_still_wins() {
+        let to_target = Vec3::new(0.0, 0.0, -3_000.0);
+        let uncapped = goto_desired_velocity(to_target, 50.0, 20.0, 0.85, 1.5, 1.5, 0.0, None);
+        assert!(
+            uncapped.length() > 10.0,
+            "the arrival limit alone is fast this far out"
+        );
+        // Far out the cap is the speed; the heading is unchanged.
+        let capped = goto_desired_velocity(to_target, 50.0, 20.0, 0.85, 1.5, 1.5, 0.0, Some(10.0));
+        assert!(
+            (capped.length() - 10.0).abs() < 1e-4,
+            "got {}",
+            capped.length()
+        );
+        assert!(capped.z < 0.0 && capped.x == 0.0 && capped.y == 0.0);
+        // Close in the arrival limit is below the cap and still rules.
+        let near = Vec3::new(0.0, 0.0, -60.0);
+        assert_eq!(
+            goto_desired_velocity(near, 50.0, 20.0, 0.85, 1.5, 1.5, 0.0, Some(10.0)),
+            goto_desired_velocity(near, 50.0, 20.0, 0.85, 1.5, 1.5, 0.0, None)
+        );
+        // A cap under the approach floor does not stall the boundary crossing.
+        let creeping = goto_desired_velocity(to_target, 50.0, 20.0, 0.85, 1.5, 1.5, 0.0, Some(0.5));
+        assert!(
+            (creeping.length() - 1.5).abs() < 1e-4,
+            "got {}",
+            creeping.length()
         );
     }
 
@@ -772,15 +832,32 @@ mod tests {
                 0.85,
                 1.5,
                 1.5,
-                17.0
+                17.0,
+                None
             ),
             Vec3::ZERO
         );
         // A survivable pull still flies the leg, just slower.
-        let flat =
-            goto_desired_velocity(Vec3::new(0.0, 0.0, -300.0), 50.0, 20.0, 0.85, 1.5, 1.5, 0.0);
-        let pulled =
-            goto_desired_velocity(Vec3::new(0.0, 0.0, -300.0), 50.0, 20.0, 0.85, 1.5, 1.5, 4.0);
+        let flat = goto_desired_velocity(
+            Vec3::new(0.0, 0.0, -300.0),
+            50.0,
+            20.0,
+            0.85,
+            1.5,
+            1.5,
+            0.0,
+            None,
+        );
+        let pulled = goto_desired_velocity(
+            Vec3::new(0.0, 0.0, -300.0),
+            50.0,
+            20.0,
+            0.85,
+            1.5,
+            1.5,
+            4.0,
+            None,
+        );
         assert!(pulled.length() < flat.length());
         assert!(pulled.length() > 0.0);
     }

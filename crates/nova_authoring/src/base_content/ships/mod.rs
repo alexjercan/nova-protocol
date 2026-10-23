@@ -42,8 +42,8 @@ pub const LIGHT_FREIGHTER_SHIP_ID: &str = "light_freighter";
 pub const INTERCEPTOR_SHIP_ID: &str = "interceptor";
 /// The pirate start hull: two point-defense mounts and a cargo intake.
 pub const RAIDER_SHIP_ID: &str = "raider";
-/// The military start hull: two point-defense mounts, a torpedo bay and a
-/// cargo intake on light plate.
+/// The military start hull: two point-defense mounts, a torpedo bay, a cargo
+/// intake and two collars on light plate.
 pub const PATROL_PICKET_SHIP_ID: &str = "patrol_picket";
 /// The tutorial range's hull: one nose point-defense mount on light plate.
 /// Scenario-only, with no cargo intake.

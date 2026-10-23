@@ -576,9 +576,10 @@ impl Job {
                  aboard.",
                 item_name(item)
             ),
-            JobType::Escort { .. } => "Undock, then follow the hauler to its destination. \
-                Protect it from raiders; the job is lost if the hauler is neutralized or \
-                destroyed before arrival."
+            JobType::Escort { .. } => "Undock and come within 1 km of the hauler; it leaves \
+                for its destination when you are there. Stay with it and protect it from \
+                raiders; the job is lost if the hauler is disabled, neutralized or destroyed \
+                before arrival."
                 .to_string(),
             JobType::Distress { .. } => "Dock with the stranded caller. If it is a trap, \
                 neutralize or destroy the raider instead."
@@ -755,9 +756,9 @@ pub struct JobDone {
 
 /// An undone escort's leg: the mark its hauler flies to and whether the
 /// hauler left. The hauler waits off its poster until the player stands
-/// undocked from the poster, then flies to the mark; the open world crate
-/// gives the hauler its order again from this record after a thaw or a
-/// Load, which keep no helm order.
+/// undocked from the poster and within 1 km of the hauler, then flies to the
+/// mark; the open world crate gives the hauler its order again from this
+/// record after a thaw or a Load, which keep no helm order.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]

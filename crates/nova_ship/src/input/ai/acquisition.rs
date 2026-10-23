@@ -24,6 +24,19 @@ use crate::prelude::*;
 #[reflect(Component)]
 pub struct AITarget(pub Option<Entity>);
 
+/// The ship this AI ship hunts ahead of every other hostile: an escort's
+/// raider preys on the hauler it was spawned against. Inserted by whoever
+/// owns the relationship (the open world's job spawn), never authored in
+/// RON, like [`AIFollow`](super::AIFollow). An `Entity` does not survive a
+/// freeze or a save, so the owner inserts it again on a thaw or a Load.
+/// Read by `update_ai_target`: while the prey is a candidate this frame (in
+/// sensor range, in sight, hostile, not neutralized) it is the pick unless a
+/// candidate shot this ship within the threat memory; a ship without prey is
+/// untouched.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct AIPrey(pub Entity);
+
 /// Mirror the AI's engagement onto the shared combat components (deliberate-
 /// radar AI parity): `CombatLock` = the point-defense override else the
 /// primary target, refreshed every frame (the AI's own acquisition hygiene
@@ -95,8 +108,10 @@ const AI_TARGET_HYSTERESIS_DISCOUNT: f32 = 0.8;
 /// pick does not flip-flop between two comparably distant hostiles, and the
 /// ship that recently damaged me discounted by
 /// [`AI_THREAT_ATTACKER_DISCOUNT`] so whoever is shooting me steals the
-/// pick from comparably distant bystanders (the discounts stack). With no
-/// candidates the pick is `None`.
+/// pick from comparably distant bystanders (the discounts stack). A ship
+/// with `prey` ([`AIPrey`]) takes precedence over the scoring: the
+/// candidate that recently damaged it, else its prey when a candidate, else
+/// the scored pick. With no candidates the pick is `None`.
 ///
 /// RANGE and LINE OF SIGHT are not asked here: the ship's own sensor pass
 /// ([`SensorContacts`]) already answered both, with the same policy the
@@ -106,9 +121,10 @@ fn pick_ai_target(
     own_anchor: Vec3,
     current: Option<Entity>,
     attacker: Option<Entity>,
+    prey: Option<Entity>,
     candidates: impl Iterator<Item = (Entity, Vec3, AITargetKind)>,
 ) -> Option<Entity> {
-    candidates
+    let scored: Vec<(Entity, AITargetKind, f32)> = candidates
         .filter_map(|(entity, position, kind)| {
             let mut distance = own_anchor.distance(position);
             if distance <= f32::EPSILON {
@@ -122,6 +138,17 @@ fn pick_ai_target(
             }
             Some((entity, kind, distance))
         })
+        .collect();
+    if prey.is_some() {
+        let seen = |wanted: Option<Entity>| {
+            wanted.filter(|wanted| scored.iter().any(|(entity, ..)| entity == wanted))
+        };
+        if let Some(pick) = seen(attacker).or_else(|| seen(prey)) {
+            return Some(pick);
+        }
+    }
+    scored
+        .into_iter()
         .min_by(|(_, kind_a, dist_a), (_, kind_b, dist_b)| {
             kind_a.cmp(kind_b).then(dist_a.total_cmp(dist_b))
         })
@@ -148,6 +175,7 @@ pub(super) fn update_ai_target(
         (
             &SensorContacts,
             &AIThreat,
+            Option<&AIPrey>,
             &mut AITarget,
             Has<AINonCombatant>,
             Has<DockedShip>,
@@ -155,7 +183,7 @@ pub(super) fn update_ai_target(
         (With<SpaceshipRootMarker>, With<AISpaceshipMarker>),
     >,
 ) {
-    for (contacts, threat, mut target, non_combatant, docked) in &mut q_spaceship {
+    for (contacts, threat, prey, mut target, non_combatant, docked) in &mut q_spaceship {
         // A non-combatant never fights: keep its target clear so the behavior
         // FSM holds the passive routine. Cleared defensively in case the ship
         // was armed when it last acquired one (a future critical-damage path
@@ -186,6 +214,7 @@ pub(super) fn update_ai_target(
             contacts.origin,
             **target,
             threat.recent_attacker(),
+            prey.map(|prey| **prey),
             candidates,
         );
         // Change-detection hygiene: only write on a real change. A dead or
@@ -481,6 +510,7 @@ mod target_selection_tests {
             Vec3::ZERO,
             None,
             None,
+            None,
             [
                 (far, Vec3::new(0.0, 0.0, -500.0), AITargetKind::Ship),
                 (near, Vec3::new(0.0, 0.0, -100.0), AITargetKind::Ship),
@@ -498,6 +528,7 @@ mod target_selection_tests {
         let torpedo = entity(2);
         let picked = pick_ai_target(
             Vec3::ZERO,
+            None,
             None,
             None,
             [
@@ -519,6 +550,7 @@ mod target_selection_tests {
             Vec3::ZERO,
             Some(current),
             None,
+            None,
             [
                 (current, Vec3::new(0.0, 0.0, -1000.0), AITargetKind::Ship),
                 (rival, Vec3::new(0.0, 0.0, -900.0), AITargetKind::Ship),
@@ -531,6 +563,7 @@ mod target_selection_tests {
         let stolen = pick_ai_target(
             Vec3::ZERO,
             Some(current),
+            None,
             None,
             [
                 (current, Vec3::new(0.0, 0.0, -1000.0), AITargetKind::Ship),
@@ -548,13 +581,14 @@ mod target_selection_tests {
                 Vec3::ZERO,
                 None,
                 None,
+                None,
                 [(entity(1), Vec3::ZERO, AITargetKind::Ship)].into_iter(),
             ),
             None,
             "a candidate standing on the observer is not a bearing"
         );
         assert_eq!(
-            pick_ai_target(Vec3::ZERO, None, None, std::iter::empty()),
+            pick_ai_target(Vec3::ZERO, None, None, None, std::iter::empty()),
             None,
             "no candidates"
         );
@@ -570,6 +604,7 @@ mod target_selection_tests {
             Vec3::ZERO,
             None,
             Some(attacker),
+            None,
             [
                 (attacker, Vec3::new(0.0, 0.0, -1000.0), AITargetKind::Ship),
                 (bystander, Vec3::new(0.0, 0.0, -700.0), AITargetKind::Ship),
@@ -584,6 +619,7 @@ mod target_selection_tests {
             Vec3::ZERO,
             None,
             Some(attacker),
+            None,
             [
                 (attacker, Vec3::new(0.0, 0.0, -1000.0), AITargetKind::Ship),
                 (bystander, Vec3::new(0.0, 0.0, -300.0), AITargetKind::Ship),
@@ -591,6 +627,69 @@ mod target_selection_tests {
             .into_iter(),
         );
         assert_eq!(picked, Some(bystander), "a far closer threat still wins");
+    }
+
+    #[test]
+    fn a_raider_with_prey_holds_it_until_a_nearer_hostile_shoots_it() {
+        // An escort's raider hunts the hauler past a nearer picket...
+        let hauler = entity(1);
+        let picket = entity(2);
+        let candidates = [
+            (hauler, Vec3::new(0.0, 0.0, -2000.0), AITargetKind::Ship),
+            (picket, Vec3::new(0.0, 0.0, -900.0), AITargetKind::Ship),
+        ];
+        let picked = pick_ai_target(Vec3::ZERO, None, None, Some(hauler), candidates.into_iter());
+        assert_eq!(picked, Some(hauler), "the prey beats a nearer bystander");
+
+        // ...until the picket shoots it: the attacker beats the prey...
+        let picked = pick_ai_target(
+            Vec3::ZERO,
+            Some(hauler),
+            Some(picket),
+            Some(hauler),
+            candidates.into_iter(),
+        );
+        assert_eq!(
+            picked,
+            Some(picket),
+            "the shooter steals the pick from the prey"
+        );
+
+        // ...and only while the shooter is a candidate: a shooter out of
+        // sight leaves the prey the pick.
+        let picked = pick_ai_target(
+            Vec3::ZERO,
+            Some(picket),
+            Some(picket),
+            Some(hauler),
+            candidates[..1].iter().copied(),
+        );
+        assert_eq!(
+            picked,
+            Some(hauler),
+            "an unseen shooter does not hold the pick"
+        );
+    }
+
+    #[test]
+    fn prey_out_of_sight_falls_back_to_the_nearest_hostile() {
+        // The prey behind a rock, out of range or neutralized is not a
+        // candidate: the raider fights what it can see, by the scored pick.
+        let hauler = entity(1);
+        let near = entity(2);
+        let far = entity(3);
+        let picked = pick_ai_target(
+            Vec3::ZERO,
+            None,
+            None,
+            Some(hauler),
+            [
+                (far, Vec3::new(0.0, 0.0, -1500.0), AITargetKind::Ship),
+                (near, Vec3::new(0.0, 0.0, -900.0), AITargetKind::Ship),
+            ]
+            .into_iter(),
+        );
+        assert_eq!(picked, Some(near), "no prey in sight: nearest wins");
     }
 
     #[test]

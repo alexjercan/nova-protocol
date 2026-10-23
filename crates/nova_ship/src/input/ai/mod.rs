@@ -52,7 +52,7 @@ use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 pub(crate) use self::acquisition::AI_POINT_DEFENSE_RANGE;
 pub(crate) use self::guns::{ai_turret_gun_target, AI_POINT_DEFENSE_MAGAZINE_DIVISOR};
 pub use self::{
-    acquisition::{AIPointDefenseRange, AIPointDefenseTarget, AITarget},
+    acquisition::{AIPointDefenseRange, AIPointDefenseTarget, AIPrey, AITarget},
     behavior::{AIBehaviorState, AIEngageRange, AILeash, AIOrbitDirective, AIPatrolRoute},
     follow::{formation_goal, AIFollow, AI_FOLLOW_CLOSING_SPEED, AI_FOLLOW_GAP},
     frozen::{freeze_ai, thaw_ai, FrozenAI},
@@ -111,7 +111,7 @@ pub mod prelude {
     pub use super::{
         formation_goal, freeze_ai, thaw_ai, AIAvoidMargin, AIAvoidanceDetour, AIBehaviorState,
         AIEngageGrace, AIEngageRange, AIEvade, AIFollow, AILeash, AINonCombatant, AIOrbitDirective,
-        AIOrderInterruption, AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget,
+        AIOrderInterruption, AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget, AIPrey,
         AIProvocation, AIRailgun, AISpaceshipMarker, AIStandoffClearance, AITarget, AIThreat,
         AIWaypointSlack, FrozenAI, LastAttacker, ShipProvoked, SpaceshipAIInputPlugin,
         AI_FIRE_RANGE_FACTOR, AI_FOLLOW_CLOSING_SPEED, AI_FOLLOW_GAP, AI_STANDOFF_OUTER_EDGE,
@@ -161,6 +161,7 @@ impl Plugin for SpaceshipAIInputPlugin {
 
         app.register_type::<AIBehaviorState>();
         app.register_type::<AITarget>();
+        app.register_type::<AIPrey>();
         app.add_systems(
             Update,
             mirror_ai_combat_state.in_set(super::SpaceshipInputSystems),

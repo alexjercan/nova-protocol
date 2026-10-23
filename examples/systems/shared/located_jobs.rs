@@ -22,6 +22,15 @@
 //! | 2 | `outcome: the hand-in is refused until the <kind> job is done` | docked at the poster with the job held, Your jobs greys the Hand in button with the not-done reason in its tooltip |
 //! | 3 | `outcome: the world marks the <kind> job done` | after the work the job is listed done while still held |
 //! | 4 | `outcome: the hand-in pays the <kind> job` | docked again, the Hand in click pays the reward from the station, takes nothing out of the hold and lists the job completed |
+//!
+//! The escort range flies its work instead of editing the world: the player
+//! flies to the waiting hauler with GOTO, holds formation on the leg, meets
+//! the ambush and fights it with the hull's own turrets, the weakest raider
+//! first and its mounts pinned, until the hauler reaches its mark. Nothing
+//! teleports the hauler. It asserts four more
+//! claims ([`EscortMarkers`]): the hauler waits for the rendezvous, leaves
+//! when the escort arrives, the raiders spring with the escort in formation,
+//! and the hauler outlives its first hit by the defense window.
 
 use std::{collections::BTreeSet, sync::Arc};
 
@@ -47,6 +56,27 @@ pub struct LocatedJobMarkers {
     pub done: &'static str,
     /// Claim 4: the hand-in pays the job.
     pub paid: &'static str,
+    /// The escort's flight claims; `None` for every other kind.
+    pub escort: Option<EscortMarkers>,
+}
+
+/// The four `outcome:` markers the escort range emits for its flight, held
+/// as literals in the including example so the probe roster test reads them
+/// beside the range.
+#[derive(Clone, Copy, Debug)]
+pub struct EscortMarkers {
+    /// On the undock the leg is laid, not started, and the hauler wears no
+    /// order while the player is farther than the rendezvous.
+    pub waits: &'static str,
+    /// The leg starts with the player inside the rendezvous, and the hauler
+    /// wears its order and its cruise cap.
+    pub leaves: &'static str,
+    /// The first raider engages with the hauler at its cruise and the player
+    /// in formation.
+    pub springs: &'static str,
+    /// The job is done, not lost, and the hauler outlived its first hit by
+    /// the defense window.
+    pub survives: &'static str,
 }
 
 /// Which located kind a range walks.
@@ -103,7 +133,7 @@ impl LocatedKindType {
     const fn pinned_seed(self) -> u32 {
         match self {
             LocatedKindType::Recover => 15,
-            LocatedKindType::Escort => 2,
+            LocatedKindType::Escort => 10,
             LocatedKindType::Distress => 16,
             LocatedKindType::Neutralize => 16,
         }
@@ -131,9 +161,41 @@ const JOBS_TAB: &str = "InterfaceTabJobs";
 
 /// How far from a hull the player parks before the berth.
 const PARK_DISTANCE: Meters = Meters(2_000.0);
-/// How far short of its mark the walk sets the hauler down, engine units,
-/// so the leg ends in frames rather than minutes on a software GPU.
-const HAULER_DROP_SHORT: f32 = 15.0;
+/// The open world's escort rendezvous: how close the undocked player must
+/// come to the waiting hauler before it leaves (`ESCORT_RENDEZVOUS` in
+/// `nova_world_base::jobs`).
+const ESCORT_RENDEZVOUS: Meters = Meters(1_000.0);
+/// How much closer than the rendezvous the walk may read the player on the
+/// frame after the leg starts: one clamped frame of GOTO approach.
+const RENDEZVOUS_SLACK: Meters = Meters(250.0);
+/// The hauler's cruise on its leg (`HAULER_CRUISE` in `nova_world_base::jobs`).
+const HAULER_CRUISE: MetersPerSecond = MetersPerSecond(100.0);
+/// How far over its cruise the hauler may read: the cap is a desired
+/// velocity the drive settles on.
+const CRUISE_SLACK: MetersPerSecond = MetersPerSecond(10.0);
+/// How far from the hauler the player counts as in formation when the
+/// raiders spring: GOTO parks 500 m off the hull.
+const FORMATION: Meters = Meters(1_500.0);
+/// Seconds of play after the spring the raiders must keep a living one in
+/// Engage, and the window the hauler must outlive its first hit by when it
+/// takes one: the fight a solo escort has to carry.
+const DEFENSE_WINDOW_SECS: f32 = 20.0;
+/// How far the base turret sections reach: 1000 m/s muzzle speed over a 2 s
+/// projectile lifetime. The player holds fire outside it.
+const TURRET_REACH: Meters = Meters(2_000.0);
+/// Inside this distance to the raider it intercepts, the player matches the
+/// raider's velocity and lets the turrets work; GOTO re-engages when the
+/// raider pulls past it. Inside the raiders' own 1.8 km fire gate, so the
+/// hold is a stand-off, not a range exploit; a light-plate hull that closed
+/// to 1 km was shredded in 1.5 s.
+const INTERCEPT_HOLD: Meters = Meters(1_600.0);
+/// Seconds the fight pins the component lock on the raider's mount for, and
+/// refreshes it well inside: the game's own cycle pin is 2 s. A raider is
+/// beaten when it has no working weapon left, so the escort shoots the
+/// mounts off the raider with the fewest, not its hull plating.
+const TURRET_PIN_SECS: f32 = 2.0;
+/// Seconds of play between `escort job:` flight log lines.
+const ESCORT_LOG_PERIOD_SECS: f32 = 1.0;
 
 /// Seconds a load, a stream or a beat gets on a software-rendered GPU.
 const SESSION_SECS: f32 = 240.0;
@@ -164,6 +226,42 @@ pub struct LocatedJobWatch {
     planted: Option<GeneratedBodyId>,
     /// The player's and the station's balances before the hand-in.
     before_cr: Option<(u32, u32)>,
+    /// What the escort flight saw.
+    escort: EscortWatch,
+}
+
+/// What the escort range records over its flight.
+#[derive(Debug, Default)]
+struct EscortWatch {
+    /// The player's distance to the hauler on the last frame the approach
+    /// step ran, meters.
+    approach_m: Option<f32>,
+    /// The raider the player's guns are locked on.
+    lock: Option<Entity>,
+    /// The locked raider's mount the component lock is pinned on.
+    pinned: Option<Entity>,
+    /// The raiders neutralized during the fight, in order.
+    disarmed: Vec<GeneratedBodyId>,
+    /// Whether the weapons are raised.
+    raised: bool,
+    /// Whether the turret trigger is held.
+    trigger: bool,
+    /// Whether the locked raider stood inside [`TURRET_REACH`] on the last
+    /// fight frame.
+    in_reach: bool,
+    /// Play seconds at the spring, when the first raider engaged.
+    sprung_at: Option<f32>,
+    /// Play seconds of the fight that a living raider spent in Engage.
+    threatened_secs: f32,
+    /// Each raider's hit points when first seen in the fight, and its lowest
+    /// since. The hauler flies unarmed, so a drop is the player's fire.
+    raider_hp: Vec<(GeneratedBodyId, f32, f32)>,
+    /// Play seconds at the hauler's first hit.
+    first_hit_at: Option<f32>,
+    /// The hauler's lowest hit points seen, and its maximum.
+    hp_low: Option<(f32, f32)>,
+    /// Play seconds at the last flight log line.
+    logged_at: Option<f32>,
 }
 
 impl LocatedJobWatch {
@@ -176,6 +274,7 @@ impl LocatedJobWatch {
             worked: false,
             planted: None,
             before_cr: None,
+            escort: EscortWatch::default(),
         }
     }
 }
@@ -185,6 +284,11 @@ pub struct LocatedJobWalkPlugin(pub LocatedKindType, pub LocatedJobMarkers);
 
 impl Plugin for LocatedJobWalkPlugin {
     fn build(&self, app: &mut App) {
+        assert_eq!(
+            self.1.escort.is_some(),
+            self.0 == LocatedKindType::Escort,
+            "located jobs: the escort range, and only it, names its flight markers"
+        );
         app.insert_resource(LocatedJobWatch::new(self.0, self.1));
         app.add_systems(Update, hold_the_walk_clock);
         if self.0 == LocatedKindType::Neutralize {
@@ -330,6 +434,16 @@ fn the_job_is_done() -> Arc<Predicate> {
             .job
             .as_ref()
             .is_some_and(|(_, job)| world.resource::<Jobs>().is_done(&job.id))
+    })
+}
+
+fn the_job_is_dropped() -> Arc<Predicate> {
+    when(|world| {
+        world
+            .resource::<LocatedJobWatch>()
+            .job
+            .as_ref()
+            .is_some_and(|(_, job)| world.resource::<Jobs>().is_dropped(&job.id))
     })
 }
 
@@ -497,7 +611,9 @@ fn mounted_on(world: &World, entity: Entity, root: Entity) -> bool {
     false
 }
 
-/// The free, live docking ports mounted on `root`, lowest first.
+/// The free, live docking ports mounted on `root`, in `Entity` order. Bevy
+/// stores the entity index inverted, so this is the newest index first; the
+/// harness only needs the order to be stable between docks.
 fn free_ports(world: &mut World, root: Entity) -> Vec<Entity> {
     let ports: Vec<Entity> = world
         .query_filtered::<Entity, (
@@ -515,7 +631,7 @@ fn free_ports(world: &mut World, root: Entity) -> Vec<Entity> {
     ports
 }
 
-/// The lowest free, live docking port mounted on `root`.
+/// The first free, live docking port mounted on `root`, in `Entity` order.
 fn free_port(world: &mut World, root: Entity) -> Entity {
     free_ports(world, root)
         .into_iter()
@@ -1037,6 +1153,680 @@ fn disable_the_hull(world: &mut World, root: Entity) {
     }
 }
 
+/// The hauler the held escort names, standing.
+fn the_hauler(world: &World) -> Entity {
+    let body = located_body(world);
+    body_wearing(world, &body).unwrap_or_else(|| panic!("escort job: no hauler '{body}' stands"))
+}
+
+/// The distance between two standing bodies, meters.
+fn distance_between(world: &World, a: Entity, b: Entity) -> f32 {
+    let at = |entity: Entity| {
+        Meters3::from_engine(
+            world
+                .get::<Position>(entity)
+                .unwrap_or_else(|| panic!("escort job: {entity:?} has no position"))
+                .0,
+        )
+    };
+    at(a).distance(at(b)).get()
+}
+
+/// A body's speed, meters per second.
+fn speed_of(world: &World, entity: Entity) -> f32 {
+    world.get::<LinearVelocity>(entity).map_or(0.0, |velocity| {
+        MetersPerSecond3::from_engine(velocity.0).get().length()
+    })
+}
+
+/// Whether the held escort's leg started.
+fn the_leg_started() -> Arc<Predicate> {
+    when(|world| {
+        let (_, job) = the_job(world);
+        world
+            .resource::<Jobs>()
+            .legs()
+            .any(|(id, leg)| *id == job.id && leg.started)
+    })
+}
+
+/// The held escort's raiders that stand and are not neutralized, with each
+/// one's behavior state.
+fn living_raiders(world: &World) -> Vec<(Entity, GeneratedBodyId, Option<AIBehaviorState>)> {
+    let (_, job) = the_job(world);
+    job.raider_ids()
+        .into_iter()
+        .filter_map(|id| {
+            let raider = body_wearing(world, &id)?;
+            world
+                .get::<NeutralizedMarker>(raider)
+                .is_none()
+                .then(|| (raider, id, world.get::<AIBehaviorState>(raider).copied()))
+        })
+        .collect()
+}
+
+/// A raider's working turret mounts in stable order: the sections the
+/// neutralize rule counts as its weapons.
+fn working_mounts(world: &mut World, raider: Entity) -> Vec<Entity> {
+    let mut mounts: Vec<Entity> = world
+        .query_filtered::<(Entity, &ChildOf), (With<TurretSectionMarker>, Without<SectionInactiveMarker>)>()
+        .iter(world)
+        .filter(|(_, ChildOf(parent))| *parent == raider)
+        .map(|(entity, _)| entity)
+        .collect();
+    mounts.sort();
+    mounts
+}
+
+/// Whether any raider of the held escort is engaging.
+fn a_raider_engages() -> Arc<Predicate> {
+    when(|world| {
+        living_raiders(world)
+            .iter()
+            .any(|(.., state)| *state == Some(AIBehaviorState::Engage))
+    })
+}
+
+/// Put the player on a GOTO to the hauler when it flies none: a completed
+/// GOTO parks 500 m off the hull and drops the autopilot, and the hauler
+/// moves on.
+fn goto_the_hauler(world: &mut World) {
+    let player = player(world);
+    if world.get::<Autopilot>(player).is_some() {
+        return;
+    }
+    let hauler = the_hauler(world);
+    world
+        .entity_mut(player)
+        .insert(Autopilot::engage(AutopilotAction::Goto { target: hauler }));
+}
+
+/// One line of the flight, once per [`ESCORT_LOG_PERIOD_SECS`] of play: the
+/// hauler's speed and hit points, the player's distance and each living
+/// raider's state and distances.
+fn log_the_flight(world: &mut World, stage: &str) {
+    let now = world.resource::<Time<Virtual>>().elapsed_secs();
+    let due = world
+        .resource::<LocatedJobWatch>()
+        .escort
+        .logged_at
+        .is_none_or(|last| now - last >= ESCORT_LOG_PERIOD_SECS);
+    if !due {
+        return;
+    }
+    world.resource_mut::<LocatedJobWatch>().escort.logged_at = Some(now);
+    let player = player(world);
+    let hauler = the_hauler(world);
+    let hp = world
+        .get::<Health>(hauler)
+        .map_or("none".to_string(), |health| {
+            format!("{:.0}/{:.0}", health.current, health.max)
+        });
+    let raiders: Vec<String> = living_raiders(world)
+        .into_iter()
+        .map(|(raider, id, state)| {
+            let hp = world
+                .get::<Health>(raider)
+                .map_or("none".to_string(), |health| {
+                    format!("{:.0}/{:.0}", health.current, health.max)
+                });
+            format!(
+                "{id}: {state:?} hp={hp} to_hauler={:.0}m to_player={:.0}m",
+                distance_between(world, raider, hauler),
+                distance_between(world, raider, player)
+            )
+        })
+        .collect();
+    info!(
+        "escort job: {stage} t={now:.1} hauler_speed={:.1}m/s hauler_hp={hp} \
+         player_dist={:.0}m player_speed={:.1}m/s raiders=[{}]",
+        speed_of(world, hauler),
+        distance_between(world, player, hauler),
+        speed_of(world, player),
+        raiders.join(", ")
+    );
+}
+
+/// One frame of the approach: fly GOTO to the hauler and note the distance,
+/// so the departure assert reads where the player stood as the leg started.
+fn approach_the_hauler(world: &mut World) {
+    goto_the_hauler(world);
+    let player = player(world);
+    let hauler = the_hauler(world);
+    let distance = distance_between(world, player, hauler);
+    world.resource_mut::<LocatedJobWatch>().escort.approach_m = Some(distance);
+    log_the_flight(world, "approach");
+}
+
+/// One frame of the formation leg: keep GOTO on the hauler and log.
+fn hold_formation(world: &mut World) {
+    goto_the_hauler(world);
+    log_the_flight(world, "formation");
+}
+
+/// One frame of the fight: intercept the weakest living raider, the one
+/// with the fewest working mounts and then the least hit points, on a GOTO,
+/// lock it, raise the weapons and hold the turret trigger once they are hot
+/// and it stands inside [`TURRET_REACH`], pin the component lock on its
+/// first working mount once the lock focus completes and on the next as
+/// each dies, re-pick as raiders fall, and note each raider's hit points,
+/// the raiders neutralized, the seconds a raider spent in Engage, and the
+/// hauler's first hit and lowest hit points. The trigger is released on a
+/// re-lock: the fire inputs latch and a safety interrupt needs a fresh press.
+fn fight_the_ambush(world: &mut World, player: Entity, hauler: Entity, job: &Job) {
+    let (now, dt) = {
+        let time = world.resource::<Time<Virtual>>();
+        (time.elapsed_secs(), time.delta_secs())
+    };
+    let raiders = living_raiders(world);
+    let weakest = raiders
+        .iter()
+        .map(|(raider, id, _)| {
+            let mounts = working_mounts(world, *raider);
+            let hp = world
+                .get::<Health>(*raider)
+                .map_or(f32::INFINITY, |health| health.current);
+            (
+                *raider,
+                id.clone(),
+                distance_between(world, *raider, player),
+                mounts,
+                hp,
+            )
+        })
+        .min_by(|a, b| a.3.len().cmp(&b.3.len()).then(a.4.total_cmp(&b.4)));
+    let (lock, raised, trigger, in_reach) = {
+        let escort = &world.resource::<LocatedJobWatch>().escort;
+        (escort.lock, escort.raised, escort.trigger, escort.in_reach)
+    };
+    let picked = weakest.as_ref().map(|(raider, ..)| *raider);
+    if picked != lock {
+        if trigger {
+            release_mouse(MouseButton::Left)(world);
+            world.resource_mut::<LocatedJobWatch>().escort.trigger = false;
+        }
+        world.entity_mut(player).insert(CombatLock(picked));
+        let mut watch = world.resource_mut::<LocatedJobWatch>();
+        watch.escort.lock = picked;
+        watch.escort.in_reach = false;
+        watch.escort.pinned = None;
+        info!(
+            "escort job: fight: the player locks {:?}, the weakest raider with {} working \
+             mount(s), for '{}'",
+            weakest.as_ref().map(|(_, id, ..)| id.to_string()),
+            weakest.as_ref().map_or(0, |(.., mounts, _)| mounts.len()),
+            job.id
+        );
+    }
+    pin_a_mount(
+        world,
+        player,
+        weakest
+            .as_ref()
+            .map(|(raider, id, _, mounts, _)| (*raider, id, mounts.as_slice())),
+    );
+    let nearest = weakest
+        .as_ref()
+        .map(|(raider, id, distance, ..)| (*raider, id.clone(), *distance));
+    match &nearest {
+        Some((raider, id, distance)) => {
+            let action = world
+                .get::<Autopilot>(player)
+                .map(|autopilot| autopilot.action);
+            let flying =
+                matches!(action, Some(AutopilotAction::Goto { target }) if target == *raider);
+            let holding = matches!(action, Some(AutopilotAction::MatchVelocity { .. }));
+            if *distance > INTERCEPT_HOLD.get() {
+                if !flying {
+                    world
+                        .entity_mut(player)
+                        .insert(Autopilot::engage(AutopilotAction::Goto { target: *raider }));
+                    info!("escort job: fight: the player intercepts '{id}' {distance:.0} m out");
+                }
+            } else if !holding {
+                let velocity = world
+                    .get::<LinearVelocity>(*raider)
+                    .map_or(Vec3::ZERO, |velocity| velocity.0);
+                world.entity_mut(player).insert(Autopilot::engage(
+                    AutopilotAction::MatchVelocity {
+                        velocity,
+                        facing: None,
+                        rcs: true,
+                    },
+                ));
+                info!(
+                    "escort job: fight: the player holds {distance:.0} m off '{id}' and matches its \
+                     {:.0} m/s",
+                    MetersPerSecond3::from_engine(velocity).get().length()
+                );
+            }
+        }
+        None => {
+            if world.get::<Autopilot>(player).is_some() {
+                world.entity_mut(player).remove::<Autopilot>();
+            }
+        }
+    }
+    if !raised {
+        press_action("combat_stance")(world);
+        world.resource_mut::<LocatedJobWatch>().escort.raised = true;
+    }
+    let hot = world.get::<WeaponsHot>(player).is_some_and(|hot| hot.0);
+    let within = nearest
+        .as_ref()
+        .is_some_and(|(.., distance)| *distance <= TURRET_REACH.get());
+    if within != in_reach {
+        world.resource_mut::<LocatedJobWatch>().escort.in_reach = within;
+        if let Some((_, id, distance)) = &nearest {
+            info!(
+                "escort job: fight: '{id}' is {} the {:.0} m turret reach at {distance:.0} m",
+                if within { "inside" } else { "outside" },
+                TURRET_REACH.get()
+            );
+        }
+    }
+    let trigger = world.resource::<LocatedJobWatch>().escort.trigger;
+    if hot && within && !trigger {
+        press_mouse(MouseButton::Left)(world);
+        world.resource_mut::<LocatedJobWatch>().escort.trigger = true;
+        info!("escort job: fight: weapons hot, the player holds the trigger");
+    }
+    if raiders
+        .iter()
+        .any(|(.., state)| *state == Some(AIBehaviorState::Engage))
+    {
+        world
+            .resource_mut::<LocatedJobWatch>()
+            .escort
+            .threatened_secs += dt;
+    }
+    for (raider, id, _) in &raiders {
+        let Some(current) = world.get::<Health>(*raider).map(|health| health.current) else {
+            continue;
+        };
+        let mut watch = world.resource_mut::<LocatedJobWatch>();
+        match watch
+            .escort
+            .raider_hp
+            .iter_mut()
+            .find(|(seen, ..)| seen == id)
+        {
+            Some((_, first, low)) => {
+                if current < *low {
+                    if *low == *first {
+                        info!(
+                            "escort job: fight: the player's fire lands on '{id}' at t={now:.1} \
+                             ({current:.0}/{first:.0} hp)"
+                        );
+                    }
+                    *low = current;
+                }
+            }
+            None => watch.escort.raider_hp.push((id.clone(), current, current)),
+        }
+    }
+    let seen: Vec<GeneratedBodyId> = world
+        .resource::<LocatedJobWatch>()
+        .escort
+        .raider_hp
+        .iter()
+        .map(|(id, ..)| id.clone())
+        .collect();
+    for id in seen {
+        let living = raiders.iter().any(|(_, living, _)| *living == id);
+        let noted = world
+            .resource::<LocatedJobWatch>()
+            .escort
+            .disarmed
+            .contains(&id);
+        if !living && !noted {
+            world
+                .resource_mut::<LocatedJobWatch>()
+                .escort
+                .disarmed
+                .push(id.clone());
+            info!("escort job: fight: '{id}' is neutralized at t={now:.1}");
+        }
+    }
+    if let Some((current, max)) = world
+        .get::<Health>(hauler)
+        .map(|health| (health.current, health.max))
+    {
+        let mut watch = world.resource_mut::<LocatedJobWatch>();
+        if current < max && watch.escort.first_hit_at.is_none() {
+            watch.escort.first_hit_at = Some(now);
+            info!(
+                "escort job: fight: the hauler takes its first hit at t={now:.1} \
+                 ({current:.0}/{max:.0} hp)"
+            );
+        }
+        let low = watch
+            .escort
+            .hp_low
+            .map_or(current, |(low, _)| low.min(current));
+        watch.escort.hp_low = Some((low, max));
+    }
+    log_the_flight(world, "fight");
+}
+
+/// Pin the player's component lock on the locked raider's first working
+/// mount once the lock focus completes, and keep it pinned: the pin expires
+/// after [`TURRET_PIN_SECS`] or with its section, so it is refreshed inside
+/// the window and moved to the next mount as each dies. Without a focused
+/// lock the game clears the component lock itself.
+fn pin_a_mount(
+    world: &mut World,
+    player: Entity,
+    locked: Option<(Entity, &GeneratedBodyId, &[Entity])>,
+) {
+    let Some((raider, id, mounts)) = locked else {
+        return;
+    };
+    let focused = world
+        .get::<LockFocus>(player)
+        .is_some_and(|focus| focus.focused_on(raider));
+    let Some(mount) = mounts.first().copied() else {
+        return;
+    };
+    if !focused {
+        return;
+    }
+    let now = world.resource::<Time>().elapsed_secs();
+    let current = world
+        .get::<ComponentLock>(player)
+        .cloned()
+        .unwrap_or_default();
+    let expiring = match current.mode {
+        ComponentLockMode::Pinned { until } => until - now < TURRET_PIN_SECS / 2.0,
+        ComponentLockMode::Snap => true,
+    };
+    if current.section == Some(mount) && !expiring {
+        return;
+    }
+    world.entity_mut(player).insert(ComponentLock {
+        section: Some(mount),
+        mode: ComponentLockMode::Pinned {
+            until: now + TURRET_PIN_SECS,
+        },
+    });
+    let pinned = world.resource::<LocatedJobWatch>().escort.pinned;
+    if pinned != Some(mount) {
+        world.resource_mut::<LocatedJobWatch>().escort.pinned = Some(mount);
+        info!(
+            "escort job: fight: the player pins mount {mount:?} of '{id}', {} working mount(s) \
+             left on it",
+            mounts.len()
+        );
+    }
+}
+
+/// Lower the guns and drop the intercept after the fight so the docking
+/// beats fire nothing and fly nowhere.
+fn stand_down(world: &mut World) {
+    let player = player(world);
+    let (raised, trigger) = {
+        let escort = &world.resource::<LocatedJobWatch>().escort;
+        (escort.raised, escort.trigger)
+    };
+    if trigger {
+        release_mouse(MouseButton::Left)(world);
+    }
+    if raised {
+        release_action("combat_stance")(world);
+    }
+    world
+        .entity_mut(player)
+        .insert((CombatLock(None), ComponentLock::default()))
+        .remove::<Autopilot>();
+    let mut watch = world.resource_mut::<LocatedJobWatch>();
+    watch.escort.trigger = false;
+    watch.escort.raised = false;
+    watch.escort.lock = None;
+    watch.escort.pinned = None;
+}
+
+/// Escort claim: on the undock the leg is laid and not started, and the
+/// hauler wears no order and no cap while the player stands farther than the
+/// rendezvous.
+fn assert_the_hauler_waits(world: &mut World) {
+    let (_, job) = the_job(world);
+    let markers = markers(world)
+        .escort
+        .expect("the escort range names its markers");
+    let player = player(world);
+    let hauler = the_hauler(world);
+    let distance = distance_between(world, player, hauler);
+    let jobs = world.resource::<Jobs>().clone();
+    assert!(
+        jobs.legs().any(|(id, leg)| *id == job.id && !leg.started),
+        "escort job: the leg is laid and not started on the undock"
+    );
+    assert!(
+        distance > ESCORT_RENDEZVOUS.get(),
+        "escort job: the player undocks {distance:.0} m off the hauler, outside the rendezvous"
+    );
+    assert!(
+        world.get::<ShipHelmOrder>(hauler).is_none(),
+        "escort job: the hauler wears no helm order before the rendezvous"
+    );
+    assert!(
+        world.get::<FlightCruiseCap>(hauler).is_none(),
+        "escort job: the hauler wears no cruise cap before the rendezvous"
+    );
+    nova_probe::probe_marker(
+        world,
+        markers.waits,
+        serde_json::json!({ "job": job.id.to_string(), "player_distance_m": distance }),
+    );
+    info!(
+        "escort job: the hauler waits {distance:.0} m off the undocked player for '{}'",
+        job.id
+    );
+}
+
+/// Escort claim: the leg started with the player inside the rendezvous, and
+/// the hauler wears its Move and its cruise cap.
+fn assert_the_departure(world: &mut World) {
+    let (_, job) = the_job(world);
+    let markers = markers(world)
+        .escort
+        .expect("the escort range names its markers");
+    let hauler = the_hauler(world);
+    let approach = world
+        .resource::<LocatedJobWatch>()
+        .escort
+        .approach_m
+        .expect("the approach step ran");
+    let limit = ESCORT_RENDEZVOUS.get() + RENDEZVOUS_SLACK.get();
+    assert!(
+        approach <= limit,
+        "escort job: the leg started with the player {approach:.0} m off the hauler, past \
+         {limit:.0} m"
+    );
+    let order = world
+        .get::<ShipHelmOrder>(hauler)
+        .expect("escort job: the started leg orders the hauler");
+    assert!(
+        matches!(order.directive, ShipOrderDirective::Move { .. }),
+        "escort job: the hauler flies a Move, not {:?}",
+        order.directive
+    );
+    let cap = world
+        .get::<FlightCruiseCap>(hauler)
+        .map(|cap| MetersPerSecond::from_engine(**cap).get())
+        .expect("escort job: the ordered hauler wears a cruise cap");
+    assert!(
+        (cap - HAULER_CRUISE.get()).abs() < 1e-3,
+        "escort job: the hauler's cruise cap reads {cap} m/s"
+    );
+    nova_probe::probe_marker(
+        world,
+        markers.leaves,
+        serde_json::json!({
+            "job": job.id.to_string(),
+            "player_distance_m": approach,
+            "cruise_mps": cap,
+        }),
+    );
+    info!(
+        "escort job: the hauler leaves with the player {approach:.0} m off it at a {cap:.0} m/s \
+         cruise"
+    );
+}
+
+/// Escort claim: the first raider engages with the hauler at its cruise and
+/// the player in formation.
+fn assert_the_ambush(world: &mut World) {
+    let (_, job) = the_job(world);
+    let markers = markers(world)
+        .escort
+        .expect("the escort range names its markers");
+    let player = player(world);
+    let hauler = the_hauler(world);
+    let engaged: Vec<String> = living_raiders(world)
+        .into_iter()
+        .filter(|(.., state)| *state == Some(AIBehaviorState::Engage))
+        .map(|(_, id, _)| id.to_string())
+        .collect();
+    assert!(!engaged.is_empty(), "escort job: a raider engages");
+    let now = world.resource::<Time<Virtual>>().elapsed_secs();
+    world.resource_mut::<LocatedJobWatch>().escort.sprung_at = Some(now);
+    let hauler_speed = speed_of(world, hauler);
+    let limit = HAULER_CRUISE.get() + CRUISE_SLACK.get();
+    assert!(
+        hauler_speed <= limit,
+        "escort job: the hauler flies {hauler_speed:.1} m/s at the ambush, over {limit:.0}"
+    );
+    let distance = distance_between(world, player, hauler);
+    assert!(
+        distance <= FORMATION.get(),
+        "escort job: the raiders spring with the player {distance:.0} m off the hauler, out of \
+         formation"
+    );
+    let hp = world
+        .get::<Health>(hauler)
+        .map(|health| (health.current, health.max));
+    nova_probe::probe_marker(
+        world,
+        markers.springs,
+        serde_json::json!({
+            "job": job.id.to_string(),
+            "engaged": engaged,
+            "hauler_speed_mps": hauler_speed,
+            "player_distance_m": distance,
+            "hauler_hp": hp,
+        }),
+    );
+    info!(
+        "escort job: raiders {engaged:?} spring with the hauler at {hauler_speed:.1} m/s and the \
+         player {distance:.0} m off it"
+    );
+}
+
+/// Escort claim: the job is done, not lost; the player's fire landed on a
+/// raider; a living raider spent [`DEFENSE_WINDOW_SECS`] of the flight in
+/// Engage; and when the hauler took a hit it outlived the first one by the
+/// same window. An unhit hauler is reported as unhit, not as surviving.
+fn assert_the_survival(world: &mut World) {
+    let (_, job) = the_job(world);
+    let markers = markers(world)
+        .escort
+        .expect("the escort range names its markers");
+    let jobs = world.resource::<Jobs>().clone();
+    assert!(
+        !jobs.is_dropped(&job.id),
+        "escort job: '{}' was lost: the hauler was disabled, neutralized or destroyed before \
+         its mark",
+        job.id
+    );
+    assert!(
+        jobs.is_done(&job.id),
+        "escort job: the hauler reached its mark"
+    );
+    let now = world.resource::<Time<Virtual>>().elapsed_secs();
+    let escort = &world.resource::<LocatedJobWatch>().escort;
+    let hit_raiders: Vec<String> = escort
+        .raider_hp
+        .iter()
+        .filter(|(_, first, low)| low < first)
+        .map(|(id, first, low)| format!("{id} {low:.0}/{first:.0}"))
+        .collect();
+    assert!(
+        !hit_raiders.is_empty(),
+        "escort job: the player's fire landed on no raider: {:?}",
+        escort.raider_hp
+    );
+    let sprung_at = escort
+        .sprung_at
+        .expect("the ambush assert ran before the fight");
+    let threatened = escort.threatened_secs;
+    assert!(
+        threatened >= DEFENSE_WINDOW_SECS,
+        "escort job: a raider engaged for {threatened:.1} s of the {:.1} s flight after the \
+         spring, under the {DEFENSE_WINDOW_SECS} s window",
+        now - sprung_at
+    );
+    let survived = escort.first_hit_at.map(|hit| now - hit);
+    if let Some(survived) = survived {
+        assert!(
+            survived >= DEFENSE_WINDOW_SECS,
+            "escort job: the hauler was done {survived:.1} s after its first hit, under the \
+             {DEFENSE_WINDOW_SECS} s defense window"
+        );
+    }
+    let raiders_left = living_raiders(world).len();
+    let disarmed: Vec<String> = escort.disarmed.iter().map(ToString::to_string).collect();
+    let payload = serde_json::json!({
+        "job": job.id.to_string(),
+        "sprung_at_secs": sprung_at,
+        "threatened_secs": threatened,
+        "raiders_hit": hit_raiders,
+        "raiders_disarmed": disarmed,
+        "first_hit_at_secs": escort.first_hit_at,
+        "survived_secs": survived,
+        "hauler_hp_low": escort.hp_low,
+        "raiders_left": raiders_left,
+        "raiders": job.raider_ids().len(),
+    });
+    nova_probe::probe_marker(world, markers.survives, payload);
+    let escort = &world.resource::<LocatedJobWatch>().escort;
+    let hauler = match (escort.first_hit_at, survived) {
+        (Some(hit), Some(survived)) => {
+            format!("hit first at t={hit:.1} and survived {survived:.1} s after it")
+        }
+        _ => "never hit".to_string(),
+    };
+    info!(
+        "escort job: the hauler reached its mark {hauler}, hp low {:?}; raiders threatened for \
+         {threatened:.1} s after the spring at t={sprung_at:.1}; the player's fire landed on \
+         {hit_raiders:?}; {disarmed:?} neutralized; {raiders_left} of {} raiders left",
+        escort.hp_low,
+        job.raider_ids().len()
+    );
+    stand_down(world);
+}
+
+/// What the escort flight shows when a step times out.
+fn describe_the_flight(world: &World) -> String {
+    let player = player(world);
+    let hauler = the_hauler(world);
+    let raiders: Vec<String> = living_raiders(world)
+        .into_iter()
+        .map(|(raider, id, state)| {
+            format!(
+                "{id}: {state:?} {:.0} m from the hauler",
+                distance_between(world, raider, hauler)
+            )
+        })
+        .collect();
+    format!(
+        "hauler at {:.1} m/s, player {:.0} m off it, raiders {raiders:?}",
+        speed_of(world, hauler),
+        distance_between(world, player, hauler)
+    )
+}
+
 /// One frame of the kind's work in the world, until the job is done.
 fn do_the_work(world: &mut World) {
     let kind = kind(world);
@@ -1071,28 +1861,7 @@ fn do_the_work(world: &mut World) {
             }
         }
         (LocatedKindType::Escort, JobType::Escort { .. }) => {
-            if world.resource::<LocatedJobWatch>().worked
-                || world.get::<ShipOrderEngaged>(target).is_none()
-            {
-                return;
-            }
-            let Some(ShipOrderDirective::Move { position, .. }) = world
-                .get::<ShipHelmOrder>(target)
-                .map(|order| order.directive.clone())
-            else {
-                panic!("escort job: the hauler flies a Move order");
-            };
-            let at = world.get::<Position>(target).expect("the hauler stands").0;
-            let approach = (position - at).normalize_or(Vec3::X);
-            world.entity_mut(target).insert((
-                Position(position - approach * HAULER_DROP_SHORT),
-                LinearVelocity::ZERO,
-                AngularVelocity::ZERO,
-            ));
-            world.resource_mut::<LocatedJobWatch>().worked = true;
-            info!(
-                "escort job: set the hauler '{body}' down {HAULER_DROP_SHORT} units short of its mark"
-            );
+            fight_the_ambush(world, player, target, &job);
         }
         (LocatedKindType::Distress, JobType::Distress { genuine, .. }) => {
             if *genuine {
@@ -1428,15 +2197,54 @@ pub fn script(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
             .until(shot_written(inflight_shot))
             .deadline(BEAT_SECS)
             .add()
+    } else if kind == LocatedKindType::Escort {
+        script
+            .step("escort job: assert the hauler waits")
+            .on_enter(assert_the_hauler_waits)
+            .add()
+            .step("escort job: fly to the hauler")
+            .each(|world, _, _| approach_the_hauler(world))
+            .until(the_leg_started())
+            .diagnose(describe_the_flight)
+            .deadline(WORK_SECS)
+            .add()
+            .step("escort job: assert the departure")
+            .on_enter(assert_the_departure)
+            .add()
+            .step("escort job: hold formation")
+            .each(|world, _, _| hold_formation(world))
+            .until(a_raider_engages())
+            .diagnose(describe_the_flight)
+            .deadline(WORK_SECS)
+            .add()
+            .step("escort job: assert the ambush")
+            .on_enter(assert_the_ambush)
+            .add()
     } else {
         script
+    };
+    // A lost escort ends the work at once, so its assert names the loss
+    // instead of the deadline.
+    let worked = if kind == LocatedKindType::Escort {
+        or(the_job_is_done(), the_job_is_dropped())
+    } else {
+        the_job_is_done()
     };
     let script = script
         .step(format!("{tag} job: do the work"))
         .each(|world, _, _| do_the_work(world))
-        .until(the_job_is_done())
+        .until(worked)
         .deadline(WORK_SECS)
-        .add()
+        .add();
+    let script = if kind == LocatedKindType::Escort {
+        script
+            .step("escort job: assert the survival")
+            .on_enter(assert_the_survival)
+            .add()
+    } else {
+        script
+    };
+    let script = script
         .step(format!("{tag} job: assert the done"))
         .on_enter(assert_the_done)
         .add()

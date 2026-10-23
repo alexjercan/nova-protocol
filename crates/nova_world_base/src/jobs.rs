@@ -28,8 +28,11 @@
 //! generated hull under the poster's cell root with a [`GeneratedBodyId`] the
 //! job names, so the streaming layer adopts, freezes and saves it like any
 //! cell body. The hauler waits off the poster until the player stands
-//! undocked from it, then flies its leg; the leg is kept in the jobs, so a
-//! thaw or a Load, which keep no helm order, gives the hauler its order again
+//! undocked from it and within [`ESCORT_RENDEZVOUS`] of the hauler, then
+//! flies its leg at [`HAULER_CRUISE`] so the escort can hold formation; the
+//! leg is kept in the jobs, so a thaw or a Load, which keep no helm order,
+//! gives the hauler its order and its cruise cap again, and every raider
+//! its hauler as [`AIPrey`] again, which no save keeps either
 //! ([`fly_escort_legs`]). Each located kind is marked done by one observer
 //! over one existing `nova_events` kind: a recovery on `onundocked`
 //! ([`recover_on_undock`]), an escort on `onshipordercomplete`
@@ -48,9 +51,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use bevy::{ecs::entity::EntityHashSet, prelude::*};
 use nova_events::prelude::{
-    EntityId, EventKind, GameEvent, GeneratedBodyId, Meters, Meters3, MetersPerSecond3,
-    OnDestroyedEvent, OnDockedEvent, OnNeutralizedEvent, OnShipOrderCompleteEvent,
-    OnShipOrderFailedEvent, OnUndockedEvent, SectorCoord,
+    EntityId, EventKind, GameEvent, GeneratedBodyId, Meters, Meters3, MetersPerSecond,
+    MetersPerSecond3, OnDestroyedEvent, OnDockedEvent, OnNeutralizedEvent,
+    OnShipOrderCompleteEvent, OnShipOrderFailedEvent, OnUndockedEvent, SectorCoord,
 };
 use nova_gameplay::prelude::{
     station_job_offers, station_offers, unit_sphere_point, Allegiance, DerelictShipMarker, Fnv32,
@@ -65,8 +68,8 @@ use nova_scenario::prelude::{
     GameStartRoles, OpenWorldSession, ShipDesignSource, SpaceshipConfig, SpaceshipController,
 };
 use nova_ship::prelude::{
-    DockedShip, DockingConnection, ShipCapabilities, ShipHelmOrder, ShipOrderDirective,
-    ShipOrderHelmAuthority, ShipOrderReports,
+    AIBehaviorState, AIPrey, DockedShip, DockingConnection, FlightCruiseCap, ShipCapabilities,
+    ShipHelmOrder, ShipOrderDirective, ShipOrderHelmAuthority, ShipOrderReports,
 };
 use nova_world::prelude::{
     PendingSectorShip, SectorClusterTypes, SectorRoot, SectorShipConditionType, WorldClock,
@@ -86,19 +89,23 @@ use crate::{
 const JOB_LEG: Meters = Meters(10_000.0);
 /// How far from the poster the hauler starts its leg.
 const HAULER_STANDOFF: Meters = Meters(3_000.0);
+/// How close, undocked, the player must come to the waiting hauler before
+/// it leaves for its mark: GOTO parks 500 m off a hull, inside this.
+const ESCORT_RENDEZVOUS: Meters = Meters(1_000.0);
+/// The hauler's cruise on its leg, so an escort can hold formation with
+/// GOTO; the start hulls reach it in under 4 s.
+const HAULER_CRUISE: MetersPerSecond = MetersPerSecond(100.0);
 /// Where along the leg the raiders lie in wait, as a share of it.
-const RAIDER_AMBUSH_SHARE: f32 = 0.6;
+const RAIDER_AMBUSH_SHARE: f32 = 0.75;
 /// How far apart the raiders stand along the leg.
 const RAIDER_SPACING: Meters = Meters(600.0);
 /// How far off the leg's line the raiders lie in wait: with the ambush
-/// share and the spacing, every raider waits beyond its engage range of the
-/// waiting hauler and within it of the leg.
-const RAIDER_LATERAL: Meters = Meters(2_000.0);
+/// share, the spacing and the engage range, the first raider springs when
+/// the hauler has flown about 2.2 km of its 7 km, and none reaches the
+/// hauler's wait point or the station.
+const RAIDER_LATERAL: Meters = Meters(2_500.0);
 /// How far a raider leaves its wait for a target.
 const RAIDER_ENGAGE_RANGE: Meters = Meters(3_000.0);
-/// Seconds of play a raider holds fire after it spawns, so a player who
-/// undocks at once is not met by fire on the leg's first frame.
-const RAIDER_ENGAGE_DELAY: f32 = 5.0;
 /// How far a job body must stand from every generated body when it spawns.
 const JOB_SPAWN_CLEARANCE: Meters = Meters(2_000.0);
 /// How many seeded directions a spawn tries before it takes the clearest.
@@ -415,7 +422,8 @@ fn job_field(
 /// Put an accepted job's bodies in the world, under the poster's cell root:
 /// an escort's hauler beside the poster with no helm order, its leg laid in
 /// the jobs to a mark a [`JOB_LEG`] out past it ([`Jobs::lay_leg`]), and its
-/// raiders lying in wait off the leg ([`raider_wait_points`]); a
+/// raiders lying in wait off the leg ([`raider_wait_points`]), idle until a
+/// hostile comes inside their engage range; a
 /// distress call's caller at the mark, a drifting hull when the call is
 /// genuine and a raider when it is not. The leg's direction is seeded by
 /// the job and chosen so every body stands [`JOB_SPAWN_CLEARANCE`] from
@@ -528,7 +536,7 @@ pub(crate) fn spawn_job_bodies(
         let (design, stock) = hull(
             id,
             format!("job_raider_{index}").as_bytes(),
-            ShipRoleType::Armored,
+            ShipRoleType::Scavenger,
             SectorShipConditionType::Intact,
         );
         (
@@ -543,7 +551,6 @@ pub(crate) fn spawn_job_bodies(
                 design: ShipDesignSource::Inline(design),
                 controller: SpaceshipController::AI(AIControllerConfig {
                     leash: Some(RAIDER_LEASH),
-                    engage_delay: Some(RAIDER_ENGAGE_DELAY),
                     engage_range: Some(RAIDER_ENGAGE_RANGE),
                     ..AIControllerConfig::default()
                 }),
@@ -554,6 +561,10 @@ pub(crate) fn spawn_job_bodies(
                 lootable: false,
                 credits: 0,
             }),
+            // A raider lies in wait: the AI state's default is Engage, which
+            // would chase the hauler from the spawn at any sensor range
+            // instead of springing inside the engage range.
+            AIBehaviorState::Idle,
             ChildOf(root),
         )
     };
@@ -561,43 +572,50 @@ pub(crate) fn spawn_job_bodies(
     let mark = along(1.0);
     match &job.kind {
         JobType::Escort { hauler, cargo_cr } => {
+            // A working hull, cells deep above and below its keel: a narrow
+            // civilian fuselage is severed by the first raider volley and
+            // loses its engines before the escort can act.
             let (design, stock) = hull(
                 hauler,
                 b"job_hauler",
-                ShipRoleType::Civilian,
+                ShipRoleType::Industrial,
                 SectorShipConditionType::Intact,
             );
             let start = Meters3(station_at.get() + direction * HAULER_STANDOFF.get());
-            commands.spawn((
-                base_scenario_object(&BaseScenarioObjectConfig {
-                    id: hauler.to_string(),
-                    name: format!("{} hauler", civilization.id.name()),
-                    position: start,
-                    rotation: facing,
-                }),
-                hauler.clone(),
-                spaceship_scenario_object(SpaceshipConfig {
-                    design: ShipDesignSource::Inline(design),
-                    controller: SpaceshipController::AI(AIControllerConfig {
-                        non_combatant: true,
-                        ..AIControllerConfig::default()
+            let hauler_root = commands
+                .spawn((
+                    base_scenario_object(&BaseScenarioObjectConfig {
+                        id: hauler.to_string(),
+                        name: format!("{} hauler", civilization.id.name()),
+                        position: start,
+                        rotation: facing,
                     }),
-                    initial_velocity: MetersPerSecond3::ZERO,
-                    allegiance: Some(Allegiance::Player),
-                    capabilities: ShipCapabilities::default(),
-                    inventory: stock,
-                    lootable: false,
-                    credits: 0,
-                }),
-                ChildOf(root),
-            ));
+                    hauler.clone(),
+                    spaceship_scenario_object(SpaceshipConfig {
+                        design: ShipDesignSource::Inline(design),
+                        controller: SpaceshipController::AI(AIControllerConfig {
+                            non_combatant: true,
+                            ..AIControllerConfig::default()
+                        }),
+                        initial_velocity: MetersPerSecond3::ZERO,
+                        allegiance: Some(Allegiance::Player),
+                        capabilities: ShipCapabilities::default(),
+                        inventory: stock,
+                        lootable: false,
+                        credits: 0,
+                    }),
+                    ChildOf(root),
+                ))
+                .id();
             jobs.lay_leg(&job.id, mark);
             let raiders = job.raider_ids().len();
             for (index, at) in raider_wait_points(station_at, direction, raiders)
                 .into_iter()
                 .enumerate()
             {
-                commands.spawn(raider(index as u32, at));
+                // The raiders hunt the hauler: an escort that shoots one
+                // draws that one, not every raider that finds it nearest.
+                commands.spawn((raider(index as u32, at), AIPrey(hauler_root)));
             }
             info!(
                 "nova_world_base: '{}' puts the hauler '{hauler}' ({cargo_cr} cr) on a {} m leg \
@@ -738,12 +756,16 @@ fn leg_order_key(hauler: &GeneratedBodyId) -> String {
 }
 
 /// Fly every held escort's leg: start a leg not started once the player's
-/// hull stands and is not docked with the leg's poster, and give a standing
-/// hauler whose leg started and that carries no helm order a Move to its mark.
-/// A hauler carries none when the leg just started, and after a thaw or a
-/// Load, which keep no helm order; a completed or failed order stays on the
-/// hauler, so a leg is ordered once per spawn. A Load before the undock puts
-/// the player undocked, so the leg starts on the Load's first frame.
+/// hull stands, is not docked with the leg's poster and is within
+/// [`ESCORT_RENDEZVOUS`] of the standing hauler, and give a standing hauler
+/// whose leg started and that carries no helm order a Move to its mark
+/// under a [`FlightCruiseCap`] of [`HAULER_CRUISE`]. A hauler carries no
+/// order when the leg just started, and after a thaw or a Load, which keep
+/// no helm order; a completed or failed order stays on the hauler, so a leg
+/// is ordered once per spawn. A hauler that is frozen or pending does not
+/// stand, so its leg is not due. Every standing raider of a held escort is
+/// set on its standing hauler as [`AIPrey`] when it names it no longer: a
+/// thawed or loaded raider names none, and a thawed hauler is a new entity.
 #[expect(
     clippy::type_complexity,
     reason = "the hauler query reads its id and its reports and filters on two markers"
@@ -751,16 +773,18 @@ fn leg_order_key(hauler: &GeneratedBodyId) -> String {
 pub(crate) fn fly_escort_legs(
     mut commands: Commands,
     mut jobs: ResMut<Jobs>,
-    player: Query<Option<&DockedShip>, With<PlayerSpaceshipMarker>>,
+    player: Query<(&GlobalTransform, Option<&DockedShip>), With<PlayerSpaceshipMarker>>,
     connections: Query<&DockingConnection>,
     ids: Query<&GeneratedBodyId>,
+    standing: Query<(&GeneratedBodyId, &GlobalTransform), With<SpaceshipRootMarker>>,
     haulers: Query<
         (Entity, &GeneratedBodyId, Has<ShipOrderReports>),
         (With<SpaceshipRootMarker>, Without<ShipHelmOrder>),
     >,
+    preying: Query<(Entity, &GeneratedBodyId, Option<&AIPrey>), With<SpaceshipRootMarker>>,
 ) {
-    let docked_at = player.single().ok().map(|docked| {
-        docked
+    let player_stands = player.single().ok().map(|(at, docked)| {
+        let partner = docked
             .and_then(|docked| connections.get(docked.connection).ok())
             .map(|connection| {
                 if player.contains(connection.first_ship) {
@@ -769,23 +793,36 @@ pub(crate) fn fly_escort_legs(
                     connection.first_ship
                 }
             })
-            .and_then(|partner| ids.get(partner).ok())
+            .and_then(|partner| ids.get(partner).ok());
+        (Meters3::from_engine(at.translation()), partner)
     });
     // Read through the shared borrow: a mutable one would mark the jobs
     // changed every frame and `mark_held_job_targets` gates on that.
-    let due: Vec<JobId> = jobs
+    let due: Vec<(JobId, f32)> = jobs
         .legs()
-        .filter(|(id, leg)| {
-            !leg.started
-                && docked_at
-                    .as_ref()
-                    .is_some_and(|partner| partner.is_none_or(|partner| *partner != id.station))
+        .filter(|(_, leg)| !leg.started)
+        .filter_map(|(id, _)| {
+            let (player_at, partner) = player_stands.as_ref()?;
+            if partner.is_some_and(|partner| *partner == id.station) {
+                return None;
+            }
+            let job = jobs.job(id).expect("a leg's escort is held");
+            let JobType::Escort { hauler, .. } = &job.kind else {
+                unreachable!("a leg belongs to an escort");
+            };
+            let (_, hauler_at) = standing.iter().find(|(body, _)| *body == hauler)?;
+            let distance = player_at
+                .distance(Meters3::from_engine(hauler_at.translation()))
+                .get();
+            (distance <= ESCORT_RENDEZVOUS.get()).then(|| (id.clone(), distance))
         })
-        .map(|(id, _)| id.clone())
         .collect();
-    for id in due {
+    for (id, distance) in due {
         jobs.start_leg(&id);
-        info!("nova_world_base: '{id}' starts its leg: the player stands undocked from its poster");
+        info!(
+            "nova_world_base: '{id}' starts its leg: the player stands {distance:.0} m off the \
+             hauler"
+        );
     }
     for (entity, body, reported) in &haulers {
         let Some((job, leg)) = jobs.legs().find_map(|(id, leg)| {
@@ -811,11 +848,40 @@ pub(crate) fn fly_escort_legs(
                 },
             ),
             ShipOrderHelmAuthority,
+            // Engine boundary: the cap rides with the order so a thawed or
+            // loaded hauler, which keeps neither, gets both back together.
+            FlightCruiseCap(HAULER_CRUISE.to_engine()),
         ));
         info!(
-            "nova_world_base: '{}' orders the hauler '{body}' to its mark",
-            job.id
+            "nova_world_base: '{}' orders the hauler '{body}' to its mark at {} m/s",
+            job.id,
+            HAULER_CRUISE.get()
         );
+    }
+    for job in jobs.held() {
+        let JobType::Escort { hauler, .. } = &job.kind else {
+            continue;
+        };
+        let Some(hauler_root) = preying
+            .iter()
+            .find(|(_, body, _)| *body == hauler)
+            .map(|(entity, ..)| entity)
+        else {
+            continue;
+        };
+        for raider in job.raider_ids() {
+            let Some((entity, _, prey)) = preying.iter().find(|(_, body, _)| **body == raider)
+            else {
+                continue;
+            };
+            if prey.is_none_or(|prey| **prey != hauler_root) {
+                commands.entity(entity).insert(AIPrey(hauler_root));
+                info!(
+                    "nova_world_base: '{}' sets the raider '{raider}' on the hauler '{hauler}'",
+                    job.id
+                );
+            }
+        }
     }
 }
 
@@ -1509,29 +1575,56 @@ mod tests {
     }
 
     #[test]
-    fn an_escort_leg_waits_while_the_player_is_docked_at_its_poster_and_flies_after_the_undock_a_thaw_and_a_load(
+    fn an_escort_leg_waits_until_the_player_undocked_from_its_poster_comes_within_the_rendezvous_and_flies_after_a_thaw_and_a_load(
     ) {
         let escort = escort(0);
         let JobType::Escort { hauler, .. } = escort.kind.clone() else {
             unreachable!()
         };
         let mark = Meters3(Vec3::new(0.0, 0.0, -10_000.0));
+        // Engine units: the hauler waits 3 km down the leg; the player
+        // starts 3 km farther and comes to 800 m of it.
+        let hauler_at = Vec3::new(0.0, 0.0, -300.0);
+        let far = Vec3::new(0.0, 0.0, -600.0);
+        let near = Vec3::new(0.0, 0.0, -220.0);
         let mut saved = Jobs::default();
         saved.accept(escort.clone());
         saved.lay_leg(&escort.id, mark);
-        let leg_app = |jobs: Jobs| {
+        let leg_app = |jobs: Jobs, player_at: Vec3| {
             let mut app = App::new();
             app.insert_resource(jobs);
             app.add_systems(Update, fly_escort_legs);
             app.world_mut().spawn(poster());
-            let player = app.world_mut().spawn(PlayerSpaceshipMarker).id();
+            let player = app
+                .world_mut()
+                .spawn((
+                    PlayerSpaceshipMarker,
+                    GlobalTransform::from_translation(player_at),
+                ))
+                .id();
             (app, player)
         };
         let stand_hauler = |app: &mut App| {
             app.world_mut()
-                .spawn((hauler.clone(), SpaceshipRootMarker))
+                .spawn((
+                    hauler.clone(),
+                    SpaceshipRootMarker,
+                    GlobalTransform::from_translation(hauler_at),
+                ))
                 .id()
         };
+        let raider_id = escort.raider_ids()[0].clone();
+        let stand_raider = |app: &mut App| {
+            app.world_mut()
+                .spawn((
+                    raider_id.clone(),
+                    SpaceshipRootMarker,
+                    GlobalTransform::from_translation(hauler_at),
+                ))
+                .id()
+        };
+        let preys_on =
+            |app: &App, raider: Entity| app.world().get::<AIPrey>(raider).map(|prey| **prey);
         let started = |app: &App| {
             app.world()
                 .resource::<Jobs>()
@@ -1548,11 +1641,15 @@ mod tests {
                         arrival_standoff: None,
                     }
                 && app.world().get::<ShipOrderHelmAuthority>(entity).is_some()
-                && app.world().get::<ShipOrderReports>(entity).is_some();
+                && app.world().get::<ShipOrderReports>(entity).is_some()
+                && app
+                    .world()
+                    .get::<FlightCruiseCap>(entity)
+                    .is_some_and(|cap| **cap == HAULER_CRUISE.to_engine());
             Some(flies)
         };
 
-        let (mut app, player) = leg_app(saved.clone());
+        let (mut app, player) = leg_app(saved.clone(), near);
         let station = app
             .world_mut()
             .query_filtered::<Entity, With<GeneratedBodyId>>()
@@ -1575,10 +1672,16 @@ mod tests {
             drives: false,
         });
         let first = stand_hauler(&mut app);
+        let raider = stand_raider(&mut app);
         for _ in 0..3 {
             app.update();
         }
         assert_eq!(started(&app), vec![false], "docked at the poster");
+        assert_eq!(
+            preys_on(&app, raider),
+            Some(first),
+            "a standing raider preys on the hauler before the leg"
+        );
         assert_eq!(
             flies_to_the_mark(&app, first),
             None,
@@ -1587,8 +1690,26 @@ mod tests {
 
         app.world_mut().despawn(connection);
         app.world_mut().entity_mut(player).remove::<DockedShip>();
+        app.world_mut()
+            .entity_mut(player)
+            .insert(GlobalTransform::from_translation(far));
         app.update();
-        assert_eq!(started(&app), vec![true], "the undock starts the leg");
+        assert_eq!(
+            started(&app),
+            vec![false],
+            "undocked 3 km off the hauler the leg waits"
+        );
+        assert_eq!(flies_to_the_mark(&app, first), None);
+
+        app.world_mut()
+            .entity_mut(player)
+            .insert(GlobalTransform::from_translation(near));
+        app.update();
+        assert_eq!(
+            started(&app),
+            vec![true],
+            "the player within the rendezvous starts the leg"
+        );
         assert_eq!(flies_to_the_mark(&app, first), Some(true));
 
         app.world_mut().despawn(first);
@@ -1600,19 +1721,45 @@ mod tests {
             Some(true),
             "a thawed hauler flies its started leg again"
         );
+        assert_eq!(
+            preys_on(&app, raider),
+            Some(thawed),
+            "the raider preys on the thawed hauler, a new entity"
+        );
+        app.world_mut().despawn(raider);
+        app.update();
+        let thawed_raider = stand_raider(&mut app);
+        app.update();
+        assert_eq!(
+            preys_on(&app, thawed_raider),
+            Some(thawed),
+            "a thawed raider, which carries no prey, preys on the hauler again"
+        );
 
         let record = ron::to_string(&saved).unwrap();
         let loaded: Jobs = ron::from_str(&record).unwrap();
         assert_eq!(loaded, saved, "the save keeps the leg");
         loaded.validate().unwrap();
-        let (mut app, _) = leg_app(loaded);
+        let (mut app, player) = leg_app(loaded, far);
         let reloaded = stand_hauler(&mut app);
+        let reloaded_raider = stand_raider(&mut app);
         app.update();
         assert_eq!(
             started(&app),
-            vec![true],
-            "a Load puts the player undocked, so a leg saved docked starts"
+            vec![false],
+            "a Load before the rendezvous leaves the hauler waiting"
         );
+        assert_eq!(flies_to_the_mark(&app, reloaded), None);
+        assert_eq!(
+            preys_on(&app, reloaded_raider),
+            Some(reloaded),
+            "a loaded raider preys on the loaded hauler while the leg waits"
+        );
+        app.world_mut()
+            .entity_mut(player)
+            .insert(GlobalTransform::from_translation(near));
+        app.update();
+        assert_eq!(started(&app), vec![true]);
         assert_eq!(flies_to_the_mark(&app, reloaded), Some(true));
     }
 

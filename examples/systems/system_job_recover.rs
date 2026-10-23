@@ -73,6 +73,7 @@ fn main() -> bevy::app::AppExit {
             refused: "outcome: the hand-in is refused until the recover job is done",
             done: "outcome: the world marks the recover job done",
             paid: "outcome: the hand-in pays the recover job",
+            escort: None,
         };
 
         if std::env::var_os("NOVA_AUTOPILOT").is_some() {

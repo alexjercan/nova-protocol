@@ -1217,6 +1217,10 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         &[
             "a escort job is posted and accepted",
             "the hand-in is refused until the escort job is done",
+            "the escort's hauler waits for the rendezvous",
+            "the hauler leaves when the escort arrives",
+            "the raiders spring with the escort in formation",
+            "the escorted hauler survives the ambush to its mark",
             "the world marks the escort job done",
             "the hand-in pays the escort job",
         ],
@@ -1251,7 +1255,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 623;
+const SYSTEMS_INVARIANTS: usize = 627;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

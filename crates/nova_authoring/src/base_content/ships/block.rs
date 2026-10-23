@@ -17,8 +17,10 @@
 //! one cell is one world unit is 10 m. `-Z` is the bow, `+Z` the stern, `-X`
 //! the port flank.
 //!
-//! Every crewed hull carries one docking port, `port_collar`, standing off its
-//! port flank: every station service needs a dock.
+//! Every crewed hull carries a docking port, `port_collar`, standing off its
+//! port flank: every station service needs a dock. The patrol picket and the
+//! line warship carry a second, `starboard_collar`, so losing one flank in a
+//! fight still leaves a hatch to dock by.
 
 use std::collections::{HashMap, HashSet};
 
@@ -67,8 +69,8 @@ const WAYSTATION_LOWER_BRIDGE_SECTION_ID: &str = "lower_bridge";
 /// carry. Content that hardens, reads or shoots the hatch names this rather
 /// than the hull it is bolted to.
 pub const BLOCK_PORT_COLLAR_SECTION_ID: &str = "port_collar";
-/// The starboard-flank docking collar the line warship carries opposite its
-/// port collar.
+/// The starboard-flank docking collar the patrol picket and the line warship
+/// carry opposite their port collar.
 pub(crate) const BLOCK_STARBOARD_COLLAR_SECTION_ID: &str = "starboard_collar";
 
 /// The point-defense mount the patrol picket and the training picket carry on
@@ -560,6 +562,11 @@ pub(super) fn patrol_picket() -> BlockShip {
                 BLOCK_PORT_COLLAR_SECTION_ID,
                 FlankType::Port,
                 IVec3::new(-2, 0, 0),
+            ),
+            flank_collar(
+                BLOCK_STARBOARD_COLLAR_SECTION_ID,
+                FlankType::Starboard,
+                IVec3::new(2, 0, 0),
             ),
         ],
         plate: LIGHT_HULL_SECTION_ID,

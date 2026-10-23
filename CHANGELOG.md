@@ -47,6 +47,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Stations post three seeded jobs by start role: bring,
   recover, escort, distress, neutralize. No two boards offer one target; a
   dropped job retires its posting. Save format 28.
+- An escort's hauler waits 3 km off its station until you are within 1 km,
+  then runs at 100 m/s to its mark; its raiders spring from 2.5 km off the
+  leg, hunt it and turn on whoever shoots them.
 - **(breaking)** Generated stations and ships now price each item by their
   stock, cluster type and civilization; the Inventory pane shows the factors.
   `PriceTable` content sets them. Save format 18.

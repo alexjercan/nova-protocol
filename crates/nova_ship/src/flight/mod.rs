@@ -71,8 +71,8 @@ pub use self::{
     rcs_puff::prelude::{RcsPuffMarker, RcsPuffPlugin},
     state::{
         resolved_arrival_standoff, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius,
-        FlightArrivalStandoff, FlightIntent, FlightSettings, MainDriveCommanded, ManeuverTelemetry,
-        OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent,
+        FlightArrivalStandoff, FlightCruiseCap, FlightIntent, FlightSettings, MainDriveCommanded,
+        ManeuverTelemetry, OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent,
     },
     well_target::WellTargetType,
 };
@@ -102,7 +102,7 @@ pub mod prelude {
         cancel_ship_order, capability::prelude::*, interrupt_ship_order, orbit_radius_band,
         plan_leg, resolved_arrival_standoff, resume_ship_order, retire_ship_order_execution,
         AIOrderInterrupted, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, DetourPolicy,
-        FlightArrivalStandoff, FlightAuthority, FlightIntent, FlightPrediction,
+        FlightArrivalStandoff, FlightAuthority, FlightCruiseCap, FlightIntent, FlightPrediction,
         FlightPredictionEndType, FlightSettings, LegPlan, MainDriveCommanded, ManeuverTelemetry,
         NovaFlightPlugin, NovaFlightSystems, OrbitPlan, PlayerAutopilotCompleted, RcsActive,
         RcsBudget, RcsIntent, RcsPuffMarker, RcsPuffPlugin, ScriptedAlign, ScriptedAlignSettled,
@@ -148,6 +148,7 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<BodyRadius>()
             .register_type::<FlightAuthority>()
             .register_type::<FlightArrivalStandoff>()
+            .register_type::<FlightCruiseCap>()
             .register_type::<RcsIntent>()
             .register_type::<RcsBudget>()
             .register_type::<RcsActive>()

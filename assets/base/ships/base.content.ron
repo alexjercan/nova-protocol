@@ -4420,6 +4420,23 @@
                         id: "docking_port_section",
                     ),
                 ),
+                (
+                    id: "starboard_collar",
+                    position: (
+                        2.0,
+                        0.0,
+                        0.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        -0.70710677,
+                        0.0,
+                        0.70710677,
+                    ),
+                    source: Prototype(
+                        id: "docking_port_section",
+                    ),
+                ),
             ],
             integrity: (),
             presentation: (
