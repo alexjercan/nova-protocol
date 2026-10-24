@@ -753,7 +753,10 @@ fn check_initial_velocity(
 ///
 /// The wells are every Planet and Anchor the scenario spawns, wherever in
 /// its events; the physics reads the same figures through
-/// [`GravityWell::from_mass`] under the default [`GravitySettings`]. A
+/// [`GravityWell::from_mass`] under the default [`GravitySettings`]. The
+/// lint does not order triggers: a station's well must be up when the
+/// station spawns (the same event or an earlier one), and a station spawned
+/// before its well flies straight and panics at its first fixed tick. A
 /// scattered station template has no authored position and is not checked.
 fn check_station_posts(config: &ScenarioConfig, scenario: &str, issues: &mut Vec<LintIssue>) {
     let settings = GravitySettings::default();

@@ -46,6 +46,7 @@ use crate::objects::{
         spaceship_scenario_object, thaw_ship,
     },
     start_role::prelude::{GameStartRoles, OpenWorldSession},
+    station::station_well,
     station_hulls::prelude::StationHullOffer,
 };
 
@@ -120,6 +121,9 @@ pub struct ParkedHullsPlugin;
 
 impl Plugin for ParkedHullsPlugin {
     fn build(&self, app: &mut App) {
+        // The well match reads the gravity tunables; the gravity plugin owns
+        // the same resource and init_resource is idempotent.
+        app.init_resource::<GravitySettings>();
         app.add_systems(Update, (park_pending_hulls, dock_parked_hulls).chain());
     }
 }
@@ -313,7 +317,14 @@ fn park_pending_hulls(
         Option<&ShipSkin>,
     )>,
     q_wells: Query<(&Transform, &GravityWell)>,
+    gravity: Res<GravitySettings>,
 ) {
+    // The well a station is held by, by the rule its post uses, so a hull
+    // parked beside it rides the same orbit.
+    let wells: Vec<(Vec3, GravityWell)> = q_wells
+        .iter()
+        .map(|(transform, well)| (transform.translation, well.clone()))
+        .collect();
     for (station, pending, id, transform, velocity, spin, design, skin) in &q_stations {
         // The section spawn has yet to run.
         let Some(design) = design else {
@@ -344,7 +355,7 @@ fn park_pending_hulls(
             transform,
             velocity.0,
             spin.0,
-            station_well(transform.translation, &q_wells),
+            station_well(transform.translation, &wells, &gravity).map(|(centre, _)| centre),
             design_reach(&design.0),
             (&game_designs, &game_sections),
         )
@@ -589,21 +600,6 @@ fn hire_places(
         .into_iter()
         .map(|offset| hire_offer_place(station, velocity, spin, well, offset))
         .collect()
-}
-
-/// The centre of the well that holds a station at `at`, if any: of the
-/// wells whose reach covers it, the one that pulls hardest.
-fn station_well(at: Vec3, q_wells: &Query<(&Transform, &GravityWell)>) -> Option<Vec3> {
-    q_wells
-        .iter()
-        .filter(|(transform, well)| transform.translation.distance(at) < well.soi_radius)
-        .max_by(|(a, a_well), (b, b_well)| {
-            let pull = |transform: &Transform, well: &GravityWell| {
-                well.mu / transform.translation.distance_squared(at).max(f32::EPSILON)
-            };
-            pull(a, a_well).total_cmp(&pull(b, b_well))
-        })
-        .map(|(transform, _)| transform.translation)
 }
 
 /// Where an escort for hire `offset` world units along its station's line

@@ -207,7 +207,10 @@ pub fn derive_station_post(
 ///
 /// On a station whose authored motion defines no post. The scenario lint
 /// refuses the same authoring first (`lint::scenario`); a generated station
-/// is placed on its orbit or at rest by the generator.
+/// is placed on its orbit or at rest by the generator. The wells are the
+/// ones up on this tick: a station spawned before its well is authored
+/// wrong (it flies straight until the well appears) and panics here, which
+/// the lint cannot see because it does not order triggers.
 pub(crate) fn assign_station_post(
     settings: Res<GravitySettings>,
     mut commands: Commands,
