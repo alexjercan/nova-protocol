@@ -9,6 +9,7 @@ use nova_events::prelude::{
 use nova_gameplay::{
     prelude::*,
     test_support::{settle, test_items, unfinished_integrity_physics_app},
+    transform::prelude::SmoothLookRotationPlugin,
 };
 use nova_ship::{flight::prelude::*, prelude::*};
 use serde::Deserialize;
@@ -77,7 +78,10 @@ fn design() -> StationDesign {
 
 fn app() -> App {
     let mut app = unfinished_integrity_physics_app();
+    // The look controller gives every turret hinge its angles; a hinge
+    // without them cannot freeze. Production adds it with the gameplay layer.
     app.add_plugins((
+        SmoothLookRotationPlugin,
         PDControllerPlugin,
         SpaceshipSectionPlugin { render: false },
         SpaceshipPlugin,
@@ -247,19 +251,10 @@ fn a_station_that_loses_its_last_turret_turns_into_a_dead_station() {
     );
 }
 
-/// [`design`] without its gun: an unarmed hulk. A turret spawned inactive
-/// never gets its look angles, so freezing a station spawned dead WITH a gun
-/// panics in `FrozenTurretHinges::freeze`; that fault is the turret's, not
-/// the post's, and this proof stays clear of it.
-fn unarmed_design() -> StationDesign {
-    let mut design = design();
-    design.hull.sections.retain(|section| section.id != "gun");
-    design
-}
-
 /// A station's post is derived on its first fixed tick, dead or living, and
 /// a freeze before then is a wait, not a record: the cell holds the body
-/// live until the post exists, then the record carries it.
+/// live until the post exists, then the record carries it. The station is
+/// armed: its dead gun's hinges freeze with it and thaw inactive.
 #[test]
 fn a_station_spawned_dead_gets_its_post_on_the_first_tick_and_freezes_with_it() {
     let mut app = app();
@@ -268,9 +263,9 @@ fn a_station_spawned_dead_gets_its_post_on_the_first_tick_and_freezes_with_it() 
         let mut entity = commands.spawn((Transform::default(), EntityId::new("hulk")));
         station_scenario_object(
             &mut entity,
-            &unarmed_design(),
+            &design(),
             &StationConfig {
-                design: StationDesignSource::Inline(unarmed_design()),
+                design: StationDesignSource::Inline(design()),
                 allegiance: Allegiance::Neutral,
                 derelict: true,
                 initial_velocity: MetersPerSecond3::ZERO,
@@ -302,4 +297,19 @@ fn a_station_spawned_dead_gets_its_post_on_the_first_tick_and_freezes_with_it() 
     );
     let frozen = freeze_station(app.world(), station).expect("a posted station freezes");
     assert_eq!(Some(frozen.post()), post, "the record carries the post");
+
+    app.world_mut().entity_mut(station).despawn();
+    let thawed = {
+        let mut commands = app.world_mut().commands();
+        let mut entity = commands.spawn((Transform::default(), EntityId::new("hulk")));
+        thaw_station(&mut entity, frozen);
+        entity.id()
+    };
+    settle(&mut app);
+    assert_dead(&app, thawed, "armed, after a freeze and thaw");
+    let gun = section(&app, thawed, "gun");
+    assert!(
+        app.world().entity(gun).contains::<SectionInactiveMarker>(),
+        "the thawed gun stays off"
+    );
 }
