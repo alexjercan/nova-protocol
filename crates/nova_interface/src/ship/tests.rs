@@ -15,10 +15,12 @@ use nova_input::prelude::{InputSource, RegisterInputActions};
 use nova_ship::prelude::*;
 use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
-    widget::{TextFieldError, TextFieldFocused, TextFieldValue, ThemedFill, ThemedImageTint},
+    widget::{
+        TextFieldError, TextFieldFocused, TextFieldValue, ThemedFill, ThemedImageTint, Tooltip,
+    },
 };
 
-use super::{app::*, scene::*, sections::*, *};
+use super::{app::*, delete::SectionDeleteRefusal, scene::*, sections::*, *};
 use crate::{
     icons::{InterfaceIcons, SectionIconType},
     pane::InterfacePaneType,
@@ -1383,6 +1385,66 @@ fn a_held_part_draws_its_target_block_and_face_opaque() {
     assert_eq!(face(&mut app).1, Visibility::Hidden, "the plate hides");
 }
 
+/// While a delete of the selection is refused as a split, the blocks of the
+/// sections that would come off the dock wear the Danger fill and every other
+/// block keeps its family fill. The frame the verdict clears, the cut-off
+/// blocks go back to their family fill.
+#[test]
+fn a_split_delete_paints_the_cut_off_blocks_danger_and_restores_them() {
+    let (mut app, hull, turret, _thruster) = offset_ship_app();
+    app.world_mut().init_resource::<ShipPlacementPreview>();
+    let fill_of = |app: &mut App, section: Entity| {
+        app.world_mut()
+            .query::<(&ShipBlock, &MeshMaterial3d<StandardMaterial>)>()
+            .iter(app.world())
+            .find(|(block, _)| block.section == section)
+            .map(|(_, material)| material.0.clone())
+            .expect("a block per section")
+    };
+    let turret_family = fill_of(&mut app, turret);
+    let hull_family = fill_of(&mut app, hull);
+    let danger = app
+        .world()
+        .resource::<ShipRuntime>()
+        .mat_fill_severed
+        .clone()
+        .expect("the scene built the severed fill");
+    assert_ne!(
+        turret_family, danger,
+        "the family fill is not the Danger fill"
+    );
+
+    app.world_mut().resource_mut::<ShipRuntime>().delete_verdict =
+        Some(Err(SectionDeleteRefusal {
+            line: "Splits the ship: red sections lose the dock".to_string(),
+            severed: vec![turret],
+        }));
+    app.world_mut()
+        .run_system_once(sync_ship_target_face)
+        .unwrap();
+    assert_eq!(
+        fill_of(&mut app, turret),
+        danger,
+        "the cut-off block wears the Danger fill"
+    );
+    assert_eq!(
+        fill_of(&mut app, hull),
+        hull_family,
+        "a block that keeps the dock keeps its family fill"
+    );
+
+    app.world_mut().resource_mut::<ShipRuntime>().delete_verdict =
+        Some(Ok(std::collections::BTreeMap::new()));
+    app.world_mut()
+        .run_system_once(sync_ship_target_face)
+        .unwrap();
+    assert_eq!(
+        fill_of(&mut app, turret),
+        turret_family,
+        "the verdict cleared: the block is back on its family fill"
+    );
+}
+
 #[test]
 fn badge_shows_family_icon_status_pip_and_code() {
     // A section badge is its family icon, a pip in its status colour and a
@@ -1632,6 +1694,137 @@ fn panel_buttons_raise_section_repair_command() {
     );
     app.world_mut().flush();
     assert_eq!(take_cues(&mut app), [UiSfx::MenuSelect]);
+}
+
+/// A refused delete mutes the Delete button with the reason as its tooltip,
+/// and neither a click on it nor the Delete key raises a command: the key puts
+/// the reason on the note line instead. An allowed delete enables the button
+/// with an empty tooltip, and the click and the key each raise one command for
+/// the selection.
+#[test]
+fn a_refused_delete_mutes_the_button_with_its_reason_as_tooltip() {
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        StatesPlugin,
+        AssetPlugin::default(),
+        InputPlugin,
+    ));
+    app.init_asset::<Font>();
+    app.init_asset::<Image>();
+    app.init_asset::<Mesh>();
+    app.init_asset::<StandardMaterial>();
+    app.insert_state(PauseStates::Interface);
+    app.register_input_actions(crate::bindings::interface_bindings());
+    app.init_resource::<ShipRuntime>();
+    app.init_resource::<ShipViewSubject>();
+    app.init_resource::<HeldPart>();
+    app.init_resource::<ActiveUiTheme>();
+    app.init_resource::<NovaOsCloseTransition>();
+    app.insert_resource(InterfacePaneType::Ship);
+    app.insert_resource(InterfaceIcons::blank());
+    app.add_message::<SectionRepairCommand>();
+    app.add_message::<SectionDeleteCommand>();
+    app.add_systems(Update, update_ship_panel);
+    let (_, _, turret, _) = spawn_scripted_ship(app.world_mut());
+    app.world_mut()
+        .run_system_once(assign_section_codes)
+        .unwrap();
+    let root = app.world_mut().spawn_empty().id();
+    app.world_mut()
+        .run_system_once(move |mut commands: Commands| {
+            commands
+                .entity(root)
+                .with_children(|parent| spawn_ship_panel(parent, &InterfaceIcons::blank()));
+        })
+        .unwrap();
+    let delete = app
+        .world_mut()
+        .query::<(Entity, &ShipPanelButton)>()
+        .iter(app.world())
+        .find(|(_, button)| **button == ShipPanelButton::Delete)
+        .map(|(entity, _)| entity)
+        .expect("delete button");
+    let commands = |app: &mut App| -> Vec<Entity> {
+        app.world_mut()
+            .resource_mut::<Messages<SectionDeleteCommand>>()
+            .drain()
+            .map(|command| command.target)
+            .collect()
+    };
+    let press_delete = |app: &mut App| {
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.release(KeyCode::Delete);
+        keys.press(KeyCode::Delete);
+        app.world_mut().run_system_once(ship_input).unwrap();
+    };
+
+    let reason = "Last working flight computer";
+    {
+        let mut runtime = app.world_mut().resource_mut::<ShipRuntime>();
+        runtime.active = true;
+        runtime.selected = Some(turret);
+        runtime.delete_verdict = Some(Err(SectionDeleteRefusal {
+            line: reason.to_string(),
+            severed: Vec::new(),
+        }));
+    }
+    app.update();
+    assert!(
+        app.world().entity(delete).contains::<InteractionDisabled>(),
+        "a refused delete mutes the button"
+    );
+    assert_eq!(
+        app.world().get::<Tooltip>(delete).map(|tip| tip.0.as_str()),
+        Some(reason),
+        "the reason is the muted button's tooltip"
+    );
+    app.world_mut().trigger(Activate { entity: delete });
+    app.world_mut().flush();
+    assert!(
+        commands(&mut app).is_empty(),
+        "a click on the muted Delete raises nothing"
+    );
+    press_delete(&mut app);
+    assert!(
+        commands(&mut app).is_empty(),
+        "the refused key raises nothing"
+    );
+    assert_eq!(
+        app.world().resource::<ShipRuntime>().note(),
+        Some(reason),
+        "the refused key puts the reason on the note line"
+    );
+
+    {
+        let mut runtime = app.world_mut().resource_mut::<ShipRuntime>();
+        runtime.delete_verdict = Some(Ok(std::collections::BTreeMap::new()));
+        runtime.note = None;
+    }
+    app.update();
+    assert!(
+        !app.world().entity(delete).contains::<InteractionDisabled>(),
+        "an allowed delete enables the button"
+    );
+    assert_eq!(
+        app.world().get::<Tooltip>(delete).map(|tip| tip.0.as_str()),
+        Some(""),
+        "an enabled Delete has no hover hint"
+    );
+    app.world_mut().trigger(Activate { entity: delete });
+    app.world_mut().flush();
+    assert_eq!(
+        commands(&mut app),
+        [turret],
+        "the enabled button raises one command"
+    );
+    press_delete(&mut app);
+    assert_eq!(
+        commands(&mut app),
+        [turret],
+        "the enabled key raises one command"
+    );
+    assert_eq!(app.world().resource::<ShipRuntime>().note(), None);
 }
 
 #[test]

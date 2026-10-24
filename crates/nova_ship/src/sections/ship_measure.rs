@@ -3,8 +3,11 @@
 //!
 //! ONE copy, two callers: the open-world generator grows a hull's drive bank
 //! and flight computers until they clear the floors and checks every layout
-//! against them, and a section swap or add at a station is refused when it
-//! would drop a ship under a floor it cleared (`refit_build_fault`).
+//! against them, and a section swap, add or removal at a station is refused
+//! when it would drop a ship under the thrust floor it cleared
+//! (`refit_build_fault`). The flight computer count binds an authored hull
+//! (`ship_build_fault`) and the generator only: a refit keeps one working
+//! computer, not the count.
 
 use crate::sections::base_section::prelude::{SectionCollider, SectionConfig, SectionKind};
 

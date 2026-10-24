@@ -100,9 +100,9 @@ gate, the family and the payment;
 `plan_recipe_payment` (`nova_gameplay::inventory`) is the one payment rule a
 rebuild and a swap share. On a click, `swap_build_fault` runs the generator's
 post-build checks on the ship the swap leaves: one socket graph, clear exit
-lanes, the thrust floor and the flight computer count (`ShipMeasure`,
-`ship_measure.rs`, shared with `nova_world_base::ship_layout`). Only a fault
-the swap adds refuses it. A confirmed swap moves parts and credits (cause
+lanes and the thrust floor (`ShipMeasure`, `ship_measure.rs`, shared with
+`nova_world_base::ship_layout`; the flight computer count binds authored
+hulls and the generator only). Only a fault the swap adds refuses it. A confirmed swap moves parts and credits (cause
 `Swap` on both parties), pushes `ShipInventoryReport::Swapped`
 (`OnSwapped`), and triggers `SectionSwapRequest`. `swap_design_section`
 (`nova_scenario/src/objects/spaceship.rs`) makes the root's design inline,
@@ -215,11 +215,13 @@ the selected live section (`nova_interface/src/ship/delete.rs`).
 `ResolvedSite::plan_delete` refuses, in order: no dock, a dock with no
 Refit, the player's port the dock holds by (`ResolvedSite::port`), a fault
 `remove_build_fault` finds (the swap's checks through `refit_build_fault`,
-which can only open lanes, plus the last flight computer, refused even on a
-ship already short of its count), and a hold too full for the parts. The
-parts are the strip rule's: `plan_section_yield` at the section's health
-share. `plan_ship_delete` is the one rule the button and the act share. A
-confirmed delete puts them in the hold, pushes
+which can only open lanes, plus the last WORKING flight computer as
+`NoController`: `LiveSection::working` reads `SectionInactiveMarker`, so a
+collapse-disabled computer counts for nothing and a ship with none working
+may shed its dead ones; the mass count is not checked), and a hold too full
+for the parts. The parts are the strip rule's: `plan_section_yield` at the
+section's health share. `plan_ship_delete` is the one rule the button and the
+act share. A confirmed delete puts them in the hold, pushes
 `ShipInventoryReport::Stripped` with the player ship's own id as `hull`
 (`OnStripped`), clears the selection and triggers `SectionRemoveRequest`.
 `remove_design_section` (`nova_scenario/src/objects/spaceship.rs`) makes the
@@ -230,14 +232,22 @@ mates, lowers the root's pinned health by its pool and despawns it.
 `reclad_round_removal` (`shell_skin.rs`) observes the same request and
 re-clads only the cells round the hole. No credits move. The per-frame
 `update_ship_delete_verdict` caches what a delete of the selection gives
-back or why it is refused (`ShipRuntime::delete_verdict`), with or without a
-Refit dock. The Delete button, labelled `Delete` in the Danger variant, and
-the Salvage block under it show while there is a verdict. When the delete
-can go, the block draws one part tile per part it gives back
-(`pane::spawn_part_tile`, the tile the Inventory strip block draws), or
-`nothing to salvage`. When it refuses, the button is disabled and the block
-shows the reason line in Danger; the Delete key then does nothing. The note
-after a delete names the parts that went to the hold.
+back or the refusal (`ShipRuntime::delete_verdict`, a `SectionDeleteRefusal`
+with the reason line and, for a split, the sections that would lose the
+dock: every piece of `RefitBuildFaultType::Disconnected { pieces }` but the
+one holding the docked port), with or without a Refit dock. The Salvage
+block shows while there is a verdict, with the Delete button, a compact
+Danger button, as its action. When the delete can go, the block draws one
+part tile per part it gives back (`pane::spawn_part_tile`, the tile the
+Inventory strip block draws), or `nothing to salvage`, over an enabled
+Delete. When it refuses, Delete is muted with the reason as its `Tooltip`
+(`delete_refusal_text`: no prefix and no code, the title names the section),
+the Ship view outlines the severed sections with the refused ghost's Danger
+material (`update_ship_blocks`) and fills them with a translucent Danger fill
+(`sync_ship_target_face`, the block fill's only writer, which restores the
+family fill when the verdict clears; `ShipRuntime::delete_severed`), and the
+Delete key puts the same reason on the note line. The note after a delete
+names the parts that went to the hold.
 
 ### Stripping a docked wreck
 

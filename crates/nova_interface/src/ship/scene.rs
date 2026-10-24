@@ -28,11 +28,12 @@ use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
     widget::{
         Selected, TextFieldError, TextFieldFocused, TextFieldValue, ThemedBorder, ThemedFill,
-        ThemedImageTint, ThemedText,
+        ThemedImageTint, ThemedText, Tooltip,
     },
 };
 
 use super::{
+    delete::SectionDeleteRefusal,
     ghost::{commit_placement, ShipPlacementPreview},
     refit::SectionAddCommand,
     sections::*,
@@ -70,8 +71,6 @@ pub(crate) enum ShipPanelField {
     RebindPrompt,
     /// The Salvage block under the actions, shown while Delete has a verdict.
     Salvage,
-    /// Why the delete is refused, under the Salvage head; empty on Ok.
-    DeleteReason,
 }
 /// The Salvage tiles, with what they last drew so they rebuild only on a
 /// change: `None` while they draw nothing (hidden or refused), else the
@@ -210,8 +209,9 @@ pub struct ShipRuntime {
     pub(crate) refits: bool,
     /// Whether the selection can be deleted now, cached by
     /// `update_ship_delete_verdict`: `None` while there is no selection,
-    /// else the parts a delete gives back or why it is refused.
-    pub(crate) delete_verdict: Option<Result<BTreeMap<ItemDesignId, u32>, String>>,
+    /// else the parts a delete gives back or the refusal, with the sections
+    /// a split would cut off the dock.
+    pub(crate) delete_verdict: Option<Result<BTreeMap<ItemDesignId, u32>, SectionDeleteRefusal>>,
     /// Draft quantity belongs to this section; changing selection starts at All.
     /// A full section, or any section before the player ship's inventory
     /// exists, does not take the draft, so damage or arriving stock starts it
@@ -243,6 +243,9 @@ pub struct ShipRuntime {
     /// The ghost's outline for a valid and for a refused placement.
     pub(crate) mat_ghost_go: Option<Handle<StandardMaterial>>,
     pub(crate) mat_ghost_no: Option<Handle<StandardMaterial>>,
+    /// The translucent Danger fill of a block a delete of the selection would
+    /// cut off the dock; `sync_ship_target_face` swaps it in and back out.
+    pub(crate) mat_fill_severed: Option<Handle<StandardMaterial>>,
     /// The dim outline of the docked station's sections.
     pub(crate) mat_station: Option<Handle<StandardMaterial>>,
     /// The docked station's outlines in the scene, and the scene root and
@@ -285,7 +288,17 @@ impl ShipRuntime {
     pub fn delete_verdict(&self) -> Option<Result<&BTreeMap<ItemDesignId, u32>, &str>> {
         self.delete_verdict
             .as_ref()
-            .map(|verdict| verdict.as_ref().map_err(String::as_str))
+            .map(|verdict| verdict.as_ref().map_err(|refusal| refusal.line.as_str()))
+    }
+
+    /// The live sections a delete of the selection would cut off the dock,
+    /// outlined in the Danger colour in the view; empty unless the delete is
+    /// refused for splitting the ship.
+    pub fn delete_severed(&self) -> &[Entity] {
+        match &self.delete_verdict {
+            Some(Err(refusal)) => &refusal.severed,
+            _ => &[],
+        }
     }
 
     /// The transient note the panel shows, such as why an action was
@@ -400,6 +413,9 @@ pub(crate) fn manage_ship_scene(
     runtime.mat_outline_selected = Some(materials.add(unlit(theme.color(UiColor::Accent))));
     runtime.mat_ghost_go = Some(materials.add(unlit(theme.color(UiColor::Nominal))));
     runtime.mat_ghost_no = Some(materials.add(unlit(theme.color(UiColor::Danger))));
+    // Denser than any family fill, so a cut-off block reads through the
+    // neighbours and the docked station's outlines over it.
+    runtime.mat_fill_severed = Some(materials.add(unlit(theme.color_alpha(UiColor::Danger, 0.6))));
     runtime.mat_station = Some(materials.add(unlit(theme.color_alpha(UiColor::Secondary, 0.45))));
 
     let scene_root = commands
@@ -930,9 +946,16 @@ pub(crate) fn ship_input(
             runtime.note = None;
             return;
         }
-        // A refused delete does nothing: the panel already shows why.
-        if input.just_pressed("ship_delete") && matches!(runtime.delete_verdict, Some(Ok(_))) {
-            deletes.write(SectionDeleteCommand { target: sel });
+        if input.just_pressed("ship_delete") {
+            match &runtime.delete_verdict {
+                Some(Ok(_)) => {
+                    deletes.write(SectionDeleteCommand { target: sel });
+                }
+                // The muted button's reason, on the note line under the
+                // Salvage block where the press was.
+                Some(Err(refusal)) => runtime.note = Some((refusal.line.clone(), 2.5)),
+                None => {}
+            }
         }
         if input.just_pressed("ship_repair") {
             let repairable = list
@@ -959,9 +982,12 @@ pub(crate) fn ship_input(
     }
 }
 
-/// Give the SELECTED section's box outline the accent material and every other
-/// block's outline the base one. Blocks keep their family fill; status rides
-/// the badge pip and the panel condition bar.
+/// Give the SELECTED section's box outline the accent material, the outline
+/// of every section a delete of the selection would cut off the dock
+/// ([`ShipRuntime::delete_severed`]) the Danger one the refused ghost wears,
+/// and every other block's outline the base one. The fill is
+/// `sync_ship_target_face`'s: the family tint, or the Danger fill on a
+/// severed block; status rides the badge pip and the panel condition bar.
 pub(crate) fn update_ship_blocks(
     runtime: Res<ShipRuntime>,
     mut q_outline: Query<(&ChildOf, &mut MeshMaterial3d<StandardMaterial>), With<ShipBlockOutline>>,
@@ -970,7 +996,11 @@ pub(crate) fn update_ship_blocks(
     if !runtime.active {
         return;
     }
-    let (Some(base), Some(selected)) = (&runtime.mat_outline, &runtime.mat_outline_selected) else {
+    let (Some(base), Some(selected), Some(severed)) = (
+        &runtime.mat_outline,
+        &runtime.mat_outline_selected,
+        &runtime.mat_ghost_no,
+    ) else {
         return;
     };
     for (parent, mut material) in &mut q_outline {
@@ -980,6 +1010,8 @@ pub(crate) fn update_ship_blocks(
         };
         let want = if runtime.selected == Some(block.section) {
             selected
+        } else if runtime.delete_severed().contains(&block.section) {
+            severed
         } else {
             base
         };
@@ -1406,11 +1438,11 @@ pub(crate) fn on_ship_rebind_button(
 /// block, and the note line (the rebind prompt or a transient action result).
 /// Caches the enabled flags for the observers and the footer.
 ///
-/// Delete and the Salvage block show while the selection has a delete
-/// verdict. While [`plan_ship_delete`](super::delete::plan_ship_delete)
+/// The Salvage block, Delete inside it, shows while the selection has a
+/// delete verdict. While [`plan_ship_delete`](super::delete::plan_ship_delete)
 /// holds, the block draws one tile per part it gives back, or
-/// `nothing to salvage`; while it refuses, Delete is disabled and the block
-/// shows the reason.
+/// `nothing to salvage`, over an enabled Delete; while it refuses, Delete is
+/// disabled with the reason as its tooltip.
 ///
 /// The repair form shows only while the selection has repairable damage, and
 /// disables Repair with the reason in its summary while the draft is refused.
@@ -1447,6 +1479,7 @@ pub(crate) fn update_ship_panel(
             Has<InteractionDisabled>,
             Has<Selected>,
             &mut Node,
+            Option<&mut Tooltip>,
         ),
         (Without<ShipConditionFill>, Without<ShipRepairQuantity>),
     >,
@@ -1557,11 +1590,6 @@ pub(crate) fn update_ship_panel(
         .as_ref()
         .filter(|_| !read_only)
         .and_then(|view| view.binding_text(&input_bindings));
-    let delete_reason = match runtime.delete_verdict() {
-        Some(Err(reason)) => reason.to_string(),
-        _ => String::new(),
-    };
-
     runtime.panel_repair_enabled = actions.repair_enabled;
     runtime.panel_repairable = form.is_some();
     // An UNBOUND weapon is the one that most needs a key, so a section that
@@ -1630,7 +1658,6 @@ pub(crate) fn update_ship_panel(
             ShipPanelField::RebindPrompt => {
                 (prompt.as_deref().unwrap_or_default(), UiColor::Accent)
             }
-            ShipPanelField::DeleteReason => (delete_reason.as_str(), UiColor::Danger),
             ShipPanelField::RepairForm | ShipPanelField::Salvage => continue,
         };
         if text.0 != value {
@@ -1641,11 +1668,11 @@ pub(crate) fn update_ship_panel(
         }
     }
 
-    for (entity, button, disabled, lit, mut node) in &mut q_button {
+    for (entity, button, disabled, lit, mut node, tooltip) in &mut q_button {
         let enabled = match button {
             ShipPanelButton::Repair => actions.repair_enabled,
             ShipPanelButton::Rebind => runtime.panel_rebind_enabled,
-            // A refused delete is disabled: the Salvage block shows why.
+            // A refused delete is disabled: its tooltip says why.
             ShipPanelButton::Delete => matches!(runtime.delete_verdict, Some(Ok(_))),
         };
         if *button == ShipPanelButton::Delete {
@@ -1656,6 +1683,17 @@ pub(crate) fn update_ship_panel(
             };
             if node.display != wanted {
                 node.display = wanted;
+            }
+            // The reason while refused; empty while it holds, which shows no
+            // panel on hover.
+            if let Some(mut tooltip) = tooltip {
+                let reason = match runtime.delete_verdict() {
+                    Some(Err(reason)) => reason,
+                    _ => "",
+                };
+                if tooltip.0 != reason {
+                    tooltip.0 = reason.to_string();
+                }
             }
         }
         if *button == ShipPanelButton::Rebind {

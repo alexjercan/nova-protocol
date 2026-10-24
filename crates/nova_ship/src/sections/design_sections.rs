@@ -287,11 +287,17 @@ impl<'a> RefitPlacedSection<'a> {
     }
 }
 
-/// A post-build check the ship a swap or an add leaves fails, in check order.
+/// A post-build check the ship a swap, an add or a removal leaves fails, in
+/// check order.
 #[derive(Clone, Debug, PartialEq)]
 pub enum RefitBuildFaultType {
-    /// The sockets no longer join the sections into one ship.
-    Disconnected,
+    /// The sockets no longer join the sections into one ship. `pieces` are
+    /// the connected pieces of the ship AFTER the change, as indices into the
+    /// after-list, each sorted; at least two.
+    Disconnected {
+        /// The pieces the ship falls into, in section-index order.
+        pieces: Vec<Vec<usize>>,
+    },
     /// The sockets are invalid or ambiguous, see [`LinkPointGraphError`].
     InvalidSockets,
     /// A section can no longer fire, launch or exhaust down a clear lane.
@@ -303,7 +309,11 @@ pub enum RefitBuildFaultType {
         /// The thrust the ship's mass needs.
         needed: f32,
     },
-    /// The ship carries fewer flight computers than its mass needs.
+    /// A removal would leave the ship with no working flight computer.
+    NoController,
+    /// The ship carries fewer flight computers than its mass needs. Reported
+    /// by [`ship_build_fault`] only: an authored hull and the generator obey
+    /// the count, a refit needs one working computer.
     Undercontrolled {
         /// The flight computers it carries.
         controllers: usize,
@@ -340,40 +350,54 @@ pub fn swap_build_fault(
 
 /// The first post-build check the ship `live` fails once section `index` is
 /// taken off and passed before, or `None` when the removal adds no fault.
+/// `working[i]` is whether `live[i]` works: a collapse-disabled section stays
+/// live but does nothing.
 ///
 /// The checks are [`refit_build_fault`]'s. A removal opens lanes and never
-/// blocks one. On top of them, the last flight computer never comes off,
-/// even from a ship that was already short of its count.
+/// blocks one. On top of them, the last working flight computer never comes
+/// off: the attitude loop and the neutralize rule read only working ones. A
+/// ship with no working computer left may shed its dead ones.
 ///
 /// # Panics
 ///
-/// When `index` is not in `live`.
+/// When `index` is not in `live`, or `working` and `live` differ in length.
 pub fn remove_build_fault(
     live: &[RefitPlacedSection<'_>],
+    working: &[bool],
     index: usize,
 ) -> Option<RefitBuildFaultType> {
+    assert_eq!(
+        working.len(),
+        live.len(),
+        "remove: one working flag per live section"
+    );
     let mut after = live.to_vec();
     after.remove(index);
     if let Some(fault) = refit_build_fault(live, &after, || false) {
         return Some(fault);
     }
-    let measure = ShipMeasure::of(after.iter().map(|section| section.config));
-    let before = ShipMeasure::of(live.iter().map(|section| section.config));
-    (before.controllers > 0 && measure.controllers == 0).then(|| {
-        RefitBuildFaultType::Undercontrolled {
-            controllers: 0,
-            needed: measure.needed_controllers(),
-        }
-    })
+    let working_computer = |skip: Option<usize>| {
+        live.iter()
+            .zip(working)
+            .enumerate()
+            .any(|(i, (section, &works))| {
+                Some(i) != skip
+                    && works
+                    && matches!(section.config.kind, SectionKind::Controller(_))
+            })
+    };
+    (working_computer(None) && !working_computer(Some(index)))
+        .then_some(RefitBuildFaultType::NoController)
 }
 
 /// The first post-build check a whole built ship fails, or `None` when it
 /// passes them all.
 ///
-/// The same checks as [`refit_build_fault`], read absolutely rather than as
-/// a change: one socket graph, clear exit lanes, the thrust floor and the
-/// flight computer count. An authored start hull is held to it, so the ship a
-/// new player is handed could pass every refit it is offered.
+/// The checks of [`refit_build_fault`] read absolutely rather than as a
+/// change, one socket graph, clear exit lanes and the thrust floor, plus the
+/// flight computer count ([`ShipMeasure`]) that only an authored hull and
+/// the generator are held to. An authored start hull is held to it, so the
+/// ship a new player is handed could pass every refit it is offered.
 pub fn ship_build_fault(sections: &[RefitPlacedSection<'_>]) -> Option<RefitBuildFaultType> {
     let links: Vec<PlacedSectionLinkPoints<'_>> = sections
         .iter()
@@ -381,7 +405,11 @@ pub fn ship_build_fault(sections: &[RefitPlacedSection<'_>]) -> Option<RefitBuil
         .collect();
     if let Err(errors) = derive_link_point_graph(&links) {
         return Some(match errors.as_slice() {
-            [LinkPointGraphError::Disconnected { .. }] => RefitBuildFaultType::Disconnected,
+            [LinkPointGraphError::Disconnected { components }] => {
+                RefitBuildFaultType::Disconnected {
+                    pieces: components.clone(),
+                }
+            }
             _ => RefitBuildFaultType::InvalidSockets,
         });
     }
@@ -451,11 +479,13 @@ pub fn intake_in_dock_approach(sections: &[RefitPlacedSection<'_>]) -> Option<(u
 ///
 /// The checks are the open-world generator's own, on the same readings: one
 /// socket graph ([`derive_link_point_graph`]), clear exit lanes
-/// ([`blocked_exits`]), the thrust floor and the flight computer count
-/// ([`ShipMeasure`]). A generated ship's role, advancement, size ceiling,
-/// mirror symmetry and ruin floor are not checked: a refit answers to no
-/// generation request, and changing one of a mirrored pair breaks the symmetry
-/// by design. Only a NEW fault refuses, the rule
+/// ([`blocked_exits`]) and the thrust floor ([`ShipMeasure`]). The flight
+/// computer count is not checked: the flight model needs one working
+/// computer, and the count per mass is the generator's layout rule. A
+/// generated ship's role, advancement, size ceiling, mirror symmetry and ruin
+/// floor are not checked either: a refit answers to no generation request,
+/// and changing one of a mirrored pair breaks the symmetry by design. Only a
+/// NEW fault refuses, the rule
 /// [`placement_blocks_an_exit`] gives a builder: a ship that already fails a
 /// check is not made worse by a change that leaves it failing the same way.
 pub(crate) fn refit_build_fault(
@@ -471,7 +501,11 @@ pub(crate) fn refit_build_fault(
         derive_link_point_graph(&links)
             .err()
             .map(|errors| match errors.as_slice() {
-                [LinkPointGraphError::Disconnected { .. }] => RefitBuildFaultType::Disconnected,
+                [LinkPointGraphError::Disconnected { components }] => {
+                    RefitBuildFaultType::Disconnected {
+                        pieces: components.clone(),
+                    }
+                }
                 _ => RefitBuildFaultType::InvalidSockets,
             })
     };
@@ -482,26 +516,15 @@ pub(crate) fn refit_build_fault(
         return Some(RefitBuildFaultType::BlockedExit);
     }
 
-    // Each floor on its own, so a ship that was short of flight computers
-    // is still refused a change that also leaves it short of thrust.
     let measure =
         |sections: &[RefitPlacedSection<'_>]| ShipMeasure::of(sections.iter().map(|s| s.config));
     let (before, after) = (measure(before), measure(after));
-    if before.thrust >= before.needed_thrust() && after.thrust < after.needed_thrust() {
-        return Some(RefitBuildFaultType::Underpowered {
+    (before.thrust >= before.needed_thrust() && after.thrust < after.needed_thrust()).then(|| {
+        RefitBuildFaultType::Underpowered {
             thrust: after.thrust,
             needed: after.needed_thrust(),
-        });
-    }
-    if before.controllers >= before.needed_controllers()
-        && after.controllers < after.needed_controllers()
-    {
-        return Some(RefitBuildFaultType::Undercontrolled {
-            controllers: after.controllers,
-            needed: after.needed_controllers(),
-        });
-    }
-    None
+        }
+    })
 }
 
 #[cfg(test)]
@@ -709,7 +732,9 @@ mod tests {
         assert_eq!(swap_build_fault(&ship, 1, &gun), None);
         assert_eq!(
             swap_build_fault(&ship, 1, &floating),
-            Some(RefitBuildFaultType::Disconnected)
+            Some(RefitBuildFaultType::Disconnected {
+                pieces: vec![vec![0, 2], vec![1]]
+            })
         );
         assert!(matches!(
             swap_build_fault(&ship, 2, &weak),
@@ -720,10 +745,13 @@ mod tests {
         assert_eq!(swap_build_fault(&already_short, 2, &weak), None);
     }
 
-    /// A removal is refused when it would split the ship or take off its last
-    /// flight computer, and a leaf gun comes off.
+    /// A removal is refused when it would split the ship, naming the pieces,
+    /// or take off the last WORKING flight computer; a leaf gun comes off, a
+    /// second working computer lets the first go, a disabled computer comes
+    /// off a ship that keeps a working one, and a ship with none working
+    /// may shed its dead ones.
     #[test]
-    fn a_removal_is_refused_when_it_splits_the_ship_or_takes_the_last_computer() {
+    fn a_removal_keeps_one_working_computer_and_refuses_the_last() {
         let one = Vec3::ONE;
         let hull = part(
             "hull",
@@ -756,16 +784,52 @@ mod tests {
             at(-1.0, &computer),
             at(-2.0, &drive),
         ];
-        assert_eq!(remove_build_fault(&ship, 0), None);
+        let all = [true; 4];
+        assert_eq!(remove_build_fault(&ship, &all, 0), None);
         assert_eq!(
-            remove_build_fault(&ship, 1),
-            Some(RefitBuildFaultType::Disconnected)
+            remove_build_fault(&ship, &all, 1),
+            Some(RefitBuildFaultType::Disconnected {
+                pieces: vec![vec![0], vec![1, 2]]
+            })
         );
         let tail = [at(1.0, &gun), at(0.0, &hull), at(-1.0, &computer)];
-        assert!(matches!(
-            remove_build_fault(&tail, 2),
-            Some(RefitBuildFaultType::Undercontrolled { controllers: 0, .. })
-        ));
+        assert_eq!(
+            remove_build_fault(&tail, &[true; 3], 2),
+            Some(RefitBuildFaultType::NoController)
+        );
+
+        // gun - hull - computer A, with computer B on the hull's top: two
+        // computers, both leaves, so only the computer rule can refuse.
+        let twin = [
+            at(1.0, &gun),
+            at(0.0, &hull),
+            at(-1.0, &computer),
+            RefitPlacedSection {
+                position: Vec3::Y,
+                rotation: Quat::IDENTITY,
+                config: &computer,
+            },
+        ];
+        assert_eq!(
+            remove_build_fault(&twin, &[true, true, true, true], 3),
+            None,
+            "a second working computer lets one go"
+        );
+        assert_eq!(
+            remove_build_fault(&twin, &[true, true, true, false], 2),
+            Some(RefitBuildFaultType::NoController),
+            "the working computer is the last one that works"
+        );
+        assert_eq!(
+            remove_build_fault(&twin, &[true, true, true, false], 3),
+            None,
+            "a dead computer comes off a ship that keeps a working one"
+        );
+        assert_eq!(
+            remove_build_fault(&twin, &[true, true, false, false], 3),
+            None,
+            "a ship with no working computer sheds a dead one"
+        );
     }
 
     /// The armored wreck a berth failed at: an intake on the starboard flank

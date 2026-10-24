@@ -247,8 +247,7 @@ pub fn section_add_clear(
 /// ship-root space ([`section_colliders_overlap`]). Then the generator's post-build checks run on
 /// the live ship with the part and without it, and only a new fault refuses:
 /// one socket graph, which also refuses a socket with two suitors, clear exit
-/// lanes ([`placement_blocks_an_exit`]), the thrust floor and the flight
-/// computer count.
+/// lanes ([`placement_blocks_an_exit`]) and the thrust floor.
 ///
 /// # Panics
 ///
@@ -283,8 +282,8 @@ pub fn section_add_fit(
 
 /// The first post-build check the live ship `before` passed and fails once
 /// `added` joins it, or `None` when the add makes no fault: one socket graph,
-/// clear exit lanes ([`placement_blocks_an_exit`]), the thrust floor and the
-/// flight computer count, as [`section_add_fit`] reads them.
+/// clear exit lanes ([`placement_blocks_an_exit`]) and the thrust floor, as
+/// [`section_add_fit`] reads them.
 pub fn add_build_fault(
     before: &[RefitPlacedSection<'_>],
     added: RefitPlacedSection<'_>,

@@ -6,15 +6,18 @@
 //! by, [`remove_build_fault`] must find no new fault, and the parts the strip
 //! rule gives back ([`plan_section_yield`] at the section's health share)
 //! must fit in the hold. [`update_ship_delete_verdict`] runs it for the
-//! selection every frame: the panel's Salvage block lists the parts while it
-//! holds, and the reason under a disabled Delete button while it refuses.
+//! selection every frame: the panel's Salvage block lists the parts over an
+//! enabled Delete while it holds; while it refuses, Delete is muted with the
+//! reason as its tooltip, and a refusal for a split names the sections that
+//! would lose the dock ([`SectionDeleteRefusal::severed`]), which the Ship
+//! view outlines in the Danger colour.
 //!
 //! The `ship_delete` key and the enabled button raise a
-//! [`SectionDeleteCommand`]; a refused selection raises none, and so shows no
-//! note. [`apply_ship_delete_commands`] plans it again: the parts go in the
-//! hold, one `Stripped` report names the player ship as the hull, the note
-//! line names the parts, and the [`SectionRemoveRequest`] takes the section
-//! off and re-clads the hull round the hole.
+//! [`SectionDeleteCommand`]; on a refused selection the key puts the reason
+//! on the note line instead. [`apply_ship_delete_commands`] plans it again:
+//! the parts go in the hold, one `Stripped` report names the player ship as
+//! the hull, the note line names the parts, and the [`SectionRemoveRequest`]
+//! takes the section off and re-clads the hull round the hole.
 //!
 //! Touch this module when changing what Delete gives back or refuses.
 
@@ -54,6 +57,19 @@ pub(crate) enum SectionDeleteRefusalType {
     Build(RefitBuildFaultType),
     /// The parts weigh more than the hold has room for.
     Hold(HullStripPauseType),
+}
+
+/// Why a delete is refused, with the pieces that would be cut off when the
+/// reason is a split: the live sections of the ship that are not in the piece
+/// holding the docked port.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SectionDeleteRefusal {
+    /// The reason, as the muted Delete's tooltip and the refused key's note
+    /// say it.
+    pub(crate) line: String,
+    /// The sections that would lose the dock; empty unless the reason is a
+    /// split.
+    pub(crate) severed: Vec<Entity>,
 }
 
 /// What a planned delete takes off and gives back.
@@ -97,7 +113,8 @@ impl ResolvedSite<'_> {
         if self.port == Some(self.live[index].entity) {
             return Err(SectionDeleteRefusalType::DockedPort);
         }
-        if let Some(fault) = remove_build_fault(&self.placed(), index) {
+        let working: Vec<bool> = self.live.iter().map(|live| live.working).collect();
+        if let Some(fault) = remove_build_fault(&self.placed(), &working, index) {
             return Err(SectionDeleteRefusalType::Build(fault));
         }
         let target = StripTarget {
@@ -113,34 +130,98 @@ impl ResolvedSite<'_> {
     }
 }
 
-/// The Salvage block's reason line for a refused delete of section `code`,
-/// the part named `name`.
-pub(crate) fn delete_refusal_text(
-    code: &str,
-    name: &str,
-    refusal: &SectionDeleteRefusalType,
-) -> String {
+/// The muted Delete's tooltip and the refused key's note for `refusal`. No
+/// prefix and no code: the button and the panel title name them.
+pub(crate) fn delete_refusal_text(refusal: &SectionDeleteRefusalType) -> String {
     match refusal {
-        SectionDeleteRefusalType::NotDocked => "delete: dock at a station that refits".to_string(),
-        SectionDeleteRefusalType::NoRefitService => "delete: this dock offers no refit".to_string(),
-        SectionDeleteRefusalType::DockedPort => {
-            format!("delete: the dock holds the ship by {code}")
-        }
-        SectionDeleteRefusalType::Build(RefitBuildFaultType::Disconnected) => {
-            format!("delete: taking {code} off would split the ship")
+        SectionDeleteRefusalType::NotDocked => "Dock at a station that refits".to_string(),
+        SectionDeleteRefusalType::NoRefitService => "This dock offers no refit".to_string(),
+        SectionDeleteRefusalType::DockedPort => "The dock holds the ship here".to_string(),
+        SectionDeleteRefusalType::Build(RefitBuildFaultType::Disconnected { .. }) => {
+            "Splits the ship: red sections lose the dock".to_string()
         }
         SectionDeleteRefusalType::Build(RefitBuildFaultType::InvalidSockets) => {
-            format!("delete: the sections round {code} would not mate without it")
+            "Neighbours would not mate without it".to_string()
         }
-        SectionDeleteRefusalType::Build(fault) => build_fault_text("delete", name, code, fault),
+        SectionDeleteRefusalType::Build(RefitBuildFaultType::NoController) => {
+            "Last working flight computer".to_string()
+        }
+        SectionDeleteRefusalType::Build(RefitBuildFaultType::Underpowered { thrust, needed }) => {
+            format!("Drives would push {thrust:.1}, the ship needs {needed:.1}")
+        }
+        // A removal opens lanes and the count binds authored hulls only, so
+        // these two never come from `remove_build_fault`; the shared line
+        // keeps the match whole.
+        SectionDeleteRefusalType::Build(
+            fault
+            @ (RefitBuildFaultType::BlockedExit | RefitBuildFaultType::Undercontrolled { .. }),
+        ) => build_fault_text("delete", "", "", fault),
         SectionDeleteRefusalType::Hold(HullStripPauseType::HoldFull { need_g, free_g }) => {
             format!(
-                "delete: {code} gives {} of parts, the hold has {} free",
+                "Needs {} free, the hold has {}",
                 kg_text(*need_g),
                 kg_text(u64::from(*free_g))
             )
         }
     }
+}
+
+/// The live sections that would float off the dock once `live[index]` came
+/// off and the ship fell into `pieces` (indices into the after-list): every
+/// piece but the one holding the docked port.
+///
+/// # Panics
+///
+/// On fewer than two pieces, a piece index outside the live list, a section
+/// in two pieces, or a port in no piece: the graph rule and the dock
+/// disagree, which is a rule bug, not a runtime condition.
+fn severed_sections(
+    resolved: &ResolvedSite<'_>,
+    index: usize,
+    pieces: &[Vec<usize>],
+) -> Vec<Entity> {
+    assert!(
+        pieces.len() >= 2,
+        "delete: a split fault names {} piece(s)",
+        pieces.len()
+    );
+    let port = resolved
+        .port
+        .expect("delete: a split is planned only while docked");
+    let live_index = |after: usize| if after < index { after } else { after + 1 };
+    let mut seen = vec![false; resolved.live.len()];
+    let mut kept = None;
+    for (piece_index, piece) in pieces.iter().enumerate() {
+        for &after in piece {
+            let at = live_index(after);
+            let Some(section) = resolved.live.get(at) else {
+                panic!(
+                    "delete: piece index {after} is outside the {} live sections",
+                    resolved.live.len()
+                );
+            };
+            assert!(
+                !std::mem::replace(&mut seen[at], true),
+                "delete: live section {} is in two pieces",
+                section.id
+            );
+            if section.entity == port {
+                kept = Some(piece_index);
+            }
+        }
+    }
+    let kept = kept
+        .unwrap_or_else(|| panic!("delete: the port {port:?} the dock holds by is in no piece"));
+    pieces
+        .iter()
+        .enumerate()
+        .filter(|(piece_index, _)| *piece_index != kept)
+        .flat_map(|(_, piece)| {
+            piece
+                .iter()
+                .map(|&after| resolved.live[live_index(after)].entity)
+        })
+        .collect()
 }
 
 /// The health share a delete gives parts back at: current over max, or
@@ -167,24 +248,34 @@ pub fn delete_yield_text(items: &GameItems, parts: &BTreeMap<ItemDesignId, u32>)
 }
 
 /// What deleting live section `target` would do now: its design code and
-/// the planned delete, or the reason line it is refused with. `None` when
-/// `target` is not a live section of this ship. The one rule the panel's
-/// Delete button and [`apply_ship_delete_commands`] both read.
+/// the planned delete, or the refusal with its reason and, for a split, the
+/// sections that would lose the dock. `None` when `target` is not a live
+/// section of this ship. The one rule the panel's Delete button and
+/// [`apply_ship_delete_commands`] both read.
 pub(crate) fn plan_ship_delete(
     resolved: &ResolvedSite<'_>,
     items: &GameItems,
     target: Entity,
     health: Option<&Health>,
     own: &ShipInventory,
-) -> Option<(String, Result<SectionDelete, String>)> {
+) -> Option<(String, Result<SectionDelete, SectionDeleteRefusal>)> {
     let planned = resolved.plan_delete(items, target, health_share(health), own)?;
-    let live = resolved.live.iter().find(|live| live.entity == target)?;
-    let code = design_section_code(resolved.design, &live.id)?;
+    let index = resolved
+        .live
+        .iter()
+        .position(|live| live.entity == target)?;
+    let code = design_section_code(resolved.design, &resolved.live[index].id)?;
     let planned = planned.map_err(|refusal| {
-        let name = resolved
-            .selected_section(Some(target))
-            .map_or(code.clone(), |section| section.config.base.name.clone());
-        delete_refusal_text(&code, &name, &refusal)
+        let severed = match &refusal {
+            SectionDeleteRefusalType::Build(RefitBuildFaultType::Disconnected { pieces }) => {
+                severed_sections(resolved, index, pieces)
+            }
+            _ => Vec::new(),
+        };
+        SectionDeleteRefusal {
+            line: delete_refusal_text(&refusal),
+            severed,
+        }
     });
     Some((code, planned))
 }
@@ -211,10 +302,10 @@ pub(crate) fn on_ship_delete_button(
 }
 
 /// Cache [`plan_ship_delete`] for the selection, for the panel's Delete
-/// button and Salvage block, the `ship_delete` key and
-/// [`ShipRuntime::delete_verdict`]: the parts, or the reason. `None` while
-/// there is no selection, a part is in hand or the pane is closed: the button
-/// and the block hide and the key does nothing.
+/// button and Salvage block, the Ship view's severed blocks, the
+/// `ship_delete` key and [`ShipRuntime::delete_verdict`]: the parts, or the
+/// refusal. `None` while there is no selection, a part is in hand or the pane
+/// is closed: the block hides and the key does nothing.
 pub(crate) fn update_ship_delete_verdict(
     mut runtime: ResMut<ShipRuntime>,
     held: Res<HeldPart>,
@@ -244,8 +335,8 @@ pub(crate) fn update_ship_delete_verdict(
 /// the hold, queue one `Stripped` report with the player ship as the hull,
 /// raise the [`SectionRemoveRequest`], clear the selection and name the parts
 /// on the note line. A refused command changes nothing and shows nothing: the
-/// panel already shows the reason. A command for a section no longer live is
-/// dropped.
+/// key and the button refuse before they raise one. A command for a section
+/// no longer live is dropped.
 ///
 /// # Panics
 ///
@@ -355,6 +446,7 @@ mod tests {
         port: Entity,
         hull: Entity,
         computer: Entity,
+        drive: Entity,
         gun: Entity,
     }
 
@@ -512,6 +604,7 @@ mod tests {
                 hull: live[0],
                 port: live[1],
                 computer: live[2],
+                drive: live[3],
                 gun: live[4],
             },
         )
@@ -539,6 +632,17 @@ mod tests {
             .resource::<ShipRuntime>()
             .delete_verdict()
             .map(|verdict| verdict.cloned().map_err(str::to_string))
+    }
+
+    /// The sections the cached verdict says would lose the dock, sorted.
+    fn severed(app: &App) -> Vec<Entity> {
+        let mut severed = app
+            .world()
+            .resource::<ShipRuntime>()
+            .delete_severed()
+            .to_vec();
+        severed.sort();
+        severed
     }
 
     fn reports(app: &App, player: Entity) -> &[ShipInventoryReport] {
@@ -602,27 +706,38 @@ mod tests {
         assert_eq!(app.world().resource::<ShipRuntime>().selected(), None);
     }
 
-    /// A delete that would split the ship, take its last computer, let go
-    /// of the dock, overfill the hold or happen away from a refit is refused
-    /// with its reason before any press, and a command raised for it anyway
-    /// changes nothing and shows no note.
+    /// A delete that would split the ship, take its last working computer,
+    /// let go of the dock, overfill the hold or happen away from a refit is
+    /// refused with its reason before any press; the split names every
+    /// section off the port's piece as severed, the others name none; and a
+    /// command raised for it anyway changes nothing and shows no note.
     #[test]
     fn a_delete_is_refused_with_its_reason_and_changes_nothing() {
         let (mut app, ship) = docked_app(1_000_000, vec![StationServiceType::Refit]);
         assert_eq!(
             verdict(&mut app, ship.hull),
             Some(Err(
-                "delete: taking HULL-1 off would split the ship".to_string()
+                "Splits the ship: red sections lose the dock".to_string()
             ))
         );
-        assert!(matches!(
+        // The hull joins everything: without it the port's piece is the port
+        // alone, and the computer, the drive and the gun lose the dock.
+        let mut cut = vec![ship.computer, ship.drive, ship.gun];
+        cut.sort();
+        assert_eq!(severed(&app), cut);
+        assert_eq!(
             verdict(&mut app, ship.computer),
-            Some(Err(line)) if line.starts_with("delete: the ship would carry 0 flight computers")
-        ));
+            Some(Err("Last working flight computer".to_string()))
+        );
+        assert!(
+            severed(&app).is_empty(),
+            "only a split names severed sections"
+        );
         assert_eq!(
             verdict(&mut app, ship.port),
-            Some(Err("delete: the dock holds the ship by DOCK-1".to_string()))
+            Some(Err("The dock holds the ship here".to_string()))
         );
+        assert!(severed(&app).is_empty());
         assert_eq!(delete(&mut app, ship.port), None, "a refusal shows no note");
         assert_eq!(
             app.world().resource::<ShipRuntime>().selected(),
@@ -634,16 +749,14 @@ mod tests {
         let (mut small, small_ship) = docked_app(50_000, vec![StationServiceType::Refit]);
         assert_eq!(
             verdict(&mut small, small_ship.gun),
-            Some(Err(
-                "delete: PDC-1 gives 70 kg of parts, the hold has 50 kg free".to_string()
-            ))
+            Some(Err("Needs 70 kg free, the hold has 50 kg".to_string()))
         );
         assert_eq!(delete(&mut small, small_ship.gun), None);
 
         let (mut storage, storage_ship) = docked_app(1_000_000, vec![StationServiceType::Storage]);
         assert_eq!(
             verdict(&mut storage, storage_ship.gun),
-            Some(Err("delete: this dock offers no refit".to_string()))
+            Some(Err("This dock offers no refit".to_string()))
         );
         assert_eq!(delete(&mut storage, storage_ship.gun), None);
 

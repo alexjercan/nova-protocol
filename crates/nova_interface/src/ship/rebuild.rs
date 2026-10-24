@@ -56,6 +56,9 @@ pub(crate) struct LiveSection {
     pub(crate) position: Vec3,
     pub(crate) rotation: Quat,
     link_points: Vec<LinkPoint>,
+    /// Whether the section works: a collapse-disabled section stays live
+    /// with `SectionInactiveMarker` and does nothing.
+    pub(crate) working: bool,
 }
 
 /// The read-only facts a station service (a rebuild or a swap) is planned
@@ -92,6 +95,7 @@ pub(crate) struct StationSite<'w, 's> {
             &'static EntityId,
             &'static Transform,
             &'static SectionLinkPoints,
+            Has<SectionInactiveMarker>,
         ),
         With<SectionMarker>,
     >,
@@ -195,12 +199,13 @@ impl StationSite<'_, '_> {
             .into_iter()
             .flatten()
             .filter_map(|child| self.sections.get(*child).ok().map(|found| (*child, found)))
-            .map(|(entity, (id, transform, points))| LiveSection {
+            .map(|(entity, (id, transform, points, inactive))| LiveSection {
                 entity,
                 id: id.0.clone(),
                 position: transform.translation,
                 rotation: transform.rotation,
                 link_points: points.0.clone(),
+                working: !inactive,
             })
             .collect();
         let partner = docked.map(|docked| self.partner(player, docked, service));

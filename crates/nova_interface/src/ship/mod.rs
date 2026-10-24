@@ -14,17 +14,20 @@
 //! foremost block marks the bow. The interactive SECTIONS ride on top as
 //! projected clickable badges: the family icon, a status pip and the code.
 //! The section panel beside the view shows the selection's code, name and
-//! condition bar, its binding, the Rebind and Delete actions and, while the
-//! selection has repairable damage, the repair form. Orbit the camera as the
-//! editor's looks, with the right-button drag (the pad's D-pad) + wheel; `Q`
-//! picks the part of the section under the pointer; `[`/`]` cycle the
-//! selection; Fit frames the whole ship at the current angles, and Reset also
-//! restores the opening angles; `G` toggles structural mates; `P` repairs,
-//! `B` replaces the selected bindable section's input, and Delete takes the
-//! selected section off while docked at a station that refits, its parts back
-//! in the hold. The Salvage block under it lists what it gives back, or why
-//! it is refused under a disabled Delete. While the form's quantity field has
-//! the caret, these keys type into it instead. The footer names only the keys
+//! condition bar, its binding, the Rebind action, the Salvage block with its
+//! Delete action and, while the selection has repairable damage, the repair
+//! form. Orbit the camera as the editor's looks, with the right-button drag
+//! (the pad's D-pad) + wheel; `Q` picks the part of the section under the
+//! pointer; `[`/`]` cycle the selection; Fit frames the whole ship at the
+//! current angles, and Reset also restores the opening angles; `G` toggles
+//! structural mates; `P` repairs, `B` replaces the selected bindable
+//! section's input, and Delete takes the selected section off while docked
+//! at a station that refits, its parts back in the hold. The Salvage block
+//! lists what it gives back over the Delete button; a refused Delete is muted
+//! with the reason as its tooltip, the key puts the reason on the note line,
+//! and a delete that would split the ship fills and outlines the sections
+//! that would lose the dock in red. While the form's quantity field has the
+//! caret, these keys type into it instead. The footer names only the keys
 //! that apply now.
 //!
 //! While [`ShipViewSubject`] names a hull (the Station pane's Info), the view

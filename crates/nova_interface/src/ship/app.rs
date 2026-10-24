@@ -19,7 +19,7 @@ use nova_gameplay::prelude::*;
 use nova_ui::{
     screen::drive_wheel_scroll,
     theme::UiColor,
-    widget::{button, slider_track, text_field, ButtonSpec, TextFieldSpec, ThemedFill},
+    widget::{button, slider_track, text_field, ButtonSpec, TextFieldSpec, ThemedFill, Tooltip},
 };
 
 use super::{
@@ -58,8 +58,9 @@ pub(crate) fn scroll_ship_panel(
 }
 
 /// Build the section panel: the selected section's icon over its code, name
-/// and condition bar; its binding; Rebind and Delete; the Salvage block with
-/// what Delete gives back or why it is refused; the note line; the repair form;
+/// and condition bar; its binding; Rebind; the Salvage block with what Delete
+/// gives back over the Delete button, muted with the reason as its tooltip
+/// while it is refused; the note line; the repair form;
 /// and the lost-section list, beside the view. While a part is in hand the
 /// Placing block (`super::held`) stands in place of all of it. The parts a station builds are
 /// in the gallery the footer's Catalogue button opens (`super::catalogue`).
@@ -187,13 +188,11 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             button(ButtonSpec::new("Rebind").fit()),
                         ))
                         .observe(on_ship_rebind_button);
-                        row.spawn((
-                            ShipPanelButton::Delete,
-                            button(ButtonSpec::new("Delete").fit().danger()),
-                            Name::new("ShipDelete"),
-                        ))
-                        .observe(on_ship_delete_button);
                     });
+                // The Salvage block is Delete's form, as the repair form is
+                // Repair's: the yield tiles, then the action. The button sits
+                // at the block's left edge so its 240 px tooltip stays inside
+                // the 300 px panel at every window size.
                 panel
                     .spawn((
                         ShipPanelField::Salvage,
@@ -207,6 +206,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         },
                     ))
                     .with_children(|block| {
+                        block.spawn(divider());
                         block.spawn(themed_label("Salvage", 12.0, UiColor::Label));
                         block.spawn((
                             ShipSalvageTiles::default(),
@@ -218,11 +218,17 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                                 ..default()
                             },
                         ));
-                        block.spawn((
-                            ShipPanelField::DeleteReason,
-                            Name::new("ShipDeleteReason"),
-                            themed_label("", 12.0, UiColor::Danger),
-                        ));
+                        block
+                            .spawn(control_row(JustifyContent::FlexStart))
+                            .with_children(|row| {
+                                row.spawn((
+                                    ShipPanelButton::Delete,
+                                    compact_button(ButtonSpec::new("Delete").fit().danger()),
+                                    Tooltip::default(),
+                                    Name::new("ShipDelete"),
+                                ))
+                                .observe(on_ship_delete_button);
+                            });
                     });
                 // Under the actions: a result shows where the press was.
                 panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));

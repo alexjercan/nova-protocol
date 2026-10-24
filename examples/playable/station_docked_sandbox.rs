@@ -70,9 +70,14 @@
 //! checks the hand stays empty, then puts the capture shape and theme back,
 //! checks the Salvage block lists the gun's yield, deletes the gun with
 //! Delete and checks the note names the parts that went to the hold, selects
-//! the port the dock holds by and checks its Delete is disabled with the
-//! reason under Salvage and that the Delete key leaves it on, picks a
-//! hull part off the ship with Q, puts it away with Q over empty space and
+//! the port the dock holds by and checks its Delete is muted with the reason
+//! as its tooltip and that the Delete key leaves it on with the reason on the
+//! note line, cycles to a section whose delete would split the ship and
+//! checks the verdict names the sections that would lose the dock, then in
+//! the Phosphor and Hardware themes at 640x600 and 1024x768 hovers its muted
+//! Delete until the tooltip shows and shoots it, cycles on to a section that
+//! may come off and shoots its enabled Delete in each theme, puts the shape
+//! and theme back, picks a hull part off the ship with Q, puts it away with Q over empty space and
 //! checks the hand is empty, takes the Cargo Intake from the Catalogue, drags the
 //! view to the station and points the intake at the sockets nearest it, through every
 //! mating socket, until the station refuses it (or warns that none reaches),
@@ -98,6 +103,8 @@
 //! `sandbox-delete-yield.png`,
 //! `sandbox-delete.png`,
 //! `sandbox-delete-refused.png`,
+//! `sandbox-delete-split-<phosphor|hardware>-<640|1024>.png`,
+//! `sandbox-delete-enabled-<phosphor|hardware>.png`,
 //! `sandbox-pick.png`, `sandbox-catalogue-intake.png`,
 //! `sandbox-station-refusal.png`,
 //! `sandbox-map-after.png`, `sandbox-station.png`,
@@ -970,15 +977,16 @@ mod smoke {
     /// The PNG of the Ship tab once the rebound gun is deleted: the gun gone,
     /// the note naming the parts that went to the hold.
     const DELETE_SHOT: &str = "sandbox-delete.png";
-    /// The PNG of the docked port's disabled Delete, its reason under
-    /// Salvage.
+    /// The PNG of the docked port's muted Delete under Salvage.
     const DELETE_REFUSED_SHOT: &str = "sandbox-delete-refused.png";
-    /// The Ship panel's Delete button.
+    /// The Ship panel's Delete button, inside the Salvage block.
     const DELETE_BUTTON: &str = "ShipDelete";
-    /// The Ship panel's Salvage block under Delete.
+    /// The Ship panel's Salvage block.
     const SALVAGE_BLOCK: &str = "ShipSalvage";
-    /// The Salvage block's reason line.
-    const DELETE_REASON: &str = "ShipDeleteReason";
+    /// The muted Delete's tooltip on the port the dock holds by.
+    const DOCKED_PORT_REASON: &str = "The dock holds the ship here";
+    /// The muted Delete's tooltip on a section whose delete splits the ship.
+    const SPLIT_REASON: &str = "Splits the ship: red sections lose the dock";
     /// The PNG of the Catalogue open on the kinetic PDC's category.
     const CATALOGUE_SHOT: &str = "sandbox-catalogue.png";
     /// The PNG of the Catalogue as it opens, on every part: each tile's name,
@@ -1068,6 +1076,11 @@ mod smoke {
         gun: Option<Entity>,
         sections: usize,
     }
+
+    /// The section whose delete would split the ship, found by cycling the
+    /// selection; the themed shots check it stays selected.
+    #[derive(Resource, Clone, Copy, Debug)]
+    struct SmokeSplit(Entity);
 
     /// The Ship view's eye and facing when the walk pressed on the ghost.
     #[derive(Resource, Clone, Copy, Debug)]
@@ -1667,14 +1680,33 @@ mod smoke {
         Some((label, enabled))
     }
 
-    /// The Salvage block's reason line: why Delete is refused, empty while
-    /// it holds.
-    fn delete_reason(world: &World) -> Option<String> {
-        let mut lines = world.try_query::<(&Name, &Text)>()?;
-        lines
-            .iter(world)
-            .find(|(name, _)| name.as_str() == DELETE_REASON)
-            .map(|(_, text)| text.0.clone())
+    /// The Delete button's tooltip text: why it is refused, empty while it
+    /// holds.
+    fn delete_tooltip_text(world: &World) -> Option<String> {
+        world
+            .get::<Tooltip>(named_entity(world, DELETE_BUTTON)?)
+            .map(|tooltip| tooltip.0.clone())
+    }
+
+    /// The text of the tooltip panel under Delete, when the panel shows.
+    fn delete_tooltip(world: &World) -> Option<String> {
+        shown_tooltip(world, named_entity(world, DELETE_BUTTON)?)
+    }
+
+    /// The player ship's root.
+    fn player_root(world: &World) -> Option<Entity> {
+        world
+            .try_query_filtered::<Entity, With<PlayerSpaceshipMarker>>()?
+            .single(world)
+            .ok()
+    }
+
+    /// The selected section's code, for the log.
+    fn selected_code(world: &World) -> Option<String> {
+        let selected = world.resource::<ShipRuntime>().selected()?;
+        world
+            .get::<SectionCode>(selected)
+            .map(|code| code.0.clone())
     }
 
     /// The Salvage block's texts in tree order while the panel shows it;
@@ -2546,6 +2578,247 @@ mod smoke {
         }
     }
 
+    /// After the docked port: cycle to a section whose delete would split the
+    /// ship and check the verdict names the sections that would lose the dock
+    /// (live sections of the player ship, not the selection) under a muted
+    /// Delete with the split reason as its tooltip. With it selected, in each
+    /// theme at each of [`CARD_SIZES`] hover Delete until the tooltip shows
+    /// and shoot it. Then cycle on to a section that may come off and shoot
+    /// its enabled Delete, unhovered, in each theme at the stock shape, for
+    /// comparison. Last, put the theme and the capture shape back. The red
+    /// fill and outline on the severed blocks are read on the PNGs.
+    fn read_the_split(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        let mut script = script
+            .step("station sandbox: cycle to a delete that would split the ship")
+            .each(tap_while("viewer_next", |world| {
+                world.resource::<ShipRuntime>().delete_severed().is_empty()
+            }))
+            .until(Arc::new(|world: &World| {
+                !world.resource::<ShipRuntime>().delete_severed().is_empty()
+            }))
+            .diagnose(|world| {
+                format!(
+                    "selected {:?}, verdict {:?}",
+                    selected_code(world),
+                    world.resource::<ShipRuntime>().delete_verdict()
+                )
+            })
+            .deadline(SETUP_SECS)
+            .add()
+            .step("station sandbox: let the select key up after the split")
+            .on_enter(release_action("viewer_next"))
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station sandbox: the split names the sections that would lose the dock")
+            .on_enter(|world: &mut World| {
+                let runtime = world.resource::<ShipRuntime>();
+                let split = runtime.selected().expect("a section is selected");
+                let severed = runtime.delete_severed().to_vec();
+                let player = player_root(world).expect("the player ship is live");
+                assert!(!severed.is_empty(), "the split names what would come off");
+                assert!(
+                    !severed.contains(&split),
+                    "the deleted section itself is not severed"
+                );
+                for section in &severed {
+                    assert!(
+                        world.get::<SectionMarker>(*section).is_some()
+                            && world
+                                .get::<ChildOf>(*section)
+                                .is_some_and(|parent| parent.parent() == player),
+                        "{section:?} is a live section of the player ship"
+                    );
+                }
+                let codes: Vec<String> = severed
+                    .iter()
+                    .filter_map(|section| world.get::<SectionCode>(*section))
+                    .map(|code| code.0.clone())
+                    .collect();
+                info!(
+                    "station sandbox: deleting {:?} would cut {codes:?} off the dock",
+                    selected_code(world)
+                );
+                assert_eq!(
+                    delete_button(world),
+                    Some(("Delete".to_string(), false)),
+                    "a split mutes Delete"
+                );
+                assert_eq!(
+                    delete_tooltip_text(world).as_deref(),
+                    Some(SPLIT_REASON),
+                    "the split reason is the muted Delete's tooltip"
+                );
+                world.insert_resource(SmokeSplit(split));
+            })
+            .add();
+        for (theme, theme_name) in CARD_THEMES {
+            script = switch_theme(script, theme, theme_name, "the split");
+            for (width, height) in CARD_SIZES {
+                let shape = format!("{width}x{height} {theme_name}");
+                let shot = format!("sandbox-delete-split-{theme_name}-{width}.png");
+                script = script
+                    .step(format!("station sandbox: reshape to {shape} for the split"))
+                    .on_enter(move |world: &mut World| set_size(world, width, height))
+                    .until(window_size_is(width, height))
+                    .deadline(BEAT_SECS)
+                    .add()
+                    .step(format!(
+                        "station sandbox: point at the split's muted Delete at {shape}"
+                    ))
+                    .each(|world, _, _| keep_hovering_named(DELETE_BUTTON)(world))
+                    .until(Arc::new(|world: &World| delete_tooltip(world).is_some()))
+                    .diagnose(|world| {
+                        format!(
+                            "selected {:?}, tooltip {:?}, shown {:?}",
+                            selected_code(world),
+                            delete_tooltip_text(world),
+                            delete_tooltip(world)
+                        )
+                    })
+                    .deadline(BEAT_SECS)
+                    .add()
+                    .step(format!(
+                        "station sandbox: read the split's tooltip at {shape}"
+                    ))
+                    .on_enter(|world: &mut World| {
+                        let shown = delete_tooltip(world);
+                        info!("station sandbox: the split's Delete tooltip reads {shown:?}");
+                        assert_eq!(
+                            shown.as_deref(),
+                            Some(SPLIT_REASON),
+                            "the hovered muted Delete shows the split reason"
+                        );
+                        let runtime = world.resource::<ShipRuntime>();
+                        assert_eq!(
+                            runtime.selected(),
+                            Some(world.resource::<SmokeSplit>().0),
+                            "the reshape and the theme keep the split selected"
+                        );
+                        assert!(
+                            !runtime.delete_severed().is_empty(),
+                            "the severed sections stay named while the split is selected"
+                        );
+                    })
+                    .add()
+                    .step(format!("station sandbox: settle the split at {shape}"))
+                    .until(frames(SETTLE_FRAMES))
+                    .add()
+                    .step(format!("station sandbox: shoot the split at {shape}"))
+                    .on_enter({
+                        let shot = shot.clone();
+                        move |world: &mut World| shoot(world, &shot)
+                    })
+                    .until(shot_written(shot))
+                    .deadline(SHOT_SECS)
+                    .add();
+            }
+        }
+        script = script
+            .step("station sandbox: cycle to a delete that holds")
+            .each(tap_while("viewer_next", |world| {
+                !world
+                    .resource::<ShipRuntime>()
+                    .delete_verdict()
+                    .is_some_and(|verdict| verdict.is_ok())
+            }))
+            .until(Arc::new(|world: &World| {
+                world
+                    .resource::<ShipRuntime>()
+                    .delete_verdict()
+                    .is_some_and(|verdict| verdict.is_ok())
+            }))
+            .diagnose(|world| {
+                format!(
+                    "selected {:?}, verdict {:?}",
+                    selected_code(world),
+                    world.resource::<ShipRuntime>().delete_verdict()
+                )
+            })
+            .deadline(SETUP_SECS)
+            .add()
+            .step("station sandbox: let the select key up after the deletable")
+            .on_enter(|world: &mut World| {
+                release_action("viewer_next")(world);
+                info!(
+                    "station sandbox: {:?} may come off, for the enabled comparison",
+                    selected_code(world)
+                );
+                // Off the button, so the enabled face is shot unhovered.
+                let view = ui_node_rect(world, SHIP_VIEWPORT).expect("the Ship view is laid out");
+                move_cursor(view.min + Vec2::splat(EMPTY_INSET_PX))(world);
+            })
+            .until(Arc::new(|world: &World| {
+                delete_button(world).is_some_and(|(_, enabled)| enabled)
+                    && delete_tooltip(world).is_none()
+            }))
+            .diagnose(|world| {
+                format!(
+                    "selected {:?}, button {:?}, shown {:?}",
+                    selected_code(world),
+                    delete_button(world),
+                    delete_tooltip(world)
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add();
+        // The window is at the last of CARD_SIZES, the stock shape; the last
+        // theme is live, so it is shot first.
+        for (theme, theme_name) in CARD_THEMES.into_iter().rev() {
+            let shot = format!("sandbox-delete-enabled-{theme_name}.png");
+            script = switch_theme(script, theme, theme_name, "the enabled Delete")
+                .step(format!(
+                    "station sandbox: shoot the enabled Delete in {theme_name}"
+                ))
+                .on_enter({
+                    let shot = shot.clone();
+                    move |world: &mut World| shoot(world, &shot)
+                })
+                .until(shot_written(shot))
+                .deadline(SHOT_SECS)
+                .add();
+        }
+        let (width, height) = CAPTURE_RESOLUTION;
+        let (width, height) = (width as f32, height as f32);
+        script
+            .step("station sandbox: back to the capture shape and theme after the split")
+            .on_enter(move |world: &mut World| {
+                *world.resource_mut::<SelectedUiTheme>() = SelectedUiTheme::default();
+                set_size(world, width, height);
+            })
+            .until(window_size_is(width, height))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: settle the capture shape after the split")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+    }
+
+    /// Switch to `theme` and let it re-tint, for the `what` shots.
+    fn switch_theme(
+        script: AutopilotPlugin<GameStates>,
+        theme: &'static str,
+        theme_name: &str,
+        what: &str,
+    ) -> AutopilotPlugin<GameStates> {
+        script
+            .step(format!(
+                "station sandbox: switch to the {theme_name} theme for {what}"
+            ))
+            .on_enter(move |world: &mut World| {
+                world.resource_mut::<SelectedUiTheme>().0 = theme.to_string();
+            })
+            .until(Arc::new(move |world: &World| {
+                world.resource::<ActiveUiTheme>().id() == theme
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!(
+                "station sandbox: settle the {theme_name} theme for {what}"
+            ))
+            .until(frames(THEME_FRAMES))
+            .add()
+    }
+
     /// With the rebound PDC selected, read two focus cards in each theme at
     /// each of [`CARD_SIZES`], and shoot each; then close the Catalogue and
     /// put the theme and the capture shape back for the shots after.
@@ -3141,7 +3414,7 @@ mod smoke {
             .step("station sandbox: the Salvage block names the yield")
             .until(Arc::new(|world: &World| {
                 delete_button(world).is_some_and(|(label, enabled)| enabled && label == "Delete")
-                    && delete_reason(world).is_some_and(|reason| reason.is_empty())
+                    && delete_tooltip_text(world).is_some_and(|reason| reason.is_empty())
                     && salvage_texts(world).is_some_and(|texts| {
                         texts.iter().any(|text| text == "+1")
                             && texts.iter().any(|text| text == "Section panel")
@@ -3149,9 +3422,9 @@ mod smoke {
             }))
             .diagnose(|world| {
                 format!(
-                    "button {:?}, reason {:?}, salvage {:?}",
+                    "button {:?}, tooltip {:?}, salvage {:?}",
                     delete_button(world),
-                    delete_reason(world),
+                    delete_tooltip_text(world),
                     salvage_texts(world)
                 )
             })
@@ -3239,19 +3512,18 @@ mod smoke {
             .on_enter(release_action("viewer_next"))
             .until(frames(SETTLE_FRAMES))
             .add()
-            .step("station sandbox: the docked port's Delete is disabled")
+            .step("station sandbox: the docked port's Delete is muted")
             .until(Arc::new(|world: &World| {
                 delete_button(world).is_some_and(|(label, enabled)| !enabled && label == "Delete")
-                    && delete_reason(world)
-                        .is_some_and(|reason| reason.starts_with("delete: the dock holds"))
+                    && delete_tooltip_text(world).as_deref() == Some(DOCKED_PORT_REASON)
                     && salvage_texts(world)
                         .is_some_and(|texts| !texts.iter().any(|text| text.starts_with('+')))
             }))
             .diagnose(|world| {
                 format!(
-                    "button {:?}, reason {:?}, salvage {:?}",
+                    "button {:?}, tooltip {:?}, salvage {:?}",
                     delete_button(world),
-                    delete_reason(world),
+                    delete_tooltip_text(world),
                     salvage_texts(world)
                 )
             })
@@ -3267,7 +3539,13 @@ mod smoke {
                 });
                 press_action("ship_delete")(world);
             })
-            .until(frames(SETTLE_FRAMES))
+            // The refused key puts the reason on the note line, which lasts
+            // 2.5 s: read it while the key is down.
+            .until(Arc::new(|world: &World| {
+                world.resource::<ShipRuntime>().note() == Some(DOCKED_PORT_REASON)
+            }))
+            .diagnose(|world| format!("note {:?}", world.resource::<ShipRuntime>().note()))
+            .deadline(BEAT_SECS)
             .add()
             .step("station sandbox: let the refused delete key up")
             .on_enter(release_action("ship_delete"))
@@ -3278,10 +3556,6 @@ mod smoke {
                 world.get_resource::<SmokeDelete>().is_some_and(|kept| {
                     player_sections(world) == kept.sections
                         && kept.gun.is_some_and(|port| world.get_entity(port).is_ok())
-                        && !world
-                            .resource::<ShipRuntime>()
-                            .note()
-                            .is_some_and(|note| note.starts_with("delete:"))
                 })
             }))
             .diagnose(|world| {
@@ -3294,15 +3568,15 @@ mod smoke {
             })
             .deadline(BEAT_SECS)
             .add()
-            .step("station sandbox: settle the disabled Delete")
+            .step("station sandbox: settle the muted Delete")
             .until(frames(SETTLE_FRAMES))
             .add()
-            .step("station sandbox: shoot the disabled Delete")
+            .step("station sandbox: shoot the muted Delete")
             .on_enter(|world: &mut World| {
                 info!(
-                    "station sandbox: delete button {:?}, reason {:?}, salvage {:?}",
+                    "station sandbox: delete button {:?}, tooltip {:?}, salvage {:?}",
                     delete_button(world),
-                    delete_reason(world),
+                    delete_tooltip_text(world),
                     salvage_texts(world)
                 );
                 shoot(world, DELETE_REFUSED_SHOT);
@@ -3310,7 +3584,7 @@ mod smoke {
             .until(shot_written(DELETE_REFUSED_SHOT))
             .deadline(SHOT_SECS)
             .add();
-        let script = script
+        let script = read_the_split(script)
             .step("station sandbox: point at a hull section to pick")
             .on_enter(point_at_a_hull)
             .until(Arc::new(|world: &World| {

@@ -102,7 +102,7 @@ pub(crate) fn build_fault_text(
     fault: &RefitBuildFaultType,
 ) -> String {
     match fault {
-        RefitBuildFaultType::Disconnected => {
+        RefitBuildFaultType::Disconnected { .. } => {
             format!("{action}: {name} would split the ship at {code}")
         }
         RefitBuildFaultType::InvalidSockets => {
@@ -113,6 +113,9 @@ pub(crate) fn build_fault_text(
         }
         RefitBuildFaultType::Underpowered { thrust, needed } => {
             format!("{action}: the drives would push {thrust:.1}, the ship needs {needed:.1}")
+        }
+        RefitBuildFaultType::NoController => {
+            format!("{action}: {name} would leave the ship without a flight computer")
         }
         RefitBuildFaultType::Undercontrolled {
             controllers,

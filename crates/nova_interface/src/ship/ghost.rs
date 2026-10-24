@@ -546,7 +546,11 @@ const TARGET_FACE_DEPTH: f32 = 0.04;
 /// While a part is held, draw the block under the pointer opaque, so the
 /// faces behind it do not show through, and put an opaque plate on the face
 /// the part mounts on: the face whose outward axis is nearest the target
-/// socket's normal. Every other block keeps its translucent fill.
+/// socket's normal. A block a delete of the selection would cut off the dock
+/// ([`ShipRuntime::delete_severed`]) wears the translucent Danger fill. Every
+/// other block keeps its family fill. This system is the block fill's only
+/// writer, so a block goes back to its family fill the frame the part is put
+/// down or the verdict clears.
 pub(crate) fn sync_ship_target_face(
     runtime: Res<ShipRuntime>,
     held: Res<HeldPart>,
@@ -565,15 +569,18 @@ pub(crate) fn sync_ship_target_face(
         return;
     }
     let target = held.0.as_ref().and(preview.hovered);
+    let severed = runtime.delete_severed();
     let mut plate = None;
     for (block, pose, mut material) in &mut q_block {
         let aimed = target == Some(block.section);
-        let fills = if aimed {
-            &runtime.mat_blocks_solid
+        let want = if aimed {
+            runtime.mat_blocks_solid.get(block.family as usize)
+        } else if severed.contains(&block.section) {
+            runtime.mat_fill_severed.as_ref()
         } else {
-            &runtime.mat_blocks
+            runtime.mat_blocks.get(block.family as usize)
         };
-        if let Some(want) = fills.get(block.family as usize) {
+        if let Some(want) = want {
             if material.0 != *want {
                 material.0 = want.clone();
             }
