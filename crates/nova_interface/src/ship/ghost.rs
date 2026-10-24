@@ -932,6 +932,7 @@ mod tests {
                 position,
                 rotation: Quat::IDENTITY,
                 config: if index == 6 { &tank } else { &cube },
+                working: true,
             })
             .collect();
         let entity = |index: usize| Entity::from_raw_u32(index as u32 + 1).expect("a valid index");

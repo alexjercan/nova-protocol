@@ -176,6 +176,7 @@ fn check_intake(
             position: section.position,
             rotation: section.rotation,
             config: &section.config,
+            working: true,
         })
         .collect();
     if let Some((intake, port)) = intake_in_dock_approach(&placed) {

@@ -110,6 +110,7 @@ pub fn spawn_display_skin(
                 position: section.position,
                 rotation: section.rotation,
                 config: &section.config,
+                working: true,
             }
             .placed_part()
         })

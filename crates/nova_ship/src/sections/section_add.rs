@@ -223,6 +223,7 @@ pub fn section_add_clear(
         position,
         rotation,
         config: offered,
+        working: true,
     };
     let near = neighbours(design, &added, None);
     let (mated, _) = subject_mates(design, &added, &near);
@@ -266,6 +267,7 @@ pub fn section_add_fit(
         position,
         rotation,
         config: offered,
+        working: true,
     };
     if outside
         .iter()
@@ -476,6 +478,7 @@ mod tests {
             position: Vec3::new(x, y, 0.0),
             rotation: Quat::IDENTITY,
             config,
+            working: true,
         }
     }
 

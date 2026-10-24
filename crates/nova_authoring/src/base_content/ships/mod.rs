@@ -326,6 +326,7 @@ mod tests {
                         .iter()
                         .find(|config| config.base.id == section.source.prototype_id())
                         .unwrap_or_else(|| panic!("'{}' names a missing part", ship.id)),
+                    working: true,
                 })
                 .collect();
             assert_eq!(ship_build_fault(&placed), None, "'{}'", ship.id);

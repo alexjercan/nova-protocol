@@ -260,6 +260,10 @@ pub struct RefitPlacedSection<'a> {
     pub rotation: Quat,
     /// The finished config the section spawned from.
     pub config: &'a SectionConfig,
+    /// Whether the section works. A collapse-disabled live section stays on
+    /// the hull and does nothing; a design section, an authored or generated
+    /// part and a part on offer work.
+    pub working: bool,
 }
 
 impl<'a> RefitPlacedSection<'a> {
@@ -311,6 +315,9 @@ pub enum RefitBuildFaultType {
     },
     /// A removal would leave the ship with no working flight computer.
     NoController,
+    /// A removal would leave an armed ship with no working weapon: a turret,
+    /// torpedo or railgun. An unarmed ship has none to keep.
+    LastWeapon,
     /// The ship carries fewer flight computers than its mass needs. Reported
     /// by [`ship_build_fault`] only: an authored hull and the generator obey
     /// the count, a refit needs one working computer.
@@ -339,7 +346,12 @@ pub fn swap_build_fault(
     offered: &SectionConfig,
 ) -> Option<RefitBuildFaultType> {
     let mut after = live.to_vec();
-    after[index].config = offered;
+    // A swap spawns the offered part fresh.
+    after[index] = RefitPlacedSection {
+        config: offered,
+        working: true,
+        ..after[index]
+    };
     let blocked = |sections: &[RefitPlacedSection<'_>]| {
         let placed: Vec<PlacedPart<'_>> = sections.iter().map(|s| s.placed_part()).collect();
         let (structure, _, occupied) = read_structure(&placed);
@@ -350,44 +362,50 @@ pub fn swap_build_fault(
 
 /// The first post-build check the ship `live` fails once section `index` is
 /// taken off and passed before, or `None` when the removal adds no fault.
-/// `working[i]` is whether `live[i]` works: a collapse-disabled section stays
-/// live but does nothing.
 ///
 /// The checks are [`refit_build_fault`]'s. A removal opens lanes and never
-/// blocks one. On top of them, the last working flight computer never comes
-/// off: the attitude loop and the neutralize rule read only working ones. A
-/// ship with no working computer left may shed its dead ones.
+/// blocks one. On top of them, the last working flight computer and the last
+/// working weapon of an armed ship never come off: the attitude loop and the
+/// neutralize rule read only working ones, and a dock is a service, not the
+/// fight that beats a ship. A ship with no working computer or weapon left
+/// may shed its dead ones, and a ship with no weapon section has none to
+/// keep.
 ///
 /// # Panics
 ///
-/// When `index` is not in `live`, or `working` and `live` differ in length.
+/// When `index` is not in `live`.
 pub fn remove_build_fault(
     live: &[RefitPlacedSection<'_>],
-    working: &[bool],
     index: usize,
 ) -> Option<RefitBuildFaultType> {
-    assert_eq!(
-        working.len(),
-        live.len(),
-        "remove: one working flag per live section"
-    );
     let mut after = live.to_vec();
     after.remove(index);
     if let Some(fault) = refit_build_fault(live, &after, || false) {
         return Some(fault);
     }
-    let working_computer = |skip: Option<usize>| {
-        live.iter()
-            .zip(working)
-            .enumerate()
-            .any(|(i, (section, &works))| {
-                Some(i) != skip
-                    && works
-                    && matches!(section.config.kind, SectionKind::Controller(_))
+    let takes_the_last_working = |kind: fn(&SectionKind) -> bool, fault| {
+        let working = |skip: Option<usize>| {
+            live.iter().enumerate().any(|(i, section)| {
+                Some(i) != skip && section.working && kind(&section.config.kind)
             })
+        };
+        (working(None) && !working(Some(index))).then_some(fault)
     };
-    (working_computer(None) && !working_computer(Some(index)))
-        .then_some(RefitBuildFaultType::NoController)
+    takes_the_last_working(
+        |kind| matches!(kind, SectionKind::Controller(_)),
+        RefitBuildFaultType::NoController,
+    )
+    .or_else(|| {
+        takes_the_last_working(
+            |kind| {
+                matches!(
+                    kind,
+                    SectionKind::Turret(_) | SectionKind::Torpedo(_) | SectionKind::Railgun(_)
+                )
+            },
+            RefitBuildFaultType::LastWeapon,
+        )
+    })
 }
 
 /// The first post-build check a whole built ship fails, or `None` when it
@@ -418,7 +436,7 @@ pub fn ship_build_fault(sections: &[RefitPlacedSection<'_>]) -> Option<RefitBuil
     if !blocked_exits(&structure, &ship_exits(&placed, &occupied)).is_empty() {
         return Some(RefitBuildFaultType::BlockedExit);
     }
-    ShipMeasure::of(sections.iter().map(|s| s.config))
+    ShipMeasure::of_working(sections.iter().map(|s| (s.config, s.working)))
         .shortfall()
         .map(|shortfall| match shortfall {
             ShipMeasureShortfallType::Underpowered { thrust, needed } => {
@@ -479,7 +497,8 @@ pub fn intake_in_dock_approach(sections: &[RefitPlacedSection<'_>]) -> Option<(u
 ///
 /// The checks are the open-world generator's own, on the same readings: one
 /// socket graph ([`derive_link_point_graph`]), clear exit lanes
-/// ([`blocked_exits`]) and the thrust floor ([`ShipMeasure`]). The flight
+/// ([`blocked_exits`]) and the thrust floor ([`ShipMeasure`], on the drives
+/// that work: a collapse-disabled drive pushes nothing). The flight
 /// computer count is not checked: the flight model needs one working
 /// computer, and the count per mass is the generator's layout rule. A
 /// generated ship's role, advancement, size ceiling, mirror symmetry and ruin
@@ -516,8 +535,9 @@ pub(crate) fn refit_build_fault(
         return Some(RefitBuildFaultType::BlockedExit);
     }
 
-    let measure =
-        |sections: &[RefitPlacedSection<'_>]| ShipMeasure::of(sections.iter().map(|s| s.config));
+    let measure = |sections: &[RefitPlacedSection<'_>]| {
+        ShipMeasure::of_working(sections.iter().map(|s| (s.config, s.working)))
+    };
     let (before, after) = (measure(before), measure(after));
     (before.thrust >= before.needed_thrust() && after.thrust < after.needed_thrust()).then(|| {
         RefitBuildFaultType::Underpowered {
@@ -614,6 +634,35 @@ mod tests {
 
     fn turret() -> SectionKind {
         SectionKind::Turret(TurretSectionConfig::default())
+    }
+
+    fn controller() -> SectionKind {
+        SectionKind::Controller(ControllerSectionConfig {
+            steering_lag: 0.2,
+            max_torque: 1.0,
+            render_mesh: None,
+            render_mesh_transform: None,
+        })
+    }
+
+    /// A section at `x` on the ship's long axis.
+    fn at(x: f32, config: &SectionConfig, working: bool) -> RefitPlacedSection<'_> {
+        RefitPlacedSection {
+            position: Vec3::new(x, 0.0, 0.0),
+            rotation: Quat::IDENTITY,
+            config,
+            working,
+        }
+    }
+
+    /// A section on the top socket of the hull at the origin.
+    fn on_top(config: &SectionConfig, working: bool) -> RefitPlacedSection<'_> {
+        RefitPlacedSection {
+            position: Vec3::Y,
+            rotation: Quat::IDENTITY,
+            config,
+            working,
+        }
     }
 
     fn thruster(magnitude: f32) -> SectionKind {
@@ -725,6 +774,7 @@ mod tests {
             position: Vec3::new(x, 0.0, 0.0),
             rotation: Quat::IDENTITY,
             config,
+            working: true,
         };
 
         let floating = part("floating", turret(), one, Vec::new());
@@ -746,10 +796,10 @@ mod tests {
     }
 
     /// A removal is refused when it would split the ship, naming the pieces,
-    /// or take off the last WORKING flight computer; a leaf gun comes off, a
-    /// second working computer lets the first go, a disabled computer comes
-    /// off a ship that keeps a working one, and a ship with none working
-    /// may shed its dead ones.
+    /// or take off the last WORKING flight computer; a leaf drive comes off a
+    /// ship with another, a second working computer lets the first go, a
+    /// disabled computer comes off a ship that keeps a working one, and a
+    /// ship with none working may shed its dead ones.
     #[test]
     fn a_removal_keeps_one_working_computer_and_refuses_the_last() {
         let one = Vec3::ONE;
@@ -759,76 +809,191 @@ mod tests {
             one,
             cube_points(),
         );
-        let computer = part(
-            "computer",
-            SectionKind::Controller(ControllerSectionConfig {
-                steering_lag: 0.2,
-                max_torque: 1.0,
-                render_mesh: None,
-                render_mesh_transform: None,
-            }),
-            one,
-            cube_points(),
-        );
+        let computer = part("computer", controller(), one, cube_points());
         let gun = part("gun", turret(), one, cube_points());
         let drive = part("drive", thruster(10.0), one, cube_points());
-        let at = |x: f32, config| RefitPlacedSection {
-            position: Vec3::new(x, 0.0, 0.0),
-            rotation: Quat::IDENTITY,
-            config,
-        };
-        // gun - hull - computer - drive, in a line.
+        // drive B - hull - computer - drive A, in a line.
         let ship = [
-            at(1.0, &gun),
-            at(0.0, &hull),
-            at(-1.0, &computer),
-            at(-2.0, &drive),
+            at(1.0, &drive, true),
+            at(0.0, &hull, true),
+            at(-1.0, &computer, true),
+            at(-2.0, &drive, true),
         ];
-        let all = [true; 4];
-        assert_eq!(remove_build_fault(&ship, &all, 0), None);
+        assert_eq!(remove_build_fault(&ship, 0), None);
         assert_eq!(
-            remove_build_fault(&ship, &all, 1),
+            remove_build_fault(&ship, 1),
             Some(RefitBuildFaultType::Disconnected {
                 pieces: vec![vec![0], vec![1, 2]]
             })
         );
-        let tail = [at(1.0, &gun), at(0.0, &hull), at(-1.0, &computer)];
+        let tail = [
+            at(1.0, &gun, true),
+            at(0.0, &hull, true),
+            at(-1.0, &computer, true),
+        ];
         assert_eq!(
-            remove_build_fault(&tail, &[true; 3], 2),
+            remove_build_fault(&tail, 2),
             Some(RefitBuildFaultType::NoController)
         );
 
         // gun - hull - computer A, with computer B on the hull's top: two
         // computers, both leaves, so only the computer rule can refuse.
-        let twin = [
-            at(1.0, &gun),
-            at(0.0, &hull),
-            at(-1.0, &computer),
-            RefitPlacedSection {
-                position: Vec3::Y,
-                rotation: Quat::IDENTITY,
-                config: &computer,
-            },
-        ];
+        let twin = |a_works: bool, b_works: bool| {
+            [
+                at(1.0, &gun, true),
+                at(0.0, &hull, true),
+                at(-1.0, &computer, a_works),
+                on_top(&computer, b_works),
+            ]
+        };
         assert_eq!(
-            remove_build_fault(&twin, &[true, true, true, true], 3),
+            remove_build_fault(&twin(true, true), 3),
             None,
             "a second working computer lets one go"
         );
         assert_eq!(
-            remove_build_fault(&twin, &[true, true, true, false], 2),
+            remove_build_fault(&twin(true, false), 2),
             Some(RefitBuildFaultType::NoController),
             "the working computer is the last one that works"
         );
         assert_eq!(
-            remove_build_fault(&twin, &[true, true, true, false], 3),
+            remove_build_fault(&twin(true, false), 3),
             None,
             "a dead computer comes off a ship that keeps a working one"
         );
         assert_eq!(
-            remove_build_fault(&twin, &[true, true, false, false], 3),
+            remove_build_fault(&twin(false, false), 3),
             None,
             "a ship with no working computer sheds a dead one"
+        );
+    }
+
+    /// A removal never takes the last WORKING weapon off an armed ship: the
+    /// neutralize rule would call the ship beaten the next frame, and a dock
+    /// is a service, not a fight. A second working gun lets one go, a dead
+    /// gun comes off a ship that keeps a working one, a ship with no working
+    /// gun sheds a dead one, and an unarmed ship has no weapon to keep.
+    #[test]
+    fn a_removal_keeps_one_working_weapon_on_an_armed_ship() {
+        let one = Vec3::ONE;
+        let hull = part(
+            "hull",
+            SectionKind::Hull(HullSectionConfig::default()),
+            one,
+            cube_points(),
+        );
+        let computer = part("computer", controller(), one, cube_points());
+        let gun = part("gun", turret(), one, cube_points());
+        let tube = part(
+            "tube",
+            SectionKind::Torpedo(TorpedoSectionConfig::default()),
+            one,
+            cube_points(),
+        );
+        let drive = part("drive", thruster(10.0), one, cube_points());
+        // gun - hull - computer - drive, with a torpedo tube on the hull's top
+        // when `tube_works` is some.
+        let armed = |gun_works: bool, tube_works: Option<bool>| {
+            let mut ship = vec![
+                at(1.0, &gun, gun_works),
+                at(0.0, &hull, true),
+                at(-1.0, &computer, true),
+                at(-2.0, &drive, true),
+            ];
+            ship.extend(tube_works.map(|works| on_top(&tube, works)));
+            ship
+        };
+        assert_eq!(
+            remove_build_fault(&armed(true, None), 0),
+            Some(RefitBuildFaultType::LastWeapon),
+            "the only working gun stays"
+        );
+        assert_eq!(
+            remove_build_fault(&armed(true, Some(true)), 0),
+            None,
+            "a second working weapon of another kind lets the gun go"
+        );
+        assert_eq!(
+            remove_build_fault(&armed(true, Some(false)), 0),
+            Some(RefitBuildFaultType::LastWeapon),
+            "the working gun is the last one that works"
+        );
+        assert_eq!(
+            remove_build_fault(&armed(true, Some(false)), 4),
+            None,
+            "a dead tube comes off a ship that keeps a working gun"
+        );
+        assert_eq!(
+            remove_build_fault(&armed(false, None), 0),
+            None,
+            "a ship with no working weapon sheds a dead one"
+        );
+
+        // computer - hull - drive: an unarmed ship, which the rule leaves be.
+        let unarmed = [
+            at(1.0, &computer, true),
+            at(0.0, &hull, true),
+            at(-1.0, &drive, true),
+            on_top(&drive, true),
+        ];
+        assert_eq!(remove_build_fault(&unarmed, 3), None);
+    }
+
+    /// The thrust floor a refit holds a ship to counts only its WORKING
+    /// drives: the last working drive never comes off while a dead one
+    /// stays, a dead drive comes off freely, and a ship already under its
+    /// working floor is not refused for staying under it.
+    #[test]
+    fn a_removal_counts_only_working_thrust() {
+        let one = Vec3::ONE;
+        let hull = part(
+            "hull",
+            SectionKind::Hull(HullSectionConfig::default()),
+            one,
+            cube_points(),
+        );
+        let computer = part("computer", controller(), one, cube_points());
+        let gun = part("gun", turret(), one, cube_points());
+        let drive = part("drive", thruster(10.0), one, cube_points());
+        // gun - hull - computer - drive A, with drive B on the hull's top.
+        let ship = |a_works: bool, b_works: bool| {
+            [
+                at(1.0, &gun, true),
+                at(0.0, &hull, true),
+                at(-1.0, &computer, true),
+                at(-2.0, &drive, a_works),
+                on_top(&drive, b_works),
+            ]
+        };
+        assert_eq!(
+            remove_build_fault(&ship(true, true), 3),
+            None,
+            "a second working drive holds the floor"
+        );
+        let Some(RefitBuildFaultType::Underpowered { thrust, needed }) =
+            remove_build_fault(&ship(true, false), 3)
+        else {
+            panic!("a dead drive pushes nothing, so the working one stays");
+        };
+        assert_eq!(thrust, 0.0);
+        assert!((needed - 0.24).abs() < 1e-5, "four cells need {needed}");
+        assert_eq!(
+            remove_build_fault(&ship(true, false), 4),
+            None,
+            "a dead drive comes off"
+        );
+        assert_eq!(
+            remove_build_fault(&ship(false, false), 3),
+            None,
+            "a ship with no working drive is already under the floor"
+        );
+        assert_eq!(
+            ShipMeasure::of_working(ship(true, false).iter().map(|s| (s.config, s.working))),
+            ShipMeasure {
+                mass: 5.0,
+                thrust: 10.0,
+                controllers: 1
+            }
         );
     }
 
@@ -869,16 +1034,19 @@ mod tests {
             position: Vec3::new(2.0, 0.0, 1.0),
             rotation: starboard,
             config: &port,
+            working: true,
         };
         let flank = RefitPlacedSection {
             position: Vec3::new(2.0, 0.0, 2.5),
             rotation: starboard * Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
             config: &intake,
+            working: true,
         };
         let deck = RefitPlacedSection {
             position: Vec3::new(0.0, 1.0, 1.5),
             rotation: Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
             config: &intake,
+            working: true,
         };
         assert_eq!(
             intake_in_dock_approach(&[berth.clone(), flank]),

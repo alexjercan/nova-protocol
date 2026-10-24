@@ -113,8 +113,7 @@ impl ResolvedSite<'_> {
         if self.port == Some(self.live[index].entity) {
             return Err(SectionDeleteRefusalType::DockedPort);
         }
-        let working: Vec<bool> = self.live.iter().map(|live| live.working).collect();
-        if let Some(fault) = remove_build_fault(&self.placed(), &working, index) {
+        if let Some(fault) = remove_build_fault(&self.placed(), index) {
             return Err(SectionDeleteRefusalType::Build(fault));
         }
         let target = StripTarget {
@@ -145,6 +144,9 @@ pub(crate) fn delete_refusal_text(refusal: &SectionDeleteRefusalType) -> String 
         }
         SectionDeleteRefusalType::Build(RefitBuildFaultType::NoController) => {
             "Last working flight computer".to_string()
+        }
+        SectionDeleteRefusalType::Build(RefitBuildFaultType::LastWeapon) => {
+            "Last working weapon".to_string()
         }
         SectionDeleteRefusalType::Build(RefitBuildFaultType::Underpowered { thrust, needed }) => {
             format!("Drives would push {thrust:.1}, the ship needs {needed:.1}")
@@ -448,6 +450,8 @@ mod tests {
         computer: Entity,
         drive: Entity,
         gun: Entity,
+        /// A second gun on the hull's fore face, so one gun may come off.
+        gun_b: Entity,
     }
 
     /// The delete app with the player ship holding `capacity_g`, docked port
@@ -540,6 +544,12 @@ mod tests {
                 Vec3::X,
                 recipe(6, 2),
             ),
+            design(
+                "gun_b",
+                SectionKind::Turret(TurretSectionConfig::default()),
+                Vec3::Z,
+                recipe(6, 2),
+            ),
         ];
         let world = app.world_mut();
         let player = world
@@ -606,6 +616,7 @@ mod tests {
                 computer: live[2],
                 drive: live[3],
                 gun: live[4],
+                gun_b: live[5],
             },
         )
     }
@@ -707,10 +718,12 @@ mod tests {
     }
 
     /// A delete that would split the ship, take its last working computer,
-    /// let go of the dock, overfill the hold or happen away from a refit is
-    /// refused with its reason before any press; the split names every
-    /// section off the port's piece as severed, the others name none; and a
-    /// command raised for it anyway changes nothing and shows no note.
+    /// its last working weapon or its last working drive, let go of the
+    /// dock, overfill the hold or happen away from a refit is refused with
+    /// its reason before any press; the split names every section off the
+    /// port's piece as severed, the others name none; and a command raised
+    /// for it anyway changes nothing and shows no note. A dead gun comes off
+    /// while a working one stays.
     #[test]
     fn a_delete_is_refused_with_its_reason_and_changes_nothing() {
         let (mut app, ship) = docked_app(1_000_000, vec![StationServiceType::Refit]);
@@ -721,8 +734,8 @@ mod tests {
             ))
         );
         // The hull joins everything: without it the port's piece is the port
-        // alone, and the computer, the drive and the gun lose the dock.
-        let mut cut = vec![ship.computer, ship.drive, ship.gun];
+        // alone, and the computer, the drive and the guns lose the dock.
+        let mut cut = vec![ship.computer, ship.drive, ship.gun, ship.gun_b];
         cut.sort();
         assert_eq!(severed(&app), cut);
         assert_eq!(
@@ -732,6 +745,23 @@ mod tests {
         assert!(
             severed(&app).is_empty(),
             "only a split names severed sections"
+        );
+        assert_eq!(
+            verdict(&mut app, ship.drive),
+            Some(Err("Drives would push 0.0, the ship needs 0.3".to_string()))
+        );
+        assert!(matches!(verdict(&mut app, ship.gun), Some(Ok(_))));
+        app.world_mut()
+            .entity_mut(ship.gun_b)
+            .insert(SectionInactiveMarker);
+        assert_eq!(
+            verdict(&mut app, ship.gun),
+            Some(Err("Last working weapon".to_string())),
+            "a dead gun leaves the working one the last"
+        );
+        assert!(
+            matches!(verdict(&mut app, ship.gun_b), Some(Ok(_))),
+            "a dead gun comes off"
         );
         assert_eq!(
             verdict(&mut app, ship.port),

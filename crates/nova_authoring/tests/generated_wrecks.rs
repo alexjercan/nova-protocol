@@ -72,6 +72,7 @@ fn every_base_ship_carries_an_intake_clear_of_its_ports() {
                         position: section.position,
                         rotation: section.rotation,
                         config: config(section),
+                        working: true,
                     })
                     .collect();
                 assert!(

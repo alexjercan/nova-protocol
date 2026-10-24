@@ -5,9 +5,9 @@
 //! and flight computers until they clear the floors and checks every layout
 //! against them, and a section swap, add or removal at a station is refused
 //! when it would drop a ship under the thrust floor it cleared
-//! (`refit_build_fault`). The flight computer count binds an authored hull
-//! (`ship_build_fault`) and the generator only: a refit keeps one working
-//! computer, not the count.
+//! (`refit_build_fault`, on working drives only). The flight computer count
+//! binds an authored hull (`ship_build_fault`) and the generator only: a
+//! refit keeps one working computer, not the count.
 
 use crate::sections::base_section::prelude::{SectionCollider, SectionConfig, SectionKind};
 
@@ -70,17 +70,28 @@ pub enum ShipMeasureShortfallType {
 }
 
 impl ShipMeasure {
-    /// The measure of a ship made of `configs`.
+    /// The measure of a ship made of `configs`, every section working: a
+    /// design, an authored hull or a generated layout.
     pub fn of<'c>(configs: impl IntoIterator<Item = &'c SectionConfig>) -> Self {
+        Self::of_working(configs.into_iter().map(|config| (config, true)))
+    }
+
+    /// The measure of a live ship made of `sections`, each a config and
+    /// whether it works. Every section weighs and every flight computer
+    /// counts, but only a working drive pushes: a collapse-disabled drive
+    /// stays on the hull and gives no thrust, so the floor a refit holds a
+    /// damaged ship to reads what it can fly on.
+    pub fn of_working<'c>(sections: impl IntoIterator<Item = (&'c SectionConfig, bool)>) -> Self {
         let mut measure = Self {
             mass: 0.0,
             thrust: 0.0,
             controllers: 0,
         };
-        for config in configs {
+        for (config, working) in sections {
             measure.mass += section_mass(config);
             match &config.kind {
-                SectionKind::Thruster(thruster) => measure.thrust += thruster.magnitude,
+                SectionKind::Thruster(thruster) if working => measure.thrust += thruster.magnitude,
+                SectionKind::Thruster(_) => {}
                 SectionKind::Controller(_) => measure.controllers += 1,
                 _ => {}
             }

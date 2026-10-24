@@ -381,6 +381,7 @@ pub fn design_envelope(
                     position: section.position,
                     rotation: section.rotation,
                     config: &section.config,
+                    working: true,
                 }
                 .placed_part()
             })

@@ -117,6 +117,9 @@ pub(crate) fn build_fault_text(
         RefitBuildFaultType::NoController => {
             format!("{action}: {name} would leave the ship without a flight computer")
         }
+        RefitBuildFaultType::LastWeapon => {
+            format!("{action}: {name} would leave the ship without a weapon")
+        }
         RefitBuildFaultType::Undercontrolled {
             controllers,
             needed,
@@ -181,6 +184,7 @@ impl ResolvedSite<'_> {
                     position: design.position,
                     rotation: design.rotation,
                     config: &design.config,
+                    working: live.working,
                 }
             })
             .collect()
@@ -445,7 +449,8 @@ pub(crate) fn add_refusal_text(
 
 impl ResolvedSite<'_> {
     /// Every section of the design placed at its mount, and the indices of
-    /// the live ones, as the add rule reads them.
+    /// the live ones, as the add rule reads them. A lost section is not
+    /// working; only the live ones reach the post-build checks.
     pub(crate) fn refit_design(&self) -> (Vec<RefitPlacedSection<'_>>, Vec<usize>) {
         let placed = self
             .design
@@ -455,6 +460,10 @@ impl ResolvedSite<'_> {
                 position: section.position,
                 rotation: section.rotation,
                 config: &section.config,
+                working: self
+                    .live
+                    .iter()
+                    .any(|live| live.id == section.id && live.working),
             })
             .collect();
         let live = self

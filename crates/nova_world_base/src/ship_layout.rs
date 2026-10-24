@@ -2123,6 +2123,7 @@ fn check(
             position: section.position,
             rotation: section.rotation,
             config: &part.config,
+            working: true,
         })
         .collect();
     if let Some((intake, _)) = intake_in_dock_approach(&placed) {
@@ -3201,6 +3202,7 @@ pub(crate) mod tests {
                             position: section.position,
                             rotation: section.rotation,
                             config: &part.config,
+                            working: true,
                         })
                         .collect();
                     assert_eq!(intake_in_dock_approach(&placed), None, "{context}");

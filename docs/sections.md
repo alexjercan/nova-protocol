@@ -100,9 +100,10 @@ gate, the family and the payment;
 `plan_recipe_payment` (`nova_gameplay::inventory`) is the one payment rule a
 rebuild and a swap share. On a click, `swap_build_fault` runs the generator's
 post-build checks on the ship the swap leaves: one socket graph, clear exit
-lanes and the thrust floor (`ShipMeasure`, `ship_measure.rs`, shared with
-`nova_world_base::ship_layout`; the flight computer count binds authored
-hulls and the generator only). Only a fault the swap adds refuses it. A confirmed swap moves parts and credits (cause
+lanes and the thrust floor (`ShipMeasure::of_working`, `ship_measure.rs`,
+shared with `nova_world_base::ship_layout`; a collapse-disabled drive pushes
+nothing, and the flight computer count binds authored hulls and the
+generator only). Only a fault the swap adds refuses it. A confirmed swap moves parts and credits (cause
 `Swap` on both parties), pushes `ShipInventoryReport::Swapped`
 (`OnSwapped`), and triggers `SectionSwapRequest`. `swap_design_section`
 (`nova_scenario/src/objects/spaceship.rs`) makes the root's design inline,
@@ -216,12 +217,15 @@ the selected live section (`nova_interface/src/ship/delete.rs`).
 Refit, the player's port the dock holds by (`ResolvedSite::port`), a fault
 `remove_build_fault` finds (the swap's checks through `refit_build_fault`,
 which can only open lanes, plus the last WORKING flight computer as
-`NoController`: `LiveSection::working` reads `SectionInactiveMarker`, so a
-collapse-disabled computer counts for nothing and a ship with none working
-may shed its dead ones; the mass count is not checked), and a hold too full
-for the parts. The parts are the strip rule's: `plan_section_yield` at the
-section's health share. `plan_ship_delete` is the one rule the button and the
-act share. A confirmed delete puts them in the hold, pushes
+`NoController` and the last WORKING weapon of an armed ship as `LastWeapon`,
+so a dock never hands the neutralize rule a beaten ship:
+`LiveSection::working` reads `SectionInactiveMarker` into
+`RefitPlacedSection::working`, so a collapse-disabled computer, gun or drive
+counts for nothing, the thrust floor reads working drives only, a ship with
+none working may shed its dead ones, and an unarmed ship has no weapon to
+keep; the mass count is not checked), and a hold too full for the parts.
+The parts are the strip rule's: `plan_section_yield` at the section's health
+share. `plan_ship_delete` is the one rule the button and the act share. A confirmed delete puts them in the hold, pushes
 `ShipInventoryReport::Stripped` with the player ship's own id as `hull`
 (`OnStripped`), clears the selection and triggers `SectionRemoveRequest`.
 `remove_design_section` (`nova_scenario/src/objects/spaceship.rs`) makes the
