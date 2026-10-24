@@ -8,8 +8,6 @@ Plugin order: Bevy -> input -> assets -> gameplay -> scenario -> UI -> debug.
 - State the end state, what dies, what may break, and what must fail loudly.
 - Map one feature slice: owner, entry point, inputs, state, outputs, ordering,
   IDs, content, UI, docs, callers, and closest proof. Expand only on evidence.
-- Stop for interfaces, names, defaults, precedence, ownership, and error policy.
-  Show options, one consequence each, and a recommendation.
 - Continue approved mechanical work. Do not ask only whether to continue.
 - Do not edit while answering a question. At stops use `Delta`, `Verified`,
   `Next`; put one decision question on its own final line.
@@ -19,12 +17,6 @@ Plugin order: Bevy -> input -> assets -> gameplay -> scenario -> UI -> debug.
   work.
 - Use subagents to do work, don't block the main orchestrator agent with work
   or running commands/tests.
-
-## Implementation gate
-Before code edits, show exact paths and lines, existing types and functions,
-proposed types, fields, functions, and signatures, a compact before/after call
-graph, and the behavior or failure the proof will observe. Wait for approval
-before adding a type, function, or test. Continue an approved design directly.
 
 ## Change policy
 - Treat Nova as the sole consumer of internal crates and unshipped formats.
