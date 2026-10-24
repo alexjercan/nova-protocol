@@ -188,13 +188,13 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
         })
         .with_children(|row| {
             row.spawn(themed_label("MARKET", 11.0, UiColor::Label));
-            row.spawn(themed_label("Pays most", 12.0, UiColor::Body));
+            row.spawn(themed_label("Buys", 12.0, UiColor::Body));
             for lead in &draw.pays_most {
                 row.spawn(badge(BadgeKind::Amber, &lead_text(lead)));
             }
-            row.spawn(themed_label("Sells cheapest", 12.0, UiColor::Body));
+            row.spawn(themed_label("Sells", 12.0, UiColor::Body));
             if draw.sells_cheapest.is_empty() {
-                row.spawn(themed_label("nothing in stock", 12.0, UiColor::Label));
+                row.spawn(themed_label("Empty", 12.0, UiColor::Label));
             }
             for lead in &draw.sells_cheapest {
                 row.spawn(badge(BadgeKind::Green, &lead_text(lead)));
@@ -233,7 +233,7 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
                     ));
                     row.spawn(themed_label(
                         &format!(
-                            "{} x{} of {}, full in {} min of play",
+                            "{} {} / {}, {} min",
                             restock.name, restock.stock, restock.target, restock.minutes_away
                         ),
                         12.0,
@@ -249,7 +249,7 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
                         },
                         children![slider_track(1.0)],
                     ));
-                    row.spawn(themed_label("stock at target", 12.0, UiColor::Label));
+                    row.spawn(themed_label("Stocked", 12.0, UiColor::Label));
                 }
             }
         });

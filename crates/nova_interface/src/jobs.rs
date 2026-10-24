@@ -910,17 +910,6 @@ fn action_button(
     });
 }
 
-/// A line that says a list is empty.
-fn empty_line(panel: &mut ChildSpawnerCommands, text: &str) {
-    panel.spawn((
-        Node {
-            padding: UiRect::axes(px(13), px(10)),
-            ..default()
-        },
-        children![themed_label(text, 12.0, UiColor::Label)],
-    ));
-}
-
 /// The docked station's board.
 fn board_panel(
     col: &mut ChildSpawnerCommands,
@@ -952,6 +941,9 @@ fn board_panel(
                     (ACTION_PX, ""),
                 ],
             );
+            if board.rows.is_empty() {
+                panel.spawn(badge(BadgeKind::Mute, "EMPTY"));
+            }
             for (index, row) in board.rows.iter().enumerate() {
                 spawn_row(
                     panel,
@@ -1009,9 +1001,6 @@ fn board_panel(
                         row.refusal.as_ref(),
                     );
                 });
-            }
-            if board.rows.is_empty() {
-                empty_line(panel, "No open job on this board.");
             }
         });
 }
@@ -1093,6 +1082,9 @@ fn held_panel(
                     (ACTION_PX, ""),
                 ],
             );
+            if view.held.is_empty() {
+                panel.spawn(badge(BadgeKind::Mute, "EMPTY"));
+            }
             for (index, row) in view.held.iter().enumerate() {
                 spawn_row(
                     panel,
@@ -1126,9 +1118,6 @@ fn held_panel(
                         row.refusal.as_ref(),
                     );
                 });
-            }
-            if view.held.is_empty() {
-                empty_line(panel, "No jobs taken.");
             }
         });
 }

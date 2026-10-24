@@ -738,7 +738,7 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
     );
     assert_eq!(
         confirm(&mut app, Give, Some(2)),
-        moved("Gave 2 Hull plate to Derelict")
+        moved("GAVE x2 Hull plate")
     );
     assert_eq!(
         (plates(app.world(), player), plates(app.world(), partner)),
@@ -751,7 +751,7 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
         .insert(LootableShipMarker);
     assert_eq!(
         confirm(&mut app, Take, Some(3)),
-        moved("Took 3 Hull plate from Derelict")
+        moved("TOOK x3 Hull plate")
     );
     assert_eq!(
         (plates(app.world(), player), plates(app.world(), partner)),
@@ -785,7 +785,7 @@ fn confirm_moves_items_between_docked_ships_and_a_refusal_changes_nothing() {
         .insert(NeutralizedMarker);
     assert_eq!(
         confirm(&mut app, Take, Some(7)),
-        moved("Took 7 Hull plate from Derelict")
+        moved("TOOK x7 Hull plate")
     );
     assert!(app
         .world()
@@ -869,7 +869,7 @@ fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
     // A hull plate asks 40 cr and bids 30 cr.
     assert_eq!(
         confirm(&mut app, Buy, Some(2)),
-        traded("Bought 2 Hull plate from Trader for 80 cr")
+        traded("BOUGHT x2 Hull plate -80 cr")
     );
     assert_eq!(state(&app), (14, 20, 6, 1_080));
     assert_eq!(
@@ -878,7 +878,7 @@ fn confirm_trades_items_for_credits_and_a_refusal_changes_nothing() {
     );
     assert_eq!(
         confirm(&mut app, Sell, Some(3)),
-        traded("Sold 3 Hull plate to Trader for 90 cr")
+        traded("SOLD x3 Hull plate +90 cr")
     );
     assert_eq!(state(&app), (11, 110, 9, 990));
     assert_eq!(
@@ -1585,10 +1585,7 @@ fn take_credits_moves_the_whole_balance_once_and_a_refusal_changes_nothing() {
         .insert(LootableShipMarker);
     assert_eq!(
         take(&mut app),
-        (
-            Some("Took 500 cr from Derelict".to_string()),
-            vec![UiSfx::MenuSelect]
-        )
+        (Some("TOOK +500 cr".to_string()), vec![UiSfx::MenuSelect])
     );
     assert_eq!((credits(&app, player), credits(&app, partner)), (600, 0));
 
@@ -1733,7 +1730,7 @@ fn take_all_moves_every_stack_and_the_credits_from_a_lootable_partner() {
     assert_eq!(
         take_all(&mut app),
         (
-            Some("Took 8 Hull plate, 5 Rations and 500 cr from Derelict".to_string()),
+            Some("TOOK x8 Hull plate, x5 Rations, +500 cr".to_string()),
             vec![UiSfx::MenuSelect]
         )
     );
@@ -1764,7 +1761,7 @@ fn take_all_with_a_nearly_full_hold_takes_what_fits_and_names_what_stayed() {
     assert_eq!(
         take_all(&mut app),
         (
-            Some("Took 2 Hull plate and 50 cr from Derelict; no room for 6 Hull plate".to_string()),
+            Some("TOOK x2 Hull plate, +50 cr; no room for 6 Hull plate".to_string()),
             vec![UiSfx::MenuSelect]
         )
     );
@@ -1857,7 +1854,7 @@ fn the_strip_block_and_take_all_show_only_at_a_wreck() {
     assert_eq!(
         take_all(&mut rig.app),
         (
-            Some("Took 2 Hull plate from Derelict".to_string()),
+            Some("TOOK x2 Hull plate".to_string()),
             vec![UiSfx::MenuSelect]
         )
     );
@@ -1926,7 +1923,7 @@ fn confirm_is_disabled_while_the_draft_is_refused_and_enabled_at_exact_room_and_
     click_at(&mut rig, partner_row);
     assert_eq!(
         form(&mut rig.app),
-        ("Price 40 cr, you after: 40 cr".to_string(), true)
+        ("Price 40 cr  Balance 40 cr".to_string(), true)
     );
 
     // Three plates overfill the hold: disabled, and neither a click nor a
@@ -1956,7 +1953,7 @@ fn confirm_is_disabled_while_the_draft_is_refused_and_enabled_at_exact_room_and_
     set_field(&mut rig.app, "2");
     assert_eq!(
         form(&mut rig.app),
-        ("Price 80 cr, you after: 0 cr".to_string(), true)
+        ("Price 80 cr  Balance 0 cr".to_string(), true)
     );
 
     // A credit short disables it; the credit back enables it.
@@ -1983,7 +1980,7 @@ fn confirm_is_disabled_while_the_draft_is_refused_and_enabled_at_exact_room_and_
     assert_eq!(rig.app.world().resource::<InventoryRuntime>().draft, None);
     assert_eq!(
         note(&rig.app).as_deref(),
-        Some("Bought 2 Hull plate from Trader for 80 cr")
+        Some("BOUGHT x2 Hull plate -80 cr")
     );
 }
 
@@ -2272,13 +2269,13 @@ fn a_catalog_only_item_jettisons_sells_and_buys_through_the_pane_commands() {
         .insert((stock(4), ShipCredits(1_000)));
     assert_eq!(
         confirm(&mut app, Sell, 3),
-        done("Sold 3 Fixture core to Trader for 135 cr")
+        done("SOLD x3 Fixture core +135 cr")
     );
     assert_eq!(held(&app, player), (1, 5_000, 235));
     assert_eq!(held(&app, partner), (7, 35_000, 865));
     assert_eq!(
         confirm(&mut app, Buy, 2),
-        done("Bought 2 Fixture core from Trader for 120 cr")
+        done("BOUGHT x2 Fixture core -120 cr")
     );
     assert_eq!(held(&app, player), (3, 15_000, 115));
     assert_eq!(held(&app, partner), (5, 25_000, 985));
@@ -2452,10 +2449,7 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
         (20, 0)
     );
     assert_eq!(rig.app.world().resource::<InventoryRuntime>().draft, None);
-    assert_eq!(
-        note(&rig.app).as_deref(),
-        Some("Took 8 Hull plate from Derelict")
-    );
+    assert_eq!(note(&rig.app).as_deref(), Some("TOOK x8 Hull plate"));
     assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
 
     // A source of one hides the slider; the field and All still set it.
@@ -2784,10 +2778,6 @@ mod generated_wreck {
             drawn,
             "the wreck spawns its stock"
         );
-        let name = entity
-            .get::<Name>()
-            .expect("the wreck is named")
-            .to_string();
         let items = test_items();
         let label = &items.design(&drawn_item).name;
         let held = |app: &App| {
@@ -2805,12 +2795,12 @@ mod generated_wreck {
                 drawn_item.clone(),
                 drawn
             ),
-            Some(format!("Took {drawn} {label} from {name}"))
+            Some(format!("TOOK x{drawn} {label}"))
         );
         assert_eq!(held(&app), (before_take + drawn, 0));
         assert_eq!(
             confirm(&mut app, InventoryActionType::Give, drawn_item.clone(), 1),
-            Some(format!("Gave 1 {label} to {name}"))
+            Some(format!("GAVE x1 {label}"))
         );
         assert_eq!(held(&app), (before_take + drawn - 1, 1));
     }
@@ -2972,7 +2962,7 @@ fn a_market_trader_prices_its_rows_against_the_reference_and_sells_the_whole_sta
     };
     let texts = strip_texts(rig.app.world_mut());
     assert!(
-        texts.contains(&"Hull plate x1 of 2, full in 10 min of play".to_string()),
+        texts.contains(&"Hull plate 1 / 2, 10 min".to_string()),
         "{texts:?}"
     );
 

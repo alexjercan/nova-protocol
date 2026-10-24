@@ -3,7 +3,7 @@
 //!
 //! With nothing selected the block lists one entry per civilization in
 //! [`CivilizationStances::entries`] or charted as a living station's owner:
-//! its name, its table stance and the detail lines that apply
+//! its name, its table stance and the compact detail labels that apply
 //! ([`stance_entry`]). A Station mark selected whose civilization is known
 //! adds that civilization's entry, then a row per Enemy neighbour of it
 //! ([`enemy_neighbours`]) with its fine and a Pay fine button; the row's
@@ -64,11 +64,11 @@ pub(crate) struct MapStanceBuild {
 #[derive(Clone, Debug, PartialEq)]
 enum MapStanceRowView {
     /// A civilization's standing: its name, its table stance and the
-    /// detail lines that apply.
+    /// compact detail labels that apply, with explanations on hover.
     Entry {
         name: String,
         table: StanceType,
-        details: Vec<String>,
+        details: Vec<(String, Option<&'static str>)>,
     },
     /// An Enemy neighbour of the selected station's civilization: its
     /// fine, its Pay fine button's state and the hint its row shows on
@@ -141,48 +141,57 @@ fn fine_takers(
     (codes, fine)
 }
 
-/// `civilization`'s table stance and the detail lines that apply, in order:
-/// a live provocation, an Enemy's decay or seeded note, an Enemy's fine and
-/// where it is taken, offences, merits.
+/// `civilization`'s table stance and the compact detail labels that apply,
+/// in order: a live provocation, an Enemy's decay or seeded note, an Enemy's
+/// fine and where it is taken, offences, merits. Explanations remain on hover.
 fn stance_entry(
     chart: &Chart,
     jobs: &Jobs,
     stances: &CivilizationStances,
     civilization: CivilizationId,
     now: f64,
-) -> (StanceType, Vec<String>) {
+) -> (StanceType, Vec<(String, Option<&'static str>)>) {
     let standing = standing(stances, &civilization, now);
     let mut details = Vec::new();
     if let Some(left) = standing.provoked_left {
-        details.push(format!(
-            "hostile for {} after you fired on it",
-            play_time_text(left)
+        details.push((
+            format!("HOSTILE {}", play_time_text(left)),
+            Some("Hostile after you fired on it."),
         ));
     }
     if standing.table == StanceType::Enemy {
         match standing.decay_left {
-            Some(left) => details.push(format!(
-                "clears in {} with no new offence",
-                play_time_text(left)
+            Some(left) => details.push((
+                format!("CLEAR {}", play_time_text(left)),
+                Some("Clears if no new offence occurs."),
             )),
-            None => details.push("enemy from the start: only a fine clears it".to_string()),
+            None => details.push((
+                "SEEDED".to_string(),
+                Some("Enemy from the start; only a fine clears it."),
+            )),
         }
         let (codes, fine) = fine_takers(chart, jobs, stances, civilization, now);
         details.push(match fine {
-            Some(fine) => format!("fine {} at {}", cr_text(u64::from(fine)), codes.join(", ")),
-            None => "no charted station takes its fine".to_string(),
+            Some(fine) => (
+                format!("FINE {} @ {}", cr_text(u64::from(fine)), codes.join(", ")),
+                Some("Pay at a listed station to return this civilization to Neutral."),
+            ),
+            None => (
+                "FINE NONE".to_string(),
+                Some("No charted station takes this fine."),
+            ),
         });
     }
     if standing.offences > 0 {
-        details.push(format!(
-            "{}/{OFFENCE_STEP} offences in the last hour",
-            standing.offences
+        details.push((
+            format!("OFFENCES {}/{OFFENCE_STEP}", standing.offences),
+            Some("Offences in the last hour."),
         ));
     }
     if standing.merits > 0 {
-        details.push(format!(
-            "{}/{MERIT_STEP} jobs toward the next step up",
-            standing.merits
+        details.push((
+            format!("MERITS {}/{MERIT_STEP}", standing.merits),
+            Some("Jobs toward the next step up."),
         ));
     }
     (standing.table, details)
@@ -276,9 +285,9 @@ fn station_rows(
     // With no Settle row there is no fine to pay, so no line says where.
     if !docked_here && rows.len() > 1 {
         rows.push(MapStanceRowView::Dock(if refuses {
-            format!("{station_code} refuses docking")
+            format!("{station_code} REFUSED")
         } else {
-            format!("Dock at {station_code} to pay")
+            format!("DOCK {station_code}")
         }));
     }
     rows
@@ -437,8 +446,13 @@ pub(crate) fn update_map_stance_block(
                                 Pickable::IGNORE,
                             ));
                         });
-                        for detail in details {
-                            list.spawn(themed_label(detail, 12.0, UiColor::Label));
+                        for (detail, hint) in details {
+                            let label = themed_label(detail, 12.0, UiColor::Label);
+                            if let Some(hint) = hint {
+                                list.spawn((label, Tooltip((*hint).to_string())));
+                            } else {
+                                list.spawn(label);
+                            }
                         }
                     }
                     MapStanceRowView::Settle {

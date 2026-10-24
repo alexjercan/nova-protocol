@@ -1419,7 +1419,7 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
             .world_mut()
             .query::<&Text>()
             .iter(rig.app.world())
-            .any(|text| text.0 == "Dock at STN-1 to pay")
+            .any(|text| text.0 == "DOCK STN-1")
     };
     assert!(take_cues(&mut rig.app).is_empty(), "the rig starts silent");
     assert_eq!(line(&mut rig), (String::new(), UiColor::Label));

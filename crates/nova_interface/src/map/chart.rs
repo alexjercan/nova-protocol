@@ -1446,7 +1446,7 @@ pub(crate) fn update_map_chart_objectives(
                 select_row(&mut row, format!("MapChartObjective{code}"), mark, false);
             }
             if held == 0 {
-                block_note(block, "No jobs taken.");
+                block_note(block, "EMPTY");
             }
             for objective in objectives {
                 if let OpenObjectiveType::Milestone(line) = objective {

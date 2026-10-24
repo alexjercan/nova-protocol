@@ -240,9 +240,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - In windows under 800 px wide the Map and Ship footer puts its key hints on
   a second row, so the legend, the hints and Catalogue, Fit and Reset all
   show whole at 640x600.
-- A Jobs pane: Your jobs with a `have / need` meter and HAND IN HERE at the
-  hand-in station; docked, Jobs posted here with reward, time left and
-  Accept. A refused button greys with the reason.
+- A Jobs pane: Your jobs with a `have / need` meter and HAND IN HERE; docked,
+  Jobs posted here with reward, time left and Accept; an empty list shows
+  EMPTY. A refused button greys with the reason.
 - Clicking a job row opens it in the pane's inspector: what to do, target,
   hand-in station, reward, time left or progress, and Show on Map, which
   opens the Map's chart view on the job's mark.
@@ -260,9 +260,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
   inspector reads Reference, Pays and Asks.
 - Buy all and Sell all beside Confirm trade the whole stack in one click,
   disabled while that trade would be refused.
-- A MARKET strip under the Inventory columns names what a generated trader
-  pays most for and sells cheapest, its restock gap with a stock meter and
-  play minutes to full, and REFUSED with the minutes left.
+- A MARKET strip under the Inventory columns names what a trader buys for
+  most and sells cheapest under Buys and Sells, Empty when bare, with a
+  compact restock gap and REFUSED with minutes left.
+- Inventory Take, Give, Buy, Sell and Take credits notes are compact, as
+  `TOOK x3 Hull plate` or `BOUGHT x5 Stone ore -20 cr`; the trade form reads
+  `Price 20 cr  Balance 1,980 cr`.
 - The interface title row shows the play clock while a world runs.
 - The Map's chart view draws each entered cell as a textured tile per cluster
   type, outlines cells you never entered and rings the selected mark's cell
@@ -320,9 +323,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A Jobs result shows for 4 s, green or red, with one sound; a hand-in names
   the payout, new balance and stance step. A job done in flight posts a HUD
   notice naming its hand-in station.
-- The Map's chart view lists STANCES as rows: each civilization with a stance
-  badge; a station's Enemy neighbours with fine, Pay fine and hover reasons;
-  results on a Map notice line. Save format 25.
+- The chart view lists STANCES as rows: each civilization with a badge and
+  compact hover-coded detail; a station's Enemy neighbours with fine and Pay
+  fine; results on a notice line. Save format 25.
 - The Map's side panel scrolls with the wheel while the pointer is over it;
   the wheel zooms the view only away from the panel.
 - On the Ship pane a gun, torpedo bay, railgun or mining beam with no key

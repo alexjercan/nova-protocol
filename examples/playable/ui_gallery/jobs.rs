@@ -140,18 +140,7 @@ fn board_panel(
             });
         }
         if !any {
-            panel.spawn((
-                Name::new(EMPTY_STATE),
-                Node {
-                    padding: UiRect::axes(px(13), px(10)),
-                    ..default()
-                },
-                children![text(
-                    "No open job on this board. Dock at a core station past 500 km for the full list.",
-                    12.0,
-                    UiColor::Label
-                )],
-            ));
+            panel.spawn((Name::new(EMPTY_STATE), badge(BadgeKind::Mute, "EMPTY")));
         }
     });
 }
@@ -239,13 +228,7 @@ fn held_panel(
             });
         }
         if jobs.held.is_empty() {
-            panel.spawn((
-                Node {
-                    padding: UiRect::axes(px(13), px(10)),
-                    ..default()
-                },
-                children![text("No jobs taken.", 12.0, UiColor::Label)],
-            ));
+            panel.spawn(badge(BadgeKind::Mute, "EMPTY"));
         }
     });
 }

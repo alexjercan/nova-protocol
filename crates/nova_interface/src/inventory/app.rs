@@ -2412,7 +2412,7 @@ pub(crate) fn apply_credit_take_commands(
         let partner_title = ships.title(partner, InventorySideType::Partner);
         let (note, cue, volume) = match take_credits(&mut ships, pair.own, partner) {
             Ok(amount) => (
-                format!("Took {} from {partner_title}", cr_text(amount)),
+                format!("TOOK +{}", cr_text(amount)),
                 UiSfx::MenuSelect,
                 MENU_SELECT_VOLUME,
             ),
@@ -2522,8 +2522,8 @@ fn take_all(
         )
     };
     Ok(format!(
-        "Took {} from {partner_title}{stayed}",
-        loot_text(items, &loot.taken, loot.taken_cr)
+        "TOOK {}{stayed}",
+        loot_taken_text(items, &loot.taken, loot.taken_cr)
     ))
 }
 
@@ -2579,7 +2579,7 @@ pub(crate) fn take_loot(
     }
 }
 
-/// Stacks and credits as one list: `2 Hull plate and 50 cr`.
+/// Stacks and credits as one list, naming what stayed: `2 Hull plate and 50 cr`.
 pub(crate) fn loot_text(
     items: &GameItems,
     stacks: &BTreeMap<ItemDesignId, u32>,
@@ -2593,6 +2593,23 @@ pub(crate) fn loot_text(
         parts.push(cr_text(credits_cr));
     }
     list_text(&parts)
+}
+
+/// Stacks and credits as one list, in the `TOOK` note's own grammar:
+/// `x2 Hull plate, +50 cr`.
+fn loot_taken_text(
+    items: &GameItems,
+    stacks: &BTreeMap<ItemDesignId, u32>,
+    credits_cr: u32,
+) -> String {
+    let mut parts: Vec<String> = stacks
+        .iter()
+        .map(|(item, count)| format!("x{count} {}", items.design(item).name))
+        .collect();
+    if credits_cr > 0 {
+        parts.push(format!("+{}", cr_text(credits_cr)));
+    }
+    parts.join(", ")
 }
 
 /// `a`, `a and b`, or `a, b and c`.
@@ -2658,8 +2675,8 @@ fn transfer_items(
     from.remove(&item, moved);
     to.add(items, &item, moved);
     Ok(match transfer {
-        ItemTransferType::Take => format!("Took {moved} {label} from {partner_title}"),
-        ItemTransferType::Give => format!("Gave {moved} {label} to {partner_title}"),
+        ItemTransferType::Take => format!("TOOK x{moved} {label}"),
+        ItemTransferType::Give => format!("GAVE x{moved} {label}"),
     })
 }
 
@@ -2725,18 +2742,8 @@ fn trade_items(
     });
     let price = cr_text(planned.price_cr);
     Ok(match trade {
-        ItemTradeType::Buy => {
-            format!(
-                "Bought {} {label} from {partner_title} for {price}",
-                planned.count
-            )
-        }
-        ItemTradeType::Sell => {
-            format!(
-                "Sold {} {label} to {partner_title} for {price}",
-                planned.count
-            )
-        }
+        ItemTradeType::Buy => format!("BOUGHT x{} {label} -{price}", planned.count),
+        ItemTradeType::Sell => format!("SOLD x{} {label} +{price}", planned.count),
     })
 }
 
@@ -3608,7 +3615,7 @@ pub(crate) fn update_inventory_panel(
                             ItemTradeType::Sell => own_cr + planned.price_cr,
                         };
                         format!(
-                            "Price {}, you after: {}",
+                            "Price {}  Balance {}",
                             cr_text(planned.price_cr),
                             cr_text(after)
                         )

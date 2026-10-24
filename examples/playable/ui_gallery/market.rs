@@ -399,7 +399,7 @@ fn market_strip(stores: &mut ChildSpawnerCommands, market: &MarketState) {
                 })
                 .with_children(|row| {
                     row.spawn(text("MARKET", 11.0, UiColor::Label));
-                    row.spawn(text("Pays most", 12.0, UiColor::Body));
+                    row.spawn(text("Buys", 12.0, UiColor::Body));
                     row.spawn(tag(
                         BadgeKind::Amber,
                         &format!(
@@ -408,7 +408,7 @@ fn market_strip(stores: &mut ChildSpawnerCommands, market: &MarketState) {
                             delta_percent(pays_most.bid, pays_most.reference)
                         ),
                     ));
-                    row.spawn(text("Sells cheapest", 12.0, UiColor::Body));
+                    row.spawn(text("Sells", 12.0, UiColor::Body));
                     row.spawn(tag(
                         BadgeKind::Green,
                         &format!(

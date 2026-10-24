@@ -156,7 +156,7 @@ fn objectives(side: &mut ChildSpawnerCommands, icons: &GalleryIcons, jobs: &Jobs
         });
     }
     if jobs.held.is_empty() {
-        side.spawn(text("No jobs taken.", 12.0, UiColor::Label));
+        side.spawn(text("EMPTY", 12.0, UiColor::Label));
     }
 }
 
