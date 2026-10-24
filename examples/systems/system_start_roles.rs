@@ -712,6 +712,7 @@ mod walk {
                 position: section.position,
                 rotation: section.rotation,
                 config: &section.config,
+                working: true,
             })
             .collect();
         let fault = ship_build_fault(&placed);

@@ -172,8 +172,7 @@ impl std::fmt::Display for StartRoleDesignId {
 /// Every field is required in RON. A hull no visible ship design carries, a
 /// hull with no cargo intake or with an intake where a berthed ship parks, an
 /// unknown kit item, a kit heavier than the hull's hold and a goal with a
-/// zero count, more rings than posters or an unknown hull are refused at
-/// lint, see `lint_start_role`.
+/// zero count are refused at lint, see `lint_start_role`.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -198,63 +197,54 @@ pub struct StartRole {
     pub lore: String,
 }
 
-/// One finite milestone: the heading the Map shows and its predicate. Met,
-/// it stamps the save and changes nothing else; play goes on.
+/// One finite milestone: the heading the New Game role step, the Jobs pane
+/// and the Load screen show, and its flavour predicate. Every role's
+/// progress opens with the shared first line, one owned station, before
+/// the flavour line; met, it stamps the save and changes nothing else; play
+/// goes on.
 #[derive(Clone, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct RoleGoal {
-    /// The heading the Map's CHARTER block shows, for a reader.
+    /// The heading, for a reader.
     pub title: String,
-    /// What the save must show.
+    /// What the save must show after the shared station line.
     pub kind: RoleGoalType,
 }
 
-/// The predicates a goal may be. Closed: a role picks one and sets its
-/// counts. Every predicate reads facts the world save already carries: the
-/// jobs the player handed in, the player's hull, the stations the player
-/// owns with what they store, and the escorts in the player's fleet.
-///
-/// A "ring" is one lattice step of civilizations from the world origin, read
-/// off the posting station's cell.
+/// The flavour predicates a goal may be. Closed: a role picks one and sets
+/// its count. Every predicate reads facts the world save already carries:
+/// the jobs the player handed in and the player's civilization stances. The
+/// shared first line, one owned station, is a rule in code, not content.
 #[derive(Clone, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub enum RoleGoalType {
-    /// Hand in `jobs` Procure or Escort jobs posted by `stations` distinct
-    /// stations whose cells span `rings` distinct rings.
-    StationNetwork {
-        /// How many trade jobs to hand in, above zero.
+    /// Hand in `jobs` Procure jobs whose item is in the `Raw` category: ore
+    /// and ice.
+    OreDeliveries {
+        /// How many ore deliveries to hand in, above zero.
         jobs: u32,
-        /// How many distinct posting stations, above zero.
-        stations: u32,
-        /// How many distinct rings those stations span, at most `stations`.
-        rings: u32,
     },
-    /// Hand in `hulls` Neutralize jobs posted from `rings` distinct rings.
+    /// Hand in `jobs` Recover jobs.
+    Recoveries {
+        /// How many recoveries to hand in, above zero.
+        jobs: u32,
+    },
+    /// Hand in Procure or Escort jobs posted by `stations` distinct stations.
+    StationNetwork {
+        /// How many distinct posting stations to serve, above zero.
+        stations: u32,
+    },
+    /// Hand in Neutralize jobs naming `hulls` distinct hulls.
     KillList {
-        /// How many neutralize jobs to hand in, above zero.
+        /// How many distinct hulls to neutralize and hand in, above zero.
         hulls: u32,
-        /// How many distinct rings their posters span, at most `hulls`.
-        rings: u32,
     },
-    /// Fly a hull whose live sections' recipe value at ask is at least the
-    /// catalog design `hull`'s.
-    Flagship {
-        /// The catalog design that sets the bar.
-        hull: ShipDesignId,
-    },
-    /// Own a station whose storage holds, for every ship part family, the
-    /// full build recipe of at least one loaded section of that family: a
-    /// yard that can build a whole ship. One station must cover every
-    /// family; two half-stocked stations do not add up.
-    OwnYard,
-    /// Own `stations` stations and fly with `escorts` fleet escorts.
-    MiningEmpire {
-        /// How many stations to own, above zero.
-        stations: u32,
-        /// How many escorts to fly with, above zero and at most the fleet's
-        /// slots (`FLEET_SIDES`).
-        escorts: u32,
+    /// Hand in `jobs` Distress or Escort jobs.
+    Patrols {
+        /// How many patrols to hand in, above zero.
+        jobs: u32,
     },
     /// Turn a civilization Enemy by the player's own deeds (a civilization
     /// the seed drew Enemy does not count) and neutralize `hulls` intact

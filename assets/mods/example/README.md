@@ -60,8 +60,8 @@ binary assets it ships).
 - **A start role** - `example_surveyor` is a `StartRole`: a row in the New
   Game wizard that starts the player in the base `light_freighter` with a kit
   of credits, this mod's survey cores and rations, and whose `goal` is a
-  survey network: four trade jobs handed in at two stations in one ring,
-  shown as the CHARTER block in the Map's chart view. The wizard binds the
+  survey network: trade jobs handed in at two distinct stations after one
+  owned station, shown in the Map's OBJECTIVES block. The wizard binds the
   weapon keys from the hull's sections, so the role binds nothing.
 
 ## Layout

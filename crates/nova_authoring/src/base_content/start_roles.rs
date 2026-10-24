@@ -6,28 +6,25 @@
 //! `ask_cr`. A PDC-armed hull also carries 1,000 PDC rounds (4,000 cr at ask)
 //! in its shared hold, not per mount.
 //!
-//! Goals are the roles' finite milestones over saved facts (decision 13 of
-//! `tasks/20261012-095526`). The transport and bounty hunter counts rest on
-//! the trade and combat job mixes (a trade board shows about two Procure or
-//! Escort offers, a combat board about one Neutralize) and on the first ring
-//! boundary at 240 km, one trip out of the start ring. The scavenger's yard
-//! takes no count: one owned station stocked for every part family. The
-//! military bar is the Line Warship's recipe value, 64,300 cr, which
-//! generated Armored hulls reach about 2,000 km out. The industrial empire
-//! is two station buys and the full fleet (`FLEET_SIDES`), with no stock
-//! clause: a bought station keeps its targets and restocks on every thaw,
-//! so such a clause would read met from the buy on. The pirate's outlaw
-//! count is twice the offence step: the stance graph turns a Neutral
-//! civilization Enemy at three neutralized hulls within an hour of play,
-//! and six more of its hulls while it stands Enemy is twice that. A charter
-//! is a milestone, not an ending: the world plays on past it.
+//! Goals are the roles' finite milestones over saved facts. Every role's
+//! progress opens with the same first line, one owned station, a rule in
+//! code; the goal here is the flavour line after it. Each count rests on
+//! the role's board mix: the trade mix draws Procure 4 of 11 and Procure or
+//! Escort 8 of 11, the salvage mix Recover 5 of 10, the combat mix
+//! Neutralize 4 of 10 and Distress or Escort 4 of 10, so six hand-ins of a
+//! role's dominant kind is about one board cycle, and four distinct posting
+//! stations is two trips out. The pirate's outlaw count is twice the
+//! offence step: the stance graph turns a Neutral civilization Enemy at
+//! three neutralized hulls within an hour of play, and six more of its hulls
+//! while it stands Enemy is twice that. A charter is a milestone, not an
+//! ending: the world plays on past it.
 
 use nova_gameplay::prelude::{ItemRoleType, JobMixType, RoleIconType, ShipInventoryStock};
 use nova_scenario::prelude::{RoleGoal, RoleGoalType, StartKit, StartRole};
 
 use super::ships::{
-    INTERCEPTOR_SHIP_ID, LIGHT_FREIGHTER_SHIP_ID, LINE_WARSHIP_SHIP_ID, MINING_TUG_SHIP_ID,
-    PATROL_PICKET_SHIP_ID, RAIDER_SHIP_ID, SALVAGE_HAULER_SHIP_ID,
+    INTERCEPTOR_SHIP_ID, LIGHT_FREIGHTER_SHIP_ID, MINING_TUG_SHIP_ID, PATROL_PICKET_SHIP_ID,
+    RAIDER_SHIP_ID, SALVAGE_HAULER_SHIP_ID,
 };
 
 /// Every shipped start role, in the order a picker lists them.
@@ -44,11 +41,8 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             &[(ItemRoleType::HullPlate, 15), (ItemRoleType::Rations, 25)],
             JobMixType::Trade,
             RoleGoal {
-                title: "A mining empire".to_string(),
-                kind: RoleGoalType::MiningEmpire {
-                    stations: 2,
-                    escorts: 2,
-                },
+                title: "Ore to market".to_string(),
+                kind: RoleGoalType::OreDeliveries { jobs: 6 },
             },
             "Mining crews work the rock fields for whoever buys the ore. The tug is old, but \
              it pays.",
@@ -67,8 +61,8 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             ],
             JobMixType::Salvage,
             RoleGoal {
-                title: "A yard of your own".to_string(),
-                kind: RoleGoalType::OwnYard,
+                title: "A salvage run".to_string(),
+                kind: RoleGoalType::Recoveries { jobs: 6 },
             },
             "Every fight leaves wrecks behind. Scavengers take what still has a price.",
         ),
@@ -84,11 +78,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             JobMixType::Trade,
             RoleGoal {
                 title: "A station network".to_string(),
-                kind: RoleGoalType::StationNetwork {
-                    jobs: 8,
-                    stations: 4,
-                    rings: 2,
-                },
+                kind: RoleGoalType::StationNetwork { stations: 4 },
             },
             "Stations need food, water and parts they cannot make. Haulers carry them \
              between stations.",
@@ -108,7 +98,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             JobMixType::Combat,
             RoleGoal {
                 title: "A kill list".to_string(),
-                kind: RoleGoalType::KillList { hulls: 6, rings: 2 },
+                kind: RoleGoalType::KillList { hulls: 6 },
             },
             "Some ships carry a price on their hull. Hunters collect it.",
         ),
@@ -117,7 +107,7 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             "Military",
             RoleIconType::Shield,
             "A patrol picket with two point-defense mounts and a torpedo bay on light \
-             plate. The Line Warship class is its later goal.",
+             plate. Answer distress calls and escort haulers past the raiders.",
             PATROL_PICKET_SHIP_ID,
             1_000,
             &[
@@ -127,10 +117,8 @@ pub(crate) fn start_role_catalog() -> Vec<StartRole> {
             ],
             JobMixType::Combat,
             RoleGoal {
-                title: "The Line Warship".to_string(),
-                kind: RoleGoalType::Flagship {
-                    hull: LINE_WARSHIP_SHIP_ID.into(),
-                },
+                title: "Patrol record".to_string(),
+                kind: RoleGoalType::Patrols { jobs: 6 },
             },
             "Patrol crews start on small pickets and earn larger hulls. Few reach a warship.",
         ),

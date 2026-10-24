@@ -213,7 +213,7 @@ eleven item kinds:
         jobs: Trade,
         goal: (
             title: "A courier network",
-            kind: StationNetwork(jobs: 8, stations: 4, rings: 2),
+            kind: StationNetwork(stations: 4),
         ),
         lore: "Couriers carry what stations cannot make.",
     )),

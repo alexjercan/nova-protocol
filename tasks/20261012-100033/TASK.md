@@ -1,6 +1,6 @@
 # Charters: per-role end goals as saved facts
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 52
 - TAGS: v0.16.0,charters
 
@@ -53,3 +53,11 @@
 - Open review nits: `KillList` counts Neutralize jobs, not distinct hulls; `save::save_systems()` is ordered after `chart_docked_station` only, so `track_role_goal`'s stamp can land in the next save (`lib.rs`).
 - Stale doc, not edited (another lane holds the file): `web/src/wiki/interface.md` says a role with no goal shows no block and lists no pirate counts.
 - Status: OPEN. With the refresh gone and the pirate proof added, the six goals as they ship meet Done when; the rebalance above is the work left.
+
+## Rebalance 2026-10-24 (owner round 2 and 3 direction, landed)
+- Every role's goal progress opens with the shared line `Stations owned have / 1` (owned stations live and frozen, a rule in `nova_world_base::goal`, not content), then one flavour line; met means both lines. `GoalRecord { met_at }`, the save wire and the OBJECTIVES, Jobs pane and Load consumers are unchanged; no HUD chips, no thaw refresh.
+- Kinds (`nova_scenario` `RoleGoalType`): industrial "Ore to market" `OreDeliveries { jobs: 6 }` (completed Procure whose item is `Raw`); scavenger "A salvage run" `Recoveries { jobs: 6 }`; transport "A station network" `StationNetwork { stations: 4 }` (distinct posters of Procure or Escort); bounty hunter "A kill list" `KillList { hulls: 6 }` (distinct hull ids of Neutralize); military "Patrol record" `Patrols { jobs: 6 }` (Distress or Escort); pirate `Outlaw { hulls: 6 }` unchanged. Lint refuses a zero count only. The example mod's surveyor asks `StationNetwork(stations: 2)`.
+- Died: `Flagship`, `OwnYard`, `MiningEmpire`, the `rings` and `jobs` fields, `families_stocked`, the flagship value cache, `ring_of`, the ring lint, and the ranges `system_role_goal_yard`, `system_role_goal_flagship`, `system_role_goal_empire` (their station-buy walk moved into `system_role_goals`).
+- Review nit closed: `KillList` counts distinct hulls (`goal.rs` `a_kill_list_counts_distinct_hulls_of_neutralize_hand_ins` drives a duplicate completed fixture production never writes).
+- Proofs: `goal.rs` one unit test per kind reaching met plus `every_goal_opens_with_the_shared_station_line_and_stands_without_a_station`; `stance.rs` outlaw test at `owned_stations: 1`; lint `a_start_role_goal_with_a_zero_count_is_refused`; `system_role_goals` under lavapipe: six hand-ins stand at `Stations owned 0 / 1`, a Station pane buy meets it and stamps once, the Map reads `Goal reached at`, the leave save and a Load keep the stamp (`/tmp/nova-6-range/timeline.jsonl`, `role-goals-charter.png`). `content lint` clean for base and the example mod.
+- Status: CLOSED. Done when is met: six goals ship as content with Map progress, the stamp survives a save and a Load, and each kind has a permanent proof reaching met.

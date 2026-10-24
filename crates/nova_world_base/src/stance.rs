@@ -292,8 +292,7 @@ fn log_step(step: &StanceStep, now: f64) {
 mod tests {
     use std::collections::BTreeSet;
 
-    use nova_events::prelude::Meters;
-    use nova_gameplay::prelude::OFFENCE_STEP;
+    use nova_gameplay::prelude::{GameItems, OFFENCE_STEP};
     use nova_scenario::prelude::{RoleGoal, RoleGoalType};
 
     use super::*;
@@ -447,12 +446,8 @@ mod tests {
                 &goal,
                 &GoalFacts {
                     completed: &[],
-                    sector_edge: Meters(32_000.0),
-                    hull_value_cr: 0,
-                    flagship_value_cr: None,
-                    owned_storage: &[],
-                    sections: &[],
-                    escorts: 0,
+                    owned_stations: 1,
+                    items: &GameItems::default(),
                     outlaw: stances.outlaw_progress(),
                 },
             )

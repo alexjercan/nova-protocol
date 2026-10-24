@@ -824,9 +824,8 @@ fn a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart() {
     world.insert_resource(GoalProgress {
         title: "A station network".to_string(),
         lines: vec![
-            GoalLine::new("Trade jobs", 3, 3),
-            GoalLine::new("Stations served", 1, 3),
-            GoalLine::new("Rings worked", 0, 2),
+            GoalLine::new("Stations owned", 1, 1),
+            GoalLine::new("Stations served", 1, 4),
         ],
     });
     frame(&mut world);
@@ -866,7 +865,7 @@ fn a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart() {
             lines: vec![SavedObjectiveLine {
                 label: "Stations served".to_string(),
                 have: 1,
-                need: 3,
+                need: 4,
             }],
         }]
     );
@@ -902,7 +901,10 @@ fn a_met_goal_is_not_listed_among_a_save_header_s_open_objectives() {
     world.resource_mut::<WorldClock>().play_seconds = 90.0;
     world.insert_resource(GoalProgress {
         title: "A station network".to_string(),
-        lines: vec![GoalLine::new("Trade jobs", 3, 3)],
+        lines: vec![
+            GoalLine::new("Stations owned", 1, 1),
+            GoalLine::new("Stations served", 4, 4),
+        ],
     });
     world.resource_mut::<GoalRecord>().met_at = Some(60.0);
     frame(&mut world);

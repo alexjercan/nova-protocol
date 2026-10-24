@@ -1646,9 +1646,9 @@
     // missing or unknown icon fails lint. `hull` must name a ship design a
     // loaded bundle declares (here the base `light_freighter`), every kit
     // item must be in the item catalog, the kit must fit the hull's hold, and
-    // a goal must ask for counts above zero and no more rings than stations
-    // or hulls: lint refuses each failure. The wizard derives the weapon keys
-    // from the hull's sections, so a role binds nothing itself.
+    // a goal must ask for a count above zero: lint refuses each failure. The
+    // wizard derives the weapon keys from the hull's sections, so a role
+    // binds nothing itself.
     StartRole((
         id: "example_surveyor",
         name: "Surveyor (Example Mod)",
@@ -1662,7 +1662,7 @@
         jobs: Trade,
         goal: (
             title: "A survey network",
-            kind: StationNetwork(jobs: 4, stations: 2, rings: 1),
+            kind: StationNetwork(stations: 2),
         ),
         lore: "Survey crews map the rock fields and sell the data cores to any station that pays.",
     )),

@@ -2,11 +2,12 @@
 //! and what the Map shows this frame, [`GoalProgress`].
 //!
 //! A start role's goal is content (`RoleGoal` in `nova_scenario`): a
-//! predicate over facts the world save already carries: the jobs the player
-//! handed in, the player's hull, owned stations and fleet, and the
-//! civilization stances. The open world crate derives the
-//! progress every frame and stamps the record once the predicate holds; the
-//! Map's chart view reads both. They live here, below the world crates, for
+//! predicate over facts the world save already carries: the stations the
+//! player owns, the jobs the player handed in and the civilization stances.
+//! Every role's progress opens with the same line, one owned station, then
+//! the role's flavour line. The open world crate derives the progress every
+//! frame and stamps the record once every line holds; the Map's chart view,
+//! the Jobs pane and the save header read both. They live here, below the world crates, for
 //! the same reason the chart and the jobs do: the interface cannot depend on
 //! the world crates. A world save carries the record beside the jobs, a Load
 //! puts it back on the arming frame, and both clear with the frozen ledger.
@@ -23,8 +24,8 @@ pub mod prelude {
 ///
 /// Stamped once by the open world crate when the goal's progress is met,
 /// with the world clock's reading, and never cleared back while the world
-/// stands: a hand-in cannot be undone, and a hull sold later does not unmake
-/// a flagship. A save that stamps it ahead of its clock is refused. The
+/// stands: a hand-in cannot be undone, and a station sold later does not
+/// unmake the stamp. A save that stamps it ahead of its clock is refused. The
 /// record is saved and shown only: the world does not react to a met goal.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -65,7 +66,7 @@ impl GoalRecord {
 
 /// What the Map shows for the role goal this frame: its heading and each
 /// `have / need` line. Derived from saved facts every frame, never saved.
-/// Empty for a role with no goal and off the open world.
+/// Empty off the open world.
 #[derive(Resource, Clone, Debug, Default, PartialEq, Eq)]
 pub struct GoalProgress {
     /// The goal's heading, as the role authored it.
@@ -134,10 +135,13 @@ mod tests {
         assert!(!GoalProgress::default().is_met());
         let mut progress = GoalProgress {
             title: "A kill list".to_string(),
-            lines: vec![GoalLine::new("Hulls", 6, 6), GoalLine::new("Rings", 1, 2)],
+            lines: vec![
+                GoalLine::new("Stations owned", 1, 1),
+                GoalLine::new("Bounties handed in", 5, 6),
+            ],
         };
         assert!(!progress.is_met());
-        progress.lines[1].have = 2;
+        progress.lines[1].have = 6;
         assert!(progress.is_met());
     }
 }

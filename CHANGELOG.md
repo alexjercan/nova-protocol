@@ -61,9 +61,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
   shows the time left. Save format 18.
 - **(breaking)** Generated traders restock toward spawn stock by play time
   their sector stood unloaded.
-- **(breaking)** Every start role carries a charter milestone: a station
-  network, kill list, stocked yard, Line Warship, mining empire or outlaw's
-  name. The save stamps the met time. Save format 22.
+- **(breaking)** Every start role's milestone opens with one owned station,
+  then ore deliveries, recoveries, a station network, a kill list, patrols or
+  an outlaw's name. Save format 22.
 - **(breaking)** Each civilization holds a stance to you, Ally, Neutral or
   Enemy, seeded and moved by your kills and hand-ins; a flip drags allies
   down and warms rivals, one hop. Save format 22.
@@ -230,9 +230,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** A style places greebles by `greeble_rules`: link types,
   greebles with four link points, `near` terms and caps. `placement` is gone;
   bad rules or fixtures over a cell wide fail lint.
-- **(breaking)** `StartRole` takes a `goal`: `StationNetwork`, `KillList`,
-  `Flagship`, `OwnYard`, `MiningEmpire` or `Outlaw`. Zero counts, excess rings
-  or escorts and unknown hulls fail lint.
+- **(breaking)** `StartRole`'s `goal` kind is `OreDeliveries`, `Recoveries`,
+  `StationNetwork`, `KillList`, `Patrols` or `Outlaw`. A zero count fails
+  lint.
 
 ### Interface & HUD
 

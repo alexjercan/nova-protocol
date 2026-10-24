@@ -153,11 +153,11 @@ the menu screens that feed a charter (New Game, Load) are text too. Ideas:
     the start without creating the world); step 2 adds the 3D hull preview
     in the details (move `hull_preview` out of `nova_interface` into a shared
     place) and the milestones; the owner rewrites the role texts.
-  - Goals rebalanced per the round 2 direction: `OwnStation` is the shared
-    first milestone for every role, then one simple flavour goal each;
-    rework `RoleGoal` kinds, lint, the content builders, `start-roles.md`
-    and the Map block (`20261012-100033`). HUD objective chips read the open
-    objectives.
+  - Goals rebalanced per the round 2 direction (landed 2026-10-24 under
+    `20261012-100033`): one owned station is the shared first line of every
+    role's goal, then one flavour line each (ore deliveries, recoveries, a
+    station network, a kill list, patrols, an outlaw's name). HUD objective
+    chips stay undone: the owner dropped them from the rebalance scope.
   - Docs: `wiki/interface.md`, `wiki/getting-started.md`, `create/start-roles.md`,
     changelog entries under the subsystem headings.
 

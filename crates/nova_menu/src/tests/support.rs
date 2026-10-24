@@ -65,7 +65,7 @@ pub(crate) fn dummy_roles() -> GameStartRoles {
                 jobs: JobMixType::Trade,
                 goal: RoleGoal {
                     title: "A goal".to_string(),
-                    kind: RoleGoalType::OwnYard,
+                    kind: RoleGoalType::KillList { hulls: 6 },
                 },
                 lore: String::new(),
             })

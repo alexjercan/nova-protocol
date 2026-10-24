@@ -139,9 +139,8 @@ mod tests {
         let progress = GoalProgress {
             title: "A station network".to_string(),
             lines: vec![
-                GoalLine::new("Trade jobs handed in", 4, 4),
-                GoalLine::new("Stations served", 1, 3),
-                GoalLine::new("Rings worked", 0, 2),
+                GoalLine::new("Stations owned", 1, 1),
+                GoalLine::new("Stations served", 1, 4),
             ],
         };
         let open = open_objectives(
@@ -173,7 +172,7 @@ mod tests {
                     done: true,
                     hand_in: "STN-1".to_string(),
                 },
-                OpenObjectiveType::Milestone(GoalLine::new("Stations served", 1, 3)),
+                OpenObjectiveType::Milestone(GoalLine::new("Stations served", 1, 4)),
             ]
         );
 
