@@ -22,8 +22,7 @@ use nova_ui::{
 };
 
 use crate::{
-    config::{HoveredNode, SelectedNode},
-    config::EditorCamera,
+    config::{EditorCamera, HoveredNode, SelectedNode},
     node::{id_order, EditContext, NodeId, ObjectNode, ShipNode},
     ui::{layer, tree_text},
 };

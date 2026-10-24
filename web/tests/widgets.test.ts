@@ -571,7 +571,7 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     assert.equal(
         rustSays(
             FLIGHT,
-            /rcs_accel: MetersPerSecondSquared\(([^)]+)\)\.to_engine/
+            /\n {12}rcs_accel: MetersPerSecondSquared\(([^)]+)\)\.to_engine/
         ),
         "5.0 * 9.81",
         "FlightSettings::rcs_accel is still authored as 5 G"

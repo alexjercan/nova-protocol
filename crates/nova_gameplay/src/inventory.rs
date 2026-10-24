@@ -1081,12 +1081,10 @@ pub fn plan_loot_take(
     let mut free_g = u64::from(own.free_g(items));
     let mut fit = |item: &ItemDesignId, held: u32, stored: bool| {
         let mass_g = u64::from(items.design(item).mass_g);
-        let fits = if mass_g == 0 {
-            held
-        } else {
-            // At most `held`, so the cast back to u32 is exact.
-            u64::from(held).min(free_g / mass_g) as u32
-        };
+        // At most `held`, so the cast back to u32 is exact.
+        let fits = free_g
+            .checked_div(mass_g)
+            .map_or(held, |count| u64::from(held).min(count) as u32);
         if fits > 0 {
             free_g -= u64::from(fits) * mass_g;
             *take.taken.entry(item.clone()).or_insert(0) += fits;

@@ -16,8 +16,7 @@ use nova_ui::{
 };
 
 use crate::{
-    config::{EditorSays, SelectedNode},
-    config::EditorCamera,
+    config::{EditorCamera, EditorSays, SelectedNode},
     node::{EditContext, SectionNode},
     ExampleStates,
 };

@@ -26,8 +26,7 @@ use nova_gameplay::prelude::subtree_collider_aabb;
 use nova_scenario::prelude::{LightConfig, ScenarioObjectKind};
 
 use crate::{
-    config::{EditorGizmos, EditorOverlays, HoveredNode, SelectedNode},
-    config::EditorCamera,
+    config::{EditorCamera, EditorGizmos, EditorOverlays, HoveredNode, SelectedNode},
     gizmo::GizmoAxis,
     node::{objects_of, EditContext, ObjectNodes},
     palette,

@@ -1150,10 +1150,6 @@ fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
 /// When `ids` is empty, spans stations, repeats a slot or names one past
 /// the board, and when the catalog is empty: a board always has an item to
 /// ask for.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one pure draw over the seed, the slots, the poster's cell, the catalog, the mix, the field and the standing offers"
-)]
 pub fn station_job_offers(
     seed: u32,
     ids: &[JobId],

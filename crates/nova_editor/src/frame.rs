@@ -19,8 +19,7 @@ use nova_ship::prelude::{HeldPart, WASDCameraController};
 use nova_ui::prelude::InputMode;
 
 use crate::{
-    config::{SelectedNode},
-    config::EditorCamera,
+    config::{EditorCamera, SelectedNode},
     node::{frame_stage, EditContext},
 };
 
