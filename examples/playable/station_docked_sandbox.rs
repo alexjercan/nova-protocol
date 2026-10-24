@@ -60,13 +60,21 @@
 //! view and checks the view eases onto the placed section and that the panel
 //! shows the part in hand under Placing, presses Esc and checks the hand is
 //! empty, the panel back on the selection and the interface still open, rebinds the new
-//! gun to `T` and checks the selection did not step, reads the focus card of
+//! gun to `T` and checks the selection did not step, opens the Catalogue for
+//! the cards, counts the muted tiles, clicks Gallery Stock Available and
+//! checks it keeps only the placeable listed parts of the category with the
+//! narrowed count on the Gallery Page line, shoots it, clicks Gallery Stock
+//! All and checks the full count is back, at 640x600 in the first theme
+//! shows the muted card's tile and checks its `Tooltip` is its note, hovers
+//! it until the note shows and shoots it, shows the twin's tile and checks
+//! it carries no `Tooltip`, rests the pointer, then reads the focus card of
 //! the twin kinetic PDC, of the twin buying a barrel, of the twin short of a
 //! panel and of a part the station does not build in the Phosphor and
-//! Hardware themes at 640x600 and 1024x768 (Place, Swap and Back inside the
-//! card, a muted part's Place off with its note as the tooltip, every recipe
-//! row whole with its BUY and SHORT marks, the bought row's unit price on
-//! hover), presses Enter and clicks the muted Place and
+//! Hardware themes at 640x600 and 1024x768 (Place, Swap and Back and the
+//! Stock buttons inside the card or the header, a muted part's Place off
+//! with its note as the tooltip, every recipe row whole with its covered
+//! count and, when it bought anything, the bought total, the bought row's
+//! split on hover), presses Enter and clicks the muted Place and
 //! checks the hand stays empty, then puts the capture shape and theme back,
 //! checks the Salvage block lists the gun's yield, deletes the gun with
 //! Delete and checks the note names the parts that went to the hold, selects
@@ -99,6 +107,7 @@
 //! `sandbox-ship.png`,
 //! `sandbox-catalogue-all.png`, `sandbox-catalogue.png`, `sandbox-ghost.png`, `sandbox-mount.png`, `sandbox-placed.png`, `sandbox-esc-put-away.png`,
 //! `sandbox-rebind-armed.png`, `sandbox-rebind.png`,
+//! `sandbox-catalogue-available.png`, `sandbox-tile-muted-tooltip-640.png`,
 //! `sandbox-card-<twin|muted|muted-tooltip>-<phosphor|hardware>-<640|1024>.png`,
 //! `sandbox-delete-yield.png`,
 //! `sandbox-delete.png`,
@@ -619,7 +628,7 @@ const INTRO: &str = "Docked at a Refit station: edit the ship on the Ship tab.";
 mod ship_overlay {
     use bevy::{camera::visibility::RenderLayers, ecs::system::SystemState};
     use nova_protocol::nova_interface::ship::{
-        delete_yield_text, ship_hovered_section, ship_placement, socket_lane_open, ShipPlacement,
+        delete_yield_lines, ship_hovered_section, ship_placement, socket_lane_open, ShipPlacement,
         ShipRuntime, ShipSectionView, ShipSections,
     };
 
@@ -686,6 +695,7 @@ mod ship_overlay {
                 position: section.position,
                 rotation: section.rotation,
                 config: &section.config,
+                working: true,
             })
             .collect();
         let mut points = Vec::new();
@@ -807,10 +817,17 @@ mod ship_overlay {
             let binding = view.binding_text(world.resource::<nova_input::prelude::InputBindings>());
             if let Some(verdict) = &delete {
                 details.push(match verdict {
-                    Ok(parts) => format!(
-                        "delete: {}",
-                        delete_yield_text(world.resource::<GameItems>(), parts)
-                    ),
+                    Ok(parts) => {
+                        let lines = delete_yield_lines(world.resource::<GameItems>(), parts);
+                        format!(
+                            "delete: {}",
+                            if lines.is_empty() {
+                                "nothing to salvage".to_string()
+                            } else {
+                                lines.join(", ")
+                            }
+                        )
+                    }
                     Err(line) => line.clone(),
                 });
             }
@@ -1310,6 +1327,7 @@ mod smoke {
                 position: section.position,
                 rotation: section.rotation,
                 config: &section.config,
+                working: true,
             })
             .collect();
         design
@@ -2261,6 +2279,13 @@ mod smoke {
             .map(|(entity, _)| entity)
     }
 
+    /// The text of the header's `Gallery Page` line.
+    fn gallery_page_text(world: &World) -> Option<String> {
+        world
+            .get::<Text>(named_entity(world, "Gallery Page")?)
+            .map(|text| text.0.clone())
+    }
+
     /// The muted card's Place took nothing: the hand is empty and the card
     /// still up. `gesture` names what was tried, for the failure.
     fn muted_card_stays(gesture: &'static str) -> impl Fn(&mut World) + Send + Sync {
@@ -2299,6 +2324,16 @@ mod smoke {
     /// before a card's [`card_hold`], put back after the card.
     #[derive(Resource)]
     struct CardHoldBefore(ItemDesignId, u32, u32);
+
+    /// How many parts of the current category [`Gallery Stock Available`]
+    /// narrowed from, read before the click.
+    #[derive(Resource)]
+    struct CatalogueStockBefore(usize);
+
+    /// The muted card's part id, read once: [`card_part`] needs `&mut
+    /// World`, which a step's `until` predicate never gets.
+    #[derive(Resource)]
+    struct SmokeMutedTile(String);
 
     /// Set `item`'s count in the player's hold and in the station's stock,
     /// and return the counts it replaced.
@@ -2344,7 +2379,7 @@ mod smoke {
                 .iter()
                 .position(|section| section.base.id == part)
                 .expect("a listed part is in the catalog");
-            let selected = browsable(sections, Some(&listing), category, "")
+            let selected = browsable(sections, Some(&listing), category, "", false)
                 .iter()
                 .position(|listed| *listed == index)
                 .expect("the Catalogue lists every part");
@@ -2353,8 +2388,43 @@ mod smoke {
                 category,
                 filter: String::new(),
                 filter_focused: false,
+                available_only: false,
                 selected,
                 focused: true,
+            };
+        }
+    }
+
+    /// Put `card`'s part's grid tile on the shown page: the grid and the
+    /// focus card are mutually exclusive, so a card's tile only exists while
+    /// no card is focused.
+    fn show_the_grid_tile(card: &'static str) -> impl Fn(&mut World) + Send + Sync {
+        move |world: &mut World| {
+            let part = card_part(world, card);
+            let listing = listing(world);
+            let sections = world.resource::<GameSections>();
+            let category = GalleryCategory::of(
+                &sections
+                    .get_section(&part)
+                    .expect("a listed part is in the catalog")
+                    .kind,
+            );
+            let index = sections
+                .iter()
+                .position(|section| section.base.id == part)
+                .expect("a listed part is in the catalog");
+            let selected = browsable(sections, Some(&listing), category, "", false)
+                .iter()
+                .position(|listed| *listed == index)
+                .expect("the Catalogue lists every part");
+            *world.resource_mut::<GalleryState>() = GalleryState {
+                open: true,
+                category,
+                filter: String::new(),
+                filter_focused: false,
+                available_only: false,
+                selected,
+                focused: false,
             };
         }
     }
@@ -2374,10 +2444,35 @@ mod smoke {
         texts
     }
 
-    /// Each recipe row on the card draws its item's count and name, a BUY
-    /// mark for the items bought, a SHORT mark for the items short and the
-    /// unit price as its tooltip; a row with no supply has neither marks
-    /// nor a tooltip. `rows` are the card's `Gallery Recipe Line` nodes.
+    /// The recipe row tooltip for `item`, as [`recipe_row`] in `nova_ship`
+    /// builds it: the count required, then the hold, the bought cost and the
+    /// missing count, each only when it applies. `None` when the host does
+    /// not sell the item.
+    fn recipe_row_tooltip(item: &GalleryRecipeItem) -> Option<String> {
+        let supply = item.supply?;
+        let mut lines = vec![format!("Required {}", item.count)];
+        if supply.held() > 0 {
+            lines.push(format!("From the hold {}", supply.held()));
+        }
+        if supply.bought() > 0 {
+            lines.push(format!(
+                "Bought {} at {}, {}",
+                supply.bought(),
+                cr_text(supply.ask_cr()),
+                cr_text(supply.total_cr())
+            ));
+        }
+        if supply.short() > 0 {
+            lines.push(format!("Missing {}", supply.short()));
+        }
+        Some(lines.join("\n"))
+    }
+
+    /// Each recipe row on the card reads `[covered/count, name]` for an item
+    /// the station sells (`count` alone for one it does not), then, only
+    /// when the row bought an item, the bought total as a third text. Its
+    /// tooltip names the split exactly when the station sells the item,
+    /// `None` otherwise. `rows` are the card's `Gallery Recipe Line` nodes.
     fn read_the_rows(
         world: &World,
         shape: &str,
@@ -2389,40 +2484,23 @@ mod smoke {
             let texts = texts_under(world, *row);
             let tooltip = world.get::<Tooltip>(*row).map(|tooltip| tooltip.0.clone());
             info!("station sandbox: {shape} {part} recipe row {texts:?}, tooltip {tooltip:?}");
-            assert!(
-                texts.starts_with(&[item.count.to_string(), item.name.clone()]),
-                "at {shape} the {part} row reads `{} {}` first: {texts:?}",
-                item.count,
-                item.name
-            );
-            let marks: Vec<&String> = texts[2..].iter().collect();
-            let mut want = Vec::new();
-            if let Some(supply) = item.supply {
-                if supply.bought() > 0 {
-                    want.push(format!("BUY {}", supply.bought()));
-                }
-                if supply.short() > 0 {
-                    want.push(format!("SHORT {}", supply.short()));
-                }
+            let quantity = match item.supply {
+                Some(supply) => format!("{}/{}", supply.covered(), item.count),
+                None => item.count.to_string(),
+            };
+            let mut want = vec![quantity, item.name.clone()];
+            if let Some(supply) = item.supply.filter(|supply| supply.bought() > 0) {
+                want.push(cr_text(supply.total_cr()));
             }
             assert_eq!(
-                marks.len(),
-                want.len(),
-                "at {shape} the {part} {} row marks {want:?}: {texts:?}",
+                texts, want,
+                "at {shape} the {part} {} row reads {want:?}: {texts:?}",
                 item.name
             );
-            for (mark, want) in marks.iter().zip(&want) {
-                assert!(
-                    mark.contains(want.as_str()),
-                    "at {shape} the {part} {} row marks `{want}`: {texts:?}",
-                    item.name
-                );
-            }
             assert_eq!(
                 tooltip,
-                item.supply
-                    .map(|supply| format!("{} each", cr_text(supply.ask_cr()))),
-                "at {shape} the {part} {} row's tooltip is its unit price exactly when \
+                recipe_row_tooltip(item),
+                "at {shape} the {part} {} row's tooltip names its split exactly when \
                  the station sells it",
                 item.name
             );
@@ -2489,6 +2567,27 @@ mod smoke {
                     inside,
                     "at {shape} the {part} card's `{name}` {rect:?} leaves the card {card_rect:?}"
                 );
+            }
+            // Only at the stock shape: the header stays this wide at every
+            // theme, so one shape is enough to catch a stock button that
+            // wrapped off the header.
+            if shape.starts_with("640x600") {
+                let header_rect =
+                    ui_node_rect(world, "Gallery Header").expect("the header is laid out");
+                for name in ["Gallery Stock All", "Gallery Stock Available"] {
+                    let rect = ui_node_rect(world, name)
+                        .unwrap_or_else(|| panic!("at {shape} the header draws `{name}`"));
+                    let inside = rect.min.x >= header_rect.min.x - CARD_SLACK_PX
+                        && rect.min.y >= header_rect.min.y - CARD_SLACK_PX
+                        && rect.max.x <= header_rect.max.x + CARD_SLACK_PX
+                        && rect.max.y <= header_rect.max.y + CARD_SLACK_PX;
+                    info!("station sandbox: {shape} `{name}` {rect:?} in header {header_rect:?}");
+                    assert!(
+                        inside,
+                        "at {shape} the header's `{name}` {rect:?} leaves the header \
+                         {header_rect:?}"
+                    );
+                }
             }
             let disabled = world
                 .query::<(&Name, Has<bevy::ui::InteractionDisabled>)>()
@@ -2576,6 +2675,110 @@ mod smoke {
             );
             read_the_rows(world, &shape, &part, &entry, &rows);
         }
+    }
+
+    /// Before the first card is focused, at the 640x600 shape in the first
+    /// theme: the muted card's tile carries its note as a `Tooltip`, and
+    /// shows it on hover, which is shot; the twin's placeable tile carries
+    /// none. The pointer then rests on the grid's title, which has no
+    /// tooltip, so the twin card's own shot shows none left over. Tiles only
+    /// exist while no card is focused, so this is the walk's one window on
+    /// them.
+    fn hover_the_muted_tile(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        let shot = "sandbox-tile-muted-tooltip-640.png";
+        script
+            .step("station sandbox: show the muted tile")
+            .on_enter(|world: &mut World| {
+                let part = card_part(world, "muted");
+                world.insert_resource(SmokeMutedTile(part));
+                show_the_grid_tile("muted")(world);
+            })
+            .until(Arc::new(|world: &World| {
+                let part = &world.resource::<SmokeMutedTile>().0;
+                ui_node_present(part_tile(world, part))(world)
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: the muted tile carries its note as a tooltip")
+            .on_enter(|world: &mut World| {
+                let part = world.resource::<SmokeMutedTile>().0.clone();
+                let entry = listing(world)
+                    .entry(&part)
+                    .cloned()
+                    .expect("the Catalogue lists every part");
+                let tile = named_entity(world, &part_tile(world, &part))
+                    .expect("the muted tile is laid out");
+                let carried = world.get::<Tooltip>(tile).map(|tooltip| tooltip.0.clone());
+                info!("station sandbox: the muted tile carries {carried:?}");
+                assert_eq!(
+                    carried,
+                    Some(entry.note.clone()),
+                    "the muted tile's Tooltip is its note"
+                );
+            })
+            .add()
+            .step("station sandbox: point at the muted tile")
+            .each(|world, _, _| {
+                let part = world.resource::<SmokeMutedTile>().0.clone();
+                keep_hovering_named(part_tile(world, &part))(world);
+            })
+            .until(Arc::new(|world: &World| {
+                let part = &world.resource::<SmokeMutedTile>().0;
+                named_entity(world, &part_tile(world, part))
+                    .is_some_and(|tile| shown_tooltip(world, tile).is_some())
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: read the muted tile's shown tooltip")
+            .on_enter(|world: &mut World| {
+                let part = world.resource::<SmokeMutedTile>().0.clone();
+                let entry = listing(world)
+                    .entry(&part)
+                    .cloned()
+                    .expect("the Catalogue lists every part");
+                let tile = named_entity(world, &part_tile(world, &part))
+                    .expect("the muted tile is laid out");
+                let shown = shown_tooltip(world, tile);
+                info!("station sandbox: the muted tile's shown tooltip reads {shown:?}");
+                assert_eq!(
+                    shown.as_deref(),
+                    Some(entry.note.as_str()),
+                    "the hovered muted tile shows its note"
+                );
+            })
+            .add()
+            .step("station sandbox: shoot the muted tile's tooltip")
+            .on_enter(move |world: &mut World| shoot(world, shot))
+            .until(shot_written(shot))
+            .deadline(SHOT_SECS)
+            .add()
+            .step("station sandbox: show the twin's tile")
+            .on_enter(|world: &mut World| {
+                world.remove_resource::<SmokeMutedTile>();
+                show_the_grid_tile("twin")(world);
+            })
+            .until(Arc::new(|world: &World| {
+                ui_node_present(part_tile(world, PDC_TWIN_KINETIC_TURRET_SECTION_ID))(world)
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station sandbox: the twin's placeable tile carries no tooltip")
+            .on_enter(|world: &mut World| {
+                let tile =
+                    named_entity(world, &part_tile(world, PDC_TWIN_KINETIC_TURRET_SECTION_ID))
+                        .expect("the twin's tile is laid out");
+                let carried = world.get::<Tooltip>(tile).map(|tooltip| tooltip.0.clone());
+                info!("station sandbox: the twin's tile carries {carried:?}");
+                assert_eq!(carried, None, "a placeable tile carries no Tooltip");
+            })
+            .add()
+            .step("station sandbox: rest the pointer after the muted tile")
+            .on_enter(|world: &mut World| {
+                let title = ui_node_rect(world, "Gallery Title").expect("the grid has a title");
+                move_cursor(title.center())(world);
+            })
+            .until(frames(2))
+            .add()
     }
 
     /// After the docked port: cycle to a section whose delete would split the
@@ -2845,8 +3048,82 @@ mod smoke {
                      not built here",
                     listing.0.len()
                 );
+                let category = world.resource::<GalleryState>().category;
+                let sections = world.resource::<GameSections>();
+                let full = browsable(sections, Some(&listing), category, "", false).len();
+                world.insert_resource(CatalogueStockBefore(full));
             })
             .until(frames(1))
+            .add()
+            .click_named(
+                "station sandbox: keep only the available parts",
+                "Gallery Stock Available",
+                Arc::new(|world: &World| world.resource::<GalleryState>().available_only),
+                BEAT_SECS,
+            )
+            .step("station sandbox: Available keeps only the placeable listed parts")
+            .on_enter(|world: &mut World| {
+                let listing = listing(world);
+                let category = world.resource::<GalleryState>().category;
+                let sections = world.resource::<GameSections>();
+                let narrowed = browsable(sections, Some(&listing), category, "", true);
+                let placeable = listing
+                    .0
+                    .iter()
+                    .filter(|entry| {
+                        entry.placeable
+                            && sections
+                                .get_section(&entry.id)
+                                .is_some_and(|section| category.accepts(&section.kind))
+                    })
+                    .count();
+                let stocked =
+                    browsable(sections, Some(&listing), GalleryCategory::All, "", false).len();
+                let page = gallery_page_text(world);
+                info!(
+                    "station sandbox: Available lists {} of {stocked} parts, page {page:?}",
+                    narrowed.len()
+                );
+                assert_eq!(
+                    narrowed.len(),
+                    placeable,
+                    "Available keeps only the placeable listed parts of this category"
+                );
+                assert!(
+                    page.is_some_and(|page| {
+                        page.starts_with(&format!("{} of {stocked} parts", narrowed.len()))
+                    }),
+                    "the Gallery Page line opens with the narrowed count"
+                );
+            })
+            .add()
+            .step("station sandbox: shoot the available stock")
+            .on_enter(|world: &mut World| shoot(world, "sandbox-catalogue-available.png"))
+            .until(shot_written("sandbox-catalogue-available.png"))
+            .deadline(SHOT_SECS)
+            .add()
+            .click_named(
+                "station sandbox: show every stocked part again",
+                "Gallery Stock All",
+                Arc::new(|world: &World| !world.resource::<GalleryState>().available_only),
+                BEAT_SECS,
+            )
+            .step("station sandbox: All brings every listed part of this category back")
+            .on_enter(|world: &mut World| {
+                let before = world
+                    .remove_resource::<CatalogueStockBefore>()
+                    .expect("the stock was counted before Available")
+                    .0;
+                let listing = listing(world);
+                let category = world.resource::<GalleryState>().category;
+                let sections = world.resource::<GameSections>();
+                let listed = browsable(sections, Some(&listing), category, "", false).len();
+                info!("station sandbox: All lists {listed} parts, {before} before Available");
+                assert_eq!(
+                    listed, before,
+                    "All brings back every listed part Available narrowed"
+                );
+            })
             .add();
         for (theme, theme_name) in CARD_THEMES {
             script = script
@@ -2870,6 +3147,9 @@ mod smoke {
                     .until(window_size_is(width, height))
                     .deadline(BEAT_SECS)
                     .add();
+                if theme_name == CARD_THEMES[0].1 && width == CARD_SIZES[0].0 {
+                    script = hover_the_muted_tile(script);
+                }
                 for card in ["twin", "buy", "short", "muted"] {
                     let shot = format!("sandbox-card-{card}-{theme_name}-{width}.png");
                     script = script
@@ -2947,14 +3227,14 @@ mod smoke {
             .add()
     }
 
-    /// The first recipe row on the card that marks a bought item.
+    /// The first recipe row on the card that prices a bought item: the row
+    /// carrying three texts, the quantity, the name and the bought total.
     fn bought_row(world: &World) -> Option<Entity> {
         let recipe = named_entity(world, "Gallery Recipe")?;
-        world.get::<Children>(recipe)?.iter().find(|row| {
-            texts_under(world, *row)
-                .iter()
-                .any(|text| text.contains("BUY"))
-        })
+        world
+            .get::<Children>(recipe)?
+            .iter()
+            .find(|row| texts_under(world, *row).len() == 3)
     }
 
     /// `node`'s laid-out rect, in logical pixels.
@@ -2968,10 +3248,9 @@ mod smoke {
         ))
     }
 
-    /// On the focused buy card: the pointer on the bought row shows the price
-    /// of one bought item as its tooltip, which is shot. The pointer then
-    /// rests on the card title, which has no tooltip, so the next card's
-    /// shot shows none.
+    /// On the focused buy card: the pointer on the bought row shows its
+    /// split as its tooltip, which is shot. The pointer then rests on the
+    /// card title, which has no tooltip, so the next card's shot shows none.
     fn point_at_the_bought_row(
         script: AutopilotPlugin<GameStates>,
         shape: &str,
@@ -3002,19 +3281,15 @@ mod smoke {
                     .entry(&part)
                     .cloned()
                     .expect("the Catalogue lists every part");
-                let ask = entry
+                let item = entry
                     .recipe
                     .iter()
-                    .find_map(|item| item.supply.filter(|supply| supply.bought() > 0))
-                    .expect("the buy card buys an item")
-                    .ask_cr();
+                    .find(|item| item.supply.is_some_and(|supply| supply.bought() > 0))
+                    .expect("the buy card buys an item");
+                let want = recipe_row_tooltip(item);
                 let shown = bought_row(world).and_then(|row| shown_tooltip(world, row));
                 info!("station sandbox: the bought row's tooltip reads {shown:?}");
-                assert_eq!(
-                    shown,
-                    Some(format!("{} each", cr_text(ask))),
-                    "the bought row's tooltip is the price of one"
-                );
+                assert_eq!(shown, want, "the bought row's tooltip names its split");
             })
             .add()
             .step(format!(
@@ -3460,7 +3735,7 @@ mod smoke {
                     .get_resource::<ShipRuntime>()
                     .and_then(ShipRuntime::note)
                     .is_some_and(|note| {
-                        note.starts_with("deleted ") && note.ends_with(" to the hold")
+                        note.starts_with("deleted ") && note.contains(" to the hold:\n+")
                     })
             }))
             .diagnose(|world| {

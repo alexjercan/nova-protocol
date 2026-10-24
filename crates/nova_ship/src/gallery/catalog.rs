@@ -87,11 +87,14 @@ impl GalleryCategory {
 /// catalog id. A mod whose ids carry a ship family (The Ledger's
 /// `cargoa_nose`) therefore narrows to one craft by typing the family; base's
 /// block prototypes are generic and carry none.
+/// `available_only` keeps only the listed parts the host can place now; it
+/// drops nothing without a listing, which places everything.
 pub fn browsable(
     sections: &GameSections,
     listing: Option<&GalleryListing>,
     category: GalleryCategory,
     filter: &str,
+    available_only: bool,
 ) -> Vec<usize> {
     let needle = filter.trim().to_lowercase();
     sections
@@ -99,7 +102,11 @@ pub fn browsable(
         .enumerate()
         .filter(|(_, section)| !section.base.hide_in_editor)
         .filter(|(_, section)| {
-            listing.is_none_or(|listing| listing.entry(&section.base.id).is_some())
+            listing.is_none_or(|listing| {
+                listing
+                    .entry(&section.base.id)
+                    .is_some_and(|entry| entry.placeable || !available_only)
+            })
         })
         .filter(|(_, section)| category.accepts(&section.kind))
         .filter(|(_, section)| {
@@ -340,10 +347,10 @@ mod tests {
     /// scene dressing, and it must not be offered by either picker.
     #[test]
     fn hidden_prototypes_never_reach_the_gallery() {
-        let listed = browsable(&catalog(), None, GalleryCategory::All, "");
+        let listed = browsable(&catalog(), None, GalleryCategory::All, "", false);
         assert_eq!(listed, vec![0, 1, 2]);
         assert!(
-            browsable(&catalog(), None, GalleryCategory::Ordnance, "").is_empty(),
+            browsable(&catalog(), None, GalleryCategory::Ordnance, "", false).is_empty(),
             "the only ordnance in this catalog is hidden"
         );
     }
@@ -372,25 +379,66 @@ mod tests {
         ]);
         let listed = Some(&listing);
         assert_eq!(
-            browsable(&catalog(), listed, GalleryCategory::All, ""),
+            browsable(&catalog(), listed, GalleryCategory::All, "", false),
             vec![1, 2],
             "catalog order, listed parts only"
         );
         assert_eq!(
-            browsable(&catalog(), listed, GalleryCategory::Structure, ""),
+            browsable(&catalog(), listed, GalleryCategory::Structure, "", false),
             vec![1]
         );
-        assert!(browsable(&catalog(), listed, GalleryCategory::All, "reinforced").is_empty());
+        assert!(browsable(
+            &catalog(),
+            listed,
+            GalleryCategory::All,
+            "reinforced",
+            false
+        )
+        .is_empty());
+    }
+
+    /// Available keeps only the listed parts the host can place now, and All
+    /// brings every listed part back: the filter hides, it never drops.
+    #[test]
+    fn available_keeps_only_the_placeable_listed_parts_and_all_restores_them() {
+        let entry = |id: &str, placeable: bool| GalleryEntry {
+            id: id.to_string(),
+            tile: placeable.then(|| "40 cr".to_string()),
+            note: "40 cr".to_string(),
+            recipe: Vec::new(),
+            alternate: None,
+            placeable,
+        };
+        let listing = GalleryListing(vec![
+            entry("basic_thruster_section", true),
+            entry("hauler_nose", false),
+            entry("reinforced_hull_section", false),
+        ]);
+        let listed = Some(&listing);
+        assert_eq!(
+            browsable(&catalog(), listed, GalleryCategory::All, "", true),
+            vec![2]
+        );
+        assert!(browsable(&catalog(), listed, GalleryCategory::Structure, "", true).is_empty());
+        assert_eq!(
+            browsable(&catalog(), listed, GalleryCategory::All, "", false),
+            vec![0, 1, 2]
+        );
+        assert_eq!(
+            browsable(&catalog(), None, GalleryCategory::All, "", true),
+            vec![0, 1, 2],
+            "without a listing every part is placeable"
+        );
     }
 
     #[test]
     fn the_category_row_narrows_to_one_kind() {
         assert_eq!(
-            browsable(&catalog(), None, GalleryCategory::Structure, ""),
+            browsable(&catalog(), None, GalleryCategory::Structure, "", false),
             vec![0, 1]
         );
         assert_eq!(
-            browsable(&catalog(), None, GalleryCategory::Propulsion, ""),
+            browsable(&catalog(), None, GalleryCategory::Propulsion, "", false),
             vec![2]
         );
     }
@@ -401,16 +449,23 @@ mod tests {
     #[test]
     fn the_text_filter_matches_name_or_id_case_insensitively() {
         assert_eq!(
-            browsable(&catalog(), None, GalleryCategory::All, "HAULER"),
+            browsable(&catalog(), None, GalleryCategory::All, "HAULER", false),
             vec![1]
         );
         assert_eq!(
-            browsable(&catalog(), None, GalleryCategory::All, "thruster"),
+            browsable(&catalog(), None, GalleryCategory::All, "thruster", false),
             vec![2]
         );
-        assert!(browsable(&catalog(), None, GalleryCategory::All, "zzz").is_empty());
+        assert!(browsable(&catalog(), None, GalleryCategory::All, "zzz", false).is_empty());
         // Category and filter compose.
-        assert!(browsable(&catalog(), None, GalleryCategory::Propulsion, "hauler").is_empty());
+        assert!(browsable(
+            &catalog(),
+            None,
+            GalleryCategory::Propulsion,
+            "hauler",
+            false
+        )
+        .is_empty());
     }
 
     /// Every kind the gallery can list, one of each.

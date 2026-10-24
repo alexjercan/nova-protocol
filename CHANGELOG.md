@@ -141,8 +141,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
   advancement. Ships hold only ammo their weapons reload; stations stock a
   recipe of every part they build and the ammo to reload them.
 - **(breaking)** A station design lists the sections it `builds`; swap, add
-  and rebuild refuse others. The Catalogue dims those and short parts; recipe
-  rows show icon, count, BUY/SHORT, hover price.
+  and rebuild refuse others. The Catalogue dims those and short parts, with
+  the reason on hover.
+- Catalogue tiles put the price right of the name, and an All/Available
+  switch lists only placeable parts. A card's recipe rows read `1/2` with the
+  bought total; hover shows the split.
 
 ### Scenarios & Objectives
 

@@ -92,7 +92,7 @@ pub(crate) use self::{
     sections::*,
 };
 pub use self::{
-    delete::{delete_yield_text, SectionDeleteCommand},
+    delete::{delete_yield_lines, SectionDeleteCommand},
     ghost::{
         ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px,
         socket_lane_open, ShipPlacement, SHIP_GHOST_CALLOUT,
@@ -109,7 +109,7 @@ pub mod prelude {
     // `pub(crate)` (the module glob above), which rustc rejects as an
     // ambiguous import visibility through `super::`.
     pub use super::{
-        delete::{delete_yield_text, SectionDeleteCommand},
+        delete::{delete_yield_lines, SectionDeleteCommand},
         ghost::{
             ship_ghost_aim, ship_hovered_section, ship_placement, ship_view_window_px,
             socket_lane_open, ShipPlacement, SHIP_GHOST_CALLOUT,

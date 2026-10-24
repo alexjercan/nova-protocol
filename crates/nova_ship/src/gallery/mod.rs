@@ -128,9 +128,9 @@ impl GalleryListing {
 pub struct GalleryEntry {
     /// The catalog id.
     pub id: String,
-    /// The short line on the part's tile, under its name: a price or a
-    /// refusal in a few words. It wraps inside the tile. `None` draws no
-    /// line, as for a part that cannot be placed, which its muted tile says.
+    /// The short line on the part's tile, right of its name: a price or a
+    /// refusal in a few words, on one line. `None` draws no line, as for a
+    /// part that cannot be placed, which its muted tile and its tooltip say.
     pub tile: Option<String>,
     /// The whole price or refusal. On a placeable part the focus card draws
     /// it as a line above Place; on one that cannot be placed it is only the
@@ -216,6 +216,16 @@ impl GalleryRecipeSupply {
     /// The credits one bought item costs.
     pub fn ask_cr(self) -> u32 {
         self.ask_cr
+    }
+
+    /// How many of the count the two holds cover: held plus bought.
+    pub fn covered(self) -> u32 {
+        self.held + self.bought
+    }
+
+    /// The credits every bought item costs together.
+    pub fn total_cr(self) -> u64 {
+        u64::from(self.bought) * u64::from(self.ask_cr)
     }
 }
 
@@ -318,6 +328,9 @@ pub struct GalleryState {
     /// Whether the filter field has the caret. Typing reaches the filter only
     /// while it does, which is what leaves the letters free to be shortcuts.
     pub filter_focused: bool,
+    /// Whether the grid keeps only the parts the host can place now. Means
+    /// nothing without a host listing, which places everything.
+    pub available_only: bool,
     /// Selection index into the FILTERED list, not the catalog.
     pub selected: usize,
     /// Whether the focus card is up for the selection.
@@ -354,7 +367,13 @@ impl GalleryState {
         sections: &GameSections,
         listing: Option<&GalleryListing>,
     ) -> Option<String> {
-        let listed = catalog::browsable(sections, listing, self.category, &self.filter);
+        let listed = catalog::browsable(
+            sections,
+            listing,
+            self.category,
+            &self.filter,
+            self.available_only,
+        );
         let index = *listed.get(self.selected)?;
         Some(sections.get(index)?.base.id.clone())
     }

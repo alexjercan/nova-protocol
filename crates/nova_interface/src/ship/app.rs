@@ -208,12 +208,11 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                     .with_children(|block| {
                         block.spawn(divider());
                         block.spawn(themed_label("Salvage", 12.0, UiColor::Label));
+                        // One part per line, so two parts never read as one.
                         block.spawn((
                             ShipSalvageTiles::default(),
                             Node {
-                                flex_direction: FlexDirection::Row,
-                                flex_wrap: FlexWrap::Wrap,
-                                column_gap: Val::Px(12.0),
+                                flex_direction: FlexDirection::Column,
                                 row_gap: Val::Px(4.0),
                                 ..default()
                             },

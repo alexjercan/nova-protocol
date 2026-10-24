@@ -14,7 +14,7 @@ use bevy::{
 };
 use nova_gameplay::prelude::cr_text;
 use nova_ui::{
-    prelude::{badge, button, panel, BadgeKind, ButtonSpec, UiText},
+    prelude::{button, panel, ButtonSpec, UiText},
     theme,
     theme::{ActiveUiTheme, UiColor},
     widget::{ThemedBorder, ThemedFill, ThemedImageTint, ThemedRadius, ThemedText, Tooltip},
@@ -74,6 +74,9 @@ pub enum GalleryAction {
     FocusFilter,
     /// Empty the filter, leaving the category alone.
     ClearFilter,
+    /// Keep only the parts the host can place now (`true`), or every listed
+    /// part (`false`).
+    Available(bool),
 }
 
 /// The header's stock line: how many parts are listed, and out of how many when
@@ -146,7 +149,13 @@ pub(crate) fn rebuild_gallery(
     }
 
     let listing = listing.as_deref();
-    let listed = catalog::browsable(&sections, listing, state.category, &state.filter);
+    let listed = catalog::browsable(
+        &sections,
+        listing,
+        state.category,
+        &state.filter,
+        state.available_only,
+    );
     // Enter does nothing on a part the host cannot craft, so the hint drops it.
     let place_hint = if state.placeable_id(&sections, listing).is_some() {
         "Enter place it   "
@@ -157,7 +166,7 @@ pub(crate) fn rebuild_gallery(
     let pages = listed.len().div_ceil(per_page).max(1);
     let page = state.selected / per_page;
     let start = page * per_page;
-    let stocked = catalog::browsable(&sections, listing, GalleryCategory::All, "").len();
+    let stocked = catalog::browsable(&sections, listing, GalleryCategory::All, "", false).len();
     let narrowed = listed.len() != stocked;
     let count = part_count(listed.len(), stocked);
 
@@ -255,6 +264,34 @@ pub(crate) fn rebuild_gallery(
                                 GalleryAction::ClearFilter,
                             ));
                         });
+                }
+
+                // Only a host listing marks what cannot be placed, so the
+                // editor, which places everything, has no use for the switch.
+                if listing.is_some() {
+                    for (label, name, only) in [
+                        ("All", "Gallery Stock All", false),
+                        ("Available", "Gallery Stock Available", true),
+                    ] {
+                        header
+                            .spawn(Node {
+                                width: px(if only { 96.0 } else { 54.0 }),
+                                ..default()
+                            })
+                            .with_children(|slot| {
+                                let mut spec = ButtonSpec::new(label);
+                                spec.min_height = 26.0;
+                                spec.font_size = 12.0;
+                                if only != state.available_only {
+                                    spec = spec.ghost();
+                                }
+                                slot.spawn((
+                                    Name::new(name),
+                                    button(spec),
+                                    GalleryAction::Available(only),
+                                ));
+                            });
+                    }
                 }
 
                 for (label, name, step) in [
@@ -443,7 +480,7 @@ fn spawn_cell(
     let placeable = entry.is_none_or(|entry| entry.placeable);
     let alpha = if placeable { 1.0 } else { MUTED_ALPHA };
     let mut stage = Entity::PLACEHOLDER;
-    row.spawn((
+    let mut tile = row.spawn((
         Name::new(format!("Gallery Tile {}", section.base.name)),
         GalleryCell { listed, placeable },
         GalleryAction::Focus(listed),
@@ -463,8 +500,8 @@ fn spawn_cell(
         // only paint path, so the theme reaches it there.
         BorderColor::all(Color::NONE),
         BackgroundColor(Color::NONE),
-    ))
-    .with_children(|cell| {
+    ));
+    tile.with_children(|cell| {
         stage = cell
             .spawn((
                 // NOT prefixed "Gallery Tile": a harness counts tiles by that
@@ -485,10 +522,12 @@ fn spawn_cell(
             ))
             .id();
 
-        let mut strip = cell.spawn((
+        // The strip is the same height on every tile, line or no line, so
+        // a muted tile's preview is as tall as its neighbour's.
+        cell.spawn((
             Node {
                 width: percent(100),
-                min_height: px(LABEL_H),
+                height: px(LABEL_H),
                 flex_shrink: 0.0,
                 flex_direction: FlexDirection::Column,
                 justify_content: JustifyContent::Center,
@@ -504,70 +543,155 @@ fn spawn_cell(
                 should_block_lower: false,
                 is_hoverable: false,
             },
-            children![
-                (
-                    UiText,
-                    Text::new(section.base.name.clone()),
-                    TextFont {
-                        font_size: FontSize::Px(12.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::alpha(UiColor::Body, alpha),
-                ),
-                (
-                    UiText,
-                    Text::new(catalog::kind_label(&section.kind).to_string()),
-                    TextFont {
-                        font_size: FontSize::Px(10.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::alpha(UiColor::Label, alpha),
-                ),
-            ],
-        ));
-        if let Some(tile) = entry.and_then(|entry| entry.tile.clone()) {
-            strip.with_child((
+        ))
+        .with_children(|strip| {
+            strip
+                .spawn(Node {
+                    width: percent(100),
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: px(6),
+                    ..default()
+                })
+                .with_children(|line| {
+                    // The name yields to the price: a long name is cut at
+                    // the box's edge, the price is whole.
+                    line.spawn(clipped_name()).with_child((
+                        UiText,
+                        Text::new(section.base.name.clone()),
+                        TextFont {
+                            font_size: FontSize::Px(12.0),
+                            ..default()
+                        },
+                        TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                        TextColor(Color::NONE),
+                        ThemedText::alpha(UiColor::Body, alpha),
+                    ));
+                    if let Some(tile) = entry.and_then(|entry| entry.tile.clone()) {
+                        line.spawn((
+                            UiText,
+                            Text::new(tile),
+                            TextFont {
+                                font_size: FontSize::Px(11.0),
+                                ..default()
+                            },
+                            TextLayout::new(Justify::Right, LineBreak::NoWrap),
+                            TextColor(Color::NONE),
+                            ThemedText::new(UiColor::Accent),
+                            Node {
+                                flex_shrink: 0.0,
+                                ..default()
+                            },
+                        ));
+                    }
+                });
+            strip.spawn((
                 UiText,
-                Text::new(tile),
+                Text::new(catalog::kind_label(&section.kind).to_string()),
                 TextFont {
-                    font_size: FontSize::Px(11.0),
+                    font_size: FontSize::Px(10.0),
                     ..default()
                 },
+                TextLayout::new(Justify::Left, LineBreak::NoWrap),
                 TextColor(Color::NONE),
-                if placeable {
-                    ThemedText::new(UiColor::Accent)
-                } else {
-                    ThemedText::alpha(UiColor::Label, MUTED_ALPHA)
-                },
+                ThemedText::alpha(UiColor::Label, alpha),
             ));
-        }
+        });
     });
+    if let Some(entry) = entry.filter(|entry| !entry.placeable) {
+        // Why the tile is muted, on hover; the card's Place says it too.
+        tile.insert(Tooltip(entry.note.clone()));
+    }
     stage
 }
 
-/// One recipe row on the focus card: the item's icon, count and name, then
-/// `BUY n` for the items bought and `SHORT n` for those neither hold
-/// carries. The price of one bought item is the row's tooltip. An item the
-/// host does not sell is muted, with no marks and no tooltip.
+/// What one recipe row says, as [`recipe_row`] draws it: the quantity cell,
+/// the price cell and the tooltip.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RecipeRowText {
+    /// `covered/count` for an item the host sells, `count` for one it does
+    /// not: a part the station does not build has a recipe, not a stock.
+    quantity: String,
+    /// What the bought items cost together, or nothing when none is bought.
+    price: Option<String>,
+    /// The split behind the cells, for an item the host sells.
+    tooltip: Option<String>,
+}
+
+/// The texts of one recipe row. The tooltip names the count required, then
+/// only the sources that apply: the hold, the station's stock with the
+/// price of one and of all, and the missing count.
+fn recipe_row_text(item: &GalleryRecipeItem) -> RecipeRowText {
+    let Some(supply) = item.supply else {
+        return RecipeRowText {
+            quantity: item.count.to_string(),
+            price: None,
+            tooltip: None,
+        };
+    };
+    let mut lines = vec![format!("Required {}", item.count)];
+    if supply.held() > 0 {
+        lines.push(format!("From the hold {}", supply.held()));
+    }
+    if supply.bought() > 0 {
+        lines.push(format!(
+            "Bought {} at {}, {}",
+            supply.bought(),
+            cr_text(supply.ask_cr()),
+            cr_text(supply.total_cr())
+        ));
+    }
+    if supply.short() > 0 {
+        lines.push(format!("Missing {}", supply.short()));
+    }
+    RecipeRowText {
+        quantity: format!("{}/{}", supply.covered(), item.count),
+        price: (supply.bought() > 0).then(|| cr_text(supply.total_cr())),
+        tooltip: Some(lines.join("\n")),
+    }
+}
+
+/// Least width of a recipe row's quantity cell, so the names line up down
+/// the recipe: room for `10/10`.
+const RECIPE_QUANTITY_W: f32 = 34.0;
+
+/// The box a name sits in beside a right-hand cell: it takes the free width
+/// and cuts a longer name at its edge. A text node's own glyphs are clipped
+/// by its parent, not by itself, so the box is what clips.
+fn clipped_name() -> Node {
+    Node {
+        flex_grow: 1.0,
+        flex_shrink: 1.0,
+        min_width: px(0),
+        overflow: Overflow::clip_x(),
+        ..default()
+    }
+}
+
+/// One recipe row on the focus card: the item's icon, how many of the count
+/// the holds cover, its name and, on the right, what the bought items cost
+/// together. The split and the price of one are the row's tooltip. An item
+/// the host does not sell is muted, with the count alone and no tooltip.
 fn recipe_row(recipe: &mut ChildSpawnerCommands, item: &GalleryRecipeItem) {
     let alpha = if item.supply.is_some() {
         1.0
     } else {
         MUTED_ALPHA
     };
+    let text = recipe_row_text(item);
+    let short = item.supply.is_some_and(|supply| supply.short() > 0);
     let mut row = recipe.spawn((
         Name::new("Gallery Recipe Line"),
         Node {
+            width: percent(100),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
             column_gap: px(4),
             ..default()
         },
     ));
-    if let Some(supply) = item.supply {
-        row.insert(Tooltip(format!("{} each", cr_text(supply.ask_cr()))));
+    if let Some(tooltip) = text.tooltip {
+        row.insert(Tooltip(tooltip));
     }
     row.with_children(|row| {
         row.spawn((
@@ -581,30 +705,57 @@ fn recipe_row(recipe: &mut ChildSpawnerCommands, item: &GalleryRecipeItem) {
             ThemedImageTint::alpha(item.tint, alpha),
             Pickable::IGNORE,
         ));
-        for (text, color) in [
-            (item.count.to_string(), UiColor::Primary),
-            (item.name.clone(), UiColor::Body),
-        ] {
+        row.spawn((
+            UiText,
+            Text::new(text.quantity),
+            TextFont {
+                font_size: FontSize::Px(12.0),
+                ..default()
+            },
+            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+            TextColor(Color::NONE),
+            ThemedText::alpha(
+                if short {
+                    UiColor::Danger
+                } else {
+                    UiColor::Primary
+                },
+                alpha,
+            ),
+            Node {
+                min_width: px(RECIPE_QUANTITY_W),
+                flex_shrink: 0.0,
+                ..default()
+            },
+        ));
+        // The name yields to the price, as the tile's does.
+        row.spawn(clipped_name()).with_child((
+            UiText,
+            Text::new(item.name.clone()),
+            TextFont {
+                font_size: FontSize::Px(12.0),
+                ..default()
+            },
+            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+            TextColor(Color::NONE),
+            ThemedText::alpha(UiColor::Body, alpha),
+        ));
+        if let Some(price) = text.price {
             row.spawn((
                 UiText,
-                Text::new(text),
+                Text::new(price),
                 TextFont {
                     font_size: FontSize::Px(12.0),
                     ..default()
                 },
-                TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                TextLayout::new(Justify::Right, LineBreak::NoWrap),
                 TextColor(Color::NONE),
-                ThemedText::alpha(color, alpha),
+                ThemedText::new(UiColor::Accent),
+                Node {
+                    flex_shrink: 0.0,
+                    ..default()
+                },
             ));
-        }
-        let Some(supply) = item.supply else {
-            return;
-        };
-        if supply.bought() > 0 {
-            row.spawn(badge(BadgeKind::Amber, &format!("Buy {}", supply.bought())));
-        }
-        if supply.short() > 0 {
-            row.spawn(badge(BadgeKind::Red, &format!("Short {}", supply.short())));
         }
     });
 }
@@ -930,6 +1081,7 @@ pub(crate) fn on_gallery_action(
             // cause, since the field is the only thing that says why.
             state.filter.clear();
             state.filter_focused = false;
+            state.available_only = false;
             state.selected = 0;
             state.focused = false;
             state.open = true;
@@ -975,13 +1127,26 @@ pub(crate) fn on_gallery_action(
         GalleryAction::Browse(category) => {
             state.filter.clear();
             state.filter_focused = false;
+            state.available_only = false;
             state.category = *category;
             state.selected = 0;
             state.focused = false;
             state.open = true;
         }
+        GalleryAction::Available(only) => {
+            state.available_only = *only;
+            state.selected = 0;
+            state.focused = false;
+            state.filter_focused = false;
+        }
         GalleryAction::Page(step) => {
-            let listed = catalog::browsable(&sections, listing, state.category, &state.filter);
+            let listed = catalog::browsable(
+                &sections,
+                listing,
+                state.category,
+                &state.filter,
+                state.available_only,
+            );
             state.step(step * layout.page() as isize, listed.len());
         }
     }
@@ -989,7 +1154,7 @@ pub(crate) fn on_gallery_action(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{super::GalleryRecipeSupply, *};
 
     /// The stock line counts one part as one part, and says what is being held
     /// back the moment anything is.
@@ -999,5 +1164,55 @@ mod tests {
         assert_eq!(part_count(1, 1), "1 part");
         assert_eq!(part_count(1, 31), "1 of 31 parts");
         assert_eq!(part_count(0, 31), "0 of 31 parts");
+    }
+
+    fn item(count: u32, supply: Option<GalleryRecipeSupply>) -> GalleryRecipeItem {
+        GalleryRecipeItem {
+            icon: default(),
+            tint: UiColor::Body,
+            name: "Section panel".to_string(),
+            count,
+            supply,
+        }
+    }
+
+    /// A recipe row says how many of the count the holds cover and what the
+    /// bought items cost together; its tooltip names the count, each source
+    /// that applies with the price of one and of all, and the missing count.
+    /// An item the host does not sell shows the count alone.
+    #[test]
+    fn a_recipe_row_reads_its_coverage_and_the_bought_total() {
+        assert_eq!(
+            recipe_row_text(&item(2, Some(GalleryRecipeSupply::new(2, 2, 0, 0, 20)))),
+            RecipeRowText {
+                quantity: "2/2".to_string(),
+                price: None,
+                tooltip: Some("Required 2\nFrom the hold 2".to_string()),
+            }
+        );
+        assert_eq!(
+            recipe_row_text(&item(3, Some(GalleryRecipeSupply::new(3, 1, 2, 0, 20)))),
+            RecipeRowText {
+                quantity: "3/3".to_string(),
+                price: Some("40 cr".to_string()),
+                tooltip: Some("Required 3\nFrom the hold 1\nBought 2 at 20 cr, 40 cr".to_string()),
+            }
+        );
+        assert_eq!(
+            recipe_row_text(&item(2, Some(GalleryRecipeSupply::new(2, 0, 1, 1, 20)))),
+            RecipeRowText {
+                quantity: "1/2".to_string(),
+                price: Some("20 cr".to_string()),
+                tooltip: Some("Required 2\nBought 1 at 20 cr, 20 cr\nMissing 1".to_string()),
+            }
+        );
+        assert_eq!(
+            recipe_row_text(&item(2, None)),
+            RecipeRowText {
+                quantity: "2".to_string(),
+                price: None,
+                tooltip: None,
+            }
+        );
     }
 }

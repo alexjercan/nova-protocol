@@ -235,18 +235,14 @@ fn health_share(health: Option<&Health>) -> f32 {
     }
 }
 
-/// The parts a delete gives back, as the note and the log name them:
-/// `+1 Frame spar, +3 Section panel`, or `nothing to salvage`.
-pub fn delete_yield_text(items: &GameItems, parts: &BTreeMap<ItemDesignId, u32>) -> String {
-    if parts.values().all(|count| *count == 0) {
-        return "nothing to salvage".to_string();
-    }
+/// The parts a delete gives back, one line per part in id order: `+1 Frame
+/// spar`, `+3 Section panel`. Empty when it gives nothing back.
+pub fn delete_yield_lines(items: &GameItems, parts: &BTreeMap<ItemDesignId, u32>) -> Vec<String> {
     parts
         .iter()
         .filter(|(_, count)| **count > 0)
         .map(|(item, count)| format!("+{count} {}", items.design(item).name))
-        .collect::<Vec<_>>()
-        .join(", ")
+        .collect()
 }
 
 /// What deleting live section `target` would do now: its design code and
@@ -387,9 +383,16 @@ pub(crate) fn apply_ship_delete_commands(
         for (item, &count) in &delete.parts {
             own.add(&items, item, count);
         }
-        let text = delete_yield_text(&items, &delete.parts);
-        let salvaged = delete.parts.values().any(|count| *count > 0);
-        info!("delete: {code} ('{}') gave {text}", delete.section);
+        let lines = delete_yield_lines(&items, &delete.parts);
+        info!(
+            "delete: {code} ('{}') gave {}",
+            delete.section,
+            if lines.is_empty() {
+                "nothing to salvage".to_string()
+            } else {
+                lines.join(", ")
+            }
+        );
         reports.0.push(ShipInventoryReport::Stripped {
             hull: hull.0.clone(),
             section: code.clone(),
@@ -402,10 +405,11 @@ pub(crate) fn apply_ship_delete_commands(
         if runtime.selected == Some(command.target) {
             runtime.selected = None;
         }
-        let note = if salvaged {
-            format!("deleted {code}: {text} to the hold")
+        // One part per line, as the Salvage block listed them.
+        let note = if lines.is_empty() {
+            format!("deleted {code}: nothing to salvage")
         } else {
-            format!("deleted {code}: {text}")
+            format!("deleted {code} to the hold:\n{}", lines.join("\n"))
         };
         runtime.note = Some((note, 2.5));
         deleted = true;
@@ -675,7 +679,7 @@ mod tests {
     }
 
     /// A docked delete of a leaf gun names its strip yield before the press,
-    /// puts it in the hold, names it on the note line, reports it as stripped
+    /// puts it in the hold, names it one part per line on the note, reports it as stripped
     /// off the player's own hull, asks for its removal and clears the
     /// selection. A part that gives nothing back says so.
     #[test]
@@ -690,15 +694,12 @@ mod tests {
                 ("SectionPanel".into(), 3)
             ])))
         );
-        assert_eq!(
-            delete_yield_text(&test_items(), &BTreeMap::new()),
-            "nothing to salvage"
-        );
+        assert!(delete_yield_lines(&test_items(), &BTreeMap::new()).is_empty());
 
         let note = delete(&mut app, ship.gun);
         assert_eq!(
             note.as_deref(),
-            Some("deleted PDC-1: +1 Frame spar, +3 Section panel to the hold")
+            Some("deleted PDC-1 to the hold:\n+1 Frame spar\n+3 Section panel")
         );
         let hold = app.world().get::<ShipInventory>(ship.player).unwrap();
         assert_eq!(hold.count(&"SectionPanel".into()), 3);

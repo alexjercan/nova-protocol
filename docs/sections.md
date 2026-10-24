@@ -114,33 +114,48 @@ and a save keep the inline design, so the swap persists.
 
 ### Adding a section
 
-The catalogue lists each part that is not `hide_in_editor`. A part the
-station's `StationBuilds` does not name, or whose recipe the player's hold
-and the station's stock together cannot carry (`plan_recipe_payment` finds a
-missing part), has `placeable: false`: its tile text, border and focus card
-title are muted, a theme surface veil greys its 3D preview, it has no `tile`
-line and no visible note, Place on its card is disabled with the `note` as
-its tooltip (`This station cannot craft this section`, or the missing-part
-refusal), and Enter and Q do not take it. Credits do not mute: a part the
-ship cannot pay for stays placeable with `Needs 400 cr` on its tile and the
-credit refusal as its note. A station `builds` id that `GameSections` lacks
-panics when the catalogue opens; station lint refuses it first. A placeable
-`GalleryEntry` carries a short `tile` line, its price (`180 cr`) or credit
-refusal, that wraps inside its tile, and the price or the whole refusal as
-the focus card's `note`. Its `recipe` packs one `GalleryRecipeItem` row per
-item, with no gap, at the top of the card's clipping details: the item's
-icon, count and name. `GalleryRecipeItem::supply` is a `GalleryRecipeSupply`
-that splits the count into held, bought and short, with the item's
-`ask_cr`, the price `plan_recipe_payment` charges for one bought item; its
-`new` panics when the split does not sum to the count. A row shows `BUY n`
-for items bought from the station, `SHORT n` for items neither hold carries
-(a short part is not placeable but its rows stay at full alpha), and no
-badge for items the hold covers alone. Its tooltip is `<ask> cr each`.
+The catalogue lists each part that is not `hide_in_editor`. A host that
+carries a `GalleryListing` (the Ship pane; the editor's gallery carries none)
+also shows an All/Available pair after the filter box
+(`GalleryState.available_only`, `GalleryAction::Available`,
+`catalog::browsable`'s `available_only` argument): Available keeps only the
+listed parts with `placeable: true` and resets the selection to the first
+tile, All brings every listed part back, and `Open`/`Browse` reset the switch
+to All; the count line reads `N of M parts` whenever the switch or the filter
+narrows the grid. A part the station's `StationBuilds` does not name, or
+whose recipe the player's hold and the station's stock together cannot carry
+(`plan_recipe_payment` finds a missing part), has `placeable: false`: its
+tile text, border and focus card title are muted, a theme surface veil greys
+its 3D preview, it has no `tile` line, Place on its card is disabled with the
+`note` as its tooltip (`This station cannot craft this section`, or the
+missing-part refusal), the tile itself carries that same `note` as its hover
+tooltip, and Enter and Q do not take it. Credits do not mute: a part the ship
+cannot pay for stays placeable with `Needs 400 cr` on its tile and the credit
+refusal as its note. A station `builds` id that `GameSections` lacks panics
+when the catalogue opens; station lint refuses it first. Every tile's label
+strip is a fixed height (`LABEL_H`): the name sits left on one clipped line,
+with the `GalleryEntry.tile` line (a price or a refusal such as `Needs 300
+cr`) right-aligned beside it when the part has one, and the category sits
+alone on the line below. A placeable `GalleryEntry` carries a short `tile`
+line, its price (`180 cr`) or credit refusal, and the price or the whole
+refusal as the focus card's `note`. Its `recipe` packs one `GalleryRecipeItem`
+row per item, with no gap, at the top of the card's clipping details: the
+item's icon, a quantity cell reading `covered/count` (covered is held plus
+bought, e.g. `1/2`, Danger-coloured when the item is short and Primary
+otherwise), the item's name, and, only when something was bought, a right
+cell with the bought items' total cost (`bought * ask`, e.g. `40 cr`).
+`GalleryRecipeItem::supply` is a `GalleryRecipeSupply` that splits the count
+into held, bought and short, with the item's `ask_cr`, the price
+`plan_recipe_payment` charges for one bought item; its `new` panics when the
+split does not sum to the count. Its tooltip, pointer-only and shown only for
+an item the station sells, lines up `Required N`, then only the sources that
+apply: `From the hold N`, `Bought N at <ask> cr, <total> cr`, and
+`Missing N` (a short part is not placeable but its row stays at full alpha).
 `supply: None` is a part the station does not build: the row is muted, with
-no badge and no tooltip. The unit price is pointer-only; a keyboard user
-reads the marks, the total on the note line and the Swap button's price.
-Place on the focus card puts a part in hand (`HeldPart`, shared with the
-editor).
+the plain required count, no price and no tooltip. The split is
+pointer-only; a keyboard user reads the quantity and total cells, the whole
+refusal on the note line and the Swap button's price. Place on the focus
+card puts a part in hand (`HeldPart`, shared with the editor).
 While a part is in hand, the placement ghost
 (`nova_interface/src/ship/ghost.rs`) casts the pointer's ray into the Ship
 view, takes the nearest block it enters
@@ -241,17 +256,19 @@ with the reason line and, for a split, the sections that would lose the
 dock: every piece of `RefitBuildFaultType::Disconnected { pieces }` but the
 one holding the docked port), with or without a Refit dock. The Salvage
 block shows while there is a verdict, with the Delete button, a compact
-Danger button, as its action. When the delete can go, the block draws one
-part tile per part it gives back (`pane::spawn_part_tile`, the tile the
-Inventory strip block draws), or `nothing to salvage`, over an enabled
-Delete. When it refuses, Delete is muted with the reason as its `Tooltip`
+Danger button, as its action. When the delete can go, the block stacks one
+part tile per part it gives back down a column (`pane::spawn_part_tile`,
+the tile the Inventory strip block draws), or `nothing to salvage`, over an
+enabled Delete. When it refuses, Delete is muted with the reason as its `Tooltip`
 (`delete_refusal_text`: no prefix and no code, the title names the section),
 the Ship view outlines the severed sections with the refused ghost's Danger
 material (`update_ship_blocks`) and fills them with a translucent Danger fill
 (`sync_ship_target_face`, the block fill's only writer, which restores the
 family fill when the verdict clears; `ShipRuntime::delete_severed`), and the
 Delete key puts the same reason on the note line. The note after a delete
-names the parts that went to the hold.
+(`delete::delete_yield_lines`) opens with `deleted <code> to the hold:` then
+one `+n Name` line per part, or reads `deleted <code>: nothing to salvage`
+when it gave back none.
 
 ### Stripping a docked wreck
 

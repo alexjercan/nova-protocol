@@ -42,7 +42,13 @@ pub fn gallery_keyboard(
     }
 
     let listing = host.single().ok().flatten();
-    let listed = catalog::browsable(&sections, listing, state.category, &state.filter);
+    let listed = catalog::browsable(
+        &sections,
+        listing,
+        state.category,
+        &state.filter,
+        state.available_only,
+    );
     let mut next = state.clone();
 
     // Escape backs out one step at a time: out of the filter field, then out of
@@ -134,7 +140,13 @@ pub fn gallery_keyboard(
         let pressed = pressed.iter().map(|(key, text)| (*key, text.as_deref()));
         if edit_filter(&mut next, pressed) {
             // A narrower list can leave the selection past its end.
-            let listed = catalog::browsable(&sections, listing, next.category, &next.filter);
+            let listed = catalog::browsable(
+                &sections,
+                listing,
+                next.category,
+                &next.filter,
+                next.available_only,
+            );
             next.step(0, listed.len());
         }
     }
