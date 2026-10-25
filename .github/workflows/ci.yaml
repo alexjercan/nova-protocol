@@ -131,16 +131,19 @@ jobs:
       - name: Clippy
         run: cargo clippy --workspace --all-targets --features debug -- -D warnings
 
-      # Every crate's tests, with the same feature set the smoke examples use.
-      # That feature match is the whole point: `debug` flips bevy/track_location,
-      # so testing with default features and then running examples with
-      # `--features debug` rebuilds Bevy and everything downstream a second
-      # time - the other half of what blew the job timeout. The probe shards no
-      # longer inherit this step's example binaries (they are their own jobs
-      # now) and build their own behind a shared cache. No DISPLAY is set here;
-      # the channel encode test runs ffmpeg without a graphics runtime.
+      # Every crate's unit, integration and doc tests, with the same `debug`
+      # feature set the smoke examples use. A bare `cargo test --workspace`
+      # also builds every cataloged example binary, despite Clippy already
+      # checking all examples above and the probe jobs running their curated
+      # subsets. On run 40171838676 those duplicate builds filled 101 GB of
+      # free runner disk before any tests ran. Keep the one example with unit
+      # tests explicit: its stamp tests are not covered by the shared suite.
+      # No DISPLAY is set here; the channel encode test runs ffmpeg headlessly.
       - name: Tests
-        run: cargo test --workspace --features debug
+        run: |
+          cargo test --workspace --features debug --lib --bins --tests
+          cargo test --workspace --features debug --doc
+          cargo test -p nova-protocol --features debug --example wfc_arena
 
   # The non-Rust half of the tree, which had NO job until now: `npm ci` +
   # `npm run build:*` in the two deploy workflows was the only npm anywhere,
