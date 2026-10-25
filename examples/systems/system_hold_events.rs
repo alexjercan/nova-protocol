@@ -14,7 +14,8 @@
 //!   drops the canister, not when the pane queued it.
 //! - Stand a canister in the intake's trigger: `OnPickedUp` once as the
 //!   intake takes it.
-//! - Lock the rock and hold the mine key: `OnMined` once per paying pulse.
+//! - Clear the travel lock and hold the mine key facing the rock: `OnMined`
+//!   once per paying pulse, none of them from a locked ship.
 //!
 //! ONE SUBJECT: that each verb raises exactly the events its payload promises
 //! and that authored `once` handlers can complete an objective on each. The
@@ -131,6 +132,8 @@ mod walk {
         events: Vec<(String, serde_json::Value)>,
         /// Corners each paying pulse flipped, from the mining observer.
         paid_pulses: Vec<u32>,
+        /// Paying pulses whose ship held a travel lock.
+        locked_pulses: usize,
         /// Every player section's health after the hurt, before the repair.
         hurt: std::collections::BTreeMap<Entity, f32>,
     }
@@ -167,13 +170,28 @@ mod walk {
                 info!("hold_events: {name} {data}");
                 watch.events.push((name.to_string(), data));
             });
-            app.add_observer(|pulse: On<MiningPulse>, mut watch: ResMut<HoldWatch>| {
-                if let Ok(corners) = pulse.outcome {
-                    if corners > 0 {
-                        watch.paid_pulses.push(corners);
+            app.add_observer(
+                |pulse: On<MiningPulse>,
+                 q_parents: Query<&ChildOf>,
+                 q_locks: Query<&TravelLock>,
+                 mut watch: ResMut<HoldWatch>| {
+                    let Ok(corners) = pulse.outcome else {
+                        return;
+                    };
+                    if corners == 0 {
+                        return;
                     }
-                }
-            });
+                    watch.paid_pulses.push(corners);
+                    let locked = q_parents
+                        .get(pulse.entity)
+                        .ok()
+                        .and_then(|&ChildOf(ship)| q_locks.get(ship).ok())
+                        .is_some_and(|lock| lock.0.is_some());
+                    if locked {
+                        watch.locked_pulses += 1;
+                    }
+                },
+            );
         }
     }
 
@@ -555,19 +573,12 @@ mod walk {
             .step("hold_events: one OnPickedUp for the taken stack")
             .on_enter(assert_the_pickup)
             .add()
-            // MINE. Lock the rock and hold the key until a pulse pays.
-            .step("hold_events: lock the rock and hold the mine key")
+            // MINE. Clear the lock and hold the key until a pulse pays: the
+            // beam takes the rock in front of it, not a locked target.
+            .step("hold_events: clear the lock and hold the mine key")
             .on_enter(|world: &mut World| {
-                let rock = {
-                    let mut rocks =
-                        world.query_filtered::<(Entity, &EntityId), With<AsteroidMarker>>();
-                    rocks
-                        .iter(world)
-                        .find(|(_, id)| id.0 == ROCK_ID)
-                        .map(|(entity, _)| entity)
-                        .expect("hold_events: the rock spawned")
-                };
-                lock(world, rock);
+                let player = root(world, PLAYER_ID);
+                world.entity_mut(player).insert(TravelLock(None));
                 drive_mine_key(world, InputPhase::Press);
             })
             .until(seen("onmined", 1))
@@ -778,6 +789,10 @@ mod walk {
         let mined = watch.named("onmined");
         let paid = watch.paid_pulses.clone();
         assert!(!paid.is_empty(), "a pulse paid");
+        assert_eq!(
+            watch.locked_pulses, 0,
+            "every paying pulse came from a ship with no travel lock"
+        );
         assert_eq!(
             mined.len(),
             paid.len(),

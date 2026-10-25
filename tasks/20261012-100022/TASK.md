@@ -1,8 +1,8 @@
 # Epic: located jobs on the Map
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 64
-- TAGS: v0.16.0,epic,jobs
+- TAGS: v0.16.0, epic, jobs
 
 ## User facts
 - Stage 4 of the game expansion. Owner direction 2026-10-12: stations and ships post jobs; jobs live on the Map; accept and hand in only while docked; held jobs stay visible undocked. Depends on the world-first strand's open-world events and addressable generated bodies.
@@ -187,3 +187,8 @@ button per row. Ideas, cheapest first, all on widgets `nova_ui` already has:
   captures `sandbox-jobs-{starter,board,held,map,hand-in,done}.png` read.
 - Gap: seed 10 has no second job-posting station in the window, so the
   greyed Accept on a non-starter board has unit proof only, no capture.
+
+## Closure check 2026-10-25
+- Claim: station jobs can be taken, completed in the world, handed in and restored across Load. The closed board/state and located-job children record the original take/hand-in/reload flow. The Jobs pane now holds the undocked view and current-hull starter gate; the historical review's trap-caller references are superseded: every Distress caller is a Neutral dockable derelict and completes on docking, never on hostile neutralization.
+- Current focused verification: `cargo test -p nova_gameplay --lib jobs::` (21/21), `cargo test -p nova_world_base --lib jobs::` (15/15), `cargo test -p nova_interface --lib jobs::` (13/13), and `--lib map::` (43/43). The four located-job examples compile. Under isolated Xvfb `:98`, `system_job_distress` asserted a Neutral derelict caller after accept, refused early hand-in, observed completion on docking, and paid 600 cr at hand-in (`/tmp/nova-proof-29/run.log:157,159,179,181,211`). No fresh mid-job Load or second-board visual capture was run here; the child and original Jobs-pane progress above record that evidence and limitation.
+- The `ship_stock: None` panic concern was an earlier review note, not a reproduced open acceptance failure. The current Jobs pane command path was changed during the Jobs-pane rework; do not treat that historical line citation as a current bug report.

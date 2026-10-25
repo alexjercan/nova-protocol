@@ -98,7 +98,7 @@ const FEE_STEPS: u32 = 5;
 /// The least and the most cargo an escorted hauler carries, at ask, both
 /// included; the reward is half of it plus the fee.
 const ESCORT_CARGO_CR: (u32, u32) = (300, 2_400);
-/// What a distress call pays before the fee, doubled for the risk.
+/// What a distress call pays before the fee.
 const DISTRESS_BASE_CR: u32 = 200;
 /// What a neutralize pays before the fee, doubled for the risk.
 const NEUTRALIZE_BASE_CR: u32 = 400;
@@ -107,8 +107,6 @@ const NEUTRALIZE_BASE_CR: u32 = 400;
 pub const RAIDERS_PER_CARGO_CR: u32 = 700;
 /// The most raiders one escort meets.
 pub const ESCORT_RAIDERS_MAX: u32 = 3;
-/// One distress call in this many is a raider's trap.
-const DISTRESS_FAKE_ONE_IN: u32 = 3;
 
 /// The identity of a posted job: the station that posted it, its slot on
 /// that station's board and the slot's posting number when it was posted.
@@ -503,14 +501,12 @@ pub enum JobType {
         /// What its hold is worth at ask, above zero.
         cargo_cr: u32,
     },
-    /// Answer the call the accept puts in the world: a drifting hull to dock
-    /// with when `genuine`, else a raider's trap, done when the raider is
-    /// neutralized or destroyed. The board does not say which.
+    /// Answer the call the accept puts in the world: a neutral derelict
+    /// civilian hull. Done on the dock with it; a caller neutralized or
+    /// destroyed before the dock drops the job.
     Distress {
         /// The caller's id.
         caller: GeneratedBodyId,
-        /// Whether a hull in need waits there, or a raider.
-        genuine: bool,
     },
     /// Neutralize or destroy the hostile `hull`.
     Neutralize {
@@ -632,9 +628,7 @@ impl Job {
                 raiders; the job is lost if the hauler is disabled, neutralized or destroyed \
                 before arrival."
                 .to_string(),
-            JobType::Distress { .. } => "Dock with the stranded caller. If it is a trap, \
-                neutralize or destroy the raider instead."
-                .to_string(),
+            JobType::Distress { .. } => "Dock with the stranded caller.".to_string(),
             JobType::Neutralize { hull_name, .. } => {
                 format!("Find {hull_name} and neutralize or destroy it.")
             }
@@ -657,7 +651,7 @@ impl Job {
             JobType::Procure { .. } => None,
             JobType::Recover { wreck, .. } => Some(wreck),
             JobType::Escort { hauler, .. } => Some(hauler),
-            JobType::Distress { caller, .. } => Some(caller),
+            JobType::Distress { caller } => Some(caller),
             JobType::Neutralize { hull, .. } => Some(hull),
         }
     }
@@ -681,7 +675,7 @@ impl Job {
             JobType::Escort { hauler, .. } => std::iter::once(hauler.clone())
                 .chain(self.raider_ids())
                 .collect(),
-            JobType::Distress { caller, .. } => vec![caller.clone()],
+            JobType::Distress { caller } => vec![caller.clone()],
             JobType::Procure { .. } | JobType::Recover { .. } | JobType::Neutralize { .. } => {
                 Vec::new()
             }
@@ -724,7 +718,7 @@ impl Job {
                     ));
                 }
             }
-            JobType::Distress { caller, .. } => {
+            JobType::Distress { caller } => {
                 if *caller != self.id.spawned_body("caller", 0) {
                     return Err(format!(
                         "the distress call '{}' names the caller '{caller}', not its own",
@@ -1183,8 +1177,8 @@ fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
 /// units at the item's ask plus half. A recovery names a wreck of the field
 /// and one of its stacks, whole, at ask twice; an escort a hauler carrying
 /// [`ESCORT_CARGO_CR`] at ask, for half of it; a distress call pays
-/// [`DISTRESS_BASE_CR`] and is a trap one time in [`DISTRESS_FAKE_ONE_IN`];
-/// a neutralize names a hostile of the field for [`NEUTRALIZE_BASE_CR`].
+/// [`DISTRESS_BASE_CR`]; a neutralize names a hostile of the field for
+/// [`NEUTRALIZE_BASE_CR`].
 /// Every job adds a flat fee of one to [`FEE_STEPS`] times [`FEE_STEP_CR`],
 /// doubled for a distress call and a neutralize. A kind drawn with no
 /// candidate left in the field posts a procurement instead; a wreck or a
@@ -1277,7 +1271,6 @@ pub fn station_job_offers(
             let pick = rng.random_range(0..u32::MAX);
             let count: u32 = rng.random_range(PROCURE_COUNT.0..=PROCURE_COUNT.1);
             let cargo_cr: u32 = rng.random_range(ESCORT_CARGO_CR.0..=ESCORT_CARGO_CR.1);
-            let fake = rng.random_range(0..DISTRESS_FAKE_ONE_IN) == 0;
             if kind == JobKindType::Recover && wrecks.is_empty()
                 || kind == JobKindType::Neutralize && hostiles.is_empty()
             {
@@ -1329,7 +1322,6 @@ pub fn station_job_offers(
                 JobKindType::Distress => (
                     JobType::Distress {
                         caller: id.spawned_body("caller", 0),
-                        genuine: !fake,
                     },
                     reward(u64::from(DISTRESS_BASE_CR), fee * 2),
                 ),
@@ -1974,7 +1966,7 @@ mod tests {
                         );
                         assert!(job.reward_cr > cargo_cr / 2);
                     }
-                    JobType::Distress { caller, .. } => {
+                    JobType::Distress { caller } => {
                         assert_eq!(job.spawned_bodies(), vec![caller.clone()]);
                         assert_eq!(job.title(&items), "Answer a distress call");
                     }
@@ -1982,17 +1974,6 @@ mod tests {
                 }
             }
         }
-        let calls: Vec<bool> = boards(JobMixType::Combat, &field)
-            .into_iter()
-            .filter_map(|job| match job.kind {
-                JobType::Distress { genuine, .. } => Some(genuine),
-                _ => None,
-            })
-            .collect();
-        assert!(
-            calls.iter().any(|genuine| *genuine) && calls.iter().any(|genuine| !genuine),
-            "some calls are genuine and some are traps: {calls:?}"
-        );
     }
 
     #[test]
@@ -2976,7 +2957,6 @@ mod tests {
             0,
             JobType::Distress {
                 caller: id(0).spawned_body("caller", 0),
-                genuine: true,
             },
         );
         let neutralize = job(

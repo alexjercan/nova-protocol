@@ -1,20 +1,23 @@
-//! Mining: a ship's mining sections cut ore out of its travel-locked asteroid
-//! and drop it as cargo canisters.
+//! Mining: a ship's mining sections cut ore out of the asteroid their beams
+//! meet and drop it as cargo canisters.
 //!
 //! Each live mining section pulses on its own clock while its emitter is fully
 //! deployed ([`MiningEmitter::is_deployed`]): at once, then every authored
 //! `pulse_interval_seconds` of game time. Its checks run in
-//! [`MiningRefusalType`] order. The ship's travel lock must be an asteroid
-//! whose kind yields ore ([`ore_for_asteroid_kind`]). The rock's collider must
-//! be within the section's `reach` of the emitter face, and the ray straight
-//! out of that face ([`mining_emitter_face`]) must meet it within `reach`. The
-//! ray is cast against the locked rock alone, so nothing else stops or takes
-//! the beam. A pulse takes a sphere of `carve_radius_cells` field cells out of
-//! the rock's [`AsteroidField`] where the beam meets solid material, and owes
-//! one ore item per corner that sphere flipped from solid to empty. A corner a
-//! hit or an earlier pulse already emptied flips nothing, so a combat carve
-//! never yields ore and a pulse into an empty crater yields none. A refused
-//! pulse changes nothing.
+//! [`MiningRefusalType`] order. The ray straight out of the emitter face
+//! ([`mining_emitter_face`]) must meet an asteroid's collider within the
+//! section's `reach`. The nearest rock it meets is the target; at an equal
+//! distance the lower authored [`EntityId`] wins, a rock with one before a
+//! rock without, then the lower [`Entity::to_bits`]. The ray is cast against
+//! asteroids alone, so nothing else stops or takes the beam, and the ship's
+//! travel lock plays no part. The target's kind must yield ore
+//! ([`ore_for_asteroid_kind`]): a barren rock in front refuses the pulse and
+//! shields an ore rock behind it. A pulse takes a sphere of
+//! `carve_radius_cells` field cells out of the rock's [`AsteroidField`] where
+//! the beam meets solid material, and owes one ore item per corner that sphere
+//! flipped from solid to empty. A corner a hit or an earlier pulse already
+//! emptied flips nothing, so a combat carve never yields ore and a pulse into
+//! an empty crater yields none. A refused pulse changes nothing.
 //!
 //! While a deployed emitter's checks pass, [`MiningBeamHit`] holds where its
 //! beam meets the rock, and a rendered app draws the beam to that point. Every
@@ -50,10 +53,11 @@ use std::{
 };
 
 use avian3d::prelude::{
-    AngularVelocity, Collider, LinearVelocity, SpatialQuery, SpatialQueryFilter,
+    AngularVelocity, Collider, LinearVelocity, SimpleCollider, SpatialQuery, SpatialQueryFilter,
 };
 use bevy::{
     light::NotShadowCaster,
+    math::bounding::{Aabb3d, RayCast3d},
     pbr::{Material, MaterialPlugin},
     prelude::*,
     render::render_resource::AsBindGroup,
@@ -164,18 +168,11 @@ pub fn ore_for_asteroid_kind(kind: &AsteroidKindId) -> Option<ItemRoleType> {
 /// Why a pulse takes nothing, in check order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MiningRefusalType {
-    /// The emitter's ship has no travel lock.
-    NoLock,
-    /// The travel lock is not an asteroid with a field node.
-    NotAsteroid,
-    /// The asteroid's kind yields no ore.
-    Barren,
-    /// The rock's collider is farther than the section's `reach` from the
-    /// emitter face.
-    OutOfReach,
-    /// The rock is within reach, but the ray out of the emitter face misses
-    /// it within reach.
+    /// The ray out of the emitter face meets no asteroid within the
+    /// section's `reach`.
     OffTarget,
+    /// The nearest asteroid on the ray yields no ore.
+    Barren,
 }
 
 /// One pulse of one mining section's beam, triggered on that section.
@@ -191,7 +188,7 @@ pub struct MiningPulse {
     pub outcome: Result<u32, MiningRefusalType>,
 }
 
-/// Where a deployed emitter's beam meets its ship's locked ore rock, in world
+/// Where a deployed emitter's beam meets its target ore rock, in world
 /// space. On the mining section while every pulse check passes; absent
 /// otherwise.
 #[derive(Component, Clone, Copy, Debug, PartialEq)]
@@ -411,9 +408,18 @@ impl Material for MiningBeamMaterial {
     }
 }
 
-/// The queries the pulse reads a locked rock through.
-type RockQuery<'w, 's> =
-    Query<'w, 's, (&'static AsteroidKind, &'static Children), With<AsteroidMarker>>;
+/// The queries the pulse finds and reads its target rock through.
+type RockQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        &'static AsteroidKind,
+        Option<&'static EntityId>,
+        &'static Children,
+    ),
+    With<AsteroidMarker>,
+>;
 type RockNodeQuery<'w, 's> = Query<
     'w,
     's,
@@ -472,7 +478,6 @@ fn pulse_mining_beams(
             Or<(With<MiningPulseClock>, With<MiningBeamHit>)>,
         ),
     >,
-    q_locks: Query<&TravelLock>,
     q_rocks: RockQuery,
     mut q_nodes: RockNodeQuery,
     q_ids: Query<(&EntityId, &EntityTypeName)>,
@@ -496,7 +501,6 @@ fn pulse_mining_beams(
         let (_, rotation, position) = frame.to_scale_rotation_translation();
         let (origin, direction) = mining_emitter_face(position, rotation, *collider);
         let aim = aim_beam(
-            q_locks.get(ship).ok(),
             origin,
             direction,
             config.reach.to_engine(),
@@ -568,32 +572,55 @@ fn pulse_mining_beams(
 /// The checks of [`MiningRefusalType`] in order, for a beam leaving `origin`
 /// along `direction` and reaching `reach` engine units.
 fn aim_beam(
-    lock: Option<&TravelLock>,
     origin: Vec3,
     direction: Vec3,
     reach: f32,
     q_rocks: &RockQuery,
     q_nodes: &RockNodeQuery,
 ) -> Result<BeamAim, MiningRefusalType> {
-    let rock = lock
-        .and_then(|lock| lock.0)
-        .ok_or(MiningRefusalType::NoLock)?;
-    let (kind, children) = q_rocks
-        .get(rock)
-        .map_err(|_| MiningRefusalType::NotAsteroid)?;
-    let node = children
+    let ray = RayCast3d::new(
+        origin,
+        Dir3::new(direction).expect("an emitter face points one way"),
+        reach,
+    );
+    let (distance, _, rock, node, kind, normal) = q_rocks
         .iter()
-        .find(|child| q_nodes.contains(*child))
-        .ok_or(MiningRefusalType::NotAsteroid)?;
-    let item = ore_for_asteroid_kind(kind).ok_or(MiningRefusalType::Barren)?;
-    let (rock_collider, frame, ..) = q_nodes.get(node).expect("the node was found in this query");
-    let (_, rock_rotation, rock_position) = frame.to_scale_rotation_translation();
-    if rock_collider.distance_to_point(rock_position, rock_rotation, origin, true) > reach {
-        return Err(MiningRefusalType::OutOfReach);
-    }
-    let (distance, normal) = rock_collider
-        .cast_ray(rock_position, rock_rotation, origin, direction, reach, true)
+        .filter_map(|(rock, kind, id, children)| {
+            let node = children.iter().find(|child| q_nodes.contains(*child))?;
+            let (rock_collider, frame, ..) =
+                q_nodes.get(node).expect("the node was found in this query");
+            let (_, rock_rotation, rock_position) = frame.to_scale_rotation_translation();
+            // Every deployed emitter scans every rock each frame. A hull's exact cast walks
+            // its points many times over, its box at the same pose once, and
+            // the box holds the whole collider: a ray that misses the box
+            // within reach misses the rock.
+            let bound = rock_collider.aabb(rock_position, rock_rotation);
+            ray.aabb_intersection_at(&Aabb3d {
+                min: bound.min.into(),
+                max: bound.max.into(),
+            })?;
+            let (distance, normal) = rock_collider.cast_ray(
+                rock_position,
+                rock_rotation,
+                origin,
+                direction,
+                reach,
+                true,
+            )?;
+            Some((distance, id, rock, node, kind, normal))
+        })
+        .min_by(|a, b| {
+            a.0.total_cmp(&b.0)
+                .then_with(|| match (a.1, b.1) {
+                    (Some(a), Some(b)) => a.0.cmp(&b.0),
+                    (Some(_), None) => std::cmp::Ordering::Less,
+                    (None, Some(_)) => std::cmp::Ordering::Greater,
+                    (None, None) => std::cmp::Ordering::Equal,
+                })
+                .then_with(|| a.2.to_bits().cmp(&b.2.to_bits()))
+        })
         .ok_or(MiningRefusalType::OffTarget)?;
+    let item = ore_for_asteroid_kind(kind).ok_or(MiningRefusalType::Barren)?;
     // A face already inside the rock meets it at distance zero, where the
     // collider reports no normal: the beam's own back-direction stands in.
     let normal = normal.try_normalize().unwrap_or(-direction);
@@ -1339,19 +1366,32 @@ mod tests {
         app
     }
 
-    /// An authored rock of `kind` at the origin: its root and its field node.
+    /// An authored 200 m rock of `kind` at the origin: its root and its field
+    /// node.
     fn spawn_rock(app: &mut App, kind: &str) -> (Entity, Entity) {
+        spawn_rock_at(app, "rock", kind, Meters(200.0), Meters3::ZERO)
+    }
+
+    /// An authored rock `id` of `kind` and `radius` at `position`: its root
+    /// and its field node.
+    fn spawn_rock_at(
+        app: &mut App,
+        id: &str,
+        kind: &str,
+        radius: Meters,
+        position: Meters3,
+    ) -> (Entity, Entity) {
         let authored = ScenarioObjectConfig {
             base: BaseScenarioObjectConfig {
-                id: "rock".to_string(),
+                id: id.to_string(),
                 name: "Rock".to_string(),
-                position: Meters3::ZERO,
+                position,
                 rotation: Quat::IDENTITY,
             },
             kind: ScenarioObjectKind::Asteroid(AsteroidConfig {
                 kind: kind.into(),
                 destroy_sound: None,
-                radius: Meters(200.0),
+                radius,
                 // A path, as authored content names it: the frozen rock's
                 // round trip below writes it.
                 texture: AssetRef::from("base/textures/asteroid.png"),
@@ -1366,7 +1406,7 @@ mod tests {
         );
         drain_spawns(app.world_mut());
         settle(app);
-        let [root] = scoped_entities(app.world_mut(), "rock")[..] else {
+        let [root] = scoped_entities(app.world_mut(), id)[..] else {
             panic!("the authored id must resolve to one rock");
         };
         let node = app
@@ -1394,9 +1434,9 @@ mod tests {
         }
     }
 
-    /// A player ship whose centre is `gap` engine units plus half a cell off
-    /// the rock collider's `+X` bound, travel-locked on `root`.
-    fn spawn_player(app: &mut App, root: Entity, node: Entity, gap: f32) -> Entity {
+    /// A player ship with no travel lock whose centre is `gap` engine units
+    /// plus half a cell off the rock collider's `+X` bound.
+    fn spawn_player(app: &mut App, node: Entity, gap: f32) -> Entity {
         let aabb = *app
             .world()
             .get::<ColliderAabb>(node)
@@ -1405,7 +1445,6 @@ mod tests {
         app.world_mut()
             .spawn((
                 PlayerSpaceshipMarker,
-                TravelLock(Some(root)),
                 Transform::from_xyz(aabb.max.x + gap + 0.5, centre.y, centre.z),
                 Visibility::default(),
             ))
@@ -1481,8 +1520,8 @@ mod tests {
     #[test]
     fn mined_ore_is_paid_per_flipped_corner_only_after_the_remesh_lands() {
         let mut app = mining_app();
-        let (root, node) = spawn_rock(&mut app, KIND_ROCK);
-        let ship = spawn_player(&mut app, root, node, 5.0);
+        let (_, node) = spawn_rock(&mut app, KIND_ROCK);
+        let ship = spawn_player(&mut app, node, 5.0);
         let upper = spawn_emitter(&mut app, ship, Vec3::Y, 0.0, 1.0);
         let lower = spawn_emitter(&mut app, ship, Vec3::NEG_Y, 0.0, 1.0);
         for emitter in [upper, lower] {
@@ -1577,8 +1616,8 @@ mod tests {
     #[test]
     fn every_deployed_emitter_pulses_on_its_own_aim_and_clock() {
         let mut app = mining_app();
-        let (root, node) = spawn_rock(&mut app, KIND_ROCK);
-        let ship = spawn_player(&mut app, root, node, 5.0);
+        let (_, node) = spawn_rock(&mut app, KIND_ROCK);
+        let ship = spawn_player(&mut app, node, 5.0);
         let aimed = spawn_emitter(&mut app, ship, Vec3::ZERO, 0.0, 1.0);
         let turned = spawn_emitter(&mut app, ship, Vec3::Y, std::f32::consts::PI, 0.5);
         let destroyed = spawn_emitter(&mut app, ship, Vec3::NEG_Y, 0.0, 1.0);
@@ -1641,8 +1680,8 @@ mod tests {
     #[test]
     fn only_a_pulse_that_passes_its_checks_plays_the_pulse_sound() {
         let mut app = mining_app();
-        let (root, node) = spawn_rock(&mut app, KIND_ROCK);
-        let ship = spawn_player(&mut app, root, node, 5.0);
+        let (_, node) = spawn_rock(&mut app, KIND_ROCK);
+        let ship = spawn_player(&mut app, node, 5.0);
         let aimed = spawn_emitter(&mut app, ship, Vec3::ZERO, 0.0, 1.0);
         let turned = spawn_emitter(&mut app, ship, Vec3::Y, std::f32::consts::PI, 0.5);
         for emitter in [aimed, turned] {
@@ -1722,10 +1761,198 @@ mod tests {
         }
     }
 
-    /// A pulse refuses, in order, with no lock, on a rock that holds no ore,
-    /// past reach, and aimed away within reach. A refused pulse asks for no
-    /// field, owes nothing and leaves no beam hit. It plays the authored
-    /// refusal sound once, at the emitter face.
+    /// A 5 m rock `near` of `near_kind` whose centre is 35 m off the `+X`
+    /// surface, on the `X` axis, of a 200 m rock `far` of `far_kind` at the
+    /// origin: the near and far field nodes.
+    fn spawn_rock_pair(app: &mut App, near_kind: &str, far_kind: &str) -> (Entity, Entity) {
+        let (_, far) = spawn_rock_at(app, "far", far_kind, Meters(200.0), Meters3::ZERO);
+        let world = app.world();
+        let bound = world.get::<ColliderAabb>(far).unwrap().max.x;
+        let (_, rotation, position) = world
+            .get::<GlobalTransform>(far)
+            .unwrap()
+            .to_scale_rotation_translation();
+        let (distance, _) = world
+            .get::<Collider>(far)
+            .unwrap()
+            .cast_ray(
+                position,
+                rotation,
+                Vec3::X * (bound + 1.0),
+                Vec3::NEG_X,
+                f32::MAX,
+                true,
+            )
+            .expect("the X axis meets the far rock");
+        let surface = Meters::from_engine(bound + 1.0 - distance);
+        let (_, near) = spawn_rock_at(
+            app,
+            "near",
+            near_kind,
+            Meters(5.0),
+            Meters3::new(surface.get() + 35.0, 0.0, 0.0),
+        );
+        let gap = app.world().get::<ColliderAabb>(near).unwrap().min.x - surface.to_engine();
+        assert!(
+            gap > 0.5,
+            "delivery guard: the rocks must not touch, gap {gap}"
+        );
+        (near, far)
+    }
+
+    /// The emitter's face ray: its origin and direction.
+    fn beam_ray(app: &App, emitter: Entity) -> (Vec3, Vec3) {
+        let world = app.world();
+        let frame = world.get::<GlobalTransform>(emitter).unwrap();
+        let collider = world.get::<SectionCollider>(emitter).unwrap();
+        let (_, rotation, position) = frame.to_scale_rotation_translation();
+        mining_emitter_face(position, rotation, *collider)
+    }
+
+    /// How far along the emitter's face ray it meets the rock `node`'s
+    /// collider within the emitter's reach, or `None` for a miss.
+    fn beam_distance(app: &App, emitter: Entity, node: Entity) -> Option<f32> {
+        let (origin, direction) = beam_ray(app, emitter);
+        let world = app.world();
+        let reach = world
+            .get::<MiningSectionConfigHelper>(emitter)
+            .unwrap()
+            .reach
+            .to_engine();
+        let (_, rotation, position) = world
+            .get::<GlobalTransform>(node)
+            .unwrap()
+            .to_scale_rotation_translation();
+        world
+            .get::<Collider>(node)
+            .unwrap()
+            .cast_ray(position, rotation, origin, direction, reach, true)
+            .map(|(distance, _)| distance)
+    }
+
+    /// Whether a pulse asked the rock `node` for its field: the request, the
+    /// seed it starts, or the field it lands.
+    fn asked_for_field(app: &App, node: Entity) -> bool {
+        let world = app.world();
+        world.get::<AsteroidFieldSeedRequest>(node).is_some()
+            || world.get::<AsteroidFieldSeeding>(node).is_some()
+            || world.get::<AsteroidField>(node).is_some()
+    }
+
+    /// With no travel lock, an emitter whose beam meets two ore rocks within
+    /// reach mines the nearer one: its first pulse asks for that rock's field
+    /// and its beam hit lies on that rock. The rock behind is never asked.
+    #[test]
+    fn the_nearest_asteroid_on_the_beam_takes_the_pulse_without_a_lock() {
+        let mut app = mining_app();
+        let (near, far) = spawn_rock_pair(&mut app, KIND_ROCK, KIND_ROCK);
+        let ship = spawn_player(&mut app, near, 1.0);
+        let emitter = spawn_emitter(&mut app, ship, Vec3::ZERO, 0.0, 1.0);
+        let to_near = beam_distance(&app, emitter, near).expect("the beam meets the near rock");
+        let to_far = beam_distance(&app, emitter, far)
+            .expect("delivery guard: the beam meets the far rock within reach");
+        assert!(to_near < to_far, "{to_near} vs {to_far}");
+
+        app.world_mut()
+            .entity_mut(emitter)
+            .insert(MiningSectionHeld(true));
+        app.update();
+        assert_eq!(app.world().resource::<Pulses>().of(emitter), [Ok(0)]);
+        let (origin, _) = beam_ray(&app, emitter);
+        let hit = app
+            .world()
+            .get::<MiningBeamHit>(emitter)
+            .expect("the beam meets the near rock")
+            .at;
+        assert!(
+            (hit.distance(origin) - to_near).abs() < 1e-3,
+            "the hit {hit} is not on the near rock"
+        );
+        assert!(
+            asked_for_field(&app, near),
+            "the near rock was never asked for its field"
+        );
+        assert!(
+            !asked_for_field(&app, far),
+            "the rock behind was asked for its field"
+        );
+    }
+
+    /// Eight ore rocks ringed 80 m about the beam within reach of the emitter
+    /// face, and an ore rock behind the target: the beam still takes the
+    /// nearest rock on it and asks no other rock for its field.
+    #[test]
+    fn a_dense_field_leaves_the_nearest_rock_on_the_beam_the_target() {
+        let mut app = mining_app();
+        let (near, far) = spawn_rock_pair(&mut app, KIND_ROCK, KIND_ROCK);
+        let centre = app
+            .world()
+            .get::<GlobalTransform>(near)
+            .unwrap()
+            .translation();
+        let ring: Vec<Entity> = (0..8)
+            .map(|step| {
+                let angle = step as f32 * std::f32::consts::FRAC_PI_4;
+                let across = Meters3::new(0.0, 80.0 * angle.cos(), 80.0 * angle.sin());
+                let at = Meters3::from_engine(centre) + across;
+                let id = format!("ring_{step}");
+                let (_, node) = spawn_rock_at(&mut app, &id, KIND_ROCK, Meters(5.0), at);
+                node
+            })
+            .collect();
+        let ship = spawn_player(&mut app, near, 1.0);
+        let emitter = spawn_emitter(&mut app, ship, Vec3::ZERO, 0.0, 1.0);
+        let (origin, _) = beam_ray(&app, emitter);
+        let reach = emitter_config(1.0).reach.to_engine();
+        for &rock in &ring {
+            let world = app.world();
+            let (_, rotation, position) = world
+                .get::<GlobalTransform>(rock)
+                .unwrap()
+                .to_scale_rotation_translation();
+            let apart = world
+                .get::<Collider>(rock)
+                .unwrap()
+                .distance_to_point(position, rotation, origin, true);
+            assert!(
+                apart < reach,
+                "delivery guard: ring rock {rock:?} is {apart} from the face"
+            );
+            assert!(beam_distance(&app, emitter, rock).is_none());
+        }
+        let to_near = beam_distance(&app, emitter, near).expect("the beam meets the near rock");
+        let to_far = beam_distance(&app, emitter, far)
+            .expect("delivery guard: the beam meets the far rock within reach");
+        assert!(to_near < to_far, "{to_near} vs {to_far}");
+
+        app.world_mut()
+            .entity_mut(emitter)
+            .insert(MiningSectionHeld(true));
+        app.update();
+        assert_eq!(app.world().resource::<Pulses>().of(emitter), [Ok(0)]);
+        let hit = app
+            .world()
+            .get::<MiningBeamHit>(emitter)
+            .expect("the beam meets the near rock")
+            .at;
+        assert!(
+            (hit.distance(origin) - to_near).abs() < 1e-3,
+            "the hit {hit} is not on the near rock"
+        );
+        assert!(asked_for_field(&app, near));
+        for rock in ring.into_iter().chain([far]) {
+            assert!(
+                !asked_for_field(&app, rock),
+                "{rock:?} was asked for its field"
+            );
+        }
+    }
+
+    /// The nearest rock on the beam refuses a pulse when it holds no ore,
+    /// even with an ore rock behind it within reach. With no rock on the beam
+    /// within reach, past reach or aimed away, a pulse is off target. A
+    /// refused pulse asks for no field, owes nothing and leaves no beam hit.
+    /// It plays the authored refusal sound once, at the emitter face.
     #[test]
     fn a_refused_pulse_changes_nothing() {
         fn pulse_once(app: &mut App, emitter: Entity) -> Result<u32, MiningRefusalType> {
@@ -1761,34 +1988,34 @@ mod tests {
         }
 
         let mut app = mining_app();
-        let (root, node) = spawn_rock(&mut app, KIND_PLAIN);
-        let ship = spawn_player(&mut app, root, node, 5.0);
+        let (near, far) = spawn_rock_pair(&mut app, KIND_PLAIN, KIND_ROCK);
+        let ship = spawn_player(&mut app, near, 1.0);
         let emitter = spawn_emitter(&mut app, ship, Vec3::ZERO, 0.0, 1.0);
+        let to_near = beam_distance(&app, emitter, near).expect("the beam meets the near rock");
+        let to_far = beam_distance(&app, emitter, far)
+            .expect("delivery guard: the beam meets the ore rock within reach");
+        assert!(to_near < to_far, "{to_near} vs {to_far}");
         assert_eq!(
             pulse_once(&mut app, emitter),
             Err(MiningRefusalType::Barren)
         );
-        app.world_mut().entity_mut(ship).insert(TravelLock(None));
-        assert_eq!(
-            pulse_once(&mut app, emitter),
-            Err(MiningRefusalType::NoLock)
-        );
-        untouched(&mut app, node, emitter);
+        untouched(&mut app, near, emitter);
+        untouched(&mut app, far, emitter);
 
         let mut app = mining_app();
-        let (root, node) = spawn_rock(&mut app, KIND_ROCK);
+        let (_, node) = spawn_rock(&mut app, KIND_ROCK);
         let reach = emitter_config(1.0).reach.to_engine();
-        let ship = spawn_player(&mut app, root, node, reach + 5.0);
+        let ship = spawn_player(&mut app, node, reach + 5.0);
         let emitter = spawn_emitter(&mut app, ship, Vec3::ZERO, 0.0, 1.0);
         assert_eq!(
             pulse_once(&mut app, emitter),
-            Err(MiningRefusalType::OutOfReach)
+            Err(MiningRefusalType::OffTarget)
         );
         untouched(&mut app, node, emitter);
 
         let mut app = mining_app();
-        let (root, node) = spawn_rock(&mut app, KIND_ROCK);
-        let ship = spawn_player(&mut app, root, node, 5.0);
+        let (_, node) = spawn_rock(&mut app, KIND_ROCK);
+        let ship = spawn_player(&mut app, node, 5.0);
         let emitter = spawn_emitter(&mut app, ship, Vec3::ZERO, std::f32::consts::PI, 1.0);
         assert_eq!(
             pulse_once(&mut app, emitter),

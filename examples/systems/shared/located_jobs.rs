@@ -86,7 +86,7 @@ pub enum LocatedKindType {
     Recover,
     /// See a hauler to its mark.
     Escort,
-    /// Reach a caller: dock with a hull in need, or neutralize a raider.
+    /// Reach a caller: dock with a neutral derelict hull.
     Distress,
     /// Neutralize a named hostile hull.
     Neutralize,
@@ -1055,12 +1055,16 @@ fn assert_the_accept(world: &mut World) {
                 "{tag} job: the raiders scale with the cargo"
             );
         }
-        JobType::Distress { caller, genuine } => {
+        JobType::Distress { caller } => {
             let entity = body_wearing(world, caller).expect("the caller stands");
-            assert_eq!(
+            assert!(
                 world.get::<DerelictShipMarker>(entity).is_some(),
-                *genuine,
-                "{tag} job: a genuine caller drifts, a trap is a raider"
+                "{tag} job: the caller drifts derelict"
+            );
+            assert_eq!(
+                world.get::<Allegiance>(entity),
+                Some(&Allegiance::Neutral),
+                "{tag} job: the caller is neutral"
             );
         }
         JobType::Recover {
@@ -1866,12 +1870,8 @@ fn do_the_work(world: &mut World) {
         (LocatedKindType::Escort, JobType::Escort { .. }) => {
             fight_the_ambush(world, player, target, &job);
         }
-        (LocatedKindType::Distress, JobType::Distress { genuine, .. }) => {
-            if *genuine {
-                berth_and_dock(world, target);
-            } else {
-                disable_the_hull(world, target);
-            }
+        (LocatedKindType::Distress, JobType::Distress { .. }) => {
+            berth_and_dock(world, target);
         }
         (LocatedKindType::Neutralize, JobType::Neutralize { .. }) => {
             disable_the_hull(world, target);

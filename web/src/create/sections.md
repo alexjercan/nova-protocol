@@ -1225,7 +1225,7 @@ on the `-Z` face: that face is the door.
 ## Mining
 
 `MiningSectionConfig` - a mining emitter: a beam out of the section's local
-`-Z` face that cuts ore from the ship's travel-locked rock. One ships:
+`-Z` face that cuts ore from the nearest asteroid it meets within reach, without a travel lock. One ships:
 `mining_beam_section`, a 1x1x1 emitter at the tip of the mining tug's bow
 boom.
 

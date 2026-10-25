@@ -2366,7 +2366,6 @@ mod tests {
             },
             kind: JobType::Distress {
                 caller: caller.clone(),
-                genuine: true,
             },
             target: station,
             reward_cr: 146,
@@ -2490,10 +2489,7 @@ mod tests {
                 slot: 0,
                 posting: 0,
             },
-            kind: JobType::Distress {
-                caller,
-                genuine: true,
-            },
+            kind: JobType::Distress { caller },
             target: station_id.clone(),
             reward_cr: 146,
         };
@@ -2552,10 +2548,7 @@ mod tests {
                 slot: 0,
                 posting: 0,
             },
-            kind: JobType::Distress {
-                caller,
-                genuine: true,
-            },
+            kind: JobType::Distress { caller },
             target: station_id.clone(),
             reward_cr: 146,
         };

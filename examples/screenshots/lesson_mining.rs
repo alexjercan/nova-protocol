@@ -1,10 +1,12 @@
-//! lesson_mining: the FLIGHT lesson `flight_mine` - one press of MINE on a
-//! locked rock, from the shut emitter to the beam cutting ore.
+//! lesson_mining: the FLIGHT lesson `flight_mine` - one press of MINE on the
+//! rock ahead, from the shut emitter to the beam cutting ore.
 //!
 //! The scene is `screenshot_mining_beam`'s: the shipped `mining_tug`
 //! parked at the origin with one ore rock dead ahead of its bow emitter. The
-//! script travel-locks the rock and holds the real `mine` action (`V`), so the
-//! doors, the tip, the pulse, the sparks and the carve are the production path.
+//! script travel-locks the rock only to mark it on the HUD in the loop; the
+//! beam takes the rock ahead of the emitter with or without a lock. It holds
+//! the real `mine` action (`V`), so the doors, the tip, the pulse, the sparks
+//! and the carve are the production path.
 //!
 //! ## An ACTION loop
 //!
@@ -237,9 +239,10 @@ fn release_mine_key(world: &mut World) {
     drive_mine_key(world, InputPhase::Release);
 }
 
-/// Lock the rock and hold the camera beside the beam.
+/// Mark the rock on the HUD with a travel lock, which the beam does not need,
+/// and hold the camera beside the beam.
 #[cfg(feature = "debug")]
-fn lock_the_rock(world: &mut World) {
+fn mark_the_rock(world: &mut World) {
     let player = kit::ship_root(world, PLAYER_ID).expect("the tug spawned");
     let rock = {
         let mut rocks = world.query_filtered::<(Entity, &EntityId), With<AsteroidMarker>>();
@@ -282,7 +285,7 @@ fn check_the_cut(world: &mut World) {
     );
 }
 
-/// Lock the rock, prime it with one unrecorded pulse, then record one press of
+/// Mark the rock, prime it with one unrecorded pulse, then record one press of
 /// MINE from the shut emitter to a paying pulse.
 #[cfg(feature = "debug")]
 fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
@@ -292,8 +295,8 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(and(player_ship_present(), scenario_camera_present()))
         .deadline(WAIT_DEADLINE_SECS)
         .add()
-        .step("lock the rock")
-        .on_enter(lock_the_rock)
+        .step("mark the rock on the HUD")
+        .on_enter(mark_the_rock)
         .until(and(scenario_is_built(), frames(10)))
         .deadline(WAIT_DEADLINE_SECS)
         .add()

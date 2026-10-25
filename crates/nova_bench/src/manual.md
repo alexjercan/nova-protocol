@@ -211,7 +211,8 @@ Sections:
   (for example, `mining_beam` on the Line Warship). Hold
   `{"press": "section.mining_beam"}` for a bounded attempt, then send
   `{"release": "section.mining_beam"}`. It deploys before pulsing toward the
-  travel-locked rock; range and aim are checked from that emitter's face.
+  nearest asteroid ahead without a travel lock; range and aim are checked
+  from that emitter's face.
   Read `page {"name": "mining"}` before mining.
 
 Read `page {"name": "targeting"}` and `page {"name": "weapons"}` before your

@@ -14,8 +14,8 @@
 //!
 //! What to do:
 //!
-//! 1. lock the rock with the radar and hold the mine key (`V`) until ore
-//!    pays, then let it up.
+//! 1. face the rock and hold the mine key (`V`) until ore pays, then let it
+//!    up.
 //! 2. fly the dorsal intake up under a canister the rock drops, slowly.
 //! 3. fly the port collar onto the trader's port, lock the trader and
 //!    press the dock key.
@@ -838,18 +838,8 @@ mod walk {
             .until(and(player_ship_present(), scenario_camera_present()))
             .deadline(STEP_DEADLINE)
             .add()
-            .step("lock the rock")
+            .step("frame the rock")
             .on_enter(|world: &mut World| {
-                let rock = {
-                    let mut rocks =
-                        world.query_filtered::<(Entity, &EntityId), With<AsteroidMarker>>();
-                    rocks
-                        .iter(world)
-                        .find(|(_, id)| id.0 == ROCK_ID)
-                        .map(|(entity, _)| entity)
-                        .expect("the rock spawned")
-                };
-                lock(world, rock);
                 frame_beam(world);
                 hide_status_bar(world);
             })

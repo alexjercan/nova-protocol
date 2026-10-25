@@ -1,5 +1,5 @@
-//! The mining section: a retractable emitter whose beam cuts ore out of its
-//! ship's travel-locked rock.
+//! The mining section: a retractable emitter whose beam cuts ore out of the
+//! nearest asteroid ahead of its face.
 //!
 //! This module owns the mount: its config, the door and tip sequence, and
 //! whether the emitter is fully deployed. The beam itself belongs to

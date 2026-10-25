@@ -251,7 +251,6 @@ mod tests {
     fn distress(x: i32) -> JobType {
         JobType::Distress {
             caller: GeneratedBodyId::new(SectorCoord::new(x, 0, 0), "cluster_caller", 0),
-            genuine: true,
         }
     }
 

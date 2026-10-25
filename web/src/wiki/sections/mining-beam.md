@@ -11,15 +11,15 @@
         >
         <span class="figure__placeholder-note"
             >The mining tug's bow emitter deployed, its green
-            beam running straight out to a locked ore rock about
+            beam running straight out to an ore rock about
             58 m ahead and ending on the rock's face.</span
         >
     </div>
 </figure>
 
-A mining beam is a **one-cell emitter** behind two sliding doors. Lock a rock, point the emitter at it and hold its key: the doors part, the tip runs out, and once a second the beam cuts the rock where it hits. The ore it cuts free leaves the rock as canisters, and a [cargo intake](../cargo-intake/) takes them into your hold.
+A mining beam is a **one-cell emitter** behind two sliding doors. Point it at a rock and hold its key: the doors part, the tip runs out, and once a second the beam cuts the rock where it hits. No travel lock is needed. The ore it cuts free leaves the rock as canisters, and a [cargo intake](../cargo-intake/) takes them into your hold.
 
-The beam does not aim. It runs straight out of the emitter's face, so the **ship** aims it, the way a railgun is aimed. The lock only says which rock you mean.
+The beam does not aim. It runs straight out of the emitter's face, so the **ship** aims it, the way a railgun is aimed. If the ray meets more than one rock, it reaches the nearest one first.
 
 <!-- Values from crates/nova_authoring/src/base_content/sections/mining_beam.rs: health 90 (MINING_BEAM_BASE_HEALTH), TRACK_SECONDS 0.3 per leg, reach 100 m, pulse_interval_seconds 1.0, carve_radius_cells 1.5 of the rock's field, whose cell is FIELD_CELL_WORLD 0.5 units, about 5 m (crates/nova_scenario/src/objects/asteroid_carve.rs). Per-section key: `input_mapping` entry -> `SpaceshipMiningInputBinding` in crates/nova_ship/src/input/player/weapons.rs; the mining tug's `mining_beam` takes V in crates/nova_authoring/src/base_content/scenarios/season_one/stage.rs (Kaveri); the editor default V with no pad button in crates/nova_editor/src/placement.rs `default_binds`. -->
 
@@ -32,22 +32,21 @@ The beam does not aim. It runs straight out of the emitter's face, so the **ship
 | Cut | a sphere about **7.5 m** in radius where the beam hits |
 | Health | **90** |
 
-<!-- Widget values: crates/nova_authoring/src/base_content/sections/mining_beam.rs:101-103 (reach 100 m, pulse 1 s, carve_radius_cells 1.5); FIELD_CELL_WORLD 0.5 units in crates/nova_scenario/src/objects/asteroid_carve.rs:108 (1.5 cells ~ 7.5 m); CARGO_CANISTER_MAX_MASS_G 200 kg in crates/nova_gameplay/src/inventory.rs:532; MINED_CANISTER_OFFSET 10 m and MINED_CANISTER_SPEED 2 m/s in crates/nova_scenario/src/mining.rs:93,97,895-925; check order and inclusive reach in MiningRefusalType and aim_beam; a refusal is an info log and the authored refusal_sound at the emitter face in play_mining_pulse_sfx; canisters after the remesh :804-841. -->
+<!-- Widget values: crates/nova_authoring/src/base_content/sections/mining_beam.rs:101-103 (reach 100 m, pulse 1 s, carve_radius_cells 1.5); FIELD_CELL_WORLD 0.5 units in crates/nova_scenario/src/objects/asteroid_carve.rs:108 (1.5 cells ~ 7.5 m); CARGO_CANISTER_MAX_MASS_G 200 kg in crates/nova_gameplay/src/inventory.rs:532; MINED_CANISTER_OFFSET 10 m and MINED_CANISTER_SPEED 2 m/s in crates/nova_scenario/src/mining.rs:93,97,895-925; direct nearest-asteroid aim and ore check in MiningRefusalType and aim_beam; a refusal is an info log and the authored refusal_sound at the emitter face in play_mining_pulse_sfx; canisters after the remesh :804-841. -->
 
 <div class="widget" data-widget="mining-beam-checks">
-<p>A pulse runs its checks in order and stops at the first failure: a travel lock, on an asteroid, of a kind that holds ore, with its nearest point within 100 m of the emitter face, and on the line straight out of that face within 100 m. A refused pulse shows nothing on the HUD. A pulse that passes cuts a sphere about 7.5 m in radius where the beam meets solid material; the first pulse into an untouched rock cuts nothing. Ore leaves only after the rock's remesh lands, as canisters of up to 200 kg, each born 10 m off the cut and drifting off it at 2 m/s.</p>
+<p>The emitter ray checks the nearest asteroid it intersects within 100 m, with no travel lock required. A barren asteroid in front of an ore rock refuses the pulse rather than letting the beam pass through it. A refused pulse shows nothing on the HUD. A pulse that passes cuts a sphere about 7.5 m in radius where the beam meets solid material; the first pulse into an untouched rock cuts nothing. Ore leaves only after the rock's remesh lands, as canisters of up to 200 kg, each born 10 m off the cut and drifting off it at 2 m/s.</p>
 </div>
 
 ## Cutting ore
 
-<!-- Behavior verified against crates/nova_ship/src/sections/mining_section.rs (hold to deploy, doors then tip, tip then doors on release, reverse mid-travel) and crates/nova_scenario/src/mining.rs (the MiningRefusalType checks in order, one refusal_sound per refused pulse at the emitter face, MiningBeamHit drawn only while every check passes, the first pulse into an untouched rock seeds its field and cuts nothing). -->
+<!-- Behavior verified against crates/nova_ship/src/sections/mining_section.rs (hold to deploy, doors then tip, tip then doors on release, reverse mid-travel) and crates/nova_scenario/src/mining.rs (nearest intersected asteroid within reach, refusal on barren rock, one refusal_sound per refused pulse at the emitter face, MiningBeamHit drawn only while every check passes, the first pulse into an untouched rock seeds its field and cuts nothing). -->
 
-1. **Lock the rock.** Hold the radar on it with weapons lowered, so it takes your **travel lock**. See [Targeting & radar](../../targeting-radar/#stances-and-slots).
-2. **Point the emitter at it.** The Mining Tug's emitter sits at the tip of its bow boom and looks forward, so put your nose on the rock and close to inside 100 m.
-3. **Hold the beam's key.** The doors part and the tip runs out. Once the tip is out, the beam fires at once and then once a second for as long as you hold the key.
-4. **Let go.** The tip runs in first, then the doors shut. Pressing or letting go halfway reverses from wherever the parts are.
+1. **Point the emitter at a rock.** The Mining Tug's emitter sits at the tip of its bow boom and looks forward, so put your nose on the rock and close to inside 100 m. A travel lock is optional and does not choose the mining target.
+2. **Hold the beam's key.** The doors part and the tip runs out. Once the tip is out, the beam fires at once and then once a second for as long as you hold the key.
+3. **Let go.** The tip runs in first, then the doors shut. Pressing or letting go halfway reverses from wherever the parts are.
 
-Every pulse checks five things, in order: your ship has a travel lock; the lock is a rock; the rock holds ore; the rock is within 100 m of the emitter face; the line straight out of that face meets it within 100 m. A pulse that fails any of them draws no beam and cuts nothing; it plays one refusal sound at the emitter, once a pulse while you hold the key. So **no beam and a refusal sound mean a check is failing** - most often the nose is off the rock or the rock is too far. Nothing else blocks the beam: it is cast against the locked rock alone.
+The emitter ray takes the nearest asteroid it meets within 100 m of its face, then checks that the rock holds ore. A missed ray or barren rock draws no beam and cuts nothing; it plays one refusal sound at the emitter, once a pulse while you hold the key. So **no beam and a refusal sound mean a check is failing** - the nose may be off the rock, the rock too far, or the nearest rock barren. Other bodies do not block this asteroid-only ray.
 
 A pulse that passes draws the beam to the hit, flares it, throws sparks and plays a pulse sound at the rock. The first pulse into a rock nobody has cut yet only readies it and takes nothing; the cut starts with the next pulse. A pulse into a crater an earlier pulse or a weapon already emptied finds nothing to cut and frees no ore, so walk the beam onto fresh rock.
 
@@ -63,7 +62,7 @@ A pulse that passes draws the beam to the hit, flares it, throws sparks and play
         <span class="figure__placeholder-note"
             >The bow emitter through a whole cycle: the doors
             part, the tip runs out, the beam pulses through the
-            canisters earlier cuts freed and into the locked
+            canisters earlier cuts freed and into the
             rock, and on release the tip runs in and the doors
             shut.</span
         >

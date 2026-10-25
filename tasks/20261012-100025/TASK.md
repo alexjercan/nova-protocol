@@ -1,8 +1,8 @@
 # Epic: regional economy, clock and restock
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 59
-- TAGS: v0.16.0,epic,economy
+- TAGS: v0.16.0, epic, economy
 
 ## User facts
 - Stage 5 of the game expansion. Decisions 2026-10-12: authored ask and bid are reference prices; actual price = reference x scarcity x demand from content rules (D8); a play-time clock joins the save when restock lands, with a catch-up rule per frozen body type (decision 8); a station of a robbed civilization refuses service for a play-time window (decision 10).
@@ -126,3 +126,8 @@ player reads them as sentences or not at all. Ideas:
   for 240 cr) and
   `the_title_row_clock_reads_the_play_time_only_while_a_world_is_armed`.
   `market_sandbox` autopilot capture: see the lane report.
+
+## Closure check 2026-10-25
+- Claim: the stated price, restock and service-refusal gates are covered by the closed children and the market, thaw and saved-clock implementations. The creator/player UI shows relative prices, restock and refusal. The original `market_sandbox` capture is recorded above; no new frame was inspected in this closure pass.
+- Verification on the current shared tree: `cargo test -p nova_gameplay --lib market` (16/16), `cargo test -p nova_world_base --lib economy` (1/1), `cargo test -p nova_world_base --lib save::tests` (47/47). The closed children record their earlier restock/refusal checks. No full player robbery/restock loop was rerun here.
+- Scope: the later civilization stance graph owns refusal and redemption, superseding the old robbery-only refusal-field description in child `20261012-100029`; no obsolete field is reintroduced.

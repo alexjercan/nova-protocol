@@ -1071,27 +1071,35 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     assert.ok(!dockingGates(10, 15, 5, 5.1).spin);
 }
 
-// Mining: the checks in order, 100 m inclusive to the nearest point, and a
-// grazing beam that meets the rock past reach is off target.
+// Mining: the face ray hits an ore rock without a travel lock. Only a rock
+// it meets within 100 m can fail the ore check; misses and far hits are off target.
 {
     assert.deepEqual(miningBeamChecks("ore", 100, 0), {
         refusal: null,
         hitM: 100,
     });
-    assert.equal(miningBeamChecks("ore", 101, 0).refusal, "OutOfReach");
-    assert.equal(miningBeamChecks("none", 50, 0).refusal, "NoLock");
-    assert.equal(miningBeamChecks("ship", 50, 0).refusal, "NotAsteroid");
+    assert.deepEqual(miningBeamChecks("ore", 50, 0), {
+        refusal: null,
+        hitM: 50,
+    });
+    assert.equal(miningBeamChecks("barren", 50, 0).refusal, "Barren");
     assert.equal(
-        miningBeamChecks("plain", 120, 0).refusal,
-        "Barren",
-        "a barren rock is refused before reach is checked"
+        miningBeamChecks("barren", 101, 0).refusal,
+        "OffTarget",
+        "a barren kind is not checked when the ray has no in-reach hit"
     );
+    assert.equal(miningBeamChecks("ore", 101, 0).refusal, "OffTarget");
     assert.equal(miningBeamChecks("ore", 50, 20).refusal, "OffTarget");
+    assert.equal(
+        miningBeamChecks("barren", 50, 20).refusal,
+        "OffTarget",
+        "an off-axis barren rock does not intercept the beam"
+    );
     assert.equal(miningBeamChecks("ore", 90, 9).refusal, null);
     assert.equal(
         miningBeamChecks("ore", 90, 10).refusal,
         "OffTarget",
-        "the rock is in reach but the beam meets it past 100 m"
+        "the rock is near but the grazing ray meets it past 100 m"
     );
 }
 

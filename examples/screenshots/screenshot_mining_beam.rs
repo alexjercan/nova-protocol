@@ -1,9 +1,11 @@
-//! screenshot_mining_beam: the mining tug's bow emitter cutting a locked rock.
+//! screenshot_mining_beam: the mining tug's bow emitter cutting the rock ahead.
 //!
 //! The shipped `mining_tug` parks at the origin with one ore rock dead
-//! ahead of its `mining_beam` section. The script travel-locks the rock and
-//! holds the real `mine` action (`V`), so the doors, the tip, the pulses, the
-//! carve and the canisters are all the production path.
+//! ahead of its `mining_beam` section. The script travel-locks the rock only
+//! to mark it on the HUD in the shots; the beam takes the rock ahead of the
+//! emitter with or without a lock. It holds the real `mine` action (`V`), so
+//! the doors, the tip, the pulses, the carve and the canisters are all the
+//! production path.
 //!
 //! Shots, each held until its state is reached:
 //! - `mining-beam-stowed.png`: the first rendered frame of the emitter's door
@@ -44,7 +46,7 @@
 //!   cargo run --example screenshot_mining_beam --features debug
 //! ```
 //!
-//! Hand-run: lock the rock with the radar and hold `V`.
+//! Hand-run: hold `V` with the rock ahead of the bow emitter.
 //! ```text
 //! cargo run --example screenshot_mining_beam --features debug
 //! ```
@@ -64,7 +66,7 @@ use nova_protocol::prelude::*;
 #[derive(Parser)]
 #[command(name = "screenshot_mining_beam")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture the mining tug's mining beam deploying, cutting a locked rock and retracting", long_about = None)]
+#[command(about = "Capture the mining tug's mining beam deploying, cutting the rock ahead and retracting", long_about = None)]
 struct Cli;
 
 const PLAYER_ID: &str = "player";
@@ -333,7 +335,7 @@ fn same_pose(a: &[(Entity, Transform)], b: &[(Entity, Transform)]) -> bool {
         })
 }
 
-/// The locked rock's solid corners, once its field exists.
+/// The rock's solid corners, once its field exists.
 #[cfg(feature = "debug")]
 fn solid_corners(world: &mut World) -> Option<u32> {
     let mut fields = world.query::<&AsteroidField>();
@@ -533,11 +535,11 @@ fn set_paused(world: &mut World, paused: bool) {
     }
 }
 
-/// Shoot the first rendered frame, lock the rock and shoot it, hold the key
-/// and shoot the doors, the deploy and the hit, release and shoot the
-/// retract, wait for the ore to leave the rock, shoot the carve, check the
-/// pulse log against the rock and the canisters, then record one more press
-/// and release as the site's loop.
+/// Shoot the first rendered frame, mark the rock on the HUD and shoot it,
+/// hold the key and shoot the doors, the deploy and the hit, release and
+/// shoot the retract, wait for the ore to leave the rock, shoot the carve,
+/// check the pulse log against the rock and the canisters, then record one
+/// more press and release as the site's loop.
 #[cfg(feature = "debug")]
 fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
@@ -553,7 +555,7 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         ))
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        .step("lock the rock")
+        .step("mark the rock on the HUD")
         .on_enter(|world| {
             let player = kit::ship_root(world, PLAYER_ID).expect("the tug spawned");
             let rock = {

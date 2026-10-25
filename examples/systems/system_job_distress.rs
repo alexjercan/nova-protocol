@@ -1,4 +1,4 @@
-//! system_job_distress: Answer a distress call, a hull in need or a trap, from the board to the hand-in.
+//! system_job_distress: Answer a distress call, dock with a neutral derelict caller, from the board to the hand-in.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed as the `bounty_hunter` start role, whose boards lean to this kind, and

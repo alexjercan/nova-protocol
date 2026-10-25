@@ -119,7 +119,6 @@ mod tests {
                     "cluster_0_0_0_station_job_1_0_caller",
                     0,
                 ),
-                genuine: true,
             },
         );
         let mut jobs = Jobs::default();

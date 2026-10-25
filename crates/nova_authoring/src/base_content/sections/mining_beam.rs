@@ -1,8 +1,9 @@
-//! The mining beam: a one-cell emitter that cuts ore out of a locked rock.
+//! The mining beam: a one-cell emitter that cuts ore out of the rock ahead.
 //!
-//! Hold an emitter's own key with a rock travel-locked, and that emitter parts
-//! its doors, runs its tip out and pulses a beam down its -Z face. A pulse that
-//! lands cuts the rock, and the ore it frees leaves the rock as canisters.
+//! Hold an emitter's own key, and that emitter parts its doors, runs its tip
+//! out and pulses a beam down its -Z face. No travel lock is needed. A pulse
+//! cuts the nearest asteroid the beam meets if that rock holds ore, and the
+//! ore it frees leaves the rock as canisters.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -78,12 +79,13 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
             name: "Mining Beam Section".to_string(),
             description: "A compact ore emitter behind sliding doors. Hold \
-                          its key with a rock travel-locked: the doors \
-                          part, the tip runs out, and once a second the beam \
-                          cuts the rock where it hits, if the rock is within \
-                          100 m of the emitter face. The ore it cuts free \
-                          leaves the rock as canisters. Release the key and \
-                          the tip retracts before the doors shut."
+                          its key: the doors part, the tip runs out, and once \
+                          a second the beam cuts the nearest rock straight \
+                          ahead of the emitter face within 100 m, with no \
+                          lock needed. A barren rock in front blocks ore \
+                          behind it. The ore it cuts free leaves the rock as \
+                          canisters. Release the key and the tip retracts \
+                          before the doors shut."
                 .to_string(),
             health: MINING_BEAM_BASE_HEALTH,
             advancement: 0.0,

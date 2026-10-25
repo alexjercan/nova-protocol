@@ -520,7 +520,7 @@ thaw or a Load never changes it. A job's id is the posting station's id, its
 board slot and its posting number (`<station>#<slot>.<posting>`).
 
 A slot renews - moves to its next posting, stamped now - when its job is
-handed in, when a player pays to drop it at the posting station, or when an
+handed in, when a player pays to delete a current unheld offer at the posting station, or when an
 unheld offer stands past the price table's `jobs.offer_seconds`
 (`jobs.escort_offer_seconds` for an escort). The bodies the old posting
 could have put in the world (a hauler, its raiders, a caller, each named
@@ -528,7 +528,7 @@ could have put in the world (a hauler, its raiders, a caller, each named
 slot posts again under the next posting number, with fresh body ids.
 Stations draw in id order. A job you hold is pinned: its slot never renews
 under it, so a held job never expires. A free drop, including loss of the
-hauler, wreck, genuine caller or poster, retires the job and its bodies at
+hauler, wreck, caller or poster, retires the job and its bodies at
 once. Its slot waits until the original offer window expires before it
 renews; the old offer's Accept is refused as expired.
 
@@ -547,7 +547,7 @@ Each slot draws its kind by the start role's `jobs` mix (see
 | `Procure` | `Bring 4 Iron ore` | bring that many units of the item to the poster | the goods at the ask plus half, plus a fee |
 | `Recover` | `Recover 2 Hull plate from <wreck>` | take that many off the named derelict in the cube and undock with them aboard, the wreck's stack gone | twice the ask, plus a fee |
 | `Escort` | `Escort a hauler carrying 1200 cr` | a working-hull hauler spawns 1 km off the poster on a 10 km leg and leaves at 100 m/s once you are undocked and within 1 km of it; see it reach its mark. `1 + cargo / 700` raiders, at most 3, lie in wait 2.5 km off the leg, 75 % along it, and engage within 3 km; they hunt the hauler and turn on a ship that shoots them for as long as it keeps shooting | half the cargo value, plus a fee |
-| `Distress` | `Answer a distress call` | a caller spawns 10 km out: dock with the drifting hull, or neutralize the raider waiting there instead (one call in three is a trap) | 200 cr plus twice a fee |
+| `Distress` | `Answer a distress call` | a neutral drifting caller spawns 10 km out: dock with the caller | 200 cr plus twice a fee |
 | `Neutralize` | `Neutralize <hull>` | neutralize the named Enemy hull standing in the cube | 400 cr plus twice a fee |
 
 The fee is 50 to 250 cr. The sector's clusters pick the item categories a
@@ -582,8 +582,7 @@ over the shipped event kinds: `onundocked` naming the wreck with the stack
 aboard and the wreck's stack gone (`Recover`), `onshipordercomplete` for the
 hauler's `Move` (`Escort`; the hauler neutralized or destroyed, or its
 `Move` failed because it lost its drives or its flight computer, drops the
-job and its bodies), `ondocked` with the caller or the raider neutralized or
-destroyed (`Distress`), `onneutralized` or `ondestroyed` naming the hull
+job and its bodies), `ondocked` with the caller (`Distress`), `onneutralized` or `ondestroyed` naming the hull
 (`Neutralize`). A hand-in needs the posting station, the job done (a
 `Procure` is done with the goods in the hold), and a station balance that
 covers the reward; it removes a `Procure`'s goods, pays `OnCreditsChanged`

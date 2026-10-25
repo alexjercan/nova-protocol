@@ -261,8 +261,9 @@ Mining uses a per-section hold: find a `me.sections[]` record with
 `section.<id>` using that record's `id`. For the Line Warship's
 `mining_beam`, send `{"press": "section.mining_beam"}` for a
 bounded attempt and then `{"release": "section.mining_beam"}`. The selected
-emitter must deploy before it can pulse toward a travel-locked rock; reach
-and aim are checked from its face, not the ship's centre. The agent view has
+emitter must deploy before it can pulse toward the nearest asteroid ahead;
+no travel lock is needed. Reach and aim are checked from its face, not the
+ship's centre. The agent view has
 no carve result or intake position. It does show all live canisters, their
 contents, and their distance and bearing from the player's ship. A newly
 visible ore canister shows ore in the world, not its source or pickup; a

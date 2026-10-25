@@ -475,13 +475,13 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "MINE",
             looping(
                 "flight_mine",
-                "a line warship's bow emitter on a locked rock: the doors part, the tip runs out, \
-                 and the beam cuts the rock with a burst of sparks",
+                "the mining tug's bow emitter on the rock ahead: the doors part, the tip runs \
+                 out, and the beam cuts the rock with a burst of sparks",
             ),
-            "MINE cuts ore from the rock you travel lock. The beam fires straight ahead of its \
-             emitter: aim the ship and hold its key within 100 meters. Ore leaves in canisters. No \
-             beam means the rock is out of reach or off the line.",
-            &["radar_hold"],
+            "MINE cuts ore from the nearest rock straight ahead of its emitter. No lock is \
+             needed: aim the ship and hold its key within 100 meters. Ore leaves in canisters. No \
+             beam means the rock is out of reach, off the line, or barren.",
+            &[],
             "wiki/sections/mining-beam#cutting-ore",
             None,
             &[],

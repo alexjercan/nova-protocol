@@ -3,7 +3,7 @@
 //!
 //! With nothing selected the block lists one entry per civilization in
 //! [`CivilizationStances::entries`] or charted as a living station's owner:
-//! its name, its table stance and the compact detail labels that apply
+//! its name, seeded advancement, table stance and compact detail labels
 //! ([`stance_entry`]). A Station mark selected whose civilization is known
 //! adds that civilization's entry, then a row per Enemy neighbour of it
 //! ([`enemy_neighbours`]) with its fine and a Pay fine button; the row's
@@ -25,7 +25,7 @@ use nova_ui::{
     prelude::{badge, BadgeKind, ButtonSpec, Tooltip},
     theme::UiColor,
 };
-use nova_world_base::prelude::{enemy_neighbours, standing};
+use nova_world_base::prelude::{enemy_neighbours, standing, CivilizationField};
 
 use super::{chart_mark_code, MapChartMarkType, MapRuntime};
 use crate::{
@@ -67,6 +67,7 @@ enum MapStanceRowView {
     /// compact detail labels that apply, with explanations on hover.
     Entry {
         name: String,
+        advancement: String,
         table: StanceType,
         details: Vec<(String, Option<&'static str>)>,
     },
@@ -217,8 +218,16 @@ fn overview_rows(
     civs.into_iter()
         .map(|civilization| {
             let (table, details) = stance_entry(chart, jobs, stances, civilization, now);
+            let advancement = CivilizationField::new(civilization.world_seed)
+                .civilization(civilization.node)
+                .advancement;
+            assert!(advancement.is_finite(), "seeded advancement must be finite");
             MapStanceRowView::Entry {
                 name: civilization.name(),
+                advancement: format!(
+                    "ADV {}%",
+                    (advancement.clamp(0.0, 1.0) * 100.0).round() as u32
+                ),
                 table,
                 details,
             }
@@ -247,8 +256,16 @@ fn station_rows(
 ) -> Vec<MapStanceRowView> {
     let (table, details) = stance_entry(chart, jobs, stances, civilization, now);
     let refuses = standing(stances, &civilization, now).effective == StanceType::Enemy;
+    let advancement = CivilizationField::new(civilization.world_seed)
+        .civilization(civilization.node)
+        .advancement;
+    assert!(advancement.is_finite(), "seeded advancement must be finite");
     let mut rows = vec![MapStanceRowView::Entry {
         name: civilization.name(),
+        advancement: format!(
+            "ADV {}%",
+            (advancement.clamp(0.0, 1.0) * 100.0).round() as u32
+        ),
         table,
         details,
     }];
@@ -429,6 +446,7 @@ pub(crate) fn update_map_stance_block(
                 match row {
                     MapStanceRowView::Entry {
                         name,
+                        advancement,
                         table,
                         details,
                     } => {
@@ -438,13 +456,38 @@ pub(crate) fn update_map_stance_block(
                         })
                         .with_children(|row| {
                             row.spawn((
-                                themed_label(name, 13.0, UiColor::Primary),
+                                Node {
+                                    flex_grow: 1.0,
+                                    flex_basis: px(0),
+                                    min_width: px(0),
+                                    overflow: Overflow::clip(),
+                                    ..default()
+                                },
                                 Pickable::IGNORE,
+                                children![(
+                                    themed_label(name, 13.0, UiColor::Primary),
+                                    TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                                    Pickable::IGNORE
+                                )],
                             ));
                             row.spawn((
                                 badge(stance_badge_kind(*table), stance_word(*table)),
                                 Pickable::IGNORE,
-                            ));
+                            ))
+                            .insert(Node {
+                                align_items: AlignItems::Center,
+                                flex_shrink: 0.0,
+                                ..default()
+                            });
+                            row.spawn((
+                                badge(BadgeKind::Mute, advancement),
+                                Tooltip("Civilization advancement: seeded generation potential, not per-ship technology or progression.".to_string()),
+                            ))
+                            .insert(Node {
+                                align_items: AlignItems::Center,
+                                flex_shrink: 0.0,
+                                ..default()
+                            });
                         });
                         for (detail, hint) in details {
                             let label = themed_label(detail, 12.0, UiColor::Label);

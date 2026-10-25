@@ -1,8 +1,8 @@
 # Epic: charters, discovery log and end goals
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 54
-- TAGS: v0.16.0,epic,charters
+- TAGS: v0.16.0, epic, charters
 
 ## User facts
 - Stage 6 of the game expansion. Decisions 2026-10-12: each of the six start roles has one finite end goal (mining empire, own yard, station network, kill list, Line Warship, outlive a civilization; decision 13); a discovery log and charters point the player at the first station; a capstone build flips the rings (D4 refresh).
@@ -250,3 +250,8 @@ the menu screens that feed a charter (New Game, Load) are text too. Ideas:
   entity GOTO when the station materializes.
 - Stop: gates G1-G10 in the note (owner crate, names, aim point, arrival,
   failure, save, speed cap, targets, proof, G key). No code before the answers.
+
+## Closure check 2026-10-25
+- Current acceptance is the owner-approved optional, saved six-role goal: it appears from the start, advances across Load and remains a Map fact when met; meeting it does not refresh the world. The closed goal child records the original Map/Load captures. The discovery log still derives from the chart.
+- Verification on the current shared tree: `cargo test -p nova_world_base --lib goal` (10/10) and `cargo test -p nova_world_base --lib save::tests` (47/47). No new visual capture or live reload was run for this closure check; the earlier asserted `system_world_chart` and `screenshot_menu` runs are recorded above.
+- Supersession: charter 0 shipped briefly and was removed by `4c885d33d`; child `20261012-100031` records the historical removal. Cross-sector station GOTO (`STATION-GOTO.md`) is an unapproved separate idea, not this epic's acceptance gate.

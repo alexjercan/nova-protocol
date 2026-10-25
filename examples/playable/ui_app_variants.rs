@@ -3216,7 +3216,7 @@ fn section_about(kind: SectionClass) -> &'static str {
         SectionClass::Railgun => "Spinal rail lance; the hull aims it.",
         SectionClass::Docking => "Docking port; locks onto another hull.",
         SectionClass::CargoIntake => "Cargo intake; takes in slow canisters.",
-        SectionClass::Mining => "Mining emitter; cuts ore from a locked rock.",
+        SectionClass::Mining => "Mining emitter; cuts the nearest rock ahead without a lock.",
     }
 }
 

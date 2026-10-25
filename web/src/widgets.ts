@@ -12112,12 +12112,12 @@ function initDockingEnvelope(host: HTMLElement): void {
 // mining_beam.rs: reach 100 m (:101), pulse_interval_seconds 1.0 (:102),
 // carve_radius_cells 1.5 (:103) of a field cell of FIELD_CELL_WORLD 0.5 units
 // (crates/nova_scenario/src/objects/asteroid_carve.rs:108), so about 7.5 m.
-// The checks run in MiningRefusalType order (crates/nova_scenario/src/
-// mining.rs:160-173, :449-486): reach is the collider's nearest point,
-// inclusive, then a ray straight out of the emitter face within reach. A
-// refusal draws nothing and writes an info log (:434-435). Ore is paid only
-// for corners a pulse flips, as canisters after the rock's remesh lands
-// (:804-841). A mined canister holds at most CARGO_CANISTER_MAX_MASS_G
+// The ray out of the emitter face takes the nearest asteroid collision within
+// reach, then checks its kind (crates/nova_scenario/src/mining.rs:
+// MiningRefusalType, aim_beam). The one-rock diagram uses a round stand-in for
+// that collider. A refusal draws nothing and writes an info log. Ore is paid
+// only for corners a pulse flips, as canisters after the rock's remesh lands
+// (release_mined_ore). A mined canister holds at most CARGO_CANISTER_MAX_MASS_G
 // 200 kg (crates/nova_gameplay/src/inventory.rs:532), is born
 // MINED_CANISTER_OFFSET 1 unit off the cut and drifts off it at
 // MINED_CANISTER_SPEED 0.2 units/s (mining.rs:93,97,895-925).
@@ -12129,36 +12129,22 @@ const MINED_DRIFT_MPS = 2;
 // The widget's stand-in for a rock's mesh collider.
 const MINING_ROCK_M = 20;
 
-/** What the mining ship has travel-locked in the widget. */
-export type MiningLock = "none" | "ship" | "plain" | "ore";
-
 /** Why a pulse takes nothing, in check order (mining.rs MiningRefusalType). */
-export type MiningRefusal =
-    "NoLock" | "NotAsteroid" | "Barren" | "OutOfReach" | "OffTarget";
+export type MiningRefusal = "OffTarget" | "Barren";
 
-const MINING_REFUSALS: MiningRefusal[] = [
-    "NoLock",
-    "NotAsteroid",
-    "Barren",
-    "OutOfReach",
-    "OffTarget",
-];
+const MINING_REFUSALS: MiningRefusal[] = ["OffTarget", "Barren"];
 
 /**
- * The mining checks against a 20 m round rock whose surface is `surfaceM`
+ * The mining checks against a round rock of 20 m radius whose surface is `surfaceM`
  * from the emitter face, with the beam `aimDeg` off the line to its centre.
  * `hitM` is where the beam meets the rock, or null on a refusal.
  */
 export function miningBeamChecks(
-    lock: MiningLock,
+    rockKind: "ore" | "barren",
     surfaceM: number,
     aimDeg: number
 ): { refusal: MiningRefusal | null; hitM: number | null } {
     const refuse = (refusal: MiningRefusal) => ({ refusal, hitM: null });
-    if (lock === "none") return refuse("NoLock");
-    if (lock === "ship") return refuse("NotAsteroid");
-    if (lock === "plain") return refuse("Barren");
-    if (surfaceM > MINING_REACH_M) return refuse("OutOfReach");
     const centre = surfaceM + MINING_ROCK_M;
     const aim = (aimDeg * Math.PI) / 180;
     const off = centre * Math.sin(aim);
@@ -12166,6 +12152,7 @@ export function miningBeamChecks(
     const along =
         centre * Math.cos(aim) - Math.sqrt(MINING_ROCK_M ** 2 - off ** 2);
     if (along > MINING_REACH_M) return refuse("OffTarget");
+    if (rockKind === "barren") return refuse("Barren");
     // An emitter face on the surface meets it at once.
     return { refusal: null, hitM: Math.max(0, along) };
 }
@@ -12174,33 +12161,31 @@ function initMiningBeamChecks(host: HTMLElement): void {
     header(
         host,
         "Mining scope: the pulse checks",
-        "A side view along the beam, to scale. Pick what the ship has " +
-            "locked, then move the rock and the aim. The checks run in order " +
-            "and the first failure refuses the pulse."
+        "A side view of one rock, to scale. Pick its kind, then move it " +
+            "and turn the beam. The ray must hit it within reach before " +
+            "its kind is checked. A travel lock is not needed."
     );
 
-    let lock: MiningLock = "ore";
+    let rockKind: "ore" | "barren" = "ore";
     const keys = el("div", "widget__keys");
-    const lockKeys: [MiningLock, string][] = [
-        ["none", "NO LOCK"],
-        ["ship", "SHIP"],
-        ["plain", "PLAIN ROCK"],
+    const rockKeys: ["ore" | "barren", string][] = [
         ["ore", "ORE ROCK"],
+        ["barren", "BARREN ROCK"],
     ];
     const buttons: HTMLButtonElement[] = [];
-    for (const [value, label] of lockKeys) {
+    for (const [value, label] of rockKeys) {
         const btn = el("button", "widget__btn", label);
         btn.type = "button";
         btn.addEventListener("click", () => {
-            lock = value;
+            rockKind = value;
             for (const [index, other] of buttons.entries()) {
-                const on = lockKeys[index][0] === value;
+                const on = rockKeys[index][0] === value;
                 other.classList.toggle("is-on", on);
                 other.setAttribute("aria-pressed", String(on));
             }
             update();
         });
-        const on = value === lock;
+        const on = value === rockKind;
         btn.classList.toggle("is-on", on);
         btn.setAttribute("aria-pressed", String(on));
         buttons.push(btn);
@@ -12306,46 +12291,33 @@ function initMiningBeamChecks(host: HTMLElement): void {
     const readout = el("p", "widget__readout");
     readout.setAttribute("aria-live", "polite");
     const checkWords: Record<MiningRefusal, [string, string]> = {
-        NoLock: ["LOCK", "a travel lock"],
-        NotAsteroid: ["ASTEROID", "the lock is a rock"],
-        Barren: ["ORE", "the rock's kind holds ore"],
-        OutOfReach: ["REACH", `within ${MINING_REACH_M} m`],
-        OffTarget: ["ON LINE", "the beam meets it in reach"],
+        OffTarget: ["RAY HIT", `rock met within ${MINING_REACH_M} m`],
+        Barren: ["ORE", "the hit rock's kind holds ore"],
     };
     const refusalWords: Record<MiningRefusal, string> = {
-        NoLock: "the ship has no travel lock",
-        NotAsteroid: "the travel lock is not an asteroid",
-        Barren: "this rock's kind holds no ore",
-        OutOfReach: `the rock's nearest point is past ${MINING_REACH_M} m`,
         OffTarget:
-            "the line straight out of the emitter face misses the rock " +
+            "the ray from the emitter face meets no rock " +
             `within ${MINING_REACH_M} m`,
+        Barren: "the rock the ray meets holds no ore",
     };
 
     const update = (): void => {
         const s = Number(surface.input.value);
         const a = Number(aim.input.value);
-        const verdict = miningBeamChecks(lock, s, a);
+        const verdict = miningBeamChecks(rockKind, s, a);
+        const hit = verdict.hitM;
         const rad = (a * Math.PI) / 180;
         const rockX = EX + (s + MINING_ROCK_M) * M;
         rock.setAttribute("cx", rockX.toFixed(1));
         rock.setAttribute(
             "class",
-            "widget-mark--section" + (lock === "ore" ? " is-hit" : "")
+            "widget-mark--section" + (hit !== null ? " is-hit" : "")
         );
         rockWord.setAttribute("x", rockX.toFixed(1));
-        rockWord.textContent =
-            lock === "none"
-                ? "NOT LOCKED"
-                : lock === "ship"
-                  ? "LOCKED SHIP"
-                  : lock === "plain"
-                    ? "PLAIN ROCK"
-                    : "ORE ROCK";
+        rockWord.textContent = rockKind === "ore" ? "ORE ROCK" : "BARREN ROCK";
         const lineEnd = MINING_REACH_M * M;
         aimLine.setAttribute("x2", (EX + lineEnd * Math.cos(rad)).toFixed(1));
         aimLine.setAttribute("y2", (CY - lineEnd * Math.sin(rad)).toFixed(1));
-        const hit = verdict.hitM;
         const shown = hit === null ? "hidden" : "visible";
         beam.setAttribute("visibility", shown);
         cut.setAttribute("visibility", shown);
@@ -12397,17 +12369,20 @@ function initMiningBeamChecks(host: HTMLElement): void {
     stat(stats, "born").textContent = `${MINED_BIRTH_M} m off the cut`;
     stat(stats, "drift").textContent = `${MINED_DRIFT_MPS} m/s`;
     host.appendChild(stats);
-    host.appendChild(
-        el(
-            "p",
-            "widget__note",
-            `The rock is a ${MINING_ROCK_M} m sphere standing in for its ` +
-                "mesh collider. Reach is measured to the collider's nearest " +
-                `point and holds at exactly ${MINING_REACH_M} m. The dashed ` +
-                "line is the aim; the game draws the beam only while every " +
-                "check passes."
-        )
+    const note = el(
+        "p",
+        "widget__note",
+        `This one-rock diagram uses a round stand-in of ${MINING_ROCK_M} m radius ` +
+            "for the mesh collider. Reach is along the ray from the face, " +
+            `inclusive at ${MINING_REACH_M} m. The dashed line is the aim; ` +
+            "the game draws the beam only while both checks pass. With " +
+            "multiple rocks, the nearest hit decides the pulse: "
     );
+    const explanation = el("a", "", "how mining chooses a rock");
+    explanation.href = "/wiki/sections/mining-beam/#cutting-ore";
+    note.appendChild(explanation);
+    note.append(".");
+    host.appendChild(note);
     update();
 }
 

@@ -3137,7 +3137,7 @@
         base: (
             id: "mining_beam_section",
             name: "Mining Beam Section",
-            description: "A compact ore emitter behind sliding doors. Hold its key with a rock travel-locked: the doors part, the tip runs out, and once a second the beam cuts the rock where it hits, if the rock is within 100 m of the emitter face. The ore it cuts free leaves the rock as canisters. Release the key and the tip retracts before the doors shut.",
+            description: "A compact ore emitter behind sliding doors. Hold its key: the doors part, the tip runs out, and once a second the beam cuts the nearest rock straight ahead of the emitter face within 100 m, with no lock needed. A barren rock in front blocks ore behind it. The ore it cuts free leaves the rock as canisters. Release the key and the tip retracts before the doors shut.",
             health: 90.0,
             build: (
                 credits: 100,

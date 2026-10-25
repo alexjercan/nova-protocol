@@ -7,15 +7,14 @@ on the Line Warship), then release the same wire. These dynamic section wires
 are not registry actions: they do not appear in `inputs.live` or the `bindings`
 command. `inputs.live` reports registry actions only.
 
-1. With the combat stance lowered, aim at an asteroid and acquire a travel
-   lock with `targeting.radar_hold`. Check `me.travel_lock` for the rock's ID.
-   The lowered stance selects the travel-lock slot during acquisition; once
-   locked, mining itself does not require the stance lowered.
-2. Approach the locked rock and point the ship so the chosen working mining
-   emitter may face it. Hold `section.<id>` for a bounded attempt, then release
-   that same wire. The emitter must deploy before it pulses; reach and aim are
-   checked from its face, not the ship's centre. A short ship-centre distance
-   or centred `bodies.near` bearing does not prove a pulse reached rock.
+1. Approach an asteroid and point the ship so the working mining emitter
+   faces it. No travel lock or lowered combat stance is needed. The ray takes
+   the nearest rock it intersects within the emitter's reach; a barren rock
+   in front of an ore rock refuses the pulse.
+2. Hold `section.<id>` for a bounded attempt, then release that same wire.
+   The emitter must deploy before it pulses; reach and aim are checked from
+   its face, not the ship's centre. A short ship-centre distance or centred
+   `bodies.near` bearing does not prove a pulse reached rock.
 3. A successful carve can yield ore canisters only after the rock's field is
    updated. Carving does not put ore directly in the hold. A working cargo
    intake takes a whole canister only when it enters the intake trigger and

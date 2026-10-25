@@ -41,12 +41,12 @@
 //! ([`fly_escort_legs`]). Each located kind is marked done by one observer
 //! over one existing `nova_events` kind: a recovery on `onundocked`
 //! ([`recover_on_undock`]), an escort on `onshipordercomplete`
-//! ([`escort_on_arrival`]), a distress call on `ondocked` or `onneutralized`
+//! ([`escort_on_arrival`]), a distress call on `ondocked`
 //! ([`distress_on_answer`]), a neutralize on `onneutralized` or `ondestroyed`
 //! ([`neutralize_on_kill`]). A held job is dropped, and its spawned bodies
 //! taken out, on the `onneutralized` or `ondestroyed` of what retires it
 //! ([`drop_on_loss`]): its poster, done or not, or its hauler, its wreck or
-//! its genuine caller before the job is done, and an escort whose hauler's
+//! its caller before the job is done, and an escort whose hauler's
 //! leg order fails (`onshiporderfailed`): a hauler that cannot fly its leg
 //! would hold the job for good. A done job keeps its hand-in.
 //! Every standing body a held job sends the player to wears the HUD's
@@ -377,7 +377,7 @@ fn cube_around(centre: SectorCoord) -> Vec<SectorCoord> {
 /// roots `around`, each list in id order, less the bodies in `excluded`:
 /// what a renewal this frame is taking out of the world, and every body a
 /// held job or an unexpired offer names ([`JobPostings::named_bodies`]), so
-/// a board never offers an escort's raiders as Neutralize targets, a genuine
+/// a board never offers an escort's raiders as Neutralize targets, a distress
 /// caller as a wreck to recover, or a body another offer pays for.
 #[expect(
     clippy::type_complexity,
@@ -439,9 +439,8 @@ fn job_field(
 /// an escort's hauler beside the poster with no helm order, its leg laid in
 /// the jobs to a mark a [`JOB_LEG`] out past it ([`Jobs::lay_leg`]), and its
 /// raiders lying in wait off the leg ([`raider_wait_points`]), idle until a
-/// hostile comes inside their engage range; a
-/// distress call's caller at the mark, a drifting hull when the call is
-/// genuine and a raider when it is not. The leg's direction is seeded by
+/// hostile comes inside their engage range; a distress call's caller at the
+/// mark, a neutral derelict civilian hull. The leg's direction is seeded by
 /// the job and chosen so every body stands [`JOB_SPAWN_CLEARANCE`] from
 /// other generated bodies, with only the hauler allowed
 /// [`STATION_SPAWN_CLEARANCE`] from its poster; the mark stays in the
@@ -643,69 +642,36 @@ pub(crate) fn spawn_job_bodies(
                 JOB_LEG.get()
             );
         }
-        JobType::Distress { caller, genuine } => {
-            if *genuine {
-                let (design, stock) = hull(
-                    caller,
-                    b"job_caller",
-                    ShipRoleType::Civilian,
-                    SectorShipConditionType::Derelict,
-                );
-                commands.spawn((
-                    base_scenario_object(&BaseScenarioObjectConfig {
-                        id: caller.to_string(),
-                        name: format!("{} civilian, adrift", civilization.id.name()),
-                        position: mark,
-                        rotation: facing,
-                    }),
-                    caller.clone(),
-                    spaceship_scenario_object(SpaceshipConfig {
-                        design: ShipDesignSource::Inline(design),
-                        controller: SpaceshipController::None,
-                        initial_velocity: MetersPerSecond3::ZERO,
-                        allegiance: Some(Allegiance::Neutral),
-                        capabilities: ShipCapabilities::default(),
-                        inventory: stock,
-                        lootable: true,
-                        credits: 0,
-                    }),
-                    ChildOf(root),
-                    DerelictShipMarker,
-                ));
-            } else {
-                let id = caller;
-                let (design, stock) = hull(
-                    id,
-                    b"job_caller",
-                    ShipRoleType::Armored,
-                    SectorShipConditionType::Intact,
-                );
-                commands.spawn((
-                    base_scenario_object(&BaseScenarioObjectConfig {
-                        id: id.to_string(),
-                        name: format!("{} raider", civilization.id.name()),
-                        position: mark,
-                        rotation: Quat::from_rotation_arc(Vec3::NEG_Z, -direction),
-                    }),
-                    id.clone(),
-                    spaceship_scenario_object(SpaceshipConfig {
-                        design: ShipDesignSource::Inline(design),
-                        controller: SpaceshipController::AI(AIControllerConfig {
-                            leash: Some(RAIDER_LEASH),
-                            ..AIControllerConfig::default()
-                        }),
-                        initial_velocity: MetersPerSecond3::ZERO,
-                        allegiance: Some(Allegiance::Enemy),
-                        capabilities: ShipCapabilities::default(),
-                        inventory: stock,
-                        lootable: false,
-                        credits: 0,
-                    }),
-                    ChildOf(root),
-                ));
-            }
+        JobType::Distress { caller } => {
+            let (design, stock) = hull(
+                caller,
+                b"job_caller",
+                ShipRoleType::Civilian,
+                SectorShipConditionType::Derelict,
+            );
+            commands.spawn((
+                base_scenario_object(&BaseScenarioObjectConfig {
+                    id: caller.to_string(),
+                    name: format!("{} civilian, adrift", civilization.id.name()),
+                    position: mark,
+                    rotation: facing,
+                }),
+                caller.clone(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    design: ShipDesignSource::Inline(design),
+                    controller: SpaceshipController::None,
+                    initial_velocity: MetersPerSecond3::ZERO,
+                    allegiance: Some(Allegiance::Neutral),
+                    capabilities: ShipCapabilities::default(),
+                    inventory: stock,
+                    lootable: true,
+                    credits: 0,
+                }),
+                ChildOf(root),
+                DerelictShipMarker,
+            ));
             info!(
-                "nova_world_base: '{}' puts the caller '{caller}' {} m out (genuine: {genuine})",
+                "nova_world_base: '{}' puts the caller '{caller}' {} m out",
                 job.id,
                 JOB_LEG.get()
             );
@@ -929,14 +895,13 @@ fn is_taken_out(event: &GameEvent, body: &GeneratedBodyId) -> bool {
 /// retires, and take the job's spawned bodies out of the world so the board
 /// offers it again and a second accept can put them back: every job of the
 /// poster, done or not, since no hand-in is left; an escort whose hauler, a
-/// recovery whose wreck or a genuine distress call whose caller is taken out
-/// before the job is done. An undone escort is also dropped on the
+/// recovery whose wreck or a distress call whose caller is taken out before
+/// the job is done. An undone escort is also dropped on the
 /// `onshiporderfailed` of its hauler's leg order ([`leg_order_key`]): a
 /// hauler that lost its engines or its flight computer never reaches its
 /// mark. A done job keeps its hand-in: a hauler killed at
-/// its mark or a wreck shot after the lift still pays. A trap's caller taken
-/// out is [`distress_on_answer`]'s done and a neutralize's hull
-/// [`neutralize_on_kill`]'s.
+/// its mark or a wreck shot after the lift still pays. A neutralize's hull
+/// taken out is [`neutralize_on_kill`]'s done.
 pub(crate) fn drop_on_loss(
     event: On<GameEvent>,
     mut commands: Commands,
@@ -984,13 +949,8 @@ pub(crate) fn drop_on_loss(
             let target = match &job.kind {
                 JobType::Escort { hauler, .. } => Some((hauler, "hauler")),
                 JobType::Recover { wreck, .. } => Some((wreck, "wreck")),
-                JobType::Distress {
-                    caller,
-                    genuine: true,
-                } => Some((caller, "caller")),
-                JobType::Distress { genuine: false, .. }
-                | JobType::Procure { .. }
-                | JobType::Neutralize { .. } => None,
+                JobType::Distress { caller } => Some((caller, "caller")),
+                JobType::Procure { .. } | JobType::Neutralize { .. } => None,
             };
             target
                 .filter(|(body, _)| body.to_string() == subject)
@@ -1114,44 +1074,31 @@ pub(crate) fn escort_on_arrival(
     }
 }
 
-/// Mark a held distress call done on the `ondocked` with its caller when
-/// the call is genuine, and on the caller's `onneutralized` or `ondestroyed`
-/// when it is a raider's trap.
+/// Mark a held distress call done on the `ondocked` with its caller.
 pub(crate) fn distress_on_answer(
     event: On<GameEvent>,
     mut commands: Commands,
     mut jobs: ResMut<Jobs>,
 ) {
+    if event.name() != OnDockedEvent::name() {
+        return;
+    }
     let Some(subject) = event_subject(&event) else {
         return;
     };
-    let held: Vec<Job> = jobs
+    let answered: Vec<JobId> = jobs
         .held()
         .iter()
         .filter(|job| {
             !jobs.is_done(&job.id)
-                && matches!(&job.kind, JobType::Distress { caller, .. } if caller.to_string() == subject)
+                && matches!(&job.kind, JobType::Distress { caller } if caller.to_string() == subject)
         })
-        .cloned()
+        .map(|job| job.id.clone())
         .collect();
-    for job in held {
-        let JobType::Distress { caller, genuine } = &job.kind else {
-            unreachable!()
-        };
-        let answered = if *genuine {
-            event.name() == OnDockedEvent::name()
-        } else {
-            is_taken_out(&event, caller)
-        };
-        if answered {
-            jobs.mark_done(&job.id);
-            commands.trigger(JobDone { id: job.id.clone() });
-            info!(
-                "nova_world_base: '{}' is done: the caller '{caller}' was answered ({})",
-                job.id,
-                event.name()
-            );
-        }
+    for id in answered {
+        jobs.mark_done(&id);
+        info!("nova_world_base: '{id}' is done: the caller '{subject}' was docked with");
+        commands.trigger(JobDone { id });
     }
 }
 
@@ -1270,8 +1217,8 @@ pub(crate) fn mark_held_job_targets(
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
     use nova_events::prelude::{
-        OnDestroyedEventInfo, OnShipOrderCompleteEventInfo, OnShipOrderFailedEventInfo,
-        ShipOrderKind,
+        DockingEventInfo, OnDestroyedEventInfo, OnNeutralizedEventInfo,
+        OnShipOrderCompleteEventInfo, OnShipOrderFailedEventInfo, ShipOrderKind,
     };
     use nova_gameplay::{
         prelude::{ItemDesignId, ESCORT_RAIDERS_MAX},
@@ -1357,13 +1304,12 @@ mod tests {
         )
     }
 
-    fn distress(slot: u32, genuine: bool) -> Job {
+    fn distress(slot: u32) -> Job {
         let id = job_id(slot);
         job(
             slot,
             JobType::Distress {
                 caller: spawned(&id, "caller", 0),
-                genuine,
             },
         )
     }
@@ -1394,6 +1340,30 @@ mod tests {
             OnDestroyedEventInfo {
                 id: body.to_string(),
                 type_name: "spaceship".to_string(),
+            }
+            .into(),
+        )
+    }
+
+    fn neutralized(body: &GeneratedBodyId) -> GameEvent {
+        GameEvent::new(
+            OnNeutralizedEvent::name(),
+            OnNeutralizedEventInfo {
+                id: body.to_string(),
+                type_name: "spaceship".to_string(),
+            }
+            .into(),
+        )
+    }
+
+    fn docked_with(body: &GeneratedBodyId) -> GameEvent {
+        GameEvent::new(
+            OnDockedEvent::name(),
+            DockingEventInfo {
+                id: body.to_string(),
+                type_name: "spaceship".to_string(),
+                other_id: "player".to_string(),
+                other_type_name: "spaceship".to_string(),
             }
             .into(),
         )
@@ -1923,28 +1893,45 @@ mod tests {
     }
 
     #[test]
-    fn a_held_genuine_distress_call_is_dropped_when_its_caller_is_destroyed_and_a_trap_is_done() {
-        let genuine = distress(0, true);
-        let JobType::Distress { caller, .. } = &genuine.kind else {
+    fn a_held_distress_call_is_done_on_the_dock_with_its_caller() {
+        let answer = distress(0);
+        let JobType::Distress { caller } = &answer.kind else {
             unreachable!()
         };
-        let mut app = held_app([genuine.clone()]);
-        let bodies = stand(&mut app, &genuine.spawned_bodies());
-        fire(&mut app, taken_out(caller));
+        let mut app = held_app([answer.clone()]);
+        let bodies = stand(&mut app, &answer.spawned_bodies());
+        fire(&mut app, docked_with(caller));
         assert!(
-            !jobs(&app).holds(&genuine.id),
-            "a caller destroyed before the dock is lost"
+            jobs(&app).holds(&answer.id),
+            "the answered call waits for its hand-in"
         );
-        assert_eq!(standing(&app, &bodies), 0, "the remains are taken out");
+        assert!(jobs(&app).is_done(&answer.id));
+        assert_eq!(standing(&app, &bodies), 1, "the caller stays in the world");
+    }
 
-        let trap = distress(1, false);
-        let JobType::Distress { caller, .. } = &trap.kind else {
-            unreachable!()
-        };
-        let mut app = held_app([trap.clone()]);
-        fire(&mut app, taken_out(caller));
-        assert!(jobs(&app).holds(&trap.id), "a trap sprung is the job done");
-        assert!(jobs(&app).is_done(&trap.id));
+    #[test]
+    fn a_held_distress_call_is_dropped_not_done_when_its_caller_is_taken_out_before_the_dock() {
+        for (what, taken) in [
+            (
+                "neutralized",
+                neutralized as fn(&GeneratedBodyId) -> GameEvent,
+            ),
+            ("destroyed", taken_out),
+        ] {
+            let answer = distress(0);
+            let JobType::Distress { caller } = &answer.kind else {
+                unreachable!()
+            };
+            let mut app = held_app([answer.clone()]);
+            let bodies = stand(&mut app, &answer.spawned_bodies());
+            fire(&mut app, taken(caller));
+            assert!(
+                !jobs(&app).holds(&answer.id),
+                "a caller {what} before the dock is lost"
+            );
+            assert!(jobs(&app).done().is_empty(), "a caller {what} is no answer");
+            assert_eq!(standing(&app, &bodies), 0, "the remains are taken out");
+        }
     }
 
     #[test]
@@ -1977,7 +1964,7 @@ mod tests {
     fn a_held_job_s_spawned_bodies_are_off_the_neighbouring_field() {
         let items = test_items();
         let escort = escort(0);
-        let distress = distress(1, true);
+        let distress = distress(1);
         let JobType::Distress { caller, .. } = &distress.kind else {
             unreachable!()
         };
@@ -2061,7 +2048,7 @@ mod tests {
 
     #[test]
     fn a_held_job_marks_its_body_until_done_then_its_poster_and_remarks_a_thawed_body() {
-        let answer = distress(0, true);
+        let answer = distress(0);
         let JobType::Distress { caller, .. } = answer.kind.clone() else {
             unreachable!()
         };

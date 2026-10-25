@@ -27,3 +27,7 @@
 - The pointer (`nova_world_base::charter`) marks the nearest living, non-Enemy streamed station with `STATION` and remembers it in `GeneratedMarks`; with none in the window there is no mark until one streams in.
 - Owner decision: the completing `OnDocked` filter is `type_name: living_station, other_id: player`. The docking payload gained the docked-with hull's `type_name`, and a station wears `living_station` or `derelict_station` (spawn, runtime turn and thaw) instead of `spaceship`. Consequence: a dock at a dead station or a wreck does not complete the charter, and no shipped filter read a station as `spaceship`. Proof: `nova_authoring` test `only_the_players_dock_at_a_living_station_completes_charter_zero` (derelict does not complete, living does) and `station_derelict` asserts the type name after the turret loss and after a thaw.
 - The proof extends `system_world_chart` with three claims rather than adding a range.
+
+## Current state (superseded 2026-10-19)
+- Charter 0 was removed by `4c885d33d` after this child closed. The old authored content, pointer and `only_the_players_dock_at_a_living_station_completes_charter_zero` proof no longer exist. The historical delivery and done-when notes above describe what landed at the time, not what ships now.
+- The discovery log still derives from the chart. The epic's current acceptance is the six role goals as optional saved milestones, visible on the Map; no charter-0 objective or ring refresh is required. See `20261012-100030` for that superseding owner decision.

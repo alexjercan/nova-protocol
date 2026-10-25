@@ -45,8 +45,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   port face no longer wear both hulls down while they sit docked, and
   undocking no longer shoves them apart.
 - **(breaking)** Stations post three seeded jobs: bring, recover, escort,
-  distress, neutralize. A held drop is free; pay 100 cr there to delete and
-  replace an unheld offer. Save format 30.
+  neutral-only distress, neutralize. Drop held jobs free; pay 100 cr to replace
+  an unheld offer. Save format 30.
 - An escort's hauler waits 1 km off its station until you are within 1 km,
   then runs at 100 m/s to its mark; its raiders spring from 2.5 km off the
   leg, hunt it and turn on whoever shoots them.
@@ -105,6 +105,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   capital drives that push 75, up from 25.
 - A cargo intake's door now stays shut for a canister the hold has no room
   for. A canister that fits still opens it.
+- A mining beam now cuts the nearest asteroid ahead of its emitter without a
+  travel lock; a nearer barren rock blocks ore behind it.
 - A destroyed ship drops its hold as cargo canisters, and a destroyed section
   drops its `strip_yield` share of each recipe part, rounded down. Both freeze
   and save.
@@ -330,9 +332,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A Jobs result shows for 4 s, green or red, with one sound; a hand-in names
   the payout, new balance and stance step. A job done in flight posts a HUD
   notice naming its hand-in station.
-- The chart view lists STANCES as rows: each civilization with a badge and
-  compact hover-coded detail; a station's Enemy neighbours with fine and Pay
-  fine; results on a notice line. Save format 25.
+- The chart view lists STANCES with badges, seeded ADV percentage and compact
+  hover-coded detail; a station's Enemy neighbours have fine and Pay fine.
+  Results use a notice line. Save format 25.
 - The Map's side panel scrolls with the wheel while the pointer is over it;
   the wheel zooms the view only away from the panel.
 - On the Ship pane a gun, torpedo bay, railgun or mining beam with no key

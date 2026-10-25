@@ -1210,6 +1210,71 @@ fn the_goto_button_sets_the_goto_the_key_sets() {
     assert!(cancel_disabled(&rig), "nothing left to cancel");
 }
 
+/// A charted civilization shows its seeded generation potential in both
+/// overview and the selected station's STANCES entry, never a ship rating.
+#[test]
+fn chart_stances_show_seeded_advancement_in_overview_and_selected_station() {
+    let mut rig = pane_pointer_rig();
+    let app = &mut rig.app;
+    app.add_plugins(nova_ui::NovaUiPlugin);
+    app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
+    app.init_resource::<WorldClock>();
+    app.init_resource::<CivilizationStances>();
+    app.add_systems(Update, update_map_stance_block);
+
+    let civilization = CivilizationId {
+        world_seed: 0,
+        node: [4, 0, 0],
+    };
+    let station_id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+    app.world_mut().resource_mut::<Chart>().find_station(
+        &station_id,
+        false,
+        false,
+        Some(civilization),
+        0.0,
+    );
+    let content = rig.content_root;
+    app.world_mut()
+        .commands()
+        .entity(content)
+        .with_children(spawn_map_stance_block);
+    {
+        let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
+        runtime.active = true;
+        runtime.chart = true;
+    }
+    settle(app);
+
+    let assert_chip = |app: &mut App| {
+        let world = app.world_mut();
+        let mut q = world.query::<(&Tooltip, &Children)>();
+        let chips: Vec<String> = q
+            .iter(world)
+            .filter(|(hint, _)| hint.0.starts_with("Civilization advancement:"))
+            .map(|(hint, children)| {
+                assert!(hint.0.contains("not per-ship technology or progression"));
+                children
+                    .iter()
+                    .filter_map(|child| world.get::<Text>(child))
+                    .map(|text| text.0.clone())
+                    .find(|text| text.contains("ADV "))
+                    .expect("the advancement badge has a text label")
+            })
+            .collect();
+        assert_eq!(chips.len(), 1, "one advancement chip per entry");
+        assert_eq!(chips[0].trim_matches(['[', ']']), "ADV 13%");
+    };
+    assert_chip(app);
+
+    app.world_mut().resource_mut::<MapRuntime>().chart_selected =
+        Some(MapChartMarkType::Station(station_id));
+    settle(app);
+    assert_chip(app);
+}
+
 /// A living civilization with a living neighbour its own seed drew Enemy,
 /// and the fine [`enemy_neighbours`] reads for it.
 fn civilization_with_enemy_neighbour() -> (CivilizationId, CivilizationId, u32) {
@@ -3105,7 +3170,6 @@ fn a_marked_job_body_lists_every_matching_job() {
         1,
         JobType::Distress {
             caller: caller.clone(),
-            genuine: true,
         },
     );
     let second = ore(2, 2);
