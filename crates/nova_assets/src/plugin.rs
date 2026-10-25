@@ -355,7 +355,12 @@ fn finish_processing(mut state: ResMut<NextState<GameAssetsStates>>) {
 mod tests {
     use bevy::{asset::AssetPlugin, state::app::StatesPlugin};
     use nova_events::units::prelude::Meters;
-    use nova_gameplay::{prelude::AssetRef, test_support::test_items};
+    use nova_gameplay::{
+        prelude::{
+            AssetRef, JobOfferRule, PriceClamp, PriceFactor, PriceTable, RestockRule, ScarcityRule,
+        },
+        test_support::test_items,
+    };
     use nova_modding::prelude::{
         BundleAsset, CatalogEntry, Content, ContentAsset, InstalledCatalog, ModEntry, ModMeta,
         NovaModdingPlugin,
@@ -375,6 +380,33 @@ mod tests {
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
         }))
+    }
+
+    /// A minimal valid price table, with no cluster or role rules.
+    fn price_table() -> Content {
+        Content::PriceTable(PriceTable {
+            clamp: PriceClamp {
+                min: 0.25,
+                max: 3.0,
+            },
+            scarcity: ScarcityRule {
+                starved: PriceFactor {
+                    ask: 1.5,
+                    bid: 1.25,
+                },
+                glut: PriceFactor { ask: 0.9, bid: 0.5 },
+                glut_share: 3.0,
+                unkept: PriceFactor { ask: 1.0, bid: 0.8 },
+            },
+            restock: RestockRule {
+                recovery_seconds: 1_000.0,
+            },
+            jobs: JobOfferRule {
+                offer_seconds: 1_200.0,
+            },
+            clusters: vec![],
+            roles: vec![],
+        })
     }
 
     /// A mining section with a NaN reach, no collider and neither stow track.
@@ -466,10 +498,11 @@ mod tests {
             };
             (entry, content)
         };
-        // The merge refuses a base pack without every role item.
+        // The merge refuses a base pack without every role item or a price table.
         let base = base
             .into_iter()
             .chain(test_items().iter().cloned().map(Content::Item))
+            .chain([price_table()])
             .collect();
         let (base_entry, base_content) = entry("base", true, base);
         let (extra_entry, extra_content) = entry("extra", false, extra);
