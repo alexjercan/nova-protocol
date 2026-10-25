@@ -526,7 +526,11 @@ fn a_load_row_reads_play_time_save_age_and_open_count_and_its_details_the_fleet_
             "300 cr".to_string(),
             "0:01:30".to_string(),
             format!("{} (just now)", text_of_saved(&mut app)),
-            nova_info::prelude::APP_VERSION.to_string(),
+            // The row draws `header.game_version`, which the save pipeline
+            // stamps from `CARGO_PKG_VERSION` (session.rs), not the `debug`
+            // feature's git-hash-suffixed `nova_info::APP_VERSION` the menu's
+            // own status bar shows.
+            env!("CARGO_PKG_VERSION").to_string(),
         ]
     );
     assert_eq!(

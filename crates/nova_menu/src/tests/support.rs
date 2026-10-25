@@ -114,6 +114,13 @@ pub(crate) fn app() -> App {
 /// [`app`] with the settings store pointed at a root of the caller's own, for
 /// the tests that assert on what reaches the file.
 pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> App {
+    // The rig has no `TaskPoolPlugin` (no `MinimalPlugins`/`DefaultPlugins`),
+    // so without this `init_interface_icons`'s `AssetServer::load` panics with
+    // "the IoTaskPool has not been initialized yet" whenever this is the
+    // first test on its thread to reach that call - order-dependent, since
+    // the pool is a process-global `OnceLock` another thread's fixture may
+    // already have set.
+    bevy::tasks::IoTaskPool::get_or_init(bevy::tasks::TaskPool::default);
     let mut app = App::new();
     // Before `NovaMenuPlugin`, which adds `SettingsStorePlugin::from_env()`
     // only when nothing else has: this is what keeps the fixture off the
