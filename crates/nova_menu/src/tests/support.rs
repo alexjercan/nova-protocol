@@ -191,8 +191,11 @@ pub(crate) fn app_storing_settings_at(root: impl Into<std::path::PathBuf>) -> Ap
     // scratch folder over this.
     app.insert_resource(crate::world_setup::WorldsRoot(None));
     // The icon masks the New Game role rows and the Load rows draw;
-    // `InterfacePlugin` draws them in production.
-    app.init_resource::<Assets<Image>>();
+    // `InterfacePlugin` draws them in production. `init_interface_icons`
+    // also has a hard `Res<AssetServer>` for the cancel icon, so the rig
+    // needs a real `AssetPlugin`, not just the `Image` asset store.
+    app.add_plugins(AssetPlugin::default());
+    app.init_asset::<Image>();
     app.add_systems(Startup, nova_interface::prelude::init_interface_icons);
     app.add_plugins(NovaMenuPlugin);
     app
