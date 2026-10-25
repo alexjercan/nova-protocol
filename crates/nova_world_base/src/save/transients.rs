@@ -764,9 +764,18 @@ fn spawn_resumed(world: &mut World, refs: Vec<ResolvedRefs>) {
 
 /// Refuse the Load: no transient spawns, the clocks run, and the menu takes
 /// the session down.
+///
+/// Drops any save `request_world_save` queued for the resumed config's
+/// re-arm before `end_resume` clears [`ResumedTransients`]: `save_systems()`
+/// runs later in this same chained `Update`, and without this a stale
+/// Crossing save would see the "still resuming" guard gone and write a save
+/// for a Load that was just refused.
 fn refuse(world: &mut World, slug: String, reason: String) {
     warn!("nova_world_base: the Load of '{slug}' is refused: {reason}");
     world.insert_resource(WorldResumeRefused { slug, reason });
+    world
+        .resource_mut::<WorldSaveSession>()
+        .drop_wanted("the Load was refused; nothing to save");
     end_resume(world);
 }
 

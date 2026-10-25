@@ -231,7 +231,7 @@ impl WorldSaveSession {
 
     /// Drop the wanted save. A dropped leave save is a failure the player
     /// must see; a dropped crossing save keeps the status it had.
-    fn drop_wanted(&mut self, reason: &str) {
+    pub(crate) fn drop_wanted(&mut self, reason: &str) {
         if self.wanted.take() == Some(SaveReason::Leave) {
             self.fail(reason.to_string());
         }

@@ -28,7 +28,7 @@ use nova_menu::prelude::NovaMenuPlugin;
 use nova_scenario::prelude::{
     CurrentScenario, GameScenarios, GameShipDesigns, GameStartRoles, ScenarioConfig,
 };
-use nova_ship::prelude::{thaw_round, FrozenRound, RoundSourceType};
+use nova_ship::prelude::{thaw_round, FrozenRound, GameSections, RoundSourceType};
 use nova_world::prelude::{CurrentSector, SectorCoord, SectorRoot, WorldConfig};
 use nova_world_base::{
     prelude::{
@@ -122,6 +122,10 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
     let worlds_root = config_root.path().join("worlds");
 
     let mut app = App::new();
+    // The role icon and Load row draws need a real `AssetServer`;
+    // `init_interface_icons` below panics on its hard `Res<AssetServer>`
+    // without it (`AppBuilder` orders this ahead of the menu in production).
+    app.add_plugins(bevy::asset::AssetPlugin::default());
     app.add_plugins(TimePlugin);
     app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
         16,
@@ -145,6 +149,19 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
     // The New Game modal's role details name each role's hull from the ship
     // catalog; empty is enough for a rig that never opens it.
     app.init_resource::<GameShipDesigns>();
+    // `refresh_start_role_details` reads the section catalog with a hard
+    // `Res`; empty is enough for a rig that never opens the role details.
+    app.init_resource::<GameSections>();
+    // `build_menu_previews` and `refresh_seed_preview` read the style
+    // catalog with a hard `Res`; the fixture styles cover every role and
+    // station archetype `arm_save_fixture` below also needs.
+    app.insert_resource(nova_world_base::test_support::fixture_styles());
+    // `refresh_load_list` reads the icon masks with a hard `Res`;
+    // `InterfacePlugin` draws them from `AssetServer` in production, and
+    // its fields are private to `nova_interface`, so this rig runs the same
+    // `Startup` system instead of hand-building the resource.
+    app.init_asset::<Image>();
+    app.add_systems(Startup, nova_interface::prelude::init_interface_icons);
 
     app.add_plugins(LoadingScreenPlugin);
     app.add_plugins(NovaMenuPlugin);

@@ -532,8 +532,10 @@ pub(crate) fn poll_world_open(
 /// so the resource stays until the next frame finds it. That frame re-reads
 /// the list from disk, as [`on_load_screen`] does, so a world never listed
 /// before (New Game, then "Load last save") has its row. A failed re-read
-/// shows its own error. [`SelectedWorldSlug`] is kept, so the details pane
-/// shows the reason too.
+/// shows its own error. [`SelectedWorldSlug`] is set to the refused world, so
+/// the details pane shows the reason too: a resume reached here off the Retry
+/// path, which never ran [`on_load_world_row_select`] to point the selection
+/// at it.
 pub(crate) fn refuse_resumed_world(
     mut commands: Commands,
     refused: Res<WorldResumeRefused>,
@@ -544,6 +546,7 @@ pub(crate) fn refuse_resumed_world(
     scenarios: Res<GameScenarios>,
     mut checks: ResMut<WorldChecks>,
     mut listings: ResMut<WorldListings>,
+    mut selected: ResMut<SelectedWorldSlug>,
     mut state: ResMut<NextState<GameStates>>,
     mut pause: ResMut<NextState<PauseStates>>,
     panel: Option<Single<&mut Visibility, With<LoadPanel>>>,
@@ -569,6 +572,7 @@ pub(crate) fn refuse_resumed_world(
             ),
         }
     }
+    selected.0 = Some(refused.slug.clone());
     **panel = Visibility::Visible;
     commands.remove_resource::<WorldResumeRefused>();
 }
