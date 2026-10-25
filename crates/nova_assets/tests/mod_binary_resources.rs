@@ -20,12 +20,46 @@ use bevy::{
     state::app::StatesPlugin,
 };
 use nova_assets::prelude::*;
-use nova_gameplay::{prelude::GameStates, test_support::test_items};
+use nova_gameplay::{
+    prelude::{
+        GameStates, JobOfferRule, PriceClamp, PriceFactor, PriceTable, RestockRule, ScarcityRule,
+    },
+    test_support::test_items,
+};
 use nova_modding::prelude::{
     BundleAsset, CatalogEntry, Content, ContentAsset, InstalledCatalog, ModEntry, ModMeta,
     NovaModdingPlugin,
 };
 use nova_scenario::prelude::{ContentIssues, GameScenarios, ScenarioConfig};
+
+/// A minimal valid price table, with no cluster or role rules. A synthetic base
+/// pack needs one: the merge refuses a base bundle that states none.
+fn price_table() -> Content {
+    Content::PriceTable(PriceTable {
+        clamp: PriceClamp {
+            min: 0.25,
+            max: 3.0,
+        },
+        scarcity: ScarcityRule {
+            starved: PriceFactor {
+                ask: 1.5,
+                bid: 1.25,
+            },
+            glut: PriceFactor { ask: 0.9, bid: 0.5 },
+            glut_share: 3.0,
+            unkept: PriceFactor { ask: 1.0, bid: 0.8 },
+        },
+        restock: RestockRule {
+            recovery_seconds: 1_000.0,
+        },
+        jobs: JobOfferRule {
+            offer_seconds: 1_200.0,
+            escort_offer_seconds: 3_600.0,
+        },
+        clusters: vec![],
+        roles: vec![],
+    })
+}
 
 /// A headless app: asset server on the workspace `assets/`, modding loaders, and
 /// the empty downloaded and optional sets (production always inits both;
@@ -202,9 +236,10 @@ fn an_undeclared_self_ref_is_an_error_content_issue() {
     let content = app
         .world_mut()
         .resource_mut::<Assets<ContentAsset>>()
-        // The merge refuses a base pack without every role item.
+        // The merge refuses a base pack without every role item and a price table.
         .add(ContentAsset(
             std::iter::once(Content::Scenario(scenario))
+                .chain(std::iter::once(price_table()))
                 .chain(test_items().iter().cloned().map(Content::Item))
                 .collect(),
         ));
@@ -519,8 +554,11 @@ fn a_dep_ref_to_base_resolves_against_base_folder_without_declaring_base() {
     let base_items = app
         .world_mut()
         .resource_mut::<Assets<ContentAsset>>()
+        // The merge refuses a base pack without a price table.
         .add(ContentAsset(
-            test_items().iter().cloned().map(Content::Item).collect(),
+            std::iter::once(price_table())
+                .chain(test_items().iter().cloned().map(Content::Item))
+                .collect(),
         ));
     let base_bundle = app
         .world_mut()
