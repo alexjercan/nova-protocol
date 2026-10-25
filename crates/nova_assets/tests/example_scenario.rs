@@ -20,7 +20,10 @@ use bevy::{
 };
 use nova_assets::prelude::*;
 use nova_gameplay::{
-    prelude::{GameItems, GameStates, ItemCategoryType, ItemDesign, ItemDesignId, ShipInventory},
+    prelude::{
+        GameItems, GameStates, ItemCategoryType, ItemDesign, ItemDesignId, JobOfferRule,
+        PriceClamp, PriceFactor, PriceTable, RestockRule, ScarcityRule, ShipInventory,
+    },
     test_support::test_items,
 };
 use nova_modding::prelude::{
@@ -58,6 +61,34 @@ fn headless_app() -> App {
     // The merge records a mod it refuses here, as production does.
     app.init_resource::<ModQuarantine>();
     app
+}
+
+/// A minimal valid price table, with no cluster or role rules. A synthetic base
+/// pack needs one: the merge refuses a base bundle that states none.
+fn price_table() -> Content {
+    Content::PriceTable(PriceTable {
+        clamp: PriceClamp {
+            min: 0.25,
+            max: 3.0,
+        },
+        scarcity: ScarcityRule {
+            starved: PriceFactor {
+                ask: 1.5,
+                bid: 1.25,
+            },
+            glut: PriceFactor { ask: 0.9, bid: 0.5 },
+            glut_share: 3.0,
+            unkept: PriceFactor { ask: 1.0, bid: 0.8 },
+        },
+        restock: RestockRule {
+            recovery_seconds: 1_000.0,
+        },
+        jobs: JobOfferRule {
+            offer_seconds: 1_200.0,
+        },
+        clusters: vec![],
+        roles: vec![],
+    })
 }
 
 /// Pump updates until `handle`'s recursive dependency load state is `Loaded`,
@@ -322,10 +353,10 @@ fn mod_catalog_lists_installed_mods_metadata() {
     );
     assert_eq!(
         mods[1].meta.description,
-        "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, a menu backdrop, and an item - a little of everything.",
+        "The copy-me tutorial mod: a section overlay, a new section, a playable arena, mod-shipped art, a menu backdrop, an item, a bounded fixed-seed world, a hold tour, a survey contact on a generated body, and a station - a little of everything.",
         "example's description comes from its bundle meta (the catalog has none)"
     );
-    assert_eq!(mods[1].meta.version, "1.4.0", "bundle meta version decodes");
+    assert_eq!(mods[1].meta.version, "1.9.0", "bundle meta version decodes");
     assert_eq!(mods[1].meta.author, "Nova Protocol");
 }
 
@@ -825,12 +856,14 @@ fn base_bundle_declares_the_new_game_start() {
 #[test]
 fn new_game_declaration_is_honored_only_from_base() {
     let mut app = headless_app();
-    // The merge refuses a base pack without every role item.
+    // The merge refuses a base pack without every role item or a price table.
     let base_items = app
         .world_mut()
         .resource_mut::<Assets<ContentAsset>>()
         .add(ContentAsset(
-            test_items().iter().cloned().map(Content::Item).collect(),
+            std::iter::once(price_table())
+                .chain(test_items().iter().cloned().map(Content::Item))
+                .collect(),
         ));
     let (base_bundle, mod_bundle) = {
         let mut bundles = app.world_mut().resource_mut::<Assets<BundleAsset>>();
@@ -949,9 +982,10 @@ fn merge_sweep_flags_bad_content_and_passes_the_shipped_tree() {
     let content = app
         .world_mut()
         .resource_mut::<Assets<ContentAsset>>()
-        // The merge refuses a base pack without every role item.
+        // The merge refuses a base pack without every role item or a price table.
         .add(ContentAsset(
             std::iter::once(Content::Scenario(broken))
+                .chain(std::iter::once(price_table()))
                 .chain(test_items().iter().cloned().map(Content::Item))
                 .collect(),
         ));
