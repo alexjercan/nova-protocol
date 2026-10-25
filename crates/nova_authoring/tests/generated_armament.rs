@@ -13,9 +13,10 @@ use nova_ship::prelude::SectionKind;
 use nova_world::prelude::SectorShipConditionType;
 use nova_world_base::prelude::{generate_ship, ship_stock, ShipLayoutRequest, ShipPartSnapshot};
 
-/// Weapon sections mounted across eight civilizations, eight seeds and every
-/// armed role at `advancement`: turrets, torpedo bays and railgun lances.
-fn census(snapshot: &ShipPartSnapshot, advancement: f32) -> (usize, usize, usize) {
+/// Weapon sections mounted across eight civilizations, `seeds` seeds and
+/// every armed role at `advancement`: turrets, torpedo bays and railgun
+/// lances.
+fn census(snapshot: &ShipPartSnapshot, advancement: f32, seeds: u32) -> (usize, usize, usize) {
     let (mut turrets, mut bays, mut lances) = (0, 0, 0);
     for node in 0..8 {
         let civilization = CivilizationId {
@@ -26,7 +27,7 @@ fn census(snapshot: &ShipPartSnapshot, advancement: f32) -> (usize, usize, usize
             if !matches!(role, ShipRoleType::Scavenger | ShipRoleType::Armored) {
                 continue;
             }
-            for seed in 0..8 {
+            for seed in 0..seeds {
                 let request = ShipLayoutRequest {
                     seed,
                     civilization,
@@ -60,12 +61,20 @@ fn census(snapshot: &ShipPartSnapshot, advancement: f32) -> (usize, usize, usize
 /// fewer than half as often as turrets, and never a railgun lance; below the
 /// lance's advancement no lance mounts either, and at full advancement some
 /// ships carry one.
+///
+/// Every part open at advancement 0 is known by every civilization outright
+/// (`ShipPartSnapshot::known`), so at advancement 0 the eight civilizations
+/// draw the same weapon set and the seed is the census's only real axis; 32
+/// seeds is what it takes to land the torpedo bay's low `draw_weight`
+/// reliably. Above advancement 0 a civilization's known set is still a
+/// seeded draw, so eight seeds across eight civilizations keeps catching the
+/// lance.
 #[test]
 fn early_ships_carry_rare_torpedoes_and_no_lance_and_late_ships_carry_lances() {
     let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
 
-    let (turrets, bays, lances) = census(&snapshot, 0.0);
+    let (turrets, bays, lances) = census(&snapshot, 0.0, 32);
     assert!(bays >= 1, "no early torpedo bay: {turrets} turrets");
     assert!(
         bays * 2 < turrets,
@@ -73,10 +82,10 @@ fn early_ships_carry_rare_torpedoes_and_no_lance_and_late_ships_carry_lances() {
     );
     assert_eq!(lances, 0, "an early lance mounted");
 
-    let (_, _, lances) = census(&snapshot, 0.45);
+    let (_, _, lances) = census(&snapshot, 0.45, 8);
     assert_eq!(lances, 0, "a lance mounted below its advancement");
 
-    let (_, _, lances) = census(&snapshot, 1.0);
+    let (_, _, lances) = census(&snapshot, 1.0, 8);
     assert!(lances >= 1, "no lance at full advancement");
 }
 

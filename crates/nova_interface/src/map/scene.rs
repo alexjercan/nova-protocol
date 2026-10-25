@@ -640,11 +640,14 @@ pub(crate) const MAP_GOTO_MARKER_PX: f32 = 18.0;
 /// arrives or is replaced by another order, and a target the map does not plot
 /// draws nothing. While that GOTO has a [`FlightPrediction`] with points still
 /// ahead, the path starts at the player blip, skips the points `Time<Fixed>`
-/// has already flown past and follows the predicted centre of mass, decimated
-/// to at most one stroke fewer than [`MAP_ROUTE_SEGMENTS`]. The stroke left
-/// over is a dim straight guide from the last point ahead to the live target,
-/// so a forecast that stops short still points at the target without claiming
-/// a predicted path there. With no prediction, or every point flown,
+/// has already flown past, follows the predicted centre of mass, and trims to
+/// its closest approach to the live target (see [`clip_predicted_path`]) so a
+/// maneuvering target the forecast has already curved past does not leave the
+/// path overshooting it, before decimating to at most one stroke fewer than
+/// [`MAP_ROUTE_SEGMENTS`]. The stroke left over is a dim straight guide from
+/// that closest approach to the live target, so a forecast that stops short
+/// still points at the target without claiming a predicted path there. With
+/// no prediction, or every point flown,
 /// the guide runs from the player blip instead, so a fresh GOTO draws at once.
 /// Each stroke is clipped before it is sized and rotated so it stays in the
 /// viewport. Spawns the strokes and the tag under the viewport on first run.
@@ -746,7 +749,7 @@ pub(crate) fn project_map_route(
     // first stroke is an icon-to-COM connector, not a predicted path: on a
     // hull whose centre of mass sits off its origin it can kink.
     let vertices = goto
-        .and_then(|(from, _, prediction)| {
+        .and_then(|(from, to, prediction)| {
             let prediction = prediction?;
             let flown = time
                 .elapsed()
@@ -769,10 +772,8 @@ pub(crate) fn project_map_route(
                 .collect();
             // One pooled stroke stays free for the guide.
             (!ahead.is_empty()).then(|| {
-                decimate_route(
-                    &std::iter::once(from).chain(ahead).collect::<Vec<_>>(),
-                    MAP_ROUTE_SEGMENTS,
-                )
+                let path = std::iter::once(from).chain(ahead).collect::<Vec<_>>();
+                decimate_route(&clip_predicted_path(&path, to), MAP_ROUTE_SEGMENTS)
             })
         })
         .unwrap_or_default();
@@ -902,6 +903,54 @@ fn clip_route_segment(from: Vec2, to: Vec2, size: Vec2, stroke_px: f32) -> Optio
         return None;
     }
     Some((from + span * enter, from + span * exit))
+}
+
+/// Trim `points` to the point on it closest to a maneuvering `target`, so the
+/// guide the caller draws on from there never runs back along the solid path
+/// from an overshoot: the prediction's forecast curve can pass the live
+/// target and keep going before the next tick catches up, and the untrimmed
+/// path used to leave the guide pointing backward across it. Checks every
+/// segment, clamped to its span, and keeps the earliest closest tie so a path
+/// that loops back near itself clips at the first approach. Returns the empty
+/// path when the closest approach is the very start (`points[0]`) with
+/// nothing ahead of it, or when `points` or `target` cannot give a finite
+/// closest point, so the caller's straight-line guide from the ship runs
+/// instead of a zero-length clip.
+fn clip_predicted_path(points: &[Vec3], target: Vec3) -> Vec<Vec3> {
+    if !target.is_finite() || points.len() < 2 {
+        return Vec::new();
+    }
+    let closest = points
+        .windows(2)
+        .enumerate()
+        .filter_map(|(segment, pair)| {
+            let (a, b) = (pair[0], pair[1]);
+            if !a.is_finite() || !b.is_finite() {
+                return None;
+            }
+            let span = b - a;
+            let length_squared = span.length_squared();
+            let t = if length_squared <= f32::EPSILON {
+                0.0
+            } else {
+                ((target - a).dot(span) / length_squared).clamp(0.0, 1.0)
+            };
+            let point = a + span * t;
+            let distance_squared = point.distance_squared(target);
+            distance_squared
+                .is_finite()
+                .then_some((segment, t, point, distance_squared))
+        })
+        .min_by(|a, b| a.3.total_cmp(&b.3).then_with(|| b.0.cmp(&a.0)));
+    let Some((segment, t, point, _)) = closest else {
+        return Vec::new();
+    };
+    if segment == 0 && t <= f32::EPSILON {
+        return Vec::new();
+    }
+    let mut trimmed = points[..=segment].to_vec();
+    trimmed.push(point);
+    trimmed
 }
 
 /// Spawn the hidden route strokes and `GOTO` tag under the viewport, below the
@@ -1377,5 +1426,72 @@ pub(crate) fn on_map_reframe_button(
             reframe_map(&mut orbit, &contacts, &mut runtime);
         }
         play_menu_select(&mut commands, bank.as_deref());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A target that maneuvers after the prediction was seeded can sit behind
+    /// a later leg the forecast still projects ahead of it.
+    /// The trimmed path stops at the closest approach instead of the far
+    /// overshoot, and the direction from there to the target does not reverse
+    /// against the path's own heading into that point.
+    #[test]
+    fn clip_predicted_path_drops_the_tail_past_a_maneuvering_target_overshoot() {
+        let points = [
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(10.0, 0.0, -5.0),
+            Vec3::new(20.0, 0.0, -8.0),
+            Vec3::new(35.0, 0.0, -6.0),
+            Vec3::new(60.0, 0.0, 2.0),
+        ];
+        let target = Vec3::new(21.0, 0.0, -8.0);
+
+        let trimmed = clip_predicted_path(&points, target);
+
+        assert!(
+            trimmed.len() < points.len(),
+            "the overshoot tail past the target stays dropped: {trimmed:?}"
+        );
+        assert!(
+            trimmed.last().unwrap().distance(target) < points[2].distance(target),
+            "the trim lands closer to the target than the untouched path: {trimmed:?}"
+        );
+        let heading = *trimmed.last().unwrap() - trimmed[trimmed.len() - 2];
+        let guide = target - *trimmed.last().unwrap();
+        assert!(
+            heading.dot(guide) >= 0.0,
+            "the guide from the trim does not reverse against the path's own heading: \
+             heading {heading:?}, guide {guide:?}"
+        );
+    }
+
+    /// A target still ahead of the whole forecast keeps every predicted point:
+    /// the trim never drops a valid path just because a forecast has already
+    /// arrived near its own end.
+    #[test]
+    fn clip_predicted_path_keeps_the_full_path_ahead_and_falls_back_at_the_start() {
+        let points = [
+            Vec3::new(0.0, 0.0, 0.0),
+            Vec3::new(10.0, 0.0, -10.0),
+            Vec3::new(20.0, 0.0, -20.0),
+        ];
+        let ahead = Vec3::new(40.0, 0.0, -40.0);
+
+        assert_eq!(
+            clip_predicted_path(&points, ahead),
+            points,
+            "a target past the forecast keeps the whole path"
+        );
+
+        // The closest approach to the ship's own start is the start itself,
+        // with nothing ahead of it to trim to: the caller's straight-line
+        // guide takes over instead of drawing a zero-length clip.
+        assert!(
+            clip_predicted_path(&points, points[0]).is_empty(),
+            "a target no closer than the path's own start falls back"
+        );
     }
 }
