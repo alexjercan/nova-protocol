@@ -81,7 +81,6 @@ pub struct EscortMarkers {
 
 /// Which located kind a range walks.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[expect(dead_code, reason = "each including example constructs one variant")]
 pub enum LocatedKindType {
     /// Take a stack off a wreck and undock with it.
     Recover,
@@ -1014,7 +1013,11 @@ fn assert_the_accept(world: &mut World) {
     let (_, job) = the_job(world);
     let items = world.resource::<GameItems>().clone();
     let jobs = world.resource::<Jobs>().clone();
-    assert_eq!(jobs.held(), &[job.clone()], "{tag} job: the job is held");
+    assert_eq!(
+        jobs.held(),
+        std::slice::from_ref(&job),
+        "{tag} job: the job is held"
+    );
     assert!(
         !jobs.is_done(&job.id),
         "{tag} job: the job is not done at the accept"
@@ -1883,7 +1886,11 @@ fn assert_the_done(world: &mut World) {
     let (_, job) = the_job(world);
     let jobs = world.resource::<Jobs>().clone();
     assert!(jobs.holds(&job.id), "{tag} job: the done job is still held");
-    assert_eq!(jobs.done(), &[job.id.clone()], "{tag} job: the job is done");
+    assert_eq!(
+        jobs.done(),
+        std::slice::from_ref(&job.id),
+        "{tag} job: the job is done"
+    );
     assert!(
         jobs.completed().is_empty(),
         "{tag} job: nothing is completed before the hand-in"

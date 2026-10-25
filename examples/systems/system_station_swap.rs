@@ -733,7 +733,7 @@ mod walk {
             release_action("viewer_next")(world);
             return;
         }
-        if frame % 2 == 0 {
+        if frame.is_multiple_of(2) {
             press_action("viewer_next")(world);
         } else {
             release_action("viewer_next")(world);

@@ -526,6 +526,275 @@ pub(super) fn track_ship_order_reports(
     }
 }
 
+/// Drain every ship's [`ShipInventoryReports`] into the hold events: pickup,
+/// jettison, trade, credits change, repair, rebuild, swap, strip, store and
+/// withdraw.
+///
+/// The intake pushes in the same fixed tick this drains, so a pickup reaches
+/// its handler in the frame it happened; a pane pushes in `Update`, so a
+/// trade, take, repair, rebuild, swap, store or withdraw reaches its handler
+/// on the next fixed tick. Draining
+/// preserves the order the reports were queued in: a trade's two balance
+/// moves fire before the trade itself, which queued last.
+pub(super) fn track_ship_inventory_reports(
+    mut q_ships: Query<
+        (&mut ShipInventoryReports, &EntityId, &EntityTypeName),
+        With<SpaceshipRootMarker>,
+    >,
+    q_partners: Query<&EntityId, With<SpaceshipRootMarker>>,
+    mut commands: Commands,
+) {
+    for (mut reports, ship_id, ship_type_name) in &mut q_ships {
+        if reports.0.is_empty() {
+            continue;
+        }
+        for report in reports.0.drain(..) {
+            debug!(
+                "track_ship_inventory_reports: ship '{}' {report:?}",
+                ship_id.0
+            );
+            let id = ship_id.0.clone();
+            let type_name = ship_type_name.0.clone();
+            match report {
+                ShipInventoryReport::PickedUp {
+                    canister,
+                    item,
+                    count,
+                } => {
+                    commands.fire::<OnPickedUpEvent>(CargoEventInfo {
+                        id,
+                        type_name,
+                        canister: canister.0,
+                        item: item.to_string(),
+                        count,
+                    });
+                }
+                ShipInventoryReport::Jettisoned {
+                    canister,
+                    item,
+                    count,
+                } => {
+                    commands.fire::<OnJettisonedEvent>(CargoEventInfo {
+                        id,
+                        type_name,
+                        canister: canister.0,
+                        item: item.to_string(),
+                        count,
+                    });
+                }
+                ShipInventoryReport::Traded {
+                    partner,
+                    trade,
+                    item,
+                    count,
+                    price_cr,
+                } => {
+                    // The trader is the passive subject: a partner that lost
+                    // its scenario id between the pane and this tick cannot be
+                    // named, and a payload without `id` would match no filter
+                    // and mislead a handler that reads it.
+                    let Ok(partner_id) = q_partners.get(partner) else {
+                        warn!(
+                            "track_ship_inventory_reports: ship '{id}' traded with \
+                             {partner:?}, which has no scenario id; OnTraded dropped"
+                        );
+                        continue;
+                    };
+                    commands.fire::<OnTradedEvent>(TradedEventInfo {
+                        id: partner_id.0.clone(),
+                        other_id: id,
+                        other_type_name: type_name,
+                        trade,
+                        item: item.to_string(),
+                        count,
+                        price_cr,
+                    });
+                }
+                ShipInventoryReport::CreditsChanged {
+                    previous_cr,
+                    current_cr,
+                    cause,
+                } => {
+                    commands.fire::<OnCreditsChangedEvent>(CreditsChangedEventInfo {
+                        id,
+                        type_name,
+                        previous_cr,
+                        current_cr,
+                        delta_cr: CreditsChangedEventInfo::delta(previous_cr, current_cr),
+                        cause,
+                    });
+                }
+                ShipInventoryReport::Repaired {
+                    section,
+                    item,
+                    count,
+                } => {
+                    commands.fire::<OnRepairedEvent>(RepairedEventInfo {
+                        id,
+                        type_name,
+                        section,
+                        item: item.to_string(),
+                        count,
+                    });
+                }
+                ShipInventoryReport::Stored {
+                    station,
+                    item,
+                    count,
+                } => {
+                    if let Some(info) =
+                        storage_event_info(&q_partners, station, id, type_name, item, count)
+                    {
+                        commands.fire::<OnStoredEvent>(info);
+                    }
+                }
+                ShipInventoryReport::Withdrawn {
+                    station,
+                    item,
+                    count,
+                } => {
+                    if let Some(info) =
+                        storage_event_info(&q_partners, station, id, type_name, item, count)
+                    {
+                        commands.fire::<OnWithdrawnEvent>(info);
+                    }
+                }
+                ShipInventoryReport::Rebuilt {
+                    section,
+                    parts,
+                    price_cr,
+                } => {
+                    commands.fire::<OnRebuiltEvent>(RebuiltEventInfo {
+                        id,
+                        type_name,
+                        section,
+                        parts: parts
+                            .into_iter()
+                            .map(|(item, count)| (item.to_string(), count))
+                            .collect(),
+                        price_cr,
+                    });
+                }
+                ShipInventoryReport::Swapped {
+                    section,
+                    from,
+                    to,
+                    parts,
+                    price_cr,
+                } => {
+                    commands.fire::<OnSwappedEvent>(SwappedEventInfo {
+                        id,
+                        type_name,
+                        section,
+                        from,
+                        to,
+                        parts: parts
+                            .into_iter()
+                            .map(|(item, count)| (item.to_string(), count))
+                            .collect(),
+                        price_cr,
+                    });
+                }
+                ShipInventoryReport::Added {
+                    section,
+                    part,
+                    at,
+                    point,
+                    parts,
+                    price_cr,
+                } => {
+                    commands.fire::<OnAddedEvent>(AddedEventInfo {
+                        id,
+                        type_name,
+                        section,
+                        part,
+                        at,
+                        point,
+                        parts: parts
+                            .into_iter()
+                            .map(|(item, count)| (item.to_string(), count))
+                            .collect(),
+                        price_cr,
+                    });
+                }
+                ShipInventoryReport::ShipBought { hull, price_cr } => {
+                    commands.fire::<OnShipBoughtEvent>(ShipBoughtEventInfo {
+                        id,
+                        type_name,
+                        hull,
+                        price_cr,
+                    });
+                }
+                ShipInventoryReport::EscortHired {
+                    escort,
+                    hull,
+                    price_cr,
+                } => {
+                    commands.fire::<OnEscortHiredEvent>(EscortHiredEventInfo {
+                        id,
+                        type_name,
+                        escort,
+                        hull,
+                        price_cr,
+                    });
+                }
+                ShipInventoryReport::Stripped {
+                    hull,
+                    section,
+                    parts,
+                } => {
+                    commands.fire::<OnStrippedEvent>(StrippedEventInfo {
+                        id,
+                        type_name,
+                        hull,
+                        section,
+                        parts: parts
+                            .into_iter()
+                            .map(|(item, count)| (item.to_string(), count))
+                            .collect(),
+                    });
+                }
+                ShipInventoryReport::StationBought { station, price_cr } => {
+                    commands.fire::<OnStationBoughtEvent>(StationBoughtEventInfo {
+                        id,
+                        type_name,
+                        station,
+                        price_cr,
+                    });
+                }
+            }
+        }
+    }
+}
+
+/// The storage event payload for a Store or Withdraw `ship_id` made at
+/// `station`, or `None` when the station has no scenario id. The station is
+/// the passive subject, as the trader is for `OnTraded`: a payload without
+/// `id` would match no filter and mislead a handler that reads it.
+fn storage_event_info(
+    q_partners: &Query<&EntityId, With<SpaceshipRootMarker>>,
+    station: Entity,
+    ship_id: String,
+    ship_type_name: String,
+    item: ItemDesignId,
+    count: u32,
+) -> Option<StorageEventInfo> {
+    let Ok(station_id) = q_partners.get(station) else {
+        warn!(
+            "track_ship_inventory_reports: ship '{ship_id}' used the storage of {station:?}, \
+             which has no scenario id; the storage event dropped"
+        );
+        return None;
+    };
+    Some(StorageEventInfo {
+        id: station_id.0.clone(),
+        other_id: ship_id,
+        other_type_name: ship_type_name,
+        item: item.to_string(),
+        count,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1624,273 +1893,4 @@ mod tests {
         );
         assert_eq!(docking_count(&app, "docked"), 1.0);
     }
-}
-
-/// Drain every ship's [`ShipInventoryReports`] into the hold events: pickup,
-/// jettison, trade, credits change, repair, rebuild, swap, strip, store and
-/// withdraw.
-///
-/// The intake pushes in the same fixed tick this drains, so a pickup reaches
-/// its handler in the frame it happened; a pane pushes in `Update`, so a
-/// trade, take, repair, rebuild, swap, store or withdraw reaches its handler
-/// on the next fixed tick. Draining
-/// preserves the order the reports were queued in: a trade's two balance
-/// moves fire before the trade itself, which queued last.
-pub(super) fn track_ship_inventory_reports(
-    mut q_ships: Query<
-        (&mut ShipInventoryReports, &EntityId, &EntityTypeName),
-        With<SpaceshipRootMarker>,
-    >,
-    q_partners: Query<&EntityId, With<SpaceshipRootMarker>>,
-    mut commands: Commands,
-) {
-    for (mut reports, ship_id, ship_type_name) in &mut q_ships {
-        if reports.0.is_empty() {
-            continue;
-        }
-        for report in reports.0.drain(..) {
-            debug!(
-                "track_ship_inventory_reports: ship '{}' {report:?}",
-                ship_id.0
-            );
-            let id = ship_id.0.clone();
-            let type_name = ship_type_name.0.clone();
-            match report {
-                ShipInventoryReport::PickedUp {
-                    canister,
-                    item,
-                    count,
-                } => {
-                    commands.fire::<OnPickedUpEvent>(CargoEventInfo {
-                        id,
-                        type_name,
-                        canister: canister.0,
-                        item: item.to_string(),
-                        count,
-                    });
-                }
-                ShipInventoryReport::Jettisoned {
-                    canister,
-                    item,
-                    count,
-                } => {
-                    commands.fire::<OnJettisonedEvent>(CargoEventInfo {
-                        id,
-                        type_name,
-                        canister: canister.0,
-                        item: item.to_string(),
-                        count,
-                    });
-                }
-                ShipInventoryReport::Traded {
-                    partner,
-                    trade,
-                    item,
-                    count,
-                    price_cr,
-                } => {
-                    // The trader is the passive subject: a partner that lost
-                    // its scenario id between the pane and this tick cannot be
-                    // named, and a payload without `id` would match no filter
-                    // and mislead a handler that reads it.
-                    let Ok(partner_id) = q_partners.get(partner) else {
-                        warn!(
-                            "track_ship_inventory_reports: ship '{id}' traded with \
-                             {partner:?}, which has no scenario id; OnTraded dropped"
-                        );
-                        continue;
-                    };
-                    commands.fire::<OnTradedEvent>(TradedEventInfo {
-                        id: partner_id.0.clone(),
-                        other_id: id,
-                        other_type_name: type_name,
-                        trade,
-                        item: item.to_string(),
-                        count,
-                        price_cr,
-                    });
-                }
-                ShipInventoryReport::CreditsChanged {
-                    previous_cr,
-                    current_cr,
-                    cause,
-                } => {
-                    commands.fire::<OnCreditsChangedEvent>(CreditsChangedEventInfo {
-                        id,
-                        type_name,
-                        previous_cr,
-                        current_cr,
-                        delta_cr: CreditsChangedEventInfo::delta(previous_cr, current_cr),
-                        cause,
-                    });
-                }
-                ShipInventoryReport::Repaired {
-                    section,
-                    item,
-                    count,
-                } => {
-                    commands.fire::<OnRepairedEvent>(RepairedEventInfo {
-                        id,
-                        type_name,
-                        section,
-                        item: item.to_string(),
-                        count,
-                    });
-                }
-                ShipInventoryReport::Stored {
-                    station,
-                    item,
-                    count,
-                } => {
-                    if let Some(info) =
-                        storage_event_info(&q_partners, station, id, type_name, item, count)
-                    {
-                        commands.fire::<OnStoredEvent>(info);
-                    }
-                }
-                ShipInventoryReport::Withdrawn {
-                    station,
-                    item,
-                    count,
-                } => {
-                    if let Some(info) =
-                        storage_event_info(&q_partners, station, id, type_name, item, count)
-                    {
-                        commands.fire::<OnWithdrawnEvent>(info);
-                    }
-                }
-                ShipInventoryReport::Rebuilt {
-                    section,
-                    parts,
-                    price_cr,
-                } => {
-                    commands.fire::<OnRebuiltEvent>(RebuiltEventInfo {
-                        id,
-                        type_name,
-                        section,
-                        parts: parts
-                            .into_iter()
-                            .map(|(item, count)| (item.to_string(), count))
-                            .collect(),
-                        price_cr,
-                    });
-                }
-                ShipInventoryReport::Swapped {
-                    section,
-                    from,
-                    to,
-                    parts,
-                    price_cr,
-                } => {
-                    commands.fire::<OnSwappedEvent>(SwappedEventInfo {
-                        id,
-                        type_name,
-                        section,
-                        from,
-                        to,
-                        parts: parts
-                            .into_iter()
-                            .map(|(item, count)| (item.to_string(), count))
-                            .collect(),
-                        price_cr,
-                    });
-                }
-                ShipInventoryReport::Added {
-                    section,
-                    part,
-                    at,
-                    point,
-                    parts,
-                    price_cr,
-                } => {
-                    commands.fire::<OnAddedEvent>(AddedEventInfo {
-                        id,
-                        type_name,
-                        section,
-                        part,
-                        at,
-                        point,
-                        parts: parts
-                            .into_iter()
-                            .map(|(item, count)| (item.to_string(), count))
-                            .collect(),
-                        price_cr,
-                    });
-                }
-                ShipInventoryReport::ShipBought { hull, price_cr } => {
-                    commands.fire::<OnShipBoughtEvent>(ShipBoughtEventInfo {
-                        id,
-                        type_name,
-                        hull,
-                        price_cr,
-                    });
-                }
-                ShipInventoryReport::EscortHired {
-                    escort,
-                    hull,
-                    price_cr,
-                } => {
-                    commands.fire::<OnEscortHiredEvent>(EscortHiredEventInfo {
-                        id,
-                        type_name,
-                        escort,
-                        hull,
-                        price_cr,
-                    });
-                }
-                ShipInventoryReport::Stripped {
-                    hull,
-                    section,
-                    parts,
-                } => {
-                    commands.fire::<OnStrippedEvent>(StrippedEventInfo {
-                        id,
-                        type_name,
-                        hull,
-                        section,
-                        parts: parts
-                            .into_iter()
-                            .map(|(item, count)| (item.to_string(), count))
-                            .collect(),
-                    });
-                }
-                ShipInventoryReport::StationBought { station, price_cr } => {
-                    commands.fire::<OnStationBoughtEvent>(StationBoughtEventInfo {
-                        id,
-                        type_name,
-                        station,
-                        price_cr,
-                    });
-                }
-            }
-        }
-    }
-}
-
-/// The storage event payload for a Store or Withdraw `ship_id` made at
-/// `station`, or `None` when the station has no scenario id. The station is
-/// the passive subject, as the trader is for `OnTraded`: a payload without
-/// `id` would match no filter and mislead a handler that reads it.
-fn storage_event_info(
-    q_partners: &Query<&EntityId, With<SpaceshipRootMarker>>,
-    station: Entity,
-    ship_id: String,
-    ship_type_name: String,
-    item: ItemDesignId,
-    count: u32,
-) -> Option<StorageEventInfo> {
-    let Ok(station_id) = q_partners.get(station) else {
-        warn!(
-            "track_ship_inventory_reports: ship '{ship_id}' used the storage of {station:?}, \
-             which has no scenario id; the storage event dropped"
-        );
-        return None;
-    };
-    Some(StorageEventInfo {
-        id: station_id.0.clone(),
-        other_id: ship_id,
-        other_type_name: ship_type_name,
-        item: item.to_string(),
-        count,
-    })
 }

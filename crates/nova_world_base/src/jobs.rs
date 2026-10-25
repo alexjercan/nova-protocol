@@ -1455,7 +1455,7 @@ mod tests {
         assert!(jobs(&app).is_done(&escort.id), "the mark marks it done");
         assert_eq!(
             app.world().resource::<DoneRaised>().0,
-            [escort.id.clone()],
+            std::slice::from_ref(&escort.id),
             "one arrival marks once and raises once"
         );
     }

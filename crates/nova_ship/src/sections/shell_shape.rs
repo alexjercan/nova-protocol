@@ -1344,7 +1344,7 @@ mod tests {
         // 64th of a cell, which lands a coordinate exactly halfway between two
         // unshifted grid points, where one ulp of noise picks the side.
         let key = |point: Vec3| -> [i64; 3] {
-            std::array::from_fn(|axis| (point[axis] * 1e4 + 0.3183).round() as i64)
+            std::array::from_fn(|axis| (point[axis] * 1e4 + 0.317).round() as i64)
         };
         for shape in sample_shapes() {
             let mut edges: HashMap<([i64; 3], [i64; 3]), usize> = HashMap::new();

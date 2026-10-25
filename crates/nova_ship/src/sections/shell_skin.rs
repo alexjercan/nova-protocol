@@ -998,10 +998,6 @@ fn spawn_ship_skin(
 /// Runs while the section is still live, so the hull before the removal is
 /// read off the ship as it stands; the lattice phase is that hull's, so the
 /// plates that stay keep their cells.
-#[expect(
-    clippy::type_complexity,
-    reason = "the root, its sections and their plates, each one filtered query"
-)]
 pub(crate) fn reclad_round_removal(
     request: On<SectionRemoveRequest>,
     mut commands: Commands,

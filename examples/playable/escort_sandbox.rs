@@ -299,10 +299,6 @@ fn anchor(transform: &GlobalTransform, com: Option<&ComputedCenterOfMass>) -> Ve
 /// Each escort's slot, trim zone, velocity and the line to its slot, the
 /// leader's velocity and dock-hold radius, every hull's radius, and the
 /// panel rows that number them.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one overlay reading the leader, the fleet, the drives and every hull"
-)]
 fn draw_the_fleet(
     mut gizmos: Gizmos<DiagnosticsGizmos>,
     mut panel: ResMut<DiagnosticsPanel>,

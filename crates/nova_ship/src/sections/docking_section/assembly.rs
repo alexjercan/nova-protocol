@@ -239,13 +239,9 @@ pub(super) fn measure_docked_assemblies(
     reported.retain(|key| q_connections.contains(*key) || q_hubs.contains(*key));
     held.clear();
 
-    let groups = docked_groups(
-        q_connections
-            .iter()
-            .map(|(entity, connection, hub)| (entity, &*connection, hub)),
-        q_hubs.iter(),
-        |entity| q_connections.get(entity).ok().map(|(_, record, _)| *record),
-    );
+    let groups = docked_groups(q_connections.iter(), q_hubs.iter(), |entity| {
+        q_connections.get(entity).ok().map(|(_, record, _)| *record)
+    });
     let is_player = |ship: Entity| q_bodies.get(ship).is_ok_and(|body| body.7);
 
     for group in groups {
@@ -394,7 +390,6 @@ fn set_drives(ship: Option<Mut<DockedShip>>, station: Option<Mut<DockedStation>>
 /// skips every docked root, so the loop is applied once. A held root's loop
 /// is ignored, and a driver with no live computer turns nothing: its pilot
 /// still has the drive.
-#[expect(clippy::type_complexity, reason = "one query per role")]
 pub(super) fn apply_docked_helm_wrench(
     q_connections: Query<(Entity, &DockingConnection, Option<&StationDock>)>,
     q_hubs: Query<(Entity, &StationDocks)>,

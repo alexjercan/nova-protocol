@@ -98,10 +98,10 @@ impl FrozenParkedHull {
 pub enum PendingParkedHull {
     /// A new offer: a hull for sale, parked at the next free port in design
     /// order, or an escort for hire, coasting beside the station.
-    Offer(StationHullOffer),
+    Offer(Box<StationHullOffer>),
     /// A hull thawed with its station: a docked one parks where it froze,
     /// an escort for hire coasts where a new one would.
-    Frozen(FrozenParkedHull),
+    Frozen(Box<FrozenParkedHull>),
 }
 
 /// The hulls a station root has yet to park, inserted by the world's spawn

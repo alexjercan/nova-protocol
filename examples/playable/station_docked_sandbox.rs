@@ -785,7 +785,7 @@ mod ship_overlay {
                     "target: {} socket {}",
                     placement.section, placement.point
                 ));
-                if let Some(line) = placement.verdict.as_ref().ok() {
+                if let Ok(line) = placement.verdict.as_ref() {
                     details.push(line.clone());
                 }
                 if let (Some(payment), Some(items)) =
@@ -1353,7 +1353,7 @@ mod smoke {
     /// Point at the free sockets in turn, `AIM_FRAMES` frames each, until the
     /// ghost stands valid at one.
     fn aim_the_ghost(world: &mut World, _elapsed: f32, frame: u32) {
-        if ghost_is_valid(world) || frame % AIM_FRAMES != 0 {
+        if ghost_is_valid(world) || !frame.is_multiple_of(AIM_FRAMES) {
             return;
         }
         let Some(add) = world.get_resource::<SmokeAdd>().cloned() else {
@@ -1483,7 +1483,7 @@ mod smoke {
         if frame % AIM_FRAMES == 1 {
             release_action("ship_part_socket")(world);
         }
-        if refused_by_the_station(world) || frame % AIM_FRAMES != 0 {
+        if refused_by_the_station(world) || !frame.is_multiple_of(AIM_FRAMES) {
             return;
         }
         let Some(add) = world.get_resource::<SmokeAdd>().cloned() else {

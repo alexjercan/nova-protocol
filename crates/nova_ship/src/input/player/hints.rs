@@ -257,7 +257,6 @@ pub(super) fn update_flight_verb_hints(
                         })
                 }),
             anchor: travel,
-            ..default()
         },
         rcs: VerbHint {
             // Shown only while the computer grants RCS, and only to the pair's

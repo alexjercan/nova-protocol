@@ -17,10 +17,6 @@ use serde::Deserialize;
 use crate::prelude::*;
 
 #[derive(Deserialize)]
-#[expect(
-    clippy::large_enum_variant,
-    reason = "each catalog entry is parsed once and moved out"
-)]
 enum Entry {
     Section(SectionConfig),
 }

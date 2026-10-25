@@ -410,10 +410,6 @@ fn against_floor(speed: f32) -> &'static str {
     }
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one overlay over the player, the Neutrals, their tallies and the contacts"
-)]
 fn draw_the_neutrals(
     mut gizmos: Gizmos<DiagnosticsGizmos>,
     mut panel: ResMut<DiagnosticsPanel>,
@@ -453,13 +449,12 @@ fn draw_the_neutrals(
         )),
         None => panel.detail("contact: none now"),
     }
-    match &read.last {
-        Some((peak, other)) => panel.line(format!(
+    if let Some((peak, other)) = &read.last {
+        panel.line(format!(
             "last contact: {} at {peak:.1} m/s, {}",
             name_of(*other, player_entity),
             against_floor(*peak),
-        )),
-        None => {}
+        ));
     }
 
     for (entity, name, transform, allegiance, provocation, retaliation, radius, velocity) in

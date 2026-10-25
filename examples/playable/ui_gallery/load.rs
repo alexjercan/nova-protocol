@@ -57,7 +57,7 @@ pub fn seeded_view(
                 4 => contents.push(Content::Derelicts),
                 _ => {}
             }
-            if (h >> 20) % 11 == 0 {
+            if (h >> 20).is_multiple_of(11) {
                 contents.push(Content::Planet);
             }
             let mut marks = Vec::new();
@@ -66,16 +66,16 @@ pub fn seeded_view(
                     kind: StationKind::Living,
                     code: "STN-1".into(),
                 });
-            } else if (h >> 28) % 9 == 0 {
+            } else if (h >> 28).is_multiple_of(9) {
                 marks.push(MarkView::Station {
-                    kind: if (h >> 36) % 3 == 0 {
+                    kind: if (h >> 36).is_multiple_of(3) {
                         StationKind::Dead
                     } else {
                         StationKind::Living
                     },
                     code: format!("STN-{}", (h >> 40) % 9 + 2),
                 });
-            } else if (h >> 28) % 13 == 0 {
+            } else if (h >> 28).is_multiple_of(13) {
                 marks.push(MarkView::Wreck(format!("WRK-{}", (h >> 44) % 9 + 1)));
             }
             cells.push(CellView {

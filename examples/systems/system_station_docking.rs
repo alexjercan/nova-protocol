@@ -147,7 +147,7 @@ fn station_script() -> Script {
         .diagnose(describe_ports)
         .add()
         .step("ask for the helm and hold a burn against the living station")
-        .on_enter(|world| assert_living_station_helm(world))
+        .on_enter(assert_living_station_helm)
         .each(|world, _, _| hold_burn(world))
         .until(frames(HOLD_FRAMES))
         .deadline(20.0)

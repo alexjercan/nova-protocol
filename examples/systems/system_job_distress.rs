@@ -36,7 +36,7 @@ use clap::Parser;
 
 #[cfg(feature = "debug")]
 #[path = "shared/located_jobs.rs"]
-mod located_jobs;
+pub mod located_jobs;
 
 #[derive(Parser)]
 #[command(name = "system_job_distress")]

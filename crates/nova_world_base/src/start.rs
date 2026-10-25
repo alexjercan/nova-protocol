@@ -10,20 +10,24 @@
 //! [`StartBerthMarker`], and [`berth_at_start`] puts it on the station's
 //! outward port and docks it once the station stands.
 
+#[cfg(not(target_arch = "wasm32"))]
 use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
-use nova_events::prelude::{EntityId, GeneratedBodyId, Meters3, SectorCoord};
-use nova_gameplay::prelude::{
-    ClusterType, GameItems, PointRotation, PointRotationOutput, SectionInactiveMarker, StanceType,
-};
-use nova_scenario::prelude::{
-    parked_envelopes, OpenWorldSession, PendingParkedHulls, StartBerthMarker, StartRoleDesignId,
-    StartingStation,
-};
+#[cfg(not(target_arch = "wasm32"))]
+use nova_events::prelude::{EntityId, GeneratedBodyId};
+use nova_events::prelude::{Meters3, SectorCoord};
+use nova_gameplay::prelude::{ClusterType, GameItems, StanceType};
+#[cfg(not(target_arch = "wasm32"))]
+use nova_gameplay::prelude::{PointRotation, PointRotationOutput, SectionInactiveMarker};
+#[cfg(not(target_arch = "wasm32"))]
+use nova_scenario::prelude::{parked_envelopes, PendingParkedHulls, StartBerthMarker};
+use nova_scenario::prelude::{OpenWorldSession, StartRoleDesignId, StartingStation};
+use nova_ship::prelude::GameStyles;
+#[cfg(not(target_arch = "wasm32"))]
 use nova_ship::prelude::{
     outward_berth, DockedPort, DockedShip, DockingConnectionRequest, DockingSectionMarker,
-    GameStyles, ParkedHullType, ParkedHulls, ShipDesignSections, ShipSkin,
+    ParkedHullType, ParkedHulls, ShipDesignSections, ShipSkin,
 };
 use nova_world::prelude::{
     sector_id, SectorFault, SectorGenerationInput, SectorGenerator, WorldGeometry,
@@ -232,6 +236,7 @@ pub fn start_session(
 /// the ship is docked. A ship that stands clear at no free port is logged
 /// as an error and stays where it spawned, undocked: never berthed into a
 /// hull.
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn berth_at_start(world: &mut World) {
     let Some(start_id) = world
         .get_resource::<OpenWorldSession>()
@@ -321,6 +326,7 @@ pub(crate) fn berth_at_start(world: &mut World) {
 }
 
 /// The free, live docking ports mounted under `root`, lowest first.
+#[cfg(not(target_arch = "wasm32"))]
 fn free_ports(world: &mut World, root: Entity) -> Vec<Entity> {
     let ports: Vec<Entity> = world
         .query_filtered::<Entity, (
@@ -363,6 +369,7 @@ fn free_ports(world: &mut World, root: Entity) -> Vec<Entity> {
 /// When the station or the ship has no design sections or no [`ShipSkin`],
 /// or a free port has no design section: the section spawn gives each root
 /// both and each port its [`EntityId`].
+#[cfg(not(target_arch = "wasm32"))]
 fn clear_berth(
     world: &World,
     station: Entity,

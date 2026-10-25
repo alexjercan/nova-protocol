@@ -426,7 +426,7 @@ pub fn plan_section_add<'a>(
     if !partner.offers {
         return Err(SectionAddRefusalType::NoRefitService);
     }
-    if !partner.builds.iter().any(|known| *known == offered.base.id) {
+    if !partner.builds.contains(&offered.base.id) {
         return Err(SectionAddRefusalType::NotBuilt);
     }
     let (position, rotation) = fit.map_err(SectionAddRefusalType::Fit)?;

@@ -634,10 +634,6 @@ pub(crate) fn target_face_pose(block: Transform, full: Vec3, normal: Vec3) -> Tr
     clippy::too_many_arguments,
     reason = "the ghost reconciles a block, its outline and a callout from one solve"
 )]
-#[expect(
-    clippy::type_complexity,
-    reason = "the ghost, its outline and the callout are each one filtered query"
-)]
 pub(crate) fn sync_ship_ghost(
     mut commands: Commands,
     runtime: Res<ShipRuntime>,

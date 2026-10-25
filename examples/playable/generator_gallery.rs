@@ -636,7 +636,16 @@ fn generate_row(
             role_preference: [1.0; 4],
             stance: StanceType::Neutral,
         };
-        let mut station = generated_station(snapshot, items, &layout, &keeper);
+        let mut station = match generated_station(snapshot, items, &layout, &keeper) {
+            Ok(station) => station,
+            Err(constraint) => {
+                failures.push(format!(
+                    "{} station at advancement {advancement:.2}, seed {}: {constraint}",
+                    controls.archetype, controls.seed
+                ));
+                continue;
+            }
+        };
         station.hull.presentation.skin = controls.skin == SkinType::Clad;
         if let Some(style) = &controls.style {
             station.hull.presentation.style = Some(style.clone());

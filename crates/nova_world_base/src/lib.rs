@@ -262,7 +262,10 @@ impl Plugin for NovaWorldBasePlugin {
                     // snapshots the record.
                     goal::track_role_goal,
                     // The fresh player ship docks at the starting station
-                    // the frame it stands.
+                    // the frame it stands. Native only: it berths through
+                    // avian's `Position`/`Rotation`, which the web build has
+                    // none of.
+                    #[cfg(not(target_arch = "wasm32"))]
                     start::berth_at_start,
                     // A thawed trader's hold catches up before a board reads
                     // it; a served window is forgotten and every body's side

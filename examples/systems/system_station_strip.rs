@@ -964,11 +964,12 @@ mod walk {
                 (id.clone(), code)
             })
             .collect();
-        let mut watch = world.resource_mut::<StripWatch>();
-        watch.codes = codes;
-        watch.planned = strip.parts;
-        watch.start_hold = Some(own);
-        drop(watch);
+        {
+            let mut watch = world.resource_mut::<StripWatch>();
+            watch.codes = codes;
+            watch.planned = strip.parts;
+            watch.start_hold = Some(own);
+        }
         record_the_berth(world);
     }
 

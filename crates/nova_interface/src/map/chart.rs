@@ -1356,10 +1356,6 @@ pub(crate) fn spawn_map_chart_objectives(panel: &mut ChildSpawnerCommands) {
     clippy::too_many_arguments,
     reason = "the records the rows read, the player's hold and the icons the rows draw"
 )]
-#[expect(
-    clippy::type_complexity,
-    reason = "the records the rows read grouped in one tuple"
-)]
 pub(crate) fn update_map_chart_objectives(
     mut commands: Commands,
     runtime: Res<MapRuntime>,

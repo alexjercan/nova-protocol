@@ -40,6 +40,7 @@ const STANDOFF: f32 = 5.0;
 enum Entry {
     Section(SectionConfig),
     Ship(ShipDesignPrototype),
+    Style(ShipStyleConfig),
 }
 
 fn load(path: &str) -> Vec<Entry> {
@@ -48,23 +49,34 @@ fn load(path: &str) -> Vec<Entry> {
 }
 
 /// The shipped catalogs, plus the test-only station.
-fn catalogs() -> (GameSections, GameShipDesigns) {
+fn catalogs() -> (GameSections, GameShipDesigns, GameStyles) {
     let sections = load("sections/base.content.ron")
         .into_iter()
         .filter_map(|entry| match entry {
             Entry::Section(section) => Some(section),
-            Entry::Ship(_) => None,
+            Entry::Ship(_) | Entry::Style(_) => None,
         })
         .collect();
     let mut ships: Vec<ShipDesignPrototype> = load("ships/base.content.ron")
         .into_iter()
         .filter_map(|entry| match entry {
             Entry::Ship(ship) => Some(ship),
-            Entry::Section(_) => None,
+            Entry::Section(_) | Entry::Style(_) => None,
         })
         .collect();
     ships.push(station_design());
-    (GameSections(sections), GameShipDesigns(ships))
+    let styles = load("styles/base.content.ron")
+        .into_iter()
+        .filter_map(|entry| match entry {
+            Entry::Style(style) => Some(style),
+            Entry::Section(_) | Entry::Ship(_) => None,
+        })
+        .collect();
+    (
+        GameSections(sections),
+        GameShipDesigns(ships),
+        GameStyles(styles),
+    )
 }
 
 /// A solid box of real hull cells with its port collar on `-X`, turned like
@@ -132,9 +144,10 @@ fn app() -> App {
         SpaceshipPlugin,
         NovaFlightPlugin,
     ));
-    let (sections, ships) = catalogs();
+    let (sections, ships, styles) = catalogs();
     app.insert_resource(sections);
     app.insert_resource(ships);
+    app.insert_resource(styles);
     app.init_resource::<CargoCanisterIdAllocator>();
     app.insert_resource(test_items());
     app.add_systems(

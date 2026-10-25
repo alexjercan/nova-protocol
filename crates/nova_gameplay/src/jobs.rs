@@ -1946,7 +1946,7 @@ mod tests {
         plan_job_accept(&job, Some(&poster), &jobs, false, false)
             .expect("a procurement reads no target");
         jobs.accept(job.clone());
-        assert_eq!(jobs.held(), &[job.clone()]);
+        assert_eq!(jobs.held(), std::slice::from_ref(&job));
         assert_eq!(
             plan_job_accept(&job, Some(&poster), &jobs, false, true),
             Err(JobAcceptRefusalType::AlreadyHeld)
@@ -2018,7 +2018,7 @@ mod tests {
         let done = jobs.complete(&job.id);
         assert_eq!(done, job);
         assert!(jobs.held().is_empty());
-        assert_eq!(jobs.completed(), &[job.clone()]);
+        assert_eq!(jobs.completed(), std::slice::from_ref(&job));
         assert_eq!(
             plan_job_accept(&job, Some(&poster), &jobs, false, true),
             Err(JobAcceptRefusalType::AlreadyDone)
@@ -2087,7 +2087,7 @@ mod tests {
             !jobs.is_done(&recover.id),
             "a completed job is no longer done"
         );
-        assert_eq!(jobs.completed(), &[recover.clone()]);
+        assert_eq!(jobs.completed(), std::slice::from_ref(&recover));
 
         let dropped = jobs.drop(&escort.id);
         assert_eq!(dropped, escort);

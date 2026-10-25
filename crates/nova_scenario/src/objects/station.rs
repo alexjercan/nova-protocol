@@ -675,7 +675,10 @@ pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
     entity.insert(station_type_name(living));
     if !parked.is_empty() {
         entity.insert(PendingParkedHulls(
-            parked.into_iter().map(PendingParkedHull::Frozen).collect(),
+            parked
+                .into_iter()
+                .map(|hull| PendingParkedHull::Frozen(Box::new(hull)))
+                .collect(),
         ));
     }
     if owned {

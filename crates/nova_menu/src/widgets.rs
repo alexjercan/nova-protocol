@@ -126,6 +126,7 @@ pub(crate) fn button_variant(text: &str, variant: ButtonVariant, key: Option<&st
 /// A danger button at the default 34px / 14px sizing, the size of a
 /// `themed_button` beside it in a details pane, plus the `MenuSfxButton`
 /// click cue. [`button_variant`] is the 40px menu-column sizing.
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn danger_button(text: &str) -> impl Bundle {
     (
         nova_ui::widget::button(ButtonSpec::new(text).danger()),

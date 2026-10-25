@@ -802,7 +802,7 @@ fn the_title_row_clock_reads_the_play_time_only_while_a_world_is_armed() {
         .world_mut()
         .run_system_once(show_pane_clock)
         .expect("the clock system runs");
-    assert_eq!(clock_of(rig.app.world_mut()).1, false);
+    assert!(!clock_of(rig.app.world_mut()).1);
 
     // A clock on an unarmed world (empty chart) stays hidden.
     rig.app.insert_resource(WorldClock {
@@ -813,7 +813,7 @@ fn the_title_row_clock_reads_the_play_time_only_while_a_world_is_armed() {
         .world_mut()
         .run_system_once(show_pane_clock)
         .expect("the clock system runs");
-    assert_eq!(clock_of(rig.app.world_mut()).1, false);
+    assert!(!clock_of(rig.app.world_mut()).1);
 
     // The start cell on the chart arms it: the clock shows the play time.
     rig.app.world_mut().resource_mut::<Chart>().visit(

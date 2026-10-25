@@ -1685,7 +1685,7 @@ mod walk {
         } else {
             trace.closest.min(gap)
         };
-        if trace.steps % 10 == 0 {
+        if trace.steps.is_multiple_of(10) {
             let offset = at - leader_at;
             info!(
                 "station hire: trace step={} leader=({:.1},{:.1},{:.1}) leader_v=({:.2},{:.2},{:.2}) \

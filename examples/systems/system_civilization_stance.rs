@@ -732,7 +732,7 @@ mod walk {
                     distance < best.position.distance(Meters3::ZERO).get()
                 });
                 if better {
-                    picked = Some((field.civilization(civ.node), rival.clone(), dock, kills));
+                    picked = Some((field.civilization(civ.node), rival, dock, kills));
                 }
                 break;
             }

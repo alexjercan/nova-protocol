@@ -535,10 +535,6 @@ fn hold_line(title: &str, hold: &ShipInventory, items: &GameItems) -> String {
 
 /// Lines to each own ship whose hold the pane offers as storage, its name
 /// over it, and the panel.
-#[expect(
-    clippy::type_complexity,
-    reason = "one query per role the overlay reads"
-)]
 fn draw_the_holds(
     mut gizmos: Gizmos<DiagnosticsGizmos>,
     mut panel: ResMut<DiagnosticsPanel>,
@@ -764,7 +760,7 @@ mod smoke {
             script,
             "withdraw the Hauler's stack",
             "Withdrew 4 Hull plate from Hauler",
-            (10, 0, 4 - 4),
+            (10, 0, 0),
             WITHDRAW_OWN_SHOT,
         );
 

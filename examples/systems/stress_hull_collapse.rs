@@ -684,6 +684,7 @@ fn close_the_loop(world: &mut World) {
 fn finish_the_walk(world: &mut World) {
     if !loop_requested() {
         world.write_message(AppExit::Success);
+        #[cfg(feature = "debug")]
         return;
     }
     #[cfg(feature = "debug")]

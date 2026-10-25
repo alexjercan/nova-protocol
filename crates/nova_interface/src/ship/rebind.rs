@@ -20,11 +20,11 @@ fn reserved_conflict(bindings: &InputBindings, source: InputSource) -> Option<St
 
 /// The binding a section of `class` rebinds from: its own, or an empty one
 /// when it is of `kind` and carries none.
-fn or_unbound<'a>(
+fn or_unbound(
     class: Option<SectionClass>,
-    binding: Option<&'a [InputSource]>,
+    binding: Option<&[InputSource]>,
     kind: SectionClass,
-) -> Option<&'a [InputSource]> {
+) -> Option<&[InputSource]> {
     binding.or((class == Some(kind)).then_some(&[]))
 }
 

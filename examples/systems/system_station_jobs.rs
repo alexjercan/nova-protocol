@@ -809,7 +809,11 @@ mod walk {
         let (_, job) = the_job(world);
         let items = world.resource::<GameItems>().clone();
         let jobs = world.resource::<Jobs>().clone();
-        assert_eq!(jobs.held(), &[job.clone()], "station jobs: the job is held");
+        assert_eq!(
+            jobs.held(),
+            std::slice::from_ref(&job),
+            "station jobs: the job is held"
+        );
         assert!(
             jobs.completed().is_empty(),
             "station jobs: nothing is completed"
@@ -888,7 +892,7 @@ mod walk {
         .unwrap_or_else(|refusal| panic!("station jobs: cannot open the leave save: {refusal}"));
         assert_eq!(
             state.jobs.held(),
-            &[job.clone()],
+            std::slice::from_ref(&job),
             "station jobs: the save holds the job"
         );
         assert!(
@@ -943,7 +947,7 @@ mod walk {
         let jobs = world.resource::<Jobs>().clone();
         assert_eq!(
             jobs.held(),
-            &[job.clone()],
+            std::slice::from_ref(&job),
             "station jobs: the Load restored the job"
         );
         let station = station(world);
@@ -1217,7 +1221,7 @@ mod walk {
         let jobs = world.resource::<Jobs>().clone();
         assert_eq!(
             jobs.held(),
-            &[held.clone()],
+            std::slice::from_ref(&held),
             "station jobs: the walked job is the one held"
         );
         let station = station(world);
@@ -1305,7 +1309,7 @@ mod walk {
         let jobs = world.resource::<Jobs>().clone();
         assert_eq!(
             jobs.held(),
-            &[held.clone()],
+            std::slice::from_ref(&held),
             "station jobs: the walked job is still held after the thaw"
         );
         let station = station(world);

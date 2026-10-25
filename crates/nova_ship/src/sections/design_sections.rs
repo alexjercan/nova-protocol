@@ -235,7 +235,7 @@ pub fn plan_section_swap(
     if !partner.offers {
         return Err(SectionSwapRefusalType::NoRefitService);
     }
-    if !partner.builds.iter().any(|known| *known == offered.base.id) {
+    if !partner.builds.contains(&offered.base.id) {
         return Err(SectionSwapRefusalType::NotBuilt);
     }
     section_swap_family(current, offered).map_err(SectionSwapRefusalType::Family)?;
@@ -1048,10 +1048,7 @@ mod tests {
             config: &intake,
             working: true,
         };
-        assert_eq!(
-            intake_in_dock_approach(&[berth.clone(), flank]),
-            Some((1, 0))
-        );
+        assert_eq!(intake_in_dock_approach(&[berth, flank]), Some((1, 0)));
         assert_eq!(intake_in_dock_approach(&[berth, deck]), None);
     }
 }

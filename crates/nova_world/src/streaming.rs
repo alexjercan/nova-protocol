@@ -403,7 +403,10 @@ fn spawn_sector_station(commands: &mut Commands, root: Entity, station: SectorSt
     }
     if !hulls.is_empty() {
         entity.insert(PendingParkedHulls(
-            hulls.into_iter().map(PendingParkedHull::Offer).collect(),
+            hulls
+                .into_iter()
+                .map(|hull| PendingParkedHull::Offer(Box::new(hull)))
+                .collect(),
         ));
     }
 }

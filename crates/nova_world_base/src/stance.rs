@@ -481,7 +481,7 @@ mod tests {
             .iter()
             .flat_map(|&seed| {
                 let field = CivilizationField::new(seed);
-                sweep_nodes().into_iter().map(move |node| {
+                sweep_nodes().map(move |node| {
                     let civilization = field.civilization(node);
                     (civilization.advancement, fine_cr(&civilization.id))
                 })

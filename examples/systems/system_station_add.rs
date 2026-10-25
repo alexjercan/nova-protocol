@@ -659,6 +659,7 @@ mod walk {
                 position: section.position,
                 rotation: section.rotation,
                 config: &section.config,
+                working: true,
             })
             .collect();
         let live_indices: Vec<usize> = design
@@ -832,7 +833,7 @@ mod walk {
         if ghost_on_target(world) {
             return;
         }
-        if frame % AIM_FRAMES != 0 {
+        if !frame.is_multiple_of(AIM_FRAMES) {
             return;
         }
         // `usize::MAX` until the first socket is pointed at, so the first
@@ -981,6 +982,7 @@ mod walk {
                 position: section.position,
                 rotation: section.rotation,
                 config: &section.config,
+                working: true,
             })
             .collect();
         let fault = add_build_fault(
@@ -989,6 +991,7 @@ mod walk {
                 position: added.position,
                 rotation: added.rotation,
                 config: &added.config,
+                working: true,
             },
         );
         assert_eq!(fault, None, "station add probe: the post-build checks pass");

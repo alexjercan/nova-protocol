@@ -919,7 +919,7 @@ fn drive_capture(
         return;
     }
     let (wanted_page, step, theme, file) = SHOTS[stage / 2];
-    if stage % 2 == 0 {
+    if stage.is_multiple_of(2) {
         // Show the page with something selected, so the inspector is not
         // empty.
         *page = wanted_page;

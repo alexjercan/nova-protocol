@@ -521,8 +521,8 @@ pub fn nearest_link_point(
 /// the one nearest the part's own axis. `None` for a part with no sockets.
 ///
 /// That socket is the one whose mate leaves the part in the orientation it was
-/// AUTHORED in - an engine keeps its nozzle aft, a bay keeps its doors forward
-/// - because opposing two already-opposed normals asks for no rotation at all.
+/// AUTHORED in: an engine keeps its nozzle aft and a bay keeps its doors
+/// forward, because opposing two already-opposed normals asks for no rotation.
 /// The editor starts its socket cycle here, and a station add mounts a part
 /// with it.
 pub fn natural_link_point(part_link_points: &[LinkPoint], target_normal: Vec3) -> Option<usize> {

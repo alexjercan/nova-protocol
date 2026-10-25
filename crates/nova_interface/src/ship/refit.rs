@@ -213,10 +213,6 @@ impl ResolvedSite<'_> {
 /// and raise the [`SectionSwapRequest`] that replaces the section at full
 /// health. The old part is not refunded. A refusal changes nothing and shows
 /// its reason on the note line.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one system reading the catalogue, the site and both holds"
-)]
 pub(crate) fn apply_ship_swap_commands(
     mut messages: MessageReader<SectionSwapCommand>,
     mut runtime: ResMut<ShipRuntime>,

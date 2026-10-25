@@ -235,11 +235,11 @@ const TENDERS: usize = 3;
 fn offer_the_tenders(add: On<Add, StationMarker>, mut commands: Commands) {
     let tenders = (1..=TENDERS)
         .map(|n| {
-            PendingParkedHull::Offer(StationHullOffer {
+            PendingParkedHull::Offer(Box::new(StationHullOffer {
                 name: format!("Tender {n}"),
                 terms: HullOfferType::Sale,
                 design: docking_pair::tender(),
-            })
+            }))
         })
         .collect();
     commands

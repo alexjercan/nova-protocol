@@ -709,6 +709,7 @@ mod smoke {
                 position: section.position,
                 rotation: section.rotation,
                 config: &section.config,
+                working: true,
             })
             .collect();
         let live_indices: Vec<usize> = design
