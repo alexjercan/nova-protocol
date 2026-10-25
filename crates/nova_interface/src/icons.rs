@@ -82,6 +82,9 @@ pub struct InterfaceIcons {
     pub(crate) jobs: [Handle<Image>; JobIconType::ALL.len()],
     pub(crate) roles: [Handle<Image>; ROLE_ICONS.len()],
     pub(crate) credit: Handle<Image>,
+    /// The held-job row's drop-ask mark: an X in a frame, rasterized from
+    /// `art/icons/job_drop_cancel.svg` since Bevy UI cannot draw SVG.
+    pub(crate) job_drop_cancel: Handle<Image>,
 }
 
 impl InterfaceIcons {
@@ -120,6 +123,11 @@ impl InterfaceIcons {
         self.credit.clone()
     }
 
+    /// The held-job row's drop-ask mark: an X in a frame.
+    pub(crate) fn job_drop_cancel(&self) -> Handle<Image> {
+        self.job_drop_cancel.clone()
+    }
+
     /// Default handles for every mask, for tests that build pane markup
     /// without drawing images.
     #[cfg(test)]
@@ -132,6 +140,7 @@ impl InterfaceIcons {
             jobs: std::array::from_fn(|_| Handle::default()),
             roles: std::array::from_fn(|_| Handle::default()),
             credit: Handle::default(),
+            job_drop_cancel: Handle::default(),
         }
     }
 }
@@ -970,8 +979,13 @@ fn icon_mask(images: &mut Assets<Image>, coverage: impl Fn(Vec2, f32) -> f32) ->
     ))
 }
 
-/// Draw every icon mask once.
-pub fn init_interface_icons(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+/// Draw every icon mask once, plus the masks rasterized ahead of time from an
+/// authored SVG, which the AssetServer loads from `assets/icons`.
+pub fn init_interface_icons(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    asset_server: Res<AssetServer>,
+) {
     commands.insert_resource(InterfaceIcons {
         sections: SectionIconType::ALL
             .map(|icon| icon_mask(&mut images, |p, px| icon.coverage(p, px))),
@@ -982,6 +996,7 @@ pub fn init_interface_icons(mut commands: Commands, mut images: ResMut<Assets<Im
         jobs: JobIconType::ALL.map(|icon| icon_mask(&mut images, |p, px| icon.coverage(p, px))),
         roles: ROLE_ICONS.map(|icon| icon_mask(&mut images, |p, px| role_coverage(icon, p, px))),
         credit: icon_mask(&mut images, credit_coverage),
+        job_drop_cancel: asset_server.load("icons/job_drop_cancel.png"),
     });
 }
 

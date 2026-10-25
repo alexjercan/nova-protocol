@@ -2827,6 +2827,7 @@ fn market_table() -> PriceTable {
         },
         jobs: JobOfferRule {
             offer_seconds: 1_200.0,
+            escort_offer_seconds: 3_600.0,
         },
         clusters: vec![ClusterPriceRule {
             cluster: ClusterType::PlanetHeavy,

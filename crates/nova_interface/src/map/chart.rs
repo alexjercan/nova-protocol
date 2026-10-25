@@ -1,8 +1,9 @@
 //! The map's chart view: the player's [`Chart`] drawn at cell scale.
 //!
-//! The view swaps the local scene for a grid of cells around the player's
-//! cell. A visited cell is a textured tile: one layer per cluster type, each
-//! the type's texture ([`ChartTileTextures`]) in the type's colour, or a
+//! The view swaps the local scene for a grid around the player's X/Z cell
+//! on the focused Y layer. A visited cell is a textured tile: one layer per
+//! cluster type, each the type's texture ([`ChartTileTextures`]) in the type's
+//! colour, or a
 //! faint grid for a cell with no cluster body; a cell never entered is an
 //! outline. The found stations and wrecks stand as marks in the cell that
 //! generated them, and every held job ([`Jobs`]) as a mark in its target's
@@ -22,11 +23,14 @@
 //! find's cell, the route to it from the player's cell, its contents as icon
 //! rows, when the player entered it, the finds there, the stock last seen at
 //! a station docked there and the jobs held or posted there. With nothing
-//! selected it carries the OBJECTIVES block over the discovery log. The
-//! block lists what the player has to do now ([`open_objectives`]): each
-//! held job with its `have / need` and the code of the station it hands in
-//! at, and the role's next unmet milestone, or the play time the role met
-//! its last one. A held job's row selects its mark. The
+//! selected it carries the OBJECTIVES block over the discovery log; the
+//! block's heading carries the focused Y layer, with the layer's visited
+//! count as its tooltip, since the chart's own header fields render
+//! unreliably with nothing selected. The block lists what the player has to
+//! do now ([`open_objectives`]): each held job's code, title, `have / need`
+//! and the code of its hand-in station, then the role's heading and next
+//! unmet milestone, or the time the role met its last one. A held job's row
+//! selects its mark. The
 //! log lists the chart's own finds ([`Chart::log`]) newest first, each an
 //! icon, a label, a cell and how long ago, and each a row that selects its
 //! find.
@@ -45,7 +49,7 @@ use nova_ship::prelude::DockAdmission;
 use nova_ui::{
     prelude::{button, ButtonSpec},
     theme::{ActiveUiTheme, UiColor},
-    widget::{ThemedBorder, ThemedFill},
+    widget::{ThemedBorder, ThemedFill, Tooltip},
 };
 
 use super::{app::*, contacts::*, tiles::ChartTileTextures, *};
@@ -143,7 +147,8 @@ pub(crate) struct MapChartLogMarker;
 #[derive(Component)]
 pub(crate) struct MapChartLogRow(pub(crate) MapChartMarkType);
 
-/// How many finds the discovery log lists, newest first.
+/// How many finds the discovery log lists, newest first. The full log remains
+/// in the saved chart; this panel is currently its only player-facing history.
 pub(crate) const MAP_CHART_LOG_ROWS: usize = 12;
 
 /// The chart code of a mark: a cell's coordinate, a station's or wreck's
@@ -331,6 +336,14 @@ pub(crate) fn toggle_map_chart(
     };
     runtime.chart = !runtime.chart;
     runtime.chart_selected = runtime.chart_show.take().filter(|_| runtime.chart);
+    if runtime.chart {
+        let player_cell = SectorCoord::containing(Meters3::from_engine(contacts.focus()), edge.0);
+        runtime.chart_layer = runtime
+            .chart_selected
+            .as_ref()
+            .and_then(|mark| chart_mark_cell(&jobs, mark))
+            .map_or(player_cell.y, |cell| cell.y);
+    }
     if let Ok(mut orbit) = q_camera.single_mut() {
         if runtime.chart {
             frame_chart(&mut orbit);
@@ -398,6 +411,7 @@ fn live_of(live: &[(GeneratedBodyId, ChartStationLive)], id: &GeneratedBodyId) -
 pub(crate) struct ChartSceneBuild {
     player_cell: SectorCoord,
     selected: Option<MapChartMarkType>,
+    layer: i32,
     live: Vec<(GeneratedBodyId, ChartStationLive)>,
 }
 
@@ -464,6 +478,7 @@ pub(crate) fn manage_map_chart(
     let build = ChartSceneBuild {
         player_cell,
         selected: runtime.chart_selected.clone(),
+        layer: runtime.chart_layer,
         live: chart_station_live(&chart, &jobs, player, &q_stations, &admission),
     };
     if runtime.chart_root.is_some()
@@ -514,26 +529,27 @@ pub(crate) fn manage_map_chart(
         ..default()
     };
 
-    // The grid: cell borders on the player's layer.
+    // The grid follows the focused Y layer, not the player's Y layer.
     let span = MAP_CHART_CELL * (2 * MAP_CHART_REACH + 1) as f32;
     let line_material = materials.add(unlit(theme.color_alpha(UiColor::Secondary, 0.5)));
     let along_x = meshes.add(Cuboid::new(span, 0.6, 0.6));
     let along_z = meshes.add(Cuboid::new(0.6, 0.6, span));
+    let layer_height = (runtime.chart_layer - player_cell.y) as f32 * MAP_CHART_CELL;
     for line in 0..=(2 * MAP_CHART_REACH + 1) {
         let offset = (line as f32 - MAP_CHART_REACH as f32 - 0.5) * MAP_CHART_CELL;
         spawn_mesh(
             along_x.clone(),
             line_material.clone(),
-            Transform::from_xyz(0.0, 0.0, offset),
+            Transform::from_xyz(0.0, layer_height, offset),
         );
         spawn_mesh(
             along_z.clone(),
             line_material.clone(),
-            Transform::from_xyz(offset, 0.0, 0.0),
+            Transform::from_xyz(offset, layer_height, 0.0),
         );
     }
 
-    // The tiles: every cell of the grid on the player's layer, plus every
+    // The tiles: every cell of the grid on the focused layer, plus every
     // visited cell off it. A visited cell is a fill under one textured layer
     // per cluster type, or the empty grid, with its coordinate at its
     // corner; a cell never entered is an outline.
@@ -544,7 +560,8 @@ pub(crate) fn manage_map_chart(
     let mut cells: Vec<SectorCoord> = chart.visited().map(|(coord, _)| coord).collect();
     for dx in -MAP_CHART_REACH..=MAP_CHART_REACH {
         for dz in -MAP_CHART_REACH..=MAP_CHART_REACH {
-            let coord = SectorCoord::new(player_cell.x + dx, player_cell.y, player_cell.z + dz);
+            let coord =
+                SectorCoord::new(player_cell.x + dx, runtime.chart_layer, player_cell.z + dz);
             if !cells.contains(&coord) {
                 cells.push(coord);
             }
@@ -831,6 +848,9 @@ fn toggle_chart_mark(
         runtime.chart_selected = None;
     } else {
         runtime.chart_selected = Some(mark.clone());
+        if let Some(cell) = chart_mark_cell(jobs, mark) {
+            runtime.chart_layer = cell.y;
+        }
         if let (Some(mut orbit), Some(player_cell)) = (orbit, runtime.chart_player_cell) {
             focus_chart_mark(&mut orbit, jobs, mark, player_cell);
         }
@@ -1349,8 +1369,11 @@ pub(crate) fn spawn_map_chart_objectives(panel: &mut ChildSpawnerCommands) {
 }
 
 /// Show the OBJECTIVES block while the chart view shows with nothing
-/// selected, rebuild its rows whenever what [`open_objectives`] lists or
-/// the goal's met stamp changes, and hide it otherwise. A held job's row
+/// selected, rebuild its rows whenever what [`open_objectives`] lists, the
+/// goal's met stamp, or the focused chart layer changes, and hide it
+/// otherwise. The heading carries the focused layer (`OBJECTIVES  Y{layer}`)
+/// with the layer's visited cell count as its tooltip, since the chart's own
+/// header fields render unreliably with nothing selected. A held job's row
 /// selects its JOB mark; a met goal reads one row with its stamp.
 #[expect(
     clippy::too_many_arguments,
@@ -1364,7 +1387,7 @@ pub(crate) fn update_map_chart_objectives(
     icons: Res<InterfaceIcons>,
     q_hold: Query<&ShipInventory, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
     mut q_block: Query<(Entity, &mut Node), With<MapChartObjectivesMarker>>,
-    mut built: Local<Option<(Vec<OpenObjectiveType>, Option<f64>)>>,
+    mut built: Local<Option<(Vec<OpenObjectiveType>, Option<f64>, i32)>>,
 ) {
     let Ok((block, mut node)) = q_block.single_mut() else {
         return;
@@ -1391,6 +1414,7 @@ pub(crate) fn update_map_chart_objectives(
             &record,
         ),
         record.met_at,
+        runtime.chart_layer,
     );
     if built.as_ref() == Some(&rows) {
         return;
@@ -1399,13 +1423,33 @@ pub(crate) fn update_map_chart_objectives(
         icons.chart(ChartIconType::Milestone),
         ChartIconType::Milestone.color(),
     );
+    let visited_on_layer = chart
+        .visited()
+        .filter(|(cell, _)| cell.y == runtime.chart_layer)
+        .count();
     commands
         .entity(block)
         .despawn_related::<Children>()
         .with_children(|block| {
-            block.spawn(themed_label("OBJECTIVES", 12.0, UiColor::Label));
-            let (objectives, met_at) = &rows;
-            let mut held = 0;
+            // Tooltip on a themed_label text entity itself renders it blank
+            // here (the same unreliable-header bug this heading works
+            // around); the tooltip sits on a wrapping node instead.
+            block
+                .spawn((
+                    Node::default(),
+                    Tooltip(format!(
+                        "{visited_on_layer} visited cells on layer {}",
+                        runtime.chart_layer
+                    )),
+                ))
+                .with_children(|heading| {
+                    heading.spawn(themed_label(
+                        &format!("OBJECTIVES  Y{}", runtime.chart_layer),
+                        12.0,
+                        UiColor::Label,
+                    ));
+                });
+            let (objectives, met_at, _) = &rows;
             for objective in objectives {
                 let OpenObjectiveType::Job {
                     id,
@@ -1419,7 +1463,6 @@ pub(crate) fn update_map_chart_objectives(
                 else {
                     continue;
                 };
-                held += 1;
                 let icon = JobIconType::of(
                     &jobs
                         .job(id)
@@ -1435,14 +1478,21 @@ pub(crate) fn update_map_chart_objectives(
                 let mut row = spawn_icon_row(
                     block,
                     Some((icons.job(icon), icon.color())),
-                    title,
+                    &format!("{code} {title}"),
                     UiColor::Primary,
                     &[(&meter, 12.0, meter_color), (hand_in, 12.0, UiColor::Label)],
                 );
                 select_row(&mut row, format!("MapChartObjective{code}"), mark, false);
             }
-            if held == 0 {
+            if objectives.is_empty() && met_at.is_none() {
                 block_note(block, "EMPTY");
+            }
+            if objectives
+                .iter()
+                .any(|objective| matches!(objective, OpenObjectiveType::Milestone(_)))
+                || met_at.is_some()
+            {
+                block.spawn(themed_label(&progress.title, 12.0, UiColor::Label));
             }
             for objective in objectives {
                 if let OpenObjectiveType::Milestone(line) = objective {
@@ -1751,7 +1801,9 @@ pub(crate) fn project_map_chart_labels(
 /// a visited cell, what its clusters hold and when the player entered it; for
 /// a held job, its title, reward and where it hands in. The SECTOR block
 /// lists the cell's finds, services, stock and jobs. With nothing selected it
-/// heads the discovery log and counts the visited cells.
+/// reads blank; the focused layer and its visited count head the OBJECTIVES
+/// block instead ([`update_map_chart_objectives`]), since these header
+/// fields render unreliably with nothing selected.
 pub(crate) fn chart_panel_field(
     chart: &Chart,
     jobs: &Jobs,
@@ -1767,11 +1819,6 @@ pub(crate) fn chart_panel_field(
     };
     let found = |at: f64| format!("Found {}.", play_time_text(at));
     match (selected, field) {
-        (None, MapPanelField::Code) => ("CHART".to_string(), UiColor::Label),
-        (None, MapPanelField::Range) => (
-            format!("Cells visited {}", chart.visited().count()),
-            UiColor::Primary,
-        ),
         (None, _) => (String::new(), UiColor::Body),
         (Some(mark), MapPanelField::Code) => (
             chart_mark_code(chart, jobs, mark).unwrap_or_default(),

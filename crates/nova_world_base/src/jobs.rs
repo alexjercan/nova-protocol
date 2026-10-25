@@ -11,14 +11,19 @@
 //! wreck, a held job elsewhere, a thaw or a Load never changes a standing
 //! offer. The board is put on the station root on the first frame every one
 //! of those 27 cells is live and settled, and again whenever a slot renews:
-//! an offer the player does not hold that stood longer than the price
-//! table's `jobs.offer_seconds` of play, or whose job was handed in or
-//! dropped, moves to its next posting, the bodies its old posting could have
-//! put in the world are taken out, and the slot posts a new offer under a
-//! new id ([`post_station_boards`]). A held job pins its slot. A dropped
-//! job's posting is retired and never accepted again: a second hauler under
-//! the first one's id would sever wrecks under the first one's wreck ids,
-//! and a wreck frozen in another cell makes the save refuse the duplicate.
+//! an offer the player does not hold that was handed in, or that stood
+//! longer than the price table's `jobs.offer_seconds` of play, or
+//! `jobs.escort_offer_seconds` for an Escort, moves to its next posting, the
+//! bodies its old posting could have put in the world are taken out, and the
+//! slot posts a new offer under a new id ([`post_station_boards`]). A held
+//! job pins its slot. A dropped job's posting is retired and never accepted
+//! again, but its slot waits out the same window before it reposts, same as
+//! any offer the player does not hold: a second hauler under the first
+//! one's id would sever wrecks under the first one's wreck ids, and a wreck
+//! frozen in another cell makes the save refuse the duplicate. A paid
+//! refresh of a dropped job's slot skips that wait
+//! ([`JobPostings::request_paid_refresh`]): the slot reposts on the next
+//! board pass regardless.
 //! The player's record of the jobs taken off it is
 //! [`nova_gameplay::prelude::Jobs`]; the postings and the jobs are saved
 //! with the world and `chart::clear_chart` clears both.
@@ -88,7 +93,7 @@ use crate::{
 /// other side.
 const JOB_LEG: Meters = Meters(10_000.0);
 /// How far from the poster the hauler starts its leg.
-const HAULER_STANDOFF: Meters = Meters(3_000.0);
+const HAULER_STANDOFF: Meters = Meters(1_000.0);
 /// How close, undocked, the player must come to the waiting hauler before
 /// it leaves for its mark: GOTO parks 500 m off a hull, inside this.
 const ESCORT_RENDEZVOUS: Meters = Meters(1_000.0);
@@ -106,8 +111,14 @@ const RAIDER_SPACING: Meters = Meters(600.0);
 const RAIDER_LATERAL: Meters = Meters(2_500.0);
 /// How far a raider leaves its wait for a target.
 const RAIDER_ENGAGE_RANGE: Meters = Meters(3_000.0);
-/// How far a job body must stand from every generated body when it spawns.
+/// How far a job body must stand from another generated body at spawn.
 const JOB_SPAWN_CLEARANCE: Meters = Meters(2_000.0);
+/// The hauler's minimum center separation from its poster during direction
+/// selection, in place of the general 2 km body clearance. The 1 km standoff
+/// exceeds the station and generated hull radii together (300 + 400 m;
+/// [`crate::station_layout::MAX_STATION_CLEARANCE`] and
+/// [`nova_world::prelude::SECTOR_SHIP_CLEARANCE_MAX`]).
+const STATION_SPAWN_CLEARANCE: Meters = Meters(500.0);
 /// How many seeded directions a spawn tries before it takes the clearest.
 const JOB_SPAWN_TRIES: u32 = 8;
 /// The tether a raider chases its prey within, from where it lay in wait.
@@ -123,9 +134,10 @@ const NO_CIVILIZATION: &str = "no civilization reaches the posting station";
 /// carries its hold. A station with no board yet draws its first offers
 /// and posts them, stamped now. On every such frame each slot the player
 /// does not hold whose job was handed in, or whose offer stood past the
-/// table's `jobs.offer_seconds` of play, renews: every live body its old
-/// posting could have named is taken out of the world and the slot draws its
-/// next posting's offer beside the standing ones, over the field less every
+/// table's `jobs.offer_seconds` of play, or `jobs.escort_offer_seconds` for
+/// an Escort, renews: every live body its old posting could have named is
+/// taken out of the world and the slot draws its next posting's offer
+/// beside the standing ones, over the field less every
 /// body [`JobPostings::named_bodies`] gives. Stations draw in id order, so a
 /// board posted earlier on the frame counts for the next. A station with a
 /// renewed slot, or with no board on its root yet, after a thaw or a Load,
@@ -334,14 +346,18 @@ pub(crate) fn post_station_boards(
 }
 
 /// Whether the slot on `posting` renews at `now` of play under `rule`: its
-/// job was handed in or dropped, or the offer the player does not hold stood
-/// past its window. A held job pins its slot.
+/// job was handed in, a paid refresh was requested for it, or the offer the
+/// player does not hold stood past its window. A held job pins its slot,
+/// before any of those. A dropped job's slot is not held, so it renews the
+/// same way as any unheld offer: once its window passes, not before, unless
+/// a paid refresh skips the wait, even though its posting is already
+/// retired and refuses a second accept.
 fn slot_renews(jobs: &Jobs, posting: &SlotPosting, rule: JobOfferRule, now: f64) -> bool {
     let id = &posting.offer.id;
     if jobs.holds(id) {
         return false;
     }
-    jobs.is_completed(id) || jobs.is_dropped(id) || posting.is_expired(rule, now)
+    jobs.is_completed(id) || posting.paid_refresh_requested || posting.is_expired(rule, now)
 }
 
 /// The cell `centre` and the 26 cells around it.
@@ -427,9 +443,11 @@ fn job_field(
 /// distress call's caller at the mark, a drifting hull when the call is
 /// genuine and a raider when it is not. The leg's direction is seeded by
 /// the job and chosen so every body stands [`JOB_SPAWN_CLEARANCE`] from
-/// every generated body and the mark stays in the poster's cell, over
-/// [`JOB_SPAWN_TRIES`] draws; when none fits, the clearest is taken and
-/// logged. A procurement, a recovery and a neutralize put nothing there.
+/// other generated bodies, with only the hauler allowed
+/// [`STATION_SPAWN_CLEARANCE`] from its poster; the mark stays in the
+/// poster's cell. When none of [`JOB_SPAWN_TRIES`] draws fits, the clearest
+/// is taken and logged. A procurement, a recovery and a neutralize put
+/// nothing there.
 ///
 /// # Panics
 ///
@@ -483,6 +501,7 @@ pub(crate) fn spawn_job_bodies(
     let station_at = Meters3::from_engine(station_at.translation());
     let standing: Vec<Meters3> = bodies
         .iter()
+        .filter(|(id, _)| *id != job.posted_by())
         .map(|(_, at)| Meters3::from_engine(at.translation()))
         .collect();
     let key = |aspect: &[u8]| {
@@ -699,8 +718,10 @@ pub(crate) fn spawn_job_bodies(
 
 /// The unit direction of `job`'s leg from `from`: the first of
 /// [`JOB_SPAWN_TRIES`] draws off `seed` whose every body stands
-/// [`JOB_SPAWN_CLEARANCE`] from every position in `standing` with the mark in
-/// the cell `from` is in, else the draw whose nearest body is farthest.
+/// [`JOB_SPAWN_CLEARANCE`] from each position in `standing` (excluding the
+/// poster), and the mark and raiders stand that far from `from`. Only the
+/// hauler may stand [`STATION_SPAWN_CLEARANCE`] from the poster. The mark
+/// must be in the poster's cell; otherwise take the clearest draw.
 fn leg_direction(seed: u32, from: Meters3, edge: Meters, job: &Job, standing: &[Meters3]) -> Vec3 {
     let cell = SectorCoord::containing(from, edge);
     let mut stream = SeedStream::new(seed);
@@ -718,8 +739,16 @@ fn leg_direction(seed: u32, from: Meters3, edge: Meters, job: &Job, standing: &[
             .iter()
             .flat_map(|point| standing.iter().map(move |body| point.distance(body.get())))
             .fold(f32::INFINITY, f32::min);
+        let clears_station = points.iter().enumerate().all(|(index, point)| {
+            let clearance = if index == 1 {
+                STATION_SPAWN_CLEARANCE
+            } else {
+                JOB_SPAWN_CLEARANCE
+            };
+            point.distance(from.get()) >= clearance.get()
+        });
         let in_cell = SectorCoord::containing(Meters3(along(1.0)), edge) == cell;
-        if in_cell && nearest >= JOB_SPAWN_CLEARANCE.get() {
+        if in_cell && clears_station && nearest >= JOB_SPAWN_CLEARANCE.get() {
             return direction;
         }
         let score = if in_cell { nearest } else { nearest / 2.0 };
@@ -1249,8 +1278,10 @@ mod tests {
         test_support::test_items,
     };
     use nova_ship::prelude::DockedHelmType;
+    use nova_world::prelude::SECTOR_SHIP_CLEARANCE_MAX;
 
     use super::*;
+    use crate::station_layout::MAX_STATION_CLEARANCE;
 
     fn poster() -> GeneratedBodyId {
         GeneratedBodyId::new(SectorCoord::new(0, 0, 0), "cluster_0_0_0_station", 0)
@@ -1529,19 +1560,22 @@ mod tests {
         );
     }
 
-    /// A lost hauler ends its posting: the slot renews and posts under the
-    /// next number with fresh body ids, so a second hauler and its wrecks
-    /// never carry the ids of the first. A held slot and a standing,
-    /// unexpired slot stay.
+    /// A lost hauler ends its posting but does not reroll it at once: the
+    /// slot waits out its escort window, same as any offer the player does
+    /// not hold, then renews and posts under the next number with fresh
+    /// body ids, so a second hauler and its wrecks never carry the ids of
+    /// the first. A held slot and a standing, unexpired slot stay.
     #[test]
-    fn a_dropped_escort_renews_its_slot_while_held_and_standing_slots_stay() {
+    fn a_dropped_escort_s_slot_waits_out_its_window_before_it_renews() {
         let rule = JobOfferRule {
             offer_seconds: 1_200.0,
+            escort_offer_seconds: 3_600.0,
         };
         let slot = |job: &Job| SlotPosting {
             posting: 0,
             posted_at: 0.0,
             offer: job.clone(),
+            paid_refresh_requested: false,
         };
         let escort = escort(0);
         let JobType::Escort { hauler, .. } = &escort.kind else {
@@ -1559,8 +1593,12 @@ mod tests {
             "the lost job is recorded"
         );
         assert!(
-            slot_renews(jobs(&app), &slot(&escort), rule, 10.0),
-            "a dropped job's slot renews before its window passes"
+            !slot_renews(jobs(&app), &slot(&escort), rule, 10.0),
+            "a dropped job's slot waits out its window before it renews"
+        );
+        assert!(
+            slot_renews(jobs(&app), &slot(&escort), rule, 3_600.0),
+            "a dropped job's slot renews once its window passes"
         );
         assert!(
             !slot_renews(jobs(&app), &slot(&held), rule, 10.0),
@@ -1574,6 +1612,61 @@ mod tests {
         jobs(&app).validate().unwrap();
     }
 
+    /// A paid refresh skips the wait a drop or an expiry would otherwise
+    /// hold the slot to: the slot renews next pass even on the frame the
+    /// refresh was requested, well inside its window.
+    #[test]
+    fn a_paid_refresh_renews_its_slot_before_its_window_passes() {
+        let rule = JobOfferRule {
+            offer_seconds: 1_200.0,
+            escort_offer_seconds: 3_600.0,
+        };
+        let job = procure(0);
+        let jobs = Jobs::default();
+        let standing = SlotPosting {
+            posting: 0,
+            posted_at: 0.0,
+            offer: job.clone(),
+            paid_refresh_requested: false,
+        };
+        assert!(
+            !slot_renews(&jobs, &standing, rule, 10.0),
+            "an unheld, unexpired offer with no refresh stands"
+        );
+        let refreshed = SlotPosting {
+            paid_refresh_requested: true,
+            ..standing
+        };
+        assert!(
+            slot_renews(&jobs, &refreshed, rule, 10.0),
+            "a paid refresh renews the slot well before its window passes"
+        );
+    }
+
+    /// A held job's hand-in renews its slot at once, on the same frame,
+    /// whatever its window says.
+    #[test]
+    fn a_completed_job_s_slot_renews_at_once() {
+        let rule = JobOfferRule {
+            offer_seconds: 1_200.0,
+            escort_offer_seconds: 3_600.0,
+        };
+        let job = procure(0);
+        let mut jobs = Jobs::default();
+        jobs.accept(job.clone());
+        jobs.complete(&job.id);
+        let slot = SlotPosting {
+            posting: 0,
+            posted_at: 0.0,
+            offer: job,
+            paid_refresh_requested: false,
+        };
+        assert!(
+            slot_renews(&jobs, &slot, rule, 0.0),
+            "a hand-in renews its slot at once, on the posting frame itself"
+        );
+    }
+
     #[test]
     fn an_escort_leg_waits_until_the_player_undocked_from_its_poster_comes_within_the_rendezvous_and_flies_after_a_thaw_and_a_load(
     ) {
@@ -1582,11 +1675,11 @@ mod tests {
             unreachable!()
         };
         let mark = Meters3(Vec3::new(0.0, 0.0, -10_000.0));
-        // Engine units: the hauler waits 3 km down the leg; the player
+        // Engine units: the hauler waits 1 km down the leg; the player
         // starts 3 km farther and comes to 800 m of it.
-        let hauler_at = Vec3::new(0.0, 0.0, -300.0);
-        let far = Vec3::new(0.0, 0.0, -600.0);
-        let near = Vec3::new(0.0, 0.0, -220.0);
+        let hauler_at = Vec3::new(0.0, 0.0, -100.0);
+        let far = Vec3::new(0.0, 0.0, -400.0);
+        let near = Vec3::new(0.0, 0.0, -180.0);
         let mut saved = Jobs::default();
         saved.accept(escort.clone());
         saved.lay_leg(&escort.id, mark);
@@ -1770,12 +1863,25 @@ mod tests {
         let from = Meters3(Vec3::new(400.0, -250.0, 1_200.0));
         let direction = Vec3::new(1.0, 2.0, -0.5).normalize();
         let start = from.get() + direction * HAULER_STANDOFF.get();
+        assert!(
+            start.distance(from.get()) >= STATION_SPAWN_CLEARANCE.get(),
+            "the hauler clears the posting station"
+        );
+        assert!(
+            start.distance(from.get())
+                > MAX_STATION_CLEARANCE.get() + SECTOR_SHIP_CLEARANCE_MAX.get(),
+            "station and generated hull maximum clearance radii do not overlap"
+        );
         let leg = JOB_LEG.get() - HAULER_STANDOFF.get();
         for raiders in 1..=ESCORT_RAIDERS_MAX as usize {
             let points = raider_wait_points(from, direction, raiders);
             assert_eq!(points.len(), raiders);
             for (index, at) in points.iter().enumerate() {
                 let at = at.get();
+                assert!(
+                    at.distance(from.get()) >= JOB_SPAWN_CLEARANCE.get(),
+                    "raider {index} of {raiders} clears the posting station"
+                );
                 assert!(
                     at.distance(start) > RAIDER_ENGAGE_RANGE.get(),
                     "raider {index} of {raiders} waits {} m from the waiting hauler",
@@ -1906,6 +2012,7 @@ mod tests {
             let excluded = JobPostings::default().named_bodies(
                 JobOfferRule {
                     offer_seconds: 100.0,
+                    escort_offer_seconds: 300.0,
                 },
                 0.0,
                 &held,

@@ -322,7 +322,6 @@ pub(super) fn step_flight_body(
                     rotation,
                     &mut helm.rcs_budget,
                     settings.rcs_accel,
-                    settings,
                     dt,
                 ) {
                     apply_linear_impulse(&mut linear_velocity, delta_v * root_mass);

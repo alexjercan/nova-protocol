@@ -96,7 +96,7 @@ fn a_kicked_station_rides_back_onto_its_orbit_post_and_idles_its_rcs() {
         let budget = budget_of(&app, station);
         spent_max = spent_max.max(budget.spent);
         assert!(
-            !budget.is_empty(&settings),
+            !budget.is_empty(),
             "tick {tick}: the return emptied the magazine ({} u/s spent)",
             budget.spent
         );
@@ -127,7 +127,7 @@ fn a_kicked_station_rides_back_onto_its_orbit_post_and_idles_its_rcs() {
         worst = worst.max(radius_error(&app, station));
         let budget = budget_of(&app, station);
         idled |= budget.idle >= settings.rcs_recovery_delay;
-        assert!(!budget.is_empty(&settings), "the hold emptied the magazine");
+        assert!(!budget.is_empty(), "the hold emptied the magazine");
     }
     assert!(
         worst <= bound,

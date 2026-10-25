@@ -1048,7 +1048,6 @@ mod physics_tests {
             .iter(app.world())
             .find_map(|(entity, &ChildOf(parent))| (parent == ship).then_some(entity))
             .unwrap();
-        let settings = app.world().resource::<FlightSettings>().clone();
 
         // Aim cos onto the player, roll rate about the nose, and the main
         // drive's spooled input after one tick. The hull is circling once
@@ -1098,7 +1097,7 @@ mod physics_tests {
                 0
             };
             assert!(
-                !budget_of(&app).is_empty(&settings),
+                !budget_of(&app).is_empty(),
                 "the hull must hold its nose on the player (within ~8 degrees) \
                  for a full second before its RCS magazine runs dry, held {settled} ticks \
                  (aim cos {aim}, roll {roll} rad/s, phase {:?})",
@@ -1109,7 +1108,7 @@ mod physics_tests {
         // Holding a moving bearing drains the magazine. Once it is empty the
         // velocity comes first: the main drive takes the error back and turns
         // the nose off the player to do it, and nothing is charged to RCS.
-        while !budget_of(&app).is_empty(&settings) {
+        while !budget_of(&app).is_empty() {
             step(&mut app);
             ticks += 1;
             assert!(
@@ -1125,7 +1124,7 @@ mod physics_tests {
             max_main = max_main.max(main);
             let budget = budget_of(&app);
             assert!(
-                budget.is_empty(&settings) && budget.applied == 0.0,
+                budget.is_empty() && budget.applied == 0.0,
                 "an empty magazine must deliver no RCS, spent {} u/s, applied {}",
                 budget.spent,
                 budget.applied

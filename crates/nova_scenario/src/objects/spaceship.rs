@@ -721,7 +721,9 @@ pub(crate) fn parked_capabilities() -> ShipCapabilities {
 /// design, surviving sections with their state, hold, pinned pool, dents
 /// and outcome markers. The root keeps its identity, side, capabilities and
 /// credits; its driver becomes what `controller` makes of the resolved
-/// design. Every old section despawns first.
+/// design. Every old section despawns first. [`RcsBudget`] resets to the new
+/// hull's [`RcsBudget::capacity_for_sections`], full, like the pool it rebuilds
+/// beside.
 ///
 /// The station hull swap runs it, so the player keeps the root everything
 /// keys on (the HUD, the world observer, the fleet, the scenario id).
@@ -789,6 +791,10 @@ pub(crate) fn rehull_ship(
         std::mem::take(&mut state.marks),
         ShipSkinRestored,
         ShipDesignSections(sections.clone()),
+        RcsBudget {
+            capacity: RcsBudget::capacity_for_sections(sections.len()),
+            ..default()
+        },
     ));
     if let Some(health) = state.health.take() {
         root.insert(health);
@@ -1489,7 +1495,8 @@ fn swap_design_section(
 /// The binding the rule chose goes into the player controller's table, and
 /// the section is built by [`spawn_design_section`] at full health. The
 /// root's pinned health grows by the part's pool, so the collapse share
-/// stays a share of the ship as built now.
+/// stays a share of the ship as built now. [`RcsBudget::capacity`] is
+/// re-derived from the grown design section count.
 ///
 /// # Panics
 ///
@@ -1512,12 +1519,14 @@ fn add_design_section(
             &mut SpaceshipController,
             Has<DerelictShipMarker>,
             Option<&mut Health>,
+            &mut RcsBudget,
         ),
         (With<SpaceshipRootMarker>, Without<SectionMarker>),
     >,
 ) {
     let ship = request.entity;
-    let Ok((source, mut design, mut controller, derelict, root_health)) = q_ship.get_mut(ship)
+    let Ok((source, mut design, mut controller, derelict, root_health, mut rcs_budget)) =
+        q_ship.get_mut(ship)
     else {
         panic!("add_design_section: {ship:?} is not an authored ship root");
     };
@@ -1560,6 +1569,7 @@ fn add_design_section(
     if let Some(mut pool) = root_health {
         pool.max += section.config.base.health;
     }
+    rcs_budget.capacity = RcsBudget::capacity_for_sections(design.0.len());
     debug!(
         "add_design_section: ship {ship:?} adds '{}' as '{}'",
         request.prototype, request.section
@@ -1585,7 +1595,8 @@ fn add_design_section(
 ///
 /// The ship's design becomes inline (see [`owned_ship_design`]) without the
 /// section, so a freeze and a save keep it gone and a rebuild does not list
-/// it. Its binding leaves the player controller's table. The section comes
+/// it. Its binding leaves the player controller's table. [`RcsBudget::capacity`]
+/// is re-derived from the shrunk design section count. The section comes
 /// off by a [`SectionStripRequest`], which prunes it from its neighbours,
 /// lowers the root's pinned health by its pool and despawns it.
 ///
@@ -1603,13 +1614,14 @@ fn remove_design_section(
             &SpaceshipDesign,
             &mut ShipDesignSections,
             &mut SpaceshipController,
+            &mut RcsBudget,
         ),
         (With<SpaceshipRootMarker>, Without<SectionMarker>),
     >,
     q_sections: Query<(&ChildOf, &EntityId), With<SectionMarker>>,
 ) {
     let ship = request.entity;
-    let Ok((source, mut design, mut controller)) = q_ship.get_mut(ship) else {
+    let Ok((source, mut design, mut controller, mut rcs_budget)) = q_ship.get_mut(ship) else {
         panic!("remove_design_section: {ship:?} is not an authored ship root");
     };
     let Ok((&ChildOf(root), id)) = q_sections.get(request.section) else {
@@ -1632,6 +1644,7 @@ fn remove_design_section(
     let mut owned = owned_ship_design(&source.0, &game_designs, &design);
     owned.sections.retain(|section| section.id != id.0);
     design.0.remove(index);
+    rcs_budget.capacity = RcsBudget::capacity_for_sections(design.0.len());
     if let SpaceshipController::Player(config) = controller.as_mut() {
         config.input_mapping.remove(&id.0);
     }
@@ -1799,9 +1812,14 @@ fn insert_spaceship_sections(
             );
         }
     });
-    commands
-        .entity(entity)
-        .insert(ShipDesignSections(design_sections));
+    let section_count = design_sections.len();
+    commands.entity(entity).insert((
+        ShipDesignSections(design_sections),
+        RcsBudget {
+            capacity: RcsBudget::capacity_for_sections(section_count),
+            ..default()
+        },
+    ));
 
     match controller_config {
         SpaceshipController::None => {}
@@ -2967,6 +2985,162 @@ mod tests {
         assert_eq!(
             flown, named,
             "the spawn flies exactly the sections the resolver names"
+        );
+    }
+
+    /// Spawn an inline design of `sections` interchangeable hull plates,
+    /// against a catalog holding the `plate` hull prototype.
+    fn spawn_plate_ship(sections: usize) -> (World, Entity) {
+        let mut world = World::new();
+        world.insert_resource(GameSections(vec![section_prototype("plate")]));
+        world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
+        world.add_observer(insert_spaceship_sections);
+        let sections: Vec<SpaceshipSectionConfig> = (0..sections)
+            .map(|index| SpaceshipSectionConfig {
+                id: format!("plate_{index}"),
+                position: Vec3::new(0.0, 0.0, index as f32),
+                rotation: Quat::IDENTITY,
+                source: SectionSource::prototype("plate"),
+            })
+            .collect();
+        let entity = world
+            .spawn((
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    design: ShipDesignSource::Inline(ShipDesign {
+                        sections,
+                        ..default()
+                    }),
+                    ..default()
+                }),
+            ))
+            .id();
+        world.flush();
+        (world, entity)
+    }
+
+    /// A hull under the shared section threshold assembles on the base RCS
+    /// magazine, the same every shipped start hull (27-65 sections) flies.
+    #[test]
+    fn initial_assembly_sets_the_base_rcs_capacity_under_the_shared_threshold() {
+        let (world, ship) = spawn_plate_ship(40);
+        assert_eq!(
+            world.entity(ship).get::<RcsBudget>().unwrap().capacity,
+            RcsBudget::default().capacity
+        );
+    }
+
+    /// A hull past the shared section threshold assembles on a magazine the
+    /// design's own section count grows, matching the Line Warship's
+    /// documented 740 m/s at 153 sections.
+    #[test]
+    fn initial_assembly_scales_the_rcs_capacity_past_the_shared_threshold() {
+        let (world, ship) = spawn_plate_ship(153);
+        let capacity = world.entity(ship).get::<RcsBudget>().unwrap().capacity;
+        assert_eq!(capacity, RcsBudget::capacity_for_sections(153));
+        assert!(
+            capacity > RcsBudget::default().capacity,
+            "a capital's bigger design must grow the magazine past the shared base"
+        );
+    }
+
+    /// A refit add grows the magazine with the design, a refit remove shrinks
+    /// it back, and neither touches the delta-v already spent - a capacity
+    /// change is not a refill.
+    #[test]
+    fn a_refit_add_grows_the_rcs_capacity_and_remove_shrinks_it_back_keeping_spent() {
+        let (mut world, ship) = spawn_plate_ship(65);
+        world.add_observer(add_design_section);
+        world.add_observer(remove_design_section);
+        let base = RcsBudget::default().capacity;
+        assert_eq!(
+            world.entity(ship).get::<RcsBudget>().unwrap().capacity,
+            base
+        );
+        world.entity_mut(ship).get_mut::<RcsBudget>().unwrap().spent = 10.0;
+
+        world.trigger(SectionAddRequest {
+            entity: ship,
+            section: "added".to_string(),
+            prototype: "plate".to_string(),
+            position: Vec3::new(0.0, 0.0, 65.0),
+            rotation: Quat::IDENTITY,
+            bindings: None,
+        });
+        world.flush();
+        let grown = *world.entity(ship).get::<RcsBudget>().unwrap();
+        assert_eq!(
+            grown.capacity,
+            RcsBudget::capacity_for_sections(66),
+            "a 66th design section must grow the magazine"
+        );
+        assert_eq!(grown.spent, 10.0, "a capacity change must not touch spent");
+
+        let added = world
+            .entity(ship)
+            .get::<Children>()
+            .expect("the ship has sections")
+            .iter()
+            .find(|child| {
+                world
+                    .entity(*child)
+                    .get::<EntityId>()
+                    .is_some_and(|id| id.0 == "added")
+            })
+            .expect("the added section is live");
+        world.trigger(SectionRemoveRequest {
+            entity: ship,
+            section: added,
+        });
+        world.flush();
+        let shrunk = *world.entity(ship).get::<RcsBudget>().unwrap();
+        assert_eq!(
+            shrunk.capacity, base,
+            "removing the added section restores the base capacity"
+        );
+        assert_eq!(shrunk.spent, 10.0, "still untouched");
+    }
+
+    /// Combat damage despawns a live section without touching the authored
+    /// design: the section stays named ([`ShipDesignSections`]'s own
+    /// contract), and the magazine capacity that design earned does not
+    /// shrink with it.
+    #[test]
+    fn combat_damage_that_despawns_a_live_section_leaves_the_rcs_capacity_untouched() {
+        let (mut world, ship) = spawn_plate_ship(80);
+        let capacity_before = world.entity(ship).get::<RcsBudget>().unwrap().capacity;
+        let sections_before = world
+            .entity(ship)
+            .get::<ShipDesignSections>()
+            .unwrap()
+            .0
+            .len();
+
+        let lost = world
+            .entity(ship)
+            .get::<Children>()
+            .expect("the ship has sections")
+            .iter()
+            .next()
+            .expect("at least one live section");
+        world.entity_mut(lost).despawn();
+        world.flush();
+
+        assert_eq!(
+            world
+                .entity(ship)
+                .get::<ShipDesignSections>()
+                .unwrap()
+                .0
+                .len(),
+            sections_before,
+            "a lost section stays named in the authored design"
+        );
+        assert_eq!(
+            world.entity(ship).get::<RcsBudget>().unwrap().capacity,
+            capacity_before,
+            "combat damage must not shrink the magazine the hull was built with"
         );
     }
 

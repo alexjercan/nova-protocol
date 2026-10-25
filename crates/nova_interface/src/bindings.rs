@@ -111,6 +111,14 @@ pub fn interface_bindings() -> Vec<ActionBinding> {
         ActionBinding::new("map_chart", "MAP", "Chart View")
             .context(ActionContext::InterfacePane("map"))
             .keyboard([Keyboard(KeyCode::KeyC)]),
+        // Z/X are flight autopilot keys, but Flight is quiet while the Map
+        // owns the screen; the chart alone reads these pane actions.
+        ActionBinding::new("map_layer_down", "MAP", "Chart Layer Down")
+            .context(ActionContext::InterfacePane("map"))
+            .keyboard([Keyboard(KeyCode::KeyZ)]),
+        ActionBinding::new("map_layer_up", "MAP", "Chart Layer Up")
+            .context(ActionContext::InterfacePane("map"))
+            .keyboard([Keyboard(KeyCode::KeyX)]),
         ActionBinding::new("ship_mates", "SHIP", "Mates Overlay")
             .context(ActionContext::InterfacePane("ship"))
             .keyboard([Keyboard(KeyCode::KeyG)])

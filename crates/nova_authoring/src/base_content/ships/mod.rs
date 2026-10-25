@@ -35,7 +35,7 @@ pub const MINING_TUG_SHIP_ID: &str = "mining_tug";
 /// The scavenger start hull: the biggest start hold, a cargo intake, one
 /// point-defense mount, a mining emitter and a flank collar.
 pub const SALVAGE_HAULER_SHIP_ID: &str = "salvage_hauler";
-/// The transport start hull: a stack and a pod of light plate on nine bell
+/// The transport start hull: a stack and a pod of light plate on five bell
 /// drives, a cargo intake, a flank collar, unarmed.
 pub const LIGHT_FREIGHTER_SHIP_ID: &str = "light_freighter";
 /// The bounty hunter start hull: two point-defense mounts and a cargo intake.

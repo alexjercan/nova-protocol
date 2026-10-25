@@ -24,6 +24,7 @@
         ),
         jobs: (
             offer_seconds: 1200.0,
+            escort_offer_seconds: 3600.0,
         ),
         clusters: [
             (

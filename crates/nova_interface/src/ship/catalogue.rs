@@ -507,6 +507,7 @@ mod tests {
             jobs: default(),
             roles: default(),
             credit: default(),
+            job_drop_cancel: default(),
         }
     }
 

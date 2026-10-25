@@ -1307,7 +1307,7 @@ pub(super) fn autopilot_step(
     // (`MatchVelocity::rcs`) flies as a hull without it.
     let capabilities = env.capabilities;
     let rcs_granted = capabilities.rcs_enabled && rcs_permitted;
-    let rcs_capable = rcs_granted && !helm.rcs_budget.is_empty(settings) && error_speed > 1e-3;
+    let rcs_capable = rcs_granted && !helm.rcs_budget.is_empty() && error_speed > 1e-3;
     // The RCS takes a goal only where it has CLEAR authority over the local
     // gravity: its `rcs_accel` push must comfortably exceed the inward
     // pull, or a perturbed ship falls faster than RCS can correct - the

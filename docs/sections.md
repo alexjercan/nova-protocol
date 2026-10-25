@@ -1218,25 +1218,9 @@ whichever of the two it started under. The base game generates its greeble model
 (`scripts/gen-greebles.py`), and the mod-facing format is documented in
 [Ship skin styles](https://alexjercan.github.io/nova-protocol/create/styles/).
 
-The readings above are DIAGNOSTICS only: the solve reads the surface graph and
-never a `PlateReading`. They still say what a hull is made of. Measured on the
-catalogue hulls and stations, per ship:
-
-| subject | plates | flat | step | ridge | peak | brink | spur |
-|---|---|---|---|---|---|---|---|
-| `block_waystation` | 42 | 3 | 3 | 0 | 0 | 13 | 23 |
-| `mining_tug` | 52 | 8 | 7 | 3 | 4 | 11 | 19 |
-| `salvage_hauler` | 73 | 16 | 12 | 0 | 0 | 23 | 22 |
-| `light_freighter` | 71 | 11 | 14 | 3 | 0 | 17 | 26 |
-| `freighter_derelict` | 63 | 10 | 10 | 1 | 1 | 16 | 25 |
-| `interceptor` | 54 | 6 | 7 | 0 | 0 | 15 | 26 |
-| `raider` | 50 | 13 | 7 | 0 | 1 | 7 | 22 |
-| `patrol_picket` | 44 | 7 | 13 | 3 | 0 | 4 | 17 |
-| `training_picket` | 40 | 5 | 12 | 4 | 0 | 3 | 16 |
-| `line_warship` | 170 | 22 | 68 | 25 | 0 | 32 | 23 |
-| `debris_plate` | 33 | 3 | 5 | 2 | 2 | 6 | 15 |
-
-Nearly two thirds of the plate falls, a quarter is step and a seventh is flat.
+The readings above are diagnostics only: the solve reads the surface graph,
+never a `PlateReading`. Hull edits change the distribution of plate shapes;
+a fixed catalogue-wide tally does not describe the live hulls.
 A plate on a run one cell wide falls on both sides, so a frame of one-cell runs
 is ridges, peaks and spurs with almost no flat plate. The surface graph does not
 care: every plate is a cell, and a greeble's link points decide where it goes.

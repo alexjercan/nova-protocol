@@ -28,7 +28,7 @@ fn accumulate_rcs_axis_integrates_and_clamps_to_the_unit_range() {
 fn rcs_defaults_to_a_three_hundred_meter_per_second_magazine_and_five_g() {
     let settings = FlightSettings::default();
     assert_eq!(
-        MetersPerSecond::from_engine(settings.rcs_budget),
+        MetersPerSecond::from_engine(RcsBudget::default().capacity),
         MetersPerSecond(300.0)
     );
     assert_eq!(settings.rcs_recovery_delay, 2.0);
@@ -43,6 +43,27 @@ fn rcs_defaults_to_a_three_hundred_meter_per_second_magazine_and_five_g() {
     assert_eq!(
         MetersPerSecondSquared::from_engine(settings.rcs_accel),
         MetersPerSecondSquared(5.0 * 9.81)
+    );
+}
+
+/// Every shipped start hull (27-65 design sections) sits at or under the
+/// shared threshold and keeps the base magazine; the Line Warship's 153
+/// sections land on its documented 740 m/s cap.
+#[test]
+fn capacity_for_sections_holds_the_base_through_the_shared_threshold_and_scales_past_it() {
+    assert_eq!(
+        RcsBudget::capacity_for_sections(0),
+        RcsBudget::default().capacity
+    );
+    assert_eq!(
+        RcsBudget::capacity_for_sections(65),
+        RcsBudget::default().capacity,
+        "a hull at the shared threshold stays on the base"
+    );
+    assert_eq!(
+        MetersPerSecond::from_engine(RcsBudget::capacity_for_sections(153)),
+        MetersPerSecond(740.0),
+        "the Line Warship's 153 sections must land on 740 m/s"
     );
 }
 
@@ -354,7 +375,7 @@ fn rcs_accelerates_a_hull_already_moving_300_meters_per_second() {
 fn rcs_budget_drains_under_a_held_command_and_recovers_after_release() {
     let mut app = flight_app();
     let settings = FlightSettings::default();
-    let capacity = settings.rcs_budget;
+    let capacity = RcsBudget::default().capacity;
     let (ship, _controller) = spawn_rcs_ship(&mut app);
     set_rcs(&mut app, ship, Vec3::X);
 
@@ -375,10 +396,7 @@ fn rcs_budget_drains_under_a_held_command_and_recovers_after_release() {
         );
     }
     let drained = budget_of(&app, ship);
-    assert!(
-        drained.is_empty(&settings),
-        "a held push drains the magazine"
-    );
+    assert!(drained.is_empty(), "a held push drains the magazine");
     assert_eq!(drained.applied, 0.0, "an empty magazine pushes nothing");
     let top = velocity_of(&app, ship).x;
     assert!(
@@ -389,7 +407,7 @@ fn rcs_budget_drains_under_a_held_command_and_recovers_after_release() {
     // Still holding: the empty magazine stays empty and the hull coasts.
     run(&mut app, 180);
     assert!(
-        budget_of(&app, ship).is_empty(&settings),
+        budget_of(&app, ship).is_empty(),
         "a held command keeps the magazine from recovering"
     );
     assert_eq!(velocity_of(&app, ship).x, top, "and delivers nothing");
@@ -398,12 +416,12 @@ fn rcs_budget_drains_under_a_held_command_and_recovers_after_release() {
     set_rcs(&mut app, ship, Vec3::ZERO);
     run(&mut app, 100);
     assert!(
-        budget_of(&app, ship).is_empty(&settings),
+        budget_of(&app, ship).is_empty(),
         "no recovery inside the {} s delay",
         settings.rcs_recovery_delay
     );
     run(&mut app, 80);
-    let refilling = budget_of(&app, ship).fraction(&settings);
+    let refilling = budget_of(&app, ship).fraction();
     assert!(
         refilling > 0.0 && refilling < 1.0,
         "past the delay it refills gradually, got {refilling}"
@@ -419,7 +437,7 @@ fn autopilot_stop_on_an_empty_rcs_budget_settles_on_the_main_drive() {
     let mut app = flight_app();
     let (ship, thruster, _controller) = spawn_ship(&mut app);
     settle(&mut app);
-    let capacity = app.world().resource::<FlightSettings>().rcs_budget;
+    let capacity = RcsBudget::default().capacity;
     app.world_mut().entity_mut(ship).insert((
         LinearVelocity(Vec3::new(9.0, 0.0, 0.0)),
         RcsBudget {

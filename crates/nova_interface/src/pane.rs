@@ -942,6 +942,8 @@ pub(crate) enum HintWhenType {
     Deletable,
     /// Shown only while the Map shows live contacts, not the chart.
     MapContacts,
+    /// Shown only while the Map shows the sector chart.
+    MapChart,
 }
 
 /// A pointer gesture in a footer: the raw left click, right drag and wheel
@@ -982,6 +984,12 @@ const MAP_KEY_HINTS: &[PaneKeyHint] = &[
         ],
         None,
         HintWhenType::Always,
+    ),
+    (
+        "Layer",
+        &["map_layer_down", "map_layer_up"],
+        None,
+        HintWhenType::MapChart,
     ),
     ("Reframe", &["viewer_reframe"], None, HintWhenType::Always),
     (
@@ -1303,7 +1311,8 @@ pub(crate) fn show_pane_input_hints(
     let browsing = gallery.is_some_and(|gallery| gallery.open);
     let ship = ship.as_deref();
     // The chart view selects by click and has nothing to fly to.
-    let contacts = map.is_some_and(|map| !map.chart);
+    let contacts = map.as_ref().is_some_and(|map| !map.chart);
+    let chart = map.is_some_and(|map| map.chart);
     let shown = |when: HintWhenType| {
         !browsing
             && match when {
@@ -1317,6 +1326,7 @@ pub(crate) fn show_pane_input_hints(
                     ship.is_some_and(|ship| matches!(ship.delete_verdict(), Some(Ok(_))))
                 }
                 HintWhenType::MapContacts => contacts,
+                HintWhenType::MapChart => chart,
             }
     };
     let nodes = q_key

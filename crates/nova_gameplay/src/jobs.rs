@@ -14,13 +14,18 @@
 //! names a body a held job or another unexpired offer names
 //! ([`JobPostings::named_bodies`]), so two boards never pay for one wreck or
 //! one hull. An offer the player does not hold expires
-//! [`JobOfferRule::offer_seconds`] of play after its stamp; the open world
+//! [`JobOfferRule::offer_seconds`] of play after its stamp, or
+//! [`JobOfferRule::escort_offer_seconds`] for an Escort; the open world
 //! crate then posts the slot's next offer under a new [`JobId`]
 //! ([`JobPostings::post`]). A held job never expires: its slot is pinned
 //! until it is handed in or dropped. A dropped job retires its posting: its
-//! id is recorded ([`Jobs::is_dropped`]), its accept is refused and the open
-//! world crate renews its slot on its next board pass, so no later body ever
-//! carries the ids its bodies and their wrecks took. The open world crate
+//! id is recorded ([`Jobs::is_dropped`]), its accept is refused and its slot
+//! waits out the same window as any unheld offer before the open world
+//! crate renews it, so no later body ever carries the ids its bodies and
+//! their wrecks took. A paid refresh skips that wait: it marks the slot's
+//! current posting ([`JobPostings::request_paid_refresh`]), and the open
+//! world crate renews it on its next board pass whatever its window says,
+//! same as a hand-in. The open world crate
 //! puts the board on the station root as a
 //! [`JobBoard`]; the Jobs pane lists it while the player is docked there,
 //! with each offer's remaining time ([`offer_deadline_text`]), and offers
@@ -65,10 +70,11 @@ use crate::{
 pub mod prelude {
     pub use super::{
         escort_raiders, job_title, offer_deadline_text, plan_job_accept, plan_job_hand_in,
-        plan_job_hull_fit, station_job_offers, EscortLeg, Job, JobAcceptRefusalType, JobAccepted,
-        JobBoard, JobDone, JobField, JobHandInPartner, JobHandInPlan, JobHandInRefusalType,
-        JobHull, JobHullFit, JobHullRefusalType, JobId, JobMixType, JobPostings, JobType, JobWreck,
-        Jobs, SlotPosting, StarterBoardMarker, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD,
+        plan_job_hull_fit, plan_job_paid_drop, station_job_offers, EscortLeg, Job,
+        JobAcceptRefusalType, JobAccepted, JobBoard, JobDone, JobField, JobHandInPartner,
+        JobHandInPlan, JobHandInRefusalType, JobHull, JobHullFit, JobHullRefusalType, JobId,
+        JobMixType, JobPaidDropPlan, JobPaidDropRefusalType, JobPostings, JobType, JobWreck, Jobs,
+        SlotPosting, StarterBoardMarker, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_PAID_DROP_FEE_CR,
         RAIDERS_PER_CARGO_CR,
     };
 }
@@ -153,7 +159,8 @@ impl fmt::Display for JobId {
 }
 
 /// One slot of a station's board: which posting it is on, when, in play
-/// seconds, that posting went up, and the offer it posted.
+/// seconds, that posting went up, the offer it posted and whether a paid
+/// refresh was requested for it.
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -165,15 +172,26 @@ pub struct SlotPosting {
     /// The offer the slot posted on this posting, as drawn: it stands
     /// unchanged until the slot renews, whatever the world around it does.
     pub offer: Job,
+    /// Whether the player paid this posting's station to cancel the held
+    /// job it carries ([`JobPostings::request_paid_refresh`]): the slot
+    /// renews on the open world crate's next board pass whatever its
+    /// window says, same as a hand-in. Always `false` on a fresh posting;
+    /// `JobPostings::post` resets it on a renewal.
+    pub paid_refresh_requested: bool,
 }
 
 impl SlotPosting {
     /// The play seconds the offer has left at `now` under `rule`: zero or
-    /// below once it expired. The stamp is taken off `now` first, so a read
-    /// on the posting frame gives the whole window exactly, with no rounding
-    /// residue from the sum.
+    /// below once it expired. Escort offers use the escort window. The stamp
+    /// is taken off `now` first, so a read on the posting frame gives the
+    /// whole window exactly, with no rounding residue from the sum.
     pub fn remaining(&self, rule: JobOfferRule, now: f64) -> f64 {
-        (self.posted_at - now) + f64::from(rule.offer_seconds)
+        let seconds = if matches!(self.offer.kind, JobType::Escort { .. }) {
+            rule.escort_offer_seconds
+        } else {
+            rule.offer_seconds
+        };
+        (self.posted_at - now) + f64::from(seconds)
     }
 
     /// Whether the offer's window has passed at `now`: it has nothing left.
@@ -217,6 +235,34 @@ impl JobPostings {
             .filter(|slot| slot.posting == id.posting)
     }
 
+    /// Request a paid refresh of the slot that posted `id`: the open world
+    /// crate renews it on its next board pass whatever its window says,
+    /// same as a hand-in. The caller pays the station and drops the held
+    /// job itself; this only marks the slot. [`JobPostings::post`] resets
+    /// the mark on the slot's next renewal, so it never outlives the
+    /// posting it was asked for.
+    ///
+    /// # Panics
+    ///
+    /// When `id`'s station has no board, or `id` names a slot or posting
+    /// that board does not carry: the caller refreshes a posting its own
+    /// board still shows ([`JobPostings::slot`]), never a forged id.
+    pub fn request_paid_refresh(&mut self, id: &JobId) {
+        let slots = self
+            .boards
+            .get_mut(&id.station)
+            .unwrap_or_else(|| panic!("JobPostings refreshes '{id}', whose station has no board"));
+        let slot = slots
+            .get_mut(id.slot as usize)
+            .unwrap_or_else(|| panic!("JobPostings refreshes '{id}', off the board"));
+        assert_eq!(
+            slot.posting, id.posting,
+            "JobPostings refreshes '{id}' but the slot is on posting {}",
+            slot.posting
+        );
+        slot.paid_refresh_requested = true;
+    }
+
     /// Post `offers` at `now`, all of one station: a station with no board
     /// takes [`JOBS_PER_BOARD`] offers, one per slot in slot order, each on
     /// its first posting; a posted station takes each offer on its slot's
@@ -250,6 +296,7 @@ impl JobPostings {
                     posting: 0,
                     posted_at: now,
                     offer,
+                    paid_refresh_requested: false,
                 })
                 .collect();
             self.boards.insert(station, slots);
@@ -275,6 +322,7 @@ impl JobPostings {
                 posting: offer.id.posting,
                 posted_at: now,
                 offer,
+                paid_refresh_requested: false,
             };
         }
     }
@@ -1563,6 +1611,84 @@ pub fn plan_job_hand_in(
     })
 }
 
+/// The fixed fee a paid cancellation costs, docked at the issuing station
+/// with the job held: [`JobPostings::request_paid_refresh`] skips the wait a
+/// free drop leaves on the slot. Named so a later balance pass can author it
+/// per job or cluster without hunting the literal across callers.
+pub const JOB_PAID_DROP_FEE_CR: u32 = 100;
+
+/// Why a paid drop changes nothing, in check order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum JobPaidDropRefusalType {
+    /// The player does not hold the job.
+    NotHeld,
+    /// The ship is not docked at the job's issuing station.
+    NotDocked,
+    /// The slot renewed since the command was raised: the posting `id`
+    /// names is stale.
+    Stale,
+    /// The player's balance is short of the fee.
+    CreditsShort {
+        /// The fee.
+        need: u32,
+        /// The player's balance.
+        have: u32,
+    },
+    /// The station's balance after the fee would not fit.
+    CreditOverflow,
+}
+
+/// What an allowed paid drop moves: the balances after [`JOB_PAID_DROP_FEE_CR`]
+/// moves from the player to the station.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct JobPaidDropPlan {
+    /// The fee paid, [`JOB_PAID_DROP_FEE_CR`].
+    pub fee_cr: u32,
+    /// The player's balance after: before, less the fee.
+    pub own_cr: u32,
+    /// The station's balance after: before, plus the fee.
+    pub station_cr: u32,
+}
+
+/// Plan a paid cancellation of the held job `id`, docked at `docked`, with
+/// its slot still on the posting `id` names (`current`,
+/// [`JobPostings::slot`]), from a balance of `own_cr` against the issuing
+/// station's `station_cr`. Checks run in [`JobPaidDropRefusalType`] order. A
+/// refusal changes nothing.
+pub fn plan_job_paid_drop(
+    id: &JobId,
+    held: bool,
+    docked: Option<&GeneratedBodyId>,
+    current: bool,
+    own_cr: u32,
+    station_cr: u32,
+) -> Result<JobPaidDropPlan, JobPaidDropRefusalType> {
+    if !held {
+        return Err(JobPaidDropRefusalType::NotHeld);
+    }
+    if docked != Some(&id.station) {
+        return Err(JobPaidDropRefusalType::NotDocked);
+    }
+    if !current {
+        return Err(JobPaidDropRefusalType::Stale);
+    }
+    let own_cr =
+        own_cr
+            .checked_sub(JOB_PAID_DROP_FEE_CR)
+            .ok_or(JobPaidDropRefusalType::CreditsShort {
+                need: JOB_PAID_DROP_FEE_CR,
+                have: own_cr,
+            })?;
+    let station_cr = station_cr
+        .checked_add(JOB_PAID_DROP_FEE_CR)
+        .ok_or(JobPaidDropRefusalType::CreditOverflow)?;
+    Ok(JobPaidDropPlan {
+        fee_cr: JOB_PAID_DROP_FEE_CR,
+        own_cr,
+        station_cr,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use nova_events::prelude::SectorCoord;
@@ -2026,6 +2152,55 @@ mod tests {
         jobs.validate().unwrap();
     }
 
+    /// A paid drop checks held, docked, current and the fee in that order,
+    /// moving the fee from the player to the station only once every check
+    /// passes.
+    #[test]
+    fn a_paid_drop_checks_held_docked_current_and_the_fee_in_order() {
+        let poster = station(1);
+        let elsewhere = station(2);
+        let id = JobId {
+            station: poster.clone(),
+            slot: 0,
+            posting: 0,
+        };
+        assert_eq!(
+            plan_job_paid_drop(&id, false, Some(&poster), true, 1_000, 1_000),
+            Err(JobPaidDropRefusalType::NotHeld)
+        );
+        assert_eq!(
+            plan_job_paid_drop(&id, true, None, true, 1_000, 1_000),
+            Err(JobPaidDropRefusalType::NotDocked)
+        );
+        assert_eq!(
+            plan_job_paid_drop(&id, true, Some(&elsewhere), true, 1_000, 1_000),
+            Err(JobPaidDropRefusalType::NotDocked)
+        );
+        assert_eq!(
+            plan_job_paid_drop(&id, true, Some(&poster), false, 1_000, 1_000),
+            Err(JobPaidDropRefusalType::Stale)
+        );
+        assert_eq!(
+            plan_job_paid_drop(&id, true, Some(&poster), true, 99, 1_000),
+            Err(JobPaidDropRefusalType::CreditsShort {
+                need: 100,
+                have: 99
+            })
+        );
+        assert_eq!(
+            plan_job_paid_drop(&id, true, Some(&poster), true, 1_000, u32::MAX),
+            Err(JobPaidDropRefusalType::CreditOverflow)
+        );
+        assert_eq!(
+            plan_job_paid_drop(&id, true, Some(&poster), true, 1_000, 1_000),
+            Ok(JobPaidDropPlan {
+                fee_cr: JOB_PAID_DROP_FEE_CR,
+                own_cr: 900,
+                station_cr: 1_100,
+            })
+        );
+    }
+
     #[test]
     fn a_located_job_refuses_the_accept_of_a_gone_target_and_the_hand_in_until_done() {
         let items = catalog();
@@ -2293,6 +2468,7 @@ mod tests {
                 posting: 1,
                 posted_at: 30.0,
                 offer: drawn[0].clone(),
+                paid_refresh_requested: false,
             })
         );
         assert_eq!(
@@ -2320,6 +2496,77 @@ mod tests {
         );
         assert_eq!(renewed.to_string(), format!("{poster}#0.1"));
         postings.validate(30.0).unwrap();
+    }
+
+    /// A paid refresh marks the posted slot, which `post` carries unchanged
+    /// into its next posting if the caller does not renew it first and
+    /// resets to `false` once the slot does renew, so the mark never
+    /// outlives the posting it was asked for.
+    #[test]
+    fn a_paid_refresh_marks_its_slot_and_post_resets_it_on_renewal() {
+        let items = catalog();
+        let poster = station(1);
+        let field = field();
+        let before = board(10, &poster, &[], &items, JobMixType::Combat, &field);
+        let mut postings = JobPostings::default();
+        postings.post(before.clone(), 0.0);
+        let id = before[0].id.clone();
+        assert!(!postings.slot(&id).unwrap().paid_refresh_requested);
+        postings.request_paid_refresh(&id);
+        assert!(
+            postings.slot(&id).unwrap().paid_refresh_requested,
+            "the request marks the slot's current posting"
+        );
+        let renewed = JobId {
+            posting: 1,
+            ..id.clone()
+        };
+        let drawn = station_job_offers(
+            10,
+            std::slice::from_ref(&renewed),
+            &[],
+            &items,
+            JobMixType::Combat,
+            &field,
+            &before[1..],
+        );
+        postings.post(drawn, 10.0);
+        assert!(
+            !postings.slot(&renewed).unwrap().paid_refresh_requested,
+            "a renewal resets the mark"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "off the board")]
+    fn a_paid_refresh_of_an_unknown_slot_panics() {
+        let poster = station(1);
+        let mut postings = JobPostings::default();
+        postings.post(
+            board(10, &poster, &[], &catalog(), JobMixType::Combat, &field()),
+            0.0,
+        );
+        postings.request_paid_refresh(&JobId {
+            station: poster,
+            slot: JOBS_PER_BOARD,
+            posting: 0,
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "the slot is on posting")]
+    fn a_paid_refresh_off_its_slot_s_posting_panics() {
+        let poster = station(1);
+        let mut postings = JobPostings::default();
+        postings.post(
+            board(10, &poster, &[], &catalog(), JobMixType::Combat, &field()),
+            0.0,
+        );
+        postings.request_paid_refresh(&JobId {
+            station: poster,
+            slot: 0,
+            posting: 1,
+        });
     }
 
     /// A posted offer is the record: a dropped recovery whose wreck is gone
@@ -2418,6 +2665,7 @@ mod tests {
         let items = catalog();
         let rule = JobOfferRule {
             offer_seconds: 100.0,
+            escort_offer_seconds: 300.0,
         };
         let a = station(1);
         let b = station(2);
@@ -2504,11 +2752,13 @@ mod tests {
         let (_, poster, job) = a_procurement();
         let rule = JobOfferRule {
             offer_seconds: 100.0,
+            escort_offer_seconds: 300.0,
         };
         let slot = SlotPosting {
             posting: 0,
             posted_at: 50.0,
             offer: job.clone(),
+            paid_refresh_requested: false,
         };
         assert_eq!(slot.remaining(rule, 60.0), 90.0);
         let noisy = SlotPosting {
@@ -2518,7 +2768,8 @@ mod tests {
         assert_eq!(
             noisy.remaining(
                 JobOfferRule {
-                    offer_seconds: 1_200.0
+                    offer_seconds: 1_200.0,
+                    escort_offer_seconds: 3_600.0,
                 },
                 noisy.posted_at
             ),
@@ -2528,6 +2779,19 @@ mod tests {
         assert!(!slot.is_expired(rule, 149.9));
         assert!(slot.is_expired(rule, 150.0));
         assert!(slot.is_expired(rule, 200.0));
+        let escort_slot = SlotPosting {
+            offer: Job {
+                kind: JobType::Escort {
+                    hauler: job.id.spawned_body("hauler", 0),
+                    cargo_cr: 600,
+                },
+                ..job.clone()
+            },
+            ..slot.clone()
+        };
+        assert_eq!(escort_slot.remaining(rule, 50.0), 300.0);
+        assert!(!escort_slot.is_expired(rule, 150.0));
+        assert!(escort_slot.is_expired(rule, 350.0));
 
         let jobs = Jobs::default();
         assert_eq!(

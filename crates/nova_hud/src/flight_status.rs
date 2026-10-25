@@ -447,7 +447,6 @@ fn rcs_pip_color(lit: bool) -> Color {
 /// empty. Shown only while RCS is commanded, pushing, or short of full, so a
 /// full idle magazine keeps the manual HUD quiet.
 fn drive_rcs_budget_chip(
-    settings: Res<FlightSettings>,
     q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
     mut q_ui: Query<(&mut ScreenIndicatorAnchor, &Children, &ChildOf), With<RcsBudgetChipUIMarker>>,
     q_ship: Query<(&RcsBudget, Option<&RcsIntent>)>,
@@ -469,7 +468,7 @@ fn drive_rcs_budget_chip(
         }
         **anchor = Some(ScreenIndicatorAnchorKind::Entity(**ship));
 
-        let lit = (budget.fraction(&settings) * RCS_PIPS as f32).ceil() as usize;
+        let lit = (budget.fraction() * RCS_PIPS as f32).ceil() as usize;
         for pip in rows
             .iter()
             .filter_map(|row| q_children.get(row).ok())
@@ -694,8 +693,7 @@ mod tests {
     #[test]
     fn the_rcs_chip_lights_one_pip_per_tenth_of_the_magazine_left() {
         let mut world = World::new();
-        world.init_resource::<FlightSettings>();
-        let capacity = world.resource::<FlightSettings>().rcs_budget;
+        let capacity = RcsBudget::default().capacity;
         let ship = world
             .spawn((LinearVelocity(Vec3::ZERO), RcsBudget::default()))
             .id();

@@ -2205,9 +2205,10 @@ fn a_second_click_on_the_selected_chart_mark_and_reframe_return_the_chart_to_its
     {
         let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
         runtime.chart = true;
-        runtime.chart_player_cell = Some(SectorCoord::new(4, 0, 4));
+        runtime.chart_player_cell = Some(SectorCoord::new(4, 1, 4));
+        runtime.chart_layer = 1;
     }
-    let mark = MapChartMarkType::Cell(SectorCoord::new(6, 0, 3));
+    let mark = MapChartMarkType::Cell(SectorCoord::new(6, 2, 3));
     let label = app
         .world_mut()
         .spawn(MapChartLabel {
@@ -2225,11 +2226,16 @@ fn a_second_click_on_the_selected_chart_mark_and_reframe_return_the_chart_to_its
     };
     let selected = |app: &App| app.world().resource::<MapRuntime>().chart_selected.clone();
     let (_, radius, theta, phi) = orbit(&mut app);
-    let mark_cell = Vec3::new(2.0, 0.0, -1.0) * MAP_CHART_CELL;
+    let mark_cell = Vec3::new(2.0, 1.0, -1.0) * MAP_CHART_CELL;
 
     app.world_mut().trigger(Activate { entity: label });
     app.world_mut().flush();
     assert_eq!(selected(&app), Some(mark.clone()), "a first click selects");
+    assert_eq!(
+        app.world().resource::<MapRuntime>().chart_layer,
+        2,
+        "the grid follows the focused mark's layer"
+    );
     assert_eq!(
         orbit(&mut app),
         (mark_cell, radius, theta, phi),
@@ -2253,6 +2259,11 @@ fn a_second_click_on_the_selected_chart_mark_and_reframe_return_the_chart_to_its
     app.world_mut().run_system_once(map_input).unwrap();
     assert_eq!(selected(&app), None, "Reframe clears the selection");
     assert_eq!(
+        app.world().resource::<MapRuntime>().chart_layer,
+        1,
+        "Reframe returns to the player's layer"
+    );
+    assert_eq!(
         orbit(&mut app),
         (
             Vec3::ZERO,
@@ -2261,6 +2272,77 @@ fn a_second_click_on_the_selected_chart_mark_and_reframe_return_the_chart_to_its
             MAP_PHI_DEFAULT
         ),
         "Reframe frames the whole grid"
+    );
+}
+
+/// Chart layer keys step the focused Y grid once per press, discard a selected
+/// mark, and Reframe restores the player's layer without changing local Map.
+#[test]
+fn chart_layer_steps_once_per_press_and_reframe_returns_to_the_player_layer() {
+    let mut app = map_input_app();
+    {
+        let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
+        runtime.chart = true;
+        runtime.chart_layer = 4;
+        runtime.chart_player_cell = Some(SectorCoord::new(2, 4, 3));
+        runtime.chart_selected = Some(MapChartMarkType::Cell(SectorCoord::new(2, 4, 3)));
+    }
+    let center = |app: &mut App| {
+        app.world_mut()
+            .query_filtered::<&MapOrbit, With<MapCameraMarker>>()
+            .single(app.world())
+            .unwrap()
+            .center
+    };
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyX);
+    app.world_mut().run_system_once(map_input).unwrap();
+    assert_eq!(app.world().resource::<MapRuntime>().chart_layer, 5);
+    assert_eq!(app.world().resource::<MapRuntime>().chart_selected, None);
+    assert_eq!(center(&mut app).y, MAP_CHART_CELL);
+
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .clear();
+    app.world_mut().run_system_once(map_input).unwrap();
+    assert_eq!(
+        app.world().resource::<MapRuntime>().chart_layer,
+        5,
+        "holding X does not repeat"
+    );
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(KeyCode::KeyX);
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyZ);
+    app.world_mut().run_system_once(map_input).unwrap();
+    assert_eq!(app.world().resource::<MapRuntime>().chart_layer, 4);
+    assert_eq!(center(&mut app).y, 0.0);
+
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .clear();
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(KeyCode::KeyZ);
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyX);
+    app.world_mut().run_system_once(map_input).unwrap();
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .clear();
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(KeyCode::KeyT);
+    app.world_mut().run_system_once(map_input).unwrap();
+    assert_eq!(app.world().resource::<MapRuntime>().chart_layer, 4);
+    assert_eq!(
+        center(&mut app),
+        Vec3::ZERO,
+        "Reframe resets the layer and orbit"
     );
 }
 
@@ -2793,6 +2875,184 @@ fn a_selected_contact_fills_the_panel_in_place() {
     // A held selection writes nothing.
     settle(app);
     assert_eq!(take_churn(app), NodeChurn::default());
+}
+
+/// The chart overview's Code and Range fields read blank with nothing
+/// selected, since the contact panel header renders unreliably there; a
+/// selected station still reads its chart code and its cell in Range.
+#[test]
+fn chart_selection_fills_code_and_range_in_place() {
+    let mut rig = pane_pointer_rig();
+    let app = &mut rig.app;
+    app.insert_resource(InterfaceIcons::blank());
+    app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
+    app.add_systems(Update, update_map_panel);
+    let content = rig.content_root;
+    app.world_mut()
+        .commands()
+        .entity(content)
+        .with_children(|content| spawn_map_panel(content, &InterfaceIcons::blank()));
+    app.world_mut().spawn((
+        SpaceshipRootMarker,
+        PlayerSpaceshipMarker,
+        GlobalTransform::default(),
+        Name::new("NOVA"),
+    ));
+    {
+        let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
+        runtime.active = true;
+        runtime.chart = true;
+    }
+    settle(app);
+    let world = app.world_mut();
+    assert_eq!(panel_text(world, MapPanelField::Code), "");
+    assert_eq!(panel_text(world, MapPanelField::Range), "");
+
+    let station_id = GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_0_0_0_station", 0);
+    app.world_mut()
+        .resource_mut::<Chart>()
+        .find_station(&station_id, false, false, None, 0.0);
+    app.world_mut().resource_mut::<MapRuntime>().chart_selected =
+        Some(MapChartMarkType::Station(station_id.clone()));
+    settle(app);
+    let world = app.world_mut();
+    assert_eq!(panel_text(world, MapPanelField::Code), "STN-1");
+    assert_eq!(
+        panel_text(world, MapPanelField::Range),
+        format!("Cell {}", station_id.origin)
+    );
+
+    let mut q = world.query::<(&MapPanelField, &ThemedText, &ComputedNode)>();
+    for (field, themed, computed) in q.iter(world) {
+        if *field == MapPanelField::Code || *field == MapPanelField::Range {
+            assert_eq!(themed.color, UiColor::Primary, "{field:?}");
+            assert!((themed.alpha - 1.0).abs() < 1e-6, "{field:?}");
+            assert!(computed.size().y > 0.0, "{field:?} laid out at zero height");
+        }
+    }
+}
+
+/// The header node (Code/Name/Kind, Range/Bearing, Note and their rules)
+/// hides as one in the chart overview with nothing selected, where those
+/// fields read blank and leave three bare rules; it stays shown on local Map
+/// and returns on a selected chart mark.
+#[test]
+fn chart_header_hides_only_with_nothing_selected() {
+    let mut rig = pane_pointer_rig();
+    let app = &mut rig.app;
+    app.insert_resource(InterfaceIcons::blank());
+    app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
+    app.add_systems(Update, update_map_panel);
+    let content = rig.content_root;
+    app.world_mut()
+        .commands()
+        .entity(content)
+        .with_children(|content| spawn_map_panel(content, &InterfaceIcons::blank()));
+    app.world_mut().spawn((
+        SpaceshipRootMarker,
+        PlayerSpaceshipMarker,
+        GlobalTransform::default(),
+        Name::new("NOVA"),
+    ));
+    app.world_mut().resource_mut::<MapRuntime>().active = true;
+    settle(app);
+
+    fn header_display(world: &mut World) -> Display {
+        world
+            .query_filtered::<&Node, With<MapPanelHeaderMarker>>()
+            .single(world)
+            .unwrap()
+            .display
+    }
+    assert_eq!(
+        header_display(app.world_mut()),
+        Display::Flex,
+        "shown on local Map"
+    );
+
+    app.world_mut().resource_mut::<MapRuntime>().chart = true;
+    settle(app);
+    assert_eq!(
+        header_display(app.world_mut()),
+        Display::None,
+        "hidden in the chart overview with nothing selected"
+    );
+
+    let station_id = GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_0_0_0_station", 0);
+    app.world_mut()
+        .resource_mut::<Chart>()
+        .find_station(&station_id, false, false, None, 0.0);
+    app.world_mut().resource_mut::<MapRuntime>().chart_selected =
+        Some(MapChartMarkType::Station(station_id));
+    settle(app);
+    assert_eq!(
+        header_display(app.world_mut()),
+        Display::Flex,
+        "shown again on a selected chart mark"
+    );
+}
+
+/// The OBJECTIVES heading carries the focused chart layer and a visited-cell
+/// tooltip, since the chart overview's own header fields render unreliably
+/// with nothing selected; stepping the layer alone, with no objective or
+/// goal change, still rebuilds the heading off the cached rows.
+#[test]
+fn chart_objectives_heading_follows_the_focused_layer() {
+    let mut rig = pane_pointer_rig();
+    let app = &mut rig.app;
+    app.insert_resource(InterfaceIcons::blank());
+    app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
+    app.init_resource::<GoalProgress>();
+    app.init_resource::<GoalRecord>();
+    app.add_systems(Update, update_map_chart_objectives);
+    let content = rig.content_root;
+    app.world_mut()
+        .commands()
+        .entity(content)
+        .with_children(|content| spawn_map_panel(content, &InterfaceIcons::blank()));
+    app.world_mut()
+        .resource_mut::<Chart>()
+        .visit(SectorCoord::new(0, 2, 0), vec![], 0.0);
+    {
+        let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
+        runtime.active = true;
+        runtime.chart = true;
+        runtime.chart_layer = 2;
+    }
+    settle(app);
+
+    fn heading(world: &mut World) -> (String, String) {
+        let (text, parent) = world
+            .query::<(&Text, &ChildOf)>()
+            .iter(world)
+            .find_map(|(text, child_of)| {
+                text.0
+                    .starts_with("OBJECTIVES")
+                    .then(|| (text.0.clone(), child_of.parent()))
+            })
+            .expect("the OBJECTIVES heading spawned");
+        let tooltip = world
+            .get::<Tooltip>(parent)
+            .expect("the heading's wrapper carries the layer tooltip")
+            .0
+            .clone();
+        (text, tooltip)
+    }
+    let (text, tooltip) = heading(app.world_mut());
+    assert_eq!(text, "OBJECTIVES  Y2");
+    assert_eq!(tooltip, "1 visited cells on layer 2");
+
+    app.world_mut().resource_mut::<MapRuntime>().chart_layer = 3;
+    settle(app);
+    let (text, tooltip) = heading(app.world_mut());
+    assert_eq!(text, "OBJECTIVES  Y3");
+    assert_eq!(tooltip, "0 visited cells on layer 3");
 }
 
 /// A marked contact's Note is its marker label, then one line per held job

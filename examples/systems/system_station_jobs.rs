@@ -388,14 +388,14 @@ mod walk {
         })
     }
 
-    /// Whether one of a posted row's texts is its Reward cell `<n> cr` for
-    /// `reward_cr`. The pane groups thousands with commas, so the digits are
-    /// compared with the commas stripped.
+    /// Whether one of a posted row's texts is its Reward cell: a credit icon
+    /// beside plain digits for `reward_cr`, grouped by thousands with commas
+    /// and no unit (the icon carries that). Compares the digits with the
+    /// commas stripped, as an exact match, so an unrelated cell such as the
+    /// title never matches by substring.
     fn reward_shown(row: &[String], reward_cr: u32) -> bool {
-        row.iter().any(|text| {
-            text.strip_suffix(" cr")
-                .is_some_and(|amount| amount.replace(',', "") == reward_cr.to_string())
-        })
+        let digits = reward_cr.to_string();
+        row.iter().any(|text| text.replace(',', "") == digits)
     }
 
     fn a_text_reads(check: impl Fn(&str) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
@@ -1176,7 +1176,7 @@ mod walk {
         });
         assert!(
             reward_shown(&row, new.reward_cr),
-            "station jobs: the '{title}' row reads '{} cr': {row:?}",
+            "station jobs: the '{title}' row shows {} cr: {row:?}",
             new.reward_cr
         );
         nova_probe::probe_marker(
@@ -1196,15 +1196,27 @@ mod walk {
     }
 
     /// DISCLOSED FIXTURE STATE: the interface holds the game paused, so
-    /// nothing but this step moves play time across the offer window.
+    /// nothing but this step moves play time across each unheld offer's window.
     fn bump_the_clock_past_offer(world: &mut World) {
-        let offer_seconds = world.resource::<GamePriceTable>().0.jobs.offer_seconds;
+        let rule = world.resource::<GamePriceTable>().0.jobs;
+        let now = world.resource::<WorldClock>().play_seconds;
+        let station = station_id(world);
+        let postings = world.resource::<JobPostings>();
+        let jobs = world.resource::<Jobs>();
+        let offer_seconds = postings
+            .board(&station)
+            .expect("station jobs: the station has posted")
+            .iter()
+            .filter(|slot| !jobs.holds(&slot.offer.id))
+            .map(|slot| slot.remaining(rule, now))
+            .reduce(f64::max)
+            .expect("station jobs: an unheld offer stands");
         let mut clock = world.resource_mut::<WorldClock>();
-        clock.play_seconds += f64::from(offer_seconds) + 1.0;
+        clock.play_seconds += offer_seconds.max(0.0) + 1.0;
         let bumped_to = clock.play_seconds;
         info!(
-            "station jobs: the clock advances past the {offer_seconds:.0} s offer window, to \
-             {bumped_to:.0} s of play"
+            "station jobs: the clock advances past the longest {offer_seconds:.0} s unheld offer, \
+             to {bumped_to:.0} s of play"
         );
         world.resource_mut::<JobWatch>().bumped_to = Some(bumped_to);
     }
@@ -1270,7 +1282,7 @@ mod walk {
             });
             assert!(
                 reward_shown(&row, new.reward_cr),
-                "station jobs: the '{title}' row reads '{} cr': {row:?}",
+                "station jobs: the '{title}' row shows {} cr: {row:?}",
                 new.reward_cr
             );
             renewed_ids.push(new.id);

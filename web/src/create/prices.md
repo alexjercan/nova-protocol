@@ -49,8 +49,9 @@ against it, not a price rule: see
 ## How a job offer expires
 
 A living station's job board has three slots, each on its own posting. An
-offer the player does not hold expires `jobs.offer_seconds` of play after it
-was posted, and the slot then posts a new offer under a new id. A held job
+offer the player does not hold expires after `jobs.offer_seconds` of play,
+or `jobs.escort_offer_seconds` for an escort, measured from its posting.
+The slot then posts a new offer under a new id. A held job
 is pinned to its slot and never expires, however long you hold it; handing
 one in, or losing it (its hauler lost), renews the slot at once. The clock
 is play time, so the pause menu, the interface and a Load all freeze every
@@ -70,7 +71,7 @@ for the full posting and renewal rule.
             unkept: (ask: 1.0, bid: 0.9),
         ),
         restock: (recovery_seconds: 1800.0),
-        jobs: (offer_seconds: 1200.0),
+        jobs: (offer_seconds: 1200.0, escort_offer_seconds: 3600.0),
         clusters: [
             (cluster: AsteroidRich, category: Raw, factor: (ask: 0.6, bid: 0.6)),
         ],
@@ -88,7 +89,7 @@ Every field is required.
 | `clamp` | `(min, max)` | the lowest and highest total factor on each side |
 | `scarcity` | scarcity rule | the stock curve, see below |
 | `restock` | `(recovery_seconds)` | the play seconds a thawed trader's stock takes to return to its target from none, see [How a trader restocks](#how-a-trader-restocks) |
-| `jobs` | `(offer_seconds)` | the play seconds an unheld station job offer stands before its slot posts a new one, see [How a job offer expires](#how-a-job-offer-expires) |
+| `jobs` | `(offer_seconds, escort_offer_seconds)` | play seconds an unheld non-escort or escort offer stands before its slot posts a new one, see [How a job offer expires](#how-a-job-offer-expires) |
 | `clusters` | list of cluster rules | demand by cluster type: `cluster` is `AsteroidRich`, `RockOnly`, `PlanetHeavy` or `DerelictField`; `category` is an item category; `factor` is `(ask, bid)` |
 | `roles` | list of role rules | demand by civilization role: `role` is `Civilian`, `Industrial`, `Scavenger` or `Armored`; `category` and `factor` as above |
 
@@ -117,8 +118,8 @@ pack that:
   ask;
 - states a `starved` side below 1, a `glut` side above 1, or a `glut_share`
   of 1 or less;
-- states a `restock.recovery_seconds` or a `jobs.offer_seconds` that is not a
-  finite number above 0;
+- states a `restock.recovery_seconds`, `jobs.offer_seconds` or
+  `jobs.escort_offer_seconds` that is not a finite number above 0;
 - names one cluster type or one role with one category twice.
 
 With every factor's bid at most its ask, a trader's bid is never above its
@@ -133,7 +134,8 @@ ask.
 | glut, at 3 times the target | ask 0.9, bid 0.6 |
 | unkept | ask 1.0, bid 0.9 |
 | restock recovery | 1800 s (30 min of play) |
-| job offer window | 1200 s (20 min of play) |
+| non-escort offer window | 1200 s (20 min of play) |
+| escort offer window | 3600 s (60 min of play) |
 | `AsteroidRich` `Raw` | 0.6 |
 | `RockOnly` `Raw` | 0.8 |
 | `PlanetHeavy` `Raw` | 1.5 |

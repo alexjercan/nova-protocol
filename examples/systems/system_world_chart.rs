@@ -40,7 +40,7 @@
 //! | 5 | `outcome: the discovery log lists the station` | with nothing selected, the panel's log has an icon row reading `STN-n`, its cell and how long ago, and a row for the start's cell |
 //! | 6 | `outcome: the leave save holds the chart and the start` | the leave save, read with [`open_world`], holds the three cells, the station's summary and the starting station's id |
 //! | 7 | `outcome: a loaded world restores the chart` | after Load the live chart holds the same three cells and the same station summary, and the session names the same starting station |
-//! | 8 | `outcome: the chart's objectives list what the player has to do` | at the start, with a procurement held, the OBJECTIVES block lists a `JOB-1` row with the job's title, `have / need` and the starting station's `STN-n`, and one milestone row: the role goal's first unmet line with its `have / need`; no other goal line and no `Goal reached at` row shows |
+//! | 8 | `outcome: the chart's objectives list what the player has to do` | at the start, with a procurement held, the OBJECTIVES block displays `JOB-1` beside the job's title, `have / need` and the hand-in `STN-n`, plus the role goal's heading and first unmet milestone; no EMPTY, later goal line or `Goal reached at` row shows |
 //! | 9 | `outcome: the Jobs pane shows the next unmet milestone in flight` | after the undock, in flight, the interface's Jobs pane shows the `JobsMilestone` row reading the goal's title and first unmet line with its `have / need`, and the held row `JobRowHeld-0` with the job's title |
 //!
 //! ONE SUBJECT: the chart a streamed world keeps. The save's refusal of an
@@ -856,12 +856,20 @@ mod walk {
         let job_row = named_row(world, &format!("{OBJECTIVE_ROW_PREFIX}JOB-1"))
             .unwrap_or_else(|| panic!("world chart: the block lists JOB-1: {rows:?}"));
         assert!(
-            job_row.contains(&title)
+            job_row.contains(&format!("JOB-1 {title}"))
                 && job_row.iter().any(|text| have_need(text))
                 && job_row.contains(&hand_in),
-            "world chart: the job row reads '{title}', have / need and {hand_in}: {job_row:?}"
+            "world chart: the job row reads 'JOB-1 {title}', have / need and {hand_in}: {job_row:?}"
         );
         let goal = world.resource::<GoalProgress>().clone();
+        assert!(
+            rows.contains(&goal.title),
+            "world chart: the role goal heading is visible: {rows:?}"
+        );
+        assert!(
+            !rows.contains(&"EMPTY".to_string()),
+            "world chart: a milestone is not empty: {rows:?}"
+        );
         let next = goal
             .lines
             .iter()

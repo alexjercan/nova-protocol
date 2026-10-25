@@ -61,6 +61,14 @@ pub(crate) enum MapPanelField {
 #[derive(Component)]
 pub(crate) struct MapPanelIcon;
 
+/// The Code/Name/Kind, Range/Bearing and Note fields and their rules, as one
+/// node: these header fields read unreliably in the chart overview with
+/// nothing selected (three blank rules stacked with no text between them), so
+/// [`update_map_panel`](super::update_map_panel) hides the whole node there.
+/// It stays shown on local Map and on a selected chart mark.
+#[derive(Component)]
+pub(crate) struct MapPanelHeaderMarker;
+
 /// The contact panel beside the map view. It scrolls: a selected station's
 /// stock list pushes the STANCES block past a 720p panel.
 #[derive(Component)]
@@ -72,8 +80,8 @@ pub(crate) struct MapPanelMarker;
 pub(crate) struct MapGotoButton;
 
 /// The contact panel's CANCEL button. It is enabled while the player ship
-/// flies a GOTO, in both views and whether or not its target is still on the
-/// map; [`update_map_panel`](super::update_map_panel) toggles it.
+/// flies a GOTO, even if its target left the local map; hidden in the chart.
+/// [`update_map_panel`](super::update_map_panel) toggles it.
 #[derive(Component)]
 pub(crate) struct MapCancelButton;
 
@@ -108,12 +116,14 @@ pub(crate) fn scroll_map_panel(
 }
 
 /// Build the contact panel beside the map view: the selection's icon, in a
-/// frame the chart view hides, over its code, name and kind; a rule; its range
-/// and bearing; a rule; its note; a rule; the SECTOR block, shown in the chart
-/// view with a find selected; the OBJECTIVES block and the discovery log under
-/// it, shown in the chart view with nothing selected; the STANCES block, shown
-/// in the chart view with nothing selected or a living, unowned Station mark
-/// selected; and the live GOTO destination over the GOTO and CANCEL buttons.
+/// frame the chart view hides, over the [`MapPanelHeaderMarker`] node (its
+/// code, name and kind; a rule; its range and bearing; a rule; its note; a
+/// rule), hidden as one in the chart overview with nothing selected; the
+/// SECTOR block, shown in the chart view with a find selected; the OBJECTIVES
+/// block and the discovery log under it, shown in the chart view with nothing
+/// selected; the STANCES block, shown in the chart view with nothing selected
+/// or a living, unowned Station mark selected; and the live GOTO destination
+/// over the GOTO and CANCEL buttons in the local contact view.
 /// [`update_map_panel`](super::update_map_panel) fills it.
 pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
     parent
@@ -137,27 +147,38 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
                 ));
             });
             panel
-                .spawn(Node {
-                    flex_direction: FlexDirection::Column,
-                    row_gap: px(4),
-                    ..default()
-                })
-                .with_children(|identity| {
-                    for (field, size, color) in [
-                        (MapPanelField::Code, 18.0, UiColor::Primary),
-                        (MapPanelField::Name, 13.0, UiColor::Body),
-                        (MapPanelField::Kind, 12.0, UiColor::Body),
-                    ] {
-                        identity.spawn((field, themed_label("", size, color)));
+                .spawn((
+                    MapPanelHeaderMarker,
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        row_gap: px(10),
+                        ..default()
+                    },
+                ))
+                .with_children(|header| {
+                    header
+                        .spawn(Node {
+                            flex_direction: FlexDirection::Column,
+                            row_gap: px(4),
+                            ..default()
+                        })
+                        .with_children(|identity| {
+                            for (field, size, color) in [
+                                (MapPanelField::Code, 18.0, UiColor::Primary),
+                                (MapPanelField::Name, 13.0, UiColor::Body),
+                                (MapPanelField::Kind, 12.0, UiColor::Body),
+                            ] {
+                                identity.spawn((field, themed_label("", size, color)));
+                            }
+                        });
+                    header.spawn(panel_rule());
+                    for field in [MapPanelField::Range, MapPanelField::Bearing] {
+                        header.spawn((field, themed_label("", 13.0, UiColor::Primary)));
                     }
+                    header.spawn(panel_rule());
+                    header.spawn((MapPanelField::Note, themed_label("", 12.0, UiColor::Label)));
+                    header.spawn(panel_rule());
                 });
-            panel.spawn(panel_rule());
-            for field in [MapPanelField::Range, MapPanelField::Bearing] {
-                panel.spawn((field, themed_label("", 13.0, UiColor::Primary)));
-            }
-            panel.spawn(panel_rule());
-            panel.spawn((MapPanelField::Note, themed_label("", 12.0, UiColor::Label)));
-            panel.spawn(panel_rule());
             spawn_map_chart_sector(panel);
             spawn_map_chart_objectives(panel);
             spawn_map_chart_log(panel);
@@ -276,6 +297,8 @@ pub(crate) struct MapRuntime {
     pub(crate) cancel_requested: bool,
     /// The chart view shows instead of the local scene.
     pub(crate) chart: bool,
+    /// The Y coordinate of the chart's focused grid, in sector cells.
+    pub(crate) chart_layer: i32,
     /// The Chart button was activated.
     /// [`toggle_map_chart`](super::toggle_map_chart) takes it on its next run.
     pub(crate) chart_requested: bool,

@@ -675,7 +675,6 @@ fn assert_station_orbits(world: &mut World) {
 /// samples a longer arc, not a different orbit.
 #[cfg(feature = "debug")]
 fn track_orbit(
-    settings: Res<FlightSettings>,
     mut epoch: ResMut<OrbitEpoch>,
     q_station: Query<(&Position, &RcsBudget), With<StationMarker>>,
 ) {
@@ -686,7 +685,7 @@ fn track_orbit(
         return;
     };
     epoch.rcs_spent_max = epoch.rcs_spent_max.max(budget.spent);
-    epoch.rcs_emptied |= budget.is_empty(&settings);
+    epoch.rcs_emptied |= budget.is_empty();
     let radial = position.0 - epoch.well;
     let radius = radial.length();
     let Some(direction) = radial.try_normalize() else {

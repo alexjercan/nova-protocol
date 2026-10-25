@@ -946,6 +946,9 @@ pub enum CreditChangeCauseType {
     StationBuy,
     /// A job handed in at a docked station: its reward.
     JobReward,
+    /// A paid cancellation of a held job at its issuing station: the fee,
+    /// moved from the player to the station.
+    JobRefresh,
     /// A fine paid at a docked station to settle with a civilization that
     /// stood Enemy to the player.
     Settle,
@@ -966,6 +969,7 @@ impl CreditChangeCauseType {
             CreditChangeCauseType::EscortHire => "EscortHire",
             CreditChangeCauseType::StationBuy => "StationBuy",
             CreditChangeCauseType::JobReward => "JobReward",
+            CreditChangeCauseType::JobRefresh => "JobRefresh",
             CreditChangeCauseType::Settle => "Settle",
             CreditChangeCauseType::Cheat => "Cheat",
         }

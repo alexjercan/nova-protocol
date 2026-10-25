@@ -170,15 +170,17 @@ pub struct RestockRule {
 
 /// How long a station's job offer stands before the slot posts a new one.
 ///
-/// An offer the player does not hold expires this many play seconds after
-/// its posting stamp (`nova_gameplay::jobs::SlotPosting`); a held job never
-/// expires.
+/// An offer the player does not hold expires after the window for its kind,
+/// measured from its posting stamp (`nova_gameplay::jobs::SlotPosting`);
+/// a held job never expires.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct JobOfferRule {
-    /// The play seconds an unheld offer stands. Finite, above zero.
+    /// The play seconds an unheld non-escort offer stands. Finite, above zero.
     pub offer_seconds: f32,
+    /// The play seconds an unheld escort offer stands. Finite, above zero.
+    pub escort_offer_seconds: f32,
 }
 
 /// The factor a trader in a cluster of one type deals one category at.
@@ -222,7 +224,7 @@ pub struct PriceTable {
     pub scarcity: ScarcityRule,
     /// The restock clock.
     pub restock: RestockRule,
-    /// The job offer window.
+    /// The job offer windows.
     pub jobs: JobOfferRule,
     /// The cluster-type rules, at most one per cluster type and category.
     pub clusters: Vec<ClusterPriceRule>,
@@ -678,6 +680,12 @@ pub fn price_table_faults(table: &PriceTable) -> Vec<String> {
             "the job offer window of {offer} s must be finite and above 0"
         ));
     }
+    let escort_offer = table.jobs.escort_offer_seconds;
+    if !(escort_offer.is_finite() && escort_offer > 0.0) {
+        faults.push(format!(
+            "the escort job offer window of {escort_offer} s must be finite and above 0"
+        ));
+    }
     for (index, rule) in table.clusters.iter().enumerate() {
         if table.clusters[..index]
             .iter()
@@ -738,6 +746,7 @@ mod tests {
             },
             jobs: JobOfferRule {
                 offer_seconds: 1_200.0,
+                escort_offer_seconds: 3_600.0,
             },
             clusters: vec![
                 ClusterPriceRule {
@@ -1005,7 +1014,7 @@ mod tests {
         );
     }
 
-    /// A recovery or an offer window of zero, below zero or not a number
+    /// A recovery or either offer window of zero, below zero or not a number
     /// is a fault the lint and the merge name.
     #[test]
     fn the_restock_and_offer_clocks_must_be_positive_seconds() {
@@ -1013,10 +1022,12 @@ mod tests {
         assert_eq!(price_table_faults(&table), Vec::<String>::new());
         table.restock.recovery_seconds = 0.0;
         table.jobs.offer_seconds = -1.0;
+        table.jobs.escort_offer_seconds = f32::NAN;
         let faults = price_table_faults(&table);
-        assert_eq!(faults.len(), 2, "{faults:?}");
+        assert_eq!(faults.len(), 3, "{faults:?}");
         assert!(faults[0].contains("restock recovery"), "{faults:?}");
         assert!(faults[1].contains("job offer window"), "{faults:?}");
+        assert!(faults[2].contains("escort job offer window"), "{faults:?}");
     }
 
     /// The percent is signed, truncated toward zero, and a zero reference

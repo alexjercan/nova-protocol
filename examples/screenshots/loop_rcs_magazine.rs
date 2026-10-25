@@ -12,7 +12,7 @@
 //! `press_action`/`release_action`, and a `MouseMotion` fed every frame the
 //! modifier is down, the same idiom `lesson_flight_basics` uses for its RCS
 //! sheet. The chip, the pips and the magazine itself
-//! (`RcsBudget`/`FlightSettings::rcs_budget`) are the shipped flight HUD and
+//! (`RcsBudget::capacity`) are the shipped flight HUD and
 //! flight model, not a pose.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
@@ -215,15 +215,17 @@ fn trace_pips(
     trace.samples.push((phase, lit));
 }
 
-/// The player ship's live `RcsBudget` and the magazine's cap, or `None` while
-/// either the player or `FlightSettings` is not yet in the world.
+/// The player ship's live `RcsBudget` and its capacity, or `None` before
+/// the player ship is in the world.
 #[cfg(feature = "debug")]
 fn player_rcs_budget(world: &World) -> Option<(RcsBudget, f32)> {
-    let cap = world.get_resource::<FlightSettings>()?.rcs_budget;
     let mut ships = world
         .try_query_filtered::<&RcsBudget, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>(
         )?;
-    ships.iter(world).next().map(|budget| (*budget, cap))
+    ships
+        .iter(world)
+        .next()
+        .map(|budget| (*budget, budget.capacity))
 }
 
 /// The player ship's current speed, zero while it is not yet in the world.

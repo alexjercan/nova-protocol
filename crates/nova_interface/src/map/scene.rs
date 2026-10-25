@@ -257,7 +257,7 @@ pub(crate) fn map_focus_follow(
     mut q_anchor: Query<&mut Transform, (With<MapFocusAnchor>, Without<MapFocusHub>)>,
     mut q_hub: Query<&mut Transform, With<MapFocusHub>>,
 ) {
-    if !runtime.active {
+    if !runtime.active || runtime.chart {
         return;
     }
     let Ok(mut orbit) = q_camera.single_mut() else {
@@ -371,11 +371,25 @@ pub(crate) fn map_input(
             let speed = orbit.radius * 0.8 * dt;
             orbit.center += (forward * pan.y + right * pan.x) * speed;
         }
+        // Chart layers step once per key press, independent of held pan.
+        if runtime.chart {
+            let step = i32::from(input.just_pressed("map_layer_up"))
+                - i32::from(input.just_pressed("map_layer_down"));
+            let next = runtime.chart_layer.saturating_add(step);
+            if next != runtime.chart_layer {
+                runtime.chart_layer = next;
+                runtime.chart_selected = None;
+                orbit.center.y += step as f32 * MAP_CHART_CELL;
+            }
+        }
         // Re-frame on the selected object (or the player if nothing is picked);
         // on the chart, drop the selection and return to the overview.
         if input.just_pressed("viewer_reframe") {
             if runtime.chart {
                 runtime.chart_selected = None;
+                if let Some(player_cell) = runtime.chart_player_cell {
+                    runtime.chart_layer = player_cell.y;
+                }
                 frame_chart(&mut orbit);
             } else {
                 reframe_map(&mut orbit, &contacts, &mut runtime);
@@ -383,8 +397,8 @@ pub(crate) fn map_input(
         }
     }
 
-    // Cancel the player's GOTO: CANCEL in either view, whatever became of its
-    // target, or GOTO on the selected contact the GOTO already flies to. The
+    // Cancel the player's GOTO: CANCEL in the contact view, whatever became
+    // of its target, or GOTO on the contact the GOTO already flies to. The
     // travel lock clears only while it names the cancelled target; a lock the
     // pilot holds on another body stays.
     let goto_pressed = input.just_pressed("map_goto") || button_goto;
@@ -1055,9 +1069,12 @@ pub(crate) fn on_map_cancel_button(_activate: On<Activate>, mut runtime: ResMut<
 }
 
 /// Fill the contact panel from the selection, with a GOTO result on the note
-/// while it shows, the player's live GOTO destination, the GOTO button
-/// enabled only on a contact other than the own ship, the CANCEL button
-/// enabled while a GOTO flies, and the head frame hidden in the chart view.
+/// while it shows, the player's live GOTO destination in the contact view,
+/// the GOTO button enabled only on a contact other than the own ship, the
+/// CANCEL button enabled while a GOTO flies, and both hidden in the chart
+/// along with the icon frame; the [`MapPanelHeaderMarker`] node hides with
+/// them in the chart overview with nothing selected, and returns on local Map
+/// or a selected chart mark.
 /// Rewrites text, colour, the icon, the frame and the button state in place
 /// and only on a difference, so a held selection writes nothing.
 #[expect(
@@ -1083,7 +1100,8 @@ pub(crate) fn update_map_panel(
         ),
         With<MapPanelIcon>,
     >,
-    mut q_frame: Query<&mut Node, Without<MapPanelIcon>>,
+    mut q_frame: Query<&mut Node, (Without<MapPanelIcon>, Without<MapPanelHeaderMarker>)>,
+    mut q_header: Query<&mut Node, With<MapPanelHeaderMarker>>,
     q_goto_button: Query<(Entity, Has<InteractionDisabled>), With<MapGotoButton>>,
     q_cancel_button: Query<(Entity, Has<InteractionDisabled>), With<MapCancelButton>>,
 ) {
@@ -1153,7 +1171,10 @@ pub(crate) fn update_map_panel(
 
     for (field, mut text, mut themed) in &mut q_field {
         let (value, color) = match (&selected, field) {
-            (_, MapPanelField::Note) if runtime.goto_note.is_some() => note.clone(),
+            (_, MapPanelField::Note) if runtime.goto_note.is_some() && !runtime.chart => {
+                note.clone()
+            }
+            (_, MapPanelField::Destination) if runtime.chart => (String::new(), UiColor::Label),
             (_, MapPanelField::Destination) => destination.clone(),
             _ if runtime.chart => chart_panel_field(
                 &chart,
@@ -1189,8 +1210,35 @@ pub(crate) fn update_map_panel(
         }
     }
 
+    // The Code/Name/Kind, Range/Bearing and Note fields read blank in the
+    // chart overview with nothing selected, leaving their rules as three bare
+    // lines; hide the whole header node there instead.
+    let header_shown = !runtime.chart || runtime.chart_selected.is_some();
+    for mut node in &mut q_header {
+        let display = if header_shown {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != display {
+            node.display = display;
+        }
+    }
+
     let goto_ready =
         !runtime.chart && selected.is_some_and(|contact| contact.kind != MapContactKind::OwnShip);
+    for (entity, _) in q_goto_button.iter().chain(q_cancel_button.iter()) {
+        if let Ok(mut node) = q_frame.get_mut(entity) {
+            let display = if runtime.chart {
+                Display::None
+            } else {
+                Display::Flex
+            };
+            if node.display != display {
+                node.display = display;
+            }
+        }
+    }
     let cancel_ready = goto_target.is_some();
     for (ready, (button, disabled)) in q_goto_button
         .iter()
@@ -1321,6 +1369,9 @@ pub(crate) fn on_map_reframe_button(
     if let Ok(mut orbit) = q_camera.single_mut() {
         if runtime.chart {
             runtime.chart_selected = None;
+            if let Some(player_cell) = runtime.chart_player_cell {
+                runtime.chart_layer = player_cell.y;
+            }
             frame_chart(&mut orbit);
         } else {
             reframe_map(&mut orbit, &contacts, &mut runtime);

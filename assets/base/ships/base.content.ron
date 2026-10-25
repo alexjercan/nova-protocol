@@ -1000,8 +1000,8 @@
                     id: "plate_29",
                     position: (
                         0.0,
-                        0.0,
-                        2.0,
+                        1.0,
+                        -3.0,
                     ),
                     rotation: (
                         0.0,
@@ -1018,7 +1018,7 @@
                     position: (
                         0.0,
                         1.0,
-                        -3.0,
+                        -2.0,
                     ),
                     rotation: (
                         0.0,
@@ -1035,7 +1035,7 @@
                     position: (
                         0.0,
                         1.0,
-                        -2.0,
+                        -1.0,
                     ),
                     rotation: (
                         0.0,
@@ -1052,7 +1052,7 @@
                     position: (
                         0.0,
                         1.0,
-                        -1.0,
+                        0.0,
                     ),
                     rotation: (
                         0.0,
@@ -1069,7 +1069,7 @@
                     position: (
                         0.0,
                         1.0,
-                        0.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -1086,7 +1086,7 @@
                     position: (
                         0.0,
                         1.0,
-                        1.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -1101,9 +1101,9 @@
                 (
                     id: "plate_35",
                     position: (
-                        0.0,
                         1.0,
-                        2.0,
+                        -1.0,
+                        -3.0,
                     ),
                     rotation: (
                         0.0,
@@ -1120,7 +1120,7 @@
                     position: (
                         1.0,
                         -1.0,
-                        -3.0,
+                        -2.0,
                     ),
                     rotation: (
                         0.0,
@@ -1137,7 +1137,7 @@
                     position: (
                         1.0,
                         -1.0,
-                        -2.0,
+                        -1.0,
                     ),
                     rotation: (
                         0.0,
@@ -1154,7 +1154,7 @@
                     position: (
                         1.0,
                         -1.0,
-                        -1.0,
+                        0.0,
                     ),
                     rotation: (
                         0.0,
@@ -1171,7 +1171,7 @@
                     position: (
                         1.0,
                         -1.0,
-                        0.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -1188,7 +1188,7 @@
                     position: (
                         1.0,
                         -1.0,
-                        1.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -1204,8 +1204,8 @@
                     id: "plate_41",
                     position: (
                         1.0,
-                        -1.0,
-                        2.0,
+                        0.0,
+                        -3.0,
                     ),
                     rotation: (
                         0.0,
@@ -1222,7 +1222,7 @@
                     position: (
                         1.0,
                         0.0,
-                        -3.0,
+                        -2.0,
                     ),
                     rotation: (
                         0.0,
@@ -1239,7 +1239,7 @@
                     position: (
                         1.0,
                         0.0,
-                        -2.0,
+                        -1.0,
                     ),
                     rotation: (
                         0.0,
@@ -1256,7 +1256,7 @@
                     position: (
                         1.0,
                         0.0,
-                        -1.0,
+                        0.0,
                     ),
                     rotation: (
                         0.0,
@@ -1273,7 +1273,7 @@
                     position: (
                         1.0,
                         0.0,
-                        0.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -1290,23 +1290,6 @@
                     position: (
                         1.0,
                         0.0,
-                        1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "light_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_47",
-                    position: (
-                        1.0,
-                        0.0,
                         2.0,
                     ),
                     rotation: (
@@ -1320,7 +1303,7 @@
                     ),
                 ),
                 (
-                    id: "plate_48",
+                    id: "plate_47",
                     position: (
                         1.0,
                         1.0,
@@ -1337,7 +1320,7 @@
                     ),
                 ),
                 (
-                    id: "plate_49",
+                    id: "plate_48",
                     position: (
                         1.0,
                         1.0,
@@ -1354,7 +1337,7 @@
                     ),
                 ),
                 (
-                    id: "plate_50",
+                    id: "plate_49",
                     position: (
                         1.0,
                         1.0,
@@ -1371,11 +1354,28 @@
                     ),
                 ),
                 (
-                    id: "plate_51",
+                    id: "plate_50",
                     position: (
                         1.0,
                         1.0,
                         0.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "light_hull_section",
+                    ),
+                ),
+                (
+                    id: "plate_51",
+                    position: (
+                        1.0,
+                        1.0,
+                        1.0,
                     ),
                     rotation: (
                         0.0,
@@ -1392,23 +1392,6 @@
                     position: (
                         1.0,
                         1.0,
-                        1.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "light_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_53",
-                    position: (
-                        1.0,
-                        1.0,
                         2.0,
                     ),
                     rotation: (
@@ -1422,7 +1405,7 @@
                     ),
                 ),
                 (
-                    id: "plate_54",
+                    id: "plate_53",
                     position: (
                         0.0,
                         0.0,
@@ -1460,7 +1443,7 @@
                     position: (
                         0.0,
                         0.0,
-                        3.0,
+                        2.0,
                     ),
                     rotation: (
                         0.0,
@@ -1524,6 +1507,23 @@
                     ),
                 ),
                 (
+                    id: "drive_centre",
+                    position: (
+                        0.0,
+                        0.0,
+                        3.0,
+                    ),
+                    rotation: (
+                        0.0,
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    source: Prototype(
+                        id: "basic_thruster_section",
+                    ),
+                ),
+                (
                     id: "drive_port",
                     position: (
                         -1.0,
@@ -1578,74 +1578,6 @@
                     id: "drive_ventral",
                     position: (
                         0.0,
-                        -1.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "basic_thruster_section",
-                    ),
-                ),
-                (
-                    id: "drive_port_dorsal",
-                    position: (
-                        -1.0,
-                        1.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "basic_thruster_section",
-                    ),
-                ),
-                (
-                    id: "drive_starboard_dorsal",
-                    position: (
-                        1.0,
-                        1.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "basic_thruster_section",
-                    ),
-                ),
-                (
-                    id: "drive_port_ventral",
-                    position: (
-                        -1.0,
-                        -1.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "basic_thruster_section",
-                    ),
-                ),
-                (
-                    id: "drive_starboard_ventral",
-                    position: (
-                        1.0,
                         -1.0,
                         3.0,
                     ),
@@ -2246,8 +2178,8 @@
                 (
                     id: "plate_32",
                     position: (
-                        -1.0,
-                        -1.0,
+                        0.0,
+                        0.0,
                         3.0,
                     ),
                     rotation: (
@@ -2280,8 +2212,8 @@
                 (
                     id: "plate_34",
                     position: (
-                        -1.0,
                         1.0,
+                        0.0,
                         3.0,
                     ),
                     rotation: (
@@ -2298,7 +2230,7 @@
                     id: "plate_35",
                     position: (
                         0.0,
-                        -1.0,
+                        1.0,
                         3.0,
                     ),
                     rotation: (
@@ -2315,75 +2247,7 @@
                     id: "plate_36",
                     position: (
                         0.0,
-                        0.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "light_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_37",
-                    position: (
-                        0.0,
-                        1.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "light_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_38",
-                    position: (
-                        1.0,
                         -1.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "light_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_39",
-                    position: (
-                        1.0,
-                        0.0,
-                        3.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "light_hull_section",
-                    ),
-                ),
-                (
-                    id: "plate_40",
-                    position: (
-                        1.0,
-                        1.0,
                         3.0,
                     ),
                     rotation: (
@@ -2536,74 +2400,6 @@
                     id: "drive_ventral",
                     position: (
                         0.0,
-                        -1.0,
-                        4.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "basic_thruster_section",
-                    ),
-                ),
-                (
-                    id: "drive_port_dorsal",
-                    position: (
-                        -1.0,
-                        1.0,
-                        4.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "basic_thruster_section",
-                    ),
-                ),
-                (
-                    id: "drive_starboard_dorsal",
-                    position: (
-                        1.0,
-                        1.0,
-                        4.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "basic_thruster_section",
-                    ),
-                ),
-                (
-                    id: "drive_port_ventral",
-                    position: (
-                        -1.0,
-                        -1.0,
-                        4.0,
-                    ),
-                    rotation: (
-                        0.0,
-                        0.0,
-                        0.0,
-                        1.0,
-                    ),
-                    source: Prototype(
-                        id: "basic_thruster_section",
-                    ),
-                ),
-                (
-                    id: "drive_starboard_ventral",
-                    position: (
-                        1.0,
                         -1.0,
                         4.0,
                     ),

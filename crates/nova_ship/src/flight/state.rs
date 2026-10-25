@@ -155,11 +155,20 @@ pub struct RcsActive;
 /// after [`FlightSettings::rcs_recovery_delay`] without a nonzero command, so
 /// a command held on an empty magazine keeps it empty. Engine units: `spent`
 /// is world units per second.
-#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[derive(Component, Clone, Copy, Debug, Reflect)]
 #[reflect(Component)]
 pub struct RcsBudget {
-    /// Delta-v spent, u/s: `0` is full, [`FlightSettings::rcs_budget`] is
-    /// empty.
+    /// The magazine's full delta-v, u/s, owned here rather than read live
+    /// from a global setting: `nova_scenario` sets it from
+    /// [`RcsBudget::capacity_for_sections`] when a design assembles, rehulls,
+    /// or gains/loses a section by refit, and leaves it alone on combat
+    /// damage - the authored section count a hull was BUILT with stays
+    /// fixed while sections die, so a crippled hull keeps the magazine it
+    /// shipped with rather than shrinking it out from under a pilot who is
+    /// already losing authority. A root with no authored design (a station,
+    /// a hand-built test hull) keeps [`RcsBudget::default`]'s base.
+    pub capacity: f32,
+    /// Delta-v spent, u/s: `0` is full, `capacity` is empty.
     pub spent: f32,
     /// Seconds since the root last held a nonzero RCS command.
     pub idle: f32,
@@ -169,28 +178,56 @@ pub struct RcsBudget {
     pub applied: f32,
 }
 
+impl Default for RcsBudget {
+    fn default() -> Self {
+        Self {
+            capacity: Self::capacity_for_sections(0),
+            spent: 0.0,
+            idle: 0.0,
+            applied: 0.0,
+        }
+    }
+}
+
 impl RcsBudget {
+    /// Design sections above which the magazine grows past the shared base:
+    /// every shipped start hull (27-65 sections) sits at or under this, so
+    /// it keeps the base capacity untouched.
+    const BASE_SECTIONS: u32 = 65;
+    /// Magazine growth per design section past [`Self::BASE_SECTIONS`], m/s.
+    const CAPACITY_PER_SECTION: f32 = 5.0;
+
+    /// The magazine capacity, u/s, for a hull with `sections` authored
+    /// design sections: the shared 300 m/s base up to
+    /// [`Self::BASE_SECTIONS`], plus [`Self::CAPACITY_PER_SECTION`] m/s per
+    /// section past it - a capital's bigger magazine without moving any
+    /// shipped start hull off the shared base.
+    pub fn capacity_for_sections(sections: usize) -> f32 {
+        let excess = (sections as u32).saturating_sub(Self::BASE_SECTIONS);
+        MetersPerSecond(300.0 + Self::CAPACITY_PER_SECTION * excess as f32).to_engine()
+    }
+
     /// Delta-v left in the magazine, u/s.
-    pub fn remaining(&self, settings: &FlightSettings) -> f32 {
-        (settings.rcs_budget - self.spent).max(0.0)
+    pub fn remaining(&self) -> f32 {
+        (self.capacity - self.spent).max(0.0)
     }
 
     /// The magazine's fill, `0..1`.
-    pub fn fraction(&self, settings: &FlightSettings) -> f32 {
-        if settings.rcs_budget <= 0.0 {
+    pub fn fraction(&self) -> f32 {
+        if self.capacity <= 0.0 {
             return 0.0;
         }
-        self.remaining(settings) / settings.rcs_budget
+        self.remaining() / self.capacity
     }
 
     /// Whether the magazine has no delta-v left.
-    pub fn is_empty(&self, settings: &FlightSettings) -> bool {
-        self.remaining(settings) <= 0.0
+    pub fn is_empty(&self) -> bool {
+        self.remaining() <= 0.0
     }
 
     /// Draw up to `wanted` u/s from the magazine and return what it gave.
-    pub fn spend(&mut self, wanted: f32, settings: &FlightSettings) -> f32 {
-        let delivered = wanted.clamp(0.0, self.remaining(settings));
+    pub fn spend(&mut self, wanted: f32) -> f32 {
+        let delivered = wanted.clamp(0.0, self.remaining());
         self.spent += delivered;
         delivered
     }
@@ -558,9 +595,6 @@ pub struct FlightSettings {
     /// orbits are only trusted in the unfaded core, and the safety margin keeps
     /// station-keeping off the fade band's edge.
     pub orbit_band_safety: f32,
-    /// RCS delta-v magazine capacity (u/s): how much velocity change the
-    /// quads deliver from full before [`RcsBudget`] runs dry.
-    pub rcs_budget: f32,
     /// Seconds without a nonzero RCS command before the magazine refills.
     pub rcs_recovery_delay: f32,
     /// How fast an idle magazine refills (u/s per second).
@@ -630,8 +664,6 @@ impl Default for FlightSettings {
             orbit_hold_exit: 1.2,
             orbit_clearance_factor: 1.5,
             orbit_band_safety: 0.9,
-            // Convert player-facing SI values at the flight-physics boundary.
-            rcs_budget: MetersPerSecond(300.0).to_engine(),
             rcs_recovery_delay: 2.0,
             rcs_recovery_rate: MetersPerSecondSquared(100.0).to_engine(),
             rcs_handoff_speed: MetersPerSecond(100.0).to_engine(),

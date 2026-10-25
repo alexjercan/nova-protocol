@@ -94,7 +94,7 @@ const MIN_STATION_CLEARANCE: Meters = Meters(100.0);
 const PANEL_ADVANCEMENT: f32 = 0.5;
 
 /// The largest station clearance radius at advancement 1.
-const MAX_STATION_CLEARANCE: Meters = Meters(300.0);
+pub(crate) const MAX_STATION_CLEARANCE: Meters = Meters(300.0);
 
 /// How much a plan that does not fit its ceiling shrinks per step, and the
 /// most steps it takes before the request fails as too large.

@@ -460,7 +460,7 @@ fn a_shoved_station_hub_rides_back_onto_its_post_with_its_hulls_and_idles() {
         let budget = budget_of(&app, station);
         spent_max = spent_max.max(budget.spent);
         assert!(
-            !budget.is_empty(&settings),
+            !budget.is_empty(),
             "tick {tick}: the return emptied the magazine"
         );
         if peak > settings.station_post_deadband

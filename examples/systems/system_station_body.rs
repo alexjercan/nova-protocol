@@ -584,7 +584,7 @@ fn assert_station_holds_post(world: &mut World) {
         .copied()
         .expect("station probe: a station root carries its RCS magazine");
     assert!(
-        !budget.is_empty(&settings),
+        !budget.is_empty(),
         "station probe: the return emptied the station's RCS magazine"
     );
     let elapsed = world.resource::<Time>().elapsed_secs();

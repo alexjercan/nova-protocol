@@ -11,9 +11,9 @@
 //! hull cannot do, every other board lists it with a greyed Accept and the
 //! reason in a tooltip, as it does for an offer whose target is gone. Under
 //! it, docked or not, "Your jobs" lists every held job as kind icon | title
-//! | `have / need` meter | hand-in | Hand in: HAND IN HERE docked at the
-//! job's target, else blank; a refused Hand in is greyed with the reason in
-//! a tooltip. Over the held rows, one row reads the start role's goal: its
+//! | `have / need` meter | hand-in | Hand in | `X`. The hand-in column reads
+//! HAND IN HERE docked at the job's target, else blank; a refused Hand in is
+//! greyed with the reason in a tooltip. Over the held rows, one row reads the start role's goal: its
 //! title, its next unmet line ([`open_objectives`]) and a `have / need`
 //! meter, or the play time the goal was met; a role with no goal has no row.
 //! Clicking a job row selects it and the inspector reads its task, its
@@ -30,6 +30,21 @@
 //! sound; the buttons are silent on press. A hand-in's line names the
 //! payout, the new balance and the stance step it made.
 //!
+//! A held row's `X` drops nothing: it asks. The row then reads `Drop
+//! <title>?` and swaps Hand in and `X` for Drop and Back. Docked at the
+//! job's issuing station, the ask is a paid cancellation: the row shows the
+//! fee beside the credit glyph and Drop skips the clock's wait
+//! ([`JobPostings::request_paid_refresh`]); everywhere else, or undocked,
+//! the ask is free and waits the clock out as before. The ask fixes which
+//! of the two Drop takes: a dock or undock between the ask and the confirm
+//! never flips it, and [`apply_job_commands`] refuses rather than
+//! reinterprets one whose station changed underneath it. Back leaves the
+//! job held either way; Drop raises a [`JobDropCommand`], and
+//! [`apply_job_commands`] drops the job ([`Jobs::drop`]) with no payout
+//! beyond the fee and takes out the bodies its accept put in the world, as
+//! a loss does. A drop of a job no longer held is refused on the notice
+//! line.
+//!
 //! Touch this module when changing what the lists show, what gates an
 //! offer, or what a hand-in moves.
 
@@ -37,6 +52,7 @@ use bevy::{
     ecs::system::SystemParam,
     picking::hover::Hovered,
     prelude::*,
+    ui::InteractionDisabled,
     ui_widgets::{Activate, Button},
 };
 use nova_events::prelude::{CreditChangeCauseType, GeneratedBodyId, Meters, Meters3, SectorCoord};
@@ -82,6 +98,14 @@ pub const JOBS_MILESTONE: &str = "JobsMilestone";
 pub const JOB_ACCEPT_PREFIX: &str = "JobAccept-";
 /// The `Name` prefix of a held row's Hand in button: `JobHandIn-<row>`.
 pub const JOB_HAND_IN_PREFIX: &str = "JobHandIn-";
+/// The `Name` prefix of a held row's `X` button: `JobDrop-<row>`.
+pub(crate) const JOB_DROP_PREFIX: &str = "JobDrop-";
+/// The `Name` prefix of a confirming held row's Drop button:
+/// `JobDropConfirm-<row>`.
+pub(crate) const JOB_DROP_CONFIRM_PREFIX: &str = "JobDropConfirm-";
+/// The `Name` prefix of a confirming held row's Back button:
+/// `JobDropBack-<row>`.
+pub(crate) const JOB_DROP_BACK_PREFIX: &str = "JobDropBack-";
 /// The `Name` of the inspector's Show on Map button.
 pub const JOB_SHOW_ON_MAP: &str = "JobShowOnMap";
 /// The `Name` of the pane's notice line, under the panels.
@@ -103,13 +127,41 @@ pub struct JobHandInCommand {
     pub id: JobId,
 }
 
-/// What the Jobs pane shows beyond the records: the selected row and the
-/// notice line. Kept while the interface is closed, like the pane itself. A
-/// selection no row shows any more is cleared by [`update_jobs_pane`].
+/// Which way a held row's `X` cancels its job: fixed at the ask, so a dock
+/// or undock before the confirm cannot flip which one the row's Drop takes.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum JobDropModeType {
+    /// Undocked, or docked anywhere but the job's issuing station: no fee,
+    /// the slot waits the clock out.
+    Free,
+    /// Docked at the job's issuing station: [`JOB_PAID_DROP_FEE_CR`] skips
+    /// the wait.
+    Paid,
+}
+
+/// A confirmed request to drop the held job `id` by `mode`, raised only by
+/// a confirming held row's Drop button. `mode` is the one the row's ask
+/// fixed, not read again at the confirm: [`apply_job_commands`] revalidates
+/// it rather than deciding it over.
+#[derive(Message, Clone, Debug)]
+pub(crate) struct JobDropCommand {
+    /// The held job.
+    pub(crate) id: JobId,
+    /// The ask's mode.
+    pub(crate) mode: JobDropModeType,
+}
+
+/// What the Jobs pane shows beyond the records: the selected row, the drop
+/// that waits for its confirm and the notice line. Kept while the interface
+/// is closed, like the pane itself. A selection no row shows any more, or a
+/// confirm for a job no longer held, is cleared by [`update_jobs_pane`].
 #[derive(Resource, Default, Debug)]
 pub struct JobsRuntime {
     /// The row the inspector reads.
     pub(crate) selected: Option<JobId>,
+    /// The held job whose `X` was pressed and the mode the ask fixed: its
+    /// row asks Drop or Back.
+    pub(crate) confirm_drop: Option<(JobId, JobDropModeType)>,
     /// The last Accept or Hand in result, shown on the notice line.
     pub notice: ActionNotice,
 }
@@ -140,6 +192,26 @@ enum JobListType {
 struct JobActionButton {
     list: JobListType,
     id: JobId,
+}
+
+/// Which step of a drop a held row's button takes.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum JobDropStepType {
+    /// `X`: ask for a confirm.
+    Ask,
+    /// Drop: raise the [`JobDropCommand`].
+    Confirm,
+    /// Back: keep the job.
+    Back,
+}
+
+/// A held row's `X`, Drop or Back button. `mode` is the ask's eligibility
+/// on an `X` button, or the ask's fixed mode on a Drop or Back button.
+#[derive(Component, Clone, Debug)]
+struct JobDropButton {
+    step: JobDropStepType,
+    id: JobId,
+    mode: JobDropModeType,
 }
 
 /// The inspector's Show on Map button: the mark it opens the chart on.
@@ -360,6 +432,30 @@ fn hand_in_refusal_text(
     }
 }
 
+/// Why a paid drop of a held job would be refused, for its confirming row
+/// and the notice line. The text never names the job, like
+/// [`hand_in_refusal_text`].
+fn paid_drop_refusal_text(refusal: &JobPaidDropRefusalType) -> String {
+    match refusal {
+        JobPaidDropRefusalType::NotHeld => "drop: the job is no longer held".to_string(),
+        JobPaidDropRefusalType::NotDocked => {
+            format!(
+                "drop: dock at the issuing station to pay {}",
+                cr_text(JOB_PAID_DROP_FEE_CR)
+            )
+        }
+        JobPaidDropRefusalType::Stale => "drop: this posting renewed already".to_string(),
+        JobPaidDropRefusalType::CreditsShort { need, have } => format!(
+            "drop: it costs {}, the balance holds {}",
+            cr_text(*need),
+            cr_text(*have)
+        ),
+        JobPaidDropRefusalType::CreditOverflow => {
+            "drop: the station's balance after the fee does not fit".to_string()
+        }
+    }
+}
+
 /// What a board does with an offer the hull gate judged `fit` and the
 /// accept rule judged `accept`: `None` leaves it off a starter board,
 /// `Some(None)` lists it with Accept, `Some(Some(why))` lists it with a
@@ -403,6 +499,11 @@ struct HeldRow {
     hand_in_here: bool,
     /// Why Hand in is greyed, if it is.
     refusal: Option<String>,
+    /// Its `X` was pressed: the row asks Drop or Back, in this mode.
+    confirming: Option<JobDropModeType>,
+    /// Why a Paid confirm would be refused right now, if `confirming` is
+    /// `Some(Paid)` and it would be.
+    drop_refusal: Option<String>,
 }
 
 /// The docked station's board as the pane shows it.
@@ -503,9 +604,15 @@ fn update_jobs_pane(
     };
     let now = clock.play_seconds;
     let rule = table.0.jobs;
-    let time_left = |remaining: f64| {
+    // The meter's share of the window `SlotPosting::remaining` counts down.
+    let time_left = |job: &Job, remaining: f64| {
+        let window = if matches!(job.kind, JobType::Escort { .. }) {
+            rule.escort_offer_seconds
+        } else {
+            rule.offer_seconds
+        };
         (
-            (remaining / f64::from(rule.offer_seconds)) as f32,
+            (remaining / f64::from(window)) as f32,
             format!("{} min", (remaining.max(0.0) / 60.0).ceil()),
         )
     };
@@ -539,7 +646,7 @@ fn update_jobs_pane(
                     icon: JobIconType::of(&job.kind),
                     title: job.title(&items),
                     reward_cr: job.reward_cr.into(),
-                    time_left: time_left(remaining),
+                    time_left: time_left(job, remaining),
                     refusal,
                 })
             })
@@ -581,6 +688,31 @@ fn update_jobs_pane(
         .err()
         .map(|refusal| hand_in_refusal_text(job, &refusal, &chart, &items))
     };
+    if runtime
+        .confirm_drop
+        .as_ref()
+        .is_some_and(|(id, _)| !jobs.holds(id))
+    {
+        runtime.confirm_drop = None;
+    }
+    // Reused by the confirming row and the notice line, so both read the fee
+    // and the shortfall off the same check order as `apply_job_commands`.
+    let paid_drop_refusal = |job: &Job| -> Option<String> {
+        let docked = partner.as_ref().filter(|(_, _, id)| *id == job.id.station);
+        let station_cr = docked
+            .and_then(|(_, station, _)| q_credits.get(*station).ok())
+            .map_or(0, |credits| credits.0);
+        plan_job_paid_drop(
+            &job.id,
+            true,
+            partner.as_ref().map(|(_, _, id)| id),
+            postings.slot(&job.id).is_some(),
+            own_cr.unwrap_or(0),
+            station_cr,
+        )
+        .err()
+        .map(|refusal| paid_drop_refusal_text(&refusal))
+    };
     let held: Vec<HeldRow> = jobs
         .held()
         .iter()
@@ -588,6 +720,13 @@ fn update_jobs_pane(
             let hand_in_here =
                 matches!(&partner, Some((_, _, station_id)) if *station_id == job.target);
             let (have, need) = job.progress(hold, jobs.is_done(&job.id));
+            let confirming = runtime
+                .confirm_drop
+                .as_ref()
+                .and_then(|(id, mode)| (id == &job.id).then_some(*mode));
+            let drop_refusal = confirming
+                .filter(|mode| *mode == JobDropModeType::Paid)
+                .and_then(|_| paid_drop_refusal(job));
             HeldRow {
                 id: job.id.clone(),
                 icon: JobIconType::of(&job.kind),
@@ -596,6 +735,8 @@ fn update_jobs_pane(
                 need,
                 hand_in_here,
                 refusal: hand_in_refusal(job),
+                confirming,
+                drop_refusal,
             }
         })
         .collect();
@@ -633,7 +774,7 @@ fn update_jobs_pane(
             time_left: postings
                 .slot(&job.id)
                 .filter(|_| !held)
-                .map(|slot| time_left(slot.remaining(rule, now))),
+                .map(|slot| time_left(job, slot.remaining(rule, now))),
             progress: held.then(|| job.progress(hold, done)),
             refusal: held.then(|| hand_in_refusal(job)).flatten(),
             show,
@@ -692,6 +833,8 @@ const ROW_METER_PX: f32 = 72.0;
 const PROGRESS_PX: f32 = 130.0;
 /// Width of a row's action button column.
 const ACTION_PX: f32 = 78.0;
+/// Width of a held row's `X` column.
+const DROP_PX: f32 = 28.0;
 /// Width of a row's icon column.
 const ICON_PX: f32 = 28.0;
 /// Width of a meter in the inspector.
@@ -910,6 +1053,37 @@ fn action_button(
     });
 }
 
+/// A held row's drop step button, right-aligned in a column `width` wide,
+/// greyed with `refusal` as its tooltip when given, as [`refusable_button`]
+/// greys an action button.
+fn drop_step_button(
+    row: &mut ChildSpawnerCommands,
+    width: f32,
+    name: String,
+    spec: ButtonSpec,
+    button: JobDropButton,
+    refusal: Option<&str>,
+) {
+    row.spawn((
+        Node {
+            width: px(width),
+            flex_shrink: 0.0,
+            flex_direction: FlexDirection::Row,
+            justify_content: JustifyContent::FlexEnd,
+            align_items: AlignItems::Center,
+            ..default()
+        },
+        Pickable::IGNORE,
+    ))
+    .with_children(|column| {
+        let mut button = column.spawn((Name::new(name), compact_button(spec), button));
+        button.observe(on_job_drop_button);
+        if let Some(why) = refusal {
+            button.insert((InteractionDisabled, Tooltip(why.to_string())));
+        }
+    });
+}
+
 /// The docked station's board.
 fn board_panel(
     col: &mut ChildSpawnerCommands,
@@ -1070,6 +1244,7 @@ fn held_panel(
                         };
                         row.spawn(fixed(HAND_IN_PX, ()));
                         row.spawn(fixed(ACTION_PX, ()));
+                        row.spawn(fixed(DROP_PX, ()));
                     });
             }
             table_head(
@@ -1080,6 +1255,7 @@ fn held_panel(
                     (PROGRESS_PX, "Progress"),
                     (HAND_IN_PX, "Hand-in"),
                     (ACTION_PX, ""),
+                    (DROP_PX, ""),
                 ],
             );
             if view.held.is_empty() {
@@ -1097,11 +1273,79 @@ fn held_panel(
                         ICON_PX,
                         icon_node(icons.job(row.icon), row.icon.color(), 18.0),
                     ));
-                    r.spawn(grow_cell(&row.title, 13.0, UiColor::Primary));
-                    r.spawn(fixed(
-                        PROGRESS_PX,
-                        meter(ROW_METER_PX, row.have.into(), row.need.into()),
-                    ));
+                    if row.confirming.is_some() {
+                        r.spawn(grow_cell(
+                            &format!("Drop {}?", row.title),
+                            13.0,
+                            UiColor::Accent,
+                        ));
+                    } else {
+                        r.spawn(grow_cell(&row.title, 13.0, UiColor::Primary));
+                    }
+                    if row.confirming == Some(JobDropModeType::Paid) {
+                        let tooltip = row.drop_refusal.clone().unwrap_or_else(|| {
+                            format!(
+                                "pays the station {} to skip the wait",
+                                cr_text(JOB_PAID_DROP_FEE_CR)
+                            )
+                        });
+                        r.spawn((
+                            Node {
+                                width: px(PROGRESS_PX),
+                                flex_shrink: 0.0,
+                                flex_direction: FlexDirection::Row,
+                                align_items: AlignItems::Center,
+                                ..default()
+                            },
+                            Tooltip(tooltip),
+                        ))
+                        .with_children(|fee| {
+                            spawn_credit_figure(
+                                fee,
+                                icons,
+                                u64::from(JOB_PAID_DROP_FEE_CR),
+                                13.0,
+                                UiColor::Accent,
+                                (),
+                            );
+                        });
+                    } else {
+                        r.spawn(fixed(
+                            PROGRESS_PX,
+                            meter(ROW_METER_PX, row.have.into(), row.need.into()),
+                        ));
+                    }
+                    let ask_mode = if row.hand_in_here {
+                        JobDropModeType::Paid
+                    } else {
+                        JobDropModeType::Free
+                    };
+                    let drop_mode = row.confirming.unwrap_or(ask_mode);
+                    let drop_button = |step| JobDropButton {
+                        step,
+                        id: row.id.clone(),
+                        mode: drop_mode,
+                    };
+                    if row.confirming.is_some() {
+                        drop_step_button(
+                            r,
+                            HAND_IN_PX,
+                            format!("{JOB_DROP_CONFIRM_PREFIX}{index}"),
+                            ButtonSpec::new("Drop").fit().danger(),
+                            drop_button(JobDropStepType::Confirm),
+                            row.drop_refusal.as_deref(),
+                        );
+                        drop_step_button(
+                            r,
+                            ACTION_PX,
+                            format!("{JOB_DROP_BACK_PREFIX}{index}"),
+                            ButtonSpec::new("Back").fit(),
+                            drop_button(JobDropStepType::Back),
+                            None,
+                        );
+                        r.spawn(fixed(DROP_PX, ()));
+                        return;
+                    }
                     if row.hand_in_here {
                         r.spawn(fixed(HAND_IN_PX, badge(BadgeKind::Green, "HAND IN HERE")));
                     } else {
@@ -1117,6 +1361,33 @@ fn held_panel(
                         },
                         row.refusal.as_ref(),
                     );
+                    // The ask step swaps the `X` label for the job-drop-cancel
+                    // mark: Bevy UI cannot draw the authored SVG directly, so
+                    // the icon is an AssetServer-loaded raster child instead
+                    // of the button's own label span.
+                    r.spawn((
+                        Node {
+                            width: px(DROP_PX),
+                            flex_shrink: 0.0,
+                            flex_direction: FlexDirection::Row,
+                            justify_content: JustifyContent::FlexEnd,
+                            align_items: AlignItems::Center,
+                            ..default()
+                        },
+                        Pickable::IGNORE,
+                    ))
+                    .with_children(|column| {
+                        let mut ask = column.spawn((
+                            Name::new(format!("{JOB_DROP_PREFIX}{index}")),
+                            compact_button(ButtonSpec::new("").fit().ghost()),
+                            drop_button(JobDropStepType::Ask),
+                            Tooltip("Drop job".to_string()),
+                        ));
+                        ask.observe(on_job_drop_button);
+                        ask.with_children(|b| {
+                            b.spawn(icon_node(icons.job_drop_cancel(), UiColor::Primary, 14.0));
+                        });
+                    });
                 });
             }
         });
@@ -1258,6 +1529,39 @@ fn on_job_button(
     }
 }
 
+/// Take the button's drop step when it is activated: `X` asks for a
+/// confirm and Back keeps the job, each with one click; Drop raises the
+/// [`JobDropCommand`] silently, as the result's notice plays the one cue.
+fn on_job_drop_button(
+    activate: On<Activate>,
+    q_button: Query<&JobDropButton>,
+    mut runtime: ResMut<JobsRuntime>,
+    mut drops: MessageWriter<JobDropCommand>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
+) {
+    let Ok(button) = q_button.get(activate.entity) else {
+        return;
+    };
+    match button.step {
+        JobDropStepType::Ask => {
+            runtime.confirm_drop = Some((button.id.clone(), button.mode));
+            play_menu_select(&mut commands, bank.as_deref());
+        }
+        JobDropStepType::Back => {
+            runtime.confirm_drop = None;
+            play_menu_select(&mut commands, bank.as_deref());
+        }
+        JobDropStepType::Confirm => {
+            runtime.confirm_drop = None;
+            drops.write(JobDropCommand {
+                id: button.id.clone(),
+                mode: button.mode,
+            });
+        }
+    }
+}
+
 /// Open the Map pane's chart view on the button's mark when it is
 /// activated: the map takes the mark as it activates
 /// ([`MapRuntime::chart_show`]).
@@ -1311,15 +1615,27 @@ fn update_jobs_notice(
 /// the stance step it made on one Done notice. A refusal changes nothing and
 /// shows its reason on the notice line. An accept of a job the docked
 /// station's board no longer posts is refused as expired: the slot renewed
-/// between the click and this frame.
+/// between the click and this frame. A [`JobDropCommand`] drops the held
+/// job ([`Jobs::drop`]) and takes out the bodies its accept put in the world
+/// ([`Job::spawned_bodies`]), as `drop_on_loss` does in the open world
+/// crate; a drop of a job no longer held, lost or handed in since the
+/// confirm, is refused. A Free drop pays nothing, and is refused if it is
+/// now docked at the job's issuing station: the player re-asks there for the
+/// paid mode. A Paid drop, planned by [`plan_job_paid_drop`], moves
+/// [`JOB_PAID_DROP_FEE_CR`] from the player to the station with `JobRefresh`
+/// credit changes on both sides and marks the slot for a paid refresh
+/// ([`JobPostings::request_paid_refresh`]), both only once the plan holds;
+/// a refusal, including one raised by a dock or undock since the ask,
+/// changes nothing.
 ///
 /// # Panics
 ///
 /// On a hand-in of a job the player does not hold: the list only shows a
-/// button for a job it lists.
+/// button for a job it lists. On an allowed paid drop whose docked station
+/// carries no `ShipCredits`: a station the board lists always does.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one system reading both commands, the board, the jobs, the postings, the clock, the table, the site, the targets, the hold, both balances and the stances"
+    reason = "one system reading the three commands, the board, the jobs, the postings, the clock, the table, the site, the bodies, the targets, the hold, both balances and the stances"
 )]
 #[expect(
     clippy::type_complexity,
@@ -1327,17 +1643,20 @@ fn update_jobs_notice(
 )]
 fn apply_job_commands(
     mut commands: Commands,
-    mut accepts: MessageReader<JobAcceptCommand>,
-    mut hand_ins: MessageReader<JobHandInCommand>,
+    (mut accepts, mut hand_ins, mut drops): (
+        MessageReader<JobAcceptCommand>,
+        MessageReader<JobHandInCommand>,
+        MessageReader<JobDropCommand>,
+    ),
     mut runtime: ResMut<JobsRuntime>,
     items: Option<Res<GameItems>>,
     table: Option<Res<GamePriceTable>>,
     chart: Res<Chart>,
     mut jobs: ResMut<Jobs>,
-    postings: Res<JobPostings>,
+    mut postings: ResMut<JobPostings>,
     clock: Res<WorldClock>,
     site: StationSite,
-    q_ids: Query<&GeneratedBodyId>,
+    (q_ids, q_bodies): (Query<&GeneratedBodyId>, Query<(Entity, &GeneratedBodyId)>),
     q_boards: Query<&JobBoard>,
     mut q_holds: ParamSet<(JobTargets, Query<&mut ShipInventory>)>,
     mut q_credits: ParamSet<(
@@ -1348,12 +1667,13 @@ fn apply_job_commands(
     // player's table of stances.
     (q_markets, mut stances): (Query<&TraderMarket>, ResMut<CivilizationStances>),
 ) {
-    if accepts.is_empty() && hand_ins.is_empty() {
+    if accepts.is_empty() && hand_ins.is_empty() && drops.is_empty() {
         return;
     }
     let (Some(items), Some(table)) = (items, table) else {
         accepts.clear();
         hand_ins.clear();
+        drops.clear();
         return;
     };
     let partner = jobs_partner(&site, &q_ids);
@@ -1490,6 +1810,118 @@ fn apply_job_commands(
         }
         runtime.notice.say(ActionOutcomeType::Done, line);
     }
+    for command in drops.read() {
+        if !jobs.holds(&command.id) {
+            warn!(
+                "nova_interface: the drop of '{}' finds it not held",
+                command.id
+            );
+            runtime.notice.say(
+                ActionOutcomeType::Refused,
+                "drop: the job is no longer held".to_string(),
+            );
+            continue;
+        }
+        let at_issuer = partner
+            .as_ref()
+            .is_some_and(|(_, _, id)| *id == command.id.station);
+        match command.mode {
+            JobDropModeType::Free => {
+                // The ask fixed Free: a paid cancellation never falls out of
+                // a free one that happens to end up docked at the issuer by
+                // the confirm, it refuses instead, so the player re-asks and
+                // sees the fee.
+                if at_issuer {
+                    runtime.notice.say(
+                        ActionOutcomeType::Refused,
+                        "drop: dock here pays a fee; ask again".to_string(),
+                    );
+                    continue;
+                }
+                let job = jobs.drop(&command.id);
+                let gone = job.spawned_bodies();
+                for (entity, id) in &q_bodies {
+                    if gone.contains(id) {
+                        commands.entity(entity).try_despawn();
+                    }
+                }
+                let title = job.title(&items);
+                info!("nova_interface: dropped the job '{}' ({title})", job.id);
+                runtime
+                    .notice
+                    .say(ActionOutcomeType::Done, format!("dropped: {title}"));
+            }
+            JobDropModeType::Paid => {
+                let docked = partner
+                    .as_ref()
+                    .filter(|(_, _, id)| *id == command.id.station);
+                let (own_cr, station_cr) = match docked {
+                    Some((player, station, _)) => (
+                        q_credits.p0().get(*player).map_or(0, |c| c.0),
+                        q_credits.p0().get(*station).map_or(0, |c| c.0),
+                    ),
+                    None => (0, 0),
+                };
+                let plan = plan_job_paid_drop(
+                    &command.id,
+                    true,
+                    docked.map(|(_, _, id)| id),
+                    postings.slot(&command.id).is_some(),
+                    own_cr,
+                    station_cr,
+                );
+                let plan = match plan {
+                    Ok(plan) => plan,
+                    Err(refusal) => {
+                        runtime
+                            .notice
+                            .say(ActionOutcomeType::Refused, paid_drop_refusal_text(&refusal));
+                        continue;
+                    }
+                };
+                let (player, station, _) =
+                    docked.expect("a successful paid-drop plan is docked at the issuing station");
+                let mut balances = q_credits.p1();
+                let Ok(
+                    [(mut own_credits, mut own_reports), (mut station_credits, mut station_reports)],
+                ) = balances.get_many_mut([*player, *station])
+                else {
+                    panic!("paid drop: the player ship and station {station:?} each carry credits");
+                };
+                own_reports.change_credits(
+                    &mut own_credits,
+                    plan.own_cr,
+                    CreditChangeCauseType::JobRefresh,
+                );
+                station_reports.change_credits(
+                    &mut station_credits,
+                    plan.station_cr,
+                    CreditChangeCauseType::JobRefresh,
+                );
+                let job = jobs.drop(&command.id);
+                postings.request_paid_refresh(&command.id);
+                let gone = job.spawned_bodies();
+                for (entity, id) in &q_bodies {
+                    if gone.contains(id) {
+                        commands.entity(entity).try_despawn();
+                    }
+                }
+                let title = job.title(&items);
+                info!(
+                    "nova_interface: paid {} cr to drop the job '{}' ({title})",
+                    plan.fee_cr, job.id
+                );
+                runtime.notice.say(
+                    ActionOutcomeType::Done,
+                    format!(
+                        "dropped {title} for {}; balance {}",
+                        cr_text(plan.fee_cr),
+                        cr_text(own_credits.0)
+                    ),
+                );
+            }
+        }
+    }
 }
 
 /// Drives the Jobs pane's lists and actions.
@@ -1500,6 +1932,7 @@ impl Plugin for JobsPanePlugin {
         app.init_resource::<JobsRuntime>();
         app.add_message::<JobAcceptCommand>();
         app.add_message::<JobHandInCommand>();
+        app.add_message::<JobDropCommand>();
         app.add_systems(
             Update,
             (apply_job_commands, update_jobs_pane, update_jobs_notice)
@@ -1546,6 +1979,7 @@ mod tests {
             },
             jobs: JobOfferRule {
                 offer_seconds: 1_200.0,
+                escort_offer_seconds: 3_600.0,
             },
             clusters: Vec::new(),
             roles: Vec::new(),
@@ -1571,6 +2005,7 @@ mod tests {
         app.init_resource::<CivilizationStances>();
         app.add_message::<JobAcceptCommand>();
         app.add_message::<JobHandInCommand>();
+        app.add_message::<JobDropCommand>();
         app.add_systems(Update, (apply_job_commands, update_jobs_notice).chain());
         hear_ui_cues(&mut app);
         // The first frame advances the clock by nothing.
@@ -1739,6 +2174,495 @@ mod tests {
         assert_eq!(take_cues(&mut app), [UiSfx::EditorDeny]);
         app.update();
         assert!(take_cues(&mut app).is_empty(), "the cue plays once");
+    }
+
+    /// A drop of a job the player no longer holds posts one Refused notice,
+    /// buzzes once and changes no record.
+    #[test]
+    fn a_drop_of_a_job_no_longer_held_is_refused_and_changes_nothing() {
+        let mut app = jobs_app();
+        let id = JobId {
+            station: GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0),
+            slot: 0,
+            posting: 0,
+        };
+
+        app.world_mut().write_message(JobDropCommand {
+            id: id.clone(),
+            mode: JobDropModeType::Free,
+        });
+        app.update();
+        assert_eq!(
+            notice(&app),
+            Some((
+                ActionOutcomeType::Refused,
+                "drop: the job is no longer held".to_string()
+            ))
+        );
+        assert!(!app.world().resource::<Jobs>().is_dropped(&id));
+        assert_eq!(take_cues(&mut app), [UiSfx::EditorDeny]);
+        app.update();
+        assert!(take_cues(&mut app).is_empty(), "the cue plays once");
+    }
+
+    /// A held row's `X` only asks and Back only cancels the ask: the job
+    /// stays held. Drop after `X` drops it with no payout and takes its
+    /// caller out of the world.
+    #[test]
+    fn only_drop_after_x_drops_a_held_job_and_back_keeps_it() {
+        use crate::pointer_rig::{click_at, pane_pointer_rig, settle};
+
+        let mut rig = pane_pointer_rig();
+        let app = &mut rig.app;
+        app.insert_resource(test_items());
+        app.insert_resource(GamePriceTable(price_table()));
+        app.init_resource::<JobsRuntime>();
+        app.init_resource::<Chart>();
+        app.init_resource::<Jobs>();
+        app.init_resource::<JobPostings>();
+        app.init_resource::<WorldClock>();
+        app.init_resource::<CivilizationStances>();
+        app.add_message::<JobAcceptCommand>();
+        app.add_message::<JobHandInCommand>();
+        app.add_message::<JobDropCommand>();
+        app.add_systems(Update, apply_job_commands);
+        let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        let caller = GeneratedBodyId::new(SectorCoord::ORIGIN, "job_caller", 0);
+        let job = Job {
+            id: JobId {
+                station: station.clone(),
+                slot: 0,
+                posting: 0,
+            },
+            kind: JobType::Distress {
+                caller: caller.clone(),
+                genuine: true,
+            },
+            target: station,
+            reward_cr: 146,
+        };
+        app.world_mut().resource_mut::<Jobs>().accept(job.clone());
+        let player = app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                ShipCredits(2_000),
+            ))
+            .id();
+        let standing = app.world_mut().spawn(caller).id();
+        // The three steps a held row shows across its confirm, side by side.
+        let steps = [
+            ("JobDrop-0", "X", JobDropStepType::Ask),
+            ("JobDropBack-0", "Back", JobDropStepType::Back),
+            ("JobDropConfirm-0", "Drop", JobDropStepType::Confirm),
+        ];
+        let content = rig.content_root;
+        app.world_mut()
+            .commands()
+            .entity(content)
+            .with_children(|content| {
+                content.spawn(column_panel()).with_children(|panel| {
+                    for (name, label, step) in steps {
+                        drop_step_button(
+                            panel,
+                            ACTION_PX,
+                            name.to_string(),
+                            ButtonSpec::new(label).fit(),
+                            JobDropButton {
+                                step,
+                                id: job.id.clone(),
+                                mode: JobDropModeType::Free,
+                            },
+                            None,
+                        );
+                    }
+                });
+            });
+        settle(&mut rig.app);
+        let click = |rig: &mut crate::pointer_rig::PanePointerRig, name: &str| {
+            let centre = rig
+                .app
+                .world_mut()
+                .query::<(&Name, &ComputedNode, &UiGlobalTransform)>()
+                .iter(rig.app.world())
+                .find(|(each, ..)| each.as_str() == name)
+                .map(|(_, node, xf)| {
+                    assert!(node.size().min_element() > 0.0, "{name} has no area");
+                    xf.translation
+                })
+                .expect("the button is laid out");
+            click_at(rig, centre);
+        };
+        let kept = |rig: &crate::pointer_rig::PanePointerRig| {
+            let world = rig.app.world();
+            world.resource::<Jobs>().holds(&job.id)
+                && world.get::<ShipCredits>(player) == Some(&ShipCredits(2_000))
+                && world.get_entity(standing).is_ok()
+                && notice(&rig.app).is_none()
+        };
+        let asking = |rig: &crate::pointer_rig::PanePointerRig| {
+            rig.app
+                .world()
+                .resource::<JobsRuntime>()
+                .confirm_drop
+                .as_ref()
+                == Some(&(job.id.clone(), JobDropModeType::Free))
+        };
+
+        click(&mut rig, "JobDrop-0");
+        assert!(asking(&rig), "X asks for a confirm");
+        assert!(kept(&rig), "X keeps the job, its caller and the balance");
+        click(&mut rig, "JobDropBack-0");
+        assert!(!asking(&rig), "Back cancels the ask");
+        assert!(kept(&rig), "Back keeps the job, its caller and the balance");
+
+        click(&mut rig, "JobDrop-0");
+        click(&mut rig, "JobDropConfirm-0");
+        let world = rig.app.world();
+        let jobs = world.resource::<Jobs>();
+        assert!(!asking(&rig), "Drop ends the ask");
+        assert!(jobs.is_dropped(&job.id) && !jobs.holds(&job.id));
+        assert!(!jobs.is_completed(&job.id), "a drop is no hand-in");
+        assert_eq!(
+            world.get::<ShipCredits>(player),
+            Some(&ShipCredits(2_000)),
+            "a drop pays nothing"
+        );
+        assert!(
+            world.get_entity(standing).is_err(),
+            "the caller the accept put in the world is gone"
+        );
+        assert_eq!(
+            notice(&rig.app),
+            Some((
+                ActionOutcomeType::Done,
+                format!("dropped: {}", job.title(&test_items()))
+            ))
+        );
+    }
+
+    /// A player ship holding a Distress job at a fresh station's board slot
+    /// 0, with `own_cr` credits and the reports queue a credit change needs;
+    /// docked there with `station_cr` credits when `docked`, else free in
+    /// space. Distress asks nothing of the hold, so a drop fixture needs no
+    /// goods.
+    fn drop_fixture(
+        app: &mut App,
+        own_cr: u32,
+        station_cr: u32,
+        docked: bool,
+    ) -> (Entity, Option<Entity>, Job) {
+        let station_id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        let caller = GeneratedBodyId::new(SectorCoord::ORIGIN, "job_caller", 0);
+        let job = Job {
+            id: JobId {
+                station: station_id.clone(),
+                slot: 0,
+                posting: 0,
+            },
+            kind: JobType::Distress {
+                caller,
+                genuine: true,
+            },
+            target: station_id.clone(),
+            reward_cr: 146,
+        };
+        let world = app.world_mut();
+        world.resource_mut::<Jobs>().accept(job.clone());
+        let player = world
+            .spawn((
+                SpaceshipRootMarker,
+                PlayerSpaceshipMarker,
+                ShipDesignSections::default(),
+                ShipCredits(own_cr),
+                ShipInventoryReports::default(),
+            ))
+            .id();
+        if !docked {
+            return (player, None, job);
+        }
+        let station = world
+            .spawn((
+                StationMarker,
+                station_id,
+                StationServices(vec![StationServiceType::Jobs]),
+                StationBuilds(Vec::new()),
+                JobBoard(Vec::new()),
+                ShipCredits(station_cr),
+                ShipInventoryReports::default(),
+            ))
+            .id();
+        let connection = world
+            .spawn(DockingConnection {
+                first_ship: player,
+                first_section: Entity::PLACEHOLDER,
+                second_ship: station,
+                second_section: Entity::PLACEHOLDER,
+                helm: DockedHelmType::Neutral,
+                measurement_fault: false,
+            })
+            .id();
+        world.entity_mut(player).insert(DockedShip {
+            connection,
+            helm: Quat::IDENTITY,
+            drives: false,
+        });
+        (player, Some(station), job)
+    }
+
+    /// Post `job` at its station's slot 0 with two filler slots, so
+    /// [`JobPostings::slot`] reads its posting current.
+    fn post_current(app: &mut App, job: &Job) {
+        let iron = ItemDesignId::from(ItemRoleType::IronOre.id());
+        let filler = |slot: u32| Job {
+            id: JobId {
+                station: job.id.station.clone(),
+                slot,
+                posting: 0,
+            },
+            kind: JobType::Procure {
+                item: iron.clone(),
+                count: 1,
+            },
+            target: job.id.station.clone(),
+            reward_cr: 10,
+        };
+        app.world_mut()
+            .resource_mut::<JobPostings>()
+            .post(vec![job.clone(), filler(1), filler(2)], 0.0);
+    }
+
+    /// A Paid drop docked at the issuing station moves the fee from the
+    /// player to the station in one frame, queues a `JobRefresh` report on
+    /// each side, drops the job and marks the slot for a paid refresh.
+    #[test]
+    fn a_paid_drop_moves_the_fee_atomically_with_both_reports_and_marks_the_slot() {
+        let mut app = jobs_app();
+        let (player, station, job) = drop_fixture(&mut app, 2_000, 10_000, true);
+        let station = station.expect("drop_fixture docks when asked");
+        post_current(&mut app, &job);
+
+        app.world_mut().write_message(JobDropCommand {
+            id: job.id.clone(),
+            mode: JobDropModeType::Paid,
+        });
+        app.update();
+
+        let world = app.world();
+        assert_eq!(world.get::<ShipCredits>(player), Some(&ShipCredits(1_900)));
+        assert_eq!(
+            world.get::<ShipCredits>(station),
+            Some(&ShipCredits(10_100))
+        );
+        assert!(matches!(
+            world.get::<ShipInventoryReports>(player).unwrap().0.last(),
+            Some(ShipInventoryReport::CreditsChanged {
+                current_cr: 1_900,
+                cause: CreditChangeCauseType::JobRefresh,
+                ..
+            })
+        ));
+        assert!(matches!(
+            world.get::<ShipInventoryReports>(station).unwrap().0.last(),
+            Some(ShipInventoryReport::CreditsChanged {
+                current_cr: 10_100,
+                cause: CreditChangeCauseType::JobRefresh,
+                ..
+            })
+        ));
+        assert!(
+            world
+                .resource::<JobPostings>()
+                .slot(&job.id)
+                .unwrap()
+                .paid_refresh_requested,
+            "a paid drop marks the slot for a paid refresh"
+        );
+        let jobs = world.resource::<Jobs>();
+        assert!(jobs.is_dropped(&job.id) && !jobs.holds(&job.id));
+        assert_eq!(
+            notice(&app),
+            Some((
+                ActionOutcomeType::Done,
+                format!(
+                    "dropped {} for 100 cr; balance 1,900 cr",
+                    job.title(&test_items())
+                )
+            ))
+        );
+    }
+
+    /// A Paid drop refuses when the balance is short of the fee, and moves
+    /// neither side's credits.
+    #[test]
+    fn a_paid_drop_short_of_the_fee_leaves_both_balances_untouched() {
+        let mut app = jobs_app();
+        let (player, station, job) = drop_fixture(&mut app, 99, 10_000, true);
+        let station = station.expect("drop_fixture docks when asked");
+        post_current(&mut app, &job);
+
+        app.world_mut().write_message(JobDropCommand {
+            id: job.id.clone(),
+            mode: JobDropModeType::Paid,
+        });
+        app.update();
+
+        let world = app.world();
+        assert_eq!(world.get::<ShipCredits>(player), Some(&ShipCredits(99)));
+        assert_eq!(
+            world.get::<ShipCredits>(station),
+            Some(&ShipCredits(10_000))
+        );
+        assert!(world
+            .get::<ShipInventoryReports>(player)
+            .unwrap()
+            .0
+            .is_empty());
+        assert!(world
+            .get::<ShipInventoryReports>(station)
+            .unwrap()
+            .0
+            .is_empty());
+        assert!(
+            !world
+                .resource::<JobPostings>()
+                .slot(&job.id)
+                .unwrap()
+                .paid_refresh_requested
+        );
+        assert!(world.resource::<Jobs>().holds(&job.id));
+        assert_eq!(
+            notice(&app),
+            Some((
+                ActionOutcomeType::Refused,
+                "drop: it costs 100 cr, the balance holds 99 cr".to_string()
+            ))
+        );
+    }
+
+    /// A Paid drop whose slot the board never posted (or posted past) is
+    /// refused as stale: `JobPostings::slot` reads nothing current to mark.
+    #[test]
+    fn a_paid_drop_of_a_stale_posting_is_refused() {
+        let mut app = jobs_app();
+        let (player, station, job) = drop_fixture(&mut app, 2_000, 10_000, true);
+        let station = station.expect("drop_fixture docks when asked");
+
+        app.world_mut().write_message(JobDropCommand {
+            id: job.id.clone(),
+            mode: JobDropModeType::Paid,
+        });
+        app.update();
+
+        let world = app.world();
+        assert_eq!(world.get::<ShipCredits>(player), Some(&ShipCredits(2_000)));
+        assert_eq!(
+            world.get::<ShipCredits>(station),
+            Some(&ShipCredits(10_000))
+        );
+        assert!(world.resource::<Jobs>().holds(&job.id));
+        assert_eq!(
+            notice(&app),
+            Some((
+                ActionOutcomeType::Refused,
+                "drop: this posting renewed already".to_string()
+            ))
+        );
+    }
+
+    /// A Free drop waits the clock out undocked, with no fee and no paid
+    /// refresh; the same Free command is refused, not silently charged, if
+    /// it is now docked at the issuing station, so a dock between the ask
+    /// and the confirm cannot flip a free ask into a paid one.
+    #[test]
+    fn a_free_drop_waits_the_clock_and_refuses_at_the_issuing_station() {
+        let mut app = jobs_app();
+        let (player, _, job) = drop_fixture(&mut app, 2_000, 10_000, false);
+
+        app.world_mut().write_message(JobDropCommand {
+            id: job.id.clone(),
+            mode: JobDropModeType::Free,
+        });
+        app.update();
+        {
+            let world = app.world();
+            let jobs = world.resource::<Jobs>();
+            assert!(jobs.is_dropped(&job.id) && !jobs.holds(&job.id));
+            assert!(
+                world
+                    .resource::<JobPostings>()
+                    .board(&job.id.station)
+                    .is_none(),
+                "a free drop never posts a board, let alone marks a refresh"
+            );
+            assert_eq!(world.get::<ShipCredits>(player), Some(&ShipCredits(2_000)));
+            assert_eq!(
+                notice(&app),
+                Some((
+                    ActionOutcomeType::Done,
+                    format!("dropped: {}", job.title(&test_items()))
+                ))
+            );
+        }
+
+        let second = Job {
+            id: JobId {
+                station: job.id.station.clone(),
+                slot: 1,
+                posting: 0,
+            },
+            ..job.clone()
+        };
+        app.world_mut()
+            .resource_mut::<Jobs>()
+            .accept(second.clone());
+        let station = app
+            .world_mut()
+            .spawn((
+                StationMarker,
+                second.id.station.clone(),
+                StationServices(vec![StationServiceType::Jobs]),
+                StationBuilds(Vec::new()),
+                JobBoard(Vec::new()),
+                ShipCredits(10_000),
+                ShipInventoryReports::default(),
+            ))
+            .id();
+        let connection = app
+            .world_mut()
+            .spawn(DockingConnection {
+                first_ship: player,
+                first_section: Entity::PLACEHOLDER,
+                second_ship: station,
+                second_section: Entity::PLACEHOLDER,
+                helm: DockedHelmType::Neutral,
+                measurement_fault: false,
+            })
+            .id();
+        app.world_mut().entity_mut(player).insert(DockedShip {
+            connection,
+            helm: Quat::IDENTITY,
+            drives: false,
+        });
+        app.world_mut().write_message(JobDropCommand {
+            id: second.id.clone(),
+            mode: JobDropModeType::Free,
+        });
+        app.update();
+        let world = app.world();
+        assert!(
+            world.resource::<Jobs>().holds(&second.id),
+            "a free command refuses rather than drops free at the issuing station"
+        );
+        assert_eq!(world.get::<ShipCredits>(player), Some(&ShipCredits(2_000)));
+        assert_eq!(
+            notice(&app),
+            Some((
+                ActionOutcomeType::Refused,
+                "drop: dock here pays a fee; ask again".to_string()
+            ))
+        );
     }
 
     #[test]

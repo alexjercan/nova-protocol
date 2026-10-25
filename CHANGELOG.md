@@ -44,10 +44,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Two docked hulls no longer collide, so skin plates and greebles past a
   port face no longer wear both hulls down while they sit docked, and
   undocking no longer shoves them apart.
-- **(breaking)** Stations post three seeded jobs by start role: bring,
-  recover, escort, distress, neutralize. No two boards offer one target; a
-  dropped job retires its posting. Save format 28.
-- An escort's hauler waits 3 km off its station until you are within 1 km,
+- **(breaking)** Stations post three seeded jobs: bring, recover, escort,
+  distress, neutralize. Held jobs pin slots; a free drop waits its window,
+  or pay 100 cr at the poster to skip it. Save format 30.
+- An escort's hauler waits 1 km off its station until you are within 1 km,
   then runs at 100 m/s to its mark; its raiders spring from 2.5 km off the
   leg, hunt it and turn on whoever shoots them.
 - **(breaking)** Generated stations and ships now price each item by their
@@ -56,9 +56,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** A saved world now keeps a play-time clock that runs only
   while you fly unpaused, and each sector you leave records when it froze.
   Restock reads it on a thaw. Save format 18.
-- **(breaking)** An unaccepted station job offer expires after 20 min of play
-  and the slot posts a new one; a held job never expires. The Jobs pane
-  shows the time left. Save format 18.
+- **(breaking)** Unheld escort offers last 60 min of play; other offers
+  20 min. Held jobs never expire. `PriceTable` adds `escort_offer_seconds`.
+  Save format 18.
 - **(breaking)** Generated traders restock toward spawn stock by play time
   their sector stood unloaded.
 - **(breaking)** Every start role's milestone opens with one owned station,
@@ -96,6 +96,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   `patrol_picket`, `training_picket`, `line_warship` and `debris_plate`.
 - The six start hulls are built from advancement-0 parts, so the starting
   station rebuilds any section they lose.
+- `salvage_hauler` and `light_freighter` now have five stern drives each,
+  down from eight and nine, with a simpler aft silhouette.
 - Every open-world ship carries a cargo intake to jettison and take cargo:
   the six start hulls and every generated ship, whose intake sits on top or
   below, clear of its docking ports.
@@ -236,6 +238,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Interface & HUD
 
+- Chart Z/X steps the focused Y layer; Reframe returns to your layer.
+  The OBJECTIVES heading shows the layer, and an empty chart hides its
+  unused detail rows.
 - `;` opens NOVA COMMANDS, with no Shift on US layouts; `:` no longer does.
 - In windows under 800 px wide the Map and Ship footer puts its key hints on
   a second row, so the legend, the hints and Catalogue, Fit and Reset all
@@ -243,6 +248,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A Jobs pane: Your jobs with a `have / need` meter and HAND IN HERE; docked,
   Jobs posted here with reward, time left and Accept; an empty list shows
   EMPTY. A refused button greys with the reason.
+- Your jobs gain X to drop a job: Free away from the poster, or Paid 100 cr
+  there, which skips the repost wait. A refusal greys with the reason.
 - Clicking a job row opens it in the pane's inspector: what to do, target,
   hand-in station, reward, time left or progress, and Show on Map, which
   opens the Map's chart view on the job's mark.
@@ -443,9 +450,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The chase camera eases back a fixed share of its distance from the first
   tick of a main-drive burn, holds through gaps under half a second and then
   eases home. A tap leans it only slightly.
-- RCS pushes at any speed from a 300 m/s magazine that refills 2 s after you
-  let go; ten violet pips under the speed chip show it. This replaces the
-  100 m/s RCS cap.
+- RCS replaces the 100 m/s speed cap with a refillable magazine: 300 m/s on
+  start hulls, +5 m/s per section above 65. It refills after 2 s idle; ten
+  violet pips show its fill.
 - Every ship, asteroid and landed physical fragment now feels planet and
   anchor gravity; unpiloted hulls no longer float.
 - DOCK and the dock request refuse a target that is Hostile, Enemy, answering

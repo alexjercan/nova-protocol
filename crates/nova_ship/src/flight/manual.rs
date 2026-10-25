@@ -377,8 +377,7 @@ pub(super) fn rcs_burn_system(
         let Ok((_, _, mut budget, ..)) = q_ship.get_mut(*ship) else {
             continue;
         };
-        let Some(delta_v) = rcs_push(*command, *rotation, &mut budget, *accel, &settings, dt)
-        else {
+        let Some(delta_v) = rcs_push(*command, *rotation, &mut budget, *accel, dt) else {
             continue;
         };
         pushes.push((*ship, delta_v));
@@ -406,7 +405,6 @@ pub(super) fn rcs_push(
     rotation: Rotation,
     budget: &mut RcsBudget,
     accel: f32,
-    settings: &FlightSettings,
     dt: f32,
 ) -> Option<Vec3> {
     // One acceleration budget for every direction: each axis is a unit
@@ -421,7 +419,7 @@ pub(super) fn rcs_push(
     if wanted <= 0.0 || full_step <= 0.0 {
         return None;
     }
-    let delivered = budget.spend(wanted, settings);
+    let delivered = budget.spend(wanted);
     if delivered <= 0.0 {
         return None;
     }

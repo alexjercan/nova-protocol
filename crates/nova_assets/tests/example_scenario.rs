@@ -85,6 +85,7 @@ fn price_table() -> Content {
         },
         jobs: JobOfferRule {
             offer_seconds: 1_200.0,
+            escort_offer_seconds: 3_600.0,
         },
         clusters: vec![],
         roles: vec![],
