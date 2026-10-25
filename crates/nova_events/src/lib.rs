@@ -946,8 +946,8 @@ pub enum CreditChangeCauseType {
     StationBuy,
     /// A job handed in at a docked station: its reward.
     JobReward,
-    /// A paid cancellation of a held job at its issuing station: the fee,
-    /// moved from the player to the station.
+    /// A paid replacement of an unheld job offer at its issuing station:
+    /// the fee moves from the player to the station.
     JobRefresh,
     /// A fine paid at a docked station to settle with a civilization that
     /// stood Enemy to the player.

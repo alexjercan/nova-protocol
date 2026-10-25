@@ -45,8 +45,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
   port face no longer wear both hulls down while they sit docked, and
   undocking no longer shoves them apart.
 - **(breaking)** Stations post three seeded jobs: bring, recover, escort,
-  distress, neutralize. Held jobs pin slots; a free drop waits its window,
-  or pay 100 cr at the poster to skip it. Save format 30.
+  distress, neutralize. A held drop is free; pay 100 cr there to delete and
+  replace an unheld offer. Save format 30.
 - An escort's hauler waits 1 km off its station until you are within 1 km,
   then runs at 100 m/s to its mark; its raiders spring from 2.5 km off the
   leg, hunt it and turn on whoever shoots them.
