@@ -474,6 +474,10 @@ read the side alone.
 | sectors and saves | the stances live on your save, not the station: an offence counts across a retire, a thaw and a Load, and a Load restores the table on its arming frame. A table stamped ahead of the saved play clock refuses the Load |
 | events | a settlement fires one `OnCreditsChanged` per party with `cause: Settle`, see [Hold events](../events/#hold-events) |
 
+<div class="widget" data-widget="stance-ledger">
+<p>Take three neighbours: A Ally to you, B on an Ally edge to A, and C on an Enemy edge to both and Enemy by its seed. Neutralize three A hulls inside an hour: A steps to Neutral, B follows to Neutral and C warms to Neutral, and B's own step reaches nobody. Three more and A and B stand Enemy by your deeds; two hours of play with no new offence thaw both to Neutral. Hand in three jobs at a station and only its civilization steps up. A provocation makes a civilization read Enemy for 15 minutes without moving its table stance. A seeded Enemy never thaws; paying its fine returns it to Neutral and moves no neighbour.</p>
+</div>
+
 The proof is `system_civilization_stance`: on a New Game as the pirate, the
 player docks at a civilization's station, neutralizes three of its other
 hulls, sees the station refuse the dock and the charter count the
@@ -505,19 +509,19 @@ A living station that offers `Jobs` posts a board of three jobs
 cube of 27 around its own is live and settled. The station the player began
 docked at - the session's starting station, the nearest station of a
 civilization whose seeded stance is Ally, kept in the world save's `start`
-field (save format 21) - also wears `StarterBoardMarker` beside its board; it
-is the one board that posts the start role's starter jobs, and no other
-board ever carries the marker. Each board slot carries a
-posting number, the play-time stamp it was posted at and the offer it posted
-(`SlotPosting`, kept per station in the `JobPostings` session resource, saved
-with the world). A slot's offer is drawn once, when the slot posts, from the
-world seed, the station's generated id, the slot, the posting number, the
-cluster types of its sector, the start role's job mix, the board's standing
-offers and the field around the station, off its own `WyRand` seeded from
-FNV-64 of `(seed, "station_jobs", station id, slot, posting)`. The offer then
-stands as drawn until its slot renews: a looted wreck, a job held elsewhere, a
-thaw or a Load never changes it. A job's id is the posting station's id, its
-board slot and its posting number (`<station>#<slot>.<posting>`).
+field - also wears `StarterBoardMarker` beside its board; it is the one board
+that posts the start role's starter jobs, and no other board ever carries the
+marker. Each board slot carries a posting number, the play-time stamp it was
+posted at and the offer it posted (`SlotPosting`, kept per station in the
+`JobPostings` session resource, saved with the world). A slot's offer is drawn
+once, when the slot posts, from the world seed, the station's generated id,
+the slot, the posting number, the cluster types of its sector, the start
+role's job mix, the board's standing offers and the field around the station,
+off its own `WyRand` seeded from FNV-64 of `(seed, "station_jobs", station id,
+slot, posting)`. The offer then stands as drawn until its slot renews: a
+looted wreck, a job held elsewhere, a thaw or a Load never changes it. A job's
+id is the posting station's id, its board slot and its posting number
+(`<station>#<slot>.<posting>`).
 
 A slot renews - moves to its next posting, stamped now - when its job is
 handed in, when a player pays to delete a current unheld offer at the posting station, or when an
@@ -573,35 +577,35 @@ The player accepts and hands in only while docked at a living station that
 offers `Jobs` (`plan_job_accept`, `plan_job_hand_in`). An accept is refused
 while the job is held or completed, while its offer's window has passed
 (`Expired`: the station no longer offers it), and for a `Recover` or
-`Neutralize` whose target is gone. An accept raises `JobAccepted`: an `Escort` spawns its
-hauler and its raiders, and the hauler waits with no helm order until the
-player stands undocked from the poster and within 1 km of the hauler, then
-flies a `Move` to its mark under a 100 m/s cruise cap; a `Distress` spawns
-its caller. A job is DONE when the open world sees its completion
-over the shipped event kinds: `onundocked` naming the wreck with the stack
-aboard and the wreck's stack gone (`Recover`), `onshipordercomplete` for the
-hauler's `Move` (`Escort`; the hauler neutralized or destroyed, or its
-`Move` failed because it lost its drives or its flight computer, drops the
-job and its bodies), `ondocked` with the caller (`Distress`), `onneutralized` or `ondestroyed` naming the hull
-(`Neutralize`). A hand-in needs the posting station, the job done (a
-`Procure` is done with the goods in the hold), and a station balance that
-covers the reward; it removes a `Procure`'s goods, pays `OnCreditsChanged`
-with cause `JobReward` on both sides and lists the job completed. Held, done
-and completed jobs are the `Jobs` session resource, and every board's slot
-postings and offers are the `JobPostings` session resource; both save in
-the world state's `jobs` and `postings` fields (save format 28) and are
-checked on load: a job held twice, held and completed, held or completed
-and dropped, done but not held, an undone escort with no leg or a leg with
-no undone escort, with a zero count or reward, or naming an item the
-catalog lacks refuses the world, as does a board with the wrong slot count,
-a posting stamp ahead of the clock, or an offer that is not its slot's
-posting or that no board could post. A held job is checked by its own rules, not against its slot. A
-frozen sector keeps a spawned hauler, caller or raider as any ship, but not
-the hauler's helm order or its cruise cap: the jobs keep the hauler's mark
-and whether it left, so a thawed or loaded hauler that left flies to its mark
-again under the same cap.
-Authored `Station` content with `Jobs` in its services posts no board: only
-generated stations have the id and sector the board is seeded from.
+`Neutralize` whose target is gone. An accept raises `JobAccepted`: an `Escort`
+spawns its hauler and its raiders, and the hauler waits with no helm order
+until the player stands undocked from the poster and within 1 km of the
+hauler, then flies a `Move` to its mark under a 100 m/s cruise cap; a
+`Distress` spawns its caller. A job is DONE when the open world sees its
+completion over the shipped event kinds: `onundocked` naming the wreck with
+the stack aboard and the wreck's stack gone (`Recover`), `onshipordercomplete`
+for the hauler's `Move` (`Escort`; the hauler neutralized or destroyed, or its
+`Move` failed because it lost its drives or its flight computer, drops the job
+and its bodies), `ondocked` with the caller (`Distress`), `onneutralized` or
+`ondestroyed` naming the hull (`Neutralize`). A hand-in needs the posting
+station, the job done (a `Procure` is done with the goods in the hold), and a
+station balance that covers the reward; it removes a `Procure`'s goods, pays
+`OnCreditsChanged` with cause `JobReward` on both sides and lists the job
+completed. Held, done and completed jobs are the `Jobs` session resource, and
+every board's slot postings and offers are the `JobPostings` session resource;
+both save in the world state's `jobs` and `postings` fields and are checked on
+load: a job held twice, held and completed, held or completed and dropped,
+done but not held, an undone escort with no leg or a leg with no undone
+escort, with a zero count or reward, or naming an item the catalog lacks
+refuses the world, as does a board with the wrong slot count, a posting stamp
+ahead of the clock, or an offer that is not its slot's posting or that no
+board could post. A held job is checked by its own rules, not against its
+slot. A frozen sector keeps a spawned hauler, caller or raider as any ship,
+but not the hauler's helm order or its cruise cap: the jobs keep the hauler's
+mark and whether it left, so a thawed or loaded hauler that left flies to its
+mark again under the same cap. Authored `Station` content with `Jobs` in its
+services posts no board: only generated stations have the id and sector the
+board is seeded from.
 
 ## Base stations
 

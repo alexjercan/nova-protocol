@@ -93,6 +93,27 @@ import {
     cargoIntakeTake,
     dockingGates,
     miningBeamChecks,
+    effectiveStance,
+    ENEMY_DECAY_SECONDS,
+    MERIT_STEP,
+    OFFENCE_STEP,
+    OFFENCE_WINDOW_SECONDS,
+    PRICE_CLAMP,
+    PRICE_CLUSTER_RULES,
+    PRICE_CLUSTERS,
+    PRICE_GLUT,
+    PRICE_GLUT_SHARE,
+    PRICE_ITEMS,
+    PRICE_ROLE_RULES,
+    PRICE_ROLES,
+    PRICE_STARVED,
+    PRICE_UNKEPT,
+    priceFactors,
+    PROVOKED_WINDOW_SECONDS,
+    stanceStep,
+    StanceEvent,
+    StanceType,
+    StanceWorld,
 } from "../src/widgets";
 
 const HP = 200;
@@ -1101,6 +1122,288 @@ console.log("widgets: the corridor scope reproduces the stand bank");
         "OffTarget",
         "the rock is near but the grazing ray meets it past 100 m"
     );
+}
+
+// ---- price-factors --------------------------------------------------------
+
+// The market scope's price table and items are the base content builders'.
+{
+    const MARKET = "crates/nova_authoring/src/base_content/market.rs";
+    const ITEMS = "crates/nova_authoring/src/base_content/items.rs";
+    const rustF32 = (name: string): number =>
+        rustNumber(MARKET, new RegExp(`const ${name}: f32 = ([\\d.]+);`));
+    const factor = (name: string, side: "ask" | "bid"): number =>
+        rustNumber(
+            MARKET,
+            new RegExp(
+                `const ${name}: PriceFactor = PriceFactor \\{\\s*` +
+                    (side === "ask"
+                        ? "ask: ([\\d.]+),\\s*bid: [\\d.]+"
+                        : "ask: [\\d.]+,\\s*bid: ([\\d.]+)")
+            )
+        );
+    assert.equal(PRICE_CLAMP.min, rustF32("CLAMP_MIN"));
+    assert.equal(PRICE_CLAMP.max, rustF32("CLAMP_MAX"));
+    assert.equal(PRICE_GLUT_SHARE, rustF32("GLUT_SHARE"));
+    for (const [name, side] of [
+        ["STARVED", PRICE_STARVED],
+        ["GLUT", PRICE_GLUT],
+        ["UNKEPT", PRICE_UNKEPT],
+    ] as const) {
+        assert.equal(side.ask, factor(name, "ask"), `${name} ask`);
+        assert.equal(side.bid, factor(name, "bid"), `${name} bid`);
+    }
+    const rules = (
+        kind: "cluster" | "role",
+        owner: string
+    ): [string, string, number][] => {
+        const text = readFileSync(join(REPO, MARKET), "utf8");
+        const pattern = new RegExp(
+            `${kind}\\(\\s*${owner}::(\\w+),\\s*ItemCategoryType::(\\w+),\\s*(\\w+),?\\s*\\)`,
+            "g"
+        );
+        return [...text.matchAll(pattern)].map((hit) => [
+            hit[1],
+            hit[2],
+            rustF32(hit[3]),
+        ]);
+    };
+    assert.deepEqual(PRICE_CLUSTER_RULES, rules("cluster", "ClusterType"));
+    assert.deepEqual(PRICE_ROLE_RULES, rules("role", "ShipRoleType"));
+    for (const item of PRICE_ITEMS) {
+        const field = (index: number): string => {
+            const fields = [
+                '"([^"]+)"',
+                '"[^"]*"',
+                "(\\w+)",
+                "[\\d_]+",
+                "(\\d+)",
+                "(\\d+)",
+            ].map((part, at) =>
+                at === index ? part : part.replace(/[()]/g, "")
+            );
+            return rustSays(
+                ITEMS,
+                new RegExp(
+                    `ItemRoleType::${item.id}\\.id\\(\\),\\s*` +
+                        fields.join(",\\s*")
+                )
+            );
+        };
+        assert.equal(item.name, field(0), `${item.id} name`);
+        assert.equal(item.category, field(2), `${item.id} category`);
+        assert.equal(item.askCr, Number(field(4)), `${item.id} ask`);
+        assert.equal(item.bidCr, Number(field(5)), `${item.id} bid`);
+    }
+    assert.equal(PRICE_ITEMS.length, 10, "the ten ItemRoleType items");
+}
+
+// A trader prices reference x scarcity x cluster x civilization, clamped,
+// rounded to the nearest credit (nova_gameplay/src/market.rs `price`).
+{
+    const at = priceFactors("HullPlate", "RockOnly", "Civilian", 1);
+    assert.deepEqual(
+        [at.askCr, at.bidCr, at.clamped, at.askDeltaPercent],
+        [40, 30, false, 0],
+        "a kept item at its target with no rule deals at reference"
+    );
+    const starved = priceFactors("PdcRound", "RockOnly", "Civilian", 0);
+    assert.deepEqual(
+        [starved.askCr, starved.bidCr],
+        [6, 4],
+        "an empty hold asks x1.5 and pays x1.25 (3.75 rounds to 4)"
+    );
+    const half = priceFactors("HullPlate", "RockOnly", "Civilian", 0.5);
+    assert.deepEqual(half.scarcity, { ask: 1.25, bid: 1.125 }, "linear to 1");
+    const glut = priceFactors("HullPlate", "RockOnly", "Civilian", 3);
+    assert.deepEqual([glut.askCr, glut.bidCr], [36, 18], "full glut at 3x");
+    assert.deepEqual(
+        priceFactors("HullPlate", "RockOnly", "Civilian", 5),
+        glut,
+        "the glut factor holds past 3x"
+    );
+    const unkept = priceFactors("Torpedo", "RockOnly", "Civilian", null);
+    assert.deepEqual(
+        [unkept.askCr, unkept.bidCr],
+        [400, 270],
+        "an item the trader keeps none of pays 0.9 of reference"
+    );
+    // market_sandbox's claim: iron ore sells for more among planets.
+    const planets = priceFactors("IronOre", "PlanetHeavy", "Industrial", 1);
+    const rocks = priceFactors("IronOre", "AsteroidRich", "Industrial", 1);
+    assert.deepEqual([planets.bidCr, rocks.bidCr], [14, 6]);
+    assert.equal(planets.bidDeltaPercent, 16, "14 on 12 is +16%, toward zero");
+    assert.equal(rocks.bidDeltaPercent, -50);
+    const wrecks = priceFactors(
+        "SalvagedParts",
+        "DerelictField",
+        "Scavenger",
+        1
+    );
+    assert.equal(wrecks.askCr, 67, "120 x 0.7 x 0.8");
+    const plate = priceFactors("HullPlate", "DerelictField", "Armored", 1);
+    assert.equal(plate.askCr, 39, "40 x 0.85 x 1.15");
+    // The scope's note: with one role at full weight the base table never
+    // reaches the clamp, and a bid is never above its ask.
+    for (const item of PRICE_ITEMS)
+        for (const cluster of PRICE_CLUSTERS)
+            for (const role of PRICE_ROLES)
+                for (const share of [null, 0, 0.5, 1, 2, 3]) {
+                    const quote = priceFactors(item.id, cluster, role, share);
+                    const where = `${item.id} ${cluster} ${role} ${share}`;
+                    assert.ok(!quote.clamped, `clamped at ${where}`);
+                    assert.ok(quote.total.bid <= quote.total.ask, where);
+                    assert.ok(quote.bidCr <= quote.askCr, where);
+                }
+}
+
+// ---- stance-ledger --------------------------------------------------------
+
+{
+    const CIVILIZATION = "crates/nova_gameplay/src/civilization.rs";
+    const constant = (name: string): number =>
+        Number(
+            rustSays(
+                CIVILIZATION,
+                new RegExp(`pub const ${name}: \\w+ = ([\\d_.]+);`)
+            ).replace(/_/g, "")
+        );
+    assert.equal(OFFENCE_STEP, constant("OFFENCE_STEP"));
+    assert.equal(OFFENCE_WINDOW_SECONDS, constant("OFFENCE_WINDOW_SECONDS"));
+    assert.equal(MERIT_STEP, constant("MERIT_STEP"));
+    assert.equal(PROVOKED_WINDOW_SECONDS, constant("PROVOKED_WINDOW_SECONDS"));
+    assert.equal(ENEMY_DECAY_SECONDS, constant("ENEMY_DECAY_SECONDS"));
+}
+
+{
+    // A, Ally to the player; B on an Ally edge to A; C on an Enemy edge to A
+    // and to B; C Enemy by its seed.
+    const seed = (): StanceWorld => {
+        const civ = (name: string, seeded: StanceType) => ({
+            name,
+            seeded,
+            stance: seeded,
+            offences: [],
+            merits: 0,
+            provokedAt: null,
+            enemySince: null,
+        });
+        return {
+            now: 0,
+            civilizations: [
+                civ("A", "Ally"),
+                civ("B", "Ally"),
+                civ("C", "Enemy"),
+            ],
+            edges: [
+                [null, "Ally", "Enemy"],
+                ["Ally", null, "Enemy"],
+                ["Enemy", "Enemy", null],
+            ],
+        };
+    };
+    const run = (events: StanceEvent[], from = seed()) => {
+        let world = from;
+        let changes: ReturnType<typeof stanceStep>["changes"] = [];
+        for (const event of events) {
+            const result = stanceStep(world, event);
+            world = result.world;
+            changes = result.changes;
+        }
+        return { world, changes };
+    };
+    const stances = (world: StanceWorld) =>
+        world.civilizations.map((civ) => civ.stance);
+    const offence = (civilization: number): StanceEvent => ({
+        kind: "offence",
+        civilization,
+    });
+    const hour: StanceEvent = { kind: "hour" };
+
+    // Two offences are a grace count; the third steps A down and the step
+    // reaches each neighbour once by its edge, and no further: C warms on
+    // the A-C edge and B's own following step does not warm it again.
+    const two = run([offence(0), offence(0)]);
+    assert.deepEqual(two.changes, []);
+    assert.deepEqual(two.world.civilizations[0].offences, [0, 0]);
+    const flip = run([offence(0)], two.world);
+    assert.deepEqual(flip.changes, [
+        { civilization: 0, from: "Ally", to: "Neutral" },
+        { civilization: 1, from: "Ally", to: "Neutral" },
+        { civilization: 2, from: "Enemy", to: "Neutral" },
+    ]);
+    assert.deepEqual(flip.world.civilizations[0].offences, []);
+    assert.deepEqual(stances(flip.world), ["Neutral", "Neutral", "Neutral"]);
+    assert.deepEqual(
+        stances(two.world),
+        ["Ally", "Ally", "Enemy"],
+        "stanceStep leaves its input alone"
+    );
+
+    // An offence a full hour old is forgotten.
+    const stale = run([offence(0), hour, offence(0), offence(0)]);
+    assert.deepEqual(stale.changes, []);
+    assert.equal(stale.world.civilizations[0].offences.length, 2);
+
+    // Three merits step one up and never propagate; an Ally saturates.
+    const merit = (civilization: number): StanceEvent => ({
+        kind: "merit",
+        civilization,
+    });
+    const earned = run([merit(0), merit(0), merit(0)], flip.world);
+    assert.deepEqual(earned.changes, [
+        { civilization: 0, from: "Neutral", to: "Ally" },
+    ]);
+    assert.deepEqual(run([merit(0), merit(0), merit(0)]).changes, []);
+
+    // A provocation reads Enemy for its window without moving the table.
+    const provoked = run([{ kind: "provoke", civilization: 1 }]);
+    const b = provoked.world.civilizations[1];
+    assert.equal(b.stance, "Ally");
+    assert.equal(effectiveStance(b, 0), "Enemy");
+    assert.equal(effectiveStance(b, PROVOKED_WINDOW_SECONDS), "Ally");
+    assert.equal(
+        run([hour], provoked.world).world.civilizations[1].provokedAt,
+        null
+    );
+
+    // An Enemy made by offences thaws to Neutral after two hours with no new
+    // offence; a later offence restarts the clock; a seeded Enemy never thaws.
+    const six = Array.from({ length: 6 }, () => offence(0));
+    const outlaw = run(six);
+    assert.equal(outlaw.world.civilizations[0].stance, "Enemy");
+    assert.equal(outlaw.world.civilizations[0].enemySince, 0);
+    assert.equal(
+        run([hour], outlaw.world).world.civilizations[0].stance,
+        "Enemy"
+    );
+    const thawed = run([hour, hour], outlaw.world);
+    // B followed A down twice on their Ally edge: a propagated step to Enemy
+    // stamps its clock too, so it thaws with A.
+    assert.deepEqual(thawed.changes, [
+        { civilization: 0, from: "Enemy", to: "Neutral" },
+        { civilization: 1, from: "Enemy", to: "Neutral" },
+    ]);
+    assert.equal(
+        run([hour, offence(0), hour], outlaw.world).world.civilizations[0]
+            .stance,
+        "Enemy",
+        "an offence while Enemy by events restarts the decay"
+    );
+    assert.equal(
+        run([hour, hour, hour]).world.civilizations[2].stance,
+        "Enemy",
+        "a seeded Enemy never decays"
+    );
+
+    // A fine returns an Enemy to Neutral, clears its offences and moves no
+    // neighbour.
+    const fined = run([offence(2), { kind: "settle", civilization: 2 }]);
+    assert.deepEqual(fined.changes, [
+        { civilization: 2, from: "Enemy", to: "Neutral" },
+    ]);
+    assert.deepEqual(fined.world.civilizations[2].offences, []);
+    assert.deepEqual(stances(fined.world), ["Ally", "Ally", "Neutral"]);
 }
 
 // eslint-disable-next-line no-console

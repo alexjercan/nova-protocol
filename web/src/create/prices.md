@@ -32,6 +32,10 @@ nearest credit.
 An authored [station](../stations/) or ship has no market. It deals at the
 reference price. A Buy at a station the player owns pays the bid.
 
+<div class="widget" data-widget="price-factors">
+<p>With the base table, a trader at its target stock in a rock-only cluster of a civilian civilization sells a hull plate at its 40 cr reference and buys one at 30 cr. At no stock it asks 1.5 and pays 1.25 times reference; at three times its target or more, 0.9 and 0.6. At its target stock, iron ore pays 14 cr at an industrial trader among planets and 6 cr at one in an asteroid-rich cluster. With one role at full weight the base table never reaches the 0.25 to 3.0 clamp.</p>
+</div>
+
 ## How a trader restocks
 
 A generated trader's stock stands still while its cell stands frozen. On the

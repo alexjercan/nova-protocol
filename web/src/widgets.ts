@@ -12703,6 +12703,760 @@ function initGeneratedShipRoles(host: HTMLElement): void {
     update();
 }
 
+// ---- price-factors: what a generated trader asks and pays -----------------
+
+// The base price table, from crates/nova_authoring/src/base_content/market.rs
+// (CLAMP :14-16, STARVED :20, GLUT :26, GLUT_SHARE :28, UNKEPT :31, the
+// cluster and role factors :45-65), and the ten base items with their
+// category and reference ask and bid
+// (crates/nova_authoring/src/base_content/items.rs:49-136,
+// nova_gameplay/src/inventory.rs `ItemRoleType::category`). The pricing is
+// nova_gameplay/src/market.rs `price`: every factor is an f32, so the scope
+// rounds each step to f32 with Math.fround and lands on the game's credit.
+/** An item category the price table names. */
+export type PriceCategory = "Raw" | "Ammo" | "Repair" | "Parts" | "Food";
+/** A cluster type a trader stands in, in `ClusterType::ALL` order. */
+export type PriceCluster =
+    "AsteroidRich" | "RockOnly" | "PlanetHeavy" | "DerelictField";
+/** A civilization role, in `ShipRoleType::ALL` order. */
+export type PriceRole = "Civilian" | "Industrial" | "Scavenger" | "Armored";
+/** A multiplier on each side of a price. */
+export interface PriceSide {
+    ask: number;
+    bid: number;
+}
+
+export const PRICE_CLAMP = { min: 0.25, max: 3.0 };
+export const PRICE_STARVED: PriceSide = { ask: 1.5, bid: 1.25 };
+export const PRICE_GLUT: PriceSide = { ask: 0.9, bid: 0.6 };
+export const PRICE_GLUT_SHARE = 3.0;
+export const PRICE_UNKEPT: PriceSide = { ask: 1.0, bid: 0.9 };
+export const PRICE_CLUSTERS: PriceCluster[] = [
+    "AsteroidRich",
+    "RockOnly",
+    "PlanetHeavy",
+    "DerelictField",
+];
+export const PRICE_ROLES: PriceRole[] = [
+    "Civilian",
+    "Industrial",
+    "Scavenger",
+    "Armored",
+];
+/** The cluster rules: one factor moves ask and bid alike. */
+export const PRICE_CLUSTER_RULES: [PriceCluster, PriceCategory, number][] = [
+    ["AsteroidRich", "Raw", 0.6],
+    ["RockOnly", "Raw", 0.8],
+    ["PlanetHeavy", "Raw", 1.5],
+    ["DerelictField", "Parts", 0.7],
+    ["DerelictField", "Repair", 0.85],
+];
+/** The civilization role rules: one factor moves ask and bid alike. */
+export const PRICE_ROLE_RULES: [PriceRole, PriceCategory, number][] = [
+    ["Industrial", "Raw", 0.8],
+    ["Civilian", "Food", 1.25],
+    ["Scavenger", "Parts", 0.8],
+    ["Armored", "Ammo", 1.25],
+    ["Armored", "Repair", 1.15],
+];
+/** The ten base items, in `ItemRoleType::ALL` order. */
+export const PRICE_ITEMS: {
+    id: string;
+    name: string;
+    category: PriceCategory;
+    askCr: number;
+    bidCr: number;
+}[] = [
+    {
+        id: "HullPlate",
+        name: "Hull plate",
+        category: "Repair",
+        askCr: 40,
+        bidCr: 30,
+    },
+    { id: "PdcRound", name: "PDC round", category: "Ammo", askCr: 4, bidCr: 3 },
+    {
+        id: "RailSlug",
+        name: "Rail slug",
+        category: "Ammo",
+        askCr: 40,
+        bidCr: 30,
+    },
+    {
+        id: "Torpedo",
+        name: "Torpedo",
+        category: "Ammo",
+        askCr: 400,
+        bidCr: 300,
+    },
+    { id: "StoneOre", name: "Stone ore", category: "Raw", askCr: 4, bidCr: 3 },
+    { id: "IronOre", name: "Iron ore", category: "Raw", askCr: 16, bidCr: 12 },
+    { id: "WaterIce", name: "Water ice", category: "Raw", askCr: 12, bidCr: 9 },
+    {
+        id: "CarbonOre",
+        name: "Carbon ore",
+        category: "Raw",
+        askCr: 8,
+        bidCr: 6,
+    },
+    { id: "Rations", name: "Rations", category: "Food", askCr: 8, bidCr: 6 },
+    {
+        id: "SalvagedParts",
+        name: "Salvaged parts",
+        category: "Parts",
+        askCr: 120,
+        bidCr: 90,
+    },
+];
+
+/** A trader's price for one item and the factors that made it. */
+export interface PriceFactors {
+    scarcity: PriceSide;
+    cluster: PriceSide;
+    civilization: PriceSide;
+    /** The product of the three, after the clamp. */
+    total: PriceSide;
+    /** Whether the clamp moved either side. */
+    clamped: boolean;
+    /** Credits a Buy pays for one. */
+    askCr: number;
+    /** Credits a Sell earns for one. */
+    bidCr: number;
+    /** The ask against the reference ask, in percent toward zero. */
+    askDeltaPercent: number;
+    /** The bid against the reference bid, in percent toward zero. */
+    bidDeltaPercent: number;
+}
+
+const f32 = Math.fround;
+
+function priceLerp(a: PriceSide, b: PriceSide, t: number): PriceSide {
+    return {
+        ask: f32(a.ask + f32(f32(b.ask - a.ask) * t)),
+        bid: f32(a.bid + f32(f32(b.bid - a.bid) * t)),
+    };
+}
+
+function priceTimes(a: PriceSide, b: PriceSide): PriceSide {
+    return { ask: f32(a.ask * b.ask), bid: f32(a.bid * b.bid) };
+}
+
+function priceRule<K>(
+    rules: [K, PriceCategory, number][],
+    key: K,
+    category: PriceCategory
+): PriceSide {
+    const rule = rules.find(([k, c]) => k === key && c === category);
+    const factor = f32(rule ? rule[2] : 1);
+    return { ask: factor, bid: factor };
+}
+
+/**
+ * The price of the base item `itemId` at a trader in `cluster` whose
+ * civilization prefers `role` alone, holding `stockShare` times its target
+ * stock, or `null` for an item it keeps none of.
+ */
+export function priceFactors(
+    itemId: string,
+    cluster: PriceCluster,
+    role: PriceRole,
+    stockShare: number | null
+): PriceFactors {
+    const item = PRICE_ITEMS.find((candidate) => candidate.id === itemId);
+    if (!item) throw new Error(`priceFactors: unknown item ${itemId}`);
+    const one: PriceSide = { ask: 1, bid: 1 };
+    const side = (s: PriceSide): PriceSide => ({
+        ask: f32(s.ask),
+        bid: f32(s.bid),
+    });
+    let scarcity: PriceSide;
+    if (stockShare === null) {
+        scarcity = side(PRICE_UNKEPT);
+    } else {
+        const share = f32(stockShare);
+        if (share <= 1) {
+            scarcity = priceLerp(side(PRICE_STARVED), one, share);
+        } else {
+            const t = Math.min(
+                f32(f32(share - 1) / f32(PRICE_GLUT_SHARE - 1)),
+                1
+            );
+            scarcity = priceLerp(one, side(PRICE_GLUT), t);
+        }
+    }
+    const clusterFactor = priceRule(
+        PRICE_CLUSTER_RULES,
+        cluster,
+        item.category
+    );
+    // A civilization of one role: its share is 1 and every other role's 0,
+    // so the preference-weighted blend is that role's rule alone.
+    const civilization = priceRule(PRICE_ROLE_RULES, role, item.category);
+    const raw = priceTimes(priceTimes(scarcity, clusterFactor), civilization);
+    const clamp = (v: number): number =>
+        Math.min(Math.max(v, f32(PRICE_CLAMP.min)), f32(PRICE_CLAMP.max));
+    const total = { ask: clamp(raw.ask), bid: clamp(raw.bid) };
+    const askCr = Math.round(item.askCr * total.ask);
+    const bidCr = Math.round(item.bidCr * total.bid);
+    const delta = (price: number, reference: number): number =>
+        reference === 0
+            ? 0
+            : Math.trunc(((price - reference) * 100) / reference);
+    return {
+        scarcity,
+        cluster: clusterFactor,
+        civilization,
+        total,
+        clamped: total.ask !== raw.ask || total.bid !== raw.bid,
+        askCr,
+        bidCr,
+        askDeltaPercent: delta(askCr, item.askCr),
+        bidDeltaPercent: delta(bidCr, item.bidCr),
+    };
+}
+
+function initPriceFactors(host: HTMLElement): void {
+    header(
+        host,
+        "Market scope: one trader's price",
+        "Pick an item, the cluster the trader stands in and the role its " +
+            "civilization prefers, then move the trader's stock. The ask is " +
+            "what a Buy pays and the bid what a Sell earns; each is the " +
+            "reference times three factors, clamped."
+    );
+
+    let itemIndex = PRICE_ITEMS.findIndex((item) => item.id === "IronOre");
+    let clusterIndex = 2;
+    let roleIndex = 1;
+    let unkept = false;
+    const itemKeys = keyRow(
+        PRICE_ITEMS.map((item) => item.name.toUpperCase()),
+        itemIndex,
+        (index) => {
+            itemIndex = index;
+            update();
+        }
+    );
+    const clusterWords: Record<PriceCluster, string> = {
+        AsteroidRich: "ASTEROID-RICH",
+        RockOnly: "ROCK-ONLY",
+        PlanetHeavy: "PLANET-HEAVY",
+        DerelictField: "DERELICT FIELD",
+    };
+    const clusterKeys = keyRow(
+        PRICE_CLUSTERS.map((cluster) => clusterWords[cluster]),
+        clusterIndex,
+        (index) => {
+            clusterIndex = index;
+            update();
+        }
+    );
+    const roleKeys = keyRow(
+        PRICE_ROLES.map((role) => role.toUpperCase()),
+        roleIndex,
+        (index) => {
+            roleIndex = index;
+            update();
+        }
+    );
+    const controls = el("div", "widget__controls");
+    const stock = control(
+        "trader stock",
+        0,
+        300,
+        5,
+        100,
+        (v) => `${v}% of target`,
+        () => update()
+    );
+    controls.appendChild(stock.row);
+    const unkeptKey = el("button", "widget__btn", "UNKEPT");
+    unkeptKey.type = "button";
+    unkeptKey.setAttribute("aria-pressed", "false");
+    unkeptKey.addEventListener("click", () => {
+        unkept = !unkept;
+        unkeptKey.classList.toggle("is-on", unkept);
+        unkeptKey.setAttribute("aria-pressed", String(unkept));
+        stock.input.disabled = unkept;
+        update();
+    });
+    const unkeptRow = el("div", "widget__keys");
+    unkeptRow.appendChild(unkeptKey);
+
+    const stack = el("div", "widget__stack");
+    const stats = el("div", "widget__stats");
+    const referenceStat = stat(stats, "reference");
+    const asksStat = stat(stats, "asks");
+    const paysStat = stat(stats, "pays");
+    const readout = el("p", "widget__readout");
+    readout.setAttribute("aria-live", "polite");
+
+    const factor = (v: number): string => `x${numText(v, 3)}`;
+    const signed = (v: number): string => (v > 0 ? `+${v}%` : `${v}%`);
+    const update = (): void => {
+        const item = PRICE_ITEMS[itemIndex];
+        const cluster = PRICE_CLUSTERS[clusterIndex];
+        const role = PRICE_ROLES[roleIndex];
+        const share = Number(stock.input.value) / 100;
+        const quote = priceFactors(
+            item.id,
+            cluster,
+            role,
+            unkept ? null : share
+        );
+        const pair = (s: PriceSide): string =>
+            `ask ${factor(s.ask)} bid ${factor(s.bid)}`;
+        const cell = (word: string, s: PriceSide): HTMLElement =>
+            sectionCell(
+                word,
+                pair(s),
+                s.ask === 1 && s.bid === 1 ? "is-off" : "is-live"
+            );
+        stack.replaceChildren(
+            cell("SCARCITY", quote.scarcity),
+            cell("CLUSTER", quote.cluster),
+            cell("CIVILIZATION", quote.civilization),
+            sectionCell(
+                quote.clamped ? "TOTAL clamped" : "TOTAL",
+                pair(quote.total),
+                quote.clamped ? "is-hit" : "is-live"
+            )
+        );
+        referenceStat.textContent = `${item.askCr} / ${item.bidCr} cr`;
+        asksStat.textContent = `${quote.askCr} cr (${signed(quote.askDeltaPercent)})`;
+        paysStat.textContent = `${quote.bidCr} cr (${signed(quote.bidDeltaPercent)})`;
+        const stockWords = unkept
+            ? "keeps none of it, so it pays a little under reference for what it only resells"
+            : share <= 0
+              ? "has none left, so it asks and pays the starved factor"
+              : share < 1
+                ? "is short of its target, so it asks and pays more"
+                : share === 1
+                  ? "holds what it spawned with, so scarcity is 1"
+                  : share < PRICE_GLUT_SHARE
+                    ? "is over its target, so it asks and pays less"
+                    : `holds ${PRICE_GLUT_SHARE} times its target or more, so the glut factor applies in full`;
+        readout.textContent =
+            `${item.name} (${item.category}) at a ${clusterWords[cluster].toLowerCase()} ` +
+            `${role.toLowerCase()} trader: a Buy pays ${quote.askCr} cr and a ` +
+            `Sell earns ${quote.bidCr} cr. The trader ${stockWords}.`;
+    };
+
+    host.appendChild(itemKeys.row);
+    host.appendChild(clusterKeys.row);
+    host.appendChild(roleKeys.row);
+    host.appendChild(controls);
+    host.appendChild(unkeptRow);
+    host.appendChild(stack);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    const note = el(
+        "p",
+        "widget__note",
+        `Each side is clamped between x${PRICE_CLAMP.min} and x${PRICE_CLAMP.max} ` +
+            "and rounds to the nearest credit. A real civilization weighs " +
+            "its four role preferences; this scope gives one role all of the " +
+            "weight. Every factor's bid is at most its ask, so a trader never " +
+            "pays more than it charges. Rules and fields: "
+    );
+    const link = el("a", "", "price tables for mods");
+    link.href = "/create/prices/";
+    note.appendChild(link);
+    note.append(".");
+    host.appendChild(note);
+    update();
+}
+
+// ---- stance-ledger: how deeds move a civilization's stance ----------------
+
+// The table rules, from crates/nova_gameplay/src/civilization.rs:
+// OFFENCE_STEP :128, OFFENCE_WINDOW_SECONDS :133, MERIT_STEP :136,
+// PROVOKED_WINDOW_SECONDS :143, ENEMY_DECAY_SECONDS :147, and
+// `CivilizationStances::{offence, merit, provoke, settle, expire, effective}`.
+// One-hop propagation of an offence's step down by the seeded edge is
+// crates/nova_world_base/src/stance.rs `apply_offence`.
+export const OFFENCE_STEP = 3;
+export const OFFENCE_WINDOW_SECONDS = 3600;
+export const MERIT_STEP = 3;
+export const PROVOKED_WINDOW_SECONDS = 900;
+export const ENEMY_DECAY_SECONDS = 7200;
+/** The play seconds one "+1 h" press lets pass. */
+const STANCE_HOUR_SECONDS = 3600;
+
+/** A stance toward the player or along an edge. Never a number. */
+export type StanceType = "Ally" | "Neutral" | "Enemy";
+
+/** One civilization's standing with the player (`StanceRecord`). */
+export interface StanceCivilization {
+    name: string;
+    /** The stance the seed drew. */
+    seeded: StanceType;
+    /** The table stance: the seed's, moved by events. */
+    stance: StanceType;
+    /** Play-time stamps of the offences inside the window, oldest first. */
+    offences: number[];
+    merits: number;
+    provokedAt: number | null;
+    /** When events made it Enemy; null for not Enemy or Enemy by seed. */
+    enemySince: number | null;
+}
+
+/** Civilizations, their seeded edges and the play clock. */
+export interface StanceWorld {
+    now: number;
+    civilizations: StanceCivilization[];
+    /** `edges[a][b]`: the seeded edge, null for not neighbours. */
+    edges: (StanceType | null)[][];
+}
+
+/** A deed against one civilization, or an hour of play. */
+export type StanceEvent =
+    | { kind: "offence" | "merit" | "provoke" | "settle"; civilization: number }
+    | { kind: "hour" };
+
+/** One change of a table stance. */
+export interface StanceChange {
+    civilization: number;
+    from: StanceType;
+    to: StanceType;
+}
+
+const STANCE_RANK: StanceType[] = ["Enemy", "Neutral", "Ally"];
+
+function stanceStepped(stance: StanceType, by: number): StanceType {
+    const rank = Math.min(2, Math.max(0, STANCE_RANK.indexOf(stance) + by));
+    return STANCE_RANK[rank];
+}
+
+/** The stance a civilization's bodies act on: Enemy while provoked. */
+export function effectiveStance(
+    civ: StanceCivilization,
+    now: number
+): StanceType {
+    return civ.provokedAt !== null &&
+        now - civ.provokedAt < PROVOKED_WINDOW_SECONDS
+        ? "Enemy"
+        : civ.stance;
+}
+
+/**
+ * Apply one event to `world`, as the game's stance table does, and return
+ * the new world with every table stance it moved, the target's own first.
+ */
+export function stanceStep(
+    world: StanceWorld,
+    event: StanceEvent
+): { world: StanceWorld; changes: StanceChange[] } {
+    const next: StanceWorld = {
+        now: world.now,
+        civilizations: world.civilizations.map((civ) => ({
+            ...civ,
+            offences: [...civ.offences],
+        })),
+        edges: world.edges,
+    };
+    const now = next.now;
+    const changes: StanceChange[] = [];
+    const step = (index: number, by: number): boolean => {
+        const civ = next.civilizations[index];
+        const from = civ.stance;
+        const to = stanceStepped(from, by);
+        if (to === from) return false;
+        civ.stance = to;
+        if (to === "Enemy") civ.enemySince = now;
+        else if (from === "Enemy") civ.enemySince = null;
+        changes.push({ civilization: index, from, to });
+        return true;
+    };
+    if (event.kind === "hour") {
+        next.now = now + STANCE_HOUR_SECONDS;
+        for (const [index, civ] of next.civilizations.entries()) {
+            civ.offences = civ.offences.filter(
+                (at) => next.now - at < OFFENCE_WINDOW_SECONDS
+            );
+            if (
+                civ.provokedAt !== null &&
+                next.now - civ.provokedAt >= PROVOKED_WINDOW_SECONDS
+            )
+                civ.provokedAt = null;
+            if (
+                civ.stance === "Enemy" &&
+                civ.enemySince !== null &&
+                next.now - civ.enemySince >= ENEMY_DECAY_SECONDS
+            ) {
+                const from = civ.stance;
+                civ.stance = stanceStepped(from, 1);
+                civ.enemySince = null;
+                changes.push({ civilization: index, from, to: civ.stance });
+            }
+        }
+        return { world: next, changes };
+    }
+    const target = event.civilization;
+    const civ = next.civilizations[target];
+    switch (event.kind) {
+        case "offence": {
+            civ.offences = civ.offences.filter(
+                (at) => now - at < OFFENCE_WINDOW_SECONDS
+            );
+            civ.offences.push(now);
+            if (civ.enemySince !== null) civ.enemySince = now;
+            if (civ.offences.length < OFFENCE_STEP) break;
+            civ.offences = [];
+            // Only an offence's step down reaches the neighbours, once.
+            if (!step(target, -1)) break;
+            for (const [other, edge] of next.edges[target].entries()) {
+                if (other === target || edge === null || edge === "Neutral")
+                    continue;
+                step(other, edge === "Ally" ? -1 : 1);
+            }
+            break;
+        }
+        case "merit":
+            civ.merits += 1;
+            if (civ.merits < MERIT_STEP) break;
+            civ.merits = 0;
+            step(target, 1);
+            break;
+        case "provoke":
+            civ.provokedAt = now;
+            break;
+        case "settle":
+            civ.offences = [];
+            civ.provokedAt = null;
+            if (civ.stance === "Enemy") step(target, 1);
+            break;
+    }
+    return { world: next, changes };
+}
+
+// The scope's three civilizations: A starts Ally to the player, B sits on an
+// Ally edge to A and C on an Enemy edge to it. All three are neighbours, and
+// B-C is an Enemy edge because a civilization with no Enemy edge designates
+// a rival (crates/nova_world_base/src/civilizations.rs `edge`, `rival`).
+function stanceSeedWorld(): StanceWorld {
+    const civ = (name: string, seeded: StanceType): StanceCivilization => ({
+        name,
+        seeded,
+        stance: seeded,
+        offences: [],
+        merits: 0,
+        provokedAt: null,
+        enemySince: null,
+    });
+    return {
+        now: 0,
+        civilizations: [civ("A", "Ally"), civ("B", "Ally"), civ("C", "Enemy")],
+        edges: [
+            [null, "Ally", "Enemy"],
+            ["Ally", null, "Enemy"],
+            ["Enemy", "Enemy", null],
+        ],
+    };
+}
+
+const STANCE_SEED_WORDS = "0:00 A is Ally to you, B Ally, C Enemy by its seed.";
+
+function playClock(seconds: number): string {
+    const minutes = Math.round(seconds / 60);
+    return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
+}
+
+function initStanceLedger(host: HTMLElement): void {
+    header(
+        host,
+        "Stance ledger: three neighbours",
+        "Three civilizations that are each other's neighbours, with seeded " +
+            "edges. Neutralize their hulls, hand in their jobs, provoke " +
+            "them, pay a fine or let an hour of play pass, and read every " +
+            "stance that moves."
+    );
+
+    let world = stanceSeedWorld();
+    let lines: string[] = [];
+    const board = el("div", "widget__stack widget__stack--board");
+    const edges = el("div", "widget__stats");
+    const readout = el("p", "widget__readout");
+    readout.setAttribute("aria-live", "polite");
+    const ledger = el("ol", "widget__note");
+
+    const edgeWords: [number, number][] = [
+        [0, 1],
+        [0, 2],
+        [1, 2],
+    ];
+    for (const [a, b] of edgeWords) {
+        const names = world.civilizations;
+        stat(edges, `${names[a].name}-${names[b].name} edge`).textContent =
+            world.edges[a][b] ?? "none";
+    }
+
+    const apply = (event: StanceEvent): void => {
+        const before = world;
+        const at = playClock(before.now);
+        let line: string;
+        if (event.kind === "hour") {
+            const result = stanceStep(before, event);
+            world = result.world;
+            line = `${playClock(world.now)} an hour of play passes`;
+            for (const change of result.changes)
+                line += `; ${world.civilizations[change.civilization].name} thaws ${change.from} to ${change.to}`;
+        } else {
+            const civ = before.civilizations[event.civilization];
+            const effective = effectiveStance(civ, before.now);
+            if (event.kind === "merit" && effective === "Enemy") {
+                line = `${at} ${civ.name} refuses your dock: no job hands in`;
+            } else if (event.kind === "provoke" && effective === "Enemy") {
+                line = `${at} ${civ.name}'s crews already fight you: nothing to provoke`;
+            } else if (event.kind === "settle" && civ.stance !== "Enemy") {
+                line = `${at} ${civ.name} is not Enemy: no fine is asked`;
+            } else {
+                const result = stanceStep(before, event);
+                world = result.world;
+                const after = world.civilizations[event.civilization];
+                const own = result.changes.find(
+                    (change) => change.civilization === event.civilization
+                );
+                const others = result.changes.filter(
+                    (change) => change !== own
+                );
+                const deed: Record<typeof event.kind, string> = {
+                    offence: `you neutralize one of ${civ.name}'s hulls`,
+                    merit: `you hand in one of ${civ.name}'s jobs`,
+                    provoke: `you fire on one of ${civ.name}'s hulls past its patience`,
+                    settle: `you pay ${civ.name}'s fine`,
+                };
+                line = `${at} ${deed[event.kind]}`;
+                if (own) line += `: ${civ.name} ${own.from} to ${own.to}`;
+                else if (event.kind === "offence")
+                    line +=
+                        after.offences.length === 0
+                            ? `: ${civ.name} is already Enemy`
+                            : `: offences ${after.offences.length}/${OFFENCE_STEP}`;
+                else if (event.kind === "merit")
+                    line +=
+                        after.merits === 0
+                            ? `: ${civ.name} is already Ally`
+                            : `: merits ${after.merits}/${MERIT_STEP}`;
+                else if (event.kind === "provoke")
+                    line += `: ${civ.name} reads Enemy for ${PROVOKED_WINDOW_SECONDS / 60} min`;
+                for (const change of others) {
+                    const other = world.civilizations[change.civilization].name;
+                    const edge =
+                        world.edges[event.civilization][change.civilization];
+                    line += `; ${other} on the ${edge} edge ${change.from} to ${change.to}`;
+                }
+            }
+        }
+        lines = [line, ...lines].slice(0, 8);
+        readout.textContent = line;
+        update();
+    };
+
+    const update = (): void => {
+        const now = world.now;
+        board.replaceChildren(
+            ...world.civilizations.map((civ, index) => {
+                const effective = effectiveStance(civ, now);
+                const cell = el("div", "widget__cell widget__cell--board");
+                cell.classList.add(
+                    effective === "Enemy"
+                        ? "is-dead"
+                        : effective === "Ally"
+                          ? "is-live"
+                          : "is-clear"
+                );
+                if (civ.provokedAt !== null && effective === "Enemy")
+                    cell.classList.replace("is-dead", "is-hit");
+                cell.appendChild(
+                    el("b", undefined, `${civ.name} ${effective.toUpperCase()}`)
+                );
+                cell.appendChild(
+                    el(
+                        "span",
+                        "widget__kind",
+                        `SEEDED ${civ.seeded.toUpperCase()}`
+                    )
+                );
+                const facts = [
+                    `offences ${civ.offences.length}/${OFFENCE_STEP}`,
+                    `merits ${civ.merits}/${MERIT_STEP}`,
+                ];
+                if (civ.provokedAt !== null && effective === "Enemy")
+                    facts.push(
+                        `hostile ${playClock(PROVOKED_WINDOW_SECONDS - (now - civ.provokedAt))} left`
+                    );
+                if (civ.stance === "Enemy")
+                    facts.push(
+                        civ.enemySince === null
+                            ? "seeded Enemy: only a fine thaws it"
+                            : `thaws in ${playClock(ENEMY_DECAY_SECONDS - (now - civ.enemySince))}`
+                    );
+                cell.appendChild(document.createTextNode(facts.join(", ")));
+                const keys = el("div", "widget__keys");
+                const deeds: [Exclude<StanceEvent["kind"], "hour">, string][] =
+                    [
+                        ["offence", "OFFENCE"],
+                        ["merit", "MERIT"],
+                        ["provoke", "PROVOKE"],
+                        ["settle", "SETTLE"],
+                    ];
+                for (const [kind, word] of deeds) {
+                    const button = el("button", "widget__btn", word);
+                    button.type = "button";
+                    button.setAttribute("aria-label", `${word} ${civ.name}`);
+                    button.addEventListener("click", () =>
+                        apply({ kind, civilization: index })
+                    );
+                    keys.appendChild(button);
+                }
+                cell.appendChild(keys);
+                return cell;
+            })
+        );
+        ledger.replaceChildren(
+            ...lines.map((line) => el("li", undefined, line))
+        );
+    };
+
+    const clockKeys = el("div", "widget__keys");
+    const hour = el("button", "widget__btn", "+1 H PLAY");
+    hour.type = "button";
+    hour.addEventListener("click", () => apply({ kind: "hour" }));
+    const reset = el("button", "widget__btn", "RESET");
+    reset.type = "button";
+    reset.addEventListener("click", () => {
+        world = stanceSeedWorld();
+        lines = [];
+        readout.textContent = STANCE_SEED_WORDS;
+        update();
+    });
+    clockKeys.appendChild(hour);
+    clockKeys.appendChild(reset);
+
+    host.appendChild(board);
+    host.appendChild(edges);
+    host.appendChild(clockKeys);
+    host.appendChild(readout);
+    host.appendChild(ledger);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            `${OFFENCE_STEP} offences inside ${OFFENCE_WINDOW_SECONDS / 3600} h of play ` +
+                `step a civilization down; ${MERIT_STEP} merits step it up. ` +
+                "Only an offence's step down travels, one hop along an Ally " +
+                "or Enemy edge. A provocation reads Enemy for " +
+                `${PROVOKED_WINDOW_SECONDS / 60} min of play, and an Enemy ` +
+                `your deeds made thaws after ${ENEMY_DECAY_SECONDS / 3600} h ` +
+                "with no new offence. In the game a fine is paid while docked " +
+                "at a neighbour's station that admits you."
+        )
+    );
+    readout.textContent = STANCE_SEED_WORDS;
+    update();
+}
+
 const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "aim-decay": initAimDecay,
     "round-travel": initRoundTravel,
@@ -12743,6 +13497,8 @@ const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "docking-envelope": initDockingEnvelope,
     "mining-beam-checks": initMiningBeamChecks,
     "generated-ship-roles": initGeneratedShipRoles,
+    "price-factors": initPriceFactors,
+    "stance-ledger": initStanceLedger,
 };
 
 // Hydrate every declared widget on the page. The static fallback content is
