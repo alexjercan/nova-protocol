@@ -13042,9 +13042,21 @@ function initPriceFactors(host: HTMLElement): void {
             `Sell earns ${quote.bidCr} cr. The trader ${stockWords}.`;
     };
 
-    host.appendChild(itemKeys.row);
-    host.appendChild(clusterKeys.row);
-    host.appendChild(roleKeys.row);
+    // Each key row names its choice for sighted and screen-reader users
+    // alike; the group takes the word, so the visible copy is hidden from
+    // the accessibility tree and not read twice.
+    for (const [keys, word] of [
+        [itemKeys, "item"],
+        [clusterKeys, "cluster"],
+        [roleKeys, "role"],
+    ] as const) {
+        keys.row.setAttribute("role", "group");
+        keys.row.setAttribute("aria-label", word);
+        const name = el("span", "widget__keys-label", word);
+        name.setAttribute("aria-hidden", "true");
+        keys.row.prepend(name);
+        host.appendChild(keys.row);
+    }
     host.appendChild(controls);
     host.appendChild(unkeptRow);
     host.appendChild(stack);
@@ -13401,13 +13413,21 @@ function initStanceLedger(host: HTMLElement): void {
                         ["provoke", "PROVOKE"],
                         ["settle", "SETTLE"],
                     ];
-                for (const [kind, word] of deeds) {
+                for (const [slot, [kind, word]] of deeds.entries()) {
                     const button = el("button", "widget__btn", word);
                     button.type = "button";
                     button.setAttribute("aria-label", `${word} ${civ.name}`);
-                    button.addEventListener("click", () =>
-                        apply({ kind, civilization: index })
-                    );
+                    button.addEventListener("click", () => {
+                        const focused = document.activeElement === button;
+                        apply({ kind, civilization: index });
+                        // apply() rebuilds the board and drops the focused
+                        // key to BODY; focus resumes on the rebuilt twin.
+                        if (focused)
+                            board.children[index]
+                                .querySelectorAll<HTMLButtonElement>("button")
+                                .item(slot)
+                                .focus();
+                    });
                     keys.appendChild(button);
                 }
                 cell.appendChild(keys);

@@ -133,6 +133,14 @@ const md = new MarkdownIt({
     },
 });
 
+// Wrap every markdown table in a horizontal scroll box, so a table wider than
+// a narrow viewport scrolls inside its box instead of widening the document.
+// Raw HTML <table> blocks bypass these rules and stay unwrapped.
+md.renderer.rules.table_open = (tokens, idx, options, env, self) =>
+    `<div class="table-scroll">\n${self.renderToken(tokens, idx, options)}`;
+md.renderer.rules.table_close = (tokens, idx, options, env, self) =>
+    `${self.renderToken(tokens, idx, options)}</div>\n`;
+
 md.use(anchor, {
     level: [2, 3],
     slugify: (s) =>

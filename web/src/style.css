@@ -882,7 +882,8 @@ a.platform-link:hover {
     text-underline-offset: 3px;
 }
 /* Inline code is a chip of live screen, so it reads as terminal output rather
-   than as a foreign editor's tint. */
+   than as a foreign editor's tint. A long path may break at the column edge
+   without changing table widths; `pre` keeps code blocks unwrapped. */
 .prose code {
     font-family: var(--font-mono);
     font-size: 0.94em;
@@ -891,6 +892,7 @@ a.platform-link:hover {
     border-radius: var(--radius);
     padding: 1px 6px;
     color: var(--phosphor);
+    overflow-wrap: break-word;
 }
 /* A keycap is the PoC's `.btn .key`: an amber-bordered token on a dark trough. */
 .prose kbd {
@@ -1785,6 +1787,16 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     background: var(--recess);
     font-size: 0.82rem;
 }
+/* markdown.js wraps markdown tables in this box. The table margin moves to the
+   box (the same 1.5em at the table's 0.82rem), so desktop spacing is unchanged
+   and a table wider than the column scrolls here, not the page. */
+.prose .table-scroll {
+    margin: calc(1.5 * 0.82rem) 0;
+    overflow-x: auto;
+}
+.prose .table-scroll > table {
+    margin: 0;
+}
 .prose th,
 .prose td {
     padding: 8px 12px;
@@ -2642,6 +2654,11 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     flex-wrap: wrap;
     gap: 8px;
     margin: 14px 0 0;
+}
+.widget__keys-label {
+    align-self: center;
+    font-size: 0.78rem;
+    color: var(--phosphor-dim);
 }
 .widget__btn.is-on {
     color: var(--screen);
