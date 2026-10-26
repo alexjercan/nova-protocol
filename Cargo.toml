@@ -1293,6 +1293,97 @@ path = "examples/screenshots/loop_world_start.rs"
 name = "screenshot_generated_ships"
 path = "examples/screenshots/screenshot_generated_ships.rs"
 
+# The v0.16.0 news figures: the release-lead undock, the New Game wizard and
+# the start hulls.
+[[example]]
+name = "news_0160_release_lead"
+path = "examples/screenshots/news_0160_release_lead.rs"
+required-features = ["debug"]
+
+[[example]]
+name = "news_0160_world_setup"
+path = "examples/screenshots/news_0160_world_setup.rs"
+required-features = ["debug"]
+
+[[example]]
+name = "news_0160_start_hulls"
+path = "examples/screenshots/news_0160_start_hulls.rs"
+required-features = ["debug"]
+
+# The v0.16.0 news pane stills: the Station pane after a hire, the Jobs pane
+# at a second station, the market inspector and the STANCES block.
+[[example]]
+name = "news_0160_station_pane"
+path = "examples/screenshots/news_0160_station_pane.rs"
+required-features = ["debug"]
+
+[[example]]
+name = "news_0160_jobs_pane"
+path = "examples/screenshots/news_0160_jobs_pane.rs"
+required-features = ["debug"]
+
+[[example]]
+name = "news_0160_market_inspector"
+path = "examples/screenshots/news_0160_market_inspector.rs"
+required-features = ["debug"]
+
+[[example]]
+name = "news_0160_stances_block"
+path = "examples/screenshots/news_0160_stances_block.rs"
+required-features = ["debug"]
+
+# The v0.16.0 news menu stills: the Load screen over three saved worlds and
+# Settings > Graphics with Custom lit.
+[[example]]
+name = "news_0160_load_screen"
+path = "examples/screenshots/news_0160_load_screen.rs"
+required-features = ["debug"]
+
+[[example]]
+name = "news_0160_settings_presets"
+path = "examples/screenshots/news_0160_settings_presets.rs"
+required-features = ["debug"]
+
+# The v0.16.0 news generator stills: the three station archetypes, each at its
+# own advancement, and three armored hulls from three distances.
+[[example]]
+name = "news_0160_station_archetypes"
+path = "examples/screenshots/news_0160_station_archetypes.rs"
+required-features = ["debug"]
+
+[[example]]
+name = "news_0160_generated_scale"
+path = "examples/screenshots/news_0160_generated_scale.rs"
+required-features = ["debug"]
+
+# The v0.16.0 news Refit loop: Catalogue, a kinetic PDC on a dorsal socket,
+# a roll and the fit at the docked starting station.
+[[example]]
+name = "news_0160_refit_catalogue"
+path = "examples/screenshots/news_0160_refit_catalogue.rs"
+required-features = ["debug"]
+
+# The v0.16.0 news chart loop: STN-1's Y layer, Z down to STN-2's layer,
+# then select STN-2; no wreck is found in this fixture.
+[[example]]
+name = "news_0160_chart_view"
+path = "examples/screenshots/news_0160_chart_view.rs"
+required-features = ["debug"]
+
+# The v0.16.0 news station loop: a generated ring station on a planetoid
+# orbit with two generated hulls docked, its turrets on a passing hull.
+[[example]]
+name = "news_0160_station_orbit"
+path = "examples/screenshots/news_0160_station_orbit.rs"
+required-features = ["debug"]
+
+# The v0.16.0 news escort loops: the raiders springing on a held Escort's
+# hauler with the escort in formation, and the hauler reaching its mark.
+[[example]]
+name = "news_0160_escort_ambush"
+path = "examples/screenshots/news_0160_escort_ambush.rs"
+required-features = ["debug"]
+
 # Every station design parked side by side, each shot framed by its own hull.
 [[example]]
 name = "screenshot_station_showcase"

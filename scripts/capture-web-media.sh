@@ -19,6 +19,8 @@
 # Requires: cargo, ffmpeg, ffprobe, xvfb-run (all in the flake devshell). The
 # capture needs a software Vulkan (lavapipe/llvmpipe) behind the Xvfb display.
 # Set NOVA_REUSE_STAGE=1 to repackage a completed target/loop-shots capture set.
+# Set NOVA_NEWS_0160_ONLY=1 to capture only the v0.16.0 post's loops for the
+# final release candidate; the rules are beside news_0160_only below.
 # Run it before scripts/gen-web-screenshots.py: it cuts the STILL_CUTS stills
 # into that script's stage.
 #
@@ -120,6 +122,20 @@ LOOPS=(
     "loop_docked_helm|news-0150-docked-helm||"
     "loop_rcs_magazine|news-0150-rcs-magazine||"
     "loop_predicted_path|news-0150-predicted-path||"
+    # The v0.16.0 news post uses pinned release-specific scenes; do not alias
+    # living footage into a frozen news name.
+    "news_0160_release_lead|news-0160-release-lead||"
+    "news_0160_world_setup|news-0160-world-setup||"
+    "news_0160_refit_catalogue|news-0160-refit-catalogue||"
+    "news_0160_chart_view|news-0160-chart-view||"
+    # The station loop waits for orbital phase; its step deadlines sum to
+    # 1620 s, so the outer backstop must not mask a named step failure.
+    "news_0160_station_orbit|news-0160-station-orbit||NOVA_AUTOPILOT_DEADLINE=1800"
+    # Each escort tuple runs the producer, which writes both loops; the leg is
+    # real flight, so the completion backstop, counted in play seconds on an
+    # armed run, is raised.
+    "news_0160_escort_ambush|news-0160-escort-ambush||NOVA_AUTOPILOT_DEADLINE=1800"
+    "news_0160_escort_ambush|news-0160-escort-done||NOVA_AUTOPILOT_DEADLINE=1800"
 )
 
 # A second name for footage already captured above, when a second producer
@@ -185,6 +201,243 @@ PENDING=()
 # raise the CRF, do not ship it heavy.
 MAX_BYTES=$((3 * 1024 * 1024))
 
+# Stills cut out of a packaged loop, for a card no producer shoots on its own.
+# A full run cuts from "$OUT/<loop>.webm"; the news-only pass cuts from its
+# validated stage before shipping. Both write into the STILLS stage, never
+# the site: scripts/gen-web-screenshots.py copies it from there through its own
+# frozen gate. So this script runs BEFORE that one.
+#   loop|seconds|still
+STILL_CUTS=(
+    "news-0150-release-lead|4.1|thumb-news-0.15.0.png"
+    # The inspected GOTO frame shows the ship and cyan guide at card size;
+    # the small job-chip text is for the full loop, not the thumbnail.
+    # Recheck against the final release-candidate capture.
+    "news-0160-release-lead|12.0|thumb-news-0.16.0.png"
+)
+SHOTS="${CARGO_TARGET_DIR:-target}/shots"
+mkdir -p "$SHOTS"
+
+cut_still() {
+    local loop seconds still source="${2:-$OUT}"
+    IFS='|' read -r loop seconds still <<<"$1"
+    [[ -s "$source/${loop}.webm" ]] || {
+        echo "!! ${still} is cut from ${loop}.webm, which is not in ${source}" >&2
+        exit 1
+    }
+    rm -f "$SHOTS/${still}"
+    ffmpeg -v error -y -ss "$seconds" -i "$source/${loop}.webm" -frames:v 1 "$SHOTS/${still}"
+    # ffmpeg exits 0 and writes nothing when the seek lands past the end.
+    [[ -s "$SHOTS/${still}" ]] || {
+        echo "!! ${still}: no frame at ${seconds}s of ${loop}.webm" >&2
+        exit 1
+    }
+    echo ">> ${still}: frame at ${seconds}s of ${loop}.webm -> ${SHOTS}"
+}
+
+# NOVA_UNFREEZE is described beside is_frozen below.
+unfrozen_by_env() {
+    local loop="$1" prefix unfrozen
+    IFS=',' read -r -a unfrozen <<<"${NOVA_UNFREEZE:-}"
+    for prefix in "${unfrozen[@]}"; do
+        [[ -n "$prefix" && "$loop" == "$prefix"* ]] && return 0
+    done
+    return 1
+}
+
+# NOVA_NEWS_0160_ONLY=1 is the final release-candidate pass for the v0.16.0
+# post: it captures the `news-0160-` LOOPS rows and nothing else. Each
+# producer is built and run ONCE - news_0160_escort_ambush writes both of its
+# loops in one session - and every loop must then be freshly staged, 1280x720
+# and within budget before anything reaches $OUT. A shipped `news-0160-` loop
+# is frozen: the pass refuses to start unless NOVA_UNFREEZE re-opens it.
+#
+# The manifest must already hold a full run's rows, and they stay byte for
+# byte: its top header dates them, not this pass. The v0.16.0 rows go after
+# them under their own `# news-0160 group:` header naming the commit they were
+# built from. A re-opened re-cut replaces the previous group, and only a group
+# of exactly that header followed by the same rows; any other shape fails.
+NEWS_0160_PREFIX=news-0160-
+NEWS_0160_LOOPS=7
+NEWS_0160_HEADER="# news-0160 group:"
+
+case "${NOVA_NEWS_0160_ONLY:-0}" in
+    0 | 1) ;;
+    *)
+        echo "!! NOVA_NEWS_0160_ONLY=${NOVA_NEWS_0160_ONLY} - use 0 or 1" >&2
+        exit 1
+        ;;
+esac
+
+news_0160_only() {
+    local manifest="$OUT/manifest.txt" commit pair example loop arg_string env_string
+    local headers rows header_line="" want got file duration width height bytes cut built_head dirty
+    local -a loops=() producers=() build=() run_args=() run_env=() cargo_args=() shipped=() packaged=()
+    local -A producer_of=() producer_args=() producer_env=()
+
+    [[ "${NOVA_REUSE_STAGE:-0}" != "1" ]] || {
+        echo "!! NOVA_NEWS_0160_ONLY=1 needs fresh captures - unset NOVA_REUSE_STAGE" >&2
+        exit 1
+    }
+
+    for pair in "${LOOPS[@]}"; do
+        IFS='|' read -r example loop arg_string env_string <<<"$pair"
+        [[ "$loop" == "$NEWS_0160_PREFIX"* ]] || continue
+        loops+=("$loop")
+        producer_of[$loop]="$example"
+        if [[ -v "producer_args[$example]" ]]; then
+            # One run serves every row of a producer, so the rows must agree
+            # on the composition that run records.
+            [[ "${producer_args[$example]}" == "$arg_string" && "${producer_env[$example]}" == "$env_string" ]] || {
+                echo "!! ${example} rows disagree on arguments or environment - one run cannot serve them" >&2
+                exit 1
+            }
+        else
+            producers+=("$example")
+            producer_args[$example]="$arg_string"
+            producer_env[$example]="$env_string"
+        fi
+    done
+    [[ "${#loops[@]}" -eq "$NEWS_0160_LOOPS" ]] || {
+        echo "!! LOOPS has ${#loops[@]} ${NEWS_0160_PREFIX} rows, expected ${NEWS_0160_LOOPS}" >&2
+        exit 1
+    }
+
+    # Everything that can refuse the pass is checked before the first build.
+    [[ -s "$manifest" ]] || {
+        echo "!! ${manifest} is missing or empty - the v0.16.0 rows extend a full run's manifest" >&2
+        exit 1
+    }
+    [[ -z "$(tail -c 1 "$manifest")" ]] || {
+        echo "!! ${manifest} does not end in a newline - appending would join its last row" >&2
+        exit 1
+    }
+    for loop in "${loops[@]}"; do
+        [[ ! -e "$OUT/${loop}.webm" ]] || unfrozen_by_env "$loop" || shipped+=("${loop}.webm")
+    done
+    [[ "${#shipped[@]}" -eq 0 ]] || {
+        echo "!! ${shipped[*]} already shipped in ${OUT} and news loops are frozen - set NOVA_UNFREEZE=news-0160 to re-cut" >&2
+        exit 1
+    }
+    headers="$(grep -c "^${NEWS_0160_HEADER}" "$manifest" || true)"
+    rows="$(grep -c "^${NEWS_0160_PREFIX}" "$manifest" || true)"
+    if [[ "$headers" -ne 0 || "$rows" -ne 0 ]]; then
+        for loop in "${loops[@]}"; do
+            unfrozen_by_env "$loop" || {
+                echo "!! ${manifest} already lists the v0.16.0 group - set NOVA_UNFREEZE=news-0160 to re-cut" >&2
+                exit 1
+            }
+        done
+        want="$(printf '%s.webm\n' "${loops[@]}" | sort)"
+        if [[ "$headers" -eq 1 && "$rows" -eq "$NEWS_0160_LOOPS" ]]; then
+            header_line="$(grep -n "^${NEWS_0160_HEADER}" "$manifest" | cut -d: -f1)"
+            got="$(sed -n "$((header_line + 1)),$((header_line + NEWS_0160_LOOPS))p" "$manifest" | cut -f1 | sort)"
+        fi
+        [[ -n "$header_line" && "$got" == "$want" ]] || {
+            echo "!! ${manifest} has ${headers} v0.16.0 header(s) and ${rows} ${NEWS_0160_PREFIX} row(s), not one group" \
+                "of the ${NEWS_0160_LOOPS} loops - repair it by hand" >&2
+            exit 1
+        }
+    fi
+    # The group header names the commit the producers are built from, so that
+    # commit must hold every byte the build reads: a tracked or untracked change
+    # refuses the pass.
+    dirty="$(git status --porcelain --untracked-files=all)"
+    [[ -z "$dirty" ]] || {
+        echo "!! the worktree has changes the v0.16.0 group header could not name - commit or remove them:" >&2
+        echo "$dirty" >&2
+        exit 1
+    }
+    built_head="$(git rev-parse HEAD)"
+    commit="$(git rev-parse --short HEAD) on $(git rev-parse --abbrev-ref HEAD)"
+
+    for example in "${producers[@]}"; do
+        build+=(--example "$example")
+    done
+    echo ">> building the v0.16.0 loop producers..."
+    cargo build --features debug "${build[@]}"
+
+    # A loop left in the stage by an earlier pass must not stand in for one
+    # this pass failed to record.
+    for loop in "${loops[@]}"; do
+        rm -f "$STAGE/${loop}.webm"
+    done
+    for example in "${producers[@]}"; do
+        read -r -a run_args <<<"${producer_args[$example]}"
+        read -r -a run_env <<<"${producer_env[$example]}"
+        cargo_args=(run --features debug --example "$example")
+        [[ "${#run_args[@]}" -eq 0 ]] || cargo_args+=(-- "${run_args[@]}")
+        echo ">> ${example}: capturing under Xvfb..."
+        base_only_mods
+        env -u WAYLAND_DISPLAY "${run_env[@]}" NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR="$STAGE" \
+            xvfb-run -a -s "-screen 0 1920x1080x24" \
+            cargo "${cargo_args[@]}"
+    done
+
+    for loop in "${loops[@]}"; do
+        file="$STAGE/${loop}.webm"
+        [[ -s "$file" ]] || {
+            echo "!! ${producer_of[$loop]} exited cleanly but ${loop}.webm is not in ${STAGE}" >&2
+            exit 1
+        }
+        duration="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$file")"
+        width="$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of default=nw=1:nk=1 "$file")"
+        height="$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of default=nw=1:nk=1 "$file")"
+        bytes="$(stat -c%s "$file")"
+        [[ "$width" == "1280" && "$height" == "720" ]] || {
+            echo "!! ${loop}.webm is ${width}x${height}, expected 1280x720" >&2
+            exit 1
+        }
+        [[ "$bytes" -le "$MAX_BYTES" ]] || {
+            echo "!! ${loop}.webm is ${bytes} bytes (budget ${MAX_BYTES}) - re-cut the loop or raise LOOP_CRF" >&2
+            exit 1
+        }
+        packaged+=("$(printf '%s\t%s\t%.1f\t%s\t%s' \
+            "${loop}.webm" "${producer_of[$loop]}" "$duration" "$bytes" fresh)")
+        echo ">> ${loop}.webm: ${duration%.*}s, ${bytes} bytes (${producer_of[$loop]}, fresh)"
+    done
+
+    # A long pass can outlive the checkout it started from. Recheck before the
+    # first write to $OUT, so a moved or edited tree ships nothing.
+    [[ "$(git rev-parse HEAD)" == "$built_head" ]] || {
+        echo "!! HEAD moved from ${built_head} during the pass - the loops were not built from it; nothing shipped" >&2
+        exit 1
+    }
+    dirty="$(git status --porcelain --untracked-files=all)"
+    [[ -z "$dirty" ]] || {
+        echo "!! the worktree changed during the pass; nothing shipped:" >&2
+        echo "$dirty" >&2
+        exit 1
+    }
+
+    for cut in "${STILL_CUTS[@]}"; do
+        if [[ "$cut" == "$NEWS_0160_PREFIX"* ]]; then
+            cut_still "$cut" "$STAGE"
+        fi
+    done
+
+    if [[ -n "$header_line" ]]; then
+        sed "${header_line},$((header_line + NEWS_0160_LOOPS))d" "$manifest" >"${manifest}.next"
+    else
+        cp "$manifest" "${manifest}.next"
+    fi
+    {
+        echo "${NEWS_0160_HEADER} the ${NEWS_0160_LOOPS} rows below were built at commit ${commit};" \
+            "the rows above keep the commit in the top header"
+        printf '%s\n' "${packaged[@]}"
+    } >>"${manifest}.next"
+    for loop in "${loops[@]}"; do
+        cp "$STAGE/${loop}.webm" "$OUT/${loop}.webm"
+    done
+    mv "${manifest}.next" "$manifest"
+
+    echo ">> ${NEWS_0160_LOOPS} v0.16.0 loop(s) in ${OUT}; manifest.txt keeps every other row"
+}
+
+if [[ "${NOVA_NEWS_0160_ONLY:-0}" == "1" ]]; then
+    news_0160_only
+    exit 0
+fi
+
 examples=()
 for pair in "${LOOPS[@]}"; do
     IFS='|' read -r example _ _ <<<"$pair"
@@ -212,11 +465,11 @@ for pair in "${LOOPS[@]}"; do
     # every capture flow runs. Each tuple runs independently because one
     # producer can select a different composition through its arguments.
     if [[ "${#run_args[@]}" -gt 0 ]]; then
-        env "${run_env[@]}" NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR="$STAGE" \
+        env -u WAYLAND_DISPLAY "${run_env[@]}" NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR="$STAGE" \
             xvfb-run -a -s "-screen 0 1920x1080x24" \
             cargo run --features debug --example "$example" -- "${run_args[@]}"
     else
-        env "${run_env[@]}" NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR="$STAGE" \
+        env -u WAYLAND_DISPLAY "${run_env[@]}" NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CAPTURE_DIR="$STAGE" \
             xvfb-run -a -s "-screen 0 1920x1080x24" \
             cargo run --features debug --example "$example"
     fi
@@ -243,14 +496,10 @@ done
 # copy into the shipped tree is held. NOVA_UNFREEZE takes a comma-separated
 # prefix list to re-open the post being authored (`NOVA_UNFREEZE=news-0120`).
 is_frozen() {
-    local loop="$1" prefix
+    local loop="$1"
     [[ "$loop" == news-* ]] || return 1
     [[ -s "$OUT/${loop}.webm" ]] || return 1
-    IFS=',' read -r -a unfrozen <<<"${NOVA_UNFREEZE:-}"
-    for prefix in "${unfrozen[@]}"; do
-        [[ -n "$prefix" && "$loop" == "$prefix"* ]] && return 1
-    done
-    return 0
+    ! unfrozen_by_env "$loop"
 }
 
 MANIFEST="$OUT/manifest.txt"
@@ -369,31 +618,8 @@ for import in "${IMPORTED[@]}"; do
     package_import "$loop" "$source"
 done
 
-# Stills cut out of a packaged loop, for a card no producer shoots on its own.
-# The cut reads "$OUT/<loop>.webm" - the loop this run just packaged, or the
-# shipped one when the loop is frozen - and writes into the STILLS stage, never
-# the site: scripts/gen-web-screenshots.py copies it from there through its own
-# frozen gate. So this script runs BEFORE that one.
-#   loop|seconds|still
-STILL_CUTS=(
-    "news-0150-release-lead|4.1|thumb-news-0.15.0.png"
-)
-SHOTS="${CARGO_TARGET_DIR:-target}/shots"
-mkdir -p "$SHOTS"
 for cut in "${STILL_CUTS[@]}"; do
-    IFS='|' read -r loop seconds still <<<"$cut"
-    [[ -s "$OUT/${loop}.webm" ]] || {
-        echo "!! ${still} is cut from ${loop}.webm, which is not in ${OUT}" >&2
-        exit 1
-    }
-    rm -f "$SHOTS/${still}"
-    ffmpeg -v error -y -ss "$seconds" -i "$OUT/${loop}.webm" -frames:v 1 "$SHOTS/${still}"
-    # ffmpeg exits 0 and writes nothing when the seek lands past the end.
-    [[ -s "$SHOTS/${still}" ]] || {
-        echo "!! ${still}: no frame at ${seconds}s of ${loop}.webm" >&2
-        exit 1
-    }
-    echo ">> ${still}: frame at ${seconds}s of ${loop}.webm -> ${SHOTS}"
+    cut_still "$cut"
 done
 
 count=$((${#LOOPS[@]} + ${#ALIASES[@]} + ${#IMPORTED[@]}))

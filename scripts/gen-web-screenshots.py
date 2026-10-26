@@ -208,6 +208,16 @@ FIGURES = [
     ("news-0150-generated-ships.png",    "screenshot_generated_ships"),
     ("news-0150-ship-repair.png",        "screenshot_ship_repair"),
     ("news-0150-inventory-trade.png",    "trade_loop"),
+    # v0.16.0 release figures use pinned news-specific producers.
+    ("news-0160-start-hulls.png",        "news_0160_start_hulls"),
+    ("news-0160-station-pane.png",       "news_0160_station_pane"),
+    ("news-0160-jobs-pane.png",          "news_0160_jobs_pane"),
+    ("news-0160-market-inspector.png",   "news_0160_market_inspector"),
+    ("news-0160-stances-block.png",      "news_0160_stances_block"),
+    ("news-0160-load-screen.png",        "news_0160_load_screen"),
+    ("news-0160-settings-presets.png",   "news_0160_settings_presets"),
+    ("news-0160-station-archetypes.png", "news_0160_station_archetypes"),
+    ("news-0160-generated-scale.png",   "news_0160_generated_scale"),
     ("greeble-catalog.png",              "greeble_catalog"),
     # One ROW of that wall, read close enough that a piece's id, its box in
     # meters and its health are legible. The whole wall is a picture of how
@@ -223,6 +233,8 @@ THUMBNAILS = [
     # A frame of the news-0150-release-lead loop, cut into the stage by
     # scripts/capture-web-media.sh (`STILL_CUTS`); run that script first.
     ("thumb-news-0.15.0.png", None),
+    # Cut from the inspected release-lead GOTO frame by capture-web-media.sh.
+    ("thumb-news-0.16.0.png", None),
     ("thumb-devlog-3.png", None),
     ("thumb-devlog-4.png", None),
     ("thumb-devlog-5.png", None),

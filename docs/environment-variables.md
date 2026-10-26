@@ -220,7 +220,13 @@ names its own root on `SettingsStorePlugin` instead.
   already ships is never overwritten. `NOVA_REUSE_STAGE=1` tells
   `scripts/capture-web-media.sh` to package a completed `target/loop-shots`
   set rather than re-run the producers, which is the repackage path after a
-  capture that finished.
+  capture that finished. `NOVA_NEWS_0160_ONLY=1` makes the same script
+  capture only the v0.16.0 post's seven loops, for the final release
+  candidate: it runs each producer once, requires every loop freshly staged,
+  refuses `NOVA_REUSE_STAGE=1`, refuses a shipped `news-0160-` loop unless
+  `NOVA_UNFREEZE` re-opens it, and appends its rows to the existing manifest
+  under their own commit header; a re-opened re-cut replaces that group.
+  Any value other than `0` or `1` fails.
 - **Retired.** `NOVA_MENU_PATH` is read by nothing. `examples/ui/editor.rs`
   owns the create-a-ship-and-Play sequence end to end, so `system_menu_boot`
   dropped the branch; the only surviving mention is that example's module doc
