@@ -366,16 +366,7 @@ pub(super) fn on_player_removed_despawn_flight_input(
 
 pub(super) fn on_flight_burn_input(
     fire: On<Fire<FlightBurnInput>>,
-    mut commands: Commands,
-    ship: Single<
-        (
-            Entity,
-            &mut FlightIntent,
-            Has<Autopilot>,
-            Option<&DockedShip>,
-        ),
-        With<PlayerSpaceshipMarker>,
-    >,
+    ship: Single<(&mut FlightIntent, Option<&DockedShip>), With<PlayerSpaceshipMarker>>,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
@@ -386,15 +377,36 @@ pub(super) fn on_flight_burn_input(
         return;
     }
 
-    let (entity, mut intent, engaged, docked) = ship.into_inner();
+    let (mut intent, docked) = ship.into_inner();
     if docked.is_some_and(|docked| !docked.drives) {
         debug!("on_flight_burn_input: a docked hull burns only with the helm");
         return;
     }
+    // An engaged autopilot ignores this: `manual_burn_system` skips a ship
+    // with `Autopilot`, so a burn held into a maneuver waits for it to end.
     intent.burn = fire.value;
-    // Grabbing the throttle is a flight input: it takes the ship back.
+}
+
+/// Grabbing the throttle is a flight input: a fresh burn press takes the ship
+/// back. Only `Start` disengages, because `Fire` repeats every held frame and
+/// would cancel a STOP pressed while the burn key was already down.
+pub(super) fn on_flight_burn_input_started(
+    _: On<Start<FlightBurnInput>>,
+    mut commands: Commands,
+    ship: Single<(Entity, Has<Autopilot>, Option<&DockedShip>), With<PlayerSpaceshipMarker>>,
+    pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
+) {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
+        return;
+    }
+
+    let (entity, engaged, docked) = ship.into_inner();
+    if docked.is_some_and(|docked| !docked.drives) {
+        return;
+    }
     if engaged {
-        debug!("on_flight_burn_input: manual burn disengages the autopilot");
+        debug!("on_flight_burn_input_started: manual burn disengages the autopilot");
         commands.entity(entity).remove::<Autopilot>();
     }
 }
@@ -680,7 +692,7 @@ pub(super) fn on_dock_helm_input(
 /// Enter RCS fine-adjust mode: while SHIFT is held on a ship whose controller
 /// has the RCS capability, mark it [`RcsActive`] (the modal gate the helm, camera
 /// and scroll all read) and disengage any autopilot - entering RCS is a flight
-/// input, exactly like grabbing the throttle (`on_flight_burn_input`).
+/// input, exactly like grabbing the throttle (`on_flight_burn_input_started`).
 pub(super) fn on_rcs_modifier_start(
     _: On<Start<RcsModifierInput>>,
     mut commands: Commands,
@@ -994,6 +1006,66 @@ mod tests {
             app.world().get::<RcsIntent>(ship).unwrap().0,
             Vec3::ZERO,
             "with its held offset nulled"
+        );
+    }
+
+    /// Only a fresh burn press takes the ship back. `Fire` repeats every frame
+    /// the key is held, so a burn held from before X cancelled the new STOP on
+    /// the next frame, and the player never saw the brake or its prediction.
+    #[test]
+    fn a_burn_held_before_stop_does_not_cancel_it() {
+        use bevy::input::InputPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_flight_burn_input)
+            .add_observer(on_flight_burn_input_started)
+            .add_observer(on_flight_burn_input_completed)
+            .add_observer(on_autopilot_stop_input);
+
+        let (ship, _) = spawn_flyable_ship(app.world_mut());
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(FlightIntent::default());
+        app.finish();
+        app.cleanup();
+        app.update();
+        spawn_flight_rig(&mut app);
+        app.update();
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyW);
+        app.update();
+        tap(&mut app, KeyCode::KeyX);
+        for frame in 0..5 {
+            app.update();
+            assert!(
+                app.world().get::<FlightIntent>(ship).unwrap().burn > 0.0,
+                "frame {frame}: the held key still fires"
+            );
+            assert_eq!(
+                app.world().get::<Autopilot>(ship).map(|ap| ap.action),
+                Some(AutopilotAction::Stop),
+                "frame {frame}: the held burn leaves STOP engaged"
+            );
+        }
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::KeyW);
+        app.update();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyW);
+        app.update();
+        app.update();
+        assert!(
+            app.world().get::<Autopilot>(ship).is_none(),
+            "a fresh burn press takes the ship back"
         );
     }
 
@@ -1535,6 +1607,7 @@ mod tests {
         app.init_resource::<avian3d::dynamics::solver::joint_graph::JointGraph>();
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_flight_burn_input)
+            .add_observer(on_flight_burn_input_started)
             .add_observer(on_autopilot_stop_input)
             .add_observer(on_autopilot_goto_input)
             .add_observer(on_autopilot_orbit_input)

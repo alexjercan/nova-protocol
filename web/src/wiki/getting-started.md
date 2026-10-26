@@ -1,6 +1,6 @@
 # Your first flight
 
-Nova Protocol is a build-and-fly space shooter. You take a modular ship into a scenario with asteroids, salvage, hostile ships, and planets that provide static gravity wells. Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. The flight computer can fly for you through real thrusters, but a manual burn or RCS input hands control back to you. This page is the whole first flight: how to launch, the core gestures, Basic Training beat by beat, and where to go next.
+Nova Protocol is a build-and-fly space shooter. You take a modular ship into a scenario with asteroids, salvage, hostile ships, and planets that provide static gravity wells. Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. The flight computer can fly for you through real thrusters, but a fresh manual burn press or RCS input hands control back to you. This page is the whole first flight: how to launch, the core gestures, Basic Training beat by beat, and where to go next.
 
 ## Launch and start
 
@@ -101,7 +101,7 @@ Distances read in meters and kilometers and speeds in meters per second (`m/s`);
 
 - **Burn.** Hold <kbd>W</kbd> (or <kbd>Space</kbd>) for the main-drive burn and aim with the mouse. You point the hull, then thrust where the nose looks. The velocity sphere beside your ship shows where you are actually going.
 - **Lock a target.** Hold <kbd>Ctrl</kbd> to sweep the radar; the hollow box shows what you are about to lock. Settle on it and hold steady for a moment - a short lock-on dwell has to fill (longer the farther the target is) before the lock latches, and sweeping off before then cancels it. A white crosshair is a travel (nav) lock; raise weapons first (see below) and it lands as a red combat lock instead.
-- **GOTO.** With a lock, tap <kbd>G</kbd> and the autopilot flies you there - it burns over, flips, and coasts to a stop just off the target. <kbd>Z</kbd>, a burn on <kbd>W</kbd> or <kbd>G</kbd> again hands the ship straight back to you; the mouse does not, because while the computer flies your look input only swings the camera.
+- **GOTO.** With a lock, tap <kbd>G</kbd> and the autopilot flies you there - it burns over, flips, and coasts to a stop just off the target. <kbd>Z</kbd>, a fresh press of <kbd>W</kbd> or <kbd>G</kbd> again hands the ship straight back to you; the mouse does not, because while the computer flies your look input only swings the camera.
 - **Raise weapons and fire.** Hold the right mouse button to raise weapons (combat stance); your reticle goes red and the ship is now "hot". Left mouse fires the turrets and launches torpedoes. A torpedo only launches while you hold a red combat lock.
 
 That is the whole core loop: burn, lock, GOTO, shoot. Basic Training covers all of it on an armed trainer, ORBIT included.
@@ -113,7 +113,7 @@ You open on the Fleet gunnery range in an exterior shot of **Trainer Seven**, an
 ### Part 1 - The pattern
 
 1. **Burn to mark ALPHA.** Hold <kbd>W</kbd> to burn and steer with the mouse. ALPHA sits dead ahead; flying into its ring completes the beat.
-2. **Kill the drift.** Press <kbd>X</kbd> once and let STOP brake the trainer down. Hands off the throttle: the next lesson waits for the maneuver to finish, and a burn or <kbd>Z</kbd> takes the ship back before it is done. The mouse is safe - it only moves the camera while STOP flies.
+2. **Kill the drift.** Press <kbd>X</kbd> once and let STOP brake the trainer down. Release the throttle: the next lesson waits for the maneuver to finish, and a fresh burn press or <kbd>Z</kbd> takes the ship back before it is done. The mouse is safe - it only moves the camera while STOP flies.
 3. **Slide across to BRAVO.** Hold <kbd>Shift</kbd> and move the mouse to translate without turning the hull - short taps, not a held push. The velocity ball on your HUD goes violet while the thrusters have the ship, and ten violet pips under the speed chip show how much RCS is left. Let go and they refill.
 
 ### Part 2 - The flight computer

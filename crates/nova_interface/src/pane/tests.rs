@@ -2,7 +2,9 @@
 //! its title row and its tabs and replaces only the pane body.
 
 use bevy::ui::{ComputedNode, UiGlobalTransform};
+use nova_gameplay::prelude::PlaySfx;
 use nova_input::prelude::{BindingSpec, InputSource, RegisterInputActions};
+use nova_ship::prelude::{GameSections, PartsGalleryPlugin};
 use nova_ui::widget::button_on_setting;
 
 use super::*;
@@ -453,6 +455,44 @@ fn a_narrow_window_puts_the_footer_hints_under_the_legend_and_nothing_overlaps()
     assert!(
         inside(controller, legend),
         "Controller {controller:?} whole in the legend {legend:?}"
+    );
+}
+
+/// A click on the Ship pane's Catalogue button opens the parts gallery and
+/// plays one interface click, as Fit and Reset do.
+#[test]
+fn the_catalogue_button_opens_the_gallery_and_clicks_once() {
+    #[derive(Resource, Default)]
+    struct HeardRoutes(Vec<AudioRoute>);
+
+    let mut rig = card_rig();
+    rig.app.add_plugins(PartsGalleryPlugin);
+    rig.app.init_resource::<GameSections>();
+    rig.app.init_resource::<HeardRoutes>();
+    rig.app
+        .add_observer(|sfx: On<PlaySfx>, mut heard: ResMut<HeardRoutes>| {
+            heard.0.push(sfx.route);
+        });
+    *rig.app.world_mut().resource_mut::<InterfacePaneType>() = InterfacePaneType::Ship;
+    rig.app.insert_resource(ShipRuntime {
+        refits: true,
+        ..default()
+    });
+    settle(&mut rig.app);
+    take_cues(&mut rig.app);
+    rig.app.world_mut().resource_mut::<HeardRoutes>().0.clear();
+
+    let catalogue = rect_named(rig.app.world_mut(), "ShipCatalogue").center();
+    click_at(&mut rig, catalogue);
+
+    assert!(
+        rig.app.world().resource::<GalleryState>().open,
+        "the Catalogue button opens the gallery"
+    );
+    assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
+    assert_eq!(
+        rig.app.world().resource::<HeardRoutes>().0,
+        [AudioRoute::Interface]
     );
 }
 

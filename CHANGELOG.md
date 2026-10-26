@@ -17,6 +17,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Gameplay & Flight
 
+- STOP now stays engaged when you press X with the main drive already held; a fresh drive press still returns control to you.
 - Docking with a neutralized ship or station now gives you the helm at once,
   as a derelict does, instead of waiting for HELM; a neutralized station also
   admits the dock on any side.

@@ -1452,12 +1452,22 @@ fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
         |controls| {
             // First of the three: it shows only at a refit dock, and Fit and
             // Reset keep their places at the right edge with or without it.
-            controls.spawn((
-                ShipCatalogueButton,
-                GalleryAction::Open,
-                button(ButtonSpec::new("Catalogue").fit()),
-                Name::new("ShipCatalogue"),
-            ));
+            // The gallery's own observer opens it and plays nothing, so the
+            // click is this button's.
+            controls
+                .spawn((
+                    ShipCatalogueButton,
+                    GalleryAction::Open,
+                    button(ButtonSpec::new("Catalogue").fit()),
+                    Name::new("ShipCatalogue"),
+                ))
+                .observe(
+                    |_activate: On<Activate>,
+                     bank: Option<Res<SoundBank<UiSfx>>>,
+                     mut commands: Commands| {
+                        play_menu_select(&mut commands, bank.as_deref());
+                    },
+                );
             controls
                 .spawn((button(ButtonSpec::new("Fit").fit()), Name::new("ShipFit")))
                 .observe(on_ship_fit_button);
