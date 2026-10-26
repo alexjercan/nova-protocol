@@ -19,7 +19,7 @@ use nova_ui::{
     widget::{ThemedFill, ThemedText, Tooltip},
 };
 use nova_world_base::prelude::{
-    enemy_neighbours, standing, CivilizationField, CivilizationStatusType,
+    enemy_neighbours, seeded_stance, standing, CivilizationField, CivilizationStatusType,
 };
 
 use super::{app::*, contacts::*, scene::*, *};
@@ -1273,6 +1273,54 @@ fn chart_stances_show_seeded_advancement_in_overview_and_selected_station() {
         Some(MapChartMarkType::Station(station_id));
     settle(app);
     assert_chip(app);
+}
+
+/// A STANCES detail line lays out at its text height in the overview, so it
+/// draws: its hover hint does not make the text a container with no content
+/// height.
+#[test]
+fn chart_stance_details_lay_out_at_their_text_height() {
+    let mut rig = pane_pointer_rig();
+    let app = &mut rig.app;
+    app.add_plugins(nova_ui::NovaUiPlugin);
+    app.init_resource::<MapRuntime>();
+    app.init_resource::<Chart>();
+    app.init_resource::<Jobs>();
+    app.init_resource::<WorldClock>();
+    app.init_resource::<CivilizationStances>();
+    app.add_systems(Update, update_map_stance_block);
+
+    let civilization = CivilizationId {
+        world_seed: 0,
+        node: [4, 0, 0],
+    };
+    app.world_mut()
+        .resource_mut::<CivilizationStances>()
+        .provoke(civilization, seeded_stance(&civilization), 0.0);
+    let content = rig.content_root;
+    app.world_mut()
+        .commands()
+        .entity(content)
+        .with_children(spawn_map_stance_block);
+    {
+        let mut runtime = app.world_mut().resource_mut::<MapRuntime>();
+        runtime.active = true;
+        runtime.chart = true;
+    }
+    settle(app);
+
+    let world = app.world_mut();
+    let mut q = world.query::<(&Text, &ComputedNode)>();
+    let heights: Vec<f32> = q
+        .iter(world)
+        .filter(|(text, _)| text.0.starts_with("HOSTILE "))
+        .map(|(_, node)| node.size().y)
+        .collect();
+    assert_eq!(heights.len(), 1, "one HOSTILE detail line");
+    assert!(
+        heights[0] > 0.0,
+        "the HOSTILE detail line laid out at zero height"
+    );
 }
 
 /// A living civilization with a living neighbour its own seed drew Enemy,

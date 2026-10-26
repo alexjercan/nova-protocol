@@ -52,6 +52,8 @@ use nova_ui::{
     },
 };
 
+#[cfg(not(target_arch = "wasm32"))]
+use crate::load_screen::LoadPanel;
 use crate::{
     mods::ModsPanel,
     scenarios::{NewGameScenario, ScenariosPanel},
@@ -1413,7 +1415,7 @@ fn spawn_lesson_actions(box_: &mut ChildSpawnerCommands, lesson: &Lesson) {
 pub(crate) fn sync_menu_aside(
     prompt: Res<TrainingPromptSetting>,
     field_note: Res<FieldNoteSetting>,
-    // The `Without`s are what make the queries provably disjoint: all four
+    // The `Without`s are what make the queries provably disjoint: all of them
     // read `Visibility`, and three of them write it.
     panels: Query<
         &Visibility,
@@ -1424,6 +1426,16 @@ pub(crate) fn sync_menu_aside(
                 With<ModsPanel>,
                 With<ScenariosPanel>,
             )>,
+            Without<MenuAside>,
+            Without<TrainingPromptCard>,
+            Without<MenuFieldNoteCard>,
+        ),
+    >,
+    // Apart from `panels` because the web build has no Load screen to list.
+    #[cfg(not(target_arch = "wasm32"))] loads: Query<
+        &Visibility,
+        (
+            With<LoadPanel>,
             Without<MenuAside>,
             Without<TrainingPromptCard>,
             Without<MenuFieldNoteCard>,
@@ -1443,6 +1455,11 @@ pub(crate) fn sync_menu_aside(
     let modal_open = panels
         .iter()
         .any(|visibility| *visibility == Visibility::Visible);
+    #[cfg(not(target_arch = "wasm32"))]
+    let modal_open = modal_open
+        || loads
+            .iter()
+            .any(|visibility| *visibility == Visibility::Visible);
     set_all(
         &mut aside,
         if modal_open {

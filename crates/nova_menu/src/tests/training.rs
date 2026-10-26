@@ -759,6 +759,16 @@ fn an_open_modal_takes_the_card_off_the_screen() {
     click(&mut app, "Training Back Button");
     assert_eq!(visibility(&mut app, "Menu Aside"), Visibility::Visible);
 
+    click(&mut app, "Load Button");
+    assert_eq!(
+        visibility(&mut app, "Menu Aside"),
+        Visibility::Hidden,
+        "the New pilot and Field note cards stayed beside an open Load"
+    );
+
+    click(&mut app, "Load Back Button");
+    assert_eq!(visibility(&mut app, "Menu Aside"), Visibility::Visible);
+
     click(&mut app, "Scenarios Button");
     assert_eq!(
         visibility(&mut app, "Menu Aside"),

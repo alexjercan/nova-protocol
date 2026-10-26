@@ -492,7 +492,11 @@ pub(crate) fn update_map_stance_block(
                         for (detail, hint) in details {
                             let label = themed_label(detail, 12.0, UiColor::Label);
                             if let Some(hint) = hint {
-                                list.spawn((label, Tooltip((*hint).to_string())));
+                                // A Tooltip spawns its panel as a child, and a
+                                // text node with a child lays out as a container
+                                // with no text height: the hint goes on a wrapper.
+                                list.spawn((Node::default(), Tooltip((*hint).to_string())))
+                                    .with_child(label);
                             } else {
                                 list.spawn(label);
                             }
