@@ -7,7 +7,9 @@
 //!
 //! Include with `#[path = "shared/located_jobs.rs"] mod located_jobs;` and
 //! build the app with [`LocatedJobWalkPlugin`] and [`script`] for one
-//! [`LocatedKindType`]. `NOVA_JOB_SEED=<u32>` plays another world seed than
+//! [`LocatedKindType`]. A caller that needs beats between the done and the
+//! hand-in, or no hand-in, builds on [`walk_to_done`] and, when it hands in,
+//! closes with [`hand_in`]. `NOVA_JOB_SEED=<u32>` plays another world seed than
 //! the kind's pinned one, to hunt a seed whose window posts the kind. The
 //! neutralize range plants its hostile: generated hostiles stand with their
 //! own Enemy civilization, so no scanned seed put one in the cube of a
@@ -132,7 +134,7 @@ impl LocatedKindType {
     const fn pinned_seed(self) -> u32 {
         match self {
             LocatedKindType::Recover => 15,
-            LocatedKindType::Escort => 10,
+            LocatedKindType::Escort => 2,
             LocatedKindType::Distress => 16,
             LocatedKindType::Neutralize => 16,
         }
@@ -2046,12 +2048,18 @@ fn assert_the_in_flight_marker(world: &mut World) {
     info!("distress job: PASS the caller wears the in-flight marker '{label}'");
 }
 
-/// The walk for `kind`. Every beat waits on a world value.
+/// The walk for `kind`: [`walk_to_done`], then [`hand_in`]. Every beat waits
+/// on a world value.
 pub fn script(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
+    hand_in(walk_to_done(kind), kind)
+}
+
+/// The walk for `kind` from the main menu through the done assert: New Game,
+/// the accept, the refusal and the work. The player stands where the work
+/// left it, in flight; the next beat a caller appends runs on from there.
+pub fn walk_to_done(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
     let tag = kind.label();
     let board_shot = format!("job-{tag}-board.png");
-    let done_shot = format!("job-{tag}-done.png");
-    let inspector_shot = format!("job-{tag}-inspector-done.png");
     let role_button = format!("Start Role Button: {}", kind.role());
     let script = AutopilotPlugin::<GameStates>::new()
         .step("located jobs: reach the main menu")
@@ -2251,10 +2259,24 @@ pub fn script(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
     } else {
         script
     };
-    let script = script
+    script
         .step(format!("{tag} job: assert the done"))
         .on_enter(assert_the_done)
         .add()
+}
+
+/// Append the hand-in for `kind` to `script`, a walk that ends with its job
+/// done ([`walk_to_done`]): jump back beside the posting station, dock again,
+/// shoot the done job's inspector, click Hand in, assert the pay and shoot
+/// the Jobs tab.
+pub fn hand_in(
+    script: AutopilotPlugin<GameStates>,
+    kind: LocatedKindType,
+) -> AutopilotPlugin<GameStates> {
+    let tag = kind.label();
+    let done_shot = format!("job-{tag}-done.png");
+    let inspector_shot = format!("job-{tag}-inspector-done.png");
+    let script = script
         .step("located jobs: jump back to the station's side")
         .on_enter(|world: &mut World| {
             let player = player(world);

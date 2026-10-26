@@ -2,8 +2,8 @@
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed as the armed `military` start role (the Trade starts that lean to
-//! this kind fly unarmed hulls, so their starting station hides it; seed 10
-//! posts a three-raider escort), and walks the shared located-job range in
+//! this kind fly unarmed hulls, so their starting station hides it; seed 2
+//! posts a one-raider escort), and walks the shared located-job range in
 //! [`located_jobs`]: find a living station posting a escort job, dock,
 //! accept it off the Jobs tab, read the hand-in refused as not done, undock,
 //! fly GOTO to the waiting hauler, hold formation on its leg, meet the
