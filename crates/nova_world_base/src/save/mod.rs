@@ -17,7 +17,7 @@
 //! of lists as unreadable and never loads.
 //!
 //! The format is strict: an unknown field, a format other than
-//! [`WORLD_SAVE_FORMAT`], another catalog or a start role the loaded content
+//! [`WORLD_SAVE_VERSION`], another catalog or a start role the loaded content
 //! does not hold refuses the world. Nothing is migrated. Native only: the web build has no saved worlds.
 //!
 //! The state carries the scenario ([`SavedScenario`]) beside the sectors: a
@@ -75,15 +75,18 @@ pub use transients::{
     WORLD_RESUME_SECONDS_MAX,
 };
 
-/// The save layout this build reads and writes.
+/// The game release whose save layout this build reads and writes.
 ///
-/// Bump it with any change to the save layout, or to what the generator
-/// builds from a seed. A save records every cell the window held live as
-/// Visited, on each save, and never drops one; a body that moved into a cell
-/// nobody held live is recorded as an arrival there. Every cell the player
-/// never visited regenerates from the seed on Load, so another generator
-/// would change it silently.
-pub const WORLD_SAVE_FORMAT: u32 = 30;
+/// Set it once per game release, to the release being made; a change to the
+/// save layout, or to what the generator builds from a seed, on `master`
+/// within one release cycle keeps it, and a development save that no longer
+/// reads is refused, never migrated. A save records every cell the window
+/// held live as Visited, on each save, and never drops one; a body that moved
+/// into a cell nobody held live is recorded as an arrival there. Every cell
+/// the player never visited regenerates from the seed on Load, so another
+/// generator would change it silently. It is not `CARGO_PKG_VERSION`: the
+/// crates keep the last release's version until the release bump.
+pub const WORLD_SAVE_VERSION: &str = "v0.16.0";
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;
@@ -98,8 +101,8 @@ const LOCK_FILE: &str = "world.lock";
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorldSaveHeader {
-    /// [`WORLD_SAVE_FORMAT`] when it was written.
-    pub format: u32,
+    /// [`WORLD_SAVE_VERSION`] when it was written.
+    pub format: String,
     /// The name the player gave the world.
     pub name: String,
     /// The world seed every pristine sector is generated from.
@@ -274,8 +277,8 @@ impl SavedChart {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WorldSaveState {
-    /// [`WORLD_SAVE_FORMAT`] when it was written.
-    pub format: u32,
+    /// [`WORLD_SAVE_VERSION`] when it was written.
+    pub format: String,
     /// The generation the header names this state by.
     pub generation: u64,
     /// The player ship.
@@ -374,10 +377,11 @@ pub enum WorldRefusal {
     Locked,
     /// A save file is missing, corrupt, or names another generation.
     Unreadable(String),
-    /// The save has another layout than this build.
+    /// The save was written by another release than this build.
     Format {
-        /// The format the save was written with.
-        found: u32,
+        /// The format the save was written with: a release, or a number from
+        /// a development save before saves named their release.
+        found: String,
     },
     /// The save was written with another catalog.
     Catalog {
@@ -415,7 +419,7 @@ impl std::fmt::Display for WorldRefusal {
             Self::Format { found } => {
                 write!(
                     f,
-                    "save format {found}; this build reads {WORLD_SAVE_FORMAT}"
+                    "save format {found}; this build reads {WORLD_SAVE_VERSION}"
                 )
             }
             Self::Catalog { saved_mods, .. } => {
@@ -1465,10 +1469,11 @@ fn lock_world(path: &Path) -> Result<WorldLock, WorldRefusal> {
 }
 
 /// Only the format of a header, read before the whole header so a header of
-/// another layout refuses as [`WorldRefusal::Format`], not as unreadable.
+/// another layout refuses as [`WorldRefusal::Format`], not as unreadable. Any
+/// value is read, so a numbered development save names its number.
 #[derive(Deserialize)]
 struct HeaderFormat {
-    format: u32,
+    format: ron::Value,
 }
 
 /// Read the header of the world folder `path` and check it against the
@@ -1482,8 +1487,14 @@ fn read_header(
         .map_err(|e| WorldRefusal::Unreadable(format!("{HEADER_FILE}: {e}")))?;
     let HeaderFormat { format } = ron::from_str(&text)
         .map_err(|e| WorldRefusal::Unreadable(format!("{HEADER_FILE}: {e}")))?;
-    if format != WORLD_SAVE_FORMAT {
-        return Err(WorldRefusal::Format { found: format });
+    match format {
+        ron::Value::String(found) if found == WORLD_SAVE_VERSION => {}
+        ron::Value::String(found) => return Err(WorldRefusal::Format { found }),
+        other => {
+            let found = ron::to_string(&other)
+                .map_err(|e| WorldRefusal::Unreadable(format!("{HEADER_FILE}: {e}")))?;
+            return Err(WorldRefusal::Format { found });
+        }
     }
     let header: WorldSaveHeader = ron::from_str(&text)
         .map_err(|e| WorldRefusal::Unreadable(format!("{HEADER_FILE}: {e}")))?;

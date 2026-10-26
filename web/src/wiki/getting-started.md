@@ -75,7 +75,7 @@ The Load screen lists every world folder, with the start role each world began a
 | Reason | Shown as |
 | --- | --- |
 | Another game has it open | `open in another game` |
-| Saved with another save layout | `save format <found>; this build reads <current>` |
+| Saved by another game release or a development build | `save format <found>; this build reads <current>` |
 | Saved with other content | `content changed; saved with <mods>` |
 | The scenario the save names is not in this game's content | `its scenario '<id>' is not in the loaded content` |
 | The start role the save names is not in this game's content | `its start role '<id>' is not in the loaded content` |

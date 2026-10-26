@@ -40,7 +40,7 @@ use super::{
     transients::{freeze_transients, hold_resumed_transients},
     write_world, SavedChart, SavedFleet, SavedIdFault, SavedObjective, SavedObjectiveLine,
     SavedObjectiveType, SavedPlayer, WorldFolder, WorldLock, WorldSaveHeader, WorldSaveState,
-    WORLD_SAVE_FORMAT,
+    WORLD_SAVE_VERSION,
 };
 use crate::NovaLayeredWorld;
 
@@ -608,7 +608,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
     let mut session = world.resource_mut::<WorldSaveSession>();
     let generation = session.generation + 1;
     let header = WorldSaveHeader {
-        format: WORLD_SAVE_FORMAT,
+        format: WORLD_SAVE_VERSION.to_string(),
         name: session.name.clone(),
         seed: session.seed,
         role: session.role.clone(),
@@ -626,7 +626,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         chart: chart_summary,
     };
     let state = WorldSaveState {
-        format: WORLD_SAVE_FORMAT,
+        format: WORLD_SAVE_VERSION.to_string(),
         generation,
         player: SavedPlayer {
             id,

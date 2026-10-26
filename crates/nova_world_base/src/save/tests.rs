@@ -52,7 +52,7 @@ use super::{
     ResumedTransients, SavedChart, SavedChartCell, SavedChartMark, SavedChartMarkType, SavedFleet,
     SavedObjective, SavedObjectiveLine, SavedObjectiveType, SavedPlayer, SavedScenario,
     WorldRefusal, WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession,
-    WorldSaveState, WorldSaveStatus, WORLD_SAVE_FORMAT,
+    WorldSaveState, WorldSaveStatus, WORLD_SAVE_VERSION,
 };
 use crate::{
     test_support::{fixture_roles, FIXTURE_ROLE_ID, FIXTURE_SCENARIO_ID},
@@ -100,7 +100,7 @@ fn saved_scenario() -> SavedScenario {
 /// catalog `catalog(7)`.
 fn header(name: &str, generation: u64) -> WorldSaveHeader {
     WorldSaveHeader {
-        format: WORLD_SAVE_FORMAT,
+        format: WORLD_SAVE_VERSION.to_string(),
         name: name.to_string(),
         seed: 42,
         role: FIXTURE_ROLE_ID.into(),
@@ -134,7 +134,7 @@ fn state(generation: u64, credits: u32) -> WorldSaveState {
         ))
         .id();
     WorldSaveState {
-        format: WORLD_SAVE_FORMAT,
+        format: WORLD_SAVE_VERSION.to_string(),
         generation,
         player: SavedPlayer {
             id: EntityId("player".to_string()),
@@ -250,23 +250,43 @@ fn a_world_another_game_holds_open_is_refused() {
 }
 
 /// The list shows every folder with the reason it cannot load: another
-/// catalog with the mods it was saved with, another format, a missing header,
-/// and a folder no world name gives. Open refuses the same headers.
+/// catalog with the mods it was saved with, a numbered pre-release format,
+/// another release, a missing header, and a folder no world name gives. Open
+/// refuses the same headers and leaves their files as they were.
 #[test]
 fn the_list_shows_why_each_refused_world_cannot_load() {
     let root = tempfile::tempdir().unwrap();
-    for name in ["Good", "Other Format"] {
+    for name in ["Good", "Old Format", "Other Release"] {
         let (folder, _lock) = create_world(root.path(), name).unwrap();
         write_world(&folder, &header(name, 1), &state(1, 750)).unwrap();
     }
-    // A later layout: another format and a field this build does not know.
-    let other = root.path().join("other-format").join("world.ron");
+    // A development save before saves named their release, with a field
+    // this build does not know.
+    let old = root.path().join("old-format").join("world.ron");
+    let text = std::fs::read_to_string(&old).unwrap().replacen(
+        "format: \"v0.16.0\",",
+        "format: 30, weather: \"rain\",",
+        1,
+    );
+    std::fs::write(&old, text).unwrap();
+    let other = root.path().join("other-release").join("world.ron");
     let text = std::fs::read_to_string(&other).unwrap().replacen(
-        &format!("format: {WORLD_SAVE_FORMAT},"),
-        "format: 99, weather: \"rain\",",
+        "format: \"v0.16.0\",",
+        "format: \"v0.15.0\",",
         1,
     );
     std::fs::write(&other, text).unwrap();
+    let refused_bytes = |slug: &str| -> Vec<(String, Vec<u8>)> {
+        let folder = root.path().join(slug);
+        files(&folder)
+            .into_iter()
+            .map(|name| {
+                let bytes = std::fs::read(folder.join(&name)).unwrap();
+                (name, bytes)
+            })
+            .collect()
+    };
+    let before = [refused_bytes("old-format"), refused_bytes("other-release")];
     drop(create_world(root.path(), "Empty").unwrap());
     std::fs::create_dir(root.path().join("Hand Made")).unwrap();
 
@@ -280,7 +300,7 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
             )
         })
         .collect();
-    assert_eq!(shown.len(), 4);
+    assert_eq!(shown.len(), 5);
     assert_eq!(shown[0].0, "Hand Made");
     assert!(matches!(shown[0].1, Err(WorldRefusal::InvalidName(_))));
     assert_eq!(shown[1].0, "empty");
@@ -298,7 +318,25 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
     );
     assert_eq!(
         shown[3],
-        ("other-format", Err(&WorldRefusal::Format { found: 99 }))
+        (
+            "old-format",
+            Err(&WorldRefusal::Format {
+                found: "30".to_string()
+            })
+        )
+    );
+    assert_eq!(
+        shown[4],
+        (
+            "other-release",
+            Err(&WorldRefusal::Format {
+                found: "v0.15.0".to_string()
+            })
+        )
+    );
+    assert_eq!(
+        shown[3].1.unwrap_err().to_string(),
+        "save format 30; this build reads v0.16.0"
     );
 
     assert!(matches!(
@@ -312,17 +350,23 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
         ),
         Err(WorldRefusal::Catalog { .. })
     ));
-    assert!(matches!(
-        open_world(
-            root.path(),
-            "other-format",
-            &catalog(7),
-            &roles(),
-            &items(),
-            &scenarios()
-        ),
-        Err(WorldRefusal::Format { found: 99 })
-    ));
+    for (slug, found) in [("old-format", "30"), ("other-release", "v0.15.0")] {
+        assert!(matches!(
+            open_world(
+                root.path(),
+                slug,
+                &catalog(7),
+                &roles(),
+                &items(),
+                &scenarios()
+            ),
+            Err(WorldRefusal::Format { found: refused }) if refused == found
+        ));
+    }
+    assert_eq!(
+        [refused_bytes("old-format"), refused_bytes("other-release")],
+        before
+    );
     assert!(matches!(
         open_world(
             root.path(),
@@ -364,8 +408,9 @@ fn a_missing_root_lists_nothing_and_an_unreadable_root_is_an_error() {
     ));
 }
 
-/// A later save replaces the earlier one, and the state opens exactly as it
-/// was written: the same file encodes again byte for byte.
+/// A later save replaces the earlier one, both files name the release it
+/// was saved by, and the state opens exactly as it was written: the same
+/// file encodes again byte for byte.
 #[test]
 fn a_written_world_opens_as_it_was_saved() {
     let root = tempfile::tempdir().unwrap();
@@ -376,6 +421,9 @@ fn a_written_world_opens_as_it_was_saved() {
         files(&folder.path),
         ["state.2.ron", "world.lock", "world.ron"]
     );
+    let on_disk = |file: &str| std::fs::read_to_string(folder.path.join(file)).unwrap();
+    assert!(on_disk("world.ron").starts_with("(\n    format: \"v0.16.0\",\n"));
+    assert!(on_disk("state.2.ron").starts_with("(format:\"v0.16.0\","));
     drop(lock);
 
     let (opened, _lock, read, saved) = open_world(
@@ -400,6 +448,39 @@ fn a_written_world_opens_as_it_was_saved() {
         ron::to_string(&saved).unwrap(),
         ron::to_string(&state(2, 990)).unwrap()
     );
+}
+
+/// A state file of another release than its header is refused as
+/// unreadable, naming both, and is left on disk.
+#[test]
+fn a_state_of_another_release_than_its_header_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Mixed").unwrap();
+    write_world(&folder, &header("Mixed", 1), &state(1, 750)).unwrap();
+    drop(lock);
+    let path = folder.path.join("state.1.ron");
+    let text = std::fs::read_to_string(&path).unwrap().replacen(
+        "format:\"v0.16.0\"",
+        "format:\"v0.15.0\"",
+        1,
+    );
+    std::fs::write(&path, &text).unwrap();
+
+    let Err(WorldRefusal::Unreadable(reason)) = open_world(
+        root.path(),
+        "mixed",
+        &catalog(7),
+        &roles(),
+        &items(),
+        &scenarios(),
+    ) else {
+        panic!("a mixed-release world opened");
+    };
+    assert_eq!(
+        reason,
+        "state.1.ron is format v0.15.0 generation 1; world.ron names format v0.16.0 generation 1"
+    );
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
 }
 
 /// A fleet escort saves in the player's record and opens as it was frozen:

@@ -27,6 +27,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - On desktop, New Game names its world and saves it on each sector crossing
   and on leaving. Load resumes it with shots and debris in flight, undocked
   beside its partner. Death keeps the last save.
+- World saves mark release version v0.16.0 and refuse incompatible saves;
+  development saves on master may change without another version bump.
 - Dying in New Game shows DEFEAT with Main Menu. On desktop it also offers
   Load last save, which reopens the world from its last save.
 - New Game asks for a name and seed, then a start role beside its hull card:
@@ -34,7 +36,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   worlds. Create spawns the role's hull and kit.
 - New Game starts you docked at your starting station, the nearest station
   of an Ally civilization; a seed with none in reach is refused. The save
-  keeps the station (save format 22).
+  keeps the station.
 - Open-world ships now grow slowly with distance: the first four civilization
   rings field small hulls only, medium hulls appear near 2,000 km out and the
   largest past 3,000 km.
@@ -47,27 +49,26 @@ does NOT get an entry. Another page that states a different rule is wrong.
   undocking no longer shoves them apart.
 - **(breaking)** Stations post three seeded jobs: bring, recover, escort,
   neutral-only distress, neutralize. Drop held jobs free; pay 100 cr to replace
-  an unheld offer. Save format 30.
+  an unheld offer.
 - An escort's hauler waits 1 km off its station until you are within 1 km,
   then runs at 100 m/s to its mark; its raiders spring from 2.5 km off the
   leg, hunt it and turn on whoever shoots them.
 - **(breaking)** Generated stations and ships now price each item by their
   stock, cluster type and civilization; the Inventory pane shows the factors.
-  `PriceTable` content sets them. Save format 18.
-- **(breaking)** A saved world now keeps a play-time clock that runs only
-  while you fly unpaused, and each sector you leave records when it froze.
-  Restock reads it on a thaw. Save format 18.
+  `PriceTable` content sets them.
+- A saved world now keeps a play-time clock that runs only while you fly
+  unpaused, and each sector you leave records when it froze. Restock reads
+  it on a thaw.
 - **(breaking)** Unheld escort offers last 60 min of play; other offers
   20 min. Held jobs never expire. `PriceTable` adds `escort_offer_seconds`.
-  Save format 18.
-- **(breaking)** Generated traders restock toward spawn stock by play time
-  their sector stood unloaded.
+- Generated traders restock toward spawn stock by play time their sector
+  stood unloaded.
 - **(breaking)** Every start role's milestone opens with one owned station,
   then ore deliveries, recoveries, a station network, a kill list, patrols or
-  an outlaw's name. Save format 22.
+  an outlaw's name.
 - **(breaking)** Each civilization holds a stance to you, Ally, Neutral or
   Enemy, seeded and moved by your kills and hand-ins; a flip drags allies
-  down and warms rivals, one hop. Save format 22.
+  down and warms rivals, one hop.
 - An Enemy civilization's stations refuse your dock and its ships fight you.
   Firing on a Neutral or Ally hull past its patience turns its civilization
   Enemy for 15 min of play.
@@ -130,7 +131,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   your old ship stays parked, yours to Board free.
 - **(breaking)** A hull parked or started at a station port stands one cell
   off it, the skin clads the cells round every port, and a dock holds 0.6 m
-  past capture distance. Save format 29.
+  past capture distance.
 - Info on a Station pane card shows that hull or escort in the Ship view,
   read-only: turn, zoom and select a section; Close goes back to the Station.
 - A generated `Refit` station hires out one to three armed escorts that coast
@@ -335,7 +336,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
   notice naming its hand-in station.
 - The chart view lists STANCES with badges, seeded ADV percentage and compact
   hover-coded detail; a station's Enemy neighbours have fine and Pay fine.
-  Results use a notice line. Save format 25.
+  Results use a notice line.
 - The Map's side panel scrolls with the wheel while the pointer is over it;
   the wheel zooms the view only away from the panel.
 - On the Ship pane a gun, torpedo bay, railgun or mining beam with no key
@@ -423,7 +424,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Internals & Tooling
 
-- Save format 22: the world header carries play time, the hull name, fleet and
+- The world header carries play time, the hull name, fleet and
   station counts, the open objectives and a chart summary for the Load screen.
 - Debug builds: F11 opens the Nova Debug window and freezes flight. It has
   overlay checkboxes (F3 diagnostics too), cheats, a command prompt, entities

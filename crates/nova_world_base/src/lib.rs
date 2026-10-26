@@ -88,7 +88,8 @@ pub use crate::save::{
     SaveReason, SavedChart, SavedChartCell, SavedChartMark, SavedChartMarkType, SavedFleet,
     SavedObjective, SavedObjectiveLine, SavedObjectiveType, SavedPlayer, WorldFolder, WorldListing,
     WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused, WorldSaveHeader,
-    WorldSaveSession, WorldSaveState, WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
+    WorldSaveSession, WorldSaveState, WorldSaveStatus, WORLD_RESUME_SECONDS_MAX,
+    WORLD_SAVE_VERSION,
 };
 pub use crate::{
     civilizations::{
@@ -149,7 +150,7 @@ pub mod prelude {
         SavedObjective, SavedObjectiveLine, SavedObjectiveType, SavedPlayer, WorldFolder,
         WorldListing, WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
         WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
-        WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_FORMAT,
+        WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_VERSION,
     };
 }
 

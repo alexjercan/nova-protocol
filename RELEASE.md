@@ -16,6 +16,7 @@ game version. See the [comic publishing procedure](web/src/comics/README.md#publ
 - [ ] Choose the next version from the scope of the changes.
 - [ ] Update `workspace.package.version` in `Cargo.toml`.
 - [ ] Refresh `Cargo.lock` and confirm the Nova packages use the new version.
+- [ ] Set `WORLD_SAVE_VERSION` in `crates/nova_world_base/src/save/mod.rs` to `vX.Y.Z`; verify both saved records use it. Change it once per game release, not for revisions on `master` within the cycle. Development saves may become unreadable; verify they refuse clearly rather than loading invalid state.
 
 ## Finish the release notes
 

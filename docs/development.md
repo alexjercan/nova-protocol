@@ -1077,28 +1077,29 @@ deliberately not used.
 
 ### Cutting a release
 
-Pushing a tag `v[0-9]+.[0-9]+.[0-9]+*` triggers `release-flow`
-(`.github/workflows/release.yaml`). Steps, on `master`:
+`RELEASE.md` at the repository root is the controlling checklist; this section
+only adds commands. Pushing a tag `v[0-9]+.[0-9]+.[0-9]+*` triggers
+`release-flow` (`.github/workflows/release.yaml`). Steps, on `master`:
 
-1. Check the documentation surfaces are current (see
-   [Keeping docs in sync](keeping-docs-in-sync.md)): this book builds clean
-   (`mdbook build`) and the pages the cycle's changes touched are updated.
-2. Bump `workspace.package.version` in root `Cargo.toml`.
-3. Refresh `Cargo.lock`: `cargo metadata --format-version 1 >/dev/null`.
-4. Update `CHANGELOG.md` (Keep a Changelog, one concise line per entry):
-   promote `[Unreleased]` to `[<version>] - <YYYY-MM-DD>`, leave a fresh empty
-   `## [Unreleased]` on top, merge any duplicate section headings that grew
-   during the cycle, and update the compare links at the bottom (repoint
-   `[unreleased]`, add the new `[<version>]` line).
-5. Commit exactly those three files:
-   `git add Cargo.toml Cargo.lock CHANGELOG.md && git commit -m "chore(release): vX.Y.Z"`.
-6. `git tag vX.Y.Z` (CI reads the tag for the release name).
-7. `git push origin master && git push origin vX.Y.Z`.
-8. Watch the run (`gh run watch`), then check the GitHub release page and
-   consider adding summarized release notes (`gh release edit vX.Y.Z --notes-file ...`).
-9. Write or expand the release News post (see "Writing the release news post"
-   below) and land it in `web/`; sync any wiki pages the cycle changed (see
-   [Keeping docs in sync](keeping-docs-in-sync.md)).
+1. Before the tag, prepare the approved News post (see "Writing the release
+   news post" below) and the docs and wiki pages the cycle changed (see
+   [Keeping docs in sync](keeping-docs-in-sync.md)). This book must build
+   clean (`mdbook build`).
+2. Bump `workspace.package.version` in root `Cargo.toml` and refresh
+   `Cargo.lock`: `cargo metadata --format-version 1 >/dev/null`.
+3. Finish `CHANGELOG.md` as `RELEASE.md` "Finish the release notes" states.
+4. Commit the version, changelog, News, and documentation changes together,
+   staging each path explicitly.
+5. Confirm CI is green on that commit (`gh run list --branch master`).
+6. `git tag vX.Y.Z` on that commit (CI reads the tag for the release name), then
+   `git push origin master && git push origin vX.Y.Z`.
+7. Watch the run (`gh run watch`) and confirm the four assets below are on the
+   GitHub release.
+8. Run `deploy-github-page` (`gh workflow run deploy-page.yaml`), which keeps
+   the published comic, then check the site and its download links.
+9. With the itch.io page still Draft, run the approved `deploy-itch` workflow
+   (see below) and check the four channels. The release is not public until
+   the clean-platform checks pass and the page changes from Draft to Public.
 
 The workflow uploads four assets to a release named after the tag: macOS
 universal `.dmg`, Linux `.tar.gz`, Windows `.zip`, and a wasm-opt'd web zip.
@@ -1172,7 +1173,7 @@ and - where a devlog video exists - an optional `## Watch the devlog` companion
 near the top (the written highlights must stand on their own; the video is an
 extra). Do not just restate the terse `CHANGELOG.md`.
 
-Adding a post touches three places (mirror an existing post such as
+Adding a post touches three places and a rebuild check (mirror an existing post such as
 `web/src/news/0.5.0.md`):
 
 1. Write the post at `web/src/news/<version>.md` (e.g. `0.6.0.md`). The page
