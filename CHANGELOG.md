@@ -15,6 +15,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-27
+
 ### Gameplay & Flight
 
 - STOP now stays engaged when you press X with the main drive already held; a fresh drive press still returns control to you.
@@ -27,8 +29,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - On desktop, New Game names its world and saves it on each sector crossing
   and on leaving. Load resumes it with shots and debris in flight, undocked
   beside its partner. Death keeps the last save.
-- World saves mark release version v0.16.0 and refuse incompatible saves;
-  development saves on master may change without another version bump.
+- World saves mark release version v0.16.0 and refuse incompatible saves.
 - Dying in New Game shows DEFEAT with Main Menu. On desktop it also offers
   Load last save, which reopens the world from its last save.
 - New Game asks for a name and seed, then a start role beside its hull card:
@@ -72,9 +73,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - An Enemy civilization's stations refuse your dock and its ships fight you.
   Firing on a Neutral or Ally hull past its patience turns its civilization
   Enemy for 15 min of play.
-- Every generated crew holds fire for 8 s after its cell streams in, not only
-  a seeded Enemy one, so a civilization you turned Enemy arrives with the
-  same grace.
+- Generated crews hold fire for 8 s after streaming in, including a
+  civilization you turned Enemy.
 - Only an Ally civilization's station sells itself or hires out escorts.
   Settle with an Enemy neighbour at an admitting station for a fine by its
   advancement; an Enemy you made thaws after 2 h of play.
@@ -232,7 +232,6 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** Section `base` now authors `advancement` and `draw_weight`;
   every civilization builds the parts at advancement 0 and knows a seeded
   subset of those above it, drawn by weight.
-
 - **(breaking)** A style places greebles by `greeble_rules`: link types,
   greebles with four link points, `near` terms and caps. `placement` is gone;
   bad rules or fixtures over a cell wide fail lint.
@@ -363,8 +362,6 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Double-click an Inventory item to sell, store, withdraw or buy its whole
   stack, Shift for one. Your own ships docked at the station list their holds
   as storage sections.
-- A `;` typed into a text field, such as an Inventory quantity, no longer
-  opens the command shell when the field loses focus.
 - The Map's mouse wheel no longer zooms the Ship pane when you switch to it.
 - An armed Ship pane rebind lights Rebind and names the section in a banner.
   The captured key binds and does nothing else.
@@ -373,7 +370,6 @@ does NOT get an entry. Another page that states a different rule is wrong.
   HUD notice with a sound reports a dock refusal.
 - The keybind dock drops its COMPONENT chip; ] and [ and the wheel (weapons
   raised) still step the component lock.
-
 - Settings: Graphics has a Low/Medium/High/Custom preset over particle,
   resolution, flash-light and shake levers (a moved lever reads Custom), plus
   VSync, UI scale and Invert Y. Panels share one look.
@@ -413,12 +409,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - The editor's planet hit box matches the drawn planet. It was far larger, so
   F framed a scenario with a planet from too far away to see its ships.
-- The Ship footer legend reads Controller in full at 1024x768. It was clipped
-  when the key hints took two rows.
 - A mouse click on an editor breadcrumb chip now goes to that step. The chips
   used the wrong button marker, so a click did nothing.
-- The parts gallery fits a 640x600 window: its header wraps, so Close and
-  paging stay on screen, and the focus card keeps Place and Back in view.
 - A click or hover under a scrolled list no longer reaches a row hidden past
   the list's edge, so a hidden row cannot take the click or show its tooltip.
 
@@ -3367,7 +3359,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - Editor and simulation scenes.
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.15.0...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/alexjercan/nova-protocol/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/alexjercan/nova-protocol/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/alexjercan/nova-protocol/compare/v0.13.2...v0.14.0
 [0.13.2]: https://github.com/alexjercan/nova-protocol/compare/v0.13.1...v0.13.2
