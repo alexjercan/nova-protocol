@@ -27,8 +27,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
   way: mined rocks, owed ore, damaged and looted ships, canisters and wrecks.
   A docked partner is no longer lost.
 - On desktop, New Game names its world and saves it on each sector crossing
-  and on leaving. Load resumes it with shots and debris in flight, undocked
-  beside its partner. Death keeps the last save.
+  and on leaving. Load resumes it as saved: shots in flight, docks, autopilot,
+  locks and RCS reserve. Death keeps the last save.
+- A save whose lock, order or dock target cannot be kept fails and keeps the
+  last good save; a Load that cannot restore one is refused and shows why.
 - World saves mark release version v0.16.0 and refuse incompatible saves.
 - Dying in New Game shows DEFEAT with Main Menu. On desktop it also offers
   Load last save, which reopens the world from its last save.

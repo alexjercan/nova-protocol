@@ -62,11 +62,16 @@ use nova_ship::prelude::{CameraView, SavedTorpedoTarget, FLEET_SIDES};
 use nova_world::prelude::{FrozenBody, FrozenBodyType, FrozenSectors, SectorCoord, WorldClock};
 use serde::{Deserialize, Serialize};
 
+mod controls;
 mod session;
 #[cfg(test)]
 mod tests;
 mod transients;
 
+pub use controls::{
+    SavedAutopilot, SavedAutopilotAction, SavedComponentLock, SavedControls, SavedDock,
+    SavedDockHelm, SavedJointFrame, SavedLock, SavedRcs,
+};
 pub(crate) use session::{restore_resumed_world, save_systems};
 pub use session::{resume_world, ResumedWorld, SaveReason, WorldSaveSession, WorldSaveStatus};
 pub(crate) use transients::{restore_resumed_transients, ResumedTransients};
@@ -331,6 +336,8 @@ pub struct SavedPlayer {
     /// no sector: they cross cells with the player, so the player's record
     /// keeps them.
     pub fleet: Vec<FleetEscort>,
+    /// The autopilot order, locks, RCS magazine and dock of the ship.
+    pub controls: SavedControls,
 }
 
 /// One world folder under the worlds root.
@@ -622,6 +629,8 @@ fn read_state(
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_fleet(&state)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    check_saved_controls(&state)
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_items(&state, items)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_stock(&state, items)
@@ -632,6 +641,55 @@ fn read_state(
         });
     }
     Ok(state)
+}
+
+/// The player's saved controls hold readings a session wrote and name only
+/// what the save keeps: a body by a saved or generated id, a saved canister
+/// or transient, and a section of a saved ship or station. A save checks
+/// before it writes; Load checks on open, so a save whose lock, order or
+/// dock lost its target refuses rather than drop it.
+fn check_saved_controls(state: &WorldSaveState) -> Result<(), String> {
+    let mut ships: BTreeMap<&str, &FrozenShip> =
+        BTreeMap::from([(state.player.id.0.as_str(), &state.player.ship)]);
+    ships.extend(
+        state
+            .player
+            .fleet
+            .iter()
+            .map(|escort| (escort.id.0.as_str(), &escort.ship)),
+    );
+    let mut bodies = BTreeSet::new();
+    let mut canisters = HashSet::new();
+    for body in state.sectors.iter().flat_map(|(_, record)| record.bodies()) {
+        if let Some(id) = body.id() {
+            bodies.insert(id);
+        }
+        match (body.id(), body.body()) {
+            (Some(id), FrozenBodyType::Ship(ship)) => {
+                ships.insert(id, ship);
+            }
+            (Some(id), FrozenBodyType::Station(station)) => {
+                ships.insert(id, station.ship());
+            }
+            (_, FrozenBodyType::Canister(canister)) => {
+                canisters.insert(canister.id());
+            }
+            _ => {}
+        }
+    }
+    let body = |id: &str| bodies.contains(id) || ships.contains_key(id);
+    let canister = |id: CargoCanisterRuntimeId| canisters.contains(&id);
+    let section =
+        |ship: &str, section: &str| ships.get(ship).map(|frozen| frozen.has_section(section));
+    state.player.controls.validate(
+        &state.player.id.0,
+        &controls::SavedReferents {
+            body: &body,
+            canister: &canister,
+            section: &section,
+            transients: state.transients.len(),
+        },
+    )
 }
 
 /// The saved fleet fits the fleet: at most one escort on each of

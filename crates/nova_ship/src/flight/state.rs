@@ -382,6 +382,8 @@ pub enum AutopilotAction {
 
 /// The ORBIT verb's sticky plan, computed once when the maneuver engages.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct OrbitPlan {
     /// Target ring radius, world units - the current radius clamped into
     /// the stable band (`orbit_target_radius`).
@@ -480,6 +482,7 @@ pub(super) fn remove_maneuver_telemetry(remove: On<Remove, Autopilot>, mut comma
 
 /// Which part of the maneuver the ship is in, for the HUD readout.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum AutopilotPhase {
     /// Swinging the nose toward the burn direction; engines cold.
     #[default]

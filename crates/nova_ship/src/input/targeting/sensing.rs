@@ -124,6 +124,24 @@ impl SensorContacts {
     pub fn in_sight(&self, target: Entity) -> bool {
         self.get(target).is_some_and(|contact| contact.in_sight)
     }
+
+    /// The range `target` returned when this ship's hold on it began, world
+    /// units, while the ship still holds it.
+    pub fn held_floor(&self, target: Entity) -> Option<f32> {
+        self.floors
+            .iter()
+            .find(|(held, _)| *held == target)
+            .map(|(_, floor)| *floor)
+    }
+
+    /// Hold `target` with the range `floor` it returned when the hold began,
+    /// world units: a saved lock comes back with the floor it was held at,
+    /// not the range its shot-down hull returns now. The next sensor pass
+    /// keeps it only while a lock or the radar still holds `target`.
+    pub fn hold_floor(&mut self, target: Entity, floor: f32) {
+        self.floors.retain(|(held, _)| *held != target);
+        self.floors.push((target, floor));
+    }
 }
 
 impl FromIterator<SensorContact> for SensorContacts {

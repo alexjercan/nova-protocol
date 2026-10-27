@@ -418,20 +418,8 @@ pub(super) fn track_docking_transitions(
         }) {
             continue;
         }
-        // `first_ship` is the hull that issued `DOCK`, so it is the ACTING
-        // party and the one it flew up to is the subject - the same
-        // passive-then-active shape the area, orbit and lock payloads use.
-        let (Ok((asking_id, asking_type_name)), Ok((partner_id, partner_type_name))) = (
-            q_ships.get(connection.first_ship),
-            q_ships.get(connection.second_ship),
-        ) else {
+        let Some(info) = docking_info(connection, |ship| q_ships.get(ship).ok()) else {
             continue;
-        };
-        let info = DockingEventInfo {
-            id: partner_id.0.clone(),
-            type_name: partner_type_name.0.clone(),
-            other_id: asking_id.0.clone(),
-            other_type_name: asking_type_name.0.clone(),
         };
         debug!("track_docking_transitions: {entity:?} captured {info:?}");
         commands.fire::<OnDockedEvent>(info.clone());
@@ -441,6 +429,51 @@ pub(super) fn track_docking_transitions(
                 info: info.clone(),
             });
         }
+    }
+}
+
+/// The payload of `connection`'s dock and release events, or `None` when
+/// either hull is no scenario object (`ship` names none for it).
+///
+/// `first_ship` is the hull that issued `DOCK`, so it is the ACTING party and
+/// the one it flew up to is the subject - the same passive-then-active shape
+/// the area, orbit and lock payloads use.
+fn docking_info<'a>(
+    connection: &DockingConnection,
+    ship: impl Fn(Entity) -> Option<(&'a EntityId, &'a EntityTypeName)>,
+) -> Option<DockingEventInfo> {
+    let (asking_id, asking_type_name) = ship(connection.first_ship)?;
+    let (partner_id, partner_type_name) = ship(connection.second_ship)?;
+    Some(DockingEventInfo {
+        id: partner_id.0.clone(),
+        type_name: partner_type_name.0.clone(),
+        other_id: asking_id.0.clone(),
+        other_type_name: asking_type_name.0.clone(),
+    })
+}
+
+/// Mark the dock a Load restored as already reported, so it fires no
+/// `OnDocked`: the capture was reported before the save. Its release still
+/// fires `OnUndocked`, as any dock's does.
+///
+/// # Panics
+///
+/// When `connection` is no live docking connection.
+pub fn echo_restored_dock(world: &mut World, connection: Entity) {
+    let record = *world
+        .get::<DockingConnection>(connection)
+        .unwrap_or_else(|| panic!("echo_restored_dock: {connection} is no docking connection"));
+    let Some(info) = docking_info(&record, |ship| {
+        let hull = world.get_entity(ship).ok()?;
+        hull.get::<EntityId>().zip(hull.get::<EntityTypeName>())
+    }) else {
+        return;
+    };
+    for hull in [record.first_ship, record.second_ship] {
+        world.entity_mut(hull).insert(DockEcho {
+            connection,
+            info: info.clone(),
+        });
     }
 }
 
@@ -1800,6 +1833,57 @@ mod tests {
             2.0,
             "hulls no scenario named stay quiet"
         );
+    }
+
+    /// A dock a Load rebuilds is not a new capture: its echo is written with
+    /// it, so the tracker reports no `OnDocked`, and still reports its
+    /// release once.
+    #[test]
+    fn a_restored_dock_reports_no_capture_and_one_release() {
+        use nova_events::prelude::GameEventsPlugin;
+        use nova_gameplay::prelude::GameObjectives;
+        use nova_ship::prelude::{DockedHelmType, DockingConnection};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(GameEventsPlugin::<NovaEventWorld>::default());
+        app.init_resource::<NovaEventWorld>();
+        app.init_resource::<GameObjectives>();
+        app.add_systems(Update, track_docking_transitions);
+        docking_counters(&mut app);
+
+        let hull = |app: &mut App, id: &str| {
+            app.world_mut()
+                .spawn((EntityId::new(id), EntityTypeName::new(SPACESHIP_TYPE_NAME)))
+                .id()
+        };
+        let tender = hull(&mut app, "tender");
+        let derelict = hull(&mut app, "derelict");
+        let connection = app
+            .world_mut()
+            .spawn(DockingConnection {
+                first_ship: tender,
+                first_section: Entity::PLACEHOLDER,
+                second_ship: derelict,
+                second_section: Entity::PLACEHOLDER,
+                helm: DockedHelmType::Held(tender),
+                measurement_fault: false,
+            })
+            .id();
+        echo_restored_dock(app.world_mut(), connection);
+        for _ in 0..3 {
+            app.update();
+        }
+        assert_eq!(
+            docking_count(&app, "docked"),
+            0.0,
+            "a restored dock is no capture"
+        );
+
+        app.world_mut().entity_mut(connection).despawn();
+        app.update();
+        app.update();
+        assert_eq!(docking_count(&app, "undocked"), 1.0);
     }
 
     /// The whole chain on two real hulls: `DOCK` builds the joint, the tracker

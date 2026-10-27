@@ -1265,14 +1265,6 @@ pub(crate) fn refresh_load_details(
                     for objective in &header.objectives {
                         objective_row(body, &objective.title, &objective_counts(&objective.lines));
                     }
-                    // A save never keeps the dock (`SavedPlayer` has none):
-                    // a thawed pair stands undocked where it froze.
-                    body.spawn(details_note(
-                        "Load World Details Undocked Note",
-                        "Loads undocked: a ship saved docked resumes beside its partner."
-                            .to_string(),
-                        UiColor::Label,
-                    ));
                     if checking {
                         body.spawn(detail_row(
                             "Load World Details Checking",

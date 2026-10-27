@@ -208,8 +208,8 @@ pub(crate) fn sync_leave_overlay(
             |(pending, session)| match (pending.target, session.status()) {
                 (LeaveTarget::Retry, _) => (
                     "Loading last save...".to_string(),
-                    "Progress since the last save is discarded. A ship saved docked resumes \
-                     undocked beside its partner."
+                    "Progress since the last save is discarded. The ship resumes exactly as \
+                     saved."
                         .to_string(),
                     false,
                 ),

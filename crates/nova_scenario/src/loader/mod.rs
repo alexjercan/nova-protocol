@@ -49,7 +49,7 @@ use lifecycle::{
 #[cfg(any(test, feature = "test-support"))]
 pub(crate) use lifecycle::{open_scenario_run, spawn_scenario_handlers};
 use preload::register_scenario_preload;
-pub use trackers::ORBIT_LAP_GRACE_SECS;
+pub use trackers::{echo_restored_dock, ORBIT_LAP_GRACE_SECS};
 use trackers::{
     track_docking_transitions, track_orbit_transitions, track_player_autopilot_completions,
     track_player_locks, track_ship_inventory_reports, track_ship_order_reports, DockEcho, LockEcho,
@@ -66,15 +66,15 @@ pub mod prelude {
     pub use nova_events::prelude::ScenarioAddressableMarker;
 
     pub use super::{
-        gate::prelude::*, lifecycle::scenario_bindings, preload::prelude::*, scenario_is_live,
-        CameraEasing, CameraOffsetFrame, CampaignConfig, CampaignId, ContentIssues,
-        CurrentScenario, GameCampaigns, GameScenarios, GeneratedWorldConfig, LoadScenario,
-        NewGameStart, RuntimeScenarioSystems, ScenarioBoundsConfig, ScenarioCameraMarker,
-        ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded, ScenarioLoaderPlugin,
-        ScenarioRole, ScenarioScopedMarker, ScenarioStartFailure, ScenarioStartFailureReport,
-        ScenarioWorldType, ScriptedCameraAnchor, ScriptedCameraBlend, ScriptedCameraLookAt,
-        ScriptedCameraPose, ScriptedCameraTransform, UnloadScenario, BOUNDS_AREA_ID,
-        ORBIT_LAP_GRACE_SECS,
+        echo_restored_dock, gate::prelude::*, lifecycle::scenario_bindings, preload::prelude::*,
+        scenario_is_live, CameraEasing, CameraOffsetFrame, CampaignConfig, CampaignId,
+        ContentIssues, CurrentScenario, GameCampaigns, GameScenarios, GeneratedWorldConfig,
+        LoadScenario, NewGameStart, RuntimeScenarioSystems, ScenarioBoundsConfig,
+        ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded,
+        ScenarioLoaderPlugin, ScenarioRole, ScenarioScopedMarker, ScenarioStartFailure,
+        ScenarioStartFailureReport, ScenarioWorldType, ScriptedCameraAnchor, ScriptedCameraBlend,
+        ScriptedCameraLookAt, ScriptedCameraPose, ScriptedCameraTransform, UnloadScenario,
+        BOUNDS_AREA_ID, ORBIT_LAP_GRACE_SECS,
     };
 }
 

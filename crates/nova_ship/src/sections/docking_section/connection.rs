@@ -60,6 +60,10 @@
 //! never meets a retiring cell. A pair of NPC hulls at retirement is a fault
 //! (`nova_world::freeze_body` under `DockPolicy::Refuse`), and so is a station
 //! hub with a hull docked.
+//!
+//! A world save keeps the player's dock and refuses every other one but a
+//! station's parked hulls; a Load rebuilds the saved connection with
+//! [`restore_docking_connection`].
 
 use avian3d::{
     collision::contact_types::ContactId,
@@ -391,31 +395,49 @@ pub(super) fn on_docking_connection_request(
         helm,
         measurement_fault: false,
     };
+    let joint = FixedJoint::new(first_ship, second_ship)
+        .with_local_anchor1(first_rotation.inverse() * (anchor - first_position))
+        .with_local_anchor2(second_rotation.inverse() * (anchor - second_position))
+        .with_local_basis2(second_rotation.inverse() * first_rotation);
+    let helms = [(first_ship, first_rotation), (second_ship, second_rotation)]
+        .map(|(ship, rotation)| (ship, helm_command(ship, &q_controllers).unwrap_or(rotation)));
+    let connection = connect(&mut commands, record, joint, hub, helms);
+    debug!("on_docking_connection_request: connection {connection:?} {record:?}");
+    for section in [record.first_section, record.second_section] {
+        if let Ok(mut state) = q_states.get_mut(section) {
+            *state = DockingSectionState::Extending;
+        }
+    }
+}
+
+/// Spawn the connection `record` held by `joint`, reserve both ports and put
+/// each hull on its docked record with the attitude command `helms` names for
+/// it. `hub` is the station endpoint, if one is. The caller starts both
+/// sleeves out.
+///
+/// No root drives until the assembly pass has measured the pair. A hub that
+/// already holds a dock keeps the record it has.
+fn connect(
+    commands: &mut Commands,
+    record: DockingConnection,
+    joint: FixedJoint,
+    hub: Option<Entity>,
+    helms: [(Entity, Quat); 2],
+) -> Entity {
     let mut connection = commands.spawn((
         Name::new("Docking Connection"),
         record,
-        FixedJoint::new(first_ship, second_ship)
-            .with_local_anchor1(first_rotation.inverse() * (anchor - first_position))
-            .with_local_anchor2(second_rotation.inverse() * (anchor - second_position))
-            .with_local_basis2(second_rotation.inverse() * first_rotation),
+        joint,
         JointCollisionDisabled,
     ));
     if let Some(station) = hub {
         connection.insert(StationDock(station));
     }
     let connection = connection.id();
-    debug!("on_docking_connection_request: connection {connection:?} {record:?}");
-
-    for section in [candidate.first_section, candidate.second_section] {
+    for section in [record.first_section, record.second_section] {
         commands.entity(section).try_insert(DockedPort(connection));
-        if let Ok(mut state) = q_states.get_mut(section) {
-            *state = DockingSectionState::Extending;
-        }
     }
-    for (ship, rotation) in [(first_ship, first_rotation), (second_ship, second_rotation)] {
-        let helm = helm_command(ship, &q_controllers).unwrap_or(rotation);
-        // No root drives until the assembly pass has measured it. A hub that
-        // already holds a dock keeps the record it has.
+    for (ship, helm) in helms {
         if hub == Some(ship) {
             commands.entity(ship).try_insert_if_new(DockedStation {
                 helm,
@@ -429,6 +451,86 @@ pub(super) fn on_docking_connection_request(
             });
         }
     }
+    connection
+}
+
+/// Rebuild a saved connection: `record` held by a fixed joint with the local
+/// frames `frames` (first body, second body), both ports reserved, both
+/// sleeves started out and both hulls docked, exactly as `DOCK` left them.
+/// Returns the connection.
+///
+/// It is not a capture. It judges no envelope and asks no admission, it
+/// builds the joint from the saved frames rather than from where the hulls
+/// stand, and it fires nothing. It drops no contact between the hulls, so
+/// call it before the first physics step with both: a Load holds the clocks
+/// from before either spawned.
+///
+/// # Panics
+///
+/// When either endpoint is not a live ship root or either port is not a
+/// free, live docking port of its endpoint, or when a ship endpoint is
+/// already docked. The caller checks each before it restores.
+pub fn restore_docking_connection(
+    world: &mut World,
+    record: DockingConnection,
+    frames: [JointFrame; 2],
+) -> Entity {
+    for (ship, port) in [
+        (record.first_ship, record.first_section),
+        (record.second_ship, record.second_section),
+    ] {
+        let root = world.entity(ship);
+        assert!(
+            root.contains::<SpaceshipRootMarker>(),
+            "restore_docking_connection: {ship} is not a ship root"
+        );
+        assert!(
+            root.contains::<StationMarker>() || !root.contains::<DockedShip>(),
+            "restore_docking_connection: ship {ship} is already docked"
+        );
+        let section = world.entity(port);
+        assert!(
+            section.get::<ChildOf>().map(ChildOf::parent) == Some(ship)
+                && section.contains::<DockingSectionMarker>()
+                && !section.contains::<SectionInactiveMarker>()
+                && !section.contains::<DockedPort>(),
+            "restore_docking_connection: {port} is no free, live docking port of {ship}"
+        );
+    }
+    let ships = [record.first_ship, record.second_ship];
+    let hub = ships
+        .into_iter()
+        .find(|ship| world.entity(*ship).contains::<StationMarker>());
+    let mut q_controllers = world.query_filtered::<(&ChildOf, &ControllerSectionRotationInput), (
+        With<ControllerSectionMarker>,
+        Without<SectionInactiveMarker>,
+    )>();
+    let helms = ships.map(|ship| {
+        let command = q_controllers
+            .iter(world)
+            .find(|(mount, _)| mount.0 == ship)
+            .map(|(_, command)| command.0);
+        let rotation = world
+            .get::<Rotation>(ship)
+            .unwrap_or_else(|| panic!("restore_docking_connection: ship {ship} has no rotation"));
+        (ship, command.unwrap_or(rotation.0))
+    });
+    let [frame1, frame2] = frames;
+    let joint = FixedJoint {
+        frame1,
+        frame2,
+        ..FixedJoint::new(record.first_ship, record.second_ship)
+    };
+    let mut commands = world.commands();
+    let connection = connect(&mut commands, record, joint, hub, helms);
+    for section in [record.first_section, record.second_section] {
+        commands
+            .entity(section)
+            .insert(DockingSectionState::Extending);
+    }
+    world.flush();
+    debug!("restore_docking_connection: connection {connection:?} {record:?}");
+    connection
 }
 
 /// Drop every contact between two bodies that are about to be joined with

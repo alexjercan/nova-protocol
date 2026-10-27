@@ -9,8 +9,9 @@
 //!
 //! A Load keeps the records in [`ResumedTransients`] and holds the clocks
 //! ([`FreezeOwner::WorldResume`]) until every desired sector is live and every
-//! saved reference resolves. It then spawns them all on one frame and
-//! releases the clocks. A Load that cannot get there within
+//! saved reference resolves, the player's saved controls
+//! ([`super::controls`]) with them. It then spawns them all on one frame,
+//! restores the controls and releases the clocks. A Load that cannot get there within
 //! [`WORLD_RESUME_SECONDS_MAX`] real seconds is refused
 //! ([`WorldResumeRefused`]).
 
@@ -47,7 +48,10 @@ use nova_world::prelude::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::{ResumedWorld, WorldSaveSession};
+use super::{
+    controls::{apply_controls, resolve_controls, SavedControls},
+    ResumedWorld, WorldSaveSession,
+};
 use crate::{GameStyles, NovaLayeredWorld};
 
 /// The real seconds a Load may take to bring its window and transients back
@@ -163,21 +167,28 @@ pub struct WorldResumeRefused {
     pub reason: String,
 }
 
-/// The saved transients of a Load, waiting for their window. Removed when
-/// they spawn, when the Load is refused, or when the session ends.
+/// The saved transients and player controls of a Load, waiting for their
+/// window. Removed when they are back, when the Load is refused, or when the
+/// session ends.
 #[derive(Resource, Debug)]
 pub(crate) struct ResumedTransients {
     pub(super) transients: Vec<FrozenTransient>,
+    pub(super) controls: SavedControls,
     /// `Time<Real>` elapsed when the Load began.
     started: Duration,
 }
 
-/// Keep `transients` for the window this Load streams, and hold the clocks
-/// until they are back.
-pub(crate) fn hold_resumed_transients(world: &mut World, transients: Vec<FrozenTransient>) {
+/// Keep `transients` and `controls` for the window this Load streams, and
+/// hold the clocks until they are back.
+pub(crate) fn hold_resumed_transients(
+    world: &mut World,
+    transients: Vec<FrozenTransient>,
+    controls: SavedControls,
+) {
     let started = world.resource::<Time<Real>>().elapsed();
     world.insert_resource(ResumedTransients {
         transients,
+        controls,
         started,
     });
     // The window is not known until the world arms.
@@ -191,7 +202,8 @@ pub(crate) fn hold_resumed_transients(world: &mut World, transients: Vec<FrozenT
         .expect("the clocks exist wherever a world is resumed");
 }
 
-/// Every live top-level transient body, frozen.
+/// Every live top-level transient body, frozen, and the index each frozen
+/// body has in that list.
 ///
 /// # Errors
 ///
@@ -203,7 +215,7 @@ pub(crate) fn hold_resumed_transients(world: &mut World, transients: Vec<FrozenT
 /// save fails like every other save fault, and the last save is kept.
 pub(crate) fn freeze_transients(
     world: &mut World,
-) -> Result<Vec<FrozenTransient>, SectorSnapshotError> {
+) -> Result<(Vec<FrozenTransient>, HashMap<Entity, usize>), SectorSnapshotError> {
     let coord = world.resource::<CurrentSector>().0;
     let unsettled = |label: String, reason: &'static str| SectorSnapshotError::Unsettled {
         label,
@@ -296,7 +308,7 @@ pub(crate) fn freeze_transients(
             .expect("a TempEntity body has its countdown from the frame it spawned");
         frozen.push(FrozenTransient { lifetime, body });
     }
-    Ok(frozen)
+    Ok((frozen, indices))
 }
 
 /// What a top-level transient body is, for the save.
@@ -355,7 +367,7 @@ impl TransientKindQueryItem<'_, '_> {
 
 /// Why a saved id does not name one live body.
 #[derive(Debug)]
-enum TransientRefFault {
+pub(super) enum TransientRefFault {
     /// No live body has it yet.
     Missing,
     /// More than one live body has it.
@@ -363,7 +375,7 @@ enum TransientRefFault {
 }
 
 /// The one live body matching `filter` with the id `id`.
-fn live_by_id<F: QueryFilter>(
+pub(super) fn live_by_id<F: QueryFilter>(
     world: &mut World,
     id: &EntityId,
 ) -> Result<Entity, TransientRefFault> {
@@ -401,11 +413,14 @@ fn window_still_missing(world: &mut World) -> Option<(Vec<SectorCoord>, usize)> 
     Some((missing, desired.len()))
 }
 
-/// Spawn the saved transients once the exact desired window is live and
-/// every saved reference resolves, then release the clocks. Past
+/// Spawn the saved transients and restore the player's saved controls once
+/// the exact desired window is live and every saved reference resolves, then
+/// release the clocks. Past
 /// [`WORLD_RESUME_SECONDS_MAX`] real seconds, refuse the Load instead.
 ///
-/// Runs after streaming, so the sector spawns of this frame are applied.
+/// Runs after streaming, so the sector spawns of this frame are applied,
+/// and after the player's sensor pass, so the restored locks first meet it
+/// on the next frame, with the floors they held.
 pub(crate) fn restore_resumed_transients(world: &mut World) {
     let Some(slug) = world
         .get_resource::<WorldSaveSession>()
@@ -428,18 +443,29 @@ pub(crate) fn restore_resumed_transients(world: &mut World) {
             let cells: Vec<String> = missing.iter().map(ToString::to_string).collect();
             vec![format!("the sectors {} are not live", cells.join(", "))]
         }
-        Some(_) => match resolve_all(world) {
-            Ok(refs) => {
-                spawn_resumed(world, refs);
-                end_resume(world);
-                return;
+        Some(_) => {
+            let controls = world.resource::<ResumedTransients>().controls.clone();
+            match (resolve_all(world), resolve_controls(world, &controls)) {
+                (Ok(refs), Ok(controls)) => {
+                    let spawned = spawn_resumed(world, refs);
+                    apply_controls(world, controls, &spawned);
+                    end_resume(world);
+                    return;
+                }
+                (Err(Resolve::Refuse(reason)), _) | (_, Err(Resolve::Refuse(reason))) => {
+                    refuse(world, slug, reason);
+                    return;
+                }
+                (transients, controls) => [transients.err(), controls.err()]
+                    .into_iter()
+                    .flatten()
+                    .flat_map(|fault| match fault {
+                        Resolve::Wait(reasons) => reasons,
+                        Resolve::Refuse(_) => unreachable!("a refusal is matched above"),
+                    })
+                    .collect(),
             }
-            Err(Resolve::Wait(reasons)) => reasons,
-            Err(Resolve::Refuse(reason)) => {
-                refuse(world, slug, reason);
-                return;
-            }
-        },
+        }
     };
     let started = world.resource::<ResumedTransients>().started;
     let elapsed = world
@@ -455,7 +481,7 @@ pub(crate) fn restore_resumed_transients(world: &mut World) {
     }
 }
 
-enum Resolve {
+pub(super) enum Resolve {
     /// A reference does not resolve yet.
     Wait(Vec<String>),
     /// A reference can never resolve.
@@ -690,8 +716,8 @@ type ThawResources<'w, 's> = (
 /// Spawn every saved transient with its references and remaining lifetime,
 /// then link each tracking torpedo to its target. Both passes queue on one
 /// command buffer, applied once, so no tick sees a torpedo without its
-/// target.
-fn spawn_resumed(world: &mut World, refs: Vec<ResolvedRefs>) {
+/// target. Returns the spawned bodies in save order.
+fn spawn_resumed(world: &mut World, refs: Vec<ResolvedRefs>) -> Vec<Entity> {
     let ResumedTransients { transients, .. } = world
         .remove_resource::<ResumedTransients>()
         .expect("run only with saved transients");
@@ -760,6 +786,7 @@ fn spawn_resumed(world: &mut World, refs: Vec<ResolvedRefs>) {
         "nova_world_base: the saved world is back with {} transient(s)",
         transients.len()
     );
+    spawned
 }
 
 /// Refuse the Load: no transient spawns, the clocks run, and the menu takes

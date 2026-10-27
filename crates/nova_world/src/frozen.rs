@@ -500,10 +500,12 @@ pub enum DockPolicy {
     /// freezing one half of a pair would release the dock and leave its
     /// partner flying alone.
     Refuse,
-    /// The body stays live and a save copies it: a docked ship is kept
-    /// without its dock, and a saved world thaws the pair undocked where it
-    /// stood.
-    Undock,
+    /// The body stays live and a save copies it: a dock with the
+    /// [`WorldObserver`] stays live and the observer's owner saves it beside
+    /// the observer, so the copy freezes the partner as a plain body; a
+    /// station's parked hulls freeze inside the station's record; every
+    /// other dock is refused before the copy (see [`snapshot_sectors`]).
+    Copy,
 }
 
 /// Freeze one persistent body.
@@ -518,8 +520,10 @@ pub enum DockPolicy {
 ///
 /// # Panics
 ///
-/// On a docked ship under [`DockPolicy::Refuse`]. And on an entity that is no
-/// persistent body this module knows how to freeze.
+/// On a docked ship under [`DockPolicy::Refuse`]. On a docked ship under
+/// [`DockPolicy::Copy`] whose dock [`snapshot_sectors`] did not already
+/// confirm kept. And on an entity that is no persistent body this module
+/// knows how to freeze.
 pub fn freeze_body(
     world: &World,
     entity: Entity,
@@ -570,15 +574,33 @@ pub fn freeze_body(
     // A station root also carries `SpaceshipRootMarker`, so its own marker
     // decides first.
     let frozen = if body.contains::<StationMarker>() {
+        let docks_kept = match docked {
+            DockPolicy::Refuse => only_parked_docks(world, entity),
+            DockPolicy::Copy => world.get::<StationDocks>(entity).is_none_or(|docks| {
+                docks.iter().all(|connection| {
+                    world
+                        .get::<DockingConnection>(connection)
+                        .is_some_and(|connection| kept_dock(world, connection))
+                })
+            }),
+        };
         assert!(
-            docked == DockPolicy::Undock || only_parked_docks(world, entity),
+            docks_kept,
             "nova_world: station '{label}' has a ship docked and its cell is about to freeze \
              it; a docked assembly cannot be split across the active window"
         );
         FrozenBodyType::Station(Box::new(freeze_station(world, entity)?))
     } else if body.contains::<SpaceshipRootMarker>() {
+        let dock_kept = match docked {
+            DockPolicy::Refuse => !body.contains::<DockedShip>(),
+            DockPolicy::Copy => body.get::<DockedShip>().is_none_or(|docked_ship| {
+                world
+                    .get::<DockingConnection>(docked_ship.connection)
+                    .is_some_and(|connection| kept_dock(world, connection))
+            }),
+        };
         assert!(
-            docked == DockPolicy::Undock || !body.contains::<DockedShip>(),
+            dock_kept,
             "nova_world: ship '{label}' is docked and its cell is about to freeze it; a docked \
              pair cannot be split across the active window"
         );
@@ -608,6 +630,13 @@ pub fn freeze_body(
     })
 }
 
+/// Whether `ship` is a hull parked at `station`.
+fn parked_at(world: &World, ship: Entity, station: Entity) -> bool {
+    world
+        .get::<ParkedHull>(ship)
+        .is_some_and(|parked| parked.0 == station)
+}
+
 /// Whether every ship docked at `station` is a hull parked there, which
 /// freezes inside the station's record.
 fn only_parked_docks(world: &World, station: Entity) -> bool {
@@ -619,14 +648,27 @@ fn only_parked_docks(world: &World, station: Entity) -> bool {
                     [connection.first_ship, connection.second_ship]
                         .into_iter()
                         .filter(|ship| *ship != station)
-                        .all(|ship| {
-                            world
-                                .get::<ParkedHull>(ship)
-                                .is_some_and(|parked| parked.0 == station)
-                        })
+                        .all(|ship| parked_at(world, ship, station))
                 })
         })
     })
+}
+
+/// Whether a save keeps `connection`'s dock: one endpoint carries
+/// [`WorldObserver`] and its owner saves the dock beside it, or one endpoint
+/// is a station and the other is a hull parked there, which freezes inside
+/// the station's record. Every other dock is refused rather than dropped
+/// (see [`SectorSnapshotError::UnsavedDock`]).
+fn kept_dock(world: &World, connection: &DockingConnection) -> bool {
+    let [first, second] = [connection.first_ship, connection.second_ship];
+    if world.entity(first).contains::<WorldObserver>()
+        || world.entity(second).contains::<WorldObserver>()
+    {
+        return true;
+    }
+    [(first, second), (second, first)]
+        .into_iter()
+        .any(|(station, ship)| parked_at(world, ship, station))
 }
 
 /// Spawn frozen `bodies` under `root`, each where and as it froze, with the
@@ -872,6 +914,15 @@ pub enum SectorSnapshotError {
         /// The body's name, or its entity.
         label: String,
     },
+    /// Two live hulls are docked and neither is the observer nor a
+    /// station's parked hull, so no save keeps their dock; the save refuses
+    /// rather than drop it.
+    UnsavedDock {
+        /// The first ship's name, or its entity.
+        first: String,
+        /// The second ship's name, or its entity.
+        second: String,
+    },
     /// A saved transient points at a live body with no `EntityId`, so no
     /// Load could find it again. The save collector of the game returns
     /// it; a sector snapshot never does.
@@ -909,6 +960,10 @@ impl std::fmt::Display for SectorSnapshotError {
                 f,
                 "'{label}' is a persistent body that no sector owns, so no save can keep it"
             ),
+            Self::UnsavedDock { first, second } => write!(
+                f,
+                "'{first}' is docked with '{second}', and a save keeps only the player's dock"
+            ),
             Self::NoDurableId { label } => {
                 write!(f, "{label} has no durable id, so no save can keep it")
             }
@@ -926,17 +981,20 @@ impl std::fmt::Display for SectorSnapshotError {
 /// anything: the ledger, every live cell's bodies as a visited record, and
 /// every body waiting top-level for its cell as an arrival there.
 ///
-/// A docked ship is kept without its dock ([`DockPolicy::Undock`]), so a
-/// saved world thaws the pair undocked where it stood. The
+/// A saved dock stays docked ([`DockPolicy::Copy`]): the player's dock is
+/// saved separately beside the [`WorldObserver`] and rebuilt on Load, and a
+/// station's parked hulls freeze inside the station's record. Any other dock
+/// cannot be kept, so the save refuses rather than drop it. The
 /// [`WorldObserver`] and the player's fleet ([`PlayerFleetMarker`]) are not
 /// part of it: the world streams around the observer, the fleet travels with
 /// it, and their owner saves both.
 ///
 /// # Errors
 ///
-/// [`SectorSnapshotError::Unsettled`] while any body is mid-process, and
+/// [`SectorSnapshotError::Unsettled`] while any body is mid-process,
 /// [`SectorSnapshotError::UnownedBody`] for a persistent body no record could
-/// hold.
+/// hold, and [`SectorSnapshotError::UnsavedDock`] for a dock no save can
+/// keep.
 ///
 /// # Panics
 ///
@@ -972,10 +1030,21 @@ pub fn snapshot_sectors<G: SectorGenerator>(
         });
     }
 
+    let mut connections = world.query::<&DockingConnection>();
+    if let Some(connection) = connections
+        .iter(world)
+        .find(|connection| !kept_dock(world, connection))
+    {
+        return Err(SectorSnapshotError::UnsavedDock {
+            first: label(world, connection.first_ship),
+            second: label(world, connection.second_ship),
+        });
+    }
+
     let mut ledger = world.resource::<FrozenSectors>().clone();
     let roots = live_sectors(world.query::<(Entity, &SectorRoot)>().iter(world));
     for (coord, root) in roots {
-        let (frozen, unsettled) = freeze_sector_bodies(world, coord, root, DockPolicy::Undock);
+        let (frozen, unsettled) = freeze_sector_bodies(world, coord, root, DockPolicy::Copy);
         if let Some((entity, reason)) = unsettled.into_iter().next() {
             return Err(SectorSnapshotError::Unsettled {
                 label: label(world, entity),
@@ -1008,7 +1077,7 @@ pub fn snapshot_sectors<G: SectorGenerator>(
         match freeze_body(
             world,
             entity,
-            DockPolicy::Undock,
+            DockPolicy::Copy,
             world.resource::<WorldClock>(),
         ) {
             Ok(body) => ledger.arrive(coord, body),

@@ -6,7 +6,14 @@ use std::{
     time::Duration,
 };
 
-use avian3d::prelude::{LinearVelocity, Position, RigidBody, Rotation};
+use avian3d::{
+    collider_tree::ColliderTrees,
+    dynamics::solver::joint_graph::JointGraph,
+    prelude::{
+        FixedJoint, JointAnchor, JointBasis, JointFrame, LinearVelocity, Position, RigidBody,
+        Rotation,
+    },
+};
 use bevy::prelude::*;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
 use nova_events::prelude::{EntityId, GeneratedBodyId, Meters3};
@@ -31,15 +38,19 @@ use nova_scenario::prelude::{
     StationStorage,
 };
 use nova_ship::prelude::{
-    cargo_canister, freeze_canister, freeze_wreck_fragment, thaw_round, thaw_torpedo, AIFollow,
-    Autopilot, AutopilotAction, BaseSectionConfig, BodyRadius, CameraView,
-    CargoIntakeEjectionQueue, ChaseZoom, DamageSparkMarker, DamageSparks, DamageSparksPlugin,
-    DestroySound, FrozenRound, FrozenTorpedo, HullSectionConfig, LockSignature, RoundSourceType,
-    SavedTorpedoTarget, SectionAnimations, SectionBuildConfig, SectionConfig, SectionKind,
-    SectionReload, SectionReloadConfig, ShipWreckFragmentMarker, SpaceshipCameraController,
-    SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker, StationPost,
-    SuspendedSectionAmmo, TorpedoArming, TorpedoControllerMarker, TorpedoSectionConfig,
-    TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoWeave, TravelLock,
+    cargo_canister, docking_section, freeze_canister, freeze_wreck_fragment,
+    restore_docking_connection, thaw_round, thaw_torpedo, AIFollow, Autopilot, AutopilotAction,
+    AutopilotPhase, BaseSectionConfig, BodyRadius, CameraView, CargoIntakeEjectionQueue, ChaseZoom,
+    CombatLock, ComponentLock, ComponentLockMode, DamageSparkMarker, DamageSparks,
+    DamageSparksPlugin, DestroySound, DockedHelmType, DockedPort, DockedShip, DockingConnection,
+    DockingSectionConfig, FrozenRound, FrozenTorpedo, HullSectionConfig, LockFocus, LockSignature,
+    OrbitPlan, RcsBudget, RoundSourceType, SavedTorpedoTarget, SectionAnimations,
+    SectionBuildConfig, SectionConfig, SectionKind, SectionReload, SectionReloadConfig,
+    SensorContacts, ShipWreckFragmentMarker, SpaceshipCameraController, SpaceshipCameraInputMarker,
+    SpaceshipCameraNormalInputMarker, SpaceshipTargetingPlugin, SpaceshipTargetingSystems,
+    StationPost, SuspendedSectionAmmo, TorpedoArming, TorpedoControllerMarker,
+    TorpedoSectionConfig, TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition,
+    TorpedoWeave, TravelLock,
 };
 use nova_world::{
     prelude::{CurrentSector, FrozenBodyType, FrozenSectors, SectorCoord, WorldClock, WorldConfig},
@@ -49,15 +60,37 @@ use nova_world::{
 use super::{
     check_world, create_world, delete_world, list_worlds, open_world, restore_resumed_world,
     resume_world, write_world, FrozenTransient, FrozenTransientType, RegisteredScenarios,
-    ResumedTransients, SavedChart, SavedChartCell, SavedChartMark, SavedChartMarkType, SavedFleet,
-    SavedObjective, SavedObjectiveLine, SavedObjectiveType, SavedPlayer, SavedScenario,
-    WorldRefusal, WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession,
-    WorldSaveState, WorldSaveStatus, WORLD_SAVE_VERSION,
+    ResumedTransients, SavedAutopilot, SavedAutopilotAction, SavedChart, SavedChartCell,
+    SavedChartMark, SavedChartMarkType, SavedComponentLock, SavedControls, SavedDock,
+    SavedDockHelm, SavedFleet, SavedJointFrame, SavedLock, SavedObjective, SavedObjectiveLine,
+    SavedObjectiveType, SavedPlayer, SavedRcs, SavedScenario, WorldRefusal, WorldResumeProgress,
+    WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
+    WORLD_SAVE_VERSION,
 };
 use crate::{
     test_support::{fixture_roles, FIXTURE_ROLE_ID, FIXTURE_SCENARIO_ID},
     NovaLayeredWorld,
 };
+
+/// The controls of a ship flown by hand: no order, no lock, a full RCS
+/// magazine, no dock.
+fn free_flight() -> SavedControls {
+    SavedControls {
+        autopilot: None,
+        travel_lock: None,
+        combat_lock: None,
+        focus_seconds: 0.0,
+        component_lock: SavedComponentLock {
+            section: None,
+            pinned_seconds: None,
+        },
+        rcs: SavedRcs {
+            spent: 0.0,
+            idle: 0.0,
+        },
+        dock: None,
+    }
+}
 
 /// A loaded catalog of digest `digest` from the base game and one mod.
 fn catalog(digest: u64) -> LoadedSectionPacks {
@@ -149,6 +182,7 @@ fn state(generation: u64, credits: u32) -> WorldSaveState {
                 zoom: 2.0,
             },
             fleet: Vec::new(),
+            controls: free_flight(),
         },
         sectors: FrozenSectors::default(),
         canister_ids_next: 12,
@@ -841,16 +875,212 @@ fn the_first_frame_and_a_leave_each_write_a_save() {
     assert_eq!(state.player.id.0, "player");
 }
 
-/// A GOTO order and its travel lock are live navigation state, not saved
-/// progress: a leave save written while one is engaged succeeds, and the
-/// player ship a Load restores flies nothing and is locked on nothing.
+/// The body `id` a saved control points at, standing where the window
+/// streams it back: a plain rigid body with no sector parent.
+fn spawn_target(world: &mut World, id: &str) -> Entity {
+    world
+        .spawn((
+            EntityId(id.to_string()),
+            RigidBody::Dynamic,
+            Transform::from_xyz(10.0, 0.0, -30.0),
+        ))
+        .id()
+}
+
+/// Save `world`'s session with a leave save and return the catalog digest.
+fn leave_and_save(world: &mut World) -> u64 {
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    run_until_idle(world);
+    assert!(
+        matches!(
+            world.resource::<WorldSaveSession>().status(),
+            WorldSaveStatus::Saved { .. }
+        ),
+        "the save writes: {:?}",
+        world.resource::<WorldSaveSession>().status()
+    );
+    world.resource::<LoadedSectionPacks>().digest.0
+}
+
+/// The player ship of a loaded world.
+fn loaded_player(world: &mut World) -> Entity {
+    world
+        .query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
+        .single(world)
+        .unwrap()
+}
+
+/// A GOTO order, both locks with their held range floors, the focus dwell,
+/// a pinned component choice and a spent RCS magazine all come back on the
+/// Load's release frame, on the respawned target, and the targeting pass of
+/// the next frames keeps the locks. The Load holds them until the target is
+/// in the window.
 #[test]
-fn a_goto_order_is_not_saved_and_a_load_starts_without_one() {
+fn a_load_restores_the_goto_order_locks_focus_and_rcs_magazine() {
     let root = tempfile::tempdir().unwrap();
     let (mut world, player) = armed_session(root.path());
-    frame(&mut world);
-    frame(&mut world);
+    run_until_idle(&mut world);
+    world.insert_resource(ledger(&[(SectorCoord::new(1, 0, 0), &["target"])]));
+    let target = spawn_target(&mut world, "target");
+    let now = world.resource::<Time>().elapsed_secs();
+    let mut ship = world.entity_mut(player);
+    ship.insert((
+        Autopilot {
+            action: AutopilotAction::Goto { target },
+            phase: AutopilotPhase::Burn,
+            flip_marker_consumed: true,
+        },
+        TravelLock(Some(target)),
+        CombatLock(Some(target)),
+        LockFocus {
+            target: Some(target),
+            seconds: 0.75,
+        },
+        ComponentLock {
+            section: None,
+            mode: ComponentLockMode::Pinned { until: now + 1.5 },
+        },
+    ));
+    ship.get_mut::<SensorContacts>()
+        .unwrap()
+        .hold_floor(target, 42.0);
+    let mut rcs = ship.get_mut::<RcsBudget>().unwrap();
+    rcs.spent = 3.25;
+    rcs.idle = 0.5;
+    let digest = leave_and_save(&mut world);
+    drop(world);
 
+    // The production targeting pass, ordered before the restore as the
+    // game orders it; its line-of-sight check reads the collider trees.
+    let mut app = App::new();
+    app.add_plugins(SpaceshipTargetingPlugin)
+        .init_resource::<ColliderTrees>()
+        .configure_sets(
+            Update,
+            SpaceshipTargetingSystems.before(super::restore_resumed_transients),
+        );
+    let mut world = load_in(app, root.path(), digest, &roles());
+    world.spawn(SectorRoot(SectorCoord::ORIGIN));
+    frame(&mut world);
+    assert!(
+        world.contains_resource::<ResumedTransients>(),
+        "the Load waits while the GOTO target is not in the window"
+    );
+    let player = loaded_player(&mut world);
+    assert_eq!(world.get::<Autopilot>(player), None);
+
+    let target = spawn_target(&mut world, "target");
+    frame(&mut world);
+    assert!(!world.contains_resource::<ResumedTransients>());
+    assert_eq!(
+        world.get::<Autopilot>(player),
+        Some(&Autopilot {
+            action: AutopilotAction::Goto { target },
+            phase: AutopilotPhase::Burn,
+            flip_marker_consumed: true,
+        })
+    );
+    assert_eq!(world.get::<TravelLock>(player).unwrap().0, Some(target));
+    assert_eq!(world.get::<CombatLock>(player).unwrap().0, Some(target));
+    let focus = world.get::<LockFocus>(player).unwrap();
+    assert_eq!((focus.target, focus.seconds), (Some(target), 0.75));
+    assert_eq!(
+        world
+            .get::<SensorContacts>(player)
+            .unwrap()
+            .held_floor(target),
+        Some(42.0)
+    );
+    let now = world.resource::<Time>().elapsed_secs();
+    assert_eq!(
+        world.get::<ComponentLock>(player).unwrap(),
+        &ComponentLock {
+            section: None,
+            mode: ComponentLockMode::Pinned { until: now + 1.5 },
+        }
+    );
+    let rcs = world.get::<RcsBudget>(player).unwrap();
+    assert_eq!((rcs.spent, rcs.idle), (3.25, 0.5));
+
+    for _ in 0..3 {
+        frame(&mut world);
+    }
+    assert!(
+        world
+            .get::<SensorContacts>(player)
+            .unwrap()
+            .in_sight(target),
+        "the sensor pass ran and sees the target"
+    );
+    assert_eq!(world.get::<TravelLock>(player).unwrap().0, Some(target));
+    assert_eq!(world.get::<CombatLock>(player).unwrap().0, Some(target));
+    assert_eq!(
+        world
+            .get::<SensorContacts>(player)
+            .unwrap()
+            .held_floor(target),
+        Some(42.0),
+        "the targeting pass keeps the restored floor of a held lock"
+    );
+    assert_eq!(world.get::<LockFocus>(player).unwrap().target, Some(target));
+}
+
+/// STOP, an ORBIT with its insertion plan, and a held velocity each come
+/// back as saved, the well on its respawned body.
+#[test]
+fn a_load_restores_a_stop_an_orbit_and_a_held_velocity() {
+    let orders: [fn(Entity) -> AutopilotAction; 3] = [
+        |_| AutopilotAction::Stop,
+        |well| AutopilotAction::Orbit {
+            well,
+            plan: Some(OrbitPlan {
+                radius: 120.0,
+                normal: Vec3::Y,
+            }),
+        },
+        |_| AutopilotAction::MatchVelocity {
+            velocity: Vec3::new(1.0, 0.0, -2.0),
+            facing: Some(Dir3::NEG_Z),
+            rcs: true,
+        },
+    ];
+    for order in orders {
+        let root = tempfile::tempdir().unwrap();
+        let (mut world, player) = armed_session(root.path());
+        run_until_idle(&mut world);
+        world.insert_resource(ledger(&[(SectorCoord::new(1, 0, 0), &["well"])]));
+        let well = spawn_target(&mut world, "well");
+        world.entity_mut(player).insert(Autopilot {
+            action: order(well),
+            phase: AutopilotPhase::Hold,
+            flip_marker_consumed: false,
+        });
+        let digest = leave_and_save(&mut world);
+        drop(world);
+
+        let mut world = load(root.path(), digest);
+        world.spawn(SectorRoot(SectorCoord::ORIGIN));
+        let well = spawn_target(&mut world, "well");
+        frame(&mut world);
+        let player = loaded_player(&mut world);
+        assert_eq!(
+            world.get::<Autopilot>(player),
+            Some(&Autopilot {
+                action: order(well),
+                phase: AutopilotPhase::Hold,
+                flip_marker_consumed: false,
+            })
+        );
+    }
+}
+
+/// A GOTO or lock on a live body with no durable key fails the save
+/// visibly: the save writes nothing rather than drop the order.
+#[test]
+fn a_save_whose_goto_or_lock_names_a_body_with_no_id_fails() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, player) = armed_session(root.path());
+    run_until_idle(&mut world);
     let waypoint = world
         .spawn(GlobalTransform::from(Transform::from_xyz(0.0, 0.0, -50.0)))
         .id();
@@ -860,29 +1090,299 @@ fn a_goto_order_is_not_saved_and_a_load_starts_without_one() {
     ));
     world.resource_mut::<WorldSaveSession>().request_leave();
     run_until_idle(&mut world);
-    assert_eq!(
-        world.resource::<WorldSaveSession>().status(),
-        &WorldSaveStatus::Saved { generation: 2 }
+    let WorldSaveStatus::Failed(reason) = world.resource::<WorldSaveSession>().status() else {
+        panic!(
+            "the save fails, not {:?}",
+            world.resource::<WorldSaveSession>().status()
+        );
+    };
+    assert!(
+        reason.contains("the autopilot's GOTO target") && reason.contains("no durable id"),
+        "{reason}"
     );
+}
 
-    let digest = world.resource::<LoadedSectionPacks>().digest.0;
+/// A docking port section `id` on `ship`, as a design assembles it.
+fn spawn_port(world: &mut World, ship: Entity, id: &str) -> Entity {
+    world
+        .spawn((
+            SectionMarker,
+            EntityId(id.to_string()),
+            Health::new(100.0),
+            SectionAnimations::new(Vec::new()),
+            SectionBuildConfig(SectionConfig {
+                base: BaseSectionConfig {
+                    id: "port".to_string(),
+                    ..default()
+                },
+                kind: SectionKind::Docking(DockingSectionConfig::default()),
+            }),
+            docking_section(DockingSectionConfig::default()),
+            Transform::default(),
+            ChildOf(ship),
+        ))
+        .id()
+}
+
+/// The dock partner `tender`, a scenario ship in no cell yet, with its port
+/// `tender_port`. A save freezes it as an arrival.
+fn spawn_tender(world: &mut World) -> (Entity, Entity) {
+    let tender = world
+        .spawn((
+            spaceship_scenario_object(SpaceshipConfig::default()),
+            ShipInventory::default(),
+            DamageMarks::default(),
+            EntityId("tender".to_string()),
+            Rotation::default(),
+            Transform::from_xyz(5.0, 0.0, -12.0),
+        ))
+        .id();
+    (tender, spawn_port(world, tender, "tender_port"))
+}
+
+/// A saved dock stays docked: the Load rebuilds the one connection with the
+/// saved partner, ports, helm and joint frames, both hulls docked and both
+/// ports held, and no second joint. A Load whose port is taken is refused
+/// rather than undocked.
+#[test]
+fn a_load_restores_the_player_s_dock_and_refuses_one_whose_port_is_taken() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, player) = armed_session(root.path());
+    run_until_idle(&mut world);
+    // The joint's collision filter reads the graph physics keeps.
+    world.init_resource::<JointGraph>();
+    let player_port = spawn_port(&mut world, player, "player_port");
+    let (tender, tender_port) = spawn_tender(&mut world);
+    let frames = [
+        JointFrame {
+            anchor: JointAnchor::Local(Vec3::new(0.0, 0.0, -2.5)),
+            basis: JointBasis::Local(Quat::from_rotation_y(0.2)),
+        },
+        JointFrame {
+            anchor: JointAnchor::Local(Vec3::new(0.0, 1.0, 3.0)),
+            basis: JointBasis::Local(Quat::from_rotation_x(0.1)),
+        },
+    ];
+    let record = DockingConnection {
+        first_ship: tender,
+        first_section: tender_port,
+        second_ship: player,
+        second_section: player_port,
+        helm: DockedHelmType::Held(player),
+        measurement_fault: false,
+    };
+    restore_docking_connection(&mut world, record, frames);
+    let digest = leave_and_save(&mut world);
     drop(world);
 
-    let mut world = load(root.path(), digest);
-    let player = world
-        .query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
-        .single(&world)
-        .unwrap();
+    let resumed = |taken: bool| {
+        let mut world = load(root.path(), digest);
+        world.init_resource::<JointGraph>();
+        let player = loaded_player(&mut world);
+        // The thaw's sections and the window's tender, by hand: the fixture
+        // spawns neither.
+        let player_port = spawn_port(&mut world, player, "player_port");
+        let (tender, tender_port) = spawn_tender(&mut world);
+        if taken {
+            let other = world.spawn_empty().id();
+            world.entity_mut(tender_port).insert(DockedPort(other));
+        }
+        world.spawn(SectorRoot(SectorCoord::ORIGIN));
+        frame(&mut world);
+        (world, player, player_port, tender, tender_port)
+    };
+
+    let (mut world, player, player_port, tender, tender_port) = resumed(false);
+    let connections: Vec<(Entity, DockingConnection, FixedJoint)> = world
+        .query::<(Entity, &DockingConnection, &FixedJoint)>()
+        .iter(&world)
+        .map(|(entity, record, joint)| (entity, *record, joint.clone()))
+        .collect();
+    let [(connection, record, joint)] = &connections[..] else {
+        panic!("one connection, not {}", connections.len());
+    };
     assert_eq!(
-        world.get::<Autopilot>(player),
-        None,
-        "a Load starts the player ship flying nothing"
+        *record,
+        DockingConnection {
+            first_ship: tender,
+            first_section: tender_port,
+            second_ship: player,
+            second_section: player_port,
+            helm: DockedHelmType::Held(player),
+            measurement_fault: false,
+        }
     );
-    assert_eq!(
-        world.get::<TravelLock>(player).and_then(|lock| lock.0),
-        None,
-        "a Load starts the player ship locked on nothing"
+    assert_eq!((joint.body1, joint.body2), (tender, player));
+    assert_eq!((joint.frame1, joint.frame2), (frames[0], frames[1]));
+    for ship in [tender, player] {
+        assert_eq!(
+            world.get::<DockedShip>(ship).unwrap().connection,
+            *connection
+        );
+    }
+    for port in [tender_port, player_port] {
+        assert_eq!(world.get::<DockedPort>(port).unwrap().0, *connection);
+    }
+
+    // The open world holds the folder's lock.
+    drop(world);
+    let (mut world, ..) = resumed(true);
+    let refused = world.resource::<WorldResumeRefused>();
+    assert!(
+        refused
+            .reason
+            .contains("the dock port 'tender_port' of 'tender' is taken"),
+        "{}",
+        refused.reason
     );
+    assert!(world
+        .query::<&DockingConnection>()
+        .iter(&world)
+        .next()
+        .is_none());
+}
+
+/// A save whose controls name what it does not keep, or hold a reading no
+/// session wrote, is refused on open rather than loaded without them. A
+/// lock on a body the generator mints is kept: the window regenerates it.
+#[test]
+fn a_world_whose_saved_controls_name_what_it_does_not_keep_is_refused_on_open() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Controls").unwrap();
+    drop(lock);
+    let east = SectorCoord::new(1, 0, 0);
+    let on = |target: SavedTargetRef| {
+        Some(SavedLock {
+            target,
+            floor: None,
+        })
+    };
+    let body = |id: &str| SavedTargetRef::Body(SavedBodyRef(EntityId(id.to_string())));
+    let dock = SavedDock {
+        partner: SavedBodyRef(EntityId("rock_1".to_string())),
+        player_first: true,
+        player_port: EntityId("port".to_string()),
+        partner_port: EntityId("port".to_string()),
+        helm: SavedDockHelm::Neutral,
+        player_frame: SavedJointFrame {
+            anchor: Vec3::ZERO,
+            basis: Quat::IDENTITY,
+        },
+        partner_frame: SavedJointFrame {
+            anchor: Vec3::ZERO,
+            basis: Quat::IDENTITY,
+        },
+    };
+    let cases: [(SavedControls, &str); 7] = [
+        (
+            SavedControls {
+                combat_lock: on(body("ghost")),
+                ..free_flight()
+            },
+            "the combat lock's 'ghost' is not saved",
+        ),
+        (
+            SavedControls {
+                travel_lock: on(SavedTargetRef::Canister(CargoCanisterRuntimeId(7))),
+                ..free_flight()
+            },
+            "the travel lock's canister 7 is not saved",
+        ),
+        (
+            SavedControls {
+                autopilot: Some(SavedAutopilot {
+                    action: SavedAutopilotAction::Goto {
+                        target: SavedTargetRef::Transient(0),
+                    },
+                    phase: AutopilotPhase::Align,
+                    flip_marker_consumed: false,
+                }),
+                ..free_flight()
+            },
+            "the autopilot's GOTO target transient 0 is not one of the 0 saved",
+        ),
+        (
+            SavedControls {
+                combat_lock: on(body("rock_1")),
+                component_lock: SavedComponentLock {
+                    section: Some(EntityId("bridge".to_string())),
+                    pinned_seconds: None,
+                },
+                ..free_flight()
+            },
+            "the component lock's section 'bridge' of 'rock_1' is not saved",
+        ),
+        (
+            SavedControls {
+                dock: Some(dock.clone()),
+                ..free_flight()
+            },
+            "the player ship's dock port 'port' is not saved",
+        ),
+        (
+            SavedControls {
+                rcs: SavedRcs {
+                    spent: f32::NAN,
+                    idle: 0.0,
+                },
+                ..free_flight()
+            },
+            "the player's RCS spent reads NaN",
+        ),
+        (
+            SavedControls {
+                dock: Some(SavedDock {
+                    player_frame: SavedJointFrame {
+                        anchor: Vec3::ZERO,
+                        basis: Quat::from_xyzw(0.0, 0.0, 0.0, 2.0),
+                    },
+                    ..dock
+                }),
+                ..free_flight()
+            },
+            "the dock with 'rock_1' has a joint frame no dock built",
+        ),
+    ];
+    let open = || {
+        open_world(
+            root.path(),
+            "controls",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios(),
+        )
+        .map(|_| ())
+    };
+    for (generation, (controls, expected)) in (1..).zip(cases) {
+        let mut state = WorldSaveState {
+            sectors: ledger(&[(east, &["rock_1"])]),
+            ..state(generation, 750)
+        };
+        state.player.controls = controls;
+        write_world(&folder, &header("Controls", generation), &state).unwrap();
+        assert_eq!(
+            open(),
+            Err(WorldRefusal::Unreadable(format!(
+                "state.{generation}.ron: {expected}"
+            ))),
+            "case at generation {generation}"
+        );
+    }
+
+    let generation = 8;
+    let planet = GeneratedBodyId::new(east, "planet", 0).to_string();
+    let mut state = WorldSaveState {
+        sectors: ledger(&[(east, &["rock_1"])]),
+        ..state(generation, 750)
+    };
+    state.player.controls = SavedControls {
+        travel_lock: on(body(&planet)),
+        combat_lock: on(body("rock_1")),
+        ..free_flight()
+    };
+    write_world(&folder, &header("Controls", generation), &state).unwrap();
+    assert_eq!(open(), Ok(()));
 }
 
 /// A save's header carries what the Load list and details show without the
@@ -1719,7 +2219,12 @@ fn load(root: &Path, digest: u64) -> World {
 
 /// [`load`] against the start role catalog `roles`.
 fn load_as(root: &Path, digest: u64, roles: &GameStartRoles) -> World {
-    let mut app = App::new();
+    load_in(App::new(), root, digest, roles)
+}
+
+/// [`load`] in `app`, which may hold the systems a test runs beside the
+/// restore.
+fn load_in(mut app: App, root: &Path, digest: u64, roles: &GameStartRoles) -> World {
     app.add_plugins(crate::test_support::WorldSaveTestPlugin);
     let mut world = std::mem::take(app.world_mut());
     crate::test_support::arm_save_fixture(&mut world);
@@ -2100,6 +2605,7 @@ fn live_impact_sparks_have_no_frozen_records() {
     assert!(
         super::transients::freeze_transients(app.world_mut())
             .unwrap()
+            .0
             .is_empty(),
         "visual sparks leave no save records"
     );
@@ -3916,5 +4422,306 @@ fn the_save_snapshot_is_ordered_after_the_goal_stamp() {
     assert!(
         !unordered,
         "Update leaves the goal stamp and the save snapshot in an indeterminate order"
+    );
+}
+
+/// A real DOCK between the player and a living station - captured through
+/// `DockingConnectionRequest`/`DockingHelmRequest`, not a hand-built
+/// `DockingConnection` - saved, and Loaded back through the production
+/// resume path (`apply_controls` -> `restore_docking_connection` +
+/// `echo_restored_dock`). The first real `FixedUpdate` tick after the
+/// restore runs avian's own solver against real colliders on both hulls: the
+/// assembly pass measures the restored pair and drives it, no panic, no
+/// `UndockSeparation`, one connection.
+///
+/// `echo_restored_dock`'s own contract - a restored dock fires no
+/// `OnDocked` - is proven directly in `nova_scenario::loader::trackers`
+/// (`a_restored_dock_reports_no_capture_and_one_release`): the tracker system
+/// and its `DockEcho` marker are private to that crate's `loader` module, so
+/// this test cannot independently recount `OnDocked` from `nova_world_base`.
+#[test]
+fn a_load_restores_a_real_station_dock_through_a_real_physics_tick() {
+    use avian3d::prelude::{Collider, ColliderDensity};
+    use nova_ship::prelude::{
+        DockedAssembly, DockedStation, DockingConnectionRequest, DockingSectionPlugin,
+        UndockSeparation,
+    };
+
+    /// A hull's own collider, under its root: what avian needs to compute a
+    /// mass, and what a contact fault would need to find. `HullRadius` is
+    /// normally published by the section pass this fixture does not run; the
+    /// assembly measure reads it as `NaN` without one, which is a fault, not
+    /// a docked pair.
+    fn hull_collider(world: &mut World, ship: Entity) {
+        world.spawn((
+            ChildOf(ship),
+            Transform::default(),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+        world
+            .entity_mut(ship)
+            .insert(nova_ship::prelude::HullRadius(1.0));
+    }
+
+    /// A living station named `id`, nose to nose with the fixture's player
+    /// (`Transform::from_xyz(5.0, 0.0, -2.0)`, `Rotation::IDENTITY`) half a
+    /// cell further down -Z, facing back: well inside the shipped 10 m
+    /// capture distance.
+    fn spawn_station(world: &mut World, id: &str) -> (Entity, Entity) {
+        let position = Vec3::new(5.0, 0.0, -3.5);
+        let station = world
+            .spawn((
+                spaceship_scenario_object(SpaceshipConfig::default()),
+                StationMarker,
+                ShipInventory::default(),
+                DamageMarks::default(),
+                EntityId(id.to_string()),
+                Transform::from_translation(position)
+                    .with_rotation(Quat::from_rotation_y(std::f32::consts::PI)),
+                // `derive_station_post` is the production source, from the
+                // section-build pass this fixture does not run; a save
+                // refuses a living station with no post, so the fixture
+                // supplies the one that pass would derive for a parked hull.
+                StationPost::Fixed { position },
+                StationServices(Vec::new()),
+                StationBuilds(Vec::new()),
+                StationStorage::new(0),
+            ))
+            .id();
+        hull_collider(world, station);
+        (station, spawn_port(world, station, "station_port"))
+    }
+
+    /// The real physics and docking stack, over the production save systems,
+    /// unfinished: avian defers resources (`SpatialQueryDiagnostics`) to
+    /// `finish()`, which the caller must run once every plugin is added.
+    fn unfinished_physics_app() -> App {
+        let mut app = nova_gameplay::test_support::unfinished_integrity_physics_app();
+        app.add_plugins(DockingSectionPlugin { render: false });
+        app
+    }
+
+    /// [`load_in`] with the physics stack finished before the world is taken
+    /// out of the app: `load_in` adds `WorldSaveTestPlugin` itself and never
+    /// finishes, which plain `App::add_plugins` after avian's own `finish()`
+    /// would panic on.
+    fn load_physics(mut app: App, root: &Path, digest: u64, roles: &GameStartRoles) -> World {
+        // No `WorldSaveTestPlugin` here: `request_world_save` arms the
+        // session and wants a save the instant `WorldConfig` is first seen,
+        // on this very frame - before anything could drop it. This
+        // fixture's restored station is spawned by hand rather than thawed
+        // through a real materialize, so that save would double-freeze it
+        // over the (0, 0, 0) record `restore_resumed_world` just restored.
+        // `restore_resumed_transients` runs directly instead of through
+        // `Update`, which this test's own `frame()` call still carries
+        // through `FixedUpdate` for the real physics tick.
+        app.finish();
+        let mut world = std::mem::take(app.world_mut());
+        crate::test_support::arm_save_fixture(&mut world);
+        let mut config = world
+            .remove_resource::<WorldConfig<NovaLayeredWorld>>()
+            .unwrap();
+        config.active_radius = 0;
+        let (folder, lock, header, state) = open_world(
+            root,
+            "session",
+            &catalog(digest),
+            roles,
+            &items(),
+            &scenarios(),
+        )
+        .unwrap();
+        resume_world(&mut world, folder, lock, &header, state);
+        world.insert_resource(config);
+        restore_resumed_world(&mut world);
+        world
+    }
+
+    let root = tempfile::tempdir().unwrap();
+    let mut app = unfinished_physics_app();
+    app.add_plugins(crate::test_support::WorldSaveTestPlugin);
+    app.finish();
+    let mut world = std::mem::take(app.world_mut());
+    let player = crate::test_support::arm_save_fixture(&mut world);
+    let (folder, lock) = create_world(root.path(), "Session").unwrap();
+    world.insert_resource(WorldSaveSession::created(
+        folder,
+        lock,
+        "Session".to_string(),
+        42,
+        FIXTURE_ROLE_ID.into(),
+    ));
+    run_until_idle(&mut world);
+
+    // A station is resident content, never a drifting arrival: give it the
+    // real `SectorRoot` production ties it to a cell with, or the save's
+    // retirement path refuses to close the window around it.
+    let home_root = world
+        .spawn((SectorRoot(SectorCoord::ORIGIN), Transform::default()))
+        .id();
+    hull_collider(&mut world, player);
+    let player_port = spawn_port(&mut world, player, "player_port");
+    let (station, station_port) = spawn_station(&mut world, "station");
+    world.entity_mut(station).insert(ChildOf(home_root));
+
+    for _ in 0..4 {
+        frame(&mut world);
+    }
+    world.trigger(DockingConnectionRequest {
+        entity: player,
+        target: station,
+    });
+    // One extra frame past capture clears `measurement_fault`: the assembly
+    // pass needs one `FixedUpdate` to read the pair's avian mass properties.
+    for _ in 0..4 {
+        frame(&mut world);
+    }
+
+    let connections: Vec<(Entity, DockingConnection)> = world
+        .query::<(Entity, &DockingConnection)>()
+        .iter(&world)
+        .map(|(entity, record)| (entity, *record))
+        .collect();
+    let [(connection, record)] = connections[..] else {
+        panic!(
+            "a real DOCK makes one connection, not {}",
+            connections.len()
+        );
+    };
+    assert_eq!(
+        record,
+        DockingConnection {
+            first_ship: player,
+            first_section: player_port,
+            second_ship: station,
+            second_section: station_port,
+            helm: DockedHelmType::Station(station),
+            measurement_fault: false,
+        },
+        "a living station owns the helm of its own pair at capture; HELM is refused"
+    );
+    assert!(world.get::<DockedShip>(player).is_some());
+    assert!(world.get::<DockedStation>(station).is_some());
+    let joint = world
+        .get::<FixedJoint>(connection)
+        .expect("the connection holds its fixed joint")
+        .clone();
+
+    let digest = leave_and_save(&mut world);
+    drop(world);
+
+    let mut world = load_physics(unfinished_physics_app(), root.path(), digest, &roles());
+    let load_root = world
+        .spawn((SectorRoot(SectorCoord::ORIGIN), Transform::default()))
+        .id();
+    let player = loaded_player(&mut world);
+    hull_collider(&mut world, player);
+    let player_port = spawn_port(&mut world, player, "player_port");
+    let (station, station_port) = spawn_station(&mut world, "station");
+    world.entity_mut(station).insert(ChildOf(load_root));
+
+    // The restore frame: `apply_controls` rebuilds the connection from the
+    // saved record and the saved joint frames, called directly rather than
+    // through `Update` (see `load_physics`'s doc comment), then this same
+    // frame's own `FixedUpdate` runs over the result.
+    assert!(
+        world.contains_resource::<ResumedTransients>(),
+        "both bodies are already in the window; the Load does not wait"
+    );
+    crate::save::restore_resumed_transients(&mut world);
+    assert!(
+        !world.contains_resource::<ResumedTransients>(),
+        "the restore above resolves everything in one call; nothing is left waiting"
+    );
+    frame(&mut world);
+
+    let connections: Vec<(Entity, DockingConnection, FixedJoint)> = world
+        .query::<(Entity, &DockingConnection, &FixedJoint)>()
+        .iter(&world)
+        .map(|(entity, record, restored)| (entity, *record, restored.clone()))
+        .collect();
+    let [(restored_connection, restored_record, restored_joint)] = &connections[..] else {
+        panic!(
+            "the Load rebuilds one connection, not {}",
+            connections.len()
+        );
+    };
+    assert_eq!(
+        *restored_record,
+        DockingConnection {
+            first_ship: player,
+            first_section: player_port,
+            second_ship: station,
+            second_section: station_port,
+            helm: DockedHelmType::Station(station),
+            measurement_fault: false,
+        },
+        "the restored connection and ports name the saved pair"
+    );
+    assert_eq!(
+        (restored_joint.frame1, restored_joint.frame2),
+        (joint.frame1, joint.frame2),
+        "the restored joint holds the saved capture frames"
+    );
+    assert!(
+        world.get::<DockedShip>(player).is_some(),
+        "the player keeps its docked record"
+    );
+    assert!(
+        world.get::<DockedStation>(station).is_some(),
+        "the station keeps its docked record"
+    );
+    for port in [player_port, station_port] {
+        assert_eq!(
+            world.get::<DockedPort>(port).map(|port| port.0),
+            Some(*restored_connection),
+            "both ports are held again"
+        );
+    }
+    assert!(
+        world
+            .query::<&UndockSeparation>()
+            .iter(&world)
+            .next()
+            .is_none(),
+        "a dock that stayed docked opens no undock separation"
+    );
+
+    // The first real FixedUpdate tick after the restore: avian solves the
+    // joint and the assembly pass measures the pair. No panic here is part
+    // of the proof: the restore path's own TODO (`connection.rs`'s
+    // `drop_pair_contacts`) names a dangling-island fault a capture made
+    // while the hulls already touch can hit on its first tick.
+    for _ in 0..4 {
+        frame(&mut world);
+    }
+    assert_eq!(
+        world.query::<&DockingConnection>().iter(&world).count(),
+        1,
+        "the connection survives its first real physics tick"
+    );
+    assert!(
+        world
+            .query::<&UndockSeparation>()
+            .iter(&world)
+            .next()
+            .is_none(),
+        "the pair never separates; nothing opens an undock separation"
+    );
+    let assembly = world
+        .get::<DockedAssembly>(player)
+        .expect("the assembly pass measured the restored pair");
+    assert!(
+        assembly.mass.is_finite() && assembly.mass > 0.0,
+        "the measured assembly carries a real mass: {assembly:?}"
+    );
+    assert!(
+        !world.get::<DockedShip>(player).unwrap().drives,
+        "a living station's own pair drives on the station, not the player"
+    );
+    assert!(
+        world.get::<DockedStation>(station).unwrap().drives,
+        "the living station flies the assembly it owns"
     );
 }

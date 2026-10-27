@@ -44,7 +44,7 @@ use crate::{
     FrozenBody, FrozenBodyType, FrozenSector, FrozenSectors, GeneratedBodyId, ObserverBody,
     PendingSectorShip, PendingSectorStation, ReadySectors, SectorAsteroid, SectorCoord,
     SectorGenerationInput, SectorGenerator, SectorJobStats, SectorManifest, SectorRoot,
-    ThawedAfter, WorldClock, WorldConfig, WorldObserver,
+    SectorSnapshotError, ThawedAfter, WorldClock, WorldConfig, WorldObserver,
 };
 
 /// Arm `config` around `centre` with nothing live yet, so the arming frame's
@@ -126,17 +126,6 @@ fn body_with_id(world: &mut World, id: &GeneratedBodyId) -> Vec<Entity> {
         .query::<(Entity, &GeneratedBodyId)>()
         .iter(world)
         .filter(|(_, each)| *each == id)
-        .map(|(entity, _)| entity)
-        .collect()
-}
-
-/// The persistent body whose authored id is `id`: one a test named itself,
-/// which thaws without a `GeneratedBodyId`.
-fn body_with_entity_id(world: &mut World, id: &str) -> Vec<Entity> {
-    world
-        .query::<(Entity, &EntityId)>()
-        .iter(world)
-        .filter(|(_, each)| each.0 == id)
         .map(|(entity, _)| entity)
         .collect()
 }
@@ -1266,14 +1255,14 @@ fn a_snapshot_of_the_live_world_reads_back_as_the_same_world() {
     assert_eq!(held, vec![sector_id(home, "ship", 1).to_string()]);
 }
 
-/// A docked pair is undocked ON PAPER before it freezes: `snapshot_sectors`
-/// keeps both ships at the poses they stood at, with no dock between them in
-/// the record, and leaves the live, still-docked pair untouched. Restoring
-/// and materializing the ledger brings the partner back alone and undocked,
-/// where it froze.
+/// Saving with the player docked keeps the live dock: the partner freezes
+/// into home's record as a plain ship at its live pose, the connection and
+/// both `DockedShip` stay on the live entities, and the record round-trips
+/// through RON. The player's own dock is saved separately, outside any
+/// cell's record, the same way `freeze_ship` already does for it.
 #[cfg(feature = "serde")]
 #[test]
-fn a_docked_pair_saves_both_ships_undocked_at_their_poses() {
+fn a_save_copies_the_observer_s_partner_and_leaves_their_dock_live() {
     let mut app = ship_app();
     load_docking_section(&mut app);
 
@@ -1319,12 +1308,6 @@ fn a_docked_pair_saves_both_ships_undocked_at_their_poses() {
         1,
         "the pair docks"
     );
-    assert!(world.get::<DockedShip>(player).is_some());
-    assert!(world.get::<DockedShip>(partner).is_some());
-    let player_pose = world
-        .get::<Position>(player)
-        .copied()
-        .expect("the player has a pose");
     let partner_pose = world
         .get::<Position>(partner)
         .copied()
@@ -1349,14 +1332,8 @@ fn a_docked_pair_saves_both_ships_undocked_at_their_poses() {
 
     // The session saves the player this same way, outside any cell's record.
     freeze_ship(world, player).expect("a docked player still freezes on its own");
-    assert_eq!(
-        world.get::<Position>(player).copied(),
-        Some(player_pose),
-        "freeze_ship only reads the player"
-    );
 
-    let saved =
-        crate::snapshot_sectors::<Nothing>(world).expect("the docked pair freezes undocked");
+    let saved = crate::snapshot_sectors::<Nothing>(world).expect("the live dock is kept");
 
     assert!(
         world.get_entity(player).is_ok() && world.get_entity(partner).is_ok(),
@@ -1369,13 +1346,6 @@ fn a_docked_pair_saves_both_ships_undocked_at_their_poses() {
         1,
         "the live dock survives the snapshot"
     );
-    assert_eq!(
-        world.get::<ChildOf>(partner).map(ChildOf::parent),
-        Some(home_root),
-        "the live partner stays under home"
-    );
-    assert_eq!(world.get::<Position>(player).copied(), Some(player_pose));
-    assert_eq!(world.get::<Position>(partner).copied(), Some(partner_pose));
 
     let record = saved.get(home).expect("home froze");
     let partner_body = record
@@ -1395,11 +1365,27 @@ fn a_docked_pair_saves_both_ships_undocked_at_their_poses() {
 
     let text = ron::to_string(&saved).expect("the ledger writes");
     let read: FrozenSectors = ron::from_str(&text).expect("the ledger reads back");
+    assert_eq!(
+        ron::to_string(&read).expect("the restored ledger writes"),
+        text,
+        "the record round-trips through RON"
+    );
+}
 
-    let mut fresh = ship_app();
-    load_docking_section(&mut fresh);
+/// A dock where neither hull is the observer, and that is not a station's
+/// parked hull, cannot be kept: `snapshot_sectors` refuses the whole save,
+/// naming both docked ships, rather than drop the dock silently. The live
+/// dock is left exactly as it stood.
+#[cfg(feature = "serde")]
+#[test]
+fn a_save_refuses_a_dock_the_observer_is_not_in() {
+    let mut app = ship_app();
+    load_docking_section(&mut app);
+
+    let home = SectorCoord::ORIGIN;
+    let edge = Meters(320.0);
     arm(
-        fresh.world_mut(),
+        app.world_mut(),
         WorldConfig {
             seed: 1,
             sector_edge: edge,
@@ -1408,36 +1394,59 @@ fn a_docked_pair_saves_both_ships_undocked_at_their_poses() {
         },
         home,
     );
-    fresh
+    let home_root = app
         .world_mut()
-        .resource_mut::<FrozenSectors>()
-        .restore(read);
-    let root = materialize::<Nothing>(fresh.world_mut(), home, far());
-    settle(&mut fresh);
+        .spawn((SectorRoot(home), Transform::default()))
+        .id();
+    app.world_mut().spawn(WorldObserver);
+    let centre = home.centre(edge).to_engine();
+    let first = docking_hull(&mut app, centre, Quat::IDENTITY, Some(home_root));
+    let second = docking_hull(
+        &mut app,
+        centre + Vec3::NEG_Z * 1.5,
+        Quat::from_rotation_y(std::f32::consts::PI),
+        Some(home_root),
+    );
+    settle(&mut app);
+    app.world_mut().trigger(DockingConnectionRequest {
+        entity: first,
+        target: second,
+    });
+    settle(&mut app);
 
-    let world = fresh.world_mut();
-    let [restored_partner] = body_with_entity_id(world, "partner")[..] else {
-        panic!("the partner must come back once");
+    let world = app.world_mut();
+    world
+        .entity_mut(first)
+        .insert(EntityId::new("first".to_string()));
+    world
+        .entity_mut(second)
+        .insert(EntityId::new("second".to_string()));
+    assert_eq!(
+        world.query::<&DockingConnection>().iter(world).count(),
+        1,
+        "the pair docks"
+    );
+
+    let error = crate::snapshot_sectors::<Nothing>(world)
+        .expect_err("neither hull is the observer, nor a station's parked hull");
+    let SectorSnapshotError::UnsavedDock {
+        first: named_first,
+        second: named_second,
+    } = error
+    else {
+        panic!("expected UnsavedDock, got {error}");
     };
+    let mut named = [named_first, named_second];
+    named.sort();
     assert_eq!(
-        world.get::<ChildOf>(restored_partner).map(ChildOf::parent),
-        Some(root)
-    );
-    assert_eq!(
-        world
-            .get::<Transform>(restored_partner)
-            .map(|transform| transform.translation),
-        Some(partner_pose.0),
-        "the partner comes back at the pose it froze with"
-    );
-    assert!(
-        world.get::<DockedShip>(restored_partner).is_none(),
-        "the partner comes back undocked"
+        named,
+        ["first".to_string(), "second".to_string()],
+        "the error names both docked ships"
     );
     assert_eq!(
         world.query::<&DockingConnection>().iter(world).count(),
-        0,
-        "no dock exists in the fresh world"
+        1,
+        "the live dock is untouched"
     );
 }
 

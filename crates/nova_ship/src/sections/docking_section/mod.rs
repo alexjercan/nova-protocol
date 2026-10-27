@@ -47,9 +47,10 @@ use connection::{
     release_broken_docking_connections,
 };
 pub use connection::{
-    helm_on_capture, helm_request_admitted, DockPartnerType, DockedHelmType, DockedPort,
-    DockedShip, DockedStation, DockingConnection, DockingConnectionRequest, DockingHelmRequest,
-    DockingReleaseRequest, DockingSystems, StationDock, StationDocks, UndockSeparation,
+    helm_on_capture, helm_request_admitted, restore_docking_connection, DockPartnerType,
+    DockedHelmType, DockedPort, DockedShip, DockedStation, DockingConnection,
+    DockingConnectionRequest, DockingHelmRequest, DockingReleaseRequest, DockingSystems,
+    StationDock, StationDocks, UndockSeparation,
 };
 pub(crate) use port::PORT_FACE;
 pub use port::{DockingPair, DockingPorts, PortPose, BERTH_GAP, GAP_SLACK};
@@ -60,12 +61,13 @@ use render::insert_docking_section_render;
 pub mod prelude {
     pub use super::{
         docking_section, helm_on_capture, helm_request_admitted, preview_docking_section,
-        station_admission, DockAdmission, DockPartnerType, DockRefusalType, DockedAssembly,
-        DockedHelmType, DockedPort, DockedShip, DockedStation, DockingConnection,
-        DockingConnectionRequest, DockingEnvelope, DockingHelmRequest, DockingPair, DockingPorts,
-        DockingReleaseRequest, DockingSectionConfig, DockingSectionConfigHelper,
-        DockingSectionMarker, DockingSectionPlugin, DockingSectionState, DockingSystems, PortPose,
-        StationDock, StationDocks, UndockSeparation, BERTH_GAP,
+        restore_docking_connection, station_admission, DockAdmission, DockPartnerType,
+        DockRefusalType, DockedAssembly, DockedHelmType, DockedPort, DockedShip, DockedStation,
+        DockingConnection, DockingConnectionRequest, DockingEnvelope, DockingHelmRequest,
+        DockingPair, DockingPorts, DockingReleaseRequest, DockingSectionConfig,
+        DockingSectionConfigHelper, DockingSectionMarker, DockingSectionPlugin,
+        DockingSectionState, DockingSystems, PortPose, StationDock, StationDocks, UndockSeparation,
+        BERTH_GAP,
     };
 }
 

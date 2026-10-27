@@ -257,7 +257,8 @@ impl EventAction<NovaEventWorld> for ScenarioObjectConfig {
 /// world berths it there; the pose is the session's, not authored, since the
 /// station is the seed's. It spawns through the same path as a
 /// `SpawnScenarioObject` ship, so a Load thaws the saved ship in its place,
-/// undocked where it was and without the marker. The lint refuses it outside
+/// where it was and without the marker; the Load restores its saved dock
+/// once the window is back. The lint refuses it outside
 /// a `Generated((seed: None))` world, the one world the session seeds.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

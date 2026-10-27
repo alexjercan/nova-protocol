@@ -1092,8 +1092,8 @@ pub fn retire_sectors<G: SectorGenerator>(world: &mut World) {
 
 /// Freeze every settled persistent body a root holds, in child order.
 /// Returns the frozen bodies with their entities, and each body its owner
-/// reports unsettled. A retiring root refuses a docked ship; a save keeps one
-/// undocked.
+/// reports unsettled. A retiring root refuses a docked ship; a save keeps a
+/// dock only if it is kept ([`DockPolicy::Copy`]).
 pub(crate) fn freeze_sector_bodies(
     world: &World,
     coord: SectorCoord,

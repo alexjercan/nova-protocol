@@ -36,7 +36,8 @@ use nova_world::prelude::{
 };
 
 use super::{
-    check_saved_fleet, check_saved_ids, check_saved_items, check_saved_stock,
+    check_saved_controls, check_saved_fleet, check_saved_ids, check_saved_items, check_saved_stock,
+    controls::freeze_controls,
     transients::{freeze_transients, hold_resumed_transients},
     write_world, SavedChart, SavedFleet, SavedIdFault, SavedObjective, SavedObjectiveLine,
     SavedObjectiveType, SavedPlayer, WorldFolder, WorldLock, WorldSaveHeader, WorldSaveState,
@@ -262,7 +263,7 @@ pub struct ResumedWorld {
 /// Seed `world` with everything a Load resumes: the session, the saved
 /// ledger, chart and jobs, the player ship the scenario's player spawn thaws, the camera view
 /// its controller opens at, the seed and start role, the canister counter past every saved
-/// id, and the saved transients, with the clocks held until they are back.
+/// id, and the saved transients and player controls, with the clocks held until they are back.
 ///
 /// An armed world is disarmed first. The saved ledger is restored only on
 /// the frame the world arms, and "Load last save" resumes over a live world
@@ -320,7 +321,7 @@ pub fn resume_world(
     world
         .resource_mut::<CargoCanisterIdAllocator>()
         .resume_after(CargoCanisterRuntimeId(canister_ids_next));
-    hold_resumed_transients(world, transients);
+    hold_resumed_transients(world, transients, player.controls);
 }
 
 /// The save systems in their order: the request, then the writer poll, so a
@@ -454,7 +455,8 @@ pub(crate) fn snapshot_world(world: &mut World) {
         })
         .and_then(|view| {
             let sectors = snapshot_sectors::<NovaLayeredWorld>(world)?;
-            let transients = freeze_transients(world)?;
+            let (transients, indices) = freeze_transients(world)?;
+            let controls = freeze_controls(world, player, &indices)?;
             let scenario = capture_scenario(world)?;
             let ship =
                 freeze_ship(world, player).map_err(|reason| SectorSnapshotError::Unsettled {
@@ -468,9 +470,9 @@ pub(crate) fn snapshot_world(world: &mut World) {
                     coord: world.resource::<CurrentSector>().0,
                     reason,
                 })?;
-            Ok((sectors, transients, scenario, ship, fleet, view))
+            Ok((sectors, transients, scenario, ship, fleet, controls, view))
         });
-    let (sectors, transients, scenario, ship, fleet, view) = match snapshot {
+    let (sectors, transients, scenario, ship, fleet, controls, view) = match snapshot {
         Ok(snapshot) => snapshot,
         Err(unsettled @ SectorSnapshotError::Unsettled { .. }) => {
             let advanced = world.resource::<Time<Virtual>>().delta() > Duration::ZERO;
@@ -494,6 +496,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         }
         Err(
             unowned @ (SectorSnapshotError::UnownedBody { .. }
+            | SectorSnapshotError::UnsavedDock { .. }
             | SectorSnapshotError::NoDurableId { .. }
             | SectorSnapshotError::DuplicateId { .. }
             | SectorSnapshotError::InvalidSavedState { .. }),
@@ -635,6 +638,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
             ship,
             view,
             fleet,
+            controls,
         },
         sectors,
         canister_ids_next,
@@ -664,6 +668,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
                 .and_then(|()| state.stances.validate(state.clock.play_seconds))
                 .and_then(|()| state.goal.validate(state.clock.play_seconds))
                 .and_then(|()| check_saved_fleet(&state))
+                .and_then(|()| check_saved_controls(&state))
                 .and_then(|()| check_saved_items(&state, &items))
                 .and_then(|()| check_saved_stock(&state, &items))
                 .map_err(|reason| SectorSnapshotError::InvalidSavedState { reason })

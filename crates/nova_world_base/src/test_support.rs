@@ -22,8 +22,8 @@ use nova_scenario::prelude::{
     SpentHandlers, StartKit, StartRole,
 };
 use nova_ship::prelude::{
-    ChaseCameraPlugin, ChaseZoom, ShipStyleConfig, SpaceshipCameraController,
-    SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker,
+    targeting_state, ChaseCameraPlugin, ChaseZoom, RcsBudget, ShipStyleConfig,
+    SpaceshipCameraController, SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker,
 };
 use nova_world::prelude::{
     CurrentSector, FrozenSectors, SectorCoord, WorldClock, WorldConfig, WorldObserver,
@@ -197,6 +197,10 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
             PlayerSpaceshipMarker,
             WorldObserver,
             EntityId("player".to_string()),
+            // What the flight and targeting plugins give every player ship
+            // root, and the save keeps.
+            RcsBudget::default(),
+            targeting_state(),
         ))
         .id();
     // The player camera, as the controller builds it, with no input. The

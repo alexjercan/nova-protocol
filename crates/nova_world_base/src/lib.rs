@@ -54,7 +54,7 @@ use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{Chart, GameItems, JobPostings, Jobs, PlayerSpaceshipMarker};
 use nova_scenario::prelude::{CurrentScenario, OpenWorldSession, ScenarioWorldType};
-use nova_ship::prelude::GameStyles;
+use nova_ship::prelude::{GameStyles, SpaceshipTargetingSystems};
 use nova_world::prelude::*;
 
 mod chart;
@@ -85,11 +85,12 @@ mod tests;
 pub use crate::save::{
     check_world, create_world, delete_world, list_worlds, open_world, resume_world, world_slug,
     write_world, FrozenTransient, FrozenTransientType, RegisteredScenarios, ResumedWorld,
-    SaveReason, SavedChart, SavedChartCell, SavedChartMark, SavedChartMarkType, SavedFleet,
-    SavedObjective, SavedObjectiveLine, SavedObjectiveType, SavedPlayer, WorldFolder, WorldListing,
-    WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused, WorldSaveHeader,
-    WorldSaveSession, WorldSaveState, WorldSaveStatus, WORLD_RESUME_SECONDS_MAX,
-    WORLD_SAVE_VERSION,
+    SaveReason, SavedAutopilot, SavedAutopilotAction, SavedChart, SavedChartCell, SavedChartMark,
+    SavedChartMarkType, SavedComponentLock, SavedControls, SavedDock, SavedDockHelm, SavedFleet,
+    SavedJointFrame, SavedLock, SavedObjective, SavedObjectiveLine, SavedObjectiveType,
+    SavedPlayer, SavedRcs, WorldFolder, WorldListing, WorldLock, WorldRefusal, WorldResumeProgress,
+    WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
+    WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_VERSION,
 };
 pub use crate::{
     civilizations::{
@@ -146,11 +147,12 @@ pub mod prelude {
     pub use super::{
         check_world, create_world, delete_world, list_worlds, open_world, resume_world, world_slug,
         write_world, FrozenTransient, FrozenTransientType, RegisteredScenarios, ResumedWorld,
-        SaveReason, SavedChart, SavedChartCell, SavedChartMark, SavedChartMarkType, SavedFleet,
-        SavedObjective, SavedObjectiveLine, SavedObjectiveType, SavedPlayer, WorldFolder,
-        WorldListing, WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
-        WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
-        WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_VERSION,
+        SaveReason, SavedAutopilot, SavedAutopilotAction, SavedChart, SavedChartCell,
+        SavedChartMark, SavedChartMarkType, SavedComponentLock, SavedControls, SavedDock,
+        SavedDockHelm, SavedFleet, SavedJointFrame, SavedLock, SavedObjective, SavedObjectiveLine,
+        SavedObjectiveType, SavedPlayer, SavedRcs, WorldFolder, WorldListing, WorldLock,
+        WorldRefusal, WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession,
+        WorldSaveState, WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_VERSION,
     };
 }
 
@@ -293,8 +295,11 @@ impl Plugin for NovaWorldBasePlugin {
         // before the snapshot, so a waiting save starts on the frame the
         // last one finishes. The saved transients come back after `Retire`,
         // once this frame's sector spawns are applied, and before the save
-        // looks at the window. The save runs after the goal stamp, so a save
-        // on the met frame holds `met_at` beside the met facts: both touch
+        // looks at the window. The player's saved controls come back with
+        // them after the targeting pass, so the restored locks meet their
+        // first sensor pass with their floors held. The save runs after the
+        // goal stamp, so a save on the met frame holds `met_at` beside the
+        // met facts: both touch
         // `World`, and unordered a Load would restamp at the Load-time clock.
         #[cfg(not(target_arch = "wasm32"))]
         app.add_systems(
@@ -306,7 +311,8 @@ impl Plugin for NovaWorldBasePlugin {
                     .before(NovaWorldSystems::Observe),
                 (
                     save::restore_resumed_transients
-                        .run_if(resource_exists::<save::ResumedTransients>),
+                        .run_if(resource_exists::<save::ResumedTransients>)
+                        .after(SpaceshipTargetingSystems),
                     save::save_systems(),
                 )
                     .chain()
