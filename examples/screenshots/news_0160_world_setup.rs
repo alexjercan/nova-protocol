@@ -3,12 +3,16 @@
 //! stepped from the industrial start to the bounty hunter while the hull view
 //! and the card's Weapons line change.
 //!
-//! The walk drives the real menu under the harness pointer: New Game, the
-//! seed field cleared and typed with [`WORLD_SEED`], then, recorded, a
-//! right-button drag over the seed chart fed as the [`MouseMotion`] a real
-//! drag writes, Next, and a click on each role row from the second to
-//! [`LAST_ROLE`] in the order the list shows them. It never presses Create:
-//! the loop is the wizard, and the release lead is the world it makes.
+//! The walk drives the real menu under the harness pointer. The fresh profile
+//! is a first launch, so the menu's bottom-left corner holds the New pilot
+//! offer and a field note; the walk answers both the way a player does -
+//! `Not now` on the offer, `Don't show again` on the note - so neither stands
+//! in the loop. Then New Game, the seed field cleared and typed with
+//! [`WORLD_SEED`], then, recorded, a right-button drag over the seed chart
+//! fed as the [`MouseMotion`] a real drag writes, Next, and a click on each
+//! role row from the second to [`LAST_ROLE`] in the order the list shows
+//! them. It never presses Create: the loop is the wizard, and the release
+//! lead is the world it makes.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the whole walk with its
@@ -58,6 +62,10 @@ const WORLD_NEXT_BUTTON: &str = "World Next Button";
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
 const ROLE_DETAILS_NAME: &str = "Start Role Details Name";
 const ROLE_HULL_LINE: &str = "Start Role Details Hull Line";
+const TRAINING_PROMPT: &str = "Training Prompt";
+const TRAINING_PROMPT_DISMISS: &str = "Training Prompt Dismiss";
+const FIELD_NOTE: &str = "Menu Field Note";
+const FIELD_NOTE_DISMISS: &str = "Menu Field Note Dismiss";
 
 /// Backspaces that clear the seed the window opens with: it pre-fills a
 /// random u32, at most ten digits.
@@ -174,6 +182,14 @@ fn roles_to_step(world: &World) -> Vec<(String, String)> {
         .collect()
 }
 
+/// The corner's offer and field note are answered and laid out nowhere.
+fn corner_is_answered(world: &World) -> bool {
+    *world.resource::<TrainingPromptSetting>() == TrainingPromptSetting::Hidden
+        && *world.resource::<FieldNoteSetting>() == FieldNoteSetting::Hidden
+        && ui_node_rect(world, TRAINING_PROMPT).is_none()
+        && ui_node_rect(world, FIELD_NOTE).is_none()
+}
+
 /// Move the pointer to the seed field's right edge, so the caret lands after
 /// the pre-filled seed.
 fn move_to_seed_field_edge(world: &mut World) {
@@ -191,6 +207,24 @@ fn wizard_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(ui_node_present(NEW_GAME_BUTTON))
         .deadline(MENU_SECS)
         .add()
+        .step("settle the menu and its backdrop")
+        .until(frames(SETTLE_FRAMES))
+        .add()
+        .click_named(
+            "answer the New pilot offer: Not now",
+            TRAINING_PROMPT_DISMISS,
+            when(|world| {
+                *world.resource::<TrainingPromptSetting>() == TrainingPromptSetting::Hidden
+                    && ui_node_rect(world, TRAINING_PROMPT).is_none()
+            }),
+            BEAT_DEADLINE_SECS,
+        )
+        .click_named(
+            "switch the field note off: Don't show again",
+            FIELD_NOTE_DISMISS,
+            when(corner_is_answered),
+            BEAT_DEADLINE_SECS,
+        )
         .click_named(
             "click New Game",
             NEW_GAME_BUTTON,
@@ -239,6 +273,10 @@ fn wizard_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 field_value(world, NAME_FIELD).as_deref(),
                 Some(WORLD_NAME),
                 "world setup: a fresh profile's wizard must open on '{WORLD_NAME}'"
+            );
+            assert!(
+                corner_is_answered(world),
+                "world setup: the New pilot offer or the field note is still up"
             );
             hide_dev_overlays(world);
             hide_status_bar(world);
