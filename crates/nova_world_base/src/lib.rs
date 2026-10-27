@@ -54,7 +54,9 @@ use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{Chart, GameItems, JobPostings, Jobs, PlayerSpaceshipMarker};
 use nova_scenario::prelude::{CurrentScenario, OpenWorldSession, ScenarioWorldType};
-use nova_ship::prelude::{GameStyles, SpaceshipTargetingSystems};
+use nova_ship::prelude::GameStyles;
+#[cfg(not(target_arch = "wasm32"))]
+use nova_ship::prelude::SpaceshipTargetingSystems;
 use nova_world::prelude::*;
 
 mod chart;
