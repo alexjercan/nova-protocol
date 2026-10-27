@@ -1,13 +1,16 @@
 //! news_0160_release_lead: the v0.16.0 news release lead - a fresh New Game
-//! as the industrial start, the mining tug undocking from its allied ring
+//! as the military start, the patrol picket undocking from its allied ring
 //! starting station with a held Escort marked on the waiting hauler.
 //!
 //! The world starts the way the Create World modal starts it, on
-//! [`WORLD_SEED`] as `industrial`, with no save folder. Once the start has
-//! docked the tug and the starting station has posted its starter board, the
-//! walk accepts the board's first Escort offer through [`JobAcceptCommand`],
-//! the message the Jobs pane's Accept button writes, and waits for the
-//! accept's hauler to stand off the station wearing the `JOB-1 Escort` chip.
+//! [`WORLD_SEED`] as `military`, with no save folder. Once the start has
+//! docked the picket and the starting station has posted its starter board,
+//! the walk asserts the hull passes the Jobs pane's hull-fit gate
+//! ([`plan_job_hull_fit`]), so the Escort is eligible on the fresh board.
+//! It then accepts the board's first Escort offer through
+//! [`JobAcceptCommand`], the message the Jobs pane's Accept button writes,
+//! and waits for the accept's hauler to stand off the station wearing the
+//! `JOB-1 Escort` chip.
 //! The loop opens docked with the HELM chip on the dock, presses the real
 //! `dock` key to let go, then turns the look onto the hauler with the mouse
 //! motion a player's hand writes, the hull following it off the station.
@@ -16,7 +19,9 @@
 //!
 //! The seed is pinned for its start: the starting station must be a ring
 //! (it wears [`StationArchetypeType::Ring`]'s style) and its board must post
-//! an Escort. A seed that gives either up stops the run, naming it.
+//! an Escort the hull can fly. A seed or role that gives any of these up
+//! stops the run, naming it. The board draws by the role's job mix; the
+//! escort loops fly this same seed-2 Military offer.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the whole walk with its
@@ -42,22 +47,23 @@ use open_world_stage::{window_settled, OpenWorldStartPlugin};
 #[command(name = "news_0160_release_lead")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "Capture the v0.16.0 release lead: the industrial start undocking from its ring station with an Escort held",
+    about = "Capture the v0.16.0 release lead: the military start undocking from its ring station with an Escort held",
     long_about = None
 )]
 struct Cli {
     /// The world seed. Another seed must still start at a ring station whose
-    /// board posts an Escort.
+    /// board posts an Escort the military hull can fly.
     #[arg(long, default_value_t = WORLD_SEED)]
     seed: u32,
 }
 
-/// The seed the lead plays: its industrial start docks at a ring station
+/// The seed the lead plays: its military start docks at a ring station
 /// whose starter board posts an Escort.
 const WORLD_SEED: u32 = 2;
 
-/// The start role the lead flies.
-const ROLE: &str = "industrial";
+/// The start role the lead flies: an armed hull, so the starter board lists
+/// the Escort.
+const ROLE: &str = "military";
 
 /// The loop this producer writes.
 const LOOP_NAME: &str = "news-0160-release-lead";
@@ -182,15 +188,47 @@ fn helm_chip_shown(world: &World) -> bool {
         })
 }
 
-/// Assert the starting station is a ring, then accept the board's first
-/// Escort as the Accept button does.
+/// What the player's hull can do, read as the Jobs pane's gate reads it: the
+/// hold's capacity and whether a live docking section and a live weapon
+/// section stand on the hull.
+fn hull_fit(world: &mut World, player: Entity) -> JobHullFit {
+    let mut fit = JobHullFit {
+        hold_capacity_g: world
+            .get::<ShipInventory>(player)
+            .map_or(0, ShipInventory::capacity_g),
+        has_clamp: false,
+        has_weapon: false,
+    };
+    for (&ChildOf(root), clamp, turret, bay, railgun) in world
+        .query_filtered::<(
+            &ChildOf,
+            Has<DockingSectionMarker>,
+            Has<TurretSectionMarker>,
+            Has<TorpedoSectionMarker>,
+            Has<RailgunSectionMarker>,
+        ), (With<SectionMarker>, Without<SectionInactiveMarker>)>()
+        .iter(world)
+    {
+        if root == player {
+            fit.has_clamp |= clamp;
+            fit.has_weapon |= turret || bay || railgun;
+        }
+    }
+    fit
+}
+
+/// Assert the station is a ring and the hull passes the Jobs hull-fit gate
+/// for its first Escort, then send the same command as the Accept button.
 ///
 /// # Panics
 ///
-/// When the starting station is no ring or its board posts no Escort: the
-/// seed no longer gives the lead its subject.
+/// When the starting station is no ring, its board posts no Escort or the
+/// Jobs pane would hide that Escort for an unfit hull: the seed or role no
+/// longer gives the lead its subject.
 fn accept_the_escort(world: &mut World, seed: u32) {
     let station = start_station(world).expect("release lead: the starting station stands");
+    let player = the_player(world).expect("release lead: exactly one player ship");
+    let fit = hull_fit(world, player);
     let style = world
         .get::<ShipStyle>(station)
         .and_then(|style| style.0.clone());
@@ -211,6 +249,14 @@ fn accept_the_escort(world: &mut World, seed: u32) {
             let kinds: Vec<&str> = board.0.iter().map(|job| job.kind.label()).collect();
             panic!("release lead: seed {seed}'s starter board posts no Escort: {kinds:?}")
         });
+    let items = world.resource::<GameItems>();
+    if let Err(refusal) = plan_job_hull_fit(escort, items, fit) {
+        panic!(
+            "release lead: the {ROLE} hull ({fit:?}) fails the Escort '{}': {refusal:?}, so the \
+             starter board hides it",
+            escort.id
+        );
+    }
     let held = HeldEscort {
         id: escort.id.clone(),
         hauler: escort
