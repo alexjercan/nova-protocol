@@ -1,7 +1,6 @@
 # Sketch v0.16.0 news post for owner review
 
 - STATUS: CLOSED
-- Later state: the approved sketch became the registered v0.16.0 page with 16 frozen figures (7 loops, 9 stills), two interactive widgets and an inspected thumbnail. The DRAFT-only statements below describe the earlier review stage, not the current page.
 - PRIORITY: 85
 - TAGS: v0.16.0
 
