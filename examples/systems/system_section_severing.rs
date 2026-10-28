@@ -104,6 +104,7 @@ fn spawn_part(
     commands
         .spawn((
             Name::new(format!("{part:?}")),
+            EntityId::new(format!("{part:?}")),
             ChildOf(root),
             Transform::from_translation(at),
             SectionMarker,
@@ -175,6 +176,9 @@ fn setup_range(
     let root = commands
         .spawn((
             Name::new("Severing subject"),
+            // A scenario ship carries a root id and section ids (`spawn_part`).
+            // Without both, a sever cannot name its wreck and logs an error.
+            EntityId::new("severing_subject"),
             SpaceshipRootMarker,
             RigidBody::Dynamic,
             Transform::default(),

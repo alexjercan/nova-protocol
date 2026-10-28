@@ -9,8 +9,8 @@
 //!
 //! The walk boots the shipped app (via [`editor_app`]), clicks New Game, types
 //! [`WORLD_SEED`], clicks Create and waits for the live window, the same entry
-//! as `system_open_world_identity`. The seed puts a derelict about 9 km from the
-//! spawn in the first window, so no beat has to fly there.
+//! as `system_open_world_identity`. The seed puts a derelict in the first
+//! window, so no beat has to fly there.
 //!
 //! ## The berth is posed, the dock and the transfer are not
 //!
@@ -75,8 +75,7 @@ const TAKE_LESSON: &str = "interface_wreck_take";
 #[cfg(feature = "debug")]
 const GIVE_SHOT: &str = "generated_world_give.png";
 
-/// The seed the walk plays: `system_open_world_identity`'s, whose first window
-/// holds a derelict 9092 m from the spawn.
+/// The seed the walk plays: its first window holds a derelict.
 #[cfg(feature = "debug")]
 const WORLD_SEED: u32 = 115;
 

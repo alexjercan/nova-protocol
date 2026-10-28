@@ -3,10 +3,10 @@
 //!
 //! Boots the shipped app (via [`editor_app`]), clicks New Game, enters
 //! [`IDENTITY_SEED`], clicks Create and waits for the live window. It then takes
-//! the nearest intact generated ship and the nearest derelict, each told apart
-//! by its `DerelictShipMarker` and named by its `EntityId`, and reads each one
-//! twice: travel-locked in the HUD target inset, and picked by a click on its
-//! blip in the Map pane.
+//! the nearest intact generated ship and the nearest derelict that the player's
+//! sensors have in sight, each told apart by its `DerelictShipMarker` and named
+//! by its `EntityId`, and reads each one twice: travel-locked in the HUD target
+//! inset, and picked by a click on its blip in the Map pane.
 //!
 //! ONE SUBJECT: the inspection identity a generated ship spawns with. The
 //! descriptive `Name` (civilization and role, or civilization and former role
@@ -15,9 +15,9 @@
 //! is up, the range asserts that no blip text carries a generated ship's name.
 //! The session lifecycle is `system_open_world`'s range.
 //!
-//! The seed is pinned because it puts one intact ship and one derelict about
-//! 10 km from the spawn, inside the sensor range and the first live window, so
-//! no beat has to fly the ship.
+//! The seed is pinned because it puts a derelict and an intact ship about 3 km
+//! from the starting station, inside their lock range and the first live
+//! window, so no beat has to fly the ship.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -85,10 +85,10 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-/// The seed the range plays: an intact ship 9969 m and a derelict 9092 m from
-/// the spawn, both in the origin cell.
+/// The seed the range plays: a derelict 2308 m and an intact ship 3112 m from
+/// the starting station, both in the station's cell.
 #[cfg(feature = "debug")]
-const IDENTITY_SEED: u32 = 115;
+const IDENTITY_SEED: u32 = 52;
 
 #[cfg(feature = "debug")]
 const NEW_GAME_BUTTON: &str = "New Game Button";
@@ -178,14 +178,16 @@ fn the_player(world: &World) -> Option<Entity> {
 }
 
 /// Every live generated ship: its entity, `EntityId`, `Name` and derelict
-/// marker. A generated ship is the one kind of body that spawns with a
-/// `ShipStyle` and an `EntityId`; the player ship is left out.
+/// marker. A generated ship spawns with a `ShipStyle` and an `EntityId`; the
+/// player ship is left out, and so is a generated station, which wears both
+/// too but is drawn on the Map pane without a minted contact code.
 #[cfg(feature = "debug")]
 fn generated_ships(world: &mut World) -> Vec<(Entity, String, String, bool)> {
     world
         .query_filtered::<(Entity, &EntityId, &Name, Has<DerelictShipMarker>), (
             With<ShipStyle>,
             Without<PlayerSpaceshipMarker>,
+            Without<StationMarker>,
         )>()
         .iter(world)
         .map(|(entity, id, name, derelict)| (entity, id.0.clone(), name.to_string(), derelict))
@@ -323,7 +325,10 @@ fn watch_blip_labels(world: &mut World) {
     }
 }
 
-/// Pick the nearest intact generated ship and the nearest derelict.
+/// Pick the nearest intact generated ship and the nearest derelict that the
+/// player's sensors have in sight. A travel lock holds only an in-sight
+/// contact, so a subject out of sight would lose its lock the frame after the
+/// lock is written.
 #[cfg(feature = "debug")]
 fn pick_subjects(world: &mut World) {
     let player = the_player(world).expect("identity: exactly one player ship");
@@ -332,8 +337,11 @@ fn pick_subjects(world: &mut World) {
         .expect("identity: the player ship has a transform")
         .translation();
     let ships = generated_ships(world);
+    let contacts = world
+        .get::<SensorContacts>(player)
+        .expect("identity: the player ship carries its sensor contacts");
     let nearest = |derelict: bool| {
-        ships
+        let mut ranked: Vec<_> = ships
             .iter()
             .filter(|ship| ship.3 == derelict)
             .map(|ship| {
@@ -343,25 +351,35 @@ fn pick_subjects(world: &mut World) {
                     .translation();
                 (at.distance(origin), ship)
             })
-            .min_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1 .1.cmp(&b.1 .1)))
-            .map(|(_, ship)| Subject {
-                entity: ship.0,
-                id: ship.1.clone(),
-                name: ship.2.clone(),
-            })
+            .collect();
+        ranked.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1 .1.cmp(&b.1 .1)));
+        let seen = ranked.iter().find(|(_, ship)| contacts.in_sight(ship.0));
+        let Some((_, ship)) = seen else {
+            let unseen: Vec<String> = ranked
+                .iter()
+                .map(|(distance, ship)| {
+                    format!(
+                        "{} at {:.0} m",
+                        ship.1,
+                        Meters::from_engine(*distance).get()
+                    )
+                })
+                .collect();
+            panic!(
+                "identity: seed {IDENTITY_SEED} streamed no {} ship the player has in sight: \
+                 [{}]",
+                state_label(derelict),
+                unseen.join(", ")
+            );
+        };
+        Subject {
+            entity: ship.0,
+            id: ship.1.clone(),
+            name: ship.2.clone(),
+        }
     };
-    let intact = nearest(false).unwrap_or_else(|| {
-        panic!(
-            "identity: seed {IDENTITY_SEED} streamed {} generated ships and none is intact",
-            ships.len()
-        )
-    });
-    let derelict = nearest(true).unwrap_or_else(|| {
-        panic!(
-            "identity: seed {IDENTITY_SEED} streamed {} generated ships and none is derelict",
-            ships.len()
-        )
-    });
+    let intact = nearest(false);
+    let derelict = nearest(true);
     assert!(
         !intact.name.contains("derelict"),
         "identity: intact ship {} is named '{}'",

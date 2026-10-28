@@ -1005,13 +1005,10 @@ fn release_on_request(
         }),
     );
 
-    // Stop the burn and bring the pair back to rest for the last claim: a
-    // hull that is still commanding a burn can never hold a second dock.
-    world.entity_mut(first).remove::<FlightIntent>();
-    for ship in [first, second] {
-        world.entity_mut(ship).insert(LinearVelocity(Vec3::ZERO));
-        world.entity_mut(ship).insert(AngularVelocity(Vec3::ZERO));
-    }
+    // Stop the burn the way a pilot does, with a zero throttle. Removing the
+    // intent would leave the drive spooled at full: the manual burn only
+    // writes the drive of a ship that carries one.
+    world.entity_mut(first).insert(FlightIntent::default());
     let mut probe = world.resource_mut::<DockProbe>();
     probe.stage = Stage::Destroying;
     probe.stage_frames = 0;
@@ -1026,6 +1023,24 @@ fn release_on_destruction(world: &mut World, first_port: Entity, second_port: En
     };
 
     if connection_count(world) == 0 && world.get_entity(first_port).is_ok() {
+        // Dock at rest in the pose the pair met in. The freed hull's burn
+        // carried it through its partner while the undock separation kept
+        // the pair collision-free, so the pose it ended on says nothing about
+        // this claim.
+        let captured = world
+            .resource::<DockProbe>()
+            .captured
+            .expect("a captured pose");
+        let (position, rotation) = body_pose(world, first).expect("the first hull has a pose");
+        world.entity_mut(second).insert((
+            Position(position + rotation * captured.0),
+            Rotation(rotation * captured.1),
+        ));
+        for ship in [first, second] {
+            world
+                .entity_mut(ship)
+                .insert((LinearVelocity(Vec3::ZERO), AngularVelocity(Vec3::ZERO)));
+        }
         request_dock(world, first, second);
         return;
     }
