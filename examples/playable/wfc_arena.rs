@@ -3573,7 +3573,10 @@ mod reserve_tests {
         let mut reload = SectionReload::from_config(batch, pdc_round.clone());
 
         for _ in 0..capacity {
-            reload.advance(&mut ammo, &mut inventory, batch.delay);
+            let loaded = reload.advance(&mut ammo, inventory.count(&pdc_round), batch.delay);
+            if loaded > 0 {
+                inventory.remove(&pdc_round, loaded);
+            }
         }
 
         assert_eq!(ammo.rounds, capacity.min(reserve));
