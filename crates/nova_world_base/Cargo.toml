@@ -50,6 +50,11 @@ nova_world = { path = "../nova_world", features = ["serde"] }
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1", features = ["fs"] }
 
+# Delete rechecks a world folder by the volume serial and file index of an
+# open handle. std's `MetadataExt` accessors for them are unstable.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+
 [dev-dependencies]
 # Scratch worlds roots for the save tests.
 tempfile = "3"

@@ -1321,50 +1321,55 @@ pub fn delete_world(root: &Path, slug: &str) -> Result<(), WorldRefusal> {
 
     #[cfg(windows)]
     {
-        use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+        use std::os::windows::{fs::OpenOptionsExt, io::AsRawHandle};
 
-        // Win32 values; std names none of them.
-        const FILE_SHARE_READ: u32 = 0x1;
-        const FILE_SHARE_WRITE: u32 = 0x2;
-        const FILE_FLAG_OPEN_REPARSE_POINT: u32 = 0x0020_0000;
-        const FILE_FLAG_BACKUP_SEMANTICS: u32 = 0x0200_0000;
-
-        // No volume serial or file index means the filesystem gives no
-        // identity to recheck below, so refuse rather than remove a folder
-        // the final path lookup cannot be proven to still name.
-        let no_identity = || {
-            io(
-                format!("read {slug}"),
-                std::io::Error::new(ErrorKind::Unsupported, "no file identity for this folder"),
-            )
+        use windows_sys::Win32::Storage::FileSystem::{
+            GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, FILE_FLAG_BACKUP_SEMANTICS,
+            FILE_FLAG_OPEN_REPARSE_POINT, FILE_SHARE_READ, FILE_SHARE_WRITE,
         };
 
         let path = root.join(slug);
-        // No FILE_SHARE_DELETE: while this handle is open nothing can rename,
-        // move or delete the folder, so every child path below names it.
-        let dir = match OpenOptions::new()
-            .read(true)
-            .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+        // The folder the path names, never a link's target: it opens the
+        // link itself, which `identity` then refuses.
+        let open = |options: &mut OpenOptions| match options
             .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
             .open(&path)
         {
-            Ok(dir) => dir,
-            Err(e) if e.kind() == ErrorKind::NotFound => return Err(missing()),
-            Err(e) => return Err(io(format!("open {slug}"), e)),
+            Ok(dir) => Ok(dir),
+            Err(e) if e.kind() == ErrorKind::NotFound => Err(missing()),
+            Err(e) => Err(io(format!("open {slug}"), e)),
         };
-        let meta = dir.metadata().map_err(|e| io(format!("read {slug}"), e))?;
-        // `is_symlink` is true for a junction too: any name-surrogate reparse
-        // point.
-        let kind = meta.file_type();
-        if kind.is_symlink() || !kind.is_dir() {
-            return Err(linked());
-        }
-        // The identity of the handle held open below, to recheck against the
-        // folder the path still names once that handle closes.
-        let identity = match (meta.volume_serial_number(), meta.file_index()) {
-            (Some(volume), Some(index)) => (volume, index),
-            _ => return Err(no_identity()),
+        // The volume serial and file index of an open folder handle: the
+        // identity the path is rechecked by once the first handle closes.
+        let identity = |dir: &File| {
+            let kind = dir
+                .metadata()
+                .map_err(|e| io(format!("read {slug}"), e))?
+                .file_type();
+            // `is_symlink` is true for a junction too: any name-surrogate
+            // reparse point.
+            if kind.is_symlink() || !kind.is_dir() {
+                return Err(linked());
+            }
+            let mut info = BY_HANDLE_FILE_INFORMATION::default();
+            // SAFETY: `dir` owns an open handle, and `info` is a writable
+            // BY_HANDLE_FILE_INFORMATION that outlives the call.
+            if unsafe { GetFileInformationByHandle(dir.as_raw_handle(), &mut info) } == 0 {
+                return Err(io(format!("read {slug}"), std::io::Error::last_os_error()));
+            }
+            let index = (u64::from(info.nFileIndexHigh) << 32) | u64::from(info.nFileIndexLow);
+            Ok((info.dwVolumeSerialNumber, index))
         };
+        // Read access, because a handle without data access neither checks
+        // nor imposes a share mode. No FILE_SHARE_DELETE: while this handle
+        // is open nothing can rename, move or delete the folder, so every
+        // child path below names it.
+        let dir = open(
+            OpenOptions::new()
+                .read(true)
+                .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE),
+        )?;
+        let identity_before = identity(&dir)?;
         // The save files other than the lock, or the first entry the game did
         // not write.
         let scan = || {
@@ -1429,23 +1434,15 @@ pub fn delete_world(root: &Path, slug: &str) -> Result<(), WorldRefusal> {
         // here and the removal below, so the path is rechecked by identity
         // first. This narrows but cannot close the race; closing it needs a
         // share mode this folder cannot hold while files are removed by path.
-        let final_meta = match std::fs::symlink_metadata(&path) {
-            Ok(meta) => meta,
-            Err(e) if e.kind() == ErrorKind::NotFound => return Err(missing()),
-            Err(e) => return Err(io(format!("read {slug}"), e)),
-        };
-        if final_meta.file_type().is_symlink() {
-            return Err(linked());
-        }
-        let final_identity = match (final_meta.volume_serial_number(), final_meta.file_index()) {
-            (Some(volume), Some(index)) => (volume, index),
-            _ => return Err(no_identity()),
-        };
-        if final_identity != identity {
+        // No data access, so another handle on the folder, such as an
+        // indexer's, cannot refuse the recheck with a sharing violation.
+        let named = open(OpenOptions::new().access_mode(0))?;
+        if identity(&named)? != identity_before {
             return Err(WorldRefusal::Foreign(format!(
                 "the world folder {slug} was replaced while it was deleted; remove it by hand"
             )));
         }
+        drop(named);
         // Removes only an empty folder, or a link itself, never its target.
         std::fs::remove_dir(&path).map_err(|e| io(format!("remove the world folder {slug}"), e))?;
         Ok(())
