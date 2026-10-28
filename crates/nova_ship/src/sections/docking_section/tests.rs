@@ -459,6 +459,88 @@ fn a_dock_between_a_pitched_and_a_yawed_hull_holds_the_capture_pose() {
     );
 }
 
+/// A Load can hand a dock back with its saved basis on the other quaternion
+/// sign cover than the thawed hulls: the basis was taken against the body
+/// quaternions the dock saw, and avian rebuilds a thawed `Rotation` from the
+/// global transform matrix. The rotation is the same, so the restored dock
+/// still holds both hulls still.
+#[test]
+fn a_restored_dock_whose_saved_basis_is_on_the_other_sign_cover_holds_still() {
+    let mut app = docking_app();
+    let (player, player_port, station, station_port) = facing_pair(&mut app, NOMINAL_GAP);
+    app.world_mut()
+        .entity_mut(player)
+        .insert(PlayerSpaceshipMarker);
+    app.world_mut()
+        .entity_mut(station)
+        .insert((StationMarker, Allegiance::Neutral));
+    settle(&mut app);
+
+    let (p1, r1, p2, r2, anchor) = app
+        .world_mut()
+        .run_system_once(move |ports: DockingPorts| {
+            let (p1, r1) = ports.body_pose(player).expect("the player is a body");
+            let (p2, r2) = ports.body_pose(station).expect("the station is a body");
+            let face1 = ports.pose(player_port, player).expect("a posed port").face;
+            let face2 = ports
+                .pose(station_port, station)
+                .expect("a posed port")
+                .face;
+            (p1, r1, p2, r2, face1.midpoint(face2))
+        })
+        .expect("the capture pose reads");
+    // The relative rotation the hulls stand at, negated: zero geometric
+    // error, but `(r1 * basis1) * (r2 * basis2)^-1` comes out as -IDENTITY.
+    let frames = [
+        JointFrame {
+            anchor: JointAnchor::Local(r1.inverse() * (anchor - p1)),
+            basis: JointBasis::Local(Quat::IDENTITY),
+        },
+        JointFrame {
+            anchor: JointAnchor::Local(r2.inverse() * (anchor - p2)),
+            basis: JointBasis::Local(-(r2.inverse() * r1)),
+        },
+    ];
+    // The drift a station helm leaves on a docked pair. A joint that corrects
+    // the wrong way multiplies it every step.
+    app.world_mut()
+        .entity_mut(player)
+        .insert(AngularVelocity(Vec3::new(0.0, 0.01, 0.0)));
+    let record = DockingConnection {
+        first_ship: player,
+        first_section: player_port,
+        second_ship: station,
+        second_section: station_port,
+        helm: DockedHelmType::Station(station),
+        measurement_fault: false,
+    };
+    restore_docking_connection(app.world_mut(), record, frames);
+
+    for tick in 0..60 {
+        app.update();
+        for ship in [player, station] {
+            let spin = app
+                .world()
+                .get::<AngularVelocity>(ship)
+                .expect("a docked hull is a body")
+                .0
+                .length();
+            assert!(
+                spin < 0.1,
+                "tick {tick}: the restored dock holds {ship} still, not at {spin} rad/s"
+            );
+        }
+    }
+    assert_eq!(joints(&mut app), 1, "the restored joint holds");
+    assert_eq!(connections(&mut app).len(), 1, "the restored dock holds");
+    for port in [player_port, station_port] {
+        assert!(
+            app.world().get::<DockedPort>(port).is_some(),
+            "both ports stay reserved"
+        );
+    }
+}
+
 #[test]
 fn both_sleeves_reach_out_once_the_joint_holds() {
     let mut app = docking_app();

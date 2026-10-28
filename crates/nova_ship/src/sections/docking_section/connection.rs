@@ -505,17 +505,36 @@ pub fn restore_docking_connection(
         With<ControllerSectionMarker>,
         Without<SectionInactiveMarker>,
     )>();
-    let helms = ships.map(|ship| {
+    let rotations = ships.map(|ship| {
+        *world
+            .get::<Rotation>(ship)
+            .unwrap_or_else(|| panic!("restore_docking_connection: ship {ship} has no rotation"))
+    });
+    let helms = [0, 1].map(|end| {
+        let ship = ships[end];
         let command = q_controllers
             .iter(world)
             .find(|(mount, _)| mount.0 == ship)
             .map(|(_, command)| command.0);
-        let rotation = world
-            .get::<Rotation>(ship)
-            .unwrap_or_else(|| panic!("restore_docking_connection: ship {ship} has no rotation"));
-        (ship, command.unwrap_or(rotation.0))
+        (ship, command.unwrap_or(rotations[end].0))
     });
-    let [frame1, frame2] = frames;
+    let [frame1, mut frame2] = frames;
+    // TODO: avian 0.7's fixed-angle constraint takes its error from
+    // `(rot1 * basis1) * (rot2 * basis2)^-1` without folding a negative `w`,
+    // so on that cover every correction pushes the wrong way and the dock
+    // spins itself apart. A Load can flip one hull's cover: avian rebuilds
+    // the thawed `Rotation` from the global transform matrix, while the
+    // saved basis was taken against the quaternion the dock saw. Negating
+    // the basis keeps the saved rotation. Delete when avian folds the cover
+    // in `FixedAngleConstraintShared::prepare`.
+    let [JointBasis::Local(basis1), JointBasis::Local(basis2)] =
+        JointBasis::compute_local(frame1.basis, frame2.basis, &rotations[0], &rotations[1])
+    else {
+        unreachable!("JointBasis::compute_local returns local bases");
+    };
+    if ((rotations[0].0 * basis1) * (rotations[1].0 * basis2).inverse()).w < 0.0 {
+        frame2.basis = JointBasis::Local(-basis2);
+    }
     let joint = FixedJoint {
         frame1,
         frame2,
