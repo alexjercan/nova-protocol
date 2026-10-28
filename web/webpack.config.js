@@ -113,7 +113,7 @@ const NEWS_POSTS = [
     {
         slug: "0.16.0",
         version: "v0.16.0",
-        date: "2026-10-27",
+        date: "2026-10-28",
         description:
             "Nova Protocol v0.16.0: start roles, stations, jobs, a market, civilization stances, a chart that remembers, and a world that saves itself.",
     },
