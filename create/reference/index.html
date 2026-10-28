@@ -39,6 +39,7 @@ dependency).</li>
 <h2 id="the-reference-pages" tabindex="-1">The reference pages</h2>
 <div id="wiki-children"></div>
 <h2 id="the-vocabulary-by-family" tabindex="-1">The vocabulary by family</h2>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -49,7 +50,7 @@ dependency).</li>
 <tbody>
 <tr>
 <td>Mod structure</td>
-<td><a href="../mod-files/">bundle and content files</a>, <a href="../campaigns/"><code>Campaign</code></a>, <a href="../lessons/"><code>Lesson</code></a>, <a href="../scenarios/"><code>Scenario</code></a>, <a href="../sections/"><code>Section</code></a>, <a href="../ships/"><code>Ship</code></a>, <a href="../styles/"><code>Style</code></a></td>
+<td><a href="../mod-files/">bundle and content files</a>, <a href="../campaigns/"><code>Campaign</code></a>, <a href="../lessons/"><code>Lesson</code></a>, <a href="../scenarios/"><code>Scenario</code></a>, <a href="../sections/"><code>Section</code></a>, <a href="../prices/"><code>PriceTable</code></a>, <a href="../ships/"><code>Ship</code></a>, <a href="../start-roles/"><code>StartRole</code></a>, <a href="../stations/"><code>Station</code></a>, <a href="../styles/"><code>Style</code></a></td>
 </tr>
 <tr>
 <td>Handler fields</td>
@@ -68,8 +69,8 @@ dependency).</li>
 <td>spawning: <a href="../actions/#spawnscenarioobject"><code>SpawnScenarioObject</code></a>, <a href="../actions/#scatterobjects"><code>ScatterObjects</code></a>, <a href="../actions/#despawnscenarioobject"><code>DespawnScenarioObject</code></a>, <a href="../actions/#createscenarioarea"><code>CreateScenarioArea</code></a> - mission: <a href="../actions/#objective"><code>Objective</code></a>, <a href="../actions/#objectivecomplete"><code>ObjectiveComplete</code></a>, <a href="../actions/#objectivemarkerattach"><code>ObjectiveMarkerAttach</code></a>, <a href="../actions/#objectivemarkerdetach"><code>ObjectiveMarkerDetach</code></a>, <a href="../actions/#narrativecue"><code>NarrativeCue</code></a>, <a href="../actions/#hudreadout"><code>HudReadout</code></a>, <a href="../actions/#hintemphasisset"><code>HintEmphasisSet</code></a>, <a href="../actions/#hintemphasisclear"><code>HintEmphasisClear</code></a> - sound: <a href="../actions/#playsound"><code>PlaySound</code></a> - pacing: <a href="../actions/#sequence"><code>Sequence</code></a>, <a href="../actions/#cinematic"><code>Cinematic</code></a>, <a href="../actions/#cancelcinematic"><code>CancelCinematic</code></a>, <a href="../actions/#cinematictitle"><code>CinematicTitle</code></a> - flow: <a href="../actions/#outcome"><code>Outcome</code></a>, <a href="../actions/#nextscenario"><code>NextScenario</code></a>, <a href="../actions/#backdropdone"><code>BackdropDone</code></a> - ships: <a href="../actions/#ship-capabilities"><code>SetShipCapabilityStop</code></a>, <a href="../actions/#ship-capabilities"><code>SetShipCapabilityGoto</code></a>, <a href="../actions/#ship-capabilities"><code>SetShipCapabilityOrbit</code></a>, <a href="../actions/#ship-capabilities"><code>SetShipCapabilityLock</code></a>, <a href="../actions/#ship-capabilities"><code>SetShipCapabilityRcs</code></a>, <a href="../actions/#ship-capabilities"><code>SetShipCapabilityPointDefense</code></a>, <a href="../actions/#setallegiance"><code>SetAllegiance</code></a>, <a href="../actions/#setinfiniteammo"><code>SetInfiniteAmmo</code></a>, <a href="../actions/#refillammo"><code>RefillAmmo</code></a>, <a href="../actions/#zeroshipmotion"><code>ZeroShipMotion</code></a> - helm orders: <a href="../actions/#moveshipto"><code>MoveShipTo</code></a>, <a href="../actions/#forcealign"><code>ForceAlign</code></a>, <a href="../actions/#stopship"><code>StopShip</code></a>, <a href="../actions/#patrolship"><code>PatrolShip</code></a>, <a href="../actions/#orbitship"><code>OrbitShip</code></a>, <a href="../actions/#clearshiporder"><code>ClearShipOrder</code></a> - forced fire: <a href="../actions/#forcerailgunfire"><code>ForceRailgunFire</code></a>, <a href="../actions/#forcetorpedofire"><code>ForceTorpedoFire</code></a> - AI constraints: <a href="../actions/#setaileash"><code>SetAILeash</code></a>, <a href="../actions/#setaiengagerange"><code>SetAIEngageRange</code></a>, <a href="../actions/#setaipointdefenserange"><code>SetAIPointDefenseRange</code></a> - state: <a href="../actions/#variableset"><code>VariableSet</code></a>, <a href="../actions/#timerstart"><code>TimerStart</code></a>, <a href="../actions/#timercancel"><code>TimerCancel</code></a>, <a href="../actions/#debugmessage"><code>DebugMessage</code></a> - view: <a href="../actions/#setcamera"><code>SetCamera</code></a>, <a href="../actions/#setcameraanchor"><code>SetCameraAnchor</code></a>, <a href="../actions/#releasecamera"><code>ReleaseCamera</code></a>, <a href="../actions/#screenshot"><code>Screenshot</code></a>, <a href="../actions/#setskybox"><code>SetSkybox</code></a> - control: <a href="../actions/#suspendplayercontrol"><code>SuspendPlayerControl</code></a>, <a href="../actions/#resumeplayercontrol"><code>ResumePlayerControl</code></a></td>
 </tr>
 <tr>
-<td>Objects (6)</td>
-<td><a href="../objects/#anchor"><code>Anchor</code></a>, <a href="../objects/#asteroid"><code>Asteroid</code></a>, <a href="../objects/#planet"><code>Planet</code></a>, <a href="../objects/#spaceship"><code>Spaceship</code></a>, <a href="../objects/#beacon"><code>Beacon</code></a>, <a href="../objects/#light"><code>Light</code></a> (<code>Directional</code> / <code>Point</code>)</td>
+<td>Objects (7)</td>
+<td><a href="../objects/#anchor"><code>Anchor</code></a>, <a href="../objects/#asteroid"><code>Asteroid</code></a>, <a href="../objects/#planet"><code>Planet</code></a>, <a href="../objects/#spaceship"><code>Spaceship</code></a>, <a href="../objects/#station"><code>Station</code></a>, <a href="../objects/#beacon"><code>Beacon</code></a>, <a href="../objects/#light"><code>Light</code></a> (<code>Directional</code> / <code>Point</code>)</td>
 </tr>
 <tr>
 <td>Damage effects (3)</td>
@@ -81,10 +82,11 @@ dependency).</li>
 </tr>
 <tr>
 <td>Base ids &amp; assets</td>
-<td><a href="../base-content/#section-prototypes">section prototypes</a>, <a href="../base-content/#scenario-ids">scenario ids</a>, <a href="../ships/#base-ships">ship ids</a>, <a href="../base-content/#skin-styles">style ids</a>, <a href="../base-content/#assets-what-depbase-can-reach"><code>dep://base/</code> assets</a></td>
+<td><a href="../base-content/#section-prototypes">section prototypes</a>, <a href="../base-content/#scenario-ids">scenario ids</a>, <a href="../ships/#base-ships">ship ids</a>, <a href="../start-roles/#base-start-roles">start role ids</a>, <a href="../base-content/#skin-styles">style ids</a>, <a href="../base-content/#assets-what-depbase-can-reach"><code>dep://base/</code> assets</a></td>
 </tr>
 </tbody>
 </table>
+</div>
 <p>The wiki search (sidebar) indexes every construct name, so typing
 <code>ScatterObjects</code> or <code>OnEnter</code> up there jumps straight to the right page.</p>
 <h2 id="every-construct-a-to-z" tabindex="-1">Every construct, A to Z</h2>
@@ -174,6 +176,7 @@ dependency).</li>
 <a href="../actions/#playsound"><code>PlaySound</code></a> (action),
 <a href="../sections/#damage-effects"><code>Plume</code></a> (damage effect),
 <a href="../objects/#light"><code>Point</code></a> (light method),
+<a href="../prices/"><code>PriceTable</code></a> (content item),
 <a href="../objects/#the-sections-list"><code>Prototype</code></a> (section source)</p>
 <p><strong>Q</strong> - <a href="../expressions/#factors-the-atoms"><code>Query</code></a> (expression node)</p>
 <p><strong>R</strong> - <a href="../actions/#refillammo"><code>RefillAmmo</code></a> (action),
@@ -204,6 +207,9 @@ dependency).</li>
 <a href="../sections/#damage-effects"><code>Sparks</code></a> (damage effect),
 <a href="../actions/#spawnscenarioobject"><code>SpawnScenarioObject</code></a> (actions),
 <a href="../objects/#spaceship"><code>Spaceship</code></a> (object),
+<a href="../start-roles/"><code>StartRole</code></a> (content item),
+<a href="../stations/"><code>Station</code></a> (content item),
+<a href="../objects/#station"><code>Station</code></a> (object),
 <a href="../actions/#stopship"><code>StopShip</code></a>,
 <a href="../expressions/#values-the-literal-types"><code>String</code></a> (literal),
 <a href="../styles/"><code>Style</code></a> (content item),

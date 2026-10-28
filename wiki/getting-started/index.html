@@ -8,7 +8,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Your first flight</p><h1>Your first flight</h1><div class="wiki__tags" id="wiki-tags"></div><p>Nova Protocol is a build-and-fly space shooter. You take a modular ship into a scenario with asteroids, salvage, hostile ships, and planets that provide static gravity wells. Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. The flight computer can fly for you through real thrusters, but a manual burn or RCS input hands control back to you. This page is the whole first flight: how to launch, the core gestures, Basic Training beat by beat, and where to go next.</p>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Your first flight</p><h1>Your first flight</h1><div class="wiki__tags" id="wiki-tags"></div><p>Nova Protocol is a build-and-fly space shooter. You take a modular ship into a scenario with asteroids, salvage, hostile ships, and planets that provide static gravity wells. Everything moves under real Newtonian physics - momentum persists and nothing dampens you, so you fly the ship, not a cursor. The flight computer can fly for you through real thrusters, but a fresh manual burn press or RCS input hands control back to you. This page is the whole first flight: how to launch, the core gestures, Basic Training beat by beat, and where to go next.</p>
 <h2 id="launch-and-start" tabindex="-1">Launch and start</h2>
 <p>The game boots into a main menu. On a first launch a card in the bottom-left corner offers you <strong>Basic Training</strong> straight away, with <strong>Open lessons</strong> beside it and <strong>Not now</strong> to put the card away for good. <strong>Start Basic Training</strong> puts you on the Fleet gunnery range in a ready-made armed trainer, so there is nothing to build first. The other doors can wait.</p>
 <p>The card is a one-time offer, not the entrance: the menu's <strong>Lessons</strong> row always opens the handbook, whose first row is <strong>Basic Training</strong>, and <strong>Settings &gt; Interface &gt; Training prompt</strong> switches the corner back on if you want it.</p>
@@ -16,12 +16,14 @@
 <details class="explain">
 <summary>Show the full menu rundown</summary>
 <ul>
-<li><strong>New Game</strong> - opens the world setup: a world seed (a fresh one each time, or type your own), <strong>Randomize</strong>, <strong>Create</strong> and <strong>Cancel</strong>. <strong>Create</strong> puts you in a line warship in an open world of sparse asteroid clusters, planetoids and <a href="../ships/#generated-ships">generated ships</a>, generated from the seed and streamed in around you as you fly. The same seed gives the same world on the same build. <strong>Retry</strong> keeps the seed.</li>
+<li><strong>Continue</strong> - desktop build only, once a save stands: heads the menu, names the newest saved world and how long ago it was saved, and opens it as <strong>Load</strong> would.</li>
+<li><strong>New Game</strong> - opens the world setup in two steps. The first step takes a name for the world (desktop build only) and a seed (a fresh one each time, or type your own), with <strong>Randomize</strong>, <strong>Next</strong> and <strong>Cancel</strong>. Under the seed a 3D chart shows the seed's sectors round your starting station before the world exists: right-drag turns it, the wheel zooms. The second step lists the start roles: select one to see how it plays, its hull turning in 3D, its hull's card (name, length, sections, weapons, drives), its kit of credits and cargo, its milestone (the role's goal) and its story, then press <strong>Create</strong>, or <strong>Back</strong> to change the seed. The name opens on <strong>New World</strong>, or the next free <strong>New World 2</strong>, <strong>New World 3</strong>, ... when that world exists. <strong>Create</strong> puts you in the role's ship, docked at your <strong>starting station</strong> - the nearest station of a civilization that begins as your Ally - in an open world of sparse asteroid clusters, planetoids and <a href="../ships/#generated-ships">generated ships</a>, generated from the seed and streamed in around you as you fly. The Station pane is one key away while you sit there. A seed whose nearby civilizations keep no allied station is refused on the seed field, so pick another. The role's charter, one finite milestone and not an ending, stands in the Map's chart view as you play; see <a href="../interface/#the-map">the Map</a>. The same seed gives the same world on the same build. On the desktop build the world saves itself as you play, and the pause menu's Retry becomes <strong>Load last save</strong>; see <a href="#saved-worlds">Saved worlds</a> below. The web build keeps no saved worlds.</li>
+<li><strong>Load</strong> - desktop build only: lists your saved world folders and resumes the one you pick, or shows why it cannot. Each row reads the world's name and start role, its play time, how long ago it was saved and how many objectives stand open. The details draw the save's chart in 3D, then its <strong>FLEET</strong> - the ship you fly, and the owned ships, escorts and owned stations when it has any - and its open objectives: each held job, then your start role's goal with its next unmet milestone only, not every milestone line. <strong>Delete</strong> removes the one you pick after you confirm.</li>
 <li><strong>Sandbox</strong> - opens the ship editor so you can build a ship and test-fly it in a practice scenario.</li>
 <li><strong>Lessons</strong> - opens the training handbook. Its first row, <strong>Basic Training</strong>, starts the first-flight course. Under it is one screen per topic, with a demonstration, the actions it uses under your own bindings, a link into this manual, and often a focused range to fly. The handbook keeps track of what you have done: a lesson you open is marked <strong>read</strong>, and one is marked <strong>done</strong> only when you win a scenario that teaches it - finishing Basic Training or the topic's own practice range. Both are kept between sessions, in their own file beside your settings.</li>
 <li><strong>Scenarios</strong> - opens the complete scenario picker, every scenario your enabled mods ship included.</li>
 <li><strong>Mods</strong> - opens the installed-mod and online-catalog browser. A mod whose content will not load or fails its checks is switched off for you and named in one <strong>MODS DISABLED</strong> notice on the front door; its files stay installed, so you can update, remove or switch it back on from this screen.</li>
-<li><strong>Settings</strong> - adjusts volume, graphics quality, window mode and the UI theme, and shows the control reference. The desktop build opens borderless fullscreen; <strong>Windowed</strong> is one click away.</li>
+<li><strong>Settings</strong> - adjusts volume, graphics quality, window mode and the UI theme, and shows the control reference. The desktop build opens borderless fullscreen; <strong>Windowed</strong> is one click away. Alt-tab leaves the game running; <strong>Settings &gt; Graphics &gt; Pause when unfocused</strong> pauses it instead.</li>
 <li><strong>Exit</strong> - quits (hidden in the browser build).</li>
 </ul>
 </details>
@@ -35,13 +37,91 @@
     <figcaption class="figure__caption">The game boots into a main menu; New Game opens the world setup.</figcaption>
 </figure>
 <p>In any scenario, <kbd>Esc</kbd> pauses the game and gives you Resume / Retry (restart the current scenario) / Settings / Back to Main Menu / Exit.</p>
+<h2 id="saved-worlds" tabindex="-1">Saved worlds</h2>
+<!-- Route: crates/nova_world_base/src/save/mod.rs (`create_world`, `open_world`,
+     `list_worlds`, `delete_world`, `world_slug`, `WorldRefusal`), save/session.rs
+     (`WorldSaveSession`, `SaveReason`, death at :316-347), save/transients.rs
+     (`FrozenTransient`, `WORLD_RESUME_SECONDS_MAX` 240 s); crates/nova_menu/src/
+     world_setup.rs (Create), load_screen.rs (Load), save_status.rs (save
+     notice), leave.rs (leave overlay, Retry), outcome.rs (Defeat Load last
+     save); crates/nova_authoring/src/base_content/scenarios/open_world.rs
+     (the death Defeat); crates/nova_assets/src/storage.rs
+     `worlds_root`; crates/nova_core/src/loading_screen.rs (resume progress
+     line). -->
+<p>On the desktop build, New Game saves what you play; the web build keeps no saved worlds, and the main menu has no <strong>Load</strong> button.</p>
+<p>Each world is a folder named after it, under this system's data folder, inside <code>nova-protocol/worlds</code> (for example <code>~/.local/share/nova-protocol/worlds</code> on Linux, <code>~/Library/Application Support/nova-protocol/worlds</code> on macOS, or <code>%APPDATA%\nova-protocol\worlds</code> on Windows).</p>
+<p>The name field opens on <code>New World</code>; keep it or type your own. <strong>Create</strong> takes a name of 1 to 32 letters, digits, spaces, <code>_</code> or <code>-</code>, the seed field above it and the role you selected. A name already taken, or one this system cannot make a folder for, sends you back to the first step with the reason under the field, and nothing starts. The game takes the world's first save as soon as the world comes up.</p>
+<p>The game saves when you cross into a new sector, and again when you leave: <strong>Back to Main Menu</strong>, <strong>Exit</strong> and the window's close button each wait on that save before they act. While a save is writing or waiting, a notice at the bottom right says <code>Saving world...</code>. A successful save shows <code>World saved</code> for three seconds; a failure shows <code>SAVE FAILED: &lt;reason&gt;</code> until the next attempt or you leave. The grave/tilde HUD key (<kbd>~</kbd>) hides these notices with the rest of the HUD. An existing save is silent when first opened. Leaving shows an overlay while its save runs; a failed leave save offers <strong>Try again</strong> or <strong>Leave without saving</strong>, which keeps the last good save and leaves anyway.</p>
+<p>Dying ends the run with a <strong>DEFEAT</strong> panel: &quot;Your ship was destroyed.&quot; On the desktop build it offers <strong>Load last save</strong> and <strong>Main Menu</strong>, and <kbd>Enter</kbd> goes to the menu; the web build offers <strong>Main Menu</strong> alone. Dying writes nothing - the last good save stays on disk - and a way out after a death writes nothing either. The pause menu's Retry reads <strong>Load last save</strong> instead of restarting too: it reopens the world from disk rather than the seed.</p>
+<h3 id="what-a-load-brings-back" tabindex="-1">What a Load brings back</h3>
+<p>A Load restores your ship (pose, motion, sections, damage, plates, ammo, reloads, hold, credits, key bindings and the chase-camera zoom), your <a href="../interface/#the-map">chart</a> of the sectors you entered and the stations and wrecks you found, the <a href="../interface/#jobs">jobs</a> you hold and have completed, every frozen off-window sector, and every live sector in the streamed window as it was at the last good save - including a turret round, a torpedo, a rock chunk cut off a rock, a detached hull piece and a shed plate or decor fixture still in flight, each resuming on its own remaining lifetime. A visual-only effect, such as a spark or a muzzle flash, is not saved and does not come back. A Load also restores a dock, a STOP, GOTO or ORBIT order, your travel lock, combat lock and component lock, and your RCS reserve with its idle timer, exactly as they stood at the save: a ship saved docked comes back docked to the same partner and port. A Load that cannot find a saved lock's, order's or dock's target, or whose saved port is now taken, is refused and shows why on its Load row.</p>
+<p>A Load also brings the scenario back as it was: your objectives and their markers, the story log, the scenario's variables and readouts, and any timer still running, with the seconds it had left. A one-shot scenario event that already fired before the save does not fire again.</p>
+<p>A Load that cannot bring its sectors and transients back within 240 seconds is refused, and the loading screen shows <code>RESTORING SECTORS &lt;live&gt; / &lt;desired&gt;</code> while it waits.</p>
+<h3 id="a-refused-load" tabindex="-1">A refused Load</h3>
+<p>The Load screen lists every world folder, with the start role each world began as, and shows why one cannot be opened, on its row. It checks each saved state in the background: while a check runs, the row reads <code>Checking saved state</code> and <strong>Load</strong> stays greyed. <strong>Load</strong> checks the world again before it starts.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>Reason</th>
+<th>Shown as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Another game has it open</td>
+<td><code>open in another game</code></td>
+</tr>
+<tr>
+<td>Saved by another game release or a development build</td>
+<td><code>save format &lt;found&gt;; this build reads &lt;current&gt;</code></td>
+</tr>
+<tr>
+<td>Saved with other content</td>
+<td><code>content changed; saved with &lt;mods&gt;</code></td>
+</tr>
+<tr>
+<td>The scenario the save names is not in this game's content</td>
+<td><code>its scenario '&lt;id&gt;' is not in the loaded content</code></td>
+</tr>
+<tr>
+<td>The start role the save names is not in this game's content</td>
+<td><code>its start role '&lt;id&gt;' is not in the loaded content</code></td>
+</tr>
+<tr>
+<td>Save file missing, corrupt or of another generation</td>
+<td><code>unreadable: &lt;reason&gt;</code></td>
+</tr>
+<tr>
+<td>The saved state holds an item this game's content does not define</td>
+<td><code>unreadable: state.&lt;n&gt;.ron: unknown item '&lt;id&gt;' held by &lt;owner&gt;</code>, or <code>named by the chart</code></td>
+</tr>
+<tr>
+<td>A file operation failed</td>
+<td>the raw I/O error</td>
+</tr>
+<tr>
+<td>The sectors or transients did not come back in time</td>
+<td><code>the world did not come back within 240 s: &lt;reason&gt;</code></td>
+</tr>
+<tr>
+<td>A saved reference matches two live bodies, or a saved style is not in this game's content</td>
+<td>the reason, at once</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The content check runs first. A world saved with a mod item whose mod is now off or changed shows <code>content changed</code>, not <code>unknown item</code>.</p>
+<h3 id="deleting-a-world" tabindex="-1">Deleting a world</h3>
+<p>Select a world on the Load screen and press <strong>Delete</strong>, then <strong>Delete world</strong> to confirm or <strong>Cancel</strong> to keep it. Delete works on a world that cannot load, too. It removes only the files the game writes (<code>world.ron</code>, <code>world.lock</code>, the <code>state.&lt;n&gt;.ron</code> files and the temp files of an interrupted save), then the empty folder. There is no undo.</p>
+<p>Delete removes nothing and shows <code>Cannot delete &lt;folder&gt;: &lt;reason&gt;</code> when another game has the world open, when the folder is gone, is a link or has a name no world gives, or when it holds any other file or folder: move that out first. If a removal fails part way, the world lists as unreadable and cannot load; press <strong>Delete</strong> again to remove the rest.</p>
 <p>For your first flight, pick <strong>Start Basic Training</strong> on the card, the <strong>Basic Training</strong> row at the top of <strong>Lessons</strong>, or <strong>Basic Training</strong> in <strong>Scenarios</strong>. It teaches one gesture at a time and hands you each verb only when you reach the beat that needs it - so a key that answers with a deny buzz early on just is not unlocked yet. Each beat completes as soon as the range sees the gesture done.</p>
 <h2 id="the-first-two-minutes" tabindex="-1">The first two minutes</h2>
 <p>Distances read in meters and kilometers and speeds in meters per second (<code>m/s</code>); see the <a href="../glossary/">glossary</a>.</p>
 <ul>
 <li><strong>Burn.</strong> Hold <kbd>W</kbd> (or <kbd>Space</kbd>) for the main-drive burn and aim with the mouse. You point the hull, then thrust where the nose looks. The velocity sphere beside your ship shows where you are actually going.</li>
 <li><strong>Lock a target.</strong> Hold <kbd>Ctrl</kbd> to sweep the radar; the hollow box shows what you are about to lock. Settle on it and hold steady for a moment - a short lock-on dwell has to fill (longer the farther the target is) before the lock latches, and sweeping off before then cancels it. A white crosshair is a travel (nav) lock; raise weapons first (see below) and it lands as a red combat lock instead.</li>
-<li><strong>GOTO.</strong> With a lock, tap <kbd>G</kbd> and the autopilot flies you there - it burns over, flips, and coasts to a stop just off the target. <kbd>Z</kbd>, a burn on <kbd>W</kbd> or <kbd>G</kbd> again hands the ship straight back to you; the mouse does not, because while the computer flies your look input only swings the camera.</li>
+<li><strong>GOTO.</strong> With a lock, tap <kbd>G</kbd> and the autopilot flies you there - it burns over, flips, and coasts to a stop just off the target. <kbd>Z</kbd>, a fresh press of <kbd>W</kbd> or <kbd>G</kbd> again hands the ship straight back to you; the mouse does not, because while the computer flies your look input only swings the camera.</li>
 <li><strong>Raise weapons and fire.</strong> Hold the right mouse button to raise weapons (combat stance); your reticle goes red and the ship is now &quot;hot&quot;. Left mouse fires the turrets and launches torpedoes. A torpedo only launches while you hold a red combat lock.</li>
 </ul>
 <p>That is the whole core loop: burn, lock, GOTO, shoot. Basic Training covers all of it on an armed trainer, ORBIT included.</p>
@@ -50,7 +130,7 @@
 <h3 id="part-1---the-pattern" tabindex="-1">Part 1 - The pattern</h3>
 <ol>
 <li><strong>Burn to mark ALPHA.</strong> Hold <kbd>W</kbd> to burn and steer with the mouse. ALPHA sits dead ahead; flying into its ring completes the beat.</li>
-<li><strong>Kill the drift.</strong> Press <kbd>X</kbd> once and let STOP brake the trainer down. Hands off the throttle: the next lesson waits for the maneuver to finish, and a burn or <kbd>Z</kbd> takes the ship back before it is done. The mouse is safe - it only moves the camera while STOP flies.</li>
+<li><strong>Kill the drift.</strong> Press <kbd>X</kbd> once and let STOP brake the trainer down. Release the throttle: the next lesson waits for the maneuver to finish, and a fresh burn press or <kbd>Z</kbd> takes the ship back before it is done. The mouse is safe - it only moves the camera while STOP flies.</li>
 <li><strong>Slide across to BRAVO.</strong> Hold <kbd>Shift</kbd> and move the mouse to translate without turning the hull - short taps, not a held push. The velocity ball on your HUD goes violet while the thrusters have the ship, and ten violet pips under the speed chip show how much RCS is left. Let go and they refill.</li>
 </ol>
 <h3 id="part-2---the-flight-computer" tabindex="-1">Part 2 - The flight computer</h3>
@@ -101,11 +181,11 @@
 </ul>
 <p>Nothing here ends. The objective on your HUD just names the way out: <kbd>F1</kbd> returns to the editor at any time, and if you die the overlay offers <strong>Retry</strong> on the same range with the same ship.</p>
 <h2 id="mining-and-cargo" tabindex="-1">Mining and cargo</h2>
-<!-- Route verified against crates/nova_authoring/src/base_content/scenarios/open_world.rs (the line warship and its stock), crates/nova_authoring/src/base_content/ships/block.rs (the warship's collars, dorsal intake and bow emitter), crates/nova_world_base/src/sector_ships.rs (`ship_stock`, `ship_credits`; every generated ship starts with goods and credits) and crates/nova_world/src/streaming.rs `spawn_sector_ship` (derelicts are lootable; a living generated ship trades its own stock and credits). -->
-<p>The line warship New Game gives you carries a docking port on each shoulder, a cargo intake on its top deck and a mining beam at its bow. Its hold is what keeps it fighting: a <a href="../interface/#the-ship">repair</a> spends hull plates, and every idle <a href="../combat-weapons/#magazines">reload</a> spends ammunition. Press <kbd>Tab</kbd> and step to the <strong>Inventory</strong> pane to see what you carry.</p>
+<!-- Route verified against crates/nova_authoring/src/base_content/start_roles.rs (the start roles and their kits), crates/nova_authoring/src/base_content/ships/block.rs (each start hull's collar, intake and mining beam), crates/nova_world_base/src/sector_ships.rs (`ship_stock`, `ship_credits`; every generated ship starts with goods and credits) and crates/nova_world/src/streaming.rs `spawn_sector_ship` (derelicts are lootable; a living generated ship trades its own stock and credits). -->
+<p>Every start hull carries a docking port on its port flank and a cargo intake. The mining tug and the salvage hauler also carry a mining beam. The hold is what keeps a ship fighting: a <a href="../interface/#the-ship">repair</a> spends hull plates, and every idle <a href="../combat-weapons/#magazines">reload</a> spends ammunition. Press <kbd>Tab</kbd> and step to the <strong>Inventory</strong> pane to see what you carry.</p>
 <ol>
 <li><strong>Take from a wreck.</strong> Each generated derelict wreck carries its own mixed goods - it may hold no hull plates at all - and a share of its credits. Travel-lock one, line one of your ports up with one of its ports and press <kbd>D</kbd> to <a href="../sections/docking/#flying-the-approach">dock</a>. In the Inventory pane, click an item and <strong>Confirm</strong> to <a href="../interface/#take-and-give">take</a> it, or click <strong>Take credits</strong> to take its whole balance in one click. <kbd>D</kbd> again lets go.</li>
-<li><strong>Mine a rock.</strong> Travel-lock a rock, put your nose on it inside 100 m and hold <kbd>V</kbd>. The <a href="../sections/mining-beam/#cutting-ore">mining beam</a> cuts it once a second, and the ore drifts off the rock in canisters.</li>
+<li><strong>Mine a rock.</strong> Point the emitter at a rock inside 100 m and hold <kbd>V</kbd>. No travel lock is needed. The <a href="../sections/mining-beam/#cutting-ore">mining beam</a> cuts the nearest rock it meets once a second, and the ore drifts off in canisters.</li>
 <li><strong>Pick up a canister.</strong> Fly your top-deck <a href="../sections/cargo-intake/#taking-a-canister-in">cargo intake</a> up onto a canister, door first. It goes into your hold whole.</li>
 <li><strong>Drop cargo.</strong> Undocked, click an item in the Inventory pane and <strong>Confirm</strong> a <a href="../interface/#jettison-and-pickup">Jettison</a>. Close the pane and the intake drops it as canisters, which you can pick up again.</li>
 </ol>

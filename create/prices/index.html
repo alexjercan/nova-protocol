@@ -1,0 +1,288 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Price tables for mods - Nova Protocol Creator Docs</title><meta name="description" content="Author the factors a generated trader prices every item by: the scarcity curve, demand by cluster type and civilization role, and the clamp that keeps a bid under its ask."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Price tables for mods</p><h1>Price tables for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#how-a-trader-prices">How a trader prices</a><ol></ol></li><li><a href="#how-a-trader-restocks">How a trader restocks</a><ol></ol></li><li><a href="#how-a-job-offer-expires">How a job offer expires</a><ol></ol></li><li><a href="#the-pricetable-item">The PriceTable item</a><ol></ol></li><li><a href="#overlay-and-lint">Overlay and lint</a><ol></ol></li><li><a href="#base-price-table">Base price table</a><ol></ol></li></ol></nav><p>A <code>PriceTable</code> holds the factors a generated trader prices every item by: the
+scarcity curve, the demand of each cluster type and civilization role, and
+the clamp on the product. There is one table, not a registry. The base game
+states it, and a mod that states one replaces the whole table.</p>
+<p>This page is the field-by-field price table reference. For general RON
+spelling rules, see
+<a href="../reference/#how-ron-content-is-written">RON spelling rules</a>.</p>
+<h2 id="how-a-trader-prices" tabindex="-1">How a trader prices</h2>
+<p>A living generated station and an intact generated ship price each item at
+the moment you trade, from its market:</p>
+<pre><code class="hljs language-text">ask = reference ask_cr x scarcity.ask x cluster.ask x civilization.ask
+bid = reference bid_cr x scarcity.bid x cluster.bid x civilization.bid
+</code></pre>
+<p>Each side's product is clamped to <code>clamp</code>, then the price rounds to the
+nearest credit.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>factor</th>
+<th>from</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>reference</td>
+<td>the item's <code>ask_cr</code> and <code>bid_cr</code>, see <a href="../mod-files/#content-files">Content files</a></td>
+</tr>
+<tr>
+<td>scarcity</td>
+<td>the trader's stock of the item against its target, the stock it spawned with. At no stock the factor is <code>starved</code>, at the target 1, at <code>glut_share</code> times the target and above <code>glut</code>, and linear between. An item the trader spawned without uses <code>unkept</code></td>
+</tr>
+<tr>
+<td>cluster</td>
+<td>the <code>clusters</code> rule for the cluster type the trader stands in and the item's category, or 1 when no rule names the pair</td>
+</tr>
+<tr>
+<td>civilization</td>
+<td>the <code>roles</code> rules for the item's category, each weighed by the civilization's preference for that role, a missing rule counting as 1</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>An authored <a href="../stations/">station</a> or ship has no market. It deals at the
+reference price. A Buy at a station the player owns pays the bid.</p>
+<div class="widget" data-widget="price-factors">
+<p>With the base table, a trader at its target stock in a rock-only cluster of a civilian civilization sells a hull plate at its 40 cr reference and buys one at 30 cr. At no stock it asks 1.5 and pays 1.25 times reference; at three times its target or more, 0.9 and 0.6. At its target stock, iron ore pays 14 cr at an industrial trader among planets and 6 cr at one in an asteroid-rich cluster. With one role at full weight the base table never reaches the 0.25 to 3.0 clamp.</p>
+</div>
+<h2 id="how-a-trader-restocks" tabindex="-1">How a trader restocks</h2>
+<p>A generated trader's stock stands still while its cell stands frozen. On the
+thaw it drifts toward its target stock by the play time it stood frozen: a
+starved trader buys back up, a glutted one sells back down, each by
+<code>target * elapsed / recovery_seconds</code> whole units, never past the target.
+An item the trader's target does not name is untouched - what you sold it
+stays sold. A reload alone restocks nothing: the clock stops while the game
+is paused, so no play time passes.</p>
+<p>Neutralizing a civilization's generated hull or station is an offence
+against it, not a price rule: see
+<a href="../stations/#civilization-stances">Civilization stances</a>.</p>
+<h2 id="how-a-job-offer-expires" tabindex="-1">How a job offer expires</h2>
+<p>A living station's job board has three slots, each on its own posting. An
+offer the player does not hold expires after <code>jobs.offer_seconds</code> of play,
+or <code>jobs.escort_offer_seconds</code> for an escort, measured from its posting.
+The slot then posts a new offer under a new id. A held job
+is pinned to its slot and never expires, however long you hold it; handing
+one in, or losing it (its hauler lost), renews the slot at once. The clock
+is play time, so the pause menu, the interface and a Load all freeze every
+offer's countdown along with everything else. See <a href="../stations/#jobs">Jobs</a>
+for the full posting and renewal rule.</p>
+<h2 id="the-pricetable-item" tabindex="-1">The PriceTable item</h2>
+<pre><code class="hljs language-ron"><span class="ron-punct">[</span>
+    <span class="ron-type">PriceTable</span><span class="ron-punct">((</span>
+        <span class="ron-key">clamp</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">min</span><span class="ron-punct">:</span> <span class="ron-literal">0.25</span><span class="ron-punct">,</span> <span class="ron-key">max</span><span class="ron-punct">:</span> <span class="ron-literal">3.0</span><span class="ron-punct">),</span>
+        <span class="ron-key">scarcity</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+            <span class="ron-key">starved</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">ask</span><span class="ron-punct">:</span> <span class="ron-literal">1.5</span><span class="ron-punct">,</span> <span class="ron-key">bid</span><span class="ron-punct">:</span> <span class="ron-literal">1.25</span><span class="ron-punct">),</span>
+            <span class="ron-key">glut</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">ask</span><span class="ron-punct">:</span> <span class="ron-literal">0.9</span><span class="ron-punct">,</span> <span class="ron-key">bid</span><span class="ron-punct">:</span> <span class="ron-literal">0.6</span><span class="ron-punct">),</span>
+            <span class="ron-key">glut_share</span><span class="ron-punct">:</span> <span class="ron-literal">3.0</span><span class="ron-punct">,</span>
+            <span class="ron-key">unkept</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">ask</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span> <span class="ron-key">bid</span><span class="ron-punct">:</span> <span class="ron-literal">0.9</span><span class="ron-punct">),</span>
+        <span class="ron-punct">),</span>
+        <span class="ron-key">restock</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">recovery_seconds</span><span class="ron-punct">:</span> <span class="ron-literal">1800.0</span><span class="ron-punct">),</span>
+        <span class="ron-key">jobs</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">offer_seconds</span><span class="ron-punct">:</span> <span class="ron-literal">1200.0</span><span class="ron-punct">,</span> <span class="ron-key">escort_offer_seconds</span><span class="ron-punct">:</span> <span class="ron-literal">3600.0</span><span class="ron-punct">),</span>
+        <span class="ron-key">clusters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+            <span class="ron-punct">(</span><span class="ron-key">cluster</span><span class="ron-punct">:</span> <span class="ron-type">AsteroidRich</span><span class="ron-punct">,</span> <span class="ron-key">category</span><span class="ron-punct">:</span> <span class="ron-type">Raw</span><span class="ron-punct">,</span> <span class="ron-key">factor</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">ask</span><span class="ron-punct">:</span> <span class="ron-literal">0.6</span><span class="ron-punct">,</span> <span class="ron-key">bid</span><span class="ron-punct">:</span> <span class="ron-literal">0.6</span><span class="ron-punct">)),</span>
+        <span class="ron-punct">],</span>
+        <span class="ron-key">roles</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+            <span class="ron-punct">(</span><span class="ron-key">role</span><span class="ron-punct">:</span> <span class="ron-type">Civilian</span><span class="ron-punct">,</span> <span class="ron-key">category</span><span class="ron-punct">:</span> <span class="ron-type">Food</span><span class="ron-punct">,</span> <span class="ron-key">factor</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">ask</span><span class="ron-punct">:</span> <span class="ron-literal">1.25</span><span class="ron-punct">,</span> <span class="ron-key">bid</span><span class="ron-punct">:</span> <span class="ron-literal">1.25</span><span class="ron-punct">)),</span>
+        <span class="ron-punct">],</span>
+    <span class="ron-punct">)),</span>
+<span class="ron-punct">]</span>
+</code></pre>
+<p>Every field is required.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>clamp</code></td>
+<td><code>(min, max)</code></td>
+<td>the lowest and highest total factor on each side</td>
+</tr>
+<tr>
+<td><code>scarcity</code></td>
+<td>scarcity rule</td>
+<td>the stock curve, see below</td>
+</tr>
+<tr>
+<td><code>restock</code></td>
+<td><code>(recovery_seconds)</code></td>
+<td>the play seconds a thawed trader's stock takes to return to its target from none, see <a href="#how-a-trader-restocks">How a trader restocks</a></td>
+</tr>
+<tr>
+<td><code>jobs</code></td>
+<td><code>(offer_seconds, escort_offer_seconds)</code></td>
+<td>play seconds an unheld non-escort or escort offer stands before its slot posts a new one, see <a href="#how-a-job-offer-expires">How a job offer expires</a></td>
+</tr>
+<tr>
+<td><code>clusters</code></td>
+<td>list of cluster rules</td>
+<td>demand by cluster type: <code>cluster</code> is <code>AsteroidRich</code>, <code>RockOnly</code>, <code>PlanetHeavy</code> or <code>DerelictField</code>; <code>category</code> is an item category; <code>factor</code> is <code>(ask, bid)</code></td>
+</tr>
+<tr>
+<td><code>roles</code></td>
+<td>list of role rules</td>
+<td>demand by civilization role: <code>role</code> is <code>Civilian</code>, <code>Industrial</code>, <code>Scavenger</code> or <code>Armored</code>; <code>category</code> and <code>factor</code> as above</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A scarcity rule has four fields:</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>starved</code></td>
+<td><code>(ask, bid)</code></td>
+<td>the factor at no stock. Each side at least 1</td>
+</tr>
+<tr>
+<td><code>glut</code></td>
+<td><code>(ask, bid)</code></td>
+<td>the factor at <code>glut_share</code> times the target and above. Each side at most 1</td>
+</tr>
+<tr>
+<td><code>glut_share</code></td>
+<td>number</td>
+<td>the stock, as a multiple of the target, where <code>glut</code> applies in full. Above 1</td>
+</tr>
+<tr>
+<td><code>unkept</code></td>
+<td><code>(ask, bid)</code></td>
+<td>the factor for an item the trader spawned without</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="overlay-and-lint" tabindex="-1">Overlay and lint</h2>
+<p>The last bundle in load order that states a table wins, whole. The base
+bundle must state one.</p>
+<p><code>content lint</code> and the content check at load both report an error for a
+pack that:</p>
+<ul>
+<li>states two tables;</li>
+<li>is the base game and states none;</li>
+<li>states a clamp whose <code>min</code> is 0 or less, or that does not hold 1;</li>
+<li>states a factor that is not a finite number, or that lies outside the clamp;</li>
+<li>states a factor whose bid is above its ask, which could push a bid above its
+ask;</li>
+<li>states a <code>starved</code> side below 1, a <code>glut</code> side above 1, or a <code>glut_share</code>
+of 1 or less;</li>
+<li>states a <code>restock.recovery_seconds</code>, <code>jobs.offer_seconds</code> or
+<code>jobs.escort_offer_seconds</code> that is not a finite number above 0;</li>
+<li>names one cluster type or one role with one category twice.</li>
+</ul>
+<p>With every factor's bid at most its ask, a trader's bid is never above its
+ask.</p>
+<h2 id="base-price-table" tabindex="-1">Base price table</h2>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>rule</th>
+<th>factor</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>clamp</td>
+<td>0.25 to 3.0</td>
+</tr>
+<tr>
+<td>starved</td>
+<td>ask 1.5, bid 1.25</td>
+</tr>
+<tr>
+<td>glut, at 3 times the target</td>
+<td>ask 0.9, bid 0.6</td>
+</tr>
+<tr>
+<td>unkept</td>
+<td>ask 1.0, bid 0.9</td>
+</tr>
+<tr>
+<td>restock recovery</td>
+<td>1800 s (30 min of play)</td>
+</tr>
+<tr>
+<td>non-escort offer window</td>
+<td>1200 s (20 min of play)</td>
+</tr>
+<tr>
+<td>escort offer window</td>
+<td>3600 s (60 min of play)</td>
+</tr>
+<tr>
+<td><code>AsteroidRich</code> <code>Raw</code></td>
+<td>0.6</td>
+</tr>
+<tr>
+<td><code>RockOnly</code> <code>Raw</code></td>
+<td>0.8</td>
+</tr>
+<tr>
+<td><code>PlanetHeavy</code> <code>Raw</code></td>
+<td>1.5</td>
+</tr>
+<tr>
+<td><code>DerelictField</code> <code>Parts</code></td>
+<td>0.7</td>
+</tr>
+<tr>
+<td><code>DerelictField</code> <code>Repair</code></td>
+<td>0.85</td>
+</tr>
+<tr>
+<td><code>Industrial</code> <code>Raw</code></td>
+<td>0.8</td>
+</tr>
+<tr>
+<td><code>Civilian</code> <code>Food</code></td>
+<td>1.25</td>
+</tr>
+<tr>
+<td><code>Scavenger</code> <code>Parts</code></td>
+<td>0.8</td>
+</tr>
+<tr>
+<td><code>Armored</code> <code>Ammo</code></td>
+<td>1.25</td>
+</tr>
+<tr>
+<td><code>Armored</code> <code>Repair</code></td>
+<td>1.15</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The table is generated into <code>assets/base/market/base.content.ron</code>.</p>
+<p>The proof is <code>market_sandbox</code>: it sells iron ore at a living asteroid-rich
+station and at a living planet-heavy one through the Inventory pane, checks
+each Sell pays the computed bid, and checks the asteroid-rich bid is the lower.
+The restock proof is <code>system_station_restock</code>.</p>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+</footer>
+</body></html>

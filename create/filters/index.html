@@ -14,6 +14,7 @@ omitted) list always passes. There are exactly six filter kinds - <code>Entity</
 entity payloads, <code>Timer</code> matches a timer key, <code>Cinematic</code> matches a scene key,
 <code>ShipOrder</code> matches a helm order's outcome, <code>Expression</code> tests scenario
 variables, and <code>Conditional</code> combines other filters with boolean logic.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -55,6 +56,7 @@ variables, and <code>Conditional</code> combines other filters with boolean logi
 </tr>
 </tbody>
 </table>
+</div>
 <h2 id="entity" tabindex="-1">Entity</h2>
 <p>Match the identity fields the event carries. Every field is optional; every
 SET field must match exactly (string equality); an unset field is
@@ -70,6 +72,7 @@ unconstrained.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -90,7 +93,7 @@ unconstrained.</p>
 <td><code>type_name</code></td>
 <td><code>Option</code> string</td>
 <td><code>None</code></td>
-<td>the subject's object kind (<code>&quot;anchor&quot;</code>, <code>&quot;asteroid&quot;</code>, <code>&quot;planet&quot;</code>, <code>&quot;spaceship&quot;</code>, <code>&quot;beacon&quot;</code>, <code>&quot;light&quot;</code>)</td>
+<td>the subject's object kind (<code>&quot;anchor&quot;</code>, <code>&quot;asteroid&quot;</code>, <code>&quot;planet&quot;</code>, <code>&quot;spaceship&quot;</code>, <code>&quot;living_station&quot;</code>, <code>&quot;derelict_station&quot;</code>, <code>&quot;beacon&quot;</code>, <code>&quot;light&quot;</code>)</td>
 </tr>
 <tr>
 <td><code>other_id</code></td>
@@ -106,9 +109,11 @@ unconstrained.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Which entity is the subject and which is the other party is per-event - the
 payload tables in the <a href="../events/">Events reference</a> are the source of
 truth. The quick map:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -150,6 +155,7 @@ truth. The quick map:</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Two rules that bite:</p>
 <ul>
 <li><strong>Absent field = never matches.</strong> A set filter field whose key the event
@@ -180,6 +186,7 @@ It fails closed on every other event because those events carry no scene key.</p
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -198,6 +205,7 @@ It fails closed on every other event because those events carry no scene key.</p
 </tr>
 </tbody>
 </table>
+</div>
 <p>Scene keys are scenario-local strings. A scenario that plays two scenes and
 leaves this filter off answers whichever one ends first, so put it on every
 cinematic handler. A key no <a href="../actions/#cinematic"><code>Cinematic</code></a> action in the
@@ -220,6 +228,7 @@ event, which carries no order.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -250,6 +259,7 @@ event, which carries no order.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>The same filter reads all five outcomes - completion, interruption, resume,
 cancellation, failure - because the EVENT decides which outcome a handler
 listens for and the filter only qualifies it. Waiting on a completion and
@@ -303,6 +313,7 @@ positionally: <code>Not(&lt;filter&gt;)</code>, <code>Or(&lt;filter&gt;, &lt;fil
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -329,6 +340,7 @@ positionally: <code>Not(&lt;filter&gt;)</code>, <code>Or(&lt;filter&gt;, &lt;fil
 </tr>
 </tbody>
 </table>
+</div>
 <p>The <code>filters</code> LIST is already an AND, so a top-level <code>Conditional(And(..))</code>
 is redundant - <code>And</code> exists for composing under <code>Or</code> and <code>Not</code>. Nesting
 depth is bounded by RON's recursion limit (128), far past anything a sane

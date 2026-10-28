@@ -8,10 +8,11 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Actions</p><h1>Actions</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#narrativecue">NarrativeCue</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#sound">Sound</a><ol><li><a href="#playsound">PlaySound</a></li></ol></li><li><a href="#pacing">Pacing</a><ol><li><a href="#sequence">Sequence</a></li><li><a href="#cinematic">Cinematic</a></li><li><a href="#cancelcinematic">CancelCinematic</a></li><li><a href="#cinematictitle">CinematicTitle</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li><li><a href="#backdropdone">BackdropDone</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#ship-capabilities">Ship capabilities</a></li><li><a href="#setallegiance">SetAllegiance</a></li><li><a href="#helm-orders">Helm orders</a></li><li><a href="#moveshipto">MoveShipTo</a></li><li><a href="#forcealign">ForceAlign</a></li><li><a href="#stopship">StopShip</a></li><li><a href="#patrolship">PatrolShip</a></li><li><a href="#orbitship">OrbitShip</a></li><li><a href="#clearshiporder">ClearShipOrder</a></li><li><a href="#zeroshipmotion">ZeroShipMotion</a></li><li><a href="#forced-fire">Forced fire</a></li><li><a href="#forcerailgunfire">ForceRailgunFire</a></li><li><a href="#forcetorpedofire">ForceTorpedoFire</a></li><li><a href="#setinfiniteammo">SetInfiniteAmmo</a></li><li><a href="#refillammo">RefillAmmo</a></li><li><a href="#ai-constraints">AI constraints</a></li><li><a href="#setaileash">SetAILeash</a></li><li><a href="#setaiengagerange">SetAIEngageRange</a></li><li><a href="#setaipointdefenserange">SetAIPointDefenseRange</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#setcameraanchor">SetCameraAnchor</a></li><li><a href="#releasecamera">ReleaseCamera</a></li><li><a href="#suspendplayercontrol">SuspendPlayerControl</a></li><li><a href="#resumeplayercontrol">ResumePlayerControl</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol></nav><p>Everything a handler can DO. Actions run in authored order once every filter
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Actions</p><h1>Actions</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#spawnstartrole">SpawnStartRole</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#narrativecue">NarrativeCue</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#sound">Sound</a><ol><li><a href="#playsound">PlaySound</a></li></ol></li><li><a href="#pacing">Pacing</a><ol><li><a href="#sequence">Sequence</a></li><li><a href="#cinematic">Cinematic</a></li><li><a href="#cancelcinematic">CancelCinematic</a></li><li><a href="#cinematictitle">CinematicTitle</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li><li><a href="#backdropdone">BackdropDone</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#ship-capabilities">Ship capabilities</a></li><li><a href="#setallegiance">SetAllegiance</a></li><li><a href="#helm-orders">Helm orders</a></li><li><a href="#moveshipto">MoveShipTo</a></li><li><a href="#forcealign">ForceAlign</a></li><li><a href="#stopship">StopShip</a></li><li><a href="#patrolship">PatrolShip</a></li><li><a href="#orbitship">OrbitShip</a></li><li><a href="#clearshiporder">ClearShipOrder</a></li><li><a href="#zeroshipmotion">ZeroShipMotion</a></li><li><a href="#forced-fire">Forced fire</a></li><li><a href="#forcerailgunfire">ForceRailgunFire</a></li><li><a href="#forcetorpedofire">ForceTorpedoFire</a></li><li><a href="#setinfiniteammo">SetInfiniteAmmo</a></li><li><a href="#refillammo">RefillAmmo</a></li><li><a href="#ai-constraints">AI constraints</a></li><li><a href="#setaileash">SetAILeash</a></li><li><a href="#setaiengagerange">SetAIEngageRange</a></li><li><a href="#setaipointdefenserange">SetAIPointDefenseRange</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#setcameraanchor">SetCameraAnchor</a></li><li><a href="#releasecamera">ReleaseCamera</a></li><li><a href="#suspendplayercontrol">SuspendPlayerControl</a></li><li><a href="#resumeplayercontrol">ResumePlayerControl</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol></nav><p>Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - <code>Name((field: value, ...))</code>, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 52 at a glance:</p>
+never panics a scenario). All 53 at a glance:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -25,6 +26,11 @@ never panics a scenario). All 52 at a glance:</p>
 <td><a href="#spawnscenarioobject"><code>SpawnScenarioObject</code></a></td>
 <td><a href="#spawning-the-world">world</a></td>
 <td>spawn one object: anchor, asteroid, planet, ship, beacon, or light</td>
+</tr>
+<tr>
+<td><a href="#spawnstartrole"><code>SpawnStartRole</code></a></td>
+<td><a href="#spawning-the-world">world</a></td>
+<td>spawn the player's ship as the start role New Game picked</td>
 </tr>
 <tr>
 <td><a href="#scatterobjects"><code>ScatterObjects</code></a></td>
@@ -283,6 +289,7 @@ never panics a scenario). All 52 at a glance:</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p><strong>Scoped targets.</strong> Every by-id action resolves its id ONLY among
 scenario-scoped entities (things this scenario spawned); the ship actions
 additionally require the id to be a ship ROOT. This is deliberate: ship
@@ -301,6 +308,7 @@ object and carries its config - the seven kinds are the
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -325,7 +333,9 @@ object and carries its config - the seven kinds are the
 </tr>
 </tbody>
 </table>
+</div>
 <p>The <code>base</code> block:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -362,8 +372,53 @@ object and carries its config - the seven kinds are the
 </tr>
 </tbody>
 </table>
+</div>
 <p>The same spawn id twice in ONE handler is a lint Error; the same id across
 two handlers (an either-or fork) is a Warn.</p>
+</details>
+<h3 id="spawnstartrole" tabindex="-1">SpawnStartRole</h3>
+<p>Spawn the player's ship as the <a href="../start-roles/">start role</a> the player
+picked on New Game: the role's hull, its kit of credits and stock, and a
+Player controller. Each section of the hull is bound by its kind:
+point-defense turrets to the left mouse button and the gamepad right
+trigger, railguns to <kbd>R</kbd>, torpedo bays to <kbd>F</kbd> and mining
+beams to <kbd>V</kbd>. The ship takes the hull's design name.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">SpawnStartRole</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;player&quot;</span><span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>the ship's scenario id</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>It takes no position: the ship spawns at the session's starting station,
+the nearest station of a civilization whose seeded stance is Ally, one
+berth standoff outside its open side and facing it, and the open world docks
+it there as soon as the station streams in. New Game picks that station with
+the seed, and refuses a seed that keeps no allied station in the civilization
+block round the origin.</p>
+<p>Only a <code>world: Generated((seed: None))</code> scenario may use it: New Game's
+session names the role, and lint reports an error for it anywhere else. It
+counts as the scenario's player spawn. At run time, with no New Game session
+or a role the loaded content does not define, it logs an error and spawns
+nothing. On Load it spawns the same ship, and the save's ship state lands on
+it, docked or free as it was saved.</p>
 </details>
 <h3 id="scatterobjects" tabindex="-1">ScatterObjects</h3>
 <p>Spawn <code>count</code> copies of a template at deterministic random positions - the
@@ -384,6 +439,7 @@ declarative asteroid-field primitive. Copy <code>i</code> gets id <code>&quot;{i
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -444,7 +500,9 @@ declarative asteroid-field primitive. Copy <code>i</code> gets id <code>&quot;{i
 </tr>
 </tbody>
 </table>
+</div>
 <p><code>region</code> variants (struct variants - single parens, named fields):</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -466,6 +524,7 @@ declarative asteroid-field primitive. Copy <code>i</code> gets id <code>&quot;{i
 </tr>
 </tbody>
 </table>
+</div>
 <p><code>asteroid_kinds</code> is drawn from the scatter's OWN seed, on a stream of its own:
 adding a kind to a field that already ships moves no rock and changes no
 radius. An asteroid template with no mix, or with every weight at zero, is a
@@ -498,6 +557,7 @@ hierarchy). The classic pairing is a beacon area the player has reached.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -516,6 +576,7 @@ hierarchy). The classic pairing is a beacon area the player has reached.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>A body despawned while inside a trigger area fires NO <code>OnExit</code> for itself.</p>
 </details>
 <h3 id="createscenarioarea" tabindex="-1">CreateScenarioArea</h3>
@@ -527,6 +588,7 @@ id.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -569,6 +631,7 @@ id.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Works mid-scenario, and works even when created AROUND a body already
 inside (the entry still fires).</p>
 <p>A beacon with <code>area_radius</code> is its OWN area - no separate
@@ -582,6 +645,7 @@ inside (the entry still fires).</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -606,6 +670,7 @@ inside (the entry still fires).</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Re-posting the same id with new text updates the entry in place (the
 &quot;recovered N/3&quot; tally trick). A duplicate post otherwise warns.</p>
 </details>
@@ -615,6 +680,7 @@ inside (the entry still fires).</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -633,6 +699,7 @@ inside (the entry still fires).</p>
 </tr>
 </tbody>
 </table>
+</div>
 </details>
 <h3 id="objectivemarkerattach" tabindex="-1">ObjectiveMarkerAttach</h3>
 <p>Pin the gold HUD marker chip (label + live distance) on a scoped object.</p>
@@ -640,6 +707,7 @@ inside (the entry still fires).</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -654,7 +722,7 @@ inside (the entry still fires).</p>
 <td><code>target_id</code></td>
 <td>string</td>
 <td>required</td>
-<td>scoped object to mark; spawn it first</td>
+<td>scoped object to mark; spawn it first - or <code>$id</code> / <code>$other_id</code>, the firing event's subject or other party</td>
 </tr>
 <tr>
 <td><code>label</code></td>
@@ -664,8 +732,15 @@ inside (the entry still fires).</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Re-attaching updates the label in place. A despawned target detaches
 implicitly.</p>
+<p><code>$id</code> and <code>$other_id</code> are how a handler marks a body the world generator
+placed - a streamed rock or derelict the player locked, docked with or flew
+into an area. Its id is minted at runtime, so a literal one fails lint; the
+binding reads it from the event that fired. Such a mark is remembered by the
+body's id: when its sector retires behind you and thaws on the way back, the
+chip is on the body again. It does not survive a save and load yet.</p>
 </details>
 <h3 id="objectivemarkerdetach" tabindex="-1">ObjectiveMarkerDetach</h3>
 <p>Remove that marker.</p>
@@ -673,6 +748,9 @@ implicitly.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<p><code>target_id</code> takes <code>$id</code> / <code>$other_id</code> like the attach, and forgets a generated
+body's remembered mark whether or not the body stands right now.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -691,6 +769,7 @@ implicitly.</p>
 </tr>
 </tbody>
 </table>
+</div>
 </details>
 <h3 id="narrativecue" tabindex="-1">NarrativeCue</h3>
 <p>Speak one line into the HUD comms stack (bottom-left, arrival order, ~8 s hold
@@ -706,6 +785,7 @@ line per beat is still the style; the queue is the safety net.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -748,6 +828,7 @@ line per beat is still the style; the queue is the safety net.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p><strong>The accent.</strong> A line carries ONE presentation fact, and it is a colour, not an
 id. The panel derives everything it paints from it: the border, the speaker
 header, the fallback icon tile, and the reading copy lifted toward white. The
@@ -786,6 +867,7 @@ variable vocabulary (a run clock, a score, a countdown).</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -828,6 +910,7 @@ variable vocabulary (a run clock, a score, a countdown).</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>One fire is enough; the readout tracks the variable's current value every
 frame thereafter. It freezes under pause and behind the outcome overlay
 because the variable does - a time-trial's final time simply holds through
@@ -840,6 +923,7 @@ granting it.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -854,12 +938,13 @@ granting it.</p>
 <td><code>verb</code></td>
 <td>string</td>
 <td>required</td>
-<td>one of <code>&quot;STOP&quot;</code>, <code>&quot;GOTO&quot;</code>, <code>&quot;ORBIT&quot;</code>, <code>&quot;CANCEL&quot;</code>, <code>&quot;RADAR&quot;</code>, <code>&quot;COMPONENT&quot;</code>, <code>&quot;RCS&quot;</code>, <code>&quot;DOCK&quot;</code>, <code>&quot;HELM&quot;</code>; unknown verbs warn and do nothing</td>
+<td>one of <code>&quot;STOP&quot;</code>, <code>&quot;GOTO&quot;</code>, <code>&quot;ORBIT&quot;</code>, <code>&quot;CANCEL&quot;</code>, <code>&quot;RADAR&quot;</code>, <code>&quot;RCS&quot;</code>, <code>&quot;DOCK&quot;</code>, <code>&quot;HELM&quot;</code>; unknown verbs warn and do nothing</td>
 </tr>
 </tbody>
 </table>
-<p>The dock normally hides verbs the player cannot use yet, so emphasizing an
-unavailable verb REVEALS its chip dimmed and pulses it. Emphasis never
+</div>
+<p>The dock draws a verb the player cannot use yet dim, so emphasizing an
+unavailable verb pulses its dim chip. Emphasis never
 grants the capability (the
 <a href="#ship-capabilities"><code>SetShipCapability*</code></a> actions do).</p>
 </details>
@@ -869,6 +954,7 @@ grants the capability (the
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -887,6 +973,7 @@ grants the capability (the
 </tr>
 </tbody>
 </table>
+</div>
 </details>
 <h2 id="sound" tabindex="-1">Sound</h2>
 <h3 id="playsound" tabindex="-1">PlaySound</h3>
@@ -899,6 +986,7 @@ nothing in the world produces.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -929,6 +1017,7 @@ nothing in the world produces.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p><code>Interface</code> is UI chrome - a prompt, a stinger, a chapter tone - scaled by the
 interface track. <code>Hull</code> is structure-borne through the player's own ship,
 something they feel rather than hear, scaled by the world track. The route is
@@ -965,6 +1054,7 @@ costs one action and no scenario variable.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -989,7 +1079,9 @@ costs one action and no scenario variable.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>A step:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1026,6 +1118,7 @@ costs one action and no scenario variable.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Both waits may sit on one step, and they run TOGETHER: a gate that opens early
 still owes the delay, and a delay that elapses first still owes the gate. A
 step with neither runs the moment it becomes current - which is how a hand-off
@@ -1093,6 +1186,7 @@ controls away, and a player who has seen it once must be able to get them back.<
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1123,6 +1217,7 @@ controls away, and a player who has seen it once must be able to get them back.<
 </tr>
 </tbody>
 </table>
+</div>
 <p><strong>The two ends are EVENTS, not fields.</strong> A scene does not carry an on-finish
 action list; it REPORTS, and the handlers that answer live beside it:</p>
 <ul>
@@ -1167,6 +1262,7 @@ started.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1185,6 +1281,7 @@ started.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>The scene still reports <a href="../events/#cinematic-endings"><code>OnCinematicFinished</code></a>,
 so whatever it took is given back. It does NOT report a skip: nobody asked to
 leave. Cancelling a key that is not running is a quiet no-op.</p>
@@ -1202,6 +1299,7 @@ in top-left, holds, fades out.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1244,6 +1342,7 @@ in top-left, holds, fades out.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p><strong>Nothing takes the card down.</strong> It expires on its own clock, so a scene that
 is skipped, cancelled, deadlined or torn down leaves a card that simply
 finishes. There is no handler to write and no <code>ClearCinematicTitle</code> to forget.</p>
@@ -1269,6 +1368,7 @@ exactly like the pause menu until it clears.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1299,6 +1399,7 @@ exactly like the pause menu until it clears.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>PRESENTATION ONLY: compose the consequence beside it. Queue a lingering
 <a href="#nextscenario"><code>NextScenario</code></a> and the overlay offers Continue (Victory) or
 Retry (Defeat); queue nothing and it offers only Main Menu.</p>
@@ -1321,6 +1422,7 @@ pause-frozen time; Enter skips the wait.</li>
 <li><strong>Modal hold</strong> - <code>linger: true</code>: waits for the scenario-advance input
 (Enter / DPadDown) or the outcome overlay's Continue/Retry.</li>
 </ul>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1351,6 +1453,7 @@ pause-frozen time; Enter skips the wait.</li>
 </tr>
 </tbody>
 </table>
+</div>
 <p>The last request wins wholesale - a fresh <code>NextScenario</code> replaces a queued
 one and resets its clock.</p>
 <p>A menu backdrop may not author <code>NextScenario</code> (lint Error): it reports with
@@ -1390,6 +1493,7 @@ seventh capability, <code>dock_enabled</code>, is authored at spawn and has no a
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1414,6 +1518,7 @@ seventh capability, <code>dock_enabled</code>, is authored at spawn and has no a
 </tr>
 </tbody>
 </table>
+</div>
 <p>The capability lands on the ship ROOT, not on its flight computer: a hull that
 loses every controller section loses its steering, never its permissions. Never
 withhold STOP by convention - an engaged autopilot should always be cancelable.</p>
@@ -1428,6 +1533,7 @@ primitive: spawn a bystander <code>Neutral</code>, flip it <code>Enemy</code> on
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1452,6 +1558,7 @@ primitive: spawn a bystander <code>Neutral</code>, flip it <code>Enemy</code> on
 </tr>
 </tbody>
 </table>
+</div>
 </details>
 <h3 id="helm-orders" tabindex="-1">Helm orders</h3>
 <p>The six helm actions below take the helm of a ship the scenario owns: one authored
@@ -1493,6 +1600,7 @@ this is the cinematic approach, not a teleport.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1529,6 +1637,7 @@ this is the cinematic approach, not a teleport.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Completes when the ship's autopilot lets go - it is inside the standoff and
 settled - and fires
 <a href="../events/#onshipordercomplete"><code>OnShipOrderComplete</code></a> with <code>kind: Move</code>.</p>
@@ -1557,6 +1666,7 @@ whatever velocity it had.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1593,6 +1703,7 @@ whatever velocity it had.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>The hold is the point. A <a href="../sections/#railgun">railgun</a> does not traverse, so
 the shot leaves down whatever line the hull is holding: align, wait for the
 completion, then fire, and the slug goes where you aimed. The facing is held
@@ -1611,6 +1722,7 @@ visibly.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1635,6 +1747,7 @@ visibly.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Completes when the maneuver ends, with <code>kind: Stop</code>. &quot;Ended&quot; is a deadband and
 not a dead stop: a residual the drive is already pointing at is braked out to
 2 m/s, and one it is not - a sideways drift, or a head-on crumb - is released at
@@ -1660,6 +1773,7 @@ beat - not a standing assignment.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1690,6 +1804,7 @@ beat - not a standing assignment.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>ONE loop, then <code>kind: Patrol</code> and the helm goes back. A route of one point is
 one leg out and one leg home; a route with the same point twice in a row still
 flies both legs, and the second lands immediately. Repeat the action to run
@@ -1707,6 +1822,7 @@ ship's own ORBIT maneuver, so it aligns, burns into the band, and stays.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1737,6 +1853,7 @@ ship's own ORBIT maneuver, so it aligns, burns into the band, and stays.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Completes with <code>kind: Orbit</code> the moment the ring is ESTABLISHED - the ship is
 in the band and holding - and then keeps holding it, the same way
 <a href="#forcealign"><code>ForceAlign</code></a> keeps its bearing. A completion here means &quot;it is
@@ -1756,6 +1873,7 @@ ship was told, it is no longer being told it.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1774,6 +1892,7 @@ ship was told, it is no longer being told it.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>A <code>None</code>-controller hull KEEPS its velocity and coasts - this is space, and
 letting a ship drift out of frame is usually the point. An AI ship goes back
 to its own routine on the next frame.</p>
@@ -1792,6 +1911,7 @@ it is the one stop a PLAYER hull accepts.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1810,6 +1930,7 @@ it is the one stop a PLAYER hull accepts.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>This is the CINEMATIC counterpart to <a href="#stopship"><code>StopShip</code></a>, and the only one
 of the two a player's hull accepts. A helm order cannot share a helm with live
 input, so <code>StopShip</code> refuses a player ship out loud; but a scene that cuts the
@@ -1837,6 +1958,7 @@ frame.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1861,6 +1983,7 @@ frame.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>No target and no steering: a railgun does not traverse, so the shot leaves
 down whatever line the hull holds when the charge completes. Putting that line
 on something is <a href="#forcealign"><code>ForceAlign</code></a>'s job. Everything else is the
@@ -1877,6 +2000,7 @@ named target.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1907,6 +2031,7 @@ named target.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>ONE bay, addressed by its section id. The bay's own cooldown and ammo still
 time the launch, and the ordnance is committed to the target the same way an
 AI or player launch is - which is also what makes the torpedo visible to
@@ -1923,6 +2048,7 @@ a training range or a set-piece is not decided by a reload.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1947,6 +2073,7 @@ a training range or a set-piece is not decided by a reload.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p><code>true</code> puts each weapon's finite magazine aside and lets the section fire on
 its cooldown alone. <code>false</code> gives the magazine back at the section's own
 AUTHORED capacity, full, with the reload re-seeded from the section
@@ -1968,6 +2095,7 @@ it, in either direction.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -1992,6 +2120,7 @@ it, in either direction.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Each magazine returns to its authored capacity and any reload in flight is
 cleared. Weapons with no finite magazine - and any whose magazine is
 currently suspended by <a href="#setinfiniteammo"><code>SetInfiniteAmmo</code></a> - are skipped.</p>
@@ -2020,6 +2149,7 @@ radius the ship breaks off and comes home.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -2056,6 +2186,7 @@ radius the ship breaks off and comes home.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Widening a leash mid-scenario is how a garrison is let off its post; releasing
 it entirely turns a picket into a pursuer. The anchor is an authored point,
 not the ship - moving the ship does not move the tether.</p>
@@ -2068,6 +2199,7 @@ default.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -2092,6 +2224,7 @@ default.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Wide is a long-watch emplacement that wakes for targets parked outside
 everyone else's detection. Short is a ship that ignores a brawl next door.
 Narrowing it mid-fight does NOT drop a target it has already acquired.</p>
@@ -2104,6 +2237,7 @@ or restore the engine's 1.5 km default.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -2128,6 +2262,7 @@ or restore the engine's 1.5 km default.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Short stages the intercept close in, where the player can see it. Past the
 turret's own ~1.8 km reach it only wastes the opening shots, so authoring
 wider than the guns can shoot buys nothing.</p>
@@ -2142,6 +2277,7 @@ wider than the guns can shoot buys nothing.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -2166,6 +2302,7 @@ wider than the guns can shoot buys nothing.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>The duration is a numeric expression and must evaluate to a positive finite
 number. Invalid values log an error and leave an existing timer unchanged.</p>
 <p>Timers freeze under pause and clear on retry or teardown. Use an
@@ -2191,6 +2328,7 @@ the write half of the whole
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -2215,6 +2353,7 @@ the write half of the whole
 </tr>
 </tbody>
 </table>
+</div>
 <p>In the in-game editor the expression is not a text field: the action opens a
 <code>Value</code> page under its <code>Key</code>, a row per node, exactly as an expression filter
 opens its condition. See
@@ -2227,6 +2366,7 @@ game effect - sprinkle these to watch handlers fire.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -2245,6 +2385,7 @@ game effect - sprinkle these to watch handlers fire.</p>
 </tr>
 </tbody>
 </table>
+</div>
 </details>
 <h2 id="camera-photo-mode" tabindex="-1">Camera &amp; photo mode</h2>
 <h3 id="setcamera" tabindex="-1">SetCamera</h3>
@@ -2256,6 +2397,7 @@ re-enforced every frame).</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -2286,6 +2428,7 @@ re-enforced every frame).</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p><strong>Blends.</strong> A blend rides on top of the pose, so a blend onto an anchored shot
 keeps tracking its subject all the way in. <code>seconds</code> is how long the move takes;
 <code>easing</code> is how those seconds are spent - omitted is <code>Smooth</code>, and <code>Linear</code> is
@@ -2307,6 +2450,7 @@ own ship in frame while they are still flying it.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -2349,6 +2493,7 @@ own ship in frame while they are still flying it.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p><code>Local</code> composes the same shot whatever heading the anchor is on - an
 over-the-shoulder chase. <code>World</code> composes the same shot whatever the anchor is
 DOING, which is what you want while the player is still flying: their heading
@@ -2411,6 +2556,7 @@ frames + <code>Screenshot</code> to script a framed shot.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -2429,6 +2575,7 @@ frames + <code>Screenshot</code> to script a framed shot.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Relative paths land under the <code>NOVA_CAPTURE_DIR</code> env var when set; parent
 directories are created.</p>
 </details>
@@ -2438,6 +2585,7 @@ directories are created.</p>
 </code></pre>
 <details class="explain">
 <summary>Show explanation</summary>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -2462,6 +2610,7 @@ directories are created.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>The install is deferred until the new image has loaded; a failed load leaves
 the sky unchanged (warned).</p>
 </details>

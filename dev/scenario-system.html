@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-83f806a0.js";
+            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -198,7 +198,8 @@ the panel says about it, through <code>bevy/reflect_documentation</code>.</p>
 <h2 id="scenario-structure"><a class="header" href="#scenario-structure">Scenario structure</a></h2>
 <ul>
 <li><code>ScenarioConfig</code> - <code>id</code>, <code>name</code>, <code>description</code>, <code>cubemap</code> (skybox),
-<code>skybox_brightness</code> (lux, defaults to <code>DEFAULT_SKYBOX_BRIGHTNESS</code>), <code>events</code>.</li>
+<code>skybox_brightness</code> (lux, defaults to <code>DEFAULT_SKYBOX_BRIGHTNESS</code>), <code>role</code>,
+<code>world</code> (which world the scenario runs on, see below), <code>events</code>.</li>
 <li><code>ScenarioEventConfig</code> - one handler: <code>label</code> (optional, what the handler is
 for in the author’s words - the editor’s tree reads it beside the trigger),
 <code>name: EventConfig</code>, <code>once</code>, <code>filters</code>, <code>actions</code>. <code>once</code> retires the handler the first time its filters PASS (not
@@ -216,13 +217,64 @@ populated by <code>nova_assets</code> alongside <code>GameScenarios</code>.</li>
 <li><code>CurrentScenario(Option&lt;ScenarioConfig&gt;)</code> - the loaded scenario, if any. The
 <code>scenario_is_live</code> run condition gates the ship input/section sets on it.</li>
 </ul>
+<h3 id="which-world-a-scenario-runs-on"><a class="header" href="#which-world-a-scenario-runs-on">Which world a scenario runs on</a></h3>
+<p><code>ScenarioConfig::world</code> is a <code>ScenarioWorldType</code>, one field independent of
+<code>role</code>:</p>
+<ul>
+<li><code>Void</code> (the default, written as no <code>world:</code> line): the authored objects are
+the whole scene. Every shipped chapter, backdrop and lesson.</li>
+<li><code>Generated((seed: Option&lt;u32&gt;, bounds: Option&lt;(position, radius)&gt;))</code>: the
+base generator streams sectors around the ONE player ship the scenario spawns
+in <code>OnStart</code> (lint refuses zero or two). <code>seed: None</code> takes the seed the
+player typed on New Game, carried by <code>nova_scenario::OpenWorldSession</code>
+with the start role the player picked and the <code>StartingStation</code> New Game
+chose (the nearest living Ally station to the origin; a seed without one is
+refused), which only such a scenario may spawn through <code>SpawnStartRole</code>
+(lint Error elsewhere) at that station’s berth standoff, where
+<code>nova_world_base</code> docks it on a fresh start; it also authors an <code>OnResume</code> handler spawning that one player ship and the
+lights (lint Error without one; one player exactly), because a Load fires
+<code>OnResume</code> instead of <code>OnStart</code>. The open world builds one spawn list and
+hangs it on both;
+only New Game and Load may start such a scenario, so the picker renders no
+row for it, a campaign may not list it, and <code>--scenario &lt;id&gt;</code> refuses it at
+boot. <code>seed: Some(n)</code> is a fixed seed: the scenario is a bounded world the
+picker lists and launches with no session, and it is session-only on every
+build: no world folder, no <code>WorldSaveSession</code>, so the pause Retry reloads
+the scenario and Load last save is never offered. Only a chapter may take
+<code>seed: None</code>; a backdrop or a lesson range with it is a lint Error, since
+the menu and the handbook start them with no session.</li>
+</ul>
+<p><code>bounds: Some((position, radius))</code> is a sphere in metres the player is meant
+to stay in. <code>configure_scenario_shape</code> (<code>loader/wake.rs</code>) queues it as ONE
+scenario area through <code>ScenarioAreaConfig::bounds</code> and the same <code>queue</code> path
+<code>CreateScenarioArea</code> uses, under the id <code>BOUNDS_AREA_ID</code> (<code>"bounds"</code>), before
+<code>OnStart</code> fires, so the player ship lands inside it and leaving it is an
+ordinary <code>OnExit</code> with <code>id: "bounds"</code>. The outcome is authored, never
+hard-coded: the engine ends nothing and clamps nothing, and the world keeps
+streaming sectors past the edge. Lint: the radius is at most
+<code>nova_world_base::OPEN_WORLD_BOUNDS_RADIUS_MAX</code> (the active window’s half
+edge, Error); a handler spawning its own <code>bounds</code> object doubles the id
+(Error); a <code>bounds</code> no <code>OnExit</code> handler or <code>Sequence</code> gate filters on is a
+sensor with no outcome (Warn). A <code>Void</code> scenario cannot carry <code>bounds</code>
+structurally. The example mod’s <code>example_bounds</code> is the shipped instance, and
+<code>system_world_bounds</code> the asserted range.</p>
+<p><code>nova_world_base::sync_open_world</code> arms <code>WorldConfig</code> from this block and the
+player ship, and disarms it under a <code>Void</code> scenario or none. The base bundle’s
+<code>new_game_scenario</code> must name a scenario whose world is
+<code>Generated((seed: None))</code>; the content lint checks it, and
+<code>nova_menu::start_new_game_scenario</code> checks it again on the way into Playing:
+a start that takes no session, a start or pick nobody registered, and a
+session-seeded scenario reached with no <code>OpenWorldSession</code> each log a
+<code>NewGameStartFault</code> and end the app with an error exit. There is no fallback
+to another scenario.</p>
 <h2 id="loading--unloading-loader"><a class="header" href="#loading--unloading-loader">Loading / unloading (<code>loader/</code>)</a></h2>
 <ul>
 <li><code>LoadScenario(ScenarioConfig)</code> - trigger to load: look one up in
 <code>GameScenarios</code>, <code>commands.trigger(LoadScenario(cfg.clone()))</code> (see
 <code>examples/systems/system_scenario_grammar.rs</code>). Load tears down the previous
-scenario, spawns the camera, input context, one handler per event, fires
-<code>OnStart</code>. The camera opens on the authored PLAYER spawn, in the chase rig’s
+scenario, spawns the camera, input context, one handler per event (each
+wearing its <code>ScenarioHandlerIndex</code>), fires <code>OnStart</code>. The camera opens on the
+authored PLAYER spawn, in the chase rig’s
 own pose for that hull’s envelope (<code>chase_camera_opening_pose</code>), so the first
 frame is already the shot the live rig will hold; a scenario with no player
 falls back to 100 m up and 200 m back from the origin. No engine
@@ -230,6 +282,21 @@ light: a scene is lit by the <code>Light</code> objects it authors, and one that
 none renders black.</li>
 <li><code>ScenarioLoaded</code> - fired after a load; carries <code>scenario_id</code>,
 <code>handler_count</code>, <code>object_count</code> for smoke-test assertions.</li>
+<li><code>ResumedScenario(SavedScenario)</code> - a world Load’s saved scenario state,
+inserted by <code>nova_world_base::resume_world</code> before the load. The load whose
+id it names takes it: <code>open_scenario_run</code> (<code>loader/lifecycle.rs</code>) skips the
+handlers <code>spent_handlers</code> lists (the <code>once</code> handlers that fired in the saved
+run, recorded by <code>SpentHandlers</code> from the engine’s <code>HandlerRetired</code>
+trigger), calls <code>NovaEventWorld::restore</code> (clock, variables, objectives,
+story, readouts, timers rebased from their REMAINING seconds), mirrors the
+objectives into <code>GameObjectives</code>, seeds <code>SpentHandlers</code> and <code>GeneratedMarks</code>,
+and fires <code>OnResume</code> instead of <code>OnStart</code>. A resumed id that does not match
+the loading scenario is dropped with an error log and <code>OnStart</code> fires. A
+save naming a scenario that is not in <code>GameScenarios</code> is refused at Load
+(<code>WorldRefusal::Scenario</code>). The snapshot that writes the state waits (the
+bounded settle) while a <code>Sequence</code> or cinematic is running, so a save is
+never mid-beat; the <code>test_support::open_scenario_run</code> rig helper opens a
+fresh or resumed run headlessly.</li>
 <li><code>UnloadScenario</code> - tears everything down and clears <code>CurrentScenario</code>.</li>
 <li><code>ScenarioScopedMarker</code> - any entity carrying it is despawned (recursively)
 on load/unload. Teardown also runs <code>NovaEventWorld::clear()</code> and clears all
@@ -351,6 +418,50 @@ that resolves against nothing. The editor’s inspector is the reader that exist
 a surface keeping its own list of which field names what goes stale the day an
 action is added, which is the failure the attribute removes. A new string field
 that refers to something declares what, or it is a blank box.</p>
+<h3 id="generated-bodies-reached-by-typed-id-never-by-name"><a class="header" href="#generated-bodies-reached-by-typed-id-never-by-name">Generated bodies: reached by typed id, never by name</a></h3>
+<p>A streamed body - a rock, a planetoid, a derelict the world generator placed -
+is scenario-SCOPED but deliberately not <code>ScenarioAddressableMarker</code>:
+<code>nova_world</code> reads that marker’s absence as “mine to adopt and freeze”
+(<code>frozen.rs::adopt_moving_bodies</code>, and the save refuses an addressable
+persistent body as <code>UnownedBody</code>). So no authored id reaches one, and the
+<code>scoped_entities</code> family never returns one. Instead every streamed body wears
+<code>GeneratedBodyId</code> (<code>nova_events::generated</code>) beside its <code>EntityId</code>, at spawn
+and at thaw: the cell it was generated in, the generator’s stem and an index.
+<code>Display</code> spells it as the <code>EntityId</code> string the body always had
+(<code>sector_n2_0_0_background_rock_3</code>) and <code>FromStr</code> reads exactly that back,
+so a payload string that names a generated body is the typed id and nothing
+written by hand is.</p>
+<p>A hired escort wears a <code>GeneratedBodyId</code> too (<code>escort_id</code>: the station’s id
+with the stem <code>&lt;stem&gt;_&lt;index&gt;_escort</code> and the roster slot as its index), but it
+is not a cell’s body: <code>PlayerFleetMarker</code> keeps it out of <code>adopt_moving_bodies</code>
+and the freeze, <code>freeze_fleet</code> (<code>nova_scenario/src/objects/fleet.rs</code>) writes
+it into <code>SavedPlayer.fleet</code>, and the player’s spawn thaws it beside the
+player, following it. The save refuses a fleet escort on a slot outside
+<code>FLEET_SIDES</code> or on a slot another escort holds. A neutralized escort loses
+the marker and its <code>AIFollow</code>, so the next <code>Adopt</code> gives the wreck to the cell
+it stands in.</p>
+<p>Three consequences, each with its owner:</p>
+<ul>
+<li><strong>Lint refuses the literal.</strong> A <code>Names::Object</code> or <code>Names::NewObject</code> field,
+or an <code>Entity</code> filter id, that parses as a <code>GeneratedBodyId</code> is an Error
+naming the field (<code>lint/scenario.rs::check_object_names</code>). Such a body exists
+only at runtime, on a seed.</li>
+<li><strong>A handler binds it from the event.</strong> <code>ObjectiveMarkerAttach</code> and
+<code>ObjectiveMarkerDetach</code> take <code>target_id: "$id"</code> or <code>"$other_id"</code>, read from
+the firing event’s payload (<code>actions/mod.rs::bind_object_reference</code>); the
+bound string parses as a <code>GeneratedBodyId</code> and resolves through
+<code>generated_entity</code>, the one lookup for streamed bodies. No other reference
+field reads a binding, and lint refuses a <code>$</code> spelling anywhere else.</li>
+<li><strong>The mark outlives the body.</strong> <code>GeneratedMarks</code> (<code>marks.rs</code>) remembers each
+mark by typed id; <code>reapply_generated_marks</code> puts it back on
+<code>Added&lt;GeneratedBodyId&gt;</code>, which a thaw is. The map clears with the scenario.
+The world save lists the map (<code>SavedScenario::marks</code>) and a resumed load
+puts it back before the first cell streams in.</li>
+</ul>
+<p><code>system_generated_marks</code> is the proof: the example mod’s <code>example_survey</code>
+chapter marks a rock through <code>$other_id</code>, a one-cell jump retires its sector,
+and the thawed body wears the same id and the same chip with the <code>once</code>
+handler still at one firing.</p>
 <p>Events carry identity, not payload-by-position: entities wear
 <code>EntityId(String)</code> and <code>EntityTypeName(String)</code>, and every PAIR event has the
 same filter shape - a subject <code>id</code> plus an <code>other_id</code> / <code>other_type_name</code>.
@@ -426,8 +537,8 @@ the request until something clears the flag. That something is the
 scenario-advance input or an outcome-overlay button, which is how Continue
 and Retry ride a queued switch.</li>
 </ul>
-<p><code>HintEmphasisSet</code> is worth one line for the same reason: the keybind dock hides
-verbs the ship cannot use, so an emphasis on an unavailable verb REVEALS its
+<p><code>HintEmphasisSet</code> is worth one line for the same reason: the keybind dock draws
+verbs the ship cannot use dim, so an emphasis on an unavailable verb pulses its
 chip in the dim band rather than doing nothing. That is how a tutorial points
 at a key before it lights up.</p>
 <p>Actions fan out to one submodule per family beside <code>actions/mod.rs</code> -
@@ -939,10 +1050,11 @@ why a severed piece must not inherit that material blindly - a piece is a new
 body with a new origin, and it reads the grain from a different place.</p>
 <h2 id="built-in-scenarios"><a class="header" href="#built-in-scenarios">Built-in scenarios</a></h2>
 <p>The builders live under <code>crates/nova_authoring/src/base_content/scenarios/</code>.
-<code>main_menu/</code> gives each menu backdrop its own file, <code>tutorial/</code> builds the New
-Game starter, Basic Training, across <code>mod.rs</code> (the chain), <code>range.rs</code> (the
-props) and <code>script.rs</code> (every line), and <code>pacing.rs</code> holds the cue and outro
-spacing. Basic Training is the beat-chain reference: one <code>beat</code> counter gates
+<code>main_menu/</code> gives each menu backdrop its own file, <code>open_world.rs</code> builds the
+New Game start (the player’s warship and lights on a
+<code>world: Generated((seed: None))</code>), <code>tutorial/</code> builds Basic Training across
+<code>mod.rs</code> (the chain), <code>range.rs</code> (the props) and <code>script.rs</code> (every line), and
+<code>pacing.rs</code> holds the cue and outro spacing. Basic Training is the beat-chain reference: one <code>beat</code> counter gates
 every handler, and count milestones run on <code>OnUpdate</code> handlers keyed on the
 counter (handler order within one event is not load-bearing). The builders are
 an OFFLINE inventory, not the runtime path: <code>content -- gen</code> serializes them to
@@ -970,6 +1082,20 @@ already be gone - which is also why both hulls carry it: a pair whose asking
 hull is destroyed still reports through the survivor, and the two echoes are
 deduplicated into one release. Only a pair that dies whole falls silent, the
 way orbit end and area exit do for a despawned body.</p>
+<p>The hold events cross the crate line the same way ship orders do: a queue
+component. <code>ShipInventoryReports</code> (<code>nova_gameplay</code>) is required by every
+spaceship root, and the owning system pushes one report per occurrence - the
+cargo intake for a taken or dropped stack, the inventory pane for a confirmed
+trade and each purse it moved or a station store or withdraw, the ship pane for a repair, a rebuild, a swap, an add, a hull buy, an escort hire, a station buy or a finished strip. Credits have one
+choke point, <code>ShipInventoryReports::change_credits</code>, which is the only
+post-spawn writer and reports nothing for a no-op. <code>track_ship_inventory_reports</code>
+drains the queue in <code>FixedUpdate</code> after <code>SpaceshipSectionSystems</code> and fires
+<code>OnPickedUp</code>, <code>OnJettisoned</code>, <code>OnTraded</code>, <code>OnCreditsChanged</code>, <code>OnRepaired</code>,
+<code>OnRebuilt</code>, <code>OnSwapped</code>, <code>OnAdded</code>, <code>OnShipBought</code>, <code>OnEscortHired</code>, <code>OnStationBought</code>, <code>OnStripped</code>, <code>OnStored</code> and <code>OnWithdrawn</code>;
+pane reports pushed under the interface pause arrive on the first fixed tick
+after it closes. <code>OnMined</code> has no queue: <code>pulse_mining_beams</code> (<code>mining.rs</code>)
+fires it per pulse that flips at least one corner, with the rock as <code>id</code> and
+the miner as <code>other_id</code>, because the pulse is already a scenario-crate system.</p>
 <h2 id="adding-new-pieces"><a class="header" href="#adding-new-pieces">Adding new pieces</a></h2>
 <ul>
 <li>Event: event + info structs in <code>nova_events/src/lib.rs</code>, an <code>EventConfig</code>
@@ -977,8 +1103,11 @@ variant in <code>events.rs</code>, and something that fires it (engine-driven ev
 live in <code>loader/</code> - <code>OnStart</code> in <code>lifecycle.rs</code>, <code>OnUpdate</code> in <code>clock.rs</code>,
 the orbit/lock/docking trackers in <code>trackers.rs</code>; area events in
 <code>objects/area.rs</code>;
-<code>OnNeutralized</code> fires from <code>nova_gameplay</code>’s integrity stack, and a rock’s
-<code>OnDestroyed</code> from <code>objects/asteroid_carve.rs</code> when its field is exhausted).</li>
+<code>OnNeutralized</code> fires from <code>nova_gameplay</code>’s integrity stack, a rock’s
+<code>OnDestroyed</code> from <code>objects/asteroid_carve.rs</code> when its field is exhausted,
+the hold events from <code>track_ship_inventory_reports</code> in <code>trackers.rs</code>, and
+<code>OnMined</code> from <code>mining.rs</code>). A new occurrence below <code>nova_scenario</code> pushes a
+<code>ShipInventoryReport</code> variant; it does not get a second queue.</li>
 <li>Action: config struct + <code>EventAction&lt;NovaEventWorld&gt;</code> impl in the right
 <code>actions/</code> submodule (<code>audio</code>/<code>cinematic</code>/<code>flow</code>/<code>mission</code>/<code>sequence</code>/<code>ship</code>/
 <code>spawn</code>/<code>timer</code>/<code>view</code>), plus a row in the <code>registry::scenario_actions!</code>

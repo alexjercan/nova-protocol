@@ -43,6 +43,7 @@ can replace it for every scenario that names it.</p>
     <span class="ron-punct">)),</span>
 <span class="ron-punct">]</span>
 </code></pre>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -73,7 +74,9 @@ can replace it for every scenario that names it.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <h3 id="the-design" tabindex="-1">The design</h3>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -104,7 +107,9 @@ can replace it for every scenario that names it.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p><code>integrity</code> fields:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -123,7 +128,9 @@ can replace it for every scenario that names it.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p><code>presentation</code> fields:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -144,7 +151,7 @@ can replace it for every scenario that names it.</p>
 <td><code>style</code></td>
 <td><code>Option</code> string</td>
 <td><code>None</code></td>
-<td>the LOOK the cladding wears, by <a href="../styles/">style</a> id: plate materials plus the destructible decoration scattered over them. Strict RON <code>Some(&quot;raider&quot;)</code>; omitted = built-in plate colours and no decoration. An id nothing authored leaves the ship clad and bare rather than falling back to another look</td>
+<td>the LOOK the cladding wears, by <a href="../styles/">style</a> id: plate materials plus the destructible decoration placed on them. Strict RON <code>Some(&quot;raider&quot;)</code>; omitted = built-in plate colours and no decoration. An id no loaded style authors fails at lint and stops the game at spawn</td>
 </tr>
 <tr>
 <td><code>collapse_sound</code></td>
@@ -166,6 +173,7 @@ can replace it for every scenario that names it.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>The voice is the DESIGN's, not its flight computer's: a hull that loses every
 controller section still knows how to warn about its own structure.</p>
 <p>Section entries are the same records a design carried when it was inlined - see
@@ -215,9 +223,9 @@ the content lint reports it as an error, and so does a patch that argues with
 the section's kind. The full patch surface is in
 <a href="../objects/#the-sections-list">the sections list</a>.</p>
 <p>Reach for a second ship id instead when the difference is what the design IS -
-the base game ships <code>block_frame_tender</code> and <code>block_frame_tender_damaged</code> as
-separate hulls because a missing drive, transom and arch are a different ship to
-fly, not a tweak. The Ledger does the same with its two hauler loads, <code>cargob</code>
+the base game ships <code>light_freighter</code> and <code>freighter_derelict</code> as separate
+hulls because a missing drive, transom and wing are a different ship to fly,
+not a tweak. The Ledger does the same with its two hauler loads, <code>cargob</code>
 and <code>cargob_lance</code>: which torpedo TYPE the pods carry decides whether a
 defender's point defense can answer the salvo at all, and that is the ship, not
 a tweak to it.</p>
@@ -260,6 +268,7 @@ spawns an empty root and logs rather than crashing.</li>
 <h2 id="base-ships" tabindex="-1">Base ships</h2>
 <p>Every base design is BUILT: cells on a build grid, clad by the derived skin and
 painted by a <a href="../styles/">style</a>. Nothing in the base game is a modelled mesh.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -269,43 +278,49 @@ painted by a <a href="../styles/">style</a>. Nothing in the base game is a model
 </thead>
 <tbody>
 <tr>
-<td><code>block_cutter</code></td>
-<td>Utility Cutter - the small unarmed workboat, and the smallest thing that still reads as a crewed ship</td>
+<td><code>mining_tug</code></td>
+<td>Mining Tug - the industrial start: a low work hull of light plate with a two-cell boom off the bow and a mining emitter at its tip (<code>mining_beam</code>), a cargo intake on the aft deck (<code>cargo_intake</code>), a cab forward and three bell drives</td>
 </tr>
 <tr>
-<td><code>block_hauler</code></td>
-<td>Bulk Hauler - a flat freight spine between two cargo shoulders, containers amidships, one vectoring drive</td>
+<td><code>salvage_hauler</code></td>
+<td>Salvage Hauler - the scavenger start: a deep hold of light plate, a cab on the nose with a mining emitter ahead of it (<code>mining_beam</code>), a cargo intake on the dorsal deck, one point-defense mount and five bell drives in a cross on a stern with its corners cut back. The biggest hold of the start hulls</td>
 </tr>
 <tr>
-<td><code>block_workship</code></td>
-<td>Utility Workship - the civilian work boat: an open cradle amidships for an outsized load, two bell drives aft, and a docking collar standing off the port flank</td>
+<td><code>light_freighter</code></td>
+<td>Light Freighter - the transport start: a stack of light plate on a flat spine, a cargo intake on top of the stack, a pod on the starboard flank and five bell drives on a cross-shaped transom. Unarmed</td>
 </tr>
 <tr>
-<td><code>block_frame_tender</code></td>
-<td>Frame Tender - a long keel under a cargo body with two open gantry arches standing over it, carrying the same port-flank collar the workship docks on</td>
+<td><code>freighter_derelict</code></td>
+<td>Light Freighter: Derelict - a yard-fitted freighter (reinforced plate, freight cubes, a tank pod, solar wings) after a raid took its stern: no drive, no transom, the aft tank cube and the starboard wing's outer panel gone. Everything forward of the tear matches the freighter cell for cell, the cab and the collar included</td>
 </tr>
 <tr>
-<td><code>block_frame_tender_damaged</code></td>
-<td>Frame Tender: Damaged - the same tender after a raid took its stern: no main drive, the transom and the service stack gone, and the aft arch broken off along a ragged, column-by-column edge. Everything forward of the hit, the cab and the collar included, is whole</td>
+<td><code>interceptor</code></td>
+<td>Interceptor - the bounty hunter start: a compact two-deck body of light plate with stub wings, two point-defense mounts on the top deck, a cargo intake aft of them and three bell drives</td>
 </tr>
 <tr>
-<td><code>block_gunship</code></td>
-<td>Patrol Gunship - the military patrol boat: a two-deck fighting spine and six PDC mounts covering both hemispheres</td>
+<td><code>raider</code></td>
+<td>Raider - the pirate start: a short hull of light plate with a nose stub, an outrigger and a gun boom on the starboard side, a dorsal mount, a cargo intake on the aft deck and four bell drives</td>
 </tr>
 <tr>
-<td><code>block_picket</code></td>
-<td>Salvage Picket - the armed picket, its one gun pushed onto the nose face</td>
+<td><code>patrol_picket</code></td>
+<td>Patrol Picket - the military start: a slim dart of light plate with a point-defense mount on the nose face, a second on the dorsal spine, a torpedo bay under the nose (<code>torpedo_keel</code>), a cargo intake on the aft deck, two bell drives and a docking collar off each flank, hatch outboard (<code>port_collar</code>, <code>starboard_collar</code>)</td>
 </tr>
 <tr>
-<td><code>block_line_warship</code></td>
-<td>Line Warship - the New Game ship: a long armoured body with six PDC mounts, a railgun on the bow, a torpedo bay on each shoulder, a docking collar mid-shoulder on each flank, hatch outboard (<code>port_collar</code>, <code>starboard_collar</code>), a cargo intake on the top deck aft, door up (<code>cargo_intake</code>), and a mining beam at the bow, starboard of the railgun (<code>mining_beam</code>)</td>
+<td><code>training_picket</code></td>
+<td>Training Picket - the tutorial range's hull, flown by the trainer and the drones: a slim dart of light plate with one point-defense mount on the nose face and two bell drives. Scenario-only, with no cargo intake</td>
 </tr>
 <tr>
-<td><code>block_wreck_plate</code></td>
-<td>Carrier Wreck: Plating - loose plating: the small pieces, and most of what a debris field is</td>
+<td><code>line_warship</code></td>
+<td>Line Warship - the military goal: a long armoured body with six PDC mounts, a railgun on the bow, a torpedo bay on each shoulder, a cargo intake on the aft deck (<code>cargo_intake</code>) and a docking collar off each shoulder, hatch outboard (<code>port_collar</code>, <code>starboard_collar</code>)</td>
+</tr>
+<tr>
+<td><code>debris_plate</code></td>
+<td>Debris Plate - loose plating: the small pieces, and most of what a debris field is</td>
 </tr>
 </tbody>
 </table>
+</div>
+<p>Every crewed base hull carries a docking collar on the port flank, <code>port_collar</code>.</p>
 <p>A mod may ship MODELLED craft instead, and The Ledger does: its <code>racer</code>,
 <code>cargoa</code>, <code>cargoa_raider</code>, <code>cargob</code> and <code>cargob_lance</code> are assembled from GLB
 parts the mod carries under its own <code>gltf/parts/</code>.</p>

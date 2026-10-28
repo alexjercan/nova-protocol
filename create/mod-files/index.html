@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Mod files - Nova Protocol Creator Docs</title><meta name="description" content="The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, styles, lessons, and UI themes."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Mod files - Nova Protocol Creator Docs</title><meta name="description" content="The mod folder and bundle manifest, content and resource lists, asset schemes, overlay rules, and the content items: campaigns, scenarios, sections, ships, styles, lessons, UI themes, and items."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
@@ -8,10 +8,10 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Mod files</p><h1>Mod files</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#folder-structure">Folder structure</a><ol></ol></li><li><a href="#the-bundle-manifest">The bundle manifest</a><ol></ol></li><li><a href="#the-installed-catalog">The installed catalog</a><ol></ol></li><li><a href="#balance-acknowledgments">Balance acknowledgments</a><ol></ol></li><li><a href="#content-files">Content files</a><ol></ol></li><li><a href="#the-seven-content-chapters">The seven content chapters</a><ol></ol></li><li><a href="#paths-and-dependencies">Paths and dependencies</a><ol></ol></li><li><a href="#overlay-behavior">Overlay behavior</a><ol></ol></li></ol></nav><p>A Nova Protocol mod is a folder that contains one bundle manifest, one or more
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Mod files</p><h1>Mod files</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#folder-structure">Folder structure</a><ol></ol></li><li><a href="#the-bundle-manifest">The bundle manifest</a><ol></ol></li><li><a href="#the-installed-catalog">The installed catalog</a><ol></ol></li><li><a href="#balance-acknowledgments">Balance acknowledgments</a><ol></ol></li><li><a href="#content-files">Content files</a><ol></ol></li><li><a href="#the-content-chapters">The content chapters</a><ol></ol></li><li><a href="#paths-and-dependencies">Paths and dependencies</a><ol></ol></li><li><a href="#overlay-behavior">Overlay behavior</a><ol></ol></li></ol></nav><p>A Nova Protocol mod is a folder that contains one bundle manifest, one or more
 content files, and any art or audio that the mod owns. Content files can define
-seven kinds of reusable item: campaigns, scenarios, ship sections, whole
-ships, ship skin styles, training lessons, and UI themes.</p>
+eight kinds of reusable item: campaigns, scenarios, ship sections, whole
+ships, ship skin styles, training lessons, UI themes, and items.</p>
 <p>Use this page to choose the right file. Then open the detailed reference for the
 item you want to author.</p>
 <h2 id="folder-structure" tabindex="-1">Folder structure</h2>
@@ -56,6 +56,7 @@ listed by the manifest.</p>
     <span class="ron-punct">),</span>
 <span class="ron-punct">)</span>
 </code></pre>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -128,6 +129,7 @@ listed by the manifest.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p><code>resources</code> lists files, not folders. A <code>.meta</code> sidecar next to a listed image
 travels with that image automatically and is not listed separately.</p>
 <h2 id="the-installed-catalog" tabindex="-1">The installed catalog</h2>
@@ -135,6 +137,7 @@ travels with that image automatically and is not listed separately.</p>
 is the only index the loader reads: there is no directory scan, so the web
 build works from the same file. Each entry is a thin pointer; the mod's
 metadata stays in its own bundle's <code>meta</code> block.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -165,6 +168,7 @@ metadata stays in its own bundle's <code>meta</code> block.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Every cataloged mod gets a row in the Mods menu: there is no way to install
 content the player can neither see nor switch off. A tooling or test rig
 belongs in the example or test that owns it, not in the catalog.</p>
@@ -207,6 +211,7 @@ bundle it lints, so the justification travels with the mod:</p>
 <p>The file is optional and is not listed in <code>content</code>. An acknowledged finding
 still prints, tagged <code>ACK</code> with its reason, but stops counting as an open
 warning.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -237,11 +242,12 @@ warning.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>An ack that matches no live finding is STALE and fails the lint: once the
 content is rebalanced, prune the entry.</p>
 <h2 id="content-files" tabindex="-1">Content files</h2>
 <p>Every <code>*.content.ron</code> file is a RON list. One file may contain any mix of the
-seven item kinds:</p>
+eleven item kinds:</p>
 <pre><code class="hljs language-ron"><span class="ron-punct">[</span>
     <span class="ron-type">Campaign</span><span class="ron-punct">((</span>
         <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_campaign&quot;</span><span class="ron-punct">,</span>
@@ -261,6 +267,11 @@ seven item kinds:</p>
             <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;My Hull&quot;</span><span class="ron-punct">,</span>
             <span class="ron-key">description</span><span class="ron-punct">:</span> <span class="ron-string">&quot;A custom armor block.&quot;</span><span class="ron-punct">,</span>
             <span class="ron-key">health</span><span class="ron-punct">:</span> <span class="ron-literal">150.0</span><span class="ron-punct">,</span>
+            <span class="ron-key">build</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+                <span class="ron-key">credits</span><span class="ron-punct">:</span> <span class="ron-literal">80</span><span class="ron-punct">,</span>
+                <span class="ron-key">parts</span><span class="ron-punct">:</span> <span class="ron-punct">{</span><span class="ron-string">&quot;SectionPanel&quot;</span><span class="ron-punct">:</span> <span class="ron-literal">2</span><span class="ron-punct">},</span>
+                <span class="ron-key">strip_yield</span><span class="ron-punct">:</span> <span class="ron-literal">0.5</span><span class="ron-punct">,</span>
+            <span class="ron-punct">),</span>
         <span class="ron-punct">),</span>
         <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Hull</span><span class="ron-punct">((</span>
             <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/gltf/hull-01.glb#Scene0&quot;</span><span class="ron-punct">),</span>
@@ -269,7 +280,31 @@ seven item kinds:</p>
     <span class="ron-type">Ship</span><span class="ron-punct">((</span>
         <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_corvette&quot;</span><span class="ron-punct">,</span>
         <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;My Corvette&quot;</span><span class="ron-punct">,</span>
-        <span class="ron-key">hull</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">sections</span><span class="ron-punct">:</span> <span class="ron-punct">[]),</span>
+        <span class="ron-key">design</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">sections</span><span class="ron-punct">:</span> <span class="ron-punct">[]),</span>
+    <span class="ron-punct">)),</span>
+    <span class="ron-type">Station</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_outpost&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;My Outpost&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">about</span><span class="ron-punct">:</span> <span class="ron-string">&quot;A collar, a bridge and a plate.&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">hull</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">sections</span><span class="ron-punct">:</span> <span class="ron-punct">[],</span> <span class="ron-key">integrity</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">collapse_threshold</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">0.5</span><span class="ron-punct">))),</span>
+        <span class="ron-key">services</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">Trade</span><span class="ron-punct">],</span>
+        <span class="ron-key">storage_cap_g</span><span class="ron-punct">:</span> <span class="ron-literal">0</span><span class="ron-punct">,</span>
+        <span class="ron-key">stock</span><span class="ron-punct">:</span> <span class="ron-punct">{},</span>
+        <span class="ron-key">credits</span><span class="ron-punct">:</span> <span class="ron-literal">500</span><span class="ron-punct">,</span>
+    <span class="ron-punct">)),</span>
+    <span class="ron-type">StartRole</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_courier&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Courier&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">icon</span><span class="ron-punct">:</span> <span class="ron-type">Container</span><span class="ron-punct">,</span>
+        <span class="ron-key">about</span><span class="ron-punct">:</span> <span class="ron-string">&quot;A light freighter with no weapons.&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">hull</span><span class="ron-punct">:</span> <span class="ron-string">&quot;light_freighter&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">kit</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-key">credits</span><span class="ron-punct">:</span> <span class="ron-literal">2000</span><span class="ron-punct">,</span> <span class="ron-key">stock</span><span class="ron-punct">:</span> <span class="ron-punct">{</span><span class="ron-string">&quot;Rations&quot;</span><span class="ron-punct">:</span> <span class="ron-literal">50</span><span class="ron-punct">}),</span>
+        <span class="ron-key">jobs</span><span class="ron-punct">:</span> <span class="ron-type">Trade</span><span class="ron-punct">,</span>
+        <span class="ron-key">goal</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+            <span class="ron-key">title</span><span class="ron-punct">:</span> <span class="ron-string">&quot;A courier network&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">StationNetwork</span><span class="ron-punct">(</span><span class="ron-key">stations</span><span class="ron-punct">:</span> <span class="ron-literal">4</span><span class="ron-punct">),</span>
+        <span class="ron-punct">),</span>
+        <span class="ron-key">lore</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Couriers carry what stations cannot make.&quot;</span><span class="ron-punct">,</span>
     <span class="ron-punct">)),</span>
     <span class="ron-type">Style</span><span class="ron-punct">((</span>
         <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_look&quot;</span><span class="ron-punct">,</span>
@@ -290,12 +325,39 @@ seven item kinds:</p>
         <span class="ron-key">metrics</span><span class="ron-punct">:</span> <span class="ron-type">None</span><span class="ron-punct">,</span>
         <span class="ron-key">roles</span><span class="ron-punct">:</span> <span class="ron-punct">(),</span>
     <span class="ron-punct">)),</span>
+    <span class="ron-type">Item</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_mod/survey_core&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Survey core&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">about</span><span class="ron-punct">:</span> <span class="ron-string">&quot;A sealed sensor core.&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">category</span><span class="ron-punct">:</span> <span class="ron-type">Parts</span><span class="ron-punct">,</span>
+        <span class="ron-key">mass_g</span><span class="ron-punct">:</span> <span class="ron-literal">5000</span><span class="ron-punct">,</span>
+        <span class="ron-key">ask_cr</span><span class="ron-punct">:</span> <span class="ron-literal">60</span><span class="ron-punct">,</span>
+        <span class="ron-key">bid_cr</span><span class="ron-punct">:</span> <span class="ron-literal">45</span><span class="ron-punct">,</span>
+    <span class="ron-punct">)),</span>
 <span class="ron-punct">]</span>
 </code></pre>
+<p>An <code>Item</code> adds a new entry to the item catalog, or replaces one your mod
+depends on. Every field is required: <code>id</code>, <code>name</code> and <code>about</code> are not blank;
+<code>category</code> is one of <code>Raw</code>, <code>Repair</code>, <code>Ammo</code>, <code>Food</code>, <code>Parts</code>; <code>mass_g</code> is
+above 0; <code>bid_cr</code> is at most <code>ask_cr</code>. Any ship's stock, a cargo canister, or
+a trade may carry the id, mod items included. The base game must define ten
+role ids that the game itself uses: <code>HullPlate</code> feeds a repair, the
+ammunition feeds a weapon's reload, the ores are mining yield, and generated
+ship holds draw the two trade goods <code>Rations</code> and <code>SalvagedParts</code>. A role id
+keeps its category: <code>HullPlate</code> is <code>Repair</code>; <code>PdcRound</code>, <code>RailSlug</code> and
+<code>Torpedo</code> are <code>Ammo</code>; <code>StoneOre</code>, <code>IronOre</code>, <code>WaterIce</code> and <code>CarbonOre</code> are
+<code>Raw</code>; <code>Rations</code> is <code>Food</code>; <code>SalvagedParts</code> is <code>Parts</code>. Every item fits one
+cargo canister, so its <code>mass_g</code> is at most <code>200000</code>. A mod that depends on
+the base game may replace a role id whole, with its own <code>name</code>, <code>about</code>,
+<code>mass_g</code>, <code>ask_cr</code> and <code>bid_cr</code>, but not another <code>category</code>. A replacement
+that breaks either rule is an error. An id two unrelated packs both define is refused in both, whatever
+load order; a pack that depends on the id's owner may replace it whole. See
+<a href="../objects/#inventory">Scenario objects</a> for the item table and the stock
+format.</p>
 <p>Splitting these into <code>campaign.content.ron</code>, <code>scenarios.content.ron</code>, and
 <code>sections.content.ron</code> is a readability convention, not a loader requirement.
 Large mods can use one scenario per file and list all of them in <code>content</code>.</p>
-<h2 id="the-seven-content-chapters" tabindex="-1">The seven content chapters</h2>
+<h2 id="the-content-chapters" tabindex="-1">The content chapters</h2>
 <div id="wiki-children"></div>
 <ul>
 <li>A <a href="../campaigns/">campaign</a> orders scenarios for the Scenarios menu.</li>
@@ -306,14 +368,24 @@ filters, actions, objects, and expressions belong to scenario scripting.</li>
 turret, or torpedo bay.</li>
 <li>A <a href="../ships/">ship</a> defines a whole hull - its section layout and cladding -
 that any scenario can spawn by id.</li>
+<li>A <a href="../stations/">station</a> defines a hull that never flies - a docking port,
+a flight computer, what it offers and holds - that any scenario can park by
+id.</li>
+<li>A <a href="../start-roles/">start role</a> defines one New Game start: a catalog hull
+and a kit of credits and items.</li>
 <li>A <a href="../styles/">style</a> defines the look a ship's derived cladding wears: the
-two plate surfaces, and the destructible decoration scattered over them.</li>
+two plate surfaces, and the destructible decoration placed on them.</li>
 <li>A <a href="../lessons/">lesson</a> is one screen of the in-game training handbook: a
 demonstration, a few lines, the actions it names, and sometimes a focused
 range to fly.</li>
 <li>A <a href="../ui-themes/">UI theme</a> is the look the whole interface paints in: the
 palette, the metrics, and the paint of every control in every state. The
 player picks one in Settings.</li>
+<li>A <a href="../prices/">price table</a> holds the factors a generated trader prices
+every item by. One table: a mod that states one replaces it.</li>
+<li>An <a href="../objects/#inventory">item</a> is one entry in the catalog a ship's stock,
+a cargo canister, or a trade can carry - what it is called, what it is for,
+what it weighs, and what a trader pays for it.</li>
 </ul>
 <h2 id="paths-and-dependencies" tabindex="-1">Paths and dependencies</h2>
 <p>Content uses explicit asset schemes:</p>
@@ -326,15 +398,30 @@ in <code>meta.dependencies</code>.</li>
 <p>A plain path without <code>self://</code> or <code>dep://</code> is not a valid asset reference. See
 the <a href="../base-content/">base content catalog</a> for reusable base ids and assets.</p>
 <h2 id="overlay-behavior" tabindex="-1">Overlay behavior</h2>
-<p>Content merges by item id:</p>
+<p>Content merges by id:</p>
 <ul>
 <li>A new id adds a campaign, scenario, section, ship, style, lesson, or theme.</li>
-<li>An id that already exists replaces that whole item.</li>
-<li>A duplicate id inside one bundle is a conflict; the first item is kept.</li>
+<li>An id that already exists replaces that whole entry.</li>
+<li>A duplicate id inside one bundle is a conflict: the load logs it, keeps the
+first entry, and loads the rest of the bundle.</li>
 </ul>
 <p>For sections, the key is <code>base.id</code>. For campaigns, scenarios, ships, styles,
 lessons, and UI themes, the key is <code>id</code>. Prefix new ids with your mod id to
 avoid accidental collisions.</p>
+<p>An item id follows a stricter rule: a new id adds, but an id another pack
+already defines is replaced only when your mod depends on that pack, directly
+or through others (base counts as a dependency of every mod). Two packs that
+share an id with no such one-way chain between them are BOTH refused, in
+either load order. A pack that defines one item id twice is refused too. Any
+item error refuses the WHOLE pack, not only the item: a mod is switched off
+with every mod that depends on it, as for a failing section, and an error in
+<code>base</code> stops the game.</p>
+<p><code>content lint</code> is stricter than the game here. The game checks only the mods
+you enable together. Lint checks every mod in the repository at once, so two
+repository mods that share an item id fail lint even when no one enables
+both. <code>content lint --target &lt;dir&gt;</code> checks your mod against every repository
+mod the same way. Lint cannot see mods from outside the repository, so such a
+mod can still conflict with yours when the game loads them together.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
 </footer>

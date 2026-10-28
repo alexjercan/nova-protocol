@@ -2,7 +2,7 @@
     Scenario((
         id: "menu_gauntlet",
         name: "Torpedo Gauntlet",
-        description: "A gunship\'s doomed point-defense stand against batteries on both flanks.",
+        description: "A line warship\'s doomed point-defense stand against batteries on both flanks.",
         cubemap: "self://textures/cubemap.png",
         role: Backdrop,
         events: [
@@ -458,7 +458,7 @@
                     SpawnScenarioObject((
                         base: (
                             id: "gauntlet_ship",
-                            name: "Gauntlet Gunship",
+                            name: "Gauntlet Warship",
                             position: (
                                 -50.0,
                                 250.0,
@@ -473,7 +473,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_gunship",
+                                id: "line_warship",
                                 section_patches: {
                                     "pdc_aft_port": (
                                         config: (

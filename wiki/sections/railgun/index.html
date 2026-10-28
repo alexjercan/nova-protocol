@@ -27,6 +27,7 @@
 <p>A railgun is a <strong>spinal gun</strong>: three cells of rails and capacitor bank with no traverse of its own. It does not aim. The <strong>ship</strong> aims, you commit the shot, and what leaves cuts a corridor through everything standing in that line.</p>
 <p>It is the opposite weapon to a turret in every way that matters. A turret is a mount you assign and forget; a railgun is a shot you set up. It fires once every thirteen seconds or so, the trigger cannot call it back once it is pulled, and it shoves the ship that fired it.</p>
 <!-- Values from crates/nova_authoring/src/base_content/sections/railgun.rs: charge_seconds 1.5, slug_speed 15,000 m/s, slug_damage 300, slug_power 1800, rake_radius 10 m, slug_lifetime 1.2 (18 km of reach), recoil_impulse 45, ammunition Limited(1), reload delay 12 drawing RailSlug from crates/nova_ship/src/sections/ammo.rs. -->
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -61,6 +62,7 @@
 </tr>
 </tbody>
 </table>
+</div>
 <h2 id="the-hull-is-the-aim" tabindex="-1">The hull is the aim</h2>
 <!-- Behavior verified against crates/nova_ship/src/sections/railgun_section/mod.rs (RailgunSectionConfig :69, RailgunSectionInput :210) and firing.rs (the slug is born at the muzzle along the section's own -Z; recoil applied at that point). Sockets: crates/nova_authoring/src/base_content/sections/railgun.rs lance_link_points - thirteen, none on the muzzle face, held by `no_lance_sockets_the_face_it_fires_through`. -->
 <p>A railgun fires down its own axis, so where it points is decided when you <strong>bolt it on</strong>, not when you shoot. Mounted on the spine it points where the nose points. Mounted on a flank it points wherever that flank faces, which is not where you are looking - and there is no HUD crosshair that will tell you otherwise, which is why the <a href="#the-bore-sight">bore sight</a> exists.</p>
@@ -143,6 +145,7 @@
 <p>The scope shoots a block of 200 hp reinforced hull cells, five across, five tall and four deep, with the shipped railgun. The slug's tip cuts the centre column, and a 10 m sphere trailing the tip widens that cut to the eight cells around it - the face neighbours and the diagonals, never the second ring. Every cell in the corridor takes 300 and pays a third of its max health out of the one 1800-point budget, so the shot takes 28 cells as nine, nine, nine and one, removes 5600 hp, and stops with the exit hole as wide as the entry. Set the radius to zero and the same shot takes four cells in a line; set it to 40 m and it takes the same 28 as the whole entry face plus three, and stops one layer in.</p>
 </div>
 <p>The slug deals <strong>300 Pierce damage to every section it takes</strong>, flat. It is not scaled by how fast the two ships are closing and it does not decay with depth, so the tenth section in the line takes exactly what the first did. Three hundred clears every hull block, controller, mount and torpedo bay in the catalog outright, so an aligned shot takes a <strong>corridor out of a ship</strong> rather than damaging one.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -184,8 +187,10 @@
 </tr>
 </tbody>
 </table>
+</div>
 <p>The corridor is wider than the bore. The slug drags a 10 m sphere behind its tip, so it takes the sections immediately beside the ones it actually crossed as well - about three cells across. It only ever widens what the tip has already reached: a ship the slug merely passes near loses nothing, and nothing ahead of the tip is touched by the shot that is on its way. The sphere keeps going after the tip is out the far side, so the exit hole is as wide as the corridor.</p>
 <p>How much it takes is one budget: <strong>1800 power</strong>, spent in the toughest each taken section could ever be, and a slug this fast always spends at the cheapest rate the rule allows. Width and depth come out of the same number, and nothing else bounds either. Measured on the range the game tests the gun with, that is what the width is worth:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -216,6 +221,7 @@
 </tr>
 </tbody>
 </table>
+</div>
 <figure class="figure">
     <!-- Capture: assets/wiki-section-railgun-corridor.png -->
     <div class="figure__placeholder">

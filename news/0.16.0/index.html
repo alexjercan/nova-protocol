@@ -1,0 +1,806 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>v0.16.0 - The world keeps score - Nova Protocol</title><meta name="description" content="Nova Protocol v0.16.0: start roles, stations, jobs, a market, civilization stances, a chart that remembers, and a world that saves itself."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/news.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="news"><nav class="news__toc" aria-label="On this page"><p class="news__toc-title">On this page</p><a href="#new-game-asks-who-you-are" class="news__toc-link">New Game asks who you are</a> <a href="#six-ways-in" class="news__toc-link news__toc-link--sub">Six ways in</a> <a href="#the-goal-is-a-charter-not-an-ending" class="news__toc-link news__toc-link--sub">The goal is a charter, not an ending</a> <a href="#stations" class="news__toc-link">Stations</a> <a href="#a-station-is-a-body" class="news__toc-link news__toc-link--sub">A station is a body</a> <a href="#who-lets-you-in" class="news__toc-link news__toc-link--sub">Who lets you in</a> <a href="#rebuild-refit-add-take-off" class="news__toc-link news__toc-link--sub">Rebuild, refit, add, take off</a> <a href="#ships-for-sale-escorts-for-hire-a-station-for-the-right-price" class="news__toc-link news__toc-link--sub">Ships for sale, escorts for hire, a station for the right price</a> <a href="#jobs" class="news__toc-link">Jobs</a> <a href="#the-escort-is-a-fight-you-can-lose" class="news__toc-link news__toc-link--sub">The escort is a fight you can lose</a> <a href="#the-jobs-pane" class="news__toc-link news__toc-link--sub">The Jobs pane</a> <a href="#a-market-with-reasons" class="news__toc-link">A market with reasons</a> <a href="#civilizations-have-opinions" class="news__toc-link">Civilizations have opinions</a> <a href="#the-chart-remembers" class="news__toc-link">The chart remembers</a> <a href="#the-world-keeps-what-you-did" class="news__toc-link">The world keeps what you did</a> <a href="#ships-and-parts" class="news__toc-link">Ships and parts</a> <a href="#a-new-base-fleet" class="news__toc-link news__toc-link--sub">A new base fleet</a> <a href="#the-skin-is-rebuilt" class="news__toc-link news__toc-link--sub">The skin is rebuilt</a> <a href="#a-destroyed-ship-spills-its-cargo" class="news__toc-link news__toc-link--sub">A destroyed ship spills its cargo</a> <a href="#mining-without-a-lock" class="news__toc-link news__toc-link--sub">Mining without a lock</a> <a href="#flight-and-combat" class="news__toc-link">Flight and combat</a> <a href="#interface-and-controls" class="news__toc-link">Interface and controls</a> <a href="#more-in-v0160" class="news__toc-link">More in v0.16.0</a> <a href="#modding-and-compatibility" class="news__toc-link">Modding and compatibility</a> <a href="#point-releases" class="news__toc-link">Point releases</a></nav><article class="prose news__body"><p class="prose__meta"><a href="/nova-protocol/news/">&larr; News</a> &nbsp;//&nbsp; 2026-10-28 &nbsp;//&nbsp; v0.16.0</p><h1>v0.16.0 - The world keeps score</h1><p>v0.15.0 made a place. New Game took a seed and built rock fields, planetoids,
+wrecks and the ships of the civilizations that left them, streamed in around
+one line warship. You could mine it, loot it, trade with it and fight it. But
+the place had no memory and no opinion. A sector you left was generated again
+from the seed when you came back. Nobody out there wanted anything from you.
+Nothing you did survived closing the game.</p>
+<p>v0.16.0 is the release where the world starts keeping score. Civilizations
+build stations, and a station is somewhere to dock, trade, store, refit and
+take work. Every station posts jobs, and every hand-in or kill moves what its
+civilization thinks of you. New Game asks who you are before it asks where you
+start: six roles, each with a hull, a kit and a goal. The Map grows a chart
+that remembers every sector you entered and every station you found. And on
+the desktop build the world saves itself as you fly, so a run is something you
+come back to.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0160-release-lead.webm -->
+    <div class="figure__placeholder" data-eager="true">
+        <span class="figure__placeholder-tag">Video</span>
+        <span class="figure__placeholder-name">assets/loops/news-0160-release-lead.webm</span>
+        <span class="figure__placeholder-note">Seed 2, military role: the patrol picket undocks from its allied ring station, the HELM chip clears, and JOB-1 Escort marks the waiting hauler. The pilot locks it and starts a GOTO leg.</span>
+    </div>
+    <figcaption class="figure__caption">The armed patrol picket takes an Escort its starter board lists for a weapon-carrying hull, undocks from its ring station and starts GOTO toward the marked hauler. The capture sends the Escort's accept command directly; it does not click Accept on the Jobs pane. Somebody built this. Somebody is watching what you do with it.</figcaption>
+</figure>
+<h2 id="new-game-asks-who-you-are" tabindex="-1">New Game asks who you are</h2>
+<p>New Game is two steps now. The first takes a name for the world and a seed.
+Under the seed, before the world exists, a 3D chart draws the seed's sectors
+around your starting station with YOU at the start; right-drag turns it and
+the wheel zooms. The second step lists six start roles. Select one and its
+hull turns in 3D beside a card: hull name, length, section count, weapons and
+drives, then the kit of credits and cargo, the role's goal and a line of lore.
+Create puts you in that hull, docked at your <strong>starting station</strong>: the nearest
+station of a civilization that begins as your Ally. A seed with no allied
+station in reach is refused on the seed field, with the reason, so you pick
+another.</p>
+<!-- Hull card lines: crates/nova_menu/src/world_setup.rs:605-660 `hull_card`
+     (Hull, Length, Sections, Weapons, Drives). Starting station rule and
+     refusal: crates/nova_world_base/src/start.rs. -->
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0160-world-setup.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Video</span>
+        <span class="figure__placeholder-name">assets/loops/news-0160-world-setup.webm</span>
+        <span class="figure__placeholder-note">The New Game wizard end to end: the name field reads New World and the seed chart turns under a right-drag; Next opens the role list; the selection steps from industrial to bounty hunter and the hull view swaps the mining tug for the interceptor while the card's Weapons line changes from "1 mining beam" to turrets.</span>
+    </div>
+    <figcaption class="figure__caption">The seed decides where. The role decides who.</figcaption>
+</figure>
+<h3 id="six-ways-in" tabindex="-1">Six ways in</h3>
+<p>Every role is content: a <code>StartRole</code> with an icon, a hull, a kit, a job mix
+and a goal. The base game ships six. Each kit is worth 3,000 cr at the
+reference ask before ammunition, so no role starts richer than another; it
+starts differently equipped. A hull with point-defense mounts also carries
+1,000 PDC rounds in its hold.</p>
+<!-- Kits and goals: crates/nova_authoring/src/base_content/start_roles.rs:41-140
+     (industrial :41-45, scavenger :59-65, transport :77-81, bounty_hunter
+     :95-101, military :114-121, pirate :134-140), generated into
+     assets/base/roles/base.content.ron. Hull ids:
+     crates/nova_authoring/src/base_content/ships/mod.rs:34-58. The 3,000 cr
+     parity and the shared-hold 1,000-round rule are the builder's own doc
+     lines (start_roles.rs:5-9). -->
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Hull</th>
+<th>Kit</th>
+<th>Goal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Industrial</td>
+<td>Mining tug</td>
+<td>2,200 cr, 15 hull plates, 25 rations</td>
+<td>6 ore deliveries</td>
+</tr>
+<tr>
+<td>Scavenger</td>
+<td>Salvage hauler</td>
+<td>1,800 cr, 1,000 PDC rounds, 10 hull plates</td>
+<td>6 recoveries</td>
+</tr>
+<tr>
+<td>Transport</td>
+<td>Light freighter</td>
+<td>2,000 cr, 50 rations, 50 water ice</td>
+<td>a network of 4 stations</td>
+</tr>
+<tr>
+<td>Bounty hunter</td>
+<td>Interceptor</td>
+<td>1,600 cr, 1,000 PDC rounds, 10 hull plates</td>
+<td>a kill list of 6 hulls</td>
+</tr>
+<tr>
+<td>Military</td>
+<td>Patrol picket</td>
+<td>1,000 cr, 2 torpedoes, 1,000 PDC rounds, 10 hull plates</td>
+<td>6 patrols</td>
+</tr>
+<tr>
+<td>Pirate</td>
+<td>Raider</td>
+<td>1,800 cr, 1,000 PDC rounds, 10 hull plates</td>
+<td>an outlaw's name</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The six hulls are built from advancement-0 parts on purpose. Every
+civilization builds those, so the station you start at can rebuild any
+section you lose. Each carries a cargo intake, because an open-world ship
+jettisons and takes cargo through one; lint refuses a role whose hull has
+none.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0160-start-hulls.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0160-start-hulls.png</span>
+        <span class="figure__placeholder-note">The six start hulls in a 3x2 grid at one scale and light, bows left, in role order: mining tug with its boom emitter, salvage hauler, light freighter, interceptor, patrol picket, raider. They share four skin styles: industrial, salvage (salvage hauler and raider), civilian and armoured (interceptor and patrol picket). The intake door is visible on every hull.</span>
+    </div>
+    <figcaption class="figure__caption">Six hulls, one parts bin. Anything they lose, the starting station can build back.</figcaption>
+</figure>
+<h3 id="the-goal-is-a-charter-not-an-ending" tabindex="-1">The goal is a charter, not an ending</h3>
+<p>Each role plays toward one finite milestone, read off the saved world every
+frame. Every goal opens with the same first line, <strong>Stations owned</strong>, which
+needs one station you own, live or frozen in a sector you left. Then the
+role's own line follows: ore handed in, wrecks recovered, distinct stations
+you have worked for, hulls on a kill list, patrols flown, or, for the pirate,
+one civilization your own kills turned Enemy and six more of its intact hulls
+taken while it stands so.</p>
+<p>The chart's OBJECTIVES block and the Jobs pane both show the next unmet line
+with <code>have / need</code>. The frame both lines are met, the save records the play
+time and the block reads <code>Goal reached at</code> that time. The world does not
+change. There is no completion screen. A met goal stamps the save and the
+sandbox plays on.</p>
+<!-- Shared line: crates/nova_world_base/src/goal.rs:34 STATIONS_OWNED_LABEL;
+     progress: open_objectives crates/nova_gameplay/src/open_objectives.rs:51,
+     read by the Jobs pane crates/nova_interface/src/jobs.rs:812 and the chart
+     crates/nova_interface/src/map/chart.rs:1408. `Goal reached at` text:
+     crates/nova_interface/src/jobs.rs:1342. -->
+<h2 id="stations" tabindex="-1">Stations</h2>
+<p>The open world places stations itself. Every civilization keeps its stations
+at the clusters nearest its centroid: a living one keeps one, plus one per
+half of its advancement, so one to three; an extinct one left exactly one,
+dead and lootable. A cluster holds at most one station, and the choice is a
+function of the seed and the civilization alone, so a cluster shows the same
+station from every cell and in any visit order.</p>
+<p>A station is built from the loaded parts, never picked from a catalog. Each
+civilization draws one of three archetypes and builds one design from it at
+its advancement, so all of its stations share a silhouette.</p>
+<!-- Archetypes, styles and scaling: crates/nova_world_base/src/station_layout.rs
+     (`StationArchetypeType::ALL` :153, style ids :159-170), placement and
+     counts: crates/nova_world_base/src/sector_stations.rs
+     (STATION_ADVANCEMENT_TIERS :52). Scaling: station_layout.rs
+     station_ports :381 `2 + floor(6a)`, station_turrets :386 `4 + floor(12a)`,
+     STORAGE_CAP_G :125 1 t to 4 t, CREDITS :129 10,000 to 40,000,
+     MIN/MAX_STATION_CLEARANCE :89/:97 100 m to 300 m, STOCK_SHARE :108
+     4% to 8%, PANEL_ADVANCEMENT :94 0.5. -->
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>Archetype</th>
+<th>Shape</th>
+<th>Style</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ring</td>
+<td>a solid hub, one to three rings round it, four spokes, eight at higher advancement</td>
+<td>station</td>
+</tr>
+<tr>
+<td>Spire</td>
+<td>two to five decks on columns, struts or solar-panel wings</td>
+<td>armoured</td>
+</tr>
+<tr>
+<td>Yard</td>
+<td>a spine between two end blocks with rows of arms</td>
+<td>industrial</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Advancement sizes everything. A backwater station has two docking ports and
+four turrets, a tonne of storage and 10,000 cr. A core-world station has
+eight ports, sixteen turrets, four tonnes and 40,000 cr. Two new station
+parts make the shapes possible: a truss hull and a solar panel. Both end in
+<code>Bare</code> link points, which still mate but take no skin plate or greeble when
+left open, so a spoke or a wing tip stops clean instead of growing a plate.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0160-station-archetypes.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0160-station-archetypes.png</span>
+        <span class="figure__placeholder-note">Three real generated stations side by side, each framed by its own hull at a common scale: seed 9 yields a ring at advancement 0.25 with four truss spokes, a spire at 0.75 with solar-panel wings and a yard at 0.25 with struts.</span>
+    </div>
+    <figcaption class="figure__caption">One parts bin, three silhouettes. The advancement decides how much of the bin a civilization can use.</figcaption>
+</figure>
+<h3 id="a-station-is-a-body" tabindex="-1">A station is a body</h3>
+<p>A station is a dynamic body like a ship. Gravity and rams move it. In a
+cluster with a planetoid it rides a circular orbit; in one without, it stands
+at rest 500 m clear of a rock. Shove it off its post and its bridge levels it
+and rides back on RCS, docked hulls and all. It docks one ship per port and
+turns with them as one body.</p>
+<p>A living station aims its turrets. An Enemy station fires on hostile sides. A
+Neutral one only fires back, with the same patience a Neutral ship has. The
+guns hold on a docked ship and point defense never fires through one. Fight a
+station down to its last turret or its last flight computer and it turns dead
+in place: services stop, its hold opens to Take, and a docked player gets the
+helm. Past its collapse threshold it comes apart like a ship and drops its
+hold and storage as canisters.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0160-station-orbit.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Video</span>
+        <span class="figure__placeholder-name">assets/loops/news-0160-station-orbit.webm</span>
+        <span class="figure__placeholder-note">A staged fixture: a generated ring station travels around a planetoid with two generated ships attached at distinct dock ports, while its turrets follow and damage a hostile contact. The unusually heavy docked assembly does not hold an exact circle, and the contact loses sections but survives. From the higher camera, both docked ships are distinguishable.</span>
+    </div>
+    <figcaption class="figure__caption">The station is in the well like everything else. It keeps its post on purpose.</figcaption>
+</figure>
+<h3 id="who-lets-you-in" tabindex="-1">Who lets you in</h3>
+<p>A station flies its civilization's stance as its side, and the dock reads the
+side alone. An Ally or Neutral station admits you. An Enemy station refuses
+with a <code>&lt;NAME&gt; REFUSES DOCKING</code> HUD notice and a sound. A dead station admits a
+dock on any side, as a derelict does, and hands you the helm at once; so does
+a ship or station you neutralized.</p>
+<p>The three-sided relation model under all of this has not changed. What is new
+is that a whole civilization now holds one of those sides toward you, and
+moves it.</p>
+<!-- Game source: relation resolution in crates/nova_gameplay (Allegiance
+     relation); a station or ship flies its civilization's stance as its side,
+     crates/nova_world/src/streaming.rs. The widget and its static text are
+     shared with web/src/wiki/factions.md. -->
+<div class="widget" data-widget="relation-matrix">
+<p>Any two things resolve to one of three relations: Player-Player and Enemy-Enemy resolve OWN, Player against Enemy resolves HOSTILE either way, and everything touching Neutral or an unmarked body (asteroids, debris, salvage) resolves NEUTRAL, even Neutral against Neutral. In v0.16.0 a generated station or ship flies its civilization's stance toward you as its side: an Ally civilization's hulls are on the Player side, an Enemy civilization's on the Enemy side. Docking, the AI and the HUD read only the side.</p>
+</div>
+<h3 id="rebuild-refit-add-take-off" tabindex="-1">Rebuild, refit, add, take off</h3>
+<p>Docked at a living station, the Ship pane does the work a dock is for. A
+section you lost is rebuilt with its old code and key, paid by its build
+recipe: credits and parts, taken from your hold first and bought from the
+station for the rest. At a station with <strong>Refit</strong>, the footer gains a
+<strong>Catalogue</strong> button that opens the parts gallery, priced. Select a section
+and every part of the same kind and size offers <strong>Swap</strong>. Click a part and
+its ghost snaps to the nearest open point under the pointer, green when it
+fits and red with the reason when it does not; R rolls it a quarter turn and F
+mates it by its next socket, the editor's own controls. Click to fit it. The
+view eases onto the new part and it takes its kind's key.</p>
+<p>Delete takes a section off for good and gives back its strip share of parts;
+<strong>Salvage</strong> lists them before you press. A delete that would split the ship
+paints the sections that would come off the dock red while the section is
+selected. An armed ship keeps one gun. The station and the ships at its other
+docks show as dim outlines, and a part that would hit them is refused.</p>
+<p>A station design lists the sections it <strong>builds</strong>. Swap, add and rebuild
+refuse the rest, and the Catalogue dims those tiles with the reason on hover.
+An All/Available switch lists only what you can place right now.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0160-refit-catalogue.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Video</span>
+        <span class="figure__placeholder-name">assets/loops/news-0160-refit-catalogue.webm</span>
+        <span class="figure__placeholder-note">The Ship pane docked at a Refit station: Catalogue opens the gallery, a PDC mount is picked, the ghost moves between sockets until its outline and callout turn green at a free dorsal socket, R rolls it, a click fits it and the view eases to the new section. On seed 23 the standard industrial kit buys all five parts for 480 cr, with none from the hold. The last Placing card says Short of parts because the station sold its sole Turret body for the fitted PDC; one refused ghost frame is real post-fit state.</span>
+    </div>
+    <figcaption class="figure__caption">The editor's hands, on your own ship, at a dock that charges for them.</figcaption>
+</figure>
+<h3 id="ships-for-sale-escorts-for-hire-a-station-for-the-right-price" tabindex="-1">Ships for sale, escorts for hire, a station for the right price</h3>
+<p>Docked at a living station, a fifth pane, <strong>Station</strong>, lists what it sells. A
+<strong>Refit</strong> station parks a hull for sale at each port but one, its card turning
+the hull slowly with its name, length and price. Buy at full price and you
+take its controls; your old ship stays parked, yours to <strong>Board</strong> back for
+free, and its hold shows as storage while you are there. <strong>Info</strong> on any card
+opens that hull in the Ship pane, read-only: turn it, zoom it, click a section,
+then <strong>Close</strong>.</p>
+<!-- ESCORT_HIRE_FACTOR crates/nova_ship/src/sections/escort_hire.rs:21 (3, 2);
+     STATION_OWNERSHIP_FACTOR crates/nova_ship/src/sections/station_buy.rs:62
+     (2, 1); formation offsets AI_FOLLOW_GAP 200 m and AI_FOLLOW_TRAIL 100 m
+     crates/nova_ship/src/input/ai/follow.rs:25,29, the gap added to the two
+     hull radii summed at :116. -->
+<p>The same station hires out one to three armed escorts that coast beside it.
+A hire costs half again what the hull would, joins your side where it waited
+and comes to you. It flies on its own drive, 200 m off your side and 100 m
+behind, follows you across sectors, fights what attacks you and saves. A
+third hire is refused: two fleet slots, <strong>STBD</strong> and <strong>PORT</strong>.</p>
+<p>And you can buy the station. Only an Ally civilization's station sells itself
+or hires out escorts. The price is twice what its sections, hold and credits
+are worth at ask, and the credits go to its civilization. It leaves that
+civilization for your side: its guns fire on your foes, it admits you on any
+side, its hold sells to you at bid, and it wears <strong>OWNED</strong>. It earns nothing
+yet. Owning one is the first line of every role's goal.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0160-station-pane.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0160-station-pane.png</span>
+        <span class="figure__placeholder-note">The Station pane at the seed-23 starting station, seeded Ally: This station with its price and Buy station; Ships for sale with one hull card and its price; Escorts for hire with STBD and PORT slots, one filled; a green notice line confirms the hire.</span>
+    </div>
+    <figcaption class="figure__caption">Everything on the pane has a price and a reason it might refuse you.</figcaption>
+</figure>
+<h2 id="jobs" tabindex="-1">Jobs</h2>
+<p>Every living generated station posts a board of three jobs. The board is a
+function of the world seed, the station, its slot and your start, so a Load
+shows the same offers and two boards never pay for the same wreck or hull. An
+offer stands for 20 minutes of play, 60 for an escort, then its slot posts a
+fresh one under a new id. A job you hold is pinned to its slot and never
+expires. Hand one in and the slot renews at once. At the posting station you
+can pay 100 cr to delete an offer you do not hold and post a fresh one in its
+place; dropping a held job is always free, and its slot waits out the normal
+window.</p>
+<!-- Board size, legs and ambush: crates/nova_world_base/src/jobs.rs
+     (JOB_LEG :94 10 km, HAULER_STANDOFF :96 1 km, ESCORT_RENDEZVOUS :99 1 km,
+     HAULER_CRUISE :102 100 m/s, RAIDER_AMBUSH_SHARE :104 0.75,
+     RAIDER_LATERAL :111 2.5 km, RAIDER_ENGAGE_RANGE :113 3 km,
+     RAIDER_LEASH :125 6 km). Offer windows:
+     crates/nova_authoring/src/base_content/market.rs JOB_OFFER_SECONDS 1,200
+     and JOB_ESCORT_OFFER_SECONDS 3,600. Board and rewards:
+     crates/nova_gameplay/src/jobs.rs JOBS_PER_BOARD :89, PROCURE_COUNT :92
+     (2, 8), FEE_STEP_CR :95 50 x FEE_STEPS :97 5, ESCORT_CARGO_CR :100
+     (300, 2,400), DISTRESS_BASE_CR :102 200, NEUTRALIZE_BASE_CR :104 400,
+     RAIDERS_PER_CARGO_CR :107 700, ESCORT_RAIDERS_MAX :109 3,
+     JOB_OFFER_REFRESH_FEE_CR :1614 100. Rewards jobs.rs:1287-1336: Procure
+     count x ask x 3/2 + fee, Recover count x ask x 2 + fee, Escort cargo/2 +
+     fee, Distress 200 + 2 fee, Neutralize 400 + 2 fee. -->
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>Job</th>
+<th>What it asks</th>
+<th>Reward</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Bring 4 Iron ore</code></td>
+<td>bring that many units of the item to the poster</td>
+<td>the goods at ask plus half, plus a fee</td>
+</tr>
+<tr>
+<td><code>Recover 2 Hull plate from &lt;wreck&gt;</code></td>
+<td>take the stack off the named derelict and undock with it aboard</td>
+<td>twice the ask, plus a fee</td>
+</tr>
+<tr>
+<td><code>Escort a hauler carrying 1,200 cr</code></td>
+<td>a hauler waits 1 km off the station and leaves for a mark 10 km out once you are undocked and within 1 km of it, at 100 m/s; see it there</td>
+<td>half the cargo value, plus a fee</td>
+</tr>
+<tr>
+<td><code>Answer a distress call</code></td>
+<td>a neutral drifting caller 10 km out: dock with it</td>
+<td>200 cr plus twice the fee</td>
+</tr>
+<tr>
+<td><code>Neutralize &lt;hull&gt;</code></td>
+<td>neutralize the named Enemy hull in the cube of sectors around the station</td>
+<td>400 cr plus twice the fee</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The fee is 50 to 250 cr. A station asks for what its sector lacks: raw
+material in an asteroid or rock sector, food and raw material near a planet,
+parts and plates in a derelict field. Which kinds a board leans to follows
+your role. A trader's boards post procurements and escorts, a scavenger's
+recoveries, a hunter's distress calls and bounties. Your starting station's
+board lists only the jobs your hull can do: a hold for the stack, a docking
+section, or a weapon. Every other board lists them all and greys Accept with
+the reason.</p>
+<h3 id="the-escort-is-a-fight-you-can-lose" tabindex="-1">The escort is a fight you can lose</h3>
+<p>An escort's hauler does not leave until you are undocked and within 1 km of
+it. Then it runs its 10 km leg at 100 m/s. Its raiders, one plus one per 700
+cr of cargo up to three, lie 2.5 km off the leg three quarters of the way
+along it and engage inside 3 km. They hunt the hauler and turn on whoever
+shoots them for as long as that ship keeps shooting. A hauler neutralized,
+destroyed or left without drives drops the job and its bodies. The reward is
+paid at the hand-in, not at the mark.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0160-escort-ambush.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Video</span>
+        <span class="figure__placeholder-name">assets/loops/news-0160-escort-ambush.webm</span>
+        <span class="figure__placeholder-note">First beat of the seed-2 military escort: frame the hauler, player and nearest raider with the real JOB-1 Escort mark; raiders engage. The hauler has not reached its mark yet.</span>
+    </div>
+    <figcaption class="figure__caption">The run log attributes 35 PDC hits to the player in this beat, but the ships are small in frame and the hits are hard to see. The hauler is not yours and does not wait for you twice.</figcaption>
+</figure>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0160-escort-done.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Video</span>
+        <span class="figure__placeholder-name">assets/loops/news-0160-escort-done.webm</span>
+        <span class="figure__placeholder-note">Second beat from the same run, near the end of the 10 km leg: the hauler reaches the mark, the JOB-1 Escort mark clears, JOB-1 Hand in moves to the poster station and a notice reads JOB-1 done: hand in at STN-n. No reward is paid before hand-in.</span>
+    </div>
+    <figcaption class="figure__caption">Arrival completes the leg. The station still holds the pay.</figcaption>
+</figure>
+<h3 id="the-jobs-pane" tabindex="-1">The Jobs pane</h3>
+<p>A fourth pane, <strong>Jobs</strong>, holds your work. Docked, <strong>Jobs posted here</strong> lists
+the board with each offer's kind icon, title, reward, a meter of the time left
+and Accept. <strong>Your jobs</strong> lists what you hold from any station, docked or not,
+with a <code>have / need</code> meter, <strong>Hand in</strong>, and an X to drop. At the hand-in
+station the row reads HAND IN HERE. Click a row and the inspector reads the
+job in full, with <strong>Show on Map</strong>, which opens the chart on the job's mark.
+Over the lists sits your role's next milestone. An empty list reads EMPTY.</p>
+<p>In flight, the body a held job sends you to wears a gold <code>JOB-n</code> chip with
+what to do and the distance; off screen it pins to the edge. The moment the
+work is done, a HUD notice names the station that pays, and the chip moves
+there. Jobs that hand in at one station share its chip. A hand-in reports the
+payout, the new balance and, when it steps a civilization, the stance.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0160-jobs-pane.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0160-jobs-pane.png</span>
+        <span class="figure__placeholder-note">The Jobs pane at a second station: the milestone row above a held procurement with its have / need meter; the second station's three posted offers include an Escort with Accept unavailable to this unarmed hull. The procurement inspector has Show on Map.</span>
+    </div>
+    <figcaption class="figure__caption">Three lists and a notice line. The work, the offers, and what the station thinks of the last thing you did.</figcaption>
+</figure>
+<h2 id="a-market-with-reasons" tabindex="-1">A market with reasons</h2>
+<p>v0.15.0 priced every item the same on every ship. In v0.16.0 a generated
+station or ship prices each item at the moment you trade, from three factors
+on top of the reference price: its <strong>scarcity</strong>, the stock it holds against
+the stock it spawned with; its <strong>cluster</strong>, the type of space it stands in;
+and its <strong>civilization</strong>, what its ships do. Ore is cheap where asteroids are
+many and dear among planets. A civilian world pays more for rations. An
+armored one pays more for ammunition and plates.</p>
+<p>The Inventory pane shows the arithmetic. Each row carries the <strong>Price</strong> of one
+with a <strong>Deal</strong> badge of the percent off the reference, green when it favours
+you and amber when not. Select an item and the inspector reads Reference,
+Pays and Asks with the three factors that made them and their total, marked
+<code>clamped</code> when the price hit its limit. A <strong>MARKET</strong> strip under the columns
+names what the trader buys for most and sells cheapest, its restock gap, and
+REFUSED with the minutes left while its civilization will not deal with you.
+Buy all and Sell all trade the whole stack in one click, and a double-click on
+any row does the same.</p>
+<!-- Game source: crates/nova_authoring/src/base_content/market.rs CLAMP_MAX :16
+     3.0, STARVED :20 (1.5, 1.25), GLUT :26 (0.9, 0.6), GLUT_SHARE :28 3.0,
+     UNKEPT :31 (1.0, 0.9), RESTOCK_RECOVERY_SECONDS :38 1,800, cluster and
+     role factors :45-65; generated into assets/base/market/base.content.ron.
+     Reference prices: crates/nova_authoring/src/base_content/items.rs:49-136.
+     Pricing and restock: crates/nova_world_base/src/economy.rs. -->
+<!-- No-script fallback describes the same factors as the price-factors widget. -->
+<div class="widget" data-widget="price-factors">
+<p>A trader's ask is the reference ask times a scarcity factor, a cluster factor and a civilization factor; the bid is the same product over the bid side. Scarcity runs from 1.5 on the ask and 1.25 on the bid at no stock, through 1 at the stock the trader spawned with, down to 0.9 and 0.6 at three times that stock. An item the trader never spawned with pays 0.9 of the reference. Raw material is 0.6 in an asteroid-rich cluster, 0.8 among bare rock and 1.5 near planets; parts are 0.7 and repair material 0.85 in a derelict field. An industrial civilization prices raw material at 0.8, a civilian one food at 1.25, a scavenger one parts at 0.8, and an armored one ammunition at 1.25 and repair material at 1.15. The product is clamped between 0.25 and 3.0. With every factor's bid at most its ask, a trader never pays more than it charges.</p>
+</div>
+<p>A trader's stock stands still while its sector is frozen and drifts back
+toward its spawn stock by the play time it stood frozen, 30 minutes of play
+from empty to full. A reload alone restocks nothing. A trader you sold a glut
+to is still glutted when you come back a minute later, and recovering when
+you come back an hour later.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0160-market-inspector.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0160-market-inspector.png</span>
+        <span class="figure__placeholder-note">The Inventory pane docked at a planet-heavy station with Iron ore selected: the row's Price with a green Deal badge, the inspector reading Reference, Pays and Asks with Scarcity, Cluster and Civilization factors and their Total, and the MARKET strip naming Buys and Sells under the columns.</span>
+    </div>
+    <figcaption class="figure__caption">The price is a product of where you are, what they have and who they are, and the pane shows the multiplication.</figcaption>
+</figure>
+<h2 id="civilizations-have-opinions" tabindex="-1">Civilizations have opinions</h2>
+<p>Every living civilization holds one stance toward you: Ally, Neutral or
+Enemy. Never a number. The seed draws it with an even chance of each, the same
+for every role, and your deeds move it.</p>
+<!-- Game source: crates/nova_gameplay/src/civilization.rs OFFENCE_STEP :128 (3),
+     OFFENCE_WINDOW_SECONDS :133 (3600), MERIT_STEP :136 (3),
+     ENEMY_DECAY_SECONDS :147 (7200); neighbours
+     crates/nova_world_base/src/civilizations.rs:88 STANCE_NEIGHBOUR_RADIUS
+     340 km; fine crates/nova_world_base/src/stance.rs:45 FINE_CR 1,000 to
+     10,000 cr; PROVOKED_WINDOW_SECONDS civilization.rs:143 (900);
+     NEUTRAL_RETALIATION_THRESHOLD crates/nova_ship/src/input/ai/threat.rs:112
+     (30 HP); 8 s arrival grace ENGAGE_DELAY
+     crates/nova_world_base/src/sector_ships.rs:88. -->
+<ul>
+<li><strong>An offence</strong> is neutralizing an intact generated hull or station of a
+civilization, by your ship or your fleet escort. Three offences inside an
+hour of play step it one down. The first two are a grace count, and an
+offence older than the window is forgotten.</li>
+<li><strong>A merit</strong> is handing in a job one of its stations posted. Three merits
+step it one up.</li>
+<li><strong>A step down travels one hop.</strong> Two living civilizations whose centroids
+lie under 340 km apart are neighbours, and their edge is seeded Ally,
+Neutral or Enemy. When an offence steps a civilization down, an Ally
+neighbour follows one step down and an Enemy neighbour warms one step up. A
+Neutral edge carries nothing, and nothing reaches a neighbour's neighbour.
+Every neighbourhood holds at least one rival, so there is always somebody
+who likes it when you misbehave.</li>
+<li><strong>A provocation</strong> is faster than an offence. Fire or ram a Neutral or Ally
+hull past its patience, the same 30 hit points in quick succession that
+make a Neutral ship answer, and its whole civilization reads Enemy for 15
+minutes of play.</li>
+<li><strong>An Enemy you made thaws.</strong> With no new offence for two hours of play it
+returns to Neutral. A seeded Enemy never does.</li>
+<li><strong>Or you settle.</strong> Select a charted station on the chart and the STANCES
+block lists every neighbour of it that stands Enemy to you, with its fine
+and <strong>Pay fine</strong>, which works only while you are docked there. The fine runs
+from 1,000 cr at a backwater to 10,000 cr at a core world, goes to the
+station, and returns that civilization to Neutral with its offences cleared.
+No neighbour moves.</li>
+</ul>
+<p>What the stance does is plain. An Enemy civilization's stations refuse your
+dock and its ships fight you. Only an Ally's station sells itself or hires out
+escorts. A Neutral one trades and posts jobs. A station you bought, an escort
+in your fleet and a hull you neutralized keep their side whatever its
+civilization decides. And every generated crew now holds fire for eight
+seconds after its cell streams in, whatever its side, so a civilization you
+turned Enemy arrives with the same grace a seeded one gets.</p>
+<!-- No-script fallback describes the same one-hop rules as the stance-ledger widget. -->
+<div class="widget" data-widget="stance-ledger">
+<p>Take a civilization that starts Ally to you, with one neighbour on an Ally edge and one on an Enemy edge. Neutralize three of its hulls inside an hour and it steps to Neutral; the Ally neighbour follows it one step down, and the Enemy neighbour warms one step up. Hand in three jobs at one of its stations and it steps back to Ally; nobody else moves. Fire a long burst into one of the Ally neighbour's pickets and that whole civilization reads Enemy for 15 minutes, then returns to what it was. Turn a civilization Enemy with your own kills and leave it alone for two hours of play and it thaws to Neutral; or dock at a station that admits you, pay its fine, and it thaws now.</p>
+</div>
+<figure class="figure">
+    <!-- Capture: assets/news-0160-stances-block.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0160-stances-block.png</span>
+        <span class="figure__placeholder-note">The Map chart with no station selected: STANCES shows three rows with base [ALLY] badges and ADV chips: the start civilization, one with OFFENCES 2/3 and a HOSTILE countdown, and another with HOSTILE countdown. The provoked effective hostility does not replace their base badges. No fine button appears; paying requires an eligible selected station.</span>
+    </div>
+    <figcaption class="figure__caption">The chart keeps a ledger of who is angry and for how long. A fine belongs to an eligible station, not this overview.</figcaption>
+</figure>
+<h2 id="the-chart-remembers" tabindex="-1">The chart remembers</h2>
+<p>The Map pane has a second view. Press C and it draws your chart at sector
+scale: a grid of 32 km cells on the focused Y layer, Z and X step the layer,
+and Reframe returns to yours. A cell you entered is a textured tile, one
+layer per cluster type it holds: an asteroid speckle, a rock scatter, a ringed
+planet, cracked derelict slivers. A cell you never entered is an outline. The
+stations and wrecks your sensors found stand on their tiles as <code>STN-n</code> and
+<code>WRK-n</code>, numbered in the order you found them. A dead station fades, one that
+refuses you wears a red ring, and one with open jobs adds their count to its
+code.</p>
+<p>Click a cell or a mark and the view centres on it and the panel opens a
+SECTOR block: its contents as icon rows, when you entered it, every find there
+with its state, the services, stock and storage you saw at your last dock at
+each station there, and the jobs you hold that point there. A station you
+never docked at says so. While nothing is selected the panel shows the
+OBJECTIVES block, the discovery log of your last twelve finds with relative
+times, and STANCES.</p>
+<p>Every job you hold is marked <code>JOB-n</code> in the sector of the body it sends you
+to, and a procurement in the sector of its poster. A scenario handler can mark
+a generated rock or derelict too, and the mark outlives a retire and a thaw.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0160-chart-view.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Video</span>
+        <span class="figure__placeholder-name">assets/loops/news-0160-chart-view.webm</span>
+        <span class="figure__placeholder-note">Seed 10 transport, with STN-1 charted on Y6 and STN-2 on Y0: open the chart, move up to Y6, then step down through the layers to Y0. The station mark opens its SECTOR block; clearing selection returns OBJECTIVES and the discovery log. The shot stages the ship at STN-2 rather than filming the flight and finds no WRK there.</span>
+    </div>
+    <figcaption class="figure__caption">The chart is what you found, not what is there.</figcaption>
+</figure>
+<h2 id="the-world-keeps-what-you-did" tabindex="-1">The world keeps what you did</h2>
+<p>In v0.15.0 a sector that streamed out and back in was generated again from the
+seed. Now it freezes as you left it and thaws that way: mined rocks and the ore
+still owed by a cut, damaged, looted and neutralized ships, canisters, wrecks
+and a docked partner. Only the planetoids regenerate from the seed. Within a
+session, a wreck you emptied stays empty and a ship you destroyed stays
+destroyed.</p>
+<p>On the desktop build the world also saves itself. New Game names its world and
+writes a save on every sector crossing and on leaving. A play clock runs only
+while you fly unpaused, and every frozen sector records the time it froze, so
+a trader's restock and an offer's expiry read the clock and not the wall. The
+main menu gains <strong>Continue</strong>, which opens the newest world and says how long
+ago it was saved, and <strong>Load</strong>, which lists every saved world with its role,
+play time and open objectives and draws the save's chart. Dying shows DEFEAT
+with <strong>Load last save</strong>. The pause menu's Retry becomes Load last save too.</p>
+<!-- Save records and the frozen sector: crates/nova_world_base/src/save/,
+     crates/nova_world/src/frozen.rs; Load screen crates/nova_menu/src/load_screen.rs,
+     save notices crates/nova_menu/src/save_status.rs, RESTORING SECTORS line
+     crates/nova_core/src/loading_screen.rs:524. Save on a CurrentSector change:
+     request_world_save crates/nova_world_base/src/save/session.rs:378-405;
+     leave save request_leave session.rs:188-196; 240 s restore limit
+     WORLD_RESUME_SECONDS_MAX crates/nova_world_base/src/save/transients.rs:56. -->
+<p>A Load brings back your ship with its damage, plates, ammunition, hold,
+credits and bindings, every frozen sector, and every live sector as it was,
+including a round, a torpedo and a cut rock chunk still in flight. It brings
+the scenario back too: objectives, markers, story log, variables and running
+timers, and a one-shot handler that fired does not fire again. A Load resumes
+you exactly as saved, docked to the same partner if you were. The web build
+keeps no saved worlds: New Game there is a one-off session with no name
+field and no Load button.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0160-load-screen.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0160-load-screen.png</span>
+        <span class="figure__placeholder-note">Three real saves made in a private profile. Selected seed-34 Ashfall Salvage has JOB-1, STN-1, two sensor-found wreck marks and YOU on its chart; FLEET names the Salvage Hauler and one escort, with two open objectives. The fixture granted credits for the hire.</span>
+    </div>
+    <figcaption class="figure__caption">A save is a world with a name, a clock and a chart, not a checkpoint.</figcaption>
+</figure>
+<h2 id="ships-and-parts" tabindex="-1">Ships and parts</h2>
+<h3 id="a-new-base-fleet" tabindex="-1">A new base fleet</h3>
+<p>The base hull list is new. Six start hulls, a training picket for the
+handbook, a line warship, a freighter derelict and a debris plate replace the
+block fleet of v0.15.0. The salvage hauler and the light freighter fly five
+stern drives each, down from eight and nine, with a simpler aft silhouette.</p>
+<p>Generated ships changed shape too. They are longer and thinner, cap at 2,000
+sections, and fly capital drives that push 75, up from 25. They grow with
+distance: the first four civilization rings field small hulls only, medium
+hulls appear near 2,000 km out, and the largest past 3,000 km. Every one
+carries a cargo intake, on top or below, clear of its docking ports. A ship
+carries only ammunition its own weapons reload from: no torpedoes without a
+bay. Torpedo bays are rare and railgun lances need mid advancement, so the
+ships near your start shoot PDC rounds at you.</p>
+<!-- Capital drive magnitude 75: crates/nova_authoring/src/base_content/sections/thruster.rs:200.
+     MAX_SHIP_SECTIONS crates/nova_world_base/src/ship_layout.rs:113 (2,000).
+     Rings and hull size: crates/nova_world_base/src/civilizations.rs
+     CIVILIZATION_LATTICE :42 240 km, ADVANCEMENT_SATURATION :60 4,000 km with
+     its doc line naming small hulls in the first four rings, medium near
+     2,000 km and the largest past 3,000 km. Torpedo bay advancement 0.0 with
+     draw_weight 0.1 (rare by draw, not by tier):
+     crates/nova_authoring/src/base_content/sections/torpedo_bay.rs:151-153;
+     railgun advancement 0.5: sections/railgun.rs:109. -->
+<figure class="figure">
+    <!-- Capture: assets/news-0160-generated-scale.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0160-generated-scale.png</span>
+        <span class="figure__placeholder-note">Three generated armored hulls at one scale and light, bows left, from seed-10 civilizations at 277, 1,901 and 3,106 km. They measure 100, 265 and 395 m; each dorsal intake shows. The far hull has forward lances in the design, but armor hides their rails from this side angle.</span>
+    </div>
+    <figcaption class="figure__caption">The further out you fly, the longer the ships that meet you.</figcaption>
+</figure>
+<h3 id="the-skin-is-rebuilt" tabindex="-1">The skin is rebuilt</h3>
+<p>The hull skin is a new system. Flat plates at half or a whole cell with
+chamfered rims, folds and skirts at hull corners, and stairs clad as one ramp.
+A plate under a greeble flattens to fit it. A style now places greebles by
+<code>greeble_rules</code>: link types, greebles with four link points, <code>near</code> terms and
+caps. Six <code>station_*</code> greebles and a <code>station</code> style dress the new station
+parts.</p>
+<h3 id="a-destroyed-ship-spills-its-cargo" tabindex="-1">A destroyed ship spills its cargo</h3>
+<p>A destroyed ship drops its hold as cargo canisters, and a destroyed section
+drops its <code>strip_yield</code> share of each recipe part, rounded down. Both freeze
+and save. Dock with a derelict instead and the Inventory pane's <strong>Strip</strong>
+first loots its hold, late cargo too, then takes it apart one section at a
+time, farthest from your port first and the port last, each part of each
+recipe times its yield times its health. The HUD chip over your ship reads
+<code>STRIP 40%</code> while you fly on docked. A hold without room holds the strip at
+that section until you make room.</p>
+<h3 id="mining-without-a-lock" tabindex="-1">Mining without a lock</h3>
+<p>The mining beam no longer needs a travel lock. It cuts the nearest asteroid
+its ray meets within 100 m of the emitter face, and a nearer barren rock
+blocks the ore behind it. A refused pulse now plays the section's
+<code>refusal_sound</code> at the emitter, once per pulse, so a silent beam means
+nothing is in front of it and a buzzing one means a check is failing.</p>
+<!-- Game source: nearest-asteroid aim and refusal order in
+     crates/nova_scenario/src/mining.rs (MiningRefusalType, aim_beam); reach
+     100 m, pulse 1 s and carve_radius_cells 1.5 in
+     crates/nova_authoring/src/base_content/sections/mining_beam.rs:109-111;
+     canister 200 kg crates/nova_gameplay/src/inventory.rs:532; birth offset
+     and drift crates/nova_scenario/src/mining.rs:103,107. The widget and its
+     static text are shared with web/src/wiki/sections/mining-beam.md. -->
+<div class="widget" data-widget="mining-beam-checks">
+<p>The emitter ray checks the nearest asteroid it intersects within 100 m, with no travel lock required. A barren asteroid in front of an ore rock refuses the pulse rather than letting the beam pass through it. A refused pulse shows nothing on the HUD. A pulse that passes cuts a sphere about 7.5 m in radius where the beam meets solid material; the first pulse into an untouched rock cuts nothing. Ore leaves only after the rock's remesh lands, as canisters of up to 200 kg, each born 10 m off the cut and drifting off it at 2 m/s.</p>
+</div>
+<p>The cargo intake learned one refusal of its own. Its door stays shut for a
+canister the hold has no room for. A canister that fits still opens it.</p>
+<h2 id="flight-and-combat" tabindex="-1">Flight and combat</h2>
+<ul>
+<li><strong>A scrape is free.</strong> A contact under 10 m/s of closing speed, up from 5,
+costs nothing, so a glancing touch or a drift out of STOP no longer damages
+what it touches.<!-- SAFE_CONTACT_SPEED crates/nova_gameplay/src/integrity/core.rs:69. -->
+</li>
+<li><strong>Docked hulls do not grind.</strong> Two docked hulls no longer collide, so skin
+plates and greebles past a port face no longer wear both hulls down while
+they sit docked, and undocking no longer shoves them apart. A berthed hull
+stands one cell off its port, and the dock gate carries a little slack past
+capture distance for float noise.</li>
+<li><strong>Neutrals have patience.</strong> A Neutral ship answers a ship only after it
+deals 30 hit points in quick succession, fire and rams alike. One PDC burst
+provokes it. A stray round or a scrape does not.</li>
+<li><strong>GOTO takes the lock on sight.</strong> A GOTO's target takes your empty travel
+lock the moment it comes into sight, with no dwell, so a Map GOTO set out of
+range is locked for DOCK as you arrive. Docked, a Map GOTO waits and flies
+once you undock. G or CANCEL drops it.</li>
+<li><strong>The predicted path bends for the target.</strong> GOTO's path curves for a
+coasting or tumbling target, gravity included, and hides while the target
+changes course or spin; the guide stays.</li>
+<li><strong>RCS has exhaust.</strong> Every push throws gas puffs off the hull. Another
+ship's RCS hiss carries at any push, and generated ships voice their RCS and
+cockpit cues.</li>
+</ul>
+<h2 id="interface-and-controls" tabindex="-1">Interface and controls</h2>
+<ul>
+<li><strong><code>;</code> opens NOVA COMMANDS</strong>, with no Shift on US layouts. <code>:</code> no longer
+does, and a <code>;</code> typed into a text field stays in the field.</li>
+<li><strong>The title row shows the play clock and your balance</strong> on every pane.
+Prices, rewards and balances carry a credit mark and group thousands, as
+<code>1,200 cr</code>.</li>
+<li><strong>Settings &gt; Graphics has presets.</strong> Low, Medium, High or Custom over
+particle, resolution, flash-light and shake levers, plus VSync, UI scale
+and Invert Y. Alt-tab no longer pauses play by default; <strong>Pause when
+unfocused</strong> turns it back on.</li>
+<li><strong>The side panels share one width.</strong> Map, Ship, Inventory and Jobs each
+keep a fixed 300 px inspector. Under 1200 px Storage stacks under the
+station's column, and under 800 px the footer puts its key hints on a
+second row, so everything shows whole at 640x600.</li>
+<li><strong>The Ship pane uses the editor's controls.</strong> Q picks the part under the
+pointer or puts the part in hand away, right-drag turns the view, and the
+D-pad turns it on a pad. A gun, bay, railgun or beam with no key reads
+UNBOUND, and Rebind takes a key or a pad button and sets that device's half
+only.</li>
+<li><strong>The keybind dock keeps a fixed slot per verb.</strong> A verb you cannot press
+draws dim. HELM shows only while docked. The COMPONENT chip is gone; ] and
+[ and the wheel still step the component lock.</li>
+<li><strong>Notices have one sound.</strong> A Station, Jobs or Pay fine result shows on a
+notice line for four seconds, green or red, with a click for a result and a
+buzz for a refusal. Greyed buttons read clearer in both themes.</li>
+</ul>
+<figure class="figure">
+    <!-- Capture: assets/news-0160-settings-presets.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0160-settings-presets.png</span>
+        <span class="figure__placeholder-note">Settings > Graphics at the top of its scrollable panel: Low / Medium / High / Custom, with Custom lit after Camera Shake is changed, and the four Graphics levers. Window, VSync and Pause when unfocused are further down this tab; UI scale and Invert Y live on other tabs.</span>
+    </div>
+    <figcaption class="figure__caption">One row to pick a level, four levers to disagree with it.</figcaption>
+</figure>
+<h2 id="more-in-v0160" tabindex="-1">More in v0.16.0</h2>
+<ul>
+<li><strong>Starts are docked.</strong> <code>SpawnStartRole</code> spawns the role's hull beside the
+starting station and docks it there, so the first thing you do in a world
+is open the Station pane.</li>
+<li><strong>The menu duel ends fast.</strong> The rival comes apart once a fifth of its hull
+is gone, the victor's PDCs hit for more, and the siege torpedo kills the
+victor in one hit.</li>
+<li><strong>Hold events fire once.</strong> <code>OnMined</code>, <code>OnPickedUp</code>, <code>OnJettisoned</code>,
+<code>OnTraded</code>, <code>OnCreditsChanged</code> and <code>OnRepaired</code> fire once per occurrence;
+a settlement fires <code>OnCreditsChanged</code> with cause <code>Settle</code>.</li>
+<li><strong>Stations know they are stations.</strong> <code>OnDocked</code> and <code>OnUndocked</code> carry the
+partner's <code>type_name</code>, so a filter can ask for a <code>living_station</code>.</li>
+<li><strong>Generated rocks have names.</strong> The target inset names a generated asteroid
+by its kind, as <code>Rock asteroid</code>, not its internal id.</li>
+<li><strong>The Sandbox can spawn a station.</strong> A ship's Station box spawns it as one;
+Station Check names the first fault and Play refuses a hull with a thruster,
+no port or no controller.</li>
+<li><strong>Credit cheats.</strong> Armed, <code>credits give</code> and <code>credits set</code> change a ship's
+credits, never below zero, and fire <code>OnCreditsChanged</code> with cause <code>Cheat</code>.</li>
+<li><strong>A debug window.</strong> Debug builds open Nova Debug on F11 and freeze flight:
+overlay checkboxes, cheats, a command prompt, entities by sector and type,
+and the raw inspector.</li>
+<li><strong>The editor's planet hit box matches the drawn planet.</strong> It was far
+larger, so F framed a scenario from too far away to see its ships.</li>
+<li><strong>Lists stop leaking clicks.</strong> A click or hover under a scrolled list no
+longer reaches a row hidden past the list's edge.</li>
+</ul>
+<h2 id="modding-and-compatibility" tabindex="-1">Modding and compatibility</h2>
+<p>v0.16.0 changes more content formats than any release since v0.13.0. Run
+<code>content lint</code> on every bundle and read the <a href="/create/stations/">station</a>,
+<a href="/create/start-roles/">start role</a> and <a href="/create/prices/">price table</a> pages.</p>
+<ul>
+<li><strong><code>role: OpenWorld</code> is gone.</strong> A scenario declares <code>world: Generated((seed: None))</code> for the New Game seed, or a fixed seed the
+Scenarios list shows. It spawns exactly one player ship. A <code>bounds</code> sphere
+spawns as a scenario area and raises <code>OnExit</code> when the player leaves it.</li>
+<li><strong><code>SpawnStartRole</code> takes only <code>id</code>.</strong> <code>position</code> and <code>rotation</code> fail at
+lint; the ship spawns beside the starting station and docks there.</li>
+<li><strong>A world save carries its scenario.</strong> Load fires <code>OnResume</code>, not
+<code>OnStart</code>; a <code>seed: None</code> scenario needs a handler for it.</li>
+<li><strong>Items are content.</strong> Mods add <code>Item</code> entries. Stock keys are quoted,
+<code>{&quot;HullPlate&quot;: 8}</code>, and unknown ids fail at lint and at load. Two mods that
+define one item id are both refused unless one depends on the other. Base
+must define the ten item ids the game uses.</li>
+<li><strong>Every section needs a <code>build</code> recipe</strong> of credits and <code>Parts</code> items, and
+its <code>base</code> authors <code>advancement</code> and <code>draw_weight</code>. Every civilization
+builds the parts at advancement 0 and knows a seeded subset of those above
+it.</li>
+<li><strong><code>Station</code> content</strong> holds its hull, services, stock and credits under
+<code>design</code>, spawns from <code>Prototype(id)</code> or <code>Inline</code> with a side, and lists the
+sections it <code>builds</code>. Its <code>initial_velocity</code> must be circular in a well or
+zero outside.</li>
+<li><strong>A <code>StartRole</code> kind</strong> names a New Game start. Its <code>goal</code> is <code>OreDeliveries</code>,
+<code>Recoveries</code>, <code>StationNetwork</code>, <code>KillList</code>, <code>Patrols</code> or <code>Outlaw</code>; a zero
+count fails lint, and so does a hull with no intake or a part above
+advancement 0.</li>
+<li><strong>A <code>PriceTable</code> kind</strong> sets the scarcity curve, cluster and role demand,
+the clamp, the restock recovery and the two job offer windows. The base
+states one; a mod that states one replaces it whole.</li>
+<li><strong>Styles place greebles by <code>greeble_rules</code>.</strong> <code>placement</code> is gone.</li>
+<li><strong>A design must name a style the catalog holds.</strong> An unknown style fails at
+lint and stops the game at spawn instead of leaving the hull bare.</li>
+<li><strong>Ids are stricter.</strong> A scenario object id or a ship section id may not
+contain <code>/</code>, two sections of one ship may not share an id, and an asteroid
+<code>lock_signature</code> must be finite and above zero.</li>
+<li><strong>Mining sections require <code>refusal_sound</code>.</strong> Base uses <code>radar_deny.wav</code>.</li>
+<li><strong>Ships hold only ammunition their weapons reload</strong>, and the base hull ids
+are new: <code>mining_tug</code>, <code>salvage_hauler</code>, <code>light_freighter</code>,
+<code>freighter_derelict</code>, <code>interceptor</code>, <code>raider</code>, <code>patrol_picket</code>,
+<code>training_picket</code>, <code>line_warship</code> and <code>debris_plate</code>.</li>
+</ul>
+<div class="callout callout--breaking">
+<p class="callout__title">Give every part a recipe and every world a start</p>
+<p>A section without a <code>build</code> recipe, a ship without a catalog style, a stock key that is not a quoted item id, or a scenario still declaring <code>role: OpenWorld</code> fails lint in v0.16.0. Add the recipes, name the style, quote the stock, declare the <code>world</code>, and run <code>content lint</code> before you publish.</p>
+</div>
+<h2 id="point-releases" tabindex="-1">Point releases</h2>
+<p>No point releases yet.</p>
+<footer class="post-footer"><p class="post-footer__discuss">Got a reaction, a question, or a ship you want to show off? <a href="https://github.com/alexjercan/nova-protocol/discussions" target="_blank" rel="noopener">Talk about this release on GitHub Discussions</a>.</p><p class="post-footer__discuss">Want the terse, complete list for every version (patch releases included)? <a href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Read CHANGELOG.md on GitHub</a>.</p><p class="post-footer__nav"><a href="/nova-protocol/news/">&larr; All news</a></p></footer></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+</footer>
+</body></html>

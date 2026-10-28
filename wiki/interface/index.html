@@ -8,7 +8,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Interface</p><h1>Interface</h1><div class="wiki__tags" id="wiki-tags"></div><p>Every ship carries a second seat of control: the <strong>interface</strong>. Press <kbd>Tab</kbd> in flight and a full-screen panel opens over the frozen world with three panes: <strong>Map</strong>, <strong>Ship</strong> and <strong>Inventory</strong>. Flight resumes the moment you close it.</p>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Interface</p><h1>Interface</h1><div class="wiki__tags" id="wiki-tags"></div><p>Every ship carries a second seat of control: the <strong>interface</strong>. Press <kbd>Tab</kbd> in flight and a full-screen panel opens over the frozen world with four panes: <strong>Map</strong>, <strong>Ship</strong>, <strong>Inventory</strong> and <strong>Jobs</strong>. Docked at a living station, a fifth pane, <strong>Station</strong>, sells ships, escorts and the station itself. Flight resumes the moment you close it.</p>
 <figure class="figure">
     <!-- Capture: assets/wiki-interface-map.png -->
     <div class="figure__placeholder">
@@ -33,7 +33,9 @@
      (interface_toggle Tab / Right Thumb, interface_next_tab M / Y).
      Back-out owner (Escape, Start): crates/nova_interface/src/terminal/input.rs
      `close_surface_from_menu_keys`. First open shows Map, later opens the last
-     pane: `InterfacePaneType` in pane.rs. -->
+     pane: `InterfacePaneType` in pane.rs. Station tab gate: `show_station_tab`
+     and `leave_station_pane` in pane.rs. -->
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -52,18 +54,19 @@
 </tr>
 <tr>
 <td><kbd>M</kbd> (or gamepad <kbd>Y</kbd>)</td>
-<td>Step to the next pane: Map, Ship, Inventory, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead.</td>
+<td>Step to the next pane: Map, Ship, Inventory, Jobs, Station while you are docked at a living station, then Map again. While a text field has the caret, such as the Inventory quantity, <kbd>M</kbd> types instead.</td>
 </tr>
 <tr>
-<td>Click <strong>Map</strong>, <strong>Ship</strong> or <strong>Inventory</strong></td>
-<td>Switch to that pane.</td>
+<td>Click <strong>Map</strong>, <strong>Ship</strong>, <strong>Inventory</strong>, <strong>Jobs</strong> or <strong>Station</strong></td>
+<td>Switch to that pane. The <strong>Station</strong> tab shows only while you are docked at a living station; undock and the interface opens on Ship instead.</td>
 </tr>
 <tr>
-<td><kbd>:</kbd></td>
+<td><kbd>;</kbd></td>
 <td>Open the <a href="../commands/">command shell</a> over the pane. Close it and you are back on the same pane, with its camera and selection as you left them.</td>
 </tr>
 </tbody>
 </table>
+</div>
 <details class="explain">
 <summary>Show explanation</summary>
 <!-- Freeze: crates/nova_menu/src/lib.rs OnEnter/OnExit(Interface) (clocks held,
@@ -72,7 +75,7 @@
      crates/nova_hud/src/objective_stack.rs. -->
 <p>While the interface is open the game is frozen: the clocks stop, so combat, physics, AI and every projectile hold mid-frame, and a held trigger cannot fire into the frozen world. The mouse cursor is freed, so you can point, read and click at your own pace. It is a pause without a pause menu: <kbd>Esc</kbd> closes the interface instead of opening the menu.</p>
 <p>Opening the interface hides the flight instruments behind it and marks every posted objective chip as read. The standing list is the <code>objectives</code> command, and <code>log</code> prints the comms and objective history.</p>
-<p>The interface and the command shell share one freeze. Opening <code>:</code> over a pane, and closing it again, never runs a frame of the world and never lets a key reach flight or the pane on the way.</p>
+<p>The interface and the command shell share one freeze. Opening <code>;</code> over a pane, and closing it again, never runs a frame of the world and never lets a key reach flight or the pane on the way.</p>
 </details>
 <h2 id="the-map" tabindex="-1">The map</h2>
 <!-- Contact kinds + codes: crates/nova_interface/src/map/contacts.rs
@@ -83,8 +86,11 @@
      tag: scene.rs `project_map_route`. Footer and its live key hints:
      crates/nova_interface/src/pane.rs (`pane_footer`,
      `refresh_pane_input_hints`). Icons: crates/nova_interface/src/icons.rs.
-     Keys: crates/nova_interface/src/bindings.rs. -->
-<p>The Map pane is a schematic 3D chart of local space: distance rings, a hub, and every contact as an icon - a chevron for a ship, a lump for an asteroid, a ringed disc for a planet, a diamond for an objective - tinted by what it is to you. Click one, or step through them with <kbd>[</kbd> / <kbd>]</kbd>, and the contact panel beside the chart gives its code, name and kind, then its range and bearing. Under them, the panel names your live GOTO destination over a <strong>GOTO</strong> button. An unselected contact has a faint frame; the selected one has a bright frame and always shows its label. The footer under the chart holds the legend of the icons on the chart now and <strong>Reframe</strong> with the keys the pane answers to. The key hints follow your bindings.</p>
+     Keys: crates/nova_interface/src/bindings.rs. Chart view:
+     crates/nova_interface/src/map/chart.rs; what feeds the chart:
+     crates/nova_world_base/src/chart.rs (`Chart` in nova_gameplay). -->
+<p>The Map pane is a schematic 3D chart of local space: distance rings, a hub, and every contact as an icon - a chevron for a ship, a lump for an asteroid, a ringed disc for a planet, a diamond for an objective - tinted by what it is to you. Click one, or step through them with <kbd>[</kbd> / <kbd>]</kbd>, and the contact panel beside the chart gives its code, name and kind, then its range and bearing. A ship, station, rock or planet that wears a gold objective chip is one gold objective contact that keeps its own icon and name; its note shows the chip's text, then each job you hold that sends you there, such as <code>JOB-1 Bring 4 Iron ore: hand in.</code> A scenario objective shows its chip's text alone. Under them, the panel names your live GOTO destination over a <strong>GOTO</strong> button. An unselected contact has a faint frame; the selected one has a bright frame and always shows its label. The footer under the chart holds the legend of the icons on the chart now and <strong>Reframe</strong> with the keys the pane answers to. The key hints follow your bindings.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -107,7 +113,7 @@
 </tr>
 <tr>
 <td><code>OBJ-1</code></td>
-<td>A mission objective.</td>
+<td>An objective, in gold: a marked ship, rock or planet, or a nav point. A marked station keeps its <code>STN-1</code> code.</td>
 </tr>
 <tr>
 <td><code>NEU-1</code></td>
@@ -123,6 +129,8 @@
 </tr>
 </tbody>
 </table>
+</div>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -140,7 +148,7 @@
 <tr>
 <td><kbd>Q</kbd> / <kbd>E</kbd>, <kbd>R</kbd> / <kbd>F</kbd></td>
 <td>D-pad</td>
-<td>Turn and tilt. Right-drag looks; the wheel zooms.</td>
+<td>Turn and tilt. Right-drag looks; the wheel zooms, and over the side panel scrolls it.</td>
 </tr>
 <tr>
 <td><kbd>[</kbd> / <kbd>]</kbd></td>
@@ -157,13 +165,25 @@
 <td>left stick click</td>
 <td>Reset the view.</td>
 </tr>
+<tr>
+<td><kbd>C</kbd>, or click <strong>Chart</strong></td>
+<td>-</td>
+<td>Switch between the local view and the chart view.</td>
+</tr>
+<tr>
+<td><kbd>Z</kbd> / <kbd>X</kbd></td>
+<td>-</td>
+<td>In the chart only, step the focused sector layer up or down one Y cell.</td>
+</tr>
 </tbody>
 </table>
+</div>
+<p>In a generated world, the chart view draws your chart at sector scale: a grid of sectors on the focused Y layer. <kbd>Z</kbd> / <kbd>X</kbd> step up or down one layer and clear a selection; the grid and unvisited outlines follow the focus. Clicking a find focuses its layer. <strong>Reframe</strong> returns to your ship's layer. A sector you entered is a textured tile, one layer per cluster type it holds (an asteroid speckle, a rock scatter, a ringed planet, cracked derelict slivers) or a faint grid when it is empty; a sector you never entered is an outline. The stations and wrecks your sensors found stand on their tiles. A mark's label shows a code: <code>STN-1</code> for a station, <code>WRK-1</code> for a wreck, numbered in the order you found them. A dead station fades, a station that refuses you docking because it is Enemy or hostile to you wears a red ring whatever its ports hold, and a station with open jobs adds their count to its code, as <code>STN-1 (3)</code>; a station with none stays <code>STN-1</code>. Click a sector's coordinate or any mark to select it; the view centres on its sector, keeping your zoom and angle, the selected sector gets an accent outline and the panel opens a <strong>SECTOR</strong> block: its coordinate and the route from your cell, its contents as icon rows, when you entered it, every find there with its state (<code>living</code>, <code>dead</code>, <code>yours</code>, <code>refuses docking</code> for the same hostility as the ring), the services, trade stock and stored items you saw at your last dock at each station there, and the jobs you hold that point there. A station you never docked at shows <code>Not docked: no stock seen.</code> A station you bought shows in the ally colour as <code>OWNED STATION</code>. Every job you hold is marked <code>JOB-1</code>, <code>JOB-2</code> and so on, in accept order, in the sector of the body it sends you to (the wreck, the hauler, the caller or the hull), or of the posting station for a procurement; the mark stays there once the job is done, and a handed-in job has no mark; click one to read what it asks, its reward and where to hand it in. Click the selected label or row again to clear the selection and keep the view, or press <strong>Reframe</strong> to clear it and frame the whole grid. While nothing is selected, the panel shows the <strong>OBJECTIVES</strong> block: what you have to do now. Its heading carries the focused layer, as <code>OBJECTIVES  Y6</code> (for example); hover it for the visited-cell count on that layer. It lists each job you hold as a row with its kind icon, its <code>JOB-1</code> code, title, <code>have / need</code> (or <code>done</code>) and the code of the station it hands in at, then your start role's goal title over its next unmet milestone with <code>have / need</code>. <code>EMPTY</code> shows only when no held job, open milestone or reached goal remains. A met milestone leaves the list. Once you meet the last one, the block reads <code>Goal reached at</code> the play time it happened, which the save keeps. Reaching it ends nothing: the world plays on. The <a href="#jobs">Jobs</a> pane shows the same milestone over your held jobs. Click a job's row to select its <code>JOB</code> mark. Under it, the <strong>discovery log</strong> lists your last twelve finds newest first as icon rows: the find's icon, its code, its sector and how long ago it happened (<code>just now</code>, <code>4 min ago</code>, <code>2 h ago</code>). Click a row to select that find. Under the log, the <strong>STANCES</strong> block lists each civilization you have moved or whose station you charted: its name, a stance badge and an <code>ADV 15%</code> chip for its seeded advancement (hover for its meaning), then compact status labels: <code>HOSTILE 0:12:40</code> while provoked, <code>CLEAR 1:42:10</code> for an Enemy due to thaw, <code>SEEDED</code> for an Enemy from the start, <code>FINE 1,090 cr @ STN-1</code> for the fine and a charted station that takes it, or <code>FINE NONE</code> when no charted station takes it, and <code>OFFENCES 2/3</code> and <code>MERITS 1/3</code> for the next stance step. Hover a label for its explanation. Select a station and the block lists each Enemy neighbour of it as a row: its name, <code>ENEMY</code>, its fine and <strong>Pay fine</strong>. The button works only while you are docked at that station with the fine in hand. While you are not, one line under the rows says <code>DOCK STN-1</code> or <code>STN-1 REFUSED</code>; hover a row to read what paying does, the charted stations that take the fine instead (<code>STN-1 refuses docking; pay at STN-2, STN-3</code>), or how short your balance is. Paying moves the fine to that station and returns the civilization to Neutral. The result shows on the Map's notice line over the side panel for four seconds, green for a result and red for a refusal, with one sound: the interface click for a result, the deny buzz for a refusal. The button is silent on press. The legend is an icon row naming the four cluster types, the station, wreck and job marks, and you. The chart view's footer drops the <strong>Select</strong> and <strong>GOTO</strong> hints: a click picks a mark, and the chart has nowhere to fly to. A scene with no generated world has no chart.</p>
 <details class="explain">
 <summary>Show explanation</summary>
-<p>A typical panel reads <code>HOST-1</code>, <code>Raider</code>, <code>HOSTILE</code>, <code>Range 412 m</code>, <code>Bearing 214 mark +12</code> and <code>Hostile contact.</code> Selecting a contact re-centres the map once; <kbd>T</kbd> re-frames it. <kbd>G</kbd> or the <strong>GOTO</strong> button engages the flight autopilot toward the selection, sets your travel lock on it and flashes <code>GOTO SET: Raider</code> on the panel note - the burn keeps flying after you close the interface, so the map is a real navigation console, not a picture of one. With nothing or your own ship selected, the button is off and <kbd>G</kbd> does nothing.</p>
-<p>While the GOTO flies, the chart draws the <a href="../hud/#flight-readouts">predicted path</a> from your ship up to 30 seconds ahead, then a dim straight guide from its end to the target. The guide is not a forecast. Before the first forecast, and while the path hides because the target or a gravity well moves, the guide runs from your ship. The target carries a <code>GOTO</code> tag, and the panel reads <code>GOTO HOST-1  412 m</code>. With no GOTO flying it reads <code>No GOTO set</code>. They follow the autopilot, not the selection: select another contact, or close and reopen the Map, and they still point at the destination. When the GOTO is cancelled or arrives, the path, guide, tag and destination clear; the travel lock stays.</p>
-<p>Docked, GOTO refuses while the game cannot measure the pair (<code>GOTO REFUSED: HELM FAULT</code>), refuses until you hold the <a href="../sections/docking/#what-the-clamp-holds">helm</a> (<code>GOTO REFUSED: TAKE THE HELM</code>), and never flies to the ship you are docked to (<code>GOTO REFUSED: DOCKED PARTNER</code>). A refusal changes only the note: your travel lock and any GOTO already flying stay as they were.</p>
+<p>A typical panel reads <code>HOST-1</code>, <code>Raider</code>, <code>HOSTILE</code>, <code>Range 412 m</code>, <code>Bearing 214 mark +12</code> and <code>Hostile contact.</code> Selecting a contact re-centres the map once; <kbd>T</kbd> re-frames it. <kbd>G</kbd> or the <strong>GOTO</strong> button engages the flight autopilot toward the selection, sets your travel lock on it and flashes <code>GOTO SET: Raider</code> on the panel note - the burn keeps flying after you close the interface, so the map is a real navigation console, not a picture of one. With nothing or your own ship selected, the button is off and <kbd>G</kbd> does nothing. <kbd>G</kbd> or <strong>GOTO</strong> on the contact you already fly to cancels the trip and flashes <code>GOTO CANCELLED</code>; on another contact it flies there instead. <strong>CANCEL</strong> under it ends the GOTO in the local view, even after its target has left the map, where the panel reads <code>GOTO target lost</code>; with no GOTO flying it is off. A Map cancel clears your travel lock only while the lock is on the GOTO target, so a lock you hold on anything else stays. A target beyond your sensors loses the travel lock at once and takes it back by itself the moment it is in <a href="../targeting-radar/#line-of-sight">sight</a>.</p>
+<p>While the GOTO flies, the chart draws the <a href="../hud/#flight-readouts">predicted path</a> from your ship up to 30 seconds ahead, then a dim straight guide from its end to the target. The guide is not a forecast. Before the first forecast, and while the path hides because the target changes course or spin or a gravity well moves, the guide runs from your ship. For a moving target the path trims to its closest approach to where the target is now and the guide runs on from there, so it never doubles back along the target's track. The target carries a <code>GOTO</code> tag, and the panel reads <code>GOTO HOST-1  412 m</code>. With no GOTO flying it reads <code>No GOTO set</code>. They follow the autopilot, not the selection: select another contact, or close and reopen the Map, and they still point at the destination. When the GOTO is cancelled or arrives, the path, guide, tag and destination clear. On arrival the travel lock stays, ready for DOCK. A GOTO is not saved: a Load starts with none.</p>
+<p>Docked while you do not fly the pair - the other ship or a living station holds the <a href="../sections/docking/#what-the-clamp-holds">helm</a>, or the game cannot measure the pair - GOTO reads <code>GOTO SET</code> and waits: the trip starts when you undock with <kbd>D</kbd>. Until then <kbd>G</kbd>, <kbd>Z</kbd> or <strong>CANCEL</strong> drops it. Holding the helm, the GOTO flies the pair at once. GOTO never flies to the ship or station you are docked to (<code>GOTO REFUSED: DOCKED PARTNER</code>); the refusal changes only the note: your travel lock and any GOTO already flying stay as they were.</p>
 </details>
 <h2 id="the-ship" tabindex="-1">The ship</h2>
 <figure class="figure">
@@ -191,7 +211,8 @@
      crates/nova_gameplay/src/inventory.rs. Weapon magazines refill on their
      own idle timer instead: crates/nova_ship/src/sections/ammo.rs
      `SectionReload::advance`. -->
-<p>The Ship pane is a schematic 3D viewer of your own hull: one block per section, a badge on each, and a section panel beside it. The footer under the view holds the section legend on the left, the pane's live key hints in the middle and <strong>Fit</strong> and <strong>Reset</strong> on the right. The section panel is where the selection is named. Sections carry short codes, stable for the whole session, and a family icon:</p>
+<p>The Ship pane is a schematic 3D viewer of your own hull: one block per section, a badge on each, and a section panel beside it. The footer under the view holds the section legend on the left, one line of the keys that apply now in the middle and, on the right, <strong>Catalogue</strong> at a refit dock, <strong>Fit</strong> and <strong>Reset</strong>. The section panel is where the selection is named. Sections carry short codes, stable for the whole session, and a family icon:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -248,8 +269,10 @@
 </tr>
 </tbody>
 </table>
-<p>The footer legend shows all seven family icons: Weapon, Thruster, Controller, Hull, Docking, Mining and Cargo Intake. The Dock and Helm keys are in <strong>Settings &gt; Controls &gt; FLIGHT</strong>; their defaults are <kbd>D</kbd> and <kbd>H</kbd>. Each mining beam has its own key, which you rebind here like a weapon's.</p>
-<p>Select a section by clicking its badge, with <kbd>[</kbd> / <kbd>]</kbd>, or with <strong>Prev</strong> / <strong>Next</strong> in the panel. The panel shows its family icon, condition bar, status and a short description of the section's role. Fact rows show <strong>Integrity</strong>, <strong>Ammunition</strong> for a weapon and <strong>Control</strong> for a section with a key. A damaged section that repair can restore also shows the repair form below them; a section at full integrity, destroyed or with no integrity to restore shows no form.</p>
+</div>
+<p>The footer legend shows all seven family icons: Weapon, Thruster, Controller, Hull, Docking, Mining and Cargo Intake. The Dock and Helm keys are in <strong>Settings &gt; Controls &gt; FLIGHT</strong>; their defaults are <kbd>D</kbd> and <kbd>H</kbd>. Each mining beam has its own key, which you rebind here like a weapon's. A thruster fires on the Main Drive until you give it its own key here.</p>
+<p>Select a section by clicking its badge or with <kbd>[</kbd> / <kbd>]</kbd>. The panel shows its family icon, code and name, condition bar and, for a section with a key, its <strong>Control</strong> row, then the actions that apply: <strong>Rebind</strong>, and <strong>Delete</strong> under <strong>Salvage</strong>. A damaged section that repair can restore also shows the repair form below them; a section at full integrity, destroyed or with no integrity to restore shows no form.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -275,6 +298,11 @@
 <td><a href="#rebinding-a-section">Rebind</a> the section's key. Shown only for a section that has one.</td>
 </tr>
 <tr>
+<td><kbd>Delete</kbd></td>
+<td><strong>Delete</strong></td>
+<td><a href="#deleting-a-section">Delete</a> the section, its parts back in your hold. It sits under <strong>Salvage</strong>, which lists what you get back. A greyed <strong>Delete</strong> is refused: hover it for the reason.</td>
+</tr>
+<tr>
 <td><kbd>G</kbd> (gamepad <kbd>A</kbd>)</td>
 <td>-</td>
 <td>Overlay the structural mates: which sections hold which.</td>
@@ -285,17 +313,23 @@
 <td>Frame the whole ship at its current angle.</td>
 </tr>
 <tr>
-<td><kbd>Q</kbd> / <kbd>E</kbd>, <kbd>R</kbd> / <kbd>F</kbd>, <kbd>T</kbd></td>
+<td>right-drag (gamepad D-pad), <kbd>T</kbd></td>
 <td><strong>Reset</strong></td>
-<td>Turn and tilt the view; tilt or right-drag down past the hull to see its underside. Reset restores the opening angle, zoom and centre.</td>
+<td>Turn and tilt the view, as the editor's camera looks; drag down past the hull to see its underside. The wheel zooms. Reset restores the opening angle, zoom and centre.</td>
+</tr>
+<tr>
+<td><kbd>Q</kbd></td>
+<td>-</td>
+<td>Pick: take the part the section under the pointer was built from in hand, as the editor's pipette does. Over empty space, put the part in hand away. Docked at a Refit station only.</td>
 </tr>
 </tbody>
 </table>
+</div>
 <details class="explain">
 <summary>Show explanation</summary>
 <p>The blocks are the shape of your ship - a fill in the section family's colour inside an outline per section, with a gap so neighbours read apart. An arrow past the foremost block points at the bow. Status lives on the badges and in the panel, not in the block colour: each badge carries a pip coloured by status (<code>nominal</code>, <code>degraded</code>, <code>critical</code>, <code>neutralized</code>), and the section you have selected spells out its code beside its badge. Only that one does - a development stress hull has two thousand sections, and a label on each is a wall of text with the ship somewhere behind it.</p>
 <p>Repair answers on the note line with what happened, or why not, and it is instant: a success reads <code>repaired HULL-3: 2 hull plates, 80/100 HP</code>. It works anywhere, docked or not, and spends <a href="#the-inventory">hull plates</a> from your ship: each plate restores up to 20 HP, and part of a plate's worth still costs a whole plate. The form shows your live plate stock, the count and the integrity the repair will reach. Selecting a section sets the count to <strong>All</strong>: the plates the damage needs, or your whole stock if that is fewer. A section at 55/100 with 12 plates starts at 3, which stop at 100; the unused HP of the last plate is lost. With 2 plates All is 2, which take 40/100 to 80/100. <kbd>P</kbd> and <strong>Repair</strong> spend exactly the selected count.</p>
-<p>While the count field has focus, keys type into it rather than controlling the Ship pane; leave the field to use pane keys such as <kbd>P</kbd> and <kbd>B</kbd>. <strong>Repair</strong> is disabled while the typed count is empty, not a whole number, zero, more than you carry or more than the damage needs. A damaged section with no plates in stock keeps its form, with <strong>Repair</strong> disabled and the refusal shown. The count is checked again against the live section and stock when you repair. Repair spends nothing when the section has no integrity to restore, is destroyed, is at full integrity, the count is zero or you carry no plates, the count is more than you carry, or the count is more than the damage needs, checked in that order: <code>repair: HULL-3 has no integrity to restore</code>, <code>repair: HULL-3 is destroyed</code>, <code>repair: HULL-3 is at full integrity</code>, <code>repair: no hull plates selected or in stock</code>, <code>repair: HULL-3 request exceeds live hull plate stock</code>, <code>repair: HULL-3 request exceeds live missing integrity</code>. A destroyed section is one at 0 HP, or one knocked out by a structural collapse with HP left; repair does not bring it back. Spent plates are not saved: they return when the scenario loads again.</p>
+<p>While the count field has focus, keys type into it rather than controlling the Ship pane; leave the field to use pane keys such as <kbd>P</kbd> and <kbd>B</kbd>. <strong>Repair</strong> is disabled while the typed count is empty, not a whole number, zero, more than you carry or more than the damage needs. A damaged section with no plates in stock keeps its form, with <strong>Repair</strong> disabled and the refusal shown. The count is checked again against the live section and stock when you repair. Repair spends nothing when the section has no integrity to restore, is destroyed, is at full integrity, the count is zero or you carry no plates, the count is more than you carry, or the count is more than the damage needs, checked in that order: <code>repair: HULL-3 has no integrity to restore</code>, <code>repair: HULL-3 is destroyed</code>, <code>repair: HULL-3 is at full integrity</code>, <code>repair: no hull plates selected or in stock</code>, <code>repair: HULL-3 request exceeds live hull plate stock</code>, <code>repair: HULL-3 request exceeds live missing integrity</code>. A destroyed section is one at 0 HP, or one knocked out by a structural collapse with HP left; repair does not bring it back. In a saved Open World, spent plates stay spent across a Load, on the desktop build. Any other scenario saves nothing: spent plates return when it loads again.</p>
 <p>There is no manual reload. A weapon's magazine refills on its own from your inventory - see <a href="../combat-weapons/#magazines">Magazines</a> - and with no matching ammunition left in stock, an empty magazine stays empty until you restock it.</p>
 </details>
 <h2 id="rebinding-a-section" tabindex="-1">Rebinding a section</h2>
@@ -304,18 +338,99 @@
      button, Esc cancels: ship/rebind.rs `apply_ship_rebind`. Refusal policy:
      `RebindSurface::ShipPanel` in crates/nova_input/src/registry.rs
      (`rebind_verdict`), against the LIVE table; the captured key replaces the
-     desk half and keeps the pad half: `captured_binds`. The command shell
+     half of its own device and keeps the other: `captured_binds`. The command shell
      will not open while a capture is armed: `open_command_shell` in
      crates/nova_menu/src/pause.rs; nor will TAB or M act:
      `toggle_interface` and `next_interface_pane` in
      crates/nova_interface/src/pane.rs. -->
 <p>Your weapon, thruster and mining beam sections answer rebindable keys, and the Ship pane is where you rebind them:</p>
 <ol>
-<li>Select a thruster, turret, torpedo bay, railgun or mining beam and press <kbd>B</kbd> (or click <strong>Rebind</strong>). A section with no key offers no <strong>Rebind</strong>.</li>
-<li>The panel arms: <code>PRESS A KEY OR MOUSE BUTTON - ESC CANCELS</code>.</li>
-<li>The next key or mouse button you press takes over that section's keyboard-and-mouse trigger: <code>Bound engine_port to K</code>. A controller trigger on the same section is left alone, so rebinding at the desk never costs you the pad.</li>
+<li>Select a thruster, turret, torpedo bay, railgun or mining beam and press <kbd>B</kbd> (or click <strong>Rebind</strong>). A gun, bay, railgun or beam with no key reads <code>UNBOUND</code> and <strong>Rebind</strong> gives it one. A thruster with no key of its own reads <code>Main Drive: W / Space</code> (your Main Drive keys) and fires with the Main Drive.</li>
+<li>The <strong>Rebind</strong> button lights and a banner over the view reads <code>Press a key or button to bind PDC-1 PDC Turret (Kinetic), Esc to cancel</code>.</li>
+<li>The next key, mouse button or controller button you press takes over that device's half of the section's trigger: <code>Bound engine_port to K</code>. The other half is left alone, so a key never costs you the pad and a pad button never costs you the key. With both set, the <strong>Control</strong> row shows both, for example <code>J / Right Trigger 2</code>.</li>
 </ol>
-<p>A reserved flight control is refused on the spot - <code>Space is already bound to flight control: Main Drive</code> - and the capture stays armed for another try. <kbd>LMB</kbd> is refused too, with <code>Left Mouse stays the pointer</code>: it is the button you click the blips with. Several sections may share one input (one key can fire every tube). <kbd>Esc</kbd> backs out with <code>Rebind cancelled</code> and leaves you on the pane. While a capture is armed, <kbd>:</kbd> does not open the command shell, <kbd>Tab</kbd> is refused as the interface toggle and does not close the interface, and <kbd>M</kbd> binds like any other key instead of switching the pane.</p>
+<p>A reserved flight control is refused on the spot - <code>Space is already bound to flight control: Main Drive</code> - and the capture stays armed for another try. <kbd>LMB</kbd> is refused too, with <code>Left Mouse stays the pointer</code>: it is the button you click the blips with. Several sections may share one input (one key can fire every tube). <kbd>Esc</kbd> backs out with <code>Rebind cancelled</code> and leaves you on the pane.</p>
+<p>A thruster with its own key or button fires on that only: the Main Drive no longer fires it, from the keyboard or the controller, until you put it back. To put it back, press <kbd>B</kbd> and then <kbd>Backspace</kbd>: <code>engine_port fires on the Main Drive</code>, which clears both halves. The Main Drive inputs stay reserved, the controller's Right Trigger included, so the thruster's own input is any other free one. Every other common controller button already flies the ship or opens the interface, so a thruster's controller button is Right Trigger 2, which it then shares with your guns. While a capture is armed, <kbd>;</kbd> does not open the command shell, <kbd>Tab</kbd> is refused as the interface toggle and does not close the interface, and <kbd>M</kbd> binds like any other key instead of switching the pane. The key you bind does nothing else: binding <kbd>T</kbd> does not also reset the view.</p>
+<h2 id="swapping-a-section" tabindex="-1">Swapping a section</h2>
+<!-- Catalogue: crates/nova_interface/src/ship/catalogue.rs. Action:
+     crates/nova_interface/src/ship/refit.rs. Family rule and build checks:
+     crates/nova_ship/src/sections/design_sections.rs
+     (`section_swap_family`, `swap_build_fault`). -->
+<p>Docked at a living station that offers refit, the Ship pane footer shows a <strong>Catalogue</strong> button beside <strong>Fit</strong> and <strong>Reset</strong>. It opens the parts gallery over the pane, the same gallery the editor picks parts from: every part the game knows, priced from your hold and its stock. An <strong>All</strong>/<strong>Available</strong> pair beside the filter box narrows the grid to the parts you can place right now; switch back to <strong>All</strong> to see every part again. Switching tab or closing the interface closes the catalogue; it opens on <strong>All</strong> next time. A part this station does not build, or that neither hold has the parts for, is dimmed and its picture greyed; <strong>Place</strong> is off for it, and pointing at the tile or <strong>Place</strong> says why. The price is the part's build recipe, with parts taken from your hold first and the rest bought from the station. A part's card lists each recipe item as an icon with how many of it you already have over how many it needs, such as <code>1/2</code>, red when you are short; point at the row to see where each one comes from, and when any were bought, the row's right side shows what they cost together. Items of a part the station does not build are dimmed, with no price and no hover. Select a section first, and the card of each part of the same kind and size gets a <strong>Swap</strong> button with the swap price, such as <code>Swap PDC-2, 100 cr</code>. Click it to fit the part. The new part stands where the old one stood, at full health, with the same code and key. The old part is gone; nothing is refunded. A swap that would split the ship, block a gun or drive, or leave it short of thrust or flight computers is refused on the note line, as is a part of another kind: <code>swap: PDC-1 is a turret, Basic Thruster Section is a thruster</code>. A rebuild of a lost part the station does not build is refused the same way, on the note line. In a saved Open World the new part stays across a Load.</p>
+<h2 id="adding-a-section" tabindex="-1">Adding a section</h2>
+<!-- Ghost and click: crates/nova_interface/src/ship/ghost.rs. Free points,
+     pose, fit and binding: crates/nova_ship/src/sections/section_add.rs. -->
+<p>Click a part in the catalogue, then <strong>Place</strong> on its card, to take that part in hand. Move the pointer over the ship: a ghost of the part snaps to the open point nearest the pointer on the section under it. Only a free point on the hull's surface, with room for the part, takes a ghost; a section inside the hull shows none. A green outline and its price beside the pointer mean it fits; a red outline and the reason mean it does not, such as a part that would block a gun or a drive. The section the ghost aims at turns solid, its badge hides, and the face the part mounts on is lit. <kbd>Q</kbd> over a section of your ship takes that section's part in hand instead, and <kbd>Q</kbd> over empty space puts the part away. <kbd>Esc</kbd> also puts it away and does nothing else: the interface stays open. While a part is in hand, the section panel shows it under <strong>Placing</strong> in place of the selection: its icon and name, its price, the parts from your hold and the parts bought, and the socket and roll. The footer shows Q/Esc Put away. When you put it away, the panel shows the selection again. With a part in hand <kbd>R</kbd> rolls it a quarter turn and <kbd>F</kbd> mates it by its next socket; the ghost, the fit and the price follow. The callout counts the parts your hold gives and the parts the click buys from the station at its ask. The docked station and the ships at its other docks show as dim outlines, and a part that would hit them is refused. Click to fit it. The new part spawns at full health under the next code of its kind, and the view eases onto it at the same zoom. A gun takes the key of your other guns of its kind, or none until you <strong>Rebind</strong> it; a drive is flown by the computer. The part stays in hand for the next one. With nothing in hand, a click on a section selects it. In a saved Open World the new part stays across a Load. The panel scrolls with the wheel while the pointer is over it.</p>
+<h2 id="deleting-a-section" tabindex="-1">Deleting a section</h2>
+<!-- Rule and handler: crates/nova_interface/src/ship/delete.rs. Build
+     checks: crates/nova_ship/src/sections/design_sections.rs
+     (`remove_build_fault`). Design and binding:
+     crates/nova_scenario/src/objects/spaceship.rs (`remove_design_section`). -->
+<p>Docked at a living station that offers refit, select a section and press <kbd>Delete</kbd> (or click <strong>Delete</strong>) to take it off for good. Its parts go back in your hold as a strip of a wreck gives them: the recipe's strip share, less for a damaged section. <strong>Salvage</strong> lists them before you press it, over the <strong>Delete</strong> button, down a column of one tile per part such as <strong>+1 Frame spar</strong> and <strong>+3 Section panel</strong>, or <strong>nothing to salvage</strong>. After the delete the note line opens with <code>deleted PDC-2 to the hold:</code> and then lists the parts one per line, such as <code>+1 Frame spar</code> and <code>+3 Section panel</code>, or reads <code>deleted PDC-2: nothing to salvage</code> when it gave back none, and the plating closes over the hole. A rebuild does not list a deleted section, and in a saved Open World it stays gone across a Load. <strong>Delete</strong> is greyed, with the reason as its hover hint, when the delete would split the ship, take off your last working flight computer, take off the port the dock holds you by, leave the drives too weak or overfill the hold, or when the dock offers no refit. A delete that would split the ship paints the sections that would come off the dock red, fill and outline, while that section is selected. The <kbd>Delete</kbd> key then shows the same reason on the note line and changes nothing. A second flight computer is yours to take off: the ship flies on one. With a part in hand, <strong>Delete</strong> hides and the key does nothing; put the part away first.</p>
+<h2 id="the-station" tabindex="-1">The station</h2>
+<!-- Pane: crates/nova_interface/src/station/mod.rs. -->
+<p>Docked at a living station, the <strong>Station</strong> pane shows what it sells: <strong>This station</strong>, <strong>Ships for sale</strong> and <strong>Escorts for hire</strong>, each offer with its price and a button. A button you cannot use is greyed: hover it to read why. When your credits fall short, the card shows <code>(missing &lt;amount&gt;)</code> in red beside the price. Above the ships for sale, <strong>Your ships</strong> lists the ships you own parked at that station, each with <strong>Board</strong>; it shows only while you have a ship parked there. The station's job board is on the <a href="#jobs">Jobs</a> pane. A station that offers none of these and holds none of your ships says so. Each result or refusal shows on the notice line above the lists for four seconds, green for a result and red for a refusal, with one sound: the interface click for a result, the deny buzz for a refusal. The buttons themselves are silent. Refit (rebuild, swap and add) stays in the Ship pane, beside the ship it changes. The wreck strip is in the Inventory pane, over the wreck's column.</p>
+<h3 id="buying-a-ship" tabindex="-1">Buying a ship</h3>
+<!-- List and action: crates/nova_interface/src/station/shipyard.rs. Price
+     and parking: crates/nova_ship/src/sections/hull_buy.rs. 3D view:
+     crates/nova_interface/src/station/hull_preview.rs. Swap and
+     bindings: crates/nova_scenario/src/objects/station_hulls.rs. -->
+<p>Every ship a station sells is parked at one of its docking ports, and one port is always left free for you. Docked at a living station in an Open World that offers refit, open the Station pane: <strong>Ships for sale</strong> lists each parked ship. Each card shows the ship itself, turning slowly, then its name, length and price over <strong>Buy</strong>. Click <strong>Buy</strong> to take it: you pay the full price and take the controls of the parked ship. Your old ship stays yours. It stays parked at its port with its hold, and its hold shows in the Inventory pane as storage while you are docked at that station. It lists under <strong>Your ships</strong>, above the ships for sale, and its card says <code>your ship</code> in place of a price, over <strong>Board</strong>: Board swaps you back into it for free, and the ship you leave parks in the same way. The new ship has full health and an empty hold, and its keys are the default ones for its weapons, the same as a new game's. A price your credits cannot cover is refused. In a saved Open World your new ship and the parked ships stay across a Load.</p>
+<p><strong>Info</strong> on any card, a ship for sale or an escort for hire, opens that ship in the Ship pane to look at before you pay: turn it with the right mouse button, zoom with the wheel, and click a section to see its name and condition. Nothing can be changed there: no catalogue, no delete, no rebind, no repair. <strong>Close</strong> takes you back to the Station pane, and the Ship tab shows your own ship again.</p>
+<h3 id="hiring-an-escort" tabindex="-1">Hiring an escort</h3>
+<!-- List and action: crates/nova_interface/src/station/escorts.rs. Price and
+     fleet slots: crates/nova_ship/src/sections/escort_hire.rs. -->
+<p>Under <strong>Ships for sale</strong>, the same station lists its <strong>Escorts for hire</strong>: armed hulls with a crew, waiting outside the station. You can see them coast beside it, ahead of it and behind it. Each card shows the escort turning slowly, then its name, length and price, half again what the hull would cost. Click <strong>Hire</strong> and the escort joins your side where it waited, then comes to you. It flies on your starboard side, the second on your port side; a third hire is refused. The list's header shows both fleet slots, <strong>STBD</strong> and <strong>PORT</strong>, each with the name of the escort that holds it or <code>--</code> while it is free. An escort flies on its own drive: while you travel it takes its place 200 m off your side and 100 m behind, and matches your speed; while you stop or turn in place it holds where it is. It follows you across sectors and fights what attacks you. In a saved Open World your escorts stay across a Load. An escort that loses its last flight computer is out of your fleet and stays behind as a wreck.</p>
+<h3 id="buying-a-station" tabindex="-1">Buying a station</h3>
+<!-- Block and action: crates/nova_interface/src/station/station_buy.rs. Price:
+     crates/nova_ship/src/sections/station_buy.rs. -->
+<p>Docked at a living station in an Open World, the Station pane shows <strong>This station</strong>: its name and its price, twice what its sections, its hold and its credits are worth at ask. Click <strong>Buy station</strong> to make it yours; the credits go to its civilization. The station leaves its civilization: it joins your side, so its guns fire on your foes, and it is named <strong>Owned station</strong>. An owned station wears <strong>OWNED</strong>: hover it for what owning changes. A station sold to allies only wears <strong>ALLIES ONLY</strong>, with Buy greyed. An owned station lets you dock whatever side you are flagged, and its hold sells to you at the price it would pay. It earns nothing yet. In a saved Open World it stays yours across a Load. A price your credits cannot cover is refused.</p>
+<h2 id="jobs" tabindex="-1">Jobs</h2>
+<!-- Pane: crates/nova_interface/src/jobs.rs. Board and gate: crates/nova_gameplay/src/jobs.rs
+     (`plan_job_hull_fit`); starter board: crates/nova_world_base/src/jobs.rs `StarterBoardMarker`. -->
+<p>Every living generated station posts a board of three jobs. The board is fixed by the world seed, the station and your start: a board slot's offer stands 20 minutes of play, or 60 minutes for an escort offer (the pause menu, the interface and a Load all stop that clock), then the slot posts a new offer. An offer does not change while it stands, and a Load shows the same offers. Two boards never offer the same wreck or hull at once. A job you hold never expires, and a job you hand in is replaced at once. Which kinds a board leans to follows your start role: a trader's boards post procurements and escorts, a scavenger's recoveries, a hunter's distress calls and bounties.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>job</th>
+<th>what to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Bring 4 Iron ore</code></td>
+<td>bring that many units to the station that posted it. A station asks for what its sector lacks: raw material in an asteroid or rock sector, food and raw material near a planet, parts and plates in a derelict field</td>
+</tr>
+<tr>
+<td><code>Recover 2 Hull plate from &lt;wreck&gt;</code></td>
+<td>dock with the named wreck nearby, take the stack aboard and undock with it</td>
+</tr>
+<tr>
+<td><code>Escort a hauler carrying 1,200 cr</code></td>
+<td>a hauler waits 1 km off the station and leaves for a mark 10 km out once you are undocked and within 1 km of it, cruising at 100 m/s; stay with it and see it there. Raiders spring about 2 km on, more for a richer cargo</td>
+</tr>
+<tr>
+<td><code>Answer a distress call</code></td>
+<td>a neutral drifting caller 10 km out: dock with the caller</td>
+</tr>
+<tr>
+<td><code>Neutralize &lt;hull&gt;</code></td>
+<td>neutralize the named hostile hull nearby</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The <strong>Jobs</strong> pane shows two lists and an inspector. Docked at a living station, <strong>Jobs posted here</strong> lists its board, less the jobs you hold, completed or lost and less any offer whose window has passed: each row is the kind's icon, the title, the reward in credits, a meter of the time left with its minutes beside it and <strong>Accept</strong>. At the issuing station, a row also carries a 100 cr <strong>Delete</strong>: it asks <code>Delete &lt;title&gt; for 100 cr?</code>, and confirming pays the station and posts a fresh offer in the slot at once in its place. A short balance or a posting that renewed since you opened the row refuses it and changes nothing. <strong>Your jobs</strong> lists every job you hold, from any station, docked or not: the icon, the title, a <code>have / need</code> meter (the units in your hold for a procurement or a recovery, done or not for the rest) and <strong>Hand in</strong>, plus an <code>X</code> to drop the job. <code>X</code> asks <code>Drop &lt;title&gt;?</code> and replaces the row's actions with <strong>Drop</strong> and <strong>Back</strong>; <strong>Back</strong> keeps the job. <strong>Drop</strong> is always free, at the job's posting station or away: it gives the job up and despawns any bodies it spawned, with no payout, and the posting station's slot waits out its normal offer window before it posts a fresh one there, same as any offer you never held that expired. Docked at the hand-in station the row reads <strong>HAND IN HERE</strong>; select the row to see where any other job hands in. Over the list, one row shows your start role's milestone: the goal's title, its next unmet line and a <code>have / need</code> meter; the first unmet line is always <code>Stations owned</code> until you own one. Once you meet the goal, the row reads <code>Goal reached at</code> the play time.</p>
+<p>Every job asks something of your hull: a procurement needs hold room for the stack, a recovery or a distress call a docking section, an escort or a bounty a weapon. Your <strong>starting station's</strong> board lists only the jobs your current hull can do, so a fresh transport sees no escorts until it carries a gun; every other board lists them all and greys <strong>Accept</strong>, with the reason under the pointer (<code>accept: the hull has no weapon</code>, <code>accept: 6,000 kg does not fit the 4,000 kg hold</code>). A recovery or a bounty whose target is already gone is greyed the same way. <strong>Hand in</strong> is greyed, with the reason, while you are not docked at the job's station, the job is not done, the hold is short or the station cannot pay (<code>dock at &lt;station&gt; to hand in</code>, <code>the hold carries 2 of 4 Iron ore</code>, <code>not done yet</code>).</p>
+<p>Click a row and the inspector reads the job: what to do, its target and where that is, the hand-in station, the reward, the time left or your progress, and <strong>Show on Map</strong>, which opens the Map's chart view on the job's mark. A done job shows <strong>DONE</strong> beside its title. A hand-in takes a procurement's goods out of your hold, pays the reward from the station's balance (<code>OnCreditsChanged</code> with cause <code>JobReward</code> on both sides) and moves the job to completed. The notice line under the lists reports the result for four seconds, green for a result and red for a refusal, with one sound: <code>accepted: Bring 4 Iron ore</code>, or <code>handed in Bring 4 Iron ore for 146 cr; balance 2,146 cr</code>, with <code>; Vell now holds you ally</code> added when the hand-in steps the station's civilization. <strong>Accept</strong> and <strong>Hand in</strong> make no sound of their own.</p>
+<p>Held jobs stay on the pane undocked, and the Map's chart view marks each in the sector of its mark, the wreck, the hauler, the caller or the hull, or the posting station for a procurement; its note says what is left to do (see <a href="#the-map">the map</a>). In flight, the body a held job sends you to wears a gold objective chip with the job's code, what to do and the distance, such as <code>JOB-1 Answer  4.2 km</code>; off screen the chip pins to the edge and points at it. The moment a job's work is done, a <a href="../hud/#flight-readouts">HUD notice</a> reads <code>JOB-1 done: hand in at STN-1</code>; the reward is paid at the hand-in. The chip moves to the station that pays it (<code>JOB-1 Hand in</code>), and jobs that hand in at one station share its chip (<code>JOB-1, JOB-2 Hand in</code>). A procurement has no chip. A body in a sector that is not streamed in has no chip; its chart mark shows where it is. A saved Open World keeps the jobs you hold, have done and have completed; a Load brings them back. A held job never expires. You lose a job if its hauler is disabled, neutralized or destroyed, if its wreck or caller is destroyed before the job is done, or if its station dies. A lost job is dropped for free: its slot waits out its normal offer window, same as an offer that expired unheld, before the station posts a fresh one, and a Load keeps the lost job off it.</p>
+<h2 id="stripping-a-wreck" tabindex="-1">Stripping a wreck</h2>
+<!-- Block, timer and action: crates/nova_interface/src/inventory/strip/mod.rs.
+     Rule: crates/nova_gameplay/src/inventory.rs `plan_hull_strip`,
+     `plan_section_yield`. Order and removal:
+     crates/nova_ship/src/sections/section_strip.rs. -->
+<p>Docked with a derelict wreck or a neutralized ship, the Inventory pane shows a strip block over the wreck's column: a <strong>Strip</strong> button and four meters. <strong>Total</strong> shows the whole strip and its time, <strong>Step</strong> the section coming off now, <strong>Sections</strong> the sections taken of all, and <strong>Hold</strong> your hold's mass of its capacity, with the mass of the parts still to come. Under them, one tile per part shows what the strip has recovered so far of what it plans to give, such as <code>2/23 Section panel</code>. The plan counts the sections still on the wreck at their current health, so it drops if they take damage. <strong>Strip</strong> first takes everything in the wreck's hold, everything you stored at a dead station, and all its credits into your ship, as <strong>Take all</strong> does (see <a href="#the-inventory">The inventory</a>). If your hold has no room for all of it, <strong>Strip</strong> is disabled and nothing moves; point at it for what has no room, such as <code>no room for 6 Hull plate</code>. Make room in your hold, then strip. The note line names what the strip took, such as <code>took 6 Hull plate and 50 cr; stripping the wreck: 40 s</code>. A strip takes the wreck apart one section at a time, the section farthest from your port first, and the port you are docked through last. Each section takes 1 s per part of its build recipe, at least 3 s, and runs only while the game runs: close the interface and fly on docked, and the HUD chip over your ship reads <code>STRIP 40%</code>. As each section comes off, its parts go into your hold: each part of its recipe times its strip yield times its health, rounded down. When the port comes off, the wreck is gone and your ship floats free, and the note line names the loot and the parts together, such as <code>the wreck is stripped and gone: took 6 Hull plate and 50 cr, stripped 3 Section panel</code>. Anything put into its hold during the strip comes off before the port, as much as fits, and the strip holds there until the rest fits. A hold without room holds the strip at that section until you make room: the HUD chip reads <code>STRIP HELD: HOLD FULL</code>, the <strong>Total</strong> meter reads <code>Held</code> and the <strong>Hold</strong> meter names what the section needs, such as <code>needs 70 kg</code>. Undock and the strip stops; what it took stays taken, when its sector streams away and back and across a Load. A strip is refused at a living station, while one is already running and at a hull that is not a wreck you may loot. At your own dead station, or while a ship you own is parked at a dead station, <strong>Strip</strong> is disabled: point at it for the reason, such as <code>this is your station</code> or <code>1 of your ships is parked here</code>.</p>
 <h2 id="the-inventory" tabindex="-1">The inventory</h2>
 <figure class="figure">
     <!-- Capture: assets/wiki-interface-inventory.png -->
@@ -333,8 +448,9 @@
         >
     </div>
 </figure>
-<!-- Items and categories: crates/nova_gameplay/src/inventory.rs (`ItemType`,
-     `ItemCategoryType`, `ShipInventory`, required by `SpaceshipRootMarker`).
+<!-- Items and categories: crates/nova_gameplay/src/inventory.rs (`ItemDesign`,
+     `ItemCategoryType`, `GameItems`, `ShipInventory`, required by
+     `SpaceshipRootMarker`).
      Pane: crates/nova_interface/src/inventory/app.rs `update_inventory_panel`
      (partner through `DockedShip` -> `DockingConnection`); keys and their
      cues: `inventory_keys`; clipped description: `about_box`,
@@ -349,14 +465,15 @@
      in crates/nova_scenario/src/objects/ship_design.rs.
      Take and Give: crates/nova_gameplay/src/inventory.rs `plan_item_transfer`;
      Take credits: `plan_credit_take`, applied by
-     `apply_credit_take_commands`; Buy and Sell: `plan_item_trade`, prices
-     `ItemType::ask_cr` and `ItemType::bid_cr`, balance `ShipCredits` from
+     `apply_credit_take_commands`; Take all: `apply_take_all_commands`; Buy and Sell: `plan_item_trade`, prices
+     `ItemDesign::ask_cr` and `ItemDesign::bid_cr`, balance `ShipCredits` from
      `SpaceshipConfig::credits`; Jettison: `plan_item_jettison`; all but Take
      credits applied by crates/nova_interface/src/inventory/app.rs
      `apply_inventory_action_commands`; the action a row opens:
      `offered_action`, the Sell/Give switch: `draft_fits`. The intake's door, drop and pickup
      live on wiki/sections/cargo-intake.md. -->
-<p>The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads <code>Inventory empty.</code> A ship's hold takes 100 kg per hull section. Under your ship's name, <strong>Cargo</strong> shows your load against the hold and <strong>Credits</strong> your balance, for example Cargo <code>3520 kg / 13100 kg</code> and Credits <code>2,000 cr</code>. The docked ship's column shows its <strong>Credits</strong> too. In the open world your ship starts with 12 hull plates (10 kg each), 6,000 PDC rounds, 20 rail slugs, 12 torpedoes - 3,520 kg in all - and 2,000 cr. A generated ship, intact or a derelict wreck, starts with its own role-specific goods and a credit balance too (see <a href="../ships/#generated-ships">Generated ships</a>): stop with one of your docking collars beside one of its docking ports to <a href="../sections/docking/">dock</a>, then Take what a neutralized or derelict one carries, or Take credits for its whole balance in one click. Other ships start as their scenario authors them; an AI raider or a tutorial drone carries no reserve of its own, so its magazines do not refill once spent. A <a href="#the-ship">repair</a> spends hull plates, and a weapon's idle <a href="../combat-weapons/#magazines">reload</a> spends matching ammunition. Nothing is saved: spent and moved items and credits return to their starting values when the scenario loads again; a retired sector regenerates a generated ship's stock and credits. With cheats armed, <a href="../commands/#cheats"><code>item give</code></a> adds items to a ship's hold.</p>
+<p>The Inventory pane lists what your ship carries in the left column and, while you are docked, what the docked ship carries in the right column. Undocked, the right column is blank. A ship that carries nothing reads <code>Inventory empty.</code> A ship's hold takes 100 kg per hull section. Under your ship's name, <strong>Cargo</strong> shows your load against the hold, for example <code>3520 kg / 13100 kg</code>. Your balance shows in the interface title row on every pane, beside the play clock, as the credit mark (a ring cut by a vertical bar) and the number, for example <code>2,000</code>. The docked ship's column shows its <strong>Credits</strong> the same way, and so do row prices and job rewards. In the open world your ship starts with its <a href="../getting-started/">start role</a>'s kit of credits and cargo; a hull with point-defense mounts carries 1,000 PDC rounds in its hold. A generated ship, intact or a derelict wreck, starts with its own role-specific goods and a credit balance too (see <a href="../ships/#generated-ships">Generated ships</a>): stop with one of your docking collars beside one of its docking ports to <a href="../sections/docking/">dock</a>, then Take what a neutralized or derelict one carries, or Take credits for its whole balance in one click. Other ships start as their scenario authors them; an AI raider or a tutorial drone carries no reserve of its own, so its magazines do not refill once spent. A <a href="#the-ship">repair</a> spends hull plates, and a weapon's idle <a href="../combat-weapons/#magazines">reload</a> spends matching ammunition. In a saved Open World, spent and moved items and credits persist for your ship and for every ship in the world: a Load brings them back from the last save, on the desktop build (see <a href="../getting-started/#saved-worlds">Saved worlds</a>); within a session, a retired sector already keeps a generated ship's stock and credits as you left them. Any other scenario saves nothing: items and credits return to their starting values when it loads again. With cheats armed, <a href="../commands/#cheats"><code>item give</code></a> adds items to a ship's hold, and <a href="../commands/#cheats"><code>credits give</code> and <code>credits set</code></a> change its credits.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -391,9 +508,11 @@
 </tr>
 </tbody>
 </table>
+</div>
 <p>Click an item to inspect it, or step through the shown items with <kbd>[</kbd> / <kbd>]</kbd>, your column first; a step opens the same form a click does. The inspector shows its category, what it is, how many the selected ship carries and the weight of one item. A PDC round weighs 0.2 kg. While a Take, Give, Buy, Sell or Jettison is open, <strong>Total weight</strong> shows the weight of the quantity you chose: 2 hull plates read 20 kg however many you carry. The description keeps four lines, so the rows under it stay in place as you change items. A longer one is cut off with an <code>I Full text</code> cue: point at it, or press <kbd>I</kbd>, to read all of it. <kbd>I</kbd> again, or another item, closes it. You can rebind <kbd>I</kbd> as <strong>Item Details</strong> in <strong>Settings &gt; Controls &gt; INVENTORY</strong>.</p>
 <h3 id="take-and-give" tabindex="-1">Take and give</h3>
 <p>Docked, a click on an item opens a transfer form in the inspector at a quantity of 1:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -425,10 +544,14 @@
 </tr>
 </tbody>
 </table>
-<p>Set the quantity with the mouse wheel over the quantity row, the slider, the number field, or <strong>All</strong> for the whole stack. The slider hides when the stack holds one item. <strong>Confirm</strong> moves the items at once and the note line reads <code>Took 3 Hull plate from &lt;ship&gt;</code> or <code>Gave 3 Hull plate to &lt;ship&gt;</code>, where <code>&lt;ship&gt;</code> is the docked ship's name. A refused move changes nothing and keeps the form open so you can fix the quantity: <code>Refused: enter a quantity</code>, <code>Refused: quantity is zero</code>, <code>Refused: only 2 Hull plate in &lt;ship&gt;</code>, <code>Refused: &lt;ship&gt; has room for 30 kg more</code>, <code>Refused: &lt;ship&gt; is not neutralized or lootable</code>, or <code>Refused: not docked</code>. A move never splits to fit: with room for 30 kg, a move of 5 hull plates is refused whole. Take and Give have no price. Items given to a ship that the open world streams away are gone with it, and a wreck you emptied has its generated stock again when its sector streams back in.</p>
-<p>The partner column's header also carries a <strong>Take credits</strong> button, shown only while the partner is neutralized or lootable and holds a credit above zero. One click moves its whole balance into your ship and leaves the partner at zero, and the note line reads <code>Took 500 cr from &lt;ship&gt;</code>. Repeating it against the now-empty balance refuses with <code>Refused: &lt;ship&gt; holds no credits</code>, an intact, non-neutralized partner refuses with <code>Refused: &lt;ship&gt; is not neutralized or lootable</code>, and a take that would overflow your own balance refuses with <code>Refused: your ship cannot hold more credits</code> - every refusal changes nothing. Take credits has no form and no quantity: it always moves the whole balance in one click.</p>
+</div>
+<p>Set the quantity with the mouse wheel over the quantity row, the slider, the number field, or <strong>All</strong> for the whole stack. The slider hides when the stack holds one item. <strong>Confirm</strong> moves the items at once and the note line reads <code>TOOK x3 Hull plate</code> or <code>GAVE x3 Hull plate</code>. The partner is named in the column beside the form. A refused move changes nothing and keeps the form open so you can fix the quantity: <code>Refused: enter a quantity</code>, <code>Refused: quantity is zero</code>, <code>Refused: only 2 Hull plate in &lt;ship&gt;</code>, <code>Refused: &lt;ship&gt; has room for 30 kg more</code>, <code>Refused: &lt;ship&gt; is not neutralized or lootable</code>, or <code>Refused: not docked</code>. A move never splits to fit: with room for 30 kg, a move of 5 hull plates is refused whole. Take and Give have no price. Items you give a ship stay with it even if the open world streams it away, and a wreck you emptied stays empty when its sector streams back in.</p>
+<p>The partner column's <strong>Credits</strong> row carries a <strong>Take all</strong> button while the partner is neutralized or lootable and holds a stack, a stored item or a credit. One click takes as much of every stack as your hold has room for, then as much of what you stored at a dead station, then the whole credit balance, and the note line names what was taken and what stayed, for example <code>TOOK x2 Hull plate, +50 cr; no room for 6 Hull plate</code>. With no room for any of it, it refuses with <code>Refused: no room for 6 Hull plate</code> and changes nothing.</p>
+<p>The <strong>Credits</strong> row also carries a <strong>Take credits</strong> button, shown only while the partner is neutralized or lootable and holds a credit above zero. One click moves its whole balance into your ship and leaves the partner at zero, and the note line reads <code>TOOK +500 cr</code>. Repeating it against the now-empty balance refuses with <code>Refused: &lt;ship&gt; holds no credits</code>, an intact, non-neutralized partner refuses with <code>Refused: &lt;ship&gt; is not neutralized or lootable</code>, and a take that would overflow your own balance refuses with <code>Refused: your ship cannot hold more credits</code> - every refusal changes nothing. Take credits has no form and no quantity: it always moves the whole balance in one click.</p>
 <h3 id="buy-and-sell" tabindex="-1">Buy and sell</h3>
-<p>Every live ship trades: any docked ship that is neither neutralized nor lootable. It sells only what its hold carries and pays only from its own credits. Nothing restocks. A living generated ship trades its own seeded goods and credits; a generated wreck is lootable, not a trader.</p>
+<p>Every live ship trades: any docked ship that is neither neutralized nor lootable. It sells only what its hold carries and pays only from its own credits. A generated trader restocks toward the goods it spawned with by the play time its sector stood unloaded; an authored scenario's ship never restocks. A generated wreck is lootable, not a trader.</p>
+<p>The table lists each item's reference price.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -490,12 +613,43 @@
 </tr>
 </tbody>
 </table>
-<p>Prices are fixed per item and the same on every ship. A Buy pays the ask and a Sell earns the bid, so selling back what you bought loses credits. While the form is open it shows the price and your balance after, for example <code>Price 20 cr, you after: 1,980 cr</code>. <strong>Confirm</strong> moves the items and the credits at once, and the note line reads <code>Bought 5 Stone ore from Frame Tender for 20 cr</code> or <code>Sold 10 Stone ore to Frame Tender for 30 cr</code>. A refused trade changes nothing and keeps the form open: <code>Refused: enter a quantity</code>, <code>Refused: quantity is zero</code>, <code>Refused: only 2 Stone ore in Frame Tender</code>, <code>Refused: Line Warship has room for 30 kg more</code>, <code>Refused: Frame Tender has only 20 cr</code>, <code>Refused: Frame Tender cannot hold more credits</code>, <code>Refused: Frame Tender does not trade</code>, or <code>Refused: not docked</code>. A trade never splits to fit the hold or the credits.</p>
+</div>
+<p>A living generated station or ship computes its own prices from the reference when you trade: its stock against the stock it started with (scarce goods cost and pay more, a glut less), the type of the cluster it stands in (ore is cheap where asteroids are many and dear among planets), and what its civilization's ships do. While the partner trades, each row shows the <strong>Price</strong> of one, what the partner pays for yours and asks for its own, with a <strong>Deal</strong> badge of the percent off the reference: green when it favours you (a bid over the reference, an ask under it), amber when not. Select an item and the inspector shows the <strong>Reference</strong>, <strong>Pays</strong> and <strong>Asks</strong> with the same percent, and the <strong>Scarcity</strong>, <strong>Cluster</strong> and <strong>Civilization</strong> factors that made it, with their <strong>Total</strong>, marked <code>clamped</code> when the price hit its limit. Under the columns, a generated trader's <strong>MARKET</strong> strip names the three items it pays most over the reference for and the three it sells cheapest among what it holds, its restock gap (the item furthest under its target, a meter of stock against target, and the play minutes until it is full) and, while its civilization refuses you, a red <strong>REFUSED</strong> badge with the minutes left or none when only a settlement ends it. The interface title row shows the play clock while a world runs. A station or ship placed by a scenario deals at the reference price and shows no strip. A Buy pays the ask and a Sell earns the bid, so selling back what you bought loses credits. At a station you <a href="#buying-a-station">own</a>, a Buy pays the bid instead. While the form is open it shows the price and your balance after, for example <code>Price 20 cr  Balance 1,980 cr</code>. <strong>Confirm</strong> moves the items and the credits at once, and <strong>Buy all</strong> or <strong>Sell all</strong> beside it confirms the whole stack in one click, disabled while that trade would be refused; and the note line reads <code>BOUGHT x5 Stone ore -20 cr</code> or <code>SOLD x10 Stone ore +30 cr</code>. A refused trade changes nothing and keeps the form open: <code>Refused: enter a quantity</code>, <code>Refused: quantity is zero</code>, <code>Refused: only 2 Stone ore in Light Freighter</code>, <code>Refused: Line Warship has room for 30 kg more</code>, <code>Refused: Light Freighter has only 20 cr</code>, <code>Refused: Light Freighter cannot hold more credits</code>, <code>Refused: Light Freighter does not trade</code>, or <code>Refused: not docked</code>. A trade never splits to fit the hold or the credits.</p>
+<h3 id="store-and-withdraw" tabindex="-1">Store and withdraw</h3>
+<p>Docked at a living station that offers storage, a <strong>Storage</strong> column lists what the station keeps for you, with <strong>Stored</strong> showing its load against the station's cap. From 1200 px wide your column, the station's and Storage share the width equally; in a narrower window Storage sits under the station's column, which keeps two thirds of the height. A column whose rows run past its height scrolls with the mouse wheel. Click an item in your column to open <strong>Store</strong>, or an item in the storage column to open <strong>Withdraw</strong>. At a station that also trades, your item opens <strong>Sell</strong>: click the <strong>Store</strong> button to switch the form. <strong>Confirm</strong> moves the items at once and the note line reads <code>Stored 5 Hull plate at &lt;station&gt;</code> or <code>Withdrew 5 Hull plate from &lt;station&gt;</code>. No credits move. A refused move changes nothing: <code>Refused: storage full, 70 kg free</code>, <code>Refused: only 3 Hull plate in storage</code>, <code>Refused: &lt;ship&gt; has room for 5 kg more</code>, or <code>Refused: &lt;station&gt; offers no storage</code>.</p>
+<p>Your own ships are storage too. Each of your ships docked at the same station, or docked with you directly, shows as its own section of the storage column, headed by its name and its load against its own hold, for example <code>Escort  300 kg / 400 kg</code>. Click its item to <strong>Withdraw</strong> it into your hold. To store into it, click an item in your column, then the <strong>To Escort</strong> button. The note line reads <code>Stored 12 Hull plate in Escort</code> or <code>Withdrew 30 Hull plate from Escort</code>. A move that does not fit is refused whole: <code>Refused: &lt;ship&gt; has room for 0 kg more</code>. Docked directly with one of your ships, it does not trade and has no column of its own: its hold is the storage section.</p>
+<h3 id="quick-moves" tabindex="-1">Quick moves</h3>
+<p>Double-click an item to move its whole stack at once: the double click confirms the form a click opens, with the stack as the quantity. Hold <kbd>Shift</kbd> while you double-click to move one item instead.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>Double-click</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>An item in your column</td>
+<td>The action the form shows: <strong>Sell</strong> at a trader, <strong>Store</strong> at a station that keeps items, <strong>Give</strong> to a lootable ship.</td>
+</tr>
+<tr>
+<td>An item in the storage column, or in one of your ships' sections</td>
+<td><strong>Withdraw</strong> it into your hold.</td>
+</tr>
+<tr>
+<td>An item in the docked ship's or station's column</td>
+<td><strong>Buy</strong> it, or <strong>Take</strong> it from a lootable ship.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The Give, Sell, Store and To buttons stay as you set them from item to item, so after one click on <strong>Store</strong>, each double click stores. A quick move is refused exactly as <strong>Confirm</strong> would refuse it, with the reason on the note line and in the form, and nothing changes: double-clicking a stack the storage cannot take reads <code>Refused: storage full, 100 kg free</code>. Jettison has no quick move. Two clicks count as a double click when they land on the same item within half a second.</p>
 <h3 id="jettison-and-pickup" tabindex="-1">Jettison and pickup</h3>
 <p>Undocked, with a working <a href="../sections/cargo-intake/">cargo intake</a>, a click on an item in your column opens a <strong>Jettison</strong> form. <strong>Confirm</strong> takes the whole quantity out of your hold at once and packs it into canisters queued on the intake, and the note line reads <code>Jettisoned 4 Hull plate: 1 canister queued</code> with the number of canisters now waiting. A canister holds at most 200 kg across all its stacks, so a larger quantity fills several: one 150 kg torpedo, 10 rail slugs of 20 kg, 20 hull plates of 10 kg or 1000 PDC rounds of 0.2 kg each. A confirmed stack first tops up the last waiting canister where whole items still fit, even in the same frame. A refused jettison changes nothing: <code>Refused: undock to jettison</code>, <code>Refused: no working cargo intake</code>, <code>Refused: enter a quantity</code>, <code>Refused: quantity is zero</code>, or <code>Refused: only 2 Hull plate in Line Warship</code>.</p>
 <p>Once you close the interface, the intake's door folds open and the canisters leave through it one at a time. To take a canister back in, or one a <a href="../sections/mining-beam/">mining beam</a> cut loose, fly the intake's door onto it. <a href="../sections/cargo-intake/">Cargo intake</a> has the door, the pickup sight, the drop and the canister rules.</p>
 <h2 id="the-command-shell" tabindex="-1">The command shell</h2>
-<p>Press <kbd>:</kbd> for <code>NOVA COMMANDS</code>: a text prompt on the ship's CRT monitor, over the interface, flight, the menus and the editor. It reads the run, changes your settings and prints the flight log. The <a href="../commands/">Commands</a> page has the whole catalog, and the monitor's own knobs and sounds.</p>
+<p>Press <kbd>;</kbd> for <code>NOVA COMMANDS</code>: a text prompt on the ship's CRT monitor, over the interface, flight, the menus and the editor. It reads the run, changes your settings and prints the flight log. The <a href="../commands/">Commands</a> page has the whole catalog, and the monitor's own knobs and sounds.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
 </footer>

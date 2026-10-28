@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-83f806a0.js";
+            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -186,10 +186,507 @@ how sections connect and handles damage, disabling, and cascading destruction.</
 <h2 id="sections-nova_shipsections"><a class="header" href="#sections-nova_shipsections">Sections (<code>nova_ship::sections</code>)</a></h2>
 <p>A section is a <code>SectionConfig { base: BaseSectionConfig, kind: SectionKind }</code>.
 <code>BaseSectionConfig</code> is shared by all kinds: <code>id</code>, <code>name</code>, <code>description</code>,
-<code>health</code>, optional <code>destroy_sound</code>, optional <code>collider</code>,
-structural <code>link_points</code>, <code>hide_in_editor</code>, and <code>damage_effects</code> - the authored
-list of looks this section wears as it is damaged (see <a href="#damage-is-two-readings">Damage is two
-readings</a>).</p>
+<code>health</code>, a required <code>build</code> recipe, optional <code>destroy_sound</code>, optional
+<code>collider</code>, structural <code>link_points</code>, <code>hide_in_editor</code>, and <code>damage_effects</code> -
+the authored list of looks this section wears as it is damaged (see <a href="#damage-is-two-readings">Damage is
+two readings</a>).</p>
+<p><code>build</code> is a <code>BuildRecipe</code> (<code>nova_gameplay::inventory</code>): <code>credits</code> for the
+work, <code>parts</code> as a count per <code>Parts</code> item id, and <code>strip_yield</code> in <code>(0, 1]</code>.
+It has no serde default, so a section without one fails to load.
+<code>lint_section_recipe</code> (<code>nova_scenario/src/lint/ship.rs</code>) refuses an unknown or
+non-Parts item, a zero count, zero credits, a yield outside <code>(0, 1]</code>, and a
+recipe whose yielded parts at bid are worth as much as the recipe at ask. The
+merge lint runs it on every catalog section; the authoring walk and
+<code>check_design_sections</code> run it on bundle and inline sections. Base rows live
+in <code>crates/nova_authoring/src/base_content/sections/recipes.rs</code>.</p>
+<p>A destroyed section drops <code>BuildRecipe::strip_parts</code>, <code>floor(strip_yield * count)</code> of each part, as cargo canisters; a destroyed ship root drops its
+hold, and a destroyed station root its <code>StationStorage</code> with it. A section destroyed in its root’s structural collapse adds its parts to
+the root’s drop, so a ship destroyed whole leaves one drop. The drop is a
+<code>MinedOreDrop</code> that the mining ejector drains, so it freezes, thaws and saves
+like mined ore (<code>nova_scenario/src/wreck_cargo.rs</code>).</p>
+<h3 id="lost-sections-and-the-rebuild"><a class="header" href="#lost-sections-and-the-rebuild">Lost sections and the rebuild</a></h3>
+<p>The section spawn of an authored ship inserts <code>ShipDesignSections</code>
+(<code>design_sections.rs</code>) on the root: every design section with its pose and
+patched config, live or not. A lost section is a design section with no live
+child of that id. Section codes (<code>PDC-1</code>) derive from the design by
+<code>ShipDesignSections::class_index</code>, so a code holds while a sibling is lost and
+after a rebuild; a root with no design falls back to the live order.</p>
+<p><code>remember_lost_section_binding</code> copies a lost section’s live input binding
+into the root’s <code>input_mapping</code> before it despawns, so a rebind the player made
+survives the loss and a save.</p>
+<p>A thruster with no <code>SpaceshipThrusterInputBinding</code> fires on the Main Drive:
+<code>manual_burn_system</code> (<code>nova_ship/src/flight/manual.rs</code>) balances only thrusters
+without one. The Ship pane’s Control line names the <code>main_drive</code> keys from
+<code>InputBindings</code> (<code>ShipSectionView::binding_text</code>). Rebind gives the thruster
+its own key or pad button, which fires it alone and takes it off the balance;
+reserved flight sources, keys and pad buttons alike, are refused. Backspace
+while rebinding a thruster removes the component (<code>apply_ship_rebind</code>), and
+<code>on_thruster_input_binding_removed</code> despawns its action and zeroes its
+throttle. The save reads live components (<code>live_input_mapping</code>), so a load
+keeps an own key, and keeps the Main Drive for a thruster with none.
+The autopilot still flies every thruster.</p>
+<p><code>apply_ship_rebind</code> captures a key or mouse button first
+(<code>InputSources::captured_desk</code>), else a pad button (<code>captured_pad</code>), and
+<code>captured_binds</code> replaces only the half of that device: a key keeps the pad
+half, a pad button keeps the key. Every common pad button but Right Trigger 2
+(the guns’ trigger, which sections may share) belongs to a Flight or Always
+action and is refused.</p>
+<p>The Ship pane (<code>nova_interface/src/ship/rebuild.rs</code>)
+lists lost sections while docked to a station that offers <code>Rebuild</code>, by
+<code>station_offers</code> (<code>nova_gameplay::markers</code>), the one gate the Inventory pane’s
+Trade and Storage also read. A lost section whose prototype is not in the
+station’s <code>StationBuilds</code> (<code>nova_gameplay::markers</code>, read through
+<code>StationPartner.builds</code>) is refused before payment, knowledge rather than
+materials. Its plan
+is <code>plan_section_rebuild</code> (<code>nova_gameplay::inventory</code>): hold parts first, the
+rest bought at ask, refused when the station lacks stock, the ship lacks
+credits, or <code>rebuild_anchored</code> finds no live mate for the lost section’s
+sockets. A confirmed rebuild moves parts and credits (cause <code>Rebuild</code> on both
+parties), pushes <code>ShipInventoryReport::Rebuilt</code> (<code>OnRebuilt</code>), and triggers
+<code>SectionRebuildRequest</code>; <code>rebuild_design_section</code> spawns the section again at
+full health through the same per-section spawn the ship was built with.</p>
+<h3 id="swapping-a-section"><a class="header" href="#swapping-a-section">Swapping a section</a></h3>
+<p>While docked to a station that offers <code>Refit</code>, the Ship pane footer’s
+Catalogue button, left of Fit and Reset, opens the parts gallery
+(<code>nova_ship::gallery</code>, the editor’s picker) over the pane
+(<code>nova_interface/src/ship/catalogue.rs</code>). A placeable part the
+selected live section can be swapped for gets Swap as the focus card’s second
+verb (<code>GalleryAlternate</code>), labelled with the swap price
+(<code>Swap PDC-2, 100 cr</code>), or a second note line with the swap refusal, when
+<code>section_swap_family</code>
+accepts the part, and only when the part’s prototype is in the station’s
+<code>StationBuilds</code> (<code>nova_gameplay::markers</code>, read through
+<code>StationPartner.builds</code>). The family rule is
+the same <code>SectionKind::class</code> and the same <code>SectionFootprint</code> read from the
+authored collider, and another prototype. <code>plan_section_swap</code> checks the
+gate, the family and the payment;
+<code>plan_recipe_payment</code> (<code>nova_gameplay::inventory</code>) is the one payment rule a
+rebuild and a swap share. On a click, <code>swap_build_fault</code> runs the generator’s
+post-build checks on the ship the swap leaves: one socket graph, clear exit
+lanes and the thrust floor (<code>ShipMeasure::of_working</code>, <code>ship_measure.rs</code>,
+shared with <code>nova_world_base::ship_layout</code>; a collapse-disabled drive pushes
+nothing, and the flight computer count binds authored hulls and the
+generator only). Only a fault the swap adds refuses it. A confirmed swap moves parts and credits (cause
+<code>Swap</code> on both parties), pushes <code>ShipInventoryReport::Swapped</code>
+(<code>OnSwapped</code>), and triggers <code>SectionSwapRequest</code>. <code>swap_design_section</code>
+(<code>nova_scenario/src/objects/spaceship.rs</code>) makes the root’s design inline,
+points the section at the new prototype, moves the root’s pinned health by
+the two parts’ pool difference, and respawns the section at full health with
+the binding the old part flew with. The old part is not refunded. A freeze
+and a save keep the inline design, so the swap persists.</p>
+<h3 id="adding-a-section"><a class="header" href="#adding-a-section">Adding a section</a></h3>
+<p>The catalogue lists each part that is not <code>hide_in_editor</code>. A host that
+carries a <code>GalleryListing</code> (the Ship pane; the editor’s gallery carries none)
+also shows an All/Available pair after the filter box
+(<code>GalleryState.available_only</code>, <code>GalleryAction::Available</code>,
+<code>catalog::browsable</code>‘s <code>available_only</code> argument): Available keeps only the
+listed parts with <code>placeable: true</code> and resets the selection to the first
+tile, All brings every listed part back, and <code>Open</code>/<code>Browse</code> reset the switch
+to All; the count line reads <code>N of M parts</code> whenever the switch or the filter
+narrows the grid. A part the station’s <code>StationBuilds</code> does not name, or
+whose recipe the player’s hold and the station’s stock together cannot carry
+(<code>plan_recipe_payment</code> finds a missing part), has <code>placeable: false</code>: its
+tile text, border and focus card title are muted, a theme surface veil greys
+its 3D preview, it has no <code>tile</code> line, Place on its card is disabled with the
+<code>note</code> as its tooltip (<code>This station cannot craft this section</code>, or the
+missing-part refusal), the tile itself carries that same <code>note</code> as its hover
+tooltip, and Enter and Q do not take it. Credits do not mute: a part the ship
+cannot pay for stays placeable with <code>Needs 400 cr</code> on its tile and the credit
+refusal as its note. A station <code>builds</code> id that <code>GameSections</code> lacks panics
+when the catalogue opens; station lint refuses it first. Every tile’s label
+strip is a fixed height (<code>LABEL_H</code>): the name sits left on one clipped line,
+with the <code>GalleryEntry.tile</code> line (a price or a refusal such as <code>Needs 300 cr</code>) right-aligned beside it when the part has one, and the category sits
+alone on the line below. A placeable <code>GalleryEntry</code> carries a short <code>tile</code>
+line, its price (<code>180 cr</code>) or credit refusal, and the price or the whole
+refusal as the focus card’s <code>note</code>. Its <code>recipe</code> packs one <code>GalleryRecipeItem</code>
+row per item, with no gap, at the top of the card’s clipping details: the
+item’s icon, a quantity cell reading <code>covered/count</code> (covered is held plus
+bought, e.g. <code>1/2</code>, Danger-coloured when the item is short and Primary
+otherwise), the item’s name, and, only when something was bought, a right
+cell with the bought items’ total cost (<code>bought * ask</code>, e.g. <code>40 cr</code>).
+<code>GalleryRecipeItem::supply</code> is a <code>GalleryRecipeSupply</code> that splits the count
+into held, bought and short, with the item’s <code>ask_cr</code>, the price
+<code>plan_recipe_payment</code> charges for one bought item; its <code>new</code> panics when the
+split does not sum to the count. Its tooltip, pointer-only and shown only for
+an item the station sells, lines up <code>Required N</code>, then only the sources that
+apply: <code>From the hold N</code>, <code>Bought N at &lt;ask&gt; cr, &lt;total&gt; cr</code>, and
+<code>Missing N</code> (a short part is not placeable but its row stays at full alpha).
+<code>supply: None</code> is a part the station does not build: the row is muted, with
+the plain required count, no price and no tooltip. The split is
+pointer-only; a keyboard user reads the quantity and total cells, the whole
+refusal on the note line and the Swap button’s price. Place on the focus
+card puts a part in hand (<code>HeldPart</code>, shared with the editor).
+While a part is in hand, the placement ghost
+(<code>nova_interface/src/ship/ghost.rs</code>) casts the pointer’s ray into the Ship
+view, takes the nearest block it enters
+(<code>pick_ship_block</code>), and snaps to the target of that section nearest the hit
+(<code>nearest_link_point</code> over <code>ghost_targets</code>). A target is a free socket whose
+outward lane leaves the ship without entering another block and where
+<code>section_add_clear</code> finds the part clear, so a section inside the hull or a
+socket a part covers is never a target, and a block with none shows no ghost.
+<code>free_link_points</code> (<code>section_add.rs</code>) is every socket no design section mates,
+live or lost, so a lost section’s socket stays reserved for its rebuild. No
+content marks an attachment point; every hull, base, generated or modded, has
+them. <code>section_add_pose</code> places the part by the player’s <code>MountPose</code>
+(<code>ShipRuntime::mount</code>) through <code>MountPose::snap</code>: the mating socket is
+<code>MountPose::source</code> steps on from the part’s <code>natural_link_point</code> (the socket
+facing most nearly opposite) and the roll is <code>MountPose::roll</code> quarter turns
+(<code>snap_placement</code>), using <code>link_point_pose</code>. The editor’s <code>snap.rs</code> solver
+and <code>PlacementPose</code> use the same <code>MountPose</code>, so R (<code>ship_part_roll</code>) and F
+(<code>ship_part_socket</code>) step it alike; in the Ship pane those actions follow the
+tilt keys and act only while a part is in hand, and the pose resets when the
+part in hand changes. Targets are chosen at the default pose, so a step never
+moves the ghost to another point. It refuses an occupied point and a part
+with no socket. <code>section_add_clear</code> adds the refusal for a collider overlap
+with a design section it does not mate (<code>section_colliders_overlap</code>), and
+<code>section_add_fit</code> adds a post-build fault the add makes (<code>add_build_fault</code>:
+the swap’s checks through <code>refit_build_fault</code>, with <code>placement_blocks_an_exit</code>
+for the lanes) and refuses <code>Obstructed</code> when the part’s collider overlaps a
+collider outside the ship. The Ship pane passes the docked station’s
+(<code>StationSite::partner_colliders</code>: the direct child sections of the partner
+root and of every other ship docked to it, such as its parked hulls, in
+ship-root space, within <code>PARTNER_REACH_MARGIN</code> cells of the ship’s reach),
+and <code>sync_ship_station_blocks</code> draws the same boxes as dim outlines in the
+Ship view, not selectable. A swap does not check the station. The ghost block
+shows at the pose with a Nominal outline for a valid add and a Danger outline
+for a refusal, and its callout beside the pointer shows the refusal, or the
+price with the parts the hold gives and the parts bought at the station’s ask
+(<code>RecipePayment</code>): the click buys exactly those, so it is the quick buy. A
+click with a valid ghost raises
+<code>SectionAddCommand</code>; a click with a refused ghost puts the refusal on the note
+line. A click on a section badge commits the same way (<code>commit_placement</code>),
+since the badge stops the click. The part stays in hand for the next add. With
+no part in hand, a click on a block selects its section. While a part is in
+hand, the Ship panel shows the Placing block (<code>ship/held.rs</code>) in place of the
+selection: the part’s icon and name, its price (the aimed placement’s
+<code>RecipePayment</code>, else <code>plan_recipe_payment</code> of its recipe), the socket and
+roll of <code>ShipRuntime::mount</code>, and the note line; Delete is hidden.
+Q over empty space or Esc (<code>close_surface_from_menu_keys</code>, before it closes
+anything) puts the part away, and the footer names <code>Q/Esc Put away</code>.
+<code>plan_section_add</code> checks the gate, the fit, the binding and the payment (<code>plan_recipe_payment</code>,
+the full recipe). The new section’s binding is <code>added_section_binds</code>: the
+first live bound section of its class by id lends its binding; with none, a
+weapon takes an empty binding for Rebind, a thruster none (it fires on the
+Main Drive), and a mining emitter the first of <code>ADDED_MINING_KEYS</code> no emitter
+holds, refused when all are held. Its id is <code>added_section_id</code>: the greatest
+id of its class plus <code>+</code>, so it sorts last and takes the next code without
+moving another. A confirmed add moves parts and credits (cause <code>Add</code>), pushes
+<code>ShipInventoryReport::Added</code> (<code>OnAdded</code>), and triggers <code>SectionAddRequest</code>;
+<code>add_design_section</code> (<code>nova_scenario/src/objects/spaceship.rs</code>) makes the
+design inline with the section appended, writes the binding into the player’s
+<code>input_mapping</code>, grows the root’s pinned health by the part’s pool, and spawns
+the section at full health. <code>reselect_swapped_section</code> selects the new section
+once it is live, and <code>ship_input</code> eases the orbit pivot onto it at the same
+radius. <code>ship_input</code> consumes a selection only when the section is in the pane
+list, because an added section is selected before <code>ShipSections</code> lists it.
+The Ship side panel scrolls under the wheel while hovered
+(<code>scroll_ship_panel</code>), and the camera zoom yields to it. The pane footer names
+only the keys that apply now (<code>show_pane_input_hints</code>).</p>
+<h3 id="deleting-a-section"><a class="header" href="#deleting-a-section">Deleting a section</a></h3>
+<p>While docked to a station that offers <code>Refit</code>, the Ship pane’s <code>ship_delete</code>
+key (Delete) and the panel’s Delete button raise <code>SectionDeleteCommand</code> for
+the selected live section (<code>nova_interface/src/ship/delete.rs</code>).
+<code>ResolvedSite::plan_delete</code> refuses, in order: no dock, a dock with no
+Refit, the player’s port the dock holds by (<code>ResolvedSite::port</code>), a fault
+<code>remove_build_fault</code> finds (the swap’s checks through <code>refit_build_fault</code>,
+which can only open lanes, plus the last WORKING flight computer as
+<code>NoController</code> and the last WORKING weapon of an armed ship as <code>LastWeapon</code>,
+so a dock never hands the neutralize rule a beaten ship:
+<code>LiveSection::working</code> reads <code>SectionInactiveMarker</code> into
+<code>RefitPlacedSection::working</code>, so a collapse-disabled computer, gun or drive
+counts for nothing, the thrust floor reads working drives only, a ship with
+none working may shed its dead ones, and an unarmed ship has no weapon to
+keep; the mass count is not checked), and a hold too full for the parts.
+The parts are the strip rule’s: <code>plan_section_yield</code> at the section’s health
+share. <code>plan_ship_delete</code> is the one rule the button and the act share. A confirmed delete puts them in the hold, pushes
+<code>ShipInventoryReport::Stripped</code> with the player ship’s own id as <code>hull</code>
+(<code>OnStripped</code>), clears the selection and triggers <code>SectionRemoveRequest</code>.
+<code>remove_design_section</code> (<code>nova_scenario/src/objects/spaceship.rs</code>) makes the
+design inline without the section and drops its <code>input_mapping</code> entry
+(<code>remember_lost_section_binding</code> keeps no binding for an id the design no
+longer holds), then triggers <code>SectionStripRequest</code>, which prunes the section’s
+mates, lowers the root’s pinned health by its pool and despawns it.
+<code>reclad_round_removal</code> (<code>shell_skin.rs</code>) observes the same request and
+re-clads only the cells round the hole. No credits move. The per-frame
+<code>update_ship_delete_verdict</code> caches what a delete of the selection gives
+back or the refusal (<code>ShipRuntime::delete_verdict</code>, a <code>SectionDeleteRefusal</code>
+with the reason line and, for a split, the sections that would lose the
+dock: every piece of <code>RefitBuildFaultType::Disconnected { pieces }</code> but the
+one holding the docked port), with or without a Refit dock. The Salvage
+block shows while there is a verdict, with the Delete button, a compact
+Danger button, as its action. When the delete can go, the block stacks one
+part tile per part it gives back down a column (<code>pane::spawn_part_tile</code>,
+the tile the Inventory strip block draws), or <code>nothing to salvage</code>, over an
+enabled Delete. When it refuses, Delete is muted with the reason as its <code>Tooltip</code>
+(<code>delete_refusal_text</code>: no prefix and no code, the title names the section),
+the Ship view outlines the severed sections with the refused ghost’s Danger
+material (<code>update_ship_blocks</code>) and fills them with a translucent Danger fill
+(<code>sync_ship_target_face</code>, the block fill’s only writer, which restores the
+family fill when the verdict clears; <code>ShipRuntime::delete_severed</code>), and the
+Delete key puts the same reason on the note line. The note after a delete
+(<code>delete::delete_yield_lines</code>) opens with <code>deleted &lt;code&gt; to the hold:</code> then
+one <code>+n Name</code> line per part, or reads <code>deleted &lt;code&gt;: nothing to salvage</code>
+when it gave back none.</p>
+<h3 id="stripping-a-docked-wreck"><a class="header" href="#stripping-a-docked-wreck">Stripping a docked wreck</a></h3>
+<p>Docked with a hull the player may loot (neutralized, or a derelict with
+<code>LootableShipMarker</code>) that is not a living station, the Inventory pane shows a
+strip block over the partner column (<code>nova_interface/src/inventory/strip/</code>):
+the Strip button that raises <code>HullStripCommand</code> and four meters: Total (the
+job’s <code>progress</code>, the time), Step (the running section, shown while a job
+exists), Sections (taken over taken plus live) and Hold (used over capacity,
+with the plan’s mass or a held section’s need). Part tiles show the job’s
+<code>yielded</code> over <code>yielded</code> plus the plan of the live sections at their current
+health, recomputed each frame; <code>yielded</code> is what the strip recovered, not
+what the hold carries now. The
+Credits row’s Take all writes <code>TakeAllCommand</code>: <code>plan_loot_take</code> plans
+what fits of every hold stack in id order, then of every stack in a dead
+station’s <code>StationStorage</code> (<code>LootTake::taken_stored</code>, the player’s own
+stored items; <code>None</code> for a ship or a living station), then the credits. A
+hold part moves through the Take rule; a stored part leaves the storage
+with one <code>ShipInventoryReport::Withdrawn</code> (<code>OnWithdrawn</code>) per stack. A
+strip runs the same take first and again before the berth, so it never
+demolishes a hull with loot or storage in it. <code>plan_hull_strip</code>
+(<code>nova_gameplay/src/inventory.rs</code>) refuses, in order: not docked, a strip
+already running, a living station, the player’s own station
+(<code>OwnedStation</code>, <code>OwnedStationMarker</code>), a partner the player may not loot,
+a hull the player owns parked there (<code>OwnedHullsParked</code>, a
+<code>ParkedHullType::Owned</code> entry of <code>ParkedHulls</code>, which despawns with the
+station), and a take that would leave a stack or the credits behind
+(<code>NoRoom</code>, read from <code>HullStripPartner::loot</code>). The strip block and
+<code>apply_hull_strip_commands</code> both read it through <code>plan_strip_press</code>: on
+<code>NoRoom</code>, <code>OwnedStation</code> or <code>OwnedHullsParked</code> the Strip button is disabled
+and its tooltip names the reason, and a press moves nothing.
+The plan sums each live section’s <code>StripTarget::parts</code>
+(<code>BuildRecipe::strip_parts_at</code>: <code>floor(count * strip_yield * health share)</code>
+per part) and its <code>strip_duration_secs</code>: <code>STRIP_SECS_PER_PART</code> (1 s) per
+recipe part, at least <code>STRIP_MIN_SECS</code> (3 s). A small hold is no refusal:
+the strip holds at the first section that does not fit.</p>
+<p>A planned strip moves the loot (<code>take_loot</code>, the Take all path), then inserts
+<code>HullStripJob</code> (<code>nova_ship/src/sections/section_strip.rs</code>)
+on the player root. <code>advance_hull_strip</code> (<code>inventory/strip/mod.rs</code>) runs it on the
+virtual clock with the pane open or shut, so it holds while the TAB
+interface is open; the block’s progress line and the HUD mode chip
+(<code>STRIP &lt;percent&gt;%</code>, or <code>STRIP HELD: HOLD FULL</code>) show it. It takes one live
+section at a time, the one <code>next_strip_section</code> names: the farthest from the
+berth (the partner’s port that holds the dock) in hops over <code>ConnectedTo</code>,
+sections cut off from the berth first, ties in pane code order, the berth
+last, so the rest stays joined to the berth. When a section’s timer ends,
+<code>plan_section_yield</code> plans its parts; a hold without room holds the job
+there (<code>HullStripPauseType::HoldFull</code>) until there is room. Otherwise the
+parts go into the hold, the pane pushes <code>ShipInventoryReport::Stripped</code>
+(<code>OnStripped</code>, once per section) and triggers <code>SectionStripRequest</code>.
+<code>strip_section</code> takes the section off without the destroy path, so it fires
+no burst, no <code>OnDestroyed</code>, no canister drop and no floating piece: it prunes
+the section from its neighbours’ <code>ConnectedTo</code>, lowers the root’s pinned
+health maximum by the section’s pool, and despawns it. A stripped section is
+then a design section with no live entity, as a destroyed one is, so a
+freeze, a thaw and a save keep it stripped with no save field. Before the
+berth’s parts, the job plans <code>plan_loot_take</code> again over what a Give put
+into the wreck during the strip, moves what fits through <code>take_loot</code>, folds
+it into <code>HullStripJob::looted</code> for the end note, and holds under <code>HoldFull</code>
+(<code>need_g</code> the mass that stayed) until the rest fits. The berth’s parts end
+the strip: the job triggers <code>DockingReleaseRequest</code> for the player and
+despawns the wreck, its hold, storage and balance empty; a retiring cell freezes
+only the bodies still live in it, so the wreck stays gone. An undock, or a
+dock with another hull, stops the job and keeps what it took; the job is not
+saved.</p>
+<h3 id="buying-a-hull"><a class="header" href="#buying-a-hull">Buying a hull</a></h3>
+<p>A generated living station sells whole inline designs that <code>station_hulls</code>
+(<code>nova_world_base/src/station_hulls.rs</code>) lays out for its civilization from
+the world seed and the station id: one per docking port but one, the count
+the station’s generated layout carries, so the last port stays free for the
+player. Roles cycle from a seeded start through the roles the
+civilization’s advancement can build, and each hull is <code>generate_ship</code> at
+that advancement, so the size ceiling tiers the list: a first-ring station
+sells small hulls only. They ride <code>SectorStation.hulls</code> in the manifest
+(checked by <code>check_ship_design</code>, refused on a dead station).
+<code>spawn_sector_station</code> hands every offer to <code>PendingParkedHulls</code>, and
+<code>park_pending_hulls</code> (<code>nova_scenario/src/objects/parked_hulls.rs</code>) spawns each
+as a real ship once the station’s sections are live, in list order: a hull
+for sale while two ports are free, docked by <code>dock_parked_hulls</code>. A hull takes
+the first free port in design order where one of its own ports, tried in
+design order, lets it stand clear: <code>parked_hull_clear_pose</code>
+(<code>nova_ship/src/sections/hull_buy.rs</code>) poses it by <code>parked_hull_pose</code>, the
+hull’s port facing the station’s, and rolls it a quarter turn at a time about
+the port axis until its envelope overlaps no box of the station’s envelope,
+of a hull parked before it or of the three-cell approach lane of another free
+port (<code>section_colliders_overlap</code>). A design’s envelope (<code>design_envelope</code>) is
+its section colliders plus, when it wears the derived skin (<code>ShipSkin</code>), the
+collider box of each plate <code>derive_skin</code> lays: a plate stands in the empty
+cell beside its section, so two clad hulls whose sections only touch clad
+into each other. The hull’s port face stands one cell off the station port’s
+(<code>BERTH_GAP</code>, <code>nova_ship/src/sections/docking_section/port.rs</code>): the reach
+two sleeves bridge and the <code>capture_distance</code> the dock is graded against, so
+the pair needs no exemption and a plate beside either port keeps its cell.
+The gap gate allows <code>GAP_SLACK</code> (0.0625 units, 0.625 m) over
+<code>capture_distance</code> for the f32 noise of absolute world positions, so a berth
+posed at exactly one cell holds out to the advancement saturation radius; a
+player’s <code>DOCK</code> gets the same 0.625 m past the authored 10 m, and a berth a
+half cell or a cell off still fails. A hull that fits nowhere is not parked,
+with a warning, so a station sells at most its ports less one. At the session’s
+starting station the fresh player ship berths first: <code>outward_berth</code>
+(<code>hull_buy.rs</code>) picks its berth, the most outward port first, with nothing
+parked; the parking keeps that port as the free one and parks the sales round
+the ship’s envelope. <code>berth_at_start</code> (<code>nova_world_base/src/start.rs</code>) then
+berths the ship by the same rule, clear of the parked hulls
+(<code>parked_envelopes</code>). A berth that differs from the reserved one is logged as
+an error; a ship that fits at no free port is logged as an error and stays
+undocked where it spawned.
+A parked hull is inert: no driver, Neutral, every capability off, not
+lootable, no credits. It carries <code>ParkedHull(station)</code> and <code>ParkedHullType</code>
+(<code>Sale</code>, <code>Owned</code> or <code>Hire { slot }</code>,
+<code>nova_ship/src/sections/hull_buy.rs</code>); the
+station’s <code>ParkedHulls</code> despawns them with it. A parked hull is no persistent
+body of its own: <code>freeze_station</code> records each in <code>FrozenStation.parked</code>
+(<code>FrozenParkedHull</code>: name, listing, pose relative to the station, ship), and a
+thaw parks them again where they froze. A station whose only docks are its
+own parked hulls retires.</p>
+<p>The Station pane’s “Your ships” and “Ships for sale” lists
+(<code>nova_interface/src/station/shipyard.rs</code>) show every hull parked at the
+docked station as a card (<code>spawn_hull_card_head</code> in <code>station/mod.rs</code>): a
+view of the hull and one line with its name, length and price, then a Buy
+button, or the refusal, and an Info button. A ship the player owns
+(<code>Owned</code>) lists under “Your ships”, above the hulls for sale, and says “your
+ship” in place of the price, over a Board button. Each list shows only while
+it has a card; a button is named by the hull’s place among the station’s
+owned and for-sale hulls (<code>HullBuy-{i}</code>, <code>HullBoard-{i}</code>, <code>HullInfo-{i}</code>).
+Info (<code>station/hull_info.rs</code>) sets <code>ShipViewSubject</code> to the card’s hull and
+opens the Ship pane: <code>ShipSections</code> lists that hull’s sections,
+<code>assign_section_codes</code> codes them, and the view turns, zooms and selects as
+for the player ship. Every edit is off while the
+subject is set: Catalogue and the part in hand, Delete, Rebind, Repair, the
+rebuild list and the station outlines. A header over the Ship panel holds the
+card’s line and Close, back to the Station pane; leaving the Ship pane any
+other way clears the subject too. The view
+(<code>hull_preview.rs</code>) mirrors the parked hull’s own meshes and materials,
+posed in the hull’s frame, into a scene on the card’s render layer, turned
+slowly about its vertical axis and lit by a key and rim light on the card
+layers only. <code>mirror_hull_previews</code> follows the live hull, so damage and a
+changed part show; the cameras render, and the mirrors update, only while
+the Station pane is on screen.
+<code>plan_hull_buy</code> checks, in order: docked, <code>Refit</code>, and the player’s balance
+against the price. A hull for sale costs <code>hull_price_cr</code>, every section’s
+recipe at ask, in full: the station pays nothing for the old ship, which
+stays the player’s. A confirmed buy moves both balances (cause <code>ShipBuy</code>),
+pushes <code>ShipInventoryReport::ShipBought</code> (<code>OnShipBought</code>), and triggers
+<code>HullBuyRequest</code>. Board triggers the same request for an <code>Owned</code> hull and
+moves no credit and reports no buy. <code>swap_parked_hull</code>
+(<code>nova_scenario/src/objects/station_hulls.rs</code>) keeps the player’s ship root,
+so the HUD, the camera and the scenario id keep their owner: it freezes both
+hulls, rebuilds the root as the parked hull (<code>rehull_ship</code>) at its pose with
+the start-role bindings for the new hull (<code>start_role_bindings</code>: turrets the
+trigger, railguns R, torpedoes F, the first emitter V and each later one the
+next <code>ADDED_MINING_KEYS</code> key; no old binding carries over), and parks the old
+ship where it stood as <code>Owned</code> with <code>OwnedShipMarker</code>.
+The old ship keeps its hold; the Inventory pane lists the hold of a docked
+<code>OwnedShipMarker</code> ship as storage. <code>OwnedShipMarker</code> (<code>nova_gameplay</code>) is
+the one record that a ship is the player’s: an <code>Owned</code> parked hull carries
+it, and <code>PlayerFleetMarker</code> requires it, so an escort does too; a neutralized escort
+loses both. The root takes the bought hull’s name. The old port’s despawn
+releases the dock, and <code>redock_bought_hull</code> docks the new hull with the
+station, giving up with a warning after <code>REDOCK_FRAMES</code>. A docked ship
+that is not the station’s own parked hull keeps the station from retiring,
+so the player undocks the bought hull normally.</p>
+<p>After its hulls for sale the station lists one to three escorts for hire
+(<code>HullOfferType::Hire { slot }</code>), each parked as <code>ParkedHullType::Hire</code> but
+not docked: it coasts beside the station, inert like a hull for sale. The
+escorts stand on a line through the station, alternately ahead and behind,
+<code>hire_offer_offsets</code> (<code>nova_ship/src/sections/hull_buy.rs</code>) spacing each past
+the station’s reach and the one before it plus <code>HIRE_OFFER_CLEARANCE</code>
+(100 m); a reach is the farthest section’s centre plus its collider’s
+half-diagonal (<code>design_reach</code>). In a gravity well that holds the station,
+<code>hire_offer_place</code> rotates the station’s pose and velocity about the orbit
+pole by the offset over the orbit radius, so an escort shares the station’s
+orbit a little ahead or behind and does not drift; in flat space it stands
+along the station’s +X with the station’s velocity and spin. A thaw places
+the escorts again by the same rule. Fighting roles (scavenger, armored) the
+civilization can build, cycled from a seeded start, none where it builds no
+fighting role. Each keeps its roster slot, so <code>escort_id</code> (station id, stem
+<code>&lt;stem&gt;_&lt;index&gt;_escort</code>, the slot as index) gives one escort one id however
+the earlier ones were hired. The Station pane’s “Escorts for hire” list
+(<code>nova_interface/src/station/escorts.rs</code>) shows each escort coasting beside
+the docked station on the same card as a hull for sale, with a Hire button
+or the refusal. <code>plan_escort_hire</code>
+(<code>nova_ship/src/sections/escort_hire.rs</code>) checks, in order: docked, <code>Refit</code>,
+a free fleet slot (<code>FLEET_SIDES</code>, starboard then port, so the cap is two),
+the player’s balance against the price, and the station’s balance plus the
+price. The price is <code>escort_price_cr</code>, <code>hull_price_cr</code> times
+<code>ESCORT_HIRE_FACTOR</code> (3/2). A confirmed hire moves both balances (cause
+<code>EscortHire</code>), pushes <code>ShipInventoryReport::EscortHired</code> (<code>OnEscortHired</code>)
+and triggers <code>EscortHireRequest</code>. <code>hire_station_escort</code>
+(<code>nova_scenario/src/objects/fleet.rs</code>) freezes the offer, despawns it and
+thaws the record as the escort under <code>escort_id</code>, where the offer coasted
+and at its velocity: an AI driver leashed at <code>ESCORT_LEASH</code>, Player-sided,
+every capability on, with an empty hold and no credits, then adds
+<code>PlayerFleetMarker</code> and <code>AIFollow</code>.
+<code>update_follow_flight</code> (<code>nova_ship/src/input/ai/follow.rs</code>) flies the escort
+as the combat pilot flies: a held <code>MatchVelocity</code> of the leader’s heading at
+a lagged speed plus a closing speed the hull can brake from (<code>ai_radial_speed</code>,
+at most <code>AI_FOLLOW_CLOSING_SPEED</code>, 2 u/s). Only a speed gain lags
+(<code>AI_FOLLOW_FEED_LAG</code>, 2 s); a turn or a slow-down is flown at once. It never
+holds a velocity against the leader’s travel. The held velocity refuses the
+RCS (<code>MatchVelocity { rcs: false }</code>), so the escort turns onto the error and
+burns its drive: an RCS push turns no hull and lights no drive plume, and an
+escort that took up the leader’s start on it slid along as if dragged. The RCS
+is allowed for two things. It dodges: inside the leader’s clearance (both
+arms plus 10 u), or when the leader closes on the escort fast enough to reach
+that clearance within <code>AI_FOLLOW_DODGE_LEAD</code> (2 s), about the time the drive
+takes to turn. And it trims: within <code>AI_FOLLOW_TRIM</code> (6 u) of the goal, with
+the error and the speed lag inside the flight computer’s crumb band
+(<code>attitude_deadband</code>), once the leader has held its velocity for 1 s. A leader
+that starts, stops or turns leaves the escort to its drive. So a leader that starts from rest opens a gap before its escort follows, and
+only the escort’s drive and computers move it. The goal is
+<code>formation_goal</code>. A leader at or above <code>AI_FOLLOW_TRAVEL_SPEED</code> (1 u/s) sets
+the frame with its travel, not its nose: the slot is the side times both arms
+plus <code>AI_FOLLOW_GAP</code> (20 u), <code>AI_FOLLOW_TRAIL</code> (10 u) behind the leader. A
+slower leader leaves the escort where it is, pulled into <code>AI_FOLLOW_HOLD</code>
+(15 to 40 u between the hulls), so a hull turning in place keeps its escort
+still. The leg is planned in the leader’s frame with <code>plan_leg</code>, round the
+leader, every other hull and every sized body by the escort’s arm plus 10 u.
+<code>plan_leg</code> cannot steer out of a clearance it starts inside, so an escort
+inside the leader’s clearance first flies straight out of it.
+Far from its goal the escort points at it; within 20 u it points where the
+leader points. It keeps its leash centred on the leader and gives way to a
+combat engage. A leader that locks its escort within the far hold gap is
+coming to dock: the escort coasts on its own velocity, with no dodge, no
+clearance and no RCS, and the dock admits it as any calm ally. Docked, it
+replaces its maneuver with a STOP and holds the pair, as a docked passive
+driver does. At the undock it flies formation again, though the leader still
+locks it, until the leader locks something else. A neutralized escort leaves
+the fleet.</p>
+<p>Docked at a living generated station (it wears a <code>GeneratedBodyId</code> and is not
+derelict), the Station pane’s “This station” block
+(<code>nova_interface/src/station/station_buy.rs</code>) offers the station itself. No
+authored service gates it: every such station is
+for sale. The price is <code>station_price_cr</code>
+(<code>nova_ship/src/sections/station_buy.rs</code>): every live section’s recipe at ask
+(<code>hull_price_cr</code>), the station’s hold at ask and its credits, times
+<code>STATION_OWNERSHIP_FACTOR</code> (2/1). The player’s storage there is already the
+player’s and is not priced. <code>plan_station_buy</code> checks, in order: docked, for
+sale (<code>StationSaleType</code>), not owned, and the player’s balance. A confirmed buy
+charges the player (cause <code>StationBuy</code>), pushes
+<code>ShipInventoryReport::StationBought</code> (<code>OnStationBought</code>) and inserts
+<code>owned_station()</code> on the station root: <code>OwnedStationMarker</code>,
+<code>Allegiance::Player</code> and <code>OWNED_STATION_NAME</code> (“Owned station”). The
+station leaves its civilization: its AI targets the player’s foes, the
+relation model, the HUD and the Map read it as the player’s side, and its
+name no longer carries the civilization’s. The price goes to the
+civilization, so the station keeps its balance, stock and services. An owned
+station admits the player whatever the player’s side (see “Who lets a dock
+in”), and sells its hold to the player at bid (<code>TradePriceType::Owned</code> in
+<code>plan_item_trade</code>); storage
+withdraw was already free. Its services still price at ask, its credits are
+its trading float (Take does not reach them), and it earns nothing: no
+income rule exists. Ownership has one source of truth: the live marker, and <code>FrozenStation.owned</code>
+in the frozen record a retire or a save writes and a thaw reads back. The side
+and the name freeze with the hull (<code>FrozenShip</code>) and the body (<code>FrozenBody</code>)
+as every ship’s do; the side alone cannot mark ownership, since a generated
+civilization can be on the Player side. The chart keeps <code>ChartStation.owned</code>
+from the dock and the undock, and the Map’s chart view names the station
+<code>OWNED STATION</code> in the ally colour. The generator still describes the station
+as its civilization’s, a pure function of the seed; the frozen record
+replaces that description once the cell retires or saves, and nothing at
+runtime counts a civilization’s stations.</p>
 <p><code>SectionKind</code> variants (one module per kind under <code>crates/nova_ship/src/sections/</code>;
 <code>turret_section/</code> and <code>torpedo_section/</code> are directories, not single files):</p>
 <div class="table-wrapper">
@@ -205,8 +702,8 @@ readings</a>).</p>
 <tr><td><code>Torpedo</code></td><td>Torpedo bay. Fires guided torpedoes of an authored <code>torpedo_type</code> (name, tint, <code>max_speed</code>, <code>weave_angle</code>, <code>weave_rate</code>) that detonate an Explosive area blast (<code>blast_radius</code>, <code>blast_damage</code>), optional <code>ammunition: Limited(n)</code> drawing <code>Torpedo</code> on reload. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube.</td></tr>
 <tr><td><code>Railgun</code></td><td>Spinal lance. No traverse: the HULL aims it down <code>muzzle_offset</code>. Tapping the trigger commits, the bolt walks the bore for <code>charge_seconds</code>, and the shot leaves whether or not the nose is still on the target. The slug deals <code>slug_damage</code> to every layer it rakes; <code>slug_power</code> and not a layer count bounds it, optional <code>rake_radius</code> spends that budget on a wider corridor instead of unused depth, <code>slug_speed</code> x <code>slug_lifetime</code> is the reach, and <code>recoil_impulse</code> lands at the muzzle point so an off-axis mount yaws the ship. Usually <code>ammunition: Limited(1)</code> with a long <code>reload</code> drawing <code>RailSlug</code>.</td></tr>
 <tr><td><code>Docking</code></td><td>Docking port. A cylindrical, rotationally symmetric collar that holds this hull to another one. <code>capture_distance</code>, <code>capture_angle</code> and the two relative-speed ceilings are the envelope a <code>DOCK</code> is graded against; the sleeve that reaches across once the dock holds is an animation track, not a collider (see <a href="#docking-ports-and-what-holds-a-pair-together">below</a>).</td></tr>
-<tr><td><code>CargoIntake</code></td><td>Cargo intake. Takes a <code>CargoCanister</code> whole into the ship’s <code>ShipInventory</code> and drops the Inventory pane’s jettisons from a <code>CargoIntakeEjectionQueue</code>, front first, one at a time while the door is open and the birth point is clear. Each live intake owns a detached static Avian <code>Sensor</code> trigger, <code>aperture_width</code> by <code>aperture_height</code> by <code>capture_gap</code> deep, in front of the <code>Cuboid</code> collider’s -Z face: not a child collider, since the workspace has no collision layers and a sensor in the ship’s compound would join it for mass, bullets, locks and overlap reads. <code>detection_range</code> opens the door (visual only for a take); a canister whose collider touches the trigger is taken whole, at any speed, if the hold has room; a canister in two triggers goes to one intake once; <code>eject_speed</code> sets a drop; the <code>IntakeDoor</code> track gates only the drop. The door, drop and take trigger events that <code>ship_audio/machinery.rs</code> voices (<code>cargo_intake_section.rs</code>).</td></tr>
-<tr><td><code>Mining</code></td><td>Mining emitter. Each emitter deploys on its own key: a player ship’s <code>input_mapping</code> entry for the section becomes a <code>SpaceshipMiningInputBinding</code> rig that sets that section’s <code>MiningSectionHeld</code> (<code>input/player/weapons.rs</code>), and lint and spawn refuse a player mining section with no entry or an empty one, and two mining sections that share a source. While it is held, <code>drive_mining_emitters</code> opens the <code>StowDoors</code> track, then extends the <code>StowLift</code> tip; on release the tip goes in before the doors shut (<code>mining_section.rs</code>). Each change of the doors’ target triggers <code>MiningDoorsMoved</code>, and <code>ship_audio</code> plays the authored <code>door_open_sound</code> or <code>door_close_sound</code> at the section; the spawn snap and a held key play nothing. Each fully deployed emitter pulses on its own clock every <code>pulse_interval_seconds</code>. A pulse casts a ray from its collider’s -Z face against the travel-locked rock alone, within <code>reach</code>, and carves <code>carve_radius_cells</code> at the hit. Ore is paid per newly emptied corner after the remesh, then leaves the rock as canisters one at a time. A passed pulse plays the authored <code>pulse_sound</code> at the hit and, in a rendered app, flares the additive beam shader (<code>assets/shaders/mining_beam.wgsl</code>) and throws a fixed spark burst. A refusal is a <code>MiningPulse</code> with a <code>MiningRefusalType</code>, plays nothing and changes nothing (<code>nova_scenario/src/mining.rs</code>).</td></tr>
+<tr><td><code>CargoIntake</code></td><td>Cargo intake. Takes a <code>CargoCanister</code> whole into the ship’s <code>ShipInventory</code> and drops the Inventory pane’s jettisons from a <code>CargoIntakeEjectionQueue</code>, front first, one at a time while the door is open and the birth point is clear. Each live intake owns a detached static Avian <code>Sensor</code> trigger, <code>aperture_width</code> by <code>aperture_height</code> by <code>capture_gap</code> deep, in front of the <code>Cuboid</code> collider’s -Z face: not a child collider, since the workspace has no collision layers and a sensor in the ship’s compound would join it for mass, bullets, locks and overlap reads. <code>detection_range</code> opens the door for a canister that fits the hold’s free mass (visual only for a take); a canister whose collider touches the trigger is taken whole, at any speed, if the hold has room; a canister in two triggers goes to one intake once; <code>eject_speed</code> sets a drop; the <code>IntakeDoor</code> track gates only the drop. The door, drop and take trigger events that <code>ship_audio/machinery.rs</code> voices (<code>cargo_intake_section.rs</code>).</td></tr>
+<tr><td><code>Mining</code></td><td>Mining emitter. Each emitter deploys on its own key: a player ship’s <code>input_mapping</code> entry for the section becomes a <code>SpaceshipMiningInputBinding</code> rig that sets that section’s <code>MiningSectionHeld</code> (<code>input/player/weapons.rs</code>), and lint and spawn refuse a player mining section with no entry or an empty one, and two mining sections that share a source. While it is held, <code>drive_mining_emitters</code> opens the <code>StowDoors</code> track, then extends the <code>StowLift</code> tip; on release the tip goes in before the doors shut (<code>mining_section.rs</code>). Each change of the doors’ target triggers <code>MiningDoorsMoved</code>, and <code>ship_audio</code> plays the authored <code>door_open_sound</code> or <code>door_close_sound</code> at the section; the spawn snap and a held key play nothing. Each fully deployed emitter pulses on its own clock every <code>pulse_interval_seconds</code>. A pulse casts a ray from its collider’s -Z face against asteroid colliders within <code>reach</code> without a travel lock, picks the nearest hit (including barren rock), and carves <code>carve_radius_cells</code> there if it holds ore. Other bodies do not occlude this asteroid-only ray. Ore is paid per newly emptied corner after the remesh, then leaves the rock as canisters one at a time. A passed pulse plays the authored <code>pulse_sound</code> at the hit and, in a rendered app, flares the additive beam shader (<code>assets/shaders/mining_beam.wgsl</code>) and throws a fixed spark burst. A refusal is a <code>MiningPulse</code> with a <code>MiningRefusalType</code>, plays the authored <code>refusal_sound</code> once at the emitter face and changes nothing (<code>nova_scenario/src/mining.rs</code>).</td></tr>
 </tbody>
 </table>
 </div>
@@ -438,7 +935,8 @@ and the midpoint <code>m</code> of the two faces:</p>
 </span>FixedJoint::new(first_ship, second_ship)
     .with_local_anchor1(r1.inverse() * (m - p1))
     .with_local_anchor2(r2.inverse() * (m - p2))
-    .with_local_basis2(r2.inverse() * r1)
+    .with_local_basis2(r2.inverse() * r1),
+JointCollisionDisabled,
 <span class="boring">}</span></code></pre>
 <p>Both anchors land on <code>m</code>, and the second body’s basis holds the relative
 rotation the two hulls met at, roll included. Do not use the global
@@ -447,7 +945,12 @@ rotation the two hulls met at, roll included. Do not use the global
 joint holds the capture pose only when the two hull rotations commute. A
 belly-up hull against a yawed partner does not, and the joint swings the
 partner into the hull. A bare <code>FixedJoint::new(a, b)</code> carries
-<code>JointFrame::IDENTITY</code> and would yank the two hulls into the same origin.</p>
+<code>JointFrame::IDENTITY</code> and would yank the two hulls into the same origin.
+<code>JointCollisionDisabled</code> stops the two docked hulls from colliding with each
+other: a skin plate or a greeble that reaches past a port face pressed on the
+other hull every step, and the contact damage wore both down while they sat
+still. Two hulls docked at one station are not joined to each other and
+still collide.</p>
 <p>Nothing writes a velocity anywhere on this path. The constraint is the physics’
 job, so a pair that met while drifting keeps drifting; a hull that had been
 zeroed on capture would be a hull the solver has to fight.</p>
@@ -456,38 +959,76 @@ driven only AFTER the joint exists, so the tubes can never be what holds the
 ships together. The track is a plain <code>Translate</code> on <code>dock_tube*</code> nodes: art
 only, with no collider growth, which is why two mated sleeves may overlap
 without the hulls touching.</p>
-<p><strong>One hull drives the pair.</strong> <code>DockingConnection.helm</code> is <code>DockedHelmType</code>:
-<code>Neutral</code> (the dock’s start, and the state after a lost holder) or
+<p><strong>Who lets a dock in.</strong> <code>DockAdmission::refusal</code> is the one admission point,
+read by the DOCK chip and by the request. A ship target refuses with
+<code>DockRefusalType::Combat</code> while Hostile, Enemy, answering fire or fighting
+(a neutralized target admits). A station target (<code>StationMarker</code>) answers by
+<code>station_admission(allegiance, derelict, occupied, owned, hostile)</code>, in that
+order: <code>StationOccupied</code> while every live port on its root is held (a held
+port is no candidate in the port search; this names the reason so the HUD
+can say it); admitted for a station the player owns (<code>OwnedStationMarker</code>)
+or a derelict, on any side; <code>EnemyStation</code> for a living station on the Enemy
+side (a generated station’s side is its civilization’s effective stance to
+the player, written every frame by <code>nova_world_base</code>’s
+<code>sync_civilization_sides</code>); <code>HostileStation</code> for a living station the ship
+is hostile to by <code>ship_relation</code> (a Player station and an Enemy-flagged
+ship, or a station answering the ship’s fire); and admitted otherwise.
+<code>FlightVerbHints::dock_refusal</code> carries a station’s line (<code>&lt;NAME&gt; REFUSES DOCKING</code>, <code>&lt;NAME&gt; DOCK OCCUPIED</code>) while the travel lock is on it; the HUD
+posts it once as a notice (<code>hud_notice</code>), not on the mode chip, and the DOCK
+chip draws dim. A ship’s refusal stays the dark chip.</p>
+<p><strong>A station is a hub.</strong> A ship holds one connection (<code>DockedShip</code>); the port
+search names no pair for a ship that already has one. A station holds one
+connection per port: each connection to it carries the relationship
+<code>StationDock(station)</code>, the station lists them in <code>StationDocks</code> (Bevy
+removes it with the last one) and carries <code>DockedStation { helm, drives }</code>,
+the station side of <code>DockedShip</code>, while it holds any. The station and every
+hull docked at it are ONE assembly. A dock between two stations is refused.</p>
+<p><strong>One hull drives the assembly.</strong> <code>DockingConnection.helm</code> is <code>DockedHelmType</code>:
+<code>Neutral</code> (a ship dock’s start, and the state after a lost holder),
 <code>Held(player)</code>, toggled by <code>DockingHelmRequest</code> from the <code>dock_helm</code> binding
-(H). A request to take the helm of a pair with <code>measurement_fault</code> is refused;
-handing it back is not. The driver is the holder while <code>Held</code>, else the
-non-player endpoint, else <code>second_ship</code>. <code>measure_docked_assemblies</code> (<code>DockingSystems::Assembly</code>) writes
-<code>DockedShip.drives</code> on both roots and a <code>DockedAssembly</code> (combined mass,
-world centre of mass, velocity, root-frame inertia, reach) measured every tick.
-An unmeasurable pair logs an error once, drives neither root and sets
-<code>DockingConnection.measurement_fault</code>; the next measured pass clears it, and a
-new connection starts clear.</p>
+(H), or <code>Station(station)</code>, set at capture when the partner is a living
+station and never toggled: <code>helm_on_capture</code> gives a living station its own
+helm, a dead partner <code>Held(player)</code> (<code>DockPartnerType::Dead</code>: a derelict or
+neutralized hull, ship or station, read from <code>DerelictShipMarker</code> and
+<code>NeutralizedMarker</code>), and two living ships <code>Neutral</code>. A request to
+take the helm of a pair with <code>measurement_fault</code> is refused, and
+<code>helm_request_admitted</code> refuses every request on a station-held pair;
+handing a held helm back is not refused. For a ship pair the driver is the
+holder while <code>Held</code>, else the non-player endpoint, else <code>second_ship</code>. For a
+station hub it is the player holding the helm of its own connection (only at
+a dead station), else the station. A station drives with torque alone (its
+bridge’s attitude loop as the helm wrench) and no thrust, so a station-held
+assembly stays where it is. <code>measure_docked_assemblies</code>
+(<code>DockingSystems::Assembly</code>) writes <code>drives</code> on every root (<code>DockedShip</code> or
+<code>DockedStation</code>) and a <code>DockedAssembly</code> (combined mass, world centre of mass,
+velocity, root-frame inertia, reach) measured every tick over N roots, with
+the parallel-axis term written out. An unmeasurable assembly logs an error
+once, drives no root and sets <code>DockingConnection.measurement_fault</code> on every
+connection of it; the next measured pass clears it, and a new connection
+starts clear.</p>
 <p><code>DockedShip.drives</code> is the single gate, read at the FORCE and at every intent
 writer, so pilot, AI and scripted order are all held by the same line on the
 root that is not driving: <code>thruster_impulse_system</code>, the manual balancer, the
 RCS writer, the autopilot, the scripted orders (paused, never judged) and the
-AI brains all skip it. The HUD mode chip and the blocked dock chips read it
-too, so a pair that is not driven never shows a live maneuver. The mode chip
+AI brains all skip it. The HUD mode chip and the dock chips read it too, so a
+pair that is not driven never shows a live maneuver. The mode chip
 reads <code>measurement_fault</code> first and shows <code>HELM FAULT</code>, because <code>drives</code> alone
-cannot tell a fault from a hull off the helm. The HELM chip reads it through
-<code>FlightVerbHints::helm_fault</code>, and no verb is <code>helm_blocked</code> while it is set,
-because HELM cannot take the helm. The interface’s Map GOTO refuses on it before it
-asks for the helm. On the driver, the autopilot, the
-flight authority, the manual balancer and the RCS budget read the assembly,
-never the root alone. An AI driver does not patrol, orbit or fight while
-docked: <code>update_passive_flight</code> holds the pair on a <code>Stop</code> maneuver instead,
+cannot tell a fault from a hull off the helm, and <code>STATION HELM</code> on a
+station-held pair. The HELM chip stays on the dock, dark, through
+<code>FlightVerbHints::helm_fault</code> and <code>helm_station</code>, because HELM cannot take
+the helm. The interface’s Map GOTO refuses only the docking partner: on a
+pair the player does not drive, the autopilot’s skip holds the GOTO it sets
+until the undock. On the driver, the autopilot, the flight authority, the
+manual balancer and the RCS budget read the assembly, never the root alone. An AI driver does
+not patrol, orbit or fight while docked:
+<code>update_passive_flight</code> holds the pair on a <code>Stop</code> maneuver instead,
 and <code>update_ai_target</code> clears its target, until the undock hands its route
 back where it left off. A driver with no
 <code>DockedAssembly</code> moves nothing: <code>thruster_impulse_system</code> skips it, and the
 autopilot, scripted align, manual balancer and RCS writer each log an error
 once and skip it. Scripted align aims from the assembly’s centre of mass.
 <code>apply_docked_helm_wrench</code> replaces the attitude torque with one wrench split
-over both roots: <code>a = I_asm^-1 tau</code>, each root gets <code>I_own a</code> and the force
+over every root: <code>a = I_asm^-1 tau</code>, each root gets <code>I_own a</code> and the force
 <code>m (a x r)</code> about the assembly centre of mass. RCS applies <code>m_i * dv</code> at each
 root’s own centre of mass, so a translation adds no torque. The undocked path
 is unchanged.</p>
@@ -497,7 +1038,10 @@ takes over or is released holds the direction it is already pointing.</p>
 <p><strong>Ending it.</strong> Three paths, and each removes only the connection it owns:</p>
 <ul>
 <li><strong>the verb</strong> (<code>on_docking_release_request</code>): <code>DOCK</code> pressed again, from
-EITHER hull, exactly as <code>ORBIT</code> pressed again disengages. This is the only
+EITHER hull of a ship pair or from the ship docked at a station, exactly as
+<code>ORBIT</code> pressed again disengages. A station names no single connection, so
+a request addressed to it does nothing; the other hulls docked at it stay
+docked. This is the only
 pilot-facing path, and it is ungated - a capability withdrawn while docked
 must never strand a hull clamped to something.</li>
 <li><strong>a destroyed port</strong> (<code>on_docking_port_removed_release</code>), which frees the
@@ -585,9 +1129,24 @@ editor never keeps a second list of which fields the patch reaches.</li>
 the same <code>Added&lt;SectionLinkPoints&gt;</code> edge the integrity graph is built off,
 buckets the sections into cells (the lattice is read off the sections, so a hull
 mirrored about its centreline is not cut in two), and derives one plate per cell
-of outer surface from the eight boundary samples that cell shares with its
-neighbours. The same structure always gives the same skin.</p>
+of outer surface. The cells around it give each plate a <code>ShellShape</code>
+(<code>sections/shell_shape.rs</code>): a LEVEL (half a cell, or a whole cell beside
+structure the skin climbs), a foot and a <code>ShellEdgeType</code> per edge (a chamfered
+rim, a fold or a skirt round a convex hull edge, a stair ramp and its end, or a
+wall), and four soft corners averaged over the cells that share them and held
+at the level against a wall. Two plates
+read what they share the same way, so their surfaces meet. A plate never peaks
+in a point: its top is a level plateau cut down by straight chamfers, and a
+staircase of cubes is clad as one ramp. The same structure always gives the
+same skin.</p>
 <ul>
+<li>The skin clads only a face that carries an open socket. A socket authored
+<code>skin: Bare</code> (<code>LinkPointSkinType</code>, <code>sections/link_points.rs</code>) is a DEAD END:
+it mates, places and joins the integrity graph like any socket, but
+<code>read_cells</code> drops it from the <code>SkinStructure</code>, so its open face gets no
+plate and no greeble, and the skin beside it does not climb it. The truss
+and the solar panel author both of their sockets <code>Bare</code>, so a spoke end and
+a wing tip stop clean. Omitted means <code>Clad</code>.</li>
 <li>A plate is a <code>SectionFixture</code> (<code>sections/fixture.rs</code>): <code>Collider</code>, <code>Health</code>,
 density and <code>HealthIsolated</code>, but no <code>SectionMarker</code>. So it never joins the
 integrity graph, never counts toward the ship’s health, never wears a
@@ -657,7 +1216,7 @@ scenario spawns, so what you see in the editor is what you fly.</p>
 <p>The derivation works out far more than it keeps. <code>read_plates</code>
 (<code>sections/skin_reading.rs</code>) is a SECOND PASS over the finished plates that reads
 it back out as a <code>PlateReading</code> each: which way the plate faces, what its top is
-shaped like (<code>Flat</code> / <code>Step</code> / <code>Ridge</code> / <code>Peak</code> / <code>Bevel</code> / <code>Brink</code> / <code>Spur</code>),
+shaped like (<code>Flat</code> / <code>Step</code> / <code>Ridge</code> / <code>Peak</code> / <code>Brink</code> / <code>Spur</code>),
 which way it falls away, how enclosed its cell is, how long the run of like plate
 through it is and which way that run points, how far it is from the end of that
 run, how much of its cell it fills, how deep the structure under it goes, and how
@@ -665,101 +1224,107 @@ close the mouth of a fitting is. The plates are the whole input - their cells ar
 the clad set, <code>cell - anchor</code> is the face each shows - so a reading cannot drift
 from the skin it describes. It costs about 0.6 ms on a 384-plate ship, against
 1.6 ms to derive the skin itself.</p>
-<p>The FALLING PLATE is three reliefs and not one, which matters because it is four
-fifths of every ship. A corner sample dies to the cell floor for exactly one
-reason - open space stands at it - so counting the dead corners says how many
-ways a plate falls: one corner is a <code>Bevel</code> (a panel with a corner taken off),
-two on one side is a <code>Brink</code> (the straight edge of a hull), and anything more is
-a <code>Spur</code> (a tip, an outer corner, a saddle). Summing those corner directions and
-turning them by the plate’s own rotation gives <code>PlateReading::fall</code>, the
+<p>The FALLING PLATE is several reliefs and not one, which matters because it is
+most of every ship. An edge falls for exactly one reason - open space stands
+across it, so the top chamfers down or folds round the hull edge - so counting
+the falling edges of a half-cell plate says how many ways it falls: none is
+<code>Flat</code>, one is a <code>Brink</code> (the straight edge of a hull), two opposite is a
+<code>Ridge</code> (a run one cell wide), four is a <code>Peak</code> (a lone cell), and any other
+count is a <code>Spur</code> (a tip or an outer corner). A whole-cell plate is a <code>Step</code>
+whatever its edges do. Summing the directions of the corners beside a falling
+edge and turning them by the plate’s own rotation gives <code>PlateReading::fall</code>, the
 OUTBOARD direction - a cardinal on a <code>Brink</code>, a diagonal on a corner, and zero
-where a plate falls two ways and cancels. It is the second alignment axis: a
-piece turned to <code>along</code> lies down an edge, and one turned to <code>fall</code> leans out
-over it.</p>
+where a plate falls two ways and cancels.</p>
 <p>A <code>ShipStyleConfig</code> (<code>sections/skin_style.rs</code>) is CONTENT resolved by id out of
 <code>GameStyles</code>, exactly as a section prototype resolves out of <code>GameSections</code>. It
 carries a <code>StylePalette</code> - a <code>SurfaceFinish</code> for the plate <code>top</code> and one for its
-<code>wall</code>, the hidden floor keeping an engine finish - and a list of decoration
-fixtures, each with a model <code>AssetRef</code>, a health, a collider and a
-<code>FixturePlacement</code>. The mod merge routes <code>Content::Style</code> into <code>GameStyles</code> with
-the same last-wins overlay every other kind gets, so a mod restyles a base look
-by declaring its id.</p>
-<p>A <code>FixturePlacement</code> is three authored words - a <code>FixtureRegion</code>, a
-<code>FixtureDensity</code> and a <code>FixtureOrientation</code> - and <code>skin_style</code> expands it
-PRIVATELY into the <code>ScatterRule</code> written in the vocabulary above. That expansion
-is engine policy: it is tuned against real hulls and it moves when the plate
-derivation moves, which a style that had spelled out fourteen interacting
-filters could not survive. Two facts are derived from the fixture’s own collider
-rather than authored beside it, because the size already answers them:
-<code>min_run</code> (one cell of run per half cell the piece spans in plane, capped at
-<code>MAX_DERIVED_RUN</code>) and whether the piece needs a whole seat at all (a collider
-under <code>TRIM_HEIGHT</code> is trim, and trim beds onto a crease). Physics density is
-not authored either - every piece stands at <code>DECOR_DENSITY</code>, the same as the
-cladding it sits on.</p>
-<p><code>scatter_decor</code> (<code>sections/skin_decor.rs</code>) turns plates plus readings plus a
-style into placements. It takes the READINGS, not the structure, so the scatter
-cannot reach past the vocabulary into the derivation. Two properties are
-load-bearing:</p>
+<code>wall</code>, the hidden floor keeping an engine finish - a list of decoration
+fixtures, each with a model <code>AssetRef</code>, a health and a collider, and the
+<code>greeble_rules</code> that place them. The mod merge routes <code>Content::Style</code> into
+<code>GameStyles</code> with the same last-wins overlay every other kind gets, so a mod
+restyles a base look by declaring its id. Physics density is not authored:
+every piece stands at <code>DECOR_DENSITY</code>, the same as the cladding it sits on.</p>
+<p><code>greeble_rules</code> is a <code>GreebleRules</code> (<code>sections/greeble_solver.rs</code>): LINK TYPES,
+each with the link types it <code>connects</code> to, and GREEBLES, each with a <code>fixture</code>
+(or <code>None</code> for empty space), a <code>weight</code>, a <code>rotate</code> set of quarter turns, a link
+type on each of its four link points (<code>up</code>, <code>right</code>, <code>down</code>, <code>left</code>), <code>near</code>
+terms and a <code>max_count</code>. <code>ShipStyleConfig::compile_greebles</code> checks the rules
+and resolves each fixture id once; a fixture whose collider is wider than one
+cell across the plate (<code>x</code> or <code>z</code> above 1) does not compile, because no plate
+can seat it. A rule set that does not compile is an Error
+at <code>content lint</code>, and the merge drops the style with an <code>error!</code>. A design
+that names a style the catalog lacks is an Error at <code>content lint</code>, and
+<code>ShipStyle::resolve</code> panics on it at spawn. A style with no greebles places
+no decoration.</p>
+<p>The solve has three parts, each in its own module:</p>
 <ul>
-<li>DETERMINISM. There is no RNG. A plate’s claim is a hand-written FNV-1a hash of
-its cell, its out face and the fixture’s id - hand-written because
-<code>DefaultHasher</code> is not promised to be stable across releases of the standard
-library, and a ship that comes back wearing different antennae after a
-toolchain bump would break the same promise the derived skin exists to keep.
-The editor re-derives and re-scatters on every structure change, so anything
-less would flicker while a hull is dragged.</li>
-<li>GRID CLAIMING, not blue noise. A rule claims cells on its own <code>stride</code> and a
-piece is yawed to <code>PlateReading::along</code> or to <code>PlateReading::fall</code>. Poisson
-sampling deliberately destroys alignment, and alignment is the difference
-between decoration that reads as bolted on and decoration that reads as
-confetti.</li>
+<li><code>skin_surface</code> (<code>sections/skin_surface.rs</code>) reads the finished plates as a
+QUAD GRAPH: one cell per plate, four edge slots per cell, and across each slot
+the plate that continues the surface and the slot of it that faces back. It
+finds the neighbour by the same branches <code>boundary_heights</code> reads to shape the
+plate, so the graph cannot disagree with the skin. The slot frame turns the
+same way on every face: <code>up</code> is <code>link_point_up</code> of the out face and the slots
+run clockwise seen from outside.</li>
+<li><code>solve_greebles</code> places one greeble variant on every cell: bitset domains,
+arc consistency over the slot links (a slot with no neighbour accepts any link
+type), the cell with the fewest variants next, and a weighted draw scaled by
+the <code>near</code> terms already in range. A <code>near</code> factor of 0 is a hard ban in both
+directions; <code>max_count</code> bans a greeble everywhere once it is reached. A
+contradiction restarts with a derived hash up to <code>GREEBLE_RESTARTS</code> times; then
+one solve runs without the greebles that carry a FORCING link type (one that
+cannot face empty space) and logs a warning. A player-built hull is a valid
+runtime condition, so that solve is a fallback, not a hidden authoring error.
+The solve also takes a <code>fits</code> test that trims each cell’s starting domain:
+<code>solve_seated_greebles</code> keeps a fixture variant on a plate only when
+<code>ShellShape::seated</code> can fit that plate to the variant’s turned collider
+footprint (<code>decor_footprint</code>).</li>
+<li><code>solve_decor</code> (<code>sections/skin_decor.rs</code>) turns the answer into a
+<code>DecorPlacement</code> per dressed plate: the fixture, and the quarter turn about
+the plate’s own out axis that points the model’s <code>+Z</code> at the slot holding the
+greeble’s <code>up</code> link point. It runs BEFORE the plates are meshed, and replaces
+each dressed plate’s shape with its seated one.</li>
 </ul>
-<p>One thing is decided by a BLOCK of hull rather than by a cell, and it is the
-DENSITY NORMALISATION. Every other knob is per plate and they multiply, so a rule
-tuned on a 150-plate generated hull put one visible piece on a 20-plate editor
-build. <code>ScatterRule::patch</code> is a floor: within each block of <code>patch</code> cubed cells,
-keyed by the out face, a rule that the share left with nothing claims its lowest
-hashing eligible plate. A block is a fixed division of the ship’s own cells, so a
-hull that grows by one cell keeps every piece outside the block it grew into.</p>
-<p>The floor takes UNCLAIMED plate first. Where a thin rule’s whole region was
-swept by broader rules below it - <code>Rare</code> on a <code>Panel</code> two <code>Dense</code> rules also
-want - there is no unclaimed plate to floor onto, and the rule logs <code>x0 of 78</code>
-on a hull it was eligible all over. So the floor may BORROW one claimed plate,
-under three conditions that bound the damage: the holder is on a THICKER rung
-than the borrower, the holder has a floor of its own (<code>Every</code> never lends, and
-a line with a hole in it is not a line), and the holder still keeps a piece
-somewhere on the ship. Priority therefore decides who picks, and the floor
-decides only that nobody is picked down to nothing.</p>
+<p>THE PLATE FITS THE PIECE. <code>ShellShape::seat</code> is the reach of the plateau from
+the cell centre, in <code>SEAT_STEPS</code> (1/64 cell) steps, toward each edge. A plate
+with a seat steepens every chamfer, ramp end and corner cap that cuts into
+that rectangle until it clears the plateau, up to <code>STEEPEST_SLOPE</code> (a cell of
+drop per seat step). Every fall is measured from the edge or corner it drops
+to, so steepening never moves a foot or a corner height: the plate still meets
+its neighbours at its feet and corners. The profile along a shared edge can
+still change near its ends where a steepened fall perpendicular to it reaches
+the edge, so a rim can jog at a seam beside a dressed plate.
+<code>ShellShape::seats</code> is the exact check: the seat plane is the flattest top
+plane at the centre, and every top plane must stand on or above it at the
+footprint’s four corners. A piece the steepest slope cannot seat is left off
+that plate by the solve, never placed over a crease; <code>skin_report</code> counts any
+placement that does not seat as <code>unseated</code>, and the base hulls report none
+(<code>crates/nova_authoring/tests/base_hull_greebles.rs</code>). A re-clad seats the
+pieces of the BEFORE hull too, so the plates that keep their pieces also keep
+their shape.</p>
+<p>DETERMINISM. The seed is <code>greeble_seed(style id)</code>, an FNV-1a hash of the id
+alone, and every draw also hashes the plate’s own key (its cell and out face).
+FNV-1a is hand-written because <code>DefaultHasher</code> is not promised to be stable
+across releases of the standard library, and a ship that came back wearing
+different antennae after a toolchain bump would break the promise the derived
+skin exists to keep. The structure is NOT in the seed, so an edit changes the
+draws only where it changes the plates and their links; the editor re-solves on
+every structure change without the whole hull flickering. A re-clad keeps the
+pieces on the plates it keeps and solves only the plates it lays, so a link
+across the edit boundary is not checked against the kept piece.</p>
 <p>A decoration is a <code>SectionFixture</code> like a plate, and a child of the PLATE, one
 level further out - so a plate shot off takes its greebles, and
 <code>damage_cracks</code>’s <code>owning_section</code> walk stops at the first fixture it meets
 whichever of the two it started under. The base game generates its greeble models from committed JSON recipes
 (<code>scripts/gen-greebles.py</code>), and the mod-facing format is documented in
 <a href="https://alexjercan.github.io/nova-protocol/create/styles/">Ship skin styles</a>.</p>
-<p>What a hull actually OFFERS is worth knowing before writing a rule, and a
-GENERATED hull and a HAND-BUILT one offer almost opposite things. Measured, per
-ship:</p>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>subject</th><th>plates</th><th>flat</th><th>step</th><th>ridge</th><th>peak</th><th>bevel</th><th>brink</th><th>spur</th></tr>
-</thead>
-<tbody>
-<tr><td><code>wfc_ships</code> row</td><td>132-162</td><td>6-22</td><td>18-22</td><td>0-4</td><td>0</td><td>10-14</td><td>48-66</td><td>34-42</td></tr>
-<tr><td>editor build</td><td>19-27</td><td>0</td><td>2-3</td><td>3-8</td><td>1-3</td><td>0</td><td>0</td><td>9-17</td></tr>
-</tbody>
-</table>
-</div>
-<p>A hand-built ship has NO flat plate, no bevel and no brink at all: it is spurs,
-ridges and studs, because almost every cell of it is one cell wide. So a rule
-written for flat panels lands nowhere on the thing the owner actually builds, and
-no density normalisation can rescue it - a floor over an empty eligible set is
-still empty.</p>
+<p>The readings above are diagnostics only: the solve reads the surface graph,
+never a <code>PlateReading</code>. Hull edits change the distribution of plate shapes;
+a fixed catalogue-wide tally does not describe the live hulls.
+A plate on a run one cell wide falls on both sides, so a frame of one-cell runs
+is ridges, peaks and spurs with almost no flat plate. The surface graph does not
+care: every plate is a cell, and a greeble’s link points decide where it goes.</p>
 <p>Both <code>spawn_ship_skin</code> and the editor’s <code>sync_editor_skin</code> log that histogram plus
-a per-rule <code>taken of reach</code> tally at debug, where REACH is everything the rule’s
-filter and lattice admit before the share and before priority. The two zeroes
-mean opposite things: <code>x0 of 78</code> is a rule starved by one above it or thinned away
-by its own share, and <code>x0 of 0</code> is a filter that matches nothing this hull has.</p>
+a per-fixture tally of the plates each fixture took (<code>decor_tally</code>) at debug.</p>
 <h2 id="integrity-damage---disable---destroy"><a class="header" href="#integrity-damage---disable---destroy">Integrity: damage -&gt; disable -&gt; destroy</a></h2>
 <p>The destruction stack is nova’s own, in
 <code>crates/nova_gameplay/src/integrity/</code>, with the ship adapter in
@@ -770,7 +1335,7 @@ nine generic pieces, and the ship adds its own <code>ShipIntegrityPlugin</code> 
 <code>HealthZeroMarker</code> its observer adds at zero.</li>
 <li><code>core.rs</code> (<code>IntegrityCorePlugin</code>) - the generic disable/destroy core, plus
 the contact impact damage, taken from the impulse avian’s solver settled on
-and spent only on the approach above a universal 5 m/s safe contact speed.</li>
+and spent only on the approach above a universal 10 m/s safe contact speed.</li>
 <li><code>erosion.rs</code> (<code>DamageLevelPlugin</code>) and <code>carve.rs</code> (<code>DamageMarksPlugin</code>) - the
 two damage READINGS, below.</li>
 <li><code>spew.rs</code> (<code>CarveSpewPlugin</code>) and <code>chunk.rs</code> (<code>CarvedChunkPlugin</code>) - what a
@@ -788,7 +1353,8 @@ and the fireball it drifts out of. See
 being a threat.</li>
 </ul>
 <p>Graph build: every section prototype authors local <code>link_points</code> with an id,
-position, and outward unit normal. When avian links a collider to its body
+position, and outward unit normal (and a <code>skin</code> mode the graph ignores; see
+<a href="#the-derived-skin">The derived skin</a>). When avian links a collider to its body
 (<code>ColliderOf</code>), <code>ShipIntegrityPlugin</code> transforms those points into ship-root
 space. Coincident points with opposed normals become symmetric <code>ConnectedTo</code>
 neighbor edges. IDs are for diagnostics and UI, not compatibility. A malformed,
@@ -814,7 +1380,7 @@ burns at <code>SECTION_PYRE</code>, a whole hull at <code>HULK_PYRE</code>.</p>
 <p>A section is the same size on every ship, because a build-grid cell is. A HULL
 is not, so <code>HULK_PYRE</code> is the look and the dying root’s <code>IntegrityEnvelope</code> is
 the size it is drawn at: every length is multiplied by the hull’s containment
-radius over the 55.2 m gunship the look was cut on, and the flash by the square
+radius over the 55.2 m reference hull the look was cut on, and the flash by the square
 of it, because lumens stand in for a burning surface. The shipped hulls run
 from 0.88 on a skiff-sized hull to 3.52 on a carrier-sized one, so a carrier’s debris
 reaches 479 m rather than ending 58 m inside its own wreck. Durations and
@@ -859,7 +1425,7 @@ nothing draws them.</p>
 compartment death is QUEUED, and the whole frame’s batch is spent at the end of
 it: <code>6 * sqrt(condemned / 53)</code> fires, floored at six and capped at 48, picked by
 farthest-point sampling over where the deaths happened. The reference is the
-53-section gunship the look was cut on, so an ordinary frame still lights the
+53-section reference hull the look was cut on, so an ordinary frame still lights the
 six it always did, a 720-cell corridor lights 23 and a whole carrier 38. The
 sampling is the half that matters: deaths arrive in section-graph order, so the
 first six of a collapse are six fires in one shoulder of the wreck - the chain
@@ -919,7 +1485,7 @@ asteroid’s collider node all hang under one. A severed fragment, a rock and a
 torpedo each resolve to their own body, so each is its own event, and only a cue
 with nothing physical over it falls back to a 60 m world cell (<code>SFX_AREA_CELL</code>,
 six world units). That cell used to be the whole rule, and a cell is about the
-size of a gunship, so it was the same mistake in both directions: a carrier
+size of a small hull, so it was the same mistake in both directions: a carrier
 collapse spanned two dozen cells and threw 25 trauma kicks in the frame it came
 apart - the pile-up the throttle exists to stop - while two hulls dying a few
 metres apart shared one death. The same collapse throws 3 kicks now.</p>
@@ -1335,7 +1901,7 @@ them in <code>SuspendedSectionAmmo</code> to restore full on the way back off).<
 <li><code>SectionReload</code> (<code>sections/ammo.rs</code>): optional idle batch reload on a
 magazine, from the turret/torpedo/railgun config’s
 <code>reload: ReloadConfig::Batch(SectionReloadConfig { delay, amount })</code>
-(<code>Disabled</code> is the default). Seeded with the weapon’s ammunition <code>ItemType</code>
+(<code>Disabled</code> is the default). Seeded with the weapon’s ammunition item id
 (<code>PdcRound</code> for a turret regardless of mount damage type, <code>RailSlug</code> for a
 railgun, <code>Torpedo</code> for a torpedo bay regardless of bay type). Every
 successful shot resets progress; every completed quiet delay moves
@@ -1378,6 +1944,67 @@ else.</li>
 <code>crates/nova_ship/src/sections/base_section.rs</code>.</li>
 <li>Spawn path: <code>insert_spaceship_sections</code> -
 <code>crates/nova_scenario/src/objects/spaceship.rs</code>.</li>
+<li>Design sections, lost-section codes and rebuild: <code>ShipDesignSections</code>,
+<code>SectionRebuildRequest</code>, <code>rebuild_anchored</code> -
+<code>crates/nova_ship/src/sections/design_sections.rs</code>; <code>plan_section_rebuild</code> -
+<code>crates/nova_gameplay/src/inventory.rs</code>; the pane:
+<code>crates/nova_interface/src/ship/rebuild.rs</code>; proof:
+<code>examples/systems/system_station_rebuild.rs</code>.</li>
+<li>Section swap: <code>section_swap_family</code>, <code>plan_section_swap</code>,
+<code>swap_build_fault</code>, <code>SectionSwapRequest</code> -
+<code>crates/nova_ship/src/sections/design_sections.rs</code>; <code>ShipMeasure</code> -
+<code>crates/nova_ship/src/sections/ship_measure.rs</code>; <code>swap_design_section</code> -
+<code>crates/nova_scenario/src/objects/spaceship.rs</code>; the pane:
+<code>crates/nova_interface/src/ship/catalogue.rs</code> and <code>refit.rs</code>; proof:
+<code>examples/systems/system_station_swap.rs</code>.</li>
+<li>Section add: <code>free_link_points</code>, <code>section_add_pose</code>, <code>section_add_clear</code>,
+<code>section_add_fit</code>, <code>add_build_fault</code>, <code>added_section_binds</code>,
+<code>added_section_id</code>, <code>plan_section_add</code>, <code>SectionAddRequest</code> -
+<code>crates/nova_ship/src/sections/section_add.rs</code>; <code>link_point_pose</code>,
+<code>nearest_link_point</code> - <code>crates/nova_ship/src/sections/link_points.rs</code>;
+<code>add_design_section</code> - <code>crates/nova_scenario/src/objects/spaceship.rs</code>; the
+pane: <code>crates/nova_interface/src/ship/catalogue.rs</code>, <code>ghost.rs</code> and
+<code>refit.rs</code>; proof:
+<code>examples/systems/system_station_add.rs</code>.</li>
+<li>Section delete: <code>remove_build_fault</code>, <code>SectionRemoveRequest</code> -
+<code>crates/nova_ship/src/sections/design_sections.rs</code>; <code>reclad_round_removal</code>
+<ul>
+<li><code>crates/nova_ship/src/sections/shell_skin.rs</code>; <code>remove_design_section</code> -
+<code>crates/nova_scenario/src/objects/spaceship.rs</code>; the pane:
+<code>crates/nova_interface/src/ship/delete.rs</code>; proof: its tests and
+<code>examples/playable/station_docked_sandbox.rs</code>.</li>
+</ul>
+</li>
+<li>Hull buy: <code>ParkedHullType</code>, <code>hull_price_cr</code>, <code>plan_hull_buy</code>, <code>bought_hull_pose</code>,
+<code>HullBuyRequest</code> - <code>crates/nova_ship/src/sections/hull_buy.rs</code>; the
+catalogue, <code>buy_station_hull</code> and <code>redock_bought_hull</code> -
+<code>crates/nova_scenario/src/objects/station_hulls.rs</code>; the generator:
+<code>crates/nova_world_base/src/station_hulls.rs</code>; the Station pane:
+<code>crates/nova_interface/src/station/shipyard.rs</code>; proof:
+<code>examples/systems/system_station_buy.rs</code>.</li>
+<li>Escort hire: <code>escort_id</code>, <code>escort_price_cr</code>, <code>plan_escort_hire</code>,
+<code>FLEET_SIDES</code>, <code>EscortHireRequest</code> -
+<code>crates/nova_ship/src/sections/escort_hire.rs</code>; <code>hire_offer_offsets</code> -
+<code>crates/nova_ship/src/sections/hull_buy.rs</code>; <code>hire_offer_place</code> -
+<code>crates/nova_scenario/src/objects/parked_hulls.rs</code>; <code>AIFollow</code> -
+<code>crates/nova_ship/src/input/ai/follow.rs</code>; the spawn, <code>freeze_fleet</code> and
+<code>thaw_fleet_escort</code> - <code>crates/nova_scenario/src/objects/fleet.rs</code>; the pane:
+<code>crates/nova_interface/src/station/escorts.rs</code>; proof:
+<code>examples/systems/system_station_hire.rs</code>.</li>
+<li>Station buy: <code>station_price_cr</code>, <code>STATION_OWNERSHIP_FACTOR</code>,
+<code>plan_station_buy</code>, <code>StationSaleType</code>, <code>owned_station</code>,
+<code>OWNED_STATION_NAME</code> -
+<code>crates/nova_ship/src/sections/station_buy.rs</code>; <code>OwnedStationMarker</code> -
+<code>crates/nova_gameplay/src/markers.rs</code>; <code>FrozenStation.owned</code> -
+<code>crates/nova_scenario/src/objects/station.rs</code>; the pane:
+<code>crates/nova_interface/src/station/station_buy.rs</code>; proof:
+<code>examples/systems/system_station_own.rs</code>.</li>
+<li>Hull strip: <code>plan_hull_strip</code>, <code>plan_section_yield</code>, <code>strip_duration_secs</code>,
+<code>BuildRecipe::strip_parts_at</code> - <code>crates/nova_gameplay/src/inventory.rs</code>;
+<code>HullStripJob</code>, <code>next_strip_section</code>, <code>SectionStripRequest</code>,
+<code>strip_section</code> - <code>crates/nova_ship/src/sections/section_strip.rs</code>; the
+strip block and the timer: <code>crates/nova_interface/src/inventory/strip/</code>; proof:
+<code>examples/systems/system_station_strip.rs</code>.</li>
 <li>Integrity core: <code>NovaIntegrityPlugin</code> -
 <code>crates/nova_gameplay/src/integrity/mod.rs</code>; graph, sever and collapse:
 <code>ShipIntegrityPlugin</code> - <code>crates/nova_ship/src/sections/integrity.rs</code>.</li>

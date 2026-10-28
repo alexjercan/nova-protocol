@@ -1,0 +1,306 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Start roles for mods - Nova Protocol Creator Docs</title><meta name="description" content="Author a New Game start as content: the catalog hull the player flies and a kit of credits and items that fits its hold."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Start roles for mods</p><h1>Start roles for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#the-startrole-item">The StartRole item</a><ol></ol></li><li><a href="#the-goal">The goal</a><ol></ol></li><li><a href="#overlay-and-lint">Overlay and lint</a><ol></ol></li><li><a href="#in-the-game">In the game</a><ol></ol></li><li><a href="#base-start-roles">Base start roles</a><ol></ol></li></ol></nav><p>A <code>StartRole</code> is one New Game start: the icon its row shows, the catalog
+hull the player flies, the kit it starts with, a sum of credits and a hold
+of items, the job mix its station boards lean to, and its goal, one finite
+milestone. Roles are content like ships and stations. Create a new id to
+add a role, or reuse a base id to replace that role. The New Game wizard
+lists the roles in merge order.</p>
+<p>This page is the field-by-field start role reference. For general RON
+spelling rules, see
+<a href="../reference/#how-ron-content-is-written">RON spelling rules</a>.</p>
+<h2 id="the-startrole-item" tabindex="-1">The StartRole item</h2>
+<pre><code class="hljs language-ron"><span class="ron-punct">[</span>
+    <span class="ron-type">StartRole</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_courier&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Courier&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">icon</span><span class="ron-punct">:</span> <span class="ron-type">Container</span><span class="ron-punct">,</span>
+        <span class="ron-key">about</span><span class="ron-punct">:</span> <span class="ron-string">&quot;A light freighter with no weapons. Carry cargo between stations.&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">hull</span><span class="ron-punct">:</span> <span class="ron-string">&quot;light_freighter&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">kit</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+            <span class="ron-key">credits</span><span class="ron-punct">:</span> <span class="ron-literal">2000</span><span class="ron-punct">,</span>
+            <span class="ron-key">stock</span><span class="ron-punct">:</span> <span class="ron-punct">{</span>
+                <span class="ron-string">&quot;Rations&quot;</span><span class="ron-punct">:</span> <span class="ron-literal">50</span><span class="ron-punct">,</span>
+                <span class="ron-string">&quot;WaterIce&quot;</span><span class="ron-punct">:</span> <span class="ron-literal">50</span><span class="ron-punct">,</span>
+            <span class="ron-punct">},</span>
+        <span class="ron-punct">),</span>
+        <span class="ron-key">jobs</span><span class="ron-punct">:</span> <span class="ron-type">Trade</span><span class="ron-punct">,</span>
+        <span class="ron-key">goal</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+            <span class="ron-key">title</span><span class="ron-punct">:</span> <span class="ron-string">&quot;A courier network&quot;</span><span class="ron-punct">,</span>
+            <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">StationNetwork</span><span class="ron-punct">(</span><span class="ron-key">stations</span><span class="ron-punct">:</span> <span class="ron-literal">4</span><span class="ron-punct">),</span>
+        <span class="ron-punct">),</span>
+        <span class="ron-key">lore</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Stations need what they cannot make. Couriers carry it.&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-punct">)),</span>
+<span class="ron-punct">]</span>
+</code></pre>
+<p>Every field is required.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>the id the role is picked by. A mod reusing a base id REPLACES that role</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>the name a picker shows</td>
+</tr>
+<tr>
+<td><code>icon</code></td>
+<td><code>Drill</code>, <code>Claw</code>, <code>Container</code>, <code>Star</code>, <code>Shield</code> or <code>Blades</code></td>
+<td>the shape drawn beside the name in the New Game role list and on the Load list. Lint refuses any other value</td>
+</tr>
+<tr>
+<td><code>about</code></td>
+<td>string</td>
+<td>how the role plays, for a reader</td>
+</tr>
+<tr>
+<td><code>hull</code></td>
+<td>string</td>
+<td>the id of a <a href="../ships/">ship design</a> the player starts in: a base ship id, one of your mod's own, or one from a mod you depend on</td>
+</tr>
+<tr>
+<td><code>kit</code></td>
+<td>kit</td>
+<td>what the ship starts with, see below</td>
+</tr>
+<tr>
+<td><code>jobs</code></td>
+<td><code>Trade</code>, <code>Salvage</code> or <code>Combat</code></td>
+<td>the job mix every station board leans to for this start, see <a href="../stations/#jobs">Jobs</a></td>
+</tr>
+<tr>
+<td><code>goal</code></td>
+<td>goal</td>
+<td>the role's goal, one finite milestone, see <a href="#the-goal">The goal</a></td>
+</tr>
+<tr>
+<td><code>lore</code></td>
+<td>string</td>
+<td>background text for the role</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A <code>kit</code> has two fields, both required:</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>credits</code></td>
+<td>whole number</td>
+<td>the credits the ship starts with</td>
+</tr>
+<tr>
+<td><code>stock</code></td>
+<td>stock</td>
+<td>the items the hold starts with, in the <a href="../objects/#inventory">stock format</a>. It must fit the hull's hold (100 kg per hull section)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="the-goal" tabindex="-1">The goal</h2>
+<p>A <code>goal</code> is one finite milestone the role plays toward, read off the saved
+world. Every role's progress opens with the same shared first line,
+<code>Stations owned</code>, which needs one station the player owns, live or kept in
+a sector left behind; the goal's own flavour line follows it. The Map's
+chart view OBJECTIVES block lists the next unmet line, station line first,
+until both are met, then reads <code>Goal reached at</code> the play time it happened.
+It is not an ending: the world is an endless sandbox, a met goal stamps the
+save and nothing else, and there is no completion screen. It has two
+fields, both required:</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>title</code></td>
+<td>string</td>
+<td>the name the New Game role step and the Load screen show</td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td>goal kind</td>
+<td>the flavour line after the shared station line, one of the kinds below</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>kind</th>
+<th>fields</th>
+<th>met when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>OreDeliveries</code></td>
+<td><code>jobs</code></td>
+<td>the player handed in <code>jobs</code> Procure jobs whose item is in the <code>Raw</code> category: ore and ice</td>
+</tr>
+<tr>
+<td><code>Recoveries</code></td>
+<td><code>jobs</code></td>
+<td>the player handed in <code>jobs</code> Recover jobs</td>
+</tr>
+<tr>
+<td><code>StationNetwork</code></td>
+<td><code>stations</code></td>
+<td>the player handed in Procure or Escort jobs posted by <code>stations</code> distinct stations</td>
+</tr>
+<tr>
+<td><code>KillList</code></td>
+<td><code>hulls</code></td>
+<td>the player handed in Neutralize jobs naming <code>hulls</code> distinct hulls</td>
+</tr>
+<tr>
+<td><code>Patrols</code></td>
+<td><code>jobs</code></td>
+<td>the player handed in <code>jobs</code> Distress or Escort jobs</td>
+</tr>
+<tr>
+<td><code>Outlaw</code></td>
+<td><code>hulls</code></td>
+<td>the player's own kills turned a civilization <code>Enemy</code> (a seeded <code>Enemy</code> does not count) and the player neutralized <code>hulls</code> more intact hulls of it while it stands <code>Enemy</code>; the kill that flips it does not count, and a settlement or the decay clears the count, see <a href="../stations/#civilization-stances">Civilization stances</a></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Every count is a whole number above zero. The base <code>industrial</code> role asks
+for six ore deliveries; the base <code>scavenger</code> asks for six recoveries; the
+base <code>transport</code> asks for a station network of four stations; the base
+<code>bounty_hunter</code> asks for a kill list of six hulls; the base <code>military</code> asks
+for a patrol record of six jobs; the base <code>pirate</code> asks for an outlaw's
+name (<code>Outlaw</code>): one civilization its own kills turned Enemy, then six more
+intact hulls of it neutralized while it stands Enemy.</p>
+<p>Progress is derived from the saved world each frame: the stations you own,
+live or frozen in a sector you left, the jobs you handed in, and the
+<a href="../stations/#civilization-stances">civilizations</a> your kills turned Enemy
+with the hulls you took from them since. The frame both lines are met, the
+save records the play time; the OBJECTIVES block then reads <code>Goal reached at</code> that time, and a Load brings it back. The world does not change on a
+met goal.</p>
+<h2 id="overlay-and-lint" tabindex="-1">Overlay and lint</h2>
+<p>Overlay is last-wins by id, as for every content kind: a mod that defines a
+<code>StartRole</code> with a base id replaces it whole. Roles keep their load order, so
+a replaced role keeps its place in the list and a new role comes after the
+base roles.</p>
+<p><code>content lint</code> and the content check at load both report an error for a
+role that:</p>
+<ul>
+<li>names a <code>hull</code> no visible ship design has (the base ships, your own, and
+those of the mods you depend on);</li>
+<li>names a <code>hull</code> with no cargo intake section: an open-world ship jettisons
+and takes cargo in through one;</li>
+<li>names a <code>hull</code> whose cargo intake reaches as far out as a docking port's
+face, where a berthed ship parks;</li>
+<li>seeds its kit <code>stock</code> with an unknown item;</li>
+<li>seeds a kit heavier than the hull's hold;</li>
+<li>gives its <code>goal</code> a count of zero.</li>
+</ul>
+<h2 id="in-the-game" tabindex="-1">In the game</h2>
+<p>The second step of the New Game wizard lists the roles and selects the
+first. The details pane shows the selected role's <code>name</code>, <code>about</code>, the
+hull's design name, the kit, the goal's <code>title</code> as its milestone, and the
+<code>lore</code>. In the game the Map's chart view OBJECTIVES block lists the goal's
+next unmet line, station line first, until all are met. <strong>Create</strong> starts
+the base <code>open_world</code> scenario, whose
+<a href="../actions/#spawnstartrole"><code>SpawnStartRole</code></a> action spawns the role's hull
+with its kit and binds its weapons, docked at the starting station: the
+nearest station of a civilization that begins as the player's Ally.</p>
+<p>The world save records the role id. A Load refuses a world whose role id
+the loaded content does not define, with
+<code>its start role '&lt;id&gt;' is not in the loaded content</code>. The content check runs
+first, so a role that a mod change removed shows <code>content changed</code>.</p>
+<h2 id="base-start-roles" tabindex="-1">Base start roles</h2>
+<p>Each base kit is worth 3,000 cr at ask, not counting PDC rounds: the credits
+plus the other items at their <code>ask_cr</code>. A PDC-armed hull also carries 1,000
+<code>PdcRound</code> (4,000 cr at ask) in its shared hold, not per mount. So an armed
+kit is worth 6,000 to 6,200 cr at ask, and its rounds sell for up to 3,000 cr
+at their <code>bid_cr</code>.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>hull</th>
+<th>kit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>industrial</code></td>
+<td><code>mining_tug</code></td>
+<td>2,200 cr, 15 <code>HullPlate</code>, 25 <code>Rations</code></td>
+</tr>
+<tr>
+<td><code>scavenger</code></td>
+<td><code>salvage_hauler</code></td>
+<td>1,800 cr, 1,000 <code>PdcRound</code>, 10 <code>HullPlate</code></td>
+</tr>
+<tr>
+<td><code>transport</code></td>
+<td><code>light_freighter</code></td>
+<td>2,000 cr, 50 <code>Rations</code>, 50 <code>WaterIce</code></td>
+</tr>
+<tr>
+<td><code>bounty_hunter</code></td>
+<td><code>interceptor</code></td>
+<td>1,600 cr, 1,000 <code>PdcRound</code>, 10 <code>HullPlate</code></td>
+</tr>
+<tr>
+<td><code>military</code></td>
+<td><code>patrol_picket</code></td>
+<td>1,000 cr, 2 <code>Torpedo</code>, 1,000 <code>PdcRound</code>, 10 <code>HullPlate</code></td>
+</tr>
+<tr>
+<td><code>pirate</code></td>
+<td><code>raider</code></td>
+<td>1,800 cr, 1,000 <code>PdcRound</code>, 10 <code>HullPlate</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The roles are generated into <code>assets/base/roles/base.content.ron</code>.</p>
+<p>The proof is <code>system_start_roles</code>: for each base role, New Game spawns the
+role's hull with its kit and its weapons bound, the hull passes the post-build
+checks, docks at a generated station and jettisons an item through its cargo
+intake and takes it back in, and Load last save brings the role,
+the hull and the kit back from disk.</p>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+</footer>
+</body></html>

@@ -28,7 +28,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_picket",
+                                id: "training_picket",
                                 section_patches: {
                                     "bridge": (
                                         config: (
@@ -61,7 +61,7 @@
                                 lock_enabled: false,
                             ),
                             inventory: {
-                                PdcRound: 2000,
+                                "PdcRound": 2000,
                             },
                             lootable: false,
                             credits: 2000,

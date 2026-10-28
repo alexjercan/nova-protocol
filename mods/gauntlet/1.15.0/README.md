@@ -4,7 +4,7 @@ The first PORTAL mod: published to the static mod portal by `scripts/gen-portal.
 NOT shipped inside the game's `assets/`. A mod is the same shape as the base
 game: a folder with a `*.bundle.ron` manifest listing its `*.content.ron` files.
 
-This mod adds one scenario, `gauntlet_run` - a parkour course (currently v1.14.0;
+This mod adds one scenario, `gauntlet_run` - a parkour course (currently v1.15.0;
 grown from a thin four-gate slalom in v1.0.0): six ordered gates across three escalating acts
 (warmup / slalom / hazard), asteroids crowding the racing line, and
 an act-3 gravity well to sling or avoid. Crossing FINISH declares Victory;

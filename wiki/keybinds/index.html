@@ -117,10 +117,10 @@
         </tr>
     </tbody>
 </table>
-<p>DOCK needs a docking port on both hulls, so it is offered only on a ship built with one: build a hull with a docking port in the editor, or fly the <code>docking_approach</code> example. A dock starts neutral: the other ship flies the pair until <kbd>H</kbd> takes the helm, and <kbd>D</kbd> again lets go. See <a href="../sections/docking/">Docking port</a>.</p>
+<p>DOCK needs a docking port on both hulls, so it is offered only on a ship built with one: build a hull with a docking port in the editor, or fly the <code>docking_approach</code> example. A dock starts neutral: the other ship flies the pair until <kbd>H</kbd> takes the helm, and <kbd>D</kbd> again lets go. A dock with a derelict or neutralized hull, ship or station, gives you the helm at once; a living station keeps it and refuses <kbd>H</kbd>. See <a href="../sections/docking/">Docking port</a>.</p>
 <p>Dock and Helm appear in <strong>Settings &gt; Controls &gt; FLIGHT</strong> with <kbd>D</kbd> and <kbd>H</kbd> as rebindable defaults.</p>
-<p>Mining has no flight key. Each mining beam section has its own key, like a weapon or a thruster: the line warship's bow beam answers <kbd>V</kbd>, and a beam placed in the editor starts on <kbd>V</kbd> with no gamepad button. Hold a beam's key with an ore rock travel-locked, in front of that emitter and within 100 m; it opens, runs its tip out and cuts the rock once a second where it hits. Release the key and that beam retracts. Rebind each beam on the <a href="../interface/#rebinding-a-section">Ship pane</a>. See <a href="../sections/mining-beam/">Mining beam</a>.</p>
-<p>RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip appears in the keybind dock only when it is available), and the training range hands it over for one leg of its pattern. See <a href="../flight-autopilot/#rcs-fine-docking-thrusters">Flight &amp; autopilot</a>.</p>
+<p>Mining has no flight key. Each mining beam section has its own key, like a weapon or a thruster: the mining tug's bow beam answers <kbd>V</kbd>, and a beam placed in the editor starts on <kbd>V</kbd> with no gamepad button. Hold a beam's key with an ore rock travel-locked, in front of that emitter and within 100 m; it opens, runs its tip out and cuts the rock once a second where it hits. Release the key and that beam retracts. Rebind each beam on the <a href="../interface/#rebinding-a-section">Ship pane</a>. See <a href="../sections/mining-beam/">Mining beam</a>.</p>
+<p>RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip in the keybind dock stays dark until it is available), and the training range hands it over for one leg of its pattern. See <a href="../flight-autopilot/#rcs-fine-docking-thrusters">Flight &amp; autopilot</a>.</p>
 <h2 id="targeting-and-camera" tabindex="-1">Targeting and camera</h2>
 <table class="controls controls--split">
     <thead>
@@ -321,7 +321,7 @@
         </tr>
         <tr>
             <td>
-                <a href="../interface/">Interface</a> (Map, Ship and Inventory panes;
+                <a href="../interface/">Interface</a> (Map, Ship, Inventory and Jobs panes;
                 pauses, frees the cursor; <kbd>Esc</kbd> also closes it)
             </td>
             <td><kbd>Tab</kbd></td>
@@ -334,7 +334,7 @@
             </td>
         </tr>
         <tr>
-            <td>Switch interface pane (Map / Ship / Inventory)</td>
+            <td>Switch interface pane (Map / Ship / Inventory / Jobs / Station)</td>
             <td><kbd>M</kbd></td>
             <td>
                 <span
@@ -350,7 +350,7 @@
                 the flight log, armed cheats; works with no ship, and over the
                 menus and the interface)
             </td>
-            <td><kbd>:</kbd></td>
+            <td><kbd>;</kbd></td>
             <td>-</td>
         </tr>
         <tr>
@@ -488,6 +488,7 @@ caret, where it deletes a character instead.</p>
 <h3 id="the-build-readout" tabindex="-1">The build readout</h3>
 <p>The left rail prints what the hull on the stage would fly like, repainted as you
 place. Five lines, values aligned:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -518,6 +519,7 @@ place. Five lines, values aligned:</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>A hull with nothing on it reads <code>no parts yet</code> rather than <code>-</code> down the column,
 because nothing has failed - nothing has been built. The numbers are measured
 off the parts as they are POSED, through the same arithmetic the flown ship
@@ -555,6 +557,14 @@ including around the part you are still holding, so a hull is dragged about UNDE
 the skin and the plating closes over it before you click. A placement the editor
 refuses stays bare. The toggle carries through to Play, so the ship you built
 clad is the ship you fly clad.</p>
+<p><strong>Station</strong>, a checkbox on a ship's inspector, spawns that hull as a station:
+parked, docked with, and offering Rebuild, Refit, Trade and Storage. The hull
+needs a docking port and a controller, and no thruster. Under the box, the
+<strong>Station Check</strong> row reads <code>ready</code>, or the first fault, with all of them in
+its hint. Play refuses a marked hull that fails and names it and its faults on
+the status line. The ship you fly cannot be a station. Driver <strong>AI</strong> spawns a
+living station, and <strong>None</strong> spawns a dead one. Save writes the hull as a
+station, and Open reads it back as a marked ship.</p>
 <h3 id="generate-a-hull" tabindex="-1">Generate a hull</h3>
 <p><strong>Generate</strong>, in the same left-rail block, rolls a whole hull into the ship you
 are inside. It is a ship verb: a hull is what one ship IS, so what the roll

@@ -67,8 +67,9 @@ that were going to miss.</p>
 </div>
 <p>Nothing pierces a rock while its collider remains: an asteroid or a planetoid stops any round of any type at any speed. What a round does to a rock instead is take a bite out of it (see <a href="../../../combat-weapons/#shooting-rock">Shooting rock</a>); a planet does not even do that. Torpedoes do not travel through anything either - they detonate.</p>
 <h2 id="trigger-discipline" tabindex="-1">Trigger discipline</h2>
-<p>A magazine is a rate limit, not a hard stop while you carry the ammunition to feed it - every weapon refills from your ship's stock of matching rounds, and the rule is the same for all three (see <a href="../../combat-weapons/#magazines">Magazines</a>). What that rhythm is worth is easiest to read on the gun, with the bay and the railgun beside it for scale.</p>
+<p>A magazine is a rate limit, not a hard stop while you carry the ammunition to feed it - every weapon refills from your ship's stock of matching rounds, and the rule is the same for all three (see <a href="../../combat-weapons/#magazines">Magazines</a>). A station's PDC turrets feed from the station's own reserve instead of its hold, so they keep firing after you buy out its rounds. What that rhythm is worth is easiest to read on the gun, with the bay and the railgun beside it for scale.</p>
 <!-- Stats verified against crates/nova_authoring/src/base_content/sections/ (turret.rs: PDC ammunition Limited(500), reload delay 3.0 / amount 200, fire_rate 100; torpedo_bay.rs: bay ammunition Limited(6), reload delay 10.0 / amount 1, fire_rate 1.0; railgun.rs: ammunition Limited(1), reload delay 12.0 / amount 1, charge 1.5) and crates/nova_ship/src/sections/ammo.rs (a successful shot resets the clock in `SectionReload::on_shot`, each completed delay restores one batch in `SectionReload::advance`, `batch_rounds` clamps it at capacity and at the hold's matching reserve, an empty `SectionAmmo::try_consume` never reaches `on_shot`). The sustained column is this page's own arithmetic, amount / (delay + batch fire time), and assumes the hold keeps a matching reserve for every batch. -->
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -107,6 +108,7 @@ that were going to miss.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <div class="widget" data-widget="ammo-rhythm">
 <p>A PDC turret holds 500 rounds and spends them at 100 a second, so a held trigger runs it dry in five seconds. It gets 200 back for every three seconds it stays quiet - all at once, or not at all: a pause a tick short of three seconds returns nothing, and any shot that lands starts the three seconds again. Firing each batch as it arrives sustains 40 rounds a second against a cyclic 100. A torpedo bay works the same way at a different scale: six torpedoes, one back per ten quiet seconds, a full minute from empty to a fresh rack. A railgun is the rule at its simplest: one shell, twelve quiet seconds, and the charge on top - a shot every thirteen and a half. All of this assumes your hold keeps matching ammunition for every batch; with none left, the reload stops where the magazine ran dry.</p>
 </div>

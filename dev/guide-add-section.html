@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-83f806a0.js";
+            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -350,12 +350,17 @@ reach <code>nova_authoring</code> has to name it.</p>
         name: "Basic Shield Section".to_string(),
         description: "A basic shield section for spaceships.".to_string(),
         health: 100.0,
+        build: recipes::shield(),
         damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
         ..default()
     },
     kind: SectionKind::Shield(ShieldSectionConfig { /* ... */ }),
 },
 <span class="boring">}</span></code></pre>
+<p><code>build</code> is required: add a recipe row to
+<code>crates/nova_authoring/src/base_content/sections/recipes.rs</code> from the
+<code>Parts</code> items in <code>items.rs</code>. Content lint refuses a recipe that strips for
+as much as it costs (see <a href="sections.html#sections-nova_shipsections">Ship sections internals</a>).</p>
 <p><code>damage_effects</code> is a real design decision per kind, not boilerplate. The
 shipped rule: a hull authors nothing (defaulting to <code>[Cracks]</code>), anything
 carrying machinery adds <code>Sparks</code>, and a thruster adds <code>Plume</code> on top. Pick by

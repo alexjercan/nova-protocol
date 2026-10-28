@@ -8,7 +8,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Commands</p><h1>Commands</h1><div class="wiki__tags" id="wiki-tags"></div><p>Press <kbd>:</kbd> anywhere - the main menu, the ship editor, mid-flight, on the pause screen, over the <a href="../interface/">interface</a> - and the ship's CRT monitor opens on <strong>NOVA COMMANDS</strong>: one prompt that can read the run, change your settings, print the flight log, and, once you deliberately arm it, cheat.</p>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Commands</p><h1>Commands</h1><div class="wiki__tags" id="wiki-tags"></div><p>Press <kbd>;</kbd> anywhere - the main menu, the ship editor, mid-flight, on the pause screen, over the <a href="../interface/">interface</a> - and the ship's CRT monitor opens on <strong>NOVA COMMANDS</strong>: one prompt that can read the run, change your settings, print the flight log, and, once you deliberately arm it, cheat.</p>
 <figure class="figure">
     <!-- Capture: assets/loops/command-shell-open.webm -->
     <div class="figure__placeholder">
@@ -32,6 +32,7 @@
      Back-out owner (Esc, Start): crates/nova_interface/src/terminal/input.rs
      `close_surface_from_menu_keys`; the `close` command: same file, pending close.
      Return target: `NovaOsCloseTransition::return_to`, set in `open_command_shell`. -->
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -41,7 +42,7 @@
 </thead>
 <tbody>
 <tr>
-<td><kbd>:</kbd></td>
+<td><kbd>;</kbd></td>
 <td>The monitor opens on the prompt. It needs no ship, so it works in the menu and the editor too. Close it and you are back on exactly what it covered - the menu, the pause screen, the interface pane or your flight.</td>
 </tr>
 <tr>
@@ -66,12 +67,13 @@
 </tr>
 </tbody>
 </table>
+</div>
 <details class="explain">
 <summary>Show explanation</summary>
 <!-- Freeze: crates/nova_menu/src/lib.rs OnEnter/OnExit(Interface | Commands),
      `hold_clocks_for_interface` (Playing only). -->
 <p>Opened over the game, the monitor freezes it: the clocks stop, the cursor is freed, and <kbd>Esc</kbd> belongs to the monitor rather than the pause menu. Opened over the interface, it shares the interface's freeze - the world never runs a frame between the two, and closing the monitor puts you back on the same pane with its camera and selection intact. Opened on the main menu it stops nothing - the backdrop behind it keeps flying, because that is a view and not a game you are being kept out of - but the monitor is still the front-most thing on the screen, so the menu buttons under it wait until you close it.</p>
-<p>Two places refuse the key. Mid-load there is nothing yet to inspect. While a ship section or a settings control waits for you to press a key to bind, <kbd>:</kbd> is the key being bound, so it does not open the monitor.</p>
+<p>Two places refuse the key. Mid-load there is nothing yet to inspect. While a ship section or a settings control waits for you to press a key to bind, <kbd>;</kbd> is the key being bound, so it does not open the monitor.</p>
 <p>While the monitor is open, nothing you type reaches flight or the pane behind it.</p>
 </details>
 <h2 id="the-prompt" tabindex="-1">The prompt</h2>
@@ -80,6 +82,7 @@
      crates/nova_command/src/terminal/state.rs. Completion, ghost and hint line:
      crates/nova_command/src/terminal/{edit,view}.rs. Wheel and PgUp/PgDn:
      crates/nova_interface/src/terminal/input.rs. -->
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -110,12 +113,13 @@
 </tr>
 </tbody>
 </table>
+</div>
 <p>The prompt reads <code>cmd&gt;</code>. As you type, a dim ghost continues the line toward the nearest command, and a hint line under the prompt tracks what you have: an unknown word turns the input red and offers a <code>did you mean</code> suggestion, and a wrong argument shows the command's usage. <kbd>Tab</kbd> completes command names, subcommands, and the live ship and section ids an argument wants.</p>
 <h2 id="what-the-introduction-tells-you" tabindex="-1">What the introduction tells you</h2>
 <pre><code class="hljs language-text">NOVA OS v0.13.0 // COMMANDS
 POST ......... command shell / ok
 CORE ......... local game runtime / attached
-REGISTRY ..... 28 commands / ready
+REGISTRY ..... 30 commands / ready
 WORLD ........ tutorial / paused
 CHEATS ....... disabled / run clean
 Hint: type `help` and press Enter.
@@ -123,6 +127,7 @@ Hint: type `help` and press Enter.
 <p><code>WORLD</code> names what you opened over - a scenario id, <code>main menu</code>, or <code>no scenario</code> - and whether it is running. <code>CHEATS</code> is the line that matters: <code>disabled / run clean</code> while your run still counts, <code>enabled / run marked</code> once it does not. The header carries the same fact in the top right, where <code>CHEATS: OFF</code> turns amber and reads <code>CHEATS: ON</code>.</p>
 <h2 id="the-commands" tabindex="-1">The commands</h2>
 <p>Every command belongs to one of four classes, and the class is the whole permission model.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -154,7 +159,9 @@ Hint: type `help` and press Enter.
 </tr>
 </tbody>
 </table>
+</div>
 <h3 id="utility" tabindex="-1">Utility</h3>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -185,7 +192,9 @@ Hint: type `help` and press Enter.
 </tr>
 </tbody>
 </table>
+</div>
 <h3 id="read-only" tabindex="-1">Read-only</h3>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -248,12 +257,14 @@ Hint: type `help` and press Enter.
 </tr>
 </tbody>
 </table>
+</div>
 <h3 id="the-flight-log" tabindex="-1">The flight log</h3>
 <!-- `log` rows: crates/nova_console/src/inspect.rs `log`. Log model and its
      sources (story feed, objective list, `CombatLockDropped`):
      crates/nova_interface/src/terminal/flight_log.rs. Lock-drop wording:
      `combat_lock_drop_line`. -->
 <p><code>log</code> prints the flight log, oldest first. Each row carries its index and a label for its kind:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -280,9 +291,11 @@ Hint: type `help` and press Enter.
 </tr>
 </tbody>
 </table>
+</div>
 <p>The log is empty until something happens. It answers the question a player asks afterwards - &quot;why did I lose my lock?&quot; - without putting anything on screen mid-fight.</p>
 <h3 id="settings" tabindex="-1">Settings</h3>
 <p>One rule: the command <strong>without</strong> a value prints the setting, the command <strong>with</strong> one changes it. A change here is the same change the settings menu makes, and it is saved the same way.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -313,8 +326,10 @@ Hint: type `help` and press Enter.
 </tr>
 </tbody>
 </table>
+</div>
 <h3 id="cheats" tabindex="-1">Cheats</h3>
 <p>Every one of these is refused until you run <code>cheats enable</code>. That command is the deliberate act, and it marks the run the moment it succeeds - there is no command that unmarks it.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -343,20 +358,35 @@ Hint: type `help` and press Enter.
 <td><code>item give &lt;ship-id&gt; &lt;item-id&gt; &lt;quantity&gt;</code></td>
 <td>add items to one ship's inventory, e.g. <code>item give player_spaceship HullPlate 12</code></td>
 </tr>
+<tr>
+<td><code>credits give &lt;ship-id&gt; &lt;amount&gt;</code></td>
+<td>add a signed amount to one ship's credits, e.g. <code>credits give player_spaceship -500</code></td>
+</tr>
+<tr>
+<td><code>credits set &lt;ship-id&gt; &lt;amount&gt;</code></td>
+<td>set one ship's credits, e.g. <code>credits set player_spaceship 5000</code></td>
+</tr>
 </tbody>
 </table>
+</div>
 <details class="explain">
 <summary>Show explanation</summary>
 <!-- The mark: crates/nova_gameplay/src/cheats.rs:43-63 (arm() is one-way, begin_new_run clears).
      Arming checked once, on the class: crates/nova_console/src/dispatch.rs.
      Restoration rule: SuspendedSectionAmmo, crates/nova_ship/src/sections/ammo.rs:98.
-     `item give`: crates/nova_console/src/cheats.rs `item_give`; item masses:
-     crates/nova_gameplay/src/inventory.rs `ItemType::mass_g`. -->
+     `item give`: crates/nova_console/src/cheats.rs `item_give` (mass from the
+     loaded `GameItems`); base item masses: crates/nova_authoring/src/
+     base_content/items.rs `item_catalog`; Tab
+     completion from the loaded catalog: crates/nova_console/src/completion.rs
+     (`GameItems`). `credits give` / `credits set`: crates/nova_console/src/
+     cheats.rs `credits_write`, through `ShipInventoryReports::change_credits`
+     (crates/nova_gameplay/src/inventory.rs), cause `Cheat`. -->
 <p><strong>Why the mark is one-way.</strong> A run that was ever armed was never clean, whether or not you went on to use a cheat. Marking at the moment you ask, rather than at the moment you benefit, is what makes the mark honest - and it gives the refusal something true to say rather than pretending the command does not exist.</p>
 <p><strong>Why a fresh scenario clears it.</strong> A new attempt is a new run. <code>scenario load &lt;id&gt;</code> abandons the current attempt without giving it an outcome and without advancing campaign progress, then resets both the arming and the mark.</p>
 <p><strong>What <code>ammo infinite off</code> gives back.</strong> Turning it on suspends the magazine; turning it off restores the authored capacity <strong>full</strong>, and re-seeds the reload from the section's own configuration. It does not try to remember the count you had when you switched it on - a number from before the cheat is not a number the run earned either way, and a full magazine is the state you can reason about.</p>
 <p><strong>The <code>ammo</code> cheats do not touch your hold.</strong> The ordinary idle reload spends matching ammunition from the ship's own inventory (see <a href="../combat-weapons/#magazines">Magazines</a>); both <code>ammo</code> cheats bypass that and act on the magazine directly, spending and returning nothing from stock.</p>
-<p><strong><code>item give</code> fills the hold instead.</strong> The item id is the name a scenario file writes: <code>HullPlate</code>, <code>PdcRound</code>, <code>RailSlug</code>, <code>Torpedo</code>, <code>StoneOre</code>, <code>IronOre</code>, <code>WaterIce</code>, <code>CarbonOre</code>, <code>Rations</code> or <code>SalvagedParts</code>, in that exact case. The quantity is a whole number above zero, and the items weigh what they always weigh (a hull plate 10 kg, a PDC round 0.2 kg, a rail slug 20 kg, a torpedo 150 kg). The whole quantity fits the ship's free hold or none of it is added: with 280 kg free, 29 hull plates are refused whole. An unknown ship, item or quantity adds nothing either. The idle reload then loads from the new stock as usual.</p>
+<p><strong><code>item give</code> fills the hold instead.</strong> The item id is any id in the loaded catalog, in the exact case the content authored it, mod items included - Tab completes it for you. An unknown id lists every id the catalog holds. The quantity is a whole number above zero, and each item weighs what the loaded catalog says: in base content a hull plate 10 kg, a PDC round 0.2 kg, a rail slug 20 kg, a torpedo 150 kg, and a mod that replaces an item can change its mass. The whole quantity fits the ship's free hold or none of it is added: with 280 kg free, 29 base hull plates are refused whole. An unknown ship or quantity adds nothing either. The idle reload then loads from the new stock as usual.</p>
+<p><strong><code>credits give</code> and <code>credits set</code> change the purse.</strong> The amount is a whole number: <code>give</code> adds it, and a negative amount takes credits away; <code>set</code> replaces the balance. A write that would leave the balance below zero is refused and changes nothing, so <code>credits give player_spaceship -500</code> on a ship that holds 410 cr leaves it at 410 cr. A non-integer amount, an unknown ship or a ship without a purse changes nothing either. Each change raises <code>OnCreditsChanged</code> with <code>cause: Cheat</code>, so a scenario that watches the purse sees it.</p>
 <p><strong>This is not the scenario language.</strong> A scenario author has a much larger vocabulary (spawning, despawning, allegiance, forced launches, outcomes). None of it is reachable from this prompt. The catalog above is the whole public surface, and a new scenario action does not appear here unless somebody deliberately adds it.</p>
 </details>
 <h2 id="the-monitor" tabindex="-1">The monitor</h2>
@@ -383,6 +413,7 @@ Hint: type `help` and press Enter.
      settings store: terminal/components.rs `NovaOsMonitorSettings`,
      crates/nova_menu/src/settings_store.rs. -->
 <p>The monitor is a physical one - a NOVACRT 9000, per its brand plate - and its chin controls are real. They are clicked directly (everything above them, on the glass, is clicked <em>through</em> the curved picture), and their settings persist across sessions:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -409,6 +440,7 @@ Hint: type `help` and press Enter.
 </tr>
 </tbody>
 </table>
+</div>
 <details class="explain">
 <summary>Show explanation</summary>
 <!-- CRT composite + pointer forwarding: crates/nova_interface/src/terminal/crt.rs.

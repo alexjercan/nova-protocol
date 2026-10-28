@@ -29,10 +29,40 @@ binary assets it ships).
   ship their own main-menu ambience, not just playable levels. It reports its
   act finished with `BackdropDone` after a 150 s timer, and the menu picks
   what plays next.
+- **A bounded generated world** - `example_bounds` runs the base world
+  generator on a fixed seed (`world: Generated((seed: Some(1701), bounds:
+  Some(..)))`). The loader spawns the `bounds` sphere as the scenario area
+  `bounds`; the scenario's own `OnExit` handler on it counts the exit and
+  ends the run in Defeat. The world keeps streaming past the edge.
 - **A hull line** - `example_freighter_hull` is a `Grammar` under a new id: a
   longer, blunt-nosed hauler drawing this mod's own plate and no weapons. The
   editor's Generate block lists it under HULL LINE beside the base warship and
   collapses whichever is picked.
+- **A new item** - `example_survey_core` adds a fresh id to the item catalog;
+  the arena's player ship starts with two of it in its hold.
+- **A hold tour** - `example_prospect` berths the shipped mining tug beside
+  a trader with an ore rock ahead. Six `once` handlers complete one objective
+  each on `OnTraded`, `OnCreditsChanged`, `OnRepaired`, `OnJettisoned`,
+  `OnPickedUp` and `OnMined`, and the sixth ends the run in Victory.
+- **A survey contact** - `example_survey` runs the fixed-seed world unbounded
+  with a 1 km survey sphere in the -X face of the window. The first body in
+  is one the generator placed, whose id no handler can write; the `OnEnter`
+  marks it with `ObjectiveMarkerAttach((target_id: "$other_id", ..))`, bound
+  from the event payload, and the mark follows the body through its sector's
+  retire and thaw.
+- **A station** - `example_outpost` is a `Station`: a hull that never flies
+  (a collar, a bridge, four of this mod's plates, no thruster), the share of
+  its hull pool below which it takes no more damage
+  (`integrity: (collapse_threshold: Some(0.5))`, required on a station), the
+  services it offers (`Trade`, `Storage`), its storage cap, the stock its hold
+  opens with and the credits it trades with, all under `design`. A scenario
+  spawns it with `kind: Station((design: Prototype("example_outpost"), ..))`.
+- **A start role** - `example_surveyor` is a `StartRole`: a row in the New
+  Game wizard that starts the player in the base `light_freighter` with a kit
+  of credits, this mod's survey cores and rations, and whose `goal` is a
+  survey network: trade jobs handed in at two distinct stations after one
+  owned station, shown in the Map's OBJECTIVES block. The wizard binds the
+  weapon keys from the hull's sections, so the role binds nothing.
 
 ## Layout
 
@@ -40,7 +70,7 @@ binary assets it ships).
 example/
   example.bundle.ron     # manifest: content + resources + meta
   example.content.ron    # section overlay + new section + arena + menu backdrop
-                         #   + hull line
+                         #   + hull line + item + station
   textures/
     nebula.png           # self:// skybox (stacked 1x6 cube faces)
     nebula.png.meta      # RowCount cube reinterpret sidecar (rides along, not listed)

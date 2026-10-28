@@ -24,6 +24,7 @@ on the web.</p>
 <h2 id="audio" tabindex="-1">Audio</h2>
 <p>Four draggable sliders, top to bottom. Each shows its level as a whole percent
 and takes effect live as you drag.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -50,56 +51,99 @@ and takes effect live as you drag.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Master multiplies the other three, so a track you have turned down stays down
 when you raise Master.</p>
 <h2 id="graphics-quality" tabindex="-1">Graphics quality</h2>
-<p>A single <strong>Low / Medium / High</strong> preset trades visual richness for performance.
-It does two things at once: it tunes the combat <em>juice</em>, and on the lower tiers
-it drops the heavier effects for weak machines.</p>
+<p>The <strong>Preset</strong> row offers <strong>Low / Medium / High</strong>; the four lever rows under
+it are what a preset sets. Move any lever on its own and the preset row reads
+<strong>Custom</strong>; land the levers back on a tier's values and it reads that tier
+again. Every row applies live.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>Row</th>
+<th>Choices</th>
+<th>What it moves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Preset</td>
+<td>Low, Medium, High, Custom</td>
+<td>All four levers at once. Custom is read-only: it means the levers match no tier.</td>
+</tr>
+<tr>
+<td>Particles</td>
+<td>Off, On</td>
+<td>Torpedo and muzzle bursts, hit sparks and the railgun wake. Off spawns none of them.</td>
+</tr>
+<tr>
+<td>Resolution</td>
+<td>50%, 70%, 85%, 100%</td>
+<td>The internal resolution the 3D world is drawn at before it is upscaled to the window. The HUD and menus stay crisp.</td>
+</tr>
+<tr>
+<td>Flash lights</td>
+<td>Off, 3, 6</td>
+<td>How many detonations and slugs may light the hull at once.</td>
+</tr>
+<tr>
+<td>Camera shake</td>
+<td>Off, On</td>
+<td>The shake on hits and detonations.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
 <th>Preset</th>
 <th>Camera shake</th>
-<th>Hit flashes</th>
-<th>Particle bursts</th>
-<th>3D world resolution</th>
+<th>Flash lights</th>
+<th>Particles</th>
+<th>Resolution</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>High</td>
 <td>on</td>
+<td>6</td>
 <td>on</td>
-<td>full</td>
-<td>native</td>
+<td>100%</td>
 </tr>
 <tr>
 <td>Medium</td>
 <td>off</td>
+<td>3</td>
 <td>on</td>
-<td>full</td>
-<td>native</td>
+<td>100%</td>
 </tr>
 <tr>
 <td>Low</td>
 <td>off</td>
 <td>off</td>
-<td>not spawned</td>
-<td>reduced, upscaled</td>
+<td>off</td>
+<td>70%</td>
 </tr>
 </tbody>
 </table>
+</div>
 <details class="explain">
 <summary>Show explanation</summary>
-<p>Low is <strong>spawn-less</strong>: torpedo and muzzle particle bursts and the railgun wake
-are not created at all, rather than created and hidden. Low also takes no
-transient lights, so the light a railgun slug carries with it is one of the
-things it does not draw. It also renders the world at a <strong>reduced
-internal resolution</strong> and upscales it to fill the window - a lever aimed at
-fill-bound hardware (laptop iGPUs, phones). The HUD and menus stay crisp and
-fully clickable; only the 3D world softens. On a strong discrete GPU the speed
-win is small, so Low is a knob for the low end rather than a general speed-up.</p>
+<p>Particles Off is <strong>spawn-less</strong>: the bursts and the wake are not created at
+all, rather than created and hidden, which is the cut the frame-time baseline
+measures as a real combat cost. A lower <strong>Resolution</strong> renders the world
+smaller and upscales it to fill the window - a lever aimed at fill-bound
+hardware (laptop iGPUs, phones). The HUD and menus stay crisp and fully
+clickable; only the 3D world softens. On a strong discrete GPU the win is
+small, so it is a knob for the low end rather than a general speed-up. <strong>Flash
+lights</strong> are paid per pixel they touch, so the step from six to three is a
+real one on a busy salvo and costs nothing on a single hit.</p>
 </details>
 <h2 id="window" tabindex="-1">Window</h2>
 <p>The desktop build opens <strong>borderless fullscreen</strong>, filling the monitor it
@@ -109,9 +153,19 @@ choice.</p>
 <p>A window will not be dragged narrower than <strong>640x600</strong>. The Settings panel is
 the widest thing the game draws, and below that size there is no layout left to
 read it in.</p>
-<p>The web build has no such row: the game fits the canvas the page gives it. The
-panels themselves are sized as a share of the window, so a narrow browser column
-still gets a readable Settings modal with its Back button on screen.</p>
+<p><strong>VSync</strong> sits under the same heading. On, the default, presents each frame
+on the display's refresh; Off presents as soon as a frame is drawn, for a
+player measuring frame times or chasing input latency, at the cost of tearing.</p>
+<p>The web build has neither row: the game fits the canvas the page gives it and
+the browser presents on its own schedule. The panels themselves are sized as a
+share of the window, so a narrow browser column still gets a readable Settings
+modal with its Back button on screen.</p>
+<h2 id="pause-when-unfocused" tabindex="-1">Pause when unfocused</h2>
+<p>Alt-tab, or clicking away from the game, leaves the run <strong>going</strong>: the fight
+does not wait. Switch <strong>Pause when unfocused</strong> to <strong>On</strong> under <strong>Focus</strong> on the
+Graphics tab and losing the window opens the ordinary pause menu instead.
+Coming back never resumes by itself; <strong>Resume</strong> is yours. It works the same in
+a browser tab.</p>
 <h2 id="controls" tabindex="-1">Controls</h2>
 <figure class="figure">
     <!-- Capture: assets/wiki-controls.png -->
@@ -145,8 +199,9 @@ menu, a flight row cannot take a key that a section of your ship holds:
 <code>V is already bound to the ship's mining_beam section</code>.</p>
 <h3 id="mouse" tabindex="-1">Mouse</h3>
 <p><strong>MOUSE</strong> is a group in the same list, and the one page with nothing to rebind
-on it: three sliders, and no <strong>Reset Defaults</strong> - that button is a keybinding
-operation and would not put a sensitivity back.</p>
+on it: three sliders and the <strong>Invert Y</strong> switch, and no <strong>Reset Defaults</strong> -
+that button is a keybinding operation and would not put a sensitivity back.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -177,12 +232,16 @@ operation and would not put a sensitivity back.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Each <code>100%</code> is that slider's OWN baseline, not a shared number - the three gains
 behind them differ by two orders of magnitude, so a single scale would be
 unreadable. Only the mouse is affected; the gamepad sticks and the keyboard have
 their own curves and are untouched.</p>
-<p>A slider moved from the PAUSE menu takes effect on the ship you are already
-flying - there is no reload and no ship to respawn.</p>
+<p><strong>Invert Y</strong> turns mouse look's pitch the other way: push the mouse forward to
+look down. It applies to the Look path only - ship steering, free look and
+turret aim. The free (WASD) camera and RCS translation keep their direction.</p>
+<p>A slider or switch moved from the PAUSE menu takes effect on the ship you are
+already flying - there is no reload and no ship to respawn.</p>
 <details class="explain">
 <summary>Why Look 200% is the new default</summary>
 <p>Mouse look shipped before this page existed, on one fixed gain. That gain is
@@ -190,6 +249,40 @@ what <code>300%</code> is now, and it was too fast for most pointers - so <code>
 of it and the default sits at <code>200%</code>, about two thirds of what mouse look used
 to feel like. If the old speed was right for you, put Look at <code>300%</code>.</p>
 </details>
+<h2 id="interface" tabindex="-1">Interface</h2>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>Row</th>
+<th>Choices</th>
+<th>What it moves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Theme</td>
+<td>Phosphor, Hardware, and any theme an enabled mod declares</td>
+<td>The look of every panel, button and readout. A theme that fails to load says so under the row and the game falls back to Phosphor.</td>
+</tr>
+<tr>
+<td>UI scale</td>
+<td>75%, 100%, 125%, 150%</td>
+<td>How large the interface draws. Panels are capped at a share of the window, so a larger scale still keeps them on screen.</td>
+</tr>
+<tr>
+<td>Training prompt</td>
+<td>On, Off</td>
+<td>The Basic Training offer in the main menu's corner.</td>
+</tr>
+<tr>
+<td>Field notes</td>
+<td>On, Off</td>
+<td>The handbook hint card beside it.</td>
+</tr>
+</tbody>
+</table>
+</div>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
 </footer>

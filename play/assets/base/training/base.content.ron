@@ -417,12 +417,9 @@
             rows: 5,
             frames: 20,
             frames_per_second: 10.0,
-            alt: "a line warship\'s bow emitter on a locked rock: the doors part, the tip runs out, and the beam cuts the rock with a burst of sparks",
+            alt: "the mining tug\'s bow emitter on the rock ahead: the doors part, the tip runs out, and the beam cuts the rock with a burst of sparks",
         ),
-        body: "MINE cuts ore from the rock you travel lock. The beam fires straight ahead of its emitter: aim the ship and hold its key within 100 meters. Ore leaves in canisters. No beam means the rock is out of reach or off the line.",
-        actions: [
-            "radar_hold",
-        ],
+        body: "MINE cuts ore from the nearest rock straight ahead of its emitter. No lock is needed: aim the ship and hold its key within 100 meters. Ore leaves in canisters. No beam means the rock is out of reach, off the line, or barren.",
         wiki_path: "wiki/sections/mining-beam#cutting-ore",
         field_notes: [
             "The mining beam fires straight ahead of its emitter: aim the ship, not the beam.",
@@ -1165,9 +1162,9 @@
             rows: 5,
             frames: 20,
             frames_per_second: 10.0,
-            alt: "`:` bringing the NOVA COMMANDS monitor up over flight, then Escape returning to the same flight",
+            alt: "`;` bringing the NOVA COMMANDS monitor up over flight, then Escape returning to the same flight",
         ),
-        body: "Type `:` to open NOVA COMMANDS over flight, the interface, the pause menu, the main menu, or the editor. In a run the game stays frozen while it is open. Escape returns you to where you were.",
+        body: "Type `;` to open NOVA COMMANDS over flight, the interface, the pause menu, the main menu, or the editor. In a run the game stays frozen while it is open. Escape returns you to where you were.",
         wiki_path: "wiki/commands#getting-in-and-out",
         field_notes: [
             "Escape closes NOVA COMMANDS and returns you to where you were.",

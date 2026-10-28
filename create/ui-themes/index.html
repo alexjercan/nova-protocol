@@ -62,6 +62,7 @@ ships:</p>
     <span class="ron-punct">)),</span>
 <span class="ron-punct">]</span>
 </code></pre>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -110,6 +111,7 @@ ships:</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Unknown fields are refused, not ignored. A misspelled field stops the content
 file from parsing at all, and the message names what you wrote and every name
 that would have been valid.</p>
@@ -118,6 +120,7 @@ that would have been valid.</p>
 tone is stated once and changed once.</p>
 <p>Thirteen names are REQUIRED in a root theme, because the screens ask for them
 directly:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -180,6 +183,7 @@ directly:</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p><code>nominal</code> is separate from <code>primary</code> on purpose. On a phosphor screen the ink
 IS green, so the two look like one colour and a screen that wanted &quot;good&quot; can
 get away with asking for the ink. On a casing the ink is bone white and the
@@ -205,6 +209,7 @@ the rest.</p>
     <span class="ron-key">panel_radius</span><span class="ron-punct">:</span> <span class="ron-literal">10.0</span><span class="ron-punct">,</span>
 <span class="ron-punct">)),</span>
 </code></pre>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -227,6 +232,7 @@ the rest.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p><code>metrics: None</code> takes the nearest ancestor's three whole. A root theme must
 carry them.</p>
 <h2 id="colours" tabindex="-1">Colours</h2>
@@ -239,6 +245,7 @@ carry them.</p>
     <span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Literal</span><span class="ron-punct">(</span><span class="ron-string">&quot;#ffd9d5&quot;</span><span class="ron-punct">),</span>
 <span class="ron-punct">),</span>
 </code></pre>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -257,6 +264,7 @@ carry them.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Transparent paint is alpha <code>0.0</code>, never a missing colour.</p>
 <h3 id="fills" tabindex="-1">Fills</h3>
 <p>A surface background is one of three:</p>
@@ -302,6 +310,7 @@ un-offset coloured one.</p>
 <p>Sixteen roles name every control the interface paints. Each is an <code>Option</code>:
 <code>None</code> INHERITS that role whole from the parent, and a root theme must fill
 every one.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -393,6 +402,7 @@ every one.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>A control state is a fill, a border, a text colour and an optional effect:</p>
 <pre><code class="hljs language-ron"><span class="ron-key">normal</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
     <span class="ron-key">fill</span><span class="ron-punct">:</span> <span class="ron-type">Solid</span><span class="ron-punct">((</span><span class="ron-key">value</span><span class="ron-punct">:</span> <span class="ron-type">Variable</span><span class="ron-punct">(</span><span class="ron-string">&quot;primary&quot;</span><span class="ron-punct">),</span> <span class="ron-key">alpha</span><span class="ron-punct">:</span> <span class="ron-literal">0.05</span><span class="ron-punct">)),</span>

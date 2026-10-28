@@ -1,0 +1,114 @@
+[
+    PriceTable((
+        clamp: (
+            min: 0.25,
+            max: 3.0,
+        ),
+        scarcity: (
+            starved: (
+                ask: 1.5,
+                bid: 1.25,
+            ),
+            glut: (
+                ask: 0.9,
+                bid: 0.6,
+            ),
+            glut_share: 3.0,
+            unkept: (
+                ask: 1.0,
+                bid: 0.9,
+            ),
+        ),
+        restock: (
+            recovery_seconds: 1800.0,
+        ),
+        jobs: (
+            offer_seconds: 1200.0,
+            escort_offer_seconds: 3600.0,
+        ),
+        clusters: [
+            (
+                cluster: AsteroidRich,
+                category: Raw,
+                factor: (
+                    ask: 0.6,
+                    bid: 0.6,
+                ),
+            ),
+            (
+                cluster: RockOnly,
+                category: Raw,
+                factor: (
+                    ask: 0.8,
+                    bid: 0.8,
+                ),
+            ),
+            (
+                cluster: PlanetHeavy,
+                category: Raw,
+                factor: (
+                    ask: 1.5,
+                    bid: 1.5,
+                ),
+            ),
+            (
+                cluster: DerelictField,
+                category: Parts,
+                factor: (
+                    ask: 0.7,
+                    bid: 0.7,
+                ),
+            ),
+            (
+                cluster: DerelictField,
+                category: Repair,
+                factor: (
+                    ask: 0.85,
+                    bid: 0.85,
+                ),
+            ),
+        ],
+        roles: [
+            (
+                role: Industrial,
+                category: Raw,
+                factor: (
+                    ask: 0.8,
+                    bid: 0.8,
+                ),
+            ),
+            (
+                role: Civilian,
+                category: Food,
+                factor: (
+                    ask: 1.25,
+                    bid: 1.25,
+                ),
+            ),
+            (
+                role: Scavenger,
+                category: Parts,
+                factor: (
+                    ask: 0.8,
+                    bid: 0.8,
+                ),
+            ),
+            (
+                role: Armored,
+                category: Ammo,
+                factor: (
+                    ask: 1.25,
+                    bid: 1.25,
+                ),
+            ),
+            (
+                role: Armored,
+                category: Repair,
+                factor: (
+                    ask: 1.15,
+                    bid: 1.15,
+                ),
+            ),
+        ],
+    )),
+]

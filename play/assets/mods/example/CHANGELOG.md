@@ -1,5 +1,47 @@
 # Changelog
 
+## 1.9.0
+
+- Add `example_surveyor`, a `StartRole`: a New Game start on the base
+  `light_freighter` with 1,500 cr, ten survey cores and twenty rations.
+- `example_prospect` flies the base `mining_tug` beside a `light_freighter`
+  trader, because the base block ships it used are gone. Needs a base game
+  whose content carries the `StartRole` kind and the new hulls.
+
+## 1.8.0
+
+- Add `example_outpost`, a `Station`: four plates, a bridge and one collar,
+  no drive, offering Trade and Storage with four survey cores in its hold.
+  Needs a base game whose content carries the `Station` kind.
+
+## 1.7.0
+
+- Add `example_survey`, the fixed-seed world with a survey sphere 64 km out.
+  Its `OnEnter` marks the first body in with `ObjectiveMarkerAttach((target_id:
+  "$other_id", ..))`, a generated rock or derelict no handler could name, and
+  the mark comes back when the body's sector retires and thaws. Needs a base
+  game whose marker actions read `$id` / `$other_id`.
+
+## 1.6.0
+
+- Add `example_prospect`, a berth with a trader alongside and an ore rock
+  ahead. One objective completes on each hold event: `OnTraded`,
+  `OnCreditsChanged`, `OnRepaired`, `OnJettisoned`, `OnPickedUp` and
+  `OnMined`. Needs a base game whose vocabulary carries the six.
+
+## 1.5.0
+
+- Add `example_bounds`, a chapter on the base world generator with a fixed
+  seed and a 2 km `bounds` sphere. Leaving it raises `OnExit` on the area
+  `bounds`, which the scenario answers with a Defeat. Needs a base game whose
+  scenarios take a `world` block.
+
+## 1.4.0
+
+- **(breaking)** Add `example_survey_core`, an item this mod defines, and
+  start the arena's player ship with two. Needs a base game whose items are
+  content; item ids in ship stock are quoted map keys.
+
 ## 1.3.0
 
 - Add `example_freighter_hull`, a `Grammar` under a new id: a hull LINE the

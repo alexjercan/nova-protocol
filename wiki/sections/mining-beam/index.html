@@ -18,15 +18,16 @@
             >assets/wiki-section-mining-beam.png</span
         >
         <span class="figure__placeholder-note"
-            >The line warship's bow emitter deployed, its green
-            beam running straight out to a locked ore rock about
+            >The mining tug's bow emitter deployed, its green
+            beam running straight out to an ore rock about
             58 m ahead and ending on the rock's face.</span
         >
     </div>
 </figure>
-<p>A mining beam is a <strong>one-cell emitter</strong> behind two sliding doors. Lock a rock, point the emitter at it and hold its key: the doors part, the tip runs out, and once a second the beam cuts the rock where it hits. The ore it cuts free leaves the rock as canisters, and a <a href="../cargo-intake/">cargo intake</a> takes them into your hold.</p>
-<p>The beam does not aim. It runs straight out of the emitter's face, so the <strong>ship</strong> aims it, the way a railgun is aimed. The lock only says which rock you mean.</p>
-<!-- Values from crates/nova_authoring/src/base_content/sections/mining_beam.rs: health 90 (MINING_BEAM_BASE_HEALTH), TRACK_SECONDS 0.3 per leg, reach 100 m, pulse_interval_seconds 1.0, carve_radius_cells 1.5 of the rock's field, whose cell is FIELD_CELL_WORLD 0.5 units, about 5 m (crates/nova_scenario/src/objects/asteroid_carve.rs). Per-section key: `input_mapping` entry -> `SpaceshipMiningInputBinding` in crates/nova_ship/src/input/player/weapons.rs; the line warship's `mining_beam` takes V in crates/nova_authoring/src/base_content/scenarios/open_world.rs `weapon_bindings`; the editor default V with no pad button in crates/nova_editor/src/placement.rs `default_binds`. -->
+<p>A mining beam is a <strong>one-cell emitter</strong> behind two sliding doors. Point it at a rock and hold its key: the doors part, the tip runs out, and once a second the beam cuts the rock where it hits. No travel lock is needed. The ore it cuts free leaves the rock as canisters, and a <a href="../cargo-intake/">cargo intake</a> takes them into your hold.</p>
+<p>The beam does not aim. It runs straight out of the emitter's face, so the <strong>ship</strong> aims it, the way a railgun is aimed. If the ray meets more than one rock, it reaches the nearest one first.</p>
+<!-- Values from crates/nova_authoring/src/base_content/sections/mining_beam.rs: health 90 (MINING_BEAM_BASE_HEALTH), TRACK_SECONDS 0.3 per leg, reach 100 m, pulse_interval_seconds 1.0, carve_radius_cells 1.5 of the rock's field, whose cell is FIELD_CELL_WORLD 0.5 units, about 5 m (crates/nova_scenario/src/objects/asteroid_carve.rs). Per-section key: `input_mapping` entry -> `SpaceshipMiningInputBinding` in crates/nova_ship/src/input/player/weapons.rs; the mining tug's `mining_beam` takes V in crates/nova_authoring/src/base_content/scenarios/season_one/stage.rs (Kaveri); the editor default V with no pad button in crates/nova_editor/src/placement.rs `default_binds`. -->
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -37,7 +38,7 @@
 <tbody>
 <tr>
 <td>Key</td>
-<td>its own, held: <kbd>V</kbd> on the line warship</td>
+<td>its own, held: <kbd>V</kbd> on the mining tug</td>
 </tr>
 <tr>
 <td>Deploy</td>
@@ -61,19 +62,19 @@
 </tr>
 </tbody>
 </table>
-<!-- Widget values: crates/nova_authoring/src/base_content/sections/mining_beam.rs:101-103 (reach 100 m, pulse 1 s, carve_radius_cells 1.5); FIELD_CELL_WORLD 0.5 units in crates/nova_scenario/src/objects/asteroid_carve.rs:108 (1.5 cells ~ 7.5 m); CARGO_CANISTER_MAX_MASS_G 200 kg in crates/nova_gameplay/src/inventory.rs:532; MINED_CANISTER_OFFSET 10 m and MINED_CANISTER_SPEED 2 m/s in crates/nova_scenario/src/mining.rs:93,97,895-925; check order and inclusive reach :160-173, :449-486; refusal is an info log only :434-435; canisters after the remesh :804-841. -->
+</div>
+<!-- Widget values: crates/nova_authoring/src/base_content/sections/mining_beam.rs:101-103 (reach 100 m, pulse 1 s, carve_radius_cells 1.5); FIELD_CELL_WORLD 0.5 units in crates/nova_scenario/src/objects/asteroid_carve.rs:108 (1.5 cells ~ 7.5 m); CARGO_CANISTER_MAX_MASS_G 200 kg in crates/nova_gameplay/src/inventory.rs:532; MINED_CANISTER_OFFSET 10 m and MINED_CANISTER_SPEED 2 m/s in crates/nova_scenario/src/mining.rs:93,97,895-925; direct nearest-asteroid aim and ore check in MiningRefusalType and aim_beam; a refusal is an info log and the authored refusal_sound at the emitter face in play_mining_pulse_sfx; canisters after the remesh :804-841. -->
 <div class="widget" data-widget="mining-beam-checks">
-<p>A pulse runs its checks in order and stops at the first failure: a travel lock, on an asteroid, of a kind that holds ore, with its nearest point within 100 m of the emitter face, and on the line straight out of that face within 100 m. A refused pulse shows nothing on the HUD. A pulse that passes cuts a sphere about 7.5 m in radius where the beam meets solid material; the first pulse into an untouched rock cuts nothing. Ore leaves only after the rock's remesh lands, as canisters of up to 200 kg, each born 10 m off the cut and drifting off it at 2 m/s.</p>
+<p>The emitter ray checks the nearest asteroid it intersects within 100 m, with no travel lock required. A barren asteroid in front of an ore rock refuses the pulse rather than letting the beam pass through it. A refused pulse shows nothing on the HUD. A pulse that passes cuts a sphere about 7.5 m in radius where the beam meets solid material; the first pulse into an untouched rock cuts nothing. Ore leaves only after the rock's remesh lands, as canisters of up to 200 kg, each born 10 m off the cut and drifting off it at 2 m/s.</p>
 </div>
 <h2 id="cutting-ore" tabindex="-1">Cutting ore</h2>
-<!-- Behavior verified against crates/nova_ship/src/sections/mining_section.rs (hold to deploy, doors then tip, tip then doors on release, reverse mid-travel) and crates/nova_scenario/src/mining.rs (the MiningRefusalType checks in order, silent refusal, MiningBeamHit drawn only while every check passes, the first pulse into an untouched rock seeds its field and cuts nothing). -->
+<!-- Behavior verified against crates/nova_ship/src/sections/mining_section.rs (hold to deploy, doors then tip, tip then doors on release, reverse mid-travel) and crates/nova_scenario/src/mining.rs (nearest intersected asteroid within reach, refusal on barren rock, one refusal_sound per refused pulse at the emitter face, MiningBeamHit drawn only while every check passes, the first pulse into an untouched rock seeds its field and cuts nothing). -->
 <ol>
-<li><strong>Lock the rock.</strong> Hold the radar on it with weapons lowered, so it takes your <strong>travel lock</strong>. See <a href="../../targeting-radar/#stances-and-slots">Targeting &amp; radar</a>.</li>
-<li><strong>Point the emitter at it.</strong> The Line Warship's emitter sits on the starboard top deck at the bow and looks forward, so put your nose on the rock and close to inside 100 m.</li>
+<li><strong>Point the emitter at a rock.</strong> The Mining Tug's emitter sits at the tip of its bow boom and looks forward, so put your nose on the rock and close to inside 100 m. A travel lock is optional and does not choose the mining target.</li>
 <li><strong>Hold the beam's key.</strong> The doors part and the tip runs out. Once the tip is out, the beam fires at once and then once a second for as long as you hold the key.</li>
 <li><strong>Let go.</strong> The tip runs in first, then the doors shut. Pressing or letting go halfway reverses from wherever the parts are.</li>
 </ol>
-<p>Every pulse checks five things, in order: your ship has a travel lock; the lock is a rock; the rock holds ore; the rock is within 100 m of the emitter face; the line straight out of that face meets it within 100 m. A pulse that fails any of them does nothing at all: no beam, no sound, no cut. So <strong>no beam means a check is failing</strong> - most often the nose is off the rock or the rock is too far. Nothing else blocks the beam: it is cast against the locked rock alone.</p>
+<p>The emitter ray takes the nearest asteroid it meets within 100 m of its face, then checks that the rock holds ore. A missed ray or barren rock draws no beam and cuts nothing; it plays one refusal sound at the emitter, once a pulse while you hold the key. So <strong>no beam and a refusal sound mean a check is failing</strong> - the nose may be off the rock, the rock too far, or the nearest rock barren. Other bodies do not block this asteroid-only ray.</p>
 <p>A pulse that passes draws the beam to the hit, flares it, throws sparks and plays a pulse sound at the rock. The first pulse into a rock nobody has cut yet only readies it and takes nothing; the cut starts with the next pulse. A pulse into a crater an earlier pulse or a weapon already emptied finds nothing to cut and frees no ore, so walk the beam onto fresh rock.</p>
 <figure class="figure">
     <!-- Capture: assets/loops/loop-section-mining-beam.webm (producer: screenshot_mining_beam) -->
@@ -87,15 +88,16 @@
         <span class="figure__placeholder-note"
             >The bow emitter through a whole cycle: the doors
             part, the tip runs out, the beam pulses through the
-            canisters earlier cuts freed and into the locked
+            canisters earlier cuts freed and into the
             rock, and on release the tip runs in and the doors
             shut.</span
         >
     </div>
 </figure>
 <h2 id="where-the-ore-goes" tabindex="-1">Where the ore goes</h2>
-<!-- Ore by kind: ore_for_asteroid_kind in crates/nova_scenario/src/mining.rs. One item per field corner cut, paid once the rock's remesh lands; canisters of at most CARGO_CANISTER_MAX_MASS_G 200 kg (crates/nova_gameplay/src/inventory.rs), born MINED_CANISTER_OFFSET 1 unit (10 m) off the last cut along its outward normal and drifting at MINED_CANISTER_SPEED 0.2 units/s (2 m/s) plus the rock's own motion there. Ore mass 10 kg each: ItemType::mass_g. Open-world rock kinds: ROCK_KINDS in crates/nova_world_base/src/clusters.rs. -->
+<!-- Ore by kind: ore_for_asteroid_kind in crates/nova_scenario/src/mining.rs. One item per field corner cut, paid once the rock's remesh lands; canisters of at most CARGO_CANISTER_MAX_MASS_G 200 kg (crates/nova_gameplay/src/inventory.rs), born MINED_CANISTER_OFFSET 1 unit (10 m) off the last cut along its outward normal and drifting at MINED_CANISTER_SPEED 0.2 units/s (2 m/s) plus the rock's own motion there. Ore mass 10 kg each: mass_g in crates/nova_authoring/src/base_content/items.rs `item_catalog`. Open-world rock kinds: ROCK_KINDS in crates/nova_world_base/src/clusters.rs. -->
 <p>What a rock is made of decides the ore. Every ore weighs 10 kg, so one canister carries up to 20.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -126,7 +128,8 @@
 </tr>
 </tbody>
 </table>
-<p>The ore leaves the rock once the cut is drawn, packed into canisters of up to 200 kg. They are born one at a time, 10 m off the last cut and drifting away from it at 2 m/s on top of the rock's own motion, and the next waits until the space there is clear. A rock that is cut away entirely still lets its last canisters go. Fly your <a href="../cargo-intake/#taking-a-canister-in">cargo intake</a> onto a canister to take it in. Canisters are not saved.</p>
+</div>
+<p>The ore leaves the rock once the cut is drawn, packed into canisters of up to 200 kg. They are born one at a time, 10 m off the last cut and drifting away from it at 2 m/s on top of the rock's own motion, and the next waits until the space there is clear. A rock that is cut away entirely still lets its last canisters go. Fly your <a href="../cargo-intake/#taking-a-canister-in">cargo intake</a> onto a canister to take it in. A saved Open World keeps a canister as you left it; any other scenario keeps it only for the session.</p>
 <figure class="figure">
     <!-- Capture: assets/wiki-section-mining-beam-carve.png (producer: screenshot_mining_beam) -->
     <div class="figure__placeholder">
@@ -146,7 +149,7 @@
 <p>Every rock in the New Game world holds ore. Ore sells only to a docked ship that trades - see <a href="../../interface/#buy-and-sell">Buy and sell</a> - and the New Game world has no such ship yet, so for now mined ore stays in your hold.</p>
 <h2 id="variants" tabindex="-1">Variants</h2>
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/mining_beam.rs and assets/base/sections/base.content.ron. Mounted by crates/nova_authoring/src/base_content/ships/block.rs: `mining_beam` at the line warship's bow cell (1, 1, -7). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/mining_beam.rs and assets/base/sections/base.content.ron. Mounted by crates/nova_authoring/src/base_content/ships/block.rs: `mining_beam` at the mining tug's boom tip, cell (0, 0, -6). -->
 <div class="catalog__head"><span class="catalog__title">Mining beam - shipped prototypes</span></div>
 <table>
 <thead>
@@ -157,7 +160,7 @@
 </tbody>
 </table>
 </div>
-<p>One emitter ships. The Line Warship you fly in New Game carries it on the starboard top deck at its bow. Bolt one onto any other hull in the ship editor; it takes neighbours on every face except the emitter face. The Ship pane lists it as <code>MNG</code>. See <a href="../../../create/sections/#mining">Ship sections for mods</a> for the numbers a mod can change.</p>
+<p>One emitter ships. The Mining Tug carries it at the tip of its bow boom. Bolt one onto any other hull in the ship editor; it takes neighbours on every face except the emitter face. The Ship pane lists it as <code>MNG</code>. See <a href="../../../create/sections/#mining">Ship sections for mods</a> for the numbers a mod can change.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
     <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
 </footer>

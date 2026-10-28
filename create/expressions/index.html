@@ -28,6 +28,7 @@ inline. The simplest full chains, worth memorizing:</p>
 </code></pre>
 <h2 id="values-the-literal-types" tabindex="-1">Values: the literal types</h2>
 <p>Three value types (<code>VariableLiteral</code>):</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -54,8 +55,10 @@ inline. The simplest full chains, worth memorizing:</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>There is no null and no integer type - counters are <code>Number</code>s.</p>
 <h2 id="factors-the-atoms" tabindex="-1">Factors: the atoms</h2>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -82,7 +85,9 @@ inline. The simplest full chains, worth memorizing:</p>
 </tr>
 </tbody>
 </table>
+</div>
 <h2 id="terms-multiply-divide" tabindex="-1">Terms: multiply / divide</h2>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -109,8 +114,10 @@ inline. The simplest full chains, worth memorizing:</p>
 </tr>
 </tbody>
 </table>
+</div>
 <h2 id="expressions-add-subtract-the-value-root" tabindex="-1">Expressions: add / subtract (the value root)</h2>
 <p>The node <code>VariableSet.expression</code> takes.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -137,6 +144,7 @@ inline. The simplest full chains, worth memorizing:</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Note the asymmetric arms: the LEFT operand is a term (or factor, one level
 down), the RIGHT is a full expression. That is ordinary precedence
 plumbing - it is why the shipped increment reads
@@ -158,6 +166,7 @@ mean.</p>
 <h2 id="conditions-the-boolean-root" tabindex="-1">Conditions: the boolean root</h2>
 <p>The node an <a href="../filters/#expression"><code>Expression</code> filter</a> wraps. Compares
 two value expressions; yields a boolean.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -184,6 +193,7 @@ two value expressions; yields a boolean.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>There is NO <code>NotEqual</code>, <code>LessOrEqual</code> or <code>GreaterOrEqual</code>. Compose instead:
 wrap the filter in <a href="../filters/#conditional"><code>Conditional(Not(..))</code></a>, or
 flip the comparison (<code>&gt;= n</code> on an integer counter is <code>&gt; n - 1</code> - and that
@@ -219,6 +229,7 @@ snapshot when the action runs:</p>
 <span class="ron-punct">))</span>
 </code></pre>
 <p>Supported queries:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -240,6 +251,7 @@ snapshot when the action runs:</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p><code>Entity</code> is strict-single. Zero matches, multiple matches, or a missing velocity
 make the query unavailable. Expressions fail closed. Missing is not zero.</p>
 <h2 id="the-typed-form-in-the-editor" tabindex="-1">The typed form (in the editor)</h2>
@@ -255,6 +267,7 @@ instead of <code>Condition</code>: what it writes is an expression, so <code>Wri
 <code>Compare</code> does and takes the operators a value may have - <code>+ - * /</code> and a leaf,
 never a comparison. The tree row of that action reads as the assignment it
 makes, <code>beat = beat + 1</code>.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -301,6 +314,7 @@ makes, <code>beat = beat + 1</code>.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Operators are <code>+ - * /</code> for values, <code>&lt; &gt; ==</code> for conditions, and <code>( )</code> groups.
 Strings are double-quoted, with <code>\&quot;</code> for a quote inside one. There is nothing
 here the grammar above does not already have: no <code>!=</code>, no <code>&amp;&amp;</code>, no operator the

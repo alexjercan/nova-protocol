@@ -1,0 +1,385 @@
+[
+    Station((
+        id: "block_waystation",
+        name: "Waystation",
+        about: "A plated two-deck block with a bridge set into the top deck, a second flight computer in the lower deck and a docking collar off the port flank. Ships dock to rebuild, refit, trade and leave cargo in its store.",
+        design: (
+            hull: (
+                sections: [
+                    (
+                        id: "plate_0",
+                        position: (
+                            -1.0,
+                            0.0,
+                            -1.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_1",
+                        position: (
+                            -1.0,
+                            0.0,
+                            0.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_2",
+                        position: (
+                            -1.0,
+                            0.0,
+                            1.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_3",
+                        position: (
+                            -1.0,
+                            1.0,
+                            -1.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_4",
+                        position: (
+                            -1.0,
+                            1.0,
+                            0.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_5",
+                        position: (
+                            -1.0,
+                            1.0,
+                            1.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_6",
+                        position: (
+                            0.0,
+                            0.0,
+                            -1.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_7",
+                        position: (
+                            0.0,
+                            0.0,
+                            0.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_8",
+                        position: (
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_9",
+                        position: (
+                            0.0,
+                            1.0,
+                            -1.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_10",
+                        position: (
+                            0.0,
+                            1.0,
+                            1.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_11",
+                        position: (
+                            1.0,
+                            0.0,
+                            -1.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_12",
+                        position: (
+                            1.0,
+                            0.0,
+                            0.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_13",
+                        position: (
+                            1.0,
+                            1.0,
+                            -1.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_14",
+                        position: (
+                            1.0,
+                            1.0,
+                            0.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "plate_15",
+                        position: (
+                            1.0,
+                            1.0,
+                            1.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "reinforced_hull_section",
+                        ),
+                    ),
+                    (
+                        id: "bridge",
+                        position: (
+                            0.0,
+                            1.0,
+                            0.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "basic_controller_section",
+                        ),
+                    ),
+                    (
+                        id: "lower_bridge",
+                        position: (
+                            1.0,
+                            0.0,
+                            1.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.0,
+                            0.0,
+                            1.0,
+                        ),
+                        source: Prototype(
+                            id: "basic_controller_section",
+                        ),
+                    ),
+                    (
+                        id: "port_collar",
+                        position: (
+                            -2.0,
+                            0.0,
+                            0.0,
+                        ),
+                        rotation: (
+                            0.0,
+                            0.70710677,
+                            0.0,
+                            0.70710677,
+                        ),
+                        source: Prototype(
+                            id: "docking_port_section",
+                        ),
+                    ),
+                ],
+                integrity: (
+                    collapse_threshold: Some(0.5),
+                ),
+                presentation: (
+                    skin: true,
+                    style: Some("industrial"),
+                    collapse_sound: Some("self://sounds/destroy_ship.wav"),
+                    lock_on_sound: Some("self://sounds/lock_on.wav"),
+                    lock_off_sound: Some("self://sounds/lock_off.wav"),
+                    radar_deny_sound: Some("self://sounds/radar_deny.wav"),
+                    radar_retarget_sound: Some("self://sounds/radar_retarget.wav"),
+                    safety_on_sound: Some("self://sounds/safety_on.wav"),
+                    warn_lock_sound: Some("self://sounds/warn_lock.wav"),
+                    ammo_dry_sound: Some("self://sounds/ammo_dry.wav"),
+                    warn_hull_sound: Some("self://sounds/warn_hull.wav"),
+                    rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
+                ),
+            ),
+            services: [
+                Rebuild,
+                Refit,
+                Trade,
+                Storage,
+            ],
+            builds: [
+                "light_hull_section",
+                "basic_thruster_section",
+                "basic_controller_section",
+                "pdc_kinetic_turret_section",
+                "pdc_twin_kinetic_turret_section",
+                "torpedo_section",
+                "lance_torpedo_section",
+                "docking_port_section",
+                "cargo_intake_section",
+                "mining_beam_section",
+            ],
+            storage_cap_g: 100000,
+            stock: {
+                "ActuatorPack": 2,
+                "DriveBell": 1,
+                "FlightCore": 1,
+                "FrameSpar": 2,
+                "HullPlate": 8,
+                "Rations": 20,
+                "SalvagedParts": 10,
+                "SectionPanel": 20,
+                "TurretBarrel": 2,
+                "TurretBody": 1,
+            },
+            credits: 5000,
+        ),
+    )),
+]

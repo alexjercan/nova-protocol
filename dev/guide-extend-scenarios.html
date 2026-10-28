@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-83f806a0.js";
+            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -508,12 +508,13 @@ an error at the earliest point that can see it - a <code>content lint</code> err
 first, a loud refusal on the load path second. It is never resolved to a
 house answer. An <code>Option</code> is right only where absence is a documented
 OVERRIDE with runtime-derived behavior behind it, and the field’s own doc
-comment says what the absence MEANS. <code>lock_signature</code> (absent = the radius)
-is one shipped precedent. <code>PlanetConfig::mass</code> is required because every
-planet is a static gravity well. There is no <code>AsteroidConfig::mass</code> field:
-mobile asteroids and ship roots respond to gravity rather than authoring
-wells. <code>AsteroidConfig::kind</code> is a plain required <code>AsteroidKindId</code>, because
-shading has no runtime answer to fall back on.</p>
+comment says what the absence MEANS. A rock’s <code>lock_signature</code> (absent =
+100 m plus half its true geometric radius) is one shipped precedent.
+<code>PlanetConfig::mass</code> is required because every planet is a static gravity
+well. There is no <code>AsteroidConfig::mass</code> field: mobile asteroids and ship
+roots respond to gravity rather than authoring wells. <code>AsteroidConfig::kind</code>
+is a plain required <code>AsteroidKindId</code>, because shading has no runtime answer
+to fall back on.</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
 </span>#[derive(Component, Clone, Debug, Reflect)]

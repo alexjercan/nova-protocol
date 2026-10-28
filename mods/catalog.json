@@ -3,13 +3,13 @@
   "entries": [
     {
       "id": "gauntlet",
-      "version": "1.14.0",
+      "version": "1.15.0",
       "bundle": "gauntlet.bundle.ron",
       "meta": {
         "name": "Gauntlet Run",
         "description": "A parkour course: thread six gates through asteroid slaloms and a gravity well, START to FINISH. Fly clean or wreck.",
         "author": "Nova Protocol",
-        "version": "1.14.0",
+        "version": "1.15.0",
         "dependencies": [
           "base"
         ],
@@ -19,23 +19,23 @@
       "files": [
         {
           "path": "CHANGELOG.md",
-          "size": 4406,
-          "sha256": "861beaa888dc96af30b05a500a47a2056d54063879a866fa981a6d4ec770cca8"
+          "size": 4684,
+          "sha256": "9adc6c759837436467bd5be959d4443efd0671d6f3854b4c056b0096981087f6"
         },
         {
           "path": "README.md",
           "size": 3626,
-          "sha256": "e07254370916cc3f2b7d02af1cd4d221d8d65e2c4dc860636d63cfb5966ef0d8"
+          "sha256": "edc08b3bef8fbeccfec15da8af5e0ad5548365de76d98e4c3e0c11223c381ad9"
         },
         {
           "path": "gauntlet.bundle.ron",
-          "size": 1351,
-          "sha256": "7646224b54e863ab5f9027b8b873c530291945908d73ace16c4ad22dcd9470f5"
+          "size": 1354,
+          "sha256": "6819de08a1f3d9e00b9d65cece9040e50c30c7e5c1882acf76ef163edeeb2e03"
         },
         {
           "path": "gauntlet.content.ron",
-          "size": 38881,
-          "sha256": "21eb0e95505c349446fb749bed8fead9dcf0d753d580640cd552c4eb5a520731"
+          "size": 38939,
+          "sha256": "ffe101b3777fa59d460b8ca3e7a46a583604c0acf7282d55b82517366b84b779"
         },
         {
           "path": "thumbnails/gauntlet_run.png",
@@ -43,7 +43,7 @@
           "sha256": "171e6eb2918105a3f526e04f84cf0fa5a1816701867f5a422a85d8df848a1ce9"
         }
       ],
-      "total_size": 51718
+      "total_size": 52057
     },
     {
       "id": "the-ledger",
@@ -63,8 +63,8 @@
       "files": [
         {
           "path": "CHANGELOG.md",
-          "size": 14841,
-          "sha256": "0dbaa69f8c48494c7372320713691f1c38f9714a41996234e88ea48dcde68b0e"
+          "size": 15155,
+          "sha256": "ec45ab191457f26634e1a3f901d4e85d4acd55cac4c8bdc14aada12bce3295e1"
         },
         {
           "path": "README.md",
@@ -183,33 +183,33 @@
         },
         {
           "path": "ledger_01_drift_run.content.ron",
-          "size": 24558,
-          "sha256": "982617468989d47eb5c6effad325e1f2794a23c334ce56c7e2d260f51149f52d"
+          "size": 24560,
+          "sha256": "339127d0c023f250efdeb3438756e2ebae3f1e3eaffa0052a481b6d652a5d2d6"
         },
         {
           "path": "ledger_02_rock_garden.content.ron",
-          "size": 22303,
-          "sha256": "10b16a5cc8738dcb9c0bf190c3db45c57664686105dc7ed26a42e48347f364e8"
+          "size": 22305,
+          "sha256": "d046955b3b9ba3d773aadf87ac01cdbc1d056a69331fb5d5a889b40b311733dc"
         },
         {
           "path": "ledger_03_blue_survey.content.ron",
-          "size": 28374,
-          "sha256": "79467342c00da53a777a9e5f27a7eb50aee1be1156e4bda192767f078a8f9967"
+          "size": 28376,
+          "sha256": "14e78b0d776ea63566ab08cbc88dfd4ce9a61c8b65765da21a2b5b8145b0da34"
         },
         {
           "path": "ledger_04_cold_patrol.content.ron",
-          "size": 22278,
-          "sha256": "36268a7bf2a8fb3581655b712805630c20ea9767a945d481ee87784bdec6964a"
+          "size": 22280,
+          "sha256": "fbfd1b9b788fc703aa7cfabf99fdb36e9cbb093461454625e4988f98d334958d"
         },
         {
           "path": "ledger_05_freight_lane.content.ron",
-          "size": 29079,
-          "sha256": "221b769c3a4f0680a8bf678547cf45dd8f60b7c50c3a145fab7fb335ec50122a"
+          "size": 29081,
+          "sha256": "22c42448b39a50775e8b929a48273079cdf776f288c22f87e2ded7032e8e1a5b"
         },
         {
           "path": "ledger_06_siege_line.content.ron",
-          "size": 19783,
-          "sha256": "879212d0148bb5b55cbb5ab42a9b534f720d715d6373cf9c8386644caddc0bcc"
+          "size": 19785,
+          "sha256": "a3df114747f2d30a4db86e3a82e4dfd100ea92fc03b5f47f47031366a045f72e"
         },
         {
           "path": "ledger_campaign.content.ron",
@@ -218,8 +218,8 @@
         },
         {
           "path": "ledger_sections.content.ron",
-          "size": 67443,
-          "sha256": "089cd1e470e822eea13316c5567667848fb147b2195abc7994f200c548582510"
+          "size": 74881,
+          "sha256": "c852b0dcdeb71d421282755d7140f5526e5b9abdeaea68eb680332872f1d7dcd"
         },
         {
           "path": "ledger_ships.content.ron",
@@ -262,7 +262,7 @@
           "sha256": "e593f74b08b40a593de18e8fde93356a1be7bf07933dc4b6df35784172014b1f"
         }
       ],
-      "total_size": 567371
+      "total_size": 575135
     }
   ]
 }

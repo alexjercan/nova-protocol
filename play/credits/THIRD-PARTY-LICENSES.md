@@ -12,9 +12,9 @@ with.
 ## Licenses in use
 
 - **MIT License** - used by 496 crate(s)
+- **ISC License** - used by 26 crate(s)
 - **Apache License 2.0** - used by 25 crate(s)
 - **Unicode License v3** - used by 23 crate(s)
-- **ISC License** - used by 21 crate(s)
 - **zlib License** - used by 6 crate(s)
 - **BSD 3-Clause "New" or "Revised" License** - used by 5 crate(s)
 - **MIT No Attribution** - used by 4 crate(s)
@@ -2868,6 +2868,43 @@ Applies to:
 - ring 0.17.14 - https://github.com/briansmith/ring
 
 ```
+// Copyright 2015-2024 Brian Smith.
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+// SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+// OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+// CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+#[cfg(target_pointer_width = "64")]
+type CompilerWord = u64;
+
+#[cfg(target_pointer_width = "32")]
+type CompilerWord = u32;
+
+/// A native word that isn't secret.
+///
+/// `LeakyWord` supports `as` conversions to/from native types.
+///
+/// XXX: This isn't the native word size on targets where a pointer isn't the
+/// same size as a native word. TODO: Fix this.
+pub(crate) type LeakyWord = CompilerWord;
+
+```
+
+## ISC License
+
+Applies to:
+
+- ring 0.17.14 - https://github.com/briansmith/ring
+
+```
 // Copyright 2015-2025 Brian Smith.
 //
 // Permission to use, copy, modify, and/or distribute this software for any
@@ -2989,6 +3026,48 @@ Applies to:
 // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#[cfg(target_arch = "x86")]
+pub fn shift_full_blocks<const BLOCK_LEN: usize>(
+    in_out: super::overlapping::Overlapping<'_, u8>,
+    mut transform: impl FnMut(&[u8; BLOCK_LEN]) -> [u8; BLOCK_LEN],
+) {
+    let (in_out, src) = in_out.into_slice_src_mut();
+    let in_out_len = in_out[src.clone()].len();
+
+    for i in (0..in_out_len).step_by(BLOCK_LEN) {
+        let block = {
+            let input =
+                <&[u8; BLOCK_LEN]>::try_from(&in_out[(src.start + i)..][..BLOCK_LEN]).unwrap();
+            transform(input)
+        };
+        let output = <&mut [u8; BLOCK_LEN]>::try_from(&mut in_out[i..][..BLOCK_LEN]).unwrap();
+        *output = block;
+    }
+}
+
+```
+
+## ISC License
+
+Applies to:
+
+- ring 0.17.14 - https://github.com/briansmith/ring
+
+```
+// Copyright 2018 Brian Smith.
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+// SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+// OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+// CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
 //! Serialization and deserialization.
 
 #[doc(hidden)]
@@ -3050,6 +3129,45 @@ mod ffi;
 pub(super) mod fallback;
 mod sha2_32;
 mod sha2_64;
+
+```
+
+## ISC License
+
+Applies to:
+
+- ring 0.17.14 - https://github.com/briansmith/ring
+
+```
+// Copyright 2022 Brian Smith.
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+// SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+// OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+// CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+/// Polyfill for `Option::unwrap()` as a const fn; feature `const_option`.
+/// https://github.com/rust-lang/rust/issues/67441.
+/// TODO(MSRV): Replace this with `x.unwrap()`.
+///
+/// `T: Copy` avoids "constant functions cannot evaluate destructors."
+pub const fn unwrap_const<T>(x: Option<T>) -> T
+where
+    T: Copy,
+{
+    if let Some(x) = x {
+        x
+    } else {
+        panic!("unwrap_const on `None`");
+    }
+}
 
 ```
 
@@ -3138,6 +3256,39 @@ Applies to:
 // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+//! Utilities to make dealing with slices less tediuous.
+
+/// Replaces the first N elements of `a` with the first N elements of `b`, where
+/// N is `core::cmp::min(a.len(), b.len())`, leaving the rest unchanged.
+pub fn overwrite_at_start<T: Copy>(a: &mut [T], b: &[T]) {
+    a.iter_mut().zip(b).for_each(|(a, b)| {
+        *a = *b;
+    });
+}
+
+```
+
+## ISC License
+
+Applies to:
+
+- ring 0.17.14 - https://github.com/briansmith/ring
+
+```
+// Copyright 2024 Brian Smith.
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+// SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+// OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+// CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
 pub use self::{
     array::Array,
     base::{IndexError, Overlapping},
@@ -3147,6 +3298,46 @@ pub use self::{
 mod array;
 mod base;
 mod partial_block;
+
+```
+
+## ISC License
+
+Applies to:
+
+- ring 0.17.14 - https://github.com/briansmith/ring
+
+```
+// Copyright 2024 Brian Smith.
+//
+// Permission to use, copy, modify, and/or distribute this software for any
+// purpose with or without fee is hereby granted, provided that the above
+// copyright notice and this permission notice appear in all copies.
+//
+// THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+// WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+// MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+// SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+// WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION
+// OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
+// CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+use crate::testutil;
+use core::{marker::PhantomData, mem::size_of};
+
+/// A ZST that can be added to any type to make the type `!Send`.
+#[derive(Clone, Copy)]
+pub struct NotSend(PhantomData<*mut ()>);
+
+impl NotSend {
+    pub const VALUE: Self = Self(PhantomData);
+}
+
+#[allow(deprecated)]
+const _: () = testutil::compile_time_assert_clone::<NotSend>();
+#[allow(deprecated)]
+const _: () = testutil::compile_time_assert_copy::<NotSend>();
+const _: () = assert!(size_of::<NotSend>() == 0);
 
 ```
 
@@ -8082,7 +8273,7 @@ Applies to:
 - accesskit_windows 0.32.1 - https://github.com/AccessKit/accesskit
 - avian_derive 0.2.2 - https://github.com/Jondolf/avian
 - bevy_enhanced_input_macros 0.26.0 - https://github.com/simgine/bevy_enhanced_input
-- bevy_scene_macros 0.19.0 - https://github.com/bevyengine/bevy
+- bevy_scene_macros 0.19.1 - https://github.com/bevyengine/bevy
 - block2 0.5.1 - https://github.com/madsmtm/objc2
 - block2 0.6.2 - https://github.com/madsmtm/objc2
 - constgebra 0.1.4 - https://github.com/knickish/constgebra
@@ -8352,67 +8543,67 @@ SOFTWARE.
 Applies to:
 
 - atomicow 1.1.0 - https://github.com/bevyengine/atomicow
-- bevy 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_a11y 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_animation 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_animation_macros 0.19.0
-- bevy_anti_alias 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_app 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_asset 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_asset_macros 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_audio 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_camera 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_clipboard 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_color 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_core_pipeline 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_derive 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_diagnostic 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_ecs 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_ecs_macro_logic 0.19.0
-- bevy_ecs_macros 0.19.0
-- bevy_encase_derive 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_gilrs 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_gizmos 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_gizmos_macros 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_gizmos_render 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_gltf 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_image 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_input 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_input_focus 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_internal 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_light 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_log 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_macro_utils 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_material 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_material_macros 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_math 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_mesh 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_pbr 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_picking 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_platform 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_post_process 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_ptr 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_reflect 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_reflect_derive 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_render 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_render_macros 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_scene 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_shader 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_sprite 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_sprite_render 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_state 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_state_macros 0.19.0
-- bevy_tasks 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_text 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_time 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_transform 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_ui 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_ui_render 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_ui_widgets 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_utils 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_window 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_winit 0.19.0 - https://github.com/bevyengine/bevy
-- bevy_world_serialization 0.19.0 - https://github.com/bevyengine/bevy
+- bevy 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_a11y 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_animation 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_animation_macros 0.19.1
+- bevy_anti_alias 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_app 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_asset 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_asset_macros 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_audio 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_camera 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_clipboard 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_color 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_core_pipeline 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_derive 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_diagnostic 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_ecs 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_ecs_macro_logic 0.19.1
+- bevy_ecs_macros 0.19.1
+- bevy_encase_derive 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_gilrs 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_gizmos 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_gizmos_macros 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_gizmos_render 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_gltf 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_image 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_input 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_input_focus 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_internal 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_light 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_log 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_macro_utils 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_material 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_material_macros 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_math 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_mesh 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_pbr 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_picking 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_platform 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_post_process 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_ptr 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_reflect 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_reflect_derive 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_render 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_render_macros 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_scene 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_shader 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_sprite 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_sprite_render 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_state 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_state_macros 0.19.1
+- bevy_tasks 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_text 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_time 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_transform 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_ui 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_ui_render 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_ui_widgets 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_utils 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_window 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_winit 0.19.1 - https://github.com/bevyengine/bevy
+- bevy_world_serialization 0.19.1 - https://github.com/bevyengine/bevy
 - disqualified 1.0.0 - https://github.com/bevyengine/disqualified
 - half 2.7.1 - https://github.com/VoidStarKat/half-rs
 - linebender_resource_handle 0.1.1 - https://github.com/linebender/raw_resource_handle

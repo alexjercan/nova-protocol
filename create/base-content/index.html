@@ -8,7 +8,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Base content catalog</p><h1>Base content catalog</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#section-prototypes">Section prototypes</a><ol><li><a href="#core-sections-the-editor-palette">Core sections (the editor palette)</a></li><li><a href="#cladding-not-a-prototype">Cladding (not a prototype)</a></li><li><a href="#skin-styles">Skin styles</a></li><li><a href="#modelled-ship-parts-not-base-content">Modelled ship parts (not base content)</a></li></ol></li><li><a href="#scenario-ids">Scenario ids</a><ol></ol></li><li><a href="#ui-theme-ids">UI theme ids</a><ol></ol></li><li><a href="#assets-what-depbase-can-reach">Assets: what dep://base/ can reach</a><ol><li><a href="#meshes-25-glb">Meshes (25 glb)</a></li><li><a href="#greebles-54-glb">Greebles (54 glb)</a></li><li><a href="#sounds-31-wav">Sounds (31 wav)</a></li><li><a href="#images-7">Images (7)</a></li></ol></li><li><a href="#the-overlay-rule">The overlay rule</a><ol></ol></li><li><a href="#see-the-source">See the source</a><ol></ol></li></ol></nav><p>Every id and asset the base game ships, so your mod can reference them
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Base content catalog</p><h1>Base content catalog</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#section-prototypes">Section prototypes</a><ol><li><a href="#core-sections-the-editor-palette">Core sections (the editor palette)</a></li><li><a href="#cladding-not-a-prototype">Cladding (not a prototype)</a></li><li><a href="#skin-styles">Skin styles</a></li><li><a href="#modelled-ship-parts-not-base-content">Modelled ship parts (not base content)</a></li></ol></li><li><a href="#scenario-ids">Scenario ids</a><ol></ol></li><li><a href="#ui-theme-ids">UI theme ids</a><ol></ol></li><li><a href="#assets-what-depbase-can-reach">Assets: what dep://base/ can reach</a><ol><li><a href="#meshes-27-glb">Meshes (27 glb)</a></li><li><a href="#greebles-60-glb">Greebles (60 glb)</a></li><li><a href="#sounds-31-wav">Sounds (31 wav)</a></li><li><a href="#images-7">Images (7)</a></li></ol></li><li><a href="#the-overlay-rule">The overlay rule</a><ol></ol></li><li><a href="#see-the-source">See the source</a><ol></ol></li></ol></nav><p>Every id and asset the base game ships, so your mod can reference them
 instead of guessing. Six registries matter to a mod author: <strong>section
 prototype ids</strong> (what <code>source: Prototype(id: &quot;&lt;id&gt;&quot;)</code> can name), <strong>ship ids</strong>
 (what <code>design: Prototype(id: &quot;&lt;id&gt;&quot;)</code> can name - tabled in
@@ -40,6 +40,7 @@ base prototype is GENERIC - a hull cell, a drive, a mount, a bay - so the same
 part serves every hull. Section kinds are <code>Hull</code>, <code>Thruster</code>, <code>Controller</code>,
 <code>Turret</code>, <code>Torpedo</code>, and <code>Railgun</code>.</p>
 <h3 id="core-sections-the-editor-palette" tabindex="-1">Core sections (the editor palette)</h3>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -77,7 +78,7 @@ part serves every hull. Section kinds are <code>Hull</code>, <code>Thruster</cod
 <td>Thruster</td>
 <td>Capital Thruster Section</td>
 <td>1250</td>
-<td>5x5x3 collider and footprint; magnitude 25; 25 <code>-Z</code> mounting sockets; one capital bell and plume</td>
+<td>5x5x3 collider and footprint; magnitude 75; 25 <code>-Z</code> mounting sockets; one capital bell and plume</td>
 </tr>
 <tr>
 <td><code>basic_controller_section</code></td>
@@ -106,6 +107,20 @@ part serves every hull. Section kinds are <code>Hull</code>, <code>Thruster</cod
 <td>Tank Hull Section</td>
 <td>200</td>
 <td>the reinforced cell's stats around a pressure vessel in open frame rails</td>
+</tr>
+<tr>
+<td><code>truss_hull_section</code></td>
+<td>Hull</td>
+<td>Truss Section</td>
+<td>120</td>
+<td>an open girder cell for station spokes and rings; it mates only at its two Z ends</td>
+</tr>
+<tr>
+<td><code>solar_panel_section</code></td>
+<td>Hull</td>
+<td>Solar Panel Section</td>
+<td>40</td>
+<td>a 1 x 0.1 x 1 panel that mates only side to side along X, so panels chain into a wing</td>
 </tr>
 <tr>
 <td><code>pdc_kinetic_turret_section</code></td>
@@ -161,24 +176,25 @@ part serves every hull. Section kinds are <code>Hull</code>, <code>Thruster</cod
 <td>Docking</td>
 <td>Docking Port Section</td>
 <td>90</td>
-<td>the sealed-hatch port: DOCK holds the hull to the ship it has locked, port face to port face, within 10 m of gap, 15 deg of opposed and 5 m/s of closing speed. Its sleeve reaches 5 m out once the dock holds and is art alone. The workship, both frame tenders and the line warship carry one</td>
+<td>the sealed-hatch port: DOCK holds the hull to the ship it has locked, port face to port face, within 10 m of gap, 15 deg of opposed and 5 m/s of closing speed. Its sleeve reaches 5 m out once the dock holds and is art alone. Every crewed base hull carries one on the port flank, and the line warship a second on the starboard flank</td>
 </tr>
 <tr>
 <td><code>cargo_intake_section</code></td>
 <td>Cargo intake</td>
 <td>Cargo Intake Section</td>
 <td>90</td>
-<td>a 3x2x1 hold mouth behind an accordion door on its -Z face: the door opens for a canister within 40 m, and the intake takes one whole, at any speed, once it touches the 1 m deep trigger in front of the 22.2 x 15.3 m opening, if the hold has room. One jettison may queue several canisters; each drops out at 3 m/s. The line warship carries one on its top deck</td>
+<td>a 3x2x1 hold mouth behind an accordion door on its -Z face: the door opens for a canister within 40 m that fits the hold, and the intake takes one whole, at any speed, once it touches the 1 m deep trigger in front of the 22.2 x 15.3 m opening, if the hold has room. One jettison may queue several canisters; each drops out at 3 m/s. The mining tug, the salvage hauler and the line warship carry one on the top deck</td>
 </tr>
 <tr>
 <td><code>mining_beam_section</code></td>
 <td>Mining</td>
 <td>Mining Beam Section</td>
 <td>90</td>
-<td>a 1x1x1 emitter behind sliding doors on its -Z face: while its own <code>input_mapping</code> key is held the doors part, the tip runs out, and once a second the beam cuts a 1.5-cell sphere from the locked rock where it hits within 100 m. The line warship carries one at its bow, bound to <code>V</code></td>
+<td>a 1x1x1 emitter behind sliding doors on its -Z face: while its own <code>input_mapping</code> key is held the doors part, the tip runs out, and once a second the beam cuts a 1.5-cell sphere from the nearest asteroid in its path within 100 m, without a travel lock. The mining tug carries one at the tip of its bow boom</td>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Every shipped prototype authors its <a href="../sections/#damage-effects">damage
 effects</a> by kind, and the whole catalog follows one
 rule: Hull wears <code>([Cracks])</code> (the default, so it is omitted), Controller,
@@ -198,6 +214,7 @@ lattice the derivation reads.</p>
 <p>What the cladding LOOKS like is a <a href="../styles/">style</a>, which IS content and does
 have an id.</p>
 <h3 id="skin-styles" tabindex="-1">Skin styles</h3>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -222,8 +239,13 @@ have an id.</p>
 <td><code>salvage</code></td>
 <td>mismatched patches, weld beads, a lashed drum, a whip antenna</td>
 </tr>
+<tr>
+<td><code>station</code></td>
+<td>a pale enamelled habitat with navigation red: antennas, lit windows, radiators, beacons by the guns and collars, hatches and approach chevrons. The ring station wears it</td>
+</tr>
 </tbody>
 </table>
+</div>
 <p>A ship names one with <code>style: Some(&quot;&lt;id&gt;&quot;)</code> beside <code>skin: true</code> on its
 <a href="../ships/#the-hull">hull</a>. A mod declaring
 a <code>Style</code> with the same id replaces that look everywhere; a new id is a new look.
@@ -250,6 +272,7 @@ on, and a scavenger-grade craft flies the SAME gun with a
 Scenarios picker can target. Only a <a href="../scenarios/#roles"><code>role: Chapter</code></a>
 scenario is a picker row; a backdrop or a practice range stays off it but is
 still launchable by id.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -264,7 +287,7 @@ still launchable by id.</p>
 <td><code>open_world</code></td>
 <td>Open World</td>
 <td>no</td>
-<td>the New Game start (<code>role: OpenWorld</code>): the line warship at the origin of the world generated from the seed the player picks</td>
+<td>the New Game start (<code>world: Generated((seed: None))</code>): the picked <a href="../start-roles/">start role</a>'s ship, spawned by <code>SpawnStartRole</code> docked at the starting station - the nearest allied station to the origin of the world generated from the seed the player picks</td>
 </tr>
 <tr>
 <td><code>tutorial</code></td>
@@ -328,11 +351,13 @@ still launchable by id.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>The four <code>drill_*</code> ranges belong to the handbook: each is reached from the
 Practice button of the <a href="../lessons/">lessons</a> that name it, and from nowhere
 else.</p>
 <p>The base bundle ships ONE campaign, in
 <code>assets/base/campaigns/base.content.ron</code>:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -349,16 +374,19 @@ else.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>A campaign is a list, not a container: every chapter it names is also an
 ordinary picker row that can be launched on its own, and what the campaign adds
 is the order they are meant to be flown in and the header the Scenarios board
 draws them under. A mod may add its own campaigns, or replace <code>season_one</code> by
 reusing its id - see <a href="../campaigns/">Campaigns</a>.</p>
 <p>There are no other content kinds - a content file holds <code>Section</code>, <code>Scenario</code>,
-<code>Campaign</code>, <code>Ship</code>, <code>Style</code>, <code>Lesson</code> and <code>UiTheme</code> items only; factions are
-not content, and neither is impact audio, a comms channel or the table a
-generated hull is drawn from - all three are engine-owned. The base ship ids
-are tabled in <a href="../ships/#base-ships">Ships</a>, the style ids
+<code>Campaign</code>, <code>Ship</code>, <code>Station</code>, <code>StartRole</code>, <code>Style</code>, <code>Lesson</code>, <code>UiTheme</code> and
+<code>Item</code> items only;
+factions are not content, and neither is impact audio, a comms channel or the
+table a generated hull is drawn from - all three are engine-owned. The base
+ship ids are tabled in <a href="../ships/#base-ships">Ships</a>, the start role ids in
+<a href="../start-roles/#base-start-roles">Start roles</a>, the style ids
 <a href="#skin-styles">above</a>, the theme ids <a href="#ui-theme-ids">below</a>.</p>
 <p>New Game is base-owned: <code>new_game_scenario: Some(&quot;open_world&quot;)</code> in
 <code>assets/base/base.bundle.ron</code> is honored only from the base bundle; a mod
@@ -366,6 +394,7 @@ declaring it is warned and ignored.</p>
 <h2 id="ui-theme-ids" tabindex="-1">UI theme ids</h2>
 <p>What a <a href="../ui-themes/">UI theme</a>'s <code>inherit:</code> can name, and what declaring the
 same id RESTYLES. Both are root themes, so either is a complete parent.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -387,6 +416,7 @@ same id RESTYLES. Both are root themes, so either is a complete parent.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>A player whose selected theme stops resolving - they disabled the mod that
 declared it - falls back to <code>base/phosphor</code>, so a mod must never leave that id
 unpaintable.</p>
@@ -402,7 +432,7 @@ ref for the one you pick (with the <code>#Scene0</code> label where a mesh needs
 marks a <code>dep://</code> path no bundle ships - so you never type one of these paths
 from memory.</p>
 <p>The declared list, complete:</p>
-<h3 id="meshes-25-glb" tabindex="-1">Meshes (25 glb)</h3>
+<h3 id="meshes-27-glb" tabindex="-1">Meshes (27 glb)</h3>
 <p>Named meshes (all use label <code>#Scene0</code>). First the thruster bells:</p>
 <ul>
 <li><code>gltf/shell_bell.glb</code>, <code>gltf/shell_vector.glb</code>, <code>gltf/shell_capital.glb</code> -
@@ -413,6 +443,8 @@ the three thruster bells</li>
 <ul>
 <li><code>gltf/hull_personnel.glb</code>, <code>gltf/hull_cargo.glb</code>, <code>gltf/hull_tank.glb</code> -
 the three hull cell looks (reinforced, cargo, tank)</li>
+<li><code>gltf/hull_truss.glb</code>, <code>gltf/hull_solar_panel.glb</code> - the open truss frame
+and the solar panel the armed stations are built from</li>
 <li><code>gltf/core_wires.glb</code> - the controller core</li>
 <li><code>gltf/pdc_gatling_yaw.glb</code>, <code>gltf/pdc_gatling_pitch.glb</code>,
 <code>gltf/pdc_gatling_barrel.glb</code> - the gatling PDC joint meshes</li>
@@ -441,11 +473,11 @@ base section renders it: <code>gltf/hull-01.glb</code>, <code>gltf/turret-yaw-01
 them itself, under its own <code>gltf/parts/</code>.</p>
 <p>Cladding ships no meshes and never will: a ship's skin is derived from its
 structure and built at run time - see <a href="#cladding-not-a-prototype">Cladding</a>.</p>
-<h3 id="greebles-54-glb" tabindex="-1">Greebles (54 glb)</h3>
-<p>The decoration models the base <a href="../styles/">styles</a> scatter, under
-<code>dep://base/gltf/greebles/</code>, named <code>&lt;kit&gt;_&lt;piece&gt;.glb</code>: the four authored
+<h3 id="greebles-60-glb" tabindex="-1">Greebles (60 glb)</h3>
+<p>The decoration models the base <a href="../styles/">styles</a> place, under
+<code>dep://base/gltf/greebles/</code>, named <code>&lt;kit&gt;_&lt;piece&gt;.glb</code>: the five authored
 kits - <code>armoured_*</code> (10), <code>civilian_*</code> (12), <code>industrial_*</code> (14),
-<code>salvage_*</code> (14) - plus four magenta <code>placeholder_*</code> pieces no base style uses.
+<code>salvage_*</code> (14), <code>station_*</code> (6) - plus four magenta <code>placeholder_*</code> pieces no base style uses.
 All are generated from committed JSON recipes (<code>scripts/gen-greebles.py</code>,
 <code>scripts/greeble-recipes/</code>), and a mod can ship its own <code>.glb</code> the same way.</p>
 <h3 id="sounds-31-wav" tabindex="-1">Sounds (31 wav)</h3>
@@ -494,22 +526,30 @@ faces are 24576 px stacked: over the 16384 texture limit of smaller GPUs, where
 the upload itself is fatal.</p>
 <h2 id="the-overlay-rule" tabindex="-1">The overlay rule</h2>
 <p>How a mod item interacts with this catalog (implemented in
-<code>crates/nova_assets/src/merge.rs</code>):</p>
+<code>crates/nova_assets/src/merge.rs</code>, with <code>Item</code> collision checks in
+<code>crates/nova_assets/src/items.rs</code>):</p>
 <ul>
 <li>The matching key is the id string per kind - <code>Section</code> matches on
-<code>base.id</code>; <code>Scenario</code>, <code>Campaign</code>, <code>Ship</code>, <code>Style</code>, <code>Lesson</code> and <code>UiTheme</code>
-on <code>id</code>. Names and file paths never participate.</li>
+<code>base.id</code>; <code>Scenario</code>, <code>Campaign</code>, <code>Ship</code>, <code>Style</code>, <code>Lesson</code>, <code>UiTheme</code> and
+<code>Item</code> on <code>id</code>. Names and file paths never participate.</li>
 <li>Same id as base (or an earlier bundle) = REPLACE, whole item. It is not a
 field-level patch: an overlay must restate every field it wants to keep.
-Sections replace in place, so the editor palette order is preserved.</li>
+<code>Item</code> replacement requires a one-way dependency chain from the replacing
+pack to the original, directly or through other packs. Base counts as a
+dependency of every mod. Sections replace in place, so the editor palette
+order is preserved.</li>
 <li>New id = ADD alongside the catalog. Prefix your own ids with your mod's
 name (<code>example_*</code> in the shipped example mod) so they cannot collide.</li>
-<li>Same id twice within ONE bundle = a conflict: the first item is kept, the
-duplicate skipped and logged.</li>
+<li>Same id twice within ONE bundle = a conflict: for kinds other than <code>Item</code>,
+the first definition is kept and the duplicate is skipped and logged. A
+duplicate <code>Item</code> id refuses the defining pack.</li>
 <li>Merge order is catalog order (base first), then downloaded mods, then a
-topological pass so a dependency merges before its dependents - so a mod
-overlays base and everything it depends on, and the last independent mod
-wins.</li>
+topological pass so a dependency merges before its dependents. For kinds
+other than <code>Item</code>, the last independent mod defining an id wins. For <code>Item</code>,
+only a dependent pack may replace the whole item. Two unrelated packs, or
+two packs in a dependency cycle, defining the same item id are both refused
+regardless of load order. Their dependent packs are refused too; a base
+refusal stops loading.</li>
 </ul>
 <h2 id="see-the-source" tabindex="-1">See the source</h2>
 <p>The builders behind this page live under
@@ -517,11 +557,13 @@ wins.</li>
 prototypes, one module per family (<code>hull</code>, <code>controller</code>, <code>thruster</code>, <code>turret</code>,
 <code>torpedo_bay</code>, <code>railgun</code>, <code>docking_port</code>), <code>styles.rs</code> the
 skin styles, <code>ships/</code> owns the block hulls,
-<code>scenarios/</code> groups the training range and the main-menu backdrops, and
-<code>lessons.rs</code> owns the handbook screens. The two UI themes are built one level
-down, in <code>crates/nova_ui/src/theme/base.rs</code>, beside the format they are
-written in. If this page and the generated RON
-ever disagree, the RON is the
+<code>scenarios/</code> groups the training range and the main-menu backdrops,
+<code>lessons.rs</code> owns the handbook screens, <code>start_roles.rs</code> owns the New Game
+start roles (generated into <code>assets/base/roles/base.content.ron</code>), and
+<code>items.rs</code> owns the item catalog (generated into
+<code>assets/base/items/base.content.ron</code>). The two UI themes are
+built one level down, in <code>crates/nova_ui/src/theme/base.rs</code>, beside their
+format. If this page and the generated RON ever disagree, the RON is the
 truth and this page has a bug - the <code>content_ron_parity</code> test pins the RON to
 the builders.</p>
 <div id="wiki-seealso"></div></article></div></main><footer class="site-footer">

@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-83f806a0.js";
+            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -265,16 +265,45 @@ harness builds <code>--features debug,trace</code> when it needs one.</li>
 </ul>
 <h3 id="debug-tooling"><a class="header" href="#debug-tooling">Debug tooling</a></h3>
 <p><code>cargo run --features dev</code> compiles in <code>nova_debug</code>’s <code>DebugPlugin</code>
-(<code>crates/nova_debug/src/lib.rs</code>), which adds the inspector, the wireframe
-toggle, and the section/gravity debug overlays. The overlays are gated on a
-<code>DebugEnabled</code> resource toggled at runtime with <strong>F11</strong>
-(<code>DEBUG_TOGGLE_KEYCODE</code>), so they can be flipped off without a rebuild. Note the
+(<code>crates/nova_debug/src/lib.rs</code>), which adds the Nova Debug window and the
+dev overlays. <strong>F11</strong> (<code>DEBUG_TOGGLE_KEYCODE</code>) opens and closes the window
+(<code>crates/nova_debug/src/hud/mod.rs</code>); Escape also closes it. In flight it
+enters <code>PauseStates::Debug</code>: the clocks stop, flight input is off and the
+cursor is free. Over the pause menu, the TAB interface, the command modal or
+the main menu it opens without changing the state. The window has one
+checkbox per overlay (physics, wireframe, gravity, sections, the ammo number;
+the <code>DebugOverlays</code> resource, all off at boot, kept after the window closes),
+Cheats and Command sections, an Entities section and a Raw section with every
+entity, resource and asset. Cheats and Command drive the game’s command shell
+(<code>crates/nova_debug/src/hud/console.rs</code>): the prompt is the CRT’s prompt with
+its scrollback, TAB completion and history, and each cheat button submits a
+command line with the player ship’s id, so an unarmed run shows the shell’s
+refusal until “Arm cheats” (<code>cheats enable</code>). While a field in the window has
+the keyboard, the window claims <code>InputMode::Insert</code>, so <code>;</code> types a semicolon.
+Entities lists the top-level entities by sector (the observer’s cell first)
+or by type (<code>crates/nova_debug/src/hud/entities.rs</code>). An entity under a
+sector root is in that root’s cell; a top-level body in a streaming world is
+in the cell its position falls in, tagged top-level; a fixed scene is one
+Scene group. A ship’s sections show under the ship’s row.</p>
+<p>The overlays include the F3 diagnostics layer
+(<code>crates/nova_debug/src/diagnostics.rs</code>, <code>DiagnosticsPlugin</code>, added by
+<code>DebugPlugin</code>): labels over world points, a short panel, a row of key
+hints and the <code>DiagnosticsGizmos</code> group. <strong>F3</strong> or its checkbox flips
+<code>DebugOverlays::diagnostics</code>; <strong>Shift+F3</strong> or the detail checkbox flips
+<code>DebugOverlays::diagnostics_detail</code>, which adds the full value list. An
+example writes <code>DiagnosticsPanel::label</code> next to the thing it measures,
+<code>line</code> for a few short facts, <code>detail</code> for the rest, and <code>hint(key, action)</code>
+each frame the action is possible. A hand-played example adds
+<code>DiagnosticsHintPlugin::new(intro)</code>, which turns the layer on at start and
+fades its intro and the toggle keys a few seconds into play, and draws in
+<code>DiagnosticsSystems</code>; such an example needs the <code>debug</code> feature
+(<code>required-features</code> in the root <code>Cargo.toml</code>). Note the
 feature is spelled <code>debug</code>, with <code>dev</code> as an alias for it (root <code>Cargo.toml</code>);
 <code>--features dev</code> and <code>--features debug</code> are interchangeable.</p>
 <p><code>DebugPlugin</code> also binds <strong>F12</strong> (<code>SCREENSHOT_KEYCODE</code>,
 <code>crates/nova_debug/src/screenshot.rs</code>) to a screenshot: it captures the primary
 window and saves it to your Downloads directory as <code>&lt;unix-millis&gt;.png</code>. The
-capture is intentionally not gated on <code>DebugEnabled</code>, so it works whether or not
+capture is intentionally not gated on any overlay, so it works whether or not
 the overlays are shown. Native only: the module is compiled out under
 <code>target_arch = "wasm32"</code>, which has neither a Downloads directory nor a wall
 clock.</p>
@@ -357,7 +386,7 @@ interesting it felt while writing it:</p>
 COUNT - a summary line without a number is barely better than the noise it
 replaced.</p>
 <p><code>RUST_LOG</code> directives are MERGED over this filter by bevy rather than replacing
-it (<code>bevy_log-0.19.0/src/lib.rs:406</code>), so <code>RUST_LOG=nova=trace</code> restores the
+it (<code>bevy_log-0.19.1/src/lib.rs:406</code>), so <code>RUST_LOG=nova=trace</code> restores the
 per-item detail without unmuting wgpu and naga.</p>
 <p>A headless run additionally clamps three bevy diagnostics it provokes by
 construction - the missing render app, <code>CompressedImageFormatSupport</code>, and
@@ -458,7 +487,8 @@ endings the scenario hears in order),
 (die -&gt; the Defeat overlay -&gt; Retry -&gt; a clean reload -&gt; kill -&gt; the
 objective and the CHECKPOINT -&gt; Continue -&gt; the chained scenario),
 <code>bug_outcome_pause</code> (who owns the screen and whether the world is running
-behind them: alt-tab pauses a fight and coming back does not resume, an
+behind them: with the focus pause opted in, alt-tab pauses a fight and
+coming back does not resume, an
 outcome landing over the pause menu takes the screen, and a timed advance
 taken while the player is away hands its pause to the pause menu without one
 unpaused frame),
@@ -490,11 +520,11 @@ alone, holding one physics step to its own timestep), <code>bug_carve_apply</cod
 cut that severs a rock, and what the main thread pays to SWAP the result in -
 the range counts grids rather than milliseconds, so it reads the same on
 every box),
-<code>system_interface</code> (the Tab interface and the <code>:</code> modal over it, driven with
-keys only: TAB, M and <code>:</code> must return through Escape to the same pane with the
+<code>system_interface</code> (the Tab interface and the <code>;</code> modal over it, driven with
+keys only: TAB, M and <code>;</code> must return through Escape to the same pane with the
 clocks frozen and no pane or flight action firing on the transition frames),
 <code>system_command_shell</code> (the modal over flight, the pause menu, the main menu
-and the interface, including the rebind gate that keeps <code>:</code> shut while a ship
+and the interface, including the rebind gate that keeps <code>;</code> shut while a ship
 section waits for its key) and <code>system_headless_map_goto</code> (a click on a Map
 blip in window space, then GOTO, asserted on the ship’s autopilot with no GPU).
 Finally the STRESS ranges, one file
@@ -1132,28 +1162,29 @@ files: an icon theme with no <code>scalable</code> support finds nothing otherwi
 art under <code>build/</code> is still bevy_game_template’s placeholder bird and is
 deliberately not used.</p>
 <h3 id="cutting-a-release"><a class="header" href="#cutting-a-release">Cutting a release</a></h3>
-<p>Pushing a tag <code>v[0-9]+.[0-9]+.[0-9]+*</code> triggers <code>release-flow</code>
-(<code>.github/workflows/release.yaml</code>). Steps, on <code>master</code>:</p>
+<p><code>RELEASE.md</code> at the repository root is the controlling checklist; this section
+only adds commands. Pushing a tag <code>v[0-9]+.[0-9]+.[0-9]+*</code> triggers
+<code>release-flow</code> (<code>.github/workflows/release.yaml</code>). Steps, on <code>master</code>:</p>
 <ol>
-<li>Check the documentation surfaces are current (see
-<a href="keeping-docs-in-sync.html">Keeping docs in sync</a>): this book builds clean
-(<code>mdbook build</code>) and the pages the cycle’s changes touched are updated.</li>
-<li>Bump <code>workspace.package.version</code> in root <code>Cargo.toml</code>.</li>
-<li>Refresh <code>Cargo.lock</code>: <code>cargo metadata --format-version 1 &gt;/dev/null</code>.</li>
-<li>Update <code>CHANGELOG.md</code> (Keep a Changelog, one concise line per entry):
-promote <code>[Unreleased]</code> to <code>[&lt;version&gt;] - &lt;YYYY-MM-DD&gt;</code>, leave a fresh empty
-<code>## [Unreleased]</code> on top, merge any duplicate section headings that grew
-during the cycle, and update the compare links at the bottom (repoint
-<code>[unreleased]</code>, add the new <code>[&lt;version&gt;]</code> line).</li>
-<li>Commit exactly those three files:
-<code>git add Cargo.toml Cargo.lock CHANGELOG.md &amp;&amp; git commit -m "chore(release): vX.Y.Z"</code>.</li>
-<li><code>git tag vX.Y.Z</code> (CI reads the tag for the release name).</li>
-<li><code>git push origin master &amp;&amp; git push origin vX.Y.Z</code>.</li>
-<li>Watch the run (<code>gh run watch</code>), then check the GitHub release page and
-consider adding summarized release notes (<code>gh release edit vX.Y.Z --notes-file ...</code>).</li>
-<li>Write or expand the release News post (see “Writing the release news post”
-below) and land it in <code>web/</code>; sync any wiki pages the cycle changed (see
-<a href="keeping-docs-in-sync.html">Keeping docs in sync</a>).</li>
+<li>Before the tag, prepare the approved News post (see “Writing the release
+news post” below) and the docs and wiki pages the cycle changed (see
+<a href="keeping-docs-in-sync.html">Keeping docs in sync</a>). This book must build
+clean (<code>mdbook build</code>).</li>
+<li>Bump <code>workspace.package.version</code> in root <code>Cargo.toml</code> and refresh
+<code>Cargo.lock</code>: <code>cargo metadata --format-version 1 &gt;/dev/null</code>.</li>
+<li>Finish <code>CHANGELOG.md</code> as <code>RELEASE.md</code> “Finish the release notes” states.</li>
+<li>Commit the version, changelog, News, and documentation changes together,
+staging each path explicitly.</li>
+<li>Confirm CI is green on that commit (<code>gh run list --branch master</code>).</li>
+<li><code>git tag vX.Y.Z</code> on that commit (CI reads the tag for the release name), then
+<code>git push origin master &amp;&amp; git push origin vX.Y.Z</code>.</li>
+<li>Watch the run (<code>gh run watch</code>) and confirm the four assets below are on the
+GitHub release.</li>
+<li>Run <code>deploy-github-page</code> (<code>gh workflow run deploy-page.yaml</code>), which keeps
+the published comic, then check the site and its download links.</li>
+<li>With the itch.io page still Draft, run the approved <code>deploy-itch</code> workflow
+(see below) and check the four channels. The release is not public until
+the clean-platform checks pass and the page changes from Draft to Public.</li>
 </ol>
 <p>The workflow uploads four assets to a release named after the tag: macOS
 universal <code>.dmg</code>, Linux <code>.tar.gz</code>, Windows <code>.zip</code>, and a wasm-opt’d web zip.
@@ -1216,7 +1247,7 @@ reasoning, the dead-ends, the piece you are proudest of), leaning on screenshots
 and - where a devlog video exists - an optional <code>## Watch the devlog</code> companion
 near the top (the written highlights must stand on their own; the video is an
 extra). Do not just restate the terse <code>CHANGELOG.md</code>.</p>
-<p>Adding a post touches three places (mirror an existing post such as
+<p>Adding a post touches three places and a rebuild check (mirror an existing post such as
 <code>web/src/news/0.5.0.md</code>):</p>
 <ol>
 <li>Write the post at <code>web/src/news/&lt;version&gt;.md</code> (e.g. <code>0.6.0.md</code>). The page

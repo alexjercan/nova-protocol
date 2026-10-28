@@ -34,11 +34,6 @@
                     0.28,
                     0.18,
                 ),
-                placement: (
-                    region: HighGround,
-                    density: Regular,
-                    orientation: Free,
-                ),
             ),
             (
                 id: "industrial_crane",
@@ -48,11 +43,6 @@
                     0.16,
                     0.45,
                     0.32,
-                ),
-                placement: (
-                    region: Edge,
-                    density: Rare,
-                    orientation: Outward,
                 ),
             ),
             (
@@ -64,11 +54,6 @@
                     0.03,
                     0.9,
                 ),
-                placement: (
-                    region: Edge,
-                    density: Every,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "industrial_umbilical",
@@ -78,11 +63,6 @@
                     0.16,
                     0.13,
                     0.44,
-                ),
-                placement: (
-                    region: Flank,
-                    density: Regular,
-                    orientation: Along,
                 ),
             ),
             (
@@ -94,11 +74,6 @@
                     0.1,
                     0.43,
                 ),
-                placement: (
-                    region: Deck,
-                    density: Regular,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "industrial_cells",
@@ -108,11 +83,6 @@
                     0.3,
                     0.21,
                     0.46,
-                ),
-                placement: (
-                    region: Deck,
-                    density: Sparse,
-                    orientation: Along,
                 ),
             ),
             (
@@ -124,11 +94,6 @@
                     0.27,
                     0.28,
                 ),
-                placement: (
-                    region: Panel,
-                    density: Dense,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "industrial_duct",
@@ -138,11 +103,6 @@
                     0.14,
                     0.16,
                     0.9,
-                ),
-                placement: (
-                    region: Panel,
-                    density: Every,
-                    orientation: Along,
                 ),
             ),
             (
@@ -154,11 +114,6 @@
                     0.25,
                     0.38,
                 ),
-                placement: (
-                    region: NearFitting,
-                    density: Regular,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "industrial_floodlight",
@@ -168,11 +123,6 @@
                     0.17,
                     0.25,
                     0.12,
-                ),
-                placement: (
-                    region: NearFitting,
-                    density: Regular,
-                    orientation: Outward,
                 ),
             ),
             (
@@ -184,11 +134,6 @@
                     0.07,
                     0.24,
                 ),
-                placement: (
-                    region: NearFitting,
-                    density: Dense,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "industrial_hatch",
@@ -198,11 +143,6 @@
                     0.32,
                     0.07,
                     0.32,
-                ),
-                placement: (
-                    region: Anywhere,
-                    density: Regular,
-                    orientation: Free,
                 ),
             ),
             (
@@ -214,11 +154,6 @@
                     0.02,
                     0.34,
                 ),
-                placement: (
-                    region: Anywhere,
-                    density: Regular,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "industrial_ribbing",
@@ -229,13 +164,309 @@
                     0.07,
                     0.42,
                 ),
-                placement: (
-                    region: Anywhere,
-                    density: Dense,
-                    orientation: Along,
-                ),
             ),
         ],
+        greeble_rules: (
+            link_types: [
+                (
+                    id: "any",
+                    connects: [
+                        "any",
+                        "empty",
+                    ],
+                ),
+                (
+                    id: "empty",
+                    connects: [
+                        "any",
+                        "empty",
+                        "spaced",
+                    ],
+                ),
+                (
+                    id: "spaced",
+                    connects: [
+                        "empty",
+                    ],
+                ),
+                (
+                    id: "line",
+                    connects: [
+                        "line",
+                    ],
+                ),
+                (
+                    id: "line_2",
+                    connects: [
+                        "line_2",
+                    ],
+                ),
+            ],
+            greebles: [
+                (
+                    id: "empty",
+                    fixture: None,
+                    weight: 6.0,
+                    rotate: r#None,
+                    link_points: (
+                        up: "empty",
+                        right: "empty",
+                        down: "empty",
+                        left: "empty",
+                    ),
+                ),
+                (
+                    id: "industrial_stack",
+                    fixture: Some("industrial_stack"),
+                    weight: 0.5,
+                    rotate: r#None,
+                    link_points: (
+                        up: "spaced",
+                        right: "spaced",
+                        down: "spaced",
+                        left: "spaced",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "industrial_stack",
+                            ],
+                            radius: 3,
+                            factor: 0.0,
+                        ),
+                    ],
+                    max_count: Some(4),
+                ),
+                (
+                    id: "industrial_crane",
+                    fixture: Some("industrial_crane"),
+                    weight: 0.25,
+                    rotate: r#None,
+                    link_points: (
+                        up: "spaced",
+                        right: "spaced",
+                        down: "spaced",
+                        left: "spaced",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "industrial_crane",
+                            ],
+                            radius: 4,
+                            factor: 0.0,
+                        ),
+                    ],
+                    max_count: Some(2),
+                ),
+                (
+                    id: "industrial_umbilical",
+                    fixture: Some("industrial_umbilical"),
+                    weight: 0.4,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "industrial_plate_rack",
+                    fixture: Some("industrial_plate_rack"),
+                    weight: 0.4,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "industrial_cells",
+                    fixture: Some("industrial_cells"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "industrial_radiator",
+                    fixture: Some("industrial_radiator"),
+                    weight: 0.5,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "industrial_radiator",
+                            ],
+                            radius: 1,
+                            factor: 3.0,
+                        ),
+                    ],
+                ),
+                (
+                    id: "industrial_winch",
+                    fixture: Some("industrial_winch"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "spaced",
+                        right: "spaced",
+                        down: "spaced",
+                        left: "spaced",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "industrial_winch",
+                            ],
+                            radius: 2,
+                            factor: 0.0,
+                        ),
+                    ],
+                    max_count: Some(3),
+                ),
+                (
+                    id: "industrial_floodlight",
+                    fixture: Some("industrial_floodlight"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "spaced",
+                        right: "spaced",
+                        down: "spaced",
+                        left: "spaced",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "industrial_floodlight",
+                            ],
+                            radius: 2,
+                            factor: 0.0,
+                        ),
+                    ],
+                    max_count: Some(4),
+                ),
+                (
+                    id: "industrial_louvre",
+                    fixture: Some("industrial_louvre"),
+                    weight: 0.5,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "industrial_hatch",
+                    fixture: Some("industrial_hatch"),
+                    weight: 0.5,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "industrial_stencil",
+                    fixture: Some("industrial_stencil"),
+                    weight: 0.4,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "industrial_ribbing",
+                    fixture: Some("industrial_ribbing"),
+                    weight: 0.8,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "industrial_ribbing",
+                            ],
+                            radius: 1,
+                            factor: 2.0,
+                        ),
+                    ],
+                ),
+                (
+                    id: "industrial_hazard_band",
+                    fixture: Some("industrial_hazard_band"),
+                    weight: 1.2,
+                    rotate: Half,
+                    link_points: (
+                        up: "line",
+                        right: "any",
+                        down: "line",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "industrial_hazard_band_end",
+                    fixture: Some("industrial_hazard_band"),
+                    weight: 0.4,
+                    rotate: All,
+                    link_points: (
+                        up: "line",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "industrial_duct",
+                    fixture: Some("industrial_duct"),
+                    weight: 0.8,
+                    rotate: Half,
+                    link_points: (
+                        up: "line_2",
+                        right: "any",
+                        down: "line_2",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "industrial_duct_end",
+                    fixture: Some("industrial_duct"),
+                    weight: 0.3,
+                    rotate: All,
+                    link_points: (
+                        up: "line_2",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+            ],
+        ),
     )),
     Style((
         id: "armoured",
@@ -272,11 +503,6 @@
                     0.12,
                     0.4,
                 ),
-                placement: (
-                    region: Panel,
-                    density: Rare,
-                    orientation: Free,
-                ),
             ),
             (
                 id: "armoured_mast",
@@ -286,11 +512,6 @@
                     0.16,
                     0.24,
                     0.16,
-                ),
-                placement: (
-                    region: HighGround,
-                    density: Sparse,
-                    orientation: Outward,
                 ),
             ),
             (
@@ -302,11 +523,6 @@
                     0.1,
                     0.3,
                 ),
-                placement: (
-                    region: HighGround,
-                    density: Every,
-                    orientation: Free,
-                ),
             ),
             (
                 id: "armoured_strake",
@@ -316,11 +532,6 @@
                     0.3,
                     0.085,
                     0.95,
-                ),
-                placement: (
-                    region: Edge,
-                    density: Every,
-                    orientation: Along,
                 ),
             ),
             (
@@ -332,11 +543,6 @@
                     0.06,
                     0.44,
                 ),
-                placement: (
-                    region: Panel,
-                    density: Dense,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "armoured_chaff",
@@ -346,11 +552,6 @@
                     0.3,
                     0.13,
                     0.18,
-                ),
-                placement: (
-                    region: Panel,
-                    density: Sparse,
-                    orientation: Outward,
                 ),
             ),
             (
@@ -362,11 +563,6 @@
                     0.05,
                     0.3,
                 ),
-                placement: (
-                    region: Panel,
-                    density: Dense,
-                    orientation: Free,
-                ),
             ),
             (
                 id: "armoured_ammo_stripes",
@@ -376,11 +572,6 @@
                     0.3,
                     0.02,
                     0.34,
-                ),
-                placement: (
-                    region: NearFitting,
-                    density: Every,
-                    orientation: Along,
                 ),
             ),
             (
@@ -392,11 +583,6 @@
                     0.12,
                     0.28,
                 ),
-                placement: (
-                    region: Anywhere,
-                    density: Sparse,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "armoured_applique",
@@ -407,13 +593,215 @@
                     0.04,
                     0.42,
                 ),
-                placement: (
-                    region: Anywhere,
-                    density: Dense,
-                    orientation: Free,
-                ),
             ),
         ],
+        greeble_rules: (
+            link_types: [
+                (
+                    id: "any",
+                    connects: [
+                        "any",
+                        "empty",
+                    ],
+                ),
+                (
+                    id: "empty",
+                    connects: [
+                        "any",
+                        "empty",
+                        "spaced",
+                    ],
+                ),
+                (
+                    id: "spaced",
+                    connects: [
+                        "empty",
+                    ],
+                ),
+                (
+                    id: "line",
+                    connects: [
+                        "line",
+                    ],
+                ),
+            ],
+            greebles: [
+                (
+                    id: "empty",
+                    fixture: None,
+                    weight: 6.0,
+                    rotate: r#None,
+                    link_points: (
+                        up: "empty",
+                        right: "empty",
+                        down: "empty",
+                        left: "empty",
+                    ),
+                ),
+                (
+                    id: "armoured_sensor",
+                    fixture: Some("armoured_sensor"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "spaced",
+                        right: "spaced",
+                        down: "spaced",
+                        left: "spaced",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "armoured_sensor",
+                            ],
+                            radius: 4,
+                            factor: 0.0,
+                        ),
+                    ],
+                    max_count: Some(2),
+                ),
+                (
+                    id: "armoured_mast",
+                    fixture: Some("armoured_mast"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "spaced",
+                        right: "spaced",
+                        down: "spaced",
+                        left: "spaced",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "armoured_mast",
+                            ],
+                            radius: 4,
+                            factor: 0.0,
+                        ),
+                    ],
+                    max_count: Some(2),
+                ),
+                (
+                    id: "armoured_cap",
+                    fixture: Some("armoured_cap"),
+                    weight: 0.4,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "armoured_intake",
+                    fixture: Some("armoured_intake"),
+                    weight: 0.5,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "armoured_chaff",
+                    fixture: Some("armoured_chaff"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "armoured_hatch",
+                    fixture: Some("armoured_hatch"),
+                    weight: 0.6,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "armoured_ammo_stripes",
+                    fixture: Some("armoured_ammo_stripes"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "armoured_magazine",
+                    fixture: Some("armoured_magazine"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                    max_count: Some(4),
+                ),
+                (
+                    id: "armoured_applique",
+                    fixture: Some("armoured_applique"),
+                    weight: 1.2,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "armoured_applique",
+                            ],
+                            radius: 1,
+                            factor: 2.5,
+                        ),
+                    ],
+                ),
+                (
+                    id: "armoured_strake",
+                    fixture: Some("armoured_strake"),
+                    weight: 1.5,
+                    rotate: Half,
+                    link_points: (
+                        up: "line",
+                        right: "any",
+                        down: "line",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "armoured_strake_end",
+                    fixture: Some("armoured_strake"),
+                    weight: 0.4,
+                    rotate: All,
+                    link_points: (
+                        up: "line",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+            ],
+        ),
     )),
     Style((
         id: "civilian",
@@ -450,11 +838,6 @@
                     0.06,
                     0.7,
                 ),
-                placement: (
-                    region: Flank,
-                    density: Dense,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "civilian_dish",
@@ -464,11 +847,6 @@
                     0.28,
                     0.14,
                     0.28,
-                ),
-                placement: (
-                    region: Panel,
-                    density: Sparse,
-                    orientation: Free,
                 ),
             ),
             (
@@ -480,11 +858,6 @@
                     0.06,
                     0.44,
                 ),
-                placement: (
-                    region: Flank,
-                    density: Regular,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "civilian_tank",
@@ -494,11 +867,6 @@
                     0.24,
                     0.15,
                     0.4,
-                ),
-                placement: (
-                    region: Deck,
-                    density: Sparse,
-                    orientation: Along,
                 ),
             ),
             (
@@ -510,11 +878,6 @@
                     0.29,
                     0.24,
                 ),
-                placement: (
-                    region: HighGround,
-                    density: Dense,
-                    orientation: Outward,
-                ),
             ),
             (
                 id: "civilian_stripe",
@@ -524,11 +887,6 @@
                     0.3,
                     0.09,
                     0.6,
-                ),
-                placement: (
-                    region: Edge,
-                    density: Every,
-                    orientation: Along,
                 ),
             ),
             (
@@ -540,11 +898,6 @@
                     0.03,
                     0.46,
                 ),
-                placement: (
-                    region: Panel,
-                    density: Regular,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "civilian_skylight",
@@ -554,11 +907,6 @@
                     0.2,
                     0.05,
                     0.55,
-                ),
-                placement: (
-                    region: Panel,
-                    density: Regular,
-                    orientation: Along,
                 ),
             ),
             (
@@ -570,11 +918,6 @@
                     0.09,
                     0.4,
                 ),
-                placement: (
-                    region: Panel,
-                    density: Regular,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "civilian_fairing",
@@ -584,11 +927,6 @@
                     0.4,
                     0.16,
                     0.4,
-                ),
-                placement: (
-                    region: Panel,
-                    density: Dense,
-                    orientation: Free,
                 ),
             ),
             (
@@ -600,11 +938,6 @@
                     0.1,
                     0.2,
                 ),
-                placement: (
-                    region: NearFitting,
-                    density: Dense,
-                    orientation: Free,
-                ),
             ),
             (
                 id: "civilian_registry",
@@ -615,13 +948,268 @@
                     0.03,
                     0.6,
                 ),
-                placement: (
-                    region: Anywhere,
-                    density: Sparse,
-                    orientation: Along,
-                ),
             ),
         ],
+        greeble_rules: (
+            link_types: [
+                (
+                    id: "any",
+                    connects: [
+                        "any",
+                        "empty",
+                    ],
+                ),
+                (
+                    id: "empty",
+                    connects: [
+                        "any",
+                        "empty",
+                        "spaced",
+                    ],
+                ),
+                (
+                    id: "spaced",
+                    connects: [
+                        "empty",
+                    ],
+                ),
+                (
+                    id: "line",
+                    connects: [
+                        "line",
+                    ],
+                ),
+                (
+                    id: "line_2",
+                    connects: [
+                        "line_2",
+                    ],
+                ),
+            ],
+            greebles: [
+                (
+                    id: "empty",
+                    fixture: None,
+                    weight: 6.0,
+                    rotate: r#None,
+                    link_points: (
+                        up: "empty",
+                        right: "empty",
+                        down: "empty",
+                        left: "empty",
+                    ),
+                ),
+                (
+                    id: "civilian_dish",
+                    fixture: Some("civilian_dish"),
+                    weight: 0.25,
+                    rotate: r#None,
+                    link_points: (
+                        up: "spaced",
+                        right: "spaced",
+                        down: "spaced",
+                        left: "spaced",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "civilian_dish",
+                            ],
+                            radius: 4,
+                            factor: 0.0,
+                        ),
+                    ],
+                    max_count: Some(2),
+                ),
+                (
+                    id: "civilian_door",
+                    fixture: Some("civilian_door"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                    max_count: Some(4),
+                ),
+                (
+                    id: "civilian_tank",
+                    fixture: Some("civilian_tank"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "civilian_fin",
+                    fixture: Some("civilian_fin"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "spaced",
+                        right: "spaced",
+                        down: "spaced",
+                        left: "spaced",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "civilian_fin",
+                            ],
+                            radius: 3,
+                            factor: 0.0,
+                        ),
+                    ],
+                    max_count: Some(3),
+                ),
+                (
+                    id: "civilian_livery",
+                    fixture: Some("civilian_livery"),
+                    weight: 0.4,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "civilian_skylight",
+                    fixture: Some("civilian_skylight"),
+                    weight: 0.4,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "civilian_vent",
+                    fixture: Some("civilian_vent"),
+                    weight: 0.4,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "civilian_fairing",
+                    fixture: Some("civilian_fairing"),
+                    weight: 0.5,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "civilian_beacon",
+                    fixture: Some("civilian_beacon"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "spaced",
+                        right: "spaced",
+                        down: "spaced",
+                        left: "spaced",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "civilian_beacon",
+                            ],
+                            radius: 2,
+                            factor: 0.0,
+                        ),
+                    ],
+                    max_count: Some(6),
+                ),
+                (
+                    id: "civilian_registry",
+                    fixture: Some("civilian_registry"),
+                    weight: 0.2,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "civilian_registry",
+                            ],
+                            radius: 3,
+                            factor: 0.0,
+                        ),
+                    ],
+                    max_count: Some(3),
+                ),
+                (
+                    id: "civilian_windows",
+                    fixture: Some("civilian_windows"),
+                    weight: 1.0,
+                    rotate: Half,
+                    link_points: (
+                        up: "line",
+                        right: "any",
+                        down: "line",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "civilian_windows_end",
+                    fixture: Some("civilian_windows"),
+                    weight: 0.3,
+                    rotate: All,
+                    link_points: (
+                        up: "line",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "civilian_stripe",
+                    fixture: Some("civilian_stripe"),
+                    weight: 1.2,
+                    rotate: Half,
+                    link_points: (
+                        up: "line_2",
+                        right: "any",
+                        down: "line_2",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "civilian_stripe_end",
+                    fixture: Some("civilian_stripe"),
+                    weight: 0.3,
+                    rotate: All,
+                    link_points: (
+                        up: "line_2",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+            ],
+        ),
     )),
     Style((
         id: "salvage",
@@ -658,11 +1246,6 @@
                     0.42,
                     0.16,
                 ),
-                placement: (
-                    region: HighGround,
-                    density: Sparse,
-                    orientation: Outward,
-                ),
             ),
             (
                 id: "salvage_dish",
@@ -672,11 +1255,6 @@
                     0.33,
                     0.24,
                     0.31,
-                ),
-                placement: (
-                    region: Flank,
-                    density: Sparse,
-                    orientation: Free,
                 ),
             ),
             (
@@ -688,11 +1266,6 @@
                     0.23,
                     0.34,
                 ),
-                placement: (
-                    region: Deck,
-                    density: Sparse,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "salvage_net",
@@ -702,11 +1275,6 @@
                     0.38,
                     0.16,
                     0.57,
-                ),
-                placement: (
-                    region: Deck,
-                    density: Sparse,
-                    orientation: Along,
                 ),
             ),
             (
@@ -718,11 +1286,6 @@
                     0.11,
                     0.14,
                 ),
-                placement: (
-                    region: NearFitting,
-                    density: Dense,
-                    orientation: Free,
-                ),
             ),
             (
                 id: "salvage_chain",
@@ -732,11 +1295,6 @@
                     0.11,
                     0.13,
                     0.88,
-                ),
-                placement: (
-                    region: Edge,
-                    density: Sparse,
-                    orientation: Along,
                 ),
             ),
             (
@@ -748,11 +1306,6 @@
                     0.06,
                     0.92,
                 ),
-                placement: (
-                    region: Edge,
-                    density: Every,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "salvage_patch_strip",
@@ -762,11 +1315,6 @@
                     0.45,
                     0.05,
                     0.84,
-                ),
-                placement: (
-                    region: NearFitting,
-                    density: Regular,
-                    orientation: Along,
                 ),
             ),
             (
@@ -778,11 +1326,6 @@
                     0.09,
                     0.87,
                 ),
-                placement: (
-                    region: Panel,
-                    density: Regular,
-                    orientation: Along,
-                ),
             ),
             (
                 id: "salvage_grille",
@@ -792,11 +1335,6 @@
                     0.38,
                     0.08,
                     0.3,
-                ),
-                placement: (
-                    region: Anywhere,
-                    density: Regular,
-                    orientation: Free,
                 ),
             ),
             (
@@ -808,11 +1346,6 @@
                     0.06,
                     0.38,
                 ),
-                placement: (
-                    region: Anywhere,
-                    density: Sparse,
-                    orientation: Free,
-                ),
             ),
             (
                 id: "salvage_patch_plate",
@@ -822,11 +1355,6 @@
                     0.88,
                     0.04,
                     0.68,
-                ),
-                placement: (
-                    region: Anywhere,
-                    density: Regular,
-                    orientation: Along,
                 ),
             ),
             (
@@ -838,11 +1366,6 @@
                     0.03,
                     0.3,
                 ),
-                placement: (
-                    region: Anywhere,
-                    density: Regular,
-                    orientation: Free,
-                ),
             ),
             (
                 id: "salvage_patch_scab",
@@ -853,12 +1376,568 @@
                     0.03,
                     0.44,
                 ),
-                placement: (
-                    region: Anywhere,
-                    density: Sparse,
-                    orientation: Free,
+            ),
+        ],
+        greeble_rules: (
+            link_types: [
+                (
+                    id: "any",
+                    connects: [
+                        "any",
+                        "empty",
+                    ],
+                ),
+                (
+                    id: "empty",
+                    connects: [
+                        "any",
+                        "empty",
+                        "spaced",
+                    ],
+                ),
+                (
+                    id: "spaced",
+                    connects: [
+                        "empty",
+                    ],
+                ),
+                (
+                    id: "line",
+                    connects: [
+                        "line",
+                    ],
+                ),
+                (
+                    id: "line_2",
+                    connects: [
+                        "line_2",
+                    ],
+                ),
+                (
+                    id: "line_3",
+                    connects: [
+                        "line_3",
+                    ],
+                ),
+            ],
+            greebles: [
+                (
+                    id: "empty",
+                    fixture: None,
+                    weight: 5.0,
+                    rotate: r#None,
+                    link_points: (
+                        up: "empty",
+                        right: "empty",
+                        down: "empty",
+                        left: "empty",
+                    ),
+                ),
+                (
+                    id: "salvage_whip",
+                    fixture: Some("salvage_whip"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "spaced",
+                        right: "spaced",
+                        down: "spaced",
+                        left: "spaced",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "salvage_whip",
+                            ],
+                            radius: 4,
+                            factor: 0.0,
+                        ),
+                    ],
+                    max_count: Some(2),
+                ),
+                (
+                    id: "salvage_dish",
+                    fixture: Some("salvage_dish"),
+                    weight: 0.25,
+                    rotate: r#None,
+                    link_points: (
+                        up: "spaced",
+                        right: "spaced",
+                        down: "spaced",
+                        left: "spaced",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "salvage_dish",
+                            ],
+                            radius: 4,
+                            factor: 0.0,
+                        ),
+                    ],
+                    max_count: Some(2),
+                ),
+                (
+                    id: "salvage_drum",
+                    fixture: Some("salvage_drum"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "salvage_net",
+                    fixture: Some("salvage_net"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "salvage_hook",
+                    fixture: Some("salvage_hook"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "salvage_patch_strip",
+                    fixture: Some("salvage_patch_strip"),
+                    weight: 0.5,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "salvage_patch_strip",
+                                "salvage_patch_plate",
+                                "salvage_patch_scab",
+                            ],
+                            radius: 1,
+                            factor: 2.0,
+                        ),
+                    ],
+                ),
+                (
+                    id: "salvage_grille",
+                    fixture: Some("salvage_grille"),
+                    weight: 0.4,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "salvage_cog_patch",
+                    fixture: Some("salvage_cog_patch"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "salvage_patch_plate",
+                    fixture: Some("salvage_patch_plate"),
+                    weight: 0.6,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "salvage_patch_strip",
+                                "salvage_patch_plate",
+                                "salvage_patch_scab",
+                            ],
+                            radius: 1,
+                            factor: 2.0,
+                        ),
+                    ],
+                ),
+                (
+                    id: "salvage_kills",
+                    fixture: Some("salvage_kills"),
+                    weight: 0.2,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                    max_count: Some(2),
+                ),
+                (
+                    id: "salvage_patch_scab",
+                    fixture: Some("salvage_patch_scab"),
+                    weight: 0.4,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "salvage_patch_strip",
+                                "salvage_patch_plate",
+                                "salvage_patch_scab",
+                            ],
+                            radius: 1,
+                            factor: 2.0,
+                        ),
+                    ],
+                ),
+                (
+                    id: "salvage_weld_seam",
+                    fixture: Some("salvage_weld_seam"),
+                    weight: 1.0,
+                    rotate: Half,
+                    link_points: (
+                        up: "line",
+                        right: "any",
+                        down: "line",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "salvage_weld_seam_end",
+                    fixture: Some("salvage_weld_seam"),
+                    weight: 0.4,
+                    rotate: All,
+                    link_points: (
+                        up: "line",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "salvage_chain",
+                    fixture: Some("salvage_chain"),
+                    weight: 0.4,
+                    rotate: Half,
+                    link_points: (
+                        up: "line_2",
+                        right: "any",
+                        down: "line_2",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "salvage_chain_end",
+                    fixture: Some("salvage_chain"),
+                    weight: 0.2,
+                    rotate: All,
+                    link_points: (
+                        up: "line_2",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "salvage_hose",
+                    fixture: Some("salvage_hose"),
+                    weight: 0.5,
+                    rotate: Half,
+                    link_points: (
+                        up: "line_3",
+                        right: "any",
+                        down: "line_3",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "salvage_hose_end",
+                    fixture: Some("salvage_hose"),
+                    weight: 0.2,
+                    rotate: All,
+                    link_points: (
+                        up: "line_3",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+            ],
+        ),
+    )),
+    Style((
+        id: "station",
+        name: "Station",
+        palette: (
+            top: (
+                color: LinearRgba((
+                    red: 0.42,
+                    green: 0.43,
+                    blue: 0.45,
+                    alpha: 1.0,
+                )),
+                roughness: 0.5,
+                metallic: 0.1,
+            ),
+            wall: (
+                color: LinearRgba((
+                    red: 0.06,
+                    green: 0.062,
+                    blue: 0.07,
+                    alpha: 1.0,
+                )),
+                roughness: 0.8,
+                metallic: 0.1,
+            ),
+        ),
+        fixtures: [
+            (
+                id: "station_antenna",
+                model: "self://gltf/greebles/station_antenna.glb#Scene0",
+                health: 8.0,
+                collider: (
+                    0.16,
+                    0.38,
+                    0.16,
+                ),
+            ),
+            (
+                id: "station_windows",
+                model: "self://gltf/greebles/station_windows.glb#Scene0",
+                health: 6.0,
+                collider: (
+                    0.14,
+                    0.03,
+                    0.62,
+                ),
+            ),
+            (
+                id: "station_radiator",
+                model: "self://gltf/greebles/station_radiator.glb#Scene0",
+                health: 10.0,
+                collider: (
+                    0.4,
+                    0.065,
+                    0.3,
+                ),
+            ),
+            (
+                id: "station_beacon",
+                model: "self://gltf/greebles/station_beacon.glb#Scene0",
+                health: 4.0,
+                collider: (
+                    0.12,
+                    0.085,
+                    0.12,
+                ),
+            ),
+            (
+                id: "station_hatch",
+                model: "self://gltf/greebles/station_hatch.glb#Scene0",
+                health: 6.0,
+                collider: (
+                    0.26,
+                    0.04,
+                    0.26,
+                ),
+            ),
+            (
+                id: "station_marking",
+                model: "self://gltf/greebles/station_marking.glb#Scene0",
+                health: 4.0,
+                collider: (
+                    0.24,
+                    0.02,
+                    0.32,
                 ),
             ),
         ],
+        greeble_rules: (
+            link_types: [
+                (
+                    id: "any",
+                    connects: [
+                        "any",
+                        "empty",
+                    ],
+                ),
+                (
+                    id: "empty",
+                    connects: [
+                        "any",
+                        "empty",
+                        "spaced",
+                    ],
+                ),
+                (
+                    id: "spaced",
+                    connects: [
+                        "empty",
+                    ],
+                ),
+                (
+                    id: "line",
+                    connects: [
+                        "line",
+                    ],
+                ),
+            ],
+            greebles: [
+                (
+                    id: "empty",
+                    fixture: None,
+                    weight: 6.0,
+                    rotate: r#None,
+                    link_points: (
+                        up: "empty",
+                        right: "empty",
+                        down: "empty",
+                        left: "empty",
+                    ),
+                ),
+                (
+                    id: "station_antenna",
+                    fixture: Some("station_antenna"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "spaced",
+                        right: "spaced",
+                        down: "spaced",
+                        left: "spaced",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "station_antenna",
+                            ],
+                            radius: 3,
+                            factor: 0.0,
+                        ),
+                    ],
+                    max_count: Some(4),
+                ),
+                (
+                    id: "station_radiator",
+                    fixture: Some("station_radiator"),
+                    weight: 0.6,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "station_radiator",
+                            ],
+                            radius: 1,
+                            factor: 3.0,
+                        ),
+                    ],
+                ),
+                (
+                    id: "station_beacon",
+                    fixture: Some("station_beacon"),
+                    weight: 0.3,
+                    rotate: r#None,
+                    link_points: (
+                        up: "spaced",
+                        right: "spaced",
+                        down: "spaced",
+                        left: "spaced",
+                    ),
+                    near: [
+                        (
+                            greebles: [
+                                "station_beacon",
+                            ],
+                            radius: 2,
+                            factor: 0.0,
+                        ),
+                    ],
+                    max_count: Some(6),
+                ),
+                (
+                    id: "station_hatch",
+                    fixture: Some("station_hatch"),
+                    weight: 0.4,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "station_marking",
+                    fixture: Some("station_marking"),
+                    weight: 0.5,
+                    rotate: r#None,
+                    link_points: (
+                        up: "any",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "station_windows",
+                    fixture: Some("station_windows"),
+                    weight: 1.0,
+                    rotate: Half,
+                    link_points: (
+                        up: "line",
+                        right: "any",
+                        down: "line",
+                        left: "any",
+                    ),
+                ),
+                (
+                    id: "station_windows_end",
+                    fixture: Some("station_windows"),
+                    weight: 0.3,
+                    rotate: All,
+                    link_points: (
+                        up: "line",
+                        right: "any",
+                        down: "any",
+                        left: "any",
+                    ),
+                ),
+            ],
+        ),
     )),
 ]

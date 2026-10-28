@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-83f806a0.js";
+            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -214,11 +214,11 @@ for responsibilities and the dependency graph.</p>
 <tr><td><code>nova_wfc</code></td><td>Generated hulls: a catalog plus a code-owned <code>WfcPlan</code> in, a <code>ShipDesign</code> out. Owns the plan types; every caller builds its own plan. No <code>App</code>, no systems - the editor’s Generate verb and the <code>wfc_*</code> examples call it.</td></tr>
 <tr><td><code>nova_hud</code></td><td>The flight HUD: one module per widget (crosshairs, target inset, ammo readout, objective markers, comms panel, keybind dock). Reads the ship, never drives it.</td></tr>
 <tr><td><code>nova_command</code></td><td>The command language and the <code>NOVA COMMANDS</code> terminal model: catalog, parser, prompt state. No bevy UI.</td></tr>
-<tr><td><code>nova_interface</code></td><td>The TAB interface (Map, Ship and Inventory panes) and the <code>:</code> CRT command modal: pointer forwarding, casing, the back-out owner. A peer of the HUD, added by <code>nova_core</code>.</td></tr>
+<tr><td><code>nova_interface</code></td><td>The TAB interface (Map, Ship and Inventory panes) and the <code>;</code> CRT command modal: pointer forwarding, casing, the back-out owner. A peer of the HUD, added by <code>nova_core</code>.</td></tr>
 <tr><td><code>nova_console</code></td><td>The command shell’s dispatcher: the executor behind the <code>cmd&gt;</code> prompt and the channel’s <code>command</code> lane. Sits above <code>nova_menu</code> because a setting command writes the resources the settings screen owns.</td></tr>
 <tr><td><code>nova_scenario</code></td><td>Scenario engine: events, filters, actions, variables, world, loader, objects.</td></tr>
 <tr><td><code>nova_world</code></td><td>The streamed open world: a cell generated from its coordinate alone by a <code>SectorGenerator</code> type, checked, and a 5x5x5 active window streamed around one live scenario. Names no content; the game gets it through <code>nova_world_base</code>. Examples with their own game plugins install their own generator.</td></tr>
-<tr><td><code>nova_world_base</code></td><td>The base game’s open world: the <code>NovaLayeredWorld</code> generator and its cluster policy over three environment fields, the <code>OpenWorldSession</code> seed New Game writes, and the plugin <code>AppBuilder</code> adds that streams the world only while an <code>OpenWorld</code> scenario runs with one player ship.</td></tr>
+<tr><td><code>nova_world_base</code></td><td>The base game’s open world: the <code>NovaLayeredWorld</code> generator and its cluster policy over three environment fields, and the plugin <code>AppBuilder</code> adds that streams the world only while an <code>OpenWorld</code> scenario runs with one player ship.</td></tr>
 <tr><td><code>nova_events</code></td><td>Shared game-event kinds + entity identity components (gameplay &lt;-&gt; scenario).</td></tr>
 <tr><td><code>nova_events_macros</code></td><td>The <code>EventKind</code> derive behind <code>nova_events</code>’ engine events. Its only consumer is <code>nova_events</code>.</td></tr>
 <tr><td><code>nova_assets</code></td><td><code>bevy_asset_loader</code> setup; loads glb/textures/shaders/sounds; owns the mod merge, safe mode (a broken optional mod is disabled, not fatal, except during a scenario) + prefs.</td></tr>
@@ -261,7 +261,7 @@ for responsibilities and the dependency graph.</p>
 <tr><td>Gravity wells</td><td><code>crates/nova_gameplay/src/gravity.rs</code></td><td>–</td></tr>
 <tr><td>A unit, or what a field is measured in</td><td><code>crates/nova_events/src/units.rs</code> + <code>crates/nova_events/src/scale.rs</code></td><td><a href="architecture.html#units-and-scale">Architecture</a></td></tr>
 <tr><td>The HUD (widgets)</td><td><code>crates/nova_hud/src/</code></td><td>–</td></tr>
-<tr><td>The TAB interface, its panes, and the <code>:</code> command modal</td><td><code>crates/nova_interface/src/</code></td><td>–</td></tr>
+<tr><td>The TAB interface, its panes, and the <code>;</code> command modal</td><td><code>crates/nova_interface/src/</code></td><td>–</td></tr>
 <tr><td>The command catalog and parser</td><td><code>crates/nova_command/src/commands.rs</code></td><td><a href="architecture.html">Architecture</a></td></tr>
 <tr><td>A scenario event/filter/action</td><td><code>crates/nova_scenario/src/{events.rs,filters.rs,actions/}</code></td><td><a href="scenario-system.html">Scenario engine</a>, <a href="guide-extend-scenarios.html">Extend the scenario engine</a></td></tr>
 <tr><td>Scenario objects / loading</td><td><code>crates/nova_scenario/src/{objects/,loader/}</code></td><td><a href="scenario-system.html">Scenario engine</a></td></tr>

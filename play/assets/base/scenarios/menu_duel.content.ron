@@ -2,7 +2,7 @@
     Scenario((
         id: "menu_duel",
         name: "Duel Cycle",
-        description: "A gunship and a raider duel; a siege torpedo erases the winner; repeat.",
+        description: "An interceptor and a raider duel; a siege torpedo erases the winner; repeat.",
         cubemap: "self://textures/cubemap.png",
         role: Backdrop,
         events: [
@@ -157,6 +157,18 @@
                                                 name: "Siege Torpedo Bay Section",
                                                 description: "A capital-grade siege torpedo battery: slow salvo, armored ordnance, ship-killing blast.",
                                                 health: 100.0,
+                                                build: (
+                                                    credits: 150,
+                                                    parts: {
+                                                        "ActuatorPack": 1,
+                                                        "FrameSpar": 1,
+                                                        "SectionPanel": 4,
+                                                        "TorpedoTube": 1,
+                                                    },
+                                                    strip_yield: 0.5,
+                                                ),
+                                                advancement: 1.0,
+                                                draw_weight: 1.0,
                                                 destroy_sound: Some("self://sounds/explosion.wav"),
                                                 collider: Some(Cuboid(
                                                     size: (
@@ -323,7 +335,7 @@
                                                 nav_constant: 4.0,
                                                 linear_damping: 0.4,
                                                 blast_radius: 450.0,
-                                                blast_damage: 2000.0,
+                                                blast_damage: 6000.0,
                                                 launch_sound: Some("self://sounds/torpedo_launch.wav"),
                                                 door_sound: Some("self://sounds/bay_door.wav"),
                                                 detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
@@ -490,11 +502,25 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_gunship",
+                                id: "interceptor",
                                 section_patches: {
                                     "bridge": (
                                         config: (
                                             health: Some(500.0),
+                                        ),
+                                    ),
+                                    "pdc_port": (
+                                        config: (
+                                            kind: Some(Turret((
+                                                bullet_damage: Some(8.0),
+                                            ))),
+                                        ),
+                                    ),
+                                    "pdc_starboard": (
+                                        config: (
+                                            kind: Some(Turret((
+                                                bullet_damage: Some(8.0),
+                                            ))),
                                         ),
                                     ),
                                 },
@@ -528,7 +554,7 @@
                             ),
                             allegiance: Some(Player),
                             inventory: {
-                                PdcRound: 2000,
+                                "PdcRound": 2000,
                             },
                             lootable: false,
                             credits: 2000,
@@ -567,7 +593,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -584,7 +610,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -601,7 +627,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -618,7 +644,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -635,7 +661,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -652,7 +678,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -669,7 +695,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -686,7 +712,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -703,7 +729,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -720,7 +746,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -737,7 +763,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -754,7 +780,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -771,7 +797,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -788,7 +814,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -805,7 +831,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -822,7 +848,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -839,7 +865,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -856,7 +882,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -873,7 +899,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -890,7 +916,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -907,7 +933,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -924,7 +950,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -941,13 +967,13 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
                                         id: "plate_23",
                                         position: (
-                                            -2.0,
+                                            2.0,
                                             0.0,
                                             -1.0,
                                         ),
@@ -958,13 +984,13 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
                                         id: "plate_24",
                                         position: (
-                                            -2.0,
+                                            2.0,
                                             0.0,
                                             0.0,
                                         ),
@@ -975,15 +1001,15 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
                                         id: "plate_25",
                                         position: (
                                             2.0,
+                                            0.0,
                                             1.0,
-                                            -1.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -992,7 +1018,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -1000,6 +1026,23 @@
                                         position: (
                                             2.0,
                                             1.0,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "light_hull_section",
+                                        ),
+                                    ),
+                                    (
+                                        id: "plate_27",
+                                        position: (
+                                            2.0,
+                                            1.0,
                                             0.0,
                                         ),
                                         rotation: (
@@ -1009,11 +1052,11 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
-                                        id: "plate_27",
+                                        id: "plate_28",
                                         position: (
                                             0.0,
                                             0.0,
@@ -1026,7 +1069,7 @@
                                             1.0,
                                         ),
                                         source: Prototype(
-                                            id: "reinforced_hull_section",
+                                            id: "light_hull_section",
                                         ),
                                     ),
                                     (
@@ -1050,6 +1093,67 @@
                                         ),
                                     ),
                                     (
+                                        id: "pdc_dorsal",
+                                        position: (
+                                            0.0,
+                                            1.75,
+                                            -1.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "pdc_kinetic_turret_section",
+                                            patch: (
+                                                kind: Some(Turret((
+                                                    bullet_damage: Some(2.0),
+                                                ))),
+                                            ),
+                                        ),
+                                    ),
+                                    (
+                                        id: "pdc_boom",
+                                        position: (
+                                            2.0,
+                                            1.75,
+                                            0.0,
+                                        ),
+                                        rotation: (
+                                            0.0,
+                                            0.0,
+                                            0.0,
+                                            1.0,
+                                        ),
+                                        source: Prototype(
+                                            id: "pdc_kinetic_turret_section",
+                                            patch: (
+                                                kind: Some(Turret((
+                                                    bullet_damage: Some(2.0),
+                                                ))),
+                                            ),
+                                        ),
+                                    ),
+                                    (
+                                        id: "cargo_intake",
+                                        position: (
+                                            0.0,
+                                            1.0,
+                                            1.5,
+                                        ),
+                                        rotation: (
+                                            0.70710677,
+                                            0.0,
+                                            0.0,
+                                            0.70710677,
+                                        ),
+                                        source: Prototype(
+                                            id: "cargo_intake_section",
+                                        ),
+                                    ),
+                                    (
                                         id: "drive_port",
                                         position: (
                                             -1.0,
@@ -1067,7 +1171,7 @@
                                         ),
                                     ),
                                     (
-                                        id: "drive_center",
+                                        id: "drive_centre",
                                         position: (
                                             0.0,
                                             0.0,
@@ -1103,9 +1207,9 @@
                                     (
                                         id: "drive_outrigger",
                                         position: (
-                                            -2.0,
+                                            2.0,
                                             0.0,
-                                            1.0,
+                                            2.0,
                                         ),
                                         rotation: (
                                             0.0,
@@ -1118,42 +1222,25 @@
                                         ),
                                     ),
                                     (
-                                        id: "pdc_dorsal",
+                                        id: "port_collar",
                                         position: (
+                                            -2.0,
                                             0.0,
-                                            1.75,
-                                            -1.0,
-                                        ),
-                                        rotation: (
-                                            0.0,
-                                            0.0,
-                                            0.0,
-                                            1.0,
-                                        ),
-                                        source: Prototype(
-                                            id: "pdc_kinetic_turret_section",
-                                        ),
-                                    ),
-                                    (
-                                        id: "pdc_boom",
-                                        position: (
-                                            2.0,
-                                            1.75,
                                             0.0,
                                         ),
                                         rotation: (
                                             0.0,
+                                            0.70710677,
                                             0.0,
-                                            0.0,
-                                            1.0,
+                                            0.70710677,
                                         ),
                                         source: Prototype(
-                                            id: "pdc_kinetic_turret_section",
+                                            id: "docking_port_section",
                                         ),
                                     ),
                                 ],
                                 integrity: (
-                                    collapse_threshold: Some(0.5),
+                                    collapse_threshold: Some(0.8),
                                 ),
                                 presentation: (
                                     skin: true,
@@ -1198,7 +1285,7 @@
                                 0.0,
                             ),
                             inventory: {
-                                PdcRound: 2000,
+                                "PdcRound": 2000,
                             },
                             lootable: false,
                             credits: 2000,

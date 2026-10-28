@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-83f806a0.js";
+            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -218,8 +218,9 @@ bundle’s <code>open_world</code> scenario; naming <code>open_world</code> as a
 create the required world session.</p>
 <p>The bench ships six fixtures under <code>crates/nova_bench/scenarios/</code>:</p>
 <ul>
-<li><code>hunt.content.ron</code>: one player gunship, one hostile inline raider parked 2600 m
-ahead, an objective and both outcomes. The scenario scores itself.</li>
+<li><code>hunt.content.ron</code>: one player Line Warship on point defense only, one
+hostile inline raider parked 2600 m ahead, an objective and both outcomes.
+The scenario scores itself.</li>
 <li><code>range.content.ron</code>: an open range with no objective and no victory. A
 600 m planetoid 7 km ahead, two rocks, a nav beacon, and an unarmed hostile
 derelict support navigation, orbit, parking, and PDC goals.</li>
@@ -234,7 +235,7 @@ protocol-abuse goals.</li>
 tender with a port on its bow and an inert spar 120 m ahead, turned out of
 square, support docking and RCS goals; <code>me.docking</code> carries the approach.</li>
 <li><code>docking_warship_tender.content.ron</code>: the catalog Line Warship and an
-inert damaged frame tender, their collars 115 m apart and 12 degrees out of
+inert derelict freighter, their collars 115 m apart and 12 degrees out of
 square, support docking captures between real multi-section hulls.</li>
 </ul>
 <p>These six fixtures are bounded by <code>--ticks</code> and <code>--deadline</code>; a reader grades
@@ -424,8 +425,9 @@ see <code>nova_probe::capabilities::snapshot</code>.</p>
 <code>section.&lt;id&gt;</code> using that record’s <code>id</code>. For the Line Warship’s
 <code>mining_beam</code>, send <code>{"press": "section.mining_beam"}</code> for a
 bounded attempt and then <code>{"release": "section.mining_beam"}</code>. The selected
-emitter must deploy before it can pulse toward a travel-locked rock; reach
-and aim are checked from its face, not the ship’s centre. The agent view has
+emitter must deploy before it can pulse toward the nearest asteroid ahead;
+no travel lock is needed. Reach and aim are checked from its face, not the
+ship’s centre. The agent view has
 no carve result or intake position. It does show all live canisters, their
 contents, and their distance and bearing from the player’s ship. A newly
 visible ore canister shows ore in the world, not its source or pickup; a

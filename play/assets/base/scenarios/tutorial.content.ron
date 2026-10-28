@@ -28,7 +28,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_picket",
+                                id: "training_picket",
                                 section_patches: {
                                     "bridge": (
                                         config: (
@@ -63,7 +63,7 @@
                                 rcs_enabled: false,
                             ),
                             inventory: {
-                                PdcRound: 2000,
+                                "PdcRound": 2000,
                             },
                             lootable: false,
                             credits: 2000,
@@ -705,7 +705,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_picket",
+                                id: "training_picket",
                                 section_patches: {
                                     "bridge": (
                                         config: (
@@ -770,52 +770,7 @@
                                             health: Some(24.0),
                                         ),
                                     ),
-                                    "plate_16": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_17": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_18": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_19": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
                                     "plate_2": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_20": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_21": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_22": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_23": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_24": (
                                         config: (
                                             health: Some(24.0),
                                         ),
@@ -851,6 +806,11 @@
                                         ),
                                     ),
                                     "plate_9": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "port_collar": (
                                         config: (
                                             health: Some(24.0),
                                         ),
@@ -889,7 +849,7 @@
                         ),
                         kind: Spaceship((
                             design: Prototype(
-                                id: "block_picket",
+                                id: "training_picket",
                                 section_patches: {
                                     "bridge": (
                                         config: (
@@ -954,52 +914,7 @@
                                             health: Some(24.0),
                                         ),
                                     ),
-                                    "plate_16": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_17": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_18": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_19": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
                                     "plate_2": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_20": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_21": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_22": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_23": (
-                                        config: (
-                                            health: Some(24.0),
-                                        ),
-                                    ),
-                                    "plate_24": (
                                         config: (
                                             health: Some(24.0),
                                         ),
@@ -1035,6 +950,11 @@
                                         ),
                                     ),
                                     "plate_9": (
+                                        config: (
+                                            health: Some(24.0),
+                                        ),
+                                    ),
+                                    "port_collar": (
                                         config: (
                                             health: Some(24.0),
                                         ),

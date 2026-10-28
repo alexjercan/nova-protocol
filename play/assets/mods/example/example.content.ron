@@ -4,7 +4,7 @@
 //
 // This bundle loads AFTER base (base first, mods in catalog order), so overlay
 // is last-wins by id: an item whose id already exists REPLACES it; a fresh id
-// ADDS alongside. This file does four things, in order:
+// ADDS alongside. This file does ten things, in order:
 //
 //   1. OVERRIDE a base section  - `reinforced_hull_section` (same id -> replace)
 //   2. ADD a new section        - `example_plated_hull_section` (new id -> add)
@@ -13,6 +13,26 @@
 //                                  win check, and Victory/Defeat Outcomes)
 //   4. ADD a menu backdrop      - `example_menu` (a `role: Backdrop` scene:
 //                                  mods can ship main-menu ambience)
+//   5. ADD an item              - `example_survey_core` (cargo the arena's
+//                                  player ship starts with)
+//   6. ADD a bounded world      - `example_bounds` (the base generator on a
+//                                  fixed seed, with a `bounds` sphere whose
+//                                  `OnExit` ends the run)
+//   7. ADD a hold tour          - `example_prospect` (a berthed trader and an
+//                                  ore rock; one objective per hold event:
+//                                  `OnTraded`, `OnCreditsChanged`,
+//                                  `OnRepaired`, `OnJettisoned`, `OnPickedUp`
+//                                  and `OnMined`)
+//   8. ADD a survey contact     - `example_survey` (the fixed-seed world
+//                                  again; an `OnEnter` marks a GENERATED body
+//                                  through `$other_id`, and the mark outlives
+//                                  the body's sector)
+//   9. ADD a station            - `example_outpost` (a parked hull with a
+//                                  collar and a bridge, no drive; what it
+//                                  offers, stores and trades)
+//  10. ADD a start role         - `example_surveyor` (a New Game start on
+//                                  a base hull, its kit carrying this mod's
+//                                  survey cores)
 //
 // Everything here is pure data - no engine changes. For the field-by-field
 // syntax behind it see the wiki: "Author a section", "Author a scenario",
@@ -30,6 +50,16 @@
             name: "Reinforced Hull Section (Example Mod)",
             description: "Base hull, up-armored by the example mod to show section overlay by id.",
             health: 400.0,
+            advancement: 0.0,
+            draw_weight: 1.0,
+            build: (
+                credits: 160,
+                parts: {
+                    "FrameSpar": 2,
+                    "SectionPanel": 6,
+                },
+                strip_yield: 0.5,
+            ),
             link_points: [
                 (
                     id: "positive_x",
@@ -132,6 +162,16 @@
             name: "Plated Hull Section (Example Mod)",
             description: "A brand-new section the example mod adds: the toughest hull on the board at 500 hp.",
             health: 500.0,
+            advancement: 0.0,
+            draw_weight: 1.0,
+            build: (
+                credits: 160,
+                parts: {
+                    "FrameSpar": 2,
+                    "SectionPanel": 6,
+                },
+                strip_yield: 0.5,
+            ),
             link_points: [
                 (
                     id: "positive_x",
@@ -370,7 +410,10 @@
                                 ],
                             )),
                             initial_velocity: (0.0, 0.0, 0.0),
-                            inventory: {},
+                            // Two of the item this mod adds (5 below): it
+                            // weighs, trades and jettisons like a base item.
+                            // Item ids are quoted map keys.
+                            inventory: {"example_survey_core": 2},
                             lootable: false,
                             credits: 2_000,
                         )),
@@ -828,5 +871,799 @@
                 ],
             ),
         ],
+    )),
+    // -- 5. ITEM ---------------------------------------------------------------
+    // A NEW item id, so it ADDS to the catalog. Any ship stock, canister or
+    // trade may carry it. Every field is required: `mass_g` above 0 grams, and
+    // `bid_cr` (what a Sell earns) at most `ask_cr` (what a Buy pays). The ten
+    // ids the game itself uses - "HullPlate", the ammunition, the ores,
+    // "Rations" and "SalvagedParts" - belong to base. A mod may replace one
+    // whole, with its own mass and prices but the same category, because base
+    // is a dependency of every mod.
+    Item((
+        id: "example_survey_core",
+        name: "Survey core",
+        about: "A sealed sensor core from the example mod. Traders buy and sell it.",
+        category: Parts,
+        mass_g: 5000,
+        ask_cr: 60,
+        bid_cr: 45,
+    )),
+    // -- 6. BOUNDED GENERATED WORLD -----------------------------------------
+    // `world: Generated((seed: Some(n), bounds: Some(..)))` runs the base
+    // world generator on a FIXED seed, so the same sectors stream in every
+    // time around the ONE player ship OnStart spawns (lint refuses zero or
+    // two). The Scenarios list offers it like any chapter; it saves no world.
+    //
+    // `bounds` is a sphere in meters the player is meant to stay in. The
+    // loader spawns it as the scenario area `bounds` before OnStart runs, so
+    // leaving it is an ordinary `OnExit` with `id: "bounds"` and the outcome
+    // is YOURS to author: the engine ends nothing on its own, and the world
+    // keeps streaming past the edge. A `bounds` no OnExit reads is a lint
+    // warning; a handler spawning its own `bounds` object is a lint error.
+    // The radius may not exceed 80,000 m, the half edge of the streamed
+    // window.
+    Scenario((
+        id: "example_bounds",
+        name: "Example Bounded Range",
+        description: "A fixed-seed slice of the generated world: stay within 2 km of your start or the range closes.",
+        cubemap: "self://textures/nebula.png",
+        world: Generated((
+            seed: Some(1701),
+            bounds: Some((
+                position: (0.0, 0.0, 0.0),
+                radius: 2000.0,
+            )),
+        )),
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_bounds_key",
+                            name: "Key Light",
+                            position: (-600.0, 500.0, 600.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                            aim: Some((0.0, 0.0, 0.0)),
+                        )),
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_bounds_fill",
+                            name: "Fill Light",
+                            position: (700.0, -200.0, 400.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 2600.0,
+                            color: Srgba((
+                                red: 0.62,
+                                green: 0.72,
+                                blue: 0.95,
+                                alpha: 1.0,
+                            )),
+                            shadows: false,
+                            aim: Some((0.0, 0.0, 0.0)),
+                        )),
+                    )),
+                    DebugMessage((
+                        message: "Example bounded range loaded: fixed seed 1701, bounds 2 km.",
+                    )),
+                    NarrativeCue((
+                        speaker: "Range Control",
+                        text: "Fixed-seed slice. Stay within two kilometres of your start - the sensor is live.",
+                    )),
+                    // Seeded so the OnExit handler's counter has a number to
+                    // add to; an undefined variable fails closed.
+                    VariableSet((
+                        key: "bounds_exits",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    Objective((
+                        id: "hold_the_bounds",
+                        message: "Stay within 2 km of your start.",
+                    )),
+                    // The one player ship a generated world streams around:
+                    // the arena's hull, with no cargo this time.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Player Spaceship",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "turret": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                },
+                            )),
+                            design: Inline((
+                                sections: [
+                                    (
+                                        id: "controller",
+                                        position: (0.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "basic_controller_section"),
+                                    ),
+                                    (
+                                        id: "hull_front",
+                                        position: (0.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "hull_rear",
+                                        position: (0.0, 0.0, 2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "example_plated_hull_section"),
+                                    ),
+                                    (
+                                        id: "thruster",
+                                        position: (0.0, 0.0, 3.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "basic_thruster_section"),
+                                    ),
+                                    (
+                                        id: "turret",
+                                        position: (0.0, 0.0, -0.75),
+                                        rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                        source: Prototype(id: "pdc_kinetic_turret_section"),
+                                    ),
+                                ],
+                            )),
+                            initial_velocity: (0.0, 0.0, 0.0),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2_000,
+                        )),
+                    )),
+                ],
+            ),
+            // Leaving the bounds. `id` is the area the `bounds` block spawned;
+            // `other_id` pins it to the player, because a generated derelict
+            // drifting out raises the same event under its own id. No `once`:
+            // the counter is the proof the sensor fires exactly one exit.
+            (
+                name: OnExit,
+                filters: [
+                    Entity((
+                        id: Some("bounds"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    VariableSet((
+                        key: "bounds_exits",
+                        expression: Add(
+                            Factor(Name("bounds_exits")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    // The overlay's message is the whole beat: a cue beside
+                    // an Outcome is never read (lint warns).
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("You crossed the line. Range closed."),
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Your ship broke apart on the range."),
+                    )),
+                ],
+            ),
+        ],
+    )),
+    // -- 7. HOLD TOUR -------------------------------------------------------
+    // Six events report what a ship's hold and balance do, each from the
+    // system that owns the change and each exactly once per occurrence:
+    //   OnTraded         - a Buy or Sell went through (`id` = the trader,
+    //                      `other_id` = the ship that traded; `trade`, `item`,
+    //                      `count`, `price_cr`)
+    //   OnCreditsChanged - one ship's balance moved (`id` = that ship;
+    //                      `previous_cr`, `current_cr`, `delta_cr`, `cause`).
+    //                      A trade raises one per party, so filter on `id`.
+    //   OnRepaired       - a Ship pane repair spent plates (`id` = the ship;
+    //                      `section` = the pane code, `item`, `count`)
+    //   OnJettisoned     - the intake dropped a canister (`id` = the ship;
+    //                      `canister`, `item`, `count`), one per stack
+    //   OnPickedUp       - the intake took a canister (same payload)
+    //   OnMined          - a beam pulse carved ore (`id` = the rock,
+    //                      `other_id` = the miner; `item`, `count`)
+    // The player starts berthed beside a trader with its starboard collar 5 m
+    // off the trader's port collar, so DOCK takes at once, and an ore rock
+    // stands dead ahead of the bow emitter. Each handler completes one
+    // objective and counts toward the Victory.
+    Scenario((
+        id: "example_prospect",
+        name: "Example Prospect Berth",
+        description: "Trade, repair, jettison, pick up and mine from a berth: one objective per hold event.",
+        cubemap: "self://textures/nebula.png",
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_prospect_key",
+                            name: "Key Light",
+                            position: (-600.0, 500.0, 600.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                            aim: Some((0.0, 0.0, 0.0)),
+                        )),
+                    )),
+                    DebugMessage((
+                        message: "Example prospect berth loaded: a trader alongside, an ore rock ahead.",
+                    )),
+                    NarrativeCue((
+                        speaker: "Berth Control",
+                        text: "Dock with the tender, trade and patch up. Then jettison, take the canister back and cut some ore.",
+                    )),
+                    // Seeded so the handlers' counter has a number to add to.
+                    VariableSet((
+                        key: "prospect_done",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    Objective((
+                        id: "prospect_trade",
+                        message: "Buy rations from the tender.",
+                    )),
+                    Objective((
+                        id: "prospect_credits",
+                        message: "Spend or earn credits.",
+                    )),
+                    Objective((
+                        id: "prospect_repair",
+                        message: "Repair a section with hull plates.",
+                    )),
+                    Objective((
+                        id: "prospect_jettison",
+                        message: "Jettison cargo through the intake.",
+                    )),
+                    Objective((
+                        id: "prospect_pickup",
+                        message: "Take a canister aboard.",
+                    )),
+                    Objective((
+                        id: "prospect_mine",
+                        message: "Cut ore from the rock ahead. [V] fires the beam.",
+                    )),
+                    // The shipped mining tug: a mining emitter on a bow boom,
+                    // a cargo intake on the aft deck and a port collar. Two
+                    // hull plates to repair with, and credits to buy with.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Player Spaceship",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "mining_tug",
+                            ),
+                            controller: Player((
+                                input_mapping: {
+                                    "mining_beam": [
+                                        Keyboard(KeyV),
+                                    ],
+                                },
+                            )),
+                            initial_velocity: (0.0, 0.0, 0.0),
+                            inventory: {"HullPlate": 2},
+                            lootable: false,
+                            credits: 500,
+                        )),
+                    )),
+                    // The tender alongside to port, turned end for end: its
+                    // port collar faces the tug's port collar across a 5 m
+                    // gap, inside the 10 m capture distance. Not lootable and
+                    // holding credits, so the pane offers Buy and Sell, not
+                    // Take.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_tender",
+                            name: "Supply Tender",
+                            position: (-55.0, 0.0, -30.0),
+                            rotation: (0.0, 1.0, 0.0, 0.0),
+                        ),
+                        kind: Spaceship((
+                            design: Prototype(
+                                id: "light_freighter",
+                            ),
+                            controller: None,
+                            initial_velocity: (0.0, 0.0, 0.0),
+                            allegiance: Some(Neutral),
+                            inventory: {"Rations": 4},
+                            lootable: false,
+                            credits: 1000,
+                        )),
+                    )),
+                    // An ore rock dead ahead of the bow emitter, 165 m out,
+                    // pinned to one silhouette so its near face stays in
+                    // reach.
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_ore_rock",
+                            name: "Ore Rock",
+                            position: (0.0, 0.0, -225.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Asteroid((
+                            radius: 25.0,
+                            initial_velocity: (0.0, 0.0, 0.0),
+                            texture: "self://textures/rock.png",
+                            kind: "rock",
+                            lock_signature: None,
+                            seed: Some(7),
+                        )),
+                    )),
+                ],
+            ),
+            // One handler per hold event. Each is `once`, so each adds one to
+            // the counter however many times its event fires after that.
+            (
+                name: OnTraded,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("example_tender"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "prospect_trade",
+                    )),
+                    VariableSet((
+                        key: "prospect_done",
+                        expression: Add(
+                            Factor(Name("prospect_done")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            // The trade moves the tender's balance too; `id` keeps this to
+            // the player's.
+            (
+                name: OnCreditsChanged,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "prospect_credits",
+                    )),
+                    VariableSet((
+                        key: "prospect_done",
+                        expression: Add(
+                            Factor(Name("prospect_done")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnRepaired,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "prospect_repair",
+                    )),
+                    VariableSet((
+                        key: "prospect_done",
+                        expression: Add(
+                            Factor(Name("prospect_done")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnJettisoned,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "prospect_jettison",
+                    )),
+                    VariableSet((
+                        key: "prospect_done",
+                        expression: Add(
+                            Factor(Name("prospect_done")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            (
+                name: OnPickedUp,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "prospect_pickup",
+                    )),
+                    VariableSet((
+                        key: "prospect_done",
+                        expression: Add(
+                            Factor(Name("prospect_done")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            // The rock is the subject and the miner the other party, so a
+            // second miner on the same rock would not complete this.
+            (
+                name: OnMined,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("example_ore_rock"),
+                        other_id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveComplete((
+                        id: "prospect_mine",
+                    )),
+                    VariableSet((
+                        key: "prospect_done",
+                        expression: Add(
+                            Factor(Name("prospect_done")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                ],
+            ),
+            // All six done: the tour is over.
+            (
+                name: OnUpdate,
+                once: true,
+                filters: [
+                    Expression((GreaterThan(
+                        Term(Factor(Name("prospect_done"))),
+                        Term(Factor(Literal(Number(5.0)))),
+                    ))),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Victory,
+                        message: Some("Hold tour complete: traded, patched, dropped, taken and mined."),
+                    )),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Your ship broke apart at the berth."),
+                    )),
+                ],
+            ),
+        ],
+    )),
+    // -- 8. SURVEY CONTACT: a marker on a GENERATED body ---------------------
+    // The same fixed-seed world as `example_bounds`, unbounded, with a survey
+    // sphere 64 km out in the -X face of the streamed window. Whatever drifts
+    // into it is a body the world generator placed - a rock, a derelict - and
+    // its id (`sector_n2_0_0_background_rock_3`) is minted at runtime, so no
+    // handler can write it: lint refuses the literal. The `OnEnter` handler
+    // marks it anyway, by binding `$other_id` from the event payload. The
+    // scenario remembers the mark by that id, so when the body's sector
+    // retires behind the player and thaws on the way back, the chip is on
+    // the body again.
+    Scenario((
+        id: "example_survey",
+        name: "Example Survey Contact",
+        description: "A fixed-seed slice of the generated world: the first body to drift into the survey sphere wears a marker chip that outlives its sector.",
+        cubemap: "self://textures/nebula.png",
+        world: Generated((
+            seed: Some(1701),
+            bounds: None,
+        )),
+        events: [
+            (
+                name: OnStart,
+                filters: [],
+                actions: [
+                    SpawnScenarioObject((
+                        base: (
+                            id: "example_survey_key",
+                            name: "Key Light",
+                            position: (-600.0, 500.0, 600.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Light(Directional(
+                            illuminance: 11000.0,
+                            color: Srgba((
+                                red: 1.0,
+                                green: 0.96,
+                                blue: 0.9,
+                                alpha: 1.0,
+                            )),
+                            shadows: true,
+                            aim: Some((0.0, 0.0, 0.0)),
+                        )),
+                    )),
+                    VariableSet((
+                        key: "contacts",
+                        expression: Term(Factor(Literal(Number(0.0)))),
+                    )),
+                    Objective((
+                        id: "survey_contact",
+                        message: "Mark the first contact in the survey sphere.",
+                    )),
+                    // Inside sector (-2, 0, 0): the face a one-cell burn along
+                    // +X retires, and the return brings back.
+                    CreateScenarioArea((
+                        id: "survey",
+                        name: "Survey Sphere",
+                        position: (-64000.0, 0.0, 12000.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        radius: 1000.0,
+                    )),
+                    SpawnScenarioObject((
+                        base: (
+                            id: "player_spaceship",
+                            name: "Player Spaceship",
+                            position: (0.0, 0.0, 0.0),
+                            rotation: (0.0, 0.0, 0.0, 1.0),
+                        ),
+                        kind: Spaceship((
+                            controller: Player((
+                                input_mapping: {
+                                    "turret": [
+                                        Mouse(Left),
+                                        Gamepad(RightTrigger2),
+                                    ],
+                                },
+                            )),
+                            design: Inline((
+                                sections: [
+                                    (
+                                        id: "controller",
+                                        position: (0.0, 0.0, 0.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "basic_controller_section"),
+                                    ),
+                                    (
+                                        id: "hull_front",
+                                        position: (0.0, 0.0, 1.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "reinforced_hull_section"),
+                                    ),
+                                    (
+                                        id: "hull_rear",
+                                        position: (0.0, 0.0, 2.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "example_plated_hull_section"),
+                                    ),
+                                    (
+                                        id: "thruster",
+                                        position: (0.0, 0.0, 3.0),
+                                        rotation: (0.0, 0.0, 0.0, 1.0),
+                                        source: Prototype(id: "basic_thruster_section"),
+                                    ),
+                                    (
+                                        id: "turret",
+                                        position: (0.0, 0.0, -0.75),
+                                        rotation: (-0.70710677, 0.0, 0.0, 0.70710677),
+                                        source: Prototype(id: "pdc_kinetic_turret_section"),
+                                    ),
+                                ],
+                            )),
+                            initial_velocity: (0.0, 0.0, 0.0),
+                            inventory: {},
+                            lootable: false,
+                            credits: 2_000,
+                        )),
+                    )),
+                ],
+            ),
+            // The first body into the sphere. `$other_id` is the entering
+            // body's id, read from the payload; a literal generated id in
+            // its place fails lint. `once`, so the thaw of a marked body
+            // standing in the sphere re-fires nothing: the chip it comes
+            // back with is the remembered mark.
+            (
+                name: OnEnter,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("survey"),
+                    )),
+                ],
+                actions: [
+                    ObjectiveMarkerAttach((
+                        target_id: "$other_id",
+                        label: "CONTACT",
+                    )),
+                    VariableSet((
+                        key: "contacts",
+                        expression: Add(
+                            Factor(Name("contacts")),
+                            Term(Factor(Literal(Number(1.0)))),
+                        ),
+                    )),
+                    ObjectiveComplete((id: "survey_contact")),
+                ],
+            ),
+            (
+                name: OnDestroyed,
+                once: true,
+                filters: [
+                    Entity((
+                        id: Some("player_spaceship"),
+                    )),
+                ],
+                actions: [
+                    Outcome((
+                        outcome: Defeat,
+                        message: Some("Survey ship lost."),
+                    )),
+                ],
+            ),
+        ],
+    )),
+    // -- 9. STATION ---------------------------------------------------------
+    // A `Station` is a hull that never flies: a docking port, a flight
+    // computer and plating, NO thruster (lint refuses one), authored once and
+    // spawned by id with `kind: Station((design: Prototype("example_outpost"),
+    // ..))`. `design` holds the station, and every field is required.
+    // `services` is the closed set Rebuild, Refit, Trade, Storage, Jobs,
+    // Roster; at least one, each once. `builds` lists the section prototype
+    // ids the station crafts (swap, add, rebuild): nonempty exactly when
+    // Refit or Rebuild is listed, each a known id, each once. `storage_cap_g`
+    // is above zero exactly when Storage is listed. `stock` seeds the hull's
+    // own hold (four plates here = 400 kg) and `credits` is what it trades
+    // with. The hull takes the same fields a `Ship` design does, and on a
+    // station `integrity: (collapse_threshold: ..)` is required: the share of
+    // the hull pool below which it takes no more damage. This one is four of
+    // this mod's plates, a bridge on top and a collar off the -X flank, built
+    // from base prototypes.
+    Station((
+        id: "example_outpost",
+        name: "Outpost (Example Mod)",
+        about: "A four-plate block with a bridge and one collar. Dock to trade survey cores and leave cargo in its store.",
+        design: (
+            hull: (
+                sections: [
+                    (
+                        id: "plate_0",
+                        position: (0.0, 0.0, 0.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        source: Prototype(id: "reinforced_hull_section"),
+                    ),
+                    (
+                        id: "plate_1",
+                        position: (1.0, 0.0, 0.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        source: Prototype(id: "reinforced_hull_section"),
+                    ),
+                    (
+                        id: "plate_2",
+                        position: (0.0, 0.0, 1.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        source: Prototype(id: "reinforced_hull_section"),
+                    ),
+                    (
+                        id: "plate_3",
+                        position: (1.0, 0.0, 1.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        source: Prototype(id: "reinforced_hull_section"),
+                    ),
+                    (
+                        id: "bridge",
+                        position: (0.0, 1.0, 0.0),
+                        rotation: (0.0, 0.0, 0.0, 1.0),
+                        source: Prototype(id: "basic_controller_section"),
+                    ),
+                    (
+                        id: "collar",
+                        position: (-1.0, 0.0, 0.0),
+                        rotation: (0.0, 0.70710677, 0.0, 0.70710677),
+                        source: Prototype(id: "docking_port_section"),
+                    ),
+                ],
+                integrity: (collapse_threshold: Some(0.5)),
+            ),
+            services: [Trade, Storage],
+            builds: [],
+            storage_cap_g: 50000,
+            stock: {"example_survey_core": 4},
+            credits: 1000,
+        ),
+    )),
+    // -- 10. START ROLE -----------------------------------------------------
+    // A `StartRole` is one row in the New Game wizard's role list: the icon
+    // shape drawn beside its name there and on the Load list, the catalog
+    // hull the player starts in, a kit of credits and items, the job mix its
+    // boards lean to and its one end goal. Every field is required. `icon` is
+    // one of `Drill`, `Claw`, `Container`, `Star`, `Shield` or `Blades`; a
+    // missing or unknown icon fails lint. `hull` must name a ship design a
+    // loaded bundle declares (here the base `light_freighter`), every kit
+    // item must be in the item catalog, the kit must fit the hull's hold, and
+    // a goal must ask for a count above zero: lint refuses each failure. The
+    // wizard derives the weapon keys from the hull's sections, so a role
+    // binds nothing itself.
+    StartRole((
+        id: "example_surveyor",
+        name: "Surveyor (Example Mod)",
+        icon: Container,
+        about: "A light freighter with a hold of survey cores and no weapons. Sell the cores and buy what the stations need.",
+        hull: "light_freighter",
+        kit: (
+            credits: 1500,
+            stock: {"example_survey_core": 10, "Rations": 20},
+        ),
+        jobs: Trade,
+        goal: (
+            title: "A survey network",
+            kind: StationNetwork(stations: 2),
+        ),
+        lore: "Survey crews map the rock fields and sell the data cores to any station that pays.",
     )),
 ]

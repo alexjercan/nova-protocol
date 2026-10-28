@@ -83,3 +83,11 @@ news-0140-torpedo-envelope.webm	content-machine-v0.14.0	4.7	82512	frozen
 news-0140-live-themes.webm	content-machine-v0.14.0	5.3	77938	frozen
 news-0140-carrier-collapse.webm	content-machine-v0.14.0	8.8	1869685	frozen
 news-0140-four-v-four.webm	content-machine-v0.14.0	6.1	1852583	frozen
+# news-0160 group: the 7 rows below were built at commit d3c4cf8f6 on master; the rows above keep the commit in the top header
+news-0160-release-lead.webm	news_0160_release_lead	15.4	1828296	fresh
+news-0160-world-setup.webm	news_0160_world_setup	9.6	286980	fresh
+news-0160-refit-catalogue.webm	news_0160_refit_catalogue	11.1	373234	fresh
+news-0160-chart-view.webm	news_0160_chart_view	12.8	622521	fresh
+news-0160-station-orbit.webm	news_0160_station_orbit	14.1	1913048	fresh
+news-0160-escort-ambush.webm	news_0160_escort_ambush	17.2	1267879	fresh
+news-0160-escort-done.webm	news_0160_escort_ambush	9.9	814216	fresh

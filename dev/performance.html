@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-83f806a0.js";
+            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -393,9 +393,11 @@ single-threaded executor, so a schedule table’s fixed-loop rows are self time,
 not fan-out. Those schedules run 64 times a second and are made of many small
 systems; the multithreaded executor’s per-schedule task fan-out costs more than
 the parallelism buys. Matched at 650-750 dynamic bodies in a 1v1
-<code>wfc_arena</code> fight, the per-step median measured 7.9 ms multithreaded against
-6.1 single-threaded, with the capture’s 1% low 27 fps against 48;
-<code>stress_point_defense</code> at ~2,040 bodies measured 3.17 ms against 2.84.</p>
+<code>wfc_arena</code> fight with infinite ammo, the per-step median measured 7.9 ms
+multithreaded against 6.1 single-threaded, with the capture’s 1% low 27 fps
+against 48; <code>stress_point_defense</code> at ~2,040 bodies measured 3.17 ms against
+2.84. Current <code>wfc_arena</code> fighters carry finite ammo, so their runs are not
+directly comparable with these arena numbers.</p>
 <p>Avian’s <code>PhysicsSchedule</code> and <code>SubstepSchedule</code> are LEFT multithreaded. The same
 switch applied to them moved no step metric and made the frame tail worse (p99
 36.9 ms against 40.6): the solver’s <code>par_for_each</code> passes are the one part of a
@@ -411,11 +413,12 @@ smaller one lands under it. On wasm the pool is single-threaded and the number
 is ignored.</p>
 <p>The extra workers were not doing extra work. <code>bevy_transform</code>’s propagation
 workers share one queue behind a spin retry
-(<code>bevy_transform-0.19.0/src/systems.rs:574-610</code>), and in a measured 4v4
-<code>wfc_arena</code> fight the sampled spin was 23-24% of all CPU at 16 workers against
-8-9% at eight. Five release repeats per arm, same binary, same seed: the mean
-frame time went 18.69 ms -&gt; 13.41 and p99 41.18 ms -&gt; 27.39, with the
-per-repeat ranges disjoint on both. <code>stress_bullets</code> and
+(<code>bevy_transform-0.19.1/src/systems.rs:574-610</code>), and in a measured 4v4
+<code>wfc_arena</code> fight with infinite ammo the sampled spin was 23-24% of all CPU at
+16 workers against 8-9% at eight. Five release repeats per arm, same binary,
+same seed: the mean frame time went 18.69 ms -&gt; 13.41 and p99 41.18 ms -&gt;
+27.39, with the per-repeat ranges disjoint on both. The current finite-ammo
+arena is not directly comparable with these numbers. <code>stress_bullets</code> and
 <code>stress_point_defense</code> moved the same way. Four workers removed still more
 spin and used less total CPU but was about 4.9% SLOWER than eight on the mean,
 and the two p99 ranges overlap - minimising CPU work is not minimising frame

@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-83f806a0.js";
+            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -415,7 +415,13 @@ and <code>scripts/capture-web-media.sh</code> for loops; without it a name a pos
 already ships is never overwritten. <code>NOVA_REUSE_STAGE=1</code> tells
 <code>scripts/capture-web-media.sh</code> to package a completed <code>target/loop-shots</code>
 set rather than re-run the producers, which is the repackage path after a
-capture that finished.</p>
+capture that finished. <code>NOVA_NEWS_0160_ONLY=1</code> makes the same script
+capture only the v0.16.0 post’s seven loops, for the final release
+candidate: it runs each producer once, requires every loop freshly staged,
+refuses <code>NOVA_REUSE_STAGE=1</code>, refuses a shipped <code>news-0160-</code> loop unless
+<code>NOVA_UNFREEZE</code> re-opens it, and appends its rows to the existing manifest
+under their own commit header; a re-opened re-cut replaces that group.
+Any value other than <code>0</code> or <code>1</code> fails.</p>
 </li>
 <li>
 <p><strong>Retired.</strong> <code>NOVA_MENU_PATH</code> is read by nothing. <code>examples/ui/editor.rs</code>

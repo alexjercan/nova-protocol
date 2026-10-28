@@ -8,7 +8,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Ship sections for mods</p><h1>Ship sections for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#the-section-item">The Section item</a><ol><li><a href="#common-fields">Common fields</a></li><li><a href="#stats-that-content-lint-checks">Stats that content lint checks</a></li><li><a href="#damage-effects">Damage effects</a></li><li><a href="#structural-link-points">Structural link points</a></li><li><a href="#assets-and-visual-transforms">Assets and visual transforms</a></li><li><a href="#animation-tracks">Animation tracks</a></li></ol></li><li><a href="#hull">Hull</a><ol></ol></li><li><a href="#thruster">Thruster</a><ol></ol></li><li><a href="#controller">Controller</a><ol><li><a href="#what-a-hull-does-with-the-torque">What a hull does with the torque</a></li></ol></li><li><a href="#turret">Turret</a><ol></ol></li><li><a href="#torpedo">Torpedo</a><ol><li><a href="#the-fuze-is-not-a-bay-field">The fuze is not a bay field</a></li></ol></li><li><a href="#railgun">Railgun</a><ol></ol></li><li><a href="#docking">Docking</a><ol></ol></li><li><a href="#cargo-intake">Cargo intake</a><ol></ol></li><li><a href="#mining">Mining</a><ol></ol></li><li><a href="#a-section-in-a-mod">A section in a mod</a><ol></ol></li></ol></nav><p>A <code>Section</code> is a reusable ship part defined in a mod's <code>*.content.ron</code> file.
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Ship sections for mods</p><h1>Ship sections for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#the-section-item">The Section item</a><ol><li><a href="#common-fields">Common fields</a></li><li><a href="#build-recipe">Build recipe</a></li><li><a href="#stats-that-content-lint-checks">Stats that content lint checks</a></li><li><a href="#damage-effects">Damage effects</a></li><li><a href="#structural-link-points">Structural link points</a></li><li><a href="#assets-and-visual-transforms">Assets and visual transforms</a></li><li><a href="#animation-tracks">Animation tracks</a></li></ol></li><li><a href="#hull">Hull</a><ol></ol></li><li><a href="#thruster">Thruster</a><ol></ol></li><li><a href="#controller">Controller</a><ol><li><a href="#what-a-hull-does-with-the-torque">What a hull does with the torque</a></li></ol></li><li><a href="#turret">Turret</a><ol></ol></li><li><a href="#torpedo">Torpedo</a><ol><li><a href="#the-fuze-is-not-a-bay-field">The fuze is not a bay field</a></li></ol></li><li><a href="#railgun">Railgun</a><ol></ol></li><li><a href="#docking">Docking</a><ol></ol></li><li><a href="#cargo-intake">Cargo intake</a><ol></ol></li><li><a href="#mining">Mining</a><ol></ol></li><li><a href="#a-section-in-a-mod">A section in a mod</a><ol></ol></li></ol></nav><p>A <code>Section</code> is a reusable ship part defined in a mod's <code>*.content.ron</code> file.
 Create a new id to add a part to the editor palette, or reuse a base id to
 replace that part everywhere. The nine available kinds are <code>Hull</code>, <code>Thruster</code>,
 <code>Controller</code>, <code>Turret</code>, <code>Torpedo</code>, <code>Railgun</code>, <code>Docking</code>, <code>CargoIntake</code>, and
@@ -40,6 +40,13 @@ shared <code>base</code> block and one kind-specific block:</p>
             <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Compact Thruster&quot;</span><span class="ron-punct">,</span>
             <span class="ron-key">description</span><span class="ron-punct">:</span> <span class="ron-string">&quot;A light engine for small ships.&quot;</span><span class="ron-punct">,</span>
             <span class="ron-key">health</span><span class="ron-punct">:</span> <span class="ron-literal">70.0</span><span class="ron-punct">,</span>
+            <span class="ron-key">advancement</span><span class="ron-punct">:</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span>
+            <span class="ron-key">draw_weight</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span>
+            <span class="ron-key">build</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+                <span class="ron-key">credits</span><span class="ron-punct">:</span> <span class="ron-literal">60</span><span class="ron-punct">,</span>
+                <span class="ron-key">parts</span><span class="ron-punct">:</span> <span class="ron-punct">{</span><span class="ron-string">&quot;DriveBell&quot;</span><span class="ron-punct">:</span> <span class="ron-literal">1</span><span class="ron-punct">,</span> <span class="ron-string">&quot;SectionPanel&quot;</span><span class="ron-punct">:</span> <span class="ron-literal">2</span><span class="ron-punct">},</span>
+                <span class="ron-key">strip_yield</span><span class="ron-punct">:</span> <span class="ron-literal">0.5</span><span class="ron-punct">,</span>
+            <span class="ron-punct">),</span>
         <span class="ron-punct">),</span>
         <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Thruster</span><span class="ron-punct">((</span>
             <span class="ron-key">magnitude</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span>
@@ -48,6 +55,7 @@ shared <code>base</code> block and one kind-specific block:</p>
 <span class="ron-punct">]</span>
 </code></pre>
 <h3 id="common-fields" tabindex="-1">Common fields</h3>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -83,6 +91,24 @@ shared <code>base</code> block and one kind-specific block:</p>
 <td>Hit points before the section is destroyed. Positive and finite.</td>
 </tr>
 <tr>
+<td><code>base.advancement</code></td>
+<td>number</td>
+<td>required</td>
+<td>Lowest civilization advancement, <code>0</code> to <code>1</code>, that builds this part in the open world. At <code>0</code> every civilization builds it; above <code>0</code> each civilization knows it with chance 0.5. A start hull carries parts at <code>0</code> only. Content lint rejects a non-finite value or one outside <code>0..=1</code>.</td>
+</tr>
+<tr>
+<td><code>base.draw_weight</code></td>
+<td>number</td>
+<td>required</td>
+<td>How often a generator draws this part against the other known parts of its family: <code>1.0</code> is common, <code>0.1</code> is rare. Positive and finite.</td>
+</tr>
+<tr>
+<td><code>base.build</code></td>
+<td>build recipe</td>
+<td>required</td>
+<td>What a station charges to rebuild this section. See <a href="#build-recipe">Build recipe</a>.</td>
+</tr>
+<tr>
 <td><code>base.destroy_sound</code></td>
 <td><code>Option</code> asset ref</td>
 <td><code>None</code></td>
@@ -98,7 +124,7 @@ shared <code>base</code> block and one kind-specific block:</p>
 <td><code>base.link_points</code></td>
 <td>link-point list</td>
 <td><code>[]</code></td>
-<td>Structural sockets. Multi-section ships must derive one connected graph from their mates.</td>
+<td>Structural sockets. Multi-section ships must derive one connected graph from their mates. Each point may set <code>skin: Bare</code> to stay unclad while open.</td>
 </tr>
 <tr>
 <td><code>base.hide_in_editor</code></td>
@@ -126,6 +152,7 @@ shared <code>base</code> block and one kind-specific block:</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Collider forms:</p>
 <pre><code class="hljs language-ron"><span class="ron-key">collider</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-type">Cuboid</span><span class="ron-punct">(</span><span class="ron-key">size</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">1.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.5</span><span class="ron-punct">,</span> <span class="ron-literal">1.5</span><span class="ron-punct">))),</span>
 <span class="ron-key">collider</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-type">Sphere</span><span class="ron-punct">(</span><span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">0.5</span><span class="ron-punct">)),</span>
@@ -144,6 +171,149 @@ the centres of the cells on each face that can attach; collider contact alone
 never creates structure. Non-integral cuboids and non-cuboid shapes remain
 one-cell footprints.</p>
 <p>Every collider size, radius, length and height must be positive and finite.</p>
+<h3 id="build-recipe" tabindex="-1">Build recipe</h3>
+<p>Every section carries a <code>build</code> recipe: the credits and <code>Parts</code> items a
+docked station takes to rebuild it after the ship lost it. A section without
+one fails to load. A destroyed section drops its <code>strip_yield</code> share of the
+parts as cargo canisters.</p>
+<pre><code class="hljs language-ron"><span class="ron-key">build</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+    <span class="ron-key">credits</span><span class="ron-punct">:</span> <span class="ron-literal">160</span><span class="ron-punct">,</span>
+    <span class="ron-key">parts</span><span class="ron-punct">:</span> <span class="ron-punct">{</span><span class="ron-string">&quot;SectionPanel&quot;</span><span class="ron-punct">:</span> <span class="ron-literal">6</span><span class="ron-punct">,</span> <span class="ron-string">&quot;FrameSpar&quot;</span><span class="ron-punct">:</span> <span class="ron-literal">2</span><span class="ron-punct">},</span>
+    <span class="ron-key">strip_yield</span><span class="ron-punct">:</span> <span class="ron-literal">0.5</span><span class="ron-punct">,</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>credits</code></td>
+<td>integer</td>
+<td>Credits for the work, paid to the station. Above zero.</td>
+</tr>
+<tr>
+<td><code>parts</code></td>
+<td>map of item id to count</td>
+<td>Part items the build spends. Keys are quoted item ids in the <code>Parts</code> category; each count is above zero.</td>
+</tr>
+<tr>
+<td><code>strip_yield</code></td>
+<td>number</td>
+<td>The share of each part count a strip or the section's destruction gives back, rounded down per part. In <code>(0, 1]</code>.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A strip is the Inventory pane's salvage of a whole docked wreck (a derelict
+or a neutralized ship). It takes the sections off one at a time, the port
+that holds the dock last, and each part of a section's recipe goes into the
+player's hold as <code>count * strip_yield * health share</code>, rounded down. Each
+section takes 1 s per recipe part, at least 3 s, and fires <code>OnStripped</code> (see
+<a href="../events/#hold-events">Hold events</a>). When the port comes off, the wreck is
+gone.</p>
+<p>A rebuild takes the parts from the ship's hold first and buys the rest from
+the station's stock at ask. The ship pays the recipe's <code>credits</code> plus the
+bought parts; see <a href="../stations/#rebuild">Rebuild</a>. A swap or an add pays
+the new part's recipe the same way; see <a href="../stations/#swap">Swap</a> and
+<a href="../stations/#add">Add</a>.</p>
+<p>Content lint rejects a recipe that names an unknown item or an item outside
+<code>Parts</code>, a count of 0, <code>credits: 0</code>, or a <code>strip_yield</code> outside <code>(0, 1]</code>. It
+also rejects a recipe whose strip pays as much as the build: the yielded parts
+at bid must be worth less than <code>credits</code> plus every part at ask. An inline
+section in a ship design is checked the same way.</p>
+<p>Base recipes, from the <a href="../objects/#inventory">item table</a>:</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>sections</th>
+<th>credits</th>
+<th>parts</th>
+<th>strip_yield</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>reinforced, cargo and tank hull</td>
+<td>160</td>
+<td>6 SectionPanel, 2 FrameSpar</td>
+<td>0.5</td>
+</tr>
+<tr>
+<td>light hull</td>
+<td>80</td>
+<td>2 SectionPanel</td>
+<td>0.5</td>
+</tr>
+<tr>
+<td>basic thruster</td>
+<td>60</td>
+<td>1 DriveBell, 2 SectionPanel</td>
+<td>0.5</td>
+</tr>
+<tr>
+<td>vector thruster</td>
+<td>400</td>
+<td>4 DriveBell, 8 SectionPanel, 4 FrameSpar</td>
+<td>0.3</td>
+</tr>
+<tr>
+<td>capital thruster</td>
+<td>1200</td>
+<td>10 DriveBell, 20 SectionPanel, 10 FrameSpar</td>
+<td>0.3</td>
+</tr>
+<tr>
+<td>controller</td>
+<td>100</td>
+<td>1 FlightCore, 2 SectionPanel</td>
+<td>0.5</td>
+</tr>
+<tr>
+<td>PDC turret</td>
+<td>100</td>
+<td>1 TurretBody, 1 TurretBarrel per muzzle, 1 ActuatorPack, 2 SectionPanel</td>
+<td>0.5</td>
+</tr>
+<tr>
+<td>torpedo bay</td>
+<td>150</td>
+<td>1 TorpedoTube, 1 ActuatorPack, 4 SectionPanel, 1 FrameSpar</td>
+<td>0.5</td>
+</tr>
+<tr>
+<td>railgun lance</td>
+<td>300</td>
+<td>3 CapacitorBank, 3 FrameSpar, 6 SectionPanel</td>
+<td>0.5</td>
+</tr>
+<tr>
+<td>docking port</td>
+<td>80</td>
+<td>1 DockingCollar, 1 ActuatorPack, 2 SectionPanel</td>
+<td>0.5</td>
+</tr>
+<tr>
+<td>cargo intake</td>
+<td>60</td>
+<td>2 ActuatorPack, 4 SectionPanel, 1 FrameSpar</td>
+<td>0.5</td>
+</tr>
+<tr>
+<td>mining beam</td>
+<td>100</td>
+<td>1 CapacitorBank, 1 ActuatorPack, 2 SectionPanel</td>
+<td>0.5</td>
+</tr>
+</tbody>
+</table>
+</div>
 <h3 id="stats-that-content-lint-checks" tabindex="-1">Stats that content lint checks</h3>
 <p><code>content lint</code> checks each mod's full section catalog: base, every mod it
 depends on, and the mod itself. It rejects a section whose <code>health</code>, collider
@@ -153,11 +323,12 @@ railgun <code>slug_damage</code>, or intake aperture is not positive and finite,
 railgun <code>charge_seconds</code> that is negative or not finite. It also rejects one
 section id defined by two mods in that catalog when neither depends on the
 other; replace a section only from a mod that depends on the one you replace.
-The catalog must also keep at least one hull, controller, thruster and cargo
-intake that a procedurally generated ship can use. A generated ship does not
-use a docking port, a part without link points, a railgun with no charge time,
-or a part that cannot stand on the one-part-per-cell build grid. Such a part
-still loads and still works on authored ships. A weapon or thruster that
+The catalog must also keep, at <code>advancement: 0.0</code>, at least one structural
+cube hull (one cell with a socket on every face), controller, thruster, cargo
+intake and docking port that a procedurally generated ship can use. A
+generated ship does not use a part without link points or a part that cannot
+stand on the one-part-per-cell build grid. Such a part still loads and still
+works on authored ships. A weapon or thruster that
 otherwise stands on the grid must fire straight out of one of its own faces and
 carry no socket on that face. A cargo intake's door face is its <code>-Z</code> face, and
 it must carry no socket either. Content lint rejects a part that breaks either
@@ -166,6 +337,7 @@ rule, and the editor's Generate refuses a plan that names it.</p>
 <p>What a section LOOKS like as it takes damage, authored as a list:</p>
 <pre><code class="hljs language-ron"><span class="ron-key">damage_effects</span><span class="ron-punct">:</span> <span class="ron-punct">([</span><span class="ron-type">Cracks</span><span class="ron-punct">,</span> <span class="ron-type">Sparks</span><span class="ron-punct">,</span> <span class="ron-type">Plume</span><span class="ron-punct">]),</span>
 </code></pre>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -188,6 +360,7 @@ rule, and the editor's Generate refuses a plan that names it.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p><code>Cracks</code> grades in EIGHT steps from painted to burnt, so the first fractures
 show once about a fourteenth of the section's own health is gone and every step
 after that is a seventh. Stepping it is what keeps a fleet's damage off the
@@ -244,6 +417,13 @@ hull face - so a small mount does not have to pretend to be a cube.</p>
 <li>Normals must be finite, nonzero, and unit length.</li>
 <li>One point cannot mate with multiple points.</li>
 <li>Unused exterior points are valid.</li>
+<li><code>skin</code> is optional and is <code>Clad</code> or <code>Bare</code>. Omitted means <code>Clad</code>: while the
+point is open, the derived skin puts a plate (and maybe a greeble) on its
+face. <code>Bare</code> makes the point a dead end: it still mates and still places
+parts, but left open it gets no plate and no greeble. Use it for the end of
+a run that should stop clean, such as a solar wing tip:
+<code>(id: &quot;positive_x&quot;, position: (0.5, 0.0, 0.0), normal: (1.0, 0.0, 0.0), skin: Bare)</code>.
+The shipped truss and solar panel sections are <code>Bare</code> on both ends.</li>
 <li>A multi-section ship must form one connected mate graph.</li>
 <li>Omitted <code>link_points</code> means no sockets. Collider contact and one-unit spacing
 do not provide compatibility behavior.</li>
@@ -347,6 +527,7 @@ whatever the track says it is. The bay's 1 is an open iris, so it opens in
 <code>open_seconds</code>. The PDC's 1 is a STOWED gun, so <code>close_seconds</code> is the number
 that matters in a fight: it sinks lazily over 0.9 s and comes back up in 0.35.</p>
 <p>Who raises each cue:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -383,11 +564,12 @@ that matters in a fight: it sinks lazily over 0.9 s and comes back up in 0.35.</
 </tr>
 <tr>
 <td><code>IntakeDoor</code></td>
-<td>The cargo intake, while a canister is in its detection volume or a jettison waits on it. It takes a canister in or drops one only at progress 1.</td>
+<td>The cargo intake, while a canister that fits the hold is in its detection volume or a jettison waits on it. It drops a canister only at progress 1.</td>
 <td>the door fully folded open</td>
 </tr>
 </tbody>
 </table>
+</div>
 <p>Authoring a <code>StowLift</code> track is what MAKES a turret retractable - the stow
 machine is armed on turrets that have one and on no others. Such a turret
 spawns stowed, deploys when its ship goes weapons hot, tracks a body, or is
@@ -413,6 +595,13 @@ until it is back up.</p>
         <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Reinforced Hull Section&quot;</span><span class="ron-punct">,</span>
         <span class="ron-key">description</span><span class="ron-punct">:</span> <span class="ron-string">&quot;A reinforced hull section for spaceships.&quot;</span><span class="ron-punct">,</span>
         <span class="ron-key">health</span><span class="ron-punct">:</span> <span class="ron-literal">200.0</span><span class="ron-punct">,</span>
+        <span class="ron-key">advancement</span><span class="ron-punct">:</span> <span class="ron-literal">0.3</span><span class="ron-punct">,</span>
+        <span class="ron-key">draw_weight</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span>
+        <span class="ron-key">build</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+            <span class="ron-key">credits</span><span class="ron-punct">:</span> <span class="ron-literal">160</span><span class="ron-punct">,</span>
+            <span class="ron-key">parts</span><span class="ron-punct">:</span> <span class="ron-punct">{</span><span class="ron-string">&quot;SectionPanel&quot;</span><span class="ron-punct">:</span> <span class="ron-literal">6</span><span class="ron-punct">,</span> <span class="ron-string">&quot;FrameSpar&quot;</span><span class="ron-punct">:</span> <span class="ron-literal">2</span><span class="ron-punct">},</span>
+            <span class="ron-key">strip_yield</span><span class="ron-punct">:</span> <span class="ron-literal">0.5</span><span class="ron-punct">,</span>
+        <span class="ron-punct">),</span>
     <span class="ron-punct">),</span>
     <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Hull</span><span class="ron-punct">((</span>
         <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/gltf/hull-01.glb#Scene0&quot;</span><span class="ron-punct">),</span>
@@ -453,6 +642,7 @@ omitted sound hums nothing.</li>
 standard cone. Write <code>Some((...))</code> when fitting exhaust to custom art.</li>
 </ul>
 <p><code>exhaust</code> fields:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -519,6 +709,7 @@ standard cone. Write <code>Some((...))</code> when fitting exhaust to custom art
 </tr>
 </tbody>
 </table>
+</div>
 <p>The cone is MESH geometry, sized in cells inside the section that carries it,
 not a distance out in the world: <code>offset</code>, the nozzle size and both flame
 lengths are all fractions of a 10 m cell. Every nested exhaust field has a
@@ -632,6 +823,8 @@ between fights:</p>
 <pre><code class="hljs language-ron"><span class="ron-key">base</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
     <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;pdc_kinetic_turret_section&quot;</span><span class="ron-punct">,</span>
     <span class="ron-key">health</span><span class="ron-punct">:</span> <span class="ron-literal">130.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">advancement</span><span class="ron-punct">:</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span>
+    <span class="ron-key">draw_weight</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span>
     <span class="ron-key">collider</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-type">Cuboid</span><span class="ron-punct">(</span><span class="ron-key">size</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.5</span><span class="ron-punct">,</span> <span class="ron-literal">0.5</span><span class="ron-punct">,</span> <span class="ron-literal">0.5</span><span class="ron-punct">))),</span>
     <span class="ron-key">link_points</span><span class="ron-punct">:</span> <span class="ron-punct">[(</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;base&quot;</span><span class="ron-punct">,</span> <span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-0.25</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">),</span> <span class="ron-key">normal</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">-1.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">))],</span>
     <span class="ron-key">damage_effects</span><span class="ron-punct">:</span> <span class="ron-punct">([</span><span class="ron-type">Cracks</span><span class="ron-punct">,</span> <span class="ron-type">Sparks</span><span class="ron-punct">]),</span>
@@ -1163,8 +1356,8 @@ track the gun still charges; it just charges invisibly.</p>
 <h2 id="docking" tabindex="-1">Docking</h2>
 <p><code>DockingSectionConfig</code> - a docking port: a cylindrical, rotationally symmetric
 collar that holds this hull to another one. One ship,
-<code>docking_port_section</code>, carried by the workship, both frame tenders and the line
-warship; build a hull with one in the editor, or author your own port on a
+<code>docking_port_section</code>, carried on the port flank of every crewed base hull
+and on both flanks of the line warship; build a hull with one in the editor, or author your own port on a
 modded craft.</p>
 <pre><code class="hljs language-ron"><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Docking</span><span class="ron-punct">((</span>
     <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/gltf/dock_flush.glb#Scene0&quot;</span><span class="ron-punct">),</span>
@@ -1204,22 +1397,29 @@ the other hull.</p>
 outward face - that face is the hatch. Docking is spent through the <code>DOCK</code>
 verb, which the ship must also be PERMITTED to use: see the <code>dock</code>
 <a href="../objects/#capabilities">capability</a>.</p>
-<p>A docked pair flies as one body, driven by ONE hull. A dock starts NEUTRAL:
-the partner's autopilot and orders fly the pair and the player's hull stands
-down. <code>HELM</code> hands the pair to the player and pauses the partner's orders
-until the helm goes back. The hull that is not driving makes no thrust, no RCS
+<p>A docked pair flies as one body, driven by ONE hull. A dock with a living
+ship starts NEUTRAL: the partner's autopilot and orders fly the pair and the
+player's hull stands down. <code>HELM</code> hands the pair to the player and pauses the
+partner's orders until the helm goes back. A derelict or neutralized partner
+has nobody at its helm, so the player holds it from the capture. The hull that is not driving makes no thrust, no RCS
 trim and no attitude torque, on a player hull and an AI one alike, because the
 gate is read at the forces rather than at the input. <code>DOCK</code> again from either
 hull is the way out, and it is ungated - a capability withdrawn mid-dock can
 never strand a hull clamped to something. A maneuver (ORBIT, GOTO, STOP) flies
-the pair and leaves the dock in place.</p>
+the pair and leaves the dock in place. A <a href="../stations/#docking-at-a-station">station</a>
+is the exception to the helm rule: a living one owns the pair's helm and
+refuses <code>HELM</code>, a dead one (derelict or neutralized) hands the helm to the docked player at capture, and
+a living station on the Enemy side, or one hostile to the ship, refuses the
+dock with a line on the HUD, unless the player owns it.</p>
 <!-- Grammar verified against crates/nova_ship/src/sections/docking_section/mod.rs (config and defaults) and port.rs (the envelope and its strictest-of-two grading). Values from assets/base/sections/base.content.ron docking_port_section. -->
 <h2 id="cargo-intake" tabindex="-1">Cargo intake</h2>
 <p><code>CargoIntakeSectionConfig</code> - a cargo intake: a hold mouth behind a door on the
-section's local <code>-Z</code> face. The door opens for a nearby canister, the intake
-takes one, at any speed, into the ship's <a href="../objects/#inventory">inventory</a>,
-and the Inventory pane's Jettison drops canisters out through it. One ships:
-<code>cargo_intake_section</code>, a 3x2x1 box on the line warship's top deck, door up.</p>
+section's local <code>-Z</code> face. The door opens for a nearby canister that fits the
+hold, the intake takes one, at any speed, into the ship's
+<a href="../objects/#inventory">inventory</a>, and the Inventory pane's Jettison drops
+canisters out through it. One ships: <code>cargo_intake_section</code>, a 3x2x1 box on
+the top deck of the mining tug, the salvage hauler and the line warship, door
+up.</p>
 <pre><code class="hljs language-ron"><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">CargoIntake</span><span class="ron-punct">((</span>
     <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/gltf/intake_accordion_3x2x1.glb#Scene0&quot;</span><span class="ron-punct">,</span>
     <span class="ron-key">canister_mesh</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/gltf/cargo_canister_cuboid.glb#Scene0&quot;</span><span class="ron-punct">,</span>
@@ -1274,12 +1474,13 @@ on the <code>-Z</code> face: that face is the door.</p>
 <!-- Grammar verified against crates/nova_ship/src/sections/cargo_intake_section.rs (config, trigger, run_cargo_intakes) and crates/nova_scenario/src/lint/ship.rs check_cargo_intake_config. Values from assets/base/sections/base.content.ron cargo_intake_section. -->
 <h2 id="mining" tabindex="-1">Mining</h2>
 <p><code>MiningSectionConfig</code> - a mining emitter: a beam out of the section's local
-<code>-Z</code> face that cuts ore from the ship's travel-locked rock. One ships:
-<code>mining_beam_section</code>, a 1x1x1 emitter at the line warship's bow, starboard of
-the railgun.</p>
+<code>-Z</code> face that cuts ore from the nearest asteroid it meets within reach, without a travel lock. One ships:
+<code>mining_beam_section</code>, a 1x1x1 emitter at the tip of the mining tug's bow
+boom.</p>
 <pre><code class="hljs language-ron"><span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Mining</span><span class="ron-punct">((</span>
     <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-string">&quot;dep://base/gltf/mining_beam_compact.glb#Scene0&quot;</span><span class="ron-punct">,</span>
     <span class="ron-key">pulse_sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/mining_pulse.wav&quot;</span><span class="ron-punct">,</span>
+    <span class="ron-key">refusal_sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/radar_deny.wav&quot;</span><span class="ron-punct">,</span>
     <span class="ron-key">door_open_sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/mining_door_open.wav&quot;</span><span class="ron-punct">,</span>
     <span class="ron-key">door_close_sound</span><span class="ron-punct">:</span> <span class="ron-string">&quot;self://sounds/mining_door_close.wav&quot;</span><span class="ron-punct">,</span>
     <span class="ron-key">reach</span><span class="ron-punct">:</span> <span class="ron-literal">100.0</span><span class="ron-punct">,</span>
@@ -1291,8 +1492,10 @@ the railgun.</p>
 <li><code>render_mesh</code> - the emitter's scene: its casing, the doors its <code>StowDoors</code>
 track slides and the tip its <code>StowLift</code> track retracts.
 <code>render_mesh_transform</code> (optional) moves the mesh only.</li>
-<li><code>pulse_sound</code> - played at the hit on every pulse that passes its checks. A
-refused pulse plays nothing. Base content ships <code>mining_pulse.wav</code>.</li>
+<li><code>pulse_sound</code> - played at the hit on every pulse that passes its checks.
+Base content ships <code>mining_pulse.wav</code>.</li>
+<li><code>refusal_sound</code> - played at the emitter face on every refused pulse, so a
+held key plays it once a pulse. Base content ships <code>radar_deny.wav</code>.</li>
 <li><code>door_open_sound</code> and <code>door_close_sound</code> - played at the section when its
 doors start to part and start to shut. Base content ships
 <code>mining_door_open.wav</code> and <code>mining_door_close.wav</code>.</li>
@@ -1311,7 +1514,7 @@ Release it and the tip goes in before the doors shut. Only a
 fully deployed emitter pulses, and each one pulses on its own clock. A pulse
 needs a travel-locked asteroid of a kind that yields ore, within <code>reach</code>, and a
 straight line out of the face that meets it. A pulse that fails any check
-changes nothing and is logged. A pulse pays one ore per cell corner it empties,
+changes nothing, is logged and plays <code>refusal_sound</code>. A pulse pays one ore per cell corner it empties,
 once the rock is redrawn, so material already shot away pays nothing. The ore
 leaves the rock as canisters, one at a time, when the space by the surface is
 clear. The emitter costs no power and no ammunition.</p>
@@ -1336,6 +1539,13 @@ parse. Offer no link point on the <code>-Z</code> face: that face is the emitter
         <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Reinforced Hull Section (Example Mod)&quot;</span><span class="ron-punct">,</span>
         <span class="ron-key">description</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Base hull, up-armored by the example mod to show section overlay by id.&quot;</span><span class="ron-punct">,</span>
         <span class="ron-key">health</span><span class="ron-punct">:</span> <span class="ron-literal">400.0</span><span class="ron-punct">,</span>
+        <span class="ron-key">advancement</span><span class="ron-punct">:</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span>
+        <span class="ron-key">draw_weight</span><span class="ron-punct">:</span> <span class="ron-literal">1.0</span><span class="ron-punct">,</span>
+        <span class="ron-key">build</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+            <span class="ron-key">credits</span><span class="ron-punct">:</span> <span class="ron-literal">160</span><span class="ron-punct">,</span>
+            <span class="ron-key">parts</span><span class="ron-punct">:</span> <span class="ron-punct">{</span><span class="ron-string">&quot;SectionPanel&quot;</span><span class="ron-punct">:</span> <span class="ron-literal">6</span><span class="ron-punct">,</span> <span class="ron-string">&quot;FrameSpar&quot;</span><span class="ron-punct">:</span> <span class="ron-literal">2</span><span class="ron-punct">},</span>
+            <span class="ron-key">strip_yield</span><span class="ron-punct">:</span> <span class="ron-literal">0.5</span><span class="ron-punct">,</span>
+        <span class="ron-punct">),</span>
     <span class="ron-punct">),</span>
     <span class="ron-key">kind</span><span class="ron-punct">:</span> <span class="ron-type">Hull</span><span class="ron-punct">((</span>
         <span class="ron-key">render_mesh</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;dep://base/gltf/hull-01.glb#Scene0&quot;</span><span class="ron-punct">),</span>

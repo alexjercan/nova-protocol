@@ -8,7 +8,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Scenario files</p><h1>Scenario files</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#file-shape">File shape</a><ol></ol></li><li><a href="#fields">Fields</a><ol></ol></li><li><a href="#roles">Roles</a><ol></ol></li><li><a href="#handler-shape">Handler shape</a><ol><li><a href="#once---a-beat-that-happens-one-time">once - a beat that happens one time</a></li><li><a href="#sequence---beats-that-follow-each-other">Sequence - beats that follow each other</a></li></ol></li><li><a href="#scenario-scripting-chapters">Scenario scripting chapters</a><ol></ol></li><li><a href="#lifecycle">Lifecycle</a><ol></ol></li><li><a href="#add-or-replace-a-scenario">Add or replace a scenario</a><ol></ol></li><li><a href="#check-it">Check it</a><ol></ol></li><li><a href="#common-mistakes">Common mistakes</a><ol></ol></li></ol></nav><p>A scenario defines one playable mission, continuation, or menu backdrop. Its
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Scenario files</p><h1>Scenario files</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#file-shape">File shape</a><ol></ol></li><li><a href="#fields">Fields</a><ol></ol></li><li><a href="#roles">Roles</a><ol></ol></li><li><a href="#world">World</a><ol></ol></li><li><a href="#handler-shape">Handler shape</a><ol><li><a href="#once---a-beat-that-happens-one-time">once - a beat that happens one time</a></li><li><a href="#sequence---beats-that-follow-each-other">Sequence - beats that follow each other</a></li></ol></li><li><a href="#scenario-scripting-chapters">Scenario scripting chapters</a><ol></ol></li><li><a href="#lifecycle">Lifecycle</a><ol></ol></li><li><a href="#add-or-replace-a-scenario">Add or replace a scenario</a><ol></ol></li><li><a href="#check-it">Check it</a><ol></ol></li><li><a href="#common-mistakes">Common mistakes</a><ol></ol></li></ol></nav><p>A scenario defines one playable mission, continuation, or menu backdrop. Its
 <code>events</code> list is the script: events decide when a handler runs, filters decide
 whether it applies, and actions change the world.</p>
 <p>For a guided first mission, start with
@@ -39,6 +39,7 @@ file reference.</p>
 <p>List the file in the bundle manifest. See <a href="../mod-files/">Mod files</a> for the
 folder and bundle shape.</p>
 <h2 id="fields" tabindex="-1">Fields</h2>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -86,6 +87,12 @@ folder and bundle shape.</p>
 <td>What the scenario IS - see <a href="#roles">Roles</a>. <code>Chapter</code> is a level and the only role the Scenarios list shows.</td>
 </tr>
 <tr>
+<td><code>world</code></td>
+<td>world</td>
+<td><code>Void</code></td>
+<td>Which world the scenario runs on - see <a href="#world">World</a>. Omit it for a scene of authored objects only.</td>
+</tr>
+<tr>
 <td><code>watches</code></td>
 <td>list</td>
 <td><code>[]</code></td>
@@ -99,6 +106,7 @@ folder and bundle shape.</p>
 </tr>
 </tbody>
 </table>
+</div>
 <p>A skybox is six square faces stacked vertically in one PNG, with a <code>.png.meta</code>
 sidecar that cuts the stack into six layers (see
 <a href="../base-content/">Base content</a>). Size the faces for the memory they cost, not
@@ -111,6 +119,7 @@ ship at 1024.</p>
 <p><code>role</code> says what kind of thing the scenario is. It decides where the game offers
 it, and it is checked: a campaign may only list <code>Chapter</code>s, and a lesson may only
 practise in a <code>Lesson</code>.</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -135,13 +144,9 @@ practise in a <code>Lesson</code>.</p>
 <td>A focused practice range for one handbook <a href="../lessons/">lesson</a>.</td>
 <td>That lesson's Practice button, and nowhere else.</td>
 </tr>
-<tr>
-<td><code>OpenWorld</code></td>
-<td>The base New Game start: it spawns the one player ship the generated world streams around.</td>
-<td>New Game's Create, and nowhere else.</td>
-</tr>
 </tbody>
 </table>
+</div>
 <p>Omit <code>role</code> and the scenario is a <code>Chapter</code>.</p>
 <p>A menu backdrop POSES ITS OWN CAMERA: author a
 <a href="../actions/#setcamera"><code>SetCamera</code></a> in its <code>OnStart</code> (the reference shot is
@@ -173,8 +178,64 @@ with nothing queued, so the overlay sends the player back to the handbook,
 and a Defeat that <a href="../actions/#nextscenario"><code>NextScenario</code></a>s the range
 itself, so the overlay offers Retry.</li>
 </ul>
+<h2 id="world" tabindex="-1">World</h2>
+<p><code>world</code> says which world the scenario runs on. It is independent of <code>role</code>.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>world</th>
+<th>what it is</th>
+<th>who starts it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Void</code></td>
+<td>No streamed world: the objects your handlers spawn are the whole scene. The default.</td>
+<td>Whatever the role says.</td>
+</tr>
+<tr>
+<td><code>Generated((seed: None))</code></td>
+<td>The generated open world, streamed around the one player ship your <code>OnStart</code> spawns, from the seed the player typed on New Game. Only this world may use <a href="../actions/#spawnstartrole"><code>SpawnStartRole</code></a>, which spawns the start role the player picked beside the seed's starting station, the nearest allied one, where the world docks it.</td>
+<td>New Game and Load only: the Scenarios list hides it, a campaign may not list it, and <code>--scenario</code> refuses it. The base <code>open_world</code> start.</td>
+</tr>
+<tr>
+<td><code>Generated((seed: Some(42)))</code></td>
+<td>The same generator on a fixed seed: a bounded world that always comes up the same. Session-only: it makes no saved world, Retry reloads it, and Load last save is not offered.</td>
+<td>The Scenarios list and campaigns, like any chapter.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A generated world must spawn EXACTLY ONE player ship in <code>OnStart</code>; zero or
+two is a content Error. Only a chapter may take <code>seed: None</code>: a <code>role: Backdrop</code> or <code>role: Lesson</code> scenario with it is a content Error, because the
+menu and the handbook start those with no seed.</p>
+<p><code>Generated</code> also takes an optional <code>bounds: Some((position: (0, 0, 0), radius: 20000))</code>, a sphere in meters the player is meant to stay in. The
+loader spawns it as a scenario area with the id <code>bounds</code> before <code>OnStart</code>
+runs, so leaving it is an ordinary <a href="../events/#onexit"><code>OnExit</code></a> with <code>id: Some(&quot;bounds&quot;)</code>, and what happens then is yours to author: the engine ends
+nothing on its own, and the world keeps streaming sectors past the edge.</p>
+<pre><code class="hljs language-ron"><span class="ron-key">world</span><span class="ron-punct">:</span> <span class="ron-type">Generated</span><span class="ron-punct">((</span>
+    <span class="ron-key">seed</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-literal">1701</span><span class="ron-punct">),</span>
+    <span class="ron-key">bounds</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">((</span><span class="ron-key">position</span><span class="ron-punct">:</span> <span class="ron-punct">(</span><span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">,</span> <span class="ron-literal">0.0</span><span class="ron-punct">),</span> <span class="ron-key">radius</span><span class="ron-punct">:</span> <span class="ron-literal">2000.0</span><span class="ron-punct">)),</span>
+<span class="ron-punct">)),</span>
+<span class="ron-key">events</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+    <span class="ron-comment">// ...OnStart spawns the one player ship...</span>
+    <span class="ron-punct">(</span>
+        <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnExit</span><span class="ron-punct">,</span>
+        <span class="ron-key">filters</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">Entity</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;bounds&quot;</span><span class="ron-punct">),</span> <span class="ron-key">other_id</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;player_spaceship&quot;</span><span class="ron-punct">)))],</span>
+        <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">Outcome</span><span class="ron-punct">((</span><span class="ron-key">outcome</span><span class="ron-punct">:</span> <span class="ron-type">Defeat</span><span class="ron-punct">,</span> <span class="ron-key">message</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;You crossed the line.&quot;</span><span class="ron-punct">)))],</span>
+    <span class="ron-punct">),</span>
+<span class="ron-punct">],</span>
+</code></pre>
+<p>Rules the content lint checks: the radius may not exceed 80,000 m, the half
+edge of the streamed window (Error); no handler may spawn its own object or
+area named <code>bounds</code> (Error); a <code>bounds</code> that no <code>OnExit</code> handler reads does
+nothing and is a Warning. The example mod's <code>example_bounds</code> is the copyable
+instance.</p>
 <h2 id="handler-shape" tabindex="-1">Handler shape</h2>
 <p>Each event entry is one handler:</p>
+<div class="table-scroll">
 <table>
 <thead>
 <tr>
@@ -211,6 +272,7 @@ itself, so the overlay offers Retry.</li>
 </tr>
 </tbody>
 </table>
+</div>
 <pre><code class="hljs language-ron"><span class="ron-punct">(</span>
     <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnDestroyed</span><span class="ron-punct">,</span>
     <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>

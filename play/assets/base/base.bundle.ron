@@ -20,9 +20,13 @@
         // than a thing a scenario names, and the Settings picker reads this
         // order, so the shipped default has to stand first in it.
         "ui_themes/base.content.ron",
+        "items/base.content.ron",
         "sections/base.content.ron",
         "styles/base.content.ron",
         "ships/base.content.ron",
+        "stations/base.content.ron",
+        "roles/base.content.ron",
+        "market/base.content.ron",
         "scenarios/menu_waystation.content.ron",
         "scenarios/menu_gauntlet.content.ron",
         "scenarios/menu_weave.content.ron",
@@ -38,8 +42,9 @@
         "scenarios/drill_stop.content.ron",
         "scenarios/drill_autopilot.content.ron",
         "scenarios/drill_gunnery.content.ron",
-        // The open world's bootstrap, and New Game's start below. Not a
-        // chapter: it is `role: OpenWorld`, so the picker renders no row.
+        // The New Game start, declared below. Its world is
+        // `Generated((seed: None))`, so it takes the typed seed and the
+        // picker renders no row.
         "scenarios/open_world.content.ron",
         // The training handbook itself: one item per lesson.
         "training/base.content.ron",
@@ -72,6 +77,8 @@
         "gltf/hull_personnel.glb",
         "gltf/hull_cargo.glb",
         "gltf/hull_tank.glb",
+        "gltf/hull_truss.glb",
+        "gltf/hull_solar_panel.glb",
         "gltf/core_wires.glb",
         "gltf/pdc_gatling_yaw.glb",
         "gltf/pdc_gatling_pitch.glb",
@@ -146,6 +153,12 @@
         "gltf/greebles/salvage_patch_strip.glb",
         "gltf/greebles/salvage_weld_seam.glb",
         "gltf/greebles/salvage_whip.glb",
+        "gltf/greebles/station_antenna.glb",
+        "gltf/greebles/station_beacon.glb",
+        "gltf/greebles/station_hatch.glb",
+        "gltf/greebles/station_marking.glb",
+        "gltf/greebles/station_radiator.glb",
+        "gltf/greebles/station_windows.glb",
         // NOTE: the cladding shells ship no meshes. Every one of the 954
         // shapes is built at load from the eight boundary samples its id
         // spells - see `nova_ship`'s `shell_shape`. Art shipped here under a
