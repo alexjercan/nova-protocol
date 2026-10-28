@@ -48,7 +48,7 @@ use nova_ship::prelude::{
     SectionBuildConfig, SectionConfig, SectionKind, SectionReload, SectionReloadConfig,
     SensorContacts, ShipWreckFragmentMarker, SpaceshipCameraController, SpaceshipCameraInputMarker,
     SpaceshipCameraNormalInputMarker, SpaceshipTargetingPlugin, SpaceshipTargetingSystems,
-    StationPost, SuspendedSectionAmmo, TorpedoArming, TorpedoControllerMarker,
+    StationPdcReserve, StationPost, SuspendedSectionAmmo, TorpedoArming, TorpedoControllerMarker,
     TorpedoSectionConfig, TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition,
     TorpedoWeave, TravelLock,
 };
@@ -3793,6 +3793,7 @@ fn frozen_item_holders(item: &ItemDesignId) -> Vec<(Option<&'static str>, Frozen
             },
             StationServices(vec![StationServiceType::Storage]),
             StationBuilds(Vec::new()),
+            StationPdcReserve::full(),
             ron::from_str::<StationStorage>(&format!(
                 "(cap_g: 10000, items: {{{}: 1}})",
                 ron::to_string(item).unwrap()
@@ -4124,6 +4125,7 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
                 },
                 StationServices(vec![StationServiceType::Storage]),
                 StationBuilds(Vec::new()),
+                StationPdcReserve::full(),
                 ron::from_str::<StationStorage>(&format!(
                     "(cap_g: {cap_g}, items: {{{iron}: {ore}}})"
                 ))
@@ -4382,6 +4384,109 @@ fn a_world_whose_trader_has_no_role_preference_is_refused_on_open() {
     drop(lock);
 }
 
+/// A station's PDC reserve opens as it froze, and one no session could
+/// write - above its capacity, or with a fraction of a round outside
+/// `[0, 1)` - is refused rather than clamped.
+#[test]
+fn a_saved_station_pdc_reserve_opens_as_it_froze_and_a_malformed_one_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Reserve").unwrap();
+    drop(lock);
+    let east = SectorCoord::new(1, 0, 0);
+    let station_holding = |reserve: StationPdcReserve| {
+        let mut world = World::new();
+        let station = world
+            .spawn((
+                spaceship_scenario_object(SpaceshipConfig::default()),
+                ShipInventory::new(&items(), 10_000, []),
+                DamageMarks::default(),
+                StationMarker,
+                StationPost::Fixed {
+                    position: Vec3::ZERO,
+                },
+                StationServices(Vec::new()),
+                StationBuilds(Vec::new()),
+                StationStorage::new(0),
+                reserve,
+            ))
+            .id();
+        let frozen = freeze_station(&world, station).expect("a bare station is settled");
+        ledger_holding(
+            east,
+            Some("post"),
+            &FrozenBodyType::Station(Box::new(frozen)),
+        )
+    };
+    let reserve = |rounds, progress| StationPdcReserve { rounds, progress };
+    let cases = [
+        (
+            reserve(10_001, 0.0),
+            "the PDC reserve holds 10001 rounds, above its capacity of 10000".to_string(),
+        ),
+        (
+            reserve(0, 1.0),
+            "the PDC reserve's next round is 1 recharged, outside [0, 1)".to_string(),
+        ),
+        (
+            reserve(0, -0.5),
+            "the PDC reserve's next round is -0.5 recharged, outside [0, 1)".to_string(),
+        ),
+        (
+            reserve(0, f64::NAN),
+            "the PDC reserve's next round is NaN recharged, outside [0, 1)".to_string(),
+        ),
+    ];
+    for (generation, (bad, fault)) in (1..).zip(cases) {
+        let saved_state = WorldSaveState {
+            sectors: station_holding(bad),
+            ..state(generation, 750)
+        };
+        write_world(&folder, &header("Reserve", generation), &saved_state).unwrap();
+        assert_eq!(
+            open_world(
+                root.path(),
+                "reserve",
+                &catalog(7),
+                &roles(),
+                &items(),
+                &scenarios()
+            )
+            .map(|_| ()),
+            Err(WorldRefusal::Unreadable(format!(
+                "state.{generation}.ron: 'post': {fault}"
+            ))),
+            "case at generation {generation}"
+        );
+    }
+
+    let depleted = reserve(1_234, 0.25);
+    let within = WorldSaveState {
+        sectors: station_holding(depleted),
+        ..state(5, 750)
+    };
+    write_world(&folder, &header("Reserve", 5), &within).unwrap();
+    let (_, lock, _, saved) = open_world(
+        root.path(),
+        "reserve",
+        &catalog(7),
+        &roles(),
+        &items(),
+        &scenarios(),
+    )
+    .unwrap();
+    let reserves: Vec<StationPdcReserve> = saved
+        .sectors
+        .iter()
+        .flat_map(|(_, sector)| sector.bodies())
+        .filter_map(|body| match body.body() {
+            FrozenBodyType::Station(station) => Some(*station.pdc_reserve()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(reserves, [depleted], "the reserve opens as it froze");
+    drop(lock);
+}
+
 /// A save written on the frame a role goal is met must carry the stamp,
 /// so the snapshot that copies `GoalRecord` runs after the tracker that
 /// stamps it. Both touch `World`, so unordered they run in a per-build
@@ -4487,6 +4592,7 @@ fn a_load_restores_a_real_station_dock_through_a_real_physics_tick() {
                 StationServices(Vec::new()),
                 StationBuilds(Vec::new()),
                 StationStorage::new(0),
+                StationPdcReserve::full(),
             ))
             .id();
         hull_collider(world, station);

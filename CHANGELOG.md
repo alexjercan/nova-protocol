@@ -15,6 +15,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
 
+### Combat & Weapons
+
+- A station's PDC turrets reload from a private 10,000-round reserve, never its
+  market hold; a living station refills it over 30 minutes of play, a dead one
+  never.
+
 ## [0.16.0] - 2026-10-27
 
 ### Gameplay & Flight
@@ -92,7 +98,6 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A Neutral ship answers a ship only after it deals 30 hit points in quick
   succession, fire and rams alike: one PDC burst provokes it, a stray round or
   scrape does not.
-
 ### Ships & Sections
 
 - **(breaking)** New base hulls: `mining_tug`, `salvage_hauler`,

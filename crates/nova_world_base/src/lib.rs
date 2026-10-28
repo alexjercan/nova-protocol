@@ -67,6 +67,7 @@ mod environment;
 mod goal;
 mod jobs;
 mod layered;
+mod pdc_reserve;
 #[cfg(not(target_arch = "wasm32"))]
 mod save;
 mod sector_ships;
@@ -276,6 +277,9 @@ impl Plugin for NovaWorldBasePlugin {
                     // it; a served window is forgotten and every body's side
                     // follows its civilization's stance before the save.
                     economy::restock_thawed_traders,
+                    // A thawed station's PDC reserve catches up in the thaw's
+                    // frame, before the next fixed tick reloads from it.
+                    pdc_reserve::recharge_thawed_station_pdc_reserves,
                     stance::expire_stances,
                     stance::sync_civilization_sides,
                     jobs::post_station_boards,

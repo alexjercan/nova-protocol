@@ -1,5 +1,6 @@
 //! A living station on real catalog sections loses its last turret and turns
-//! into a dead station, and a frozen copy of it thaws dead with its post.
+//! into a dead station, and a frozen copy of it thaws dead with its post and
+//! its PDC reserve.
 
 use bevy::prelude::*;
 use nova_events::prelude::{
@@ -222,8 +223,24 @@ fn a_station_that_loses_its_last_turret_turns_into_a_dead_station() {
         .world()
         .get::<StationPost>(station)
         .expect("a dead station keeps its post");
+    let depleted = StationPdcReserve {
+        rounds: 1_234,
+        progress: 0.5,
+    };
+    app.world_mut().entity_mut(station).insert(depleted);
+    settle(&mut app);
+    assert_eq!(
+        app.world().get::<StationPdcReserve>(station),
+        Some(&depleted),
+        "a dead station's reserve does not recharge"
+    );
     let frozen = freeze_station(app.world(), station).expect("a settled station freezes");
     assert_eq!(frozen.post(), post, "the record carries the live post");
+    assert_eq!(
+        frozen.pdc_reserve(),
+        &depleted,
+        "the record carries the reserve"
+    );
     app.world_mut().entity_mut(station).despawn();
     let thawed = {
         let mut commands = app.world_mut().commands();
@@ -237,6 +254,11 @@ fn a_station_that_loses_its_last_turret_turns_into_a_dead_station() {
         app.world().get::<StationPost>(thawed),
         Some(&post),
         "the thawed station holds the post it froze with"
+    );
+    assert_eq!(
+        app.world().get::<StationPdcReserve>(thawed),
+        Some(&depleted),
+        "the thawed dead station holds the reserve it froze with"
     );
     let thawed_bridge = section(&app, thawed, "bridge");
     assert!(

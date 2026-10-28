@@ -57,7 +57,9 @@ pub use nova_gameplay::prelude::{
     StationBuilds, StationDesignId, StationMarker, StationServiceType, StationServices,
     StationStorage,
 };
-use nova_ship::prelude::{AISpaceshipMarker, SectionBuildConfig, ShipCapabilities, StationPost};
+use nova_ship::prelude::{
+    AISpaceshipMarker, SectionBuildConfig, ShipCapabilities, StationPdcReserve, StationPost,
+};
 
 use crate::objects::{
     parked_hulls::prelude::{
@@ -397,7 +399,8 @@ pub struct StationConfig {
 
 /// Build the station `design` on `entity` as `config` spawns it: the ship
 /// root with the design's stock and credits, plus [`StationMarker`], the
-/// design's [`StationServices`] and an empty [`StationStorage`]. The caller
+/// design's [`StationServices`], an empty [`StationStorage`] and a full
+/// [`StationPdcReserve`]. The caller
 /// resolves `config.design` to `design`. A living station is AI-driven and defends
 /// itself; a dead one has no driver, takes its loot marker and is Neutral.
 ///
@@ -446,6 +449,7 @@ pub fn station_scenario_object(
         StationServices(design.services.clone()),
         StationBuilds(design.builds.clone()),
         StationStorage::new(design.storage_cap_g),
+        StationPdcReserve::full(),
     ));
     // Its own insert: the spaceship bundle above already names the hull
     // `spaceship`, and one bundle may not carry a component twice.
@@ -532,8 +536,8 @@ fn station_capabilities(living: bool) -> ShipCapabilities {
 
 /// A station frozen with its cell: the services it offers, the hull record
 /// a ship freezes to, its storage, the hulls it holds (parked at its
-/// ports or coasting beside it for hire), whether the player owns it and
-/// the post it holds.
+/// ports or coasting beside it for hire), whether the player owns it, the
+/// post it holds and its PDC reserve.
 ///
 /// `owned` is the one record of ownership: the live [`OwnedStationMarker`]
 /// is frozen into it and thawed out of it, so a bought station stays the
@@ -551,6 +555,7 @@ pub struct FrozenStation {
     parked: Vec<FrozenParkedHull>,
     owned: bool,
     post: StationPost,
+    pdc_reserve: StationPdcReserve,
 }
 
 impl FrozenStation {
@@ -590,6 +595,11 @@ impl FrozenStation {
         self.owned
     }
 
+    /// The rounds the station keeps for its PDC turrets.
+    pub fn pdc_reserve(&self) -> &StationPdcReserve {
+        &self.pdc_reserve
+    }
+
     /// Every item id the station holds: its hull's, its storage's and its
     /// parked hulls'.
     pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
@@ -601,8 +611,8 @@ impl FrozenStation {
 }
 
 /// Freeze a station: its hull as [`freeze_ship`] records it, with its
-/// services, storage, parked hulls ([`freeze_parked_hulls`]) and whether it carries
-/// [`OwnedStationMarker`].
+/// services, storage, parked hulls ([`freeze_parked_hulls`]), whether it carries
+/// [`OwnedStationMarker`] and its [`StationPdcReserve`].
 ///
 /// # Errors
 ///
@@ -615,8 +625,8 @@ impl FrozenStation {
 /// # Panics
 ///
 /// On an entity that carries no [`StationMarker`], no [`StationServices`],
-/// no [`StationBuilds`] or no [`StationStorage`]: not a station root this
-/// module spawned.
+/// no [`StationBuilds`], no [`StationStorage`] or no [`StationPdcReserve`]:
+/// not a station root this module spawned.
 pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, UnsettledBody> {
     let root = world.entity(station);
     if !root.contains::<StationMarker>() {
@@ -636,6 +646,9 @@ pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, U
     let Some(storage) = root.get::<StationStorage>() else {
         panic!("freeze_station: station {station} has no storage");
     };
+    let Some(pdc_reserve) = root.get::<StationPdcReserve>() else {
+        panic!("freeze_station: station {station} has no PDC reserve");
+    };
     Ok(FrozenStation {
         services: services.0.clone(),
         builds: builds.0.clone(),
@@ -644,12 +657,14 @@ pub fn freeze_station(world: &World, station: Entity) -> Result<FrozenStation, U
         parked: freeze_parked_hulls(world, station)?,
         owned: root.contains::<OwnedStationMarker>(),
         post: *post,
+        pdc_reserve: *pdc_reserve,
     })
 }
 
 /// Rebuild a frozen station on `entity`, which the caller spawned with its
 /// pose, identity and parent. The hull thaws through [`thaw_ship`]; the
-/// marker, the services, the storage, the post, the parked hulls to park
+/// marker, the services, the storage, the post, the PDC reserve as it froze
+/// (`nova_world_base` catches up the play time it stood frozen), the parked hulls to park
 /// again ([`PendingParkedHulls`]) and, for an owned station,
 /// [`OwnedStationMarker`] land beside it. The caller inserts the
 /// velocity after this.
@@ -662,6 +677,7 @@ pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
         parked,
         owned,
         post,
+        pdc_reserve,
     } = frozen;
     let living = !ship.is_derelict();
     thaw_ship(entity, ship);
@@ -671,6 +687,7 @@ pub fn thaw_station(entity: &mut EntityCommands, frozen: FrozenStation) {
         StationBuilds(builds),
         storage,
         post,
+        pdc_reserve,
     ));
     entity.insert(station_type_name(living));
     if !parked.is_empty() {

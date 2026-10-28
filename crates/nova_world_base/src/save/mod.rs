@@ -791,6 +791,10 @@ fn check_saved_clock(state: &WorldSaveState) -> Result<(), String> {
                 FrozenBodyType::Ship(ship) => check_market(ship, &owner)?,
                 FrozenBodyType::Station(station) => {
                     check_market(station.ship(), &owner)?;
+                    station
+                        .pdc_reserve()
+                        .validate()
+                        .map_err(|fault| format!("{owner}: {fault}"))?;
                     for parked in station.parked() {
                         check_market(
                             parked.ship(),

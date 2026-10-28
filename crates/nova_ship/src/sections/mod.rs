@@ -246,6 +246,7 @@ impl Plugin for SpaceshipSectionPlugin {
 
         app.register_type::<ammo::SectionAmmo>();
         app.register_type::<ammo::SectionReload>();
+        app.register_type::<ammo::StationPdcReserve>();
         app.register_type::<hull_radius::prelude::HullRadius>();
         app.register_type::<hull_radius::prelude::HullEnvelopeRadius>();
         app.register_type::<hull_radius::prelude::TargetHitRadius>();
@@ -296,10 +297,16 @@ impl Plugin for SpaceshipSectionPlugin {
         // the same content), and without spawned scenes the rigs stay empty.
         app.add_plugins(section_animation::SectionAnimationPlugin);
         // A successful shot resets reload progress. Run the reload pass after
-        // every section fire system so the shot wins an exact completion tick.
+        // every section fire system so the shot wins an exact completion tick,
+        // and after this tick's station reserve recharge.
         app.add_systems(
             FixedUpdate,
-            ammo::tick_section_reload.after(SpaceshipSectionSystems),
+            (
+                ammo::recharge_station_pdc_reserve,
+                ammo::tick_section_reload,
+            )
+                .chain()
+                .after(SpaceshipSectionSystems),
         );
         app.add_plugins((
             hull_section::HullSectionPlugin {
