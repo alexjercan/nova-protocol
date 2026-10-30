@@ -140,11 +140,12 @@ first, so a role that a mod change removed shows `content changed`.
 
 ## Base start roles
 
-Each base kit is worth 3,000 cr at ask, not counting PDC rounds: the credits
-plus the other items at their `ask_cr`. A PDC-armed hull also carries 1,000
-`PdcRound` (4,000 cr at ask) in its shared hold, not per mount. So an armed
-kit is worth 6,000 to 6,200 cr at ask, and its rounds sell for up to 3,000 cr
-at their `bid_cr`.
+A kit's worth at ask is its credits plus its items at their `ask_cr`. Each
+unarmed kit is worth 3,000 cr. Each PDC-armed kit is worth 2,000 to 2,200 cr
+without its rounds. A PDC-armed hull also carries 1,000 `PdcRound` in its
+shared hold, not per mount. That is 10 whole lots of 100 at 10 cr each, so
+the rounds add 100 cr at ask and an armed kit is worth 2,100 to 2,300 cr. The
+rounds sell for 70 cr at their reference `bid_cr`.
 
 | id | hull | kit |
 |---|---|---|

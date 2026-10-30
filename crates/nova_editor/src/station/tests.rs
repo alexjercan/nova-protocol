@@ -46,6 +46,7 @@ fn items() -> GameItems {
         about: String::new(),
         category: ItemCategoryType::Parts,
         mass_g,
+        price_lot: 1,
         ask_cr: 1,
         bid_cr: 1,
     };

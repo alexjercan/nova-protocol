@@ -126,6 +126,9 @@ fn item_faults(item: &ItemDesign) -> Vec<String> {
     if item.mass_g == 0 {
         faults.push(format!("item '{id}' has a mass_g of 0"));
     }
+    if item.price_lot == 0 {
+        faults.push(format!("item '{id}' has a price_lot of 0"));
+    }
     if item.bid_cr > item.ask_cr {
         faults.push(format!(
             "item '{id}' has a bid_cr of {} above its ask_cr of {}",
@@ -169,6 +172,7 @@ mod tests {
             about: format!("{id} for tests."),
             category,
             mass_g,
+            price_lot: 1,
             ask_cr: 10,
             bid_cr: 5,
         }

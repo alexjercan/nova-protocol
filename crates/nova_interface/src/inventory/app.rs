@@ -13,6 +13,7 @@ use bevy::{
     input::mouse::MouseWheel,
     picking::hover::Hovered,
     prelude::*,
+    text::TextLayoutInfo,
     ui::InteractionDisabled,
     ui_widgets::{
         Activate, Button, Slider, SliderPrecision, SliderRange, SliderStep, SliderValue,
@@ -53,8 +54,9 @@ use crate::{
 pub(crate) const ROW_PX: f32 = 28.0;
 /// Width of the quantity column, in logical px: `x99999` at 13 px.
 const QTY_PX: f32 = 40.0;
-/// Width of the `Price` column, in logical px: a four-digit price at 12 px.
-const PRICE_PX: f32 = 48.0;
+/// Width of the `Price` column, in logical px: a four-digit price and a
+/// `/ 100` lot at 12 px.
+const PRICE_PX: f32 = 72.0;
 /// Width of the `Deal` column, in logical px: the `+100%` pill.
 const DEAL_PX: f32 = 44.0;
 /// Gap between the cells of a row and of its heading line, in logical px.
@@ -62,8 +64,9 @@ const CELL_GAP_PX: f32 = 6.0;
 /// Window width, in logical px, from which the Inventory stores lay out
 /// Own, Partner and Storage as three equal columns. Under it, with Storage
 /// drawn beside the partner, Storage stacks under Partner so the priced
-/// columns keep one-line rows with whole names: three equal columns at
-/// 1200 px leave a 9-character name, and at 1024 px none.
+/// columns keep one-line rows: three equal columns leave a priced row's name
+/// a few characters at 1200 px, and at 1024 px none. A name that still
+/// overflows ends in `...` ([`fit_inventory_row_names`]).
 const INVENTORY_STACK_SPLIT_PX: f32 = 1200.0;
 /// The Partner column's grid share of the height against 1.0 for Storage
 /// stacked under it: a 7-item board stays whole at 1024x768, and Storage
@@ -321,8 +324,11 @@ struct RowStack {
 /// A row's price cell and its `Deal` badge.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 struct RowPrice {
-    /// The price of one, in credits.
+    /// The price of one lot, in credits.
     cr: u32,
+    /// Items in the lot `cr` prices: one for most items, 100 for a PDC
+    /// round.
+    lot: u32,
     /// The price against the reference on the same side, by
     /// [`delta_percent`].
     delta_percent: i32,
@@ -996,16 +1002,23 @@ fn about_box(item: &mut ChildSpawnerCommands) {
     });
 }
 
-/// An ask and a bid as the inspector shows them.
-fn price_text(ask_cr: u32, bid_cr: u32) -> String {
-    format!("{} / {}", cr_text(ask_cr), cr_text(bid_cr))
+/// An ask and a bid as the inspector shows them: `4 cr / 3 cr`, or
+/// `10 cr / 100 | 7 cr / 100` for a lot above one.
+fn price_text(price: ItemPrice) -> String {
+    let separator = if price.lot == 1 { " / " } else { " | " };
+    format!(
+        "{}{separator}{}",
+        lot_cr_text(price.ask_cr, price.lot),
+        lot_cr_text(price.bid_cr, price.lot)
+    )
 }
 
-/// A price with its percent off the reference: `33 cr (-17%)`.
-fn priced_text(price_cr: u32, reference_cr: u32) -> String {
+/// A lot price with its percent off the reference: `33 cr (-17%)`, or
+/// `10 cr / 100 (+0%)` for a lot above one.
+fn priced_text(price_cr: u32, reference_cr: u32, lot: u32) -> String {
     format!(
         "{} ({:+}%)",
-        cr_text(price_cr),
+        lot_cr_text(price_cr, lot),
         delta_percent(price_cr, reference_cr)
     )
 }
@@ -1289,6 +1302,7 @@ fn inventory_row(
             cell.spawn((
                 themed_label(&design.name, 13.0, UiColor::Body),
                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                InventoryRowName(design.name.clone()),
                 Pickable::IGNORE,
             ));
         });
@@ -1302,12 +1316,93 @@ fn inventory_row(
         if let Some(price) = price {
             row.spawn(fixed_cell(PRICE_PX)).with_children(|cell| {
                 spawn_credit_figure(cell, icons, price.cr.into(), 12.0, UiColor::Accent, ());
+                if price.lot > 1 {
+                    cell.spawn((
+                        themed_label(&format!(" / {}", cr_digits(price.lot.into())), 12.0, tone),
+                        TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                        Pickable::IGNORE,
+                    ));
+                }
             });
             row.spawn(fixed_cell(DEAL_PX)).with_children(|cell| {
                 cell.spawn((deal_badge(price), Pickable::IGNORE));
             });
         }
     });
+}
+
+/// The full item name a row's Name label shortens to fit its cell.
+#[derive(Component)]
+pub(crate) struct InventoryRowName(String);
+
+/// What a shortened row name ends in.
+const ROW_NAME_ELLIPSIS: &str = "...";
+
+/// Fit each row name to its cell with [`fitted_row_name`]. It reads this
+/// frame's text layout, so a shortened or restored name draws one frame
+/// after its row spawns or its cell resizes.
+pub(crate) fn fit_inventory_row_names(
+    mut names: Query<(
+        &InventoryRowName,
+        &mut Text,
+        &TextLayoutInfo,
+        &ComputedNode,
+        &ChildOf,
+    )>,
+    cells: Query<&ComputedNode>,
+) {
+    for (name, mut text, layout, node, child_of) in &mut names {
+        let Ok(cell) = cells.get(child_of.parent()) else {
+            continue;
+        };
+        // Compare in physical px, where the layout rounds the width up
+        // before it stores it in logical px; the round undoes the float
+        // error of that conversion.
+        let shown_width = (layout.size.x / node.inverse_scale_factor()).round();
+        let Some(fitted) =
+            fitted_row_name(&name.0, &text.0, shown_width, cell.content_box().size().x)
+        else {
+            continue;
+        };
+        if text.0 != fitted {
+            text.0 = fitted;
+        }
+    }
+}
+
+/// The name a `width` cell shows for `full`, given the `shown` name laid out
+/// `shown_width` wide, or `None` to keep `shown`. Both widths are physical px.
+///
+/// The row font is monospace (Iosevka Term), so one advance is the laid-out
+/// width over the shown chars. The layout rounds that width up, so the
+/// advance is never under the true one and differs a little by length. An
+/// overflowing name shortens to the longest prefix that fits with
+/// [`ROW_NAME_ELLIPSIS`] after it, at least one char shorter. A shortened
+/// name grows back only to the whole `full` name, once its rounded-up width
+/// fits: growing to a longer prefix could alternate between two lengths
+/// whose rounded widths fall on either side of the cell.
+pub(crate) fn fitted_row_name(
+    full: &str,
+    shown: &str,
+    shown_width: f32,
+    width: f32,
+) -> Option<String> {
+    let shown_chars = shown.chars().count();
+    // Not laid out yet: no advance to read.
+    if shown_chars == 0 || shown_width <= 0.0 {
+        return None;
+    }
+    let advance = shown_width / shown_chars as f32;
+    if shown_width > width {
+        let fits = ((width / advance).floor().max(0.0) as usize).min(shown_chars - 1);
+        let kept: String = full
+            .chars()
+            .take(fits.saturating_sub(ROW_NAME_ELLIPSIS.len()))
+            .collect();
+        return Some(format!("{}{ROW_NAME_ELLIPSIS}", kept.trim_end()));
+    }
+    (shown != full && (full.chars().count() as f32 * advance).ceil() <= width)
+        .then(|| full.to_string())
 }
 
 /// Show the clicked category, or every category for `All`, with one click if
@@ -1985,6 +2080,7 @@ impl InventoryShips<'_, '_> {
         };
         Some(RowPrice {
             cr,
+            lot: reference.lot,
             delta_percent: delta_percent(cr, reference_cr),
             trade,
         })
@@ -2787,6 +2883,7 @@ fn trade_refusal_text(
         ItemTradeRefusalType::NotTrader => format!("Refused: {partner_title} does not trade"),
         ItemTradeRefusalType::NoQuantity => "Refused: enter a quantity".to_string(),
         ItemTradeRefusalType::ZeroQuantity => "Refused: quantity is zero".to_string(),
+        ItemTradeRefusalType::ZeroCredits => "Refused: sale pays 0 cr".to_string(),
         ItemTradeRefusalType::Short { held } => {
             format!("Refused: only {held} {label} in {seller_title}")
         }
@@ -3752,27 +3849,24 @@ pub(crate) fn update_inventory_panel(
                 Err(text) => (text.clone(), UiColor::Danger),
             },
             (InventoryInspectorField::PriceReference, ..) => match &priced {
-                Some((reference, ..)) => (
-                    price_text(reference.ask_cr, reference.bid_cr),
-                    UiColor::Body,
-                ),
+                Some((reference, ..)) => (price_text(*reference), UiColor::Body),
                 None => continue,
             },
             (InventoryInspectorField::PricePays, ..) => match &priced {
                 Some((reference, quote, ..)) => (
-                    priced_text(quote.price.bid_cr, reference.bid_cr),
+                    priced_text(quote.price.bid_cr, reference.bid_cr, reference.lot),
                     UiColor::Primary,
                 ),
                 None => continue,
             },
             (InventoryInspectorField::PriceAsks, ..) => match &priced {
                 Some((reference, _, TradePriceType::Market(price), _)) => (
-                    priced_text(price.ask_cr, reference.ask_cr),
+                    priced_text(price.ask_cr, reference.ask_cr, reference.lot),
                     UiColor::Primary,
                 ),
                 // An owned station sells its stock at its bid.
                 Some((_, _, TradePriceType::Owned(price), _)) => (
-                    format!("{} at bid, yours", cr_text(price.bid_cr)),
+                    format!("{} at bid, yours", lot_cr_text(price.bid_cr, price.lot)),
                     UiColor::Primary,
                 ),
                 None => continue,

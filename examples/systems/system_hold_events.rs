@@ -625,7 +625,14 @@ mod walk {
     /// One `OnTraded` with the tender as subject and the player as the other
     /// party, and one `OnCreditsChanged` per party with the signed delta.
     fn assert_the_trade(world: &mut World) {
-        let price = TENDER_RATIONS * world.resource::<GameItems>().design(&RATIONS.into()).ask_cr;
+        let price = u32::try_from(
+            world
+                .resource::<GameItems>()
+                .design(&RATIONS.into())
+                .reference_price()
+                .buy_cr(TENDER_RATIONS),
+        )
+        .expect("system hold events: the tender's Buy fits a u32 balance");
         let watch = world.resource::<HoldWatch>();
         let traded = watch.named("ontraded");
         assert_eq!(traded.len(), 1, "one OnTraded: {traded:?}");

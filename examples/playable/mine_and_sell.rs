@@ -654,7 +654,8 @@ mod walk {
         assert_eq!(check_ledger(world, "after the Sell"), collected);
         let items = world.resource::<GameItems>().clone();
         let ore_id = ORE.into();
-        let price = collected * items.design(&ore_id).bid_cr;
+        let price = u32::try_from(items.design(&ore_id).reference_price().sell_cr(collected))
+            .expect("mine_and_sell: the sale fits a u32 balance");
         let own = inventory(world, PLAYER_ID);
         let partner = inventory(world, TRADER_ID);
         assert!(own.is_empty(), "the tug's hold is empty after the Sell");
@@ -685,7 +686,7 @@ mod walk {
         Some(format!(
             "Sold {collected} {} to {TRADER_NAME} for {} cr",
             design.name,
-            collected * design.bid_cr
+            design.reference_price().sell_cr(collected)
         ))
     }
 

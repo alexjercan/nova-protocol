@@ -12,7 +12,7 @@ use bevy::{
     ui::InteractionDisabled,
     ui_widgets::{Activate, Button},
 };
-use nova_gameplay::prelude::cr_text;
+use nova_gameplay::prelude::{cr_text, lot_cr_text};
 use nova_ui::{
     prelude::{button, panel, ButtonSpec, UiText},
     theme,
@@ -637,7 +637,7 @@ fn recipe_row_text(item: &GalleryRecipeItem) -> RecipeRowText {
         lines.push(format!(
             "Bought {} at {}, {}",
             supply.bought(),
-            cr_text(supply.ask_cr()),
+            lot_cr_text(supply.price().ask_cr, supply.price().lot),
             cr_text(supply.total_cr())
         ));
     }
@@ -1176,6 +1176,14 @@ mod tests {
         }
     }
 
+    fn at(ask_cr: u32) -> nova_gameplay::prelude::ItemPrice {
+        nova_gameplay::prelude::ItemPrice {
+            ask_cr,
+            bid_cr: ask_cr,
+            lot: 1,
+        }
+    }
+
     /// A recipe row says how many of the count the holds cover and what the
     /// bought items cost together; its tooltip names the count, each source
     /// that applies with the price of one and of all, and the missing count.
@@ -1183,7 +1191,7 @@ mod tests {
     #[test]
     fn a_recipe_row_reads_its_coverage_and_the_bought_total() {
         assert_eq!(
-            recipe_row_text(&item(2, Some(GalleryRecipeSupply::new(2, 2, 0, 0, 20)))),
+            recipe_row_text(&item(2, Some(GalleryRecipeSupply::new(2, 2, 0, 0, at(20))))),
             RecipeRowText {
                 quantity: "2/2".to_string(),
                 price: None,
@@ -1191,7 +1199,7 @@ mod tests {
             }
         );
         assert_eq!(
-            recipe_row_text(&item(3, Some(GalleryRecipeSupply::new(3, 1, 2, 0, 20)))),
+            recipe_row_text(&item(3, Some(GalleryRecipeSupply::new(3, 1, 2, 0, at(20))))),
             RecipeRowText {
                 quantity: "3/3".to_string(),
                 price: Some("40 cr".to_string()),
@@ -1199,7 +1207,7 @@ mod tests {
             }
         );
         assert_eq!(
-            recipe_row_text(&item(2, Some(GalleryRecipeSupply::new(2, 0, 1, 1, 20)))),
+            recipe_row_text(&item(2, Some(GalleryRecipeSupply::new(2, 0, 1, 1, at(20))))),
             RecipeRowText {
                 quantity: "1/2".to_string(),
                 price: Some("20 cr".to_string()),

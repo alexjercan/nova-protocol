@@ -242,6 +242,7 @@ eleven item kinds:
         about: "A sealed sensor core.",
         category: Parts,
         mass_g: 5000,
+        price_lot: 1,
         ask_cr: 60,
         bid_cr: 45,
     )),
@@ -251,18 +252,22 @@ eleven item kinds:
 An `Item` adds a new entry to the item catalog, or replaces one your mod
 depends on. Every field is required: `id`, `name` and `about` are not blank;
 `category` is one of `Raw`, `Repair`, `Ammo`, `Food`, `Parts`; `mass_g` is
-above 0; `bid_cr` is at most `ask_cr`. Any ship's stock, a cargo canister, or
-a trade may carry the id, mod items included. The base game must define ten
-role ids that the game itself uses: `HullPlate` feeds a repair, the
-ammunition feeds a weapon's reload, the ores are mining yield, and generated
-ship holds draw the two trade goods `Rations` and `SalvagedParts`. A role id
-keeps its category: `HullPlate` is `Repair`; `PdcRound`, `RailSlug` and
-`Torpedo` are `Ammo`; `StoneOre`, `IronOre`, `WaterIce` and `CarbonOre` are
-`Raw`; `Rations` is `Food`; `SalvagedParts` is `Parts`. Every item fits one
-cargo canister, so its `mass_g` is at most `200000`. A mod that depends on
-the base game may replace a role id whole, with its own `name`, `about`,
-`mass_g`, `ask_cr` and `bid_cr`, but not another `category`. A replacement
-that breaks either rule is an error. An id two unrelated packs both define is refused in both, whatever
+above 0; `price_lot` is above 0; `bid_cr` is at most `ask_cr`. `ask_cr` and
+`bid_cr` price one lot of `price_lot` items, not one item: a trade pays its
+share, rounded up for a Buy and down for a Sell, see
+[Reference price](../prices/#how-a-trader-prices). Any ship's stock, a cargo
+canister, or a trade may carry the id, mod items included. The base game
+must define ten role ids that the game itself uses: `HullPlate` feeds a
+repair, the ammunition feeds a weapon's reload, the ores are mining yield,
+and generated ship holds draw the two trade goods `Rations` and
+`SalvagedParts`. A role id keeps its category: `HullPlate` is `Repair`;
+`PdcRound`, `RailSlug` and `Torpedo` are `Ammo`; `StoneOre`, `IronOre`,
+`WaterIce` and `CarbonOre` are `Raw`; `Rations` is `Food`; `SalvagedParts`
+is `Parts`. Every item fits one cargo canister, so its `mass_g` is at most
+`200000`. A mod that depends on the base game may replace a role id whole,
+with its own `name`, `about`, `mass_g`, `price_lot`, `ask_cr` and `bid_cr`,
+but not another `category`. A replacement that breaks either rule is an
+error. An id two unrelated packs both define is refused in both, whatever
 load order; a pack that depends on the id's owner may replace it whole. See
 [Scenario objects](../objects/#inventory) for the item table and the stock
 format.

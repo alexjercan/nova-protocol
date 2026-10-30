@@ -15,6 +15,15 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
 
+### Gameplay & Flight
+
+- The base PDC round now prices 10 cr ask / 7 cr bid per 100 rounds. A Buy rounds its lot share up, a Sell rounds down, and a Sell that would earn 0 cr is refused.
+- A newly generated station that stocks PDC rounds now opens with at least 2,000 of them; its other stock is unchanged.
+
+### Modding & Mod Portal
+
+- **(breaking)** `Item` content now requires `price_lot`, the item count one `ask_cr`/`bid_cr` prices: 100 for a PDC round, 1 for other base items. An item without it fails lint, then load.
+
 ## [0.16.0] - 2026-10-28
 
 ### Gameplay & Flight

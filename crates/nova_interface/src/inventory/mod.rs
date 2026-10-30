@@ -144,6 +144,11 @@ impl Plugin for InventoryPanePlugin {
                 .chain()
                 .in_set(InventoryPaneSystems),
         );
+        // Reads the frame's text layout, which the UI writes in PostLayout.
+        app.add_systems(
+            PostUpdate,
+            fit_inventory_row_names.after(bevy::ui::UiSystems::PostLayout),
+        );
     }
 }
 

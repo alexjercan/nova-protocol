@@ -1284,7 +1284,7 @@ pub fn station_job_offers(
                     } else {
                         pool[at]
                     };
-                    let goods = u64::from(count) * u64::from(items.design(item).ask_cr) * 3 / 2;
+                    let goods = items.design(item).reference_price().buy_cr(count) * 3 / 2;
                     (
                         JobType::Procure {
                             item: item.clone(),
@@ -1301,7 +1301,7 @@ pub fn station_job_offers(
                         .filter(|(_, count)| *count > 0)
                         .collect();
                     let (item, count) = stacks[(pick / 7) as usize % stacks.len()].clone();
-                    let goods = u64::from(count) * u64::from(items.design(&item).ask_cr) * 2;
+                    let goods = items.design(&item).reference_price().buy_cr(count) * 2;
                     (
                         JobType::Recover {
                             wreck: wreck.id.clone(),
@@ -1708,6 +1708,7 @@ mod tests {
             about: String::new(),
             category,
             mass_g: 1_000,
+            price_lot: 1,
             ask_cr,
             bid_cr: ask_cr * 3 / 4,
         }
@@ -1855,9 +1856,11 @@ mod tests {
                         "an asteroid cell asks for raw material"
                     );
                     assert!((PROCURE_COUNT.0..=PROCURE_COUNT.1).contains(count));
-                    let goods = count * items.design(item).ask_cr * 3 / 2;
+                    let goods = items.design(item).reference_price().buy_cr(*count) * 3 / 2;
                     assert!(
-                        job.reward_cr > goods && job.reward_cr <= goods + FEE_STEPS * FEE_STEP_CR,
+                        u64::from(job.reward_cr) > goods
+                            && u64::from(job.reward_cr)
+                                <= goods + u64::from(FEE_STEPS * FEE_STEP_CR),
                         "the reward pays the goods and a fee: {job:?}"
                     );
                     seen.push(item.clone());
@@ -1930,11 +1933,9 @@ mod tests {
                         let source = field.wrecks.iter().find(|w| w.id == *wreck).unwrap();
                         assert_eq!(wreck_name, &source.name);
                         assert!(source.stacks.contains(&(item.clone(), *count)));
-                        assert_eq!(
-                            job.reward_cr,
-                            count * items.design(item).ask_cr * 2 + {
-                                job.reward_cr - count * items.design(item).ask_cr * 2
-                            }
+                        assert!(
+                            u64::from(job.reward_cr)
+                                >= items.design(item).reference_price().buy_cr(*count) * 2
                         );
                         assert!(!named.contains(wreck), "a wreck is named once per board");
                         named.push(wreck.clone());
@@ -3044,6 +3045,7 @@ mod tests {
             about: String::new(),
             category: ItemCategoryType::Raw,
             mass_g: 1_000,
+            price_lot: 1,
             ask_cr: 16,
             bid_cr: 12,
         }]);

@@ -40,19 +40,19 @@ pub mod prelude {
     pub use nova_events::prelude::{CreditChangeCauseType, ItemTradeType};
 
     pub use super::{
-        cr_digits, cr_text, kg_text, plan_credit_take, plan_hull_strip, plan_item_jettison,
-        plan_item_storage, plan_item_trade, plan_item_transfer, plan_loot_take, plan_plate_repair,
-        plan_recipe_payment, plan_section_rebuild, plan_section_yield, strip_duration_secs,
-        BuildRecipe, CargoCanister, CargoCanisterIdAllocator, CargoCanisterRuntimeId,
-        CreditTakeRefusalType, GameItems, HullStrip, HullStripPartner, HullStripPauseType,
-        HullStripRefusalType, ItemCategoryType, ItemDesign, ItemDesignId, ItemJettison,
-        ItemJettisonRefusalType, ItemRoleType, ItemStorageRefusalType, ItemStorageType, ItemTrade,
-        ItemTradeRefusalType, ItemTransferRefusalType, ItemTransferType, LootTake,
-        LootableShipMarker, PlateRepair, PlateRepairRefusalType, RecipePayment,
-        RecipePaymentRefusalType, SectionRebuildRefusalType, ShipCredits, ShipInventory,
-        ShipInventoryReport, ShipInventoryReports, ShipInventoryStock, StationPartner,
-        StationStorage, StripTarget, TradePriceType, CARGO_CANISTER_MAX_MASS_G, HULL_PLATE_HEALTH,
-        STRIP_MIN_SECS, STRIP_SECS_PER_PART,
+        cr_digits, cr_text, kg_text, lot_cr_text, plan_credit_take, plan_hull_strip,
+        plan_item_jettison, plan_item_storage, plan_item_trade, plan_item_transfer, plan_loot_take,
+        plan_plate_repair, plan_recipe_payment, plan_section_rebuild, plan_section_yield,
+        strip_duration_secs, BuildRecipe, CargoCanister, CargoCanisterIdAllocator,
+        CargoCanisterRuntimeId, CreditTakeRefusalType, GameItems, HullStrip, HullStripPartner,
+        HullStripPauseType, HullStripRefusalType, ItemCategoryType, ItemDesign, ItemDesignId,
+        ItemJettison, ItemJettisonRefusalType, ItemRoleType, ItemStorageRefusalType,
+        ItemStorageType, ItemTrade, ItemTradeRefusalType, ItemTransferRefusalType,
+        ItemTransferType, LootTake, LootableShipMarker, PlateRepair, PlateRepairRefusalType,
+        RecipePayment, RecipePaymentRefusalType, SectionRebuildRefusalType, ShipCredits,
+        ShipInventory, ShipInventoryReport, ShipInventoryReports, ShipInventoryStock,
+        StationPartner, StationStorage, StripTarget, TradePriceType, CARGO_CANISTER_MAX_MASS_G,
+        HULL_PLATE_HEALTH, STRIP_MIN_SECS, STRIP_SECS_PER_PART,
     };
 }
 
@@ -197,11 +197,16 @@ pub struct ItemDesign {
     /// Fixed mass of one item in grams, above zero. Grams keep capacity and
     /// conservation arithmetic exact for items lighter than a kilogram.
     pub mass_g: u32,
-    /// Credits a trader asks for one item: what a Buy pays.
+    /// How many items one [`ask_cr`](Self::ask_cr) and
+    /// [`bid_cr`](Self::bid_cr) price, above zero: 100 for a PDC round,
+    /// whose single round is worth less than a credit, 1 for most items.
+    pub price_lot: u32,
+    /// Credits a trader asks for one lot of [`price_lot`](Self::price_lot)
+    /// items: what a Buy pays.
     pub ask_cr: u32,
-    /// Credits a trader bids for one item: what a Sell earns. At most
-    /// [`ask_cr`](Self::ask_cr), so buying and selling back never gains
-    /// credits.
+    /// Credits a trader bids for one lot of [`price_lot`](Self::price_lot)
+    /// items: what a Sell earns. At most [`ask_cr`](Self::ask_cr), so buying
+    /// and selling back never gains credits.
     pub bid_cr: u32,
 }
 
@@ -299,6 +304,16 @@ pub fn cr_digits(credits: u64) -> String {
 /// Credits as sentences and notes write them: `22,980 cr`.
 pub fn cr_text(credits: impl Into<u64>) -> String {
     format!("{} cr", cr_digits(credits.into()))
+}
+
+/// A lot price as labels write it: `4 cr` for a lot of one, `10 cr / 100`
+/// for a larger lot.
+pub fn lot_cr_text(credits: u32, lot: u32) -> String {
+    if lot == 1 {
+        cr_text(credits)
+    } else {
+        format!("{} / {}", cr_text(credits), cr_digits(lot.into()))
+    }
 }
 
 /// What an item is for. There is no fuel category: thrust never consumes
@@ -894,6 +909,9 @@ pub enum ItemTradeRefusalType {
     NoQuantity,
     /// A quantity of zero.
     ZeroQuantity,
+    /// A Sell of a quantity whose share of a price lot earns no credit,
+    /// see [`ItemPrice::sell_cr`]: the items never move for nothing.
+    ZeroCredits,
     /// The seller carries fewer than the quantity.
     Short {
         /// What the seller carries.
@@ -930,10 +948,11 @@ pub enum TradePriceType {
 ///
 /// `prices` is `None` when the partner does not trade: it is neutralized or
 /// carries [`LootableShipMarker`], or it is a station that offers no Trade.
-/// A Buy moves items from the partner to the player at the ask each, or at
-/// the bid from a station the player owns ([`TradePriceType::Owned`]); a
-/// Sell moves them from the player to the partner at the bid each. The whole
-/// quantity trades at the one unit price. Checks run in
+/// A Buy moves items from the partner to the player at the ask, or at the
+/// bid from a station the player owns ([`TradePriceType::Owned`]), rounded
+/// up by [`ItemPrice::buy_cr`]; a Sell moves them from the player to the
+/// partner at the bid, rounded down by [`ItemPrice::sell_cr`]. The whole
+/// quantity trades at the one lot price. Checks run in
 /// [`ItemTradeRefusalType`] order, and a refusal changes nothing. `item`
 /// resolves in `items`.
 #[expect(
@@ -957,14 +976,24 @@ pub fn plan_item_trade(
         return Err(ItemTradeRefusalType::ZeroQuantity);
     }
     let design = items.design(item);
-    let (ask_cr, bid_cr) = match prices {
-        TradePriceType::Market(price) => (price.ask_cr, price.bid_cr),
-        TradePriceType::Owned(price) => (price.bid_cr, price.bid_cr),
+    let (seller, buyer, buyer_cr, seller_cr, price) = match (trade, prices) {
+        (ItemTradeType::Buy, TradePriceType::Market(price)) => {
+            (partner, own, own_cr, partner_cr, price.buy_cr(quantity))
+        }
+        (ItemTradeType::Buy, TradePriceType::Owned(price)) => {
+            let at_bid = ItemPrice {
+                ask_cr: price.bid_cr,
+                ..price
+            };
+            (partner, own, own_cr, partner_cr, at_bid.buy_cr(quantity))
+        }
+        (ItemTradeType::Sell, TradePriceType::Market(price) | TradePriceType::Owned(price)) => {
+            (own, partner, partner_cr, own_cr, price.sell_cr(quantity))
+        }
     };
-    let (seller, buyer, buyer_cr, seller_cr, unit_cr) = match trade {
-        ItemTradeType::Buy => (partner, own, own_cr, partner_cr, ask_cr),
-        ItemTradeType::Sell => (own, partner, partner_cr, own_cr, bid_cr),
-    };
+    if trade == ItemTradeType::Sell && price == 0 {
+        return Err(ItemTradeRefusalType::ZeroCredits);
+    }
     let held = seller.count(item);
     if quantity > held {
         return Err(ItemTradeRefusalType::Short { held });
@@ -973,7 +1002,6 @@ pub fn plan_item_trade(
     if design.stack_mass_g(quantity) > u64::from(free_g) {
         return Err(ItemTradeRefusalType::NoRoom { free_g });
     }
-    let price = u64::from(quantity) * u64::from(unit_cr);
     if price > u64::from(buyer_cr) {
         return Err(ItemTradeRefusalType::NoCredits { credits: buyer_cr });
     }
@@ -1515,7 +1543,8 @@ pub struct BuildRecipe {
 
 impl BuildRecipe {
     /// The recipe at ask: its credits plus every part at
-    /// [`ItemDesign::ask_cr`]. Wide so no authored count overflows it.
+    /// [`ItemPrice::buy_cr`] of its reference price. Wide so no authored
+    /// count overflows it.
     ///
     /// # Panics
     ///
@@ -1525,7 +1554,7 @@ impl BuildRecipe {
             + self
                 .parts
                 .iter()
-                .map(|(item, count)| u64::from(*count) * u64::from(items.design(item).ask_cr))
+                .map(|(item, count)| items.design(item).reference_price().buy_cr(*count))
                 .sum::<u64>()
     }
 
@@ -1556,14 +1585,14 @@ impl BuildRecipe {
     }
 
     /// What a strip returns at bid: [`Self::strip_parts`] at
-    /// [`ItemDesign::bid_cr`].
+    /// [`ItemPrice::sell_cr`] of each reference price.
     ///
     /// # Panics
     ///
     /// When `items` lacks a part; content lint refuses that recipe first.
     pub fn strip_value_cr(&self, items: &GameItems) -> u64 {
         self.strip_parts()
-            .map(|(item, count)| u64::from(count) * u64::from(items.design(item).bid_cr))
+            .map(|(item, count)| items.design(item).reference_price().sell_cr(count))
             .sum()
     }
 }
@@ -1806,9 +1835,10 @@ pub enum RecipePaymentRefusalType {
 /// is `stock_cr`, from the ship's `own` hold and `own_cr` balance.
 ///
 /// Parts come from `own` first; the rest are bought from `stock` at
-/// [`ItemDesign::ask_cr`]. The price is the recipe's credits plus the bought
-/// parts. Checks run in [`RecipePaymentRefusalType`] order. Every part
-/// resolves in `items`. The one payment rule a rebuild and a swap share.
+/// [`ItemPrice::buy_cr`] of the reference price. The price is the recipe's
+/// credits plus the bought parts. Checks run in [`RecipePaymentRefusalType`]
+/// order. Every part resolves in `items`. The one payment rule a rebuild and
+/// a swap share.
 pub fn plan_recipe_payment(
     items: &GameItems,
     recipe: &BuildRecipe,
@@ -1835,7 +1865,7 @@ pub fn plan_recipe_payment(
         }
         if missing > 0 {
             bought.insert(item.clone(), missing);
-            price += u64::from(missing) * u64::from(items.design(item).ask_cr);
+            price += items.design(item).reference_price().buy_cr(missing);
         }
     }
     if price > u64::from(own_cr) {
@@ -2254,6 +2284,85 @@ mod transfer_tests {
         assert_eq!(own.used_g(&items), 200_000);
         assert_eq!(own.free_g(&items), 200_000);
         assert!(partner.is_empty());
+    }
+
+    /// PDC rounds trade by the lot of 100: a Buy of any count rounds its
+    /// credits up, a Sell rounds them down, and an owned station's Buy pays
+    /// its bid rounded up.
+    #[test]
+    fn a_pdc_trade_pays_its_share_of_the_lot_price() {
+        let items = crate::test_support::test_items();
+        use ItemTradeType::*;
+        let round = ItemDesignId::from(ItemRoleType::PdcRound);
+        let price = items.role(ItemRoleType::PdcRound).reference_price();
+        let rounds = |count| ShipInventory::new(&items, 1_000_000, [(round.clone(), count)]);
+        let (own, partner) = (rounds(150), rounds(3_000));
+        let plan = |trade, prices, quantity| {
+            plan_item_trade(
+                &items,
+                trade,
+                Some(prices),
+                &round,
+                Some(quantity),
+                &own,
+                1_000,
+                &partner,
+                1_000,
+            )
+        };
+        let traded = |trade, prices, quantity| plan(trade, prices, quantity).map(|t| t.price_cr);
+        let market = TradePriceType::Market(price);
+        let owned = TradePriceType::Owned(price);
+
+        assert_eq!(traded(Buy, market, 1), Ok(1));
+        assert_eq!(traded(Buy, market, 100), Ok(10));
+        assert_eq!(traded(Buy, market, 2_000), Ok(200));
+        assert_eq!(traded(Buy, owned, 1), Ok(1));
+        assert_eq!(traded(Buy, owned, 150), Ok(11));
+        assert_eq!(traded(Sell, market, 15), Ok(1));
+        assert_eq!(traded(Sell, market, 150), Ok(10));
+        assert_eq!(traded(Sell, owned, 100), Ok(7));
+    }
+
+    /// A Sell whose share of the lot price rounds down to no credit is
+    /// refused before the stock, room and credit checks: the rounds never
+    /// move for nothing.
+    #[test]
+    fn a_sale_that_earns_no_credit_is_refused() {
+        let items = crate::test_support::test_items();
+        let round = ItemDesignId::from(ItemRoleType::PdcRound);
+        let price = items.role(ItemRoleType::PdcRound).reference_price();
+        let own = ShipInventory::new(&items, 1_000_000, [(round.clone(), 15)]);
+        let room = ShipInventory::new(&items, 1_000_000, []);
+        let full = ShipInventory::default();
+        let sell = |quantity, partner: &ShipInventory, partner_cr| {
+            plan_item_trade(
+                &items,
+                ItemTradeType::Sell,
+                Some(TradePriceType::Market(price)),
+                &round,
+                Some(quantity),
+                &own,
+                0,
+                partner,
+                partner_cr,
+            )
+        };
+        assert_eq!(
+            sell(14, &room, 1_000),
+            Err(ItemTradeRefusalType::ZeroCredits)
+        );
+        assert_eq!(sell(1, &full, 0), Err(ItemTradeRefusalType::ZeroCredits));
+        assert_eq!(
+            sell(15, &room, 1_000).map(|trade| trade.price_cr),
+            Ok(1),
+            "15 rounds earn the first credit"
+        );
+        assert_eq!(
+            sell(0, &room, 1_000),
+            Err(ItemTradeRefusalType::ZeroQuantity),
+            "a zero quantity is refused first"
+        );
     }
 
     #[test]

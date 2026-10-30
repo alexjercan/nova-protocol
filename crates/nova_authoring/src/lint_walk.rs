@@ -1369,6 +1369,7 @@ mod tests {
                 about: "A fixture item.".to_string(),
                 category: ItemCategoryType::Parts,
                 mass_g: 1_000,
+                price_lot: 1,
                 ask_cr: 10,
                 bid_cr: 5,
             })

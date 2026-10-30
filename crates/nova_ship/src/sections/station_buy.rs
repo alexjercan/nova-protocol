@@ -63,8 +63,9 @@ pub const STATION_OWNERSHIP_FACTOR: (u64, u64) = (2, 1);
 
 /// What a station is worth at ask, times [`STATION_OWNERSHIP_FACTOR`],
 /// rounded down: every live section's recipe ([`hull_price_cr`]), every
-/// stack of its hold at [`ItemDesign::ask_cr`](nova_gameplay::prelude::ItemDesign)
-/// and its credits. Wide so no station overflows it.
+/// stack of its hold at the ask of its reference price
+/// ([`ItemPrice::buy_cr`](nova_gameplay::prelude::ItemPrice::buy_cr)) and its
+/// credits. Wide so no station overflows it.
 pub fn station_price_cr<'a>(
     items: &GameItems,
     recipes: impl IntoIterator<Item = &'a BuildRecipe>,
@@ -73,7 +74,7 @@ pub fn station_price_cr<'a>(
 ) -> u64 {
     let stock_cr: u64 = stock
         .stacks()
-        .map(|(item, count)| u64::from(count) * u64::from(items.design(item).ask_cr))
+        .map(|(item, count)| items.design(item).reference_price().buy_cr(count))
         .sum();
     let (numerator, denominator) = STATION_OWNERSHIP_FACTOR;
     (hull_price_cr(items, recipes) + stock_cr + u64::from(credits_cr)).saturating_mul(numerator)

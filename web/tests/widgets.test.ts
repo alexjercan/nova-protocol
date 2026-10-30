@@ -1179,6 +1179,7 @@ console.log("widgets: the corridor scope reproduces the stand bank");
                 "[\\d_]+",
                 "(\\d+)",
                 "(\\d+)",
+                "(\\d+)",
             ].map((part, at) =>
                 at === index ? part : part.replace(/[()]/g, "")
             );
@@ -1192,8 +1193,9 @@ console.log("widgets: the corridor scope reproduces the stand bank");
         };
         assert.equal(item.name, field(0), `${item.id} name`);
         assert.equal(item.category, field(2), `${item.id} category`);
-        assert.equal(item.askCr, Number(field(4)), `${item.id} ask`);
-        assert.equal(item.bidCr, Number(field(5)), `${item.id} bid`);
+        assert.equal(item.priceLot, Number(field(4)), `${item.id} lot`);
+        assert.equal(item.askCr, Number(field(5)), `${item.id} ask`);
+        assert.equal(item.bidCr, Number(field(6)), `${item.id} bid`);
     }
     assert.equal(PRICE_ITEMS.length, 10, "the ten ItemRoleType items");
 }
@@ -1210,8 +1212,8 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     const starved = priceFactors("PdcRound", "RockOnly", "Civilian", 0);
     assert.deepEqual(
         [starved.askCr, starved.bidCr],
-        [6, 4],
-        "an empty hold asks x1.5 and pays x1.25 (3.75 rounds to 4)"
+        [15, 9],
+        "an empty hold asks x1.5 and pays x1.25 per lot of 100 (8.75 rounds to 9)"
     );
     const half = priceFactors("HullPlate", "RockOnly", "Civilian", 0.5);
     assert.deepEqual(half.scarcity, { ask: 1.25, bid: 1.125 }, "linear to 1");

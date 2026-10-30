@@ -304,13 +304,43 @@ impl TraderMarket {
     }
 }
 
-/// What one item trades at: a Buy pays `ask_cr`, a Sell earns `bid_cr`.
+/// What one lot of an item trades at: a Buy pays `ask_cr` for `lot` items,
+/// a Sell earns `bid_cr` for them. A count that is not a whole number of
+/// lots pays its share: [`buy_cr`](Self::buy_cr) rounds up and
+/// [`sell_cr`](Self::sell_cr) rounds down, so no split trade gains credits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 pub struct ItemPrice {
-    /// Credits a Buy pays for one.
+    /// Credits a Buy pays for one lot.
     pub ask_cr: u32,
-    /// Credits a Sell earns for one. At most `ask_cr`.
+    /// Credits a Sell earns for one lot. At most `ask_cr`.
     pub bid_cr: u32,
+    /// Items in one lot: the item's [`ItemDesign::price_lot`], above zero.
+    pub lot: u32,
+}
+
+impl ItemPrice {
+    /// Credits a Buy of `count` items pays at the ask: `count` over the lot
+    /// times `ask_cr`, rounded up. Wide so no count overflows it.
+    pub fn buy_cr(self, count: u32) -> u64 {
+        lot_share(count, self.ask_cr, self.lot).div_ceil(u64::from(self.lot))
+    }
+
+    /// Credits a Sell of `count` items earns at the bid: `count` over the lot
+    /// times `bid_cr`, rounded down. Zero for a count too small to earn a
+    /// credit, which a trade refuses.
+    pub fn sell_cr(self, count: u32) -> u64 {
+        lot_share(count, self.bid_cr, self.lot) / u64::from(self.lot)
+    }
+}
+
+/// `count * lot_cr`, the numerator of a lot share.
+///
+/// # Panics
+///
+/// On a lot of zero: item lint refuses that `price_lot`.
+fn lot_share(count: u32, lot_cr: u32, lot: u32) -> u64 {
+    assert!(lot > 0, "an item price has a lot of zero");
+    u64::from(count) * u64::from(lot_cr)
 }
 
 impl ItemDesign {
@@ -319,6 +349,7 @@ impl ItemDesign {
         ItemPrice {
             ask_cr: self.ask_cr,
             bid_cr: self.bid_cr,
+            lot: self.price_lot,
         }
     }
 }
@@ -358,7 +389,7 @@ impl PriceQuote {
 /// Price one `design` at a trader with `market` that holds `stock` of it:
 /// the reference times scarcity times the cluster factor times the
 /// civilization factor, each side clamped by `table`, rounded to the
-/// nearest credit.
+/// nearest credit per [`ItemDesign::price_lot`].
 ///
 /// # Panics
 ///
@@ -402,6 +433,7 @@ pub fn price(
         price: ItemPrice {
             ask_cr: priced(design.ask_cr, total.ask),
             bid_cr: priced(design.bid_cr, total.bid),
+            lot: design.price_lot,
         },
         scarcity,
         cluster,
@@ -775,10 +807,18 @@ mod tests {
             about: String::new(),
             category,
             mass_g: 1_000,
+            price_lot: 1,
             ask_cr,
             bid_cr,
         }
     }
+
+    /// The base PDC round's reference: 10 cr ask, 7 cr bid per 100 rounds.
+    const PDC: ItemPrice = ItemPrice {
+        ask_cr: 10,
+        bid_cr: 7,
+        lot: 100,
+    };
 
     fn market(cluster: ClusterType, target: &[(&str, u32)]) -> TraderMarket {
         TraderMarket {
@@ -826,7 +866,8 @@ mod tests {
             at(0).price,
             ItemPrice {
                 ask_cr: 150,
-                bid_cr: 100
+                bid_cr: 100,
+                lot: 1,
             }
         );
         assert_near(at(5).scarcity, factor(1.25, 1.125));
@@ -838,7 +879,8 @@ mod tests {
             at(300).price,
             ItemPrice {
                 ask_cr: 90,
-                bid_cr: 40
+                bid_cr: 40,
+                lot: 1,
             }
         );
     }
@@ -853,7 +895,8 @@ mod tests {
                 quote.price,
                 ItemPrice {
                     ask_cr: 100,
-                    bid_cr: 64
+                    bid_cr: 64,
+                    lot: 1,
                 }
             );
         }
@@ -870,14 +913,16 @@ mod tests {
             rich.price,
             ItemPrice {
                 ask_cr: 8,
-                bid_cr: 5
+                bid_cr: 5,
+                lot: 1,
             }
         );
         assert_eq!(
             heavy.price,
             ItemPrice {
                 ask_cr: 32,
-                bid_cr: 19
+                bid_cr: 19,
+                lot: 1,
             }
         );
     }
@@ -893,10 +938,64 @@ mod tests {
             quote.price,
             ItemPrice {
                 ask_cr: 175,
-                bid_cr: 83
+                bid_cr: 83,
+                lot: 1,
             }
         );
         assert_eq!(armed.leading_role(), ShipRoleType::Armored);
+    }
+
+    #[test]
+    fn a_buy_of_part_of_a_lot_rounds_its_credits_up() {
+        assert_eq!(PDC.buy_cr(1), 1);
+        assert_eq!(PDC.buy_cr(99), 10);
+        assert_eq!(PDC.buy_cr(100), 10);
+        assert_eq!(PDC.buy_cr(101), 11);
+        assert_eq!(PDC.buy_cr(2_000), 200);
+        assert_eq!(PDC.buy_cr(u32::MAX), 429_496_730);
+    }
+
+    #[test]
+    fn a_sell_of_part_of_a_lot_rounds_its_credits_down() {
+        assert_eq!(PDC.sell_cr(14), 0);
+        assert_eq!(PDC.sell_cr(15), 1);
+        assert_eq!(PDC.sell_cr(100), 7);
+        assert_eq!(PDC.sell_cr(199), 13);
+        assert_eq!(PDC.sell_cr(2_000), 140);
+    }
+
+    #[test]
+    fn a_lot_of_one_prices_each_item() {
+        let ore = ItemPrice {
+            ask_cr: 16,
+            bid_cr: 12,
+            lot: 1,
+        };
+        assert_eq!((ore.buy_cr(3), ore.sell_cr(3)), (48, 36));
+    }
+
+    /// The factors scale the price of the whole lot, rounded once, and a
+    /// trade then takes its share of that lot price.
+    #[test]
+    fn a_market_factor_prices_the_whole_lot() {
+        let mut rounds = design("rounds", ItemCategoryType::Ammo, 10, 7);
+        rounds.price_lot = 100;
+        let mut armed = market(ClusterType::RockOnly, &[("rounds", 10)]);
+        armed.role_preference = [0.0, 0.0, 0.0, 1.0];
+        let quote = price(&table(), &rounds, &armed, 10);
+        assert_near(quote.total, factor(2.0, 1.5));
+        assert_eq!(
+            quote.price,
+            ItemPrice {
+                ask_cr: 20,
+                bid_cr: 11,
+                lot: 100,
+            }
+        );
+        assert_eq!(quote.price.buy_cr(1), 1);
+        assert_eq!(quote.price.sell_cr(10), 1);
+        assert_eq!(quote.price.sell_cr(9), 0);
+        assert_eq!(PriceQuote::reference(&rounds).price, PDC);
     }
 
     #[test]
@@ -915,7 +1014,8 @@ mod tests {
             quote.price,
             ItemPrice {
                 ask_cr: 250,
-                bid_cr: 250
+                bid_cr: 250,
+                lot: 1,
             }
         );
         assert!(quote.clamped);

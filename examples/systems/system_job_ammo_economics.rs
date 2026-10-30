@@ -24,7 +24,8 @@
 //!   both holds and the price paid are read before and after.
 //!
 //! What is DERIVED (arithmetic, not a transaction): the replacement cost of
-//! every spent round at the live ask, and the net of reward minus that cost.
+//! every spent round, by the live ask's lot price ([`ItemPrice::buy_cr`]),
+//! and the net of reward minus that cost.
 //!
 //! What is FIXTURE (the shared walk's moves, no cheat): the walk teleports
 //! the player beside the posting station and onto its berth before the accept
@@ -46,9 +47,10 @@
 //! | `ammo economics: net` | reward credited, buy paid, rounds bought against rounds consumed, derived full replacement cost |
 //!
 //! It asserts only the transactions it reads: the Buy moved exactly the
-//! quantity and paid exactly quantity times the quoted ask, and the station
-//! took it. A posting station that sells no PDC round, or a fight that spent
-//! none, stops the run with that limitation named.
+//! quantity and paid exactly the quoted ask's lot price for that quantity
+//! ([`ItemPrice::buy_cr`]), and the station took it. A posting station that
+//! sells no PDC round, or a fight that spent none, stops the run with that
+//! limitation named.
 //!
 //! Headless run (needs a display; the leg is real flight, minutes on a
 //! software GPU):
@@ -203,7 +205,7 @@ mod economics {
     struct BuyPlan {
         station: Entity,
         quantity: u32,
-        ask_cr: u32,
+        price: ItemPrice,
         player_cr: u32,
         station_cr: u32,
         player_rounds: u32,
@@ -634,6 +636,16 @@ mod economics {
         (quote, stock)
     }
 
+    /// The most items `player_cr` credits can pay for at `price`: the
+    /// largest count whose lot-priced total ([`ItemPrice::buy_cr`]) does not
+    /// exceed the balance. `ceil(n * ask / lot) <= cr` holds exactly when
+    /// `n <= cr * lot / ask`, as `cr` is whole.
+    fn affordable_count(price: ItemPrice, player_cr: u32) -> u32 {
+        (u64::from(player_cr) * u64::from(price.lot))
+            .checked_div(u64::from(price.ask_cr))
+            .map_or(u32::MAX, |count| u32::try_from(count).unwrap_or(u32::MAX))
+    }
+
     /// Read the market after the hand-in and plan the Buy: every spent PDC
     /// round the station sells and the player can pay for and carry.
     fn plan_the_buy(world: &mut World) {
@@ -655,7 +667,7 @@ mod economics {
             .get::<ShipInventory>(player)
             .expect("the player has a hold")
             .free_g(&items);
-        let affordable = player_cr.checked_div(ask).unwrap_or(u32::MAX);
+        let affordable = affordable_count(quote.price, player_cr);
         let fits =
             u32::try_from(u64::from(free_g) / u64::from(design.mass_g.max(1))).unwrap_or(u32::MAX);
         let quantity = if trades {
@@ -677,8 +689,10 @@ mod economics {
                 .and_then(|market| market.target.get(&pdc_round()).copied()),
             "ask_cr": ask,
             "bid_cr": quote.price.bid_cr,
+            "lot": quote.price.lot,
             "reference_ask_cr": design.ask_cr,
             "reference_bid_cr": design.bid_cr,
+            "price_lot": design.price_lot,
             "factor_scarcity_ask": quote.scarcity.ask,
             "factor_cluster_ask": quote.cluster.ask,
             "factor_civilization_ask": quote.civilization.ask,
@@ -687,7 +701,7 @@ mod economics {
             "pane_row": row,
             "pane_row_texts": row_texts,
             "consumed": consumed,
-            "derived_replacement_cr": u64::from(consumed) * u64::from(ask),
+            "derived_replacement_cr": quote.price.buy_cr(consumed),
             "player_cr": player_cr,
             "player_free_g": free_g,
             "buy_quantity": quantity,
@@ -710,7 +724,7 @@ mod economics {
         let plan = BuyPlan {
             station,
             quantity,
-            ask_cr: ask,
+            price: quote.price,
             player_cr,
             station_cr: credits(world, station),
             player_rounds: held(world, player, &pdc_round()),
@@ -733,7 +747,7 @@ mod economics {
         let player = player(world);
         let mut plan = plan(world);
         let (quote, stock) = quote(world, plan.station);
-        plan.ask_cr = quote.price.ask_cr;
+        plan.price = quote.price;
         plan.player_cr = credits(world, player);
         plan.station_cr = credits(world, plan.station);
         plan.player_rounds = held(world, player, &pdc_round());
@@ -748,7 +762,7 @@ mod economics {
         })
     }
 
-    /// The Buy moved the quantity and paid quantity times the quoted ask.
+    /// The Buy moved the quantity and paid the quoted ask's lot price for it.
     fn assert_the_buy(world: &mut World) {
         let player = player(world);
         let plan = plan(world);
@@ -758,10 +772,12 @@ mod economics {
         let station_rounds = held(world, plan.station, &pdc_round());
         let paid = i64::from(plan.player_cr) - i64::from(player_cr);
         let taken = i64::from(station_cr) - i64::from(plan.station_cr);
-        let expected = i64::from(plan.quantity) * i64::from(plan.ask_cr);
+        let expected =
+            i64::try_from(plan.price.buy_cr(plan.quantity)).expect("the lot price fits an i64");
         let data = json!({
             "quantity": plan.quantity,
-            "quoted_ask_cr": plan.ask_cr,
+            "quoted_ask_cr": plan.price.ask_cr,
+            "lot": plan.price.lot,
             "expected_cr": expected,
             "player_cr_before": plan.player_cr,
             "player_cr_after": player_cr,
@@ -805,7 +821,7 @@ mod economics {
             "pdc_consumed": consumed,
             "pdc_bought": plan.quantity,
             "buy_paid_cr": bought,
-            "derived_full_replacement_cr": u64::from(consumed) * u64::from(plan.ask_cr),
+            "derived_full_replacement_cr": plan.price.buy_cr(consumed),
             "net_after_buy_cr": credited - i64::from(bought),
             "replaced_every_spent_round": plan.quantity == consumed,
         });

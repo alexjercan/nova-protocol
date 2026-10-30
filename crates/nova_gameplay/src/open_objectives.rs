@@ -131,6 +131,7 @@ mod tests {
             about: String::new(),
             category: ItemCategoryType::Raw,
             mass_g: 1_000,
+            price_lot: 1,
             ask_cr: 16,
             bid_cr: 12,
         }]);

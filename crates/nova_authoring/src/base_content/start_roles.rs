@@ -1,10 +1,11 @@
 //! Built-in START ROLE content: the six New Game starts.
 //!
 //! `content gen` serializes this builder into
-//! `assets/base/roles/base.content.ron`. Each kit is worth 3,000 cr at ask,
-//! not counting PDC rounds: the credits plus the other items at their base
-//! `ask_cr`. A PDC-armed hull also carries 1,000 PDC rounds (4,000 cr at ask)
-//! in its shared hold, not per mount.
+//! `assets/base/roles/base.content.ron`. A kit's worth at ask is its credits
+//! plus its items at their base `ask_cr`: 3,000 cr for an unarmed kit, and
+//! 2,000 to 2,200 cr for a PDC-armed kit without its rounds. A PDC-armed hull
+//! also carries 1,000 PDC rounds in its shared hold, not per mount: 10 whole
+//! lots of 100 at 10 cr, so 100 cr at ask and 2,100 to 2,300 cr in all.
 //!
 //! Goals are the roles' finite milestones over saved facts. Every role's
 //! progress opens with the same first line, one owned station, a rule in

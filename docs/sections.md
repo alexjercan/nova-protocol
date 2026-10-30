@@ -143,10 +143,12 @@ row per item, with no gap, at the top of the card's clipping details: the
 item's icon, a quantity cell reading `covered/count` (covered is held plus
 bought, e.g. `1/2`, Danger-coloured when the item is short and Primary
 otherwise), the item's name, and, only when something was bought, a right
-cell with the bought items' total cost (`bought * ask`, e.g. `40 cr`).
+cell with the bought items' total cost (`GalleryRecipeSupply::total_cr`,
+e.g. `40 cr`).
 `GalleryRecipeItem::supply` is a `GalleryRecipeSupply` that splits the count
-into held, bought and short, with the item's `ask_cr`, the price
-`plan_recipe_payment` charges for one bought item; its `new` panics when the
+into held, bought and short, with the item's ask, the price
+`plan_recipe_payment` charges per `ItemPrice::buy_cr` for the bought
+share; its `new` panics when the
 split does not sum to the count. Its tooltip, pointer-only and shown only for
 an item the station sells, lines up `Required N`, then only the sources that
 apply: `From the hold N`, `Bought N at <ask> cr, <total> cr`, and

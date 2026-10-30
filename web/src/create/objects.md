@@ -295,24 +295,28 @@ generated ship holds draw `Rations` and `SalvagedParts`. A dependent mod may
 replace one with its own mass and prices, never another category; a mod item
 of its own is generic authored stock. See [Content files](../mod-files/#content-files).
 
-| Item | Mass | Category | Ask | Bid |
-| --- | --- | --- | --- | --- |
-| `HullPlate` | 10 kg | Repair | 40 | 30 |
-| `PdcRound` | 0.2 kg | Ammo | 4 | 3 |
-| `RailSlug` | 20 kg | Ammo | 40 | 30 |
-| `Torpedo` | 150 kg | Ammo | 400 | 300 |
-| `StoneOre` | 10 kg | Raw | 4 | 3 |
-| `IronOre` | 10 kg | Raw | 16 | 12 |
-| `WaterIce` | 10 kg | Raw | 12 | 9 |
-| `CarbonOre` | 10 kg | Raw | 8 | 6 |
-| `Rations` | 2 kg | Food | 8 | 6 |
-| `SalvagedParts` | 25 kg | Parts | 120 | 90 |
+| Item | Mass | Category | Lot | Ask | Bid |
+| --- | --- | --- | --- | --- | --- |
+| `HullPlate` | 10 kg | Repair | 1 | 40 | 30 |
+| `PdcRound` | 0.2 kg | Ammo | 100 | 10 | 7 |
+| `RailSlug` | 20 kg | Ammo | 1 | 40 | 30 |
+| `Torpedo` | 150 kg | Ammo | 1 | 400 | 300 |
+| `StoneOre` | 10 kg | Raw | 1 | 4 | 3 |
+| `IronOre` | 10 kg | Raw | 1 | 16 | 12 |
+| `WaterIce` | 10 kg | Raw | 1 | 12 | 9 |
+| `CarbonOre` | 10 kg | Raw | 1 | 8 | 6 |
+| `Rations` | 2 kg | Food | 1 | 8 | 6 |
+| `SalvagedParts` | 25 kg | Parts | 1 | 120 | 90 |
 
-Ask and Bid are credits for one item, the same on every ship.
+Ask and Bid are credits for one lot of items, the same on every ship. A
+trade of a count that is not a whole lot pays its share, rounded up for a
+Buy and down for a Sell; a Sell whose share rounds to 0 cr is refused. A
+lot of 1 prices each item, like every item but the PDC round.
 
 Base also ships ten `Parts` items that section build recipes spend (see
 [Build recipe](../sections/#build-recipe)). They are not role ids: a mod may
 replace or skip them, and its own recipes may name its own `Parts` items.
+Every one has a lot of 1.
 
 | Item | Mass | Category | Ask | Bid |
 | --- | --- | --- | --- | --- |
@@ -352,9 +356,10 @@ credits: 0,
      (`ResolvedShipDesign::cargo_capacity_g` :402, `HULL_SECTION_CARGO_G` :393);
      overstock lint in crates/nova_scenario/src/lint/ship.rs
      `check_object_prototypes`. Item catalog: crates/nova_gameplay/src/inventory.rs
-     `ItemDesign` (`mass_g`, `category`, `ask_cr`, `bid_cr`); the base
+     `ItemDesign` (`mass_g`, `category`, `price_lot`, `ask_cr`, `bid_cr`); the base
      catalog's values: crates/nova_authoring/src/base_content/items.rs
-     `item_catalog`. -->
+     `item_catalog`. Lot pricing: crates/nova_gameplay/src/market.rs
+     `ItemPrice::buy_cr`, `ItemPrice::sell_cr`. -->
 
 ### Section patches
 

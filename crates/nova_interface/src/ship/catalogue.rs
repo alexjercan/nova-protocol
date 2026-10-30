@@ -224,7 +224,13 @@ fn recipe_items(
             let supply = holds.map(|(stock, own)| {
                 let held = own.count(item).min(count);
                 let bought = (count - held).min(stock.count(item));
-                GalleryRecipeSupply::new(count, held, bought, count - held - bought, design.ask_cr)
+                GalleryRecipeSupply::new(
+                    count,
+                    held,
+                    bought,
+                    count - held - bought,
+                    design.reference_price(),
+                )
             });
             GalleryRecipeItem {
                 icon: icons.category(design.category),
@@ -579,7 +585,7 @@ mod tests {
             entry.note,
             "PDC needs 1 more Section panel than both holds carry"
         );
-        let panel_ask = items.design(&"SectionPanel".into()).ask_cr;
+        let panel_ask = items.design(&"SectionPanel".into()).reference_price();
         assert_eq!(
             rows(&entry)[0],
             (
@@ -609,7 +615,7 @@ mod tests {
         );
 
         assert!(entry.placeable);
-        let ask = |item: &str| items.design(&item.into()).ask_cr;
+        let ask = |item: &str| items.design(&item.into()).reference_price();
         assert_eq!(
             rows(&entry),
             [
@@ -626,7 +632,7 @@ mod tests {
                 (
                     "Turret body",
                     1,
-                    Some(GalleryRecipeSupply::new(1, 0, 1, 0, 200))
+                    Some(GalleryRecipeSupply::new(1, 0, 1, 0, ask("TurretBody")))
                 ),
             ]
         );

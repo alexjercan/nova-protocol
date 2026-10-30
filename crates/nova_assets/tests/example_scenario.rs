@@ -1057,7 +1057,7 @@ fn the_example_mod_item_merges_and_the_arena_stock_resolves_against_it() {
     );
     assert_eq!(design.category, ItemCategoryType::Parts);
     assert_eq!(design.mass_g, 5_000);
-    assert_eq!(design.ask_cr, 60);
+    assert_eq!((design.price_lot, design.ask_cr), (1, 60));
     assert_eq!(design.bid_cr, 45);
 
     // The arena's authored `player_spaceship` spawn carries the stock this test moves.
@@ -1099,6 +1099,7 @@ fn fixture_item(id: &str) -> ItemDesign {
         about: format!("{id} fixture item."),
         category: ItemCategoryType::Parts,
         mass_g: 1_000,
+        price_lot: 1,
         ask_cr: 10,
         bid_cr: 5,
     }

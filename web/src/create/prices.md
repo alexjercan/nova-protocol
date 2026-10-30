@@ -20,11 +20,15 @@ bid = reference bid_cr x scarcity.bid x cluster.bid x civilization.bid
 ```
 
 Each side's product is clamped to `clamp`, then the price rounds to the
-nearest credit.
+nearest credit per the item's `price_lot`: `ask_cr` and `bid_cr` price one
+lot, not one item. A trade of a count that is not a whole lot pays its
+share of that lot price, rounded up for a Buy and down for a Sell; a Sell
+whose share rounds to 0 cr is refused. A lot of 1, the base game's for
+every item but the PDC round, prices each item.
 
 | factor | from |
 |---|---|
-| reference | the item's `ask_cr` and `bid_cr`, see [Content files](../mod-files/#content-files) |
+| reference | the item's `ask_cr` and `bid_cr` per `price_lot`, see [Content files](../mod-files/#content-files) |
 | scarcity | the trader's stock of the item against its target, the stock it spawned with. At no stock the factor is `starved`, at the target 1, at `glut_share` times the target and above `glut`, and linear between. An item the trader spawned without uses `unkept` |
 | cluster | the `clusters` rule for the cluster type the trader stands in and the item's category, or 1 when no rule names the pair |
 | civilization | the `roles` rules for the item's category, each weighed by the civilization's preference for that role, a missing rule counting as 1 |

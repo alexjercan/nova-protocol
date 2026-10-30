@@ -754,6 +754,7 @@ fn a_canister_of_a_catalog_only_item_is_taken_into_the_hold() {
         about: "A catalog-only item for tests.".into(),
         category: ItemCategoryType::Parts,
         mass_g: 5_000,
+        price_lot: 1,
         ask_cr: 60,
         bid_cr: 45,
     };

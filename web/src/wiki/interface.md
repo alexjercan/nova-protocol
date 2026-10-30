@@ -323,7 +323,7 @@ Docked with a derelict wreck or a neutralized ship, the Inventory pane shows a s
      Take and Give: crates/nova_gameplay/src/inventory.rs `plan_item_transfer`;
      Take credits: `plan_credit_take`, applied by
      `apply_credit_take_commands`; Take all: `apply_take_all_commands`; Buy and Sell: `plan_item_trade`, prices
-     `ItemDesign::ask_cr` and `ItemDesign::bid_cr`, balance `ShipCredits` from
+     `ItemPrice::buy_cr` and `ItemPrice::sell_cr` of `ItemDesign::reference_price`, balance `ShipCredits` from
      `SpaceshipConfig::credits`; Jettison: `plan_item_jettison`; all but Take
      credits applied by crates/nova_interface/src/inventory/app.rs
      `apply_inventory_action_commands`; the action a row opens:
@@ -364,12 +364,14 @@ The **Credits** row also carries a **Take credits** button, shown only while the
 
 Every live ship trades: any docked ship that is neither neutralized nor lootable. It sells only what its hold carries and pays only from its own credits. A generated trader restocks toward the goods it spawned with by the play time its sector stood unloaded; an authored scenario's ship never restocks. A generated wreck is lootable, not a trader.
 
-The table lists each item's reference price.
+The table lists each item's reference price. Every item prices by one
+except the PDC round, which prices by its lot of 100: a trade of any other
+count pays its share, rounded up for a Buy and down for a Sell.
 
 | Item | Buy (ask) | Sell (bid) |
 | --- | --- | --- |
 | Hull plate | 40 cr | 30 cr |
-| PDC round | 4 cr | 3 cr |
+| PDC round | 10 cr / 100 | 7 cr / 100 |
 | Rail slug | 40 cr | 30 cr |
 | Torpedo | 400 cr | 300 cr |
 | Stone ore | 4 cr | 3 cr |
@@ -379,7 +381,7 @@ The table lists each item's reference price.
 | Rations | 8 cr | 6 cr |
 | Salvaged parts | 120 cr | 90 cr |
 
-A living generated station or ship computes its own prices from the reference when you trade: its stock against the stock it started with (scarce goods cost and pay more, a glut less), the type of the cluster it stands in (ore is cheap where asteroids are many and dear among planets), and what its civilization's ships do. While the partner trades, each row shows the **Price** of one, what the partner pays for yours and asks for its own, with a **Deal** badge of the percent off the reference: green when it favours you (a bid over the reference, an ask under it), amber when not. Select an item and the inspector shows the **Reference**, **Pays** and **Asks** with the same percent, and the **Scarcity**, **Cluster** and **Civilization** factors that made it, with their **Total**, marked `clamped` when the price hit its limit. Under the columns, a generated trader's **MARKET** strip names the three items it pays most over the reference for and the three it sells cheapest among what it holds, its restock gap (the item furthest under its target, a meter of stock against target, and the play minutes until it is full) and, while its civilization refuses you, a red **REFUSED** badge with the minutes left or none when only a settlement ends it. The interface title row shows the play clock while a world runs. A station or ship placed by a scenario deals at the reference price and shows no strip. A Buy pays the ask and a Sell earns the bid, so selling back what you bought loses credits. At a station you [own](#buying-a-station), a Buy pays the bid instead. While the form is open it shows the price and your balance after, for example `Price 20 cr  Balance 1,980 cr`. **Confirm** moves the items and the credits at once, and **Buy all** or **Sell all** beside it confirms the whole stack in one click, disabled while that trade would be refused; and the note line reads `BOUGHT x5 Stone ore -20 cr` or `SOLD x10 Stone ore +30 cr`. A refused trade changes nothing and keeps the form open: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: only 2 Stone ore in Light Freighter`, `Refused: Line Warship has room for 30 kg more`, `Refused: Light Freighter has only 20 cr`, `Refused: Light Freighter cannot hold more credits`, `Refused: Light Freighter does not trade`, or `Refused: not docked`. A trade never splits to fit the hold or the credits.
+A living generated station or ship computes its own prices from the reference when you trade: its stock against the stock it started with (scarce goods cost and pay more, a glut less), the type of the cluster it stands in (ore is cheap where asteroids are many and dear among planets), and what its civilization's ships do. While the partner trades, each row shows the **Price** of one item, what the partner pays for yours and asks for its own, with a **Deal** badge of the percent off the reference: green when it favours you (a bid over the reference, an ask under it), amber when not. The PDC round's row shows the price of its lot of 100, as `10 cr / 100`. Select an item and the inspector shows the **Reference**, **Pays** and **Asks** with the same percent, each as `4 cr / 3 cr` for a lot of one or `10 cr / 100 | 7 cr / 100` for the PDC round's lot of 100, and the **Scarcity**, **Cluster** and **Civilization** factors that made it, with their **Total**, marked `clamped` when the price hit its limit. Under the columns, a generated trader's **MARKET** strip names the three items it pays most over the reference for and the three it sells cheapest among what it holds, its restock gap (the item furthest under its target, a meter of stock against target, and the play minutes until it is full) and, while its civilization refuses you, a red **REFUSED** badge with the minutes left or none when only a settlement ends it. The interface title row shows the play clock while a world runs. A station or ship placed by a scenario deals at the reference price and shows no strip. A Buy pays the ask and a Sell earns the bid, each as its share of the item's lot, rounded up for a Buy and down for a Sell; a Sell that would earn 0 cr is refused, and otherwise selling back what you bought loses credits. At a station you [own](#buying-a-station), a Buy pays the bid instead, rounded up the same way. While the form is open it shows the price and your balance after, for example `Price 20 cr  Balance 1,980 cr`. **Confirm** moves the items and the credits at once, and **Buy all** or **Sell all** beside it confirms the whole stack in one click, disabled while that trade would be refused; and the note line reads `BOUGHT x5 Stone ore -20 cr` or `SOLD x10 Stone ore +30 cr`. A refused trade changes nothing and keeps the form open: `Refused: enter a quantity`, `Refused: quantity is zero`, `Refused: sale pays 0 cr`, `Refused: only 2 Stone ore in Light Freighter`, `Refused: Line Warship has room for 30 kg more`, `Refused: Light Freighter has only 20 cr`, `Refused: Light Freighter cannot hold more credits`, `Refused: Light Freighter does not trade`, or `Refused: not docked`. A trade never splits to fit the hold or the credits.
 
 ### Store and withdraw
 

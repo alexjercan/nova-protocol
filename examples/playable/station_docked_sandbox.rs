@@ -796,10 +796,10 @@ mod ship_overlay {
                         .iter()
                         .map(|(item, count)| format!("{count} {}", items.design(item).name))
                         .collect();
-                    let cost: u32 = payment
+                    let cost: u64 = payment
                         .bought
                         .iter()
-                        .map(|(item, count)| count * items.design(item).ask_cr)
+                        .map(|(item, count)| items.design(item).reference_price().buy_cr(*count))
                         .sum();
                     details.push(if bought.is_empty() {
                         "quick buy: none".to_string()
@@ -2458,7 +2458,7 @@ mod smoke {
             lines.push(format!(
                 "Bought {} at {}, {}",
                 supply.bought(),
-                cr_text(supply.ask_cr()),
+                lot_cr_text(supply.price().ask_cr, supply.price().lot),
                 cr_text(supply.total_cr())
             ));
         }

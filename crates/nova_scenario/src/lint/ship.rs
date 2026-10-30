@@ -2481,6 +2481,7 @@ mod tests {
             about: "Sells at what it costs.".to_string(),
             category: ItemCategoryType::Parts,
             mass_g: 1_000,
+            price_lot: 1,
             ask_cr: 100,
             bid_cr: 100,
         }]);

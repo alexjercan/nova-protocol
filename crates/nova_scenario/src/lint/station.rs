@@ -252,6 +252,7 @@ mod tests {
             about: String::new(),
             category: ItemCategoryType::Parts,
             mass_g: 50_000,
+            price_lot: 1,
             ask_cr: 1,
             bid_cr: 1,
         }])

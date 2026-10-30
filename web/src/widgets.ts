@@ -12759,11 +12759,16 @@ export const PRICE_ROLE_RULES: [PriceRole, PriceCategory, number][] = [
     ["Armored", "Ammo", 1.25],
     ["Armored", "Repair", 1.15],
 ];
-/** The ten base items, in `ItemRoleType::ALL` order. */
+/**
+ * The ten base items, in `ItemRoleType::ALL` order. `askCr` and `bidCr`
+ * price one `priceLot` items, not one item: `crates/nova_authoring/src/
+ * base_content/items.rs` `item_catalog`.
+ */
 export const PRICE_ITEMS: {
     id: string;
     name: string;
     category: PriceCategory;
+    priceLot: number;
     askCr: number;
     bidCr: number;
 }[] = [
@@ -12771,14 +12776,23 @@ export const PRICE_ITEMS: {
         id: "HullPlate",
         name: "Hull plate",
         category: "Repair",
+        priceLot: 1,
         askCr: 40,
         bidCr: 30,
     },
-    { id: "PdcRound", name: "PDC round", category: "Ammo", askCr: 4, bidCr: 3 },
+    {
+        id: "PdcRound",
+        name: "PDC round",
+        category: "Ammo",
+        priceLot: 100,
+        askCr: 10,
+        bidCr: 7,
+    },
     {
         id: "RailSlug",
         name: "Rail slug",
         category: "Ammo",
+        priceLot: 1,
         askCr: 40,
         bidCr: 30,
     },
@@ -12786,24 +12800,55 @@ export const PRICE_ITEMS: {
         id: "Torpedo",
         name: "Torpedo",
         category: "Ammo",
+        priceLot: 1,
         askCr: 400,
         bidCr: 300,
     },
-    { id: "StoneOre", name: "Stone ore", category: "Raw", askCr: 4, bidCr: 3 },
-    { id: "IronOre", name: "Iron ore", category: "Raw", askCr: 16, bidCr: 12 },
-    { id: "WaterIce", name: "Water ice", category: "Raw", askCr: 12, bidCr: 9 },
+    {
+        id: "StoneOre",
+        name: "Stone ore",
+        category: "Raw",
+        priceLot: 1,
+        askCr: 4,
+        bidCr: 3,
+    },
+    {
+        id: "IronOre",
+        name: "Iron ore",
+        category: "Raw",
+        priceLot: 1,
+        askCr: 16,
+        bidCr: 12,
+    },
+    {
+        id: "WaterIce",
+        name: "Water ice",
+        category: "Raw",
+        priceLot: 1,
+        askCr: 12,
+        bidCr: 9,
+    },
     {
         id: "CarbonOre",
         name: "Carbon ore",
         category: "Raw",
+        priceLot: 1,
         askCr: 8,
         bidCr: 6,
     },
-    { id: "Rations", name: "Rations", category: "Food", askCr: 8, bidCr: 6 },
+    {
+        id: "Rations",
+        name: "Rations",
+        category: "Food",
+        priceLot: 1,
+        askCr: 8,
+        bidCr: 6,
+    },
     {
         id: "SalvagedParts",
         name: "Salvaged parts",
         category: "Parts",
+        priceLot: 1,
         askCr: 120,
         bidCr: 90,
     },
@@ -12818,9 +12863,9 @@ export interface PriceFactors {
     total: PriceSide;
     /** Whether the clamp moved either side. */
     clamped: boolean;
-    /** Credits a Buy pays for one. */
+    /** Credits a Buy pays for one lot of the item's `priceLot`. */
     askCr: number;
-    /** Credits a Sell earns for one. */
+    /** Credits a Sell earns for one lot of the item's `priceLot`. */
     bidCr: number;
     /** The ask against the reference ask, in percent toward zero. */
     askDeltaPercent: number;
@@ -13022,9 +13067,13 @@ function initPriceFactors(host: HTMLElement): void {
                 quote.clamped ? "is-hit" : "is-live"
             )
         );
-        referenceStat.textContent = `${item.askCr} / ${item.bidCr} cr`;
-        asksStat.textContent = `${quote.askCr} cr (${signed(quote.askDeltaPercent)})`;
-        paysStat.textContent = `${quote.bidCr} cr (${signed(quote.bidDeltaPercent)})`;
+        // The Inventory inspector's labels: crates/nova_gameplay/src/inventory.rs
+        // `lot_cr_text`, crates/nova_interface/src/inventory/app.rs `price_text`.
+        const lotSuffix = item.priceLot > 1 ? ` / ${item.priceLot}` : "";
+        const separator = item.priceLot > 1 ? " | " : " / ";
+        referenceStat.textContent = `${item.askCr} cr${lotSuffix}${separator}${item.bidCr} cr${lotSuffix}`;
+        asksStat.textContent = `${quote.askCr} cr${lotSuffix} (${signed(quote.askDeltaPercent)})`;
+        paysStat.textContent = `${quote.bidCr} cr${lotSuffix} (${signed(quote.bidDeltaPercent)})`;
         const stockWords = unkept
             ? "keeps none of it, so it pays a little under reference for what it only resells"
             : share <= 0
@@ -13036,10 +13085,12 @@ function initPriceFactors(host: HTMLElement): void {
                   : share < PRICE_GLUT_SHARE
                     ? "is over its target, so it asks and pays less"
                     : `holds ${PRICE_GLUT_SHARE} times its target or more, so the glut factor applies in full`;
+        const lotWords =
+            item.priceLot > 1 ? ` per lot of ${item.priceLot}` : "";
         readout.textContent =
             `${item.name} (${item.category}) at a ${clusterWords[cluster].toLowerCase()} ` +
             `${role.toLowerCase()} trader: a Buy pays ${quote.askCr} cr and a ` +
-            `Sell earns ${quote.bidCr} cr. The trader ${stockWords}.`;
+            `Sell earns ${quote.bidCr} cr${lotWords}. The trader ${stockWords}.`;
     };
 
     // Each key row names its choice for sighted and screen-reader users

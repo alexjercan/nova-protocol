@@ -269,6 +269,7 @@ mod tests {
             about: String::new(),
             category,
             mass_g: 10_000,
+            price_lot: 1,
             ask_cr: 16,
             bid_cr: 12,
         };

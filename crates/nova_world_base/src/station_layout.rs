@@ -120,6 +120,12 @@ const GOODS: [(ItemRoleType, f32); 6] = [
     (ItemRoleType::SalvagedParts, 2.0),
 ];
 
+/// The PDC rounds a newly generated station that stocks them opens with at
+/// least: a lot of 100 rounds prices below a credit's worth each, and a
+/// fight spends rounds by the hundred. Raises only the PDC stack; the hold
+/// check still refuses a station whose stock outweighs its hull.
+const PDC_OPENING_ROUNDS: u32 = 2_000;
+
 /// The grams a station stores for the ships that dock with it, at
 /// advancement 0 and at advancement 1.
 const STORAGE_CAP_G: (f32, f32) = (1_000_000.0, 4_000_000.0);
@@ -438,7 +444,8 @@ pub fn generate_station(
 /// its civilization knows is built from. The parts hold at least the largest
 /// count any one of those recipes asks of each item, so every listed part
 /// can be built once from the station's own stock. The goods hold at least
-/// one unit of each item a weapon the civilization knows reloads from, and
+/// one unit of each item a weapon the civilization knows reloads from, at
+/// least [`PDC_OPENING_ROUNDS`] PDC rounds when one reloads from them, and
 /// no other ammunition. An extinct civilization's dead station keeps the same
 /// stock and credits as loot.
 ///
@@ -447,8 +454,9 @@ pub fn generate_station(
 /// # Errors
 ///
 /// [`StationLayoutConstraintType::StockOverHold`] when the stock weighs more
-/// than the hull holds: a known weapon's single unit of ammunition can
-/// outweigh a small hold, and the spawn cannot load it.
+/// than the hull holds: a known weapon's single unit of ammunition, or the
+/// PDC opening rounds, can outweigh a small hold, and the spawn cannot load
+/// it.
 ///
 /// # Panics
 ///
@@ -494,6 +502,9 @@ pub fn generated_station(
         // every weapon the civilization fields can rearm here.
         if role.category() == ItemCategoryType::Ammo {
             units = units.max(1);
+        }
+        if role == ItemRoleType::PdcRound {
+            units = units.max(PDC_OPENING_ROUNDS);
         }
         if units > 0 {
             *stock.entry(design.id.clone()).or_default() += units;
@@ -1812,6 +1823,7 @@ mod tests {
                     about: String::new(),
                     category,
                     mass_g: 1_000,
+                    price_lot: 1,
                     ask_cr: 10,
                     bid_cr: 5,
                 }),
@@ -1909,6 +1921,7 @@ mod tests {
                     about: String::new(),
                     category,
                     mass_g,
+                    price_lot: 1,
                     ask_cr: 10,
                     bid_cr: 5,
                 }),
@@ -2007,6 +2020,7 @@ mod tests {
             } else {
                 1_000
             },
+            price_lot: 1,
             ask_cr: 10,
             bid_cr: 5,
         }));
@@ -2031,6 +2045,80 @@ mod tests {
             stock_g >= u64::from(u32::MAX) && stock_g > hold_g,
             "{stock_g} g against {hold_g} g"
         );
+    }
+
+    /// A station whose civilization fields a PDC opens with at least
+    /// [`PDC_OPENING_ROUNDS`] rounds, however small its share, and the floor
+    /// takes nothing from the other goods: they match a station whose PDC
+    /// share passes the floor on its own.
+    #[test]
+    fn a_station_that_stocks_pdc_rounds_opens_with_two_thousand() {
+        use nova_gameplay::prelude::ItemDesign;
+        use nova_ship::prelude::{AmmoCapacity, ReloadConfig, SectionReloadConfig};
+
+        use crate::civilizations::CivilizationStatusType;
+
+        let mut packs = fixture::packs();
+        for section in packs.iter_mut().flat_map(|pack| &mut pack.sections) {
+            if let SectionKind::Turret(turret) = &mut section.kind {
+                turret.ammunition = AmmoCapacity::Limited(10);
+                turret.reload = ReloadConfig::Batch(SectionReloadConfig {
+                    delay: 1.0,
+                    amount: 1,
+                });
+            }
+        }
+        let parts = ShipPartSnapshot::build(&packs).expect("the reloading fixture builds");
+        let items = |round_g: u32| {
+            GameItems::new(GOODS.map(|(role, _)| ItemDesign {
+                id: role.id().into(),
+                name: role.id().to_string(),
+                about: String::new(),
+                category: role.category(),
+                mass_g: if role == ItemRoleType::PdcRound {
+                    round_g
+                } else {
+                    1_000
+                },
+                price_lot: 1,
+                ask_cr: 10,
+                bid_cr: 5,
+            }))
+        };
+        let request = request(1, StationArchetypeType::Ring, 1.0);
+        let living = Civilization {
+            id: request.civilization,
+            centroid: nova_events::prelude::Meters3::new(0.0, 0.0, 0.0),
+            status: CivilizationStatusType::Living,
+            advancement: 1.0,
+            role_preference: [1.0; 4],
+            stance: nova_gameplay::prelude::StanceType::Neutral,
+        };
+        let layout = generate_station(&parts, request).expect("the station generates");
+        let stock = |round_g| {
+            let items = items(round_g);
+            let station =
+                generated_station(&parts, &items, &layout, &living).expect("the stock fits");
+            let stacks: BTreeMap<String, u32> = station
+                .stock
+                .stacks()
+                .map(|(item, count)| (item.to_string(), count))
+                .collect();
+            (stacks, station.stock.mass_g(&items))
+        };
+        let round = ItemRoleType::PdcRound.id();
+
+        let (heavy, heavy_g) = stock(1_000);
+        let (light, _) = stock(1);
+        assert_eq!(heavy[round], PDC_OPENING_ROUNDS, "{heavy:?}");
+        assert!(light[round] > PDC_OPENING_ROUNDS, "{light:?}");
+        let others = |stacks: &BTreeMap<String, u32>| {
+            let mut stacks = stacks.clone();
+            stacks.remove(round);
+            stacks
+        };
+        assert_eq!(others(&heavy), others(&light));
+        assert!(heavy_g >= u64::from(PDC_OPENING_ROUNDS) * 1_000);
     }
 
     /// The same request gives the same station, and another seed another.

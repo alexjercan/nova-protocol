@@ -724,7 +724,7 @@ mod walk {
             .kit
             .stock
             .stacks()
-            .map(|(item, count)| u64::from(count) * u64::from(items.design(item).ask_cr))
+            .map(|(item, count)| items.design(item).reference_price().buy_cr(count))
             .sum();
         let kit_cr = u64::from(role.kit.credits) + stock_cr;
         let sections = design.0.len();

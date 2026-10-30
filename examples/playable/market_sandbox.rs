@@ -571,9 +571,9 @@ mod smoke {
                     .expect("market sandbox: the quote was read");
                 let earned = credits(world) - pending.credits;
                 assert_eq!(
-                    earned,
-                    pending.held * pending.quote.price.bid_cr,
-                    "the {label} Sell pays the computed bid for each ore"
+                    u64::from(earned),
+                    pending.quote.price.sell_cr(pending.held),
+                    "the {label} Sell pays the lot-priced bid for the ore"
                 );
                 let sale = OreSale {
                     cluster,

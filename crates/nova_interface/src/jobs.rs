@@ -2982,6 +2982,7 @@ mod tests {
             about: "Ore.".to_string(),
             category: ItemCategoryType::Raw,
             mass_g: 1_000,
+            price_lot: 1,
             ask_cr: 10,
             bid_cr: 8,
         }]);

@@ -239,6 +239,7 @@ mod tests {
             about: "A catalog-only item for tests.".to_string(),
             category: ItemCategoryType::Parts,
             mass_g: 5_000,
+            price_lot: 1,
             ask_cr: 60,
             bid_cr: 45,
         };

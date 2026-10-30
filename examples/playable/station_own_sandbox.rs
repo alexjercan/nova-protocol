@@ -399,12 +399,16 @@ fn draw_the_station(
                 TradePriceType::Market(quote.price)
             };
             let pays = match prices {
-                TradePriceType::Owned(price) => price.bid_cr,
-                TradePriceType::Market(price) => price.ask_cr,
+                TradePriceType::Owned(price) => ItemPrice {
+                    ask_cr: price.bid_cr,
+                    ..price
+                }
+                .buy_cr(1),
+                TradePriceType::Market(price) => price.buy_cr(1),
             };
             format!(
-                "{prices:?}: a Buy of 1 {item} pays {pays} cr (ask {}, bid {})",
-                quote.price.ask_cr, quote.price.bid_cr
+                "{prices:?}: a Buy of 1 {item} pays {pays} cr (ask {}, bid {}, lot {})",
+                quote.price.ask_cr, quote.price.bid_cr, quote.price.lot
             )
         });
     panel.detail(format!("trade prices: {sample}"));

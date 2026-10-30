@@ -23,6 +23,7 @@ use bevy::{
     prelude::*,
     ui::ComputedNode,
 };
+use nova_gameplay::prelude::ItemPrice;
 use nova_ui::{
     prelude::{owns_or_enters, ClaimKeyboard, InputMode, InputModeSystems},
     theme::UiColor,
@@ -167,24 +168,24 @@ pub struct GalleryRecipeItem {
     pub supply: Option<GalleryRecipeSupply>,
 }
 
-/// Where a recipe item's count comes from, and what one bought item costs.
+/// Where a recipe item's count comes from, and what the bought items cost.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct GalleryRecipeSupply {
     held: u32,
     bought: u32,
     short: u32,
-    ask_cr: u32,
+    price: ItemPrice,
 }
 
 impl GalleryRecipeSupply {
     /// `held` from the player's hold, `bought` from the host's stock at
-    /// `ask_cr` each and `short` that neither carries, of `count` items.
+    /// `price` and `short` that neither carries, of `count` items.
     ///
     /// # Panics
     ///
     /// When `held + bought + short` is not `count`: the host split the
     /// recipe wrong, and the card would mark the wrong items.
-    pub fn new(count: u32, held: u32, bought: u32, short: u32, ask_cr: u32) -> Self {
+    pub fn new(count: u32, held: u32, bought: u32, short: u32, price: ItemPrice) -> Self {
         assert_eq!(
             u64::from(held) + u64::from(bought) + u64::from(short),
             u64::from(count),
@@ -194,7 +195,7 @@ impl GalleryRecipeSupply {
             held,
             bought,
             short,
-            ask_cr,
+            price,
         }
     }
 
@@ -213,9 +214,9 @@ impl GalleryRecipeSupply {
         self.short
     }
 
-    /// The credits one bought item costs.
-    pub fn ask_cr(self) -> u32 {
-        self.ask_cr
+    /// The price the bought items pay the ask of.
+    pub fn price(self) -> ItemPrice {
+        self.price
     }
 
     /// How many of the count the two holds cover: held plus bought.
@@ -223,9 +224,10 @@ impl GalleryRecipeSupply {
         self.held + self.bought
     }
 
-    /// The credits every bought item costs together.
+    /// The credits every bought item costs together, by
+    /// [`ItemPrice::buy_cr`].
     pub fn total_cr(self) -> u64 {
-        u64::from(self.bought) * u64::from(self.ask_cr)
+        self.price.buy_cr(self.bought)
     }
 }
 

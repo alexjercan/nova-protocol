@@ -699,9 +699,17 @@ mod tests {
         let stock = hold(&[("SectionPanel", 5), ("TurretBody", 5)]);
         let bare = hold(&[("SectionPanel", 5)]);
         let built = vec![gun.base.id.clone()];
-        let price = 100
-            + items.design(&"SectionPanel".into()).ask_cr
-            + items.design(&"TurretBody".into()).ask_cr;
+        let price = u32::try_from(
+            100 + items
+                .design(&"SectionPanel".into())
+                .reference_price()
+                .buy_cr(1)
+                + items
+                    .design(&"TurretBody".into())
+                    .reference_price()
+                    .buy_cr(1),
+        )
+        .expect("the test recipe's price fits");
         let plan = |stock: &ShipInventory, own_cr: u32| {
             plan_section_add(
                 &items,

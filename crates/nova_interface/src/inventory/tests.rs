@@ -7,6 +7,7 @@ use std::{collections::VecDeque, time::Duration};
 use bevy::{
     ecs::system::RunSystemOnce,
     state::app::StatesPlugin,
+    text::TextLayoutInfo,
     time::TimeUpdateStrategy,
     ui::{ComputedNode, InteractionDisabled, UiGlobalTransform},
     ui_widgets::{Activate, ValueChange},
@@ -25,7 +26,7 @@ use crate::{
     pane::{InterfacePaneType, SIDE_PANEL_PX},
     pointer_rig::{
         click_at, double_click_at, hear_ui_cues, move_cursor_to, pane_pointer_rig, resize_window,
-        settle, take_churn, take_cues, track_node_churn, PanePointerRig,
+        settle, take_churn, take_cues, track_node_churn, PanePointerRig, RIG_CONTENT,
     },
 };
 
@@ -319,8 +320,120 @@ fn undocked_the_partner_slot_is_blank_and_both_columns_keep_equal_width() {
     assert_eq!((docked_own_w, docked_partner_w), (own_w, partner_w));
 }
 
-/// A dock that ends with a trade form open, as the player's hit on a docked
-/// Neutral ends it, hides the partner column and closes its Buy form.
+/// Iosevka Term at 13 px advances 6.5 px, and the layout rounds a width up.
+#[test]
+fn a_row_name_too_wide_for_its_cell_ends_in_an_ellipsis_and_restores_once_it_fits() {
+    // 14 chars lay out 91 px wide; an 84 px cell holds 12.
+    assert_eq!(
+        fitted_row_name("Capacitor bank", "Capacitor bank", 91.0, 84.0).as_deref(),
+        Some("Capacitor...")
+    );
+    // Still short of the whole name: keep the shortened one.
+    assert_eq!(
+        fitted_row_name("Capacitor bank", "Capacitor...", 78.0, 90.0),
+        None
+    );
+    assert_eq!(
+        fitted_row_name("Capacitor bank", "Capacitor...", 78.0, 91.0).as_deref(),
+        Some("Capacitor bank")
+    );
+    // 13 chars round 84.5 px up to 85 and overflow an 84.6 px cell. The
+    // 12-char name that replaces it lays out 78 px, which an advance of
+    // 6.5 px reads as room for 13 again: it must stay.
+    assert_eq!(
+        fitted_row_name("Flight computer core", "Flight com...", 85.0, 84.6).as_deref(),
+        Some("Flight co...")
+    );
+    assert_eq!(
+        fitted_row_name("Flight computer core", "Flight co...", 78.0, 84.6),
+        None
+    );
+}
+
+/// A row name wider than its cell ends in `...` through the real `PostUpdate`
+/// fit at UI scales 2 and 0.8, rewrites nothing while idle, and shows whole
+/// once the cell widens.
+#[test]
+fn an_overflowing_row_name_ends_in_an_ellipsis_and_shows_whole_once_its_cell_widens() {
+    const FULL: &str = "Long-range capacitor bank assembly";
+    let long = ItemDesignId::from("fixture_long_name");
+    let items = GameItems::new(test_items().iter().cloned().chain([ItemDesign {
+        id: long.clone(),
+        name: FULL.to_string(),
+        about: "An item with a long name for tests.".to_string(),
+        category: ItemCategoryType::Parts,
+        mass_g: 1_000,
+        price_lot: 1,
+        ask_cr: 10,
+        bid_cr: 5,
+    }]));
+    // The shown name, its laid-out width and its cell's content width, both
+    // in physical px.
+    let row_name = |world: &mut World| {
+        let mut names = world.query_filtered::<
+            (&Text, &TextLayoutInfo, &ComputedNode, &ChildOf),
+            With<InventoryRowName>,
+        >();
+        let (text, layout, node, child_of) = names.single(world).expect("the hold has one row");
+        let cell = world
+            .get::<ComputedNode>(child_of.parent())
+            .expect("a row name sits in its cell");
+        (
+            text.0.clone(),
+            layout.size.x / node.inverse_scale_factor(),
+            cell.content_box().size().x,
+        )
+    };
+    for scale in [2.0, 0.8] {
+        let (mut rig, player) = inventory_rig();
+        rig.app.insert_resource(UiScale(scale));
+        rig.app.insert_resource(items.clone());
+        rig.app
+            .world_mut()
+            .entity_mut(player)
+            .insert(ShipInventory::new(&items, 400_000, [(long.clone(), 1)]));
+        let content_root = rig.content_root;
+        let set_content_width = |app: &mut App, width: f32| {
+            app.world_mut()
+                .get_mut::<Node>(content_root)
+                .expect("the rig has a content root")
+                .width = Val::Px(width);
+            settle(app);
+        };
+
+        set_content_width(&mut rig.app, 600.0);
+        let (shown, shown_px, cell_px) = row_name(rig.app.world_mut());
+        assert!(
+            shown.len() > "...".len()
+                && FULL.starts_with(shown.trim_end_matches("..."))
+                && shown.ends_with("..."),
+            "scale {scale}: {shown:?} is not a shortened {FULL:?}"
+        );
+        assert!(
+            shown_px > 0.0 && shown_px <= cell_px,
+            "scale {scale}: {shown:?} lays out {shown_px} px in a {cell_px} px cell"
+        );
+        take_churn(&mut rig.app);
+        settle(&mut rig.app);
+        assert_eq!(
+            take_churn(&mut rig.app),
+            Default::default(),
+            "scale {scale}: a fitted name is not rewritten while idle"
+        );
+
+        set_content_width(&mut rig.app, RIG_CONTENT.x as f32);
+        let (shown, shown_px, cell_px) = row_name(rig.app.world_mut());
+        assert_eq!(shown, FULL, "scale {scale}: a {cell_px} px cell");
+        assert!(
+            shown_px <= cell_px,
+            "scale {scale}: {shown_px} px in a {cell_px} px cell"
+        );
+        take_churn(&mut rig.app);
+        settle(&mut rig.app);
+        assert_eq!(take_churn(&mut rig.app), Default::default());
+    }
+}
+
 #[test]
 fn a_narrow_window_stacks_storage_under_the_partner() {
     let (mut rig, player) = inventory_rig();
@@ -390,6 +503,8 @@ fn a_narrow_window_stacks_storage_under_the_partner() {
     );
 }
 
+/// A dock that ends with a trade form open, as the player's hit on a docked
+/// Neutral ends it, hides the partner column and closes its Buy form.
 #[test]
 fn a_dock_ending_mid_trade_hides_the_partner_column_and_closes_its_form() {
     let (mut rig, player) = inventory_rig();
@@ -2198,6 +2313,7 @@ fn a_catalog_only_item_jettisons_sells_and_buys_through_the_pane_commands() {
         about: "A catalog-only item for tests.".to_string(),
         category: ItemCategoryType::Parts,
         mass_g: 5_000,
+        price_lot: 1,
         ask_cr: 60,
         bid_cr: 45,
     }]));

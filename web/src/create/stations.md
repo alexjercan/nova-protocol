@@ -256,7 +256,7 @@ while it has a card.
 | rule | what happens |
 |---|---|
 | the gate | docked to a living station whose `services` list `Refit`, with a hull parked |
-| the price | every section's [build recipe](../sections/#build-recipe) at ask: its `credits` plus its parts at the item's `ask_cr`, paid in full. The station pays nothing for the old ship |
+| the price | every section's [build recipe](../sections/#build-recipe) at ask: its `credits` plus its parts at the item's ask, rounded up per lot. The station pays nothing for the old ship |
 | the swap | the player takes the controls of the parked hull, which undocks and redocks with the station. The old ship parks where it stood, still the player's |
 | the board | Board on the card of a ship the player owns swaps the player into it the same way, for free. The ship left parks where it stood, still the player's |
 | the hold | the old hold stays in the old ship. While docked at that station, its hold lists as the player's storage. The new hold opens empty |
@@ -312,10 +312,10 @@ scenario places and a derelict are not for sale.
 | rule | what happens |
 |---|---|
 | the gate | docked to a living station a generated world placed, whose civilization is your Ally, see [Civilization stances](#civilization-stances). No `services` entry is needed |
-| the price | twice what the station is worth at ask: every live section's [build recipe](../sections/#build-recipe), every stack of its hold at the item's `ask_cr`, and its credits. Your storage there is already yours and is not priced |
+| the price | twice what the station is worth at ask: every live section's [build recipe](../sections/#build-recipe), every stack of its hold at the item's ask, rounded up per lot, and its credits. Your storage there is already yours and is not priced |
 | the credits | the ship pays the price to the civilization. The station keeps its own credits, stock and services |
 | refusals | in this order: not docked, not for sale, already yours, not an ally, too few credits |
-| what becomes yours | the station leaves its civilization: it takes the Player side, so its guns fire on your foes, and it is named `Owned station`. It admits you whatever your side. Its hold sells to you at the item's `bid_cr`; storage withdraw stays free. Its services still price at ask, and Take does not reach its credits |
+| what becomes yours | the station leaves its civilization: it takes the Player side, so its guns fire on your foes, and it is named `Owned station`. It admits you whatever your side. Its hold sells to you at the item's bid, rounded up per lot; storage withdraw stays free. Its services still price at ask, and Take does not reach its credits |
 | what stays | the station keeps its stock, credits, services and the hulls it sells. It earns no income yet, and you cannot set its stock targets yet |
 | the Map | the chart holds it as yours: the chart view shows `OWNED STATION` in the ally colour |
 | sectors and saves | the station stays yours, on your side and under its new name, when its sector retires and thaws, and the world save keeps it so |
@@ -428,10 +428,11 @@ builds: every part at advancement 0, and of the parts above 0 that its
 advancement opens, each with chance 0.5 keyed to the civilization and the
 part id. The parts hold at least one recipe of every part it builds: for each
 item, the largest count any one of those recipes asks, so the Catalogue can
-sell every part it lists from the station's own stock. Its goods hold at
-least one unit of each ammunition item that a reloading weapon its
-civilization knows draws (`PdcRound`, `RailSlug`, `Torpedo`), and no other
-ammunition. It draws the parts its civilization knows at its advancement, by draw
+sell every part it lists from the station's own stock. Its goods hold
+ammunition only for the reloading weapons its civilization knows
+(`PdcRound`, `RailSlug`, `Torpedo`): at least 2,000 `PdcRound` when one of
+those weapons reloads from it, and at least one unit of each other such
+item. It draws the parts its civilization knows at its advancement, by draw
 weight, those within 0.25 below its advancement first, and carries
 flight computers for its mass, as a generated ship does. A dead station keeps the same stock
 and credits as loot.
@@ -440,8 +441,8 @@ The open world refuses to arm when no loaded style authors an archetype's
 style, or when no station hull, flight computer, docking port or turret part
 is open at advancement 0. A station that no layout fits fails its sector
 with the seed, civilization, archetype, advancement and failed constraint.
-A station whose opening stock weighs more than its hull holds fails its
-sector with a `station_stock` fault.
+A station whose opening stock, PDC floor included, weighs more than its
+hull holds fails its sector with a `station_stock` fault.
 `block_waystation` is for scenarios; the generator never places it. A
 mod's `Station` items are for its scenarios too.
 
