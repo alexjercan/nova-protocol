@@ -1,0 +1,19 @@
+START 2026-10-30T11:20:20Z
+CMD: cargo test -p nova_world_base --lib -- a_station_that_stocks_pdc_rounds_opens_with_two_thousand
+   Compiling nova_scenario v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_scenario)
+   Compiling nova_modding v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_modding)
+   Compiling nova_world v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_world)
+   Compiling nova_assets v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_assets)
+   Compiling nova_world_base v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_world_base)
+    Finished `test` profile [optimized] target(s) in 59.81s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running unittests src/lib.rs (target/debug/deps/nova_world_base-805a9f1a9d014356)
+
+running 1 test
+test station_layout::tests::a_station_that_stocks_pdc_rounds_opens_with_two_thousand ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 168 filtered out; finished in 0.09s
+
+EXIT=0
+END 2026-10-30T11:21:20Z

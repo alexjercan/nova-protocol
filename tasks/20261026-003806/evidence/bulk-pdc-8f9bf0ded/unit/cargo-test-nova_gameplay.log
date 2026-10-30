@@ -1,0 +1,25 @@
+START 2026-10-30T11:16:28Z
+CMD: cargo test -p nova_gameplay --lib -- a_buy_of_part_of_a_lot_rounds_its_credits_up a_sell_of_part_of_a_lot_rounds_its_credits_down a_lot_of_one_prices_each_item a_market_factor_prices_the_whole_lot a_pdc_trade_pays_its_share_of_the_lot_price a_sale_that_earns_no_credit_is_refused
+cargo: waiting for the build lock (another build is running)
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on build directory
+   Compiling nova_gameplay v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_gameplay)
+    Finished `test` profile [optimized] target(s) in 24.89s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running unittests src/lib.rs (target/debug/deps/nova_gameplay-41ed6100fcec706f)
+
+running 6 tests
+test inventory::transfer_tests::a_sale_that_earns_no_credit_is_refused ... ok
+test market::tests::a_market_factor_prices_the_whole_lot ... ok
+test market::tests::a_sell_of_part_of_a_lot_rounds_its_credits_down ... ok
+test market::tests::a_buy_of_part_of_a_lot_rounds_its_credits_up ... ok
+test market::tests::a_lot_of_one_prices_each_item ... ok
+test inventory::transfer_tests::a_pdc_trade_pays_its_share_of_the_lot_price ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 434 filtered out; finished in 0.00s
+
+EXIT=0
+END 2026-10-30T11:18:07Z
