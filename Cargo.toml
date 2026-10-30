@@ -911,6 +911,11 @@ name = "system_job_neutralize"
 path = "examples/systems/system_job_neutralize.rs"
 required-features = ["debug"]
 
+[[example]]
+name = "system_job_ammo_economics"
+path = "examples/systems/system_job_ammo_economics.rs"
+required-features = ["debug"]
+
 # Then the one range that grades SHIPPED content rather than a fixture built
 # beside it: the campaign's first chapter, booted by scenario id and walked
 # from the opening scene to the banner. Every other range above owns its world,

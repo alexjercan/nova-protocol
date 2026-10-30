@@ -1,0 +1,12 @@
+Run 3 provenance: system_job_ammo_economics, quantitative reference set (runs 2 and 3)
+
+- Source run directory: /tmp/nova-ammo-econ/run3 (timeline.jsonl, run.log, pid)
+- Recorded by: timeline.jsonl run_start git_sha ed7204ad7, host nixos; same HEAD and dirty tree as run 1 (see ../run1/provenance.txt)
+- Captures: OFF. Owner message: launched with NOVA_CAPTURE unset (env -u NOVA_CAPTURE).
+  Capture arms on the variable's presence, any value (crates/nova_autopilot/src/capture.rs:55-57),
+  so NOVA_CAPTURE=0 would arm it. run.log has 0 "Screenshot saved" lines; no captures directory exists.
+- Launch line: not saved in the run directory.
+- Renderer adapter: "NVIDIA GeForce RTX 3060 Ti"
+- Exit: timeline run_end exit Success; run.log "autopilot: cycle complete, no panic"; EXIT= lines in run.log: 1
+- run.log here: ANSI color codes removed (sed 's/\x1b\[[0-9;]*m//g'); timeline.jsonl: byte copy.
+- Hashes of the /tmp originals: SHA256SUMS.source; of these copies: SHA256SUMS.

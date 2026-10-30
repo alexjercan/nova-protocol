@@ -1,0 +1,40 @@
+Run 1 provenance: system_job_ammo_economics, ILLUSTRATIVE VISUAL SAMPLE (captures ON, full launch env not recorded; not matched to runs 2-3)
+
+Run
+- Run directory (source of these copies): /tmp/nova-ammo-econ/run1
+- Run window: 2026-10-30 06:58:37Z to 07:02:14Z (run.log timestamps)
+- Recorded by: timeline.jsonl run_start git_sha ed7204ad7, host nixos
+- Result: run_end exit Success, 43 entries; run.log "autopilot: cycle complete, no panic", EXIT=0
+- Renderer: llvmpipe (Mesa 26.1.5, LLVM 21.1.8), Vulkan, software; window 1920x1080 under an isolated X display
+- Audio: none (ALSA default PCM missing; nova audio muted)
+
+Launch command
+- The launch line and full environment were not saved. Captures were ON. Reconstructed from the
+  example doc comment and the artifact paths (UNVERIFIED in its exact form):
+  NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=2400 \
+  NOVA_PROBE_TIMELINE=/tmp/nova-ammo-econ/run1/timeline.jsonl \
+  NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=/tmp/nova-ammo-econ/run1/captures \
+  nix develop --command cargo run --example system_job_ammo_economics --features debug
+- nohup.out holds only: "warning: Git tree '/home/alex/personal/nova-protocol' is dirty"
+- Recorded PID file: 4040278
+
+Source tree
+- HEAD: ed7204ad727952e4560574c192f6a7fe9ba25aea (2026-10-29 23:35:47 +0200)
+- Dirty tree (git status --porcelain, read 2026-10-30 at report time):
+   M Cargo.toml                                    mtime 08:55:42 +0200, before the run: registers the example
+   M crates/nova_probe_cli/tests/catalog_drift.rs  mtime 09:09:57 +0200, AFTER the run; not in the example build
+   M tasks/20261026-003806/TASK.md                 mtime 08:46:45 +0200; prose only
+  ?? examples/systems/system_job_ammo_economics.rs mtime 08:56:28 +0200, before the run
+- sha256 examples/systems/system_job_ammo_economics.rs  0cd804d33a09aa8a6e97f389e30af5cf7cbbd355879e84d2989dd0727b4c150a
+- sha256 examples/systems/shared/located_jobs.rs        2316aaf7dd7ced7534f4228290ba9f9776eb77894fa616f5110295e6515f9635 (committed, unchanged at HEAD)
+- sha256 of `git diff Cargo.toml`                       7092137eb92ea66c501b438194380f959ea49805aa174f82f95b86b32f095104
+- The file mtimes put the example and Cargo.toml edits before the run start.
+  The hashes above are of the files at report time.
+
+Copies in this directory
+- timeline.jsonl: byte copy
+- captures/job-escort-board.png, captures/ammo-economics-buy-draft.png,
+  captures/ammo-economics-bought.png: byte copies
+- run.log: ANSI color codes removed (sed 's/\x1b\[[0-9;]*m//g'); text otherwise unchanged
+- Not copied: captures/job-escort-done.png, captures/job-escort-inspector-done.png,
+  nohup.out, pid. Their source hashes are in SHA256SUMS.source.
