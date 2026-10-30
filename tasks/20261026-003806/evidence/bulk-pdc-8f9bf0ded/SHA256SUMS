@@ -1,0 +1,16 @@
+28973328e151d6d463546e31d1c2487230c6f4a498c59858230b4284d7c768a9  ./launch.sh
+c687bdb912d0dde238de6f2a722db354e2b66dfacc31d360eb804ccc1a4efa2e  ./provenance.txt
+2aef0c004b623d380c6954dd577687505fd5dc8ea7b272b1b38467e048e8fcec  ./run1-capture/captures/ammo-economics-bought.png
+f3d48807f42cf05be657d0c44a98eb6f43d7997e77f99b1cc6fa0b830b4b19eb  ./run1-capture/captures/ammo-economics-buy-draft.png
+14b8aa992f060d4719811bb2f1ab66e66f28eadf73de35c5913f812882f37125  ./run1-capture/captures/job-escort-board.png
+b4391b2a4767e166133b564838e6c0843ba01dcb922063d346069a88f7105e90  ./run1-capture/captures/job-escort-done.png
+ba674b3ceb79733e4190ed452eaec2aaf9c52922f2ef2037e61ec20522abd057  ./run1-capture/run.log
+0e44f2fbe3670398054d622ef6f587a0cdd0bcc7715ca2c528da6064d8da1f5c  ./run1-capture/timeline.jsonl
+f764ee6cd1532eaed834570012c931bcba5bf05cefe22580e26deccb57f9e1a3  ./run2-nocapture/run.log
+61651af1d05f3c7760cd558e49f3d9bca4248c82ee7b2f4e055fb5fb03d058b8  ./run2-nocapture/timeline.jsonl
+9482a6fed7ac6fc2c72113428773a86efaf4dfe6a1a1a1e54dea5d55e51a7e6b  ./run3-nocapture/run.log
+d0412dfc8ef3771fda67549c5600f7f8e4f510b77df55765d86762c32c4fe648  ./run3-nocapture/timeline.jsonl
+64769cb1b359a6229052b4580202c5aa46b44846f530484ab8175ebde4af8aec  ./SHA256SUMS.source
+1565c77b71137e4cb24192bc8dbd2f3af91bdbfd6eda697629ca9f04ed57fc05  ./unit/cargo-test-nova_gameplay.log
+40e4681e4ad803e5a35c026c4b9a687d709ce455ccc1db286078a42e957b1bdc  ./unit/cargo-test-nova_world_base.log
+b3749e8d78110c9154cfcd2344d0bf12a4d4d281fa3d7c2e873004eaea9d629e  ./unit/commands.txt

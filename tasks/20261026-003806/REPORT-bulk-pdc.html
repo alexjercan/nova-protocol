@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bulk PDC lots and 2,000-round station stock: exact-commit evidence at 8f9bf0ded</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f1f2ee;
+  --paper: #fafaf7;
+  --ink: #17191b;
+  --muted: #5b6167;
+  --rule: #d5d8d2;
+  --code-bg: #e8eae5;
+  --accent: #b84a1c;
+  --measured: #1f6b66;
+  --measured-soft: #dbeeeb;
+  --derived: #8a5a00;
+  --derived-soft: #faf0d8;
+  --unit: #2f4fa8;
+  --unit-soft: #e1e7f7;
+  --hist: #5d5d5d;
+  --hist-soft: #e6e6e3;
+  --open: #7b2e63;
+  --open-soft: #f5e2ee;
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --grid: #e3e5e0;
+  --body: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #121416;
+    --paper: #191c1f;
+    --ink: #e4e6e1;
+    --muted: #a0a6ac;
+    --rule: #30353a;
+    --code-bg: #24282c;
+    --accent: #ef8d56;
+    --measured: #62c2ba;
+    --measured-soft: #15302e;
+    --derived: #e7b556;
+    --derived-soft: #382c12;
+    --unit: #93aef2;
+    --unit-soft: #1c2640;
+    --hist: #b9b9b4;
+    --hist-soft: #2c2d2c;
+    --open: #e48ebf;
+    --open-soft: #3a1e30;
+    --s1: #3987e5;
+    --s2: #d95926;
+    --grid: #2a2e32;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+main { max-width: 1060px; margin: 0 auto; padding: 28px 22px 80px; }
+h1 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 6px; }
+h2 { font-size: 1.25rem; margin: 40px 0 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
+h3 { font-size: 1.02rem; margin: 22px 0 8px; }
+p, li { max-width: 80ch; }
+code, pre { font-family: var(--mono); font-size: 0.86em; }
+code { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+pre { background: var(--code-bg); padding: 10px 12px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+a { color: var(--accent); overflow-wrap: anywhere; }
+.sub { color: var(--muted); margin: 0 0 18px; }
+.card { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 18px; margin: 14px 0; }
+.tag { display: inline-block; font: 600 0.72rem/1.6 var(--body); letter-spacing: 0.04em; text-transform: uppercase; padding: 0 7px; border-radius: 4px; vertical-align: 1px; white-space: nowrap; }
+.tag.m { background: var(--measured-soft); color: var(--measured); }
+.tag.d { background: var(--derived-soft); color: var(--derived); }
+.tag.u { background: var(--unit-soft); color: var(--unit); }
+.tag.h { background: var(--hist-soft); color: var(--hist); }
+.tag.o { background: var(--open-soft); color: var(--open); }
+.callout-m { border-left: 4px solid var(--measured); }
+.callout-u { border-left: 4px solid var(--unit); }
+.callout-h { border-left: 4px solid var(--hist); }
+.callout-o { border-left: 4px solid var(--open); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 14px 0; }
+.tile { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 14px; }
+.tile h3 { margin: 0 0 4px; font-size: 0.95rem; }
+.tile dl { display: grid; grid-template-columns: auto 1fr; gap: 0 10px; margin: 0; font-variant-numeric: tabular-nums; }
+.tile dt { color: var(--muted); font-size: 0.85rem; }
+.tile dd { margin: 0; text-align: right; font-weight: 600; }
+.tile dd.big { font-size: 1.35rem; line-height: 1.2; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0; font-variant-numeric: tabular-nums; }
+caption { text-align: left; color: var(--muted); font-size: 0.88rem; padding: 0 0 6px; caption-side: top; }
+th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
+td.num, th.num { text-align: right; }
+td code { word-break: normal; overflow-wrap: anywhere; }
+table.wide { min-width: 680px; }
+.hint { display: none; color: var(--muted); font-size: 0.82rem; margin: 0 0 4px; }
+@media (max-width: 640px) { .hint { display: block; } }
+tr.groupsep td, tr.groupsep th { border-bottom: 2px solid var(--rule); }
+tr.hist td, tr.hist th { color: var(--muted); }
+figure { margin: 18px 0; }
+figcaption { color: var(--muted); font-size: 0.88rem; margin-top: 6px; max-width: 92ch; }
+figure img { width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 6px; display: block; }
+.shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 0 18px; }
+@media (max-width: 520px) { .shots { grid-template-columns: 1fr; } }
+.chartwrap { overflow-x: auto; }
+svg.chart { width: 100%; min-width: 600px; height: auto; display: block; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; }
+svg .grid { stroke: var(--grid); stroke-width: 1; }
+svg .ref { stroke: var(--ink); stroke-width: 1.5; }
+svg .axis { fill: var(--muted); font: 11px var(--body); }
+svg .lab { fill: var(--ink); font: 12px var(--body); }
+svg .val { fill: var(--ink); font: 600 12px var(--body); }
+svg .note { fill: var(--muted); font: 11px var(--body); }
+svg .s1 { fill: var(--s1); }
+svg .h2 { fill: url(#hatch2); stroke: var(--s2); stroke-width: 1.5; }
+svg .h2b { fill: url(#hatch2b); stroke: var(--s2); stroke-width: 1.5; }
+.legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); margin: 6px 0 0; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+.sw.s1 { background: var(--s1); }
+.sw.h2 { background: repeating-linear-gradient(45deg, var(--s2) 0 2px, transparent 2px 5px); outline: 1.5px solid var(--s2); outline-offset: -1.5px; }
+.sw.ref { background: var(--ink); width: 2px; }
+details { margin: 10px 0; }
+summary { cursor: pointer; color: var(--accent); }
+.toc { columns: 2; font-size: 0.92rem; }
+@media (max-width: 700px) {
+  main { padding: 18px 12px 60px; }
+  h1 { font-size: 1.4rem; }
+  .toc { columns: 1; }
+  .card { padding: 10px 12px; }
+}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Bulk PDC lots and 2,000-round station stock: exact-commit evidence</h1>
+<p class="sub">Task <code>20261026-003806</code> (v0.17.0). Commit <code>8f9bf0ded</code> "Trade PDC ammunition in affordable bulk lots". Report date 2026-10-30. This page shows that the approved change works as built in one shipped escort job. It is not a balance verdict.</p>
+
+<div class="card callout-m">
+<p><strong>Key result.</strong> On a clean tree at <code>8f9bf0ded</code>, three runs of the same seed-2 escort job each paid a <strong>390 cr</strong> reward. Each run then bought back every PDC round it spent at Corsol station, through the Inventory pane, at <strong>10 cr ask / 7 cr bid per lot of 100</strong> (all price factors x1.00). The Buy paid the lot share, rounded up. The station opened the Buy with <strong>2,000</strong> rounds.</p>
+<div class="tiles" role="list">
+<section class="tile" role="listitem" aria-labelledby="t1"><h3 id="t1">Run 1 (captures on)</h3><dl>
+<dt>PDC spent / bought</dt><dd>628 / 628</dd>
+<dt>Buy paid</dt><dd>63 cr</dd>
+<dt>Reward</dt><dd>390 cr</dd>
+<dt>Net after Buy</dt><dd class="big">327 cr</dd>
+<dt>Station PDC stock</dt><dd>2000 &rarr; 1372</dd></dl></section>
+<section class="tile" role="listitem" aria-labelledby="t2"><h3 id="t2">Run 2 (captures off)</h3><dl>
+<dt>PDC spent / bought</dt><dd>1033 / 1033</dd>
+<dt>Buy paid</dt><dd>104 cr</dd>
+<dt>Reward</dt><dd>390 cr</dd>
+<dt>Net after Buy</dt><dd class="big">286 cr</dd>
+<dt>Station PDC stock</dt><dd>2000 &rarr; 967</dd></dl></section>
+<section class="tile" role="listitem" aria-labelledby="t3"><h3 id="t3">Run 3 (captures off)</h3><dl>
+<dt>PDC spent / bought</dt><dd>87 / 87</dd>
+<dt>Buy paid</dt><dd>9 cr</dd>
+<dt>Reward</dt><dd>390 cr</dd>
+<dt>Net after Buy</dt><dd class="big">381 cr</dd>
+<dt>Station PDC stock</dt><dd>2000 &rarr; 1913</dd></dl></section>
+</div>
+<p>Each run is shown alone. The rounds spent differ a lot for the same seed and commit (628, 1033, 87), and no cause is known. This page gives <strong>no average and no stable per-job figure</strong>. Three runs do not guarantee that a future job nets a profit or that a station has rounds left.</p>
+</div>
+
+<p>Labels used on this page:
+<span class="tag m">measured</span> read from game state or a settled transaction in a run marker;
+<span class="tag d">derived</span> arithmetic on measured values or on source rules;
+<span class="tag u">unit-tested</span> proven by an existing unit test at this commit, not by a run;
+<span class="tag h">historical</span> from the earlier report at a different commit, for context only.</p>
+
+<nav class="card" aria-label="Contents"><strong>Contents</strong>
+<ol class="toc">
+<li><a href="#change">The approved change</a></li>
+<li><a href="#runs">Runs and provenance</a></li>
+<li><a href="#results">Per-run results</a></li>
+<li><a href="#charts">Stock and credits charts</a></li>
+<li><a href="#market">Quote and price factors</a></li>
+<li><a href="#rounding">Lot rounding and the zero-credit Sell</a></li>
+<li><a href="#floor">Station opening floor: unit test vs run</a></li>
+<li><a href="#shots">Screenshots</a></li>
+<li><a href="#fixture">What is real and what is fixture</a></li>
+<li><a href="#limits">Limits and caveats</a></li>
+<li><a href="#dies">What dies and what may break</a></li>
+<li><a href="#history">Historical reference (not a before/after)</a></li>
+<li><a href="#ci">CI at this commit</a></li>
+<li><a href="#repro">Reproduce</a></li>
+<li><a href="#files">Evidence files and hashes</a></li>
+<li><a href="#raw">Raw JSONL markers</a></li>
+</ol></nav>
+
+<h2 id="change">1. The approved change</h2>
+<p>Paths are relative to the repository root at <code>8f9bf0ded</code>. Links open the local file.</p>
+<div class="tablewrap"><table>
+<caption>Rules this evidence exercises, with their source lines</caption>
+<thead><tr><th scope="col">Rule</th><th scope="col">Value or formula</th><th scope="col">Source</th></tr></thead>
+<tbody>
+<tr><td>PDC round reference price</td><td><code>price_lot</code> 100, <code>ask_cr</code> 10, <code>bid_cr</code> 7, 200 g</td><td><a href="../../crates/nova_authoring/src/base_content/items.rs">crates/nova_authoring/src/base_content/items.rs:60-67</a> (builder); generated <a href="../../assets/base/items/base.content.ron">assets/base/items/base.content.ron:12-21</a></td></tr>
+<tr><td>Price per lot</td><td><code>ItemPrice { ask_cr, bid_cr, lot }</code></td><td><a href="../../crates/nova_gameplay/src/market.rs">crates/nova_gameplay/src/market.rs:307-319</a></td></tr>
+<tr><td>Buy</td><td><code>ceil(count x ask_cr / lot)</code></td><td><code>market.rs:322-326</code></td></tr>
+<tr><td>Sell</td><td><code>floor(count x bid_cr / lot)</code></td><td><code>market.rs:328-333</code></td></tr>
+<tr><td>Sell that earns 0 cr</td><td>refused with <code>ZeroCredits</code> before the stock, room and credit checks</td><td><a href="../../crates/nova_gameplay/src/inventory.rs">crates/nova_gameplay/src/inventory.rs:912-914, 994-996</a></td></tr>
+<tr><td>Live quote</td><td>reference x scarcity x cluster x civilization, clamped, rounded once per lot</td><td><code>market.rs:389-444</code> (rounding at <code>430-436</code>)</td></tr>
+<tr><td>Station PDC opening floor</td><td><code>PDC_OPENING_ROUNDS = 2_000</code>, applied with <code>units.max(...)</code> when the civilization fields a PDC</td><td><a href="../../crates/nova_world_base/src/station_layout.rs">crates/nova_world_base/src/station_layout.rs:123-127, 506-508</a></td></tr>
+<tr><td>Item format</td><td><code>price_lot</code> is a required field (no serde default); lint refuses 0</td><td><code>inventory.rs:183-188, 200-203</code>; <a href="../../crates/nova_assets/src/items.rs">crates/nova_assets/src/items.rs:129-131</a></td></tr>
+<tr><td>Job rewards priced from items</td><td>procure <code>buy_cr(count) x 3/2</code>, recover <code>buy_cr(count) x 2</code></td><td><a href="../../crates/nova_gameplay/src/jobs.rs">crates/nova_gameplay/src/jobs.rs:1287, 1304</a></td></tr>
+<tr><td>Escort reward (unchanged)</td><td><code>cargo_cr / 2 + fee</code>; here 581 / 2 = 290, + 100 = 390</td><td><code>jobs.rs:1315-1321</code>; accept markers</td></tr>
+<tr><td>Changelog</td><td>three entries, one marked <strong>(breaking)</strong></td><td><a href="../../CHANGELOG.md">CHANGELOG.md:18-25</a></td></tr>
+</tbody></table></div>
+
+<h2 id="runs">2. Runs and provenance</h2>
+<p>All three runs use the committed example <a href="../../examples/systems/system_job_ammo_economics.rs"><code>examples/systems/system_job_ammo_economics.rs</code></a> on HEAD <code>8f9bf0deddc3c92aa1218c5844780d813ec6ebad</code>, branch master. <code>git status --porcelain</code> was empty before and after each run. Each timeline's <code>run_start</code> records <code>git_sha</code> <code>8f9bf0ded</code>. Each run had DISPLAY and WAYLAND_DISPLAY unset and used <code>xvfb-run -a</code> with a 1920x1080x24 screen; the real display was not used. Renderer: the NVIDIA RTX 3060 Ti Vulkan ICD for all three. Fresh XDG directories per run. Full record: <a href="evidence/bulk-pdc-8f9bf0ded/provenance.txt">provenance.txt</a>; wrapper: <a href="evidence/bulk-pdc-8f9bf0ded/launch.sh">launch.sh</a>.</p>
+<div class="tablewrap"><table class="wide">
+<caption>The three runs</caption>
+<thead><tr><th scope="col">Run</th><th scope="col">Captures</th><th scope="col">Exit</th><th scope="col">Timeline end</th><th scope="col">Log checks</th><th scope="col">Evidence</th></tr></thead>
+<tbody>
+<tr><th scope="row">1</th><td>On (<code>NOVA_CAPTURE=1</code>), 5 frames written, 4 kept</td><td><code>EXIT=0</code></td><td><code>run_end</code> Success, 41 entries</td><td>"escort job: PASS the hand-in paid 390 cr" (log line 340); "cycle complete, no panic" (line 369)</td><td><a href="evidence/bulk-pdc-8f9bf0ded/run1-capture/timeline.jsonl">timeline.jsonl</a>, <a href="evidence/bulk-pdc-8f9bf0ded/run1-capture/run.log">run.log</a></td></tr>
+<tr><th scope="row">2</th><td>Off (variables unset); 0 "Screenshot saved" lines</td><td><code>EXIT=0</code></td><td><code>run_end</code> Success, 56 entries</td><td>PASS line 342; no-panic line 365</td><td><a href="evidence/bulk-pdc-8f9bf0ded/run2-nocapture/timeline.jsonl">timeline.jsonl</a>, <a href="evidence/bulk-pdc-8f9bf0ded/run2-nocapture/run.log">run.log</a></td></tr>
+<tr><th scope="row">3</th><td>Off (variables unset); 0 "Screenshot saved" lines</td><td><code>EXIT=0</code></td><td><code>run_end</code> Success, 50 entries</td><td>PASS line 313; no-panic line 336</td><td><a href="evidence/bulk-pdc-8f9bf0ded/run3-nocapture/timeline.jsonl">timeline.jsonl</a>, <a href="evidence/bulk-pdc-8f9bf0ded/run3-nocapture/run.log">run.log</a></td></tr>
+</tbody></table></div>
+<p>Each log also has the step <code>ammo economics: assert the Buy</code>. That step asserts that the Buy moved exactly the planned quantity, that the player paid exactly <code>buy_cr(quantity)</code> at the quoted lot price, and that the station took the same credits (<code>examples/systems/system_job_ammo_economics.rs:766-811</code>). The run would panic on a mismatch; each run instead logs "cycle complete, no panic". The exit codes and wall-clock times are a record only. This page makes no timing claim.</p>
+
+<h2 id="results">3. Per-run results</h2>
+<div class="tablewrap"><table class="wide">
+<caption>One column per run. No average is given.</caption>
+<thead><tr><th scope="col">Measure</th><th scope="col" class="num">Run 1</th><th scope="col" class="num">Run 2</th><th scope="col" class="num">Run 3</th><th scope="col">Label and source marker</th></tr></thead>
+<tbody>
+<tr><th scope="row">Start: credits / hold PDC / magazines</th><td class="num">1000 / 1000 / 500+500</td><td class="num">1000 / 1000 / 500+500</td><td class="num">1000 / 1000 / 500+500</td><td><span class="tag m">measured</span> <code>ammo economics: accept</code></td></tr>
+<tr><th scope="row">PDC pool at accept</th><td class="num">2000</td><td class="num">2000</td><td class="num">2000</td><td><span class="tag m">measured</span> <code>fight ledger</code> <code>start_pool</code></td></tr>
+<tr><th scope="row">PDC consumed = turret rounds fired</th><td class="num">628 = 628</td><td class="num">1033 = 1033</td><td class="num">87 = 87</td><td><span class="tag m">measured</span> <code>fight ledger</code>, residual 0, none lost or stranded</td></tr>
+<tr class="groupsep"><th scope="row">Usable pool at hand-in</th><td class="num">1372</td><td class="num">967</td><td class="num">1913</td><td><span class="tag m">measured</span> <code>end_usable_pool</code>; 2000 minus consumed</td></tr>
+<tr><th scope="row">Reward credited</th><td class="num">390</td><td class="num">390</td><td class="num">390</td><td><span class="tag m">measured</span> <code>ammo economics: hand-in</code></td></tr>
+<tr><th scope="row">Player credits at hand-in</th><td class="num">1000 &rarr; 1390</td><td class="num">1000 &rarr; 1390</td><td class="num">1000 &rarr; 1390</td><td><span class="tag m">measured</span></td></tr>
+<tr class="groupsep"><th scope="row">Station credits at hand-in</th><td class="num">10429 &rarr; 10039</td><td class="num">10429 &rarr; 10039</td><td class="num">10429 &rarr; 10039</td><td><span class="tag m">measured</span></td></tr>
+<tr><th scope="row">Station PDC stock / target before Buy</th><td class="num">2000 / 2000</td><td class="num">2000 / 2000</td><td class="num">2000 / 2000</td><td><span class="tag m">measured</span> <code>ammo economics: market</code></td></tr>
+<tr><th scope="row">Buy quantity</th><td class="num">628</td><td class="num">1033</td><td class="num">87</td><td><span class="tag m">measured</span> <code>ammo economics: buy</code>; equals consumed</td></tr>
+<tr><th scope="row">Expected price <code>ceil(q x 10 / 100)</code></th><td class="num">ceil(62.8) = 63</td><td class="num">ceil(103.3) = 104</td><td class="num">ceil(8.7) = 9</td><td><span class="tag d">derived</span>; the marker's <code>expected_cr</code> agrees</td></tr>
+<tr><th scope="row">Paid by player / taken by station</th><td class="num">63 / 63</td><td class="num">104 / 104</td><td class="num">9 / 9</td><td><span class="tag m">measured</span> <code>paid_cr</code>, <code>station_took_cr</code></td></tr>
+<tr><th scope="row">Player credits at Buy</th><td class="num">1390 &rarr; 1327</td><td class="num">1390 &rarr; 1286</td><td class="num">1390 &rarr; 1381</td><td><span class="tag m">measured</span></td></tr>
+<tr><th scope="row">Station credits at Buy</th><td class="num">10039 &rarr; 10102</td><td class="num">10039 &rarr; 10143</td><td class="num">10039 &rarr; 10048</td><td><span class="tag m">measured</span></td></tr>
+<tr><th scope="row">Player hold PDC at Buy</th><td class="num">407 &rarr; 1035</td><td class="num">0 &rarr; 1033</td><td class="num">970 &rarr; 1057</td><td><span class="tag m">measured</span></td></tr>
+<tr class="groupsep"><th scope="row">Station PDC stock at Buy</th><td class="num">2000 &rarr; 1372</td><td class="num">2000 &rarr; 967</td><td class="num">2000 &rarr; 1913</td><td><span class="tag m">measured</span></td></tr>
+<tr><th scope="row">Net after Buy (reward - paid)</th><td class="num"><strong>327</strong></td><td class="num"><strong>286</strong></td><td class="num"><strong>381</strong></td><td><span class="tag m">measured</span> <code>ammo economics: net</code> <code>net_after_buy_cr</code></td></tr>
+<tr><th scope="row">Every spent round replaced</th><td class="num">yes</td><td class="num">yes</td><td class="num">yes</td><td><span class="tag m">measured</span> <code>replaced_every_spent_round</code></td></tr>
+<tr><th scope="row">Share of station stock taken</th><td class="num">31.4%</td><td class="num">51.65%</td><td class="num">4.35%</td><td><span class="tag d">derived</span> quantity / 2000</td></tr>
+</tbody></table></div>
+<p>Conservation <span class="tag d">derived</span>: in each run the player's credit loss equals the station's credit gain, and the player's round gain equals the station's round loss. The usable pool at hand-in equals the hold plus both magazines (run 1: 407 + 465 + 500; run 2: 0 + 500 + 467; run 3: 970 + 443 + 500).</p>
+<p>Torpedoes: 0 spent in every run (8 at accept, 8 at hand-in). The single raider survived in each run; the job completes when the hauler reaches its mark (<code>outcome: the escorted hauler survives the ambush to its mark</code>, <code>raiders_left</code> 1).</p>
+
+<h2 id="charts">4. Stock and credits charts</h2>
+<figure>
+<p class="hint">Scroll the chart sideways on a narrow screen.</p>
+<div class="chartwrap">
+<svg class="chart" viewBox="0 0 800 196" role="img" aria-labelledby="c1t c1d">
+<title id="c1t">Corsol station PDC stock before and after each run's Buy</title>
+<desc id="c1d">Horizontal stacked bars on one axis from 0 to 2000 rounds. Each bar is the 2000-round stock before the Buy, split into what the station kept and what the player bought. Run 1: kept 1372, bought 628. Run 2: kept 967, bought 1033. Run 3: kept 1913, bought 87. All values measured.</desc>
+<defs><pattern id="hatch2" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2.2" height="6" style="fill:var(--s2)"/></pattern></defs>
+<line class="grid" x1="190" y1="14" x2="190" y2="150"/><line class="grid" x1="330" y1="14" x2="330" y2="150"/><line class="grid" x1="470" y1="14" x2="470" y2="150"/><line class="grid" x1="610" y1="14" x2="610" y2="150"/><line class="grid" x1="750" y1="14" x2="750" y2="150"/>
+<text class="axis" x="190" y="167" text-anchor="middle">0</text><text class="axis" x="330" y="167" text-anchor="middle">500</text><text class="axis" x="470" y="167" text-anchor="middle">1000</text><text class="axis" x="610" y="167" text-anchor="middle">1500</text><text class="axis" x="750" y="167" text-anchor="middle">2000</text>
+<text class="axis" x="470" y="186" text-anchor="middle">PDC rounds in Corsol station stock</text>
+<text class="lab" x="180" y="43" text-anchor="end">Run 1</text>
+<rect class="s1" x="190" y="28" width="384.16" height="22"><title>Run 1 station kept 1372 rounds (measured)</title></rect>
+<rect class="h2" x="574.16" y="28" width="175.84" height="22"><title>Run 1 player bought 628 rounds for 63 cr (measured)</title></rect>
+<text class="val" x="196" y="43" style="fill:#fff">1372 kept</text>
+<text class="val" x="580" y="22">628 bought</text>
+<text class="lab" x="180" y="88" text-anchor="end">Run 2</text>
+<rect class="s1" x="190" y="73" width="270.76" height="22"><title>Run 2 station kept 967 rounds (measured)</title></rect>
+<rect class="h2" x="460.76" y="73" width="289.24" height="22"><title>Run 2 player bought 1033 rounds for 104 cr (measured)</title></rect>
+<text class="val" x="196" y="88" style="fill:#fff">967 kept</text>
+<text class="val" x="466" y="67">1033 bought</text>
+<text class="lab" x="180" y="133" text-anchor="end">Run 3</text>
+<rect class="s1" x="190" y="118" width="535.64" height="22"><title>Run 3 station kept 1913 rounds (measured)</title></rect>
+<rect class="h2" x="725.64" y="118" width="24.36" height="22"><title>Run 3 player bought 87 rounds for 9 cr (measured)</title></rect>
+<text class="val" x="196" y="133" style="fill:#fff">1913 kept</text>
+<text class="val" x="744" y="112" text-anchor="end">87 bought</text>
+</svg>
+</div>
+<div class="legend"><span><span class="sw s1"></span>stock the station kept (measured)</span><span><span class="sw h2"></span>rounds the player bought (measured)</span></div>
+<figcaption>Figure 1. Station PDC stock at the Buy, per run. Every run started the Buy at 2,000 rounds and none emptied the station. Run 2 took about half. The chart shows one visit per run; it does not show what a second sortie would find.</figcaption>
+</figure>
+
+<figure>
+<p class="hint">Scroll the chart sideways on a narrow screen.</p>
+<div class="chartwrap">
+<svg class="chart" viewBox="0 0 800 196" role="img" aria-labelledby="c2t c2d">
+<title id="c2t">Escort reward split into Buy paid and net kept, per run</title>
+<desc id="c2d">Horizontal stacked bars on one credit axis from 0 to 400, with a reference line at the 390 credit reward. Run 1: net 327, paid 63. Run 2: net 286, paid 104. Run 3: net 381, paid 9. All values measured; net plus paid equals 390 in each run.</desc>
+<defs><pattern id="hatch2b" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2.2" height="6" style="fill:var(--s2)"/></pattern></defs>
+<line class="grid" x1="190" y1="14" x2="190" y2="150"/><line class="grid" x1="330" y1="14" x2="330" y2="150"/><line class="grid" x1="470" y1="14" x2="470" y2="150"/><line class="grid" x1="610" y1="14" x2="610" y2="150"/><line class="grid" x1="750" y1="14" x2="750" y2="150"/>
+<text class="axis" x="190" y="167" text-anchor="middle">0</text><text class="axis" x="330" y="167" text-anchor="middle">100</text><text class="axis" x="470" y="167" text-anchor="middle">200</text><text class="axis" x="610" y="167" text-anchor="middle">300</text><text class="axis" x="750" y="167" text-anchor="middle">400</text>
+<text class="axis" x="470" y="186" text-anchor="middle">credits (cr)</text>
+<text class="lab" x="180" y="43" text-anchor="end">Run 1</text>
+<rect class="s1" x="190" y="28" width="457.8" height="22"><title>Run 1 net after Buy: 327 cr (measured)</title></rect>
+<rect class="h2b" x="647.8" y="28" width="88.2" height="22"><title>Run 1 Buy paid: 63 cr for 628 rounds (measured)</title></rect>
+<text class="val" x="196" y="43" style="fill:#fff">net 327</text>
+<text class="val" x="653" y="22">paid 63</text>
+<text class="lab" x="180" y="88" text-anchor="end">Run 2</text>
+<rect class="s1" x="190" y="73" width="400.4" height="22"><title>Run 2 net after Buy: 286 cr (measured)</title></rect>
+<rect class="h2b" x="590.4" y="73" width="145.6" height="22"><title>Run 2 Buy paid: 104 cr for 1033 rounds (measured)</title></rect>
+<text class="val" x="196" y="88" style="fill:#fff">net 286</text>
+<text class="val" x="596" y="67">paid 104</text>
+<text class="lab" x="180" y="133" text-anchor="end">Run 3</text>
+<rect class="s1" x="190" y="118" width="533.4" height="22"><title>Run 3 net after Buy: 381 cr (measured)</title></rect>
+<rect class="h2b" x="723.4" y="118" width="12.6" height="22"><title>Run 3 Buy paid: 9 cr for 87 rounds (measured)</title></rect>
+<text class="val" x="196" y="133" style="fill:#fff">net 381</text>
+<text class="val" x="730" y="112" text-anchor="end">paid 9</text>
+<line class="ref" x1="736" y1="20" x2="736" y2="150"/>
+<text class="note" x="742" y="150">390</text>
+</svg>
+</div>
+<div class="legend"><span><span class="sw s1"></span>net kept after the Buy (measured)</span><span><span class="sw h2"></span>paid for the spent rounds (measured)</span><span><span class="sw ref"></span>reward 390 cr (measured)</span></div>
+<figcaption>Figure 2. Reward split per run. The Buy took 63, 104 and 9 cr of the 390 cr reward. Repairs, travel, other ammunition and time are not counted. This does not show that the job is balanced; see <a href="#limits">limits</a>.</figcaption>
+</figure>
+
+<h2 id="market">5. Quote and price factors</h2>
+<div class="tablewrap"><table>
+<caption>Corsol station, PDC round, read after the hand-in and before the Buy (same in all three runs)</caption>
+<thead><tr><th scope="col">Field</th><th scope="col">Value</th><th scope="col">Label</th></tr></thead>
+<tbody>
+<tr><td>Station</td><td>Corsol station, <code>sector_2_8_0_cluster_1_5_0_station_0</code>; trades, has a trader market</td><td><span class="tag m">measured</span></td></tr>
+<tr><td>Stock / target</td><td>2000 / 2000</td><td><span class="tag m">measured</span></td></tr>
+<tr><td>Ask / bid / lot</td><td>10 cr / 7 cr per 100 rounds; reference 10 / 7, <code>price_lot</code> 100</td><td><span class="tag m">measured</span></td></tr>
+<tr><td>Ask factors</td><td>scarcity 1.0, cluster 1.0, civilization 1.0, total 1.0; not clamped</td><td><span class="tag m">measured</span></td></tr>
+<tr><td>Pane row texts</td><td><code>["[+0%]", " / 100", "10", "x2000", "PDC round"]</code></td><td><span class="tag m">measured</span> <code>pane_row_texts</code></td></tr>
+<tr><td>Quote after the Buy, run 1</td><td>ask 12 / 100 (+20%), bid 8 / 100 (+14%); scarcity x1.16 / x1.08</td><td>screen only (Figure 6); no marker records it</td></tr>
+<tr><td>The same, from the rule</td><td>share 1372 / 2000 = 0.686; ask factor 1.5 - 0.5 x 0.686 = 1.157, 10 x 1.157 = 11.57, rounds to 12; bid factor 1.25 - 0.25 x 0.686 = 1.079, 7 x 1.079 = 7.55, rounds to 8</td><td><span class="tag d">derived</span> from <code>market.rs:250-261, 430-436</code> and starved factors at <a href="../../crates/nova_authoring/src/base_content/market.rs">crates/nova_authoring/src/base_content/market.rs:20-23</a>; agrees with the screen</td></tr>
+<tr><td>Restock 1372 to 2000 (run 1)</td><td>drift <code>target x elapsed / 1800 s</code>: 628 rounds need about 565 s of play</td><td><span class="tag d">derived</span> from <code>market.rs:452-466</code>, <code>base_content/market.rs:38</code>; the screen's restock strip reads "1372 / 2000, 10 min"</td></tr>
+</tbody></table></div>
+<p>A lower stock raises the ask. A later Buy at the same station after a large one pays more per lot until the stock recovers. No run makes a second Buy, so this is a rule reading, not a measurement.</p>
+
+<h2 id="rounding">6. Lot rounding and the zero-credit Sell</h2>
+<div class="card callout-u">
+<p><strong>Runtime.</strong> All three Buys were partial lots (628, 1033, 87 rounds). Each paid the rounded-up share: 63, 104 and 9 cr <span class="tag m">measured</span>. No run made a Sell.</p>
+<p><strong>Unit tests</strong> <span class="tag u">unit-tested</span>, 6 passed at <code>8f9bf0ded</code> (<a href="evidence/bulk-pdc-8f9bf0ded/unit/cargo-test-nova_gameplay.log">unit/cargo-test-nova_gameplay.log</a>):</p>
+<div class="tablewrap"><table>
+<caption>Asserted values in the PDC lot tests</caption>
+<thead><tr><th scope="col">Test</th><th scope="col">What it asserts</th><th scope="col">Source</th></tr></thead>
+<tbody>
+<tr><td><code>a_buy_of_part_of_a_lot_rounds_its_credits_up</code></td><td><code>buy_cr</code>: 1 &rarr; 1, 99 &rarr; 10, 100 &rarr; 10, 101 &rarr; 11, 2000 &rarr; 200, <code>u32::MAX</code> &rarr; 429496730</td><td><code>crates/nova_gameplay/src/market.rs:948-956</code></td></tr>
+<tr><td><code>a_sell_of_part_of_a_lot_rounds_its_credits_down</code></td><td><code>sell_cr</code>: 14 &rarr; 0, 15 &rarr; 1, 100 &rarr; 7, 199 &rarr; 13, 2000 &rarr; 140</td><td><code>market.rs:958-965</code></td></tr>
+<tr><td><code>a_lot_of_one_prices_each_item</code></td><td>a lot of 1 keeps per-item pricing: 3 at 16/12 &rarr; 48 / 36</td><td><code>market.rs:967-975</code></td></tr>
+<tr><td><code>a_market_factor_prices_the_whole_lot</code></td><td>factors scale the lot price once (10/7 at x2.0/x1.5 &rarr; 20/11 per 100), then a trade takes its share</td><td><code>market.rs:977-1000</code></td></tr>
+<tr><td><code>a_pdc_trade_pays_its_share_of_the_lot_price</code></td><td>trade plan: Buy 1 &rarr; 1, 100 &rarr; 10, 2000 &rarr; 200; owned-station Buy 150 at bid &rarr; 11; Sell 15 &rarr; 1, 150 &rarr; 10</td><td><a href="../../crates/nova_gameplay/src/inventory.rs">crates/nova_gameplay/src/inventory.rs:2289-2325</a></td></tr>
+<tr><td><code>a_sale_that_earns_no_credit_is_refused</code></td><td>Sell 14 &rarr; <code>Err(ZeroCredits)</code>, also with a full partner and 0 partner credits; Sell 15 &rarr; 1 cr; Sell 0 &rarr; <code>ZeroQuantity</code></td><td><code>inventory.rs:2327-2366</code></td></tr>
+</tbody></table></div>
+<p>The zero-credit refusal is proven <strong>only</strong> by unit tests. A player can still sell 15 or more rounds.</p>
+</div>
+
+<h2 id="floor">7. Station opening floor: unit test vs run</h2>
+<div class="tiles">
+<section class="tile callout-u"><h3><span class="tag u">unit-tested</span> The floor</h3>
+<p><code>a_station_that_stocks_pdc_rounds_opens_with_two_thousand</code> passed (<a href="evidence/bulk-pdc-8f9bf0ded/unit/cargo-test-nova_world_base.log">unit/cargo-test-nova_world_base.log</a>; <a href="../../crates/nova_world_base/src/station_layout.rs">crates/nova_world_base/src/station_layout.rs:2050-2121</a>). With 1 kg rounds a generated station opens with exactly 2,000; with 1 g rounds it opens with more; every other stack is equal in both. That is the floor, and it takes nothing from other goods.</p></section>
+<section class="tile callout-m"><h3><span class="tag m">measured</span> The run</h3>
+<p>Corsol station read 2000 / 2000 (stock / target) <strong>after the hand-in</strong>, at one station, seed 2. The run does not read stock at generation. From the run alone you cannot tell the floor from a natural share of 2,000.</p></section>
+<section class="tile callout-h"><h3><span class="tag h">historical</span> Context only</h3>
+<p>The earlier report read 189 / 189 at the same station at <code>ed7204ad7</code>, with the same 200 g round. A move from 189 to 2000 agrees with the floor. It is a cross-commit reading on a dirty tree, so it is not proof.</p></section>
+</div>
+<div class="card callout-o">
+<h3 id="saves">Saved stock and target <span class="tag d">derived</span> from source, not run</h3>
+<ul>
+<li>A trader's market target is the stock it spawns with (<a href="../../crates/nova_world_base/src/sector_ships.rs">crates/nova_world_base/src/sector_ships.rs:326-344</a>; stations at <a href="../../crates/nova_world_base/src/clusters.rs">crates/nova_world_base/src/clusters.rs:1872-1873</a>). So a station that gets the floor also gets a PDC target of at least 2,000, and restock drifts back toward it.</li>
+<li>The floor acts only at generation. Once a station is frozen (a retired sector or a world save), its record carries its own hold and market target (<a href="../../crates/nova_scenario/src/objects/spaceship.rs">crates/nova_scenario/src/objects/spaceship.rs:587-603, 620-627, 924, 1082-1086</a>; <a href="../../crates/nova_scenario/src/objects/station.rs">crates/nova_scenario/src/objects/station.rs:550-559</a>). It thaws with that saved stock and target, not a new floor. A held (pending) station is regenerated instead (<a href="../../crates/nova_world_base/src/save/mod.rs">crates/nova_world_base/src/save/mod.rs:854</a>).</li>
+<li>A world save written before <code>8f9bf0ded</code> should not load at all: the save header pins the content catalog digest (<code>save/mod.rs:118-119</code>), Load refuses a different digest (<code>save/mod.rs:1560-1565</code>), and the digest covers every effective content item (<a href="../../crates/nova_assets/src/merge.rs">crates/nova_assets/src/merge.rs:936-975</a>), which includes the changed <code>PdcRound</code> item. So no old save should mix the old 189-round target with the new price. No load of an old save was run for this page.</li>
+<li><code>PDC_OPENING_ROUNDS</code> is a code constant, not content. A later change to it alone would not move the catalog digest, and saves made at this commit would keep their 2,000 targets.</li>
+</ul>
+</div>
+
+<h2 id="shots">8. Screenshots</h2>
+<p>Four frames written by run 1 under its own Xvfb screen (1920x1080, NVIDIA renderer) and inspected for this report. They show the UI path. The credit and round transfers are proven by the markers and the Buy assert, not by the pictures. Run 1 armed captures, so its frame sequence differs from runs 2 and 3. The fifth frame (<code>job-escort-inspector-done.png</code>) was not copied; its hash is in <a href="evidence/bulk-pdc-8f9bf0ded/SHA256SUMS.source">SHA256SUMS.source</a>.</p>
+<div class="shots">
+<figure>
+<a href="evidence/bulk-pdc-8f9bf0ded/run1-capture/captures/job-escort-board.png"><img src="evidence/bulk-pdc-8f9bf0ded/run1-capture/captures/job-escort-board.png" width="1920" height="1080" loading="lazy" alt="Jobs tab docked at Corsol station. Header balance 1,000. Jobs posted here lists two distress calls for 700 and 400 credits. Your jobs lists Escort a hauler carrying 581 cr at progress 0 of 1 with Hand in greyed. The detail panel shows reward 390 and the status not done yet. The footer reads accepted: Escort a hauler carrying 581 cr."></a>
+<figcaption>Figure 3. Run 1, Jobs pane after the Accept (<code>job-escort-board.png</code>). Balance 1,000 cr; escort reward 390 cr; "not done yet".</figcaption>
+</figure>
+<figure>
+<a href="evidence/bulk-pdc-8f9bf0ded/run1-capture/captures/job-escort-done.png"><img src="evidence/bulk-pdc-8f9bf0ded/run1-capture/captures/job-escort-done.png" width="1920" height="1080" loading="lazy" alt="Jobs tab after the hand-in. Header balance 1,390. Your jobs list is empty. The board now lists two distress calls and a Bring 6 Carbon ore job. The footer reads handed in Escort a hauler carrying 581 cr for 390 cr; balance 1,390 cr."></a>
+<figcaption>Figure 4. Run 1, Jobs pane after the Hand in (<code>job-escort-done.png</code>). Status line: "handed in Escort a hauler carrying 581 cr for 390 cr; balance 1,390 cr".</figcaption>
+</figure>
+<figure>
+<a href="evidence/bulk-pdc-8f9bf0ded/run1-capture/captures/ammo-economics-buy-draft.png"><img src="evidence/bulk-pdc-8f9bf0ded/run1-capture/captures/ammo-economics-buy-draft.png" width="1920" height="1080" loading="lazy" alt="Inventory tab before the Buy. Header balance 1,390. Patrol Picket hold lists PDC round x407 at 7 / 100. Corsol station lists PDC round x2000 at 10 / 100 with deal +0%. The detail panel for PDC round shows stock x2000, reference 10 cr / 100 and 7 cr / 100, pays 7 cr / 100, asks 10 cr / 100, all factors x1.00, a Buy quantity of 628 of 2000, and Price 63 cr, Balance 1,327 cr."></a>
+<figcaption>Figure 5. Run 1, Buy draft (<code>ammo-economics-buy-draft.png</code>). Station row "x2000 10 / 100 [+0%]"; asks "10 cr / 100 (+0%)", pays "7 cr / 100"; quantity 628 of 2000; "Price 63 cr Balance 1,327 cr". This is a draft, not yet settled.</figcaption>
+</figure>
+<figure>
+<a href="evidence/bulk-pdc-8f9bf0ded/run1-capture/captures/ammo-economics-bought.png"><img src="evidence/bulk-pdc-8f9bf0ded/run1-capture/captures/ammo-economics-bought.png" width="1920" height="1080" loading="lazy" alt="Inventory tab after the Buy. Header balance 1,327. Patrol Picket hold lists PDC round x1035. Corsol station credits 10,102 and PDC round x1372 at 12 / 100 with deal +20%. The detail panel shows pays 8 cr / 100 (+14%), asks 12 cr / 100 (+20%), scarcity x1.16 / x1.08, and the line BOUGHT x628 PDC round -63 cr. The restock strip reads PDC round 1372 / 2000, 10 min."></a>
+<figcaption>Figure 6. Run 1, after the Confirm (<code>ammo-economics-bought.png</code>). "BOUGHT x628 PDC round -63 cr"; balance 1,327; station credits 10,102; station row x1372, player row x1035. The post-Buy quote (12 / 100, scarcity x1.16 / x1.08) is screen only.</figcaption>
+</figure>
+</div>
+
+<h2 id="fixture">9. What is real and what is fixture</h2>
+<div class="tablewrap"><table>
+<caption>Which parts of the walk use live systems</caption>
+<thead><tr><th scope="col">Step</th><th scope="col">How</th><th scope="col">Source</th></tr></thead>
+<tbody>
+<tr><td>Berth for the Accept and for the Hand in</td><td><strong>Fixture.</strong> The walk sets the player's position, rotation and velocity onto the station berth, then requests the dock</td><td><a href="../../examples/systems/shared/located_jobs.rs">examples/systems/shared/located_jobs.rs:658-708</a>; example doc <code>system_job_ammo_economics.rs:30-34</code></td></tr>
+<tr><td>Accept, Hand in</td><td>Live Jobs pane buttons, activated by name</td><td><code>located_jobs.rs:710-719</code></td></tr>
+<tr><td>Escort flight, ambush, fire</td><td><strong>Real.</strong> GOTO flight, formation, the hull's own turrets on the weakest raider. Nothing teleports the hauler</td><td><code>located_jobs.rs:28-35</code></td></tr>
+<tr><td>Inventory Buy</td><td><strong>Real.</strong> Row selected by <code>Activate</code>, Confirm by a pointer click; settled by the game's trade path</td><td><code>system_job_ammo_economics.rs:36-37</code></td></tr>
+<tr><td>Credits, ammunition, stock</td><td>Nothing added or set unlimited by the example</td><td><code>system_job_ammo_economics.rs:33-34</code> (claim); the walk adds none</td></tr>
+</tbody></table></div>
+<p>The trigger is scripted: the autopilot holds fire on the raider. It does not model a player's fire discipline or travel between stations. The berth teleports skip the trip to and from the station.</p>
+
+<h2 id="limits">10. Limits and caveats</h2>
+<div class="card callout-o">
+<ul>
+<li><strong>No balance causality.</strong> These runs show the lot price and the Buy work as built. They do not show that the job is balanced, that bulk lots caused a profit in general, or what a player would spend.</li>
+<li><strong>Wide spread, no cause.</strong> 628, 1033 and 87 rounds on the same seed and commit. Do not average them. Run 1 armed captures; runs 2 and 3 did not.</li>
+<li><strong>The stock can still run out.</strong> 2,000 is a finite stock and target, not a supply guarantee. Run 2 alone took 1,033. Two sorties of that size (2,066 rounds) exceed 2,000 if the stock has not recovered in between, and the Buy plan then caps at the stock. A lower stock also raises the ask (section 5). Restock is <code>target x elapsed / 1800 s</code> of play. Other stations, other civilizations, and stations whose weapons do not reload PDC rounds were not checked.</li>
+<li><strong>One job kind, one station, one seed.</strong> Escort at Corsol station, seed 2, <code>military</code> start. Not neutralize, distress, procure or recover.</li>
+<li><strong>Preloaded start.</strong> 2,000 rounds and 1,000 cr at the start. One job does not show a chain of jobs.</li>
+<li><strong>Not counted:</strong> repairs, torpedoes (0 spent), travel, time, board refresh fees.</li>
+<li><strong>Host load.</strong> An external process loaded the host during the runs (load average 13.85 at launch). The <code>nova_gameplay</code> unit test overlapped run 1. No timing claim is made.</li>
+<li><strong>Saves.</strong> The floor and its target act at generation only; frozen stations keep their saved stock and target, and an old save is refused by its catalog digest (<a href="#saves">section 7</a>). Source reading, not a load run.</li>
+<li><strong>CI does not run this example</strong> (section 13).</li>
+</ul>
+</div>
+
+<h2 id="dies">11. What dies and what may break</h2>
+<div class="tablewrap"><table>
+<caption>Behavior and format removed or changed by 8f9bf0ded</caption>
+<thead><tr><th scope="col">Item</th><th scope="col">Detail</th><th scope="col">Source</th></tr></thead>
+<tbody>
+<tr><td>Dies: per-round PDC price</td><td>4 cr ask / 3 cr bid per round <span class="tag h">historical</span> is replaced by 10 / 7 per 100 rounds</td><td><code>items.rs:60-67</code></td></tr>
+<tr><td>Dies: <code>count x ask_cr</code> trade arithmetic</td><td>Buys, Sells, job goods, refit and station worth now go through <code>buy_cr</code> / <code>sell_cr</code></td><td><code>inventory.rs:979-992</code>, <code>jobs.rs:1287, 1304</code></td></tr>
+<tr><td>Dies: Sells under one credit</td><td>A Sell of 1-14 PDC rounds at reference bid is refused (<code>ZeroCredits</code>)</td><td><code>inventory.rs:994-996</code></td></tr>
+<tr><td><strong>(breaking)</strong> Mod format</td><td>Every <code>Item</code> must state <code>price_lot</code>. A mod item without it fails lint, then load. The example mod is migrated</td><td><code>inventory.rs:183-203</code>; <code>crates/nova_assets/src/items.rs:129-131</code>; <a href="../../assets/mods/example/example.content.ron">assets/mods/example/example.content.ron:875-895</a>; <code>CHANGELOG.md:25</code></td></tr>
+<tr><td>May break: economy balance</td><td>PDC rounds now cost about 1/40 of the old ask. Procure or recover rewards that name PDC rounds, start-role kit worth and station prices change with it</td><td><a href="../../crates/nova_authoring/src/base_content/start_roles.rs">crates/nova_authoring/src/base_content/start_roles.rs:4-8</a></td></tr>
+<tr><td>May break: station hold fit</td><td>The 2,000-round floor adds mass (400 kg at 200 g); a station whose stock outweighs its hull fails its sector with <code>station_stock</code></td><td><code>station_layout.rs:123-127, 455-460</code></td></tr>
+</tbody></table></div>
+
+<h2 id="history">12. Historical reference (not a before/after)</h2>
+<div class="card callout-h">
+<p>The earlier investigation is <a href="REPORT.html">REPORT.html</a> (evidence in <code>evidence/run{1,2,3}/</code>). It ran at <code>ed7204ad7</code> on a dirty tree, with a reconstructed launch line for run 1 and a different renderer for run 1. The runs on this page are different runs at a different commit. The two sets are <strong>not</strong> a controlled, matched before/after. Use the old figures only to read what the old rules were.</p>
+<div class="tablewrap"><table>
+<caption>Prior figures, quoted from REPORT.html</caption>
+<thead><tr><th scope="col">Field</th><th scope="col">Prior report, ed7204ad7</th><th scope="col">This report, 8f9bf0ded</th></tr></thead>
+<tbody>
+<tr class="hist"><td>PDC price</td><td>4 cr ask / 3 cr bid per round <span class="tag h">historical</span></td><td>10 / 7 per 100 <span class="tag m">measured</span></td></tr>
+<tr class="hist"><td>Corsol PDC stock / target</td><td>189 / 189 <span class="tag h">historical</span></td><td>2000 / 2000 <span class="tag m">measured</span></td></tr>
+<tr class="hist"><td>Rounds spent (capture-off runs)</td><td>1057, 136 <span class="tag h">historical</span></td><td>1033, 87 (run 1 with captures: 628) <span class="tag m">measured</span></td></tr>
+<tr class="hist"><td>Net after Buy (capture-off runs)</td><td>-366 (189 of 1057 bought, stock-capped), -154 <span class="tag h">historical</span></td><td>286, 381 (run 1: 327); all spent rounds bought <span class="tag m">measured</span></td></tr>
+</tbody></table></div>
+<p>The spend figures overlap in range but come from separate runs. The spread is not explained in either report, so the change in net cannot be split between the price change and the spend.</p>
+</div>
+
+<h2 id="ci">13. CI at this commit</h2>
+<p>GitHub Actions run <a href="https://github.com/alexjercan/nova-protocol/actions/runs/41038537281">41038537281</a> ("CI", push to master) has head SHA <code>8f9bf0deddc3c92aa1218c5844780d813ec6ebad</code>, the exact commit. Conclusion: success. All 7 jobs succeeded:</p>
+<div class="tablewrap"><table>
+<caption>Jobs in CI run 41038537281</caption>
+<thead><tr><th scope="col">Job</th><th scope="col">Conclusion</th></tr></thead>
+<tbody>
+<tr><td>fmt / clippy / test</td><td>success</td></tr>
+<tr><td>check / default features</td><td>success</td></tr>
+<tr><td>clippy / wasm32</td><td>success</td></tr>
+<tr><td>probe / smoke</td><td>success</td></tr>
+<tr><td>autopilot example</td><td>success</td></tr>
+<tr><td>web / npm suite + python tests</td><td>success</td></tr>
+<tr><td>dependency license gate</td><td>success</td></tr>
+</tbody></table></div>
+<p>The "autopilot example" job runs <code>cargo test -p nova_autopilot --test autopilot_example</code> (<a href="../../.github/workflows/ci.yaml">.github/workflows/ci.yaml:391-394</a>), not <code>system_job_ammo_economics</code>. The runtime evidence on this page comes only from the three local runs.</p>
+
+<h2 id="repro">14. Reproduce</h2>
+<p>The exact harness was the bash wrapper <a href="evidence/bulk-pdc-8f9bf0ded/launch.sh">launch.sh</a>, run as <code>launch.sh &lt;run-dir&gt; &lt;capture:1|0&gt;</code>. It records the command, HEAD, git status, UTC start and end, and the exit status. It is kept as a historical record of what ran.</p>
+<p>To repeat one capture-off run from fish, on a clean tree at <code>8f9bf0ded</code>, from the repository root. The command unsets DISPLAY and WAYLAND_DISPLAY and starts its own Xvfb server with <code>xvfb-run -a</code>; it never uses your desktop display. Drop <code>VK_DRIVER_FILES</code> on a host without the NVIDIA ICD.</p>
+<pre>set -l D /tmp/nova-bulk-pdc-repro/off1
+mkdir -p $D/xdg/config $D/xdg/data $D/xdg/cache $D/xdg/state
+env -u DISPLAY -u WAYLAND_DISPLAY -u NOVA_CAPTURE -u NOVA_CAPTURE_DIR \
+    NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=2400 \
+    NOVA_PROBE_TIMELINE=$D/timeline.jsonl \
+    VK_DRIVER_FILES=/run/opengl-driver/share/vulkan/icd.d/nvidia_icd.json \
+    ALSA_CONFIG_PATH=/dev/null \
+    XDG_CONFIG_HOME=$D/xdg/config XDG_DATA_HOME=$D/xdg/data \
+    XDG_CACHE_HOME=$D/xdg/cache XDG_STATE_HOME=$D/xdg/state \
+    RUST_LOG=info \
+    nix develop --command xvfb-run -a -s "-screen 0 1920x1080x24" \
+    cargo run --example system_job_ammo_economics --features debug &gt;$D/run.log 2&gt;&amp;1
+echo "exit $status"</pre>
+<p>For a capture run, add <code>NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=$D/captures</code> after the <code>-u</code> options. Capture arms on the variable's presence, so a capture-off run must leave it unset. Judge the run by its <code>ammo economics: buy</code> and <code>net</code> markers and the "cycle complete, no panic" line, not by the exit code. The rounds spent will differ from run to run.</p>
+<p>The unit tests, as recorded in <a href="evidence/bulk-pdc-8f9bf0ded/unit/commands.txt">unit/commands.txt</a>:</p>
+<pre>nix develop --command cargo test -p nova_gameplay --lib -- a_buy_of_part_of_a_lot_rounds_its_credits_up a_sell_of_part_of_a_lot_rounds_its_credits_down a_lot_of_one_prices_each_item a_market_factor_prices_the_whole_lot a_pdc_trade_pays_its_share_of_the_lot_price a_sale_that_earns_no_credit_is_refused
+nix develop --command cargo test -p nova_world_base --lib -- a_station_that_stocks_pdc_rounds_opens_with_two_thousand</pre>
+
+<h2 id="files">15. Evidence files and hashes</h2>
+<p>All files are in <code>evidence/bulk-pdc-8f9bf0ded/</code>. <a href="evidence/bulk-pdc-8f9bf0ded/SHA256SUMS">SHA256SUMS</a> covers the copies here; <a href="evidence/bulk-pdc-8f9bf0ded/SHA256SUMS.source">SHA256SUMS.source</a> covers the <code>/tmp</code> originals. Each <code>run.log</code> copy has ANSI color codes removed, so its hash differs from the source hash; timelines, PNGs, unit logs and <code>launch.sh</code> are byte copies with equal hashes. <code>sha256sum -c SHA256SUMS</code> passed for all 16 entries when this page was written.</p>
+<div class="tablewrap"><table>
+<caption>SHA256SUMS in evidence/bulk-pdc-8f9bf0ded/</caption>
+<thead><tr><th scope="col">File</th><th scope="col">sha256</th></tr></thead>
+<tbody>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/launch.sh">launch.sh</a></td><td><code>28973328e151d6d463546e31d1c2487230c6f4a498c59858230b4284d7c768a9</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/provenance.txt">provenance.txt</a></td><td><code>c687bdb912d0dde238de6f2a722db354e2b66dfacc31d360eb804ccc1a4efa2e</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/run1-capture/captures/ammo-economics-bought.png">run1-capture/captures/ammo-economics-bought.png</a></td><td><code>2aef0c004b623d380c6954dd577687505fd5dc8ea7b272b1b38467e048e8fcec</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/run1-capture/captures/ammo-economics-buy-draft.png">run1-capture/captures/ammo-economics-buy-draft.png</a></td><td><code>f3d48807f42cf05be657d0c44a98eb6f43d7997e77f99b1cc6fa0b830b4b19eb</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/run1-capture/captures/job-escort-board.png">run1-capture/captures/job-escort-board.png</a></td><td><code>14b8aa992f060d4719811bb2f1ab66e66f28eadf73de35c5913f812882f37125</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/run1-capture/captures/job-escort-done.png">run1-capture/captures/job-escort-done.png</a></td><td><code>b4391b2a4767e166133b564838e6c0843ba01dcb922063d346069a88f7105e90</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/run1-capture/run.log">run1-capture/run.log</a></td><td><code>ba674b3ceb79733e4190ed452eaec2aaf9c52922f2ef2037e61ec20522abd057</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/run1-capture/timeline.jsonl">run1-capture/timeline.jsonl</a></td><td><code>0e44f2fbe3670398054d622ef6f587a0cdd0bcc7715ca2c528da6064d8da1f5c</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/run2-nocapture/run.log">run2-nocapture/run.log</a></td><td><code>f764ee6cd1532eaed834570012c931bcba5bf05cefe22580e26deccb57f9e1a3</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/run2-nocapture/timeline.jsonl">run2-nocapture/timeline.jsonl</a></td><td><code>61651af1d05f3c7760cd558e49f3d9bca4248c82ee7b2f4e055fb5fb03d058b8</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/run3-nocapture/run.log">run3-nocapture/run.log</a></td><td><code>9482a6fed7ac6fc2c72113428773a86efaf4dfe6a1a1a1e54dea5d55e51a7e6b</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/run3-nocapture/timeline.jsonl">run3-nocapture/timeline.jsonl</a></td><td><code>d0412dfc8ef3771fda67549c5600f7f8e4f510b77df55765d86762c32c4fe648</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/SHA256SUMS.source">SHA256SUMS.source</a></td><td><code>64769cb1b359a6229052b4580202c5aa46b44846f530484ab8175ebde4af8aec</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/unit/cargo-test-nova_gameplay.log">unit/cargo-test-nova_gameplay.log</a></td><td><code>1565c77b71137e4cb24192bc8dbd2f3af91bdbfd6eda697629ca9f04ed57fc05</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/unit/cargo-test-nova_world_base.log">unit/cargo-test-nova_world_base.log</a></td><td><code>40e4681e4ad803e5a35c026c4b9a687d709ce455ccc1db286078a42e957b1bdc</code></td></tr>
+<tr><td><a href="evidence/bulk-pdc-8f9bf0ded/unit/commands.txt">unit/commands.txt</a></td><td><code>b3749e8d78110c9154cfcd2344d0bf12a4d4d281fa3d7c2e873004eaea9d629e</code></td></tr>
+</tbody></table></div>
+
+<h2 id="raw">16. Raw JSONL markers</h2>
+<p>Verbatim lines from each timeline: accept, fight ledger, hand-in, market, buy and net.</p>
+<details><summary>Run 1 (captures on)</summary>
+<p>sha256 <code>0e44f2fbe3670398054d622ef6f587a0cdd0bcc7715ca2c528da6064d8da1f5c</code>, <a href="evidence/bulk-pdc-8f9bf0ded/run1-capture/timeline.jsonl">evidence/bulk-pdc-8f9bf0ded/run1-capture/timeline.jsonl</a>, 42 lines; 6 shown.</p>
+<pre>{&quot;t_real&quot;:21.580050013,&quot;frame&quot;:215,&quot;scenario_elapsed&quot;:15.338980022999998,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: accept&quot;,&quot;data&quot;:{&quot;job&quot;:{&quot;job&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_0#1.0&quot;,&quot;poster&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_0&quot;,&quot;hauler&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_job_1_0_hauler_0&quot;,&quot;cargo_cr&quot;:581,&quot;raiders&quot;:1,&quot;reward_cr&quot;:390},&quot;snapshot&quot;:{&quot;player_cr&quot;:1000,&quot;hold&quot;:{&quot;PdcRound&quot;:1000,&quot;Torpedo&quot;:2},&quot;magazines&quot;:[{&quot;section&quot;:&quot;1563v1&quot;,&quot;name&quot;:&quot;Torpedo Bay (Serpent)&quot;,&quot;item&quot;:&quot;Torpedo&quot;,&quot;rounds&quot;:6,&quot;capacity&quot;:6,&quot;active&quot;:true},{&quot;section&quot;:&quot;1501v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true},{&quot;section&quot;:&quot;1499v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true}]}}}
+{&quot;t_real&quot;:117.74996697,&quot;frame&quot;:1679,&quot;scenario_elapsed&quot;:108.3563855159999,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: hand-in&quot;,&quot;data&quot;:{&quot;job&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_0#1.0&quot;,&quot;reward_cr&quot;:390,&quot;player_cr_before&quot;:1000,&quot;player_cr_after&quot;:1390,&quot;credited_cr&quot;:390,&quot;station_cr_before&quot;:10429,&quot;station_cr_after&quot;:10039,&quot;station_paid_cr&quot;:390}}
+{&quot;t_real&quot;:117.74996697,&quot;frame&quot;:1679,&quot;scenario_elapsed&quot;:108.3563855159999,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: fight ledger&quot;,&quot;data&quot;:{&quot;items&quot;:[{&quot;item&quot;:&quot;PdcRound&quot;,&quot;magazines_at_accept&quot;:2,&quot;start_pool&quot;:2000,&quot;end_usable_pool&quot;:1372,&quot;consumed&quot;:628,&quot;stranded_in_disabled&quot;:0,&quot;lost_with_section&quot;:0,&quot;turret_rounds_fired&quot;:628,&quot;residual&quot;:0},{&quot;item&quot;:&quot;Torpedo&quot;,&quot;magazines_at_accept&quot;:1,&quot;start_pool&quot;:8,&quot;end_usable_pool&quot;:8,&quot;consumed&quot;:0,&quot;stranded_in_disabled&quot;:0,&quot;lost_with_section&quot;:0,&quot;turret_rounds_fired&quot;:null,&quot;residual&quot;:null}],&quot;lost_magazines&quot;:[],&quot;accept&quot;:{&quot;player_cr&quot;:1000,&quot;hold&quot;:{&quot;PdcRound&quot;:1000,&quot;Torpedo&quot;:2},&quot;magazines&quot;:[{&quot;section&quot;:&quot;1563v1&quot;,&quot;name&quot;:&quot;Torpedo Bay (Serpent)&quot;,&quot;item&quot;:&quot;Torpedo&quot;,&quot;rounds&quot;:6,&quot;capacity&quot;:6,&quot;active&quot;:true},{&quot;section&quot;:&quot;1501v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true},{&quot;section&quot;:&quot;1499v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true}]},&quot;hand_in&quot;:{&quot;player_cr&quot;:1390,&quot;hold&quot;:{&quot;PdcRound&quot;:407,&quot;Torpedo&quot;:2},&quot;magazines&quot;:[{&quot;section&quot;:&quot;1563v1&quot;,&quot;name&quot;:&quot;Torpedo Bay (Serpent)&quot;,&quot;item&quot;:&quot;Torpedo&quot;,&quot;rounds&quot;:6,&quot;capacity&quot;:6,&quot;active&quot;:true},{&quot;section&quot;:&quot;1501v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:465,&quot;capacity&quot;:500,&quot;active&quot;:true},{&quot;section&quot;:&quot;1499v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true}]}}}
+{&quot;t_real&quot;:119.244058433,&quot;frame&quot;:1710,&quot;scenario_elapsed&quot;:108.3563855159999,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: market&quot;,&quot;data&quot;:{&quot;station&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_0&quot;,&quot;station_name&quot;:&quot;Corsol station&quot;,&quot;trades&quot;:true,&quot;has_trader_market&quot;:true,&quot;item&quot;:&quot;PdcRound&quot;,&quot;stock&quot;:2000,&quot;target_stock&quot;:2000,&quot;ask_cr&quot;:10,&quot;bid_cr&quot;:7,&quot;lot&quot;:100,&quot;reference_ask_cr&quot;:10,&quot;reference_bid_cr&quot;:7,&quot;price_lot&quot;:100,&quot;factor_scarcity_ask&quot;:1.0,&quot;factor_cluster_ask&quot;:1.0,&quot;factor_civilization_ask&quot;:1.0,&quot;factor_total_ask&quot;:1.0,&quot;clamped&quot;:false,&quot;pane_row&quot;:&quot;InventoryRowPartnerPdcRound&quot;,&quot;pane_row_texts&quot;:[&quot;[+0%]&quot;,&quot; / 100&quot;,&quot;10&quot;,&quot;x2000&quot;,&quot;PDC round&quot;],&quot;consumed&quot;:628,&quot;derived_replacement_cr&quot;:63,&quot;player_cr&quot;:1390,&quot;player_free_g&quot;:1318600,&quot;buy_quantity&quot;:628}}
+{&quot;t_real&quot;:124.096516366,&quot;frame&quot;:1746,&quot;scenario_elapsed&quot;:108.3563855159999,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: buy&quot;,&quot;data&quot;:{&quot;quantity&quot;:628,&quot;quoted_ask_cr&quot;:10,&quot;lot&quot;:100,&quot;expected_cr&quot;:63,&quot;player_cr_before&quot;:1390,&quot;player_cr_after&quot;:1327,&quot;paid_cr&quot;:63,&quot;station_cr_before&quot;:10039,&quot;station_cr_after&quot;:10102,&quot;station_took_cr&quot;:63,&quot;player_rounds_before&quot;:407,&quot;player_rounds_after&quot;:1035,&quot;station_rounds_before&quot;:2000,&quot;station_rounds_after&quot;:1372}}
+{&quot;t_real&quot;:124.096516366,&quot;frame&quot;:1746,&quot;scenario_elapsed&quot;:108.3563855159999,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: net&quot;,&quot;data&quot;:{&quot;reward_cr&quot;:390,&quot;credited_cr&quot;:390,&quot;pdc_consumed&quot;:628,&quot;pdc_bought&quot;:628,&quot;buy_paid_cr&quot;:63,&quot;derived_full_replacement_cr&quot;:63,&quot;net_after_buy_cr&quot;:327,&quot;replaced_every_spent_round&quot;:true}}</pre>
+</details>
+<details><summary>Run 2 (captures off)</summary>
+<p>sha256 <code>61651af1d05f3c7760cd558e49f3d9bca4248c82ee7b2f4e055fb5fb03d058b8</code>, <a href="evidence/bulk-pdc-8f9bf0ded/run2-nocapture/timeline.jsonl">evidence/bulk-pdc-8f9bf0ded/run2-nocapture/timeline.jsonl</a>, 57 lines; 6 shown.</p>
+<pre>{&quot;t_real&quot;:11.131659338,&quot;frame&quot;:215,&quot;scenario_elapsed&quot;:5.514567603000001,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: accept&quot;,&quot;data&quot;:{&quot;job&quot;:{&quot;job&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_0#1.0&quot;,&quot;poster&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_0&quot;,&quot;hauler&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_job_1_0_hauler_0&quot;,&quot;cargo_cr&quot;:581,&quot;raiders&quot;:1,&quot;reward_cr&quot;:390},&quot;snapshot&quot;:{&quot;player_cr&quot;:1000,&quot;hold&quot;:{&quot;PdcRound&quot;:1000,&quot;Torpedo&quot;:2},&quot;magazines&quot;:[{&quot;section&quot;:&quot;1915v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true},{&quot;section&quot;:&quot;1809v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true},{&quot;section&quot;:&quot;1806v1&quot;,&quot;name&quot;:&quot;Torpedo Bay (Serpent)&quot;,&quot;item&quot;:&quot;Torpedo&quot;,&quot;rounds&quot;:6,&quot;capacity&quot;:6,&quot;active&quot;:true}]}}}
+{&quot;t_real&quot;:104.797962836,&quot;frame&quot;:2437,&quot;scenario_elapsed&quot;:97.11535124899984,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: hand-in&quot;,&quot;data&quot;:{&quot;job&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_0#1.0&quot;,&quot;reward_cr&quot;:390,&quot;player_cr_before&quot;:1000,&quot;player_cr_after&quot;:1390,&quot;credited_cr&quot;:390,&quot;station_cr_before&quot;:10429,&quot;station_cr_after&quot;:10039,&quot;station_paid_cr&quot;:390}}
+{&quot;t_real&quot;:104.797962836,&quot;frame&quot;:2437,&quot;scenario_elapsed&quot;:97.11535124899984,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: fight ledger&quot;,&quot;data&quot;:{&quot;items&quot;:[{&quot;item&quot;:&quot;PdcRound&quot;,&quot;magazines_at_accept&quot;:2,&quot;start_pool&quot;:2000,&quot;end_usable_pool&quot;:967,&quot;consumed&quot;:1033,&quot;stranded_in_disabled&quot;:0,&quot;lost_with_section&quot;:0,&quot;turret_rounds_fired&quot;:1033,&quot;residual&quot;:0},{&quot;item&quot;:&quot;Torpedo&quot;,&quot;magazines_at_accept&quot;:1,&quot;start_pool&quot;:8,&quot;end_usable_pool&quot;:8,&quot;consumed&quot;:0,&quot;stranded_in_disabled&quot;:0,&quot;lost_with_section&quot;:0,&quot;turret_rounds_fired&quot;:null,&quot;residual&quot;:null}],&quot;lost_magazines&quot;:[],&quot;accept&quot;:{&quot;player_cr&quot;:1000,&quot;hold&quot;:{&quot;PdcRound&quot;:1000,&quot;Torpedo&quot;:2},&quot;magazines&quot;:[{&quot;section&quot;:&quot;1915v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true},{&quot;section&quot;:&quot;1809v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true},{&quot;section&quot;:&quot;1806v1&quot;,&quot;name&quot;:&quot;Torpedo Bay (Serpent)&quot;,&quot;item&quot;:&quot;Torpedo&quot;,&quot;rounds&quot;:6,&quot;capacity&quot;:6,&quot;active&quot;:true}]},&quot;hand_in&quot;:{&quot;player_cr&quot;:1390,&quot;hold&quot;:{&quot;Torpedo&quot;:2},&quot;magazines&quot;:[{&quot;section&quot;:&quot;1915v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true},{&quot;section&quot;:&quot;1809v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:467,&quot;capacity&quot;:500,&quot;active&quot;:true},{&quot;section&quot;:&quot;1806v1&quot;,&quot;name&quot;:&quot;Torpedo Bay (Serpent)&quot;,&quot;item&quot;:&quot;Torpedo&quot;,&quot;rounds&quot;:6,&quot;capacity&quot;:6,&quot;active&quot;:true}]}}}
+{&quot;t_real&quot;:105.969057613,&quot;frame&quot;:2465,&quot;scenario_elapsed&quot;:97.11535124899984,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: market&quot;,&quot;data&quot;:{&quot;station&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_0&quot;,&quot;station_name&quot;:&quot;Corsol station&quot;,&quot;trades&quot;:true,&quot;has_trader_market&quot;:true,&quot;item&quot;:&quot;PdcRound&quot;,&quot;stock&quot;:2000,&quot;target_stock&quot;:2000,&quot;ask_cr&quot;:10,&quot;bid_cr&quot;:7,&quot;lot&quot;:100,&quot;reference_ask_cr&quot;:10,&quot;reference_bid_cr&quot;:7,&quot;price_lot&quot;:100,&quot;factor_scarcity_ask&quot;:1.0,&quot;factor_cluster_ask&quot;:1.0,&quot;factor_civilization_ask&quot;:1.0,&quot;factor_total_ask&quot;:1.0,&quot;clamped&quot;:false,&quot;pane_row&quot;:&quot;InventoryRowPartnerPdcRound&quot;,&quot;pane_row_texts&quot;:[&quot;[+0%]&quot;,&quot; / 100&quot;,&quot;10&quot;,&quot;x2000&quot;,&quot;PDC round&quot;],&quot;consumed&quot;:1033,&quot;derived_replacement_cr&quot;:104,&quot;player_cr&quot;:1390,&quot;player_free_g&quot;:1400000,&quot;buy_quantity&quot;:1033}}
+{&quot;t_real&quot;:107.338358883,&quot;frame&quot;:2498,&quot;scenario_elapsed&quot;:97.11535124899984,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: buy&quot;,&quot;data&quot;:{&quot;quantity&quot;:1033,&quot;quoted_ask_cr&quot;:10,&quot;lot&quot;:100,&quot;expected_cr&quot;:104,&quot;player_cr_before&quot;:1390,&quot;player_cr_after&quot;:1286,&quot;paid_cr&quot;:104,&quot;station_cr_before&quot;:10039,&quot;station_cr_after&quot;:10143,&quot;station_took_cr&quot;:104,&quot;player_rounds_before&quot;:0,&quot;player_rounds_after&quot;:1033,&quot;station_rounds_before&quot;:2000,&quot;station_rounds_after&quot;:967}}
+{&quot;t_real&quot;:107.338358883,&quot;frame&quot;:2498,&quot;scenario_elapsed&quot;:97.11535124899984,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: net&quot;,&quot;data&quot;:{&quot;reward_cr&quot;:390,&quot;credited_cr&quot;:390,&quot;pdc_consumed&quot;:1033,&quot;pdc_bought&quot;:1033,&quot;buy_paid_cr&quot;:104,&quot;derived_full_replacement_cr&quot;:104,&quot;net_after_buy_cr&quot;:286,&quot;replaced_every_spent_round&quot;:true}}</pre>
+</details>
+<details><summary>Run 3 (captures off)</summary>
+<p>sha256 <code>d0412dfc8ef3771fda67549c5600f7f8e4f510b77df55765d86762c32c4fe648</code>, <a href="evidence/bulk-pdc-8f9bf0ded/run3-nocapture/timeline.jsonl">evidence/bulk-pdc-8f9bf0ded/run3-nocapture/timeline.jsonl</a>, 51 lines; 6 shown.</p>
+<pre>{&quot;t_real&quot;:11.091794082,&quot;frame&quot;:215,&quot;scenario_elapsed&quot;:5.981811480999999,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: accept&quot;,&quot;data&quot;:{&quot;job&quot;:{&quot;job&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_0#1.0&quot;,&quot;poster&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_0&quot;,&quot;hauler&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_job_1_0_hauler_0&quot;,&quot;cargo_cr&quot;:581,&quot;raiders&quot;:1,&quot;reward_cr&quot;:390},&quot;snapshot&quot;:{&quot;player_cr&quot;:1000,&quot;hold&quot;:{&quot;PdcRound&quot;:1000,&quot;Torpedo&quot;:2},&quot;magazines&quot;:[{&quot;section&quot;:&quot;1517v1&quot;,&quot;name&quot;:&quot;Torpedo Bay (Serpent)&quot;,&quot;item&quot;:&quot;Torpedo&quot;,&quot;rounds&quot;:6,&quot;capacity&quot;:6,&quot;active&quot;:true},{&quot;section&quot;:&quot;1490v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true},{&quot;section&quot;:&quot;1489v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true}]}}}
+{&quot;t_real&quot;:104.430835554,&quot;frame&quot;:2496,&quot;scenario_elapsed&quot;:97.3082420019999,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: hand-in&quot;,&quot;data&quot;:{&quot;job&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_0#1.0&quot;,&quot;reward_cr&quot;:390,&quot;player_cr_before&quot;:1000,&quot;player_cr_after&quot;:1390,&quot;credited_cr&quot;:390,&quot;station_cr_before&quot;:10429,&quot;station_cr_after&quot;:10039,&quot;station_paid_cr&quot;:390}}
+{&quot;t_real&quot;:104.430835554,&quot;frame&quot;:2496,&quot;scenario_elapsed&quot;:97.3082420019999,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: fight ledger&quot;,&quot;data&quot;:{&quot;items&quot;:[{&quot;item&quot;:&quot;PdcRound&quot;,&quot;magazines_at_accept&quot;:2,&quot;start_pool&quot;:2000,&quot;end_usable_pool&quot;:1913,&quot;consumed&quot;:87,&quot;stranded_in_disabled&quot;:0,&quot;lost_with_section&quot;:0,&quot;turret_rounds_fired&quot;:87,&quot;residual&quot;:0},{&quot;item&quot;:&quot;Torpedo&quot;,&quot;magazines_at_accept&quot;:1,&quot;start_pool&quot;:8,&quot;end_usable_pool&quot;:8,&quot;consumed&quot;:0,&quot;stranded_in_disabled&quot;:0,&quot;lost_with_section&quot;:0,&quot;turret_rounds_fired&quot;:null,&quot;residual&quot;:null}],&quot;lost_magazines&quot;:[],&quot;accept&quot;:{&quot;player_cr&quot;:1000,&quot;hold&quot;:{&quot;PdcRound&quot;:1000,&quot;Torpedo&quot;:2},&quot;magazines&quot;:[{&quot;section&quot;:&quot;1517v1&quot;,&quot;name&quot;:&quot;Torpedo Bay (Serpent)&quot;,&quot;item&quot;:&quot;Torpedo&quot;,&quot;rounds&quot;:6,&quot;capacity&quot;:6,&quot;active&quot;:true},{&quot;section&quot;:&quot;1490v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true},{&quot;section&quot;:&quot;1489v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true}]},&quot;hand_in&quot;:{&quot;player_cr&quot;:1390,&quot;hold&quot;:{&quot;PdcRound&quot;:970,&quot;Torpedo&quot;:2},&quot;magazines&quot;:[{&quot;section&quot;:&quot;1517v1&quot;,&quot;name&quot;:&quot;Torpedo Bay (Serpent)&quot;,&quot;item&quot;:&quot;Torpedo&quot;,&quot;rounds&quot;:6,&quot;capacity&quot;:6,&quot;active&quot;:true},{&quot;section&quot;:&quot;1490v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:443,&quot;capacity&quot;:500,&quot;active&quot;:true},{&quot;section&quot;:&quot;1489v1&quot;,&quot;name&quot;:&quot;PDC Turret (Kinetic)&quot;,&quot;item&quot;:&quot;PdcRound&quot;,&quot;rounds&quot;:500,&quot;capacity&quot;:500,&quot;active&quot;:true}]}}}
+{&quot;t_real&quot;:105.45090727,&quot;frame&quot;:2524,&quot;scenario_elapsed&quot;:97.3082420019999,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: market&quot;,&quot;data&quot;:{&quot;station&quot;:&quot;sector_2_8_0_cluster_1_5_0_station_0&quot;,&quot;station_name&quot;:&quot;Corsol station&quot;,&quot;trades&quot;:true,&quot;has_trader_market&quot;:true,&quot;item&quot;:&quot;PdcRound&quot;,&quot;stock&quot;:2000,&quot;target_stock&quot;:2000,&quot;ask_cr&quot;:10,&quot;bid_cr&quot;:7,&quot;lot&quot;:100,&quot;reference_ask_cr&quot;:10,&quot;reference_bid_cr&quot;:7,&quot;price_lot&quot;:100,&quot;factor_scarcity_ask&quot;:1.0,&quot;factor_cluster_ask&quot;:1.0,&quot;factor_civilization_ask&quot;:1.0,&quot;factor_total_ask&quot;:1.0,&quot;clamped&quot;:false,&quot;pane_row&quot;:&quot;InventoryRowPartnerPdcRound&quot;,&quot;pane_row_texts&quot;:[&quot;[+0%]&quot;,&quot; / 100&quot;,&quot;10&quot;,&quot;x2000&quot;,&quot;PDC round&quot;],&quot;consumed&quot;:87,&quot;derived_replacement_cr&quot;:9,&quot;player_cr&quot;:1390,&quot;player_free_g&quot;:1206000,&quot;buy_quantity&quot;:87}}
+{&quot;t_real&quot;:106.660343183,&quot;frame&quot;:2557,&quot;scenario_elapsed&quot;:97.3082420019999,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: buy&quot;,&quot;data&quot;:{&quot;quantity&quot;:87,&quot;quoted_ask_cr&quot;:10,&quot;lot&quot;:100,&quot;expected_cr&quot;:9,&quot;player_cr_before&quot;:1390,&quot;player_cr_after&quot;:1381,&quot;paid_cr&quot;:9,&quot;station_cr_before&quot;:10039,&quot;station_cr_after&quot;:10048,&quot;station_took_cr&quot;:9,&quot;player_rounds_before&quot;:970,&quot;player_rounds_after&quot;:1057,&quot;station_rounds_before&quot;:2000,&quot;station_rounds_after&quot;:1913}}
+{&quot;t_real&quot;:106.660343183,&quot;frame&quot;:2557,&quot;scenario_elapsed&quot;:97.3082420019999,&quot;kind&quot;:&quot;marker&quot;,&quot;name&quot;:&quot;ammo economics: net&quot;,&quot;data&quot;:{&quot;reward_cr&quot;:390,&quot;credited_cr&quot;:390,&quot;pdc_consumed&quot;:87,&quot;pdc_bought&quot;:87,&quot;buy_paid_cr&quot;:9,&quot;derived_full_replacement_cr&quot;:9,&quot;net_after_buy_cr&quot;:381,&quot;replaced_every_spent_round&quot;:true}}</pre>
+</details>
+
+</main>
+</body>
+</html>

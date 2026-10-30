@@ -1,0 +1,2 @@
+nix develop --command cargo test -p nova_gameplay --lib -- a_buy_of_part_of_a_lot_rounds_its_credits_up a_sell_of_part_of_a_lot_rounds_its_credits_down a_lot_of_one_prices_each_item a_market_factor_prices_the_whole_lot a_pdc_trade_pays_its_share_of_the_lot_price a_sale_that_earns_no_credit_is_refused
+nix develop --command cargo test -p nova_world_base --lib -- a_station_that_stocks_pdc_rounds_opens_with_two_thousand

@@ -1,0 +1,93 @@
+Provenance: PDC bulk lots and station PDC opening stock, exact-commit proof
+
+Source
+- Commit: 8f9bf0deddc3c92aa1218c5844780d813ec6ebad ("Trade PDC ammunition in affordable bulk lots"), branch master.
+- Tree: clean. `git status --porcelain` was empty before and after every run (run*/ status files in /tmp were empty).
+  No source file was edited. The example and fixture are the committed ones.
+- Every timeline run_start records git_sha 8f9bf0ded, host nixos.
+
+Runs (direct example, not `probe run`; the escort walk previously failed under `probe run` on its real-time budget)
+- Wrapper: launch.sh (byte copy, in this directory). It records the command, UTC start/end, exit status and git status.
+- Command, run 1 (captures ON), exactly as recorded:
+  env -u DISPLAY -u WAYLAND_DISPLAY -u NOVA_CAPTURE -u NOVA_CAPTURE_DIR NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=2400
+    NOVA_PROBE_TIMELINE=/tmp/nova-bulk-pdc-8f9bf0ded/cap1/timeline.jsonl
+    VK_DRIVER_FILES=/run/opengl-driver/share/vulkan/icd.d/nvidia_icd.json ALSA_CONFIG_PATH=/dev/null
+    XDG_CONFIG_HOME=.../cap1/xdg/config XDG_DATA_HOME=.../cap1/xdg/data XDG_CACHE_HOME=.../cap1/xdg/cache
+    XDG_STATE_HOME=.../cap1/xdg/state RUST_LOG=info
+    NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=/tmp/nova-bulk-pdc-8f9bf0ded/cap1/captures
+    nix develop --command xvfb-run -a -s "-screen 0 1920x1080x24"
+    cargo run --example system_job_ammo_economics --features debug
+- Runs 2 and 3: the same command with their own off2/off3 paths and without NOVA_CAPTURE/NOVA_CAPTURE_DIR
+  (both explicitly unset; capture arms on the variable's presence). 0 "Screenshot saved" lines in their logs.
+- Display isolation: DISPLAY and WAYLAND_DISPLAY unset; xvfb-run -a picked a free server number
+  (xvfb-run /nix/store/m7fcb57wsl0i03mpxglml9xbm70rpzsv-xvfb-run-1+g87f6705). The real display :0 was not used.
+- Renderer: Vulkan ICD forced to NVIDIA; AdapterInfo "NVIDIA GeForce RTX 3060 Ti", driver 595.84, DiscreteGpu.
+  This matches the earlier run2/run3 renderer, not the earlier run1 (llvmpipe).
+- Audio: ALSA_CONFIG_PATH=/dev/null; ALSA "Unknown PCM default" errors in the logs are expected.
+- Clean profile: fresh XDG dirs per run under /tmp/nova-bulk-pdc-8f9bf0ded/<run>/xdg. The example also sets its
+  own config root (main(): target/example-profiles/system_job_ammo_economics-<pid>-<ns>):
+  -166919-1793359062782889386, -178459-1793359360463294338, -178861-1793359529160767027. Not copied.
+- RUST_LOG=info was set; the logs still hold some DEBUG lines from the app's own log filter.
+
+| run | captures | UTC start (wrapper) | UTC end | exit | autopilot t | run_end |
+| - | - | - | - | - | - | - |
+| run1-capture | ON | 2026-10-30T11:13:30.775Z | 11:19:48.501Z | EXIT=0 | 109.1 s | Success, 41 entries |
+| run2-nocapture | OFF | 2026-10-30T11:22:34.132Z | 11:24:28.642Z | EXIT=0 | 99.2 s | Success, 56 entries |
+| run3-nocapture | OFF | 2026-10-30T11:25:22.879Z | 11:27:16.650Z | EXIT=0 | 99.0 s | Success, 50 entries |
+Run 1's window includes the first build (cargo "Finished ... in 4m 05s"). The times are a record, not a measurement.
+
+Markers (timeline.jsonl; the same values are in run.log)
+| field | run1 | run2 | run3 |
+| - | - | - | - |
+| accept: player cr / hold PdcRound / 2 magazines | 1000 / 1000 / 500+500 | 1000 / 1000 / 500+500 | 1000 / 1000 / 500+500 |
+| fight ledger: start_pool / consumed / fired / residual | 2000 / 628 / 628 / 0 | 2000 / 1033 / 1033 / 0 | 2000 / 87 / 87 / 0 |
+| hand-in: reward / player 1000->1390 / station 10429->10039 | 390 | 390 | 390 |
+| market: stock / target / ask / bid / lot / factor_total_ask | 2000/2000/10/7/100/1.0 | same | same |
+| market: pane_row_texts | ["[+0%]", " / 100", "10", "x2000", "PDC round"] | same | same |
+| buy: quantity / expected / paid / station took | 628 / 63 / 63 / 63 | 1033 / 104 / 104 / 104 | 87 / 9 / 9 / 9 |
+| ceil(quantity * 10 / 100) | ceil(62.8)=63 | ceil(103.3)=104 | ceil(8.7)=9 |
+| buy: player cr before->after | 1390->1327 | 1390->1286 | 1390->1381 |
+| buy: station cr before->after | 10039->10102 | 10039->10143 | 10039->10048 |
+| buy: player rounds before->after | 407->1035 | 0->1033 | 970->1057 |
+| buy: station rounds before->after | 2000->1372 | 2000->967 | 2000->1913 |
+| net: net_after_buy_cr / replaced_every_spent_round | 327 / true | 286 / true | 381 / true |
+All walk outcome markers are present in each run, and each log has "escort job: PASS the hand-in paid 390 cr" and
+"autopilot: cycle complete, no panic".
+
+Unit tests (unit/; existing tests, lib only, run by a delegated proof worker on the same clean HEAD)
+- cargo test -p nova_gameplay --lib -- <6 names>: 6 passed, 434 filtered out, EXIT=0
+  (crates/nova_gameplay/src/market.rs:949,959,968,980; crates/nova_gameplay/src/inventory.rs:2293,2331).
+  a_sale_that_earns_no_credit_is_refused: Sell 14 rounds -> Err(ZeroCredits); Sell 15 -> Ok(price_cr 1).
+  a_buy_of_part_of_a_lot_rounds_its_credits_up: buy_cr(1)=1, (99)=10, (100)=10, (101)=11, (2000)=200.
+- cargo test -p nova_world_base --lib -- a_station_that_stocks_pdc_rounds_opens_with_two_thousand: 1 passed, EXIT=0
+  (crates/nova_world_base/src/station_layout.rs:2055).
+- The worker's first attempt at each command was killed by its own 2-minute tool timeout (exit 143) while it waited
+  on the cargo build lock or compiled. Those attempts left no logs. The logs here are the complete reruns. The worker
+  reported HEAD 8f9bf0ded and an empty `git status --porcelain` before and after both runs.
+
+Visual captures (run1-capture/captures; all PNG 1920x1080 RGB, Xvfb screen 1920x1080x24; inspected by eye)
+- job-escort-board.png: Jobs pane, "Escort a hauler carrying 581 cr" accepted, reward 390, balance 1,000.
+- job-escort-done.png: status line "handed in Escort a hauler carrying 581 cr for 390 cr; balance 1,390 cr".
+- ammo-economics-buy-draft.png: station PDC round row "x2000  10 / 100  [+0%]"; detail Asks "10 cr / 100 (+0%)",
+  Pays "7 cr / 100"; quantity 628 of 2000; "Price 63 cr  Balance 1,327 cr" (a draft; not yet settled).
+- ammo-economics-bought.png: "BOUGHT x628 PDC round -63 cr"; header balance 1,327; station credits 10,102;
+  station row x1372, player row x1035. After the Buy the station row shows 12 / 100 [+20%] and the detail
+  shows scarcity x1.16 / x1.08 (screen only; no marker records the post-Buy quote).
+- Not copied: job-escort-inspector-done.png (hash in SHA256SUMS.source).
+
+Caveats
+- The PNGs show UI text only. The credit and round transfers are proven by the "ammo economics: buy" marker and its
+  assert step, not by the screenshots.
+- The 2000-round station stock is read after the hand-in at one posting station (seed 2, Corsol station). The run does
+  not observe stock at generation and cannot tell the floor from a natural share. The floor is proven by the unit test.
+- The zero-credit Sell refusal is proven only by the unit test. No run performs a Sell.
+- PDC consumed differs a lot between runs (628 / 1033 / 87) with the same seed and commit. No cause is asserted. Do not
+  average the runs. Berthing uses the shared walk's fixture moves; flight, fire, hand-in and Buy are live systems.
+- Host load was high and not owned: an external ffmpeg at about 950% CPU, load average 13.85 at launch. The nova_gameplay
+  unit test (11:16:28Z-11:18:07Z) overlapped run 1's build and first walk minute. No timing claim is made.
+- Not reproducible exactly: host load, GPU driver state, PIDs, timestamps, xvfb server number, per-run round spend.
+
+Copies in this directory
+- run*/run.log: ANSI color codes removed (sed 's/\x1b\[[0-9;]*m//g'); text otherwise unchanged.
+- run*/timeline.jsonl, PNGs, unit/*, launch.sh: byte copies.
+- SHA256SUMS.source: hashes of the /tmp originals (raw ANSI run.log). SHA256SUMS: hashes of the files here.
