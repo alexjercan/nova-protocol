@@ -130,10 +130,6 @@ fn hit(app: &mut App, target: Entity, amount: f32) {
     });
 }
 
-fn one(item: &str, count: u32) -> Stacks {
-    vec![(item.to_string(), count)]
-}
-
 /// Run frames until `drop` has let every canister out, and return each
 /// canister born meanwhile in birth order: its runtime id, its stacks and
 /// where it stood on the first frame it was seen.
@@ -174,9 +170,10 @@ fn drain(app: &mut App, drop: Entity) -> Vec<(CargoCanisterRuntimeId, Stacks, Ve
 
 /// A loaded ship that collapses is destroyed whole and leaves ONE drop where
 /// its root stood, under the root's sector: every stack of its hold plus
-/// `floor(0.3 * count)` of each part of all six sections it peeled, packed
-/// per item into canisters under the mass cap. Panels round down to none. The
-/// drop lets the canisters out first in, first out, each with its own id.
+/// `floor(0.3 * count)` of each part of all six sections it peeled, 1300 kg
+/// packed in item id order into a full 1000 kg canister and a 300 kg one.
+/// Panels round down to none. The drop lets the canisters out first in,
+/// first out, each with its own id.
 #[test]
 fn a_ship_destroyed_whole_drops_its_hold_and_its_sections_parts_in_one_drop() {
     let mut app = wreck_app();
@@ -209,18 +206,16 @@ fn a_ship_destroyed_whole_drops_its_hold_and_its_sections_parts_in_one_drop() {
     };
     assert_eq!(*parent, Some(sector), "the drop stays in the root's sector");
     assert!(at.distance(Vec3::new(102.0, 0.0, 0.0)) < 1e-3, "{at}");
-    // Six sections: 12 spars at 5 a canister, 6 bells at 2.
+    // Six sections: 6 bells and 12 spars, 960 kg, then the hold's 30 kg of
+    // plates and the one 10 kg ore that still fits.
     let expected = vec![
-        one("DriveBell", 2),
-        one("DriveBell", 2),
-        one("DriveBell", 2),
-        one("FrameSpar", 5),
-        one("FrameSpar", 5),
-        one("FrameSpar", 2),
-        one("HullPlate", 3),
-        one("IronOre", 20),
-        one("IronOre", 5),
-        one("PdcRound", 300),
+        vec![
+            ("DriveBell".to_string(), 6),
+            ("FrameSpar".to_string(), 12),
+            ("HullPlate".to_string(), 3),
+            ("IronOre".to_string(), 1),
+        ],
+        vec![("IronOre".to_string(), 24), ("PdcRound".to_string(), 300)],
     ];
     assert_eq!(canisters, &expected);
     let drop = *drop;
@@ -266,26 +261,26 @@ fn a_destroyed_station_drops_the_players_storage_with_its_stock() {
     );
 
     let drops = &app.world().resource::<Drops>().0;
-    let root_drop: Vec<Stacks> = drops
+    let mut root_drop = BTreeMap::<String, u32>::new();
+    for (item, count) in drops
         .iter()
-        .flat_map(|(.., canisters)| canisters.iter().cloned())
-        .filter(|stacks| {
-            stacks
-                .iter()
-                .any(|(item, _)| item == "HullPlate" || item == "IronOre")
-        })
-        .collect();
+        .flat_map(|(.., canisters)| canisters.iter().flatten())
+    {
+        if item == "HullPlate" || item == "IronOre" {
+            *root_drop.entry(item.clone()).or_default() += count;
+        }
+    }
     assert_eq!(
         root_drop,
-        vec![one("HullPlate", 2), one("IronOre", 8)],
+        [("HullPlate".to_string(), 2), ("IronOre".to_string(), 8)].into(),
         "the stored plates and ore leave with the stock: {drops:?}"
     );
 }
 
 /// One section shot off a ship that keeps flying drops only its own share,
 /// `floor(0.3 * count)` of each part, where it died and under the ship's
-/// sector: no panel, two spars, one bell. The hold stays aboard. The
-/// canisters leave outward, along the line from the ship's centre through
+/// sector: no panel, two spars, one bell, in one canister. The hold stays
+/// aboard. The canister leaves outward, along the line from the ship's centre through
 /// the section.
 #[test]
 fn a_section_shot_off_a_standing_ship_drops_its_parts_share_alone() {
@@ -307,12 +302,16 @@ fn a_section_shot_off_a_standing_ship_drops_its_parts_share_alone() {
     };
     assert_eq!(*parent, Some(sector));
     assert!(at.distance(Vec3::new(105.0, 0.0, 0.0)) < 1e-3, "{at}");
-    assert_eq!(canisters, &vec![one("DriveBell", 1), one("FrameSpar", 2)]);
+    let expected = vec![vec![
+        ("DriveBell".to_string(), 1),
+        ("FrameSpar".to_string(), 2),
+    ]];
+    assert_eq!(canisters, &expected);
     let drop = *drop;
 
     let born = drain(&mut app, drop);
     let contents: Vec<Stacks> = born.iter().map(|(_, stacks, _)| stacks.clone()).collect();
-    assert_eq!(contents, vec![one("DriveBell", 1), one("FrameSpar", 2)]);
+    assert_eq!(contents, expected);
     let (_, _, first_at) = &born[0];
     assert!(
         first_at.distance(Vec3::new(106.0, 0.0, 0.0)) < 0.1,

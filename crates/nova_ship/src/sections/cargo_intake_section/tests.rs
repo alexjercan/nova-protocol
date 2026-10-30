@@ -55,6 +55,20 @@ fn intakes_app(stock: u32, intakes_x: &[f32]) -> (App, Entity, Vec<Entity>) {
     });
     app.insert_resource(test_items());
     app.finish();
+    let (ship, intakes) = spawn_intake_ship(&mut app, Transform::default(), stock, intakes_x);
+    settle(&mut app);
+    (app, ship, intakes)
+}
+
+/// One hull at `transform` carrying `stock` hull plates in a 400 kg hold,
+/// with one intake at each hull-local x in `intakes_x`. Returns the ship and
+/// the intakes.
+fn spawn_intake_ship(
+    app: &mut App,
+    transform: Transform,
+    stock: u32,
+    intakes_x: &[f32],
+) -> (Entity, Vec<Entity>) {
     let items = app.world().resource::<GameItems>().clone();
     let ship = app
         .world_mut()
@@ -62,7 +76,7 @@ fn intakes_app(stock: u32, intakes_x: &[f32]) -> (App, Entity, Vec<Entity>) {
             Name::new("hull"),
             SpaceshipRootMarker,
             RigidBody::Dynamic,
-            Transform::default(),
+            transform,
             ShipInventory::new(&items, 400_000, [(ItemRoleType::HullPlate.into(), stock)]),
         ))
         .id();
@@ -102,8 +116,7 @@ fn intakes_app(stock: u32, intakes_x: &[f32]) -> (App, Entity, Vec<Entity>) {
                 .id()
         })
         .collect();
-    settle(&mut app);
-    (app, ship, intakes)
+    (ship, intakes)
 }
 
 /// [`intakes_app`] with one intake on the hull's centre line.
@@ -122,6 +135,19 @@ fn drifting_canister(
     velocity: Vec3,
 ) -> Entity {
     let items = app.world().resource::<GameItems>().clone();
+    let contents = CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), count);
+    drifting_contents(app, contents, at, rotation, velocity)
+}
+
+/// A drifting canister of `contents` at `at` with `rotation`, moving at
+/// `velocity`.
+fn drifting_contents(
+    app: &mut App,
+    contents: CargoCanister,
+    at: Vec3,
+    rotation: Quat,
+    velocity: Vec3,
+) -> Entity {
     let id = app
         .world_mut()
         .resource_mut::<CargoCanisterIdAllocator>()
@@ -129,7 +155,7 @@ fn drifting_canister(
     app.world_mut()
         .spawn((
             cargo_canister(
-                CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), count),
+                contents,
                 Transform::from_translation(at).with_rotation(rotation),
                 velocity,
                 AssetRef::from("canister.glb#Scene0"),
@@ -137,6 +163,34 @@ fn drifting_canister(
             id,
         ))
         .id()
+}
+
+/// The canister's stacks as `(item, count)` pairs in id order.
+fn contents(app: &App, canister: Entity) -> Vec<(String, u32)> {
+    app.world()
+        .get::<CargoCanister>(canister)
+        .expect("the canister is live")
+        .stacks()
+        .map(|(item, count)| (item.to_string(), count))
+        .collect()
+}
+
+/// Every `PickedUp` report on `ship` as `(canister, item, count)`.
+fn pickups(app: &App, ship: Entity) -> Vec<(CargoCanisterRuntimeId, String, u32)> {
+    app.world()
+        .get::<ShipInventoryReports>(ship)
+        .expect("a ship carries its reports")
+        .0
+        .iter()
+        .filter_map(|report| match report {
+            ShipInventoryReport::PickedUp {
+                canister,
+                item,
+                count,
+            } => Some((*canister, item.to_string(), *count)),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Update until `canister` is gone, at most `frames` times. Returns whether
@@ -457,9 +511,78 @@ fn zero_health_destroys_canister_and_loses_its_stock() {
     assert_eq!(plates(&app, ship), 12);
 }
 
+/// A hold with room for two of four plates takes two through the real
+/// trigger contact. The other two stay in the same canister entity under the
+/// same id, through a freeze and a thaw, until room opens for them.
 #[test]
-fn a_canister_larger_than_the_free_room_is_refused_whole() {
+fn a_canister_heavier_than_the_free_room_gives_up_the_whole_items_that_fit() {
     let (mut app, ship, intake) = intake_app(38);
+    let canister = drifting_canister(
+        &mut app,
+        4,
+        Vec3::new(0.0, 0.0, in_front(CAPTURE_GAP.to_engine() * 0.5)),
+        Quat::IDENTITY,
+        Vec3::ZERO,
+    );
+    let id = *app.world().get::<CargoCanisterRuntimeId>(canister).unwrap();
+
+    for _ in 0..120 {
+        app.update();
+    }
+    assert_eq!(plates(&app, ship), 40, "the two that fit are taken");
+    assert_eq!(takes(&app), 1);
+    assert_eq!(pickups(&app, ship), [(id, "HullPlate".to_string(), 2)]);
+    assert_eq!(contents(&app, canister), [("HullPlate".to_string(), 2)]);
+    assert_eq!(
+        app.world().get::<CargoCanisterRuntimeId>(canister),
+        Some(&id)
+    );
+    assert_eq!(door(&app, intake), 0.0, "a full hold shuts the door");
+    assert!(app
+        .world()
+        .resource::<CargoPickupReadiness>()
+        .pairs
+        .iter()
+        .any(|pair| pair.canister == canister && !pair.ready));
+
+    // The remainder freezes and thaws as itself.
+    let frozen = freeze_canister(app.world(), canister).expect("a drifting canister freezes");
+    assert_eq!(frozen.id(), id);
+    let items = app.world().resource::<GameItems>().clone();
+    assert_eq!(frozen.contents().total_mass_g(&items), 20_000);
+    app.world_mut().entity_mut(canister).despawn();
+    let at = Vec3::new(0.0, 0.0, in_front(CAPTURE_GAP.to_engine() * 0.5));
+    let thawed = app
+        .world_mut()
+        .spawn(thaw_canister(
+            frozen,
+            Transform::from_translation(at),
+            Vec3::ZERO,
+        ))
+        .id();
+
+    app.world_mut()
+        .get_mut::<ShipInventory>(ship)
+        .unwrap()
+        .remove(&ItemRoleType::HullPlate.into(), 2);
+    assert!(
+        run_until_gone(&mut app, thawed, 120),
+        "the rest was never taken"
+    );
+    assert_eq!(plates(&app, ship), 40);
+    assert_eq!(takes(&app), 2);
+    assert_eq!(
+        pickups(&app, ship),
+        [
+            (id, "HullPlate".to_string(), 2),
+            (id, "HullPlate".to_string(), 2)
+        ]
+    );
+}
+
+#[test]
+fn a_full_hold_takes_nothing_and_keeps_the_door_shut() {
+    let (mut app, ship, intake) = intake_app(40);
     let canister = drifting_canister(
         &mut app,
         4,
@@ -478,33 +601,21 @@ fn a_canister_larger_than_the_free_room_is_refused_whole() {
         .pairs
         .iter()
         .any(|pair| pair.canister == canister && !pair.ready));
-    assert_eq!(plates(&app, ship), 38, "no part of it is taken");
-    let items = app.world().resource::<GameItems>().clone();
-    assert_eq!(
-        app.world()
-            .get::<CargoCanister>(canister)
-            .map(|canister| canister.total_mass_g(&items)),
-        Some(40_000)
-    );
-
-    // Room is the only thing that refused it.
-    app.world_mut()
-        .get_mut::<ShipInventory>(ship)
-        .unwrap()
-        .remove(&ItemRoleType::HullPlate.into(), 2);
-    for _ in 0..4 {
-        app.update();
-    }
     assert_eq!(plates(&app, ship), 40);
-    assert!(app.world().get_entity(canister).is_err());
+    assert_eq!(takes(&app), 0);
+    assert!(pickups(&app, ship).is_empty());
+    assert_eq!(contents(&app, canister), [("HullPlate".to_string(), 4)]);
 }
 
+/// With 10 kg free, a 20 kg slug canister cannot give up an item, but a
+/// one-plate canister beside it can, and that opens the door.
 #[test]
 fn the_door_opens_for_a_canister_that_fits_beside_one_that_does_not() {
-    let (mut app, ship, intake) = intake_app(38);
-    let oversized = drifting_canister(
+    let (mut app, ship, intake) = intake_app(39);
+    let items = app.world().resource::<GameItems>().clone();
+    let oversized = drifting_contents(
         &mut app,
-        4,
+        CargoCanister::new(&items, &ItemRoleType::RailSlug.into(), 1),
         Vec3::new(-1.0, 0.0, -4.5),
         Quat::IDENTITY,
         Vec3::ZERO,
@@ -525,9 +636,81 @@ fn the_door_opens_for_a_canister_that_fits_beside_one_that_does_not() {
         1.0,
         "the door opened for the fitting one"
     );
-    assert_eq!(plates(&app, ship), 38, "neither reached the trigger");
+    assert_eq!(plates(&app, ship), 39, "neither reached the trigger");
     assert!(app.world().get_entity(oversized).is_ok());
     assert!(app.world().get_entity(fitting).is_ok());
+}
+
+/// A canister in two intakes' triggers on one ship, with room for only part
+/// of it: the first intake takes the plates that fit, and the second, in the
+/// same pass, sees the remainder and a full hold. Nothing is taken twice or
+/// lost.
+#[test]
+fn two_intakes_on_one_ship_share_its_holds_room() {
+    let (mut app, ship, _) = intakes_app(38, &[-1.5, 1.5]);
+    let items = app.world().resource::<GameItems>().clone();
+    let mut mixed = CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), 4);
+    mixed.add(&items, &ItemRoleType::RailSlug.into(), 1);
+    let canister = drifting_contents(
+        &mut app,
+        mixed,
+        Vec3::new(0.0, 0.0, in_front(CAPTURE_GAP.to_engine() * 0.5)),
+        Quat::IDENTITY,
+        Vec3::ZERO,
+    );
+    let id = *app.world().get::<CargoCanisterRuntimeId>(canister).unwrap();
+
+    for _ in 0..120 {
+        app.update();
+    }
+    assert_eq!(plates(&app, ship), 40);
+    assert_eq!(takes(&app), 1);
+    assert_eq!(pickups(&app, ship), [(id, "HullPlate".to_string(), 2)]);
+    assert_eq!(
+        contents(&app, canister),
+        [("HullPlate".to_string(), 2), ("RailSlug".to_string(), 1)]
+    );
+}
+
+/// Two ships face to face, each with room for two plates, touch one
+/// four-plate canister in the same pass: the first intake in entity order
+/// takes two, the second takes the two left, and the canister goes. No item
+/// is taken twice.
+#[test]
+fn two_ships_touching_one_canister_split_it_without_taking_an_item_twice() {
+    let (mut app, first, _) = intakes_app(38, &[0.0]);
+    let centre = in_front(CAPTURE_GAP.to_engine() * 0.5);
+    // Turned to face the first ship's door across the canister, its own
+    // trigger reaches the canister's far side.
+    let (second, _) = spawn_intake_ship(
+        &mut app,
+        Transform::from_xyz(0.0, 0.0, 2.0 * centre)
+            .with_rotation(Quat::from_rotation_y(core::f32::consts::PI)),
+        38,
+        &[0.0],
+    );
+    settle(&mut app);
+    let canister = drifting_canister(
+        &mut app,
+        4,
+        Vec3::new(0.0, 0.0, centre),
+        Quat::IDENTITY,
+        Vec3::ZERO,
+    );
+    let id = *app.world().get::<CargoCanisterRuntimeId>(canister).unwrap();
+
+    assert!(
+        run_until_gone(&mut app, canister, 120),
+        "the canister was never emptied"
+    );
+    for _ in 0..4 {
+        app.update();
+    }
+    assert_eq!((plates(&app, first), plates(&app, second)), (40, 40));
+    assert_eq!(takes(&app), 2);
+    for ship in [first, second] {
+        assert_eq!(pickups(&app, ship), [(id, "HullPlate".to_string(), 2)]);
+    }
 }
 
 #[test]

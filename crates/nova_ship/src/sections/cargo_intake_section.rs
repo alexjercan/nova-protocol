@@ -16,8 +16,8 @@
 //! face. The intake's despawn takes the trigger with it.
 //!
 //! - detection: the canister centre is in front of the face and within
-//!   `detection_range` of its centre. A canister here that fits the hold's
-//!   free mass, or a waiting drop, opens the door.
+//!   `detection_range` of its centre. A canister here with at least one whole
+//!   item that fits the hold's free mass, or a waiting drop, opens the door.
 //! - take: an avian contact point has nonnegative penetration into the
 //!   trigger. Speculative separated contacts do not count. Speed, rotation
 //!   and the door play no part. The report is one physics step old, and a
@@ -32,9 +32,12 @@
 //! destroyed rather than offered to the intake or shown as a pickup
 //! candidate.
 //!
-//! A take moves the whole canister into the ship's [`ShipInventory`] or does
-//! nothing: a canister heavier than the hold's free mass stays out. A
-//! canister in two triggers goes to the first intake in entity order.
+//! A take moves every whole item that fits the hold's free mass into the
+//! ship's [`ShipInventory`] by [`CargoCanister::take_fitting`], so a full
+//! hold takes nothing. The rest stays in the same canister entity with the
+//! same [`CargoCanisterRuntimeId`]; an emptied canister is despawned. A
+//! canister in two triggers goes to the first intake in entity order, and the
+//! next intake sees only what is left.
 //! A jettison waits on the intake in a [`CargoIntakeEjectionQueue`]. The
 //! intake drops the front canister once its door is fully open and no
 //! canister is near the birth point, so the next waits until the last drifts
@@ -165,7 +168,7 @@ pub struct CargoCanisterEjected {
     pub entity: Entity,
 }
 
-/// An intake took a canister into its ship's hold.
+/// An intake took at least one item from a canister into its ship's hold.
 #[derive(EntityEvent, Clone, Copy, Debug)]
 pub struct CargoCanisterTaken {
     /// The intake that took it.
@@ -189,7 +192,8 @@ pub struct CargoPickupPair {
     pub intake: Entity,
     /// Live canister candidate, including candidates outside detection.
     pub canister: Entity,
-    /// True exactly when this pass can take this candidate through this intake.
+    /// True exactly when this pass takes at least one item of this candidate
+    /// through this intake.
     pub ready: bool,
 }
 
@@ -497,13 +501,18 @@ struct CanisterRead {
     id: CargoCanisterRuntimeId,
     canister: CargoCanister,
     position: Vec3,
+    /// Emptied and despawned by this pass.
     taken: bool,
+    /// Gave up items this pass; a remainder is written back after every
+    /// intake has run.
+    changed: bool,
 }
 
 /// Run every live intake on a spaceship root: steer its door from the hold's
-/// free mass before this pass's takes, take every canister overlapping its
-/// trigger that fits the hold, and drop the front of its ejection queue once
-/// the door is open and no canister is near the birth point.
+/// free mass before this pass's takes, take the whole items that fit the hold
+/// from every canister overlapping its trigger, and drop the front of its
+/// ejection queue once the door is open and no canister is near the birth
+/// point.
 ///
 /// A missing `IntakeDoor` track counts as an open door, as a doorless torpedo
 /// bay launches at once: content lint requires the track, so only a
@@ -537,11 +546,11 @@ fn run_cargo_intakes(
             Without<SectionInactiveMarker>,
         ),
     >,
-    q_canisters: Query<
+    mut q_canisters: Query<
         (
             Entity,
             &CargoCanisterRuntimeId,
-            &CargoCanister,
+            &mut CargoCanister,
             &Position,
             &Health,
         ),
@@ -563,6 +572,7 @@ fn run_cargo_intakes(
             canister: canister.clone(),
             position: position.0,
             taken: false,
+            changed: false,
         })
         .collect();
     canisters.sort_by_key(|read| read.entity);
@@ -599,7 +609,7 @@ fn run_cargo_intakes(
                 !read.taken
                     && offset.dot(normal) >= 0.0
                     && offset.length() <= detection_range
-                    && inventory.free_g(&items) >= read.canister.total_mass_g(&items)
+                    && read.canister.fits_any(&items, inventory.free_g(&items))
             });
         let target = if wanted { 1.0 } else { 0.0 };
         if let Some(was) = animations.cue_target(SectionAnimationCue::IntakeDoor) {
@@ -622,7 +632,7 @@ fn run_cargo_intakes(
                         manifold.points.iter().any(|point| point.penetration >= 0.0)
                     })
                 })
-            }) && inventory.free_g(&items) >= read.canister.total_mass_g(&items);
+            }) && read.canister.fits_any(&items, inventory.free_g(&items));
             readiness.pairs.push(CargoPickupPair {
                 ship,
                 intake,
@@ -632,17 +642,20 @@ fn run_cargo_intakes(
             if !ready {
                 continue;
             }
-            for (item, count) in read.canister.stacks() {
-                inventory.add(&items, item, count);
+            for (item, count) in read.canister.take_fitting(&items, inventory.free_g(&items)) {
+                inventory.add(&items, &item, count);
                 reports.0.push(ShipInventoryReport::PickedUp {
                     canister: read.id,
-                    item: item.clone(),
+                    item,
                     count,
                 });
             }
-            commands.entity(read.entity).despawn();
             commands.trigger(CargoCanisterTaken { entity: intake });
-            read.taken = true;
+            read.changed = true;
+            if read.canister.is_empty() {
+                commands.entity(read.entity).despawn();
+                read.taken = true;
+            }
         }
 
         let birth = face_centre
@@ -682,6 +695,16 @@ fn run_cargo_intakes(
             ));
             commands.trigger(CargoCanisterEjected { entity: intake });
         }
+    }
+
+    for read in canisters
+        .into_iter()
+        .filter(|read| read.changed && !read.taken)
+    {
+        let (_, _, mut canister, _, _) = q_canisters
+            .get_mut(read.entity)
+            .expect("run_cargo_intakes: a canister read this pass left the query");
+        *canister = read.canister;
     }
 }
 

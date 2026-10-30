@@ -6,8 +6,9 @@
 //! take. None of them proves that the ore a pulse cuts is the ore a player
 //! sells. This example runs the three in one session on their production
 //! paths: the real `mine` key on the shipped mining tug's bow emitter, a
-//! canister the rock drops taken whole through its dorsal cargo intake, the
-//! real `dock` key on a trader's port, and Sell through the pane.
+//! canister the rock drops emptied into the empty hold through its dorsal
+//! cargo intake, the real `dock` key on a trader's port, and Sell through the
+//! pane.
 //!
 //! The trader is a live spar that is not lootable and holds credits. It
 //! exists only in this example: no shipped scenario carries it.

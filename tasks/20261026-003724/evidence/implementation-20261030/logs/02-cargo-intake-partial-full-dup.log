@@ -1,0 +1,48 @@
+=== sections::cargo_intake_section::tests::a_canister_heavier_than_the_free_room_gives_up_the_whole_items_that_fit ===
+warning: Git tree '/home/alex/personal/nova-protocol' is dirty
+    Finished `test` profile [optimized] target(s) in 0.20s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running unittests src/lib.rs (/tmp/nova-verify-20261030-target/debug/deps/nova_ship-3cef22d56c1648c3)
+
+running 1 test
+test sections::cargo_intake_section::tests::a_canister_heavier_than_the_free_room_gives_up_the_whole_items_that_fit ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1213 filtered out; finished in 0.06s
+
+=== sections::cargo_intake_section::tests::a_full_hold_takes_nothing_and_keeps_the_door_shut ===
+warning: Git tree '/home/alex/personal/nova-protocol' is dirty
+    Finished `test` profile [optimized] target(s) in 0.20s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running unittests src/lib.rs (/tmp/nova-verify-20261030-target/debug/deps/nova_ship-3cef22d56c1648c3)
+
+running 1 test
+test sections::cargo_intake_section::tests::a_full_hold_takes_nothing_and_keeps_the_door_shut ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1213 filtered out; finished in 0.07s
+
+=== sections::cargo_intake_section::tests::two_intakes_on_one_ship_share_its_holds_room ===
+warning: Git tree '/home/alex/personal/nova-protocol' is dirty
+    Finished `test` profile [optimized] target(s) in 0.20s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running unittests src/lib.rs (/tmp/nova-verify-20261030-target/debug/deps/nova_ship-3cef22d56c1648c3)
+
+running 1 test
+test sections::cargo_intake_section::tests::two_intakes_on_one_ship_share_its_holds_room ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1213 filtered out; finished in 0.06s
+
+=== sections::cargo_intake_section::tests::two_ships_touching_one_canister_split_it_without_taking_an_item_twice ===
+warning: Git tree '/home/alex/personal/nova-protocol' is dirty
+    Finished `test` profile [optimized] target(s) in 0.21s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running unittests src/lib.rs (/tmp/nova-verify-20261030-target/debug/deps/nova_ship-3cef22d56c1648c3)
+
+running 1 test
+test sections::cargo_intake_section::tests::two_ships_touching_one_canister_split_it_without_taking_an_item_twice ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1213 filtered out; finished in 0.03s
+

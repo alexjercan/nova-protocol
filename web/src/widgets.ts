@@ -11505,9 +11505,11 @@ function initCollapseBudget(host: HTMLElement): void {
 // 3 m/s (:119). The runtime is crates/nova_ship/src/sections/
 // cargo_intake_section.rs: CARGO_CANISTER_SIZE 0.94 x 0.58 x 0.58 units (:73);
 // the door opens for a canister whose centre is in front of the face and
-// within detection_range of the face centre, with room in the hold
-// (:555-562); the take is a contact with nonnegative penetration into the
-// trigger box, whatever the door does, with room in the hold (:578-584); a
+// within detection_range of the face centre, with room in the hold for one
+// whole item (run_cargo_intakes, CargoCanister::fits_any in
+// crates/nova_gameplay/src/inventory.rs); the take is a contact with
+// nonnegative penetration into the trigger box, whatever the door does, and
+// moves every whole item that fits, leaving the rest (take_fitting); a
 // drop is born half a canister deep + capture_gap + CARGO_CANISTER_CLEARANCE
 // 0.05 units (:82) off the face (:602-606).
 const INTAKE_HEIGHT_M = 20;
@@ -11523,11 +11525,11 @@ const INTAKE_BIRTH_M = CANISTER_SIDE_M / 2 + INTAKE_CAPTURE_GAP_M + 0.5;
 
 /** What one intake does with one canister in the widget's side view. */
 export interface IntakeTake {
-    /** The canister's centre is in front of the face, within 40 m of it, and the hold has room. */
+    /** The canister's centre is in front of the face, within 40 m of it, and the hold has room for an item. */
     doorOpens: boolean;
     /** The canister's outline meets the 1 m slab in front of the opening. */
     touchesSlab: boolean;
-    /** The slab is touched and the hold has room: the whole canister goes in. */
+    /** The slab is touched and the hold has room: every whole item that fits goes in. */
     taken: boolean;
 }
 
@@ -11777,7 +11779,7 @@ function initCargoIntakeTake(host: HTMLElement): void {
             ),
             sectionCell(
                 verdict.taken ? "TAKEN" : "NOT TAKEN",
-                "the whole canister",
+                "whole items that fit",
                 verdict.taken ? "is-hit" : "is-off"
             )
         );
@@ -11785,13 +11787,14 @@ function initCargoIntakeTake(host: HTMLElement): void {
         if (verdict.taken) {
             readout.textContent =
                 "TAKEN. Part of the canister is in the slab and the hold has " +
-                "room, so the whole canister goes into the hold at once. The " +
-                "door, speed and angle play no part.";
+                "room, so every whole item that fits goes into the hold at " +
+                "once and the rest stays in the canister. The door, speed " +
+                "and angle play no part.";
         } else if (verdict.touchesSlab) {
             readout.classList.add("is-fault");
             readout.textContent =
                 "NOT TAKEN: the hold is full. The canister touches the slab " +
-                "but is heavier than the hold's free mass, so it stays out.";
+                "but no item in it fits the hold's free mass, so it stays out.";
         } else if (verdict.doorOpens) {
             readout.classList.add("is-warn");
             readout.textContent =
@@ -11810,7 +11813,7 @@ function initCargoIntakeTake(host: HTMLElement): void {
                 `DOOR SHUT: the hold is full. The centre is ` +
                 `${meters(centreM, 1)} from the face centre, inside ` +
                 `${INTAKE_DETECTION_M} m, but the door opens only for a ` +
-                "canister the hold has room for.";
+                "canister with an item the hold has room for.";
         } else {
             readout.classList.add("is-warn");
             readout.textContent =
@@ -11836,12 +11839,23 @@ function initCargoIntakeTake(host: HTMLElement): void {
                 "turns in the plane of the drawing, and the opening is " +
                 `${INTAKE_APERTURE_WIDTH_M} m across, wider than the ` +
                 `${CANISTER_LENGTH_M} m canister. In the game a physics ` +
-                "contact into the 3D trigger box, with room in the hold, " +
+                "contact into the 3D trigger box, with room for an item, " +
                 "decides the take, so a canister drawn just touching is not " +
                 `a promise. A drop is born ${meters(INTAKE_BIRTH_M, 1)} out ` +
                 `and leaves at ${INTAKE_EJECT_MPS} m/s.`
         )
     );
+    if (host.closest(".news__body") !== null) {
+        host.appendChild(
+            el(
+                "p",
+                "widget__note",
+                "This scope shows the current rules, not this release's: the " +
+                    "intake now takes the whole items that fit the hold and " +
+                    "leaves the rest in the canister."
+            )
+        );
+    }
     update();
 }
 
@@ -12118,12 +12132,12 @@ function initDockingEnvelope(host: HTMLElement): void {
 // that collider. A refusal draws nothing and writes an info log. Ore is paid
 // only for corners a pulse flips, as canisters after the rock's remesh lands
 // (release_mined_ore). A mined canister holds at most CARGO_CANISTER_MAX_MASS_G
-// 200 kg (crates/nova_gameplay/src/inventory.rs:532), is born
+// 1,000 kg (crates/nova_gameplay/src/inventory.rs), is born
 // MINED_CANISTER_OFFSET 1 unit off the cut and drifts off it at
 // MINED_CANISTER_SPEED 0.2 units/s (mining.rs:93,97,895-925).
 const MINING_REACH_M = 100;
 const MINING_CARVE_M = 7.5;
-const MINED_CANISTER_KG = 200;
+const MINED_CANISTER_KG = 1000;
 const MINED_BIRTH_M = 10;
 const MINED_DRIFT_MPS = 2;
 // The widget's stand-in for a rock's mesh collider.
@@ -12365,7 +12379,8 @@ function initMiningBeamChecks(host: HTMLElement): void {
     const stats = el("div", "widget__stats");
     stat(stats, "pulse").textContent = "at once, then 1 a second";
     stat(stats, "cut").textContent = `~${MINING_CARVE_M} m radius`;
-    stat(stats, "canister").textContent = `up to ${MINED_CANISTER_KG} kg`;
+    stat(stats, "canister").textContent =
+        `up to ${numText(MINED_CANISTER_KG, 0)} kg`;
     stat(stats, "born").textContent = `${MINED_BIRTH_M} m off the cut`;
     stat(stats, "drift").textContent = `${MINED_DRIFT_MPS} m/s`;
     host.appendChild(stats);
@@ -12383,6 +12398,16 @@ function initMiningBeamChecks(host: HTMLElement): void {
     note.appendChild(explanation);
     note.append(".");
     host.appendChild(note);
+    if (host.closest(".news__body") !== null) {
+        host.appendChild(
+            el(
+                "p",
+                "widget__note",
+                "This scope shows the current rules, not this release's: a " +
+                    `canister now holds up to ${numText(MINED_CANISTER_KG, 0)} kg.`
+            )
+        );
+    }
     update();
 }
 

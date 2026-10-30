@@ -633,13 +633,15 @@ pub struct ShipCredits(pub u32);
 /// the tracker only resolves scenario ids.
 #[derive(Clone, Debug, PartialEq, Eq, Reflect)]
 pub enum ShipInventoryReport {
-    /// An intake took one stack of a canister into the hold.
+    /// An intake took whole items of one stack of a canister into the hold.
+    /// A canister the hold takes in part reports what it took, and its
+    /// remainder reports again under the same id when taken later.
     PickedUp {
-        /// Runtime id of the taken canister.
+        /// Runtime id of the canister taken from.
         canister: CargoCanisterRuntimeId,
         /// The stack's item.
         item: ItemDesignId,
-        /// Units in the stack.
+        /// Units taken.
         count: u32,
     },
     /// An intake dropped one stack of a canister out of the hold.
@@ -1231,7 +1233,7 @@ pub fn plan_item_storage(
 }
 
 /// Maximum mass of a drifting canister, in grams.
-pub const CARGO_CANISTER_MAX_MASS_G: u32 = 200_000;
+pub const CARGO_CANISTER_MAX_MASS_G: u32 = 1_000_000;
 
 /// Item stacks drifting free in a canister. Every count is above zero and the
 /// total mass is at most [`CARGO_CANISTER_MAX_MASS_G`].
@@ -1281,25 +1283,85 @@ impl CargoCanister {
         }
     }
 
-    /// `count` of `item` packed into new canisters, each filled to the last
-    /// whole item under [`CARGO_CANISTER_MAX_MASS_G`] except the last. Empty
-    /// for a count of zero.
+    /// `stacks` packed into new mixed canisters of whole items. Each canister
+    /// takes, in id order, as many whole items of every stack as still fit
+    /// under [`CARGO_CANISTER_MAX_MASS_G`], skips a stack whose next item is
+    /// too heavy and goes on to the next, and closes once no item fits. The
+    /// next canister starts again from the lowest remaining id. Empty for no
+    /// stacks; a zero count packs nothing.
     ///
     /// # Panics
     ///
-    /// When one `item` is heavier than a canister holds; the item lint
-    /// refuses that item first.
-    pub fn split(items: &GameItems, item: &ItemDesignId, count: u32) -> Vec<Self> {
-        let per_canister = CARGO_CANISTER_MAX_MASS_G / items.design(item).mass_g;
-        assert!(per_canister > 0, "item '{item}' is heavier than a canister");
-        let mut rest = count;
+    /// When `items` lacks an item or one item is heavier than a canister
+    /// holds; the item lint refuses both first.
+    pub fn pack(items: &GameItems, stacks: &BTreeMap<ItemDesignId, u32>) -> Vec<Self> {
+        let mut rest: BTreeMap<ItemDesignId, u32> = stacks
+            .iter()
+            .filter(|(_, &count)| count > 0)
+            .map(|(item, &count)| {
+                assert!(
+                    items.design(item).mass_g <= CARGO_CANISTER_MAX_MASS_G,
+                    "item '{item}' is heavier than a canister"
+                );
+                (item.clone(), count)
+            })
+            .collect();
         let mut canisters = Vec::new();
-        while rest > 0 {
-            let packed = rest.min(per_canister);
-            canisters.push(Self::new(items, item, packed));
-            rest -= packed;
+        while !rest.is_empty() {
+            let mut canister = Self {
+                stacks: BTreeMap::new(),
+            };
+            canister.take_into(items, &mut rest, CARGO_CANISTER_MAX_MASS_G);
+            canisters.push(canister);
         }
         canisters
+    }
+
+    /// Take whole items out of this canister that fit `free_g` grams, in id
+    /// order: `floor(free / mass)` of each stack, capped at its count. A
+    /// stack whose item is heavier than the room left is skipped, and a later
+    /// lighter stack can still fit. Returns the taken stacks in id order,
+    /// empty when no item fits. Every stack left keeps a count above zero;
+    /// the caller despawns a canister that [`is_empty`](Self::is_empty).
+    pub fn take_fitting(&mut self, items: &GameItems, free_g: u32) -> BTreeMap<ItemDesignId, u32> {
+        let mut taken = Self {
+            stacks: BTreeMap::new(),
+        };
+        taken.take_into(items, &mut self.stacks, free_g);
+        taken.stacks
+    }
+
+    /// Whether [`take_fitting`](Self::take_fitting) with `free_g` takes at
+    /// least one item.
+    pub fn fits_any(&self, items: &GameItems, free_g: u32) -> bool {
+        self.stacks
+            .keys()
+            .any(|item| items.design(item).mass_g <= free_g)
+    }
+
+    /// Whether every item has been taken out.
+    pub fn is_empty(&self) -> bool {
+        self.stacks.is_empty()
+    }
+
+    /// Move whole items from `source` into `self` in id order while they fit
+    /// `room_g`, dropping every emptied `source` stack.
+    fn take_into(
+        &mut self,
+        items: &GameItems,
+        source: &mut BTreeMap<ItemDesignId, u32>,
+        mut room_g: u32,
+    ) {
+        source.retain(|item, count| {
+            let mass_g = items.design(item).mass_g;
+            let moved = (*count).min(room_g / mass_g);
+            if moved > 0 {
+                room_g -= mass_g * moved;
+                *self.stacks.entry(item.clone()).or_default() += moved;
+                *count -= moved;
+            }
+            *count > 0
+        });
     }
 
     /// Every held stack in id order.
@@ -1447,7 +1509,7 @@ pub fn plan_item_jettison(
     Ok(ItemJettison {
         count: quantity,
         merged,
-        canisters: CargoCanister::split(items, item, quantity - merged),
+        canisters: CargoCanister::pack(items, &[(item.clone(), quantity - merged)].into()),
     })
 }
 
@@ -2609,9 +2671,9 @@ mod transfer_tests {
             10_000_000,
             [
                 (ItemRoleType::HullPlate.into(), 12),
-                (ItemRoleType::PdcRound.into(), 2_500),
-                (ItemRoleType::RailSlug.into(), 25),
-                (ItemRoleType::Torpedo.into(), 3),
+                (ItemRoleType::PdcRound.into(), 12_500),
+                (ItemRoleType::RailSlug.into(), 125),
+                (ItemRoleType::Torpedo.into(), 7),
             ],
         );
         let plan = |tail: Option<&CargoCanister>, item, quantity| {
@@ -2639,34 +2701,38 @@ mod transfer_tests {
                 .collect::<Vec<_>>()
         };
 
-        // One 150 kg torpedo per canister; 10 slugs and 1000 rounds fill one.
-        let torpedoes = plan(None, ItemRoleType::Torpedo, 3);
-        assert_eq!((torpedoes.count, torpedoes.merged), (3, 0));
+        // Six 150 kg torpedoes fill a canister to 900 kg; 50 slugs and 5000
+        // rounds fill one to 1000 kg.
+        let torpedoes = plan(None, ItemRoleType::Torpedo, 7);
+        assert_eq!((torpedoes.count, torpedoes.merged), (7, 0));
         assert_eq!(
             split(&torpedoes),
-            vec![vec![(ItemRoleType::Torpedo.id().to_string(), 1)]; 3]
+            [
+                vec![(ItemRoleType::Torpedo.id().to_string(), 6)],
+                vec![(ItemRoleType::Torpedo.id().to_string(), 1)],
+            ]
         );
-        let slugs = plan(None, ItemRoleType::RailSlug, 25);
+        let slugs = plan(None, ItemRoleType::RailSlug, 125);
         assert_eq!(
             split(&slugs),
             [
-                vec![(ItemRoleType::RailSlug.id().to_string(), 10)],
-                vec![(ItemRoleType::RailSlug.id().to_string(), 10)],
-                vec![(ItemRoleType::RailSlug.id().to_string(), 5)],
+                vec![(ItemRoleType::RailSlug.id().to_string(), 50)],
+                vec![(ItemRoleType::RailSlug.id().to_string(), 50)],
+                vec![(ItemRoleType::RailSlug.id().to_string(), 25)],
             ]
         );
-        let rounds = plan(None, ItemRoleType::PdcRound, 2_500);
+        let rounds = plan(None, ItemRoleType::PdcRound, 12_500);
         assert_eq!(
             split(&rounds),
             [
-                vec![(ItemRoleType::PdcRound.id().to_string(), 1_000)],
-                vec![(ItemRoleType::PdcRound.id().to_string(), 1_000)],
-                vec![(ItemRoleType::PdcRound.id().to_string(), 500)],
+                vec![(ItemRoleType::PdcRound.id().to_string(), 5_000)],
+                vec![(ItemRoleType::PdcRound.id().to_string(), 5_000)],
+                vec![(ItemRoleType::PdcRound.id().to_string(), 2_500)],
             ]
         );
 
-        // A waiting 90 kg tail has 110 kg of room: 5 slugs merge ...
-        let tail = CargoCanister::new(&items, &ItemDesignId::from(ItemRoleType::HullPlate), 9);
+        // A waiting 900 kg tail has 100 kg of room: 5 slugs merge ...
+        let tail = CargoCanister::new(&items, &ItemDesignId::from(ItemRoleType::HullPlate), 90);
         let into_tail = plan(Some(&tail), ItemRoleType::RailSlug, 7);
         assert_eq!((into_tail.count, into_tail.merged), (7, 5));
         assert_eq!(
@@ -2680,8 +2746,8 @@ mod transfer_tests {
             split(&past_tail),
             [vec![(ItemRoleType::Torpedo.id().to_string(), 1)]]
         );
-        let fits = plan(Some(&tail), ItemRoleType::HullPlate, 11);
-        assert_eq!((fits.merged, fits.canisters.len()), (11, 0));
+        let fits = plan(Some(&tail), ItemRoleType::HullPlate, 10);
+        assert_eq!((fits.merged, fits.canisters.len()), (10, 0));
 
         // Every planned count is conserved across the tail and the canisters.
         for jettison in [&torpedoes, &slugs, &rounds, &into_tail, &past_tail, &fits] {
@@ -2693,6 +2759,63 @@ mod transfer_tests {
                 .sum();
             assert_eq!(jettison.merged + queued, jettison.count);
         }
+    }
+
+    fn canister_stacks(canister: &CargoCanister) -> Vec<(&str, u32)> {
+        canister
+            .stacks()
+            .map(|(item, count)| (item.as_str(), count))
+            .collect()
+    }
+
+    #[test]
+    fn packing_fills_each_canister_in_id_order_past_an_item_too_heavy_for_the_room_left() {
+        let items = crate::test_support::test_items();
+        // 64 15 kg packs leave 40 kg: the 80 kg bell waits, and four of the
+        // five 10 kg cores still fill the first canister to the cap.
+        let packed = CargoCanister::pack(
+            &items,
+            &[
+                ("ActuatorPack".into(), 64),
+                ("DriveBell".into(), 1),
+                ("FlightCore".into(), 5),
+                ("HullPlate".into(), 0),
+            ]
+            .into(),
+        );
+        assert_eq!(
+            packed.iter().map(canister_stacks).collect::<Vec<_>>(),
+            [
+                vec![("ActuatorPack", 64), ("FlightCore", 4)],
+                vec![("DriveBell", 1), ("FlightCore", 1)],
+            ]
+        );
+        assert_eq!(packed[0].total_mass_g(&items), CARGO_CANISTER_MAX_MASS_G);
+        assert!(CargoCanister::pack(&items, &BTreeMap::new()).is_empty());
+    }
+
+    #[test]
+    fn taking_from_a_canister_moves_only_whole_items_that_fit_and_keeps_the_rest() {
+        let items = crate::test_support::test_items();
+        let mut canister = CargoCanister::new(&items, &"DriveBell".into(), 1);
+        canister.add(&items, &"FlightCore".into(), 3);
+
+        // 55 kg free: the 80 kg bell is skipped, the 10 kg cores still fit.
+        assert!(canister.fits_any(&items, 55_000));
+        assert_eq!(
+            canister.take_fitting(&items, 55_000),
+            [("FlightCore".into(), 3)].into()
+        );
+        assert_eq!(canister_stacks(&canister), [("DriveBell", 1)]);
+        assert!(!canister.fits_any(&items, 55_000));
+        assert!(canister.take_fitting(&items, 55_000).is_empty());
+        assert_eq!(canister_stacks(&canister), [("DriveBell", 1)]);
+
+        assert_eq!(
+            canister.take_fitting(&items, 80_000),
+            [("DriveBell".into(), 1)].into()
+        );
+        assert!(canister.is_empty());
     }
 }
 

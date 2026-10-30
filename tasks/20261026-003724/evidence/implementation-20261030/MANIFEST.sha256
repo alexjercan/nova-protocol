@@ -1,0 +1,15 @@
+8504824e256792a9e82bb68dd7660b788ccf2d5c134e0c991bdf8b7044398742  ./git-status-at-run.txt
+e13a03e8ed6bc784f9d40f31257b0086d6256a78a15cc3c1c0bfc6dddd6f57fa  ./HEAD.txt
+df33c78b875a8214efa78f3755e31a0c03ab63c8451cfb43ee2c4d6f044b4b1e  ./logs/01-wreck-cargo-1300kg-mixed-fifo.log
+96ad54c7d1c6452551f5d162cc17569bb0af895abdb17a17c20cded6d032f640  ./logs/02-cargo-intake-partial-full-dup.log
+0ed199b7b24334065ea09cf06eb3b418decab7f8124d7aafdcee5c37f0cb1982  ./logs/03-save-1100kg-overcap.log
+6b6b8a2fbfcd88154d49729a6f9648abc4a3d51ca9c70a455cbb98c1fdfe1492  ./logs/04-inventory-pack-take-jettison.log
+b385ecd2057f2f314514a7f96928b921ff279e6821e662c05e8778426d7aeddb  ./logs/05-content-lint.log
+b79530151c79805a962821cfdd25f5075a1eeda28024404f475e3d206c2cd42a  ./logs/06-fmt-check.log
+b032cd16c109930526feb1024cec1d0945c1705ee4b1faf73c5a0c935fea3cb8  ./nix-version.txt
+da23e433e0ddca3b07e4284334629dcd73ed00714a13392cbdb8b327a7fe5bfc  ./run-timestamp-utc.txt
+3a8f0927c78653c8d6c2726e921cc8c93508d0f7d2d45b364327313b1980c513  ./rust-toolchain.toml.copy
+7ebc8175b495858093a8ba8492f4188ba22c94a839b62a505ed41243b4c470cd  ./SUMMARY.md
+2cb367e8e9f254fece2e0ed2cea07f74db517a88fe6c1988538e7542287673b9  ./uname.txt
+dbf75f45d7dd583a9f08a21e3b9f0a400c3e22cdc1b6bb4fffc5810f4a661706  ./working-tree.diff
+5139afaebff8183f7d0ab19d81a88375a0085375fe433f50308a06e840231124  ./working-tree.diff.sha256

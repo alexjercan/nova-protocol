@@ -1,0 +1,35 @@
+ M CHANGELOG.md
+ M assets/base/sections/base.content.ron
+ M assets/base/training/base.content.ron
+ M crates/nova_assets/src/items.rs
+ M crates/nova_authoring/src/base_content/lessons.rs
+ M crates/nova_authoring/src/base_content/sections/cargo_intake.rs
+ M crates/nova_bench/src/pages/cargo.md
+ M crates/nova_bench/src/pages/mining.md
+ M crates/nova_events/src/lib.rs
+ M crates/nova_gameplay/src/inventory.rs
+ M crates/nova_hud/src/pickup_sight.rs
+ M crates/nova_interface/src/inventory/tests.rs
+ M crates/nova_scenario/src/mining.rs
+ M crates/nova_scenario/src/wreck_cargo.rs
+ M crates/nova_scenario/src/wreck_cargo/tests.rs
+ M crates/nova_ship/src/sections/cargo_intake_section.rs
+ M crates/nova_ship/src/sections/cargo_intake_section/tests.rs
+ M crates/nova_world_base/src/save/tests.rs
+ M docs/agent-bench.md
+ M docs/sections.md
+ M examples/playable/mine_and_sell.rs
+ M tasks/20261026-003724/TASK.md
+ M web/src/create/base-content.md
+ M web/src/create/events.md
+ M web/src/create/mod-files.md
+ M web/src/create/sections.md
+ M web/src/widgets.ts
+ M web/src/wiki/getting-started.md
+ M web/src/wiki/hud.md
+ M web/src/wiki/interface.md
+ M web/src/wiki/sections/cargo-intake.md
+ M web/src/wiki/sections/mining-beam.md
+ M web/src/wiki/ships.md
+?? tasks/20261026-003724/REPORT.html
+?? tasks/20261026-003724/evidence/

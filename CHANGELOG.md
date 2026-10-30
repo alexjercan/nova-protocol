@@ -19,6 +19,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - The base PDC round now prices 10 cr ask / 7 cr bid per 100 rounds. A Buy rounds its lot share up, a Sell rounds down, and a Sell that would earn 0 cr is refused.
 - A newly generated station that stocks PDC rounds now opens with at least 2,000 of them; its other stock is unchanged.
+- Cargo canisters now hold up to 1,000 kg. A wreck packs its drop into mixed canisters, and an intake takes the whole items that fit your hold, leaving the rest in the canister.
 
 ### Modding & Mod Portal
 

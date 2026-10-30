@@ -301,7 +301,7 @@ mod tests {
             faults[BASE_MOD_ID],
             [
                 "item 'HullPlate' is filed under Food; the game uses it as Repair",
-                "item 'PdcRound' has a mass_g of 200001; an item must fit one 200000 g \
+                "item 'PdcRound' has a mass_g of 1000001; an item must fit one 1000000 g \
                  canister",
                 "item 'Rations' is filed under Parts; the game uses it as Food",
                 "item 'Scrap' has a mass_g of 0",

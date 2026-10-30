@@ -18,7 +18,7 @@
     </div>
 </figure>
 
-A cargo intake is a **hold mouth**: a 30 x 20 m box, three cells across, two high and one deep, with an accordion door on one face. Bring the door to a canister and the intake takes the whole canister into your hold. Pick an item in the Inventory pane and the intake drops it out through the same door, packed into canisters.
+A cargo intake is a **hold mouth**: a 30 x 20 m box, three cells across, two high and one deep, with an accordion door on one face. Bring the door to a canister and the intake takes every whole item of it that your hold has room for. Pick an item in the Inventory pane and the intake drops it out through the same door, packed into canisters.
 
 The intake does not reach out or pull. A canister goes in only when it touches the thin slab in front of the opening, so a pickup is flying: you move the door onto the canister.
 
@@ -28,31 +28,32 @@ The intake does not reach out or pull. A canister goes in only when it touches t
 |---|---|
 | Size | **30 x 20 x 10 m**: three cells across, two high, one deep |
 | Opening | **22.2 x 15.3 m**, centred on the door face |
-| Door | opens for a canister within **40 m** in front of it that your hold has room for, in **1.2 s** |
+| Door | opens for a canister within **40 m** in front of it with at least one item your hold has room for, in **1.2 s** |
 | Take | any part of a canister within **1 m** in front of the opening |
 | Drop | one canister at a time, at **3 m/s** away from your ship |
 | Sight | drawn for a canister within **200 m** of your ship |
 | Health | **90** |
 
-<!-- Widget values: crates/nova_authoring/src/base_content/sections/cargo_intake.rs:23 (INTAKE_CELLS 3 x 2 x 1), :111-112 (detection_range 40 m, capture_gap 1 m), :117-119 (aperture 22.2 x 15.3 m, eject_speed 3 m/s); crates/nova_ship/src/sections/cargo_intake_section.rs:73 (CARGO_CANISTER_SIZE 9.4 x 5.8 x 5.8 m), :555-562 (door detection by the canister centre from the face centre, front half only, room in the hold), :578-584 (take: contact penetration >= 0 and room in the hold), :602-606 (birth 2.9 + 1 + 0.5 = 4.4 m off the face). -->
+<!-- Widget values: crates/nova_authoring/src/base_content/sections/cargo_intake.rs:23 (INTAKE_CELLS 3 x 2 x 1), :111-112 (detection_range 40 m, capture_gap 1 m), :117-119 (aperture 22.2 x 15.3 m, eject_speed 3 m/s); crates/nova_ship/src/sections/cargo_intake_section.rs:73 (CARGO_CANISTER_SIZE 9.4 x 5.8 x 5.8 m), `run_cargo_intakes` (door detection by the canister centre from the face centre, front half only, room for one whole item; take: contact penetration >= 0 and room for one whole item, then `CargoCanister::take_fitting` in crates/nova_gameplay/src/inventory.rs), :602-606 (birth 2.9 + 1 + 0.5 = 4.4 m off the face). -->
 
 <div class="widget" data-widget="cargo-intake-take">
-<p>The intake's door face is 30 by 20 m, and the clear opening in it is 22.2 by 15.3 m, wider than a 9.4 by 5.8 by 5.8 m canister is long. The door opens for a canister whose centre is in front of the face and within 40 m of the face centre and fits the hold's free room, so an end-on canister whose near end is inside 40 m can still leave the door shut. The intake takes the whole canister when part of it is in contact with the 1 m slab in front of the opening and the hold has room for it. A dropped canister is born 4.4 m off the face and leaves at 3 m/s.</p>
+<p>The intake's door face is 30 by 20 m, and the clear opening in it is 22.2 by 15.3 m, wider than a 9.4 by 5.8 by 5.8 m canister is long. The door opens for a canister whose centre is in front of the face and within 40 m of the face centre and that holds at least one item the hold's free room fits, so an end-on canister whose near end is inside 40 m can still leave the door shut. The intake takes every whole item that fits the hold when part of the canister is in contact with the 1 m slab in front of the opening. A dropped canister is born 4.4 m off the face and leaves at 3 m/s.</p>
 </div>
 
 ## Taking a canister in
 
-<!-- Behavior verified against crates/nova_ship/src/sections/cargo_intake_section.rs `run_cargo_intakes` (the door's room check, the trigger slab, whole-canister take, room check, a drop born outside the slab) and crates/nova_hud/src/pickup_sight.rs (sight target order). -->
+<!-- Behavior verified against crates/nova_ship/src/sections/cargo_intake_section.rs `run_cargo_intakes` (the door's room check, the trigger slab, the whole-item take and the remainder left in the same canister, a drop born outside the slab) and crates/nova_gameplay/src/inventory.rs `CargoCanister::take_fitting` (item id order) and crates/nova_hud/src/pickup_sight.rs (sight target order). -->
 
 | Canister | What the intake does |
 | --- | --- |
-| In front of the door and within 40 m of it | Opens the door if your hold has room for it. |
-| Any part of it within 1 m in front of the 22.2 x 15.3 m opening | Takes the whole canister into your hold at once, at any speed and any angle, open door or not. |
+| In front of the door and within 40 m of it | Opens the door if your hold has room for at least one of its items. |
+| Any part of it within 1 m in front of the 22.2 x 15.3 m opening | Takes every whole item your hold has room for at once, at any speed and any angle, open door or not. |
 | Touching your ship anywhere else | Is not taken. |
-| Heavier than your hold has room for | Stays out, whole. Alone, it leaves the door shut. |
+| Heavier than your hold has room for | Takes what fits, item by item in a fixed item order, and leaves the rest in the same canister. Its tag reads what is left, and a travel lock stays on it. |
+| With no item your hold has room for | Stays out, whole. Alone, it leaves the door shut. |
 | Just dropped | Leaves without being taken. It is taken back only if it turns and comes within 1 m of the opening again. |
 
-With a canister within 200 m of your ship, the **pickup sight** draws a cross on your intake's face and a line to the canister, with no lock needed. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Fly until the line stands perpendicular to the intake cross, then close the gap. The sight stays cyan while closing. The take sound and the canister going through the door confirm a take; the sight goes with the canister. An unavailable intake, or no canister within 200 m, draws no sight.
+With a canister within 200 m of your ship, the **pickup sight** draws a cross on your intake's face and a line to the canister, with no lock needed. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Fly until the line stands perpendicular to the intake cross, then close the gap. The sight stays cyan while closing. The take sound confirms a take. A canister taken whole goes through the door, and the sight goes with it. A canister with items left over stays at the door, and the sight stays on it. An unavailable intake, or no canister within 200 m, draws no sight.
 
 The take ignores speed, but a canister is a free body: one that meets your hull beside the opening is knocked aside, not taken. Come up under it door first and gently.
 
@@ -99,11 +100,11 @@ Undocked, the Inventory pane's **Jettison** packs an item into canisters queued 
 
 ## Canisters
 
-<!-- Values from crates/nova_gameplay/src/inventory.rs CARGO_CANISTER_MAX_MASS_G 200 kg; crates/nova_hud/src/cargo_canister_chips.rs CARGO_TAG_RANGE 100 m; canister health and lock rules in crates/nova_ship/src/sections/cargo_intake_section.rs `cargo_canister`. -->
+<!-- Values from crates/nova_gameplay/src/inventory.rs CARGO_CANISTER_MAX_MASS_G 1,000 kg and CargoCanister::pack (wreck drops); crates/nova_hud/src/cargo_canister_chips.rs CARGO_TAG_RANGE 100 m; canister health and lock rules in crates/nova_ship/src/sections/cargo_intake_section.rs `cargo_canister`. -->
 
-A canister holds at most 200 kg across all its stacks. Within 100 m of your ship, each canister carries an amber tag that reads what it holds, such as `4 Hull plate`, or `Mixed cargo` for multiple item types, with its total mass in kg. The tag hides while the canister is off-screen. A canister has 20 HP; at zero it and its contents are destroyed, not picked up. Canisters can be designated with a travel lock but cannot enter the combat target slot. In a saved Open World, a canister is saved as you left it, in the streamed window or frozen off it, on the desktop build. Any other scenario saves nothing: canisters go when it ends, and a jettisoned stack returns to your hold when it loads again.
+A canister holds at most 1,000 kg across all its stacks, and weighs what it holds. Within 100 m of your ship, each canister carries an amber tag that reads what it holds, such as `4 Hull plate`, or `Mixed cargo` for multiple item types, with its total mass in kg. The tag hides while the canister is off-screen. A canister has 20 HP; at zero it and its contents are destroyed, not picked up. Canisters can be designated with a travel lock but cannot enter the combat target slot. In a saved Open World, a canister is saved as you left it, in the streamed window or frozen off it, on the desktop build. Any other scenario saves nothing: canisters go when it ends, and a jettisoned stack returns to your hold when it loads again.
 
-Canisters come from two places: your own jettison, and a [mining beam](../mining-beam/) cutting ore out of a rock.
+Canisters come from three places: your own jettison, a [mining beam](../mining-beam/) cutting ore out of a rock, and a destroyed ship or section. A wreck packs everything one drop leaves together, filling each canister with whole items in a fixed item order up to 1,000 kg, so one canister can mix parts, ore and ammunition. A section shot off earlier leaves its own drop.
 
 ## Variants
 

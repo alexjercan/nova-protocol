@@ -4075,7 +4075,6 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
     drop(lock);
     let east = SectorCoord::new(1, 0, 0);
     let iron = ron::to_string(&ItemDesignId::from(ItemRoleType::IronOre)).unwrap();
-    let torpedo = ron::to_string(&ItemDesignId::from(ItemRoleType::Torpedo)).unwrap();
     // Read from RON, as a load reads them: the constructors refuse both.
     let player_with_hold = |capacity_g: u32| {
         let mut world = World::new();
@@ -4094,15 +4093,13 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
             ..state(1, 750).player
         }
     };
-    let canister_holding = |torpedoes: u32| {
+    let canister_holding = |ore: u32| {
         let mut world = World::new();
         let canister = world
             .spawn((
                 cargo_canister(
-                    ron::from_str::<CargoCanister>(&format!(
-                        "(stacks: {{{torpedo}: {torpedoes}}})"
-                    ))
-                    .unwrap(),
+                    ron::from_str::<CargoCanister>(&format!("(stacks: {{{iron}: {ore}}})"))
+                        .unwrap(),
                     Transform::IDENTITY,
                     Vec3::ZERO,
                     AssetRef::from("canister.glb#Scene0"),
@@ -4149,8 +4146,8 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
         ),
         (
             player_with_hold(10_000),
-            canister_holding(2),
-            "the canister 5 holds 300 kg over the canister cap of 200 kg",
+            canister_holding(110),
+            "the canister 5 holds 1100 kg over the canister cap of 1000 kg",
         ),
         (
             player_with_hold(10_000),
@@ -4182,7 +4179,7 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
         );
     }
 
-    for (generation, sectors) in [(4, canister_holding(1)), (5, station_storing(1, 10_000))] {
+    for (generation, sectors) in [(4, canister_holding(100)), (5, station_storing(1, 10_000))] {
         let within = WorldSaveState {
             player: player_with_hold(10_000),
             sectors,

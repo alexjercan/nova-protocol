@@ -17,8 +17,8 @@ command. `inputs.live` reports registry actions only.
    `bodies.near` bearing does not prove a pulse reached rock.
 3. A successful carve can yield ore canisters only after the rock's field is
    updated. Carving does not put ore directly in the hold. A working cargo
-   intake takes a whole canister only when it enters the intake trigger and
-   the hold has enough free mass. See the `cargo` page before attempting
+   intake takes the whole items that fit the free hold mass only when the
+   canister enters the intake trigger. See the `cargo` page before attempting
    collection.
 
 The agent view has no carve result or intake position. `canisters` lists

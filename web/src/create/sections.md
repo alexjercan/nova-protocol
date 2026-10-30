@@ -389,7 +389,7 @@ Who raises each cue:
 | `StowDoors` | The turret's stow machine or a mining emitter's sequence, against the lift: it shuts the lids only once the gun or tip is fully in, and parts them before moving it out. | shut over the sunk gun or tip |
 | `Charge` | The railgun's charge system, from the committed trigger to the shot. It writes the charge fraction straight in, so `open_seconds` and `close_seconds` are unread on this cue: the travel is the authored `charge_seconds`, and the snap back to 0 is the shot leaving. | fully charged, the instant before firing |
 | `DockTube` | The docking port's sleeve, once the dock's fixed joint EXISTS - never before it, so the tube can never be what holds the two hulls together. It stows again the moment the dock is released. | the sleeve fully out, 0.5 cells past the port face |
-| `IntakeDoor` | The cargo intake, while a canister that fits the hold is in its detection volume or a jettison waits on it. It drops a canister only at progress 1. | the door fully folded open |
+| `IntakeDoor` | The cargo intake, while a canister with an item that fits the hold is in its detection volume or a jettison waits on it. It drops a canister only at progress 1. | the door fully folded open |
 
 Authoring a `StowLift` track is what MAKES a turret retractable - the stow
 machine is armed on turrets that have one and on no others. Such a turret
@@ -1202,11 +1202,15 @@ kind: CargoIntake((
 
 The trigger is measured from the `-Z` face of the section's `Cuboid`
 collider, so an intake must author one; it is a detached sensor, not a child
-of the ship body, so weapons and sight lines pass through it. A take is whole
-or nothing: a canister heavier than the hold's free mass stays out, and a
-canister touching two triggers goes to one intake only. A canister can hold
-several item types up to 200 kg total; hull plates weigh 10 kg each. A
-canister has 20 HP; at zero it and its contents are lost. A jettison fills
+of the ship body, so weapons and sight lines pass through it. A take moves
+every whole item that fits the hold's free mass, in item id order, and leaves
+the rest in the same canister with the same id; a hold with no room for any
+of its items takes nothing and keeps the door shut. A canister touching two
+triggers goes to the first intake, and the next sees only what is left. A
+canister can hold several item types up to 1,000 kg total; hull plates weigh
+10 kg each, and lint refuses an item heavier than one canister. A canister has 20 HP;
+at zero it and its contents are lost. A wreck drop packs its stacks together
+into mixed canisters, filled in item id order up to 1,000 kg. A jettison fills
 canisters with whole items, topping up the last waiting one first, and queues
 them on the intake; the intake drops the front one once the door is fully open
 and no canister centre is within 12.5 m of the birth point. Waiting canisters

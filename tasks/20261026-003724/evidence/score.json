@@ -1,0 +1,64 @@
+{
+  "outcome": "none",
+  "world_seed": null,
+  "objectives_seen": [],
+  "objectives_completed": [],
+  "ticks": 5826,
+  "game_seconds": 97.1,
+  "wall_seconds": 136.6,
+  "turns": 26,
+  "gestures": 59,
+  "damage_taken": 0.0878999999986263,
+  "sections_lost": 0,
+  "ammo_spent": 5000,
+  "kills": 1,
+  "bad_lines": 2,
+  "cheated": false,
+  "llm": {
+    "messages": 29,
+    "input": 130854,
+    "output": 5486,
+    "cache_read": 1372160,
+    "cache_write": 0,
+    "cost": 1.1820000000000002
+  },
+  "ended_by": "finish",
+  "agent_status": "done",
+  "agent_report": "Destroyed the unarmed hostile derelict without cheats; no hostile contacts remain. All 4,000 PDC rounds were spent (six magazines 0/500 and hold empty); railgun remains 1/1 and both torpedo bays remain 6/6 after their section inputs were rejected. Wreck breakup spawned 17 live SectionPanel canisters. I made two bounded RCS collection passes, reaching 49.2 m from the nearest, but cargo never increased: hold is empty with 13,400,000 g free and 2,000 credits. Ship is safely stopped at 0.3 m/s, weapons safe, essentially full health.",
+  "end": {
+    "autopilot": null,
+    "autopilot_completed": null,
+    "gravity_well": null,
+    "speed_mps": 0.3,
+    "travel_lock": null,
+    "docking": {
+      "docked": false,
+      "connection": null,
+      "pair": null
+    },
+    "contacts": [],
+    "beacons": [
+      {
+        "id": "work_mark",
+        "distance_m": 3437.5
+      }
+    ],
+    "bodies": [
+      {
+        "id": "rock_small",
+        "surface_m": 1255.7,
+        "radius_m": 60.4
+      },
+      {
+        "id": "rock_big",
+        "surface_m": 4225.4,
+        "radius_m": 217.2
+      },
+      {
+        "id": "planetoid",
+        "surface_m": 4837.9,
+        "radius_m": 633.0
+      }
+    ]
+  }
+}

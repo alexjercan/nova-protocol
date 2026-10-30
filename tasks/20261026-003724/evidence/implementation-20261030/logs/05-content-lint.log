@@ -1,0 +1,45 @@
+warning: Git tree '/home/alex/personal/nova-protocol' is dirty
+   Compiling nova_scenario v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_scenario)
+   Compiling nova_modding v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_modding)
+   Compiling nova_world v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_world)
+   Compiling nova_wfc v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_wfc)
+   Compiling nova_assets v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_assets)
+   Compiling nova_world_base v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_world_base)
+   Compiling nova_editor v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_editor)
+   Compiling nova_interface v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_interface)
+   Compiling nova_authoring v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_authoring)
+   Compiling nova_menu v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_menu)
+   Compiling nova_console v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_console)
+   Compiling nova_core v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_core)
+   Compiling nova-protocol v0.16.0 (/home/alex/personal/nova-protocol)
+    Finished `dev` profile [optimized + debuginfo] target(s) in 2m 00s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+    Finished `dev` profile [optimized + debuginfo] target(s) in 0.75s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running `/tmp/nova-verify-20261030-target/debug/nova-protocol content lint`
+MAP   [base] menu_waystation: creative map - SpawnScenarioObject
+MAP   [base] menu_gauntlet: creative map - ForceTorpedoFire, ScatterObjects, SetInfiniteAmmo, SpawnScenarioObject
+MAP   [base] menu_weave: creative map - ScatterObjects, SpawnScenarioObject
+MAP   [base] menu_duel: creative map - CreateScenarioArea, ForceTorpedoFire, PatrolShip, ScatterObjects, SetAllegiance, SpawnScenarioObject
+MAP   [base] tutorial: creative map - CreateScenarioArea, DespawnScenarioObject, ScatterObjects, SetAllegiance, SetShipCapabilityGoto, SetShipCapabilityLock, SetShipCapabilityOrbit, SetShipCapabilityRcs, SetShipCapabilityStop, SpawnScenarioObject
+MAP   [base] season_one_chapter_one: creative map - CreateScenarioArea, DespawnScenarioObject, ScatterObjects, SpawnScenarioObject, ZeroShipMotion
+MAP   [base] drill_momentum: creative map - CreateScenarioArea, DespawnScenarioObject, ScatterObjects, SpawnScenarioObject
+MAP   [base] drill_stop: creative map - CreateScenarioArea, DespawnScenarioObject, ScatterObjects, SpawnScenarioObject
+MAP   [base] drill_autopilot: creative map - CreateScenarioArea, DespawnScenarioObject, ScatterObjects, SpawnScenarioObject
+MAP   [base] drill_gunnery: creative map - CreateScenarioArea, ScatterObjects, SpawnScenarioObject
+MAP   [base] open_world: creative map - SpawnScenarioObject, SpawnStartRole
+MAP   [example] example_arena: creative map - SpawnScenarioObject
+MAP   [example] example_menu: creative map - SpawnScenarioObject
+MAP   [example] example_bounds: creative map - SpawnScenarioObject
+MAP   [example] example_prospect: creative map - SpawnScenarioObject
+MAP   [example] example_survey: creative map - CreateScenarioArea, SpawnScenarioObject
+MAP   [gauntlet] gauntlet_run: creative map - CreateScenarioArea, ScatterObjects, SpawnScenarioObject
+MAP   [the-ledger] ledger_01_drift_run: creative map - DespawnScenarioObject, ScatterObjects, SpawnScenarioObject
+MAP   [the-ledger] ledger_02_rock_garden: creative map - ScatterObjects, SpawnScenarioObject
+MAP   [the-ledger] ledger_03_blue_survey: creative map - DespawnScenarioObject, ScatterObjects, SpawnScenarioObject
+MAP   [the-ledger] ledger_04_cold_patrol: creative map - DespawnScenarioObject, ScatterObjects, SpawnScenarioObject
+MAP   [the-ledger] ledger_05_freight_lane: creative map - DespawnScenarioObject, MoveShipTo, ScatterObjects, SpawnScenarioObject
+MAP   [the-ledger] ledger_06_siege_line: creative map - ScatterObjects, SpawnScenarioObject
+content lint: 0 error(s), 0 warning(s), 0 finding(s), 17 scenario(s) balance-audited, 0 acked, 23 creative map(s)

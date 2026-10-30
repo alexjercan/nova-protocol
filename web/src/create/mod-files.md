@@ -264,7 +264,7 @@ and generated ship holds draw the two trade goods `Rations` and
 `PdcRound`, `RailSlug` and `Torpedo` are `Ammo`; `StoneOre`, `IronOre`,
 `WaterIce` and `CarbonOre` are `Raw`; `Rations` is `Food`; `SalvagedParts`
 is `Parts`. Every item fits one cargo canister, so its `mass_g` is at most
-`200000`. A mod that depends on the base game may replace a role id whole,
+`1000000`. A mod that depends on the base game may replace a role id whole,
 with its own `name`, `about`, `mass_g`, `price_lot`, `ask_cr` and `bid_cr`,
 but not another `category`. A replacement that breaks either rule is an
 error. An id two unrelated packs both define is refused in both, whatever

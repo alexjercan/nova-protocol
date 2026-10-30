@@ -1,9 +1,9 @@
 //! The cargo intake: a 3x2 hold mouth behind an accordion door.
 //!
 //! Fly slowly past a drifting canister with the door facing it, and the door
-//! folds open and the intake takes the whole canister into the hold, if the
-//! hold has room. The Inventory pane's Jettison drops a canister out through
-//! the same door.
+//! folds open and the intake takes every whole item the hold has room for.
+//! The rest stays in the same canister. The Inventory pane's Jettison drops a
+//! canister out through the same door.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -91,10 +91,11 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
             name: "Cargo Intake Section".to_string(),
             description: "A hold mouth behind an accordion door. The door \
-                          folds open for a canister within 40 m of it. The \
-                          intake takes, whole and at any speed, a canister \
-                          that reaches into the 1 m in front of its opening, \
-                          if the hold has room. Jettison in the Inventory \
+                          folds open for a canister within 40 m of it. When \
+                          a canister reaches into the 1 m in front of its \
+                          opening, the intake takes, at any speed, every \
+                          whole item the hold has room for. The rest stays \
+                          in the same canister. Jettison in the Inventory \
                           pane drops a canister out through the same door."
                 .to_string(),
             health: CARGO_INTAKE_BASE_HEALTH,

@@ -7,9 +7,11 @@ after every pickup or transfer. A command gesture is not a cargo action.
 
 ## Pick up canisters
 
-A working cargo intake automatically takes a drifting canister when the
-canister physically enters its trigger and the hold has enough free mass
-for the WHOLE canister. No pickup wire or command is needed. `canisters`
+A working cargo intake automatically takes from a drifting canister when the
+canister physically enters its trigger: every whole item that fits the free
+hold mass goes in, and the rest stays in the same canister with the same ID.
+A hold with no room for any of its items takes nothing. No pickup wire or
+command is needed. `canisters`
 shows every live canister's runtime ID, contents, distance and bearing from
 the player's ship. The ID tracks observations, not a pickup command. The
 view does not locate an intake's trigger; a centred canister bearing alone

@@ -17,12 +17,13 @@
 //! carries them with the hold, so a ship destroyed whole leaves one drop. Any
 //! other section drops its parts on its own as it dies.
 //!
-//! Each item packs into whole canisters by [`CargoCanister::split`], and the
-//! canisters wait in a [`MinedOreDrop`](crate::mining::MinedOreDrop) at the
-//! dead body's position, under the parent its ship root had, so a sector
-//! retirement freezes it. The mining
-//! ejector ([`MiningPlugin`](crate::mining::MiningPlugin)) lets them out one
-//! at a time, each born off the drop while the birth point is clear and
+//! One drop's stacks pack together into mixed canisters of whole items by
+//! [`CargoCanister::pack`], each filled in item id order up to the canister
+//! mass cap; separate drops never share a canister. The canisters wait in a
+//! [`MinedOreDrop`](crate::mining::MinedOreDrop) at the dead body's position,
+//! under the parent its ship root had, so a sector retirement freezes it. The
+//! mining ejector ([`MiningPlugin`](crate::mining::MiningPlugin)) lets them
+//! out one at a time, each born off the drop while the birth point is clear and
 //! drifting away from it. A section's canisters leave along the line from its
 //! ship's centre through the section; a ship root's leave along the root's up.
 //! A drop does not move with the ship it came from, but a section's drop off
@@ -133,10 +134,7 @@ fn drop_wreck_cargo(
         return;
     }
     let items = items.expect("drop_wreck_cargo: a destroyed body holds items but no GameItems");
-    let canisters: Vec<CargoCanister> = stacks
-        .iter()
-        .flat_map(|(item, &count)| CargoCanister::split(&items, item, count))
-        .collect();
+    let canisters = CargoCanister::pack(&items, &stacks);
     let queue = MinedCanisterQueue::leaving(canisters, Vec3::ZERO, normal)
         .expect("every stack above zero packs into a canister");
     let pose = GlobalTransform::from(Transform::from_translation(frame.translation()));

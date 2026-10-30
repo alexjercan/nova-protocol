@@ -1013,11 +1013,13 @@ pub struct MinedEventInfo {
     pub count: u32,
 }
 
-/// A cargo intake took a canister into a ship's hold (`onpickedup`).
+/// A cargo intake took whole items from a canister into a ship's hold
+/// (`onpickedup`).
 ///
-/// One event per item stack the canister carried, in the tick the intake
-/// despawns it; a canister of two stacks reports twice with the same
-/// `canister` id.
+/// One event per item stack taken, in the tick of the take; a take of two
+/// stacks reports twice with the same `canister` id. A take that the hold's
+/// free mass cuts short reports only what it took, and the rest stays in the
+/// same canister under the same id until a later take reports it.
 #[derive(Debug, Clone, EventKind, Reflect)]
 #[event_name("onpickedup")]
 #[event_info(CargoEventInfo)]

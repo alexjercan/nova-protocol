@@ -1,0 +1,107 @@
+warning: Git tree '/home/alex/personal/nova-protocol' is dirty
+   Compiling bevy_ui v0.19.1
+   Compiling bevy_sprite_render v0.19.1
+   Compiling hound v3.5.1
+   Compiling fnv v1.0.7
+   Compiling gilrs v0.11.0
+   Compiling rodio v0.22.2
+   Compiling bevy_pbr v0.19.1
+   Compiling accesskit_winit v0.32.2
+   Compiling bevy_scene_macros v0.19.1
+   Compiling bevy_state_macros v0.19.1
+   Compiling bevy_state v0.19.1
+   Compiling bevy_scene v0.19.1
+   Compiling bevy_winit v0.19.1
+   Compiling bevy_audio v0.19.1
+   Compiling bevy_gilrs v0.19.1
+   Compiling bevy_ui_widgets v0.19.1
+   Compiling bevy_ui_render v0.19.1
+   Compiling bevy_anti_alias v0.19.1
+   Compiling bevy_post_process v0.19.1
+   Compiling crossbeam-epoch v0.9.18
+   Compiling rayon-core v1.13.0
+   Compiling paste v1.0.15
+   Compiling crossbeam-deque v0.8.6
+   Compiling safe_arch v0.7.4
+   Compiling heapless v0.8.0
+   Compiling wide v0.7.33
+   Compiling bevy_gizmos_render v0.19.1
+   Compiling hash32 v0.3.1
+   Compiling num-complex v0.4.6
+   Compiling simba v0.9.1
+   Compiling bevy_internal v0.19.1
+   Compiling rayon v1.11.0
+   Compiling bevy v0.19.1
+   Compiling proc-macro-error-attr2 v2.0.0
+   Compiling rustc-hash v2.1.1
+   Compiling anyhow v1.0.100
+   Compiling robust v1.2.0
+   Compiling rand_core v0.6.4
+   Compiling mutants v0.0.3
+   Compiling arbitrary-chunks v0.4.1
+   Compiling partition v0.1.2
+   Compiling unsynn v0.3.0
+   Compiling rdst v0.20.14
+   Compiling spade v2.15.0
+   Compiling proc-macro-error2 v2.0.1
+   Compiling rstar v0.12.2
+   Compiling glamx v0.2.0
+   Compiling glam_matrix_extras v0.3.0
+   Compiling wyrand v0.4.1
+   Compiling ena v0.14.3
+   Compiling glam v0.33.2
+   Compiling nova_events_macros v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_events_macros)
+   Compiling num-derive v0.4.2
+   Compiling parry3d v0.27.0
+   Compiling obvhs v0.3.2
+   Compiling nova_events v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_events)
+   Compiling bevy_heavy v0.5.0
+   Compiling bevy_prng v0.15.0
+   Compiling avian_derive v0.2.2
+   Compiling variadics_please v2.0.0
+   Compiling rand_xorshift v0.3.0
+   Compiling rand v0.8.5
+   Compiling bevy_transform_interpolation v0.5.0
+   Compiling itertools v0.15.0
+   Compiling rand_pcg v0.10.2
+   Compiling bevy_enhanced_input_macros v0.26.0
+   Compiling bevy_enhanced_input v0.26.0
+   Compiling avian3d v0.7.0
+   Compiling bevy_hanabi v0.19.0
+   Compiling noise v0.9.0
+   Compiling nova_ui v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_ui)
+   Compiling bevy_rand v0.15.0
+   Compiling nova_input v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_input)
+   Compiling nova_gameplay v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_gameplay)
+   Compiling anstyle v1.0.13
+   Compiling plotters-backend v0.3.7
+   Compiling ciborium-io v0.2.2
+   Compiling clap_lex v0.7.6
+   Compiling clap_builder v4.5.49
+   Compiling ciborium-ll v0.2.2
+   Compiling plotters-svg v0.3.7
+   Compiling itertools v0.13.0
+   Compiling cast v0.3.0
+   Compiling same-file v1.0.6
+   Compiling walkdir v2.5.0
+   Compiling criterion-plot v0.6.0
+   Compiling plotters v0.3.7
+   Compiling ciborium v0.2.2
+   Compiling clap v4.5.49
+   Compiling tinytemplate v1.2.1
+   Compiling oorandom v11.1.5
+   Compiling anes v0.1.6
+   Compiling criterion v0.7.0
+   Compiling nova_ship v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_ship)
+   Compiling nova_hud v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_hud)
+   Compiling nova_scenario v0.16.0 (/home/alex/personal/nova-protocol/crates/nova_scenario)
+    Finished `test` profile [optimized] target(s) in 4m 06s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+     Running unittests src/lib.rs (/tmp/nova-verify-20261030-target/debug/deps/nova_scenario-091cf4f37912b0e9)
+
+running 1 test
+test wreck_cargo::tests::a_ship_destroyed_whole_drops_its_hold_and_its_sections_parts_in_one_drop ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 536 filtered out; finished in 0.15s
+

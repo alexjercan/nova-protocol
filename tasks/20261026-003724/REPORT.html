@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wreck loot canisters: 1,000 kg mixed candidate vs shipped 200 kg per item (design proposal, not implemented)</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f1f2ee;
+  --paper: #fafaf7;
+  --ink: #17191b;
+  --muted: #5b6167;
+  --rule: #d5d8d2;
+  --code-bg: #e8eae5;
+  --accent: #b84a1c;
+  --shipped: #1f6b66;
+  --shipped-soft: #dbeeeb;
+  --measured: #2f4fa8;
+  --measured-soft: #e1e7f7;
+  --modeled: #8a5a00;
+  --modeled-soft: #faf0d8;
+  --proposed: #7b2e63;
+  --proposed-soft: #f5e2ee;
+  --grid: #e3e5e0;
+  --c1: #2a78d6;
+  --c2: #eb6834;
+  --c3: #1baf7a;
+  --c4: #eda100;
+  --c5: #e87ba4;
+  --body: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #121416;
+    --paper: #191c1f;
+    --ink: #e4e6e1;
+    --muted: #a0a6ac;
+    --rule: #30353a;
+    --code-bg: #24282c;
+    --accent: #ef8d56;
+    --shipped: #62c2ba;
+    --shipped-soft: #15302e;
+    --measured: #93aef2;
+    --measured-soft: #1c2640;
+    --modeled: #e7b556;
+    --modeled-soft: #382c12;
+    --proposed: #e48ebf;
+    --proposed-soft: #3a1e30;
+    --grid: #2a2e32;
+    --c1: #3987e5;
+    --c2: #d95926;
+    --c3: #199e70;
+    --c4: #c98500;
+    --c5: #d55181;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+main { max-width: 1060px; margin: 0 auto; padding: 28px 22px 80px; }
+h1 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 6px; }
+h2 { font-size: 1.25rem; margin: 40px 0 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
+h3 { font-size: 1.02rem; margin: 22px 0 8px; }
+p, li { max-width: 82ch; }
+code, pre { font-family: var(--mono); font-size: 0.86em; }
+code { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+pre { background: var(--code-bg); padding: 10px 12px; border-radius: 6px; overflow-x: auto; white-space: pre; }
+a { color: var(--accent); overflow-wrap: anywhere; }
+.sub { color: var(--muted); margin: 0 0 18px; }
+.card { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 18px; margin: 14px 0; }
+.tag { display: inline-block; font: 600 0.72rem/1.6 var(--body); letter-spacing: 0.04em; text-transform: uppercase; padding: 0 7px; border-radius: 4px; vertical-align: 1px; white-space: nowrap; }
+.tag.s { background: var(--shipped-soft); color: var(--shipped); }
+.tag.m { background: var(--measured-soft); color: var(--measured); }
+.tag.d { background: var(--modeled-soft); color: var(--modeled); }
+.tag.p { background: var(--proposed-soft); color: var(--proposed); }
+.callout-s { border-left: 4px solid var(--shipped); }
+.callout-m { border-left: 4px solid var(--measured); }
+.callout-d { border-left: 4px solid var(--modeled); }
+.callout-p { border-left: 4px solid var(--proposed); }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0; font-variant-numeric: tabular-nums; }
+caption { text-align: left; color: var(--muted); font-size: 0.88rem; padding: 0 0 6px; caption-side: top; }
+th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
+td.num, th.num { text-align: right; }
+table.wide { min-width: 720px; }
+.hint { display: none; color: var(--muted); font-size: 0.82rem; margin: 0 0 4px; }
+@media (max-width: 640px) { .hint { display: block; } }
+tr.total td { border-top: 2px solid var(--rule); font-weight: 600; }
+figure { margin: 18px 0; }
+figcaption { color: var(--muted); font-size: 0.88rem; margin-top: 6px; max-width: 92ch; }
+.schem { font: 700 0.72rem/1 var(--mono); letter-spacing: 0.08em; color: var(--modeled); border: 1.5px dashed var(--modeled); border-radius: 4px; padding: 3px 6px; display: inline-block; margin: 0 0 6px; }
+.schem.p { color: var(--proposed); border-color: var(--proposed); }
+.schem.m { color: var(--measured); border-color: var(--measured); }
+.chartwrap { overflow-x: auto; }
+svg.chart { width: 100%; min-width: 620px; height: auto; display: block; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; }
+svg .grid { stroke: var(--grid); stroke-width: 1; }
+svg .axis { fill: var(--muted); font: 11px var(--body); }
+svg .lab { fill: var(--ink); font: 12px var(--body); }
+svg .val { fill: var(--ink); font: 600 12px var(--body); }
+svg .seg { fill: var(--ink); font: 600 10.5px var(--body); }
+svg .note { fill: var(--muted); font: 11px var(--body); }
+svg .cap { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+svg .free { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 4; }
+svg .freelab { fill: var(--accent); font: 600 11px var(--body); }
+svg .i1 { fill: var(--c1); } svg .i2 { fill: var(--c2); } svg .i3 { fill: var(--c3); }
+svg .i4 { fill: var(--c4); } svg .i5 { fill: var(--c5); }
+svg .box { fill: var(--paper); stroke: var(--ink); stroke-width: 1.3; }
+svg .box.s { stroke: var(--shipped); }
+svg .box.p { stroke: var(--proposed); stroke-width: 2; stroke-dasharray: 6 3; fill: var(--proposed-soft); }
+svg .box.x { stroke: var(--muted); stroke-dasharray: 3 3; }
+svg .edge { stroke: var(--muted); stroke-width: 1.4; fill: none; }
+svg .edge.p { stroke: var(--proposed); stroke-width: 2; }
+svg .ah { fill: var(--muted); }
+svg .ahp { fill: var(--proposed); }
+svg .fl { fill: var(--ink); font: 600 12px var(--body); }
+svg .fs { fill: var(--muted); font: 10.5px var(--mono); }
+svg .fp { fill: var(--proposed); font: 600 11px var(--body); }
+svg .dot { fill: var(--c1); stroke: var(--paper); stroke-width: 2; }
+svg .dot.root { fill: var(--c2); }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); margin: 6px 0 0; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+.sw.i1 { background: var(--c1); } .sw.i2 { background: var(--c2); } .sw.i3 { background: var(--c3); }
+.sw.i4 { background: var(--c4); } .sw.i5 { background: var(--c5); }
+.sw.free { background: var(--accent); width: 14px; height: 3px; vertical-align: 3px; }
+details { margin: 10px 0; }
+summary { cursor: pointer; color: var(--accent); }
+.toc { columns: 2; font-size: 0.92rem; }
+.decision { font-weight: 600; border: 2px solid var(--proposed); border-radius: 8px; padding: 12px 16px; background: var(--proposed-soft); }
+@media (max-width: 700px) {
+  main { padding: 18px 12px 60px; }
+  h1 { font-size: 1.4rem; }
+  .toc { columns: 1; }
+  .card { padding: 10px 12px; }
+}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Wreck loot canisters: 1,000 kg mixed candidate vs shipped 200 kg per item</h1>
+<p class="sub">Task <code>20261026-003724</code> (v0.17.0, OPEN). Design-only proposal written 2026-10-30 against <code>master</code> at <code>112b79a0d</code>, revised the same day for the owner-preferred 1,000 kg mixed candidate. No gameplay change on this page is implemented. This report is a design document, not a game capture. The task record is in <a href="TASK.md">TASK.md</a>; the earlier bench is in <a href="../20261025-214714/TASK.md">20261025-214714/TASK.md</a>.</p>
+
+<div class="card" id="status">
+<p><strong>Implementation status (added 2026-10-30, after approval).</strong> The owner approved candidate M with M-P: a global 1,000 kg <code>CARGO_CANISTER_MAX_MASS_G</code>, mixed whole-item packing of one wreck drop, and partial pickup of whole items that keeps the canister and its id. Implementation is in progress on <code>master</code> and is not committed or proven at runtime. Sections 1-15 below are unchanged: they are the BEFORE state and the proposal as written against <code>112b79a0d</code>, and their "not implemented" and "unapproved" labels describe that time.</p>
+<ul>
+<li>Rules in the working tree: <code>CargoCanister::pack</code> fills each canister in item id order and skips a stack whose next item does not fit; <code>take_fitting</code> moves <code>floor(free / mass)</code> of each stack in id order; the door opens and <code>ready</code> is true when at least one whole item fits (<code>crates/nova_gameplay/src/inventory.rs</code>, <code>crates/nova_ship/src/sections/cargo_intake_section.rs</code>, <code>crates/nova_scenario/src/wreck_cargo.rs</code>).</li>
+<li>Docs, wiki and the <code>[Unreleased]</code> changelog entry state the new rules. Released notes keep the 200 kg history.</li>
+<li>Still open: the reproduction and <code>nova-bench</code> defeat, salvage and spend run in section 13, and inspected pickup frames. No run, test result or frame is recorded on this page.</li>
+</ul>
+</div>
+
+<div class="card">
+<p><strong>Evidence classes.</strong> Each claim carries one tag.</p>
+<ul>
+<li><span class="tag s">shipped</span> Current code on <code>master</code>, cited <code>path:line</code>. Read, not run, for this page.</li>
+<li><span class="tag m">measured</span> The historic headless bench of 2026-10-26 on <code>9822f69d8</code>. Its <a href="evidence/score.json">score</a>, <a href="evidence/game.txt">game log</a>, and <a href="evidence/final-snapshot.json">final canister/cargo snapshot</a> are preserved with <a href="evidence/PROVENANCE.txt">source hashes and extraction details</a>. Not repeated.</li>
+<li><span class="tag d">modeled</span> Static arithmetic on shipped rules or fixtures. No run produced these numbers.</li>
+<li><span class="tag p">proposed</span> Unimplemented and unapproved design.</li>
+</ul>
+<p>Every diagram is marked <span class="schem">SCHEMATIC</span> or <span class="schem m">MEASURED DATA</span>. No image on this page is a game screenshot or a rendered frame.</p>
+</div>
+
+<div class="decision">
+<p><strong>Owner-preferred candidate M</strong> <span class="tag p">proposed</span>, not approved. Raise the canister cap to about 1,000 kg. The wreck producer packs the stacks of <strong>one drop</strong> into mixed canisters of whole items. Each canister holds a variable amount of loot, at most the cap. This proposal interprets "dynamic range" as actual filled mass below a fixed maximum, not a cap that scales with the player's hold. That interpretation remains open for confirmation. Goal: fewer canisters to collect.</p>
+</div>
+<div class="tablewrap">
+<table>
+<caption>Candidate M against shipped, at a glance <span class="tag d">modeled</span> unless marked</caption>
+<thead><tr><th>Case</th><th>Shipped: 200 kg, one item per canister</th><th>Candidate M: 1,000 kg, mixed, whole-fit</th></tr></thead>
+<tbody>
+<tr><td>Unit-test fixture, 1,300 kg in one drop (<a href="#fixture">section 5</a>)</td><td>10 canisters <span class="tag s">shipped</span></td><td>2 canisters: 1,000 kg + 300 kg</td></tr>
+<tr><td>Same fixture, hold with 150 kg free (<a href="#hold">section 7</a>)</td><td>Up to 140 kg taken</td><td><strong>0 kg taken.</strong> Neither canister fits; the door stays shut. A regression.</td></tr>
+<tr><td>One drop of 1,000 kg or less, for example the fixture's 960 kg of section parts (<a href="#perdrop">section 6</a>)</td><td>6 canisters</td><td>1 canister</td></tr>
+<tr><td>Historic bench: 36 single-stack drops, 13,400 kg free, no contact (<a href="#bench">section 4</a>)</td><td>1 canister per drop, no pickup <span class="tag m">measured</span></td><td>1 canister per drop, no pickup. No change.</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="card callout-p">
+<p><strong>Short answer.</strong></p>
+<ol>
+<li>Canisters can already hold several item types. <code>CargoCanister</code> stores a <code>BTreeMap</code> of stacks, and Jettison already tops up a waiting canister with a different item <span class="tag s">shipped</span>. Only the wreck and mining producers pack one item type per canister.</li>
+<li>M packs per <strong>drop</strong>, not per wreck. A ship destroyed whole leaves one drop. A section shot off earlier leaves its own drop <span class="tag s">shipped</span>. Under M, a drop of 1,000 kg or less becomes one canister, and separate drops stay separate canisters.</li>
+<li>Code can merge only the canisters of one drop, and only before they are born. A canister gets its durable <code>CargoCanisterRuntimeId</code> at birth, and saves and travel locks key on that id <span class="tag s">shipped</span>.</li>
+<li>M keeps whole-fit, so a canister needs free hold at least its whole mass <span class="tag s">shipped</span>. Bigger canisters are refused more often. With the fixture, the smallest hold that takes anything rises from 30 kg to 300 kg, and the largest canister needs 1,000 kg free <span class="tag d">modeled</span>. Every start ship holds 1,800 kg or more, so an empty one can take a full canister <span class="tag d">modeled</span>.</li>
+<li>The cap is one global constant. Raising it also changes mining and jettison canister sizes, the item lint limit, the save check and the wiki <span class="tag s">shipped</span>. Shipped saves stay valid <span class="tag d">modeled</span>.</li>
+<li>The historic bench failed on contact, not on fit or count: 13,400 kg free, nearest canister 49.2 m, 36 separate drops <span class="tag m">measured</span>. M does not change that result.</li>
+</ol>
+<p><strong>Recommendation.</strong> Keep M as the direction and pair it with partial pickup of whole items (M-P, <a href="#options">section 9</a>), which removes the low-hold regression and keeps the hold limit. If partial pickup is rejected, use a fixed target fill T below the cap (M-T). Reproduce a starter-ship salvage run first. Its missed rewards may be no drop, missed contact or refusal, and only refusal and count are what M changes. The cap value, the packing rule and the whole-fit semantics are not approved.</p>
+</div>
+
+<nav class="card">
+<strong>Contents</strong>
+<ol class="toc">
+<li><a href="#pipeline">Shipped pipeline and source map</a></li>
+<li><a href="#flow">Flow graph</a></li>
+<li><a href="#drops">One drop vs many canisters</a></li>
+<li><a href="#bench">Historic bench: what it shows</a></li>
+<li><a href="#fixture">Fixture: shipped 10 vs candidate M 2</a></li>
+<li><a href="#perdrop">Per drop, not per wreck</a></li>
+<li><a href="#hold">Whole-fit and hold size</a></li>
+<li><a href="#empty">Empty drops</a></li>
+<li><a href="#options">Design alternatives</a></li>
+<li><a href="#globalcap">Global cap impact at 1,000 kg</a></li>
+<li><a href="#endstate">End state, deaths, breaks, failures</a></li>
+<li><a href="#interfaces">Proposed owning interfaces</a></li>
+<li><a href="#proof">Proof plan</a></li>
+<li><a href="#decision">Decision</a></li>
+<li><a href="#limits">Corrections and limits</a></li>
+</ol>
+</nav>
+
+<h2 id="pipeline">1. Shipped pipeline and source map</h2>
+<p>Paths are relative to the repository root. Line numbers are at <code>112b79a0d</code>. Since the bench commit <code>9822f69d8</code>, only <code>8f9bf0ded</code> touched <code>wreck_cargo.rs</code>, <code>inventory.rs</code>, <code>cargo_intake_section.rs</code> or <code>mining.rs</code>, and only <code>inventory.rs</code> changed. Its hunks touch item pricing, trade, recipe value and their tests. No hunk touches <code>CargoCanister</code>, jettison planning or <code>strip_parts</code> (<code>git diff -U0 9822f69d8 112b79a0d</code>). Drop, pack, eject and intake logic are the same as in the bench build.</p>
+
+<p class="hint">Scroll the table sideways.</p>
+<div class="tablewrap">
+<table class="wide">
+<caption>Claim / Evidence. All rows are <span class="tag s">shipped</span> unless marked.</caption>
+<thead><tr><th>Area</th><th>Claim</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td>Entry</td><td>One observer runs once per destroyed entity, on <code>Add&lt;IntegrityDestroyMarker&gt;</code>.</td><td><a href="../../crates/nova_scenario/src/wreck_cargo.rs"><code>crates/nova_scenario/src/wreck_cargo.rs:61-62</code></a></td></tr>
+<tr><td>Ship root</td><td>A root with a <code>ShipInventory</code> drops its hold, plus station <code>StationStorage</code>, plus any <code>CollapseSalvage</code> waiting under its entity. The canisters leave along the root's up.</td><td><code>wreck_cargo.rs:86-94</code></td></tr>
+<tr><td>Collapse aggregation</td><td>A section that dies while its root has <code>StructuralCollapseMarker</code> adds its parts to <code>CollapseSalvage</code> and spawns no drop.</td><td><code>wreck_cargo.rs:49-53, 101-108</code></td></tr>
+<tr><td>Section alone</td><td>A section of a standing root spawns its own drop at the section's position. It leaves outward from the ship centre and inherits the hull's point velocity as <code>MinedDropDrift</code>.</td><td><code>wreck_cargo.rs:109-126, 156-158</code></td></tr>
+<tr><td>Section yield</td><td>The wreck path calls <code>strip_parts()</code>, which is <code>strip_parts_at(1.0)</code>: <code>floor(count * strip_yield)</code> per part at <strong>full</strong> share. A part that rounds to zero is left out. Health share is used by the station strip, not by the wreck.</td><td><code>wreck_cargo.rs:96-100</code>; <a href="../../crates/nova_gameplay/src/inventory.rs"><code>crates/nova_gameplay/src/inventory.rs:1563-1565, 1572-1580</code></a>; station strip <code>inventory.rs:1623-1631</code></td></tr>
+<tr><td>Empty</td><td>No stacks: no drop entity at all.</td><td><code>wreck_cargo.rs:132-134</code></td></tr>
+<tr><td>Packing</td><td>Each item stack is packed on its own by <code>CargoCanister::split</code>. One drop holds one queue.</td><td><code>wreck_cargo.rs:136-141, 152-155</code></td></tr>
+<tr><td>Split</td><td><code>per_canister = 200_000 g / unit mass</code>, whole items, last canister partial. Panics for an item heavier than the cap.</td><td><code>inventory.rs:1292-1303</code></td></tr>
+<tr><td>Cap and type</td><td><code>CARGO_CANISTER_MAX_MASS_G = 200_000</code>. A canister is <code>BTreeMap&lt;ItemDesignId, u32&gt;</code>. <code>new</code> and <code>add</code> assert the total stays at or under the cap.</td><td><code>inventory.rs:1234-1249, 1273-1282, 1318-1326</code></td></tr>
+<tr><td>Mixed today</td><td>Jettison fills the last waiting canister's room with the confirmed item. That item need not match the canister's item, so a jettison can already produce a mixed canister.</td><td><code>inventory.rs:1443-1451</code>; <a href="../../crates/nova_interface/src/inventory/app.rs"><code>crates/nova_interface/src/inventory/app.rs:3110-3116</code></a></td></tr>
+<tr><td>Queue</td><td><code>MinedCanisterQueue</code> is a FIFO of <code>MinedCanister { canister, at, normal }</code> that is never empty. A waiting canister has <strong>no id</strong>.</td><td><a href="../../crates/nova_scenario/src/mining.rs"><code>crates/nova_scenario/src/mining.rs:232-273</code></a></td></tr>
+<tr><td>Ejection</td><td>In <code>Update</code>, each queue releases at most one canister per frame. It releases only when no collider and no canister centre is within one canister diagonal of the birth point. The id is minted at birth. The velocity is the drift or owner velocity plus <code>MINED_CANISTER_SPEED</code> = 0.2 engine units/s along the normal. The drop despawns with its last canister.</td><td><code>mining.rs:107, 1088-1166, 1214-1219</code></td></tr>
+<tr><td>Units</td><td>One engine unit is 10 m, so 0.2 units/s is 2 m/s.</td><td><a href="../../crates/nova_events/src/units.rs"><code>crates/nova_events/src/units.rs:33</code></a></td></tr>
+<tr><td>Id</td><td><code>CargoCanisterRuntimeId</code> is a process-wide counter that never reuses a value. Saves store the next value. A canister component without an id panics on add.</td><td><code>inventory.rs:1239-1269, 1329-1378</code></td></tr>
+<tr><td>Body</td><td>Every canister has the same body: a cuboid of 0.94 x 0.58 x 0.58 units (9.4 x 5.8 x 5.8 m), <code>ColliderDensity(1.0)</code> and 20 HP. Physical mass does not depend on contents.</td><td><a href="../../crates/nova_ship/src/sections/cargo_intake_section.rs"><code>crates/nova_ship/src/sections/cargo_intake_section.rs:77, 235-275</code></a></td></tr>
+<tr><td>Intake</td><td>In <code>FixedUpdate</code>, an intake takes a canister only when the trigger overlaps it <strong>and</strong> <code>free_g &gt;= total_mass_g</code>. It adds every stack whole, then despawns the canister. Otherwise the canister stays untouched. Detection range opens the door only, and only for a canister that fits by the same rule.</td><td><code>cargo_intake_section.rs:596-603, 618-646, 767-772</code></td></tr>
+<tr><td>Hold size</td><td>A ship hold is 100 kg per hull section, <code>HULL_SECTION_CARGO_G = 100_000</code>.</td><td><a href="../../crates/nova_scenario/src/objects/ship_design.rs"><code>crates/nova_scenario/src/objects/ship_design.rs:397, 406-416</code></a></td></tr>
+<tr><td>Readiness</td><td><code>CargoPickupReadiness</code> publishes intake/canister pairs with <code>ready</code> from the same pass.</td><td><code>cargo_intake_section.rs:175-194, 626-631</code></td></tr>
+<tr><td>Whole-fit proof</td><td>A unit test: a 400 kg hold holds 38 plates (380 kg), so 20 kg is free. A 4-plate (40 kg) canister in contact is refused whole, and the door stays shut. After 2 plates are removed, 40 kg is free and the canister is taken.</td><td><a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs"><code>cargo_intake_section/tests.rs:460-500</code></a>; hold <code>:66, 110</code>; door opens for a fitting canister beside a refused one: <code>:502</code></td></tr>
+<tr><td>HUD tag</td><td>One stack reads <code>"&lt;count&gt; &lt;name&gt;"</code>. More than one stack reads <code>"Mixed cargo"</code>. A second line shows the total mass.</td><td><a href="../../crates/nova_hud/src/cargo_canister_chips.rs"><code>crates/nova_hud/src/cargo_canister_chips.rs:76-85</code></a></td></tr>
+<tr><td>Pickup sight</td><td>The sight draws one pair from published readiness within 200 m. The pick is for display only. A ready pair is taken in the same pass, so the sight never draws a ready state. It also does not show why a canister is refused.</td><td><a href="../../crates/nova_hud/src/pickup_sight.rs"><code>crates/nova_hud/src/pickup_sight.rs:1-35, 52, 101-102, 170-227</code></a></td></tr>
+<tr><td>Freeze: drop</td><td>A waiting drop freezes as its whole queue (no ids) and thaws the same way.</td><td><code>mining.rs:313-358</code></td></tr>
+<tr><td>Freeze: canister</td><td><code>FrozenCanister</code> keeps <code>id</code>, <code>contents</code>, <code>health</code> and <code>mesh</code>.</td><td><code>cargo_intake_section.rs:282-296, 322</code></td></tr>
+<tr><td>Save check</td><td>Save and Load refuse a frozen canister over the cap. A frozen ore drop's queue gets no mass check there.</td><td><a href="../../crates/nova_world_base/src/save/mod.rs"><code>crates/nova_world_base/src/save/mod.rs:876-958</code></a> (canister <code>:940-951</code>, ore drop <code>:956</code>)</td></tr>
+<tr><td>Save format</td><td>A save carries <code>WORLD_SAVE_VERSION</code> = <code>"v0.16.0"</code>; Load refuses another format string.</td><td><code>save/mod.rs:94, 429, 1550</code></td></tr>
+<tr><td>Saved refs</td><td>A saved target ref to a canister is <code>SavedTargetRef::Canister(id)</code>. Validation needs that id to be saved, and Load looks the live canister up by id.</td><td><a href="../../crates/nova_world_base/src/save/controls.rs"><code>save/controls.rs:207, 257-260, 394-397, 709-712</code></a>; <a href="../../crates/nova_world_base/src/save/transients.rs"><code>save/transients.rs:665-672</code></a></td></tr>
+<tr><td>Real recipes</td><td><code>STRIP_YIELD</code> 0.5, large drives 0.3. A light hull is <code>SectionPanel x2</code>, so it strips 1 panel. A basic thruster, a controller and a docking port each strip 1 panel: their single-count parts round to 0.</td><td><a href="../../crates/nova_authoring/src/base_content/sections/recipes.rs"><code>crates/nova_authoring/src/base_content/sections/recipes.rs:20-23, 41-44, 56-59, 79-82, 121-128</code></a></td></tr>
+<tr><td>Panel mass</td><td>Base <code>SectionPanel</code> is 10,000 g. It is authored in the builder, and the base content RON is generated from it. Content lint refuses an item heavier than one canister.</td><td><a href="../../crates/nova_authoring/src/base_content/items.rs"><code>crates/nova_authoring/src/base_content/items.rs:150-154</code></a>; <a href="../../assets/base/items/base.content.ron"><code>assets/base/items/base.content.ron:103-107</code></a>; lint <a href="../../crates/nova_assets/src/items.rs"><code>crates/nova_assets/src/items.rs:147-148</code></a></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="flow">2. Flow graph</h2>
+<figure>
+<span class="schem">SCHEMATIC - shipped flow, with the one proposed insertion point of candidate M dashed</span>
+<div class="chartwrap">
+<svg class="chart" viewBox="0 0 980 470" role="img" aria-labelledby="flowt flowd">
+<title id="flowt">Wreck cargo flow from destroy marker to hold</title>
+<desc id="flowd">IntegrityDestroyMarker goes to drop_wreck_cargo. Three branches: section of a collapsing root adds to CollapseSalvage; section of a standing root makes its own drop; ship root makes one drop with hold, storage and collapse salvage. Packing per item by split goes to a MinedCanisterQueue in a MinedOreDrop, which freezes without ids. The ejector releases one canister per frame and mints an id. A live canister freezes with its id and can be a saved target. The intake takes it whole if it fits, otherwise it stays. The proposed mixed pack step of candidate M replaces split before ids exist.</desc>
+<defs>
+<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+<marker id="ahp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="ahp"/></marker>
+</defs>
+<rect class="box s" x="20" y="20" width="200" height="50" rx="6"/>
+<text class="fl" x="30" y="42">IntegrityDestroyMarker</text>
+<text class="fs" x="30" y="60">wreck_cargo.rs:62</text>
+<rect class="box s" x="20" y="110" width="200" height="50" rx="6"/>
+<text class="fl" x="30" y="132">drop_wreck_cargo</text>
+<text class="fs" x="30" y="150">wreck_cargo.rs:61-159</text>
+<path class="edge" d="M120 70 V108" marker-end="url(#ah)"/>
+<rect class="box s" x="270" y="20" width="230" height="50" rx="6"/>
+<text class="fl" x="280" y="40">section, root collapsing</text>
+<text class="fs" x="280" y="58">-&gt; CollapseSalvage :101-108</text>
+<rect class="box s" x="270" y="95" width="230" height="50" rx="6"/>
+<text class="fl" x="280" y="115">section, root standing</text>
+<text class="fs" x="280" y="133">own drop at section :109-126</text>
+<rect class="box s" x="270" y="170" width="230" height="50" rx="6"/>
+<text class="fl" x="280" y="190">ship root</text>
+<text class="fs" x="280" y="208">hold+storage+salvage :86-94</text>
+<path class="edge" d="M220 130 C245 130 245 45 268 45" marker-end="url(#ah)"/>
+<path class="edge" d="M220 130 C245 130 245 120 268 120" marker-end="url(#ah)"/>
+<path class="edge" d="M220 140 C245 140 245 195 268 195" marker-end="url(#ah)"/>
+<text class="note" x="280" y="236">CollapseSalvage joins the root's stacks (:87)</text>
+<rect class="box s" x="540" y="95" width="200" height="50" rx="6"/>
+<text class="fl" x="550" y="115">per item: split</text>
+<text class="fs" x="550" y="133">wreck_cargo.rs:136-139</text>
+<rect class="box p" x="540" y="170" width="200" height="50" rx="6"/>
+<text class="fp" x="550" y="190">PROPOSED M: pack mixed</text>
+<text class="fs" x="550" y="208">cap 1,000 kg; no ids yet</text>
+<path class="edge" d="M500 120 C512 120 514 158 522 158"/>
+<path class="edge" d="M500 195 C512 195 514 158 522 158"/>
+<path class="edge" d="M522 158 C530 158 530 120 538 120" marker-end="url(#ah)"/>
+<path class="edge p" d="M522 158 C530 158 530 195 538 195" marker-end="url(#ahp)"/>
+<rect class="box s" x="780" y="110" width="180" height="70" rx="6"/>
+<text class="fl" x="790" y="130">MinedOreDrop</text>
+<text class="fs" x="790" y="148">MinedCanisterQueue</text>
+<text class="fs" x="790" y="166">no ids  mining.rs:232-273</text>
+<path class="edge" d="M740 120 H778" marker-end="url(#ah)"/>
+<path class="edge p" d="M740 195 C760 195 760 165 778 165" marker-end="url(#ahp)"/>
+<rect class="box x" x="780" y="20" width="180" height="50" rx="6"/>
+<text class="fl" x="790" y="40">FrozenOreDrop</text>
+<text class="fs" x="790" y="58">queue only :313-358</text>
+<path class="edge" d="M870 110 V72" marker-end="url(#ah)"/>
+<rect class="box s" x="780" y="250" width="180" height="60" rx="6"/>
+<text class="fl" x="790" y="270">eject_mined_canisters</text>
+<text class="fs" x="790" y="288">1/frame/queue, clear birth</text>
+<text class="fs" x="790" y="303">mint id  mining.rs:1154</text>
+<path class="edge" d="M870 180 V248" marker-end="url(#ah)"/>
+<rect class="box s" x="540" y="250" width="200" height="60" rx="6"/>
+<text class="fl" x="550" y="270">CargoCanister entity</text>
+<text class="fs" x="550" y="288">+ CargoCanisterRuntimeId</text>
+<text class="fs" x="550" y="303">fixed body, 20 HP</text>
+<path class="edge" d="M780 280 H742" marker-end="url(#ah)"/>
+<rect class="box x" x="540" y="350" width="200" height="60" rx="6"/>
+<text class="fl" x="550" y="370">FrozenCanister / save</text>
+<text class="fs" x="550" y="388">id is the lock key</text>
+<text class="fs" x="550" y="403">controls.rs:394-397</text>
+<path class="edge" d="M640 310 V348" marker-end="url(#ah)"/>
+<rect class="box s" x="270" y="250" width="230" height="60" rx="6"/>
+<text class="fl" x="280" y="270">run_cargo_intakes</text>
+<text class="fs" x="280" y="288">trigger contact AND</text>
+<text class="fs" x="280" y="303">free_g &gt;= total  :618-625</text>
+<path class="edge" d="M540 280 H502" marker-end="url(#ah)"/>
+<rect class="box s" x="20" y="230" width="200" height="45" rx="6"/>
+<text class="fl" x="30" y="250">take whole -&gt; hold</text>
+<text class="fs" x="30" y="266">:635-645</text>
+<rect class="box s" x="20" y="295" width="200" height="45" rx="6"/>
+<text class="fl" x="30" y="315">refuse -&gt; stays in space</text>
+<text class="fs" x="30" y="331">pair.ready = false</text>
+<path class="edge" d="M270 270 H222" marker-end="url(#ah)"/>
+<path class="edge" d="M270 295 C245 295 245 318 222 318" marker-end="url(#ah)"/>
+<text class="note" x="20" y="440">Merging after the "mint id" step would retire live ids that saved refs, travel locks, probe and bench views use (section 3).</text>
+</svg>
+</div>
+<figcaption>Solid boxes are shipped code. The dashed pink box and edges are the producer change for candidate M (the cap value change reaches more callers, section 10). It runs inside one drop, before any id exists. Both drop branches reach the same packing call (<code>wreck_cargo.rs:136-139</code>), so they join before a solid shipped edge to <code>split</code> and a pink proposed edge to <code>pack</code>. A section of a collapsing root makes no drop; its parts wait in <code>CollapseSalvage</code> for the root. Grey dashed boxes are frozen state.</figcaption>
+</figure>
+
+<h2 id="drops">3. One drop vs many canisters</h2>
+<div class="card callout-s">
+<p><span class="tag s">shipped</span> "One drop" means one <code>MinedOreDrop</code> entity with one queue. It does not mean one canister.</p>
+<ul>
+<li>A ship destroyed whole by a structural collapse leaves one drop. The fixture test name says so, and the test asserts 10 canisters in that one drop (<a href="../../crates/nova_scenario/src/wreck_cargo/tests.rs"><code>crates/nova_scenario/src/wreck_cargo/tests.rs:175-236</code></a>).</li>
+<li>Only sections that die <em>while their root collapses</em> join the root's drop (<code>wreck_cargo.rs:101-108</code>). A section lost earlier made its own drop, at its own place and time, with its own velocity (<code>:109-126</code>).</li>
+<li>A drop releases one canister per frame when its birth point is clear (<code>mining.rs:1088-1166</code>). After that, each canister is an independent rigid body with a minted id.</li>
+</ul>
+<p><span class="tag p">proposed</span> A merge is safe only <strong>inside one queue, before the ejector</strong>. There, canisters are plain values in a <code>VecDeque</code> with no id, lock or save reference.</p>
+<p><span class="tag d">modeled</span> Merging <em>born</em> canisters means despawning ids and minting new ones. A <code>SavedTargetRef::Canister(id)</code> to a retired id fails validation (<code>save/controls.rs:257-260</code>) or finds no live canister (<code>save/controls.rs:709-712</code>, <code>save/transients.rs:665-672</code>). A travel lock and the probe's id-keyed canister list (<a href="../../crates/nova_probe/src/capabilities/snapshot.rs"><code>crates/nova_probe/src/capabilities/snapshot.rs:50, 87</code></a>) would lose their target. Merging separate drops before birth means the game must decide which place, direction and velocity the merged queue takes. It must also decide how long one drop waits for another.</p>
+</div>
+
+<h2 id="bench">4. Historic bench: what it shows</h2>
+<p><span class="tag m">measured</span> Headless <code>nova-bench</code> range fixture, seed 7, on <code>9822f69d8</code>, 2026-10-26. No cheats, no capture. The run was not repeated for this page.</p>
+<div class="tablewrap">
+<table>
+<caption>Bench facts with original artifact line references; <a href="evidence/PROVENANCE.txt">provenance</a>. The extracted final snapshot carries the original <code>audit.jsonl:509</code> canister and cargo fields.</caption>
+<thead><tr><th>Fact</th><th>Value</th><th>Artifact</th></tr></thead>
+<tbody>
+<tr><td>PDC rounds spent</td><td class="num">5,000</td><td><a href="evidence/score.json"><code>score.json:13</code></a></td></tr>
+<tr><td>Pilot's own claim</td><td>"All 4,000 PDC rounds" (wrong)</td><td><code>score.json:27</code></td></tr>
+<tr><td>Kills</td><td class="num">1</td><td><code>score.json:14</code></td></tr>
+<tr><td><code>drop_wreck_cargo</code> log lines</td><td class="num">36 (35 sections + root <code>2248v0</code>)</td><td><a href="evidence/game.txt"><code>game.log:23-107</code></a>; root <code>:102</code></td></tr>
+<tr><td>Stacks per drop</td><td>1 in every line</td><td>same lines</td></tr>
+<tr><td>Distinct drop origins</td><td class="num">36</td><td>same lines</td></tr>
+<tr><td>Wall-time spread of drops</td><td class="num">30.6 s</td><td><code>game.log:23</code> to <code>:107</code></td></tr>
+<tr><td>Target</td><td><code>derelict</code>, a <code>light_freighter</code> with an empty hold</td><td><a href="../../crates/nova_bench/scenarios/range.content.ron"><code>crates/nova_bench/scenarios/range.content.ron:132-142</code></a></td></tr>
+<tr><td>Collapse</td><td>Root collapsed and peeled only 2 sections (a basic thruster and a light hull), then had no structure left</td><td><code>game.log:98-101</code></td></tr>
+<tr><td>Live canisters at last snapshot (tick 5,826)</td><td class="num">17, each <code>SectionPanel x1</code></td><td><a href="evidence/final-snapshot.json"><code>audit.jsonl:509</code> extract</a></td></tr>
+<tr><td>Canister ids seen</td><td>0-31, 17 of them live</td><td><code>audit.jsonl:509</code></td></tr>
+<tr><td>Nearest canister</td><td class="num">49.2 m</td><td><code>audit.jsonl:509</code></td></tr>
+<tr><td>Player hold</td><td>13,400 kg capacity, 0 used, 13,400 kg free</td><td><code>audit.jsonl:509</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<figure>
+<span class="schem m">MEASURED DATA - drop origins from game.log, top view</span>
+<div class="chartwrap">
+<svg class="chart" viewBox="0 0 640 400" role="img" aria-labelledby="scat-t scat-d">
+<title id="scat-t">Thirty-six wreck drop origins, top view, metres from the root drop</title>
+<desc id="scat-d">35 section drops lie on a diagonal grid from about minus 31 to plus 28 metres on both axes around the root drop at the origin. Each logged one stack.</desc>
+<!-- Points: game.log drop_wreck_cargo translations, (x - root_x) * 10 and (z - root_z) * 10, METERS_PER_UNIT from crates/nova_events/src/units.rs:33. Plot maps metres m to x = 320 + m*5, y = 200 - m*5. -->
+<line class="grid" x1="145" y1="200" x2="495" y2="200"/><line class="grid" x1="320" y1="30" x2="320" y2="370"/>
+<line class="grid" x1="170" y1="30" x2="170" y2="370"/><line class="grid" x1="470" y1="30" x2="470" y2="370"/>
+<line class="grid" x1="145" y1="50" x2="495" y2="50"/><line class="grid" x1="145" y1="350" x2="495" y2="350"/>
+<text class="axis" x="170" y="388" text-anchor="middle">-30 m</text><text class="axis" x="320" y="388" text-anchor="middle">0</text><text class="axis" x="470" y="388" text-anchor="middle">+30 m</text>
+<text class="axis" x="140" y="54" text-anchor="end">+30 m</text><text class="axis" x="140" y="354" text-anchor="end">-30 m</text>
+<text class="axis" x="505" y="204">x</text><text class="axis" x="316" y="24">z</text>
+<g>
+<circle class="dot" cx="167.0" cy="283.5" r="5"><title>game.log:23 section drop, 0.00 s</title></circle>
+<circle class="dot" cx="202.5" cy="319.0" r="5"><title>game.log:25 section drop, 0.04 s</title></circle>
+<circle class="dot" cx="237.5" cy="354.5" r="5"><title>game.log:27 section drop, 0.09 s</title></circle>
+<circle class="dot" cx="167.0" cy="213.0" r="5"><title>game.log:29 section drop, 0.39 s</title></circle>
+<circle class="dot" cx="202.5" cy="248.5" r="5"><title>game.log:31 section drop, 0.41 s</title></circle>
+<circle class="dot" cx="237.5" cy="283.5" r="5"><title>game.log:33 section drop, 0.42 s</title></circle>
+<circle class="dot" cx="273.0" cy="319.0" r="5"><title>game.log:35 section drop, 0.44 s</title></circle>
+<circle class="dot" cx="202.5" cy="319.0" r="5"><title>game.log:37 section drop, 0.81 s (upper deck, y +12.7 m)</title></circle>
+<circle class="dot" cx="202.5" cy="248.5" r="5"><title>game.log:39 section drop, 4.70 s (upper deck)</title></circle>
+<circle class="dot" cx="237.5" cy="283.5" r="5"><title>game.log:41 section drop, 4.74 s (upper deck)</title></circle>
+<circle class="dot" cx="273.0" cy="319.0" r="5"><title>game.log:43 section drop, 4.77 s (upper deck)</title></circle>
+<circle class="dot" cx="237.5" cy="213.0" r="5"><title>game.log:47 section drop, 18.64 s</title></circle>
+<circle class="dot" cx="273.0" cy="248.5" r="5"><title>game.log:49 section drop, 18.68 s</title></circle>
+<circle class="dot" cx="308.5" cy="283.5" r="5"><title>game.log:51 section drop, 18.74 s</title></circle>
+<circle class="dot" cx="237.5" cy="213.0" r="5"><title>game.log:53 section drop, 19.02 s (upper deck)</title></circle>
+<circle class="dot" cx="273.0" cy="248.5" r="5"><title>game.log:55 section drop, 19.03 s (upper deck)</title></circle>
+<circle class="dot" cx="308.5" cy="283.5" r="5"><title>game.log:57 section drop, 19.04 s (upper deck)</title></circle>
+<circle class="dot" cx="273.0" cy="177.5" r="5"><title>game.log:59 section drop, 19.21 s</title></circle>
+<circle class="dot" cx="308.5" cy="213.0" r="5"><title>game.log:61 section drop, 19.23 s</title></circle>
+<circle class="dot" cx="343.5" cy="248.5" r="5"><title>game.log:63 section drop, 19.24 s</title></circle>
+<circle class="dot" cx="379.0" cy="283.5" r="5"><title>game.log:65 section drop, 19.25 s</title></circle>
+<circle class="dot" cx="273.0" cy="177.5" r="5"><title>game.log:67 section drop, 19.69 s (upper deck)</title></circle>
+<circle class="dot" cx="308.5" cy="213.0" r="5"><title>game.log:69 section drop, 19.73 s (upper deck)</title></circle>
+<circle class="dot" cx="343.5" cy="248.5" r="5"><title>game.log:71 section drop, 19.77 s (upper deck)</title></circle>
+<circle class="dot" cx="308.5" cy="142.0" r="5"><title>game.log:73 section drop, 20.00 s</title></circle>
+<circle class="dot" cx="343.5" cy="177.5" r="5"><title>game.log:75 section drop, 20.03 s</title></circle>
+<circle class="dot" cx="379.0" cy="213.0" r="5"><title>game.log:77 section drop, 20.04 s</title></circle>
+<circle class="dot" cx="416.0" cy="246.5" r="5"><title>game.log:80 section drop, 20.07 s</title></circle>
+<circle class="dot" cx="353.0" cy="97.0" r="5"><title>game.log:83 section drop, 30.33 s</title></circle>
+<circle class="dot" cx="388.5" cy="132.0" r="5"><title>game.log:85 section drop, 30.35 s</title></circle>
+<circle class="dot" cx="424.5" cy="167.0" r="5"><title>game.log:87 section drop, 30.37 s</title></circle>
+<circle class="dot" cx="461.0" cy="204.0" r="5"><title>game.log:90 section drop, 30.38 s</title></circle>
+<circle class="dot" cx="386.0" cy="57.0" r="5"><title>game.log:92 section drop, 30.53 s</title></circle>
+<circle class="dot" cx="422.5" cy="90.5" r="5"><title>game.log:95 section drop, 30.54 s</title></circle>
+<circle class="dot" cx="460.0" cy="126.0" r="5"><title>game.log:107 section drop, 30.57 s (after root)</title></circle>
+<circle class="dot root" cx="320" cy="200" r="6"><title>game.log:102 root 2248v0 drop, 30.55 s</title></circle>
+</g>
+<text class="lab" x="330" y="196">root drop</text>
+<text class="note" x="505" y="300">36 log lines,</text>
+<text class="note" x="505" y="315">36 origins.</text>
+<text class="note" x="505" y="330">Upper-deck points</text>
+<text class="note" x="505" y="345">overlap lower ones</text>
+<text class="note" x="505" y="360">in this top view.</text>
+</svg>
+</div>
+<div class="legend"><span><span class="sw i1"></span>section drop</span><span><span class="sw i2"></span>root drop (<code>game.log:102</code>)</span></div>
+<figcaption>Positions are the <code>frame.translation()</code> values the observer logs (<code>wreck_cargo.rs:147-151</code>), converted to metres from the root drop. Hover a point for its log line and wall time. Ten upper-deck points share x and z with a lower point and differ only in height (2.7 m vs 12.7 m above the root drop). This shows drop <em>origins</em> only, not where canisters drifted.</figcaption>
+</figure>
+
+<div class="card callout-m">
+<p><strong>What the bench proves.</strong> <span class="tag m">measured</span> No loot was received, while the hold had 13,400 kg free. This was not a whole-fit refusal. Intake contact was never reached. The canisters were spread out: 17 live canisters, nearest 49.2 m. Every drop came from a different place.</p>
+<p><strong>What it does not prove.</strong> It does not show why only 17 of at least 32 minted ids were live at the end. Canisters have 20 HP, and the run used PDC fire, but no log line links a canister death to fire. It does not show the root drop's count. With an empty hold, that drop holds only the two peeled sections' parts, which the recipes give as 1 panel each, so 2 panels in one canister <span class="tag d">modeled</span>. It does not show the drift paths, or whether any queue was still waiting at the end. Do not infer from it why canisters were unreachable.</p>
+<p><span class="tag d">modeled</span> The 17 live panels weigh 17 x 10 kg = 170 kg. Had they been in one drop, the shipped per-item <code>split</code> would already pack them into <strong>one</strong> canister: 200 kg / 10 kg = 20 panels per canister. They were not in one drop: 36 origins in <code>game.log</code>. So candidate M (1,000 kg mixed), mixed packing at 200 kg and one large container would each leave this outcome as it was. A higher yield would put more panels in each canister but would not lower the canister count.</p>
+</div>
+
+<h2 id="fixture">5. Fixture: 1,300 kg, shipped 10 canisters vs candidate M 2 canisters</h2>
+<p><span class="tag s">shipped</span> The test <code>a_ship_destroyed_whole_drops_its_hold_and_its_sections_parts_in_one_drop</code> (<code>wreck_cargo/tests.rs:180-236</code>) has 6 sections, each with the recipe <code>SectionPanel 3, FrameSpar 7, DriveBell 4</code> at 0.3 yield (<code>:61-72</code>). Per section that gives 0 panels, 2 spars and 1 bell. The hold is 25 iron ore, 300 PDC rounds and 3 hull plates (<code>:183-187</code>). Unit masses are from <a href="../../crates/nova_gameplay/src/test_support.rs"><code>crates/nova_gameplay/src/test_support.rs:94-125</code></a>: DriveBell 80 kg, FrameSpar 40 kg, HullPlate 10 kg, IronOre 10 kg, PdcRound 0.2 kg.</p>
+<div class="tablewrap">
+<table>
+<caption>Shipped expected canisters (<code>wreck_cargo/tests.rs:213-224</code>) and their masses <span class="tag d">modeled</span></caption>
+<thead><tr><th>#</th><th>Contents</th><th class="num">Unit kg</th><th class="num">Canister kg</th></tr></thead>
+<tbody>
+<tr><td>1-3</td><td>DriveBell x2 (each)</td><td class="num">80</td><td class="num">160 each, 480 total</td></tr>
+<tr><td>4-5</td><td>FrameSpar x5 (each)</td><td class="num">40</td><td class="num">200 each</td></tr>
+<tr><td>6</td><td>FrameSpar x2</td><td class="num">40</td><td class="num">80</td></tr>
+<tr><td>7</td><td>HullPlate x3</td><td class="num">10</td><td class="num">30</td></tr>
+<tr><td>8</td><td>IronOre x20</td><td class="num">10</td><td class="num">200</td></tr>
+<tr><td>9</td><td>IronOre x5</td><td class="num">10</td><td class="num">50</td></tr>
+<tr><td>10</td><td>PdcRound x300</td><td class="num">0.2</td><td class="num">60</td></tr>
+<tr class="total"><td colspan="3">10 canisters: 480 + 480 + 30 + 250 + 60</td><td class="num">1,300</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="card callout-p">
+<p><span class="tag p">proposed</span> <strong>Candidate M on the same fixture.</strong> Pure model: at a 1,000 kg cap the lower bound is ceil(1,300 / 1,000) = <strong>2</strong> canisters. A "fill each canister to the last whole item, then start the next" rule gives 1,000 kg + 300 kg. The canister mass is what it holds. The cap is a ceiling, not a target.</p>
+<p><span class="tag d">modeled</span> One exact whole-item composition. Stacks are taken in <code>ItemDesignId</code> order (<code>DriveBell</code> &lt; <code>FrameSpar</code> &lt; <code>HullPlate</code> &lt; <code>IronOre</code> &lt; <code>PdcRound</code>; the id is an <code>Arc&lt;str&gt;</code> with derived <code>Ord</code>, <code>inventory.rs:66-69</code>). Decreasing unit mass with id-order ties gives the same result here. Neither rule is approved. It is a model, not a code result.</p>
+</div>
+<div class="tablewrap">
+<table>
+<caption>Candidate M, hypothetical composition at a 1,000 kg cap <span class="tag d">modeled</span></caption>
+<thead><tr><th>#</th><th>Contents</th><th class="num">kg</th></tr></thead>
+<tbody>
+<tr><td>M1</td><td>DriveBell x6 + FrameSpar x12 + HullPlate x3 + IronOre x1</td><td class="num">480 + 480 + 30 + 10 = 1,000</td></tr>
+<tr><td>M2</td><td>IronOre x24 + PdcRound x300</td><td class="num">240 + 60 = 300</td></tr>
+<tr class="total"><td colspan="2">6 bells, 12 spars, 3 plates, 1 + 24 = 25 ore, 300 rounds</td><td class="num">1,300</td></tr>
+</tbody>
+</table>
+</div>
+<p>Other 2-canister splits are also valid, for example 650 + 650 kg. A fill-to-cap rule makes the first canister as heavy as the cap allows and leaves the remainder in the last one. That choice sets which hold sizes can take anything (section 7).</p>
+
+<figure>
+<span class="schem">SCHEMATIC - shipped per-item packing (fixture), cap 200 kg, 150 kg free line</span>
+<div class="chartwrap">
+<svg class="chart" viewBox="0 0 760 400" role="img" aria-labelledby="b-t b-d">
+<title id="b-t">Shipped: ten single-item canisters for the 1,300 kg fixture</title>
+<desc id="b-d">Ten bars on a 0 to 200 kilogram scale: three drive bell bars of 160, two frame spar bars of 200, one spar bar of 80, plates 30, ore 200 and 50, PDC 60. A dashed line at 150 kilograms marks the free hold in the example; spar 80, plates 30, ore 50 and PDC 60 lie under it.</desc>
+<!-- Scale: x = 150 + kg * 2.5 (200 kg = 500 px). Rows 32 px apart from y = 40. Bars 22 px. -->
+<line class="grid" x1="150" y1="30" x2="150" y2="362"/><line class="grid" x1="275" y1="30" x2="275" y2="362"/><line class="grid" x1="400" y1="30" x2="400" y2="362"/><line class="grid" x1="525" y1="30" x2="525" y2="362"/><line class="grid" x1="650" y1="30" x2="650" y2="362"/>
+<text class="axis" x="150" y="380" text-anchor="middle">0</text><text class="axis" x="275" y="380" text-anchor="middle">50</text><text class="axis" x="400" y="380" text-anchor="middle">100</text><text class="axis" x="525" y="380" text-anchor="middle">150</text><text class="axis" x="650" y="380" text-anchor="middle">200 kg cap</text>
+<g>
+<rect class="cap" x="150" y="38" width="500" height="22" rx="4"/><rect class="i1" x="150" y="38" width="400" height="22" rx="4"><title>DriveBell x2, 160 kg</title></rect><text class="seg" x="158" y="53">Bell x2</text><text class="lab" x="20" y="53">1</text><text class="val" x="660" y="53">160</text>
+<rect class="cap" x="150" y="70" width="500" height="22" rx="4"/><rect class="i1" x="150" y="70" width="400" height="22" rx="4"><title>DriveBell x2, 160 kg</title></rect><text class="seg" x="158" y="85">Bell x2</text><text class="lab" x="20" y="85">2</text><text class="val" x="660" y="85">160</text>
+<rect class="cap" x="150" y="102" width="500" height="22" rx="4"/><rect class="i1" x="150" y="102" width="400" height="22" rx="4"><title>DriveBell x2, 160 kg</title></rect><text class="seg" x="158" y="117">Bell x2</text><text class="lab" x="20" y="117">3</text><text class="val" x="660" y="117">160</text>
+<rect class="i2" x="150" y="134" width="500" height="22" rx="4"><title>FrameSpar x5, 200 kg</title></rect><text class="seg" x="158" y="149">Spar x5</text><text class="lab" x="20" y="149">4</text><text class="val" x="660" y="149">200</text>
+<rect class="i2" x="150" y="166" width="500" height="22" rx="4"><title>FrameSpar x5, 200 kg</title></rect><text class="seg" x="158" y="181">Spar x5</text><text class="lab" x="20" y="181">5</text><text class="val" x="660" y="181">200</text>
+<rect class="cap" x="150" y="198" width="500" height="22" rx="4"/><rect class="i2" x="150" y="198" width="200" height="22" rx="4"><title>FrameSpar x2, 80 kg</title></rect><text class="seg" x="158" y="213">Spar x2</text><text class="lab" x="20" y="213">6</text><text class="val" x="660" y="213">80</text>
+<rect class="cap" x="150" y="230" width="500" height="22" rx="4"/><rect class="i3" x="150" y="230" width="75" height="22" rx="4"><title>HullPlate x3, 30 kg</title></rect><text class="seg" x="232" y="245">Plate x3</text><text class="lab" x="20" y="245">7</text><text class="val" x="660" y="245">30</text>
+<rect class="i4" x="150" y="262" width="500" height="22" rx="4"><title>IronOre x20, 200 kg</title></rect><text class="seg" x="158" y="277">Ore x20</text><text class="lab" x="20" y="277">8</text><text class="val" x="660" y="277">200</text>
+<rect class="cap" x="150" y="294" width="500" height="22" rx="4"/><rect class="i4" x="150" y="294" width="125" height="22" rx="4"><title>IronOre x5, 50 kg</title></rect><text class="seg" x="158" y="309">Ore x5</text><text class="lab" x="20" y="309">9</text><text class="val" x="660" y="309">50</text>
+<rect class="cap" x="150" y="326" width="500" height="22" rx="4"/><rect class="i5" x="150" y="326" width="150" height="22" rx="4"><title>PdcRound x300, 60 kg</title></rect><text class="seg" x="158" y="341">PDC x300</text><text class="lab" x="20" y="341">10</text><text class="val" x="660" y="341">60</text>
+</g>
+<line class="free" x1="525" y1="30" x2="525" y2="362"/><text class="freelab" x="530" y="26">150 kg free</text>
+<text class="note" x="20" y="24">canister</text>
+</svg>
+</div>
+<div class="legend"><span><span class="sw i1"></span>DriveBell</span><span><span class="sw i2"></span>FrameSpar</span><span><span class="sw i3"></span>HullPlate</span><span><span class="sw i4"></span>IronOre</span><span><span class="sw i5"></span>PdcRound</span><span><span class="sw free"></span>150 kg free (example)</span></div>
+<figcaption>Shipped. Bar length is canister mass on a 0-200 kg scale. The dashed outline is the shipped 200 kg cap. Four canisters (30, 50, 60 and 80 kg) lie under the 150 kg free line. The next chart uses a 0-1,000 kg scale, so do not compare bar lengths across the two charts.</figcaption>
+</figure>
+
+<figure>
+<span class="schem p">SCHEMATIC - PROPOSED candidate M: 2 mixed canisters, cap 1,000 kg, actual filled mass (model, not a code result)</span>
+<div class="chartwrap">
+<svg class="chart" viewBox="0 0 760 170" role="img" aria-labelledby="m-t m-d">
+<title id="m-t">Candidate M: two mixed canisters for the same 1,300 kg fixture</title>
+<desc id="m-d">Two bars on a 0 to 1,000 kilogram scale. M1 holds 480 kilograms of drive bells, 480 of frame spars, 30 of hull plates and 10 of iron ore, 1,000 in total. M2 holds 240 kilograms of iron ore and 60 of PDC rounds, 300 in total. A dashed line at 150 kilograms marks the example free hold; both bars pass it. A dotted line at 200 kilograms marks the shipped cap.</desc>
+<!-- Scale: x = 150 + kg * 0.5 (1,000 kg = 500 px). Segment widths: 480 kg = 240 px, 30 kg = 15 px, 10 kg = 5 px, 240 kg = 120 px, 60 kg = 30 px; 2 px gaps taken from the right of each segment. -->
+<line class="grid" x1="150" y1="30" x2="150" y2="122"/><line class="grid" x1="275" y1="30" x2="275" y2="122"/><line class="grid" x1="400" y1="30" x2="400" y2="122"/><line class="grid" x1="525" y1="30" x2="525" y2="122"/><line class="grid" x1="650" y1="30" x2="650" y2="122"/>
+<text class="axis" x="150" y="140" text-anchor="middle">0</text><text class="axis" x="275" y="140" text-anchor="middle">250</text><text class="axis" x="400" y="140" text-anchor="middle">500</text><text class="axis" x="525" y="140" text-anchor="middle">750</text><text class="axis" x="650" y="140" text-anchor="middle">1,000 kg cap</text>
+<g>
+<rect class="i1" x="150" y="44" width="238" height="26" rx="4"><title>M1: DriveBell x6, 480 kg</title></rect><rect class="i2" x="390" y="44" width="238" height="26" rx="4"><title>M1: FrameSpar x12, 480 kg</title></rect><rect class="i3" x="630" y="44" width="13" height="26" rx="2"><title>M1: HullPlate x3, 30 kg</title></rect><rect class="i4" x="645" y="44" width="5" height="26" rx="1"><title>M1: IronOre x1, 10 kg</title></rect>
+<text class="seg" x="158" y="61">Bell x6</text><text class="seg" x="398" y="61">Spar x12</text><text class="lab" x="20" y="61">M1</text><text class="val" x="660" y="61">1,000</text>
+<rect class="cap" x="150" y="84" width="500" height="26" rx="4"/><rect class="i4" x="150" y="84" width="118" height="26" rx="4"><title>M2: IronOre x24, 240 kg</title></rect><rect class="i5" x="270" y="84" width="30" height="26" rx="4"><title>M2: PdcRound x300, 60 kg</title></rect>
+<text class="seg" x="158" y="101">Ore x24</text><text class="seg" x="306" y="101">PDC x300</text><text class="lab" x="20" y="101">M2</text><text class="val" x="660" y="101">300</text>
+</g>
+<line class="free" x1="225" y1="30" x2="225" y2="122"/><text class="freelab" x="160" y="24">150 kg free</text>
+<line class="cap" x1="250" y1="30" x2="250" y2="122"/><text class="note" x="254" y="24">shipped 200 kg cap</text>
+<text class="note" x="20" y="24">canister</text>
+</svg>
+</div>
+<div class="legend"><span><span class="sw i1"></span>DriveBell</span><span><span class="sw i2"></span>FrameSpar</span><span><span class="sw i3"></span>HullPlate (30 kg in M1)</span><span><span class="sw i4"></span>IronOre (10 kg in M1, 240 kg in M2)</span><span><span class="sw i5"></span>PdcRound</span><span><span class="sw free"></span>150 kg free (example)</span></div>
+<figcaption>Bar length is canister mass on a 0-1,000 kg scale. The dashed outline on M2 is the 1,000 kg cap; M2 is a 300 kg canister, not a 1,000 kg one. Both canisters pass the 150 kg free line, so a hold with 150 kg free takes neither under whole-fit (section 7). The HUD tag of both reads <code>Mixed cargo</code> plus the mass (<code>cargo_canister_chips.rs:80-84</code>). The table above has the same values.</figcaption>
+</figure>
+
+<details>
+<summary>Alternative A (not the owner's preference): mixed packing under the shipped 200 kg cap, 7 canisters</summary>
+<p><span class="tag d">modeled</span> The lower bound at 200 kg is ceil(1,300 / 200) = ceil(6.5) = 7. A hand packing reaches 7. It is not the output of any specified algorithm. This is the earlier proposal on this page. It stays here as a comparison only.</p>
+<div class="tablewrap">
+<table>
+<caption>Alternative A, hypothetical hand packing at 200 kg <span class="tag d">modeled</span>, not a code result</caption>
+<thead><tr><th>#</th><th>Contents</th><th class="num">kg</th></tr></thead>
+<tbody>
+<tr><td>H1-H3</td><td>DriveBell x2 + FrameSpar x1 (each)</td><td class="num">160 + 40 = 200 each</td></tr>
+<tr><td>H4</td><td>FrameSpar x5</td><td class="num">200</td></tr>
+<tr><td>H5</td><td>FrameSpar x4 + HullPlate x3</td><td class="num">160 + 30 = 190</td></tr>
+<tr><td>H6</td><td>IronOre x20</td><td class="num">200</td></tr>
+<tr><td>H7</td><td>IronOre x5 + PdcRound x300</td><td class="num">50 + 60 = 110</td></tr>
+<tr class="total"><td colspan="2">6 bells, 3 + 5 + 4 = 12 spars, 3 plates, 25 ore, 300 rounds</td><td class="num">1,300</td></tr>
+</tbody>
+</table>
+</div>
+<figure>
+<span class="schem">SCHEMATIC - ALTERNATIVE A (200 kg cap, mixed): hypothetical 7-canister hand packing</span>
+<div class="chartwrap">
+<svg class="chart" viewBox="0 0 760 300" role="img" aria-labelledby="p-t p-d">
+<title id="p-t">Alternative A: seven mixed canisters under the 200 kg cap for the same 1,300 kg</title>
+<desc id="p-d">Seven bars on a 0 to 200 kilogram scale: three of two bells plus one spar at 200, five spars at 200, four spars plus three plates at 190, twenty ore at 200, five ore plus 300 PDC at 110. Only the 110 kilogram canister lies under the 150 kilogram free line.</desc>
+<line class="grid" x1="150" y1="30" x2="150" y2="266"/><line class="grid" x1="275" y1="30" x2="275" y2="266"/><line class="grid" x1="400" y1="30" x2="400" y2="266"/><line class="grid" x1="525" y1="30" x2="525" y2="266"/><line class="grid" x1="650" y1="30" x2="650" y2="266"/>
+<text class="axis" x="150" y="284" text-anchor="middle">0</text><text class="axis" x="275" y="284" text-anchor="middle">50</text><text class="axis" x="400" y="284" text-anchor="middle">100</text><text class="axis" x="525" y="284" text-anchor="middle">150</text><text class="axis" x="650" y="284" text-anchor="middle">200 kg cap</text>
+<g>
+<rect class="i1" x="150" y="38" width="398" height="22" rx="4"><title>DriveBell x2, 160 kg</title></rect><rect class="i2" x="550" y="38" width="100" height="22" rx="4"><title>FrameSpar x1, 40 kg</title></rect><text class="seg" x="158" y="53">Bell x2</text><text class="seg" x="556" y="53">Spar</text><text class="lab" x="20" y="53">H1</text><text class="val" x="660" y="53">200</text>
+<rect class="i1" x="150" y="70" width="398" height="22" rx="4"><title>DriveBell x2, 160 kg</title></rect><rect class="i2" x="550" y="70" width="100" height="22" rx="4"><title>FrameSpar x1, 40 kg</title></rect><text class="seg" x="158" y="85">Bell x2</text><text class="seg" x="556" y="85">Spar</text><text class="lab" x="20" y="85">H2</text><text class="val" x="660" y="85">200</text>
+<rect class="i1" x="150" y="102" width="398" height="22" rx="4"><title>DriveBell x2, 160 kg</title></rect><rect class="i2" x="550" y="102" width="100" height="22" rx="4"><title>FrameSpar x1, 40 kg</title></rect><text class="seg" x="158" y="117">Bell x2</text><text class="seg" x="556" y="117">Spar</text><text class="lab" x="20" y="117">H3</text><text class="val" x="660" y="117">200</text>
+<rect class="i2" x="150" y="134" width="500" height="22" rx="4"><title>FrameSpar x5, 200 kg</title></rect><text class="seg" x="158" y="149">Spar x5</text><text class="lab" x="20" y="149">H4</text><text class="val" x="660" y="149">200</text>
+<rect class="cap" x="150" y="166" width="500" height="22" rx="4"/><rect class="i2" x="150" y="166" width="398" height="22" rx="4"><title>FrameSpar x4, 160 kg</title></rect><rect class="i3" x="550" y="166" width="75" height="22" rx="4"><title>HullPlate x3, 30 kg</title></rect><text class="seg" x="158" y="181">Spar x4</text><text class="seg" x="556" y="181">Plate</text><text class="lab" x="20" y="181">H5</text><text class="val" x="660" y="181">190</text>
+<rect class="i4" x="150" y="198" width="500" height="22" rx="4"><title>IronOre x20, 200 kg</title></rect><text class="seg" x="158" y="213">Ore x20</text><text class="lab" x="20" y="213">H6</text><text class="val" x="660" y="213">200</text>
+<rect class="cap" x="150" y="230" width="500" height="22" rx="4"/><rect class="i4" x="150" y="230" width="123" height="22" rx="4"><title>IronOre x5, 50 kg</title></rect><rect class="i5" x="275" y="230" width="150" height="22" rx="4"><title>PdcRound x300, 60 kg</title></rect><text class="seg" x="158" y="245">Ore x5</text><text class="seg" x="282" y="245">PDC x300</text><text class="lab" x="20" y="245">H7</text><text class="val" x="660" y="245">110</text>
+</g>
+<line class="free" x1="525" y1="30" x2="525" y2="266"/><text class="freelab" x="530" y="26">150 kg free</text>
+<text class="note" x="20" y="24">canister</text>
+</svg>
+</div>
+<div class="legend"><span><span class="sw i1"></span>DriveBell</span><span><span class="sw i2"></span>FrameSpar</span><span><span class="sw i3"></span>HullPlate</span><span><span class="sw i4"></span>IronOre</span><span><span class="sw i5"></span>PdcRound</span><span><span class="sw free"></span>150 kg free (example)</span></div>
+<figcaption>Alternative A on the 0-200 kg scale of the shipped chart. A 2 px gap separates the items in a canister.</figcaption>
+</figure>
+</details>
+
+<h2 id="perdrop">6. Per drop, not per wreck</h2>
+<p><span class="tag s">shipped</span> Packing runs once per drop (<code>wreck_cargo.rs:136-141</code>). Candidate M changes how one drop's stacks become canisters. It does not join drops. A drop whose stacks total 1,000 kg or less becomes <strong>one</strong> canister under M. A wreck that left several drops still leaves at least one canister per drop. M does not give one canister per wreck.</p>
+<div class="tablewrap">
+<table>
+<caption>Canister count per case <span class="tag d">modeled</span> from shipped rules and fixture masses</caption>
+<thead><tr><th>Case</th><th class="num">Drops</th><th class="num">kg</th><th class="num">Shipped (200 kg, per item)</th><th class="num">M (1,000 kg, mixed)</th></tr></thead>
+<tbody>
+<tr><td>Fixture, ship destroyed whole (section 5)</td><td class="num">1</td><td class="num">1,300</td><td class="num">10</td><td class="num">2 (1,000 + 300)</td></tr>
+<tr><td>Same fixture, sections only (6 bells + 12 spars, empty hold)</td><td class="num">1</td><td class="num">960</td><td class="num">6 (160 x3; 200, 200, 80)</td><td class="num">1 (960)</td></tr>
+<tr><td>Same fixture, hold only (25 ore, 300 PDC, 3 plates)</td><td class="num">1</td><td class="num">340</td><td class="num">4 (200, 50, 60, 30)</td><td class="num">1 (340)</td></tr>
+<tr><td>Bench root drop (2 peeled sections, 1 panel each; section 4)</td><td class="num">1</td><td class="num">20</td><td class="num">1</td><td class="num">1</td></tr>
+<tr><td>Bench, whole run (36 drops, 1 stack each, <code>game.log:23-107</code>)</td><td class="num">36</td><td class="num">not logged</td><td class="num">1 per drop</td><td class="num">1 per drop (no change)</td></tr>
+</tbody>
+</table>
+</div>
+<p><span class="tag m">measured</span> + <span class="tag d">modeled</span> The bench had 13,400 kg free and no intake contact. Under M, each of the 36 drops still releases its own canister at its own place and time. The hold could take every canister by mass, as it could at 200 kg. No pickup happens without contact. M changes nothing in this run.</p>
+
+<h2 id="hold">7. Whole-fit and hold size</h2>
+<p><span class="tag s">shipped</span> The intake takes a canister only if the hold's free mass is at least the canister's total mass. It never takes part of a canister (<code>cargo_intake_section.rs:619-625, 635-645</code>). The door opens only if a canister in detection range fits the same way (<code>:596-602</code>). Each take in a pass lowers the free mass for the next check in that pass.</p>
+<div class="card callout-d">
+<p><strong>150 kg free, all fixture canisters in contact</strong> <span class="tag d">modeled</span></p>
+<ul>
+<li>Shipped (10 canisters): at most <strong>140 kg</strong> (80 + 60, or 30 + 50 + 60).</li>
+<li>Candidate M with whole-fit (1,000 + 300 kg): <strong>0 kg</strong>. Neither canister fits, and the door stays shut. This is a regression of 140 kg against shipped.</li>
+<li>Candidate M with partial pickup (M-P, section 9): up to <strong>150 kg</strong> of whole items, for example IronOre x9 + PdcRound x300 = 90 + 60 kg. Which items are taken needs an order rule. None is approved.</li>
+<li>Alternative A (7 canisters at 200 kg): at most 110 kg (H7).</li>
+</ul>
+</div>
+
+<figure>
+<span class="schem">SCHEMATIC - most fixture mass one pass can take, by free hold (upper bound, all canisters in contact)</span>
+<div class="chartwrap">
+<svg class="chart" viewBox="0 0 760 330" role="img" aria-labelledby="f-t f-d">
+<title id="f-t">Most of the 1,300 kg fixture a hold can take at five free-hold levels</title>
+<desc id="f-d">Grouped bars at 150, 250, 500, 999 and 1,300 kilograms free. Shipped takes 140, 250, 500, 990 and 1,300. Candidate M with whole-fit takes 0, 0, 300, 300 and 1,300. Candidate M with partial pickup takes 150, 250, 500, 999 and 1,300. Alternative A takes 110, 200, 500, 990 and 1,300.</desc>
+<!-- y = 280 - kg * 0.2 (1,300 kg = 260 px). Group centres x = 130, 260, 390, 520, 650. Bars 22 px wide, 2 px gaps, order shipped, M whole-fit, M partial, A. -->
+<line class="grid" x1="60" y1="280" x2="720" y2="280"/><line class="grid" x1="60" y1="230" x2="720" y2="230"/><line class="grid" x1="60" y1="180" x2="720" y2="180"/><line class="grid" x1="60" y1="130" x2="720" y2="130"/><line class="grid" x1="60" y1="80" x2="720" y2="80"/><line class="grid" x1="60" y1="20" x2="720" y2="20"/>
+<text class="axis" x="54" y="284" text-anchor="end">0</text><text class="axis" x="54" y="234" text-anchor="end">250</text><text class="axis" x="54" y="184" text-anchor="end">500</text><text class="axis" x="54" y="134" text-anchor="end">750</text><text class="axis" x="54" y="84" text-anchor="end">1,000</text><text class="axis" x="54" y="24" text-anchor="end">1,300 kg</text>
+<g>
+<rect class="i1" x="82" y="252" width="22" height="28" rx="4"><title>150 kg free, shipped: 140 kg</title></rect>
+<rect class="i2" x="106" y="279" width="22" height="1"><title>150 kg free, M whole-fit: 0 kg</title></rect>
+<rect class="i3" x="130" y="250" width="22" height="30" rx="4"><title>150 kg free, M partial: 150 kg</title></rect>
+<rect class="i4" x="154" y="258" width="22" height="22" rx="4"><title>150 kg free, Alternative A: 110 kg</title></rect>
+<text class="seg" x="93" y="247" text-anchor="middle">140</text><text class="val" x="117" y="274" text-anchor="middle">0</text><text class="seg" x="141" y="245" text-anchor="middle">150</text><text class="seg" x="166" y="253" text-anchor="middle">110</text>
+<rect class="i1" x="212" y="230" width="22" height="50" rx="4"><title>250 kg free, shipped: 250 kg</title></rect>
+<rect class="i2" x="236" y="279" width="22" height="1"><title>250 kg free, M whole-fit: 0 kg</title></rect>
+<rect class="i3" x="260" y="230" width="22" height="50" rx="4"><title>250 kg free, M partial: 250 kg</title></rect>
+<rect class="i4" x="284" y="240" width="22" height="40" rx="4"><title>250 kg free, Alternative A: 200 kg</title></rect>
+<text class="val" x="247" y="274" text-anchor="middle">0</text>
+<rect class="i1" x="342" y="180" width="22" height="100" rx="4"><title>500 kg free, shipped: 500 kg</title></rect>
+<rect class="i2" x="366" y="220" width="22" height="60" rx="4"><title>500 kg free, M whole-fit: 300 kg</title></rect>
+<rect class="i3" x="390" y="180" width="22" height="100" rx="4"><title>500 kg free, M partial: 500 kg</title></rect>
+<rect class="i4" x="414" y="180" width="22" height="100" rx="4"><title>500 kg free, Alternative A: 500 kg</title></rect>
+<text class="val" x="377" y="215" text-anchor="middle">300</text>
+<rect class="i1" x="472" y="82" width="22" height="198" rx="4"><title>999 kg free, shipped: 990 kg</title></rect>
+<rect class="i2" x="496" y="220" width="22" height="60" rx="4"><title>999 kg free, M whole-fit: 300 kg</title></rect>
+<rect class="i3" x="520" y="80" width="22" height="200" rx="4"><title>999 kg free, M partial: 999 kg</title></rect>
+<rect class="i4" x="544" y="82" width="22" height="198" rx="4"><title>999 kg free, Alternative A: 990 kg</title></rect>
+<text class="val" x="507" y="215" text-anchor="middle">300</text>
+<rect class="i1" x="602" y="20" width="22" height="260" rx="4"><title>1,300 kg free, shipped: 1,300 kg</title></rect>
+<rect class="i2" x="626" y="20" width="22" height="260" rx="4"><title>1,300 kg free, M whole-fit: 1,300 kg</title></rect>
+<rect class="i3" x="650" y="20" width="22" height="260" rx="4"><title>1,300 kg free, M partial: 1,300 kg</title></rect>
+<rect class="i4" x="674" y="20" width="22" height="260" rx="4"><title>1,300 kg free, Alternative A: 1,300 kg</title></rect>
+</g>
+<text class="axis" x="129" y="300" text-anchor="middle">150 free</text><text class="axis" x="259" y="300" text-anchor="middle">250 free</text><text class="axis" x="389" y="300" text-anchor="middle">500 free</text><text class="axis" x="519" y="300" text-anchor="middle">999 free</text><text class="axis" x="649" y="300" text-anchor="middle">1,300 free</text>
+<text class="note" x="60" y="320">kg taken (upper bound) per free-hold level</text>
+</svg>
+</div>
+<div class="legend"><span><span class="sw i1"></span>Shipped, 200 kg per item</span><span><span class="sw i2"></span>M, 1,000 kg mixed, whole-fit</span><span><span class="sw i3"></span>M + partial pickup</span><span><span class="sw i4"></span>Alternative A, 200 kg mixed</span></div>
+<figcaption>Values are the largest subset-sum of canister masses at or under the free mass (whole-fit), or the largest whole-item mass at or under it (partial pickup). The table below has every value. Hover a bar for its value. The real amount taken depends on which canisters touch the trigger and on entity order (<code>cargo_intake_section.rs:568, 618</code>), so these are upper bounds, not predictions.</figcaption>
+</figure>
+
+<div class="tablewrap">
+<table>
+<caption>Most fixture mass taken (kg) and failure thresholds <span class="tag d">modeled</span></caption>
+<thead><tr><th>Packing</th><th class="num">150 free</th><th class="num">250 free</th><th class="num">500 free</th><th class="num">999 free</th><th class="num">1,300 free</th><th class="num">Free needed to take anything</th><th class="num">Free needed for the largest canister</th></tr></thead>
+<tbody>
+<tr><td>Shipped (10)</td><td class="num">140</td><td class="num">250</td><td class="num">500</td><td class="num">990</td><td class="num">1,300</td><td class="num">30</td><td class="num">200</td></tr>
+<tr><td>M, whole-fit (2)</td><td class="num">0</td><td class="num">0</td><td class="num">300</td><td class="num">300</td><td class="num">1,300</td><td class="num">300</td><td class="num">1,000</td></tr>
+<tr><td>M + partial pickup (2)</td><td class="num">150</td><td class="num">250</td><td class="num">500</td><td class="num">999</td><td class="num">1,300</td><td class="num">0.2 (one PDC round)</td><td class="num">n/a (no whole-fit)</td></tr>
+<tr><td>Alternative A (7)</td><td class="num">110</td><td class="num">200</td><td class="num">500</td><td class="num">990</td><td class="num">1,300</td><td class="num">110</td><td class="num">200</td></tr>
+</tbody>
+</table>
+</div>
+<p><span class="tag s">shipped</span> A ship's hold is 100 kg per hull section (<code>HULL_SECTION_CARGO_G</code>, <a href="../../crates/nova_scenario/src/objects/ship_design.rs"><code>crates/nova_scenario/src/objects/ship_design.rs:406-416</code></a>). A two-hull ship holds 200 kg in total (<a href="../../crates/nova_scenario/src/objects/spaceship.rs"><code>crates/nova_scenario/src/objects/spaceship.rs:3257-3263</code></a>). <span class="tag d">modeled</span> Counting hull sections in the generated ship designs (<a href="../../assets/base/ships/base.content.ron"><code>assets/base/ships/base.content.ron</code></a>) for the start roles (<a href="../../assets/base/roles/base.content.ron"><code>assets/base/roles/base.content.ron:7, 29, 51, 73, 95, 118</code></a>) gives these holds: patrol picket 1,800 kg, mining tug 2,100 kg, raider 2,900 kg, interceptor 3,000 kg, light freighter 3,700 kg, salvage hauler 5,400 kg. The same count gives 13,400 kg for <code>line_warship</code>, which matches the bench audit. Every start hold is above 1,000 kg, so an empty start ship can take M1. Start stock and earlier pickups use part of the hold: the industrial kit alone is 15 hull plates and 25 rations, 150 + 50 = 200 kg (<code>roles/base.content.ron:10-13</code>; base masses 10 kg and 2 kg, <code>assets/base/items/base.content.ron:87</code> for rations). The free hold during salvage is not measured.</p>
+<p>Under whole-fit, a canister heavier than a ship's whole hold can never be taken by that ship, even when empty. The goods are kept, not lost: a refused canister stays in space until a bigger hold arrives or the canister is destroyed.</p>
+
+<h2 id="empty">8. Empty drops</h2>
+<p><span class="tag s">shipped</span> An empty stack set spawns no drop (<code>wreck_cargo.rs:132-134</code>). For a section, emptiness is fixed by its recipe at full share (<code>inventory.rs:1572-1580</code>). It does not depend on packing.</p>
+<p><span class="tag d">modeled</span> Every base recipe read (<code>recipes.rs:36-146</code>) has at least one part with <code>floor(count * strip_yield) &gt;= 1</code>, so no base section drop is empty at present. An empty <em>root</em> drop is still possible: a ship whose sections were all shot off one by one, with an empty hold, has nothing to drop when its root dies. A recipe from other content can still strip to zero. Candidate M and its variants do not change any of these cases. Only a yield or rounding change (Option D) does.</p>
+
+<h2 id="options">9. Design alternatives</h2>
+<p><span class="tag p">proposed</span> <strong>Candidate M is the owner's preferred direction.</strong> M-P and M-T are variants of M that answer its fit regression. The other rows are comparisons.</p>
+<p class="hint">Scroll the table sideways.</p>
+<div class="tablewrap">
+<table class="wide">
+<caption>All rows <span class="tag p">proposed</span> except 0; consequences <span class="tag d">modeled</span></caption>
+<thead><tr><th></th><th>Option</th><th>Fixture (1,300 kg, one drop)</th><th>150 kg free</th><th>Bench (36 drops, 13,400 kg free)</th><th>Hold, HUD, save, ids</th><th>What dies</th></tr></thead>
+<tbody>
+<tr><td>0</td><td><strong>Keep shipped</strong>: 200 kg, per item</td><td>10</td><td>140 kg</td><td>No pickup (no contact)</td><td>No change</td><td>Nothing</td></tr>
+<tr><td><strong>M</strong></td><td><strong>Owner-preferred.</strong> Cap 1,000 kg; the wreck producer packs one drop's stacks mixed, whole items, actual filled mass; whole-fit kept</td><td>2 (1,000 + 300)</td><td>0 kg (regression)</td><td>No change: 1 canister per drop, no contact</td><td>Coarser whole-fit; more <code>Mixed cargo</code> tags; save accepts up to 1,000 kg (section 10); ids unchanged</td><td>Per-item <code>split</code> call in <code>wreck_cargo.rs:136-139</code>; 200 kg value everywhere (section 10); fixture expectation <code>tests.rs:212-225</code></td></tr>
+<tr><td>M-P</td><td>M + <strong>partial pickup</strong>: the intake takes the whole items that fit and leaves the rest in the same canister, same id</td><td>2</td><td>Up to 150 kg</td><td>No change</td><td>New item order rule; live <code>CargoCanister</code> changes in place; <code>ready</code> and door rules change; tag updates; one canister can need several passes</td><td>Whole-fit rule and its tests (<code>cargo_intake_section/tests.rs:460-500</code>, <code>:502</code>)</td></tr>
+<tr><td>M-T</td><td>M + <strong>fixed target fill T</strong> below the cap, one constant for every wreck drop (not per player)</td><td>ceil(1,300 / T) or more</td><td>Takes something only if a canister is at or under 150 kg</td><td>No change</td><td>T = 200 gives Alternative A; T = 1,000 gives M. A second constant beside the cap</td><td>Same as M</td></tr>
+<tr><td>A</td><td>Mixed packing under the shipped 200 kg cap</td><td>7 or more (7 attainable)</td><td>110 kg</td><td>No change</td><td>Whole-fit kept; cap unchanged</td><td>Per-item <code>split</code> call; fixture expectation</td></tr>
+<tr><td>B</td><td>One uncapped container per drop with partial transfer</td><td>1</td><td>Up to 150 kg</td><td>No change</td><td>Like M-P with no cap: needs a new save check and lint rule for item mass</td><td>Whole-fit rule; the canister cap</td></tr>
+<tr><td>D</td><td>Change yield or rounding</td><td>More or less mass; count follows</td><td>Depends</td><td>More panels per drop, still one canister each</td><td>Also changes station strip value and the recipe lint margin (<code>recipes.rs:6-9</code>)</td><td>Current yields or the floor rule</td></tr>
+<tr><td>E</td><td>Merge across drops (hold section loot until the root dies, or merge into a nearby waiting queue)</td><td>Same as M or A</td><td>Same as M or A</td><td>The only option that could change the canister count</td><td>Holding loot back hides it while a hull lives, and it is lost if the root is despawned without destruction (<code>wreck_cargo.rs:49-51, 161-164</code>). Merging born canisters moves ids (section 3).</td><td>Per-section drop timing, place and drift (<code>wreck_cargo.rs:109-126</code>)</td></tr>
+</tbody>
+</table>
+</div>
+<p>No row changes the measured bench result. That run failed on contact, not on canister count or fit.</p>
+
+<h2 id="globalcap">10. Global cap impact at 1,000 kg</h2>
+<p><span class="tag s">shipped</span> <code>CARGO_CANISTER_MAX_MASS_G</code> (<code>inventory.rs:1234</code>) is one global constant. If M raises it, every consumer below changes. A wreck-only cap would need a second constant, and the save check cannot tell wreck canisters apart: <code>FrozenCanister</code> keeps only <code>id</code>, <code>contents</code>, <code>health</code> and <code>mesh</code> (<code>cargo_intake_section.rs:282-296</code>). So a wreck-only cap still makes the save check accept 1,000 kg for every canister, or it adds an origin field to the save.</p>
+<p class="hint">Scroll the table sideways.</p>
+<div class="tablewrap">
+<table class="wide">
+<caption>Consumers of the cap at <code>112b79a0d</code> and their change at 1,000 kg <span class="tag s">shipped</span> / <span class="tag d">modeled</span></caption>
+<thead><tr><th>Consumer</th><th>Today (200 kg)</th><th>At 1,000 kg</th><th>Evidence</th></tr></thead>
+<tbody>
+<tr><td><code>CargoCanister::new</code> / <code>add</code></td><td>Assert total at or under 200 kg</td><td>Assert at or under 1,000 kg. Failure threshold moves up.</td><td><code>inventory.rs:1273-1282, 1318-1326</code></td></tr>
+<tr><td><code>CargoCanister::split</code></td><td><code>200,000 g / unit mass</code> per canister</td><td>5 times as many items per canister: 100 ore or plates, 5,000 PDC rounds, 6 torpedoes</td><td><code>inventory.rs:1292-1303</code></td></tr>
+<tr><td>Mining release</td><td>Owed ore is split into 200 kg canisters per remesh</td><td>Up to 100 ore (1,000 kg) per canister. Fewer, heavier mining canisters; whole-fit refuses them more often. Ore owed per remesh is not measured here.</td><td><code>mining.rs:1036-1066</code>; module doc <code>mining.rs:38</code></td></tr>
+<tr><td>Jettison</td><td>Tops up the last waiting canister to 200 kg, then splits</td><td>Tops up to 1,000 kg. A 1,000 kg jettison is one canister, not five. The jettison already mixes items.</td><td><code>inventory.rs:1443-1451</code></td></tr>
+<tr><td>Content lint</td><td>An item over 200 kg is a fault</td><td>An item up to 1,000 kg passes. Heaviest base item is 150 kg (<code>assets/base/items/base.content.ron:37</code>), so base content does not change. Lint test uses cap + 1 and follows.</td><td><code>crates/nova_assets/src/items.rs:147-154, 291</code></td></tr>
+<tr><td>Save and Load check</td><td>Refuses a frozen canister over 200 kg</td><td>Refuses over 1,000 kg. Frozen ore-drop queues stay unchecked.</td><td><code>save/mod.rs:940-951, 956</code></td></tr>
+<tr><td>Intake</td><td>Whole-fit on take and on door open</td><td>Same rule; bigger canisters fail it more often. Does not read the cap.</td><td><code>cargo_intake_section.rs:596-602, 618-625</code></td></tr>
+<tr><td>Canister body</td><td>Same body and 20 HP for any content</td><td>Same body. One destroyed canister can lose up to 1,000 kg instead of 200 kg.</td><td><code>cargo_intake_section.rs:77, 235-275</code></td></tr>
+<tr><td>HUD tag</td><td><code>Mixed cargo</code> plus mass</td><td>No code change. More canisters read <code>Mixed cargo</code>.</td><td><code>cargo_canister_chips.rs:76-85</code></td></tr>
+<tr><td>Wiki and widgets</td><td>State 200 kg</td><td>Must change with the code</td><td><code>web/src/wiki/sections/cargo-intake.md:102, 104</code>; <code>web/src/wiki/sections/mining-beam.md:35, 38, 74, 86</code>; <code>web/src/wiki/interface.md:406</code> (its jettison examples change); <code>web/src/create/sections.md:1208</code>; <code>web/src/widgets.ts:12120-12121</code></td></tr>
+<tr><td>Released notes</td><td>State 200 kg for past releases</td><td>Stay as history. A new <code>[Unreleased]</code> changelog entry states the new cap.</td><td><code>CHANGELOG.md:597</code>; <code>web/src/news/0.15.0.md:170, 203</code>; <code>web/src/news/0.16.0.md:645, 650</code></td></tr>
+</tbody>
+</table>
+</div>
+<h3>Save compatibility</h3>
+<p><span class="tag s">shipped</span> Saves carry <code>WORLD_SAVE_VERSION</code> = <code>"v0.16.0"</code>, and Load refuses another format string (<code>save/mod.rs:94, 429, 1550</code>). <span class="tag d">modeled</span> A raise to 1,000 kg keeps every shipped save valid: their canisters hold at most 200 kg, under the new check. It needs no migration and changes no saved field. A save with a canister over 200 kg is written only by the new build. A later cut below 1,000 kg would break such saves and would need a migration. M-P adds no saved field: a partly emptied canister saves as a smaller <code>contents</code>. A wreck-only cap with an origin field would change the format.</p>
+
+<h2 id="endstate">11. End state, deaths, breaks, failures (candidate M)</h2>
+<div class="card callout-p">
+<p><strong>End state</strong> <span class="tag p">proposed</span>. A destroyed ship's one drop holds as few canisters as the approved packing rule gives. Each canister holds whole items, may mix item types, and weighs what it holds, at most the cap (1,000 kg proposed). Mass is conserved exactly. Ejection, freeze, save and ids work as they do now. Section drops of a standing ship stay separate. Whole-fit is kept unless M-P is approved.</p>
+<p><strong>What dies.</strong> The per-item <code>CargoCanister::split</code> call in <code>wreck_cargo.rs:136-139</code>. The module doc line "Each item packs into whole canisters by <code>split</code>" (<code>wreck_cargo.rs:20</code>). The 10-canister expectation in <code>wreck_cargo/tests.rs:212-225</code>. The 200 kg value and every doc that states it (section 10). <code>split</code> itself stays for mining (<code>mining.rs:1056</code>) and jettison (<code>inventory.rs:1450</code>), at the new cap. With M-P, also the whole-fit tests (<code>cargo_intake_section/tests.rs:460-500, 502</code>).</p>
+<p><strong>What may break.</strong> Pickup with a hold below the canister mass (section 7). Small ships, if a start ship's hold is under 1,000 kg. Mining and jettison canister sizes. Bench and probe readers that expect one item per wreck canister. The station test in <code>wreck_cargo/tests.rs:268-282</code>, which filters canisters by item. Player readability, because the tags read <code>Mixed cargo</code>. Loss size when one canister is destroyed.</p>
+<p><strong>What must fail loudly.</strong> A canister over the cap: the existing <code>new</code>/<code>add</code> asserts panic (<code>inventory.rs:1274-1278, 1319-1324</code>). An item over the cap: content lint first (<code>crates/nova_assets/src/items.rs:147-154</code>), then the packer panics. Counts that do not sum back to the input stacks: assert in the packer. A saved canister over the cap: the existing save refusal (<code>save/mod.rs:940-951</code>). A full hold refuses whole and leaves the goods in space, unless M-P is approved.</p>
+</div>
+
+<h2 id="interfaces">12. Proposed owning interfaces (not implemented)</h2>
+<p><span class="tag p">proposed</span> The owner is <code>CargoCanister</code> in <code>nova_gameplay::inventory</code>, the lowest crate that owns the cap. The producer change is in <code>nova_scenario::wreck_cargo</code>. The value, name, rule and signature need approval before any code.</p>
+<pre><code>// crates/nova_gameplay/src/inventory.rs (PROPOSED, unapproved value)
+pub const CARGO_CANISTER_MAX_MASS_G: u32 = 1_000_000;
+
+impl CargoCanister {
+    /// `stacks` packed into new canisters of whole items, each at most
+    /// CARGO_CANISTER_MAX_MASS_G, by &lt;RULE TO BE APPROVED&gt;, in a
+    /// deterministic order. Each canister weighs what it holds. The counts
+    /// sum back to `stacks`. Empty for no stacks.
+    ///
+    /// # Panics
+    /// When one item is heavier than a canister holds.
+    pub fn pack(items: &amp;GameItems, stacks: &amp;BTreeMap&lt;ItemDesignId, u32&gt;) -&gt; Vec&lt;Self&gt;;
+}
+
+// crates/nova_scenario/src/wreck_cargo.rs:136-139 (PROPOSED)
+let canisters = CargoCanister::pack(&amp;items, &amp;stacks);</code></pre>
+<p>Caller graph before and after:</p>
+<pre><code>before: drop_wreck_cargo -&gt; stacks.iter().flat_map(CargoCanister::split) -&gt; MinedCanisterQueue::leaving
+after:  drop_wreck_cargo -&gt; CargoCanister::pack(&amp;stacks)              -&gt; MinedCanisterQueue::leaving
+changed value: release_mined_ore -&gt; split (mining.rs:1056); plan_item_jettison -&gt; split (inventory.rs:1444-1450)
+changed value: content lint (nova_assets items.rs:148); save check (save/mod.rs:942)
+unchanged: eject_mined_canisters (mint), run_cargo_intakes (whole-fit, unless M-P), freeze, HUD</code></pre>
+<p>M-P would change <code>run_cargo_intakes</code> instead of keeping it. It needs an item order rule, a new <code>ready</code> meaning and a rule for the door. M-T would add one wreck target constant beside the cap. Neither has a proposed signature here until the owner picks one.</p>
+
+<h2 id="proof">13. Proof plan</h2>
+<p><span class="tag p">proposed</span> Each new test needs owner approval first. Each one names a stable behavior.</p>
+<ol>
+<li><strong>Reproduce first</strong> (task gate). Run a <code>nova-bench</code> starter-hold defeat-then-salvage flow on the current build. Keep <code>score.json</code>, <code>audit.jsonl</code> and <code>game.log</code>. Record each refusal with free mass and canister mass, and count drops and origins as in section 4. This shows whether the failure is refusal, reach or yield.</li>
+<li><strong>Pure packing</strong> (unit, <code>inventory.rs</code> tests). For the 1,300 kg fixture stacks, assert the exact list of the approved rule (2 canisters, 1,000 + 300 kg under fill-to-cap). Also assert: every canister is at most the cap, counts sum back to the input, a repeat call gives the same list, and an over-cap item panics.</li>
+<li><strong>Deterministic drop</strong> (ECS example, <code>wreck_cargo/tests.rs</code>). Update the whole-ship test to assert one drop and the approved list. Drain it and assert FIFO contents, unique ids and no second drop. Keep the section-alone test as the per-drop isolation check.</li>
+<li><strong>Intake</strong> (ECS example). With a hold 150 kg free and M1 and M2 in contact: whole-fit refuses both, the door stays shut and hold mass is unchanged. With M-P: the hold gains the approved items up to 150 kg, the canister keeps its id and the rest.</li>
+<li><strong>Freeze and save</strong>. Freeze a waiting drop with mixed canisters, thaw it, and drain it (existing pattern <code>mining.rs:2127-2261</code>). Save and load a live 1,000 kg canister with a travel lock. A canister over the cap must still be refused (<code>save/mod.rs:940-951</code>). Load a shipped <code>v0.16.0</code> save unchanged.</li>
+<li><strong>Player pickup</strong> (<code>nova-bench</code>). Defeat, salvage and spend on the same fixture as step 1, with a start ship. Compare canister count, received mass and refusals with the step 1 artifacts. Inspect pickup-sight and tag frames on an isolated Xvfb display only.</li>
+</ol>
+<p>Run affected checks only, with <code>nix develop --command</code>: the <code>nova_gameplay</code> inventory tests, the <code>nova_scenario</code> wreck_cargo and mining tests, the <code>nova_ship</code> intake tests, the <code>nova_assets</code> item lint tests and the <code>nova_world_base</code> save tests. Then the bench.</p>
+
+<h2 id="decision">14. Decision</h2>
+<div class="card callout-p">
+<p><strong>Owner preference.</strong> Candidate M: canisters up to about 1,000 kg, filled with mixed items, to cut collection work. Nothing is approved for implementation.</p>
+<p><strong>Recommendation.</strong> Keep M as the design direction, and pair it with M-P (partial pickup of whole items). M alone takes 0 kg of the fixture at 150 kg free, where shipped takes 140 kg, and it locks out every ship whose hold is below the canister mass. M-P removes that regression and keeps the hold limit. If partial pickup is rejected, use M-T with an approved T, and accept that T sets the smallest hold that can take anything. The reproduction in section 13 step 1 still gates the work: M does not fix the measured missed-contact case.</p>
+<p><strong>Unapproved parameters.</strong> The cap value (1,000 kg is "maybe"). Global cap or wreck-only cap. The packing rule (fill-to-cap in id order, decreasing unit mass, or balanced). Whole-fit or partial pickup, and for partial pickup the item order, the <code>ready</code> meaning and the door rule. Whether M-T exists, and its T. Whether a mixed tag lists its items.</p>
+</div>
+<p class="decision">Decision for a later implementation: approve candidate M at 1,000 kg with partial pickup of whole items (M-P), or with whole-fit kept and the low-hold regression accepted.</p>
+
+<h2 id="limits">15. Corrections and limits</h2>
+<ul>
+<li>Revision 2026-10-30: this page first recommended keeping the 200 kg cap and named Alternative A as the narrow candidate. The owner prefers candidate M. Alternative A stays as a comparison only.</li>
+<li>Correction: the earlier Delivery chain in <a href="TASK.md">TASK.md</a> read <code>wreck_cargo -&gt; inventory::strip_parts_at</code>. The wreck path calls <code>strip_parts()</code> at full share (<code>wreck_cargo.rs:96-100</code>). Health share applies to the station strip (<code>inventory.rs:1623-1631</code>). The earlier review (<code>20261025-214714/TASK.md:39</code>) says "health_share" for the wreck drop, which is also wrong.</li>
+<li>Correction: the bench pilot's "4,000 PDC rounds" is wrong. The referee recorded 5,000 (<code>score.json:13</code> vs <code>:27</code>).</li>
+<li>The bench ran on <code>9822f69d8</code>, and this page reads <code>112b79a0d</code>. Section 1 states why the mapped behavior is the same. That comparison was made by reading the diff, not by running both builds.</li>
+<li>No game run, test, screenshot or frame was produced for this page. All diagrams are schematics or plotted log values. All M, M-P, M-T and A numbers are arithmetic on fixture masses, not code output. Only the historical bench's score, game log and final audit fields are preserved here; the full audit is not included.</li>
+<li>Not established: the fate of canisters that are not live at the end of the bench, drift paths, the root drop's logged count (section 4 models it as 2 panels from recipes), ore owed per mining remesh, the typical free hold during salvage, and any human-play severity.</li>
+</ul>
+
+</main>
+</body>
+</html>

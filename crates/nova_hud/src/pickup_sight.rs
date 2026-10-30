@@ -14,9 +14,10 @@
 //! [`CargoIntakeSectionMarker`], without [`SectionInactiveMarker`], and still
 //! parented to the same ship the pair names): `CargoPickupReadiness` is a
 //! snapshot from the last fixed pass and `Update` runs between fixed ticks. A
-//! take despawns the canister in the same fixed pass that marks it ready, so
-//! the sight clears with it; the take sound, not the sight, confirms the
-//! take.
+//! take that empties the canister despawns it in the same fixed pass that
+//! marks it ready, so the sight clears with it. A take the hold's room cuts
+//! short leaves the rest in the same canister, which stays a candidate. The
+//! take sound, not the sight, confirms the take.
 //!
 //! Every pose the sight draws or measures is the interpolated
 //! `GlobalTransform` of the ship, the intake and the canister, never the raw
@@ -98,8 +99,8 @@ impl PickupSightAssets {
             .clone()
     }
 
-    /// Nav cyan throughout: a take despawns the canister in the same fixed
-    /// pass that marks its pair ready, so no frame ever draws a ready pair.
+    /// Nav cyan throughout: the sight never reads a pair's `ready` flag, so
+    /// it does not mark the pass that takes from a canister.
     fn line_material(
         &mut self,
         materials: &mut Assets<StandardMaterial>,
@@ -790,9 +791,10 @@ mod tests {
         );
     }
 
-    /// A real take moves the whole canister into the hold, despawns it and
-    /// voices the take, and the sight - drawn with no lock - clears with the
-    /// canister: nothing confirms the take on screen after it is gone.
+    /// A real take into a hold with room for every item empties the
+    /// canister into the hold, despawns it and voices the take, and the
+    /// sight - drawn with no lock - clears with the canister: nothing confirms
+    /// the take on screen after it is gone.
     #[test]
     fn a_real_take_fills_the_hold_and_clears_the_sight() {
         let mut app = unfinished_integrity_physics_app();

@@ -176,7 +176,7 @@ Every start hull carries a docking port on its port flank and a cargo intake. Th
 
 1. **Take from a wreck.** Each generated derelict wreck carries its own mixed goods - it may hold no hull plates at all - and a share of its credits. Travel-lock one, line one of your ports up with one of its ports and press <kbd>D</kbd> to [dock](../sections/docking/#flying-the-approach). In the Inventory pane, click an item and **Confirm** to [take](../interface/#take-and-give) it, or click **Take credits** to take its whole balance in one click. <kbd>D</kbd> again lets go.
 2. **Mine a rock.** Point the emitter at a rock inside 100 m and hold <kbd>V</kbd>. No travel lock is needed. The [mining beam](../sections/mining-beam/#cutting-ore) cuts the nearest rock it meets once a second, and the ore drifts off in canisters.
-3. **Pick up a canister.** Fly your top-deck [cargo intake](../sections/cargo-intake/#taking-a-canister-in) up onto a canister, door first. It goes into your hold whole.
+3. **Pick up a canister.** Fly your top-deck [cargo intake](../sections/cargo-intake/#taking-a-canister-in) up onto a canister, door first. Every whole item your hold has room for goes in; the rest stays in the canister.
 4. **Drop cargo.** Undocked, click an item in the Inventory pane and **Confirm** a [Jettison](../interface/#jettison-and-pickup). Close the pane and the intake drops it as canisters, which you can pick up again.
 
 Ore sells to a docked ship that trades: a living generated ship carries its own goods and credits, so Buy and Sell work once you dock with a calm one you have not neutralized. Mined ore stays in your hold until you find one.

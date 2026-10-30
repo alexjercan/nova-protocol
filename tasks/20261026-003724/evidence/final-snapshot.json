@@ -1,0 +1,253 @@
+{
+  "source": "audit.jsonl:509",
+  "original_sha256": "8a69967bf7373d10ea8b973a77441f8d7e04ac9938d07e07be84c527ee84e4fe",
+  "tick": 5826,
+  "scenario": "bench_range",
+  "cargo": {
+    "capacity_g": 13400000,
+    "used_g": 0,
+    "free_g": 13400000,
+    "credits": 2000,
+    "items": []
+  },
+  "canisters": [
+    {
+      "id": 0,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 74.3,
+      "bearing_deg": [
+        -99.6,
+        64.2
+      ]
+    },
+    {
+      "id": 1,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 74.1,
+      "bearing_deg": [
+        -45.7,
+        37.7
+      ]
+    },
+    {
+      "id": 2,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 98.4,
+      "bearing_deg": [
+        -35.5,
+        7.8
+      ]
+    },
+    {
+      "id": 6,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 67.5,
+      "bearing_deg": [
+        -53.8,
+        32.1
+      ]
+    },
+    {
+      "id": 7,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 250.0,
+      "bearing_deg": [
+        -36.0,
+        9.7
+      ]
+    },
+    {
+      "id": 8,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 222.8,
+      "bearing_deg": [
+        25.2,
+        -3.6
+      ]
+    },
+    {
+      "id": 9,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 82.7,
+      "bearing_deg": [
+        -10.1,
+        -29.6
+      ]
+    },
+    {
+      "id": 10,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 94.8,
+      "bearing_deg": [
+        -12.6,
+        -21.6
+      ]
+    },
+    {
+      "id": 12,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 60.4,
+      "bearing_deg": [
+        -68.5,
+        18.2
+      ]
+    },
+    {
+      "id": 14,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 655.0,
+      "bearing_deg": [
+        92.0,
+        0.4
+      ]
+    },
+    {
+      "id": 15,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 49.2,
+      "bearing_deg": [
+        85.0,
+        -67.3
+      ]
+    },
+    {
+      "id": 16,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 107.7,
+      "bearing_deg": [
+        -17.8,
+        -56.8
+      ]
+    },
+    {
+      "id": 23,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 262.4,
+      "bearing_deg": [
+        -110.8,
+        -50.7
+      ]
+    },
+    {
+      "id": 28,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 280.1,
+      "bearing_deg": [
+        -171.5,
+        -30.7
+      ]
+    },
+    {
+      "id": 29,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 252.4,
+      "bearing_deg": [
+        -158.4,
+        -42.9
+      ]
+    },
+    {
+      "id": 30,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 335.6,
+      "bearing_deg": [
+        -66.7,
+        -59.3
+      ]
+    },
+    {
+      "id": 31,
+      "stacks": [
+        {
+          "item": "SectionPanel",
+          "count": 1
+        }
+      ],
+      "distance_m": 389.4,
+      "bearing_deg": [
+        -109.2,
+        -37.8
+      ]
+    }
+  ]
+}

@@ -32,10 +32,10 @@ The beam does not aim. It runs straight out of the emitter's face, so the **ship
 | Cut | a sphere about **7.5 m** in radius where the beam hits |
 | Health | **90** |
 
-<!-- Widget values: crates/nova_authoring/src/base_content/sections/mining_beam.rs:101-103 (reach 100 m, pulse 1 s, carve_radius_cells 1.5); FIELD_CELL_WORLD 0.5 units in crates/nova_scenario/src/objects/asteroid_carve.rs:108 (1.5 cells ~ 7.5 m); CARGO_CANISTER_MAX_MASS_G 200 kg in crates/nova_gameplay/src/inventory.rs:532; MINED_CANISTER_OFFSET 10 m and MINED_CANISTER_SPEED 2 m/s in crates/nova_scenario/src/mining.rs:93,97,895-925; direct nearest-asteroid aim and ore check in MiningRefusalType and aim_beam; a refusal is an info log and the authored refusal_sound at the emitter face in play_mining_pulse_sfx; canisters after the remesh :804-841. -->
+<!-- Widget values: crates/nova_authoring/src/base_content/sections/mining_beam.rs:101-103 (reach 100 m, pulse 1 s, carve_radius_cells 1.5); FIELD_CELL_WORLD 0.5 units in crates/nova_scenario/src/objects/asteroid_carve.rs:108 (1.5 cells ~ 7.5 m); CARGO_CANISTER_MAX_MASS_G 1,000 kg in crates/nova_gameplay/src/inventory.rs; MINED_CANISTER_OFFSET 10 m and MINED_CANISTER_SPEED 2 m/s in crates/nova_scenario/src/mining.rs:93,97,895-925; direct nearest-asteroid aim and ore check in MiningRefusalType and aim_beam; a refusal is an info log and the authored refusal_sound at the emitter face in play_mining_pulse_sfx; canisters after the remesh :804-841. -->
 
 <div class="widget" data-widget="mining-beam-checks">
-<p>The emitter ray checks the nearest asteroid it intersects within 100 m, with no travel lock required. A barren asteroid in front of an ore rock refuses the pulse rather than letting the beam pass through it. A refused pulse shows nothing on the HUD. A pulse that passes cuts a sphere about 7.5 m in radius where the beam meets solid material; the first pulse into an untouched rock cuts nothing. Ore leaves only after the rock's remesh lands, as canisters of up to 200 kg, each born 10 m off the cut and drifting off it at 2 m/s.</p>
+<p>The emitter ray checks the nearest asteroid it intersects within 100 m, with no travel lock required. A barren asteroid in front of an ore rock refuses the pulse rather than letting the beam pass through it. A refused pulse shows nothing on the HUD. A pulse that passes cuts a sphere about 7.5 m in radius where the beam meets solid material; the first pulse into an untouched rock cuts nothing. Ore leaves only after the rock's remesh lands, as canisters of up to 1,000 kg, each born 10 m off the cut and drifting off it at 2 m/s.</p>
 </div>
 
 ## Cutting ore
@@ -71,9 +71,9 @@ A pulse that passes draws the beam to the hit, flares it, throws sparks and play
 
 ## Where the ore goes
 
-<!-- Ore by kind: ore_for_asteroid_kind in crates/nova_scenario/src/mining.rs. One item per field corner cut, paid once the rock's remesh lands; canisters of at most CARGO_CANISTER_MAX_MASS_G 200 kg (crates/nova_gameplay/src/inventory.rs), born MINED_CANISTER_OFFSET 1 unit (10 m) off the last cut along its outward normal and drifting at MINED_CANISTER_SPEED 0.2 units/s (2 m/s) plus the rock's own motion there. Ore mass 10 kg each: mass_g in crates/nova_authoring/src/base_content/items.rs `item_catalog`. Open-world rock kinds: ROCK_KINDS in crates/nova_world_base/src/clusters.rs. -->
+<!-- Ore by kind: ore_for_asteroid_kind in crates/nova_scenario/src/mining.rs. One item per field corner cut, paid once the rock's remesh lands; canisters of at most CARGO_CANISTER_MAX_MASS_G 1,000 kg (crates/nova_gameplay/src/inventory.rs), born MINED_CANISTER_OFFSET 1 unit (10 m) off the last cut along its outward normal and drifting at MINED_CANISTER_SPEED 0.2 units/s (2 m/s) plus the rock's own motion there. Ore mass 10 kg each: mass_g in crates/nova_authoring/src/base_content/items.rs `item_catalog`. Open-world rock kinds: ROCK_KINDS in crates/nova_world_base/src/clusters.rs. -->
 
-What a rock is made of decides the ore. Every ore weighs 10 kg, so one canister carries up to 20.
+What a rock is made of decides the ore. Every ore weighs 10 kg, so one canister carries up to 100.
 
 | Rock kind | Ore |
 | --- | --- |
@@ -83,7 +83,7 @@ What a rock is made of decides the ore. Every ore weighs 10 kg, so one canister 
 | carbon | Carbon ore |
 | plain | none: the beam does not fire on it |
 
-The ore leaves the rock once the cut is drawn, packed into canisters of up to 200 kg. They are born one at a time, 10 m off the last cut and drifting away from it at 2 m/s on top of the rock's own motion, and the next waits until the space there is clear. A rock that is cut away entirely still lets its last canisters go. Fly your [cargo intake](../cargo-intake/#taking-a-canister-in) onto a canister to take it in. A saved Open World keeps a canister as you left it; any other scenario keeps it only for the session.
+The ore leaves the rock once the cut is drawn, packed into canisters of up to 1,000 kg. They are born one at a time, 10 m off the last cut and drifting away from it at 2 m/s on top of the rock's own motion, and the next waits until the space there is clear. A rock that is cut away entirely still lets its last canisters go. Fly your [cargo intake](../cargo-intake/#taking-a-canister-in) onto a canister to take it in. A saved Open World keeps a canister as you left it; any other scenario keeps it only for the session.
 
 <figure class="figure">
     <!-- Capture: assets/wiki-section-mining-beam-carve.png (producer: screenshot_mining_beam) -->

@@ -1,0 +1,1764 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index db32ed7dd..7aa393d7f 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -19,6 +19,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
+ 
+ - The base PDC round now prices 10 cr ask / 7 cr bid per 100 rounds. A Buy rounds its lot share up, a Sell rounds down, and a Sell that would earn 0 cr is refused.
+ - A newly generated station that stocks PDC rounds now opens with at least 2,000 of them; its other stock is unchanged.
++- Cargo canisters now hold up to 1,000 kg. A wreck packs its drop into mixed canisters, and an intake takes the whole items that fit your hold, leaving the rest in the canister.
+ 
+ ### Modding & Mod Portal
+ 
+diff --git a/assets/base/sections/base.content.ron b/assets/base/sections/base.content.ron
+index fcad74b53..54847546e 100644
+--- a/assets/base/sections/base.content.ron
++++ b/assets/base/sections/base.content.ron
+@@ -2871,7 +2871,7 @@
+         base: (
+             id: "cargo_intake_section",
+             name: "Cargo Intake Section",
+-            description: "A hold mouth behind an accordion door. The door folds open for a canister within 40 m of it. The intake takes, whole and at any speed, a canister that reaches into the 1 m in front of its opening, if the hold has room. Jettison in the Inventory pane drops a canister out through the same door.",
++            description: "A hold mouth behind an accordion door. The door folds open for a canister within 40 m of it. When a canister reaches into the 1 m in front of its opening, the intake takes, at any speed, every whole item the hold has room for. The rest stays in the same canister. Jettison in the Inventory pane drops a canister out through the same door.",
+             health: 90.0,
+             build: (
+                 credits: 60,
+diff --git a/assets/base/training/base.content.ron b/assets/base/training/base.content.ron
+index 93b61b17f..3cd884bc0 100644
+--- a/assets/base/training/base.content.ron
++++ b/assets/base/training/base.content.ron
+@@ -436,12 +436,12 @@
+             rows: 5,
+             frames: 20,
+             frames_per_second: 10.0,
+-            alt: "a line warship rising under a drifting canister: the canister goes through the cargo intake\'s open door into the hold, and the door folds shut",
++            alt: "a line warship rising under a drifting canister, with the cargo intake\'s door open below it",
+         ),
+-        body: "A cargo intake takes a whole canister into your hold. Fly the intake\'s door onto the canister: the canister must touch the opening, and your hull beside it knocks the canister aside. The pickup sight draws a line from the intake to the canister.",
++        body: "A cargo intake takes each whole item in a canister that your hold has room for. The rest stays in that canister until taken. Fly the intake\'s door onto the canister; your hull beside the opening knocks it aside. The pickup sight lines you up.",
+         wiki_path: "wiki/sections/cargo-intake#taking-a-canister-in",
+         field_notes: [
+-            "Fly your cargo intake\'s door onto a canister to take it into your hold.",
++            "Fly your cargo intake\'s door onto a canister to take its cargo into your hold.",
+         ],
+     )),
+     Lesson((
+diff --git a/crates/nova_assets/src/items.rs b/crates/nova_assets/src/items.rs
+index 90fea9a36..d2ea53aa6 100644
+--- a/crates/nova_assets/src/items.rs
++++ b/crates/nova_assets/src/items.rs
+@@ -301,7 +301,7 @@ mod tests {
+             faults[BASE_MOD_ID],
+             [
+                 "item 'HullPlate' is filed under Food; the game uses it as Repair",
+-                "item 'PdcRound' has a mass_g of 200001; an item must fit one 200000 g \
++                "item 'PdcRound' has a mass_g of 1000001; an item must fit one 1000000 g \
+                  canister",
+                 "item 'Rations' is filed under Parts; the game uses it as Food",
+                 "item 'Scrap' has a mass_g of 0",
+diff --git a/crates/nova_authoring/src/base_content/lessons.rs b/crates/nova_authoring/src/base_content/lessons.rs
+index 24c6cfab1..62ef5bd8c 100644
+--- a/crates/nova_authoring/src/base_content/lessons.rs
++++ b/crates/nova_authoring/src/base_content/lessons.rs
+@@ -494,17 +494,17 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
+             "Picking up canisters",
+             looping(
+                 "flight_cargo_pickup",
+-                "a line warship rising under a drifting canister: the canister goes through the \
+-                 cargo intake's open door into the hold, and the door folds shut",
++                "a line warship rising under a drifting canister, with the cargo intake's door open \
++                 below it",
+             ),
+-            "A cargo intake takes a whole canister into your hold. Fly the intake's door onto the \
+-             canister: the canister must touch the opening, and your hull beside it knocks the \
+-             canister aside. The pickup sight draws a line from the intake to the canister.",
++            "A cargo intake takes each whole item in a canister that your hold has room for. The \
++             rest stays in that canister until taken. Fly the intake's door onto the canister; \
++             your hull beside the opening knocks it aside. The pickup sight lines you up.",
+             &[],
+             "wiki/sections/cargo-intake#taking-a-canister-in",
+             None,
+             &[],
+-            &["Fly your cargo intake's door onto a canister to take it into your hold."],
++            &["Fly your cargo intake's door onto a canister to take its cargo into your hold."],
+         ),
+         lesson(
+             "combat_radar",
+diff --git a/crates/nova_authoring/src/base_content/sections/cargo_intake.rs b/crates/nova_authoring/src/base_content/sections/cargo_intake.rs
+index b647abb1b..da833022f 100644
+--- a/crates/nova_authoring/src/base_content/sections/cargo_intake.rs
++++ b/crates/nova_authoring/src/base_content/sections/cargo_intake.rs
+@@ -1,9 +1,9 @@
+ //! The cargo intake: a 3x2 hold mouth behind an accordion door.
+ //!
+ //! Fly slowly past a drifting canister with the door facing it, and the door
+-//! folds open and the intake takes the whole canister into the hold, if the
+-//! hold has room. The Inventory pane's Jettison drops a canister out through
+-//! the same door.
++//! folds open and the intake takes every whole item the hold has room for.
++//! The rest stays in the same canister. The Inventory pane's Jettison drops a
++//! canister out through the same door.
+ 
+ use bevy::prelude::*;
+ use nova_events::prelude::*;
+@@ -91,10 +91,11 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
+             damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
+             name: "Cargo Intake Section".to_string(),
+             description: "A hold mouth behind an accordion door. The door \
+-                          folds open for a canister within 40 m of it. The \
+-                          intake takes, whole and at any speed, a canister \
+-                          that reaches into the 1 m in front of its opening, \
+-                          if the hold has room. Jettison in the Inventory \
++                          folds open for a canister within 40 m of it. When \
++                          a canister reaches into the 1 m in front of its \
++                          opening, the intake takes, at any speed, every \
++                          whole item the hold has room for. The rest stays \
++                          in the same canister. Jettison in the Inventory \
+                           pane drops a canister out through the same door."
+                 .to_string(),
+             health: CARGO_INTAKE_BASE_HEALTH,
+diff --git a/crates/nova_bench/src/pages/cargo.md b/crates/nova_bench/src/pages/cargo.md
+index 6ad351494..dbd77ac32 100644
+--- a/crates/nova_bench/src/pages/cargo.md
++++ b/crates/nova_bench/src/pages/cargo.md
+@@ -7,9 +7,11 @@ after every pickup or transfer. A command gesture is not a cargo action.
+ 
+ ## Pick up canisters
+ 
+-A working cargo intake automatically takes a drifting canister when the
+-canister physically enters its trigger and the hold has enough free mass
+-for the WHOLE canister. No pickup wire or command is needed. `canisters`
++A working cargo intake automatically takes from a drifting canister when the
++canister physically enters its trigger: every whole item that fits the free
++hold mass goes in, and the rest stays in the same canister with the same ID.
++A hold with no room for any of its items takes nothing. No pickup wire or
++command is needed. `canisters`
+ shows every live canister's runtime ID, contents, distance and bearing from
+ the player's ship. The ID tracks observations, not a pickup command. The
+ view does not locate an intake's trigger; a centred canister bearing alone
+diff --git a/crates/nova_bench/src/pages/mining.md b/crates/nova_bench/src/pages/mining.md
+index 3cef05041..7b6530600 100644
+--- a/crates/nova_bench/src/pages/mining.md
++++ b/crates/nova_bench/src/pages/mining.md
+@@ -17,8 +17,8 @@ command. `inputs.live` reports registry actions only.
+    `bodies.near` bearing does not prove a pulse reached rock.
+ 3. A successful carve can yield ore canisters only after the rock's field is
+    updated. Carving does not put ore directly in the hold. A working cargo
+-   intake takes a whole canister only when it enters the intake trigger and
+-   the hold has enough free mass. See the `cargo` page before attempting
++   intake takes the whole items that fit the free hold mass only when the
++   canister enters the intake trigger. See the `cargo` page before attempting
+    collection.
+ 
+ The agent view has no carve result or intake position. `canisters` lists
+diff --git a/crates/nova_events/src/lib.rs b/crates/nova_events/src/lib.rs
+index 6ad58a201..a35c43b70 100644
+--- a/crates/nova_events/src/lib.rs
++++ b/crates/nova_events/src/lib.rs
+@@ -1013,11 +1013,13 @@ pub struct MinedEventInfo {
+     pub count: u32,
+ }
+ 
+-/// A cargo intake took a canister into a ship's hold (`onpickedup`).
++/// A cargo intake took whole items from a canister into a ship's hold
++/// (`onpickedup`).
+ ///
+-/// One event per item stack the canister carried, in the tick the intake
+-/// despawns it; a canister of two stacks reports twice with the same
+-/// `canister` id.
++/// One event per item stack taken, in the tick of the take; a take of two
++/// stacks reports twice with the same `canister` id. A take that the hold's
++/// free mass cuts short reports only what it took, and the rest stays in the
++/// same canister under the same id until a later take reports it.
+ #[derive(Debug, Clone, EventKind, Reflect)]
+ #[event_name("onpickedup")]
+ #[event_info(CargoEventInfo)]
+diff --git a/crates/nova_gameplay/src/inventory.rs b/crates/nova_gameplay/src/inventory.rs
+index 655110257..d2500f043 100644
+--- a/crates/nova_gameplay/src/inventory.rs
++++ b/crates/nova_gameplay/src/inventory.rs
+@@ -633,13 +633,15 @@ pub struct ShipCredits(pub u32);
+ /// the tracker only resolves scenario ids.
+ #[derive(Clone, Debug, PartialEq, Eq, Reflect)]
+ pub enum ShipInventoryReport {
+-    /// An intake took one stack of a canister into the hold.
++    /// An intake took whole items of one stack of a canister into the hold.
++    /// A canister the hold takes in part reports what it took, and its
++    /// remainder reports again under the same id when taken later.
+     PickedUp {
+-        /// Runtime id of the taken canister.
++        /// Runtime id of the canister taken from.
+         canister: CargoCanisterRuntimeId,
+         /// The stack's item.
+         item: ItemDesignId,
+-        /// Units in the stack.
++        /// Units taken.
+         count: u32,
+     },
+     /// An intake dropped one stack of a canister out of the hold.
+@@ -1231,7 +1233,7 @@ pub fn plan_item_storage(
+ }
+ 
+ /// Maximum mass of a drifting canister, in grams.
+-pub const CARGO_CANISTER_MAX_MASS_G: u32 = 200_000;
++pub const CARGO_CANISTER_MAX_MASS_G: u32 = 1_000_000;
+ 
+ /// Item stacks drifting free in a canister. Every count is above zero and the
+ /// total mass is at most [`CARGO_CANISTER_MAX_MASS_G`].
+@@ -1281,27 +1283,87 @@ impl CargoCanister {
+         }
+     }
+ 
+-    /// `count` of `item` packed into new canisters, each filled to the last
+-    /// whole item under [`CARGO_CANISTER_MAX_MASS_G`] except the last. Empty
+-    /// for a count of zero.
++    /// `stacks` packed into new mixed canisters of whole items. Each canister
++    /// takes, in id order, as many whole items of every stack as still fit
++    /// under [`CARGO_CANISTER_MAX_MASS_G`], skips a stack whose next item is
++    /// too heavy and goes on to the next, and closes once no item fits. The
++    /// next canister starts again from the lowest remaining id. Empty for no
++    /// stacks; a zero count packs nothing.
+     ///
+     /// # Panics
+     ///
+-    /// When one `item` is heavier than a canister holds; the item lint
+-    /// refuses that item first.
+-    pub fn split(items: &GameItems, item: &ItemDesignId, count: u32) -> Vec<Self> {
+-        let per_canister = CARGO_CANISTER_MAX_MASS_G / items.design(item).mass_g;
+-        assert!(per_canister > 0, "item '{item}' is heavier than a canister");
+-        let mut rest = count;
++    /// When `items` lacks an item or one item is heavier than a canister
++    /// holds; the item lint refuses both first.
++    pub fn pack(items: &GameItems, stacks: &BTreeMap<ItemDesignId, u32>) -> Vec<Self> {
++        let mut rest: BTreeMap<ItemDesignId, u32> = stacks
++            .iter()
++            .filter(|(_, &count)| count > 0)
++            .map(|(item, &count)| {
++                assert!(
++                    items.design(item).mass_g <= CARGO_CANISTER_MAX_MASS_G,
++                    "item '{item}' is heavier than a canister"
++                );
++                (item.clone(), count)
++            })
++            .collect();
+         let mut canisters = Vec::new();
+-        while rest > 0 {
+-            let packed = rest.min(per_canister);
+-            canisters.push(Self::new(items, item, packed));
+-            rest -= packed;
++        while !rest.is_empty() {
++            let mut canister = Self {
++                stacks: BTreeMap::new(),
++            };
++            canister.take_into(items, &mut rest, CARGO_CANISTER_MAX_MASS_G);
++            canisters.push(canister);
+         }
+         canisters
+     }
+ 
++    /// Take whole items out of this canister that fit `free_g` grams, in id
++    /// order: `floor(free / mass)` of each stack, capped at its count. A
++    /// stack whose item is heavier than the room left is skipped, and a later
++    /// lighter stack can still fit. Returns the taken stacks in id order,
++    /// empty when no item fits. Every stack left keeps a count above zero;
++    /// the caller despawns a canister that [`is_empty`](Self::is_empty).
++    pub fn take_fitting(&mut self, items: &GameItems, free_g: u32) -> BTreeMap<ItemDesignId, u32> {
++        let mut taken = Self {
++            stacks: BTreeMap::new(),
++        };
++        taken.take_into(items, &mut self.stacks, free_g);
++        taken.stacks
++    }
++
++    /// Whether [`take_fitting`](Self::take_fitting) with `free_g` takes at
++    /// least one item.
++    pub fn fits_any(&self, items: &GameItems, free_g: u32) -> bool {
++        self.stacks
++            .keys()
++            .any(|item| items.design(item).mass_g <= free_g)
++    }
++
++    /// Whether every item has been taken out.
++    pub fn is_empty(&self) -> bool {
++        self.stacks.is_empty()
++    }
++
++    /// Move whole items from `source` into `self` in id order while they fit
++    /// `room_g`, dropping every emptied `source` stack.
++    fn take_into(
++        &mut self,
++        items: &GameItems,
++        source: &mut BTreeMap<ItemDesignId, u32>,
++        mut room_g: u32,
++    ) {
++        source.retain(|item, count| {
++            let mass_g = items.design(item).mass_g;
++            let moved = (*count).min(room_g / mass_g);
++            if moved > 0 {
++                room_g -= mass_g * moved;
++                *self.stacks.entry(item.clone()).or_default() += moved;
++                *count -= moved;
++            }
++            *count > 0
++        });
++    }
++
+     /// Every held stack in id order.
+     pub fn stacks(&self) -> impl Iterator<Item = (&ItemDesignId, u32)> + '_ {
+         self.stacks.iter().map(|(item, &count)| (item, count))
+@@ -1447,7 +1509,7 @@ pub fn plan_item_jettison(
+     Ok(ItemJettison {
+         count: quantity,
+         merged,
+-        canisters: CargoCanister::split(items, item, quantity - merged),
++        canisters: CargoCanister::pack(items, &[(item.clone(), quantity - merged)].into()),
+     })
+ }
+ 
+@@ -2609,9 +2671,9 @@ mod transfer_tests {
+             10_000_000,
+             [
+                 (ItemRoleType::HullPlate.into(), 12),
+-                (ItemRoleType::PdcRound.into(), 2_500),
+-                (ItemRoleType::RailSlug.into(), 25),
+-                (ItemRoleType::Torpedo.into(), 3),
++                (ItemRoleType::PdcRound.into(), 12_500),
++                (ItemRoleType::RailSlug.into(), 125),
++                (ItemRoleType::Torpedo.into(), 7),
+             ],
+         );
+         let plan = |tail: Option<&CargoCanister>, item, quantity| {
+@@ -2639,34 +2701,38 @@ mod transfer_tests {
+                 .collect::<Vec<_>>()
+         };
+ 
+-        // One 150 kg torpedo per canister; 10 slugs and 1000 rounds fill one.
+-        let torpedoes = plan(None, ItemRoleType::Torpedo, 3);
+-        assert_eq!((torpedoes.count, torpedoes.merged), (3, 0));
++        // Six 150 kg torpedoes fill a canister to 900 kg; 50 slugs and 5000
++        // rounds fill one to 1000 kg.
++        let torpedoes = plan(None, ItemRoleType::Torpedo, 7);
++        assert_eq!((torpedoes.count, torpedoes.merged), (7, 0));
+         assert_eq!(
+             split(&torpedoes),
+-            vec![vec![(ItemRoleType::Torpedo.id().to_string(), 1)]; 3]
++            [
++                vec![(ItemRoleType::Torpedo.id().to_string(), 6)],
++                vec![(ItemRoleType::Torpedo.id().to_string(), 1)],
++            ]
+         );
+-        let slugs = plan(None, ItemRoleType::RailSlug, 25);
++        let slugs = plan(None, ItemRoleType::RailSlug, 125);
+         assert_eq!(
+             split(&slugs),
+             [
+-                vec![(ItemRoleType::RailSlug.id().to_string(), 10)],
+-                vec![(ItemRoleType::RailSlug.id().to_string(), 10)],
+-                vec![(ItemRoleType::RailSlug.id().to_string(), 5)],
++                vec![(ItemRoleType::RailSlug.id().to_string(), 50)],
++                vec![(ItemRoleType::RailSlug.id().to_string(), 50)],
++                vec![(ItemRoleType::RailSlug.id().to_string(), 25)],
+             ]
+         );
+-        let rounds = plan(None, ItemRoleType::PdcRound, 2_500);
++        let rounds = plan(None, ItemRoleType::PdcRound, 12_500);
+         assert_eq!(
+             split(&rounds),
+             [
+-                vec![(ItemRoleType::PdcRound.id().to_string(), 1_000)],
+-                vec![(ItemRoleType::PdcRound.id().to_string(), 1_000)],
+-                vec![(ItemRoleType::PdcRound.id().to_string(), 500)],
++                vec![(ItemRoleType::PdcRound.id().to_string(), 5_000)],
++                vec![(ItemRoleType::PdcRound.id().to_string(), 5_000)],
++                vec![(ItemRoleType::PdcRound.id().to_string(), 2_500)],
+             ]
+         );
+ 
+-        // A waiting 90 kg tail has 110 kg of room: 5 slugs merge ...
+-        let tail = CargoCanister::new(&items, &ItemDesignId::from(ItemRoleType::HullPlate), 9);
++        // A waiting 900 kg tail has 100 kg of room: 5 slugs merge ...
++        let tail = CargoCanister::new(&items, &ItemDesignId::from(ItemRoleType::HullPlate), 90);
+         let into_tail = plan(Some(&tail), ItemRoleType::RailSlug, 7);
+         assert_eq!((into_tail.count, into_tail.merged), (7, 5));
+         assert_eq!(
+@@ -2680,8 +2746,8 @@ mod transfer_tests {
+             split(&past_tail),
+             [vec![(ItemRoleType::Torpedo.id().to_string(), 1)]]
+         );
+-        let fits = plan(Some(&tail), ItemRoleType::HullPlate, 11);
+-        assert_eq!((fits.merged, fits.canisters.len()), (11, 0));
++        let fits = plan(Some(&tail), ItemRoleType::HullPlate, 10);
++        assert_eq!((fits.merged, fits.canisters.len()), (10, 0));
+ 
+         // Every planned count is conserved across the tail and the canisters.
+         for jettison in [&torpedoes, &slugs, &rounds, &into_tail, &past_tail, &fits] {
+@@ -2694,6 +2760,63 @@ mod transfer_tests {
+             assert_eq!(jettison.merged + queued, jettison.count);
+         }
+     }
++
++    fn canister_stacks(canister: &CargoCanister) -> Vec<(&str, u32)> {
++        canister
++            .stacks()
++            .map(|(item, count)| (item.as_str(), count))
++            .collect()
++    }
++
++    #[test]
++    fn packing_fills_each_canister_in_id_order_past_an_item_too_heavy_for_the_room_left() {
++        let items = crate::test_support::test_items();
++        // 64 15 kg packs leave 40 kg: the 80 kg bell waits, and four of the
++        // five 10 kg cores still fill the first canister to the cap.
++        let packed = CargoCanister::pack(
++            &items,
++            &[
++                ("ActuatorPack".into(), 64),
++                ("DriveBell".into(), 1),
++                ("FlightCore".into(), 5),
++                ("HullPlate".into(), 0),
++            ]
++            .into(),
++        );
++        assert_eq!(
++            packed.iter().map(canister_stacks).collect::<Vec<_>>(),
++            [
++                vec![("ActuatorPack", 64), ("FlightCore", 4)],
++                vec![("DriveBell", 1), ("FlightCore", 1)],
++            ]
++        );
++        assert_eq!(packed[0].total_mass_g(&items), CARGO_CANISTER_MAX_MASS_G);
++        assert!(CargoCanister::pack(&items, &BTreeMap::new()).is_empty());
++    }
++
++    #[test]
++    fn taking_from_a_canister_moves_only_whole_items_that_fit_and_keeps_the_rest() {
++        let items = crate::test_support::test_items();
++        let mut canister = CargoCanister::new(&items, &"DriveBell".into(), 1);
++        canister.add(&items, &"FlightCore".into(), 3);
++
++        // 55 kg free: the 80 kg bell is skipped, the 10 kg cores still fit.
++        assert!(canister.fits_any(&items, 55_000));
++        assert_eq!(
++            canister.take_fitting(&items, 55_000),
++            [("FlightCore".into(), 3)].into()
++        );
++        assert_eq!(canister_stacks(&canister), [("DriveBell", 1)]);
++        assert!(!canister.fits_any(&items, 55_000));
++        assert!(canister.take_fitting(&items, 55_000).is_empty());
++        assert_eq!(canister_stacks(&canister), [("DriveBell", 1)]);
++
++        assert_eq!(
++            canister.take_fitting(&items, 80_000),
++            [("DriveBell".into(), 1)].into()
++        );
++        assert!(canister.is_empty());
++    }
+ }
+ 
+ #[cfg(test)]
+diff --git a/crates/nova_hud/src/pickup_sight.rs b/crates/nova_hud/src/pickup_sight.rs
+index e37dd531e..03ee1bd1b 100644
+--- a/crates/nova_hud/src/pickup_sight.rs
++++ b/crates/nova_hud/src/pickup_sight.rs
+@@ -14,9 +14,10 @@
+ //! [`CargoIntakeSectionMarker`], without [`SectionInactiveMarker`], and still
+ //! parented to the same ship the pair names): `CargoPickupReadiness` is a
+ //! snapshot from the last fixed pass and `Update` runs between fixed ticks. A
+-//! take despawns the canister in the same fixed pass that marks it ready, so
+-//! the sight clears with it; the take sound, not the sight, confirms the
+-//! take.
++//! take that empties the canister despawns it in the same fixed pass that
++//! marks it ready, so the sight clears with it. A take the hold's room cuts
++//! short leaves the rest in the same canister, which stays a candidate. The
++//! take sound, not the sight, confirms the take.
+ //!
+ //! Every pose the sight draws or measures is the interpolated
+ //! `GlobalTransform` of the ship, the intake and the canister, never the raw
+@@ -98,8 +99,8 @@ impl PickupSightAssets {
+             .clone()
+     }
+ 
+-    /// Nav cyan throughout: a take despawns the canister in the same fixed
+-    /// pass that marks its pair ready, so no frame ever draws a ready pair.
++    /// Nav cyan throughout: the sight never reads a pair's `ready` flag, so
++    /// it does not mark the pass that takes from a canister.
+     fn line_material(
+         &mut self,
+         materials: &mut Assets<StandardMaterial>,
+@@ -790,9 +791,10 @@ mod tests {
+         );
+     }
+ 
+-    /// A real take moves the whole canister into the hold, despawns it and
+-    /// voices the take, and the sight - drawn with no lock - clears with the
+-    /// canister: nothing confirms the take on screen after it is gone.
++    /// A real take into a hold with room for every item empties the
++    /// canister into the hold, despawns it and voices the take, and the
++    /// sight - drawn with no lock - clears with the canister: nothing confirms
++    /// the take on screen after it is gone.
+     #[test]
+     fn a_real_take_fills_the_hold_and_clears_the_sight() {
+         let mut app = unfinished_integrity_physics_app();
+diff --git a/crates/nova_interface/src/inventory/tests.rs b/crates/nova_interface/src/inventory/tests.rs
+index efa02729f..4d79a6da7 100644
+--- a/crates/nova_interface/src/inventory/tests.rs
++++ b/crates/nova_interface/src/inventory/tests.rs
+@@ -2186,8 +2186,8 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
+     assert_eq!(plates(app.world(), player), 6);
+     assert_eq!(queue(&app, intake), Some(vec![60_000]));
+ 
+-    // Past one canister, Confirm removes the whole quantity at once: the
+-    // waiting 190 kg canister takes one plate and new canisters the rest.
++    // Confirm removes the whole quantity at once and tops up the waiting
++    // 190 kg canister: all 39 plates fit under the 1,000 kg canister cap.
+     app.world_mut().entity_mut(player).insert(hold(39));
+     app.world_mut()
+         .entity_mut(intake)
+@@ -2206,10 +2206,10 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
+     assert_eq!(queue(&app, intake), Some(vec![190_000]));
+     assert_eq!(
+         confirm(&mut app, &[Some(39)]),
+-        dropped("Jettisoned 39 Hull plate: 3 canisters queued")
++        dropped("Jettisoned 39 Hull plate: 1 canister queued")
+     );
+     assert_eq!(plates(app.world(), player), 0);
+-    assert_eq!(queue(&app, intake), Some(vec![200_000, 200_000, 180_000]));
++    assert_eq!(queue(&app, intake), Some(vec![580_000]));
+     app.world_mut()
+         .entity_mut(intake)
+         .remove::<CargoIntakeEjectionQueue>();
+diff --git a/crates/nova_scenario/src/mining.rs b/crates/nova_scenario/src/mining.rs
+index ff2ca5129..5c46570a2 100644
+--- a/crates/nova_scenario/src/mining.rs
++++ b/crates/nova_scenario/src/mining.rs
+@@ -1053,7 +1053,7 @@ fn release_mined_ore(
+     let mut waiting = queue.map_or_else(VecDeque::new, |queue| queue.waiting.clone());
+     if let Some(owed) = owed {
+         waiting.extend(
+-            CargoCanister::split(&items, &owed.item, owed.corners)
++            CargoCanister::pack(&items, &[(owed.item.clone(), owed.corners)].into())
+                 .into_iter()
+                 .map(|canister| MinedCanister {
+                     canister,
+@@ -2027,7 +2027,7 @@ mod tests {
+     /// A rock that runs out of material while its canisters' birth point is
+     /// blocked hands them to a drop that keeps them all and waits. Once the
+     /// point clears, the drop lets them out first in, first out, one at a
+-    /// time, and despawns with the last: all 45 ore, none lost.
++    /// time, and despawns with the last: all 205 ore, none lost.
+     #[test]
+     fn an_exhausted_rock_keeps_blocked_canisters_until_the_birth_point_clears() {
+         let iron = ItemDesignId::from(ItemRoleType::IronOre);
+@@ -2048,7 +2048,7 @@ mod tests {
+                 ChildOf(root),
+                 MinedOre {
+                     item: iron.clone(),
+-                    corners: 45,
++                    corners: 205,
+                     at: Vec3::new(0.5, 0.0, 0.0),
+                     normal: Vec3::X,
+                 },
+@@ -2093,7 +2093,7 @@ mod tests {
+         let [(drop, counts, parent, at)] = &drops[..] else {
+             panic!("the exhausted rock must leave one drop: {drops:?}");
+         };
+-        assert_eq!(counts, &[20, 20, 5]);
++        assert_eq!(counts, &[100, 100, 5]);
+         assert_eq!(*parent, sector);
+         assert!(at.distance(Vec3::new(3.0, 0.0, 0.0)) < 1e-5, "{at}");
+         assert!(world.get::<ScenarioScopedMarker>(*drop).is_some());
+@@ -2120,7 +2120,7 @@ mod tests {
+             "the drop never drained"
+         );
+         let counts: Vec<u32> = born.iter().map(|(_, count)| *count).collect();
+-        assert_eq!(counts, [20, 20, 5], "first in, first out, one at a time");
++        assert_eq!(counts, [100, 100, 5], "first in, first out, one at a time");
+     }
+ 
+     /// A rock still owed ore and a drop still waiting on a blocked birth point
+@@ -2157,7 +2157,7 @@ mod tests {
+                 ChildOf(exhausted),
+                 MinedOre {
+                     item: iron.clone(),
+-                    corners: 45,
++                    corners: 205,
+                     at: Vec3::new(0.5, 0.0, 0.0),
+                     normal: Vec3::X,
+                 },
+@@ -2188,7 +2188,7 @@ mod tests {
+         else {
+             panic!("the exhausted rock must leave one drop");
+         };
+-        assert_eq!(ore_in_world(world, &iron), 12 + 45);
++        assert_eq!(ore_in_world(world, &iron), 12 + 205);
+ 
+         let frozen_rock = freeze_asteroid(world, rock).expect("a settled rock freezes");
+         let frozen_drop = freeze_ore_drop(world, drop);
+@@ -2236,7 +2236,7 @@ mod tests {
+             Some(&owed),
+             "the rock is owed the same ore"
+         );
+-        assert_eq!(ore_in_world(world, &iron), 12 + 45);
++        assert_eq!(ore_in_world(world, &iron), 12 + 205);
+ 
+         world.entity_mut(blocker).despawn();
+         let mut born = Vec::new();
+@@ -2258,7 +2258,7 @@ mod tests {
+             "the thawed drop never drained"
+         );
+         let counts: Vec<u32> = born.iter().map(|(_, count)| *count).collect();
+-        assert_eq!(counts, [20, 20, 5], "the thawed drop pays its queue once");
++        assert_eq!(counts, [100, 100, 5], "the thawed drop pays its queue once");
+     }
+ 
+     /// A destroyed mining section's wreck freezes clean. The wreck detach
+diff --git a/crates/nova_scenario/src/wreck_cargo.rs b/crates/nova_scenario/src/wreck_cargo.rs
+index 58f3bda0d..48491a9b3 100644
+--- a/crates/nova_scenario/src/wreck_cargo.rs
++++ b/crates/nova_scenario/src/wreck_cargo.rs
+@@ -17,12 +17,13 @@
+ //! carries them with the hold, so a ship destroyed whole leaves one drop. Any
+ //! other section drops its parts on its own as it dies.
+ //!
+-//! Each item packs into whole canisters by [`CargoCanister::split`], and the
+-//! canisters wait in a [`MinedOreDrop`](crate::mining::MinedOreDrop) at the
+-//! dead body's position, under the parent its ship root had, so a sector
+-//! retirement freezes it. The mining
+-//! ejector ([`MiningPlugin`](crate::mining::MiningPlugin)) lets them out one
+-//! at a time, each born off the drop while the birth point is clear and
++//! One drop's stacks pack together into mixed canisters of whole items by
++//! [`CargoCanister::pack`], each filled in item id order up to the canister
++//! mass cap; separate drops never share a canister. The canisters wait in a
++//! [`MinedOreDrop`](crate::mining::MinedOreDrop) at the dead body's position,
++//! under the parent its ship root had, so a sector retirement freezes it. The
++//! mining ejector ([`MiningPlugin`](crate::mining::MiningPlugin)) lets them
++//! out one at a time, each born off the drop while the birth point is clear and
+ //! drifting away from it. A section's canisters leave along the line from its
+ //! ship's centre through the section; a ship root's leave along the root's up.
+ //! A drop does not move with the ship it came from, but a section's drop off
+@@ -133,10 +134,7 @@ fn drop_wreck_cargo(
+         return;
+     }
+     let items = items.expect("drop_wreck_cargo: a destroyed body holds items but no GameItems");
+-    let canisters: Vec<CargoCanister> = stacks
+-        .iter()
+-        .flat_map(|(item, &count)| CargoCanister::split(&items, item, count))
+-        .collect();
++    let canisters = CargoCanister::pack(&items, &stacks);
+     let queue = MinedCanisterQueue::leaving(canisters, Vec3::ZERO, normal)
+         .expect("every stack above zero packs into a canister");
+     let pose = GlobalTransform::from(Transform::from_translation(frame.translation()));
+diff --git a/crates/nova_scenario/src/wreck_cargo/tests.rs b/crates/nova_scenario/src/wreck_cargo/tests.rs
+index caae6f285..a17ba70f2 100644
+--- a/crates/nova_scenario/src/wreck_cargo/tests.rs
++++ b/crates/nova_scenario/src/wreck_cargo/tests.rs
+@@ -130,10 +130,6 @@ fn hit(app: &mut App, target: Entity, amount: f32) {
+     });
+ }
+ 
+-fn one(item: &str, count: u32) -> Stacks {
+-    vec![(item.to_string(), count)]
+-}
+-
+ /// Run frames until `drop` has let every canister out, and return each
+ /// canister born meanwhile in birth order: its runtime id, its stacks and
+ /// where it stood on the first frame it was seen.
+@@ -174,9 +170,10 @@ fn drain(app: &mut App, drop: Entity) -> Vec<(CargoCanisterRuntimeId, Stacks, Ve
+ 
+ /// A loaded ship that collapses is destroyed whole and leaves ONE drop where
+ /// its root stood, under the root's sector: every stack of its hold plus
+-/// `floor(0.3 * count)` of each part of all six sections it peeled, packed
+-/// per item into canisters under the mass cap. Panels round down to none. The
+-/// drop lets the canisters out first in, first out, each with its own id.
++/// `floor(0.3 * count)` of each part of all six sections it peeled, 1300 kg
++/// packed in item id order into a full 1000 kg canister and a 300 kg one.
++/// Panels round down to none. The drop lets the canisters out first in,
++/// first out, each with its own id.
+ #[test]
+ fn a_ship_destroyed_whole_drops_its_hold_and_its_sections_parts_in_one_drop() {
+     let mut app = wreck_app();
+@@ -209,18 +206,16 @@ fn a_ship_destroyed_whole_drops_its_hold_and_its_sections_parts_in_one_drop() {
+     };
+     assert_eq!(*parent, Some(sector), "the drop stays in the root's sector");
+     assert!(at.distance(Vec3::new(102.0, 0.0, 0.0)) < 1e-3, "{at}");
+-    // Six sections: 12 spars at 5 a canister, 6 bells at 2.
++    // Six sections: 6 bells and 12 spars, 960 kg, then the hold's 30 kg of
++    // plates and the one 10 kg ore that still fits.
+     let expected = vec![
+-        one("DriveBell", 2),
+-        one("DriveBell", 2),
+-        one("DriveBell", 2),
+-        one("FrameSpar", 5),
+-        one("FrameSpar", 5),
+-        one("FrameSpar", 2),
+-        one("HullPlate", 3),
+-        one("IronOre", 20),
+-        one("IronOre", 5),
+-        one("PdcRound", 300),
++        vec![
++            ("DriveBell".to_string(), 6),
++            ("FrameSpar".to_string(), 12),
++            ("HullPlate".to_string(), 3),
++            ("IronOre".to_string(), 1),
++        ],
++        vec![("IronOre".to_string(), 24), ("PdcRound".to_string(), 300)],
+     ];
+     assert_eq!(canisters, &expected);
+     let drop = *drop;
+@@ -266,26 +261,26 @@ fn a_destroyed_station_drops_the_players_storage_with_its_stock() {
+     );
+ 
+     let drops = &app.world().resource::<Drops>().0;
+-    let root_drop: Vec<Stacks> = drops
++    let mut root_drop = BTreeMap::<String, u32>::new();
++    for (item, count) in drops
+         .iter()
+-        .flat_map(|(.., canisters)| canisters.iter().cloned())
+-        .filter(|stacks| {
+-            stacks
+-                .iter()
+-                .any(|(item, _)| item == "HullPlate" || item == "IronOre")
+-        })
+-        .collect();
++        .flat_map(|(.., canisters)| canisters.iter().flatten())
++    {
++        if item == "HullPlate" || item == "IronOre" {
++            *root_drop.entry(item.clone()).or_default() += count;
++        }
++    }
+     assert_eq!(
+         root_drop,
+-        vec![one("HullPlate", 2), one("IronOre", 8)],
++        [("HullPlate".to_string(), 2), ("IronOre".to_string(), 8)].into(),
+         "the stored plates and ore leave with the stock: {drops:?}"
+     );
+ }
+ 
+ /// One section shot off a ship that keeps flying drops only its own share,
+ /// `floor(0.3 * count)` of each part, where it died and under the ship's
+-/// sector: no panel, two spars, one bell. The hold stays aboard. The
+-/// canisters leave outward, along the line from the ship's centre through
++/// sector: no panel, two spars, one bell, in one canister. The hold stays
++/// aboard. The canister leaves outward, along the line from the ship's centre through
+ /// the section.
+ #[test]
+ fn a_section_shot_off_a_standing_ship_drops_its_parts_share_alone() {
+@@ -307,12 +302,16 @@ fn a_section_shot_off_a_standing_ship_drops_its_parts_share_alone() {
+     };
+     assert_eq!(*parent, Some(sector));
+     assert!(at.distance(Vec3::new(105.0, 0.0, 0.0)) < 1e-3, "{at}");
+-    assert_eq!(canisters, &vec![one("DriveBell", 1), one("FrameSpar", 2)]);
++    let expected = vec![vec![
++        ("DriveBell".to_string(), 1),
++        ("FrameSpar".to_string(), 2),
++    ]];
++    assert_eq!(canisters, &expected);
+     let drop = *drop;
+ 
+     let born = drain(&mut app, drop);
+     let contents: Vec<Stacks> = born.iter().map(|(_, stacks, _)| stacks.clone()).collect();
+-    assert_eq!(contents, vec![one("DriveBell", 1), one("FrameSpar", 2)]);
++    assert_eq!(contents, expected);
+     let (_, _, first_at) = &born[0];
+     assert!(
+         first_at.distance(Vec3::new(106.0, 0.0, 0.0)) < 0.1,
+diff --git a/crates/nova_ship/src/sections/cargo_intake_section.rs b/crates/nova_ship/src/sections/cargo_intake_section.rs
+index 0dad7d1e6..f1168b5c6 100644
+--- a/crates/nova_ship/src/sections/cargo_intake_section.rs
++++ b/crates/nova_ship/src/sections/cargo_intake_section.rs
+@@ -16,8 +16,8 @@
+ //! face. The intake's despawn takes the trigger with it.
+ //!
+ //! - detection: the canister centre is in front of the face and within
+-//!   `detection_range` of its centre. A canister here that fits the hold's
+-//!   free mass, or a waiting drop, opens the door.
++//!   `detection_range` of its centre. A canister here with at least one whole
++//!   item that fits the hold's free mass, or a waiting drop, opens the door.
+ //! - take: an avian contact point has nonnegative penetration into the
+ //!   trigger. Speculative separated contacts do not count. Speed, rotation
+ //!   and the door play no part. The report is one physics step old, and a
+@@ -32,9 +32,12 @@
+ //! destroyed rather than offered to the intake or shown as a pickup
+ //! candidate.
+ //!
+-//! A take moves the whole canister into the ship's [`ShipInventory`] or does
+-//! nothing: a canister heavier than the hold's free mass stays out. A
+-//! canister in two triggers goes to the first intake in entity order.
++//! A take moves every whole item that fits the hold's free mass into the
++//! ship's [`ShipInventory`] by [`CargoCanister::take_fitting`], so a full
++//! hold takes nothing. The rest stays in the same canister entity with the
++//! same [`CargoCanisterRuntimeId`]; an emptied canister is despawned. A
++//! canister in two triggers goes to the first intake in entity order, and the
++//! next intake sees only what is left.
+ //! A jettison waits on the intake in a [`CargoIntakeEjectionQueue`]. The
+ //! intake drops the front canister once its door is fully open and no
+ //! canister is near the birth point, so the next waits until the last drifts
+@@ -165,7 +168,7 @@ pub struct CargoCanisterEjected {
+     pub entity: Entity,
+ }
+ 
+-/// An intake took a canister into its ship's hold.
++/// An intake took at least one item from a canister into its ship's hold.
+ #[derive(EntityEvent, Clone, Copy, Debug)]
+ pub struct CargoCanisterTaken {
+     /// The intake that took it.
+@@ -189,7 +192,8 @@ pub struct CargoPickupPair {
+     pub intake: Entity,
+     /// Live canister candidate, including candidates outside detection.
+     pub canister: Entity,
+-    /// True exactly when this pass can take this candidate through this intake.
++    /// True exactly when this pass takes at least one item of this candidate
++    /// through this intake.
+     pub ready: bool,
+ }
+ 
+@@ -497,13 +501,18 @@ struct CanisterRead {
+     id: CargoCanisterRuntimeId,
+     canister: CargoCanister,
+     position: Vec3,
++    /// Emptied and despawned by this pass.
+     taken: bool,
++    /// Gave up items this pass; a remainder is written back after every
++    /// intake has run.
++    changed: bool,
+ }
+ 
+ /// Run every live intake on a spaceship root: steer its door from the hold's
+-/// free mass before this pass's takes, take every canister overlapping its
+-/// trigger that fits the hold, and drop the front of its ejection queue once
+-/// the door is open and no canister is near the birth point.
++/// free mass before this pass's takes, take the whole items that fit the hold
++/// from every canister overlapping its trigger, and drop the front of its
++/// ejection queue once the door is open and no canister is near the birth
++/// point.
+ ///
+ /// A missing `IntakeDoor` track counts as an open door, as a doorless torpedo
+ /// bay launches at once: content lint requires the track, so only a
+@@ -537,11 +546,11 @@ fn run_cargo_intakes(
+             Without<SectionInactiveMarker>,
+         ),
+     >,
+-    q_canisters: Query<
++    mut q_canisters: Query<
+         (
+             Entity,
+             &CargoCanisterRuntimeId,
+-            &CargoCanister,
++            &mut CargoCanister,
+             &Position,
+             &Health,
+         ),
+@@ -563,6 +572,7 @@ fn run_cargo_intakes(
+             canister: canister.clone(),
+             position: position.0,
+             taken: false,
++            changed: false,
+         })
+         .collect();
+     canisters.sort_by_key(|read| read.entity);
+@@ -599,7 +609,7 @@ fn run_cargo_intakes(
+                 !read.taken
+                     && offset.dot(normal) >= 0.0
+                     && offset.length() <= detection_range
+-                    && inventory.free_g(&items) >= read.canister.total_mass_g(&items)
++                    && read.canister.fits_any(&items, inventory.free_g(&items))
+             });
+         let target = if wanted { 1.0 } else { 0.0 };
+         if let Some(was) = animations.cue_target(SectionAnimationCue::IntakeDoor) {
+@@ -622,7 +632,7 @@ fn run_cargo_intakes(
+                         manifold.points.iter().any(|point| point.penetration >= 0.0)
+                     })
+                 })
+-            }) && inventory.free_g(&items) >= read.canister.total_mass_g(&items);
++            }) && read.canister.fits_any(&items, inventory.free_g(&items));
+             readiness.pairs.push(CargoPickupPair {
+                 ship,
+                 intake,
+@@ -632,17 +642,20 @@ fn run_cargo_intakes(
+             if !ready {
+                 continue;
+             }
+-            for (item, count) in read.canister.stacks() {
+-                inventory.add(&items, item, count);
++            for (item, count) in read.canister.take_fitting(&items, inventory.free_g(&items)) {
++                inventory.add(&items, &item, count);
+                 reports.0.push(ShipInventoryReport::PickedUp {
+                     canister: read.id,
+-                    item: item.clone(),
++                    item,
+                     count,
+                 });
+             }
+-            commands.entity(read.entity).despawn();
+             commands.trigger(CargoCanisterTaken { entity: intake });
+-            read.taken = true;
++            read.changed = true;
++            if read.canister.is_empty() {
++                commands.entity(read.entity).despawn();
++                read.taken = true;
++            }
+         }
+ 
+         let birth = face_centre
+@@ -683,6 +696,16 @@ fn run_cargo_intakes(
+             commands.trigger(CargoCanisterEjected { entity: intake });
+         }
+     }
++
++    for read in canisters
++        .into_iter()
++        .filter(|read| read.changed && !read.taken)
++    {
++        let (_, _, mut canister, _, _) = q_canisters
++            .get_mut(read.entity)
++            .expect("run_cargo_intakes: a canister read this pass left the query");
++        *canister = read.canister;
++    }
+ }
+ 
+ /// Spawn an intake's scene.
+diff --git a/crates/nova_ship/src/sections/cargo_intake_section/tests.rs b/crates/nova_ship/src/sections/cargo_intake_section/tests.rs
+index 12bc5e8c4..e39bf25c6 100644
+--- a/crates/nova_ship/src/sections/cargo_intake_section/tests.rs
++++ b/crates/nova_ship/src/sections/cargo_intake_section/tests.rs
+@@ -55,6 +55,20 @@ fn intakes_app(stock: u32, intakes_x: &[f32]) -> (App, Entity, Vec<Entity>) {
+     });
+     app.insert_resource(test_items());
+     app.finish();
++    let (ship, intakes) = spawn_intake_ship(&mut app, Transform::default(), stock, intakes_x);
++    settle(&mut app);
++    (app, ship, intakes)
++}
++
++/// One hull at `transform` carrying `stock` hull plates in a 400 kg hold,
++/// with one intake at each hull-local x in `intakes_x`. Returns the ship and
++/// the intakes.
++fn spawn_intake_ship(
++    app: &mut App,
++    transform: Transform,
++    stock: u32,
++    intakes_x: &[f32],
++) -> (Entity, Vec<Entity>) {
+     let items = app.world().resource::<GameItems>().clone();
+     let ship = app
+         .world_mut()
+@@ -62,7 +76,7 @@ fn intakes_app(stock: u32, intakes_x: &[f32]) -> (App, Entity, Vec<Entity>) {
+             Name::new("hull"),
+             SpaceshipRootMarker,
+             RigidBody::Dynamic,
+-            Transform::default(),
++            transform,
+             ShipInventory::new(&items, 400_000, [(ItemRoleType::HullPlate.into(), stock)]),
+         ))
+         .id();
+@@ -102,8 +116,7 @@ fn intakes_app(stock: u32, intakes_x: &[f32]) -> (App, Entity, Vec<Entity>) {
+                 .id()
+         })
+         .collect();
+-    settle(&mut app);
+-    (app, ship, intakes)
++    (ship, intakes)
+ }
+ 
+ /// [`intakes_app`] with one intake on the hull's centre line.
+@@ -122,6 +135,19 @@ fn drifting_canister(
+     velocity: Vec3,
+ ) -> Entity {
+     let items = app.world().resource::<GameItems>().clone();
++    let contents = CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), count);
++    drifting_contents(app, contents, at, rotation, velocity)
++}
++
++/// A drifting canister of `contents` at `at` with `rotation`, moving at
++/// `velocity`.
++fn drifting_contents(
++    app: &mut App,
++    contents: CargoCanister,
++    at: Vec3,
++    rotation: Quat,
++    velocity: Vec3,
++) -> Entity {
+     let id = app
+         .world_mut()
+         .resource_mut::<CargoCanisterIdAllocator>()
+@@ -129,7 +155,7 @@ fn drifting_canister(
+     app.world_mut()
+         .spawn((
+             cargo_canister(
+-                CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), count),
++                contents,
+                 Transform::from_translation(at).with_rotation(rotation),
+                 velocity,
+                 AssetRef::from("canister.glb#Scene0"),
+@@ -139,6 +165,34 @@ fn drifting_canister(
+         .id()
+ }
+ 
++/// The canister's stacks as `(item, count)` pairs in id order.
++fn contents(app: &App, canister: Entity) -> Vec<(String, u32)> {
++    app.world()
++        .get::<CargoCanister>(canister)
++        .expect("the canister is live")
++        .stacks()
++        .map(|(item, count)| (item.to_string(), count))
++        .collect()
++}
++
++/// Every `PickedUp` report on `ship` as `(canister, item, count)`.
++fn pickups(app: &App, ship: Entity) -> Vec<(CargoCanisterRuntimeId, String, u32)> {
++    app.world()
++        .get::<ShipInventoryReports>(ship)
++        .expect("a ship carries its reports")
++        .0
++        .iter()
++        .filter_map(|report| match report {
++            ShipInventoryReport::PickedUp {
++                canister,
++                item,
++                count,
++            } => Some((*canister, item.to_string(), *count)),
++            _ => None,
++        })
++        .collect()
++}
++
+ /// Update until `canister` is gone, at most `frames` times. Returns whether
+ /// it went.
+ fn run_until_gone(app: &mut App, canister: Entity, frames: u32) -> bool {
+@@ -457,8 +511,11 @@ fn zero_health_destroys_canister_and_loses_its_stock() {
+     assert_eq!(plates(&app, ship), 12);
+ }
+ 
++/// A hold with room for two of four plates takes two through the real
++/// trigger contact. The other two stay in the same canister entity under the
++/// same id, through a freeze and a thaw, until room opens for them.
+ #[test]
+-fn a_canister_larger_than_the_free_room_is_refused_whole() {
++fn a_canister_heavier_than_the_free_room_gives_up_the_whole_items_that_fit() {
+     let (mut app, ship, intake) = intake_app(38);
+     let canister = drifting_canister(
+         &mut app,
+@@ -467,44 +524,98 @@ fn a_canister_larger_than_the_free_room_is_refused_whole() {
+         Quat::IDENTITY,
+         Vec3::ZERO,
+     );
++    let id = *app.world().get::<CargoCanisterRuntimeId>(canister).unwrap();
+ 
+     for _ in 0..120 {
+         app.update();
+     }
+-    assert_eq!(door(&app, intake), 0.0, "the door stays shut for it");
++    assert_eq!(plates(&app, ship), 40, "the two that fit are taken");
++    assert_eq!(takes(&app), 1);
++    assert_eq!(pickups(&app, ship), [(id, "HullPlate".to_string(), 2)]);
++    assert_eq!(contents(&app, canister), [("HullPlate".to_string(), 2)]);
++    assert_eq!(
++        app.world().get::<CargoCanisterRuntimeId>(canister),
++        Some(&id)
++    );
++    assert_eq!(door(&app, intake), 0.0, "a full hold shuts the door");
+     assert!(app
+         .world()
+         .resource::<CargoPickupReadiness>()
+         .pairs
+         .iter()
+         .any(|pair| pair.canister == canister && !pair.ready));
+-    assert_eq!(plates(&app, ship), 38, "no part of it is taken");
++
++    // The remainder freezes and thaws as itself.
++    let frozen = freeze_canister(app.world(), canister).expect("a drifting canister freezes");
++    assert_eq!(frozen.id(), id);
+     let items = app.world().resource::<GameItems>().clone();
+-    assert_eq!(
+-        app.world()
+-            .get::<CargoCanister>(canister)
+-            .map(|canister| canister.total_mass_g(&items)),
+-        Some(40_000)
+-    );
++    assert_eq!(frozen.contents().total_mass_g(&items), 20_000);
++    app.world_mut().entity_mut(canister).despawn();
++    let at = Vec3::new(0.0, 0.0, in_front(CAPTURE_GAP.to_engine() * 0.5));
++    let thawed = app
++        .world_mut()
++        .spawn(thaw_canister(
++            frozen,
++            Transform::from_translation(at),
++            Vec3::ZERO,
++        ))
++        .id();
+ 
+-    // Room is the only thing that refused it.
+     app.world_mut()
+         .get_mut::<ShipInventory>(ship)
+         .unwrap()
+         .remove(&ItemRoleType::HullPlate.into(), 2);
+-    for _ in 0..4 {
++    assert!(
++        run_until_gone(&mut app, thawed, 120),
++        "the rest was never taken"
++    );
++    assert_eq!(plates(&app, ship), 40);
++    assert_eq!(takes(&app), 2);
++    assert_eq!(
++        pickups(&app, ship),
++        [
++            (id, "HullPlate".to_string(), 2),
++            (id, "HullPlate".to_string(), 2)
++        ]
++    );
++}
++
++#[test]
++fn a_full_hold_takes_nothing_and_keeps_the_door_shut() {
++    let (mut app, ship, intake) = intake_app(40);
++    let canister = drifting_canister(
++        &mut app,
++        4,
++        Vec3::new(0.0, 0.0, in_front(CAPTURE_GAP.to_engine() * 0.5)),
++        Quat::IDENTITY,
++        Vec3::ZERO,
++    );
++
++    for _ in 0..120 {
+         app.update();
+     }
++    assert_eq!(door(&app, intake), 0.0, "the door stays shut for it");
++    assert!(app
++        .world()
++        .resource::<CargoPickupReadiness>()
++        .pairs
++        .iter()
++        .any(|pair| pair.canister == canister && !pair.ready));
+     assert_eq!(plates(&app, ship), 40);
+-    assert!(app.world().get_entity(canister).is_err());
++    assert_eq!(takes(&app), 0);
++    assert!(pickups(&app, ship).is_empty());
++    assert_eq!(contents(&app, canister), [("HullPlate".to_string(), 4)]);
+ }
+ 
++/// With 10 kg free, a 20 kg slug canister cannot give up an item, but a
++/// one-plate canister beside it can, and that opens the door.
+ #[test]
+ fn the_door_opens_for_a_canister_that_fits_beside_one_that_does_not() {
+-    let (mut app, ship, intake) = intake_app(38);
+-    let oversized = drifting_canister(
++    let (mut app, ship, intake) = intake_app(39);
++    let items = app.world().resource::<GameItems>().clone();
++    let oversized = drifting_contents(
+         &mut app,
+-        4,
++        CargoCanister::new(&items, &ItemRoleType::RailSlug.into(), 1),
+         Vec3::new(-1.0, 0.0, -4.5),
+         Quat::IDENTITY,
+         Vec3::ZERO,
+@@ -525,11 +636,83 @@ fn the_door_opens_for_a_canister_that_fits_beside_one_that_does_not() {
+         1.0,
+         "the door opened for the fitting one"
+     );
+-    assert_eq!(plates(&app, ship), 38, "neither reached the trigger");
++    assert_eq!(plates(&app, ship), 39, "neither reached the trigger");
+     assert!(app.world().get_entity(oversized).is_ok());
+     assert!(app.world().get_entity(fitting).is_ok());
+ }
+ 
++/// A canister in two intakes' triggers on one ship, with room for only part
++/// of it: the first intake takes the plates that fit, and the second, in the
++/// same pass, sees the remainder and a full hold. Nothing is taken twice or
++/// lost.
++#[test]
++fn two_intakes_on_one_ship_share_its_holds_room() {
++    let (mut app, ship, _) = intakes_app(38, &[-1.5, 1.5]);
++    let items = app.world().resource::<GameItems>().clone();
++    let mut mixed = CargoCanister::new(&items, &ItemRoleType::HullPlate.into(), 4);
++    mixed.add(&items, &ItemRoleType::RailSlug.into(), 1);
++    let canister = drifting_contents(
++        &mut app,
++        mixed,
++        Vec3::new(0.0, 0.0, in_front(CAPTURE_GAP.to_engine() * 0.5)),
++        Quat::IDENTITY,
++        Vec3::ZERO,
++    );
++    let id = *app.world().get::<CargoCanisterRuntimeId>(canister).unwrap();
++
++    for _ in 0..120 {
++        app.update();
++    }
++    assert_eq!(plates(&app, ship), 40);
++    assert_eq!(takes(&app), 1);
++    assert_eq!(pickups(&app, ship), [(id, "HullPlate".to_string(), 2)]);
++    assert_eq!(
++        contents(&app, canister),
++        [("HullPlate".to_string(), 2), ("RailSlug".to_string(), 1)]
++    );
++}
++
++/// Two ships face to face, each with room for two plates, touch one
++/// four-plate canister in the same pass: the first intake in entity order
++/// takes two, the second takes the two left, and the canister goes. No item
++/// is taken twice.
++#[test]
++fn two_ships_touching_one_canister_split_it_without_taking_an_item_twice() {
++    let (mut app, first, _) = intakes_app(38, &[0.0]);
++    let centre = in_front(CAPTURE_GAP.to_engine() * 0.5);
++    // Turned to face the first ship's door across the canister, its own
++    // trigger reaches the canister's far side.
++    let (second, _) = spawn_intake_ship(
++        &mut app,
++        Transform::from_xyz(0.0, 0.0, 2.0 * centre)
++            .with_rotation(Quat::from_rotation_y(core::f32::consts::PI)),
++        38,
++        &[0.0],
++    );
++    settle(&mut app);
++    let canister = drifting_canister(
++        &mut app,
++        4,
++        Vec3::new(0.0, 0.0, centre),
++        Quat::IDENTITY,
++        Vec3::ZERO,
++    );
++    let id = *app.world().get::<CargoCanisterRuntimeId>(canister).unwrap();
++
++    assert!(
++        run_until_gone(&mut app, canister, 120),
++        "the canister was never emptied"
++    );
++    for _ in 0..4 {
++        app.update();
++    }
++    assert_eq!((plates(&app, first), plates(&app, second)), (40, 40));
++    assert_eq!(takes(&app), 2);
++    for ship in [first, second] {
++        assert_eq!(pickups(&app, ship), [(id, "HullPlate".to_string(), 2)]);
++    }
++}
++
+ #[test]
+ fn an_ejected_canister_leaves_without_being_taken_back() {
+     let (mut app, ship, intake) = intake_app(8);
+diff --git a/crates/nova_world_base/src/save/tests.rs b/crates/nova_world_base/src/save/tests.rs
+index 19caad32d..2adab939f 100644
+--- a/crates/nova_world_base/src/save/tests.rs
++++ b/crates/nova_world_base/src/save/tests.rs
+@@ -4075,7 +4075,6 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
+     drop(lock);
+     let east = SectorCoord::new(1, 0, 0);
+     let iron = ron::to_string(&ItemDesignId::from(ItemRoleType::IronOre)).unwrap();
+-    let torpedo = ron::to_string(&ItemDesignId::from(ItemRoleType::Torpedo)).unwrap();
+     // Read from RON, as a load reads them: the constructors refuse both.
+     let player_with_hold = |capacity_g: u32| {
+         let mut world = World::new();
+@@ -4094,15 +4093,13 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
+             ..state(1, 750).player
+         }
+     };
+-    let canister_holding = |torpedoes: u32| {
++    let canister_holding = |ore: u32| {
+         let mut world = World::new();
+         let canister = world
+             .spawn((
+                 cargo_canister(
+-                    ron::from_str::<CargoCanister>(&format!(
+-                        "(stacks: {{{torpedo}: {torpedoes}}})"
+-                    ))
+-                    .unwrap(),
++                    ron::from_str::<CargoCanister>(&format!("(stacks: {{{iron}: {ore}}})"))
++                        .unwrap(),
+                     Transform::IDENTITY,
+                     Vec3::ZERO,
+                     AssetRef::from("canister.glb#Scene0"),
+@@ -4149,8 +4146,8 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
+         ),
+         (
+             player_with_hold(10_000),
+-            canister_holding(2),
+-            "the canister 5 holds 300 kg over the canister cap of 200 kg",
++            canister_holding(110),
++            "the canister 5 holds 1100 kg over the canister cap of 1000 kg",
+         ),
+         (
+             player_with_hold(10_000),
+@@ -4182,7 +4179,7 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
+         );
+     }
+ 
+-    for (generation, sectors) in [(4, canister_holding(1)), (5, station_storing(1, 10_000))] {
++    for (generation, sectors) in [(4, canister_holding(100)), (5, station_storing(1, 10_000))] {
+         let within = WorldSaveState {
+             player: player_with_hold(10_000),
+             sectors,
+diff --git a/docs/agent-bench.md b/docs/agent-bench.md
+index fcbc08caa..f200a8477 100644
+--- a/docs/agent-bench.md
++++ b/docs/agent-bench.md
+@@ -267,9 +267,11 @@ ship's centre. The agent view has
+ no carve result or intake position. It does show all live canisters, their
+ contents, and their distance and bearing from the player's ship. A newly
+ visible ore canister shows ore in the world, not its source or pickup; a
+-canister's disappearance alone can also mean it was destroyed. The intake
+-takes a whole canister on trigger contact when hold mass permits; only an
+-increase in the relevant `me.cargo.items` count proves pickup.
++canister's disappearance alone can also mean it was destroyed. On trigger
++contact the intake takes the whole items that fit the free hold mass and
++leaves the rest in the same canister with the same `id`, so a canister can
++stay live after a pickup; only an increase in the relevant `me.cargo.items`
++count proves pickup.
+ Jettison (undocked) and Buy and Sell (docked to a trader) are Inventory pane
+ buttons, driven with `pointer` gestures on the `ui.targets` the interface
+ shows. Read every result off `me.cargo`.
+diff --git a/docs/sections.md b/docs/sections.md
+index e5e92f6b5..a71d01c0e 100644
+--- a/docs/sections.md
++++ b/docs/sections.md
+@@ -30,7 +30,9 @@ in `crates/nova_authoring/src/base_content/sections/recipes.rs`.
+ A destroyed section drops `BuildRecipe::strip_parts`, `floor(strip_yield *
+ count)` of each part, as cargo canisters; a destroyed ship root drops its
+ hold, and a destroyed station root its `StationStorage` with it. A section destroyed in its root's structural collapse adds its parts to
+-the root's drop, so a ship destroyed whole leaves one drop. The drop is a
++the root's drop, so a ship destroyed whole leaves one drop. `CargoCanister::pack` packs one drop's stacks together into mixed canisters
++of whole items, filled in item id order up to `CARGO_CANISTER_MAX_MASS_G`
++(1,000 kg); separate drops never share a canister. The drop is a
+ `MinedOreDrop` that the mining ejector drains, so it freezes, thaws and saves
+ like mined ore (`nova_scenario/src/wreck_cargo.rs`).
+ 
+@@ -552,10 +554,10 @@ runtime counts a civilization's stations.
+ | `Torpedo`    | Torpedo bay. Fires guided torpedoes of an authored `torpedo_type` (name, tint, `max_speed`, `weave_angle`, `weave_rate`) that detonate an Explosive area blast (`blast_radius`, `blast_damage`), optional `ammunition: Limited(n)` drawing `Torpedo` on reload. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube. |
+ | `Railgun`    | Spinal lance. No traverse: the HULL aims it down `muzzle_offset`. Tapping the trigger commits, the bolt walks the bore for `charge_seconds`, and the shot leaves whether or not the nose is still on the target. The slug deals `slug_damage` to every layer it rakes; `slug_power` and not a layer count bounds it, optional `rake_radius` spends that budget on a wider corridor instead of unused depth, `slug_speed` x `slug_lifetime` is the reach, and `recoil_impulse` lands at the muzzle point so an off-axis mount yaws the ship. Usually `ammunition: Limited(1)` with a long `reload` drawing `RailSlug`. |
+ | `Docking`    | Docking port. A cylindrical, rotationally symmetric collar that holds this hull to another one. `capture_distance`, `capture_angle` and the two relative-speed ceilings are the envelope a `DOCK` is graded against; the sleeve that reaches across once the dock holds is an animation track, not a collider (see [below](#docking-ports-and-what-holds-a-pair-together)). |
+-| `CargoIntake` | Cargo intake. Takes a `CargoCanister` whole into the ship's `ShipInventory` and drops the Inventory pane's jettisons from a `CargoIntakeEjectionQueue`, front first, one at a time while the door is open and the birth point is clear. Each live intake owns a detached static Avian `Sensor` trigger, `aperture_width` by `aperture_height` by `capture_gap` deep, in front of the `Cuboid` collider's -Z face: not a child collider, since the workspace has no collision layers and a sensor in the ship's compound would join it for mass, bullets, locks and overlap reads. `detection_range` opens the door for a canister that fits the hold's free mass (visual only for a take); a canister whose collider touches the trigger is taken whole, at any speed, if the hold has room; a canister in two triggers goes to one intake once; `eject_speed` sets a drop; the `IntakeDoor` track gates only the drop. The door, drop and take trigger events that `ship_audio/machinery.rs` voices (`cargo_intake_section.rs`). |
++| `CargoIntake` | Cargo intake. Takes the whole items of a `CargoCanister` that fit the hold's free mass into the ship's `ShipInventory`, in item id order (`CargoCanister::take_fitting`), and leaves the rest in the same canister with the same `CargoCanisterRuntimeId`; and drops the Inventory pane's jettisons from a `CargoIntakeEjectionQueue`, front first, one at a time while the door is open and the birth point is clear. Each live intake owns a detached static Avian `Sensor` trigger, `aperture_width` by `aperture_height` by `capture_gap` deep, in front of the `Cuboid` collider's -Z face: not a child collider, since the workspace has no collision layers and a sensor in the ship's compound would join it for mass, bullets, locks and overlap reads. `detection_range` opens the door for a canister with at least one item that fits the hold's free mass (visual only for a take); a canister whose collider touches the trigger gives up every whole item that fits, at any speed, and is despawned once empty; a canister in two triggers goes to the first intake in entity order, and the next sees only what is left; `eject_speed` sets a drop; the `IntakeDoor` track gates only the drop. The door, drop and take trigger events that `ship_audio/machinery.rs` voices (`cargo_intake_section.rs`). |
+ | `Mining` | Mining emitter. Each emitter deploys on its own key: a player ship's `input_mapping` entry for the section becomes a `SpaceshipMiningInputBinding` rig that sets that section's `MiningSectionHeld` (`input/player/weapons.rs`), and lint and spawn refuse a player mining section with no entry or an empty one, and two mining sections that share a source. While it is held, `drive_mining_emitters` opens the `StowDoors` track, then extends the `StowLift` tip; on release the tip goes in before the doors shut (`mining_section.rs`). Each change of the doors' target triggers `MiningDoorsMoved`, and `ship_audio` plays the authored `door_open_sound` or `door_close_sound` at the section; the spawn snap and a held key play nothing. Each fully deployed emitter pulses on its own clock every `pulse_interval_seconds`. A pulse casts a ray from its collider's -Z face against asteroid colliders within `reach` without a travel lock, picks the nearest hit (including barren rock), and carves `carve_radius_cells` there if it holds ore. Other bodies do not occlude this asteroid-only ray. Ore is paid per newly emptied corner after the remesh, then leaves the rock as canisters one at a time. A passed pulse plays the authored `pulse_sound` at the hit and, in a rendered app, flares the additive beam shader (`assets/shaders/mining_beam.wgsl`) and throws a fixed spark burst. A refusal is a `MiningPulse` with a `MiningRefusalType`, plays the authored `refusal_sound` once at the emitter face and changes nothing (`nova_scenario/src/mining.rs`). |
+ 
+-`run_cargo_intakes` publishes `CargoPickupReadiness` for each live intake/canister pair on the fixed clock, including out-of-range canisters. A pair names only the ship, intake, canister and `ready`; it carries no pose. The HUD draws its live pickup sight for one published pair from rendered `GlobalTransform` poses, with the face from `cargo_intake_face`, the helper the fixed pass also uses. The canister must be within `CARGO_PICKUP_SIGHT_RANGE` (200 m) of the player's ship, with no lock needed: a travel-locked canister first, else the nearest intake face, then the lower entity IDs (`pickup_sight.rs`). No pair in range draws no sight. A take despawns the canister in the same pass, so the sight clears with it and `CargoCanisterTaken` voices the take.
++`run_cargo_intakes` publishes `CargoPickupReadiness` for each live intake/canister pair on the fixed clock, including out-of-range canisters. A pair names only the ship, intake, canister and `ready`; it carries no pose. The HUD draws its live pickup sight for one published pair from rendered `GlobalTransform` poses, with the face from `cargo_intake_face`, the helper the fixed pass also uses. The canister must be within `CARGO_PICKUP_SIGHT_RANGE` (200 m) of the player's ship, with no lock needed: a travel-locked canister first, else the nearest intake face, then the lower entity IDs (`pickup_sight.rs`). No pair in range draws no sight. `ready` means this pass takes at least one item. A take that empties the canister despawns it in the same pass, so the sight clears with it; a canister with items left stays a candidate. `CargoCanisterTaken` voices every take.
+ 
+ `GameSections(Vec<SectionConfig>)` is the resource of section blueprints.
+ Every base prototype is GENERIC and authored under
+diff --git a/examples/playable/mine_and_sell.rs b/examples/playable/mine_and_sell.rs
+index 7dc5451f9..d46c64bee 100644
+--- a/examples/playable/mine_and_sell.rs
++++ b/examples/playable/mine_and_sell.rs
+@@ -6,8 +6,9 @@
+ //! take. None of them proves that the ore a pulse cuts is the ore a player
+ //! sells. This example runs the three in one session on their production
+ //! paths: the real `mine` key on the shipped mining tug's bow emitter, a
+-//! canister the rock drops taken whole through its dorsal cargo intake, the
+-//! real `dock` key on a trader's port, and Sell through the pane.
++//! canister the rock drops emptied into the empty hold through its dorsal
++//! cargo intake, the real `dock` key on a trader's port, and Sell through the
++//! pane.
+ //!
+ //! The trader is a live spar that is not lootable and holds credits. It
+ //! exists only in this example: no shipped scenario carries it.
+diff --git a/tasks/20261026-003724/TASK.md b/tasks/20261026-003724/TASK.md
+index fb3e286ef..e668b30a7 100644
+--- a/tasks/20261026-003724/TASK.md
++++ b/tasks/20261026-003724/TASK.md
+@@ -6,12 +6,22 @@
+ 
+ ## User facts
+ - Defeated enemy can give no reward; improve capacity/stacking or fit clarity and physical pickup. Keep inventory constraints, no free loot. Specification only.
++- 2026-10-30: owner proposes mixed-item canisters with a variable filled mass and perhaps a 1,000 kg maximum to cut collection work. The exact maximum and pickup behavior are not decided.
++- 2026-10-30: owner approved candidate M with M-P: a global 1,000 kg `CARGO_CANISTER_MAX_MASS_G`, mixed whole-item packing of one wreck drop, and partial pickup of whole items that keeps the canister and its id.
+ ## Agent findings
+-- `strip_parts_at` floors fractional recipe yield (`crates/nova_gameplay/src/inventory.rs:1534-1551`); wreck drop is `crates/nova_scenario/src/wreck_cargo.rs:61-159`. Whole canister refused if insufficient hold (`crates/nova_ship/src/sections/cargo_intake_section.rs:511-646`), pickup readiness exists (`:178-185`). Existing cap 200 kg (`tasks/20261025-214714/TASK.md:39`; `tasks/20260926-174806/TASK.md:54`). This is a possible cause, not reproduced encounter.
+-## Decisions needed
+-- Reproduce empty drop and failed pickup first with artifacts. Choose whether carried stock, recipe floor, reward, canister cap, stacking/splitting or clear refusal changes; ownership, capacity, collision, overflow, persistence. No new size/guarantee/default approved.
++- These findings describe `master` at `112b79a0d`, before the approved change.
++- Wrecks call `strip_parts()` at full share; it floors each recipe-part yield independently (`crates/nova_gameplay/src/inventory.rs:1563-1580`). Health share applies to station stripping, not wreck drops. Root drops can be empty after all sections were lost separately; empty-drop frequency is unmeasured. `wreck_cargo` gathers a collapsed root's hold, station storage and surviving sections into one drop, then splits each item type into separate canisters (`crates/nova_scenario/src/wreck_cargo.rs:61-159`). Sections shot off earlier leave separate drops. One drop is not one canister.
++- `CargoCanister` already stores mixed stacks and caps each physical canister at 200 kg (`crates/nova_gameplay/src/inventory.rs:1234-1327`). The wreck producer does not use its mixed-stack capability. The intake requires contact and enough free hold mass for the entire canister; it has no partial take (`crates/nova_ship/src/sections/cargo_intake_section.rs:511-646`). Pickup sight is guidance, not auto-collection (`crates/nova_hud/src/pickup_sight.rs:175-227`). Save checks the canister cap and saved references can target its durable ID (`crates/nova_world_base/src/save/mod.rs:879-955`; `save/controls.rs:396-397`).
++- Existing collapse fixture produces ten canisters holding 1,300 kg in one drop (`crates/nova_scenario/src/wreck_cargo/tests.rs:175-235`; `crates/nova_gameplay/src/test_support.rs:78-125`); no 200 kg-capped policy can make this one physical canister. Seven is the theoretical minimum and attainable with a specified mixed packing; this is a model, not an implemented result. An earlier bounded range run logged 36 separate one-stack wreck drops and ended with 17 live SectionPanel canisters, nearest 49.2 m, 13,400 kg free hold and no pickup. Thus neither multi-item packing within one drop nor whole-fit refusal explains this case; the fate of other cans and the exact missed-contact cause are unproven (`tasks/20261026-003724/evidence/`). Its score records 5,000 PDC rounds spent, contradicting the pilot's 4,000-round account.
++## Decisions
++- Approved 2026-10-30: M with M-P at a global 1,000 kg cap (no wreck-only cap, no target fill T). Implementation in progress on `master`; not proven at runtime.
++- Rule in the working tree (in progress, `crates/nova_gameplay/src/inventory.rs` `CargoCanister::pack`, `take_fitting`, `fits_any`): pack fills each canister in item id order and skips a stack whose next item does not fit; a take moves `floor(free / mass)` of each stack in id order; the door opens and `ready` is true when at least one whole item fits. Jettison and mining use the same pack at the new cap.
++- Candidate M (interprets the owner's dynamic range as actual filled mass under a fixed maximum; `REPORT.html` sections 5-14): the wreck producer packs one drop's stacks into mixed whole-item canisters up to the cap. Fixture 1,300 kg: shipped 10 canisters; M 2 (1,000 + 300 kg, modeled). M is per drop, not per wreck: a drop of 1,000 kg or less is one canister; separate section drops stay separate. The 36-drop bench (13,400 kg free, no contact) does not change.
++- Superseded by the approval above. Unapproved parameters were: the cap value (1,000 kg); global `CARGO_CANISTER_MAX_MASS_G` (also mining, jettison, item lint, save check, wiki) or a wreck-only cap (save cannot tell canister origin); the packing rule (fill-to-cap in id order, or other); optional fixed target fill T below the cap; mixed tag text.
++- Whole-fit question, resolved by M-P: with whole-fit kept, 150 kg free takes 0 kg of the fixture vs 140 kg shipped (regression); smallest useful hold rises from 30 to 300 kg. Partial pickup (M-P) takes up to 150 kg but needs an item order, `ready` and door rule. Recommendation: M with M-P (approved).
++- Still required before CLOSED: reproduce a starter-ship salvage run with before artifacts; classify each missed reward as no drop, missed contact or refusal. M changes only count and refusal. No new size, guaranteed drop, recipe, reach or default is approved.
+ ## Delivery
+-- End: defeated ship -> identifiable reward -> fit and collect or understandable whole-fit refusal with goods preserved. Dies: only superseded cap/yield/UI after approval. May break: item mass/conservation, station stripping, trade, jettison, save/thaw and physics. Unknown item/invalid cap fails lint/load; full hold fails clearly.
+-- Owner/entry/state/order: `wreck_cargo` -> `inventory::strip_parts_at` -> `cargo_intake_section` -> pickup HUD/inventory. Audit item builders, generated content, runtime IDs, save, UI, wiki/changelog and all cap consumers.
++- End: defeated ship -> identifiable reward -> collect the whole items that fit; the rest stays in the same canister with its id, and a hold with no room for any item takes nothing and keeps the goods. Dies: only superseded cap/yield/UI after approval. May break: item mass/conservation, station stripping, trade, jettison, save/thaw and physics. Unknown item/invalid cap fails lint/load; a full hold takes nothing and leaves the door shut.
++- Owner/entry/state/order: `wreck_cargo` -> `BuildRecipe::strip_parts()` -> `CargoCanister::pack()` -> queued ejection -> `cargo_intake_section` -> pickup HUD/inventory. Audit item builders, generated content, runtime IDs, save, UI, wiki/changelog and all cap consumers.
+ ## Verification / Done when
+-- Reproduced before/after encounter; asserted real drop/intake, conservation and whole-fit refusal across freeze/thaw; inspected pickup frames; `nova-bench` defeat -> salvage -> spend. Approve permanent test first.
++- Reproduced before/after encounter; asserted real drop/intake, conservation, partial take with the same id, and full-hold refusal across freeze/thaw; inspected pickup frames; `nova-bench` defeat -> salvage -> spend. Approve permanent test first.
+diff --git a/web/src/create/base-content.md b/web/src/create/base-content.md
+index a9d734073..095929c6b 100644
+--- a/web/src/create/base-content.md
++++ b/web/src/create/base-content.md
+@@ -59,7 +59,7 @@ part serves every hull. Section kinds are `Hull`, `Thruster`, `Controller`,
+ | `lance_torpedo_section` | Torpedo | Torpedo Bay (Lance) | 100 | the same six-round, +1 after 10 s idle bay and warhead loading the straight-running Lance: no weave, cruise 350 m/s, ~116 PDC rounds an intercept, killed ~1.14 km out |
+ | `railgun_lance_section` | Railgun | Railgun Lance | 180 | the spinal lance: no traverse, so the HULL aims it. A 1.5 s charge you can see walk the bore, then Pierce 300 to every layer it rakes until 1800 slug power runs out; a slug at 15,000 m/s for 1.2 s, rake radius 10 m, recoil 45 at the muzzle, one round reloading over 12 s |
+ | `docking_port_section` | Docking | Docking Port Section | 90 | the sealed-hatch port: DOCK holds the hull to the ship it has locked, port face to port face, within 10 m of gap, 15 deg of opposed and 5 m/s of closing speed. Its sleeve reaches 5 m out once the dock holds and is art alone. Every crewed base hull carries one on the port flank, and the line warship a second on the starboard flank |
+-| `cargo_intake_section` | Cargo intake | Cargo Intake Section | 90 | a 3x2x1 hold mouth behind an accordion door on its -Z face: the door opens for a canister within 40 m that fits the hold, and the intake takes one whole, at any speed, once it touches the 1 m deep trigger in front of the 22.2 x 15.3 m opening, if the hold has room. One jettison may queue several canisters; each drops out at 3 m/s. The mining tug, the salvage hauler and the line warship carry one on the top deck |
++| `cargo_intake_section` | Cargo intake | Cargo Intake Section | 90 | a 3x2x1 hold mouth behind an accordion door on its -Z face: the door opens for a canister within 40 m with at least one item that fits the hold, and the intake takes every whole item that fits, at any speed, once the canister touches the 1 m deep trigger in front of the 22.2 x 15.3 m opening; the rest stays in the canister. One jettison may queue several canisters; each drops out at 3 m/s. The mining tug, the salvage hauler and the line warship carry one on the top deck |
+ | `mining_beam_section` | Mining | Mining Beam Section | 90 | a 1x1x1 emitter behind sliding doors on its -Z face: while its own `input_mapping` key is held the doors part, the tip runs out, and once a second the beam cuts a 1.5-cell sphere from the nearest asteroid in its path within 100 m, without a travel lock. The mining tug carries one at the tip of its bow boom |
+ 
+ Every shipped prototype authors its [damage
+diff --git a/web/src/create/events.md b/web/src/create/events.md
+index cce740464..e7866ce61 100644
+--- a/web/src/create/events.md
++++ b/web/src/create/events.md
+@@ -48,7 +48,7 @@ The whole vocabulary at a glance:
+ | [`OnShipOrderCanceled`](#onshipordercanceled) | `order`, `kind`, `id`, `type_name` | an unfinished order is cleared or replaced |
+ | [`OnShipOrderFailed`](#onshiporderfailed) | `order`, `kind`, `id`, `type_name` | an order can no longer be flown |
+ | [`OnMined`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | a mining pulse frees ore from a rock |
+-| [`OnPickedUp`](#hold-events) | `id`, `type_name`, `canister`, `item`, `count` | a cargo intake takes a canister stack into the hold |
++| [`OnPickedUp`](#hold-events) | `id`, `type_name`, `canister`, `item`, `count` | a cargo intake takes whole items of a canister stack into the hold |
+ | [`OnJettisoned`](#hold-events) | `id`, `type_name`, `canister`, `item`, `count` | a cargo intake drops a stack out as a canister |
+ | [`OnTraded`](#hold-events) | `id`, `other_id`, `other_type_name`, `trade`, `item`, `count`, `price_cr` | the player buys or sells a stack across a dock |
+ | [`OnCreditsChanged`](#hold-events) | `id`, `type_name`, `previous_cr`, `current_cr`, `delta_cr`, `cause` | a ship's credits move |
+@@ -854,7 +854,9 @@ single-ship events name the ship the hold or purse belongs to.
+ `count` is the corners it did flip, which is the ore that lands in the hold
+ only if the intake catches the chips. `OnPickedUp` and `OnJettisoned` fire
+ once per STACK: a canister holding two item kinds raises two events with the
+-same `canister`.
++same `canister`. A hold with room for only part of a canister takes whole
++items and raises `OnPickedUp` with the `count` it took; the rest is picked up
++later under the same `canister`.
+ 
+ `OnTraded` fires once per confirmed trade on the player's queue, so a buy of
+ four rations is one event with `count: 4`. The credits move it causes raises
+diff --git a/web/src/create/mod-files.md b/web/src/create/mod-files.md
+index 64e4b030d..6d707c407 100644
+--- a/web/src/create/mod-files.md
++++ b/web/src/create/mod-files.md
+@@ -264,7 +264,7 @@ and generated ship holds draw the two trade goods `Rations` and
+ `PdcRound`, `RailSlug` and `Torpedo` are `Ammo`; `StoneOre`, `IronOre`,
+ `WaterIce` and `CarbonOre` are `Raw`; `Rations` is `Food`; `SalvagedParts`
+ is `Parts`. Every item fits one cargo canister, so its `mass_g` is at most
+-`200000`. A mod that depends on the base game may replace a role id whole,
++`1000000`. A mod that depends on the base game may replace a role id whole,
+ with its own `name`, `about`, `mass_g`, `price_lot`, `ask_cr` and `bid_cr`,
+ but not another `category`. A replacement that breaks either rule is an
+ error. An id two unrelated packs both define is refused in both, whatever
+diff --git a/web/src/create/sections.md b/web/src/create/sections.md
+index a03da1a8b..15d0a45aa 100644
+--- a/web/src/create/sections.md
++++ b/web/src/create/sections.md
+@@ -389,7 +389,7 @@ Who raises each cue:
+ | `StowDoors` | The turret's stow machine or a mining emitter's sequence, against the lift: it shuts the lids only once the gun or tip is fully in, and parts them before moving it out. | shut over the sunk gun or tip |
+ | `Charge` | The railgun's charge system, from the committed trigger to the shot. It writes the charge fraction straight in, so `open_seconds` and `close_seconds` are unread on this cue: the travel is the authored `charge_seconds`, and the snap back to 0 is the shot leaving. | fully charged, the instant before firing |
+ | `DockTube` | The docking port's sleeve, once the dock's fixed joint EXISTS - never before it, so the tube can never be what holds the two hulls together. It stows again the moment the dock is released. | the sleeve fully out, 0.5 cells past the port face |
+-| `IntakeDoor` | The cargo intake, while a canister that fits the hold is in its detection volume or a jettison waits on it. It drops a canister only at progress 1. | the door fully folded open |
++| `IntakeDoor` | The cargo intake, while a canister with an item that fits the hold is in its detection volume or a jettison waits on it. It drops a canister only at progress 1. | the door fully folded open |
+ 
+ Authoring a `StowLift` track is what MAKES a turret retractable - the stow
+ machine is armed on turrets that have one and on no others. Such a turret
+@@ -1202,11 +1202,15 @@ kind: CargoIntake((
+ 
+ The trigger is measured from the `-Z` face of the section's `Cuboid`
+ collider, so an intake must author one; it is a detached sensor, not a child
+-of the ship body, so weapons and sight lines pass through it. A take is whole
+-or nothing: a canister heavier than the hold's free mass stays out, and a
+-canister touching two triggers goes to one intake only. A canister can hold
+-several item types up to 200 kg total; hull plates weigh 10 kg each. A
+-canister has 20 HP; at zero it and its contents are lost. A jettison fills
++of the ship body, so weapons and sight lines pass through it. A take moves
++every whole item that fits the hold's free mass, in item id order, and leaves
++the rest in the same canister with the same id; a hold with no room for any
++of its items takes nothing and keeps the door shut. A canister touching two
++triggers goes to the first intake, and the next sees only what is left. A
++canister can hold several item types up to 1,000 kg total; hull plates weigh
++10 kg each, and lint refuses an item heavier than one canister. A canister has 20 HP;
++at zero it and its contents are lost. A wreck drop packs its stacks together
++into mixed canisters, filled in item id order up to 1,000 kg. A jettison fills
+ canisters with whole items, topping up the last waiting one first, and queues
+ them on the intake; the intake drops the front one once the door is fully open
+ and no canister centre is within 12.5 m of the birth point. Waiting canisters
+diff --git a/web/src/widgets.ts b/web/src/widgets.ts
+index d72ea58c8..d4bb15c7e 100644
+--- a/web/src/widgets.ts
++++ b/web/src/widgets.ts
+@@ -11505,9 +11505,11 @@ function initCollapseBudget(host: HTMLElement): void {
+ // 3 m/s (:119). The runtime is crates/nova_ship/src/sections/
+ // cargo_intake_section.rs: CARGO_CANISTER_SIZE 0.94 x 0.58 x 0.58 units (:73);
+ // the door opens for a canister whose centre is in front of the face and
+-// within detection_range of the face centre, with room in the hold
+-// (:555-562); the take is a contact with nonnegative penetration into the
+-// trigger box, whatever the door does, with room in the hold (:578-584); a
++// within detection_range of the face centre, with room in the hold for one
++// whole item (run_cargo_intakes, CargoCanister::fits_any in
++// crates/nova_gameplay/src/inventory.rs); the take is a contact with
++// nonnegative penetration into the trigger box, whatever the door does, and
++// moves every whole item that fits, leaving the rest (take_fitting); a
+ // drop is born half a canister deep + capture_gap + CARGO_CANISTER_CLEARANCE
+ // 0.05 units (:82) off the face (:602-606).
+ const INTAKE_HEIGHT_M = 20;
+@@ -11523,11 +11525,11 @@ const INTAKE_BIRTH_M = CANISTER_SIDE_M / 2 + INTAKE_CAPTURE_GAP_M + 0.5;
+ 
+ /** What one intake does with one canister in the widget's side view. */
+ export interface IntakeTake {
+-    /** The canister's centre is in front of the face, within 40 m of it, and the hold has room. */
++    /** The canister's centre is in front of the face, within 40 m of it, and the hold has room for an item. */
+     doorOpens: boolean;
+     /** The canister's outline meets the 1 m slab in front of the opening. */
+     touchesSlab: boolean;
+-    /** The slab is touched and the hold has room: the whole canister goes in. */
++    /** The slab is touched and the hold has room: every whole item that fits goes in. */
+     taken: boolean;
+ }
+ 
+@@ -11777,7 +11779,7 @@ function initCargoIntakeTake(host: HTMLElement): void {
+             ),
+             sectionCell(
+                 verdict.taken ? "TAKEN" : "NOT TAKEN",
+-                "the whole canister",
++                "whole items that fit",
+                 verdict.taken ? "is-hit" : "is-off"
+             )
+         );
+@@ -11785,13 +11787,14 @@ function initCargoIntakeTake(host: HTMLElement): void {
+         if (verdict.taken) {
+             readout.textContent =
+                 "TAKEN. Part of the canister is in the slab and the hold has " +
+-                "room, so the whole canister goes into the hold at once. The " +
+-                "door, speed and angle play no part.";
++                "room, so every whole item that fits goes into the hold at " +
++                "once and the rest stays in the canister. The door, speed " +
++                "and angle play no part.";
+         } else if (verdict.touchesSlab) {
+             readout.classList.add("is-fault");
+             readout.textContent =
+                 "NOT TAKEN: the hold is full. The canister touches the slab " +
+-                "but is heavier than the hold's free mass, so it stays out.";
++                "but no item in it fits the hold's free mass, so it stays out.";
+         } else if (verdict.doorOpens) {
+             readout.classList.add("is-warn");
+             readout.textContent =
+@@ -11810,7 +11813,7 @@ function initCargoIntakeTake(host: HTMLElement): void {
+                 `DOOR SHUT: the hold is full. The centre is ` +
+                 `${meters(centreM, 1)} from the face centre, inside ` +
+                 `${INTAKE_DETECTION_M} m, but the door opens only for a ` +
+-                "canister the hold has room for.";
++                "canister with an item the hold has room for.";
+         } else {
+             readout.classList.add("is-warn");
+             readout.textContent =
+@@ -11836,12 +11839,23 @@ function initCargoIntakeTake(host: HTMLElement): void {
+                 "turns in the plane of the drawing, and the opening is " +
+                 `${INTAKE_APERTURE_WIDTH_M} m across, wider than the ` +
+                 `${CANISTER_LENGTH_M} m canister. In the game a physics ` +
+-                "contact into the 3D trigger box, with room in the hold, " +
++                "contact into the 3D trigger box, with room for an item, " +
+                 "decides the take, so a canister drawn just touching is not " +
+                 `a promise. A drop is born ${meters(INTAKE_BIRTH_M, 1)} out ` +
+                 `and leaves at ${INTAKE_EJECT_MPS} m/s.`
+         )
+     );
++    if (host.closest(".news__body") !== null) {
++        host.appendChild(
++            el(
++                "p",
++                "widget__note",
++                "This scope shows the current rules, not this release's: the " +
++                    "intake now takes the whole items that fit the hold and " +
++                    "leaves the rest in the canister."
++            )
++        );
++    }
+     update();
+ }
+ 
+@@ -12118,12 +12132,12 @@ function initDockingEnvelope(host: HTMLElement): void {
+ // that collider. A refusal draws nothing and writes an info log. Ore is paid
+ // only for corners a pulse flips, as canisters after the rock's remesh lands
+ // (release_mined_ore). A mined canister holds at most CARGO_CANISTER_MAX_MASS_G
+-// 200 kg (crates/nova_gameplay/src/inventory.rs:532), is born
++// 1,000 kg (crates/nova_gameplay/src/inventory.rs), is born
+ // MINED_CANISTER_OFFSET 1 unit off the cut and drifts off it at
+ // MINED_CANISTER_SPEED 0.2 units/s (mining.rs:93,97,895-925).
+ const MINING_REACH_M = 100;
+ const MINING_CARVE_M = 7.5;
+-const MINED_CANISTER_KG = 200;
++const MINED_CANISTER_KG = 1000;
+ const MINED_BIRTH_M = 10;
+ const MINED_DRIFT_MPS = 2;
+ // The widget's stand-in for a rock's mesh collider.
+@@ -12365,7 +12379,8 @@ function initMiningBeamChecks(host: HTMLElement): void {
+     const stats = el("div", "widget__stats");
+     stat(stats, "pulse").textContent = "at once, then 1 a second";
+     stat(stats, "cut").textContent = `~${MINING_CARVE_M} m radius`;
+-    stat(stats, "canister").textContent = `up to ${MINED_CANISTER_KG} kg`;
++    stat(stats, "canister").textContent =
++        `up to ${numText(MINED_CANISTER_KG, 0)} kg`;
+     stat(stats, "born").textContent = `${MINED_BIRTH_M} m off the cut`;
+     stat(stats, "drift").textContent = `${MINED_DRIFT_MPS} m/s`;
+     host.appendChild(stats);
+@@ -12383,6 +12398,16 @@ function initMiningBeamChecks(host: HTMLElement): void {
+     note.appendChild(explanation);
+     note.append(".");
+     host.appendChild(note);
++    if (host.closest(".news__body") !== null) {
++        host.appendChild(
++            el(
++                "p",
++                "widget__note",
++                "This scope shows the current rules, not this release's: a " +
++                    `canister now holds up to ${numText(MINED_CANISTER_KG, 0)} kg.`
++            )
++        );
++    }
+     update();
+ }
+ 
+diff --git a/web/src/wiki/getting-started.md b/web/src/wiki/getting-started.md
+index d6aa9cb87..e7bb65294 100644
+--- a/web/src/wiki/getting-started.md
++++ b/web/src/wiki/getting-started.md
+@@ -176,7 +176,7 @@ Every start hull carries a docking port on its port flank and a cargo intake. Th
+ 
+ 1. **Take from a wreck.** Each generated derelict wreck carries its own mixed goods - it may hold no hull plates at all - and a share of its credits. Travel-lock one, line one of your ports up with one of its ports and press <kbd>D</kbd> to [dock](../sections/docking/#flying-the-approach). In the Inventory pane, click an item and **Confirm** to [take](../interface/#take-and-give) it, or click **Take credits** to take its whole balance in one click. <kbd>D</kbd> again lets go.
+ 2. **Mine a rock.** Point the emitter at a rock inside 100 m and hold <kbd>V</kbd>. No travel lock is needed. The [mining beam](../sections/mining-beam/#cutting-ore) cuts the nearest rock it meets once a second, and the ore drifts off in canisters.
+-3. **Pick up a canister.** Fly your top-deck [cargo intake](../sections/cargo-intake/#taking-a-canister-in) up onto a canister, door first. It goes into your hold whole.
++3. **Pick up a canister.** Fly your top-deck [cargo intake](../sections/cargo-intake/#taking-a-canister-in) up onto a canister, door first. Every whole item your hold has room for goes in; the rest stays in the canister.
+ 4. **Drop cargo.** Undocked, click an item in the Inventory pane and **Confirm** a [Jettison](../interface/#jettison-and-pickup). Close the pane and the intake drops it as canisters, which you can pick up again.
+ 
+ Ore sells to a docked ship that trades: a living generated ship carries its own goods and credits, so Buy and Sell work once you dock with a calm one you have not neutralized. Mined ore stays in your hold until you find one.
+diff --git a/web/src/wiki/hud.md b/web/src/wiki/hud.md
+index 1639360f9..734b9dfb2 100644
+--- a/web/src/wiki/hud.md
++++ b/web/src/wiki/hud.md
+@@ -140,7 +140,7 @@ Nothing on it flies for you, and the **roll is not drawn at all** - the ports ar
+ 
+ <!-- Behavior verified against crates/nova_hud/src/pickup_sight.rs (CARGO_PICKUP_SIGHT_RANGE 200 m from the player's ship, no lock needed, a travel-locked canister first, then the nearest intake face) and crates/nova_hud/src/cargo_canister_chips.rs (CARGO_TAG_RANGE 100 m, "Mixed cargo" past one stack, mass line). -->
+ 
+-A hull carrying a [cargo intake](../sections/cargo-intake/#taking-a-canister-in) draws a **pickup sight** for a canister within **200 m** of your ship, with no lock needed: a cross on the intake's face and a line to the canister. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Stand the line perpendicular to the cross, then close the gap. The sight goes with the canister when the intake takes it.
++A hull carrying a [cargo intake](../sections/cargo-intake/#taking-a-canister-in) draws a **pickup sight** for a canister within **200 m** of your ship, with no lock needed: a cross on the intake's face and a line to the canister. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Stand the line perpendicular to the cross, then close the gap. The sight goes with the canister when the intake takes all of it, and stays on a canister with items your hold had no room for.
+ 
+ Within **100 m**, each canister carries an amber **tag** that reads what it holds, such as `4 Hull plate`, or `Mixed cargo` for more than one item, with its total mass under it.
+ 
+diff --git a/web/src/wiki/interface.md b/web/src/wiki/interface.md
+index 8b1f3b0fd..9fd6c0d0a 100644
+--- a/web/src/wiki/interface.md
++++ b/web/src/wiki/interface.md
+@@ -403,7 +403,7 @@ The Give, Sell, Store and To buttons stay as you set them from item to item, so
+ 
+ ### Jettison and pickup
+ 
+-Undocked, with a working [cargo intake](../sections/cargo-intake/), a click on an item in your column opens a **Jettison** form. **Confirm** takes the whole quantity out of your hold at once and packs it into canisters queued on the intake, and the note line reads `Jettisoned 4 Hull plate: 1 canister queued` with the number of canisters now waiting. A canister holds at most 200 kg across all its stacks, so a larger quantity fills several: one 150 kg torpedo, 10 rail slugs of 20 kg, 20 hull plates of 10 kg or 1000 PDC rounds of 0.2 kg each. A confirmed stack first tops up the last waiting canister where whole items still fit, even in the same frame. A refused jettison changes nothing: `Refused: undock to jettison`, `Refused: no working cargo intake`, `Refused: enter a quantity`, `Refused: quantity is zero`, or `Refused: only 2 Hull plate in Line Warship`.
++Undocked, with a working [cargo intake](../sections/cargo-intake/), a click on an item in your column opens a **Jettison** form. **Confirm** takes the whole quantity out of your hold at once and packs it into canisters queued on the intake, and the note line reads `Jettisoned 4 Hull plate: 1 canister queued` with the number of canisters now waiting. A canister holds at most 1,000 kg across all its stacks, so a larger quantity fills several: 6 torpedoes of 150 kg, 50 rail slugs of 20 kg, 100 hull plates of 10 kg or 5,000 PDC rounds of 0.2 kg each. A confirmed stack first tops up the last waiting canister where whole items still fit, even in the same frame. A refused jettison changes nothing: `Refused: undock to jettison`, `Refused: no working cargo intake`, `Refused: enter a quantity`, `Refused: quantity is zero`, or `Refused: only 2 Hull plate in Line Warship`.
+ 
+ Once you close the interface, the intake's door folds open and the canisters leave through it one at a time. To take a canister back in, or one a [mining beam](../sections/mining-beam/) cut loose, fly the intake's door onto it. [Cargo intake](../sections/cargo-intake/) has the door, the pickup sight, the drop and the canister rules.
+ 
+diff --git a/web/src/wiki/sections/cargo-intake.md b/web/src/wiki/sections/cargo-intake.md
+index a1a8724b9..098aeefa3 100644
+--- a/web/src/wiki/sections/cargo-intake.md
++++ b/web/src/wiki/sections/cargo-intake.md
+@@ -18,7 +18,7 @@
+     </div>
+ </figure>
+ 
+-A cargo intake is a **hold mouth**: a 30 x 20 m box, three cells across, two high and one deep, with an accordion door on one face. Bring the door to a canister and the intake takes the whole canister into your hold. Pick an item in the Inventory pane and the intake drops it out through the same door, packed into canisters.
++A cargo intake is a **hold mouth**: a 30 x 20 m box, three cells across, two high and one deep, with an accordion door on one face. Bring the door to a canister and the intake takes every whole item of it that your hold has room for. Pick an item in the Inventory pane and the intake drops it out through the same door, packed into canisters.
+ 
+ The intake does not reach out or pull. A canister goes in only when it touches the thin slab in front of the opening, so a pickup is flying: you move the door onto the canister.
+ 
+@@ -28,31 +28,32 @@ The intake does not reach out or pull. A canister goes in only when it touches t
+ |---|---|
+ | Size | **30 x 20 x 10 m**: three cells across, two high, one deep |
+ | Opening | **22.2 x 15.3 m**, centred on the door face |
+-| Door | opens for a canister within **40 m** in front of it that your hold has room for, in **1.2 s** |
++| Door | opens for a canister within **40 m** in front of it with at least one item your hold has room for, in **1.2 s** |
+ | Take | any part of a canister within **1 m** in front of the opening |
+ | Drop | one canister at a time, at **3 m/s** away from your ship |
+ | Sight | drawn for a canister within **200 m** of your ship |
+ | Health | **90** |
+ 
+-<!-- Widget values: crates/nova_authoring/src/base_content/sections/cargo_intake.rs:23 (INTAKE_CELLS 3 x 2 x 1), :111-112 (detection_range 40 m, capture_gap 1 m), :117-119 (aperture 22.2 x 15.3 m, eject_speed 3 m/s); crates/nova_ship/src/sections/cargo_intake_section.rs:73 (CARGO_CANISTER_SIZE 9.4 x 5.8 x 5.8 m), :555-562 (door detection by the canister centre from the face centre, front half only, room in the hold), :578-584 (take: contact penetration >= 0 and room in the hold), :602-606 (birth 2.9 + 1 + 0.5 = 4.4 m off the face). -->
++<!-- Widget values: crates/nova_authoring/src/base_content/sections/cargo_intake.rs:23 (INTAKE_CELLS 3 x 2 x 1), :111-112 (detection_range 40 m, capture_gap 1 m), :117-119 (aperture 22.2 x 15.3 m, eject_speed 3 m/s); crates/nova_ship/src/sections/cargo_intake_section.rs:73 (CARGO_CANISTER_SIZE 9.4 x 5.8 x 5.8 m), `run_cargo_intakes` (door detection by the canister centre from the face centre, front half only, room for one whole item; take: contact penetration >= 0 and room for one whole item, then `CargoCanister::take_fitting` in crates/nova_gameplay/src/inventory.rs), :602-606 (birth 2.9 + 1 + 0.5 = 4.4 m off the face). -->
+ 
+ <div class="widget" data-widget="cargo-intake-take">
+-<p>The intake's door face is 30 by 20 m, and the clear opening in it is 22.2 by 15.3 m, wider than a 9.4 by 5.8 by 5.8 m canister is long. The door opens for a canister whose centre is in front of the face and within 40 m of the face centre and fits the hold's free room, so an end-on canister whose near end is inside 40 m can still leave the door shut. The intake takes the whole canister when part of it is in contact with the 1 m slab in front of the opening and the hold has room for it. A dropped canister is born 4.4 m off the face and leaves at 3 m/s.</p>
++<p>The intake's door face is 30 by 20 m, and the clear opening in it is 22.2 by 15.3 m, wider than a 9.4 by 5.8 by 5.8 m canister is long. The door opens for a canister whose centre is in front of the face and within 40 m of the face centre and that holds at least one item the hold's free room fits, so an end-on canister whose near end is inside 40 m can still leave the door shut. The intake takes every whole item that fits the hold when part of the canister is in contact with the 1 m slab in front of the opening. A dropped canister is born 4.4 m off the face and leaves at 3 m/s.</p>
+ </div>
+ 
+ ## Taking a canister in
+ 
+-<!-- Behavior verified against crates/nova_ship/src/sections/cargo_intake_section.rs `run_cargo_intakes` (the door's room check, the trigger slab, whole-canister take, room check, a drop born outside the slab) and crates/nova_hud/src/pickup_sight.rs (sight target order). -->
++<!-- Behavior verified against crates/nova_ship/src/sections/cargo_intake_section.rs `run_cargo_intakes` (the door's room check, the trigger slab, the whole-item take and the remainder left in the same canister, a drop born outside the slab) and crates/nova_gameplay/src/inventory.rs `CargoCanister::take_fitting` (item id order) and crates/nova_hud/src/pickup_sight.rs (sight target order). -->
+ 
+ | Canister | What the intake does |
+ | --- | --- |
+-| In front of the door and within 40 m of it | Opens the door if your hold has room for it. |
+-| Any part of it within 1 m in front of the 22.2 x 15.3 m opening | Takes the whole canister into your hold at once, at any speed and any angle, open door or not. |
++| In front of the door and within 40 m of it | Opens the door if your hold has room for at least one of its items. |
++| Any part of it within 1 m in front of the 22.2 x 15.3 m opening | Takes every whole item your hold has room for at once, at any speed and any angle, open door or not. |
+ | Touching your ship anywhere else | Is not taken. |
+-| Heavier than your hold has room for | Stays out, whole. Alone, it leaves the door shut. |
++| Heavier than your hold has room for | Takes what fits, item by item in a fixed item order, and leaves the rest in the same canister. Its tag reads what is left, and a travel lock stays on it. |
++| With no item your hold has room for | Stays out, whole. Alone, it leaves the door shut. |
+ | Just dropped | Leaves without being taken. It is taken back only if it turns and comes within 1 m of the opening again. |
+ 
+-With a canister within 200 m of your ship, the **pickup sight** draws a cross on your intake's face and a line to the canister, with no lock needed. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Fly until the line stands perpendicular to the intake cross, then close the gap. The sight stays cyan while closing. The take sound and the canister going through the door confirm a take; the sight goes with the canister. An unavailable intake, or no canister within 200 m, draws no sight.
++With a canister within 200 m of your ship, the **pickup sight** draws a cross on your intake's face and a line to the canister, with no lock needed. A travel-locked canister in range takes the line first; otherwise the canister nearest an intake does. Fly until the line stands perpendicular to the intake cross, then close the gap. The sight stays cyan while closing. The take sound confirms a take. A canister taken whole goes through the door, and the sight goes with it. A canister with items left over stays at the door, and the sight stays on it. An unavailable intake, or no canister within 200 m, draws no sight.
+ 
+ The take ignores speed, but a canister is a free body: one that meets your hull beside the opening is knocked aside, not taken. Come up under it door first and gently.
+ 
+@@ -99,11 +100,11 @@ Undocked, the Inventory pane's **Jettison** packs an item into canisters queued
+ 
+ ## Canisters
+ 
+-<!-- Values from crates/nova_gameplay/src/inventory.rs CARGO_CANISTER_MAX_MASS_G 200 kg; crates/nova_hud/src/cargo_canister_chips.rs CARGO_TAG_RANGE 100 m; canister health and lock rules in crates/nova_ship/src/sections/cargo_intake_section.rs `cargo_canister`. -->
++<!-- Values from crates/nova_gameplay/src/inventory.rs CARGO_CANISTER_MAX_MASS_G 1,000 kg and CargoCanister::pack (wreck drops); crates/nova_hud/src/cargo_canister_chips.rs CARGO_TAG_RANGE 100 m; canister health and lock rules in crates/nova_ship/src/sections/cargo_intake_section.rs `cargo_canister`. -->
+ 
+-A canister holds at most 200 kg across all its stacks. Within 100 m of your ship, each canister carries an amber tag that reads what it holds, such as `4 Hull plate`, or `Mixed cargo` for multiple item types, with its total mass in kg. The tag hides while the canister is off-screen. A canister has 20 HP; at zero it and its contents are destroyed, not picked up. Canisters can be designated with a travel lock but cannot enter the combat target slot. In a saved Open World, a canister is saved as you left it, in the streamed window or frozen off it, on the desktop build. Any other scenario saves nothing: canisters go when it ends, and a jettisoned stack returns to your hold when it loads again.
++A canister holds at most 1,000 kg across all its stacks, and weighs what it holds. Within 100 m of your ship, each canister carries an amber tag that reads what it holds, such as `4 Hull plate`, or `Mixed cargo` for multiple item types, with its total mass in kg. The tag hides while the canister is off-screen. A canister has 20 HP; at zero it and its contents are destroyed, not picked up. Canisters can be designated with a travel lock but cannot enter the combat target slot. In a saved Open World, a canister is saved as you left it, in the streamed window or frozen off it, on the desktop build. Any other scenario saves nothing: canisters go when it ends, and a jettisoned stack returns to your hold when it loads again.
+ 
+-Canisters come from two places: your own jettison, and a [mining beam](../mining-beam/) cutting ore out of a rock.
++Canisters come from three places: your own jettison, a [mining beam](../mining-beam/) cutting ore out of a rock, and a destroyed ship or section. A wreck packs everything one drop leaves together, filling each canister with whole items in a fixed item order up to 1,000 kg, so one canister can mix parts, ore and ammunition. A section shot off earlier leaves its own drop.
+ 
+ ## Variants
+ 
+diff --git a/web/src/wiki/sections/mining-beam.md b/web/src/wiki/sections/mining-beam.md
+index 67f3616bd..197588cbb 100644
+--- a/web/src/wiki/sections/mining-beam.md
++++ b/web/src/wiki/sections/mining-beam.md
+@@ -32,10 +32,10 @@ The beam does not aim. It runs straight out of the emitter's face, so the **ship
+ | Cut | a sphere about **7.5 m** in radius where the beam hits |
+ | Health | **90** |
+ 
+-<!-- Widget values: crates/nova_authoring/src/base_content/sections/mining_beam.rs:101-103 (reach 100 m, pulse 1 s, carve_radius_cells 1.5); FIELD_CELL_WORLD 0.5 units in crates/nova_scenario/src/objects/asteroid_carve.rs:108 (1.5 cells ~ 7.5 m); CARGO_CANISTER_MAX_MASS_G 200 kg in crates/nova_gameplay/src/inventory.rs:532; MINED_CANISTER_OFFSET 10 m and MINED_CANISTER_SPEED 2 m/s in crates/nova_scenario/src/mining.rs:93,97,895-925; direct nearest-asteroid aim and ore check in MiningRefusalType and aim_beam; a refusal is an info log and the authored refusal_sound at the emitter face in play_mining_pulse_sfx; canisters after the remesh :804-841. -->
++<!-- Widget values: crates/nova_authoring/src/base_content/sections/mining_beam.rs:101-103 (reach 100 m, pulse 1 s, carve_radius_cells 1.5); FIELD_CELL_WORLD 0.5 units in crates/nova_scenario/src/objects/asteroid_carve.rs:108 (1.5 cells ~ 7.5 m); CARGO_CANISTER_MAX_MASS_G 1,000 kg in crates/nova_gameplay/src/inventory.rs; MINED_CANISTER_OFFSET 10 m and MINED_CANISTER_SPEED 2 m/s in crates/nova_scenario/src/mining.rs:93,97,895-925; direct nearest-asteroid aim and ore check in MiningRefusalType and aim_beam; a refusal is an info log and the authored refusal_sound at the emitter face in play_mining_pulse_sfx; canisters after the remesh :804-841. -->
+ 
+ <div class="widget" data-widget="mining-beam-checks">
+-<p>The emitter ray checks the nearest asteroid it intersects within 100 m, with no travel lock required. A barren asteroid in front of an ore rock refuses the pulse rather than letting the beam pass through it. A refused pulse shows nothing on the HUD. A pulse that passes cuts a sphere about 7.5 m in radius where the beam meets solid material; the first pulse into an untouched rock cuts nothing. Ore leaves only after the rock's remesh lands, as canisters of up to 200 kg, each born 10 m off the cut and drifting off it at 2 m/s.</p>
++<p>The emitter ray checks the nearest asteroid it intersects within 100 m, with no travel lock required. A barren asteroid in front of an ore rock refuses the pulse rather than letting the beam pass through it. A refused pulse shows nothing on the HUD. A pulse that passes cuts a sphere about 7.5 m in radius where the beam meets solid material; the first pulse into an untouched rock cuts nothing. Ore leaves only after the rock's remesh lands, as canisters of up to 1,000 kg, each born 10 m off the cut and drifting off it at 2 m/s.</p>
+ </div>
+ 
+ ## Cutting ore
+@@ -71,9 +71,9 @@ A pulse that passes draws the beam to the hit, flares it, throws sparks and play
+ 
+ ## Where the ore goes
+ 
+-<!-- Ore by kind: ore_for_asteroid_kind in crates/nova_scenario/src/mining.rs. One item per field corner cut, paid once the rock's remesh lands; canisters of at most CARGO_CANISTER_MAX_MASS_G 200 kg (crates/nova_gameplay/src/inventory.rs), born MINED_CANISTER_OFFSET 1 unit (10 m) off the last cut along its outward normal and drifting at MINED_CANISTER_SPEED 0.2 units/s (2 m/s) plus the rock's own motion there. Ore mass 10 kg each: mass_g in crates/nova_authoring/src/base_content/items.rs `item_catalog`. Open-world rock kinds: ROCK_KINDS in crates/nova_world_base/src/clusters.rs. -->
++<!-- Ore by kind: ore_for_asteroid_kind in crates/nova_scenario/src/mining.rs. One item per field corner cut, paid once the rock's remesh lands; canisters of at most CARGO_CANISTER_MAX_MASS_G 1,000 kg (crates/nova_gameplay/src/inventory.rs), born MINED_CANISTER_OFFSET 1 unit (10 m) off the last cut along its outward normal and drifting at MINED_CANISTER_SPEED 0.2 units/s (2 m/s) plus the rock's own motion there. Ore mass 10 kg each: mass_g in crates/nova_authoring/src/base_content/items.rs `item_catalog`. Open-world rock kinds: ROCK_KINDS in crates/nova_world_base/src/clusters.rs. -->
+ 
+-What a rock is made of decides the ore. Every ore weighs 10 kg, so one canister carries up to 20.
++What a rock is made of decides the ore. Every ore weighs 10 kg, so one canister carries up to 100.
+ 
+ | Rock kind | Ore |
+ | --- | --- |
+@@ -83,7 +83,7 @@ What a rock is made of decides the ore. Every ore weighs 10 kg, so one canister
+ | carbon | Carbon ore |
+ | plain | none: the beam does not fire on it |
+ 
+-The ore leaves the rock once the cut is drawn, packed into canisters of up to 200 kg. They are born one at a time, 10 m off the last cut and drifting away from it at 2 m/s on top of the rock's own motion, and the next waits until the space there is clear. A rock that is cut away entirely still lets its last canisters go. Fly your [cargo intake](../cargo-intake/#taking-a-canister-in) onto a canister to take it in. A saved Open World keeps a canister as you left it; any other scenario keeps it only for the session.
++The ore leaves the rock once the cut is drawn, packed into canisters of up to 1,000 kg. They are born one at a time, 10 m off the last cut and drifting away from it at 2 m/s on top of the rock's own motion, and the next waits until the space there is clear. A rock that is cut away entirely still lets its last canisters go. Fly your [cargo intake](../cargo-intake/#taking-a-canister-in) onto a canister to take it in. A saved Open World keeps a canister as you left it; any other scenario keeps it only for the session.
+ 
+ <figure class="figure">
+     <!-- Capture: assets/wiki-section-mining-beam-carve.png (producer: screenshot_mining_beam) -->
+diff --git a/web/src/wiki/ships.md b/web/src/wiki/ships.md
+index d7321f85a..b16638ad3 100644
+--- a/web/src/wiki/ships.md
++++ b/web/src/wiki/ships.md
+@@ -32,7 +32,7 @@ A big ship dies big. The fires of a collapse are spread across the whole wreck r
+ 
+ A ship coming apart is still a ship for those moments. Its guns keep firing until the sections carrying them blow off, so a kill you have already earned can shoot back on the way down.
+ 
+-A destroyed ship spills its cargo. The canisters leave one at a time from where it died: everything still in its hold, plus a share of the parts each lost section was built from. A section shot off a ship that keeps flying drops its own share of parts where it died. Fly a [cargo intake](../sections/cargo-intake/) onto a canister to take it in.
++A destroyed ship spills its cargo. The canisters leave one at a time from where it died: everything still in its hold, plus a share of the parts each lost section was built from, packed together in canisters of up to 1,000 kg that can mix item types. A section shot off a ship that keeps flying drops its own share of parts where it died. Fly a [cargo intake](../sections/cargo-intake/) onto a canister to take it in.
+ 
+ That is a different thing from being **out of the fight**. An armed ship that has lost every weapon, or the flight computer that aims and flies it, stops fighting but keeps its hull - it drifts as a derelict until someone finishes it, or does not. An unarmed ship that ever had a thruster goes the same way once the last working one dies; an unarmed hull that never had a thruster can only be destroyed, not neutralized. The [viewfinder](../hud/#target-viewfinder) tags it NEUTRALIZED, and a neutralized hull stops defending itself too: nobody is left aboard to work the mounts, so a wreck lets your ordnance fly straight past even with an intact turret still bolted to it. It is still solid and it still takes damage; it just does not answer.
+ 

@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Mixed 1,000 kg wreck canisters and partial pickup: implementation proof (uncommitted tree)</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f1f2ee;
+  --paper: #fafaf7;
+  --ink: #17191b;
+  --muted: #5b6167;
+  --rule: #d5d8d2;
+  --code-bg: #e8eae5;
+  --accent: #b84a1c;
+  --asserted: #1f6b66;
+  --asserted-soft: #dbeeeb;
+  --historical: #2f4fa8;
+  --historical-soft: #e1e7f7;
+  --modeled: #8a5a00;
+  --modeled-soft: #faf0d8;
+  --missing: #a3242e;
+  --missing-soft: #f7e0e2;
+  --grid: #e3e5e0;
+  --c1: #2a78d6;
+  --c2: #eb6834;
+  --c3: #1baf7a;
+  --c4: #eda100;
+  --c5: #e87ba4;
+  --body: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #121416;
+    --paper: #191c1f;
+    --ink: #e4e6e1;
+    --muted: #a0a6ac;
+    --rule: #30353a;
+    --code-bg: #24282c;
+    --accent: #ef8d56;
+    --asserted: #62c2ba;
+    --asserted-soft: #15302e;
+    --historical: #93aef2;
+    --historical-soft: #1c2640;
+    --modeled: #e7b556;
+    --modeled-soft: #382c12;
+    --missing: #f08a92;
+    --missing-soft: #3a1a1e;
+    --grid: #2a2e32;
+    --c1: #3987e5;
+    --c2: #d95926;
+    --c3: #199e70;
+    --c4: #c98500;
+    --c5: #d55181;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+main { max-width: 1060px; margin: 0 auto; padding: 28px 22px 80px; }
+h1 { font-size: 1.7rem; line-height: 1.2; margin: 0 0 6px; }
+h2 { font-size: 1.25rem; margin: 40px 0 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
+h3 { font-size: 1.02rem; margin: 22px 0 8px; }
+p, li { max-width: 84ch; }
+code, pre { font-family: var(--mono); font-size: 0.86em; }
+code { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+pre { background: var(--code-bg); padding: 10px 12px; border-radius: 6px; overflow-x: auto; white-space: pre; line-height: 1.45; }
+pre code { background: none; padding: 0; }
+a { color: var(--accent); overflow-wrap: anywhere; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sub { color: var(--muted); margin: 0 0 18px; }
+.card { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 18px; margin: 14px 0; }
+.banner { border-left: 5px solid var(--missing); background: var(--missing-soft); }
+.tag { display: inline-block; font: 600 0.72rem/1.6 var(--body); letter-spacing: 0.04em; text-transform: uppercase; padding: 0 7px; border-radius: 4px; border: 1px solid currentColor; white-space: nowrap; }
+.t-asserted { color: var(--asserted); background: var(--asserted-soft); }
+.t-historical { color: var(--historical); background: var(--historical-soft); }
+.t-modeled { color: var(--modeled); background: var(--modeled-soft); }
+.t-missing { color: var(--missing); background: var(--missing-soft); }
+.table-wrap { overflow-x: auto; margin: 12px 0; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+caption { text-align: left; padding: 10px 12px 6px; color: var(--muted); font-size: 0.88rem; caption-side: top; }
+th, td { text-align: left; vertical-align: top; padding: 7px 12px; border-top: 1px solid var(--rule); }
+thead th { border-top: none; background: var(--code-bg); font-weight: 600; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+figure { margin: 16px 0; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 14px; }
+figcaption { color: var(--muted); font-size: 0.88rem; margin-top: 8px; }
+.schem { display: inline-block; font: 700 0.74rem/1.6 var(--body); letter-spacing: 0.05em; text-transform: uppercase; color: var(--modeled); border: 1px dashed var(--modeled); padding: 0 8px; border-radius: 4px; margin-bottom: 6px; }
+svg { display: block; width: 100%; height: auto; }
+svg text { fill: var(--ink); font: 12px var(--body); }
+svg .muted { fill: var(--muted); }
+svg .gridline { stroke: var(--grid); stroke-width: 1; }
+svg .axis { stroke: var(--muted); stroke-width: 1; }
+svg .cap { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 5 4; fill: none; }
+svg .i1 { fill: var(--c1); } svg .i2 { fill: var(--c2); } svg .i3 { fill: var(--c3); } svg .i4 { fill: var(--c4); } svg .i5 { fill: var(--c5); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.86rem; color: var(--muted); margin: 6px 0 2px; }
+.legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; }
+.sw.i1 { background: var(--c1); } .sw.i2 { background: var(--c2); } .sw.i3 { background: var(--c3); } .sw.i4 { background: var(--c4); } .sw.i5 { background: var(--c5); }
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; list-style: none; padding: 0; margin: 8px 0 0; }
+.steps li { background: var(--bg); border: 1px solid var(--rule); border-radius: 8px; padding: 8px 10px; max-width: none; font-size: 0.86rem; }
+.steps li strong { display: block; font-size: 0.9rem; }
+.steps svg { margin: 6px 0; }
+.steps .hold { fill: var(--c3); } .steps .holdbg { fill: none; stroke: var(--muted); stroke-width: 1; }
+.steps .plate { fill: var(--c1); } .steps .gone { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 2; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.grid2 > .card { margin: 0; }
+nav ol { columns: 2 260px; padding-left: 20px; margin: 6px 0; }
+.svg-scroll { overflow-x: auto; }
+.mono { font-family: var(--mono); font-size: 0.86em; overflow-wrap: anywhere; }
+@media (max-width: 620px) {
+  main { padding: 18px 12px 60px; }
+  h1 { font-size: 1.4rem; }
+  .kv { grid-template-columns: 1fr; }
+  .kv dt { margin-top: 6px; }
+  .table-wrap table { min-width: 640px; }
+  .svg-scroll svg { min-width: 640px; }
+}
+@media (forced-colors: active) {
+  .tag, .schem { border: 1px solid CanvasText; }
+  svg .i1, svg .i2, svg .i3, svg .i4, svg .i5, .steps .hold, .steps .plate { fill: CanvasText; }
+}
+@media print {
+  body { background: #fff; }
+  .card, figure, .table-wrap { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<main>
+
+<h1>Mixed 1,000 kg wreck canisters and partial pickup: implementation proof</h1>
+<p class="sub">Task <code>20261026-003724</code>. Evidence report for the approved design (candidate M with M-P) as implemented in the <strong>uncommitted</strong> working tree on <code>master</code>. Written 2026-10-30. The pre-approval analysis stays in <a href="REPORT.html">REPORT.html</a>; this page does not replace it.</p>
+
+<div class="card banner" role="note" aria-label="Scope of this proof">
+<p><strong>This is not an exact-commit proof.</strong> Every result below was run against base commit <code>112b79a0d</code> plus an uncommitted diff with SHA-256 <code class="mono">dbf75f45d7dd583a9f08a21e3b9f0a400c3e22cdc1b6bb4fffc5810f4a661706</code>. No CI ran on this tree. No player screenshot, no <code>nova-bench</code> flow and no <code>nova-probe</code> run exists for the change. The evidence is asserted unit and ECS tests, a content lint and a format check. It does not show how pickup looks or plays, and it does not show that a player now collects more wreck rewards.</p>
+</div>
+
+<nav class="card" aria-label="Contents">
+<strong>Contents</strong>
+<ol>
+<li><a href="#verdict">Verdict by claim</a></li>
+<li><a href="#provenance">Provenance and hashes</a></li>
+<li><a href="#rule">The implemented rule</a></li>
+<li><a href="#c1">Claim 1: one 1,300 kg drop packs into 1,000 + 300 kg</a></li>
+<li><a href="#c2">Claim 2: partial take keeps the canister id</a></li>
+<li><a href="#c3">Claim 3: full hold, two intakes, two ships</a></li>
+<li><a href="#c4">Claim 4: save refusal and content lint</a></li>
+<li><a href="#unit">Supporting pure-logic tests</a></li>
+<li><a href="#c5">Claim 5: the historical run is not remedied</a></li>
+<li><a href="#c6">Claim 6: what is not tested</a></li>
+<li><a href="#blast">Blast radius</a></li>
+<li><a href="#loud">Failures that are loud</a></li>
+<li><a href="#remaining">Remaining starter-ship proof</a></li>
+<li><a href="#repro">Reproduce</a></li>
+<li><a href="#checks">How this page was checked</a></li>
+</ol>
+</nav>
+
+<h2 id="verdict">1. Verdict by claim</h2>
+<p>Tags: <span class="tag t-asserted">asserted</span> a test assertion passed in a logged run on the dirty tree. <span class="tag t-historical">historical</span> a pre-change artifact from an older commit. <span class="tag t-modeled">modeled</span> arithmetic from the rule, not run. <span class="tag t-missing">not tested</span> no evidence exists.</p>
+<div class="table-wrap">
+<table>
+<caption>Six claims, their status and their primary evidence</caption>
+<thead><tr><th scope="col">#</th><th scope="col">Claim</th><th scope="col">Status</th><th scope="col">Evidence</th></tr></thead>
+<tbody>
+<tr><th scope="row">1</th><td>A ship destroyed whole leaves one 1,300 kg drop. It packs into two mixed canisters, 1,000 kg and 300 kg, born first in, first out, each with its own <code>CargoCanisterRuntimeId</code>.</td><td><span class="tag t-asserted">asserted</span></td><td><a href="../../crates/nova_scenario/src/wreck_cargo/tests.rs#L171-L231">wreck_cargo/tests.rs:171-231</a>; <a href="evidence/implementation-20261030/logs/01-wreck-cargo-1300kg-mixed-fifo.log">log 01</a></td></tr>
+<tr><th scope="row">2</th><td>With 20 kg free, an intake takes 2 of 4 plates (2 x 10 kg) from a 40 kg canister. The rest stays in the same entity with the same id. The id survives freeze and thaw, and a later take empties it.</td><td><span class="tag t-asserted">asserted</span></td><td><a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L514-L581">cargo_intake_section/tests.rs:514-581</a>; <a href="evidence/implementation-20261030/logs/02-cargo-intake-partial-full-dup.log">log 02</a> section 1</td></tr>
+<tr><th scope="row">3</th><td>A full hold takes nothing and keeps the door shut. Two intakes on one ship, and two ships on one canister, take no item twice and lose none.</td><td><span class="tag t-asserted">asserted</span></td><td><a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L583-L608">tests.rs:583-608</a>, <a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L644-L714">tests.rs:644-714</a>; <a href="evidence/implementation-20261030/logs/02-cargo-intake-partial-full-dup.log">log 02</a> sections 2-4</td></tr>
+<tr><th scope="row">4</th><td>A save with a 1,100 kg canister is refused on open; 1,000 kg opens. Content lint passes at the new cap.</td><td><span class="tag t-asserted">asserted</span></td><td><a href="../../crates/nova_world_base/src/save/tests.rs#L4096">save/tests.rs:4096</a>, <a href="../../crates/nova_world_base/src/save/tests.rs#L4149">:4149</a>, <a href="../../crates/nova_world_base/src/save/tests.rs#L4182">:4182</a>; <a href="evidence/implementation-20261030/logs/03-save-1100kg-overcap.log">log 03</a>, <a href="evidence/implementation-20261030/logs/05-content-lint.log">log 05</a></td></tr>
+<tr><th scope="row">5</th><td>The pre-change range run (36 separate one-stack drops, 17 canisters left, nearest 49.2 m, no pickup) is not reproduced and is not remedied: mixed packing does not fix missed contact.</td><td><span class="tag t-historical">historical</span></td><td><a href="evidence/game.txt">evidence/game.txt</a> lines 23-107; <a href="evidence/final-snapshot.json">final-snapshot.json</a>; <a href="evidence/score.json">score.json</a></td></tr>
+<tr><th scope="row">6</th><td>The modeled 150 kg-free take, a live player view and a runtime flow are not tested. No CI ran on the dirty tree.</td><td><span class="tag t-missing">not tested</span></td><td><a href="evidence/implementation-20261030/SUMMARY.md">SUMMARY.md</a>, section "What was NOT run"</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="provenance">2. Provenance and hashes</h2>
+<div class="card">
+<dl class="kv">
+<dt>Base commit</dt><dd><code class="mono">112b79a0d82193e74e8bdb02e0fcbed846ec0c66</code> (<a href="evidence/implementation-20261030/HEAD.txt">HEAD.txt</a>)</dd>
+<dt>Uncommitted diff</dt><dd><a href="evidence/implementation-20261030/working-tree.diff">working-tree.diff</a>, <code>git diff --binary</code>, 33 tracked files, 611 insertions and 233 deletions</dd>
+<dt>Diff SHA-256</dt><dd><code class="mono">dbf75f45d7dd583a9f08a21e3b9f0a400c3e22cdc1b6bb4fffc5810f4a661706</code> (<a href="evidence/implementation-20261030/working-tree.diff.sha256">working-tree.diff.sha256</a>)</dd>
+<dt>Manifest</dt><dd><a href="evidence/implementation-20261030/MANIFEST.sha256">MANIFEST.sha256</a> covers 15 files: logs, diff, run metadata and <a href="evidence/implementation-20261030/SUMMARY.md">SUMMARY.md</a></dd>
+<dt>Tree status at run</dt><dd><a href="evidence/implementation-20261030/git-status-at-run.txt">git-status-at-run.txt</a></dd>
+<dt>Run time (UTC)</dt><dd><a href="evidence/implementation-20261030/run-timestamp-utc.txt">2026-10-30T16:53:42Z</a></dd>
+<dt>Toolchain</dt><dd><a href="evidence/implementation-20261030/rust-toolchain.toml.copy">nightly-2026-07-03</a>; <a href="evidence/implementation-20261030/nix-version.txt">nix 2.34.8</a>; <a href="evidence/implementation-20261030/uname.txt">Linux 6.18.40 x86_64</a></dd>
+<dt>Build isolation</dt><dd><code>CARGO_TARGET_DIR=/tmp/nova-verify-20261030-target</code>, <code>-j2</code>, one test per invocation, <code>--exact</code></dd>
+</dl>
+</div>
+<p>When this page was written, <code>git rev-parse HEAD</code> was still <code>112b79a0d</code>, <code>git diff --binary | sha256sum</code> still gave the <code>dbf75f45...</code> hash, and <code>sha256sum -c MANIFEST.sha256</code> reported OK for all 15 entries. This page is an untracked file, so it does not change the diff hash. Any later edit to a tracked file, including <a href="TASK.md">TASK.md</a> (part of the diff), changes that hash, and then these results no longer describe the tree.</p>
+<p>The diff includes source, tests, generated base content, docs, wiki, a web widget and TASK.md. The TASK.md edit is part of the hashed change set; it is not a gameplay change.</p>
+
+<h2 id="rule">3. The implemented rule</h2>
+<p>One owner type carries the rule: <code>CargoCanister</code> in <code>nova_gameplay</code>. Wreck drops, mining and jettison call <code>pack</code>; the intake calls <code>fits_any</code> and <code>take_fitting</code>. Both share one private helper, <code>take_into</code>.</p>
+<div class="grid2">
+<div class="card">
+<h3>Cap</h3>
+<p><code>CARGO_CANISTER_MAX_MASS_G = 1_000_000</code> (<a href="../../crates/nova_gameplay/src/inventory.rs#L1236">inventory.rs:1236</a>). Was 200,000 g at <code>112b79a0d</code>. One global value: wreck, mining, jettison, item lint and save check all read it.</p>
+</div>
+<div class="card">
+<h3>Pack</h3>
+<p><code>CargoCanister::pack</code> (<a href="../../crates/nova_gameplay/src/inventory.rs#L1286-L1318">inventory.rs:1286-1318</a>) fills each canister in item id order with as many whole items as fit under the cap. It skips a stack whose next item is too heavy and goes on. The next canister starts again from the lowest remaining id. It replaces the per-item <code>CargoCanister::split</code>, which the diff deletes.</p>
+</div>
+<div class="card">
+<h3>Take</h3>
+<p><code>take_fitting</code> (<a href="../../crates/nova_gameplay/src/inventory.rs#L1320-L1331">inventory.rs:1320-1331</a>) moves <code>min(count, floor(room / mass))</code> of each stack in id order. <code>fits_any</code> (<a href="../../crates/nova_gameplay/src/inventory.rs#L1334-L1339">:1334-1339</a>) is true when one whole item fits. Helper: <a href="../../crates/nova_gameplay/src/inventory.rs#L1347-L1365">take_into, :1347-1365</a>.</p>
+</div>
+<div class="card">
+<h3>Intake</h3>
+<p><code>run_cargo_intakes</code> sets the door from <code>fits_any</code> (<a href="../../crates/nova_ship/src/sections/cargo_intake_section.rs#L606-L613">cargo_intake_section.rs:606-613</a>). On trigger contact it takes what fits, pushes one <code>PickedUp</code> per stack, and despawns only an emptied canister (<a href="../../crates/nova_ship/src/sections/cargo_intake_section.rs#L628-L659">:628-659</a>). Module rule: <a href="../../crates/nova_ship/src/sections/cargo_intake_section.rs#L35-L40">:35-40</a>.</p>
+</div>
+</div>
+<pre aria-label="Data flow"><code>destroyed body
+  -> wreck_cargo::drop_wreck_cargo        one drop = hold + collapse salvage
+  -> CargoCanister::pack(stacks)          wreck_cargo.rs:137
+  -> MinedCanisterQueue::leaving          wreck_cargo.rs:138-139, FIFO, id minted at birth
+  -> drifting CargoCanister + RuntimeId
+  -> run_cargo_intakes                    contact + fits_any -> take_fitting
+       -> ShipInventory::add + PickedUp { canister: id, item, count }
+       -> despawn only when is_empty()</code></pre>
+
+<h2 id="c1">4. Claim 1: one 1,300 kg drop packs into 1,000 + 300 kg <span class="tag t-asserted">asserted</span></h2>
+<p>Test <code>wreck_cargo::tests::a_ship_destroyed_whole_drops_its_hold_and_its_sections_parts_in_one_drop</code> (<a href="../../crates/nova_scenario/src/wreck_cargo/tests.rs#L171-L231">wreck_cargo/tests.rs:171-231</a>). A six-section ship with a hold of 25 iron ore, 300 PDC rounds and 3 hull plates collapses. Each section adds <code>floor(0.3 x count)</code> of its parts to the root's salvage, so the root leaves one drop. The test asserts:</p>
+<ul>
+<li>exactly one drop, in the root's sector, at the root's position (<a href="../../crates/nova_scenario/src/wreck_cargo/tests.rs#L203-L208">:203-208</a>);</li>
+<li>the queued canisters equal the expected list (<a href="../../crates/nova_scenario/src/wreck_cargo/tests.rs#L211-L219">:211-219</a>);</li>
+<li>the born canisters, in birth order, equal the same list: "first in, first out, nothing lost" (<a href="../../crates/nova_scenario/src/wreck_cargo/tests.rs#L225">:225</a>);</li>
+<li>the number of distinct runtime ids equals the number of canisters: "every canister has its own id" (<a href="../../crates/nova_scenario/src/wreck_cargo/tests.rs#L226-L229">:226-229</a>);</li>
+<li>no second drop appears (<a href="../../crates/nova_scenario/src/wreck_cargo/tests.rs#L230">:230</a>).</li>
+</ul>
+<p>Log line: <code>test wreck_cargo::tests::a_ship_destroyed_whole_drops_its_hold_and_its_sections_parts_in_one_drop ... ok</code>, <code>1 passed; 0 failed</code> (<a href="evidence/implementation-20261030/logs/01-wreck-cargo-1300kg-mixed-fifo.log">log 01</a>). The same test existed at <code>112b79a0d</code> with the old expected list; the diff changes only its expectation and doc comment.</p>
+
+<div class="table-wrap">
+<table id="t-after">
+<caption>After (dirty tree): asserted canister contents. Masses use the test fixture items in <a href="../../crates/nova_gameplay/src/test_support.rs#L93-L125">test_support.rs:93-125</a>.</caption>
+<thead><tr><th scope="col">Canister (birth order)</th><th scope="col">Item</th><th scope="col" class="num">Count</th><th scope="col" class="num">Item mass</th><th scope="col" class="num">Stack mass</th></tr></thead>
+<tbody>
+<tr data-canister="A1" data-item="DriveBell" data-count="6" data-mass-g="80000" data-stack-kg="480"><th scope="row" rowspan="4">1 (total 1,000 kg, at cap)</th><td>DriveBell</td><td class="num">6</td><td class="num">80 kg</td><td class="num">480 kg</td></tr>
+<tr data-canister="A1" data-item="FrameSpar" data-count="12" data-mass-g="40000" data-stack-kg="480"><td>FrameSpar</td><td class="num">12</td><td class="num">40 kg</td><td class="num">480 kg</td></tr>
+<tr data-canister="A1" data-item="HullPlate" data-count="3" data-mass-g="10000" data-stack-kg="30"><td>HullPlate</td><td class="num">3</td><td class="num">10 kg</td><td class="num">30 kg</td></tr>
+<tr data-canister="A1" data-item="IronOre" data-count="1" data-mass-g="10000" data-stack-kg="10"><td>IronOre</td><td class="num">1</td><td class="num">10 kg</td><td class="num">10 kg</td></tr>
+<tr data-canister="A2" data-item="IronOre" data-count="24" data-mass-g="10000" data-stack-kg="240"><th scope="row" rowspan="2">2 (total 300 kg)</th><td>IronOre</td><td class="num">24</td><td class="num">10 kg</td><td class="num">240 kg</td></tr>
+<tr data-canister="A2" data-item="PdcRound" data-count="300" data-mass-g="200" data-stack-kg="60"><td>PdcRound</td><td class="num">300</td><td class="num">0.2 kg</td><td class="num">60 kg</td></tr>
+</tbody>
+</table>
+</div>
+<p>Arithmetic: 480 + 480 + 30 + 10 = 1,000 kg; 240 + 60 = 300 kg; 1,000 + 300 = 1,300 kg. Section parts are 6 bells and 12 spars, 960 kg; the hold is 30 + 250 + 60 = 340 kg. Iron ore splits 1 + 24 = 25: the first canister has 10 kg of room left after the plates, so one ore goes in and the rest starts canister 2.</p>
+
+<div class="table-wrap">
+<table id="t-before">
+<caption>Before (<code>112b79a0d</code>): the same test asserted ten one-item canisters under the 200 kg cap. Source: the removed lines of this test in <a href="evidence/implementation-20261030/working-tree.diff">working-tree.diff</a> (<code>HEAD:crates/nova_scenario/src/wreck_cargo/tests.rs</code> lines 213-224).</caption>
+<thead><tr><th scope="col">Canister</th><th scope="col">Item</th><th scope="col" class="num">Count</th><th scope="col" class="num">Mass</th></tr></thead>
+<tbody>
+<tr data-canister="B1" data-item="DriveBell" data-count="2" data-mass-g="80000" data-stack-kg="160"><th scope="row">1</th><td>DriveBell</td><td class="num">2</td><td class="num">160 kg</td></tr>
+<tr data-canister="B2" data-item="DriveBell" data-count="2" data-mass-g="80000" data-stack-kg="160"><th scope="row">2</th><td>DriveBell</td><td class="num">2</td><td class="num">160 kg</td></tr>
+<tr data-canister="B3" data-item="DriveBell" data-count="2" data-mass-g="80000" data-stack-kg="160"><th scope="row">3</th><td>DriveBell</td><td class="num">2</td><td class="num">160 kg</td></tr>
+<tr data-canister="B4" data-item="FrameSpar" data-count="5" data-mass-g="40000" data-stack-kg="200"><th scope="row">4</th><td>FrameSpar</td><td class="num">5</td><td class="num">200 kg</td></tr>
+<tr data-canister="B5" data-item="FrameSpar" data-count="5" data-mass-g="40000" data-stack-kg="200"><th scope="row">5</th><td>FrameSpar</td><td class="num">5</td><td class="num">200 kg</td></tr>
+<tr data-canister="B6" data-item="FrameSpar" data-count="2" data-mass-g="40000" data-stack-kg="80"><th scope="row">6</th><td>FrameSpar</td><td class="num">2</td><td class="num">80 kg</td></tr>
+<tr data-canister="B7" data-item="HullPlate" data-count="3" data-mass-g="10000" data-stack-kg="30"><th scope="row">7</th><td>HullPlate</td><td class="num">3</td><td class="num">30 kg</td></tr>
+<tr data-canister="B8" data-item="IronOre" data-count="20" data-mass-g="10000" data-stack-kg="200"><th scope="row">8</th><td>IronOre</td><td class="num">20</td><td class="num">200 kg</td></tr>
+<tr data-canister="B9" data-item="IronOre" data-count="5" data-mass-g="10000" data-stack-kg="50"><th scope="row">9</th><td>IronOre</td><td class="num">5</td><td class="num">50 kg</td></tr>
+<tr data-canister="B10" data-item="PdcRound" data-count="300" data-mass-g="200" data-stack-kg="60"><th scope="row">10</th><td>PdcRound</td><td class="num">300</td><td class="num">60 kg</td></tr>
+</tbody>
+</table>
+</div>
+
+<figure aria-labelledby="fig1-cap">
+<span class="schem">Schematic - drawn from the asserted fixture lists above, not a screenshot</span>
+<div class="legend" aria-hidden="true"><span><span class="sw i1"></span>DriveBell</span><span><span class="sw i2"></span>FrameSpar</span><span><span class="sw i3"></span>HullPlate</span><span><span class="sw i4"></span>IronOre</span><span><span class="sw i5"></span>PdcRound</span></div>
+<div class="svg-scroll">
+<svg viewBox="0 0 800 420" role="img" aria-labelledby="fig1-title fig1-desc">
+<title id="fig1-title">Before and after canister masses for one 1,300 kg wreck drop</title>
+<desc id="fig1-desc">Horizontal bars on one 0 to 1,000 kg scale. Before: ten one-item canisters of 160, 160, 160, 200, 200, 80, 30, 200, 50 and 60 kg under a 200 kg cap. After: two mixed canisters of 1,000 kg and 300 kg under a 1,000 kg cap. The tables above hold the same values.</desc>
+<g aria-hidden="true">
+<line class="gridline" x1="370" y1="22" x2="370" y2="388"/><line class="gridline" x1="470" y1="22" x2="470" y2="388"/><line class="gridline" x1="570" y1="22" x2="570" y2="388"/>
+<text x="0" y="16" font-weight="600">Before (112b79a0d): 10 canisters, cap 200 kg</text>
+<line class="cap" x1="270" y1="22" x2="270" y2="290"/><text class="muted" x="274" y="34">200 kg cap</text>
+<text x="160" y="51" text-anchor="end">1 DriveBell x2</text><rect class="i1" x="170" y="39" width="80" height="16" rx="3"><title>Before canister 1: DriveBell x2, 160 kg</title></rect><text class="muted" x="280" y="51">160 kg</text>
+<text x="160" y="76" text-anchor="end">2 DriveBell x2</text><rect class="i1" x="170" y="64" width="80" height="16" rx="3"><title>Before canister 2: DriveBell x2, 160 kg</title></rect><text class="muted" x="280" y="76">160 kg</text>
+<text x="160" y="101" text-anchor="end">3 DriveBell x2</text><rect class="i1" x="170" y="89" width="80" height="16" rx="3"><title>Before canister 3: DriveBell x2, 160 kg</title></rect><text class="muted" x="280" y="101">160 kg</text>
+<text x="160" y="126" text-anchor="end">4 FrameSpar x5</text><rect class="i2" x="170" y="114" width="100" height="16" rx="3"><title>Before canister 4: FrameSpar x5, 200 kg</title></rect><text class="muted" x="280" y="126">200 kg</text>
+<text x="160" y="151" text-anchor="end">5 FrameSpar x5</text><rect class="i2" x="170" y="139" width="100" height="16" rx="3"><title>Before canister 5: FrameSpar x5, 200 kg</title></rect><text class="muted" x="280" y="151">200 kg</text>
+<text x="160" y="176" text-anchor="end">6 FrameSpar x2</text><rect class="i2" x="170" y="164" width="40" height="16" rx="3"><title>Before canister 6: FrameSpar x2, 80 kg</title></rect><text class="muted" x="280" y="176">80 kg</text>
+<text x="160" y="201" text-anchor="end">7 HullPlate x3</text><rect class="i3" x="170" y="189" width="15" height="16" rx="3"><title>Before canister 7: HullPlate x3, 30 kg</title></rect><text class="muted" x="280" y="201">30 kg</text>
+<text x="160" y="226" text-anchor="end">8 IronOre x20</text><rect class="i4" x="170" y="214" width="100" height="16" rx="3"><title>Before canister 8: IronOre x20, 200 kg</title></rect><text class="muted" x="280" y="226">200 kg</text>
+<text x="160" y="251" text-anchor="end">9 IronOre x5</text><rect class="i4" x="170" y="239" width="25" height="16" rx="3"><title>Before canister 9: IronOre x5, 50 kg</title></rect><text class="muted" x="280" y="251">50 kg</text>
+<text x="160" y="276" text-anchor="end">10 PdcRound x300</text><rect class="i5" x="170" y="264" width="30" height="16" rx="3"><title>Before canister 10: PdcRound x300, 60 kg</title></rect><text class="muted" x="280" y="276">60 kg</text>
+<text x="0" y="316" font-weight="600">After (dirty tree): 2 canisters, cap 1,000 kg</text>
+<line class="cap" x1="670" y1="300" x2="670" y2="388"/><text class="muted" x="674" y="312">1,000 kg cap</text>
+<text x="160" y="341" text-anchor="end">1 mixed</text>
+<rect class="i1" x="170" y="329" width="238" height="16" rx="3"><title>After canister 1: DriveBell x6, 480 kg</title></rect>
+<rect class="i2" x="410" y="329" width="238" height="16" rx="3"><title>After canister 1: FrameSpar x12, 480 kg</title></rect>
+<rect class="i3" x="650" y="329" width="13" height="16" rx="2"><title>After canister 1: HullPlate x3, 30 kg</title></rect>
+<rect class="i4" x="665" y="329" width="5" height="16" rx="1"><title>After canister 1: IronOre x1, 10 kg</title></rect>
+<text x="289" y="341" text-anchor="middle" style="fill:#fff">DriveBell x6</text>
+<text x="529" y="341" text-anchor="middle" style="fill:#fff">FrameSpar x12</text>
+<text class="muted" x="676" y="341">1,000 kg</text>
+<text x="160" y="366" text-anchor="end">2 mixed</text>
+<rect class="i4" x="170" y="354" width="118" height="16" rx="3"><title>After canister 2: IronOre x24, 240 kg</title></rect>
+<rect class="i5" x="290" y="354" width="30" height="16" rx="3"><title>After canister 2: PdcRound x300, 60 kg</title></rect>
+<text class="muted" x="326" y="366">300 kg (IronOre x24, PdcRound x300)</text>
+<line class="axis" x1="170" y1="392" x2="670" y2="392"/>
+<text class="muted" x="170" y="410" text-anchor="middle">0</text><text class="muted" x="270" y="410" text-anchor="middle">200</text><text class="muted" x="370" y="410" text-anchor="middle">400</text><text class="muted" x="470" y="410" text-anchor="middle">600</text><text class="muted" x="570" y="410" text-anchor="middle">800</text><text class="muted" x="670" y="410" text-anchor="middle">1,000 kg</text>
+</g>
+</svg>
+</div>
+<figcaption id="fig1-cap">Both panels share one 0-1,000 kg scale, so bar lengths compare across panels. Canister 1 after: HullPlate x3 (30 kg) and IronOre x1 (10 kg) are the two narrow segments at the right end. Hover a bar for its contents. On a narrow screen the chart and the tables scroll sideways. This shows the packing of one asserted ECS fixture. It does not show the game's rendering, canister size on screen, or how many canisters a real fight leaves.</figcaption>
+</figure>
+
+<h2 id="c2">5. Claim 2: partial take keeps the canister id <span class="tag t-asserted">asserted</span></h2>
+<p>Test <code>sections::cargo_intake_section::tests::a_canister_heavier_than_the_free_room_gives_up_the_whole_items_that_fit</code> (<a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L514-L581">cargo_intake_section/tests.rs:514-581</a>). The fixture ship has a 400 kg hold stocked with 38 hull plates (380 kg), so 20 kg is free. One 4-plate canister (40 kg) drifts with its centre half a capture gap in front of the intake face. The test runs the real physics trigger and the real <code>run_cargo_intakes</code> system. It replaces the deleted test <code>a_canister_larger_than_the_free_room_is_refused_whole</code>, which asserted the old whole-fit refusal.</p>
+
+<figure aria-labelledby="fig2-cap">
+<span class="schem">Schematic - steps of one asserted test, not a screenshot</span>
+<ol class="steps">
+<li><strong>1. Start</strong>
+<svg viewBox="0 0 150 46" role="img" aria-label="Hold 380 of 400 kg. Canister holds 4 plates."><rect class="holdbg" x="1" y="4" width="148" height="12"/><rect class="hold" x="1" y="4" width="140.6" height="12"/><rect class="plate" x="1" y="26" width="16" height="16"/><rect class="plate" x="21" y="26" width="16" height="16"/><rect class="plate" x="41" y="26" width="16" height="16"/><rect class="plate" x="61" y="26" width="16" height="16"/></svg>
+Hold 380 / 400 kg. Canister id <em>N</em>: HullPlate x4, 40 kg.</li>
+<li><strong>2. Contact, 120 frames</strong>
+<svg viewBox="0 0 150 46" role="img" aria-label="Hold 400 of 400 kg. Canister holds 2 plates; 2 taken."><rect class="holdbg" x="1" y="4" width="148" height="12"/><rect class="hold" x="1" y="4" width="148" height="12"/><rect class="gone" x="1" y="26" width="16" height="16"/><rect class="gone" x="21" y="26" width="16" height="16"/><rect class="plate" x="41" y="26" width="16" height="16"/><rect class="plate" x="61" y="26" width="16" height="16"/></svg>
+Hold 400 / 400 kg (<a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L532">:532</a>). One take, <code>PickedUp(N, HullPlate, 2)</code>. Same entity keeps HullPlate x2 and id <em>N</em> (<a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L533-L539">:533-539</a>). Door 0.0; pair not ready (<a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L540-L546">:540-546</a>).</li>
+<li><strong>3. Freeze</strong>
+<svg viewBox="0 0 150 46" role="img" aria-label="Frozen canister id N holds 2 plates, 20 kg."><rect class="holdbg" x="1" y="4" width="148" height="12"/><rect class="hold" x="1" y="4" width="148" height="12"/><rect class="plate" x="41" y="26" width="16" height="16"/><rect class="plate" x="61" y="26" width="16" height="16"/></svg>
+<code>freeze_canister</code> gives id <em>N</em> and 20,000 g (<a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L548-L552">:548-552</a>). The entity is despawned.</li>
+<li><strong>4. Thaw, free 20 kg</strong>
+<svg viewBox="0 0 150 46" role="img" aria-label="New entity with id N holds 2 plates. Hold 380 of 400 kg."><rect class="holdbg" x="1" y="4" width="148" height="12"/><rect class="hold" x="1" y="4" width="140.6" height="12"/><rect class="plate" x="41" y="26" width="16" height="16"/><rect class="plate" x="61" y="26" width="16" height="16"/></svg>
+<code>thaw_canister</code> spawns a <em>new entity</em> that carries id <em>N</em> (<a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L553-L562">:553-562</a>). The test removes 2 plates from the hold (<a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L564-L567">:564-567</a>).</li>
+<li><strong>5. Resumed take</strong>
+<svg viewBox="0 0 150 46" role="img" aria-label="Hold 400 of 400 kg. Canister emptied and despawned."><rect class="holdbg" x="1" y="4" width="148" height="12"/><rect class="hold" x="1" y="4" width="148" height="12"/><rect class="gone" x="41" y="26" width="16" height="16"/><rect class="gone" x="61" y="26" width="16" height="16"/></svg>
+Thawed canister despawns within 120 frames. Hold 40 plates; 2 takes; <code>PickedUp</code> list is <code>[(N, HullPlate, 2), (N, HullPlate, 2)]</code> (<a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L568-L580">:568-580</a>).</li>
+</ol>
+<figcaption id="fig2-cap">Top bar: hold mass on a 0-400 kg scale. Squares: the 10 kg plates in the canister; dashed squares were taken. The canister <em>entity</em> persists across the partial take (step 2). Across freeze and thaw only the <em>runtime id</em> persists; the thawed canister is a new entity.</figcaption>
+</figure>
+<p>Arithmetic: 400 - 380 = 20 kg free; <code>floor(20 / 10) = 2</code> plates; 4 - 2 = 2 left (20 kg); 2 + 2 = 4 plates taken over two takes, 38 + 2 = 40 and 38 + 2 = 40 plates held after each take. Log line: <code>... gives_up_the_whole_items_that_fit ... ok</code>, <code>1 passed; 0 failed</code> (<a href="evidence/implementation-20261030/logs/02-cargo-intake-partial-full-dup.log">log 02</a>, section 1).</p>
+
+<h2 id="c3">6. Claim 3: full hold, two intakes, two ships <span class="tag t-asserted">asserted</span></h2>
+<div class="table-wrap">
+<table>
+<caption>Three intake tests in <code>crates/nova_ship/src/sections/cargo_intake_section/tests.rs</code>, all new in the diff. All passed in <a href="evidence/implementation-20261030/logs/02-cargo-intake-partial-full-dup.log">log 02</a> sections 2-4.</caption>
+<thead><tr><th scope="col">Test</th><th scope="col">Fixture</th><th scope="col">Asserted result</th><th scope="col">Limit</th></tr></thead>
+<tbody>
+<tr><td><a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L583-L608"><code>a_full_hold_takes_nothing_and_keeps_the_door_shut</code></a></td><td>Hold 40 plates in 400 kg (0 kg free); 4-plate canister at the same place as claim 2; 120 frames.</td><td>Door 0.0; pair not ready; hold 40 plates; zero takes; no <code>PickedUp</code>; canister still HullPlate x4.</td><td>The test does not separately assert trigger contact. Claim 2 shows the same position does produce a take when room exists.</td></tr>
+<tr><td><a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L644-L673"><code>two_intakes_on_one_ship_share_its_holds_room</code></a></td><td>One ship, 20 kg free, intakes at x = -1.5 and +1.5; one mixed canister HullPlate x4 + RailSlug x1 (60 kg).</td><td>Hold 40 plates; exactly one take; <code>PickedUp</code> is <code>[(id, HullPlate, 2)]</code>; canister keeps HullPlate x2 + RailSlug x1.</td><td>That the second intake also overlapped is a fixture setup; the result shows only one take happened.</td></tr>
+<tr><td><a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L675-L714"><code>two_ships_touching_one_canister_split_it_without_taking_an_item_twice</code></a></td><td>Two ships face to face, each 20 kg free; one 4-plate canister between them.</td><td>Canister emptied and despawned; each ship 40 plates; 2 takes total; each ship's <code>PickedUp</code> is <code>[(id, HullPlate, 2)]</code> with the same id.</td><td>Order between the ships is entity order, not a gameplay rule a player sees.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Conservation in the two-ship case: 2 + 2 = 4 plates taken, 4 - 4 = 0 left, and each hold went from 38 to 40. In the two-intake case: 2 taken + 2 left = 4 plates; the 20 kg rail slug cannot fit the 0 kg left. The intake pass works on one copy per canister and marks a canister taken once it is empty (<a href="../../crates/nova_ship/src/sections/cargo_intake_section.rs#L565-L578">cargo_intake_section.rs:565-578</a>, <a href="../../crates/nova_ship/src/sections/cargo_intake_section.rs#L628-L659">:628-659</a>), which is what makes the later intake see the remainder.</p>
+
+<h2 id="c4">7. Claim 4: save refusal and content lint <span class="tag t-asserted">asserted</span></h2>
+<div class="grid2">
+<div class="card">
+<h3>Save: 1,100 kg refused, 1,000 kg opens</h3>
+<p>Test <code>save::tests::a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused_on_open</code>. The helper builds a frozen ledger canister with id 5 holding <var>n</var> iron ore (<a href="../../crates/nova_world_base/src/save/tests.rs#L4096">save/tests.rs:4096</a>).</p>
+<ul>
+<li>110 ore = 1,100,000 g: open fails with <code>the canister 5 holds 1100 kg over the canister cap of 1000 kg</code> (<a href="../../crates/nova_world_base/src/save/tests.rs#L4149-L4150">:4149-4150</a>).</li>
+<li>100 ore = 1,000,000 g, exactly the cap: open succeeds (<a href="../../crates/nova_world_base/src/save/tests.rs#L4182">:4182</a>).</li>
+</ul>
+<p>Check: <a href="../../crates/nova_world_base/src/save/mod.rs#L940-L950">save/mod.rs:940-950</a>, a strict <code>held &gt; cap</code>. This existing test was re-parameterized from torpedoes at the 200 kg cap. <a href="evidence/implementation-20261030/logs/03-save-1100kg-overcap.log">Log 03</a>: <code>1 passed; 0 failed</code>.</p>
+</div>
+<div class="card">
+<h3>Content lint at the new cap</h3>
+<p><code>cargo run -j2 -- content lint</code> ended with <code>content lint: 0 error(s), 0 warning(s), 0 finding(s), 17 scenario(s) balance-audited, 0 acked, 23 creative map(s)</code> (<a href="evidence/implementation-20261030/logs/05-content-lint.log">log 05</a>).</p>
+<p>The item rule refuses any item heavier than one canister (<a href="../../crates/nova_assets/src/items.rs#L147-L154">nova_assets/src/items.rs:147-154</a>). Its unit test was updated to expect <code>1000001</code> vs <code>1000000 g</code>, but that unit test was <strong>not run</strong> in this evidence set. A passing lint at a higher cap is weak evidence: raising the cap cannot make an item fail this rule.</p>
+</div>
+</div>
+
+<h2 id="unit">8. Supporting pure-logic tests <span class="tag t-asserted">asserted</span></h2>
+<div class="table-wrap">
+<table>
+<caption><code>nova_gameplay</code> <code>inventory::transfer_tests</code>, all passed in <a href="evidence/implementation-20261030/logs/04-inventory-pack-take-jettison.log">log 04</a></caption>
+<thead><tr><th scope="col">Test</th><th scope="col">What it pins</th><th scope="col">In diff</th></tr></thead>
+<tbody>
+<tr><td><a href="../../crates/nova_gameplay/src/inventory.rs#L2771-L2795"><code>packing_fills_each_canister_in_id_order_past_an_item_too_heavy_for_the_room_left</code></a></td><td>64 x 15 kg packs = 960 kg; the 80 kg bell is skipped; 4 x 10 kg cores reach 1,000 kg; bell + 1 core start canister 2. A zero count and an empty map pack nothing.</td><td>new</td></tr>
+<tr><td><a href="../../crates/nova_gameplay/src/inventory.rs#L2797-L2819"><code>taking_from_a_canister_moves_only_whole_items_that_fit_and_keeps_the_rest</code></a></td><td>55 kg free: 3 cores (30 kg) go, the 80 kg bell stays; <code>fits_any</code> then false; 80 kg free takes the bell and empties it.</td><td>new</td></tr>
+<tr><td><a href="../../crates/nova_gameplay/src/inventory.rs#L2666-L2762"><code>item_jettison_fills_the_waiting_tail_then_splits_the_rest_by_whole_items</code></a></td><td>7 torpedoes -> 6 (900 kg) + 1; 125 slugs -> 50 + 50 + 25; 12,500 rounds -> 5,000 + 5,000 + 2,500; tail merge; count conserved.</td><td>re-parameterized</td></tr>
+<tr><td><a href="../../crates/nova_gameplay/src/inventory.rs#L2639-L2664"><code>item_jettison_plans_refuse_in_order</code></a></td><td>Refusal order for jettison is unchanged.</td><td>unchanged body</td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="c5">9. Claim 5: the historical run is not remedied <span class="tag t-historical">historical</span></h2>
+<p>A headless agent range run at commit <code>9822f69d8</code> (30 commits before <code>112b79a0d</code>, seed 7) is the only player-like salvage artifact. Files and hashes: <a href="evidence/PROVENANCE.txt">PROVENANCE.txt</a>. The <code>game.txt</code> SHA-256 matches the recorded <code>game.log</code> hash (<code>7000e498...</code>), and <code>score.json</code> matches <code>4a54400b...</code>.</p>
+<div class="table-wrap">
+<table>
+<caption>What the historical artifact records</caption>
+<thead><tr><th scope="col">Fact</th><th scope="col" class="num">Value</th><th scope="col">Source</th></tr></thead>
+<tbody>
+<tr><td><code>drop_wreck_cargo</code> lines, each "dropped 1 item stacks"</td><td class="num">36</td><td><a href="evidence/game.txt">game.txt</a> lines 23-107</td></tr>
+<tr><td>Live canisters at the final tick, all <code>SectionPanel x1</code></td><td class="num">17</td><td><a href="evidence/final-snapshot.json">final-snapshot.json</a> (audit tick 5826)</td></tr>
+<tr><td>Nearest canister</td><td class="num">49.2 m</td><td>final-snapshot.json, canister id 15</td></tr>
+<tr><td>Hold free / used</td><td class="num">13,400 kg / 0 kg</td><td>final-snapshot.json <code>cargo</code></td></tr>
+<tr><td>PDC rounds spent (score)</td><td class="num">5,000</td><td><a href="evidence/score.json">score.json</a> <code>ammo_spent</code>; the pilot prose says 4,000 and is not used</td></tr>
+</tbody>
+</table>
+</div>
+<ul>
+<li><strong>Not reproduced.</strong> No run of this scenario, and no starter-ship salvage run, exists on the dirty tree. The historical run predates the change by 30 commits.</li>
+<li><strong>Not a packing case.</strong> Every one of the 36 drops held one stack. <code>pack</code> works within one drop and never merges drops (<a href="../../crates/nova_scenario/src/wreck_cargo.rs#L20-L22">wreck_cargo.rs:20-22</a>), so the new code gives the same one canister per such drop.</li>
+<li><strong>Not a refusal case.</strong> The hold had 13,400 kg free and each canister was one 10 kg panel. Whole-fit refusal could not have blocked these takes; partial pickup changes nothing here.</li>
+<li><strong>The cause is unproven.</strong> The ship never got nearer than 49.2 m to a live canister in the final snapshot. The data fits missed contact; it does not show why, or what happened to the canisters of the other drops. Mixed packing does not remedy missed contact.</li>
+</ul>
+
+<h2 id="c6">10. Claim 6: what is not tested <span class="tag t-missing">not tested</span></h2>
+<div class="grid2">
+<div class="card">
+<h3>The 150 kg free case <span class="tag t-modeled">modeled</span></h3>
+<p><a href="REPORT.html#hold">REPORT.html section 7</a> used a hold with 150 kg free as an example. No test uses that value. Applying the implemented rule by hand to the after-canister 1 gives, in id order: DriveBell <code>floor(150/80) = 1</code> (70 kg left), FrameSpar <code>floor(70/40) = 1</code> (30 kg left), HullPlate <code>min(3, floor(30/10)) = 3</code> (0 kg left), IronOre 0. Total 80 + 40 + 30 = 150 kg. This is arithmetic, not a run.</p>
+</div>
+<div class="card">
+<h3>No runtime or visual proof</h3>
+<ul>
+<li>No player screenshot and no pickup frame. The one isolated Xvfb runner (<code>:97</code>) was busy with another lane during the evidence run; <code>DISPLAY=:0</code> was not used.</li>
+<li>No <code>nova-bench</code> defeat -> salvage -> spend flow and no <code>nova-probe</code> run.</li>
+<li>No CI: the tree is uncommitted.</li>
+<li>No workspace tests or Clippy, by project policy.</li>
+</ul>
+</div>
+</div>
+<div class="table-wrap">
+<table>
+<caption>Code the diff touches whose own tests or checks were not run in this evidence set</caption>
+<thead><tr><th scope="col">Area</th><th scope="col">Changed expectation</th><th scope="col">Not run</th></tr></thead>
+<tbody>
+<tr><td>Mining (<code>nova_scenario/src/mining.rs</code>)</td><td>Ore uses <code>pack</code>; 205 ore drains as 100 + 100 + 5 (was 45 as 20 + 20 + 5).</td><td>mining tests</td></tr>
+<tr><td>Jettison UI (<code>nova_interface/src/inventory/tests.rs</code>)</td><td>39 plates now merge into one 580 kg queued canister (was 3 canisters).</td><td><code>confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing</code></td></tr>
+<tr><td>Pickup sight (<code>nova_hud/src/pickup_sight.rs</code>)</td><td>Doc and test comment: a partial take leaves a candidate.</td><td><code>a_real_take_fills_the_hold_and_clears_the_sight</code></td></tr>
+<tr><td>Intake door (<code>cargo_intake_section/tests.rs</code>)</td><td>Door opens for one fitting canister beside one that does not fit.</td><td><code>the_door_opens_for_a_canister_that_fits_beside_one_that_does_not</code></td></tr>
+<tr><td>Item lint unit test (<code>nova_assets/src/items.rs</code>)</td><td>Over-cap message at 1,000,001 g.</td><td><code>nova_assets</code> lib tests</td></tr>
+<tr><td>Docs, wiki, <code>web/src/widgets.ts</code></td><td>Text and widget numbers for the new cap and partial take.</td><td><code>mdbook build</code>, <code>npm run ci</code></td></tr>
+<tr><td><code>examples/playable/mine_and_sell.rs</code></td><td>Doc comment only.</td><td>example run</td></tr>
+</tbody>
+</table>
+</div>
+<p>Whether the owner approved each new permanent test (five new tests above) is not recorded in this evidence set. TASK.md asks to approve permanent tests first.</p>
+
+<h2 id="blast">11. Blast radius</h2>
+<ul>
+<li><strong>Every canister producer.</strong> The cap is global. Mining, jettison and wreck drops now make canisters up to five times heavier and fewer of them. A mined or jettisoned canister of one item can now be up to 1,000 kg; a hold under that size still takes part of it.</li>
+<li><strong>Intake semantics.</strong> A canister can now be taken in several passes. <code>PickedUp</code> / <code>onpickedup</code> fires per take, so one canister id can appear in more than one take (<a href="../../crates/nova_events/src/lib.rs#L1016-L1022">nova_events/src/lib.rs:1016-1022</a>). A mod or audit that assumed one report set per canister must change.</li>
+<li><strong>Door.</strong> The door now opens when one whole item fits, not when the whole canister fits.</li>
+<li><strong>Saves.</strong> The save check now allows up to 1,000 kg per canister, so a save written at <code>112b79a0d</code> (at most 200 kg per canister) still passes it. A build at <code>112b79a0d</code> refuses a save from this tree that holds a canister over 200 kg. No save migration is part of the change.</li>
+<li><strong>Content and docs.</strong> Generated base RON (intake description, pickup lesson text), CHANGELOG, wiki, creator docs and a web widget change with the code. The generated RON came from the Rust builders in the diff; regeneration was not re-run in this evidence set.</li>
+<li><strong>Removed path.</strong> <code>CargoCanister::split</code> is deleted; the whole-fit intake check at <code>112b79a0d</code> (<code>free_g &gt;= total_mass_g</code>) is gone. No compatibility path remains.</li>
+<li><strong>Not changed.</strong> Strip yield, reach, trigger shape, drop count per wreck, recipes and item masses. Separate section drops stay separate.</li>
+</ul>
+
+<h2 id="loud">12. Failures that are loud</h2>
+<div class="table-wrap">
+<table>
+<caption>Invalid states and where they stop</caption>
+<thead><tr><th scope="col">Condition</th><th scope="col">Result</th><th scope="col">Source</th></tr></thead>
+<tbody>
+<tr><td>An authored item heavier than one canister</td><td>Item lint fault; content load fails before play</td><td><a href="../../crates/nova_assets/src/items.rs#L147-L154">items.rs:147-154</a></td></tr>
+<tr><td>Such an item reaches <code>pack</code> anyway</td><td>Panic: "item '...' is heavier than a canister"</td><td><a href="../../crates/nova_gameplay/src/inventory.rs#L1297-L1306">inventory.rs:1297-1306</a></td></tr>
+<tr><td>A saved canister over 1,000 kg</td><td>Open refused with the canister id and both masses</td><td><a href="../../crates/nova_world_base/src/save/mod.rs#L940-L950">save/mod.rs:940-950</a></td></tr>
+<tr><td>A canister spawned without a runtime id</td><td>Panic in the component hook (unchanged)</td><td><a href="../../crates/nova_gameplay/src/inventory.rs#L1253-L1271">inventory.rs:1253-1271</a></td></tr>
+<tr><td>A wreck drop with items but no <code>GameItems</code></td><td>Panic</td><td><a href="../../crates/nova_scenario/src/wreck_cargo.rs#L136-L139">wreck_cargo.rs:136-139</a></td></tr>
+<tr><td>A full hold beside a canister</td><td>Valid runtime state, not an error: no take, door shut, pair <code>ready = false</code>, goods stay</td><td><a href="../../crates/nova_ship/src/sections/cargo_intake_section/tests.rs#L583-L608">tests.rs:583-608</a></td></tr>
+</tbody>
+</table>
+</div>
+
+<h2 id="remaining">13. Remaining starter-ship proof</h2>
+<p>TASK.md keeps the task open until a runtime proof exists (<a href="TASK.md">TASK.md</a>, "Still required before CLOSED" and "Verification / Done when"). Still open:</p>
+<ol>
+<li>Reproduce a starter-ship salvage encounter with before artifacts from <code>112b79a0d</code> and after artifacts from the committed change.</li>
+<li>Classify each missed reward as no drop, missed contact or refusal. Claim 5 shows that packing and partial take address only count and refusal.</li>
+<li>Assert real drop and intake, conservation, partial take with the same id, and full-hold refusal across freeze and thaw in that flow.</li>
+<li>Inspect rendered pickup frames on an isolated runner.</li>
+<li>Run a <code>nova-bench</code> defeat -> salvage -> spend flow.</li>
+<li>Get owner approval for any new permanent test first.</li>
+</ol>
+
+<h2 id="repro">14. Reproduce</h2>
+<p>From the repository root, in fish. Use a target directory owned by this checkout only. Each command runs one test.</p>
+<pre><code># Confirm the tree is the one this page describes.
+git rev-parse HEAD                      # 112b79a0d82193e74e8bdb02e0fcbed846ec0c66
+git diff --binary | sha256sum           # dbf75f45d7dd583a9f08a21e3b9f0a400c3e22cdc1b6bb4fffc5810f4a661706
+pushd tasks/20261026-003724/evidence/implementation-20261030
+sha256sum -c MANIFEST.sha256
+popd
+
+set -l T /tmp/nova-verify-20261030-target
+
+# Claim 1
+nix develop --command env CARGO_TARGET_DIR=$T cargo test -j2 -p nova_scenario --lib wreck_cargo::tests::a_ship_destroyed_whole_drops_its_hold_and_its_sections_parts_in_one_drop -- --exact --nocapture
+
+# Claims 2 and 3
+for t in a_canister_heavier_than_the_free_room_gives_up_the_whole_items_that_fit a_full_hold_takes_nothing_and_keeps_the_door_shut two_intakes_on_one_ship_share_its_holds_room two_ships_touching_one_canister_split_it_without_taking_an_item_twice
+    nix develop --command env CARGO_TARGET_DIR=$T cargo test -j2 -p nova_ship --lib sections::cargo_intake_section::tests::$t -- --exact --nocapture
+end
+
+# Claim 4
+nix develop --command env CARGO_TARGET_DIR=$T cargo test -j2 -p nova_world_base --lib save::tests::a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused_on_open -- --exact --nocapture
+nix develop --command env CARGO_TARGET_DIR=$T cargo run -j2 -- content lint
+
+# Supporting unit tests
+for t in packing_fills_each_canister_in_id_order_past_an_item_too_heavy_for_the_room_left taking_from_a_canister_moves_only_whole_items_that_fit_and_keeps_the_rest item_jettison_fills_the_waiting_tail_then_splits_the_rest_by_whole_items item_jettison_plans_refuse_in_order
+    nix develop --command env CARGO_TARGET_DIR=$T cargo test -j2 -p nova_gameplay --lib inventory::transfer_tests::$t -- --exact --nocapture
+end</code></pre>
+<p>Judge each run by its <code>test ... ok</code> line and <code>1 passed; 0 failed</code>, not by the exit code. A filter that matches nothing also exits 0 with <code>0 passed</code>.</p>
+
+<h2 id="checks">15. How this page was checked</h2>
+<ul>
+<li>Hashes: <code>sha256sum -c MANIFEST.sha256</code> passed for all 15 entries; the live <code>git diff --binary</code> hash and <code>HEAD</code> matched the recorded values when this page was written.</li>
+<li>Source anchors: each cited line range was read from the working tree at that time.</li>
+<li>Structure, relative links, line anchors (each <code>#L</code> is inside its file's length) and the mass arithmetic in the claim 1 tables were checked by a Python standard-library script. The script is not stored; it is not part of the evidence set.</li>
+<li>Rendering: this page was rendered with Chromium on a private Xvfb display (<code>:121</code>, not <code>DISPLAY=:0</code>) in light mode at 1280 px, dark mode at 1280 px and light mode at 390 px. The resulting <a href="evidence/report-render-20261030/light.png">light</a>, <a href="evidence/report-render-20261030/dark.png">dark</a>, and <a href="evidence/report-render-20261030/narrow.png">narrow</a> screenshots were inspected for overlap and overflow. The <a href="evidence/report-render-20261030/MANIFEST.sha256">render manifest</a> hashes these images and the Chromium output logs. This checks the report layout, not the game's appearance or pickup flow.</li>
+</ul>
+
+</main>
+</body>
+</html>

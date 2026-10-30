@@ -48,7 +48,7 @@ The whole vocabulary at a glance:
 | [`OnShipOrderCanceled`](#onshipordercanceled) | `order`, `kind`, `id`, `type_name` | an unfinished order is cleared or replaced |
 | [`OnShipOrderFailed`](#onshiporderfailed) | `order`, `kind`, `id`, `type_name` | an order can no longer be flown |
 | [`OnMined`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | a mining pulse frees ore from a rock |
-| [`OnPickedUp`](#hold-events) | `id`, `type_name`, `canister`, `item`, `count` | a cargo intake takes a canister stack into the hold |
+| [`OnPickedUp`](#hold-events) | `id`, `type_name`, `canister`, `item`, `count` | a cargo intake takes whole items of a canister stack into the hold |
 | [`OnJettisoned`](#hold-events) | `id`, `type_name`, `canister`, `item`, `count` | a cargo intake drops a stack out as a canister |
 | [`OnTraded`](#hold-events) | `id`, `other_id`, `other_type_name`, `trade`, `item`, `count`, `price_cr` | the player buys or sells a stack across a dock |
 | [`OnCreditsChanged`](#hold-events) | `id`, `type_name`, `previous_cr`, `current_cr`, `delta_cr`, `cause` | a ship's credits move |
@@ -854,7 +854,9 @@ single-ship events name the ship the hold or purse belongs to.
 `count` is the corners it did flip, which is the ore that lands in the hold
 only if the intake catches the chips. `OnPickedUp` and `OnJettisoned` fire
 once per STACK: a canister holding two item kinds raises two events with the
-same `canister`.
+same `canister`. A hold with room for only part of a canister takes whole
+items and raises `OnPickedUp` with the `count` it took; the rest is picked up
+later under the same `canister`.
 
 `OnTraded` fires once per confirmed trade on the player's queue, so a buy of
 four rations is one event with `count: 4`. The credits move it causes raises

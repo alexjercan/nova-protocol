@@ -2186,8 +2186,8 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
     assert_eq!(plates(app.world(), player), 6);
     assert_eq!(queue(&app, intake), Some(vec![60_000]));
 
-    // Past one canister, Confirm removes the whole quantity at once: the
-    // waiting 190 kg canister takes one plate and new canisters the rest.
+    // Confirm removes the whole quantity at once and tops up the waiting
+    // 190 kg canister: all 39 plates fit under the 1,000 kg canister cap.
     app.world_mut().entity_mut(player).insert(hold(39));
     app.world_mut()
         .entity_mut(intake)
@@ -2206,10 +2206,10 @@ fn confirm_jettisons_through_the_intake_and_a_refusal_changes_nothing() {
     assert_eq!(queue(&app, intake), Some(vec![190_000]));
     assert_eq!(
         confirm(&mut app, &[Some(39)]),
-        dropped("Jettisoned 39 Hull plate: 3 canisters queued")
+        dropped("Jettisoned 39 Hull plate: 1 canister queued")
     );
     assert_eq!(plates(app.world(), player), 0);
-    assert_eq!(queue(&app, intake), Some(vec![200_000, 200_000, 180_000]));
+    assert_eq!(queue(&app, intake), Some(vec![580_000]));
     app.world_mut()
         .entity_mut(intake)
         .remove::<CargoIntakeEjectionQueue>();

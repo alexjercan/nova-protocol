@@ -1,0 +1,1 @@
+Linux nixos 6.18.40 #1-NixOS SMP PREEMPT_DYNAMIC Fri Jul 24 14:17:26 UTC 2026 x86_64 GNU/Linux

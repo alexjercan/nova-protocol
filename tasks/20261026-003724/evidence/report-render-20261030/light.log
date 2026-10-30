@@ -1,0 +1,2 @@
+[670185:670185:1030/193106.191994:ERROR:dbus/object_proxy.cc:572] Failed to call method: org.freedesktop.DBus.Properties.GetAll: object_path= /org/freedesktop/UPower/devices/DisplayDevice: org.freedesktop.DBus.Error.ServiceUnknown: The name is not activatable
+1834664 bytes written to file /tmp/nova-report-impl-render/light.png

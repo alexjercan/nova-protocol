@@ -1,0 +1,6 @@
+Historical headless range run, seed 7; source commit 9822f69d8. Original files in /tmp/nova-v017-salvage-range-seed7/.
+Original audit.jsonl:509 is extracted as final-snapshot.json, preserving the canister and cargo fields.
+score.json SHA-256 4a54400b19591408fbed17d5bab30404cba84bc27fd3660deba18f2480bc7306
+game.log SHA-256 7000e498f29465549098ddeb95c92175d2f161599dd4968de145a4939cb66dd5
+audit.jsonl SHA-256 8a69967bf7373d10ea8b973a77441f8d7e04ac9938d07e07be84c527ee84e4fe
+Pilot report in score.json says 4,000 rounds; the score records 5,000. Do not use the pilot figure.

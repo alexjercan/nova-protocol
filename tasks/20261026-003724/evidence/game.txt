@@ -1,0 +1,122 @@
+[2m2026-10-25T22:36:41.960496Z[0m [32m INFO[0m [2mbevy_diagnostic::system_information_diagnostics_plugin::internal[0m[2m:[0m SystemInfo { os: "Linux (NixOS 26.11)", kernel: "6.18.40", cpu: "12th Gen Intel(R) Core(TM) i9-12900F", core_count: "16", memory: "31.2 GiB" }
+[2m2026-10-25T22:36:42.035450Z[0m [33m WARN[0m [2mbevy_gltf[0m[2m:[0m CompressedImageFormatSupport resource not found. It should either be initialized in finish() of RenderPlugin, or manually if not using the RenderPlugin or the WGPU backend.
+[2m2026-10-25T22:36:42.037146Z[0m [32m INFO[0m [2mnova_gameplay::settings[0m[2m:[0m nova audio: output muted for this run
+[2m2026-10-25T22:36:42.125231Z[0m [34mDEBUG[0m [2mnova_core[0m[2m:[0m UI layout held: a root UI target has no area
+[2m2026-10-25T22:36:42.143181Z[0m [32m INFO[0m [2mbevy_asset_loader::loading_state::systems[0m[2m:[0m Loading state 'nova_assets::plugin::GameAssetsStates::Boot' is done
+[2m2026-10-25T22:36:42.147857Z[0m [34mDEBUG[0m [2mnova_core[0m[2m:[0m UI layout resumed: every root UI target has area
+[2m2026-10-25T22:36:42.205202Z[0m [32m INFO[0m [2mbevy_asset_loader::loading_state::systems[0m[2m:[0m Loading state 'nova_assets::plugin::GameAssetsStates::Loading' is done
+[2m2026-10-25T22:36:42.206670Z[0m [33m WARN[0m [2mnova_assets::mod_set[0m[2m:[0m build_mod_catalog: bundle for mod 'example' not loaded; using its id as the name
+[2m2026-10-25T22:36:42.274590Z[0m [34mDEBUG[0m [2mnova_core[0m[2m:[0m UI layout held: a root UI target has no area
+[2m2026-10-25T22:36:42.277081Z[0m [34mDEBUG[0m [2mnova_scenario::loader::lifecycle[0m[2m:[0m on_load_scenario: scenario "Bench: Range"
+[2m2026-10-25T22:36:42.277230Z[0m [34mDEBUG[0m [2mnova_scenario::loader::lifecycle[0m[2m:[0m on_load_scenario: loaded scenario 'bench_range' with 2 handler(s) and 7 object(s)
+[2m2026-10-25T22:36:42.277778Z[0m [34mDEBUG[0m [2mnova_scenario::loader::gate[0m[2m:[0m hold_for_scenario_load: holding the world while the scenario builds
+[2m2026-10-25T22:36:42.278323Z[0m [34mDEBUG[0m [2mnova_scenario::actions::view[0m[2m:[0m SetSkybox: cubemap loaded, installing (brightness 1000)
+[2m2026-10-25T22:36:42.278397Z[0m [34mDEBUG[0m [2mnova_scenario::loader::gate[0m[2m:[0m release_when_scenario_is_built: the scenario is built; the world runs
+[2m2026-10-25T22:36:42.306508Z[0m [34mDEBUG[0m [2mnova_core[0m[2m:[0m UI layout resumed: every root UI target has area
+[2m2026-10-25T22:36:42.319611Z[0m [34mDEBUG[0m [2mnova_ship::input::point_defense::ownership[0m[2m:[0m update_point_defense_ownership: ship 1494v0: mount transitions to Cold 0, FlightComputer 6, PlayerManual 0, PlayerLock 0
+[2m2026-10-25T22:36:42.334733Z[0m [34mDEBUG[0m [2mnova_ship::sections::shell_skin[0m[2m:[0m spawn_ship_skin: ship 1494v0 clad in 178 plate(s) over 47 shape(s); relief flat x22, step x72, ridge x25, brink x32, spur x27; decoration armoured_sensor 1, armoured_mast 1, armoured_cap 5, armoured_strake 20, armoured_intake 12, armoured_chaff 3, armoured_hatch 4, armoured_ammo_stripes 6, armoured_magazine 4, armoured_applique 21; 178 plate(s): 62 flat-topped (35%), 0 leaning; mean flat area 0.780 cell^2; 60 bare hull face(s) over 58 bare cell(s); 77 piece(s), 67 off flat (87%), 0 unseated, mean tilt under a piece 0.000 rad
+[2m2026-10-25T22:36:49.364407Z[0m [34mDEBUG[0m [2mnova_ship::sections::shell_skin[0m[2m:[0m spawn_ship_skin: ship 2248v0 clad in 73 plate(s) over 39 shape(s); relief flat x11, step x19, ridge x2, peak x1, brink x16, spur x24; decoration civilian_windows 2, civilian_dish 1, civilian_door 2, civilian_tank 2, civilian_fin 2, civilian_stripe 2, civilian_livery 4, civilian_skylight 1, civilian_vent 3, civilian_fairing 6, civilian_beacon 4, civilian_registry 1; 73 plate(s): 31 flat-topped (42%), 0 leaning; mean flat area 0.772 cell^2; 24 bare hull face(s) over 20 bare cell(s); 30 piece(s), 25 off flat (83%), 0 unseated, mean tilt under a piece 0.000 rad
+[2m2026-10-25T22:36:59.379001Z[0m [34mDEBUG[0m [2mnova_ship::input::player::flight_rig[0m[2m:[0m on_autopilot_goto_input: engaging GOTO 2248v0
+[2m2026-10-25T22:37:05.522489Z[0m [34mDEBUG[0m [2mnova_ship::flight::autopilot[0m[2m:[0m autopilot_system: ship 1494v0 maneuver complete, disengaging
+[2m2026-10-25T22:37:16.061711Z[0m [34mDEBUG[0m [2mnova_ship::input::point_defense::ownership[0m[2m:[0m update_point_defense_ownership: ship 1494v0: mount transitions to Cold 0, FlightComputer 0, PlayerManual 6, PlayerLock 0
+[2m2026-10-25T22:37:19.346556Z[0m [34mDEBUG[0m [2mnova_ship::input::point_defense::ownership[0m[2m:[0m update_point_defense_ownership: ship 1494v0: mount transitions to Cold 0, FlightComputer 0, PlayerManual 0, PlayerLock 6
+[2m2026-10-25T22:37:25.343273Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2249v0 dropped 1 item stacks at [167.17157, -15, -171.41422]
+[2m2026-10-25T22:37:25.353578Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:25.381600Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2255v0 dropped 1 item stacks at [167.87868, -15, -172.12132]
+[2m2026-10-25T22:37:25.391617Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:25.432015Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2260v0 dropped 1 item stacks at [168.58578, -15, -172.82843]
+[2m2026-10-25T22:37:25.445296Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:25.729776Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2288v0 dropped 1 item stacks at [167.17157, -15, -170]
+[2m2026-10-25T22:37:25.736130Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (docking_port_section x1)
+[2m2026-10-25T22:37:25.750546Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2250v0 dropped 1 item stacks at [167.87868, -15, -170.7071]
+[2m2026-10-25T22:37:25.753591Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:25.767735Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2256v0 dropped 1 item stacks at [168.58578, -15, -171.41422]
+[2m2026-10-25T22:37:25.771520Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:25.784273Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2261v0 dropped 1 item stacks at [169.2929, -15, -172.12132]
+[2m2026-10-25T22:37:25.788059Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:26.157665Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2286v0 dropped 1 item stacks at [167.87868, -14, -172.12132]
+[2m2026-10-25T22:37:26.162932Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (basic_controller_section x1)
+[2m2026-10-25T22:37:30.041133Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2266v0 dropped 1 item stacks at [167.87868, -14, -170.7071]
+[2m2026-10-25T22:37:30.053210Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:30.085059Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2270v0 dropped 1 item stacks at [168.58578, -14, -171.41422]
+[2m2026-10-25T22:37:30.094595Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:30.109880Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2274v0 dropped 1 item stacks at [169.2929, -14, -172.12132]
+[2m2026-10-25T22:37:30.114491Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:36.344687Z[0m [33m WARN[0m [2mnova_channel::runner[0m[2m:[0m nova channel: line 103 refused: no section `torpedo_port` on the ship
+[2m2026-10-25T22:37:36.344768Z[0m [33m WARN[0m [2mnova_channel::runner[0m[2m:[0m nova channel: line 104 refused: no section `torpedo_starboard` on the ship
+[2m2026-10-25T22:37:43.984211Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2251v0 dropped 1 item stacks at [168.58578, -15, -170]
+[2m2026-10-25T22:37:43.990806Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:44.025263Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2257v0 dropped 1 item stacks at [169.2929, -15, -170.7071]
+[2m2026-10-25T22:37:44.036018Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:44.082994Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2262v0 dropped 1 item stacks at [170, -15, -171.41422]
+[2m2026-10-25T22:37:44.090490Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:44.361694Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2267v0 dropped 1 item stacks at [168.58578, -14, -170]
+[2m2026-10-25T22:37:44.364527Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:44.373597Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2271v0 dropped 1 item stacks at [169.2929, -14, -170.7071]
+[2m2026-10-25T22:37:44.376077Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:44.385975Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2275v0 dropped 1 item stacks at [170, -14, -171.41422]
+[2m2026-10-25T22:37:44.388483Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:44.554792Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2252v0 dropped 1 item stacks at [169.2929, -15, -169.2929]
+[2m2026-10-25T22:37:44.557569Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:44.572998Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2258v0 dropped 1 item stacks at [170, -15, -170]
+[2m2026-10-25T22:37:44.575459Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:44.586291Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2263v0 dropped 1 item stacks at [170.7071, -15, -170.7071]
+[2m2026-10-25T22:37:44.590739Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:44.597061Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2278v0 dropped 1 item stacks at [171.41422, -15, -171.41422]
+[2m2026-10-25T22:37:44.600061Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:45.034558Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2268v0 dropped 1 item stacks at [169.2929, -14, -169.2929]
+[2m2026-10-25T22:37:45.046455Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:45.072827Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2272v0 dropped 1 item stacks at [170, -14, -170]
+[2m2026-10-25T22:37:45.079355Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:45.116316Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2276v0 dropped 1 item stacks at [170.7071, -14, -170.7071]
+[2m2026-10-25T22:37:45.120017Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:45.340716Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2253v0 dropped 1 item stacks at [170, -15, -168.58578]
+[2m2026-10-25T22:37:45.342861Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:45.371491Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2287v0 dropped 1 item stacks at [170.7071, -15, -169.2929]
+[2m2026-10-25T22:37:45.374685Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (basic_controller_section x1)
+[2m2026-10-25T22:37:45.387788Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2264v0 dropped 1 item stacks at [171.41422, -15, -170]
+[2m2026-10-25T22:37:45.388390Z[0m [34mDEBUG[0m [2mnova_ship::sections::integrity[0m[2m:[0m sever_disconnected_structures: 2248v0 split into 2 bodies
+[2m2026-10-25T22:37:45.391092Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:45.412333Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2279v0 dropped 1 item stacks at [172.15546, -15.027414, -170.67317]
+[2m2026-10-25T22:37:45.414487Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:45.675251Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 2 contacts for 0.93 damage (worst 0.47 on Some(2927v3))
+[2m2026-10-25T22:37:55.677680Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2254v0 dropped 1 item stacks at [170.89069, -15.144356, -167.6829]
+[2m2026-10-25T22:37:55.680018Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:55.696045Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2259v0 dropped 1 item stacks at [171.60367, -15.148096, -168.38312]
+[2m2026-10-25T22:37:55.698270Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:55.712943Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2265v0 dropped 1 item stacks at [172.31833, -15.153387, -169.08171]
+[2m2026-10-25T22:37:55.714515Z[0m [34mDEBUG[0m [2mnova_ship::sections::integrity[0m[2m:[0m sever_disconnected_structures: 2248v0 split into 2 bodies
+[2m2026-10-25T22:37:55.716729Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:55.725383Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2280v0 dropped 1 item stacks at [173.04924, -15.16187, -169.8256]
+[2m2026-10-25T22:37:55.729003Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:55.872657Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2282v0 dropped 1 item stacks at [171.55072, -15.053017, -166.8775]
+[2m2026-10-25T22:37:55.873326Z[0m [34mDEBUG[0m [2mnova_ship::sections::integrity[0m[2m:[0m sever_disconnected_structures: 2248v0 split into 2 bodies
+[2m2026-10-25T22:37:55.875481Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:55.884889Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2281v0 dropped 1 item stacks at [172.28003, -15.075087, -167.55605]
+[2m2026-10-25T22:37:55.885478Z[0m [34mDEBUG[0m [2mnova_ship::sections::integrity[0m[2m:[0m sever_disconnected_structures: 2248v0 split into 4 bodies
+[2m2026-10-25T22:37:55.887667Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:55.889687Z[0m [34mDEBUG[0m [2mnova_ship::sections::integrity[0m[2m:[0m aggregate_ship_health: root 2248v0 collapsed structurally (130 of 2950, threshold 0.05); peeling 2 sections
+[2m2026-10-25T22:37:55.893418Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 2 nodes (basic_thruster_section x1, light_hull_section x1)
+[2m2026-10-25T22:37:55.894588Z[0m [33m WARN[0m [2mavian3d::dynamics::rigid_body::mass_properties[0m[2m:[0m Dynamic rigid body 2248v0 has no mass or inertia. This can cause NaN values. Consider adding a `MassPropertiesBundle` or a `Collider` with mass.
+[2m2026-10-25T22:37:55.896015Z[0m [34mDEBUG[0m [2mnova_ship::sections::integrity[0m[2m:[0m aggregate_ship_health: root 2248v0 has no structure left (0 of 2950, threshold 0.05); marking it destroyed
+[2m2026-10-25T22:37:55.896186Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2248v0 dropped 1 item stacks at [170.23329, -15.27204, -169.74182]
+[2m2026-10-25T22:37:55.896214Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::explode[0m[2m:[0m on_destroyed_entity: ship 2248v0 destroyed (id: derelict, type: spaceship)
+[2m2026-10-25T22:37:55.898704Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (spaceship x1)
+[2m2026-10-25T22:37:55.900629Z[0m [34mDEBUG[0m [2mnova_ship::input::targeting::contacts[0m[2m:[0m combat lock dropped: target 2248v0 - TargetGone
+[2m2026-10-25T22:37:55.903720Z[0m [34mDEBUG[0m [2mnova_ship::input::point_defense::ownership[0m[2m:[0m update_point_defense_ownership: ship 1494v0: mount transitions to Cold 0, FlightComputer 0, PlayerManual 6, PlayerLock 0
+[2m2026-10-25T22:37:55.908434Z[0m [34mDEBUG[0m [2mnova_scenario::wreck_cargo[0m[2m:[0m drop_wreck_cargo: 2283v0 dropped 1 item stacks at [173.03616, -15.0998745, -168.26343]
+[2m2026-10-25T22:37:55.910830Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m integrity: destroyed 1 node (light_hull_section x1)
+[2m2026-10-25T22:37:55.910828Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 2 contacts for 0.64 damage (worst 0.37 on Some(2413v4))
+[2m2026-10-25T22:37:55.933501Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 2 contacts for 0.03 damage (worst 0.02 on Some(2413v4))
+[2m2026-10-25T22:37:55.941092Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 2 contacts for 0.20 damage (worst 0.12 on Some(2413v4))
+[2m2026-10-25T22:38:05.652196Z[0m [34mDEBUG[0m [2mnova_ship::input::player::flight_rig[0m[2m:[0m on_rcs_modifier_start: entering RCS fine-adjust
+[2m2026-10-25T22:38:05.660908Z[0m [34mDEBUG[0m [2mnova_ship::input::point_defense::ownership[0m[2m:[0m update_point_defense_ownership: ship 1494v0: mount transitions to Cold 6, FlightComputer 0, PlayerManual 0, PlayerLock 0
+[2m2026-10-25T22:38:05.750745Z[0m [34mDEBUG[0m [2mnova_ship::input::point_defense::ownership[0m[2m:[0m update_point_defense_ownership: ship 1494v0: mount transitions to Cold 0, FlightComputer 6, PlayerManual 0, PlayerLock 0
+[2m2026-10-25T22:38:05.756767Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 2 contacts for 0.16 damage (worst 0.08 on Some(2413v4))
+[2m2026-10-25T22:38:22.645538Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 2 contacts for 0.15 damage (worst 0.07 on Some(2106v0))
+[2m2026-10-25T22:38:34.219873Z[0m [34mDEBUG[0m [2mnova_ship::input::player::flight_rig[0m[2m:[0m on_rcs_modifier_start: entering RCS fine-adjust
+[2m2026-10-25T22:38:39.888996Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 2 contacts for 0.02 damage (worst 0.01 on Some(1995v0))
+[2m2026-10-25T22:38:39.910644Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 2 contacts for 0.02 damage (worst 0.01 on Some(1995v0))
+[2m2026-10-25T22:38:49.329297Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 4 contacts for 0.07 damage (worst 0.03 on Some(1936v0))
+[2m2026-10-25T22:38:49.350823Z[0m [34mDEBUG[0m [2mnova_gameplay::integrity::core[0m[2m:[0m impacts: 2 contacts for 0.00 damage (worst 0.00 on Some(1937v0))
+[2m2026-10-25T22:38:53.398176Z[0m [34mDEBUG[0m [2mnova_ship::input::player::flight_rig[0m[2m:[0m on_autopilot_stop_input: engaging STOP

@@ -494,17 +494,17 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "Picking up canisters",
             looping(
                 "flight_cargo_pickup",
-                "a line warship rising under a drifting canister: the canister goes through the \
-                 cargo intake's open door into the hold, and the door folds shut",
+                "a line warship rising under a drifting canister, with the cargo intake's door open \
+                 below it",
             ),
-            "A cargo intake takes a whole canister into your hold. Fly the intake's door onto the \
-             canister: the canister must touch the opening, and your hull beside it knocks the \
-             canister aside. The pickup sight draws a line from the intake to the canister.",
+            "A cargo intake takes each whole item in a canister that your hold has room for. The \
+             rest stays in that canister until taken. Fly the intake's door onto the canister; \
+             your hull beside the opening knocks it aside. The pickup sight lines you up.",
             &[],
             "wiki/sections/cargo-intake#taking-a-canister-in",
             None,
             &[],
-            &["Fly your cargo intake's door onto a canister to take it into your hold."],
+            &["Fly your cargo intake's door onto a canister to take its cargo into your hold."],
         ),
         lesson(
             "combat_radar",

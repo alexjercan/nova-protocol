@@ -1053,7 +1053,7 @@ fn release_mined_ore(
     let mut waiting = queue.map_or_else(VecDeque::new, |queue| queue.waiting.clone());
     if let Some(owed) = owed {
         waiting.extend(
-            CargoCanister::split(&items, &owed.item, owed.corners)
+            CargoCanister::pack(&items, &[(owed.item.clone(), owed.corners)].into())
                 .into_iter()
                 .map(|canister| MinedCanister {
                     canister,
@@ -2027,7 +2027,7 @@ mod tests {
     /// A rock that runs out of material while its canisters' birth point is
     /// blocked hands them to a drop that keeps them all and waits. Once the
     /// point clears, the drop lets them out first in, first out, one at a
-    /// time, and despawns with the last: all 45 ore, none lost.
+    /// time, and despawns with the last: all 205 ore, none lost.
     #[test]
     fn an_exhausted_rock_keeps_blocked_canisters_until_the_birth_point_clears() {
         let iron = ItemDesignId::from(ItemRoleType::IronOre);
@@ -2048,7 +2048,7 @@ mod tests {
                 ChildOf(root),
                 MinedOre {
                     item: iron.clone(),
-                    corners: 45,
+                    corners: 205,
                     at: Vec3::new(0.5, 0.0, 0.0),
                     normal: Vec3::X,
                 },
@@ -2093,7 +2093,7 @@ mod tests {
         let [(drop, counts, parent, at)] = &drops[..] else {
             panic!("the exhausted rock must leave one drop: {drops:?}");
         };
-        assert_eq!(counts, &[20, 20, 5]);
+        assert_eq!(counts, &[100, 100, 5]);
         assert_eq!(*parent, sector);
         assert!(at.distance(Vec3::new(3.0, 0.0, 0.0)) < 1e-5, "{at}");
         assert!(world.get::<ScenarioScopedMarker>(*drop).is_some());
@@ -2120,7 +2120,7 @@ mod tests {
             "the drop never drained"
         );
         let counts: Vec<u32> = born.iter().map(|(_, count)| *count).collect();
-        assert_eq!(counts, [20, 20, 5], "first in, first out, one at a time");
+        assert_eq!(counts, [100, 100, 5], "first in, first out, one at a time");
     }
 
     /// A rock still owed ore and a drop still waiting on a blocked birth point
@@ -2157,7 +2157,7 @@ mod tests {
                 ChildOf(exhausted),
                 MinedOre {
                     item: iron.clone(),
-                    corners: 45,
+                    corners: 205,
                     at: Vec3::new(0.5, 0.0, 0.0),
                     normal: Vec3::X,
                 },
@@ -2188,7 +2188,7 @@ mod tests {
         else {
             panic!("the exhausted rock must leave one drop");
         };
-        assert_eq!(ore_in_world(world, &iron), 12 + 45);
+        assert_eq!(ore_in_world(world, &iron), 12 + 205);
 
         let frozen_rock = freeze_asteroid(world, rock).expect("a settled rock freezes");
         let frozen_drop = freeze_ore_drop(world, drop);
@@ -2236,7 +2236,7 @@ mod tests {
             Some(&owed),
             "the rock is owed the same ore"
         );
-        assert_eq!(ore_in_world(world, &iron), 12 + 45);
+        assert_eq!(ore_in_world(world, &iron), 12 + 205);
 
         world.entity_mut(blocker).despawn();
         let mut born = Vec::new();
@@ -2258,7 +2258,7 @@ mod tests {
             "the thawed drop never drained"
         );
         let counts: Vec<u32> = born.iter().map(|(_, count)| *count).collect();
-        assert_eq!(counts, [20, 20, 5], "the thawed drop pays its queue once");
+        assert_eq!(counts, [100, 100, 5], "the thawed drop pays its queue once");
     }
 
     /// A destroyed mining section's wreck freezes clean. The wreck detach
