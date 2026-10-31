@@ -20,10 +20,15 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The base PDC round now prices 10 cr ask / 7 cr bid per 100 rounds. A Buy rounds its lot share up, a Sell rounds down, and a Sell that would earn 0 cr is refused.
 - A newly generated station that stocks PDC rounds now opens with at least 2,000 of them; its other stock is unchanged.
 - Cargo canisters now hold up to 1,000 kg. A wreck packs its drop into mixed canisters, and an intake takes the whole items that fit your hold, leaving the rest in the canister.
+- A neutralized ship now drops its patrol, escort slot or order and brakes to a stop on its own RCS. With no flight computer or RCS, an empty magazine, a dock or a strong well, it drifts on.
 
 ### Modding & Mod Portal
 
 - **(breaking)** `Item` content now requires `price_lot`, the item count one `ask_cr`/`bid_cr` prices: 100 for a PDC round, 1 for other base items. An item without it fails lint, then load.
+
+### Fixes
+
+- **(breaking)** A ship that streams back in or loads with a world keeps its RCS magazine instead of a free full one; an idle one refills for the time away. Older world saves are refused.
 
 ## [0.16.0] - 2026-10-28
 

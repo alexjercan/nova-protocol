@@ -339,6 +339,7 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
             app.world().resource::<GameStartRoles>(),
             app.world().resource::<GameItems>(),
             &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
+            app.world().resource::<GameShipDesigns>(),
         );
         assert!(opened.is_ok(), "world.lock is free: {opened:?}");
     }
@@ -560,6 +561,7 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
             app.world().resource::<GameStartRoles>(),
             app.world().resource::<GameItems>(),
             &RegisteredScenarios::from(app.world().resource::<GameScenarios>()),
+            app.world().resource::<GameShipDesigns>(),
         );
         assert!(opened.is_ok(), "world.lock is free: {opened:?}");
     }

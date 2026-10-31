@@ -23,19 +23,19 @@ use nova_gameplay::prelude::{
     ClockFreeze, ClusterType, DamageLevel, DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight,
     GameItems, GoalLine, GoalProgress, GoalRecord, Health, ImpactSparkMarker, ImpactSparkPlugin,
     ImpactSparks, IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType,
-    Job, JobField, JobId, JobMixType, JobPostings, JobType, Jobs, PlayerFleetMarker,
-    PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage, ProjectileOwner,
-    RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime, SavedOwner,
-    SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
+    Job, JobField, JobId, JobMixType, JobPostings, JobType, Jobs, NeutralizedMarker,
+    PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage,
+    ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime,
+    SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
     SpaceshipRootMarker, StanceType, StationServiceType, StationSummary, TempEntity,
     TorpedoProjectileMarker, TraderMarket, TurretBulletProjectileMarker,
 };
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_fleet, freeze_ore_drop, freeze_ship, freeze_station,
     spaceship_scenario_object, AsteroidKind, AsteroidKindId, AsteroidMarker, AsteroidRadius,
-    AsteroidSeed, AsteroidTexture, CurrentScenario, GameStartRoles, MinedCanisterQueue, MinedOre,
-    MinedOreDrop, SpaceshipConfig, StartingStation, StationBuilds, StationMarker, StationServices,
-    StationStorage,
+    AsteroidSeed, AsteroidTexture, CurrentScenario, GameShipDesigns, GameStartRoles,
+    MinedCanisterQueue, MinedOre, MinedOreDrop, SpaceshipConfig, StartingStation, StationBuilds,
+    StationMarker, StationServices, StationStorage,
 };
 use nova_ship::prelude::{
     cargo_canister, docking_section, freeze_canister, freeze_wreck_fragment,
@@ -44,13 +44,13 @@ use nova_ship::prelude::{
     CombatLock, ComponentLock, ComponentLockMode, DamageSparkMarker, DamageSparks,
     DamageSparksPlugin, DestroySound, DockedHelmType, DockedPort, DockedShip, DockingConnection,
     DockingSectionConfig, FrozenRound, FrozenTorpedo, HullSectionConfig, LockFocus, LockSignature,
-    OrbitPlan, RcsBudget, RoundSourceType, SavedTorpedoTarget, SectionAnimations,
-    SectionBuildConfig, SectionConfig, SectionKind, SectionReload, SectionReloadConfig,
-    SensorContacts, ShipWreckFragmentMarker, SpaceshipCameraController, SpaceshipCameraInputMarker,
-    SpaceshipCameraNormalInputMarker, SpaceshipTargetingPlugin, SpaceshipTargetingSystems,
-    StationPdcReserve, StationPost, SuspendedSectionAmmo, TorpedoArming, TorpedoControllerMarker,
-    TorpedoSectionConfig, TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition,
-    TorpedoWeave, TravelLock,
+    NeutralizedBrakeType, OrbitPlan, RcsBudget, RoundSourceType, SavedTorpedoTarget,
+    SectionAnimations, SectionBuildConfig, SectionConfig, SectionKind, SectionReload,
+    SectionReloadConfig, SensorContacts, ShipWreckFragmentMarker, SpaceshipCameraController,
+    SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker, SpaceshipTargetingPlugin,
+    SpaceshipTargetingSystems, StationPdcReserve, StationPost, SuspendedSectionAmmo, TorpedoArming,
+    TorpedoControllerMarker, TorpedoSectionConfig, TorpedoTargetChosen, TorpedoTargetEntity,
+    TorpedoTargetPosition, TorpedoWeave, TravelLock,
 };
 use nova_world::{
     prelude::{CurrentSector, FrozenBodyType, FrozenSectors, SectorCoord, WorldClock, WorldConfig},
@@ -63,7 +63,7 @@ use super::{
     ResumedTransients, SavedAutopilot, SavedAutopilotAction, SavedChart, SavedChartCell,
     SavedChartMark, SavedChartMarkType, SavedComponentLock, SavedControls, SavedDock,
     SavedDockHelm, SavedFleet, SavedJointFrame, SavedLock, SavedObjective, SavedObjectiveLine,
-    SavedObjectiveType, SavedPlayer, SavedRcs, SavedScenario, WorldRefusal, WorldResumeProgress,
+    SavedObjectiveType, SavedPlayer, SavedScenario, WorldRefusal, WorldResumeProgress,
     WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
     WORLD_SAVE_VERSION,
 };
@@ -83,10 +83,6 @@ fn free_flight() -> SavedControls {
         component_lock: SavedComponentLock {
             section: None,
             pinned_seconds: None,
-        },
-        rcs: SavedRcs {
-            spent: 0.0,
-            idle: 0.0,
         },
         dock: None,
     }
@@ -114,6 +110,13 @@ fn items() -> GameItems {
 /// fixture's session scenario alone.
 fn scenarios() -> RegisteredScenarios {
     RegisteredScenarios(BTreeSet::from([FIXTURE_SCENARIO_ID.to_string()]))
+}
+
+/// The design catalog every opened world's RCS check resolves a `Prototype`
+/// ship design against. Empty: every fixture ship freezes with an `Inline`
+/// design, which never looks the catalog up.
+fn designs() -> GameShipDesigns {
+    GameShipDesigns::default()
 }
 
 /// The start roles every header is checked against: the fixture's one.
@@ -164,6 +167,7 @@ fn state(generation: u64, credits: u32) -> WorldSaveState {
             }),
             ShipInventory::default(),
             DamageMarks::default(),
+            RcsBudget::default(),
         ))
         .id();
     WorldSaveState {
@@ -266,7 +270,8 @@ fn a_world_another_game_holds_open_is_refused() {
             &catalog(7),
             &roles(),
             &items(),
-            &scenarios()
+            &scenarios(),
+            &designs()
         )
         .unwrap_err(),
         WorldRefusal::Locked
@@ -278,7 +283,8 @@ fn a_world_another_game_holds_open_is_refused() {
         &catalog(7),
         &roles(),
         &items(),
-        &scenarios()
+        &scenarios(),
+        &designs()
     )
     .is_ok());
 }
@@ -380,7 +386,8 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
             &catalog(8),
             &roles(),
             &items(),
-            &scenarios()
+            &scenarios(),
+            &designs()
         ),
         Err(WorldRefusal::Catalog { .. })
     ));
@@ -392,7 +399,8 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
                 &catalog(7),
                 &roles(),
                 &items(),
-                &scenarios()
+                &scenarios(),
+                &designs()
             ),
             Err(WorldRefusal::Format { found: refused }) if refused == found
         ));
@@ -408,7 +416,8 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
             &catalog(7),
             &roles(),
             &items(),
-            &scenarios()
+            &scenarios(),
+            &designs()
         ),
         Err(WorldRefusal::InvalidName(_))
     ));
@@ -467,6 +476,7 @@ fn a_written_world_opens_as_it_was_saved() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(opened, folder);
@@ -507,6 +517,7 @@ fn a_state_of_another_release_than_its_header_is_refused() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     ) else {
         panic!("a mixed-release world opened");
     };
@@ -533,6 +544,7 @@ fn a_saved_fleet_opens_as_it_was_frozen_and_a_doubled_slot_is_refused() {
             }),
             ShipInventory::default(),
             DamageMarks::default(),
+            RcsBudget::default(),
             EntityId("c_0_0_0_cluster_station_0_escort_1".to_string()),
             Name::new("Vel scavenger escort 2"),
         ))
@@ -565,6 +577,7 @@ fn a_saved_fleet_opens_as_it_was_frozen_and_a_doubled_slot_is_refused() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     drop(lock);
@@ -593,6 +606,7 @@ fn a_saved_fleet_opens_as_it_was_frozen_and_a_doubled_slot_is_refused() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .map(|_| ())
     .unwrap_err();
@@ -620,6 +634,7 @@ fn a_failed_write_leaves_the_last_good_save() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(read.generation, 1);
@@ -648,6 +663,7 @@ fn opening_a_world_removes_the_files_its_header_does_not_name() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(
@@ -869,6 +885,7 @@ fn the_first_frame_and_a_leave_each_write_a_save() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!((header.generation, header.credits), (2, 410));
@@ -911,12 +928,18 @@ fn loaded_player(world: &mut World) -> Entity {
 }
 
 /// A GOTO order, both locks with their held range floors, the focus dwell,
-/// a pinned component choice and a spent RCS magazine all come back on the
-/// Load's release frame, on the respawned target, and the targeting pass of
-/// the next frames keeps the locks. The Load holds them until the target is
-/// in the window.
+/// and a pinned component choice all come back on the Load's release frame,
+/// on the respawned target, and the targeting pass of the next frames keeps
+/// the locks. The Load holds them until the target is in the window.
+///
+/// The player ship's RCS magazine round-trips through `FrozenShip` now, not
+/// `SavedControls`: `nova_scenario`'s own
+/// `a_frozen_ship_keeps_its_rcs_and_terminal_brake_through_freeze_and_thaw`
+/// covers it through the real thaw, which this crate's fixture does not run
+/// (`arm_save_fixture` spawns the player fresh rather than thawing
+/// `ResumedSpaceship`).
 #[test]
-fn a_load_restores_the_goto_order_locks_focus_and_rcs_magazine() {
+fn a_load_restores_the_goto_order_locks_and_focus() {
     let root = tempfile::tempdir().unwrap();
     let (mut world, player) = armed_session(root.path());
     run_until_idle(&mut world);
@@ -944,9 +967,6 @@ fn a_load_restores_the_goto_order_locks_focus_and_rcs_magazine() {
     ship.get_mut::<SensorContacts>()
         .unwrap()
         .hold_floor(target, 42.0);
-    let mut rcs = ship.get_mut::<RcsBudget>().unwrap();
-    rcs.spent = 3.25;
-    rcs.idle = 0.5;
     let digest = leave_and_save(&mut world);
     drop(world);
 
@@ -999,9 +1019,6 @@ fn a_load_restores_the_goto_order_locks_focus_and_rcs_magazine() {
             mode: ComponentLockMode::Pinned { until: now + 1.5 },
         }
     );
-    let rcs = world.get::<RcsBudget>(player).unwrap();
-    assert_eq!((rcs.spent, rcs.idle), (3.25, 0.5));
-
     for _ in 0..3 {
         frame(&mut world);
     }
@@ -1132,6 +1149,7 @@ fn spawn_tender(world: &mut World) -> (Entity, Entity) {
             spaceship_scenario_object(SpaceshipConfig::default()),
             ShipInventory::default(),
             DamageMarks::default(),
+            RcsBudget::default(),
             EntityId("tender".to_string()),
             Rotation::default(),
             Transform::from_xyz(5.0, 0.0, -12.0),
@@ -1273,7 +1291,7 @@ fn a_world_whose_saved_controls_name_what_it_does_not_keep_is_refused_on_open() 
             basis: Quat::IDENTITY,
         },
     };
-    let cases: [(SavedControls, &str); 7] = [
+    let cases: [(SavedControls, &str); 6] = [
         (
             SavedControls {
                 combat_lock: on(body("ghost")),
@@ -1321,16 +1339,6 @@ fn a_world_whose_saved_controls_name_what_it_does_not_keep_is_refused_on_open() 
         ),
         (
             SavedControls {
-                rcs: SavedRcs {
-                    spent: f32::NAN,
-                    idle: 0.0,
-                },
-                ..free_flight()
-            },
-            "the player's RCS spent reads NaN",
-        ),
-        (
-            SavedControls {
                 dock: Some(SavedDock {
                     player_frame: SavedJointFrame {
                         anchor: Vec3::ZERO,
@@ -1351,6 +1359,7 @@ fn a_world_whose_saved_controls_name_what_it_does_not_keep_is_refused_on_open() 
             &roles(),
             &items(),
             &scenarios(),
+            &designs(),
         )
         .map(|_| ())
     };
@@ -1426,6 +1435,7 @@ fn a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(header.play_seconds, 90.0);
@@ -1501,6 +1511,7 @@ fn a_met_goal_is_not_listed_among_a_save_header_s_open_objectives() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert!(header.objectives.is_empty(), "{:?}", header.objectives);
@@ -1534,6 +1545,7 @@ fn a_saved_clock_resumes_at_the_play_time_it_was_written_with() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(
@@ -1590,6 +1602,7 @@ fn a_saved_stance_table_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(
@@ -1621,6 +1634,7 @@ fn a_saved_stance_table_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     );
     assert!(
         matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("stance stamp")),
@@ -1657,6 +1671,7 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(
@@ -1690,6 +1705,7 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     );
     assert!(
         matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("stamped met")),
@@ -1754,6 +1770,7 @@ fn a_saved_posting_record_resumes_with_its_offers_and_a_held_job_outlives_its_sl
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(
@@ -1796,6 +1813,7 @@ fn a_saved_posting_record_resumes_with_its_offers_and_a_held_job_outlives_its_sl
             &roles(),
             &items(),
             &scenarios(),
+            &designs(),
         )
     };
     let mut state = state;
@@ -1891,6 +1909,7 @@ fn a_dropped_job_id_is_saved_and_load_restores_it() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert!(
@@ -1967,6 +1986,7 @@ fn a_world_that_disarms_and_rearms_never_overwrites_its_save() {
             &roles(),
             &items(),
             &scenarios(),
+            &designs(),
         )
         .unwrap();
         assert_eq!((header.generation, header.credits), (1, 300));
@@ -2147,6 +2167,7 @@ fn a_save_waits_visibly_until_the_player_camera_is_ready() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(saved.player.view, expected_view);
@@ -2239,6 +2260,7 @@ fn load_in(mut app: App, root: &Path, digest: u64, roles: &GameStartRoles) -> Wo
         roles,
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     resume_world(&mut world, folder, lock, &header, state);
@@ -2419,6 +2441,7 @@ fn a_load_saves_nothing_until_its_transients_are_back() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(header.generation, 2);
@@ -2506,6 +2529,7 @@ fn a_save_waits_out_a_live_blast_and_a_raking_slug() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     let [FrozenTransient {
@@ -2571,6 +2595,7 @@ fn a_damage_spark_does_not_fail_the_save() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert!(
@@ -3319,7 +3344,8 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
                 &catalog(7),
                 &roles(),
                 &items(),
-                &scenarios()
+                &scenarios(),
+                &designs()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -3350,6 +3376,7 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
             &roles(),
             &items(),
             &scenarios(),
+            &designs(),
         )
         .unwrap();
         assert_eq!(saved.transients.len(), 1);
@@ -3381,6 +3408,7 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
             &roles(),
             &items(),
             &scenarios(),
+            &designs(),
         )
         .unwrap();
         assert_eq!(saved.transients.len(), 1);
@@ -3403,6 +3431,7 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(saved.transients.len(), 2);
@@ -3484,7 +3513,8 @@ fn a_world_with_a_duplicate_or_unminted_canister_is_refused_on_open() {
                 &catalog(7),
                 &roles(),
                 &items(),
-                &scenarios()
+                &scenarios(),
+                &designs()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -3506,6 +3536,7 @@ fn a_world_with_a_duplicate_or_unminted_canister_is_refused_on_open() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(saved.sectors.len(), 1);
@@ -3588,6 +3619,7 @@ fn state_with_player_item(generation: u64, item: &ItemDesignId) -> WorldSaveStat
             }),
             ShipInventory::new(&extended, 10_000, [(item.clone(), 1)]),
             DamageMarks::default(),
+            RcsBudget::default(),
         ))
         .id();
     WorldSaveState {
@@ -3610,6 +3642,7 @@ fn ledger_with_item(id: &str, coord: SectorCoord, item: &ItemDesignId) -> Frozen
             spaceship_scenario_object(SpaceshipConfig::default()),
             ShipInventory::new(&extended, 10_000, [(item.clone(), 1)]),
             DamageMarks::default(),
+            RcsBudget::default(),
         ))
         .id();
     let frozen = freeze_ship(&world, ship).expect("a bare ship is settled");
@@ -3718,6 +3751,7 @@ fn frozen_item_holders(item: &ItemDesignId) -> Vec<(Option<&'static str>, Frozen
                 spaceship_scenario_object(SpaceshipConfig::default()),
                 ShipInventory::new(&extended, 10_000, []),
                 DamageMarks::default(),
+                RcsBudget::default(),
             ))
             .id();
         section(world, ship, held);
@@ -3788,6 +3822,7 @@ fn frozen_item_holders(item: &ItemDesignId) -> Vec<(Option<&'static str>, Frozen
             spaceship_scenario_object(SpaceshipConfig::default()),
             ShipInventory::new(&extended, 10_000, []),
             DamageMarks::default(),
+            RcsBudget::default(),
             StationMarker,
             StationPost::Fixed {
                 position: Vec3::ZERO,
@@ -3866,7 +3901,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             &catalog(7),
             &roles(),
             &items(),
-            &scenarios()
+            &scenarios(),
+            &designs()
         ),
         refused(1, "the player ship 'player'")
     );
@@ -3878,7 +3914,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             &catalog(7),
             &roles(),
             &items(),
-            &scenarios()
+            &scenarios(),
+            &designs()
         )
         .map(|_| ()),
         refused(1, "the player ship 'player'")
@@ -3914,7 +3951,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
                 &catalog(7),
                 &roles(),
                 &items(),
-                &scenarios()
+                &scenarios(),
+                &designs()
             ),
             refused(generation, &owner),
             "check_world at generation {generation}"
@@ -3926,7 +3964,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
                 &catalog(7),
                 &roles(),
                 &items(),
-                &scenarios()
+                &scenarios(),
+                &designs()
             )
             .map(|_| ()),
             refused(generation, &owner),
@@ -3964,7 +4003,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             &catalog(7),
             &roles(),
             &items(),
-            &scenarios()
+            &scenarios(),
+            &designs()
         ),
         chart_refused
     );
@@ -3975,7 +4015,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             &catalog(7),
             &roles(),
             &items(),
-            &scenarios()
+            &scenarios(),
+            &designs()
         )
         .map(|_| ()),
         chart_refused
@@ -3988,6 +4029,7 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
         &roles(),
         &extended,
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(
@@ -4086,6 +4128,7 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
                 ))
                 .unwrap(),
                 DamageMarks::default(),
+                RcsBudget::default(),
             ))
             .id();
         SavedPlayer {
@@ -4117,6 +4160,7 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
                 spaceship_scenario_object(SpaceshipConfig::default()),
                 ShipInventory::new(&items(), 10_000, []),
                 DamageMarks::default(),
+                RcsBudget::default(),
                 StationMarker,
                 StationPost::Fixed {
                     position: Vec3::ZERO,
@@ -4169,7 +4213,8 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
                 &catalog(7),
                 &roles(),
                 &items(),
-                &scenarios()
+                &scenarios(),
+                &designs()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -4193,6 +4238,7 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
             &roles(),
             &items(),
             &scenarios(),
+            &designs(),
         )
         .unwrap();
         assert_eq!(saved.generation, generation, "stock within its caps opens");
@@ -4238,7 +4284,8 @@ fn a_world_whose_clock_is_not_finite_or_negative_is_refused_on_open() {
                 &catalog(7),
                 &roles(),
                 &items(),
-                &scenarios()
+                &scenarios(),
+                &designs()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -4274,7 +4321,8 @@ fn a_world_whose_body_froze_ahead_of_the_clock_is_refused_on_open() {
                 &catalog(7),
                 &roles(),
                 &items(),
-                &scenarios()
+                &scenarios(),
+                &designs()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -4298,6 +4346,7 @@ fn a_world_whose_body_froze_ahead_of_the_clock_is_refused_on_open() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(saved.generation, 4, "a body frozen at the clock opens");
@@ -4320,6 +4369,7 @@ fn a_world_whose_trader_has_no_role_preference_is_refused_on_open() {
                 spaceship_scenario_object(SpaceshipConfig::default()),
                 ShipInventory::default(),
                 DamageMarks::default(),
+                RcsBudget::default(),
                 TraderMarket {
                     cluster: ClusterType::RockOnly,
                     civilization: CivilizationId {
@@ -4352,7 +4402,8 @@ fn a_world_whose_trader_has_no_role_preference_is_refused_on_open() {
                 &catalog(7),
                 &roles(),
                 &items(),
-                &scenarios()
+                &scenarios(),
+                &designs()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -4376,6 +4427,7 @@ fn a_world_whose_trader_has_no_role_preference_is_refused_on_open() {
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     assert_eq!(saved.generation, 4, "a trader with a preference opens");
@@ -4398,6 +4450,7 @@ fn a_saved_station_pdc_reserve_opens_as_it_froze_and_a_malformed_one_is_refused(
                 spaceship_scenario_object(SpaceshipConfig::default()),
                 ShipInventory::new(&items(), 10_000, []),
                 DamageMarks::default(),
+                RcsBudget::default(),
                 StationMarker,
                 StationPost::Fixed {
                     position: Vec3::ZERO,
@@ -4447,7 +4500,8 @@ fn a_saved_station_pdc_reserve_opens_as_it_froze_and_a_malformed_one_is_refused(
                 &catalog(7),
                 &roles(),
                 &items(),
-                &scenarios()
+                &scenarios(),
+                &designs()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -4470,6 +4524,7 @@ fn a_saved_station_pdc_reserve_opens_as_it_froze_and_a_malformed_one_is_refused(
         &roles(),
         &items(),
         &scenarios(),
+        &designs(),
     )
     .unwrap();
     let reserves: Vec<StationPdcReserve> = saved
@@ -4482,6 +4537,183 @@ fn a_saved_station_pdc_reserve_opens_as_it_froze_and_a_malformed_one_is_refused(
         })
         .collect();
     assert_eq!(reserves, [depleted], "the reserve opens as it froze");
+    drop(lock);
+}
+
+/// Every frozen ship's RCS magazine is a reading a session wrote: finite,
+/// not negative, idle not negative, and spent at most its hull's own
+/// capacity for the design it froze with. A neutralized sector ship carries
+/// its brake state. A load refuses one that reading could not have, naming the
+/// ship.
+#[test]
+fn a_saved_ships_rcs_magazine_overspent_negative_non_finite_or_brakeless_is_refused_on_open() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Rcs").unwrap();
+    drop(lock);
+    let capacity = RcsBudget::capacity_for_sections(0);
+    let player_with_rcs = |spent: f32, idle: f32| {
+        let mut world = World::new();
+        let ship = world
+            .spawn((
+                spaceship_scenario_object(SpaceshipConfig::default()),
+                ShipInventory::new(&items(), 10_000, []),
+                DamageMarks::default(),
+                RcsBudget {
+                    capacity,
+                    spent,
+                    idle,
+                    applied: 0.0,
+                },
+            ))
+            .id();
+        SavedPlayer {
+            ship: freeze_ship(&world, ship).expect("a bare ship is settled"),
+            ..state(1, 750).player
+        }
+    };
+    let cases = [
+        (
+            player_with_rcs(capacity + 1.0, 0.0),
+            format!(
+                "the player ship 'player' spent {} of an RCS magazine of {capacity}",
+                capacity + 1.0
+            ),
+        ),
+        (
+            player_with_rcs(-1.0, 0.0),
+            "the player ship 'player' carries an RCS magazine spent -1 idle 0 s, which no \
+             session wrote"
+                .to_string(),
+        ),
+        (
+            player_with_rcs(0.0, f32::NAN),
+            "the player ship 'player' carries an RCS magazine spent 0 idle NaN s, which no \
+             session wrote"
+                .to_string(),
+        ),
+    ];
+    for (generation, (player, fault)) in (1..).zip(cases) {
+        let saved_state = WorldSaveState {
+            player,
+            ..state(generation, 750)
+        };
+        write_world(&folder, &header("Rcs", generation), &saved_state).unwrap();
+        assert_eq!(
+            open_world(
+                root.path(),
+                "rcs",
+                &catalog(7),
+                &roles(),
+                &items(),
+                &scenarios(),
+                &designs()
+            )
+            .map(|_| ()),
+            Err(WorldRefusal::Unreadable(format!(
+                "state.{generation}.ron: {fault}"
+            ))),
+            "case at generation {generation}"
+        );
+    }
+
+    let within = WorldSaveState {
+        player: player_with_rcs(capacity - 1.0, 2.0),
+        ..state(4, 750)
+    };
+    write_world(&folder, &header("Rcs", 4), &within).unwrap();
+    let (_, lock, _, saved) = open_world(
+        root.path(),
+        "rcs",
+        &catalog(7),
+        &roles(),
+        &items(),
+        &scenarios(),
+        &designs(),
+    )
+    .unwrap();
+    assert_eq!(
+        (saved.player.ship.rcs_spent(), saved.player.ship.rcs_idle()),
+        (capacity - 1.0, 2.0),
+        "an RCS magazine within capacity opens as it froze"
+    );
+    drop(lock);
+
+    // No `nova_ship` observer runs here, so the brake is whatever the test
+    // inserts beside the marker.
+    let east = SectorCoord::new(1, 0, 0);
+    let neutralized_hauler = |brake: Option<NeutralizedBrakeType>| {
+        let mut world = World::new();
+        let ship = world
+            .spawn((
+                spaceship_scenario_object(SpaceshipConfig::default()),
+                ShipInventory::default(),
+                DamageMarks::default(),
+                RcsBudget::default(),
+                NeutralizedMarker,
+            ))
+            .id();
+        if let Some(brake) = brake {
+            world.entity_mut(ship).insert(brake);
+        }
+        let frozen = freeze_ship(&world, ship).expect("a bare ship is settled");
+        ledger_holding(
+            east,
+            Some("hauler"),
+            &FrozenBodyType::Ship(Box::new(frozen)),
+        )
+    };
+    let brakeless = WorldSaveState {
+        sectors: neutralized_hauler(None),
+        ..state(5, 750)
+    };
+    write_world(&folder, &header("Rcs", 5), &brakeless).unwrap();
+    assert_eq!(
+        open_world(
+            root.path(),
+            "rcs",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios(),
+            &designs()
+        )
+        .map(|_| ()),
+        Err(WorldRefusal::Unreadable(
+            "state.5.ron: 'hauler' froze neutralized with no RCS brake state, so a thaw would \
+             restart its brake"
+                .to_string()
+        )),
+    );
+
+    let rested = WorldSaveState {
+        sectors: neutralized_hauler(Some(NeutralizedBrakeType::Rested)),
+        ..state(6, 750)
+    };
+    write_world(&folder, &header("Rcs", 6), &rested).unwrap();
+    let (_, lock, _, saved) = open_world(
+        root.path(),
+        "rcs",
+        &catalog(7),
+        &roles(),
+        &items(),
+        &scenarios(),
+        &designs(),
+    )
+    .unwrap();
+    let brakes: Vec<_> = saved
+        .sectors
+        .iter()
+        .flat_map(|(_, sector)| sector.bodies())
+        .filter_map(|body| match body.body() {
+            FrozenBodyType::Ship(ship) => Some(ship.brake()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        brakes,
+        [Some(NeutralizedBrakeType::Rested)],
+        "a neutralized sector ship opens with the brake state it froze with"
+    );
     drop(lock);
 }
 
@@ -4579,6 +4811,7 @@ fn a_load_restores_a_real_station_dock_through_a_real_physics_tick() {
                 StationMarker,
                 ShipInventory::default(),
                 DamageMarks::default(),
+                RcsBudget::default(),
                 EntityId(id.to_string()),
                 Transform::from_translation(position)
                     .with_rotation(Quat::from_rotation_y(std::f32::consts::PI)),
@@ -4634,6 +4867,7 @@ fn a_load_restores_a_real_station_dock_through_a_real_physics_tick() {
             roles,
             &items(),
             &scenarios(),
+            &designs(),
         )
         .unwrap();
         resume_world(&mut world, folder, lock, &header, state);

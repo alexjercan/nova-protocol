@@ -1,5 +1,7 @@
 //! The player's flight controls a save keeps: the autopilot order, the
-//! travel, combat and component locks, the RCS magazine and the dock.
+//! travel, combat and component locks and the dock. The RCS magazine is the
+//! player ship's own [`FrozenShip`](nova_scenario::prelude::FrozenShip)
+//! record, not a control.
 //!
 //! Every reference names its body by a durable key, never by `Entity`: a body
 //! by its [`EntityId`], a canister by its runtime id, a saved transient by its
@@ -30,7 +32,7 @@ use nova_scenario::prelude::echo_restored_dock;
 use nova_ship::prelude::{
     restore_docking_connection, Autopilot, AutopilotAction, AutopilotPhase, CombatLock,
     ComponentLock, ComponentLockMode, DockedHelmType, DockedPort, DockedShip, DockingConnection,
-    DockingSectionMarker, LockFocus, OrbitPlan, RcsBudget, SensorContacts, TravelLock,
+    DockingSectionMarker, LockFocus, OrbitPlan, SensorContacts, TravelLock,
 };
 use nova_world::prelude::{
     desired_sectors, CurrentSector, SectorRoot, SectorSnapshotError, WorldConfig,
@@ -54,8 +56,6 @@ pub struct SavedControls {
     pub focus_seconds: f32,
     /// The component fine-lock on the combat-locked ship.
     pub component_lock: SavedComponentLock,
-    /// The RCS magazine.
-    pub rcs: SavedRcs,
     /// The dock the player ship is in; `None` floats free.
     pub dock: Option<SavedDock>,
 }
@@ -80,16 +80,6 @@ pub struct SavedComponentLock {
     pub section: Option<EntityId>,
     /// Seconds a cycle press still pins the selection; `None` snaps.
     pub pinned_seconds: Option<f32>,
-}
-
-/// The saved RCS magazine. Its capacity comes from the hull.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SavedRcs {
-    /// Delta-v spent, engine units per second.
-    pub spent: f32,
-    /// Seconds since the last nonzero RCS command.
-    pub idle: f32,
 }
 
 /// The saved autopilot order.
@@ -215,9 +205,9 @@ pub(crate) struct SavedReferents<'a> {
 impl SavedControls {
     /// # Errors
     ///
-    /// A number no session wrote: a negative or non-finite RCS reading,
-    /// focus or floor, a pin that is not finite, a mark or velocity that is
-    /// not finite, a facing, orbit normal or joint basis that is not a unit.
+    /// A number no session wrote: a negative or non-finite focus or floor, a
+    /// pin that is not finite, a mark or velocity that is not finite, a
+    /// facing, orbit normal or joint basis that is not a unit.
     /// A reference to a body, canister, transient or section the save does
     /// not keep. A body the save does not keep is good only when its id is
     /// one the generator mints, as a regenerated planet's is. A component
@@ -231,8 +221,6 @@ impl SavedControls {
                 Err(format!("the player's {what} reads {value}"))
             }
         };
-        reading(self.rcs.spent, "RCS spent")?;
-        reading(self.rcs.idle, "RCS idle time")?;
         reading(self.focus_seconds, "focus dwell")?;
         if let Some(pinned) = self
             .component_lock
@@ -361,9 +349,9 @@ impl SavedControls {
 ///
 /// # Panics
 ///
-/// When the player ship has no [`RcsBudget`], which every ship root carries,
-/// or its dock breaks the connection's own rules: a helm another ship holds,
-/// a station helm the partner does not own, a port with no id.
+/// When the player ship's dock breaks the connection's own rules: a helm
+/// another ship holds, a station helm the partner does not own, a port with
+/// no id.
 pub(crate) fn freeze_controls(
     world: &World,
     player: Entity,
@@ -492,9 +480,6 @@ pub(crate) fn freeze_controls(
             }
         },
     };
-    let rcs = root
-        .get::<RcsBudget>()
-        .expect("every ship root carries an RcsBudget");
     let dock = root
         .get::<DockedShip>()
         .map(|docked| {
@@ -509,10 +494,6 @@ pub(crate) fn freeze_controls(
         combat_lock,
         focus_seconds,
         component_lock,
-        rcs: SavedRcs {
-            spent: rcs.spent,
-            idle: rcs.idle,
-        },
         dock,
     })
 }
@@ -675,7 +656,7 @@ fn live_section(world: &mut World, ship: Entity, id: &EntityId) -> Result<Entity
 /// [`Resolve::Refuse`] for a reference that can never resolve: an ambiguous
 /// id, a component lock on a section that is not live, a dock whose port is
 /// taken or is no live docking port, a player ship or ship partner that is
-/// docked already, an RCS reading past the hull's magazine.
+/// docked already.
 pub(crate) fn resolve_controls(
     world: &mut World,
     controls: &SavedControls,
@@ -762,16 +743,6 @@ pub(crate) fn resolve_controls(
             .ok(),
         _ => None,
     };
-    let capacity = world
-        .get::<RcsBudget>(player)
-        .expect("every ship root carries an RcsBudget")
-        .capacity;
-    if controls.rcs.spent > capacity {
-        faults.refuse(format!(
-            "the player spent {} of an RCS magazine of {capacity}",
-            controls.rcs.spent
-        ));
-    }
     let dock = controls.dock.as_ref().and_then(|dock| {
         let id = &dock.partner.0;
         let found = live_by_id::<With<SpaceshipRootMarker>>(world, id);
@@ -868,14 +839,13 @@ fn restorable_dock(
 }
 
 /// Write the resolved controls onto the player ship: the dock, the
-/// autopilot, the locks with their floors and focus, the component lock and
-/// the RCS magazine. `spawned` are the saved transients this frame spawned,
-/// in save order.
+/// autopilot, the locks with their floors and focus and the component lock.
+/// `spawned` are the saved transients this frame spawned, in save order.
 ///
 /// # Panics
 ///
-/// When the player ship lacks the sensor contacts or RCS magazine every
-/// player ship root carries.
+/// When the player ship lacks the sensor contacts every player ship root
+/// carries.
 pub(crate) fn apply_controls(world: &mut World, resolved: ResolvedControls, spawned: &[Entity]) {
     let ResolvedControls {
         player,
@@ -936,11 +906,6 @@ pub(crate) fn apply_controls(world: &mut World, resolved: ResolvedControls, spaw
             contacts.hold_floor(target, floor);
         }
     }
-    let mut rcs = root
-        .get_mut::<RcsBudget>()
-        .expect("every ship root carries an RcsBudget");
-    rcs.spent = controls.rcs.spent;
-    rcs.idle = controls.rcs.idle;
     root.insert((
         TravelLock(travel),
         CombatLock(combat),

@@ -32,7 +32,7 @@ use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::{ChartSceneCell, ChartSceneMark, ChartSceneMarkType, ChartSceneView};
 use nova_interface::prelude::{icon_node, InterfaceIcons};
-use nova_scenario::prelude::{GameScenarios, GameStartRoles};
+use nova_scenario::prelude::{GameScenarios, GameShipDesigns, GameStartRoles};
 use nova_ui::{
     screen::{scroll_column, scroll_viewport},
     theme,
@@ -160,6 +160,7 @@ fn read_listings(
     roles: &GameStartRoles,
     items: &GameItems,
     scenarios: &GameScenarios,
+    designs: &GameShipDesigns,
     checks: &mut WorldChecks,
 ) -> Result<Vec<WorldListing>, WorldRefusal> {
     let listings = list_worlds(root, packs, roles);
@@ -167,6 +168,7 @@ fn read_listings(
     let roles = Arc::new(roles.clone());
     let items = Arc::new(items.clone());
     let scenarios = Arc::new(RegisteredScenarios::from(scenarios));
+    let designs = Arc::new(designs.clone());
     checks.0 = listings
         .iter()
         .flatten()
@@ -176,8 +178,9 @@ fn read_listings(
             let (packs, roles, items) =
                 (Arc::clone(&packs), Arc::clone(&roles), Arc::clone(&items));
             let scenarios = Arc::clone(&scenarios);
+            let designs = Arc::clone(&designs);
             let task = IoTaskPool::get().spawn(async move {
-                check_world(&root, &slug, &packs, &roles, &items, &scenarios)
+                check_world(&root, &slug, &packs, &roles, &items, &scenarios, &designs)
             });
             (listing.folder.slug.clone(), task)
         })
@@ -223,6 +226,7 @@ pub(crate) fn on_load_screen(
     roles: Res<GameStartRoles>,
     items: Res<GameItems>,
     scenarios: Res<GameScenarios>,
+    designs: Res<GameShipDesigns>,
     mut checks: ResMut<WorldChecks>,
     mut listings: ResMut<WorldListings>,
     mut selected: ResMut<SelectedWorldSlug>,
@@ -230,7 +234,15 @@ pub(crate) fn on_load_screen(
     mut panel: Single<&mut Visibility, With<LoadPanel>>,
 ) {
     listings.0 = match root.0.as_deref() {
-        Some(root) => read_listings(root, &packs, &roles, &items, &scenarios, &mut checks),
+        Some(root) => read_listings(
+            root,
+            &packs,
+            &roles,
+            &items,
+            &scenarios,
+            &designs,
+            &mut checks,
+        ),
         None => Ok(Vec::new()),
     };
     selected.0 = None;
@@ -298,6 +310,7 @@ pub(crate) fn on_delete_world_confirm(
     roles: Res<GameStartRoles>,
     items: Res<GameItems>,
     scenarios: Res<GameScenarios>,
+    designs: Res<GameShipDesigns>,
     mut checks: ResMut<WorldChecks>,
     mut step: ResMut<WorldDeleteStep>,
     mut listings: ResMut<WorldListings>,
@@ -310,7 +323,15 @@ pub(crate) fn on_delete_world_confirm(
     };
     let slug = slug.clone();
     let result = delete_world(root, &slug);
-    listings.0 = read_listings(root, &packs, &roles, &items, &scenarios, &mut checks);
+    listings.0 = read_listings(
+        root,
+        &packs,
+        &roles,
+        &items,
+        &scenarios,
+        &designs,
+        &mut checks,
+    );
     *step = match result {
         Ok(()) => WorldDeleteStep::Idle,
         Err(refusal) => WorldDeleteStep::Refused {
@@ -329,12 +350,15 @@ pub(crate) fn open_world_task(
     roles: &GameStartRoles,
     items: &GameItems,
     scenarios: &GameScenarios,
+    designs: &GameShipDesigns,
 ) -> Task<OpenedWorld> {
     let (root, slug) = (root.to_path_buf(), slug.to_string());
     let (packs, roles, items) = (packs.clone(), roles.clone(), items.clone());
     let scenarios = RegisteredScenarios::from(scenarios);
-    IoTaskPool::get()
-        .spawn(async move { open_world(&root, &slug, &packs, &roles, &items, &scenarios) })
+    let designs = designs.clone();
+    IoTaskPool::get().spawn(async move {
+        open_world(&root, &slug, &packs, &roles, &items, &scenarios, &designs)
+    })
 }
 
 /// Start opening the selected world off the main thread, checked again as
@@ -347,6 +371,7 @@ pub(crate) fn on_load_world(
     roles: Res<GameStartRoles>,
     items: Res<GameItems>,
     scenarios: Res<GameScenarios>,
+    designs: Res<GameShipDesigns>,
     checks: Res<WorldChecks>,
     selected: Res<SelectedWorldSlug>,
     mut opening: ResMut<WorldOpen>,
@@ -361,7 +386,7 @@ pub(crate) fn on_load_world(
     // A Load drops a Delete asked about, so a refused resume does not bring
     // its prompt back.
     *step = WorldDeleteStep::Idle;
-    let task = open_world_task(root, slug, &packs, &roles, &items, &scenarios);
+    let task = open_world_task(root, slug, &packs, &roles, &items, &scenarios, &designs);
     opening.0 = Some((slug.to_string(), task));
 }
 
@@ -461,6 +486,7 @@ pub(crate) fn on_continue_world(
     roles: Res<GameStartRoles>,
     items: Res<GameItems>,
     scenarios: Res<GameScenarios>,
+    designs: Res<GameShipDesigns>,
     mut checks: ResMut<WorldChecks>,
     mut listings: ResMut<WorldListings>,
     mut selected: ResMut<SelectedWorldSlug>,
@@ -473,10 +499,20 @@ pub(crate) fn on_continue_world(
     if opening.0.is_some() {
         return;
     }
-    listings.0 = read_listings(root, &packs, &roles, &items, &scenarios, &mut checks);
+    listings.0 = read_listings(
+        root,
+        &packs,
+        &roles,
+        &items,
+        &scenarios,
+        &designs,
+        &mut checks,
+    );
     selected.0 = Some(button.0.clone());
     *step = WorldDeleteStep::Idle;
-    let task = open_world_task(root, &button.0, &packs, &roles, &items, &scenarios);
+    let task = open_world_task(
+        root, &button.0, &packs, &roles, &items, &scenarios, &designs,
+    );
     opening.0 = Some((button.0.clone(), task));
 }
 
@@ -544,6 +580,7 @@ pub(crate) fn refuse_resumed_world(
     roles: Res<GameStartRoles>,
     items: Res<GameItems>,
     scenarios: Res<GameScenarios>,
+    designs: Res<GameShipDesigns>,
     mut checks: ResMut<WorldChecks>,
     mut listings: ResMut<WorldListings>,
     mut selected: ResMut<SelectedWorldSlug>,
@@ -558,7 +595,15 @@ pub(crate) fn refuse_resumed_world(
         return;
     };
     listings.0 = match root.0.as_deref() {
-        Some(root) => read_listings(root, &packs, &roles, &items, &scenarios, &mut checks),
+        Some(root) => read_listings(
+            root,
+            &packs,
+            &roles,
+            &items,
+            &scenarios,
+            &designs,
+            &mut checks,
+        ),
         None => Ok(Vec::new()),
     };
     // The refusal stands over whatever the new check of the world finds.

@@ -1307,6 +1307,7 @@ fn record_transient_fixture_state(world: &mut World) -> serde_json::Value {
         world.resource::<GameStartRoles>(),
         world.resource::<GameItems>(),
         &RegisteredScenarios::from(world.resource::<GameScenarios>()),
+        world.resource::<GameShipDesigns>(),
     )
     .unwrap_or_else(|e| {
         panic!(

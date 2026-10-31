@@ -36,7 +36,8 @@ use nova_world::prelude::{
 };
 
 use super::{
-    check_saved_controls, check_saved_fleet, check_saved_ids, check_saved_items, check_saved_stock,
+    check_saved_controls, check_saved_fleet, check_saved_ids, check_saved_items, check_saved_rcs,
+    check_saved_stock,
     controls::freeze_controls,
     transients::{freeze_transients, hold_resumed_transients},
     write_world, SavedChart, SavedFleet, SavedIdFault, SavedObjective, SavedObjectiveLine,
@@ -564,9 +565,9 @@ pub(crate) fn snapshot_world(world: &mut World) {
     let saved_at_unix = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_secs());
+    let designs = world.resource::<GameShipDesigns>().clone();
     let hull = match ship.design() {
-        ShipDesignSource::Prototype { id, .. } => world
-            .resource::<GameShipDesigns>()
+        ShipDesignSource::Prototype { id, .. } => designs
             .get_design(id)
             .map_or_else(|| id.to_string(), |design| design.name.clone()),
         ShipDesignSource::Inline(_) => body
@@ -671,6 +672,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
                 .and_then(|()| check_saved_controls(&state))
                 .and_then(|()| check_saved_items(&state, &items))
                 .and_then(|()| check_saved_stock(&state, &items))
+                .and_then(|()| check_saved_rcs(&state, &designs))
                 .map_err(|reason| SectorSnapshotError::InvalidSavedState { reason })
         });
     if let Err(error) = checked {

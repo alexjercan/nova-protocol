@@ -285,6 +285,35 @@ pub(super) type ArrivalTargetQuery<'w, 's> = Query<
 pub(super) type FlightWellQuery<'w, 's> =
     Query<'w, 's, (Entity, &'static Position, &'static GravityWell), Without<SpaceshipRootMarker>>;
 
+/// The strongest well pull at `point`, u/s^2: the same shaped `well_accel`
+/// the physics applies, so the SOI fade and the surface clamp are in it.
+pub(super) fn local_gravity_accel(
+    wells: &[WellSample],
+    point: Vec3,
+    gravity_settings: &GravitySettings,
+) -> f32 {
+    wells
+        .iter()
+        .map(|sample| {
+            let well = &sample.well;
+            well_accel(
+                well.mu,
+                (sample.position - point).length(),
+                well.body_radius,
+                well.soi_radius,
+                gravity_settings.fade_fraction,
+                gravity_settings.surface_margin,
+            )
+        })
+        .fold(0.0f32, f32::max)
+}
+
+/// Whether an RCS pushing at `rcs_accel` u/s^2 out-pushes a local well pull
+/// of `gravity_accel` u/s^2 by the [`RCS_GRAVITY_AUTHORITY`] margin.
+pub(super) fn rcs_has_gravity_authority(gravity_accel: f32, rcs_accel: f32) -> bool {
+    gravity_accel < rcs_accel * RCS_GRAVITY_AUTHORITY
+}
+
 /// Every gravity well as a step reads it, in query order.
 pub(super) fn well_samples(
     q_wells: &FlightWellQuery,
@@ -1148,21 +1177,7 @@ pub(super) fn autopilot_step(
     // a goal it will lose. Scanning every well (they are few) rather than
     // reading `DominantWell` keeps this correct for a ship that has not
     // been assigned one yet.
-    let local_gravity_accel = env
-        .wells
-        .iter()
-        .map(|sample| {
-            let well = &sample.well;
-            well_accel(
-                well.mu,
-                (sample.position - com_world).length(),
-                well.body_radius,
-                well.soi_radius,
-                gravity_settings.fade_fraction,
-                gravity_settings.surface_margin,
-            )
-        })
-        .fold(0.0f32, f32::max);
+    let local_gravity_accel = local_gravity_accel(env.wells, com_world, gravity_settings);
     let desired = match autopilot.action {
         AutopilotAction::Stop => {
             // STOP has a spatial goal too: the predicted rest point.
@@ -1322,7 +1337,7 @@ pub(super) fn autopilot_step(
     // where the proportional push equals the pull - a steady fall, with the
     // drive cooled and `done` never firing.
     let rcs_has_gravity_authority =
-        local_gravity_accel < settings.rcs_accel * RCS_GRAVITY_AUTHORITY;
+        rcs_has_gravity_authority(local_gravity_accel, settings.rcs_accel);
     let use_rcs_settle = rcs_capable
         && rcs_has_gravity_authority
         && desired.length() <= settings.stop_speed_epsilon

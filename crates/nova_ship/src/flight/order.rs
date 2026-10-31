@@ -26,7 +26,7 @@ use nova_gameplay::prelude::*;
 
 use super::{
     ship_turn_rate, slew_rotation, Autopilot, AutopilotAction, AutopilotPhase,
-    FlightArrivalStandoff, FlightSettings, LiveWells,
+    FlightArrivalStandoff, FlightSettings, LiveWells, NeutralizedBrakeType,
 };
 use crate::prelude::*;
 
@@ -453,6 +453,7 @@ pub(super) fn drive_ship_orders(
             Has<ShipOrderReported>,
             Option<&DominantWell>,
             (Option<&DockedShip>, Option<&DockedAssembly>),
+            Has<NeutralizedBrakeType>,
         ),
         (With<SpaceshipRootMarker>, With<ShipOrderHelmAuthority>),
     >,
@@ -474,7 +475,7 @@ pub(super) fn drive_ship_orders(
     missing_assembly.retain(|ship| {
         q_ships
             .get(*ship)
-            .is_ok_and(|(.., (docked, assembly))| docked.is_some() && assembly.is_none())
+            .is_ok_and(|(.., (docked, assembly), _)| docked.is_some() && assembly.is_none())
     });
     for (
         ship,
@@ -487,8 +488,21 @@ pub(super) fn drive_ship_orders(
         reported,
         dominant,
         (docked, assembly),
+        neutralized,
     ) in &mut q_ships
     {
+        // A neutralized hull's helm is its own RCS brake for good
+        // (`neutralized_brake`): no order flies it again, so the order fails
+        // and its maneuver comes off.
+        if neutralized {
+            warn!(
+                "drive_ship_orders: ship {ship:?} is neutralized; order '{}' failed",
+                order.key
+            );
+            fail(&mut commands, ship, &order, &mut reports, reported);
+            commands.queue(move |world: &mut World| retire_ship_order_execution(world, ship));
+            continue;
+        }
         // A docked root that does not drive its pair is paused, not judged:
         // its frozen maneuver neither arrives nor gives up, so the order is
         // neither completed nor failed until the ship drives again or
@@ -1043,6 +1057,37 @@ mod tests {
     /// once: it engages the maneuver from the durable directive, installs the
     /// order's staging standoff, and on release reports a completion and hands
     /// the helm back - which is what lets an AI ship return to its own routine.
+    /// A neutralized hull's helm belongs to its own RCS brake: its engaged
+    /// order fails once, its maneuver comes off and the helm is released.
+    #[test]
+    fn a_neutralized_hulls_order_fails_and_its_maneuver_comes_off() {
+        let mut app = order_app();
+        let ship = ordered_ship(
+            &mut app,
+            ShipOrderDirective::Move {
+                position: Vec3::new(0.0, 0.0, -100.0),
+                arrival_standoff: None,
+            },
+        );
+        app.update();
+        assert!(app.world().get::<Autopilot>(ship).is_some());
+
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(NeutralizedBrakeType::Braking);
+        app.update();
+        app.update();
+
+        assert_eq!(outcomes(&app, ship), vec![ShipOrderOutcome::Failed]);
+        let entity = app.world().entity(ship);
+        assert!(!entity.contains::<ShipOrderHelmAuthority>());
+        assert!(!entity.contains::<ShipOrderEngaged>());
+        assert!(
+            !entity.contains::<Autopilot>(),
+            "the order's maneuver does not outlive it"
+        );
+    }
+
     #[test]
     fn a_move_engages_its_maneuver_and_reports_the_arrival_once() {
         let mut app = order_app();

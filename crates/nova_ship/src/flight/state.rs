@@ -232,15 +232,44 @@ impl RcsBudget {
         delivered
     }
 
-    /// Advance an uncommanded tick: count the idle time, and once it passes
-    /// [`FlightSettings::rcs_recovery_delay`] refill at
-    /// [`FlightSettings::rcs_recovery_rate`].
+    /// Advance `dt` uncommanded seconds: count the idle time, and refill at
+    /// [`FlightSettings::rcs_recovery_rate`] for only the part of `dt` past
+    /// [`FlightSettings::rcs_recovery_delay`]. Exact for any `dt`, so a thaw
+    /// can pay the play time a hull stood frozen in one call.
     pub fn recover(&mut self, dt: f32, settings: &FlightSettings) {
+        let refilling = (self.idle + dt) - self.idle.max(settings.rcs_recovery_delay);
         self.idle += dt;
-        if self.idle >= settings.rcs_recovery_delay {
-            self.spent = (self.spent - settings.rcs_recovery_rate * dt).max(0.0);
+        if refilling > 0.0 {
+            self.spent = (self.spent - settings.rcs_recovery_rate * refilling).max(0.0);
         }
     }
+}
+
+/// Where a neutralized non-player ship's own RCS brake toward world rest
+/// stands, on its root. Inserted as [`Self::Braking`] when
+/// [`NeutralizedMarker`](nova_gameplay::prelude::NeutralizedMarker) lands on a root that is neither the player's nor a
+/// station; `neutralized_brake_system` writes the hull's [`RcsIntent`] while
+/// it brakes. Every other state is terminal: the hull coasts, and a magazine
+/// that refills later never restarts the brake. The terminal states other
+/// than [`Self::Rested`] name why the hull could not finish.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[reflect(Component)]
+pub enum NeutralizedBrakeType {
+    /// Spending its own RCS toward world rest.
+    Braking,
+    /// Reached world rest.
+    Rested,
+    /// Lost its last live flight computer.
+    NoFlightComputer,
+    /// Its `rcs_enabled` capability is off.
+    RcsDisabled,
+    /// Its RCS magazine ran dry before rest.
+    RcsEmpty,
+    /// Docked: the dock holds the hull, not its own RCS.
+    Docked,
+    /// The local well pulls harder than its RCS can hold.
+    Gravity,
 }
 
 /// The post a station holds with its RCS, on the station root. Engine units.

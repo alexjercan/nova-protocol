@@ -1051,6 +1051,7 @@ mod walk {
             world.resource::<GameStartRoles>(),
             world.resource::<GameItems>(),
             &RegisteredScenarios::from(world.resource::<GameScenarios>()),
+            world.resource::<GameShipDesigns>(),
         )
         .unwrap_or_else(|refusal| {
             panic!("civilization stance: cannot open the leave save: {refusal}")

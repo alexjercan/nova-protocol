@@ -12,6 +12,7 @@ use crate::{
     flight::{
         autopilot::{autopilot_system, on_autopilot_removed_cool_engines},
         manual::{decay_player_rcs_intent, manual_burn_system, rcs_burn_system},
+        neutralized_brake::{neutralized_brake_system, on_neutralized_engage_brake},
         order::drive_scripted_align,
         state::remove_maneuver_telemetry,
         station_keeping::station_keeping_system,
@@ -38,6 +39,24 @@ pub(super) fn flight_app() -> App {
 pub(super) fn orbit_app() -> App {
     let mut app = unfinished_flight_app();
     app.add_plugins(nova_gameplay::gravity::NovaGravityPlugin);
+    app.finish();
+    app
+}
+
+/// The flight harness plus the neutralized brake, wired as production wires
+/// it. Kept out of [`flight_app`]: the rig's integrity layer neutralizes an
+/// unarmed rig hull that loses its last thruster, and the engine-loss tests
+/// there assert a coast the brake would end.
+pub(super) fn brake_flight_app() -> App {
+    let mut app = unfinished_flight_app();
+    app.add_observer(on_neutralized_engage_brake);
+    app.add_systems(
+        FixedUpdate,
+        neutralized_brake_system
+            .after(station_keeping_system)
+            .before(manual_burn_system)
+            .in_set(NovaFlightSystems),
+    );
     app.finish();
     app
 }

@@ -613,6 +613,32 @@ impl FrozenShip {
     pub fn market(&self) -> Option<&TraderMarket> {
         self.market.as_ref()
     }
+
+    /// Delta-v spent in the RCS magazine the ship froze with, engine units
+    /// per second. The save checks it against the hull's own capacity.
+    #[must_use]
+    pub fn rcs_spent(&self) -> f32 {
+        self.state.rcs.spent
+    }
+
+    /// Seconds since the last nonzero RCS command the ship froze with.
+    #[must_use]
+    pub fn rcs_idle(&self) -> f32 {
+        self.state.rcs.idle
+    }
+
+    /// Whether the root froze with [`NeutralizedMarker`].
+    #[must_use]
+    pub fn is_neutralized(&self) -> bool {
+        self.state.neutralized
+    }
+
+    /// The neutralized brake state the root froze with; `None` on a root
+    /// the brake never touched.
+    #[must_use]
+    pub fn brake(&self) -> Option<NeutralizedBrakeType> {
+        self.state.brake
+    }
 }
 
 /// The part of a [`FrozenShip`] the section spawn applies over the fresh
@@ -635,6 +661,25 @@ struct FrozenShipState {
     had_flight_computer: bool,
     had_thruster: bool,
     ai: Option<FrozenAI>,
+    /// The RCS magazine the root froze with.
+    rcs: FrozenRcs,
+    /// The root's neutralized brake, as `nova_ship`'s own observer left it;
+    /// `None` on a root the brake never touches (the player's, a station's).
+    brake: Option<NeutralizedBrakeType>,
+}
+
+/// The RCS magazine a ship root froze with: delta-v spent and seconds idle,
+/// engine units and seconds. The magazine's capacity is not saved: a thaw
+/// computes it fresh from the resolved design's section count, so a design
+/// change between freeze and thaw changes the ceiling, not the fill.
+#[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+struct FrozenRcs {
+    /// Delta-v spent, engine units per second.
+    spent: f32,
+    /// Seconds since the last nonzero RCS command.
+    idle: f32,
 }
 
 impl FrozenShip {
@@ -939,6 +984,16 @@ pub fn freeze_ship(world: &World, ship: Entity) -> Result<FrozenShip, UnsettledB
             had_flight_computer: root.contains::<HadFlightComputer>(),
             had_thruster: root.contains::<HadThruster>(),
             ai: freeze_ai(world, ship),
+            rcs: {
+                let rcs = root
+                    .get::<RcsBudget>()
+                    .unwrap_or_else(|| required("RcsBudget"));
+                FrozenRcs {
+                    spent: rcs.spent,
+                    idle: rcs.idle,
+                }
+            },
+            brake: root.get::<NeutralizedBrakeType>().copied(),
         },
     })
 }
@@ -1596,7 +1651,9 @@ fn add_design_section(
 /// The ship's design becomes inline (see [`owned_ship_design`]) without the
 /// section, so a freeze and a save keep it gone and a rebuild does not list
 /// it. Its binding leaves the player controller's table. [`RcsBudget::capacity`]
-/// is re-derived from the shrunk design section count. The section comes
+/// is re-derived from the shrunk design section count, and the spent
+/// delta-v is held at that capacity: a save refuses an overspent magazine.
+/// The section comes
 /// off by a [`SectionStripRequest`], which prunes it from its neighbours,
 /// lowers the root's pinned health by its pool and despawns it.
 ///
@@ -1645,6 +1702,7 @@ fn remove_design_section(
     owned.sections.retain(|section| section.id != id.0);
     design.0.remove(index);
     rcs_budget.capacity = RcsBudget::capacity_for_sections(design.0.len());
+    rcs_budget.spent = rcs_budget.spent.min(rcs_budget.capacity);
     if let SpaceshipController::Player(config) = controller.as_mut() {
         config.input_mapping.remove(&id.0);
     }
@@ -1813,10 +1871,17 @@ fn insert_spaceship_sections(
         }
     });
     let section_count = design_sections.len();
+    // A thaw keeps the magazine's fill; the capacity is always fresh, off
+    // THIS spawn's resolved section count, not the one the record froze with.
+    let (spent, idle) = thawing
+        .as_ref()
+        .map_or((0.0, 0.0), |state| (state.rcs.spent, state.rcs.idle));
     commands.entity(entity).insert((
         ShipDesignSections(design_sections),
         RcsBudget {
             capacity: RcsBudget::capacity_for_sections(section_count),
+            spent,
+            idle,
             ..default()
         },
     ));
@@ -1979,6 +2044,14 @@ fn insert_spaceship_sections(
         ));
         if let Some(health) = state.health.take() {
             root.insert(health);
+        }
+        // Before `NeutralizedMarker`, in the same command sequence: bevy
+        // 0.19 applies observer commands right after the firing command, so
+        // `nova_ship`'s own `Add<NeutralizedMarker>` observer sees the brake
+        // already present and its `try_insert_if_new` keeps the frozen
+        // state rather than restarting it at `Braking`.
+        if let Some(brake) = state.brake {
+            root.insert(brake);
         }
         if state.neutralized {
             root.insert(NeutralizedMarker);
@@ -2475,6 +2548,70 @@ mod tests {
         assert!(
             world.entity(thawed).contains::<AINonCombatant>(),
             "a thawed neutralized AI ship must stand down again"
+        );
+    }
+
+    /// A frozen ship keeps its RCS magazine's spent and idle readings, and
+    /// the terminal state its own neutralized brake reached, through freeze
+    /// and thaw: the thaw inserts the brake before `NeutralizedMarker` in
+    /// the same command sequence, so `nova_ship`'s real
+    /// `Add<NeutralizedMarker>` observer's `try_insert_if_new` sees it
+    /// already present and never restarts it at `Braking`.
+    #[test]
+    fn a_frozen_ship_keeps_its_rcs_and_terminal_brake_through_freeze_and_thaw() {
+        let mut app = App::new();
+        app.add_plugins((SpaceshipAIInputPlugin, NovaFlightPlugin));
+        let world = app.world_mut();
+        world.init_resource::<GameSections>();
+        world.init_resource::<GameShipDesigns>();
+        world.insert_resource(test_items());
+        world.add_observer(insert_spaceship_sections);
+
+        let ship = world
+            .spawn((
+                Transform::default(),
+                spaceship_scenario_object(SpaceshipConfig {
+                    controller: SpaceshipController::AI(AIControllerConfig::default()),
+                    ..default()
+                }),
+            ))
+            .id();
+        world.flush();
+        world.entity_mut(ship).insert(NeutralizedMarker);
+        world.flush();
+        assert_eq!(
+            world.entity(ship).get::<NeutralizedBrakeType>(),
+            Some(&NeutralizedBrakeType::Braking),
+            "the real observer engages the brake on the live ship"
+        );
+        // The terminal state the brake system would leave it in, set by
+        // hand: running that system needs a physics world this fixture does
+        // not build.
+        *world
+            .entity_mut(ship)
+            .get_mut::<NeutralizedBrakeType>()
+            .unwrap() = NeutralizedBrakeType::RcsEmpty;
+        {
+            let mut entity = world.entity_mut(ship);
+            let mut rcs = entity.get_mut::<RcsBudget>().unwrap();
+            rcs.spent = 42.0;
+            rcs.idle = 7.5;
+        }
+
+        let frozen = freeze_ship(world, ship).expect("a settled ship freezes");
+        world.entity_mut(ship).despawn();
+        let mut commands = world.commands();
+        let mut thawed = commands.spawn(Transform::default());
+        thaw_ship(&mut thawed, frozen);
+        let thawed = thawed.id();
+        world.flush();
+
+        let rcs = world.entity(thawed).get::<RcsBudget>().unwrap();
+        assert_eq!((rcs.spent, rcs.idle), (42.0, 7.5));
+        assert_eq!(
+            world.entity(thawed).get::<NeutralizedBrakeType>(),
+            Some(&NeutralizedBrakeType::RcsEmpty),
+            "the real observer's try_insert_if_new must not restart the brake at Braking"
         );
     }
 
@@ -3100,6 +3237,41 @@ mod tests {
             "removing the added section restores the base capacity"
         );
         assert_eq!(shrunk.spent, 10.0, "still untouched");
+    }
+
+    /// A refit remove that shrinks the magazine under what the hull already
+    /// spent holds spent at the new capacity: the magazine is empty, not
+    /// overspent and not refilled.
+    #[test]
+    fn a_refit_remove_under_the_spent_delta_v_holds_spent_at_the_new_capacity() {
+        let (mut world, ship) = spawn_plate_ship(67);
+        world.add_observer(remove_design_section);
+        let old_capacity = RcsBudget::capacity_for_sections(67);
+        let new_capacity = RcsBudget::capacity_for_sections(66);
+        assert!(new_capacity < old_capacity, "a 67th section must count");
+        world.entity_mut(ship).get_mut::<RcsBudget>().unwrap().spent = old_capacity;
+
+        let plate = world
+            .entity(ship)
+            .get::<Children>()
+            .expect("the ship has sections")
+            .iter()
+            .find(|child| {
+                world
+                    .entity(*child)
+                    .get::<EntityId>()
+                    .is_some_and(|id| id.0 == "plate_66")
+            })
+            .expect("the last plate is live");
+        world.trigger(SectionRemoveRequest {
+            entity: ship,
+            section: plate,
+        });
+        world.flush();
+        let shrunk = *world.entity(ship).get::<RcsBudget>().unwrap();
+        assert_eq!(shrunk.capacity, new_capacity);
+        assert_eq!(shrunk.spent, new_capacity, "spent is held at the ceiling");
+        assert_eq!(shrunk.remaining(), 0.0, "a shrink is not a refill");
     }
 
     /// Combat damage despawns a live section without touching the authored

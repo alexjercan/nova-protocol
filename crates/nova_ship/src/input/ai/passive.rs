@@ -138,6 +138,9 @@ pub(super) fn update_passive_flight(
             With<AISpaceshipMarker>,
             Without<ShipOrderHelmAuthority>,
             Without<AIFollow>,
+            // A neutralized hull's crew is gone: its own RCS brake holds the
+            // helm (`flight::neutralized_brake`).
+            Without<NeutralizedMarker>,
         ),
     >,
     wells: LiveWells,
@@ -968,6 +971,27 @@ mod patrol_idle_tests {
             world.entity(ship).get::<Autopilot>().map(|ap| ap.action),
             Some(AutopilotAction::GotoPos { position: W1 }),
             "Patrol engages the GOTO autopilot toward the current waypoint"
+        );
+    }
+
+    /// A neutralized patrol ship's crew is gone: once its maneuver is taken
+    /// off, the routine never flies the route again.
+    #[test]
+    fn a_neutralized_patrol_ship_never_flies_its_route_again() {
+        let (mut world, ship) = patrol_world();
+        run_pipeline(&mut world);
+        assert!(world.entity(ship).get::<Autopilot>().is_some());
+
+        world
+            .entity_mut(ship)
+            .insert(NeutralizedMarker)
+            .remove::<Autopilot>();
+        run_pipeline(&mut world);
+        run_pipeline(&mut world);
+
+        assert!(
+            world.entity(ship).get::<Autopilot>().is_none(),
+            "neither the patrol nor the combat writer engages a maneuver"
         );
     }
 

@@ -387,6 +387,8 @@ pub(super) fn update_combat_flight(
             With<SpaceshipRootMarker>,
             With<AISpaceshipMarker>,
             Without<ShipOrderHelmAuthority>,
+            // A neutralized hull's own RCS brake holds the helm.
+            Without<NeutralizedMarker>,
         ),
     >,
     q_target: Query<(&Transform, Option<&ComputedCenterOfMass>)>,

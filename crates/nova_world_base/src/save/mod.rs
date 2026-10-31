@@ -55,10 +55,10 @@ use nova_gameplay::prelude::{
     SavedTargetRef, CARGO_CANISTER_MAX_MASS_G,
 };
 use nova_scenario::prelude::{
-    FleetEscort, FrozenShip, GameScenarios, GameStartRoles, SavedScenario, ScenarioId,
-    StartRoleDesignId, StartingStation,
+    FleetEscort, FrozenShip, GameScenarios, GameShipDesigns, GameStartRoles, SavedScenario,
+    ScenarioId, ShipDesignSource, StartRoleDesignId, StartingStation,
 };
-use nova_ship::prelude::{CameraView, SavedTorpedoTarget, FLEET_SIDES};
+use nova_ship::prelude::{CameraView, RcsBudget, SavedTorpedoTarget, FLEET_SIDES};
 use nova_world::prelude::{FrozenBody, FrozenBodyType, FrozenSectors, SectorCoord, WorldClock};
 use serde::{Deserialize, Serialize};
 
@@ -70,7 +70,7 @@ mod transients;
 
 pub use controls::{
     SavedAutopilot, SavedAutopilotAction, SavedComponentLock, SavedControls, SavedDock,
-    SavedDockHelm, SavedJointFrame, SavedLock, SavedRcs,
+    SavedDockHelm, SavedJointFrame, SavedLock,
 };
 pub(crate) use session::{restore_resumed_world, save_systems};
 pub use session::{resume_world, ResumedWorld, SaveReason, WorldSaveSession, WorldSaveStatus};
@@ -532,12 +532,13 @@ pub fn open_world(
     roles: &GameStartRoles,
     items: &GameItems,
     scenarios: &RegisteredScenarios,
+    designs: &GameShipDesigns,
 ) -> Result<(WorldFolder, WorldLock, WorldSaveHeader, WorldSaveState), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
     let lock = lock_world(&path)?;
     let header = read_header(&path, loaded, roles)?;
-    let state = read_state(&path, &header, items, scenarios)?;
+    let state = read_state(&path, &header, items, scenarios, designs)?;
     sweep_orphans(&path, &state_file(header.generation));
     Ok((
         WorldFolder {
@@ -566,11 +567,12 @@ pub fn check_world(
     roles: &GameStartRoles,
     items: &GameItems,
     scenarios: &RegisteredScenarios,
+    designs: &GameShipDesigns,
 ) -> Result<(), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
     let header = read_header(&path, loaded, roles)?;
-    read_state(&path, &header, items, scenarios).map(drop)
+    read_state(&path, &header, items, scenarios, designs).map(drop)
 }
 
 /// Read and check the state file `header` names in the world folder `path`.
@@ -579,6 +581,7 @@ fn read_state(
     header: &WorldSaveHeader,
     items: &GameItems,
     scenarios: &RegisteredScenarios,
+    designs: &GameShipDesigns,
 ) -> Result<WorldSaveState, WorldRefusal> {
     let state_name = state_file(header.generation);
     let text = std::fs::read_to_string(path.join(&state_name))
@@ -634,6 +637,8 @@ fn read_state(
     check_saved_items(&state, items)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     check_saved_stock(&state, items)
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    check_saved_rcs(&state, designs)
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     if !scenarios.0.contains(&state.scenario.scenario_id) {
         return Err(WorldRefusal::Scenario {
@@ -952,6 +957,103 @@ fn check_saved_stock(state: &WorldSaveState, items: &GameItems) -> Result<(), St
                 FrozenBodyType::Asteroid(_)
                 | FrozenBodyType::PendingShip { .. }
                 | FrozenBodyType::PendingStation { .. }
+                | FrozenBodyType::WreckFragment(_)
+                | FrozenBodyType::OreDrop(_) => {}
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The number of sections `source` resolves to, by `designs`: the whole
+/// section list of an inline design, or the catalog design's own list for a
+/// prototype reference. A spawn patch tunes a named section's config; it
+/// cannot add or remove one, so the saved capacity never drifts from what
+/// `designs` would resolve the ship to now. A prototype this build does not
+/// load is refused here, as its thaw would panic.
+fn design_section_count(
+    source: &ShipDesignSource,
+    designs: &GameShipDesigns,
+) -> Result<usize, String> {
+    match source {
+        ShipDesignSource::Inline(design) => Ok(design.sections.len()),
+        ShipDesignSource::Prototype { id, .. } => designs
+            .get_design(id)
+            .map(|prototype| prototype.design.sections.len())
+            .ok_or_else(|| format!("ship design '{id}' is not loaded")),
+    }
+}
+
+/// Every saved ship's RCS magazine is a reading a session wrote: finite,
+/// not negative, idle not negative, and spent at most the hull's own
+/// capacity for the design it froze with. A neutralized sector ship carries
+/// the brake state `nova_ship`'s observer gave it. A save checks before it
+/// writes; Load checks on open, as a thaw would otherwise spawn a magazine
+/// past its own hull's ceiling, or restart a finished brake at `Braking`.
+/// The player's ship, a station and a parked hull are player-flown or never
+/// brake, and a neutralized escort leaves the fleet, so none is checked.
+fn check_saved_rcs(state: &WorldSaveState, designs: &GameShipDesigns) -> Result<(), String> {
+    let check_brake = |ship: &FrozenShip, owner: &str| -> Result<(), String> {
+        if ship.is_neutralized() && ship.brake().is_none() {
+            return Err(format!(
+                "{owner} froze neutralized with no RCS brake state, so a thaw would restart \
+                 its brake"
+            ));
+        }
+        Ok(())
+    };
+    let check_rcs = |ship: &FrozenShip, owner: &str| -> Result<(), String> {
+        let (spent, idle) = (ship.rcs_spent(), ship.rcs_idle());
+        if !spent.is_finite() || !idle.is_finite() || spent < 0.0 || idle < 0.0 {
+            return Err(format!(
+                "{owner} carries an RCS magazine spent {spent} idle {idle} s, which no session \
+                 wrote"
+            ));
+        }
+        let sections = design_section_count(ship.design(), designs)
+            .map_err(|fault| format!("{owner} names a {fault}"))?;
+        let capacity = RcsBudget::capacity_for_sections(sections);
+        if spent > capacity {
+            return Err(format!(
+                "{owner} spent {spent} of an RCS magazine of {capacity}"
+            ));
+        }
+        Ok(())
+    };
+    check_rcs(
+        &state.player.ship,
+        &format!("the player ship '{}'", state.player.id.0),
+    )?;
+    for escort in &state.player.fleet {
+        check_rcs(&escort.ship, &format!("the escort '{}'", escort.id.0))?;
+    }
+    for (_, record) in state.sectors.iter() {
+        for body in record.bodies() {
+            match body.body() {
+                FrozenBodyType::Ship(ship) => {
+                    let id = body
+                        .id()
+                        .expect("a frozen ship is a persistent body with an id");
+                    let owner = format!("'{id}'");
+                    check_rcs(ship, &owner)?;
+                    check_brake(ship, &owner)?;
+                }
+                FrozenBodyType::Station(station) => {
+                    let id = body
+                        .id()
+                        .expect("a frozen station is a persistent body with an id");
+                    check_rcs(station.ship(), &format!("'{id}'"))?;
+                    for parked in station.parked() {
+                        check_rcs(
+                            parked.ship(),
+                            &format!("'{}' parked at '{id}'", parked.name()),
+                        )?;
+                    }
+                }
+                FrozenBodyType::Asteroid(_)
+                | FrozenBodyType::PendingShip { .. }
+                | FrozenBodyType::PendingStation { .. }
+                | FrozenBodyType::Canister(_)
                 | FrozenBodyType::WreckFragment(_)
                 | FrozenBodyType::OreDrop(_) => {}
             }

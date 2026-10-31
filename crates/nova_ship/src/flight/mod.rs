@@ -44,6 +44,7 @@ mod capability;
 mod guidance;
 mod manual;
 mod navigation;
+mod neutralized_brake;
 mod order;
 mod prediction;
 mod rcs_puff;
@@ -73,8 +74,8 @@ pub use self::{
     state::{
         resolved_arrival_standoff, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius,
         FlightArrivalStandoff, FlightCruiseCap, FlightIntent, FlightSettings, MainDriveCommanded,
-        ManeuverTelemetry, OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent,
-        StationPost,
+        ManeuverTelemetry, NeutralizedBrakeType, OrbitPlan, PlayerAutopilotCompleted, RcsActive,
+        RcsBudget, RcsIntent, StationPost,
     },
     well_target::WellTargetType,
 };
@@ -82,6 +83,7 @@ use self::{
     authority::publish_flight_authority,
     autopilot::{autopilot_system, on_autopilot_removed_cool_engines},
     manual::{decay_player_rcs_intent, manual_burn_system, rcs_burn_system},
+    neutralized_brake::{neutralized_brake_system, on_neutralized_engage_brake},
     order::{drive_scripted_align, drive_ship_orders},
     prediction::predict_flight_path,
     state::remove_maneuver_telemetry,
@@ -98,7 +100,8 @@ pub(crate) use self::{
 };
 
 /// The flight intent, settings, authority and the RCS budget, the autopilot
-/// and orbit plan, RCS state, leg navigation, maneuver telemetry, and
+/// and orbit plan, RCS state, the neutralized brake, leg navigation, maneuver
+/// telemetry, and
 /// `NovaFlightPlugin` with `NovaFlightSystems`.
 pub mod prelude {
     pub use super::{
@@ -107,11 +110,11 @@ pub mod prelude {
         AIOrderInterrupted, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, DetourPolicy,
         FlightArrivalStandoff, FlightAuthority, FlightCruiseCap, FlightIntent, FlightPrediction,
         FlightPredictionEndType, FlightSettings, LegPlan, MainDriveCommanded, ManeuverTelemetry,
-        NovaFlightPlugin, NovaFlightSystems, OrbitPlan, PlayerAutopilotCompleted, RcsActive,
-        RcsBudget, RcsIntent, RcsPuffMarker, RcsPuffPlugin, ScriptedAlign, ScriptedAlignSettled,
-        ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged, ShipOrderHelmAuthority,
-        ShipOrderOutcome, ShipOrderReport, ShipOrderReported, ShipOrderReports, StationPost,
-        SuspendedArrivalStandoff, WellTargetType,
+        NeutralizedBrakeType, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
+        PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent, RcsPuffMarker, RcsPuffPlugin,
+        ScriptedAlign, ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
+        ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport, ShipOrderReported,
+        ShipOrderReports, StationPost, SuspendedArrivalStandoff, WellTargetType,
     };
 }
 
@@ -155,6 +158,7 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<RcsIntent>()
             .register_type::<RcsBudget>()
             .register_type::<RcsActive>()
+            .register_type::<NeutralizedBrakeType>()
             .register_type::<StationPost>()
             .register_type::<ShipHelmOrder>()
             .register_type::<ShipOrderDirective>()
@@ -175,6 +179,7 @@ impl Plugin for NovaFlightPlugin {
         app.add_observer(insert_flight_control);
         app.add_observer(on_autopilot_removed_cool_engines);
         app.add_observer(remove_maneuver_telemetry);
+        app.add_observer(on_neutralized_engage_brake);
 
         // The autopilot is a rotation-authority writer, so it must land before
         // the controller section copies the held command into the PD input.
@@ -215,6 +220,9 @@ impl Plugin for NovaFlightPlugin {
                 // spends it; after the autopilot so an order's maneuver on a
                 // station is seen as held.
                 station_keeping_system,
+                // The one writer of a neutralized non-player hull's RCS
+                // command, before the burn spends it.
+                neutralized_brake_system,
                 manual_burn_system,
                 rcs_burn_system,
                 decay_player_rcs_intent,

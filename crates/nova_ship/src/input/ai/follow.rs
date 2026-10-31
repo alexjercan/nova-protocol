@@ -202,6 +202,8 @@ pub(super) fn update_follow_flight(
             With<SpaceshipRootMarker>,
             With<AISpaceshipMarker>,
             Without<ShipOrderHelmAuthority>,
+            // A neutralized follower's own RCS brake holds the helm.
+            Without<NeutralizedMarker>,
         ),
     >,
     q_leader: Query<

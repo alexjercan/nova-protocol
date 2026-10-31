@@ -15,6 +15,7 @@ mod control;
 mod goto;
 mod manual;
 mod match_velocity;
+mod neutralized_brake;
 mod orbit;
 mod prediction;
 mod rcs;

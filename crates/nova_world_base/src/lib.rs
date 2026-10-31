@@ -68,6 +68,7 @@ mod goal;
 mod jobs;
 mod layered;
 mod pdc_reserve;
+mod rcs_reserve;
 #[cfg(not(target_arch = "wasm32"))]
 mod save;
 mod sector_ships;
@@ -91,7 +92,7 @@ pub use crate::save::{
     SaveReason, SavedAutopilot, SavedAutopilotAction, SavedChart, SavedChartCell, SavedChartMark,
     SavedChartMarkType, SavedComponentLock, SavedControls, SavedDock, SavedDockHelm, SavedFleet,
     SavedJointFrame, SavedLock, SavedObjective, SavedObjectiveLine, SavedObjectiveType,
-    SavedPlayer, SavedRcs, WorldFolder, WorldListing, WorldLock, WorldRefusal, WorldResumeProgress,
+    SavedPlayer, WorldFolder, WorldListing, WorldLock, WorldRefusal, WorldResumeProgress,
     WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
     WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_VERSION,
 };
@@ -153,9 +154,9 @@ pub mod prelude {
         SaveReason, SavedAutopilot, SavedAutopilotAction, SavedChart, SavedChartCell,
         SavedChartMark, SavedChartMarkType, SavedComponentLock, SavedControls, SavedDock,
         SavedDockHelm, SavedFleet, SavedJointFrame, SavedLock, SavedObjective, SavedObjectiveLine,
-        SavedObjectiveType, SavedPlayer, SavedRcs, WorldFolder, WorldListing, WorldLock,
-        WorldRefusal, WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession,
-        WorldSaveState, WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_VERSION,
+        SavedObjectiveType, SavedPlayer, WorldFolder, WorldListing, WorldLock, WorldRefusal,
+        WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState,
+        WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_VERSION,
     };
 }
 
@@ -280,6 +281,9 @@ impl Plugin for NovaWorldBasePlugin {
                     // A thawed station's PDC reserve catches up in the thaw's
                     // frame, before the next fixed tick reloads from it.
                     pdc_reserve::recharge_thawed_station_pdc_reserves,
+                    // A thawed root's RCS magazine catches up the same way,
+                    // before the next fixed tick's `recover` or `spend`.
+                    rcs_reserve::recover_thawed_rcs_budgets,
                     stance::expire_stances,
                     stance::sync_civilization_sides,
                     jobs::post_station_boards,

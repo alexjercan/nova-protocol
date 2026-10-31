@@ -1145,6 +1145,7 @@ mod walk {
             world.resource::<GameStartRoles>(),
             world.resource::<GameItems>(),
             &RegisteredScenarios::from(world.resource::<GameScenarios>()),
+            world.resource::<GameShipDesigns>(),
         )
         .unwrap_or_else(|refusal| panic!("world chart: cannot open the leave save: {refusal}"));
         assert_eq!(
