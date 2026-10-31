@@ -219,6 +219,16 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_goto_detour",
+        &[
+            "a goto leg blocked by a rock is flown around it",
+            "the hull never touches the rock",
+            "the predicted path bends around the rock",
+            "cancelling the goto drops the corner",
+            "the detour flight is recorded",
+        ],
+    ),
+    (
         "system_helm_orders",
         &[
             "a scenario order takes the helm and flies the hull",
@@ -1239,7 +1249,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 621;
+const SYSTEMS_INVARIANTS: usize = 626;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

@@ -72,10 +72,10 @@ pub use self::{
     prediction::{FlightPrediction, FlightPredictionEndType},
     rcs_puff::prelude::{RcsPuffMarker, RcsPuffPlugin},
     state::{
-        resolved_arrival_standoff, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius,
-        FlightArrivalStandoff, FlightCruiseCap, FlightIntent, FlightSettings, MainDriveCommanded,
-        ManeuverTelemetry, NeutralizedBrakeType, OrbitPlan, PlayerAutopilotCompleted, RcsActive,
-        RcsBudget, RcsIntent, StationPost,
+        resolved_arrival_standoff, resolved_avoid_margin, Autopilot, AutopilotAction,
+        AutopilotPhase, BodyRadius, FlightArrivalStandoff, FlightAvoidMargin, FlightCruiseCap,
+        FlightIntent, FlightSettings, MainDriveCommanded, ManeuverTelemetry, NeutralizedBrakeType,
+        OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent, StationPost,
     },
     well_target::WellTargetType,
 };
@@ -106,9 +106,10 @@ pub(crate) use self::{
 pub mod prelude {
     pub use super::{
         cancel_ship_order, capability::prelude::*, interrupt_ship_order, orbit_radius_band,
-        plan_leg, resolved_arrival_standoff, resume_ship_order, retire_ship_order_execution,
-        AIOrderInterrupted, Autopilot, AutopilotAction, AutopilotPhase, BodyRadius, DetourPolicy,
-        FlightArrivalStandoff, FlightAuthority, FlightCruiseCap, FlightIntent, FlightPrediction,
+        plan_leg, resolved_arrival_standoff, resolved_avoid_margin, resume_ship_order,
+        retire_ship_order_execution, AIOrderInterrupted, Autopilot, AutopilotAction,
+        AutopilotPhase, BodyRadius, DetourPolicy, FlightArrivalStandoff, FlightAuthority,
+        FlightAvoidMargin, FlightCruiseCap, FlightIntent, FlightPrediction,
         FlightPredictionEndType, FlightSettings, LegPlan, MainDriveCommanded, ManeuverTelemetry,
         NeutralizedBrakeType, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
         PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent, RcsPuffMarker, RcsPuffPlugin,
@@ -154,6 +155,7 @@ impl Plugin for NovaFlightPlugin {
             .register_type::<BodyRadius>()
             .register_type::<FlightAuthority>()
             .register_type::<FlightArrivalStandoff>()
+            .register_type::<FlightAvoidMargin>()
             .register_type::<FlightCruiseCap>()
             .register_type::<RcsIntent>()
             .register_type::<RcsBudget>()

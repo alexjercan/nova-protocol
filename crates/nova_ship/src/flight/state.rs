@@ -73,6 +73,17 @@ pub struct MainDriveCommanded(pub bool);
 #[reflect(Component)]
 pub struct FlightArrivalStandoff(pub f32);
 
+/// Per-ship override (world units) of [`FlightSettings::avoid_margin`], on
+/// the ship root: the daylight this ship's computer keeps between its own
+/// skin and a sized body's while a GOTO or GotoPos leg rounds it. A scenario
+/// authors it in meters (`AIControllerConfig::avoid_margin`) and the loader
+/// crosses the seam. Small = the hull threads a belt it knows; `Some(0)` is
+/// legal and passes on the hull's own skin, which the planner still keeps off
+/// the rock. Ships without the component keep the global default.
+#[derive(Component, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
+#[reflect(Component)]
+pub struct FlightAvoidMargin(pub f32);
+
 /// The fastest a GOTO or GotoPos leg flies this hull, engine units per
 /// second, on the ship root. The arrival rule still brakes below it; a hull
 /// without the component flies the arrival limit alone. A convoy hauler wears
@@ -122,6 +133,17 @@ pub fn resolved_arrival_standoff(
     settings: &FlightSettings,
 ) -> f32 {
     per_ship.map_or(settings.arrival_standoff, |standoff| **standoff)
+}
+
+/// The detour margin `ship` flies, world units: its own [`FlightAvoidMargin`]
+/// when it carries one, the global [`FlightSettings::avoid_margin`] otherwise.
+/// The one place that precedence lives; the live step and the prediction seed
+/// both call it.
+pub fn resolved_avoid_margin(
+    per_ship: Option<&FlightAvoidMargin>,
+    settings: &FlightSettings,
+) -> f32 {
+    per_ship.map_or(settings.avoid_margin, |margin| **margin)
 }
 
 /// The pilot's (or autopilot's) RCS fine-adjustment command, on the ship root:
@@ -319,6 +341,14 @@ pub struct Autopilot {
     /// replan that puts a flip ahead again does not bring the marker back.
     /// A new engage, even to the same target, starts false.
     pub flip_marker_consumed: bool,
+    /// The detour corner a GOTO or GotoPos leg is flying around a sized body,
+    /// world units; `None` while the direct leg is clear. Held tick to tick
+    /// so the goal stands still (a corner replanned from the live position
+    /// would move every tick and reset the maneuver), replaced when its own
+    /// leg is blocked, dropped when it is reached or the direct leg clears.
+    /// Transient: a save does not keep it, and a loaded leg replans from
+    /// scratch against the bodies it finds.
+    pub detour: Option<Vec3>,
 }
 
 impl Autopilot {
@@ -328,6 +358,7 @@ impl Autopilot {
             action,
             phase: AutopilotPhase::Align,
             flip_marker_consumed: false,
+            detour: None,
         }
     }
 }
@@ -352,15 +383,17 @@ pub enum AutopilotAction {
     /// Fly to `target` and come to rest one resolved margin off its surface -
     /// centre distance is the target's radius plus this hull's plus the margin.
     /// Replans toward the target's current position every tick, so a drifting
-    /// target is tracked; there is no collision avoidance.
+    /// target is tracked, and routes around any sized body on the leg (see
+    /// [`Autopilot::detour`]); the target itself is never an obstacle.
     Goto {
         /// The destination entity (the aim-assist lock at engage time).
         target: Entity,
     },
     /// Fly to a fixed world position and come to rest one resolved margin off
     /// this hull's own face - the same arrival rule as `Goto`, minus a target
-    /// radius, because a mark has no size. The AI patrol loop flies its
-    /// waypoints with this; the player input layer never engages it.
+    /// radius, because a mark has no size, and the same routing around sized
+    /// bodies. The AI patrol loop and helm orders fly their waypoints with
+    /// this; the player input layer never engages it.
     GotoPos {
         /// The destination, world coordinates.
         position: Vec3,
@@ -546,6 +579,14 @@ pub struct FlightSettings {
     /// resolve it through [`resolved_arrival_standoff`], never by reading this
     /// field at an arrival site.
     pub arrival_standoff: f32,
+    /// The default daylight a GOTO or GotoPos leg keeps between this hull's
+    /// SKIN and a sized body's [`BodyRadius`] on its way, world units: a leg
+    /// counts as blocked inside `body radius + hull radius + this`, and the
+    /// corner that rounds the body is planned outside it. A face distance,
+    /// so the same number is the same visible gap for a skiff and a carrier.
+    /// Overridable per ship with [`FlightAvoidMargin`]; resolve it through
+    /// [`resolved_avoid_margin`].
+    pub avoid_margin: f32,
     /// The autopilot only burns when the nose is at least this aligned with
     /// the burn direction (cosine) - same discipline as the AI.
     pub align_cos: f32,
@@ -670,6 +711,7 @@ impl Default for FlightSettings {
             decel_margin: 0.85,
             // Convert player-facing SI values at the flight-physics boundary.
             arrival_standoff: Meters(500.0).to_engine(),
+            avoid_margin: Meters(200.0).to_engine(),
             align_cos: 0.95,
             stop_speed_epsilon: 0.2,
             min_approach_speed: 1.5,

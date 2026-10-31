@@ -952,6 +952,7 @@ fn a_load_restores_the_goto_order_locks_and_focus() {
             action: AutopilotAction::Goto { target },
             phase: AutopilotPhase::Burn,
             flip_marker_consumed: true,
+            detour: Some(Vec3::new(1.0, 2.0, 3.0)),
         },
         TravelLock(Some(target)),
         CombatLock(Some(target)),
@@ -998,6 +999,8 @@ fn a_load_restores_the_goto_order_locks_and_focus() {
             action: AutopilotAction::Goto { target },
             phase: AutopilotPhase::Burn,
             flip_marker_consumed: true,
+            // The corner is transient: a loaded leg replans it.
+            detour: None,
         })
     );
     assert_eq!(world.get::<TravelLock>(player).unwrap().0, Some(target));
@@ -1071,6 +1074,7 @@ fn a_load_restores_a_stop_an_orbit_and_a_held_velocity() {
             action: order(well),
             phase: AutopilotPhase::Hold,
             flip_marker_consumed: false,
+            detour: None,
         });
         let digest = leave_and_save(&mut world);
         drop(world);
@@ -1086,6 +1090,7 @@ fn a_load_restores_a_stop_an_orbit_and_a_held_velocity() {
                 action: order(well),
                 phase: AutopilotPhase::Hold,
                 flip_marker_consumed: false,
+                detour: None,
             })
         );
     }

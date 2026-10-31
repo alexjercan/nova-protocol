@@ -165,11 +165,78 @@ pub(super) struct FlightEnvironment<'a> {
     pub(super) wells: &'a [WellSample],
     /// The mover's resolved arrival margin.
     pub(super) arrival_standoff: f32,
+    /// The mover's resolved detour margin: the daylight a GOTO leg keeps
+    /// between the mover's skin and a body's.
+    pub(super) avoid_margin: f32,
+    /// The sized bodies a GOTO leg routes around, (centre, radius), with the
+    /// leg's own target left out. See [`ObstacleQuery`].
+    pub(super) obstacles: &'a [(Entity, Vec3, f32)],
     /// The mover's [`FlightCruiseCap`], engine units per second, when it
     /// wears one.
     pub(super) cruise_cap: Option<f32>,
     /// What the mover is permitted to do.
     pub(super) capabilities: ShipCapabilities,
+}
+
+/// Extra clearance (u, 100 m) a DETOURING leg demands before it calls the
+/// direct leg clear again, so a leg grazing the margin cannot flip
+/// blocked/clear every tick - each flip moves the goal and resets the
+/// maneuver to its align phase.
+pub(super) const DETOUR_HYSTERESIS: f32 = 10.0;
+
+/// The bodies a GOTO or GotoPos leg routes around: everything that publishes
+/// a geometric [`BodyRadius`] - field rocks, planetoids - except a nav beacon
+/// (a mark to fly TO, whose volume stops nothing), a ship (hulls are flown AT
+/// and fought around, never detoured) and a station (a dock to arrive at).
+/// Avian `Position` where the body has one, the render pose otherwise.
+pub(super) type ObstacleQuery<'w, 's> = Query<
+    'w,
+    's,
+    (
+        Entity,
+        Option<&'static Position>,
+        &'static GlobalTransform,
+        &'static BodyRadius,
+    ),
+    (
+        Without<BeaconMarker>,
+        Without<SpaceshipRootMarker>,
+        Without<StationMarker>,
+    ),
+>;
+
+/// Whether `action` plans its leg around sized bodies. Only GOTO and GotoPos
+/// do; ORBIT, STOP and MatchVelocity never read the field.
+pub(super) fn routes_around_bodies(action: AutopilotAction) -> bool {
+    matches!(
+        action,
+        AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. }
+    )
+}
+
+/// Every obstacle as a step reads it, in query order, when at least one of
+/// `legs` routes around bodies; empty otherwise, so a tick with no GOTO or
+/// GotoPos leg never walks every sized body in the world. Collected once per
+/// system run; the field does not change per ship. The live system passes
+/// every flying autopilot's action, the prediction seed its one leg, so both
+/// read the same bodies or none.
+pub(super) fn obstacle_field(
+    q_obstacles: &ObstacleQuery,
+    legs: impl IntoIterator<Item = AutopilotAction>,
+) -> Vec<(Entity, Vec3, f32)> {
+    if !legs.into_iter().any(routes_around_bodies) {
+        return Vec::new();
+    }
+    q_obstacles
+        .iter()
+        .map(|(entity, position, transform, radius)| {
+            (
+                entity,
+                position.map_or_else(|| transform.translation(), |p| p.0),
+                **radius,
+            )
+        })
+        .collect()
 }
 
 /// Why a step disengaged the autopilot before flying the tick.
@@ -185,6 +252,9 @@ pub(super) enum DisengageType {
     WellGone,
     /// The ORBIT well has no stable band.
     NoStableBand,
+    /// The GOTO leg's planned goal or corner is not finite: the obstacle
+    /// geometry it was planned against is invalid, and the leg is not flown.
+    NoSafeLeg,
 }
 
 /// How a step ended the maneuver.
@@ -570,10 +640,14 @@ pub(super) fn autopilot_system(
             Option<&ComputedCenterOfMass>,
             Option<&ManeuverTelemetry>,
             // The per-ship translation-arrival override (scenario-authored;
-            // ships without it fly the global standoff) and the per-ship
-            // cruise cap a convoy hull wears (ships without it fly the
-            // arrival limit alone).
-            (Option<&FlightArrivalStandoff>, Option<&FlightCruiseCap>),
+            // ships without it fly the global standoff), the per-ship detour
+            // margin, and the per-ship cruise cap a convoy hull wears (ships
+            // without it fly the arrival limit alone).
+            (
+                Option<&FlightArrivalStandoff>,
+                Option<&FlightAvoidMargin>,
+                Option<&FlightCruiseCap>,
+            ),
             // This hull's own outer reach, so the arrival parks the FACE at the
             // margin rather than the origin. Absent (a hull with no live
             // sections measured yet) reads as a point.
@@ -602,6 +676,7 @@ pub(super) fn autopilot_system(
     mut q_rotation_input: HelmControllerQuery,
     q_target: ArrivalTargetQuery,
     q_wells: FlightWellQuery,
+    q_obstacles: ObstacleQuery,
     // Docked drivers whose missing assembly is already logged, so the error
     // is said once per loss, not at the fixed rate.
     mut missing_assembly: Local<EntityHashSet>,
@@ -614,6 +689,15 @@ pub(super) fn autopilot_system(
     let dt = time.delta_secs();
 
     let wells = well_samples(&q_wells, &q_target);
+    // Only a driving hull's leg counts: a suppressed docked partner is frozen
+    // below and never plans one.
+    let obstacles = obstacle_field(
+        &q_obstacles,
+        q_ship
+            .iter()
+            .filter(|(.., (docked, _), _)| docked.is_none_or(|docked| docked.drives))
+            .map(|(_, autopilot, ..)| autopilot.action),
+    );
 
     missing_assembly.retain(|ship| {
         q_ship
@@ -630,7 +714,7 @@ pub(super) fn autopilot_system(
         (mass, angular_inertia),
         com,
         prev_telemetry,
-        (standoff_override, cruise_cap),
+        (standoff_override, avoid_margin, cruise_cap),
         hull_radius,
         rcs_budget,
         mut rcs_intent,
@@ -683,6 +767,8 @@ pub(super) fn autopilot_system(
             gravity: &gravity_settings,
             wells: &wells,
             arrival_standoff: resolved_arrival_standoff(standoff_override, &settings),
+            avoid_margin: resolved_avoid_margin(avoid_margin, &settings),
+            obstacles: &obstacles,
             cruise_cap: cruise_cap.map(|cap| **cap),
             capabilities: ship_capabilities(ship, &q_capabilities),
         };
@@ -737,6 +823,13 @@ pub(super) fn autopilot_system(
                         debug!(
                             "autopilot_system: well {well:?} has no stable band, disengaging \
                              ORBIT{times}"
+                        );
+                    }
+                    (DisengageType::NoSafeLeg, action) => {
+                        error!(
+                            "autopilot_system: ship {ship:?} {action:?} planned a non-finite \
+                             goal against the sized bodies on its leg; the leg is not flown \
+                             and the autopilot disengages{times}"
                         );
                     }
                     (reason, action) => {
@@ -1236,8 +1329,38 @@ pub(super) fn autopilot_step(
             let Some(target) = target else {
                 return disengaged(DisengageType::TargetGone);
             };
-            let (desired, mut numbers, degraded) =
-                arrival_desired(target.goal, target.radius, target.floor);
+            // The leg is planned around every sized body but its own target
+            // before it is flown. The clearance is this hull's arm plus the
+            // daylight it wants past its skin, and a corner is let go only
+            // inside the window the leg would otherwise park in, so the
+            // computer never comes to rest on a corner.
+            let policy = DetourPolicy {
+                clearance: mover_radius + env.avoid_margin,
+                hull: mover_radius,
+                hysteresis: DETOUR_HYSTERESIS,
+                arrive_radius: mover_radius + arrival_standoff + DETOUR_HYSTERESIS,
+            };
+            let obstacles: Vec<(Vec3, f32)> = env
+                .obstacles
+                .iter()
+                .filter(|(entity, ..)| Some(*entity) != target.entity)
+                .map(|(_, center, radius)| (*center, *radius))
+                .collect();
+            let plan = plan_leg(com_world, target.goal, autopilot.detour, policy, &obstacles);
+            // A plan that is not finite was planned against a body that is
+            // not finite. Flying it would fly nothing sane, so the leg ends
+            // here and the system says so.
+            if !plan.goal.is_finite() {
+                return disengaged(DisengageType::NoSafeLeg);
+            }
+            autopilot.detour = plan.corner;
+            // A corner is a mark of its own: no size, no well floor, no
+            // entity for the readout to follow.
+            let (radius, floor) = match plan.corner {
+                Some(_) => (0.0, 0.0),
+                None => (target.radius, target.floor),
+            };
+            let (desired, mut numbers, degraded) = arrival_desired(plan.goal, radius, floor);
             brake_degraded = degraded;
             // Arrived means INSIDE the park envelope, not merely
             // "wants zero velocity": the degraded no-stopping-plan
@@ -1247,13 +1370,20 @@ pub(super) fn autopilot_step(
             // correction assumes it starts near the ring. The
             // published distance is the hull-to-surface gap, so the
             // envelope is that gap at rest: the margin, or more where
-            // the band floor pushed the leg out.
-            let park_gap = (target.radius + mover_radius + arrival_standoff).max(target.floor)
-                - target.radius
-                - mover_radius;
-            goto_arrived = numbers.distance <= park_gap;
-            autopilot.flip_marker_consumed |= numbers.braking;
-            numbers.goal_entity = target.entity;
+            // the band floor pushed the leg out. A leg still flying a
+            // corner has not arrived anywhere.
+            let park_gap =
+                (radius + mover_radius + arrival_standoff).max(floor) - radius - mover_radius;
+            goto_arrived = plan.corner.is_none() && numbers.distance <= park_gap;
+            // Braking toward a corner is not the leg's flip: the flip the
+            // instruments mark is the final leg's, and a corner must not
+            // spend it.
+            autopilot.flip_marker_consumed |= numbers.braking && plan.corner.is_none();
+            numbers.goal_entity = if plan.corner.is_none() {
+                target.entity
+            } else {
+                None
+            };
             telemetry = Some(numbers);
             desired
         }
@@ -1523,7 +1653,8 @@ pub(super) fn autopilot_step(
     let done = !matches!(
         autopilot.action,
         AutopilotAction::Orbit { .. } | AutopilotAction::MatchVelocity { .. }
-    ) && desired == Vec3::ZERO
+    ) && autopilot.detour.is_none()
+        && desired == Vec3::ZERO
         && (error_speed <= settings.stop_speed_epsilon || (fine && firing_authority <= 0.0));
     // Release only once every actuator has wound down. A still-hot,
     // spooling-down drive would push the ship off again. An RCS settle

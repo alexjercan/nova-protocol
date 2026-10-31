@@ -69,10 +69,10 @@ pub(crate) fn menu_weave(
     }
 
     // The ship: the unarmed mining tug on the patrol loop. No hostiles exist
-    // here, so it never leaves Patrol; the avoidance layer (AIAvoidanceDetour)
-    // rounds whatever rock blocks the current leg. Three bell drives keep it
-    // slow, which is the point - the thread reads as deliberate rather than
-    // as a fly-through.
+    // here, so it never leaves Patrol; the autopilot's own detour rounds
+    // whatever rock blocks the current leg. Three bell drives keep it slow,
+    // which is the point - the thread reads as deliberate rather than as a
+    // fly-through.
     objects.push(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
             id: RUNNER_ID.to_string(),

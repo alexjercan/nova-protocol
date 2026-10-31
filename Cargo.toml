@@ -465,6 +465,10 @@ name = "system_flight_legs"
 path = "examples/systems/system_flight_legs.rs"
 
 [[example]]
+name = "system_goto_detour"
+path = "examples/systems/system_goto_detour.rs"
+
+[[example]]
 name = "system_helm_orders"
 path = "examples/systems/system_helm_orders.rs"
 

@@ -59,7 +59,7 @@ pub use self::{
     guns::AI_FIRE_RANGE_FACTOR,
     maneuver::{AIStandoffClearance, AI_STANDOFF_OUTER_EDGE},
     mission::AIOrderInterruption,
-    passive::{AIAvoidMargin, AIAvoidanceDetour, AIWaypointSlack},
+    passive::AIWaypointSlack,
     railgun::AIRailgun,
     threat::{
         AIEvade, AIProvocation, AIThreat, LastAttacker, ShipProvoked, NEUTRAL_RETALIATION_THRESHOLD,
@@ -109,13 +109,13 @@ pub(super) fn sense_and_pick(world: &mut World) {
 /// The AI behaviour, threat, patrol and target components and `SpaceshipAIInputPlugin`.
 pub mod prelude {
     pub use super::{
-        formation_goal, freeze_ai, thaw_ai, AIAvoidMargin, AIAvoidanceDetour, AIBehaviorState,
-        AIEngageGrace, AIEngageRange, AIEvade, AIFollow, AILeash, AINonCombatant, AIOrbitDirective,
-        AIOrderInterruption, AIPatrolRoute, AIPointDefenseRange, AIPointDefenseTarget, AIPrey,
-        AIProvocation, AIRailgun, AISpaceshipMarker, AIStandoffClearance, AITarget, AIThreat,
-        AIWaypointSlack, FrozenAI, LastAttacker, ShipProvoked, SpaceshipAIInputPlugin,
-        AI_FIRE_RANGE_FACTOR, AI_FOLLOW_CLOSING_SPEED, AI_FOLLOW_GAP, AI_STANDOFF_OUTER_EDGE,
-        AI_TORPEDO_MAX_RANGE, NEUTRAL_RETALIATION_THRESHOLD,
+        formation_goal, freeze_ai, thaw_ai, AIBehaviorState, AIEngageGrace, AIEngageRange, AIEvade,
+        AIFollow, AILeash, AINonCombatant, AIOrbitDirective, AIOrderInterruption, AIPatrolRoute,
+        AIPointDefenseRange, AIPointDefenseTarget, AIPrey, AIProvocation, AIRailgun,
+        AISpaceshipMarker, AIStandoffClearance, AITarget, AIThreat, AIWaypointSlack, FrozenAI,
+        LastAttacker, ShipProvoked, SpaceshipAIInputPlugin, AI_FIRE_RANGE_FACTOR,
+        AI_FOLLOW_CLOSING_SPEED, AI_FOLLOW_GAP, AI_STANDOFF_OUTER_EDGE, AI_TORPEDO_MAX_RANGE,
+        NEUTRAL_RETALIATION_THRESHOLD,
     };
 }
 
@@ -173,10 +173,8 @@ impl Plugin for SpaceshipAIInputPlugin {
         app.register_type::<AIProvocation>();
         app.register_type::<AIEvade>();
         app.register_type::<AIEngageGrace>();
-        app.register_type::<AIAvoidanceDetour>();
         app.register_type::<AIEngageRange>();
         app.register_type::<AIPointDefenseRange>();
-        app.register_type::<AIAvoidMargin>();
         app.register_type::<AIWaypointSlack>();
         app.register_type::<AIStandoffClearance>();
         app.register_type::<AIOrderInterruption>();

@@ -217,17 +217,18 @@ pub struct AIControllerConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub waypoint_slack: Option<Meters>,
-    /// Avoidance margin override: the daylight this ship's patrol wants
+    /// Avoidance margin override: the daylight this ship's autopilot wants
     /// between its own hull and a sized body's, instead of the engine's
-    /// 200 m default.
+    /// 200 m default. Applies to every GOTO/GotoPos leg this ship's
+    /// autopilot flies - patrol legs and helm orders alike - not only the
+    /// patrol routine.
     ///
     /// A FACE distance, like `standoff_clearance`: the ship's own live hull
     /// radius is counted on top, so the same authored number means the same
     /// visible gap whether the patrol is a skiff or a carrier. Author it
     /// small on a hull that should thread a belt it knows; author it wide to
     /// keep a capital's flank well off the rocks. None = the default.
-    /// Only the patrol routine avoids; a ship in combat flies its fight.
-    /// See `AIAvoidMargin`.
+    /// See `FlightAvoidMargin`.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -2009,7 +2010,7 @@ fn insert_spaceship_sections(
             if let Some(margin) = config.avoid_margin {
                 commands
                     .entity(entity)
-                    .insert(AIAvoidMargin(margin.to_engine().max(0.0)));
+                    .insert(FlightAvoidMargin(margin.to_engine().max(0.0)));
             }
             // NOT the guard shape above: zero is a meaningful margin here (the
             // hull's face on the mark), and it means the same thing on a spawn
@@ -2233,7 +2234,10 @@ mod tests {
             Some(5.0)
         );
         assert_eq!(
-            world.entity(watcher).get::<AIAvoidMargin>().map(|m| m.0),
+            world
+                .entity(watcher)
+                .get::<FlightAvoidMargin>()
+                .map(|m| m.0),
             Some(60.0),
             "600 m of daylight past this hull's own skin is 60 world units"
         );
@@ -2264,7 +2268,7 @@ mod tests {
         assert!(world.entity(orbiter).get::<AIEngageRange>().is_none());
         assert!(world.entity(orbiter).get::<AIPointDefenseRange>().is_none());
         assert!(world.entity(orbiter).get::<AIWaypointSlack>().is_none());
-        assert!(world.entity(orbiter).get::<AIAvoidMargin>().is_none());
+        assert!(world.entity(orbiter).get::<FlightAvoidMargin>().is_none());
         assert!(world.entity(orbiter).get::<AIStandoffClearance>().is_none());
         assert!(
             world
@@ -2368,7 +2372,7 @@ mod tests {
             .id();
         world.flush();
         assert_eq!(
-            world.entity(miner).get::<AIAvoidMargin>().map(|m| m.0),
+            world.entity(miner).get::<FlightAvoidMargin>().map(|m| m.0),
             Some(0.0),
             "the miner keeps the component and asks for its own skin"
         );

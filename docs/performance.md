@@ -358,7 +358,12 @@ To measure a named SHIPPED scenario, use the `probe scenario` verb rather than
 `run --scenario`: it launches the game binary itself and needs no example.
 `run --scenario` only sets `NOVA_PROBE_SCENARIO`, which no cataloged example
 reads on the native side; on `--platform web` it is load-bearing, because
-`nova_perf_web` takes the scenario id from the URL.
+`nova_perf_web` takes the scenario id from the URL. The shipped binary opens
+its window only once the scenario is BUILT - its camera is up and the loader's
+gate is released - because the loader holds `Time<Virtual>` through the build
+and a window opened on that hold is refused as `simulation_stopped`. A build
+that fails never releases the gate, so the capture stays armed and silent and
+the probe's own timeout ends the run; nothing admits a failed start.
 
 Every capture records run metadata (wgpu backend + GPU adapter, resolution,
 graphics preset, git SHA, host and the BUILD PROFILE) so a results file names

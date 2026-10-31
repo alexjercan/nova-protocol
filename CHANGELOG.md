@@ -21,10 +21,15 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A newly generated station that stocks PDC rounds now opens with at least 2,000 of them; its other stock is unchanged.
 - Cargo canisters now hold up to 1,000 kg. A wreck packs its drop into mixed canisters, and an intake takes the whole items that fit your hold, leaving the rest in the canister.
 - A neutralized ship now drops its patrol, escort slot or order and brakes to a stop on its own RCS. With no flight computer or RCS, an empty magazine, a dock or a strong well, it drifts on.
+- GOTO now flies around rocks and planetoids on its leg, 200 m off your hull by default, for the player, AI patrols and scripted orders alike; the predicted path and map route show the bend.
 
 ### Modding & Mod Portal
 
 - **(breaking)** `Item` content now requires `price_lot`, the item count one `ask_cr`/`bid_cr` prices: 100 for a PDC round, 1 for other base items. An item without it fails lint, then load.
+
+### Internals & Tooling
+
+- `probe scenario` now opens its frame-time window once the scenario is built instead of refusing every capture at the loader's clock hold.
 
 ### Fixes
 

@@ -889,10 +889,13 @@ pub(crate) fn apply_controls(world: &mut World, resolved: ResolvedControls, spaw
                 rcs: *rcs,
             },
         };
+        // The detour corner is not saved: the loaded leg replans against the
+        // bodies it finds on its first tick.
         root.insert(Autopilot {
             action,
             phase: saved.phase,
             flip_marker_consumed: saved.flip_marker_consumed,
+            detour: None,
         });
     }
     let mut contacts = root

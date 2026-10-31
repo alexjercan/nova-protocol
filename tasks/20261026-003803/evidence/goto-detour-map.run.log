@@ -1,0 +1,54 @@
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`
+2026-10-31T09:14:53.546937Z  INFO bevy_diagnostic::system_information_diagnostics_plugin::internal: SystemInfo { os: "Linux (NixOS 26.11)", kernel: "6.18.40", cpu: "12th Gen Intel(R) Core(TM) i9-12900F", core_count: "16", memory: "31.2 GiB" }
+2026-10-31T09:14:53.547260Z  INFO bevy_app::terminal_ctrl_c_handler: Skipping installing `Ctrl+C` handler as one was already installed. Please call `TerminalCtrlCHandlerPlugin::gracefully_exit` in your own `Ctrl+C` handler if you want Bevy to gracefully exit on `Ctrl+C`.
+2026-10-31T09:14:53.550680Z  WARN winit::platform_impl::linux::x11::xdisplay: error setting XSETTINGS; Xft options won't reload automatically
+2026-10-31T09:14:53.575354Z  INFO bevy_render::renderer: AdapterInfo { name: "llvmpipe (LLVM 21.1.8, 256 bits)", vendor: 65541, device: 0, device_type: Cpu, device_pci_bus_id: "", driver: "llvmpipe", driver_info: "Mesa 26.1.5 (LLVM 21.1.8)", backend: Vulkan, subgroup_min_size: 8, subgroup_max_size: 8, transient_saves_memory: false }
+2026-10-31T09:14:53.575370Z  WARN bevy_render::renderer: The selected adapter is using a driver that only supports software rendering. This is likely to be very slow. See https://bevy.org/learn/errors/b0006/
+2026-10-31T09:14:53.677517Z DEBUG nova_autopilot::autopilot: AutopilotPlugin: build (NOVA_AUTOPILOT active, 15 steps)
+2026-10-31T09:14:53.687615Z  INFO bevy_pbr::cluster: GPU clustering is supported on this device.
+2026-10-31T09:14:53.687653Z  INFO bevy_render::batching::gpu_preprocessing: GPU preprocessing is fully supported on this device.
+2026-10-31T09:14:53.688246Z  INFO bevy_hanabi::plugin: Initializing Hanabi for GPU adapter llvmpipe (LLVM 21.1.8, 256 bits)
+2026-10-31T09:14:53.696063Z  INFO bevy_egui::render: Using bindless_mode_array_size 16 (Device maximum 1000000)
+2026-10-31T09:14:53.696347Z  INFO bevy_winit::system: Creating new window NovaProtocol - 0.16.0 (66v0)
+2026-10-31T09:14:53.696609Z  WARN winit::platform_impl::linux::x11::util::randr: XRandR reported that the display's 0mm in size, which is certifiably insane
+2026-10-31T09:14:53.696722Z  INFO winit::platform_impl::linux::x11::window: Guessed window scale factor: 1
+2026-10-31T09:14:53.698262Z  INFO nova_gameplay::settings: nova audio: output muted for this run
+2026-10-31T09:14:53.724941Z  INFO nova_autopilot::autopilot: autopilot: step `load the lane` begins
+2026-10-31T09:14:53.769055Z DEBUG nova_core: UI layout held: a root UI target has no area
+2026-10-31T09:14:53.983244Z  INFO bevy_asset_loader::loading_state::systems: Loading state 'nova_assets::plugin::GameAssetsStates::Boot' is done
+2026-10-31T09:14:54.009036Z DEBUG nova_core: UI layout resumed: every root UI target has area
+2026-10-31T09:14:54.313977Z  INFO bevy_asset_loader::loading_state::systems: Loading state 'nova_assets::plugin::GameAssetsStates::Loading' is done
+2026-10-31T09:14:54.337295Z  WARN nova_assets::mod_set: build_mod_catalog: bundle for mod 'example' not loaded; using its id as the name
+2026-10-31T09:14:54.445434Z DEBUG nova_scenario::loader::lifecycle: on_load_scenario: scenario "Goto Detour Range"
+2026-10-31T09:14:54.445483Z DEBUG nova_scenario::loader::lifecycle: on_load_scenario: loaded scenario 'goto_detour' with 1 handler(s) and 6 object(s)
+2026-10-31T09:14:54.445994Z DEBUG nova_scenario::loader::gate: hold_for_scenario_load: holding the world while the scenario builds
+2026-10-31T09:14:54.446057Z DEBUG nova_scenario::loader::preload: preload_scenario_render_meshes: 'goto_detour' warms 3 render mesh(es)
+2026-10-31T09:14:54.448964Z DEBUG nova_scenario::actions::view: SetSkybox: cubemap loaded, installing (brightness 1000)
+2026-10-31T09:14:54.458917Z DEBUG nova_scenario::actions::mission: ObjectiveMarkerAttach: 'goto_detour_beacon' <- 'DETOUR'
+2026-10-31T09:14:54.487512Z  INFO nova_debug: nova harness: reached Playing
+2026-10-31T09:14:54.487648Z DEBUG nova_scenario::loader::preload: track_scenario_preload: 3 render mesh(es) warm after 0.055s
+2026-10-31T09:14:54.687181Z DEBUG nova_ship::sections::shell_skin: spawn_ship_skin: ship 1584v0 clad in 52 plate(s) over 28 shape(s); relief flat x10, step x10, ridge x6, peak x4, brink x4, spur x18; decoration salvage_whip 0, salvage_dish 0, salvage_drum 1, salvage_net 3, salvage_hook 2, salvage_chain 4, salvage_weld_seam 6, salvage_patch_strip 1, salvage_hose 0, salvage_grille 4, salvage_cog_patch 2, salvage_patch_plate 3, salvage_kills 0, salvage_patch_scab 1; 52 plate(s): 28 flat-topped (54%), 0 leaning; mean flat area 0.791 cell^2; 8 bare hull face(s) over 8 bare cell(s); 27 piece(s), 25 off flat (93%), 0 unseated, mean tilt under a piece 0.000 rad
+2026-10-31T09:14:54.757932Z DEBUG nova_scenario::loader::gate: release_when_scenario_is_built: the scenario is built; the world runs
+2026-10-31T09:14:55.476902Z  INFO nova_autopilot::autopilot: autopilot: step `engage the goto` begins
+2026-10-31T09:14:55.723876Z  INFO nova_autopilot::autopilot: autopilot: step `press the interface key` begins
+2026-10-31T09:14:55.942025Z  INFO nova_autopilot::autopilot: autopilot: step `let the key up and wait for the map` begins
+2026-10-31T09:14:56.251909Z  INFO nova_autopilot::autopilot: autopilot: step `wait for the paused route` begins
+2026-10-31T09:14:56.471725Z  INFO nova_autopilot::autopilot: autopilot: step `settle the map` begins
+2026-10-31T09:14:59.967720Z  INFO nova_autopilot::autopilot: autopilot: step `shoot the map` begins
+2026-10-31T09:14:59.967923Z  INFO nova_debug::harness: nova capture: goto-detour-map.png
+2026-10-31T09:15:00.406103Z  INFO bevy_render::view::window::screenshot: Screenshot saved to /tmp/nova-goto/map-capture/goto-detour-map.png
+2026-10-31T09:15:00.576350Z  INFO nova_autopilot::autopilot: autopilot: step `press the interface key again` begins
+2026-10-31T09:15:00.783728Z  INFO nova_autopilot::autopilot: autopilot: step `let the key up and fly the goto` begins
+2026-10-31T09:15:29.270156Z DEBUG nova_ship::flight::autopilot: autopilot_system: ship 1584v0 maneuver complete, disengaging
+2026-10-31T09:15:29.270365Z  INFO system_goto_detour: goto detour: the GOTO leg reported complete
+2026-10-31T09:15:29.530433Z  INFO nova_autopilot::autopilot: autopilot: step `read the detour` begins
+2026-10-31T09:15:29.785270Z  INFO nova_autopilot::autopilot: autopilot: step `engage the return leg` begins
+2026-10-31T09:15:30.030340Z  INFO nova_autopilot::autopilot: autopilot: step `drop the helm` begins
+2026-10-31T09:15:30.264696Z  INFO nova_autopilot::autopilot: autopilot: step `read the drop` begins
+2026-10-31T09:15:30.468061Z  INFO nova_autopilot::autopilot: autopilot: step `read the fresh engage` begins
+2026-10-31T09:15:30.700056Z  INFO nova_autopilot::autopilot: autopilot: step `read the contacts` begins
+2026-10-31T09:15:30.833213Z  INFO nova_autopilot::autopilot: autopilot: cycle complete, no panic (t=35.1s)
+2026-10-31T09:15:30.833248Z DEBUG nova_autopilot::completion: harness completion: autopilot done (0 still pending)
+2026-10-31T09:15:30.842254Z  INFO nova_autopilot::completion: harness completion: all collectors done, exiting
+exit 0

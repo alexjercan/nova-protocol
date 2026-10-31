@@ -23,9 +23,10 @@ use nova_gameplay::prelude::*;
 
 use super::{
     autopilot::{
-        arrival_target, autopilot_step, flight_body, flight_helm, well_samples, ArrivalAnchorType,
-        ArrivalTarget, ArrivalTargetQuery, AutopilotEndType, FlightBody, FlightEnvironment,
-        FlightHelm, FlightWellQuery, HelmControllerQuery, HelmThrusterQuery, WellSample,
+        arrival_target, autopilot_step, flight_body, flight_helm, obstacle_field, well_samples,
+        ArrivalAnchorType, ArrivalTarget, ArrivalTargetQuery, AutopilotEndType, FlightBody,
+        FlightEnvironment, FlightHelm, FlightWellQuery, HelmControllerQuery, HelmThrusterQuery,
+        ObstacleQuery, WellSample,
     },
     capability::{ship_capabilities, LiveFlightComputers, ShipCapabilityQuery},
     manual::rcs_push,
@@ -152,6 +153,11 @@ pub(super) struct FlightPredictionRun {
     dominant_well: Option<Entity>,
     /// The mover's resolved arrival margin.
     arrival_standoff: f32,
+    /// The mover's resolved detour margin.
+    avoid_margin: f32,
+    /// The sized bodies the leg routes around, frozen at the seed. A body
+    /// that moves after the seed is not foreseen, like a moving target.
+    obstacles: Vec<(Entity, Vec3, f32)>,
     /// The mover's cruise cap, engine units per second, when it wears one.
     cruise_cap: Option<f32>,
     /// What the mover is permitted to do.
@@ -484,7 +490,7 @@ pub(super) fn predict_flight_path(
             ),
             (
                 Option<&ManeuverTelemetry>,
-                Option<&FlightArrivalStandoff>,
+                (Option<&FlightArrivalStandoff>, Option<&FlightAvoidMargin>),
                 Option<&FlightCruiseCap>,
                 Option<&HullRadius>,
             ),
@@ -505,9 +511,10 @@ pub(super) fn predict_flight_path(
         LiveFlightComputers,
         ShipCapabilityQuery,
     ),
-    (q_target, q_wells, q_gravity_wells, q_motion): (
+    (q_target, q_wells, q_obstacles, q_gravity_wells, q_motion): (
         ArrivalTargetQuery,
         FlightWellQuery,
+        ObstacleQuery,
         Query<(Entity, &Position, &GravityWell)>,
         Query<(
             (Option<&Position>, Option<&Rotation>),
@@ -548,7 +555,7 @@ pub(super) fn predict_flight_path(
         pose,
         velocities,
         (mass, angular_inertia, com),
-        (telemetry, standoff_override, cruise_cap, hull_radius),
+        (telemetry, (standoff_override, avoid_margin), cruise_cap, hull_radius),
         (rcs_budget, rcs_intent),
         (dominant_well, gravity_affected, is_well, docked),
         (mut run, published),
@@ -758,6 +765,8 @@ pub(super) fn predict_flight_path(
                     ship_feels_wells: gravity_affected && !is_well,
                     dominant_well: dominant_well.map(|well| **well),
                     arrival_standoff: resolved_arrival_standoff(standoff_override, &settings),
+                    avoid_margin: resolved_avoid_margin(avoid_margin, &settings),
+                    obstacles: obstacle_field(&q_obstacles, [autopilot.action]),
                     cruise_cap: cruise_cap.map(|cap| **cap),
                     capabilities: ship_capabilities(ship, &q_capabilities),
                     ticks: 0,
@@ -788,6 +797,8 @@ pub(super) fn predict_flight_path(
                 gravity: &gravity_settings,
                 wells: &run.wells,
                 arrival_standoff: run.arrival_standoff,
+                avoid_margin: run.avoid_margin,
+                obstacles: &run.obstacles,
                 cruise_cap: run.cruise_cap,
                 capabilities: run.capabilities,
             };

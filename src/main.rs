@@ -140,7 +140,18 @@ fn main() -> ExitCode {
     // autopilot is what makes such a run terminate.
     #[cfg(feature = "debug")]
     {
-        app.add_plugins(nova_probe::NovaProbePlugin::default());
+        // The loader holds `Time<Virtual>` while a scenario builds, and a
+        // frame-time capture that opens on a held clock is refused, so the
+        // capture waits for the scene to be built: its camera is up and the
+        // load gate is released. A build that fails never releases the gate,
+        // so the capture never opens and the probe's own bounded timeout ends
+        // the run with the capture armed and silent, never with a window.
+        let camera = nova_protocol::nova_debug::harness::scenario_camera_present();
+        let built = nova_protocol::nova_debug::harness::scenario_is_built();
+        app.add_plugins(
+            nova_probe::NovaProbePlugin::default()
+                .ready_frametime(move |world| camera(world) && built(world)),
+        );
         app.add_plugins(nova_protocol::nova_debug::harness::nova_autopilot());
     }
 

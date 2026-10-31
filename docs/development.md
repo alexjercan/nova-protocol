@@ -885,7 +885,10 @@ any catalog. Its `self://` art resolves against the nearest enclosing
 `*.bundle.ron` folder, the same place the merge would have resolved it. There
 is no spec to expand and no aggregate: one subject, one run dir, the same
 `report.html` + `checks.json`. Measuring a scenario needs NO example, no
-`[[example]]` block and no Rust file - that is the point of the verb.
+`[[example]]` block and no Rust file - that is the point of the verb. Its
+frame-time window waits for the scenario to be built (camera up, load gate
+released), since the loader holds the clock through the build and a window
+opened on a held clock is refused; see [performance](performance.md).
 
 Every run spec resolves to a list. A single example is just a one-item list;
 comma lists, category dir names, and `--all` expand against the `[[example]]`

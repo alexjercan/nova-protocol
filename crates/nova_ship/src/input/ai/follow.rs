@@ -376,15 +376,16 @@ pub(super) fn update_follow_flight(
                 None,
                 DetourPolicy {
                     clearance: own_arm + AI_FOLLOW_CLEARANCE,
+                    hull: own_arm,
                     hysteresis: AI_FOLLOW_SLACK,
                     arrive_radius: AI_FOLLOW_SLACK,
                 },
                 &obstacles,
             );
-            // The leader's clearance, in the leader's frame. `plan_leg` ignores
-            // a body whose clearance holds `from`, so inside it the leg runs
-            // straight at the goal, across the leader's bow when the goal lies
-            // past it. The follower flies straight out first.
+            // The leader's clearance, in the leader's frame. Inside it
+            // `plan_leg` judges the leader on hull contact only, so a leg to a
+            // goal past the leader may still run across its bow within the
+            // margin. The follower flies straight out first.
             let offset = from - leader_anchor;
             let bubble = leader_arm + own_arm + AI_FOLLOW_CLEARANCE;
             let next = if offset.length() < bubble {

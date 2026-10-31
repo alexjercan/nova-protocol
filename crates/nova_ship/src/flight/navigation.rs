@@ -1,14 +1,13 @@
 //! Leg navigation around sized bodies: the sphere-detour planner.
 //!
-//! The autopilot flies BLIND straight legs - [`AutopilotAction::GotoPos`] has
-//! no obstacle awareness of its own - so anything that wants a leg routed
-//! around a rock plans the corners here and hands the autopilot one goal at a
-//! time.
+//! `autopilot_step` plans every GOTO and GotoPos leg here, one tick at a time,
+//! and flies the corner it gets back; the AI formation leg plans its own goal
+//! the same way in the leader's frame.
 //!
 //! Nothing in this module decides policy. A caller states the clearance it
 //! wants in a [`DetourPolicy`] and gets geometry back: there is no default
 //! margin here, because what is safe for a skiff threading a belt is not what
-//! is safe for a carrier. The AI patrol is the only caller today.
+//! is safe for a carrier.
 //!
 //! Engine units throughout: a world unit is 10 m.
 
@@ -29,6 +28,10 @@ pub struct DetourPolicy {
     /// counts as blocked: the mover's arm plus whatever margin it wants past
     /// its own skin.
     pub clearance: f32,
+    /// The mover's own radius (u), the part of [`Self::clearance`] that is
+    /// metal. A body whose clearance already holds the mover waives the margin
+    /// and blocks only a leg that would carry this much of hull into it.
+    pub hull: f32,
     /// Extra clearance (u) a DETOURING mover demands before it calls the
     /// direct leg clear again, so a leg grazing the margin cannot flip
     /// blocked/clear every tick - each flip moves the goal, and a moving goal
@@ -77,36 +80,44 @@ pub struct LegPlan {
 /// within `body radius + clearance` of the leg, measured at the closest point
 /// on the segment.
 ///
-/// Two kinds of body are ignored. One whose clearance already contains `from` -
-/// the mover is inside its bubble, this geometry cannot steer OUT of a sphere,
-/// and calling it a blocker would spin corners around the mover's own position.
-/// And one whose clearance contains `to`, because a fly-at-goal leg is pushed
-/// outside every bubble by [`goal_outside`] before it is planned, so this only
-/// guards degenerate geometry from looping.
+/// A body whose clearance already contains `from` is judged on contact, not
+/// on the margin: the mover is inside its bubble, so the margin is already
+/// spent, and the leg counts as blocked only where it passes within
+/// `body radius + hull` of the centre - the path that puts hull into rock. A
+/// ship parked close to a rock (a mining park, a zero-standoff order) can
+/// then fly away from it or around it, and never through it. The corner that
+/// rounds such a body lies outside the bubble, so it steers the mover OUT.
+///
+/// A body whose clearance contains `to` is judged the same way: the leg's end
+/// has already spent the margin, and a corner or a pushed goal that lands in
+/// a neighbour's bubble is still a leg that must not cross that neighbour.
 pub fn first_blocker(
     from: Vec3,
     to: Vec3,
     clearance: f32,
+    hull: f32,
     obstacles: impl Iterator<Item = (Vec3, f32)>,
 ) -> Option<LegBlocker> {
     let leg = to - from;
     let len_sq = leg.length_squared();
     let mut best: Option<(f32, LegBlocker)> = None;
     for (center, radius) in obstacles {
-        let clearance = radius + clearance;
-        let clearance_sq = clearance * clearance;
-        if to.distance_squared(center) < clearance_sq
-            || from.distance_squared(center) < clearance_sq
-        {
-            continue;
-        }
+        let bubble = radius + clearance;
+        let bubble_sq = bubble * bubble;
+        let endpoint_inside =
+            from.distance_squared(center) < bubble_sq || to.distance_squared(center) < bubble_sq;
+        let blocked_within = if endpoint_inside {
+            radius + hull
+        } else {
+            bubble
+        };
         let t = if len_sq > f32::EPSILON {
             ((center - from).dot(leg) / len_sq).clamp(0.0, 1.0)
         } else {
             0.0
         };
         let closest = from + leg * t;
-        if closest.distance_squared(center) >= clearance_sq {
+        if closest.distance_squared(center) >= blocked_within * blocked_within {
             continue;
         }
         if best.is_none_or(|(best_t, _)| t < best_t) {
@@ -128,10 +139,12 @@ pub fn first_blocker(
 ///
 /// A goal authored or scattered against a rock face is a routine hazard in a
 /// dense band, and skipping such rocks in the blocker scan flies the leg
-/// straight through them; flying AT the adjusted goal keeps the mover clear
-/// while its own arrival check, which runs on the RAW goal, still turns the
-/// route on time. Iterative because the pushed-out point can land inside a
-/// neighbour's bubble; bounded so a pathological nest cannot spin the loop.
+/// straight through them; flying AT the adjusted goal keeps the mover clear.
+/// [`plan_leg`] pushes by the CLEAR clearance, so the adjusted goal sits
+/// outside the band the held-corner check reads and the corner it took is
+/// held, not dropped and re-taken every tick. Iterative because the pushed-out
+/// point can land inside a neighbour's bubble; bounded so a pathological nest
+/// cannot spin the loop.
 pub fn goal_outside(goal: Vec3, clearance: f32, obstacles: &[(Vec3, f32)]) -> Vec3 {
     let mut adjusted = goal;
     for _ in 0..4 {
@@ -182,27 +195,38 @@ pub fn plan_leg(
     policy: DetourPolicy,
     obstacles: &[(Vec3, f32)],
 ) -> LegPlan {
-    let goal = goal_outside(goal, policy.clearance, obstacles);
+    let goal = goal_outside(goal, policy.clear_clearance(), obstacles);
     let mut corner = held;
     if let Some(held) = corner {
         let clear = first_blocker(
             from,
             goal,
             policy.clear_clearance(),
+            policy.hull,
             obstacles.iter().copied(),
         )
         .is_none();
         if clear || from.distance(held) <= policy.arrive_radius {
             corner = None;
-        } else if let Some(blocker) =
-            first_blocker(from, held, policy.clearance, obstacles.iter().copied())
-        {
+        } else if let Some(blocker) = first_blocker(
+            from,
+            held,
+            policy.clearance,
+            policy.hull,
+            obstacles.iter().copied(),
+        ) {
             corner = Some(corner_around(from, held, blocker, policy));
         }
     }
     if corner.is_none() {
-        corner = first_blocker(from, goal, policy.clearance, obstacles.iter().copied())
-            .map(|blocker| corner_around(from, goal, blocker, policy));
+        corner = first_blocker(
+            from,
+            goal,
+            policy.clearance,
+            policy.hull,
+            obstacles.iter().copied(),
+        )
+        .map(|blocker| corner_around(from, goal, blocker, policy));
     }
     LegPlan {
         goal: corner.unwrap_or(goal),
@@ -216,6 +240,7 @@ mod tests {
 
     const POLICY: DetourPolicy = DetourPolicy {
         clearance: 20.0,
+        hull: 4.0,
         hysteresis: 10.0,
         arrive_radius: 75.0,
     };
@@ -224,7 +249,14 @@ mod tests {
     #[test]
     fn a_clear_leg_has_no_blocker() {
         let rocks = [(Vec3::new(0.0, 80.0, -200.0), 40.0)];
-        assert!(first_blocker(Vec3::ZERO, GOAL, POLICY.clearance, rocks.iter().copied()).is_none());
+        assert!(first_blocker(
+            Vec3::ZERO,
+            GOAL,
+            POLICY.clearance,
+            POLICY.hull,
+            rocks.iter().copied()
+        )
+        .is_none());
     }
 
     #[test]
@@ -235,6 +267,7 @@ mod tests {
             Vec3::ZERO,
             GOAL,
             POLICY.clearance,
+            POLICY.hull,
             [far, near].iter().copied(),
         )
         .expect("both intrude; the leg is blocked");
@@ -251,26 +284,161 @@ mod tests {
         // the answer is the mover's, not the geometry's.
         let rocks = [(Vec3::new(55.0, 0.0, -200.0), 40.0)];
         assert!(
-            first_blocker(Vec3::ZERO, GOAL, 10.0, rocks.iter().copied()).is_none(),
+            first_blocker(Vec3::ZERO, GOAL, 10.0, POLICY.hull, rocks.iter().copied()).is_none(),
             "a hull that wants 100 m of room threads this"
         );
         assert!(
-            first_blocker(Vec3::ZERO, GOAL, 30.0, rocks.iter().copied()).is_some(),
+            first_blocker(Vec3::ZERO, GOAL, 30.0, POLICY.hull, rocks.iter().copied()).is_some(),
             "a hull that wants 300 m does not"
         );
     }
 
     #[test]
-    fn a_body_hugging_the_goal_is_not_a_blocker() {
-        let rocks = [(GOAL + Vec3::new(0.0, 30.0, 0.0), 40.0)];
-        assert!(first_blocker(Vec3::ZERO, GOAL, POLICY.clearance, rocks.iter().copied()).is_none());
+    fn a_body_hugging_the_goal_blocks_only_where_the_hull_would_touch_it() {
+        // The goal sits inside the rock's 20 u margin either way; the margin
+        // is spent by the leg's end, so only hull contact (40 + 4 u) blocks.
+        let hugging = [(GOAL + Vec3::new(0.0, 50.0, 0.0), 40.0)];
+        assert!(
+            first_blocker(
+                Vec3::ZERO,
+                GOAL,
+                POLICY.clearance,
+                POLICY.hull,
+                hugging.iter().copied()
+            )
+            .is_none(),
+            "a goal 50 u off the centre leaves the hull 6 u clear of the rock"
+        );
+        let swallowing = [(GOAL + Vec3::new(0.0, 30.0, 0.0), 40.0)];
+        assert!(
+            first_blocker(
+                Vec3::ZERO,
+                GOAL,
+                POLICY.clearance,
+                POLICY.hull,
+                swallowing.iter().copied()
+            )
+            .is_some(),
+            "a goal inside the rock itself is a leg into the rock"
+        );
+    }
+
+    #[test]
+    fn a_leg_ending_inside_a_bubble_is_still_blocked_through_the_body() {
+        // Mover and leg end both inside the 40 + 20 u bubble of the rock at
+        // 55 u: the leg through the centre is blocked, the leg that keeps the
+        // hull off the rock (closest approach 49 u, past 40 + 4) flies.
+        let rock = (Vec3::new(0.0, 0.0, -55.0), 40.0);
+        let through = first_blocker(
+            Vec3::ZERO,
+            Vec3::new(0.0, 0.0, -105.0),
+            POLICY.clearance,
+            POLICY.hull,
+            [rock].iter().copied(),
+        );
+        assert!(
+            through.is_some(),
+            "a leg ending inside the bubble never flies through the rock"
+        );
+        let beside = first_blocker(
+            Vec3::ZERO,
+            Vec3::new(40.0, 0.0, -20.0),
+            POLICY.clearance,
+            POLICY.hull,
+            [rock].iter().copied(),
+        );
+        assert!(
+            beside.is_none(),
+            "inside the bubble only hull contact blocks, got {beside:?}"
+        );
+    }
+
+    #[test]
+    fn a_goal_pushed_off_a_rock_face_keeps_its_corner_on_the_next_tick() {
+        // The raw goal sits inside the rock; the planner pushes it out past
+        // the clear band, so the body that pushed it is read by the clear
+        // check and the corner taken on tick one is still held on tick two.
+        let rock = (Vec3::new(0.0, 0.0, -200.0), 40.0);
+        let raw_goal = Vec3::new(0.0, 0.0, -230.0);
+        let first = plan_leg(Vec3::ZERO, raw_goal, None, POLICY, &[rock]);
+        let corner = first
+            .corner
+            .expect("the leg to the far face crosses the rock");
+        let pushed = goal_outside(raw_goal, POLICY.clear_clearance(), &[rock]);
+        assert!(
+            pushed.distance(rock.0) > rock.1 + POLICY.clear_clearance(),
+            "the pushed goal sits outside the clear band"
+        );
+        let step = (corner - Vec3::ZERO).normalize() * 5.0;
+        let second = plan_leg(step, raw_goal, Some(corner), POLICY, &[rock]);
+        assert_eq!(
+            second.corner,
+            Some(corner),
+            "the corner is held, not dropped and re-taken"
+        );
+    }
+
+    #[test]
+    fn a_body_whose_bubble_holds_the_mover_blocks_only_a_contact_leg() {
+        // A ship parked 15 u off a 40 u rock, inside its 20 u margin. The leg
+        // abeam passes 54 u from the centre - inside the margin, but with the
+        // hull (4 u) clear of the rock - and flies; the leg through the centre
+        // does not.
+        let rock = (Vec3::new(0.0, 0.0, -55.0), 40.0);
+        let clear_of_the_rock = Vec3::new(400.0, 0.0, -55.0);
+        let blocked = first_blocker(
+            Vec3::ZERO,
+            GOAL,
+            POLICY.clearance,
+            POLICY.hull,
+            [rock].iter().copied(),
+        );
+        assert!(
+            blocked.is_some(),
+            "a leg through the rock is blocked even from inside its bubble"
+        );
+        let grazing = first_blocker(
+            Vec3::ZERO,
+            clear_of_the_rock,
+            POLICY.clearance,
+            POLICY.hull,
+            [rock].iter().copied(),
+        );
+        assert!(
+            grazing.is_none(),
+            "inside the bubble the margin is waived: a leg that carries no \
+             hull into the rock flies, got {grazing:?}"
+        );
+    }
+
+    #[test]
+    fn a_mover_inside_a_bubble_is_steered_out_and_around() {
+        let rock = (Vec3::new(0.0, 0.0, -55.0), 40.0);
+        let plan = plan_leg(Vec3::ZERO, GOAL, None, POLICY, &[rock]);
+        let corner = plan.corner.expect("the leg through the rock is blocked");
+        assert!(corner.is_finite());
+        assert!(
+            corner.distance(rock.0) > rock.1 + POLICY.clearance,
+            "the corner sits outside the bubble, so flying it leaves the rock"
+        );
+        // Flying the corner from the park never crosses the rock itself.
+        assert!(
+            first_blocker(Vec3::ZERO, corner, 0.0, POLICY.hull, [rock].iter().copied()).is_none(),
+            "the corner leg keeps the hull off the rock"
+        );
     }
 
     #[test]
     fn the_corner_clears_the_blocker_with_its_arrival_window() {
         let rocks = [(Vec3::new(15.0, 0.0, -200.0), 40.0)];
-        let blocker = first_blocker(Vec3::ZERO, GOAL, POLICY.clearance, rocks.iter().copied())
-            .expect("the rock sits on the leg");
+        let blocker = first_blocker(
+            Vec3::ZERO,
+            GOAL,
+            POLICY.clearance,
+            POLICY.hull,
+            rocks.iter().copied(),
+        )
+        .expect("the rock sits on the leg");
         let corner = corner_around(Vec3::ZERO, GOAL, blocker, POLICY);
         assert!(
             corner.distance(rocks[0].0)
@@ -282,8 +450,14 @@ mod tests {
     #[test]
     fn a_dead_center_body_still_yields_a_corner() {
         let rocks = [(Vec3::new(0.0, 0.0, -200.0), 40.0)];
-        let blocker = first_blocker(Vec3::ZERO, GOAL, POLICY.clearance, rocks.iter().copied())
-            .expect("dead on the leg");
+        let blocker = first_blocker(
+            Vec3::ZERO,
+            GOAL,
+            POLICY.clearance,
+            POLICY.hull,
+            rocks.iter().copied(),
+        )
+        .expect("dead on the leg");
         let corner = corner_around(Vec3::ZERO, GOAL, blocker, POLICY);
         assert!(corner.is_finite());
         assert!(corner.distance(rocks[0].0) > rocks[0].1 + POLICY.clearance);
