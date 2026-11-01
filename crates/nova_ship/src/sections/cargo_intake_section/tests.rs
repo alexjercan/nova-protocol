@@ -605,6 +605,38 @@ fn a_full_hold_takes_nothing_and_keeps_the_door_shut() {
     assert_eq!(takes(&app), 0);
     assert!(pickups(&app, ship).is_empty());
     assert_eq!(contents(&app, canister), [("HullPlate".to_string(), 4)]);
+
+    let id = *app.world().get::<CargoCanisterRuntimeId>(canister).unwrap();
+    let frozen = freeze_canister(app.world(), canister).expect("a refused canister freezes");
+    assert_eq!(frozen.id(), id);
+    app.world_mut().entity_mut(canister).despawn();
+    let thawed = app
+        .world_mut()
+        .spawn(thaw_canister(
+            frozen,
+            Transform::from_translation(Vec3::new(
+                0.0,
+                0.0,
+                in_front(CAPTURE_GAP.to_engine() * 0.5),
+            )),
+            Vec3::ZERO,
+        ))
+        .id();
+    for _ in 0..120 {
+        app.update();
+    }
+    assert_eq!(app.world().get::<CargoCanisterRuntimeId>(thawed), Some(&id));
+    assert_eq!(contents(&app, thawed), [("HullPlate".to_string(), 4)]);
+    assert_eq!(plates(&app, ship), 40);
+    assert_eq!(takes(&app), 0);
+    assert!(pickups(&app, ship).is_empty());
+    assert_eq!(door(&app, intake), 0.0);
+    assert!(app
+        .world()
+        .resource::<CargoPickupReadiness>()
+        .pairs
+        .iter()
+        .any(|pair| pair.canister == thawed && !pair.ready));
 }
 
 /// With 10 kg free, a 20 kg slug canister cannot give up an item, but a
