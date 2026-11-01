@@ -50,7 +50,7 @@ pub use connection::{
     helm_on_capture, helm_request_admitted, restore_docking_connection, DockPartnerType,
     DockedHelmType, DockedPort, DockedShip, DockedStation, DockingConnection,
     DockingConnectionRequest, DockingHelmRequest, DockingReleaseRequest, DockingSystems,
-    StationDock, StationDocks, UndockSeparation,
+    SavedJointFrame, StationDock, StationDocks, UndockSeparation,
 };
 pub(crate) use port::PORT_FACE;
 pub use port::{DockingPair, DockingPorts, PortPose, BERTH_GAP, GAP_SLACK};
@@ -66,8 +66,8 @@ pub mod prelude {
         DockingConnection, DockingConnectionRequest, DockingEnvelope, DockingHelmRequest,
         DockingPair, DockingPorts, DockingReleaseRequest, DockingSectionConfig,
         DockingSectionConfigHelper, DockingSectionMarker, DockingSectionPlugin,
-        DockingSectionState, DockingSystems, PortPose, StationDock, StationDocks, UndockSeparation,
-        BERTH_GAP,
+        DockingSectionState, DockingSystems, PortPose, SavedJointFrame, StationDock, StationDocks,
+        UndockSeparation, BERTH_GAP,
     };
 }
 

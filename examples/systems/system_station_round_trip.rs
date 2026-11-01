@@ -991,7 +991,7 @@ mod walk {
     /// The stock and storage a frozen station record holds.
     fn record_state(body: &FrozenBody) -> (BTreeMap<String, u32>, BTreeMap<String, u32>) {
         match body.body() {
-            FrozenBodyType::Station(station) => (
+            FrozenBodyType::Station(station, _) => (
                 hold_map(station.ship().inventory()),
                 storage_map(station.storage()),
             ),

@@ -15,23 +15,24 @@ use nova_gameplay::{
         AssetRef, BuildRecipe, CargoCanister, CargoCanisterRuntimeId, DamageMark, DamageMarks,
         DerelictShipMarker, Health, HealthApplyDamage, IntegrityDestroyMarker, ItemDesignId,
         ItemRoleType, PlayerSpaceshipMarker, SectionMarker, ShipCredits, ShipInventory,
-        ShipInventoryStock, SpaceshipRootMarker, TempEntity,
+        ShipInventoryStock, SpaceshipRootMarker, TempEntity, TraderMarket,
     },
     test_support::{settle, test_items, unfinished_integrity_physics_app},
 };
 use nova_scenario::prelude::{
     freeze_ship, AsteroidCarvePlugin, AsteroidField, AsteroidMarker, AsteroidPlugin,
-    CurrentScenario, MinedCanisterQueue, MinedOreDrop, MiningPlugin, SectionSource, ShipDesign,
-    ShipDesignSource, SpaceshipController, SpaceshipDesign, SpaceshipPlugin,
-    SpaceshipSectionConfig, StationBuilds, StationMarker, StationServices, StationStorage,
-    WreckCargoPlugin,
+    CurrentScenario, MinedCanisterQueue, MinedOreDrop, MiningPlugin, ParkedHullsPlugin,
+    SectionSource, ShipDesign, ShipDesignSource, SpaceshipController, SpaceshipDesign,
+    SpaceshipPlugin, SpaceshipSectionConfig, StationBuilds, StationDesignSource, StationHullOffer,
+    StationMarker, StationServices, StationStorage, WreckCargoPlugin,
 };
 use nova_ship::prelude::{
     cargo_canister, docking_section, thruster_section, AINonCombatant, BaseSectionConfig,
     BodyRadius, DockedHelmType, DockedShip, DockingConnection, DockingConnectionRequest,
-    DockingHelmRequest, DockingSectionConfig, FlightIntent, GameSections, NovaFlightPlugin,
-    PDControllerPlugin, SectionAnimations, SectionConfig, SectionKind, ShipCapabilities,
-    SpaceshipSectionPlugin, ThrusterSectionConfig, TurretSectionConfig,
+    DockingHelmRequest, DockingSectionConfig, FlightIntent, GameSections, HullOfferType,
+    NovaFlightPlugin, PDControllerPlugin, ParkedHull, SavedJointFrame, SectionAnimations,
+    SectionConfig, SectionKind, ShipCapabilities, SpaceshipSectionPlugin, ThrusterSectionConfig,
+    TurretSectionConfig, UndockSeparation,
 };
 
 use super::{
@@ -1070,7 +1071,7 @@ fn a_generated_station_retires_and_thaws_with_its_cell() {
         .bodies()
         .iter()
         .map(|body| match body.body() {
-            FrozenBodyType::Station(_) => "station",
+            FrozenBodyType::Station(..) => "station",
             FrozenBodyType::PendingStation { .. } => "pending station",
             FrozenBodyType::Asteroid(_) => "rock",
             _ => "other",
@@ -1447,6 +1448,699 @@ fn a_save_refuses_a_dock_the_observer_is_not_in() {
         world.query::<&DockingConnection>().iter(world).count(),
         1,
         "the live dock is untouched"
+    );
+}
+
+/// A cell's one generated station with a live docking port, and one
+/// generated visitor ship 15 m off its stern, rotated to face it: the same
+/// face-gap geometry the bare `docking_hull` pair captures at (1.5 engine
+/// units), scaled into meters at this crate's own engine boundary. Both
+/// clearances are shrunk to 5 m so the two bodies' spheres (sum 10 m) stay
+/// clear of each other at the 15 m root separation `validate` demands
+/// (margin 0); the docking envelope never looks at clearance, it measures
+/// the port faces.
+fn station_dock_home(input: SectorGenerationInput) -> SectorManifest {
+    let centre = input.coord.centre(input.geometry.sector_edge);
+    let mut manifest = empty(input.coord, Vec::new());
+    let mut dock = station(
+        sector_id(input.coord, "station", 0),
+        centre,
+        TEST_DOCKING_SECTION_ID,
+    );
+    dock.clearance = Meters(5.0);
+    manifest.stations.push(dock);
+    let mut visitor = ship(
+        sector_id(input.coord, "ship", 0),
+        centre + Meters3::new(0.0, 0.0, -15.0),
+        TEST_DOCKING_SECTION_ID,
+    );
+    visitor.clearance = Meters(5.0);
+    visitor.rotation = Quat::from_rotation_y(std::f32::consts::PI);
+    manifest.ships.push(visitor);
+    manifest
+}
+
+/// Arms a home cell with [`station_dock_home`], materializes it with the
+/// observer clear of both bodies, docks the visitor to the station through
+/// the real [`DockingConnectionRequest`] path, and settles. Returns the app,
+/// the visitor and station entities, and the observer used to materialize.
+fn build_station_dock() -> (App, Entity, Entity, ObserverBody) {
+    let mut app = ship_app();
+    load_docking_section(&mut app);
+
+    let home = SectorCoord::ORIGIN;
+    let config = answering(station_dock_home);
+    let edge = config.sector_edge;
+    let world = app.world_mut();
+    arm(world, config, home);
+    let observer = ObserverBody {
+        position: home.centre(edge) + Meters3::new(0.0, 0.0, edge.get() * 0.25),
+        reach: Meters(100.0),
+    };
+    materialize::<Answers>(world, home, observer);
+    settle(&mut app);
+
+    let world = app.world_mut();
+    let [visitor] = body_with_id(world, &sector_id(home, "ship", 0))[..] else {
+        panic!("the visitor ship must spawn once");
+    };
+    let [station] = body_with_id(world, &sector_id(home, "station", 0))[..] else {
+        panic!("the station must spawn once");
+    };
+    world.trigger(DockingConnectionRequest {
+        entity: visitor,
+        target: station,
+    });
+    settle(&mut app);
+
+    let world = app.world_mut();
+    assert_eq!(
+        world.query::<&DockingConnection>().iter(world).count(),
+        1,
+        "the visitor must dock to the station"
+    );
+    assert!(
+        world.get::<DockedShip>(visitor).is_some(),
+        "the visitor carries the dock"
+    );
+
+    (app, visitor, station, observer)
+}
+
+/// The dock between a ship and a station, read live: the connection's order
+/// and both ports' ids, the fixed joint's local frames, the ship's pose
+/// relative to the station's, and both linear velocities.
+struct DockSnapshot {
+    station_first: bool,
+    ship_port: String,
+    station_port: String,
+    ship_frame: SavedJointFrame,
+    station_frame: SavedJointFrame,
+    relative_position: Vec3,
+    relative_rotation: Quat,
+    ship_velocity: Vec3,
+    station_velocity: Vec3,
+}
+
+/// Reads the one live dock between `ship` and `station` into a
+/// [`DockSnapshot`].
+///
+/// # Panics
+///
+/// When the pair carries no connection, or either hull has no pose.
+fn dock_snapshot(world: &mut World, ship: Entity, station: Entity) -> DockSnapshot {
+    let connection_entity = world
+        .query::<(Entity, &DockingConnection)>()
+        .iter(world)
+        .find(|(_, connection)| {
+            (connection.first_ship, connection.second_ship) == (ship, station)
+                || (connection.first_ship, connection.second_ship) == (station, ship)
+        })
+        .map(|(entity, _)| entity)
+        .expect("the pair has a connection");
+    let connection = *world
+        .get::<DockingConnection>(connection_entity)
+        .expect("the found connection is live");
+    let joint = world
+        .get::<FixedJoint>(connection_entity)
+        .expect("a docking connection holds its fixed joint");
+    let station_first = connection.first_ship == station;
+    let (station_section, ship_section, station_frame_raw, ship_frame_raw) = if station_first {
+        (
+            connection.first_section,
+            connection.second_section,
+            &joint.frame1,
+            &joint.frame2,
+        )
+    } else {
+        (
+            connection.second_section,
+            connection.first_section,
+            &joint.frame2,
+            &joint.frame1,
+        )
+    };
+    let port_id = |section: Entity| {
+        world
+            .get::<EntityId>(section)
+            .expect("a docking port has an id")
+            .0
+            .clone()
+    };
+    let ship_port = port_id(ship_section);
+    let station_port = port_id(station_section);
+    let ship_frame = SavedJointFrame::of(ship_frame_raw);
+    let station_frame = SavedJointFrame::of(station_frame_raw);
+    let ship_position = world.get::<Position>(ship).expect("the ship has a pose").0;
+    let ship_rotation = world
+        .get::<Rotation>(ship)
+        .expect("the ship has a rotation")
+        .0;
+    let station_position = world
+        .get::<Position>(station)
+        .expect("the station has a pose")
+        .0;
+    let station_rotation = world
+        .get::<Rotation>(station)
+        .expect("the station has a rotation")
+        .0;
+    DockSnapshot {
+        station_first,
+        ship_port,
+        station_port,
+        ship_frame,
+        station_frame,
+        relative_position: station_rotation.inverse() * (ship_position - station_position),
+        relative_rotation: station_rotation.inverse() * ship_rotation,
+        ship_velocity: world
+            .get::<LinearVelocity>(ship)
+            .map_or(Vec3::ZERO, |velocity| velocity.0),
+        station_velocity: world
+            .get::<LinearVelocity>(station)
+            .map_or(Vec3::ZERO, |velocity| velocity.0),
+    }
+}
+
+/// Whether `got` is `expected`'s rotation: equal, or equal up to the sign
+/// `restore_docking_connection`'s quaternion-cover negation may flip
+/// (`crates/nova_ship/src/sections/docking_section/connection.rs:575`).
+fn basis_matches(got: Quat, expected: Quat) -> bool {
+    got.abs_diff_eq(expected, 1.0e-4) || got.abs_diff_eq(-expected, 1.0e-4)
+}
+
+/// Asserts the live dock between `ship` and `station` still matches
+/// `expected`, identifying the failure as `context`.
+fn assert_dock_matches(
+    world: &mut World,
+    ship: Entity,
+    station: Entity,
+    expected: &DockSnapshot,
+    context: &str,
+) {
+    let got = dock_snapshot(world, ship, station);
+    assert_eq!(
+        got.station_first, expected.station_first,
+        "{context}: the connection's order flipped"
+    );
+    assert_eq!(
+        got.ship_port, expected.ship_port,
+        "{context}: the ship's port id changed"
+    );
+    assert_eq!(
+        got.station_port, expected.station_port,
+        "{context}: the station's port id changed"
+    );
+    assert_eq!(
+        got.ship_frame.anchor, expected.ship_frame.anchor,
+        "{context}: the ship's joint anchor moved"
+    );
+    assert_eq!(
+        got.station_frame.anchor, expected.station_frame.anchor,
+        "{context}: the station's joint anchor moved"
+    );
+    assert!(
+        basis_matches(got.ship_frame.basis, expected.ship_frame.basis),
+        "{context}: the ship's joint basis is neither the saved one nor its cover negation: \
+         {:?} vs {:?}",
+        got.ship_frame.basis,
+        expected.ship_frame.basis
+    );
+    assert!(
+        basis_matches(got.station_frame.basis, expected.station_frame.basis),
+        "{context}: the station's joint basis is neither the saved one nor its cover negation: \
+         {:?} vs {:?}",
+        got.station_frame.basis,
+        expected.station_frame.basis
+    );
+    assert!(
+        got.relative_position
+            .abs_diff_eq(expected.relative_position, 1.0e-3),
+        "{context}: the station-relative position moved: {:?} vs {:?}",
+        got.relative_position,
+        expected.relative_position
+    );
+    assert!(
+        basis_matches(got.relative_rotation, expected.relative_rotation),
+        "{context}: the station-relative rotation moved: {:?} vs {:?}",
+        got.relative_rotation,
+        expected.relative_rotation
+    );
+    assert!(
+        got.ship_velocity
+            .abs_diff_eq(expected.ship_velocity, 1.0e-3),
+        "{context}: the ship's linear velocity changed: {:?} vs {:?}",
+        got.ship_velocity,
+        expected.ship_velocity
+    );
+    assert!(
+        got.station_velocity
+            .abs_diff_eq(expected.station_velocity, 1.0e-3),
+        "{context}: the station's linear velocity changed: {:?} vs {:?}",
+        got.station_velocity,
+        expected.station_velocity
+    );
+}
+
+/// `ship`'s balance, market and hold, read live.
+fn ship_cargo(
+    world: &mut World,
+    ship: Entity,
+) -> (ShipCredits, Option<TraderMarket>, ShipInventory) {
+    (
+        *world
+            .get::<ShipCredits>(ship)
+            .expect("a ship root has credits"),
+        world.get::<TraderMarket>(ship).cloned(),
+        world
+            .get::<ShipInventory>(ship)
+            .cloned()
+            .expect("a ship root has a hold"),
+    )
+}
+
+/// `text`, a [`FrozenShip`](nova_scenario::prelude::FrozenShip)'s RON, with
+/// its RCS `idle` field blanked: idle time keeps advancing while the dock
+/// sits still, so a snapshot taken after a different number of settle ticks
+/// never matches bit-for-bit on this one field alone.
+#[cfg(feature = "serde")]
+fn normalize_rcs_idle(text: &str) -> String {
+    let Some(start) = text.find("idle:") else {
+        return text.to_string();
+    };
+    let value_start = start + "idle:".len();
+    let value_end = text[value_start..]
+        .find([',', ')'])
+        .map_or(text.len(), |offset| value_start + offset);
+    format!("{}idle:_{}", &text[..start], &text[value_end..])
+}
+
+/// A ship docked at a station through the real request freezes inside the
+/// station's record when home retires, and thaws docked again when home
+/// comes back: the same connection order and both ports, the same joint
+/// frames up to `restore_docking_connection`'s quaternion-cover negation, the
+/// same station-relative pose right after thaw and after settling more, no
+/// leftover [`UndockSeparation`], and the same controller, credits, market
+/// and hold.
+#[test]
+fn a_ship_docked_at_a_station_freezes_and_thaws_docked() {
+    let (mut app, visitor, station, observer) = build_station_dock();
+    let home = SectorCoord::ORIGIN;
+    let visitor_id = sector_id(home, "ship", 0);
+    let station_id = sector_id(home, "station", 0);
+
+    let world = app.world_mut();
+    let before_dock = dock_snapshot(world, visitor, station);
+    let before_cargo = ship_cargo(world, visitor);
+    #[cfg(feature = "serde")]
+    let before_ship = freeze_ship(world, visitor).expect("the docked visitor is settled");
+
+    walk_to::<Answers>(world, home.offset(5, 0, 0));
+    assert!(
+        body_with_id(world, &visitor_id).is_empty(),
+        "the visitor despawns with the station it is docked to"
+    );
+    let record = world
+        .resource::<FrozenSectors>()
+        .get(home)
+        .expect("home froze");
+    let stations: Vec<&FrozenBody> = record
+        .bodies()
+        .iter()
+        .filter(|body| matches!(body.body(), FrozenBodyType::Station(..)))
+        .collect();
+    let [station_body] = stations[..] else {
+        panic!("home must keep exactly one station body: {stations:?}");
+    };
+    assert_eq!(
+        station_body
+            .docked()
+            .iter()
+            .map(|docked| docked.body().id())
+            .collect::<Vec<_>>(),
+        vec![Some(visitor_id.to_string().as_str())],
+        "the station's record keeps exactly the visitor docked"
+    );
+    assert!(
+        !record
+            .bodies()
+            .iter()
+            .any(|body| body.id() == Some(visitor_id.to_string().as_str())),
+        "the visitor is not also a top-level body in the record"
+    );
+
+    walk_to::<Answers>(world, home);
+    materialize::<Answers>(world, home, observer);
+
+    let world = app.world_mut();
+    let [thawed_visitor] = body_with_id(world, &visitor_id)[..] else {
+        panic!("the visitor must come back once");
+    };
+    let [thawed_station] = body_with_id(world, &station_id)[..] else {
+        panic!("the station must come back once");
+    };
+    assert!(
+        world.get::<DockedShip>(thawed_visitor).is_some(),
+        "the thawed visitor carries the dock"
+    );
+    assert_eq!(
+        world.query::<&DockingConnection>().iter(world).count(),
+        1,
+        "exactly one connection thaws"
+    );
+    assert_eq!(
+        world.query::<&UndockSeparation>().iter(world).count(),
+        0,
+        "a thaw never leaves an undock separation behind"
+    );
+    assert_dock_matches(
+        world,
+        thawed_visitor,
+        thawed_station,
+        &before_dock,
+        "right after thaw",
+    );
+
+    settle(&mut app);
+    let world = app.world_mut();
+    assert_dock_matches(
+        world,
+        thawed_visitor,
+        thawed_station,
+        &before_dock,
+        "after settling more",
+    );
+
+    let after_cargo = ship_cargo(world, thawed_visitor);
+    assert_eq!(
+        after_cargo, before_cargo,
+        "the balance, market and hold thaw unchanged"
+    );
+    #[cfg(feature = "serde")]
+    {
+        let after_ship = freeze_ship(world, thawed_visitor).expect("the thawed visitor is settled");
+        let before_text =
+            normalize_rcs_idle(&ron::to_string(&before_ship).expect("a ship freezes to RON"));
+        let after_text =
+            normalize_rcs_idle(&ron::to_string(&after_ship).expect("a thawed ship freezes to RON"));
+        assert_eq!(
+            before_text, after_text,
+            "the ship's frozen record, including its controller, is unchanged but for RCS idle \
+             catch-up"
+        );
+    }
+}
+
+/// A saved station dock reads back and thaws docked: the live dock between a
+/// generated station and a generated visitor is kept, not refused, the
+/// ledger round-trips through RON, and restoring it into a fresh session
+/// thaws docked with the same invariants a retire-and-thaw keeps.
+#[cfg(feature = "serde")]
+#[test]
+fn a_saved_station_dock_reads_back_and_thaws_docked() {
+    let (mut app, visitor, station, observer) = build_station_dock();
+    let home = SectorCoord::ORIGIN;
+    let visitor_id = sector_id(home, "ship", 0);
+    let station_id = sector_id(home, "station", 0);
+
+    let world = app.world_mut();
+    let before_dock = dock_snapshot(world, visitor, station);
+
+    let saved =
+        crate::snapshot_sectors::<Answers>(world).expect("a station dock is kept, not refused");
+    assert!(
+        world.get_entity(visitor).is_ok() && world.get_entity(station).is_ok(),
+        "a snapshot despawns nothing"
+    );
+    assert_eq!(
+        world.query::<&DockingConnection>().iter(world).count(),
+        1,
+        "the live dock survives the snapshot"
+    );
+
+    let text = ron::to_string(&saved).expect("the ledger writes");
+    let read: FrozenSectors = ron::from_str(&text).expect("the ledger reads back");
+    assert_eq!(
+        ron::to_string(&read).expect("the restored ledger writes"),
+        text,
+        "the restored ledger writes the same text"
+    );
+
+    let mut fresh = ship_app();
+    load_docking_section(&mut fresh);
+    arm(fresh.world_mut(), answering(station_dock_home), home);
+    let world = fresh.world_mut();
+    world.resource_mut::<FrozenSectors>().restore(read);
+    materialize::<Answers>(world, home, observer);
+
+    let world = fresh.world_mut();
+    let [thawed_visitor] = body_with_id(world, &visitor_id)[..] else {
+        panic!("the visitor must come back once");
+    };
+    let [thawed_station] = body_with_id(world, &station_id)[..] else {
+        panic!("the station must come back once");
+    };
+    assert!(
+        world.get::<DockedShip>(thawed_visitor).is_some(),
+        "the thawed visitor carries the dock"
+    );
+    assert_eq!(
+        world.query::<&DockingConnection>().iter(world).count(),
+        1,
+        "exactly one connection thaws"
+    );
+    assert_eq!(
+        world.query::<&UndockSeparation>().iter(world).count(),
+        0,
+        "a thaw never leaves an undock separation behind"
+    );
+    assert_dock_matches(
+        world,
+        thawed_visitor,
+        thawed_station,
+        &before_dock,
+        "right after restoring",
+    );
+
+    settle(&mut fresh);
+    let world = fresh.world_mut();
+    assert_dock_matches(
+        world,
+        thawed_visitor,
+        thawed_station,
+        &before_dock,
+        "after settling more",
+    );
+}
+
+/// [`station_dock_home`] with two more station ports, `bow` facing +Z and
+/// `side` facing +X, ahead of the visitor's `hull` port, and one hull for
+/// sale: the parked hull takes `bow`, the first free port it fits at, and the
+/// visitor docks at `hull`.
+#[cfg(feature = "serde")]
+fn parked_and_visitor_home(input: SectorGenerationInput) -> SectorManifest {
+    let mut manifest = station_dock_home(input);
+    let dock = &mut manifest.stations[0];
+    let StationDesignSource::Inline(design) = &mut dock.spawn.design else {
+        unreachable!("the test station is inline");
+    };
+    let port = |id: &str, position: Vec3, rotation: Quat| SpaceshipSectionConfig {
+        id: id.into(),
+        position,
+        rotation,
+        source: SectionSource::prototype(TEST_DOCKING_SECTION_ID),
+    };
+    design.hull.sections.splice(
+        0..0,
+        [
+            port(
+                "bow",
+                Vec3::new(0.0, 0.0, 1.0),
+                Quat::from_rotation_y(std::f32::consts::PI),
+            ),
+            port(
+                "side",
+                Vec3::new(1.0, 0.0, 0.0),
+                Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2),
+            ),
+        ],
+    );
+    dock.hulls.push(StationHullOffer {
+        name: "parked hull".into(),
+        terms: HullOfferType::Sale,
+        design: ShipDesign {
+            sections: vec![port("fore", Vec3::ZERO, Quat::IDENTITY)],
+            ..default()
+        },
+    });
+    manifest
+}
+
+/// [`ship_app`] with the station's parked hulls, and a count of every
+/// docking connection added.
+#[cfg(feature = "serde")]
+fn parked_hull_app() -> App {
+    let mut app = unfinished_ship_app();
+    app.add_plugins(ParkedHullsPlugin);
+    app.init_resource::<ConnectionsAdded>();
+    app.add_observer(
+        |_: On<Add, DockingConnection>, mut added: ResMut<ConnectionsAdded>| {
+            added.0 += 1;
+        },
+    );
+    app.finish();
+    load_docking_section(&mut app);
+    app
+}
+
+/// How many docking connections were added: a restore adds one, and a
+/// second for the same pair would be a duplicate dock.
+#[cfg(feature = "serde")]
+#[derive(Resource, Default)]
+struct ConnectionsAdded(usize);
+
+/// The one parked hull at `station`.
+#[cfg(feature = "serde")]
+fn parked_hull(world: &mut World, station: Entity) -> Entity {
+    let hulls: Vec<Entity> = world
+        .query::<(Entity, &ParkedHull)>()
+        .iter(world)
+        .filter(|(_, parked)| parked.0 == station)
+        .map(|(hull, _)| hull)
+        .collect();
+    let [hull] = hulls[..] else {
+        panic!("the station must park exactly one hull: {hulls:?}");
+    };
+    hull
+}
+
+/// Asserts the live world holds the visitor and the parked hull docked at
+/// the one station, each by its own connection with the ports it docked
+/// with, the visitor still as `visitor_dock` holds it, and returns the
+/// station.
+#[cfg(feature = "serde")]
+fn assert_parked_and_visitor_docked(
+    world: &mut World,
+    visitor_dock: &DockSnapshot,
+    context: &str,
+) -> Entity {
+    let home = SectorCoord::ORIGIN;
+    let [visitor] = body_with_id(world, &sector_id(home, "ship", 0))[..] else {
+        panic!("{context}: the visitor must be live once");
+    };
+    let [station] = body_with_id(world, &sector_id(home, "station", 0))[..] else {
+        panic!("{context}: the station must be live once");
+    };
+    let parked = parked_hull(world, station);
+    assert_eq!(
+        world.query::<&DockingConnection>().iter(world).count(),
+        2,
+        "{context}: one connection each for the visitor and the parked hull"
+    );
+    assert_eq!(
+        world.query::<&UndockSeparation>().iter(world).count(),
+        0,
+        "{context}: no undock separation"
+    );
+    assert_dock_matches(world, visitor, station, visitor_dock, context);
+    let parked_dock = dock_snapshot(world, parked, station);
+    assert_eq!(
+        (
+            parked_dock.ship_port.as_str(),
+            parked_dock.station_port.as_str()
+        ),
+        ("fore", "bow"),
+        "{context}: the parked hull docks at its own port"
+    );
+    station
+}
+
+/// A station that holds a parked hull and a docked visitor brings both back
+/// docked, each at its own port, after a retire and thaw and after a save
+/// and Load. The visitor docks again in the thaw's own command flush, before
+/// the parked-hull pass runs, so the parked hull never takes its port: the
+/// visitor's connection is the one restore adds, and the parked hull's the
+/// one capture adds, with no second connection for either.
+#[cfg(feature = "serde")]
+#[test]
+fn a_station_brings_back_its_parked_hull_and_its_visitor_each_at_its_own_port() {
+    let mut app = parked_hull_app();
+    let home = SectorCoord::ORIGIN;
+    let config = answering(parked_and_visitor_home);
+    let edge = config.sector_edge;
+    let world = app.world_mut();
+    arm(world, config, home);
+    let observer = ObserverBody {
+        position: home.centre(edge) + Meters3::new(0.0, 0.0, edge.get() * 0.25),
+        reach: Meters(100.0),
+    };
+    materialize::<Answers>(world, home, observer);
+    settle(&mut app);
+    let world = app.world_mut();
+    let [visitor] = body_with_id(world, &sector_id(home, "ship", 0))[..] else {
+        panic!("the visitor ship must spawn once");
+    };
+    let [station] = body_with_id(world, &sector_id(home, "station", 0))[..] else {
+        panic!("the station must spawn once");
+    };
+    world.trigger(DockingConnectionRequest {
+        entity: visitor,
+        target: station,
+    });
+    settle(&mut app);
+    let world = app.world_mut();
+    let visitor_dock = dock_snapshot(world, visitor, station);
+    assert_eq!(
+        (
+            visitor_dock.ship_port.as_str(),
+            visitor_dock.station_port.as_str()
+        ),
+        ("hull", "hull"),
+        "the visitor docks at the station's hull port"
+    );
+    assert_parked_and_visitor_docked(world, &visitor_dock, "before freezing");
+    let saved = crate::snapshot_sectors::<Answers>(world).expect("both docks are kept");
+
+    world.resource_mut::<ConnectionsAdded>().0 = 0;
+    walk_to::<Answers>(world, home.offset(5, 0, 0));
+    assert_eq!(
+        world.query::<&DockingConnection>().iter(world).count(),
+        0,
+        "both docks despawn with the station"
+    );
+    walk_to::<Answers>(world, home);
+    materialize::<Answers>(world, home, observer);
+    let world = app.world_mut();
+    assert_eq!(
+        world.resource::<ConnectionsAdded>().0,
+        1,
+        "the thaw flush docks the visitor before any parked hull spawns"
+    );
+    settle(&mut app);
+    assert_parked_and_visitor_docked(app.world_mut(), &visitor_dock, "after a thaw");
+    assert_eq!(
+        app.world().resource::<ConnectionsAdded>().0,
+        2,
+        "a thaw adds one connection per dock"
+    );
+
+    let text = ron::to_string(&saved).expect("the ledger writes");
+    let read: FrozenSectors = ron::from_str(&text).expect("the ledger reads back");
+    let mut fresh = parked_hull_app();
+    arm(fresh.world_mut(), answering(parked_and_visitor_home), home);
+    let world = fresh.world_mut();
+    world.resource_mut::<FrozenSectors>().restore(read);
+    materialize::<Answers>(world, home, observer);
+    assert_eq!(
+        world.resource::<ConnectionsAdded>().0,
+        1,
+        "the Load's thaw flush docks the visitor before any parked hull spawns"
+    );
+    settle(&mut fresh);
+    assert_parked_and_visitor_docked(fresh.world_mut(), &visitor_dock, "after a Load");
+    assert_eq!(
+        fresh.world().resource::<ConnectionsAdded>().0,
+        2,
+        "a Load adds one connection per dock"
     );
 }
 

@@ -13,7 +13,7 @@ use crate::{
         autopilot::{autopilot_system, on_autopilot_removed_cool_engines},
         manual::{decay_player_rcs_intent, manual_burn_system, rcs_burn_system},
         neutralized_brake::{neutralized_brake_system, on_neutralized_engage_brake},
-        order::drive_scripted_align,
+        order::{drive_scripted_align, drive_ship_orders},
         state::remove_maneuver_telemetry,
         station_keeping::station_keeping_system,
         NovaFlightSystems,
@@ -55,6 +55,21 @@ pub(super) fn brake_flight_app() -> App {
         neutralized_brake_system
             .after(station_keeping_system)
             .before(manual_burn_system)
+            .in_set(NovaFlightSystems),
+    );
+    app.finish();
+    app
+}
+
+/// The flight harness plus docking and the helm order driver, wired ahead of
+/// the autopilot as production wires it, for the DOCK order tests.
+pub(super) fn dock_flight_app() -> App {
+    let mut app = unfinished_flight_app();
+    app.add_plugins(DockingSectionPlugin { render: false });
+    app.add_systems(
+        FixedUpdate,
+        drive_ship_orders
+            .before(autopilot_system)
             .in_set(NovaFlightSystems),
     );
     app.finish();

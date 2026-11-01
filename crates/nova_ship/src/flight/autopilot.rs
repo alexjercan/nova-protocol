@@ -14,6 +14,7 @@ use nova_gameplay::prelude::*;
 
 use super::{
     capability::{ship_capabilities, LiveFlightComputers, ShipCapabilityQuery},
+    dock_corridor::{dock_berth_gap, DockCorridors, DOCK_FINAL_LEG_ANGLE, DOCK_FINAL_LEG_LATERAL},
     guidance::{
         arrival_eta, flip_lead, goto_desired_velocity, goto_flip_point, orbit_band_floor,
         orbit_desired_velocity, orbit_plane_normal, orbit_ring_offset, orbit_target_radius,
@@ -25,8 +26,12 @@ use super::{
     },
 };
 use crate::{
+    input::ai::AI_EVADE_LEG_SLACK_SECS,
     prelude::*,
-    sections::thruster_section::{engine_direction, engine_direction_local},
+    sections::{
+        docking_section::GAP_SLACK,
+        thruster_section::{engine_direction, engine_direction_local},
+    },
 };
 
 /// Fraction of `rcs_accel` the local gravity accel must stay under for the
@@ -176,6 +181,110 @@ pub(super) struct FlightEnvironment<'a> {
     pub(super) cruise_cap: Option<f32>,
     /// What the mover is permitted to do.
     pub(super) capabilities: ShipCapabilities,
+    /// The station a DOCK approach flies to, as this tick reads it; `None`
+    /// for every other action and for a station that is gone.
+    pub(super) dock: Option<DockTarget>,
+}
+
+/// A DOCK approach's station, as one step reads it.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct DockTarget {
+    /// The selected pair, graded this tick; `None` while it is held and no
+    /// other pair is free, so the approach waits.
+    pub(super) pair: Option<DockingPair>,
+    /// The station root's velocity, engine units per second.
+    pub(super) station_velocity: Vec3,
+    /// The station's centre of mass and containment radius: the body leg A
+    /// routes around.
+    pub(super) station_bubble: (Vec3, f32),
+}
+
+/// The proportional gain of a DOCK approach's closing velocity, per second.
+const DOCK_CLOSING_GAIN: f32 = 0.3;
+
+/// The offset inside which a DOCK approach closes at [`DOCK_NEAR_CAP`],
+/// engine units.
+const DOCK_CLOSING_SWITCH: f32 = 6.0;
+
+/// The fastest a DOCK approach closes outside [`DOCK_CLOSING_SWITCH`],
+/// engine units per second (20 m/s).
+const DOCK_FAR_CAP: f32 = 2.0;
+
+/// The fastest a DOCK approach closes inside [`DOCK_CLOSING_SWITCH`],
+/// engine units per second (2 m/s): inside the 5 m/s capture gate.
+const DOCK_NEAR_CAP: f32 = 0.2;
+
+/// The velocity, relative to the station, that closes `offset`: proportional
+/// to it, capped at [`DOCK_FAR_CAP`] or, inside [`DOCK_CLOSING_SWITCH`], at
+/// [`DOCK_NEAR_CAP`].
+fn dock_closing_velocity(offset: Vec3) -> Vec3 {
+    let cap = if offset.length() > DOCK_CLOSING_SWITCH {
+        DOCK_FAR_CAP
+    } else {
+        DOCK_NEAR_CAP
+    };
+    (offset * DOCK_CLOSING_GAIN).clamp_length_max(cap)
+}
+
+/// The velocity, relative to the station, that closes `offset` to the berth
+/// once the gates pass: [`DOCK_NEAR_CAP`] inside [`DOCK_CLOSING_SWITCH`], so
+/// it never decays to zero. A proportional close stalls far from the origin:
+/// at 250 km the f32 position quantum is 0.002 u, and once the commanded step
+/// per 64 Hz tick falls under half of it, `Position` never moves while
+/// `LinearVelocity` reads the command. A 0.2 u/s step is 0.003 u, enough out
+/// to 65536 u; at the berth it chatters by one step and capture fires on the
+/// way in.
+fn dock_final_close_velocity(offset: Vec3) -> Vec3 {
+    if offset.length() > DOCK_CLOSING_SWITCH {
+        dock_closing_velocity(offset)
+    } else {
+        offset.normalize_or_zero() * DOCK_NEAR_CAP
+    }
+}
+
+/// Seconds the capped proportional closing law takes to bring an offset of
+/// `distance` down to `settle`, engine units.
+fn dock_closing_secs(distance: f32, settle: f32) -> f32 {
+    let mut secs = 0.0;
+    for (low, high, cap) in [
+        (DOCK_CLOSING_SWITCH, f32::INFINITY, DOCK_FAR_CAP),
+        (0.0, DOCK_CLOSING_SWITCH, DOCK_NEAR_CAP),
+    ] {
+        let from = distance.min(high);
+        let to = settle.max(low);
+        if from <= to {
+            continue;
+        }
+        // Below the knee the law is proportional and decays exponentially.
+        let knee = cap / DOCK_CLOSING_GAIN;
+        let capped_to = to.max(knee);
+        if from > capped_to {
+            secs += (from - capped_to) / cap;
+        }
+        let proportional_from = from.min(knee);
+        if proportional_from > to {
+            secs += (proportional_from / to).ln() / DOCK_CLOSING_GAIN;
+        }
+    }
+    secs
+}
+
+/// The factor a DOCK approach's deadline allows over the closing law's
+/// modelled time. The model ignores the turn-in and the lateral settle the
+/// hull flies at the same time, and the side-port rig flew within 4% of an
+/// unscaled deadline.
+const DOCK_CLOSING_ALLOWANCE: f32 = 1.5;
+
+/// The liveness deadline of an approach whose hull flies `to_entry` engine
+/// units to the corridor entry and then `corridor` along it, seconds: a half
+/// turn at `turn_rate`, [`DOCK_CLOSING_ALLOWANCE`] times the proportional
+/// closing law's time for the two legs (an upper bound on the corridor leg,
+/// whose final close holds [`DOCK_NEAR_CAP`]), and the AI's leg slack. A hull that cannot fly the
+/// approach in that time is not going to by waiting.
+fn dock_approach_deadline(to_entry: f32, corridor: f32, turn_rate: f32) -> f32 {
+    let closing = dock_closing_secs(to_entry, DOCK_FINAL_LEG_LATERAL)
+        + dock_closing_secs(corridor, GAP_SLACK);
+    core::f32::consts::PI / turn_rate + DOCK_CLOSING_ALLOWANCE * closing + AI_EVADE_LEG_SLACK_SECS
 }
 
 /// Extra clearance (u, 100 m) a DETOURING leg demands before it calls the
@@ -184,10 +293,11 @@ pub(super) struct FlightEnvironment<'a> {
 /// maneuver to its align phase.
 pub(super) const DETOUR_HYSTERESIS: f32 = 10.0;
 
-/// The bodies a GOTO or GotoPos leg routes around: everything that publishes
-/// a geometric [`BodyRadius`] - field rocks, planetoids - except a nav beacon
-/// (a mark to fly TO, whose volume stops nothing), a ship (hulls are flown AT
-/// and fought around, never detoured) and a station (a dock to arrive at).
+/// The bodies a GOTO, GotoPos or DOCK leg routes around: everything that
+/// publishes a geometric [`BodyRadius`] - field rocks, planetoids - except a
+/// nav beacon (a mark to fly TO, whose volume stops nothing), a ship (hulls are
+/// flown AT and fought around, never detoured) and a station (a dock to arrive
+/// at; a DOCK approach adds its own station's bubble).
 /// Avian `Position` where the body has one, the render pose otherwise.
 pub(super) type ObstacleQuery<'w, 's> = Query<
     'w,
@@ -205,12 +315,15 @@ pub(super) type ObstacleQuery<'w, 's> = Query<
     ),
 >;
 
-/// Whether `action` plans its leg around sized bodies. Only GOTO and GotoPos
-/// do; ORBIT, STOP and MatchVelocity never read the field.
+/// Whether `action` plans its leg around sized bodies. GOTO, GotoPos and a
+/// DOCK approach's leg A do; ORBIT, STOP and MatchVelocity never read the
+/// field.
 pub(super) fn routes_around_bodies(action: AutopilotAction) -> bool {
     matches!(
         action,
-        AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. }
+        AutopilotAction::Goto { .. }
+            | AutopilotAction::GotoPos { .. }
+            | AutopilotAction::DockApproach { .. }
     )
 }
 
@@ -246,7 +359,7 @@ pub(super) enum DisengageType {
     NoFlightComputer,
     /// No live engine with a valid mount direction is left.
     NoLiveEngines,
-    /// The GOTO target is gone.
+    /// The GOTO target or the DOCK station is gone.
     TargetGone,
     /// The ORBIT well is gone.
     WellGone,
@@ -255,6 +368,13 @@ pub(super) enum DisengageType {
     /// The GOTO leg's planned goal or corner is not finite: the obstacle
     /// geometry it was planned against is invalid, and the leg is not flown.
     NoSafeLeg,
+    /// The DOCK hull has no free live docking port.
+    NoDockingPort,
+    /// The DOCK approach to its selected pair overran its liveness deadline.
+    DockDeadline,
+    /// No free pair of the DOCK approach has a corridor its hull can close
+    /// along without touching anything, or the station's hull is unmeasured.
+    NoSafeDockPath,
 }
 
 /// How a step ended the maneuver.
@@ -593,6 +713,119 @@ pub(super) fn arrival_target(
     }
 }
 
+/// The station a DOCK approach on `autopilot` flies to this tick, `None` for
+/// every other action and for a station that is gone.
+///
+/// Keeps the selected pair while both its ports are free. When either is
+/// held, the free pairs are walked in rank order and the first whose corridor
+/// sweeps clear replaces it; its deadline and leg A corner are cleared, so the
+/// step arms a new one. With no free pair the selection and its deadline are
+/// kept and the approach waits. `clearance` is the leg's clearance outside the
+/// station's bubble, the hull's arm plus its detour margin.
+///
+/// The sweep runs only on a selection, at most once per free pair each time;
+/// a selected pair is never swept again while both its ports stay free, so a
+/// body that moves into its corridor later is not seen.
+///
+/// # Errors
+///
+/// [`DisengageType::NoDockingPort`] when the ship has no free live port, and
+/// [`DisengageType::NoSafeDockPath`] when no free pair's corridor is clear or
+/// the station's hull is unmeasured. The refusal is warned here, with the
+/// first-ranked pair's blocker.
+fn dock_approach_target(
+    ship: Entity,
+    autopilot: &mut Mut<Autopilot>,
+    corridors: &DockCorridors,
+    clearance: f32,
+) -> Result<Option<DockTarget>, DisengageType> {
+    let AutopilotAction::DockApproach {
+        station,
+        plan: selected,
+        ..
+    } = autopilot.action
+    else {
+        return Ok(None);
+    };
+    let ports = &corridors.ports;
+    let Some(station_velocity) = ports.body_velocity(station) else {
+        return Ok(None);
+    };
+    if !ports.has_free_port(ship) {
+        return Err(DisengageType::NoDockingPort);
+    }
+    let Some(station_bubble) = corridors.bubble(station) else {
+        warn!(
+            "autopilot_system: ship {ship:?} cannot plan a DOCK corridor to station \
+             {station:?}: the station has no measured centre of mass or hull envelope"
+        );
+        return Err(DisengageType::NoSafeDockPath);
+    };
+    let held =
+        selected.and_then(|plan| ports.pair(ship, plan.own_port, station, plan.station_port));
+    let pair = match held {
+        Some(pair) => Some(pair),
+        None => {
+            let ranked = ports.ranked_pairs(ship, station);
+            let mut first_refusal = None;
+            let mut chosen = None;
+            for pair in ranked {
+                match corridors.plan(ship, &pair, clearance) {
+                    Ok(plan) => {
+                        chosen = Some((pair, plan));
+                        break;
+                    }
+                    Err(blocker) => {
+                        first_refusal.get_or_insert((pair, blocker));
+                    }
+                }
+            }
+            match (chosen, first_refusal) {
+                (Some((pair, plan)), _) => {
+                    // Not a flown tick: the selection does not mark the
+                    // maneuver changed.
+                    let autopilot = autopilot.bypass_change_detection();
+                    autopilot.detour = None;
+                    if let AutopilotAction::DockApproach {
+                        plan: selected,
+                        deadline,
+                        ..
+                    } = &mut autopilot.action
+                    {
+                        *selected = Some(plan);
+                        *deadline = None;
+                    }
+                    Some(pair)
+                }
+                (None, Some((pair, blocker))) => {
+                    match blocker {
+                        Some(blocker) => warn!(
+                            "autopilot_system: ship {ship:?} has no safe DOCK corridor to \
+                             station {station:?}; the first-ranked pair {:?} -> {:?} is \
+                             blocked by {blocker}",
+                            pair.first_section, pair.second_section
+                        ),
+                        None => warn!(
+                            "autopilot_system: ship {ship:?} has no safe DOCK corridor to \
+                             station {station:?}; the first-ranked pair {:?} -> {:?} has an \
+                             unmeasured hull",
+                            pair.first_section, pair.second_section
+                        ),
+                    }
+                    return Err(DisengageType::NoSafeDockPath);
+                }
+                // Every station port is held: wait on the kept selection.
+                (None, None) => None,
+            }
+        }
+    };
+    Ok(Some(DockTarget {
+        pair,
+        station_velocity,
+        station_bubble,
+    }))
+}
+
 /// Flies every engaged autopilot one fixed tick: gathers each driving ship's
 /// [`FlightBody`], [`FlightHelm`], [`ArrivalTarget`] and [`FlightEnvironment`],
 /// runs [`autopilot_step`], then writes the helm, telemetry, completion and
@@ -685,6 +918,7 @@ pub(super) fn autopilot_system(
     // engagement.
     mut endings: Local<EndingTally>,
     q_roots: Query<(), With<SpaceshipRootMarker>>,
+    dock_corridors: DockCorridors,
 ) {
     let dt = time.delta_secs();
 
@@ -761,16 +995,37 @@ pub(super) fn autopilot_system(
             &gravity_settings,
             &settings,
         );
+        let avoid_margin = resolved_avoid_margin(avoid_margin, &settings);
+        let dock = match dock_approach_target(
+            ship,
+            &mut autopilot,
+            &dock_corridors,
+            body.mover_radius + avoid_margin,
+        ) {
+            Ok(dock) => dock,
+            Err(reason) => {
+                // A refused corridor fails its DOCK order and is warned with
+                // its blocker where it was found.
+                if let Some(times) =
+                    logged_ending(&mut endings, ship, AutopilotEndType::Disengaged(reason))
+                {
+                    debug!("autopilot_system: ship {ship:?} DOCK approach ends: {reason:?}{times}");
+                }
+                commands.entity(ship).remove::<Autopilot>();
+                continue;
+            }
+        };
         let env = FlightEnvironment {
             dt,
             settings: &settings,
             gravity: &gravity_settings,
             wells: &wells,
             arrival_standoff: resolved_arrival_standoff(standoff_override, &settings),
-            avoid_margin: resolved_avoid_margin(avoid_margin, &settings),
+            avoid_margin,
             obstacles: &obstacles,
             cruise_cap: cruise_cap.map(|cap| **cap),
             capabilities: ship_capabilities(ship, &q_capabilities),
+            dock,
         };
         let action = autopilot.action;
         let step = autopilot_step(
@@ -795,7 +1050,22 @@ pub(super) fn autopilot_system(
             );
         }
         if let Some(AutopilotEndType::Disengaged(reason)) = step.end {
-            if let Some(times) =
+            // Every overrun fails its DOCK order, so each one is said with its
+            // metrics: the tally would hide a retried ship's later overruns.
+            if let (DisengageType::DockDeadline, AutopilotAction::DockApproach { station, .. }) =
+                (reason, action)
+            {
+                let pair = dock.and_then(|dock| dock.pair);
+                warn!(
+                    "autopilot_system: ship {ship:?} overran its DOCK approach to station \
+                     {station:?}: gap {:?} u, axes {:?} deg off opposed, relative speed {:?} \
+                     u/s, relative spin {:?} deg/s; disengaging",
+                    pair.map(|pair| pair.gap),
+                    pair.map(|pair| (-pair.opposition).clamp(-1.0, 1.0).acos().to_degrees()),
+                    pair.map(|pair| pair.relative_speed),
+                    pair.map(|pair| pair.relative_spin.to_degrees()),
+                );
+            } else if let Some(times) =
                 logged_ending(&mut endings, ship, AutopilotEndType::Disengaged(reason))
             {
                 match (reason, action) {
@@ -990,9 +1260,9 @@ pub(super) fn autopilot_step(
     // chasing small errors forever. The band is also the RCS settle's
     // full deflection, so it is chosen before the settle.
     let crumb_band = match autopilot.action {
-        AutopilotAction::Orbit { .. } | AutopilotAction::MatchVelocity { .. } => {
-            settings.attitude_deadband
-        }
+        AutopilotAction::Orbit { .. }
+        | AutopilotAction::MatchVelocity { .. }
+        | AutopilotAction::DockApproach { .. } => settings.attitude_deadband,
         _ => settings.settle_deadband.max(settings.attitude_deadband),
     };
 
@@ -1253,10 +1523,12 @@ pub(super) fn autopilot_step(
     // applies while station-keeping - the desired is a fast orbital
     // velocity, not a rest goal.
     let mut is_orbit = false;
-    // Set by the MatchVelocity arm: the nose the caller asked to hold
-    // while the velocity is held, and the flag that says this action's
-    // desired velocity is a STANDING one rather than a goal to arrive at.
-    let mut hold_facing: Option<Vec3> = None;
+    // Set by the MatchVelocity and DockApproach arms: the hull axis to
+    // hold on a world direction while the velocity is held (the nose on
+    // the caller's facing, the docking port against the station's), and
+    // the flag that says this action's desired velocity is a STANDING one
+    // rather than a goal to arrive at.
+    let mut hold_axis: Option<(Vec3, Vec3)> = None;
     let mut is_velocity_hold = false;
     // Cleared by a MatchVelocity that leaves every push to the drive.
     let mut rcs_permitted = true;
@@ -1397,9 +1669,99 @@ pub(super) fn autopilot_step(
             // below. No telemetry either - the instruments read a leg
             // with a destination, and this has none.
             is_velocity_hold = true;
-            hold_facing = facing.map(Vec3::from);
+            hold_axis = facing.map(|facing| (Vec3::NEG_Z, Vec3::from(facing)));
             rcs_permitted = rcs;
             velocity
+        }
+        AutopilotAction::DockApproach { .. } => {
+            let Some(dock) = env.dock else {
+                return disengaged(DisengageType::TargetGone);
+            };
+            is_velocity_hold = true;
+            match dock.pair {
+                // Every pair is held: move with the station and wait.
+                None => dock.station_velocity,
+                Some(pair) => {
+                    let AutopilotAction::DockApproach {
+                        plan: Some(plan), ..
+                    } = autopilot.action
+                    else {
+                        unreachable!("a graded DOCK pair is a planned one");
+                    };
+                    let axis = pair.second.axis;
+                    let berth_gap = dock_berth_gap(&pair);
+                    let entry_face = pair.second.face + axis * plan.entry;
+                    let from_face = pair.first.face - pair.second.face;
+                    let along = from_face.dot(axis);
+                    let lateral = (from_face - axis * along).length();
+                    // Leg B: inside the swept tube, the port closes along the
+                    // axis to the berth while the axes oppose and it sits on
+                    // the axis, and backs out along it to the entry while
+                    // either gate fails. The leg planner is never asked from
+                    // inside: from within the station's bubble it corners
+                    // radially out of the centre, across whatever plating
+                    // lies that way. Outside the tube, leg A routes the
+                    // centre of mass around the station and every sized body
+                    // to the entry.
+                    let in_tube = (0.0..=plan.entry + DOCK_FINAL_LEG_LATERAL).contains(&along)
+                        && lateral < plan.lateral;
+                    let (offset, to_entry, closing) = if in_tube {
+                        autopilot.detour = None;
+                        let aligned =
+                            (-pair.opposition).clamp(-1.0, 1.0).acos() < DOCK_FINAL_LEG_ANGLE;
+                        let closing = aligned && lateral < DOCK_FINAL_LEG_LATERAL;
+                        let gap = if closing { berth_gap } else { plan.entry };
+                        (
+                            pair.second.face + axis * gap - pair.first.face,
+                            entry_face.distance(pair.first.face),
+                            closing,
+                        )
+                    } else {
+                        let policy = DetourPolicy {
+                            clearance: mover_radius + env.avoid_margin,
+                            hull: mover_radius,
+                            hysteresis: DETOUR_HYSTERESIS,
+                            arrive_radius: mover_radius + arrival_standoff + DETOUR_HYSTERESIS,
+                        };
+                        let obstacles: Vec<(Vec3, f32)> = env
+                            .obstacles
+                            .iter()
+                            .map(|(_, center, radius)| (*center, *radius))
+                            .chain([dock.station_bubble])
+                            .collect();
+                        let goal = com_world + (entry_face - pair.first.face);
+                        let leg = plan_leg(com_world, goal, autopilot.detour, policy, &obstacles);
+                        if !leg.goal.is_finite() {
+                            return disengaged(DisengageType::NoSafeLeg);
+                        }
+                        autopilot.detour = leg.corner;
+                        let routed = leg.corner.map_or_else(
+                            || com_world.distance(goal),
+                            |corner| com_world.distance(corner) + corner.distance(goal),
+                        );
+                        (leg.goal - com_world, routed, false)
+                    };
+                    let AutopilotAction::DockApproach { deadline, .. } = &mut autopilot.action
+                    else {
+                        unreachable!("the arm matched a DOCK approach");
+                    };
+                    let left = deadline.get_or_insert_with(|| {
+                        dock_approach_deadline(to_entry, plan.entry - berth_gap, turn_rate)
+                    });
+                    *left -= dt;
+                    if *left <= 0.0 {
+                        return disengaged(DisengageType::DockDeadline);
+                    }
+                    hold_axis =
+                        Some((body.rotation.inverse() * pair.first.axis, -pair.second.axis));
+                    dock.station_velocity
+                        + if closing {
+                            dock_final_close_velocity(offset)
+                        } else {
+                            dock_closing_velocity(offset)
+                        }
+                }
+            }
         }
         AutopilotAction::Orbit { well, plan } => {
             let Some(sample) = env.wells.iter().find(|sample| sample.entity == well) else {
@@ -1652,7 +2014,9 @@ pub(super) fn autopilot_step(
     // station-keeps until breakout, Z, or a capability loss.
     let done = !matches!(
         autopilot.action,
-        AutopilotAction::Orbit { .. } | AutopilotAction::MatchVelocity { .. }
+        AutopilotAction::Orbit { .. }
+            | AutopilotAction::MatchVelocity { .. }
+            | AutopilotAction::DockApproach { .. }
     ) && autopilot.detour.is_none()
         && desired == Vec3::ZERO
         && (error_speed <= settings.stop_speed_epsilon || (fine && firing_authority <= 0.0));
@@ -1752,7 +2116,7 @@ pub(super) fn autopilot_step(
     // (done, engines still winding down) command zero to every engine.
     let mut throttles: Vec<f32> = vec![0.0; allocation.len()];
     let mut burning = false;
-    // The facing the caller asked for, held whenever the burn is NOT
+    // The axis the caller asked to hold, held whenever the burn is NOT
     // asking for the hull: an RCS trim pushes through the COM in any
     // direction, a crumb is not worth turning for, and an error too small
     // to have a direction is not a burn at all. The moment the error
@@ -1762,8 +2126,8 @@ pub(super) fn autopilot_step(
     // OUTSIDE the burn block on purpose: a ship exactly on its commanded
     // velocity has no error to steer by, and that is precisely when the
     // nose should be sitting where it was asked to sit.
-    let holding_facing = hold_facing.filter(|_| fine || use_rcs || error_dir.is_none());
-    if let Some(facing) = holding_facing {
+    let holding_axis = hold_axis.filter(|_| fine || use_rcs || error_dir.is_none());
+    if let Some((axis, facing)) = holding_axis {
         // Never the full rate: the facing is a request the hull settles
         // onto, not a flip the arrival plan budgeted a lead for. The floor
         // keeps a hull that is already on its velocity from creeping onto
@@ -1771,7 +2135,7 @@ pub(super) fn autopilot_step(
         let max_step = turn_rate * dt * slew_urgency(error_speed, crumb_band).max(0.25);
         for controller in &mut helm.controllers {
             let command = controller.command;
-            let command_dir = command.mul_vec3(Vec3::NEG_Z);
+            let command_dir = command.mul_vec3(axis);
             let goal = Quat::from_rotation_arc(command_dir, facing) * command;
             controller.command = slew_rotation(command, goal, max_step);
         }
@@ -1786,7 +2150,7 @@ pub(super) fn autopilot_step(
         // and plan agree on which engine flies the arrival; every other
         // rotation aims at this tick's error.
         let (aim_dir, burn_ahead) = brake.unwrap_or((error_dir, error_speed));
-        if holding_facing.is_none() && !fine && !use_rcs {
+        if holding_axis.is_none() && !fine && !use_rcs {
             if let Some(chosen) = choose_group(
                 &groups,
                 aim_dir,
@@ -1924,7 +2288,11 @@ pub(super) fn autopilot_step(
         // A held velocity inside the band IS the maneuver working, the
         // same way a trimmed orbit is. Reporting Align there would say the
         // computer is still getting ready for something it is already doing.
-        AutopilotAction::MatchVelocity { .. } if error_speed <= crumb_band => AutopilotPhase::Hold,
+        AutopilotAction::MatchVelocity { .. } | AutopilotAction::DockApproach { .. }
+            if error_speed <= crumb_band =>
+        {
+            AutopilotPhase::Hold
+        }
         _ if burning => AutopilotPhase::Burn,
         _ => AutopilotPhase::Align,
     };

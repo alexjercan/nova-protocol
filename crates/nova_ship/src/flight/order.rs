@@ -32,9 +32,9 @@ use crate::prelude::*;
 
 /// The one live HELM order on a ship root.
 ///
-/// Move, align, stop, patrol and orbit are a mutually exclusive family, and
-/// this component IS that exclusion: installing an order retires whatever was
-/// here first, so a ship can never be flying two authored marks at once. It
+/// Move, align, stop, patrol, orbit and dock are a mutually exclusive family,
+/// and this component IS that exclusion: installing an order retires whatever
+/// was here first, so a ship can never be flying two authored marks at once. It
 /// outlives its own completion on purpose - an alignment holds its facing
 /// afterwards, an orbit keeps station-keeping, and the record of what a ship
 /// was last told is what makes a replacement legible in a log.
@@ -111,6 +111,22 @@ pub enum ShipOrderDirective {
         /// retires the held order without a second terminal event.
         well: WellTargetType,
     },
+    /// Fly a free docking port onto a free port of a station and be captured
+    /// there, through the same `DockingConnectionRequest` a player's `DOCK`
+    /// sends.
+    ///
+    /// The capture is the completion, and the order holds the dock
+    /// afterwards: the ship's own AI never flies a docked visitor, and
+    /// cancelling the order is what lets it go. While every pair is held the
+    /// ship moves with the station and waits; whoever installed the order
+    /// owns giving up on it. The order fails when the station is gone or
+    /// refuses the ship for hostility, or when the ship docks elsewhere,
+    /// loses its last free port or overruns the approach deadline.
+    Dock {
+        /// The station. A live entity: the order is never saved or frozen,
+        /// and whoever installs it derives it again after a thaw or a load.
+        station: Entity,
+    },
 }
 
 impl ShipOrderDirective {
@@ -122,21 +138,25 @@ impl ShipOrderDirective {
             ShipOrderDirective::Stop => ShipOrderKind::Stop,
             ShipOrderDirective::Patrol { .. } => ShipOrderKind::Patrol,
             ShipOrderDirective::Orbit { .. } => ShipOrderKind::Orbit,
+            ShipOrderDirective::Dock { .. } => ShipOrderKind::Dock,
         }
     }
 
     /// Whether reaching this directive's condition leaves something still
     /// running that the helm must keep owning.
     ///
-    /// Align and orbit are HOLDS: completion reports that the bearing was
-    /// settled or the ring established, and the ship keeps holding it until a
-    /// scenario says otherwise. The other three end with the ship at rest and
-    /// nothing left to do, so their completion hands the helm back - which on
-    /// an AI ship is what lets it return to its own routine.
+    /// Align, orbit and dock are HOLDS: completion reports that the bearing
+    /// was settled, the ring established or the dock captured, and the ship
+    /// keeps holding it until a scenario says otherwise. The other three end
+    /// with the ship at rest and nothing left to do, so their completion
+    /// hands the helm back - which on an AI ship is what lets it return to
+    /// its own routine.
     fn holds_after_completion(&self) -> bool {
         matches!(
             self,
-            ShipOrderDirective::Align { .. } | ShipOrderDirective::Orbit { .. }
+            ShipOrderDirective::Align { .. }
+                | ShipOrderDirective::Orbit { .. }
+                | ShipOrderDirective::Dock { .. }
         )
     }
 }
@@ -471,6 +491,14 @@ pub(super) fn drive_ship_orders(
     // Docked drivers whose missing assembly is already logged, so the error
     // is said once per loss, not at the fixed rate.
     mut missing_assembly: Local<EntityHashSet>,
+    // What a DOCK order judges: the ports, whether the station lets the ship
+    // in, the connection a docked ship holds and which roots are stations.
+    (ports, admission, q_connections, q_stations): (
+        DockingPorts,
+        DockAdmission,
+        Query<&DockingConnection>,
+        Query<(), With<StationMarker>>,
+    ),
 ) {
     missing_assembly.retain(|ship| {
         q_ships
@@ -503,6 +531,43 @@ pub(super) fn drive_ship_orders(
             commands.queue(move |world: &mut World| retire_ship_order_execution(world, ship));
             continue;
         }
+        // A DOCK order is judged on its connection before the pause below: a
+        // living station takes the helm of the pair at capture, so the
+        // captured ship never drives it.
+        if let (ShipOrderDirective::Dock { station }, Some(docked)) = (&order.directive, docked) {
+            let station = *station;
+            let at_station = q_connections
+                .get(docked.connection)
+                .is_ok_and(|connection| connection.joins(station));
+            if reported {
+                if !at_station {
+                    warn!(
+                        "drive_ship_orders: ship {ship:?} left the station its completed DOCK \
+                         order '{}' was holding; the order is retired",
+                        order.key
+                    );
+                    retire_completed_order(&mut commands, ship);
+                }
+            } else if at_station {
+                complete(&mut commands, ship, &order, &mut reports);
+                // The dock holds the hull now, not the approach. An order
+                // installed on a ship already docked here never engaged a
+                // leg, and must not engage one when the ship undocks.
+                commands
+                    .entity(ship)
+                    .remove::<Autopilot>()
+                    .insert(ShipOrderEngaged);
+            } else {
+                warn!(
+                    "drive_ship_orders: ship {ship:?} docked somewhere other than station \
+                     {station:?}; DOCK order '{}' failed",
+                    order.key
+                );
+                fail(&mut commands, ship, &order, &mut reports, reported);
+                commands.queue(move |world: &mut World| retire_ship_order_execution(world, ship));
+            }
+            continue;
+        }
         // A docked root that does not drive its pair is paused, not judged:
         // its frozen maneuver neither arrives nor gives up, so the order is
         // neither completed nor failed until the ship drives again or
@@ -533,6 +598,17 @@ pub(super) fn drive_ship_orders(
         let can_burn = q_engine.iter().any(|&ChildOf(parent)| parent == ship);
 
         if !engaged {
+            if let ShipOrderDirective::Dock { station } = order.directive {
+                if !q_stations.contains(station) {
+                    warn!(
+                        "drive_ship_orders: ship {ship:?} order '{}' failed: the dock target \
+                         {station:?} is not a live station",
+                        order.key
+                    );
+                    fail(&mut commands, ship, &order, &mut reports, reported);
+                    continue;
+                }
+            }
             match engage_leg(
                 ship,
                 &order,
@@ -572,16 +648,17 @@ pub(super) fn drive_ship_orders(
                      order '{}' was holding; the order is retired",
                     order.key
                 );
-                commands.queue(move |world: &mut World| {
-                    // An order installed after this tick's read carries no
-                    // terminal latch, and is not this order.
-                    if world
-                        .get_entity(ship)
-                        .is_ok_and(|entity| entity.contains::<ShipOrderReported>())
-                    {
-                        cancel_ship_order(world, ship);
-                    }
-                });
+                retire_completed_order(&mut commands, ship);
+            }
+            // A completed DOCK order that is no longer docked has nothing
+            // left to hold either.
+            if kind == ShipOrderKind::Dock {
+                warn!(
+                    "drive_ship_orders: ship {ship:?} is no longer docked under its completed \
+                     DOCK order '{}'; the order is retired",
+                    order.key
+                );
+                retire_completed_order(&mut commands, ship);
             }
             continue;
         }
@@ -632,6 +709,50 @@ pub(super) fn drive_ship_orders(
                         order.key
                     );
                     fail(&mut commands, ship, &order, &mut reports, reported);
+                }
+            }
+            ShipOrderKind::Dock => {
+                let ShipOrderDirective::Dock { station } = order.directive else {
+                    unreachable!("the kind came from the directive");
+                };
+                // The approach ends itself only when it cannot go on: the
+                // station is gone, the ship has no free port or lost its
+                // computer or engines, or the approach overran.
+                if autopilot.is_none() {
+                    warn!(
+                        "drive_ship_orders: ship {ship:?} lost its DOCK approach to station \
+                         {station:?}; order '{}' failed",
+                        order.key
+                    );
+                    fail(&mut commands, ship, &order, &mut reports, reported);
+                    continue;
+                }
+                if admission.refuses_for_hostility(ship, station) {
+                    warn!(
+                        "drive_ship_orders: station {station:?} refuses ship {ship:?} for \
+                         hostility; DOCK order '{}' failed",
+                        order.key
+                    );
+                    fail(&mut commands, ship, &order, &mut reports, reported);
+                    commands
+                        .queue(move |world: &mut World| retire_ship_order_execution(world, ship));
+                    continue;
+                }
+                // A full station is waited on: the approach holds its
+                // velocity until a port frees.
+                if admission.refusal(ship, station).is_some() {
+                    continue;
+                }
+                // The request captures on `best_candidate`, as a player's
+                // DOCK does. That pair is inside the capture envelope now, so
+                // it needs no more flight even when it is not the selected
+                // pair: waiting for the selected pair to rank first could
+                // overrun the deadline at a port that ranks behind another.
+                if ports.best_candidate(ship, station).is_some() {
+                    commands.trigger(DockingConnectionRequest {
+                        entity: ship,
+                        target: station,
+                    });
                 }
             }
             ShipOrderKind::Patrol => {
@@ -773,7 +894,32 @@ fn engage_leg(
                 }));
             Ok(())
         }
+        ShipOrderDirective::Dock { station } => {
+            commands
+                .entity(ship)
+                .insert(Autopilot::engage(AutopilotAction::DockApproach {
+                    station: *station,
+                    plan: None,
+                    deadline: None,
+                }));
+            Ok(())
+        }
     }
+}
+
+/// Retire a completed hold that has nothing left to hold, without a second
+/// terminal event.
+fn retire_completed_order(commands: &mut Commands, ship: Entity) {
+    commands.queue(move |world: &mut World| {
+        // An order installed after this tick's read carries no terminal
+        // latch, and is not this order.
+        if world
+            .get_entity(ship)
+            .is_ok_and(|entity| entity.contains::<ShipOrderReported>())
+        {
+            cancel_ship_order(world, ship);
+        }
+    });
 }
 
 /// Report a completion and hand the helm back unless the directive is a hold.

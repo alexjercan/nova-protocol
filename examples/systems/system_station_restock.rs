@@ -551,7 +551,7 @@ mod walk {
     }
 
     fn station_stock(body: &FrozenBody, item: &ItemDesignId) -> u32 {
-        let FrozenBodyType::Station(station) = body.body() else {
+        let FrozenBodyType::Station(station, _) = body.body() else {
             panic!("restock: the station froze as {:?}", body.body());
         };
         station.ship().inventory().count(item)

@@ -37,8 +37,8 @@ use nova_ship::prelude::GameSections;
 use crate::{
     bodies_clear,
     frozen::{
-        freeze_body, hold_unsettled, thaw_record, DockPolicy, FrozenBody, FrozenSector,
-        FrozenSectors, PersistentBody, SettlingBodies,
+        despawn_frozen, freeze_body, hold_unsettled, station_dock, thaw_record, DockPolicy,
+        FrozenBody, FrozenSector, FrozenSectors, PersistentBody, SettlingBodies,
     },
     generation::{prepare_cell, PreparedBodies, PreparedSectorAsteroid, PreparedSectorPlanet},
     PreparedSector, SectorCoord, SectorFault, SectorGenerator, SectorShip, SectorShipConditionType,
@@ -1011,7 +1011,8 @@ pub fn materialize_pending_bodies(
 ///
 /// Through [`live_sectors`] on a duplicate root, on a root child that is
 /// neither a planetoid, a transient nor a persistent body a sector can freeze,
-/// or a docked ship: retiring it would lose it. And on a body that stays
+/// or a docked ship whose dock no station record keeps: retiring it would
+/// lose it. And on a body that stays
 /// unsettled for too many advancing frames.
 ///
 /// When a caller wrote [`WorldConfig`] after
@@ -1041,7 +1042,7 @@ pub fn retire_sectors<G: SectorGenerator>(world: &mut World) {
         );
         let mut bodies = Vec::with_capacity(frozen.len());
         for (entity, body) in frozen {
-            world.entity_mut(entity).despawn();
+            despawn_frozen(world, entity);
             bodies.push(body);
         }
         world.resource_mut::<FrozenSectors>().visit(coord, bodies);
@@ -1092,8 +1093,9 @@ pub fn retire_sectors<G: SectorGenerator>(world: &mut World) {
 
 /// Freeze every settled persistent body a root holds, in child order.
 /// Returns the frozen bodies with their entities, and each body its owner
-/// reports unsettled. A retiring root refuses a docked ship; a save keeps a
-/// dock only if it is kept ([`DockPolicy::Copy`]).
+/// reports unsettled. A ship docked at a station freezes inside the station's
+/// record, not on its own. A retiring root refuses any other docked ship; a
+/// save keeps a dock only if it is kept ([`DockPolicy::Copy`]).
 pub(crate) fn freeze_sector_bodies(
     world: &World,
     coord: SectorCoord,
@@ -1111,6 +1113,10 @@ pub(crate) fn freeze_sector_bodies(
         // The description spawns a planetoid again unchanged, and a transient
         // is never kept.
         if entity.contains::<PlanetMarker>() || entity.contains::<TempEntity>() {
+            continue;
+        }
+        // It freezes inside its station's record.
+        if station_dock(world, child).is_some() {
             continue;
         }
         match freeze_body(world, child, docked, clock) {

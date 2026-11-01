@@ -195,8 +195,8 @@ mod tests;
 pub use crate::{
     frozen::{
         adopt_moving_bodies, freeze_body, snapshot_sectors, thaw_record, DockPolicy, FrozenBody,
-        FrozenBodyType, FrozenSector, FrozenSectors, PreparedFrozenBody, SectorSnapshotError,
-        ThawedAfter,
+        FrozenBodyType, FrozenDockHelm, FrozenDockedShip, FrozenSector, FrozenSectors,
+        FrozenStationDock, PreparedFrozenBody, SectorSnapshotError, ThawedAfter,
     },
     generation::{
         bodies_clear, generate_sector, prepare_sector, sector_id, validate_manifest,
@@ -227,7 +227,8 @@ pub mod prelude {
     pub use crate::{
         frozen::{
             freeze_body, snapshot_sectors, thaw_record, DockPolicy, FrozenBody, FrozenBodyType,
-            FrozenSector, FrozenSectors, PreparedFrozenBody, SectorSnapshotError, ThawedAfter,
+            FrozenDockHelm, FrozenDockedShip, FrozenSector, FrozenSectors, FrozenStationDock,
+            PreparedFrozenBody, SectorSnapshotError, ThawedAfter,
         },
         streaming::{
             desired_sectors, live_sectors, CurrentSector, PendingSectorShip, PendingSectorStation,

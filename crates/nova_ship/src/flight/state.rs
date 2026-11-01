@@ -440,6 +440,56 @@ pub enum AutopilotAction {
         /// dragged it.
         rcs: bool,
     },
+    /// Fly one free docking port of this hull onto a free port of `station`
+    /// and hold it in the capture envelope, moving with the station.
+    ///
+    /// Two legs, both flown at the station's velocity plus a capped closing
+    /// term, with the hull turned so the two port axes oppose. Leg A routes
+    /// around the station's envelope and every sized body to the corridor
+    /// entry on the station port's axis. Leg B closes along that axis to the
+    /// berth gap. Roll about the port axis is left free, which is why the
+    /// corridor is swept as a roll-invariant envelope of the whole hull.
+    ///
+    /// A pair is flown only after one shape cast along its corridor, made when
+    /// the pair is selected, hits no collider but the station's own port
+    /// section and this hull; a body that moves into the corridor later is not
+    /// seen. With no clear pair the approach disengages with `NoSafeDockPath`
+    /// and flies nothing. Inside the swept tube the hull only closes or backs
+    /// out along the axis. It matches the station root's linear velocity only: a port on
+    /// a spinning station is not led.
+    ///
+    /// Never self-completes and never docks: the helm order that engaged it
+    /// asks for the capture. While every pair is held, it holds the station's
+    /// velocity and waits. Only `ShipOrderDirective::Dock` engages it.
+    DockApproach {
+        /// The station to dock with.
+        station: Entity,
+        /// The selected pair and its swept corridor. `None` until the first
+        /// engaged tick picks one. Kept while both ports are free, and
+        /// replaced only by a different free pair whose corridor is clear.
+        plan: Option<DockPlan>,
+        /// Seconds left before the selected pair's approach overruns. `None`
+        /// until the step arms it for a newly selected pair; it does not run
+        /// while the approach waits for a port.
+        deadline: Option<f32>,
+    },
+}
+
+/// A DOCK approach's selected pair and the corridor its sweep cleared.
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
+pub struct DockPlan {
+    /// This hull's docking section.
+    pub own_port: Entity,
+    /// The station's docking section.
+    pub station_port: Entity,
+    /// How far out on the station port's axis the corridor starts, engine
+    /// units, measured from the station port's face to this hull's. The
+    /// sweep cleared the hull from here to the berth gap.
+    pub entry: f32,
+    /// How far this hull's port may sit off the station port's axis with the
+    /// hull still inside the swept corridor, engine units. Inside it the
+    /// approach only closes along the axis or backs out along it.
+    pub lateral: f32,
 }
 
 /// The ORBIT verb's sticky plan, computed once when the maneuver engages.

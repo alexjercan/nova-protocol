@@ -41,6 +41,7 @@ use crate::prelude::*;
 mod authority;
 mod autopilot;
 mod capability;
+mod dock_corridor;
 mod guidance;
 mod manual;
 mod navigation;
@@ -73,9 +74,10 @@ pub use self::{
     rcs_puff::prelude::{RcsPuffMarker, RcsPuffPlugin},
     state::{
         resolved_arrival_standoff, resolved_avoid_margin, Autopilot, AutopilotAction,
-        AutopilotPhase, BodyRadius, FlightArrivalStandoff, FlightAvoidMargin, FlightCruiseCap,
-        FlightIntent, FlightSettings, MainDriveCommanded, ManeuverTelemetry, NeutralizedBrakeType,
-        OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent, StationPost,
+        AutopilotPhase, BodyRadius, DockPlan, FlightArrivalStandoff, FlightAvoidMargin,
+        FlightCruiseCap, FlightIntent, FlightSettings, MainDriveCommanded, ManeuverTelemetry,
+        NeutralizedBrakeType, OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent,
+        StationPost,
     },
     well_target::WellTargetType,
 };
@@ -108,7 +110,7 @@ pub mod prelude {
         cancel_ship_order, capability::prelude::*, interrupt_ship_order, orbit_radius_band,
         plan_leg, resolved_arrival_standoff, resolved_avoid_margin, resume_ship_order,
         retire_ship_order_execution, AIOrderInterrupted, Autopilot, AutopilotAction,
-        AutopilotPhase, BodyRadius, DetourPolicy, FlightArrivalStandoff, FlightAuthority,
+        AutopilotPhase, BodyRadius, DetourPolicy, DockPlan, FlightArrivalStandoff, FlightAuthority,
         FlightAvoidMargin, FlightCruiseCap, FlightIntent, FlightPrediction,
         FlightPredictionEndType, FlightSettings, LegPlan, MainDriveCommanded, ManeuverTelemetry,
         NeutralizedBrakeType, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,

@@ -44,13 +44,13 @@ use nova_ship::prelude::{
     CombatLock, ComponentLock, ComponentLockMode, DamageSparkMarker, DamageSparks,
     DamageSparksPlugin, DestroySound, DockedHelmType, DockedPort, DockedShip, DockingConnection,
     DockingSectionConfig, FrozenRound, FrozenTorpedo, HullSectionConfig, LockFocus, LockSignature,
-    NeutralizedBrakeType, OrbitPlan, RcsBudget, RoundSourceType, SavedTorpedoTarget,
-    SectionAnimations, SectionBuildConfig, SectionConfig, SectionKind, SectionReload,
-    SectionReloadConfig, SensorContacts, ShipWreckFragmentMarker, SpaceshipCameraController,
-    SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker, SpaceshipTargetingPlugin,
-    SpaceshipTargetingSystems, StationPdcReserve, StationPost, SuspendedSectionAmmo, TorpedoArming,
-    TorpedoControllerMarker, TorpedoSectionConfig, TorpedoTargetChosen, TorpedoTargetEntity,
-    TorpedoTargetPosition, TorpedoWeave, TravelLock,
+    NeutralizedBrakeType, OrbitPlan, ParkedHull, ParkedHullType, RcsBudget, RoundSourceType,
+    SavedJointFrame, SavedTorpedoTarget, SectionAnimations, SectionBuildConfig, SectionConfig,
+    SectionKind, SectionReload, SectionReloadConfig, SensorContacts, ShipWreckFragmentMarker,
+    SpaceshipCameraController, SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker,
+    SpaceshipTargetingPlugin, SpaceshipTargetingSystems, StationPdcReserve, StationPost,
+    SuspendedSectionAmmo, TorpedoArming, TorpedoControllerMarker, TorpedoSectionConfig,
+    TorpedoTargetChosen, TorpedoTargetEntity, TorpedoTargetPosition, TorpedoWeave, TravelLock,
 };
 use nova_world::{
     prelude::{CurrentSector, FrozenBodyType, FrozenSectors, SectorCoord, WorldClock, WorldConfig},
@@ -62,10 +62,9 @@ use super::{
     resume_world, write_world, FrozenTransient, FrozenTransientType, RegisteredScenarios,
     ResumedTransients, SavedAutopilot, SavedAutopilotAction, SavedChart, SavedChartCell,
     SavedChartMark, SavedChartMarkType, SavedComponentLock, SavedControls, SavedDock,
-    SavedDockHelm, SavedFleet, SavedJointFrame, SavedLock, SavedObjective, SavedObjectiveLine,
-    SavedObjectiveType, SavedPlayer, SavedScenario, WorldRefusal, WorldResumeProgress,
-    WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
-    WORLD_SAVE_VERSION,
+    SavedDockHelm, SavedFleet, SavedLock, SavedObjective, SavedObjectiveLine, SavedObjectiveType,
+    SavedPlayer, SavedScenario, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
+    WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus, WORLD_SAVE_VERSION,
 };
 use crate::{
     test_support::{fixture_roles, FIXTURE_ROLE_ID, FIXTURE_SCENARIO_ID},
@@ -3843,9 +3842,10 @@ fn frozen_item_holders(item: &ItemDesignId) -> Vec<(Option<&'static str>, Frozen
         ))
         .id();
     section(&mut world, station, &|_| {});
-    let storing_station = FrozenBodyType::Station(Box::new(
-        freeze_station(&world, station).expect("a bare station is settled"),
-    ));
+    let storing_station = FrozenBodyType::Station(
+        Box::new(freeze_station(&world, station).expect("a bare station is settled")),
+        Vec::new(),
+    );
 
     let quoted = |id: &str| format!("'{id}'");
     vec![
@@ -4183,7 +4183,7 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
         ledger_holding(
             east,
             Some("post"),
-            &FrozenBodyType::Station(Box::new(frozen)),
+            &FrozenBodyType::Station(Box::new(frozen), Vec::new()),
         )
     };
 
@@ -4254,7 +4254,7 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
             .iter()
             .flat_map(|(_, sector)| sector.bodies())
             .filter_map(|body| match body.body() {
-                FrozenBodyType::Station(station) => Some(station.services()),
+                FrozenBodyType::Station(station, _) => Some(station.services()),
                 _ => None,
             })
             .collect();
@@ -4470,7 +4470,7 @@ fn a_saved_station_pdc_reserve_opens_as_it_froze_and_a_malformed_one_is_refused(
         ledger_holding(
             east,
             Some("post"),
-            &FrozenBodyType::Station(Box::new(frozen)),
+            &FrozenBodyType::Station(Box::new(frozen), Vec::new()),
         )
     };
     let reserve = |rounds, progress| StationPdcReserve { rounds, progress };
@@ -4537,12 +4537,116 @@ fn a_saved_station_pdc_reserve_opens_as_it_froze_and_a_malformed_one_is_refused(
         .iter()
         .flat_map(|(_, sector)| sector.bodies())
         .filter_map(|body| match body.body() {
-            FrozenBodyType::Station(station) => Some(*station.pdc_reserve()),
+            FrozenBodyType::Station(station, _) => Some(*station.pdc_reserve()),
             _ => None,
         })
         .collect();
     assert_eq!(reserves, [depleted], "the reserve opens as it froze");
     drop(lock);
+}
+
+/// A thawed escort for hire takes its saved `motion`, so a non-finite one
+/// in a generated station's parked record is a reading no session wrote. The
+/// record is frozen by the production `freeze_station`; the clean save opens,
+/// and the same save with the escort's linear motion edited to NaN is
+/// refused on open, naming the escort and its station, and leaves the folder
+/// as it was.
+#[test]
+fn a_world_whose_parked_escort_moves_non_finite_is_refused_on_open() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Escorts").unwrap();
+    drop(lock);
+    let east = SectorCoord::new(1, 0, 0);
+    let id = GeneratedBodyId::new(east, "cluster_1_0_0_station", 0).to_string();
+    let mut world = World::new();
+    let ship_parts = || {
+        (
+            spaceship_scenario_object(SpaceshipConfig::default()),
+            ShipInventory::default(),
+            DamageMarks::default(),
+            RcsBudget::default(),
+        )
+    };
+    let station = world
+        .spawn((
+            ship_parts(),
+            StationMarker,
+            StationPost::Fixed {
+                position: Vec3::ZERO,
+            },
+            StationServices(Vec::new()),
+            StationBuilds(Vec::new()),
+            StationStorage::new(0),
+            StationPdcReserve::full(),
+        ))
+        .id();
+    world.spawn((
+        ship_parts(),
+        Name::new("Escort A"),
+        Transform::from_xyz(0.0, 12.0, 0.0),
+        ParkedHull(station),
+        ParkedHullType::Hire { slot: 1 },
+    ));
+    let frozen = freeze_station(&world, station).expect("a parked escort is settled");
+    let [escort] = frozen.parked() else {
+        panic!("the station froze one parked hull: {:?}", frozen.parked());
+    };
+    assert_eq!(escort.terms(), ParkedHullType::Hire { slot: 1 });
+    assert_eq!(escort.motion(), (Vec3::ZERO, Vec3::ZERO));
+    let saved = |generation: u64| WorldSaveState {
+        sectors: ledger_holding(
+            east,
+            Some(&id),
+            &FrozenBodyType::Station(Box::new(frozen.clone()), Vec::new()),
+        ),
+        ..state(generation, 750)
+    };
+    let open = || {
+        open_world(
+            root.path(),
+            "escorts",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios(),
+            &designs(),
+        )
+        .map(|_| ())
+    };
+
+    write_world(&folder, &header("Escorts", 1), &saved(1)).unwrap();
+    assert_eq!(open(), Ok(()), "the escort's frozen motion opens");
+
+    write_world(&folder, &header("Escorts", 2), &saved(2)).unwrap();
+    let path = root.path().join("escorts/state.2.ron");
+    let text = std::fs::read_to_string(&path).unwrap();
+    let motion = |linear: Vec3| ron::to_string(&(linear, Vec3::ZERO)).unwrap();
+    let record = |linear: Vec3| format!("motion:{},terms:Hire(slot:1)", motion(linear));
+    assert_eq!(
+        text.matches(&record(Vec3::ZERO)).count(),
+        1,
+        "the escort's motion is written once"
+    );
+    let edited = text.replace(&record(Vec3::ZERO), &record(Vec3::new(f32::NAN, 0.0, 0.0)));
+    std::fs::write(&path, edited).unwrap();
+    let bytes = || -> Vec<(String, Vec<u8>)> {
+        let folder = root.path().join("escorts");
+        files(&folder)
+            .into_iter()
+            .map(|name| {
+                let bytes = std::fs::read(folder.join(&name)).unwrap();
+                (name, bytes)
+            })
+            .collect()
+    };
+    let before = bytes();
+    let refusal = Err(WorldRefusal::Unreadable(format!(
+        "state.2.ron: 'Escort A' parked at '{id}' moves at [NaN, 0, 0] turning [0, 0, 0], which \
+         no session wrote"
+    )));
+    assert_eq!(open(), refusal, "a non-finite escort motion");
+    assert_eq!(bytes(), before, "the refused open changed no save file");
+    assert_eq!(open(), refusal, "the refused open released the folder");
 }
 
 /// Every frozen ship's RCS magazine is a reading a session wrote: finite,
@@ -5066,5 +5170,172 @@ fn a_load_restores_a_real_station_dock_through_a_real_physics_tick() {
     assert!(
         world.get::<DockedStation>(station).unwrap().drives,
         "the living station flies the assembly it owns"
+    );
+}
+
+/// A ship [`nova_world::frozen::station_dock`] names freezes inside its
+/// station's record ([`nova_world::prelude::FrozenDockedShip`]), captured
+/// through the real `DockingConnectionRequest` and frozen with the
+/// production `freeze_body`. A text corruption of the saved dock's
+/// `ship_port` to a section id the ship does not hold is `check_saved_ids`'s
+/// own [`SavedIdFault::Dangling`], named by the missing port in the Load's
+/// refusal; the uncorrupted save opens clean, so the refusal is caused by
+/// the port alone, not by the fixture.
+#[test]
+fn a_load_refuses_a_station_dock_that_names_a_port_its_ship_lacks() {
+    use avian3d::prelude::{Collider, ColliderDensity};
+    use nova_ship::prelude::{DockingConnectionRequest, DockingSectionPlugin, HullRadius};
+    use nova_world::prelude::{freeze_body, DockPolicy};
+
+    /// A hull's own collider, under its root, as the assembly measure needs.
+    fn hull_collider(world: &mut World, ship: Entity) {
+        world.spawn((
+            ChildOf(ship),
+            Transform::default(),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(1.0),
+        ));
+        world.entity_mut(ship).insert(HullRadius(1.0));
+    }
+
+    let mut app = nova_gameplay::test_support::unfinished_integrity_physics_app();
+    app.add_plugins(DockingSectionPlugin { render: false });
+    app.finish();
+    let mut world = std::mem::take(app.world_mut());
+
+    let home = world
+        .spawn((SectorRoot(SectorCoord::ORIGIN), Transform::default()))
+        .id();
+
+    // Nose to nose, well inside the shipped 10 m capture distance, as the
+    // real-dock fixture above places the player and its station.
+    let station_position = Vec3::new(5.0, 0.0, -3.5);
+    let station = world
+        .spawn((
+            spaceship_scenario_object(SpaceshipConfig::default()),
+            StationMarker,
+            ShipInventory::default(),
+            DamageMarks::default(),
+            RcsBudget::default(),
+            EntityId("station".to_string()),
+            Transform::from_translation(station_position)
+                .with_rotation(Quat::from_rotation_y(std::f32::consts::PI)),
+            StationPost::Fixed {
+                position: station_position,
+            },
+            StationServices(Vec::new()),
+            StationBuilds(Vec::new()),
+            StationStorage::new(0),
+            StationPdcReserve::full(),
+            ChildOf(home),
+        ))
+        .id();
+    hull_collider(&mut world, station);
+    spawn_port(&mut world, station, "station_port");
+
+    let visitor = world
+        .spawn((
+            spaceship_scenario_object(SpaceshipConfig::default()),
+            ShipInventory::default(),
+            DamageMarks::default(),
+            RcsBudget::default(),
+            EntityId("visitor".to_string()),
+            Transform::from_xyz(5.0, 0.0, -2.0),
+            ChildOf(home),
+        ))
+        .id();
+    hull_collider(&mut world, visitor);
+    spawn_port(&mut world, visitor, "visitor_port");
+
+    for _ in 0..4 {
+        frame(&mut world);
+    }
+    world.trigger(DockingConnectionRequest {
+        entity: visitor,
+        target: station,
+    });
+    for _ in 0..4 {
+        frame(&mut world);
+    }
+    assert!(
+        world.get::<DockedShip>(visitor).is_some(),
+        "the real capture docks the visitor at the station"
+    );
+
+    let clock = WorldClock { play_seconds: 0.0 };
+    let frozen_station = freeze_body(&world, station, DockPolicy::Copy, &clock)
+        .expect("a settled station with a kept real dock freezes");
+    let FrozenBodyType::Station(_, docked) = frozen_station.body() else {
+        panic!("a station freezes as FrozenBodyType::Station, not {frozen_station:?}");
+    };
+    let [visitor_dock] = &docked[..] else {
+        panic!("one ship froze docked at the station, not {}", docked.len());
+    };
+    assert_eq!(
+        visitor_dock.dock().ship_port().0,
+        "visitor_port",
+        "the frozen dock names the visitor's own real port"
+    );
+
+    let sectors = ledger_holding(
+        SectorCoord::ORIGIN,
+        frozen_station.id(),
+        frozen_station.body(),
+    );
+    let good_state = WorldSaveState {
+        sectors,
+        ..state(1, 750)
+    };
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Dock").unwrap();
+    write_world(&folder, &header("Dock", 1), &good_state).unwrap();
+    drop(lock);
+    assert_eq!(
+        check_world(
+            root.path(),
+            "dock",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios(),
+            &designs(),
+        ),
+        Ok(()),
+        "the real dock's own ports open clean"
+    );
+
+    // Corrupt only the dock's `ship_port` reference, not the visitor's own
+    // section id it still names: the two must read alike for the real dock
+    // to open, so the field is singled out by its RON key, not its value.
+    let good_text = ron::to_string(&good_state).unwrap();
+    let needle = format!("ship_port:{}", ron::to_string("visitor_port").unwrap());
+    assert_eq!(
+        good_text.matches(&needle).count(),
+        1,
+        "the dock's own ship_port field must be the only match: {good_text}"
+    );
+    let corrupted = good_text.replacen(
+        &needle,
+        &format!("ship_port:{}", ron::to_string("no_such_port").unwrap()),
+        1,
+    );
+    std::fs::write(folder.path.join("state.1.ron"), corrupted).unwrap();
+
+    let refused = check_world(
+        root.path(),
+        "dock",
+        &catalog(7),
+        &roles(),
+        &items(),
+        &scenarios(),
+        &designs(),
+    );
+    assert!(
+        matches!(
+            &refused,
+            Err(WorldRefusal::Unreadable(reason))
+                if reason.contains("the ship 'visitor' docked at the station 'station' has no port 'no_such_port'")
+        ),
+        "a ship_port the ship lacks refuses the Load, naming the missing port: {refused:?}"
     );
 }

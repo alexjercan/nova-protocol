@@ -21,7 +21,7 @@
 
 use std::collections::HashMap;
 
-use avian3d::prelude::{FixedJoint, JointAnchor, JointBasis, JointFrame, RigidBody};
+use avian3d::prelude::{FixedJoint, JointFrame, RigidBody};
 use bevy::prelude::*;
 use nova_events::prelude::{EntityId, GeneratedBodyId};
 use nova_gameplay::prelude::{
@@ -32,7 +32,7 @@ use nova_scenario::prelude::echo_restored_dock;
 use nova_ship::prelude::{
     restore_docking_connection, Autopilot, AutopilotAction, AutopilotPhase, CombatLock,
     ComponentLock, ComponentLockMode, DockedHelmType, DockedPort, DockedShip, DockingConnection,
-    DockingSectionMarker, LockFocus, OrbitPlan, SensorContacts, TravelLock,
+    DockingSectionMarker, LockFocus, OrbitPlan, SavedJointFrame, SensorContacts, TravelLock,
 };
 use nova_world::prelude::{
     desired_sectors, CurrentSector, SectorRoot, SectorSnapshotError, WorldConfig,
@@ -160,33 +160,6 @@ pub enum SavedDockHelm {
     Player,
     /// The partner, a living station, owns the pair.
     Station,
-}
-
-/// One body's local joint frame. Engine units.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SavedJointFrame {
-    /// The anchor.
-    pub anchor: Vec3,
-    /// The basis.
-    pub basis: Quat,
-}
-
-impl SavedJointFrame {
-    fn of(frame: &JointFrame) -> Self {
-        let (JointAnchor::Local(anchor), JointBasis::Local(basis)) = (frame.anchor, frame.basis)
-        else {
-            panic!("a docking joint is built with local frames, but a frame is global");
-        };
-        Self { anchor, basis }
-    }
-
-    fn frame(self) -> JointFrame {
-        JointFrame {
-            anchor: JointAnchor::Local(self.anchor),
-            basis: JointBasis::Local(self.basis),
-        }
-    }
 }
 
 /// What the save keeps that a control reference can name.
@@ -434,6 +407,14 @@ pub(crate) fn freeze_controls(
                     facing: facing.map(Vec3::from),
                     rcs,
                 },
+                // Only a helm order flies one, and no order is accepted on
+                // the player ship.
+                AutopilotAction::DockApproach { .. } => {
+                    return Err(unsettled(
+                        "the autopilot's DOCK approach",
+                        "a dock approach is not saved",
+                    ));
+                }
             };
             Ok(SavedAutopilot {
                 action,

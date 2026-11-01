@@ -1028,7 +1028,7 @@ mod walk {
                 .iter()
                 .find(|body| body.id() == Some(id))
                 .and_then(|body| match body.body() {
-                    FrozenBodyType::Station(station) => Some(station.owned()),
+                    FrozenBodyType::Station(station, _) => Some(station.owned()),
                     _ => None,
                 })
         })

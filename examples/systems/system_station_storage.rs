@@ -923,7 +923,7 @@ mod walk {
                 .iter()
                 .find(|body| body.id() == Some(id.to_string().as_str()))
                 .map(|body| match body.body() {
-                    FrozenBodyType::Station(station) => storage_map(station.storage()),
+                    FrozenBodyType::Station(station, _) => storage_map(station.storage()),
                     other => panic!("station storage: the station froze as {other:?}"),
                 })
                 .expect("station storage: the cell's record holds the station"),
@@ -1033,7 +1033,7 @@ mod walk {
                 .iter()
                 .find(|body| body.id() == Some(id.as_str()))
                 .map(|body| match body.body() {
-                    FrozenBodyType::Station(station) => storage_map(station.storage()),
+                    FrozenBodyType::Station(station, _) => storage_map(station.storage()),
                     other => panic!("station storage: the save holds the station as {other:?}"),
                 })
                 .expect("station storage: the save's cell holds the station"),

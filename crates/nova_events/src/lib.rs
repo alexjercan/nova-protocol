@@ -555,6 +555,9 @@ pub enum ShipOrderKind {
     Patrol,
     /// An `OrbitShip` order: the ship established a station-keeping orbit.
     Orbit,
+    /// A dock order: the ship flew a free port onto a station's free port and
+    /// the station captured it.
+    Dock,
 }
 
 impl ShipOrderKind {
@@ -570,6 +573,7 @@ impl ShipOrderKind {
             ShipOrderKind::Stop => "Stop",
             ShipOrderKind::Patrol => "Patrol",
             ShipOrderKind::Orbit => "Orbit",
+            ShipOrderKind::Dock => "Dock",
         }
     }
 }
@@ -825,6 +829,7 @@ mod ship_order_tests {
             ShipOrderKind::Stop,
             ShipOrderKind::Patrol,
             ShipOrderKind::Orbit,
+            ShipOrderKind::Dock,
         ] {
             let serialized = serde_json::to_value(kind).expect("a unit variant serializes");
             assert_eq!(

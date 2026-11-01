@@ -612,7 +612,7 @@ fn assert_the_retire(world: &mut World) {
     let frozen = match world.resource::<FrozenSectors>().get(cell) {
         Some(FrozenSector::Visited(bodies)) => bodies.iter().any(|body| {
             body.id() == Some(id.to_string().as_str())
-                && matches!(body.body(), FrozenBodyType::Station(_))
+                && matches!(body.body(), FrozenBodyType::Station(..))
         }),
         other => panic!("generated_stations: {cell} froze as {other:?}, not a visit"),
     };

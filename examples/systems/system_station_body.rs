@@ -618,7 +618,7 @@ fn freeze_and_thaw_station(world: &mut World) {
         world.resource::<WorldClock>(),
     )
     .expect("station probe: a parked station is settled");
-    let FrozenBodyType::Station(record) = frozen.body() else {
+    let FrozenBodyType::Station(record, _) = frozen.body() else {
         panic!(
             "station probe: the station froze as {:?}, not a station",
             frozen.body()
@@ -787,7 +787,7 @@ fn assert_thawed_station(world: &mut World) {
         thawed_sections, sections,
         "station probe: the thawed station's sections differ"
     );
-    let FrozenBodyType::Station(record) = frozen.body() else {
+    let FrozenBodyType::Station(record, _) = frozen.body() else {
         unreachable!("station probe: the record was checked to be a station at the freeze");
     };
     assert_eq!(

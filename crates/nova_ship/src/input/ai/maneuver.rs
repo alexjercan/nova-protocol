@@ -94,7 +94,7 @@ const AI_EVADE_CLEARANCE: f32 = 1.0;
 /// Slack on a BACKSTOP, not the leg's schedule. A leg ends on what it
 /// achieved; this only decides how long a hull that cannot achieve it sits on
 /// one leg.
-const AI_EVADE_LEG_SLACK_SECS: f32 = 0.3;
+pub(crate) const AI_EVADE_LEG_SLACK_SECS: f32 = 0.3;
 
 /// One jink leg's plan for one hull: how fast to fly it, and the longest it
 /// may take before liveness moves the ship on to the next one.

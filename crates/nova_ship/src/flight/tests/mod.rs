@@ -13,6 +13,7 @@
 mod arrival;
 mod control;
 mod detour;
+mod dock;
 mod goto;
 mod manual;
 mod match_velocity;

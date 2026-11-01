@@ -709,7 +709,7 @@ fn owned_ships(world: &mut World, sectors: &FrozenSectors) -> u32 {
         .iter()
         .flat_map(|(_, sector)| sector.bodies())
         .filter_map(|body| match body.body() {
-            FrozenBodyType::Station(station) => Some(station),
+            FrozenBodyType::Station(station, _) => Some(station),
             _ => None,
         })
         .flat_map(|station| station.parked())

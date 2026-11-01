@@ -1509,7 +1509,7 @@ mod walk {
     fn frozen_hires(sectors: &FrozenSectors, id: &str) -> Option<Vec<String>> {
         sectors.iter().find_map(|(_, record)| {
             record.bodies().iter().find_map(|body| match body.body() {
-                FrozenBodyType::Station(station) if body.id() == Some(id) => Some(
+                FrozenBodyType::Station(station, _) if body.id() == Some(id) => Some(
                     station
                         .parked()
                         .iter()

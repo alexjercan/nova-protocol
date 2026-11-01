@@ -144,14 +144,14 @@ pub fn sense_hud_situations(
 
 /// The dock chip an engaged maneuver lights, so the dock can show the chip
 /// whose key produced it. `None` for a maneuver no key produces: a held
-/// velocity is what a tactical controller steers with, and there is no chip on
-/// the dock for it to light.
+/// velocity is what a tactical controller steers with, a dock approach is what
+/// a helm order flies, and there is no chip on the dock for either to light.
 fn maneuver_chip(autopilot: &Autopilot) -> Option<ManeuverChip> {
     match autopilot.action {
         AutopilotAction::Stop => Some(ManeuverChip::Stop),
         AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. } => Some(ManeuverChip::Goto),
         AutopilotAction::Orbit { .. } => Some(ManeuverChip::Orbit),
-        AutopilotAction::MatchVelocity { .. } => None,
+        AutopilotAction::MatchVelocity { .. } | AutopilotAction::DockApproach { .. } => None,
     }
 }
 

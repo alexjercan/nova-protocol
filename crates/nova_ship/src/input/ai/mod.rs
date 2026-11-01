@@ -51,6 +51,9 @@ use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 // belongs to.
 pub(crate) use self::acquisition::AI_POINT_DEFENSE_RANGE;
 pub(crate) use self::guns::{ai_turret_gun_target, AI_POINT_DEFENSE_MAGAZINE_DIVISOR};
+// A DOCK approach's liveness deadline takes the same backstop slack as a jink
+// leg.
+pub(crate) use self::maneuver::AI_EVADE_LEG_SLACK_SECS;
 pub use self::{
     acquisition::{AIPointDefenseRange, AIPointDefenseTarget, AIPrey, AITarget},
     behavior::{AIBehaviorState, AIEngageRange, AILeash, AIOrbitDirective, AIPatrolRoute},

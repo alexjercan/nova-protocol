@@ -26,21 +26,22 @@ use std::{
     sync::Arc,
 };
 
-use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
+use avian3d::prelude::{AngularVelocity, FixedJoint, LinearVelocity, Position, Rotation};
 use bevy::prelude::*;
 use nova_events::prelude::{EntityId, GeneratedBodyId, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::prelude::{
     CargoCanister, PlayerFleetMarker, SpaceshipRootMarker, TempEntity, UnsettledBody, WorldClock,
 };
 use nova_scenario::prelude::{
-    freeze_asteroid, freeze_ore_drop, freeze_ship, freeze_station, prepare_frozen_asteroid,
-    thaw_asteroid, thaw_ore_drop, thaw_ship, thaw_station, AsteroidMarker, FrozenAsteroid,
-    FrozenOreDrop, FrozenShip, FrozenStation, MinedOreDrop, PreparedAsteroid, ScenarioScopedMarker,
-    StationMarker,
+    echo_restored_dock, freeze_asteroid, freeze_ore_drop, freeze_ship, freeze_station,
+    prepare_frozen_asteroid, thaw_asteroid, thaw_ore_drop, thaw_ship, thaw_station, AsteroidMarker,
+    FrozenAsteroid, FrozenOreDrop, FrozenShip, FrozenStation, MinedOreDrop, PreparedAsteroid,
+    ScenarioScopedMarker, StationMarker,
 };
 use nova_ship::prelude::{
-    freeze_canister, freeze_wreck_fragment, thaw_canister, thaw_wreck_fragment, DockedShip,
-    DockingConnection, FrozenCanister, FrozenWreckFragment, ParkedHull, ShipWreckFragmentMarker,
+    freeze_canister, freeze_wreck_fragment, restore_docking_connection, thaw_canister,
+    thaw_wreck_fragment, DockedHelmType, DockedShip, DockingConnection, FrozenCanister,
+    FrozenWreckFragment, ParkedHull, SavedJointFrame, ShipWreckFragmentMarker, StationDock,
     StationDocks,
 };
 
@@ -182,7 +183,7 @@ impl FrozenSectors {
 /// bodies a range or an id lookup cannot tell apart.
 fn require_unique_ids(coord: SectorCoord, bodies: &[FrozenBody]) {
     let mut seen = BTreeSet::new();
-    for id in bodies.iter().filter_map(FrozenBody::id) {
+    for id in with_docked(bodies).filter_map(FrozenBody::id) {
         assert!(
             seen.insert(id),
             "nova_world: {coord} would freeze two bodies with the id '{id}'"
@@ -296,6 +297,19 @@ impl FrozenSector {
     pub fn is_visited(&self) -> bool {
         matches!(self, Self::Visited(_))
     }
+
+    /// Every body the record holds, each station followed by the ships that
+    /// froze docked at it ([`FrozenDockedShip`]).
+    pub fn each_body(&self) -> impl Iterator<Item = &FrozenBody> {
+        with_docked(self.bodies())
+    }
+}
+
+/// `bodies`, each station followed by the ships that froze docked at it.
+fn with_docked(bodies: &[FrozenBody]) -> impl Iterator<Item = &FrozenBody> {
+    bodies.iter().flat_map(|body| {
+        std::iter::once(body).chain(body.docked().iter().map(FrozenDockedShip::body))
+    })
 }
 
 /// One frozen body with what a worker prepared for it: a rock's geometry,
@@ -440,6 +454,15 @@ impl FrozenBody {
         &self.body
     }
 
+    /// The ships that froze docked at this body, a station; none for every
+    /// other body.
+    pub fn docked(&self) -> &[FrozenDockedShip] {
+        match &self.body {
+            FrozenBodyType::Station(_, docked) => docked,
+            _ => &[],
+        }
+    }
+
     /// The play seconds the world clock read when the body froze.
     pub fn frozen_at(&self) -> f64 {
         self.frozen_at
@@ -469,8 +492,9 @@ pub enum FrozenBodyType {
     Asteroid(FrozenAsteroid),
     /// A ship, with its hold, damage, surviving sections, ammunition and AI.
     Ship(Box<FrozenShip>),
-    /// A station: its design id, its hull as a ship record, and its storage.
-    Station(Box<FrozenStation>),
+    /// A station: its design id, its hull as a ship record, and its storage,
+    /// with the ships docked at it that freeze inside its record.
+    Station(Box<FrozenStation>, Vec<FrozenDockedShip>),
     /// A ship held back because the observer overlapped it, by the id of
     /// its manifest entry. The cell regenerates the entry on its worker:
     /// the catalog digest a save carries pins the generator, so the same id
@@ -493,18 +517,93 @@ pub enum FrozenBodyType {
     OreDrop(FrozenOreDrop),
 }
 
+/// A ship docked at a station, frozen inside the station's record. The pair
+/// freezes, saves and thaws as one, so their dock never meets the edge of the
+/// active window and never splits across two records. Only a ship
+/// [`station_dock`] names freezes here.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct FrozenDockedShip {
+    /// The ship as a plain body record: its id, name, pose, motion and ship.
+    body: FrozenBody,
+    dock: FrozenStationDock,
+}
+
+impl FrozenDockedShip {
+    /// The ship's body record.
+    pub fn body(&self) -> &FrozenBody {
+        &self.body
+    }
+
+    /// The dock that holds it to its station.
+    pub fn dock(&self) -> &FrozenStationDock {
+        &self.dock
+    }
+}
+
+/// The dock of a [`FrozenDockedShip`]: the connection the capture built, by
+/// the two ports' section ids, with the fixed joint's local frames and the
+/// helm. A thaw rebuilds it with `restore_docking_connection`, never with a
+/// new capture.
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct FrozenStationDock {
+    /// Whether the station is the connection's first ship and the joint's
+    /// first body.
+    station_first: bool,
+    ship_port: EntityId,
+    station_port: EntityId,
+    /// The joint frame on the ship, in its body frame.
+    ship_frame: SavedJointFrame,
+    /// The joint frame on the station, in its body frame.
+    station_frame: SavedJointFrame,
+    helm: FrozenDockHelm,
+}
+
+impl FrozenStationDock {
+    /// The section id of the ship's port.
+    pub fn ship_port(&self) -> &EntityId {
+        &self.ship_port
+    }
+
+    /// The section id of the station's port.
+    pub fn station_port(&self) -> &EntityId {
+        &self.station_port
+    }
+
+    /// Who flies the pair.
+    pub fn helm(&self) -> FrozenDockHelm {
+        self.helm
+    }
+}
+
+/// The helm of a [`FrozenStationDock`]. Only the player holds a helm, and
+/// the player's dock is saved beside the observer, so a frozen dock has none.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum FrozenDockHelm {
+    /// Neither hull flies the pair: the station is dead.
+    Neutral,
+    /// The living station owns the pair.
+    Station,
+}
+
 /// What freezing a docked ship means to the caller.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DockPolicy {
-    /// The body is about to despawn: a docked ship is a fault, because
-    /// freezing one half of a pair would release the dock and leave its
-    /// partner flying alone.
+    /// The body is about to despawn: a station's parked hulls and the ships
+    /// [`station_dock`] names freeze inside the station's record, and any
+    /// other docked ship is a fault, because freezing one half of a pair
+    /// would release the dock and leave its partner flying alone.
     Refuse,
     /// The body stays live and a save copies it: a dock with the
     /// [`WorldObserver`] stays live and the observer's owner saves it beside
     /// the observer, so the copy freezes the partner as a plain body; a
-    /// station's parked hulls freeze inside the station's record; every
-    /// other dock is refused before the copy (see [`snapshot_sectors`]).
+    /// station's parked hulls and the ships [`station_dock`] names freeze
+    /// inside the station's record; every other dock is refused before the
+    /// copy (see [`snapshot_sectors`]).
     Copy,
 }
 
@@ -520,10 +619,11 @@ pub enum DockPolicy {
 ///
 /// # Panics
 ///
-/// On a docked ship under [`DockPolicy::Refuse`]. On a docked ship under
-/// [`DockPolicy::Copy`] whose dock [`snapshot_sectors`] did not already
-/// confirm kept. And on an entity that is no persistent body this module
-/// knows how to freeze.
+/// On a ship [`station_dock`] names: it freezes inside its station's record.
+/// On any other docked ship under [`DockPolicy::Refuse`]. On a docked ship
+/// under [`DockPolicy::Copy`] whose dock [`snapshot_sectors`] did not already
+/// confirm kept. On a station with a dock its record cannot keep. And on an
+/// entity that is no persistent body this module knows how to freeze.
 pub fn freeze_body(
     world: &World,
     entity: Entity,
@@ -556,41 +656,42 @@ pub fn freeze_body(
             frozen_at,
         });
     }
-    let name = body.get::<Name>().map(ToString::to_string);
-    let label = body
-        .get::<EntityId>()
-        .map(|id| id.0.clone())
-        .or_else(|| name.clone())
-        .unwrap_or_else(|| entity.to_string());
-    let Some(mut transform) = body.get::<Transform>().copied() else {
-        panic!("nova_world: persistent body '{label}' has no transform to freeze");
-    };
-    // An interpolated body's Transform trails its physics pose by part of a
-    // fixed step; avian's pose is where the body is.
-    if let Some((position, rotation)) = body.get::<Position>().zip(body.get::<Rotation>()) {
-        transform.translation = position.0;
-        transform.rotation = rotation.0;
-    }
+    let label = body_label(world, entity);
     // A station root also carries `SpaceshipRootMarker`, so its own marker
     // decides first.
     let frozen = if body.contains::<StationMarker>() {
-        let docks_kept = match docked {
-            DockPolicy::Refuse => only_parked_docks(world, entity),
-            DockPolicy::Copy => world.get::<StationDocks>(entity).is_none_or(|docks| {
-                docks.iter().all(|connection| {
-                    world
-                        .get::<DockingConnection>(connection)
-                        .is_some_and(|connection| kept_dock(world, connection))
-                })
-            }),
-        };
+        let docks_kept = world.get::<StationDocks>(entity).is_none_or(|docks| {
+            docks.iter().all(|connection| {
+                world
+                    .get::<DockingConnection>(connection)
+                    .is_some_and(|connection| {
+                        [connection.first_ship, connection.second_ship]
+                            .into_iter()
+                            .filter(|ship| *ship != entity)
+                            .all(|ship| {
+                                parked_at(world, ship, entity)
+                                    || station_dock(world, ship) == Some(entity)
+                                    || (docked == DockPolicy::Copy
+                                        && world.entity(ship).contains::<WorldObserver>())
+                            })
+                    })
+            })
+        });
         assert!(
             docks_kept,
             "nova_world: station '{label}' has a ship docked and its cell is about to freeze \
              it; a docked assembly cannot be split across the active window"
         );
-        FrozenBodyType::Station(Box::new(freeze_station(world, entity)?))
+        FrozenBodyType::Station(
+            Box::new(freeze_station(world, entity)?),
+            freeze_station_docks(world, entity, frozen_at)?,
+        )
     } else if body.contains::<SpaceshipRootMarker>() {
+        assert!(
+            station_dock(world, entity).is_none(),
+            "nova_world: ship '{label}' is docked at a station and freezes inside the \
+             station's record; freezing it alone would split the pair"
+        );
         let dock_kept = match docked {
             DockPolicy::Refuse => !body.contains::<DockedShip>(),
             DockPolicy::Copy => body.get::<DockedShip>().is_none_or(|docked_ship| {
@@ -616,9 +717,46 @@ pub fn freeze_body(
     } else {
         panic!("nova_world: '{label}' is no persistent body a sector can freeze");
     };
-    Ok(FrozenBody {
+    Ok(frozen_body(world, entity, frozen, frozen_at))
+}
+
+/// A body's id, name or entity, for a fault.
+fn body_label(world: &World, entity: Entity) -> String {
+    world
+        .get::<EntityId>(entity)
+        .map(|id| id.0.clone())
+        .or_else(|| world.get::<Name>(entity).map(ToString::to_string))
+        .unwrap_or_else(|| entity.to_string())
+}
+
+/// `entity`'s record around its owner's `frozen` record: its id, name, pose,
+/// visibility and motion.
+///
+/// # Panics
+///
+/// On a body with no transform.
+fn frozen_body(
+    world: &World,
+    entity: Entity,
+    frozen: FrozenBodyType,
+    frozen_at: f64,
+) -> FrozenBody {
+    let body = world.entity(entity);
+    let Some(mut transform) = body.get::<Transform>().copied() else {
+        panic!(
+            "nova_world: persistent body '{}' has no transform to freeze",
+            body_label(world, entity)
+        );
+    };
+    // An interpolated body's Transform trails its physics pose by part of a
+    // fixed step; avian's pose is where the body is.
+    if let Some((position, rotation)) = body.get::<Position>().zip(body.get::<Rotation>()) {
+        transform.translation = position.0;
+        transform.rotation = rotation.0;
+    }
+    FrozenBody {
         id: body.get::<EntityId>().cloned(),
-        name,
+        name: body.get::<Name>().map(ToString::to_string),
         transform,
         visibility: body.get::<Visibility>().copied(),
         motion: body
@@ -627,7 +765,7 @@ pub fn freeze_body(
             .zip(body.get::<AngularVelocity>().map(|angular| angular.0)),
         body: frozen,
         frozen_at,
-    })
+    }
 }
 
 /// Whether `ship` is a hull parked at `station`.
@@ -637,28 +775,152 @@ fn parked_at(world: &World, ship: Entity, station: Entity) -> bool {
         .is_some_and(|parked| parked.0 == station)
 }
 
-/// Whether every ship docked at `station` is a hull parked there, which
-/// freezes inside the station's record.
-fn only_parked_docks(world: &World, station: Entity) -> bool {
-    world.get::<StationDocks>(station).is_none_or(|docks| {
-        docks.iter().all(|connection| {
-            world
-                .get::<DockingConnection>(connection)
-                .is_some_and(|connection| {
-                    [connection.first_ship, connection.second_ship]
-                        .into_iter()
-                        .filter(|ship| *ship != station)
-                        .all(|ship| parked_at(world, ship, station))
-                })
+/// The station `ship` is docked at, when the pair freezes and saves as one
+/// record ([`FrozenDockedShip`]): `ship` is a plain hull with a durable id,
+/// docked at a station with one, through two ports with section ids. A hull
+/// parked at the station, the observer, a fleet escort and an authored,
+/// addressable ship are none: each has its own owner. Any other dock is
+/// refused rather than dropped.
+pub(crate) fn station_dock(world: &World, ship: Entity) -> Option<Entity> {
+    let body = world.entity(ship);
+    if body.contains::<StationMarker>()
+        || body.contains::<ParkedHull>()
+        || body.contains::<WorldObserver>()
+        || body.contains::<PlayerFleetMarker>()
+        || body.contains::<ScenarioAddressableMarker>()
+        || !body.contains::<EntityId>()
+    {
+        return None;
+    }
+    let connection = body.get::<DockedShip>()?.connection;
+    let StationDock(station) = *world.get::<StationDock>(connection)?;
+    let record = world.get::<DockingConnection>(connection)?;
+    let station_root = world.entity(station);
+    (station_root.contains::<EntityId>()
+        && !station_root.contains::<ScenarioAddressableMarker>()
+        && world.get::<EntityId>(record.first_section).is_some()
+        && world.get::<EntityId>(record.second_section).is_some())
+    .then_some(station)
+}
+
+/// Every ship docked at `station` that freezes inside its record
+/// ([`station_dock`]), with its connection, in the order they docked.
+fn station_visitors(world: &World, station: Entity) -> Vec<(Entity, Entity)> {
+    let Some(docks) = world.get::<StationDocks>(station) else {
+        return Vec::new();
+    };
+    docks
+        .iter()
+        .filter_map(|connection| {
+            let record = world.get::<DockingConnection>(connection)?;
+            let ship = if record.first_ship == station {
+                record.second_ship
+            } else {
+                record.first_ship
+            };
+            (station_dock(world, ship) == Some(station)).then_some((ship, connection))
         })
-    })
+        .collect()
+}
+
+/// Freeze every ship docked at `station` that freezes inside its record.
+///
+/// # Errors
+///
+/// [`UnsettledBody`] while a docked ship is mid-process ([`freeze_ship`]),
+/// or while it is not yet under its station's parent: adoption moves it to
+/// its station's cell on its next pass.
+///
+/// # Panics
+///
+/// On a dock whose helm the player holds: the player's dock is saved beside
+/// the observer and never reaches a station record.
+fn freeze_station_docks(
+    world: &World,
+    station: Entity,
+    frozen_at: f64,
+) -> Result<Vec<FrozenDockedShip>, UnsettledBody> {
+    let parent = |entity: Entity| world.get::<ChildOf>(entity).map(ChildOf::parent);
+    station_visitors(world, station)
+        .into_iter()
+        .map(|(ship, connection)| {
+            if parent(ship) != parent(station) {
+                return Err(UnsettledBody {
+                    reason: "a ship docked at the station is not in the station's cell yet",
+                });
+            }
+            let record = world
+                .get::<DockingConnection>(connection)
+                .expect("station_visitors names live connections");
+            let joint = world
+                .get::<FixedJoint>(connection)
+                .expect("a docking connection holds its fixed joint");
+            let station_first = record.first_ship == station;
+            let (station_port, ship_port, station_frame, ship_frame) = if station_first {
+                (
+                    record.first_section,
+                    record.second_section,
+                    &joint.frame1,
+                    &joint.frame2,
+                )
+            } else {
+                (
+                    record.second_section,
+                    record.first_section,
+                    &joint.frame2,
+                    &joint.frame1,
+                )
+            };
+            let helm = match record.helm {
+                DockedHelmType::Neutral => FrozenDockHelm::Neutral,
+                DockedHelmType::Station(hub) => {
+                    assert_eq!(hub, station, "a station helm is the station's own");
+                    FrozenDockHelm::Station
+                }
+                DockedHelmType::Held(holder) => panic!(
+                    "nova_world: {holder} holds the helm of a dock at station '{}', and only \
+                     the player's dock has a held helm",
+                    body_label(world, station)
+                ),
+            };
+            let port = |section: Entity| {
+                world
+                    .get::<EntityId>(section)
+                    .cloned()
+                    .expect("station_dock checks both section ids")
+            };
+            let ship_record = FrozenBodyType::Ship(Box::new(freeze_ship(world, ship)?));
+            Ok(FrozenDockedShip {
+                body: frozen_body(world, ship, ship_record, frozen_at),
+                dock: FrozenStationDock {
+                    station_first,
+                    ship_port: port(ship_port),
+                    station_port: port(station_port),
+                    ship_frame: SavedJointFrame::of(ship_frame),
+                    station_frame: SavedJointFrame::of(station_frame),
+                    helm,
+                },
+            })
+        })
+        .collect()
+}
+
+/// Despawn `entity`, which [`freeze_body`] froze, with every ship that froze
+/// docked at it inside its record.
+pub(crate) fn despawn_frozen(world: &mut World, entity: Entity) {
+    for (ship, _) in station_visitors(world, entity) {
+        world.entity_mut(ship).despawn();
+    }
+    world.entity_mut(entity).despawn();
 }
 
 /// Whether a save keeps `connection`'s dock: one endpoint carries
-/// [`WorldObserver`] and its owner saves the dock beside it, or one endpoint
-/// is a station and the other is a hull parked there, which freezes inside
-/// the station's record. Every other dock is refused rather than dropped
-/// (see [`SectorSnapshotError::UnsavedDock`]).
+/// [`WorldObserver`] and its owner saves the dock beside it, one endpoint is
+/// a station and the other is a hull parked there, which freezes inside the
+/// station's record, or the dock is one [`station_dock`] names, which
+/// freezes inside the station's record as a [`FrozenDockedShip`]. Every
+/// other dock is refused rather than dropped (see
+/// [`SectorSnapshotError::UnsavedDock`]).
 fn kept_dock(world: &World, connection: &DockingConnection) -> bool {
     let [first, second] = [connection.first_ship, connection.second_ship];
     if world.entity(first).contains::<WorldObserver>()
@@ -668,14 +930,17 @@ fn kept_dock(world: &World, connection: &DockingConnection) -> bool {
     }
     [(first, second), (second, first)]
         .into_iter()
-        .any(|(station, ship)| parked_at(world, ship, station))
+        .any(|(station, ship)| {
+            parked_at(world, ship, station) || station_dock(world, ship) == Some(station)
+        })
 }
 
 /// Spawn frozen `bodies` under `root`, each where and as it froze, with the
 /// geometry the cell's worker prepared for it. Each thawed body carries
 /// [`ThawedAfter`]: the play seconds between its freeze and `clock`, for its
 /// owner's catch-up rule. A held ship or station regenerates from its entry
-/// unchanged and carries none.
+/// unchanged and carries none. A station's docked ships spawn beside it and
+/// dock again in the same command flush.
 pub fn thaw_record(
     commands: &mut Commands,
     root: Entity,
@@ -683,18 +948,7 @@ pub fn thaw_record(
     clock: &WorldClock,
 ) {
     for prepared in bodies {
-        let (
-            FrozenBody {
-                id,
-                name,
-                transform,
-                visibility,
-                motion,
-                body,
-                frozen_at,
-            },
-            geometry,
-        ) = match prepared {
+        let (body, geometry) = match prepared {
             PreparedFrozenBody::HeldShip(ship) => {
                 commands.spawn((PendingSectorShip(*ship), ChildOf(root)));
                 continue;
@@ -705,57 +959,171 @@ pub fn thaw_record(
             }
             PreparedFrozenBody::Body(prepared) => *prepared,
         };
-        let mut entity = commands.spawn((
-            ScenarioScopedMarker,
-            transform,
-            GlobalTransform::from(transform),
-            ChildOf(root),
-            ThawedAfter {
-                play_seconds: clock.elapsed_since(frozen_at),
-            },
-        ));
-        if let Some(id) = id {
-            // A generated body thaws with its typed id beside the string, as
-            // it spawned. A transient's id - a canister's, a wreck's - is not
-            // generated and gets none.
-            if let Ok(generated) = id.0.parse::<GeneratedBodyId>() {
-                entity.insert(generated);
-            }
-            entity.insert(id);
+        thaw_body(commands, root, body, geometry, clock);
+    }
+}
+
+/// Spawn one frozen body under `root`, and a station's docked ships beside
+/// it, docked again by [`restore_station_docks`] in the same command flush.
+fn thaw_body(
+    commands: &mut Commands,
+    root: Entity,
+    frozen: FrozenBody,
+    geometry: Option<PreparedAsteroid>,
+    clock: &WorldClock,
+) -> Entity {
+    let FrozenBody {
+        id,
+        name,
+        transform,
+        visibility,
+        motion,
+        body,
+        frozen_at,
+    } = frozen;
+    let mut entity = commands.spawn((
+        ScenarioScopedMarker,
+        transform,
+        GlobalTransform::from(transform),
+        ChildOf(root),
+        ThawedAfter {
+            play_seconds: clock.elapsed_since(frozen_at),
+        },
+    ));
+    if let Some(id) = id {
+        // A generated body thaws with its typed id beside the string, as
+        // it spawned. A transient's id - a canister's, a wreck's - is not
+        // generated and gets none.
+        if let Ok(generated) = id.0.parse::<GeneratedBodyId>() {
+            entity.insert(generated);
         }
-        if let Some(name) = name {
-            entity.insert(Name::new(name));
+        entity.insert(id);
+    }
+    if let Some(name) = name {
+        entity.insert(Name::new(name));
+    }
+    let mut docked = Vec::new();
+    match body {
+        FrozenBodyType::Asteroid(rock) => {
+            let geometry =
+                geometry.expect("PreparedFrozenBody::prepare pairs every rock with geometry");
+            thaw_asteroid(&mut entity, rock, geometry);
         }
-        match body {
-            FrozenBodyType::Asteroid(rock) => {
-                let geometry =
-                    geometry.expect("PreparedFrozenBody::prepare pairs every rock with geometry");
-                thaw_asteroid(&mut entity, rock, geometry);
-            }
-            FrozenBodyType::Ship(ship) => thaw_ship(&mut entity, *ship),
-            FrozenBodyType::Station(station) => thaw_station(&mut entity, *station),
-            FrozenBodyType::Canister(canister) => {
-                let linear = motion.map_or(Vec3::ZERO, |(linear, _)| linear);
-                entity.insert(thaw_canister(canister, transform, linear));
-            }
-            FrozenBodyType::WreckFragment(fragment) => thaw_wreck_fragment(&mut entity, fragment),
-            FrozenBodyType::OreDrop(drop) => {
-                entity.insert(thaw_ore_drop(drop));
-            }
-            FrozenBodyType::PendingShip { .. } | FrozenBodyType::PendingStation { .. } => {
-                unreachable!("PreparedFrozenBody::prepare resolves a held body to its entry")
-            }
+        FrozenBodyType::Ship(ship) => thaw_ship(&mut entity, *ship),
+        FrozenBodyType::Station(station, ships) => {
+            thaw_station(&mut entity, *station);
+            docked = ships;
         }
-        // After the owner's thaw: a spawn bundle seeds the velocity and the
-        // visibility it was authored with, and the body keeps the ones it
-        // froze with.
-        if let Some((linear, angular)) = motion {
-            entity.insert((LinearVelocity(linear), AngularVelocity(angular)));
+        FrozenBodyType::Canister(canister) => {
+            let linear = motion.map_or(Vec3::ZERO, |(linear, _)| linear);
+            entity.insert(thaw_canister(canister, transform, linear));
         }
-        if let Some(visibility) = visibility {
-            entity.insert(visibility);
+        FrozenBodyType::WreckFragment(fragment) => thaw_wreck_fragment(&mut entity, fragment),
+        FrozenBodyType::OreDrop(drop) => {
+            entity.insert(thaw_ore_drop(drop));
+        }
+        FrozenBodyType::PendingShip { .. } | FrozenBodyType::PendingStation { .. } => {
+            unreachable!("PreparedFrozenBody::prepare resolves a held body to its entry")
         }
     }
+    // After the owner's thaw: a spawn bundle seeds the velocity and the
+    // visibility it was authored with, and the body keeps the ones it
+    // froze with.
+    if let Some((linear, angular)) = motion {
+        entity.insert((LinearVelocity(linear), AngularVelocity(angular)));
+    }
+    if let Some(visibility) = visibility {
+        entity.insert(visibility);
+    }
+    let station = entity.id();
+    if !docked.is_empty() {
+        let docks: Vec<_> = docked
+            .into_iter()
+            .map(|FrozenDockedShip { body, dock }| {
+                assert!(
+                    matches!(body.body, FrozenBodyType::Ship(_)),
+                    "nova_world: a station record holds a docked body that is no ship"
+                );
+                (thaw_body(commands, root, body, None, clock), dock)
+            })
+            .collect();
+        // Queued after both hulls' spawns: each spawn's section observer
+        // applies in the flush after that spawn, so every port is live here,
+        // and no system - a parked-hull capture or a physics step - runs
+        // between the spawns and the dock.
+        commands.queue(move |world: &mut World| restore_station_docks(world, station, docks));
+    }
+    station
+}
+
+/// Dock the ships thawed beside `station` again, each with its frozen
+/// connection: the same ports, helm and joint frames, through
+/// `restore_docking_connection`, never a new capture. It fires no
+/// `OnDocked`: the scenario tracker echoes the dock as already reported.
+///
+/// # Panics
+///
+/// On a frozen port that is no live, free docking port of its hull, and on
+/// a docked ship that is docked already. A Load checks the record before it
+/// thaws; a thaw of a record this session froze cannot fail them.
+fn restore_station_docks(
+    world: &mut World,
+    station: Entity,
+    docks: Vec<(Entity, FrozenStationDock)>,
+) {
+    for (ship, dock) in docks {
+        let station_port = live_port(world, station, &dock.station_port);
+        let ship_port = live_port(world, ship, &dock.ship_port);
+        let helm = match dock.helm {
+            FrozenDockHelm::Neutral => DockedHelmType::Neutral,
+            FrozenDockHelm::Station => DockedHelmType::Station(station),
+        };
+        let ends = [
+            (station, station_port, dock.station_frame.frame()),
+            (ship, ship_port, dock.ship_frame.frame()),
+        ];
+        let [first, second] = if dock.station_first {
+            ends
+        } else {
+            [ends[1], ends[0]]
+        };
+        let connection = restore_docking_connection(
+            world,
+            DockingConnection {
+                first_ship: first.0,
+                first_section: first.1,
+                second_ship: second.0,
+                second_section: second.1,
+                helm,
+                measurement_fault: false,
+            },
+            [first.2, second.2],
+        );
+        echo_restored_dock(world, connection);
+    }
+}
+
+/// The one section of `hull` with the id `id`.
+///
+/// # Panics
+///
+/// When `hull` holds no section, or more than one, with that id.
+fn live_port(world: &mut World, hull: Entity, id: &EntityId) -> Entity {
+    let matches: Vec<Entity> = world
+        .query::<(Entity, &EntityId, &ChildOf)>()
+        .iter(world)
+        .filter(|(_, live, parent)| live.0 == id.0 && parent.parent() == hull)
+        .map(|(entity, ..)| entity)
+        .collect();
+    let [port] = matches[..] else {
+        panic!(
+            "nova_world: '{}' holds {} sections with the frozen dock port id '{}'",
+            body_label(world, hull),
+            matches.len(),
+            id.0
+        );
+    };
+    port
 }
 
 /// The persistent bodies adoption moves between cells, and a replaced world
@@ -788,7 +1156,9 @@ pub(crate) type PersistentBody = (
 /// ([`PlayerFleetMarker`]) and every authored, addressable object stay
 /// top-level and are never adopted: the world streams around the first, the
 /// fleet travels with it, and a scenario owns the last. A body parented to
-/// anything but a sector root belongs to that parent.
+/// anything but a sector root belongs to that parent. A ship docked at a
+/// station ([`station_dock`]) takes its station's parent, wherever its own
+/// pose stands, and freezes with the station.
 ///
 /// A transient (a projectile, a chunk of debris) is not adopted. One that is
 /// top-level outside the window is despawned.
@@ -796,8 +1166,8 @@ pub(crate) type PersistentBody = (
 /// # Panics
 ///
 /// Through [`live_sectors`] on a duplicate root, through `freeze_body` on
-/// a docked ship bound for an off-window cell, and on a body that stays
-/// unsettled for too many advancing frames.
+/// a docked ship bound for an off-window cell whose dock no station record
+/// keeps, and on a body that stays unsettled for too many advancing frames.
 ///
 /// When a caller wrote [`WorldConfig`] after
 /// [`crate::NovaWorldSystems::Cleanup`] had already gone.
@@ -833,6 +1203,11 @@ pub fn adopt_moving_bodies<G: SectorGenerator>(world: &mut World) {
             (entity, translation, parent.map(ChildOf::parent))
         })
         .collect();
+    // A ship docked at a station belongs to the station's cell, wherever its
+    // own pose stands: the pair freezes as one record.
+    let (visitors, bodies): (Vec<_>, Vec<_>) = bodies
+        .into_iter()
+        .partition(|(entity, ..)| station_dock(world, *entity).is_some());
     for (entity, translation, parent) in bodies {
         let owner = match parent {
             None => None,
@@ -865,7 +1240,7 @@ pub fn adopt_moving_bodies<G: SectorGenerator>(world: &mut World) {
                 Ok(body) => {
                     debug!("nova_world: froze {entity} into off-window {coord}");
                     world.resource_mut::<FrozenSectors>().arrive(coord, body);
-                    world.entity_mut(entity).despawn();
+                    despawn_frozen(world, entity);
                 }
                 Err(unsettled) => {
                     debug!(
@@ -875,6 +1250,29 @@ pub fn adopt_moving_bodies<G: SectorGenerator>(world: &mut World) {
                     hold_unsettled(world, entity, coord, unsettled);
                 }
             },
+        }
+    }
+
+    for (ship, ..) in visitors {
+        // Despawned with its station, which froze off-window.
+        if world.get_entity(ship).is_err() {
+            continue;
+        }
+        let station = station_dock(world, ship).expect("adoption moves no docked ship");
+        let (own, wanted) = (
+            world.get::<ChildOf>(ship).map(ChildOf::parent),
+            world.get::<ChildOf>(station).map(ChildOf::parent),
+        );
+        match wanted {
+            Some(root) if own != wanted => {
+                trace!("nova_world: {ship} follows its station into {root}");
+                world.entity_mut(ship).insert(ChildOf(root));
+            }
+            None if own.is_some() => {
+                trace!("nova_world: {ship} waits top-level with its station");
+                world.entity_mut(ship).remove::<ChildOf>();
+            }
+            _ => {}
         }
     }
 
@@ -914,9 +1312,10 @@ pub enum SectorSnapshotError {
         /// The body's name, or its entity.
         label: String,
     },
-    /// Two live hulls are docked and neither is the observer nor a
-    /// station's parked hull, so no save keeps their dock; the save refuses
-    /// rather than drop it.
+    /// Two live hulls are docked and neither is the observer, a station's
+    /// parked hull nor a ship that freezes inside its station's record
+    /// (`station_dock`), so no save keeps their dock; the save refuses rather
+    /// than drop it.
     UnsavedDock {
         /// The first ship's name, or its entity.
         first: String,
@@ -962,7 +1361,8 @@ impl std::fmt::Display for SectorSnapshotError {
             ),
             Self::UnsavedDock { first, second } => write!(
                 f,
-                "'{first}' is docked with '{second}', and a save keeps only the player's dock"
+                "'{first}' is docked with '{second}', and a save keeps only the player's dock \
+                 and a station's docks"
             ),
             Self::NoDurableId { label } => {
                 write!(f, "{label} has no durable id, so no save can keep it")
@@ -983,8 +1383,9 @@ impl std::fmt::Display for SectorSnapshotError {
 ///
 /// A saved dock stays docked ([`DockPolicy::Copy`]): the player's dock is
 /// saved separately beside the [`WorldObserver`] and rebuilt on Load, and a
-/// station's parked hulls freeze inside the station's record. Any other dock
-/// cannot be kept, so the save refuses rather than drop it. The
+/// station's parked hulls and the ships [`station_dock`] names freeze inside
+/// the station's record. Any other dock cannot be kept, so the save refuses
+/// rather than drop it. The
 /// [`WorldObserver`] and the player's fleet ([`PlayerFleetMarker`]) are not
 /// part of it: the world streams around the observer, the fleet travels with
 /// it, and their owner saves both.
@@ -1072,6 +1473,10 @@ pub fn snapshot_sectors<G: SectorGenerator>(
         })
         .collect();
     for (entity, translation) in waiting {
+        // It freezes inside its station's record.
+        if station_dock(world, entity).is_some() {
+            continue;
+        }
         // Engine boundary: a pose counts world units, a cell meters.
         let coord = SectorCoord::containing(Meters3::from_engine(translation), edge);
         match freeze_body(

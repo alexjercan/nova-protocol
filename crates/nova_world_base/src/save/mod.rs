@@ -70,7 +70,7 @@ mod transients;
 
 pub use controls::{
     SavedAutopilot, SavedAutopilotAction, SavedComponentLock, SavedControls, SavedDock,
-    SavedDockHelm, SavedJointFrame, SavedLock,
+    SavedDockHelm, SavedLock,
 };
 pub(crate) use session::{restore_resumed_world, save_systems};
 pub use session::{resume_world, ResumedWorld, SaveReason, WorldSaveSession, WorldSaveStatus};
@@ -665,7 +665,11 @@ fn check_saved_controls(state: &WorldSaveState) -> Result<(), String> {
     );
     let mut bodies = BTreeSet::new();
     let mut canisters = HashSet::new();
-    for body in state.sectors.iter().flat_map(|(_, record)| record.bodies()) {
+    for body in state
+        .sectors
+        .iter()
+        .flat_map(|(_, record)| record.each_body())
+    {
         if let Some(id) = body.id() {
             bodies.insert(id);
         }
@@ -673,7 +677,7 @@ fn check_saved_controls(state: &WorldSaveState) -> Result<(), String> {
             (Some(id), FrozenBodyType::Ship(ship)) => {
                 ships.insert(id, ship);
             }
-            (Some(id), FrozenBodyType::Station(station)) => {
+            (Some(id), FrozenBodyType::Station(station, _)) => {
                 ships.insert(id, station.ship());
             }
             (_, FrozenBodyType::Canister(canister)) => {
@@ -720,16 +724,6 @@ fn check_saved_fleet(state: &WorldSaveState) -> Result<(), String> {
     Ok(())
 }
 
-/// The saved clock is a reading the play-time clock wrote (finite, at least
-/// zero), every ledger body froze at or before it, and every frozen trader
-/// prices by role preferences `price` accepts (each finite and at least
-/// zero, their sum above zero). Runs before the stamp checks that read the
-/// clock. Load checks on open: a thaw asserts its stamp against the clock
-/// (`WorldClock::elapsed_since`) and the first trade asserts the preference
-/// sum (`nova_gameplay::market::price`), and a hand-edited save must refuse
-/// here rather than panic there. The game's own writer stamps from the live
-/// clock and freezes the market the generator drew, so it never produces
-/// one.
 /// The saved starting station stands somewhere: its position and its spawn
 /// point are finite. Load checks on open: the jobs board compares its id,
 /// and the spawn pose is read only by a fresh start, so a hand-edited save
@@ -749,6 +743,18 @@ fn check_saved_start(state: &WorldSaveState) -> Result<(), String> {
     Ok(())
 }
 
+/// The saved clock is a reading the play-time clock wrote (finite, at least
+/// zero), every ledger body froze at or before it, every frozen trader
+/// prices by role preferences `price` accepts (each finite and at least
+/// zero, their sum above zero), and every parked hull's motion relative to
+/// its station is finite. Runs before the stamp checks that read the clock.
+/// Load checks on open: a thaw asserts its stamp against the clock
+/// (`WorldClock::elapsed_since`), the first trade asserts the preference
+/// sum (`nova_gameplay::market::price`) and a thawed escort for hire takes
+/// its saved motion. A hand-edited save must refuse here rather than panic
+/// or fly a non-finite body there. The game's own writer stamps from the
+/// live clock and freezes the market the generator drew, so it never
+/// produces one.
 fn check_saved_clock(state: &WorldSaveState) -> Result<(), String> {
     let clock = state.clock.play_seconds;
     if !clock.is_finite() || clock < 0.0 {
@@ -780,7 +786,7 @@ fn check_saved_clock(state: &WorldSaveState) -> Result<(), String> {
         check_market(&escort.ship, &format!("the escort '{}'", escort.id.0))?;
     }
     for (coord, record) in state.sectors.iter() {
-        for body in record.bodies() {
+        for body in record.each_body() {
             let owner = match body.id() {
                 Some(id) => format!("'{id}'"),
                 None => format!("a body in sector {coord}"),
@@ -794,17 +800,22 @@ fn check_saved_clock(state: &WorldSaveState) -> Result<(), String> {
             }
             match body.body() {
                 FrozenBodyType::Ship(ship) => check_market(ship, &owner)?,
-                FrozenBodyType::Station(station) => {
+                FrozenBodyType::Station(station, _) => {
                     check_market(station.ship(), &owner)?;
                     station
                         .pdc_reserve()
                         .validate()
                         .map_err(|fault| format!("{owner}: {fault}"))?;
                     for parked in station.parked() {
-                        check_market(
-                            parked.ship(),
-                            &format!("'{}' parked at {owner}", parked.name()),
-                        )?;
+                        let name = parked.name();
+                        check_market(parked.ship(), &format!("'{name}' parked at {owner}"))?;
+                        let (linear, angular) = parked.motion();
+                        if !linear.is_finite() || !angular.is_finite() {
+                            return Err(format!(
+                                "'{name}' parked at {owner} moves at {linear} turning \
+                                 {angular}, which no session wrote"
+                            ));
+                        }
                     }
                 }
                 FrozenBodyType::Asteroid(_)
@@ -851,11 +862,11 @@ fn check_saved_items(state: &WorldSaveState, items: &GameItems) -> Result<(), St
         return Err(format!("unknown item '{item}' named by a posted offer"));
     }
     for (coord, record) in state.sectors.iter() {
-        for body in record.bodies() {
+        for body in record.each_body() {
             let found = match body.body() {
                 FrozenBodyType::Asteroid(rock) => unknown(&mut rock.item_ids()),
                 FrozenBodyType::Ship(ship) => unknown(&mut ship.item_ids()),
-                FrozenBodyType::Station(station) => unknown(&mut station.item_ids()),
+                FrozenBodyType::Station(station, _) => unknown(&mut station.item_ids()),
                 // A held ship or station is an id; its stock is regenerated.
                 FrozenBodyType::PendingShip { .. } | FrozenBodyType::PendingStation { .. } => None,
                 FrozenBodyType::Canister(canister) => unknown(&mut canister.item_ids()),
@@ -912,7 +923,7 @@ fn check_saved_stock(state: &WorldSaveState, items: &GameItems) -> Result<(), St
         check_hold(&escort.ship, &format!("the escort '{}'", escort.id.0))?;
     }
     for (_, record) in state.sectors.iter() {
-        for body in record.bodies() {
+        for body in record.each_body() {
             match body.body() {
                 FrozenBodyType::Ship(ship) => {
                     let id = body
@@ -920,7 +931,7 @@ fn check_saved_stock(state: &WorldSaveState, items: &GameItems) -> Result<(), St
                         .expect("a frozen ship is a persistent body with an id");
                     check_hold(ship, &format!("'{id}'"))?;
                 }
-                FrozenBodyType::Station(station) => {
+                FrozenBodyType::Station(station, _) => {
                     let id = body
                         .id()
                         .expect("a frozen station is a persistent body with an id");
@@ -1028,7 +1039,7 @@ fn check_saved_rcs(state: &WorldSaveState, designs: &GameShipDesigns) -> Result<
         check_rcs(&escort.ship, &format!("the escort '{}'", escort.id.0))?;
     }
     for (_, record) in state.sectors.iter() {
-        for body in record.bodies() {
+        for body in record.each_body() {
             match body.body() {
                 FrozenBodyType::Ship(ship) => {
                     let id = body
@@ -1038,7 +1049,7 @@ fn check_saved_rcs(state: &WorldSaveState, designs: &GameShipDesigns) -> Result<
                     check_rcs(ship, &owner)?;
                     check_brake(ship, &owner)?;
                 }
-                FrozenBodyType::Station(station) => {
+                FrozenBodyType::Station(station, _) => {
                     let id = body
                         .id()
                         .expect("a frozen station is a persistent body with an id");
@@ -1109,8 +1120,11 @@ impl std::fmt::Display for SavedIdFault {
 
 /// Every saved body id is well formed and names one body, every saved
 /// canister id names one canister below the saved next canister id, every
-/// saved reference names a body, bay or canister the save keeps, and a
-/// torpedo that tracks a transient names another saved transient.
+/// saved reference names a body, bay or canister the save keeps, a
+/// torpedo that tracks a transient names another saved transient, and every
+/// ship docked inside a station record is a ship with an id that docks
+/// through a port of its own hull at a port of the station no other ship
+/// takes.
 ///
 /// The ledger refuses a duplicate inside one cell when it freezes; this also
 /// covers ids across cells and the player. A save checks before it writes,
@@ -1130,7 +1144,7 @@ fn check_saved_ids(state: &WorldSaveState) -> Result<(), SavedIdFault> {
     let bodies: Vec<&FrozenBody> = state
         .sectors
         .iter()
-        .flat_map(|(_, record)| record.bodies().iter())
+        .flat_map(|(_, record)| record.each_body())
         .collect();
     for body in &bodies {
         match (body.id(), body.body()) {
@@ -1150,6 +1164,41 @@ fn check_saved_ids(state: &WorldSaveState) -> Result<(), SavedIdFault> {
                 }
             }
             _ => {}
+        }
+    }
+    for station in &bodies {
+        let FrozenBodyType::Station(frozen, docked) = station.body() else {
+            continue;
+        };
+        let station_id = station.id().unwrap_or("<no id>");
+        let mut ports = BTreeSet::new();
+        for visitor in docked {
+            let dock = visitor.dock();
+            let (Some(id), FrozenBodyType::Ship(ship)) =
+                (visitor.body().id(), visitor.body().body())
+            else {
+                return Err(SavedIdFault::Dangling(format!(
+                    "a body docked at the station '{station_id}' is no ship with an id"
+                )));
+            };
+            if !ship.has_section(&dock.ship_port().0) {
+                return Err(SavedIdFault::Dangling(format!(
+                    "the ship '{id}' docked at the station '{station_id}' has no port '{}'",
+                    dock.ship_port().0
+                )));
+            }
+            if !frozen.ship().has_section(&dock.station_port().0) {
+                return Err(SavedIdFault::Dangling(format!(
+                    "the station '{station_id}' has no port '{}' for the ship '{id}'",
+                    dock.station_port().0
+                )));
+            }
+            if !ports.insert(dock.station_port().0.as_str()) {
+                return Err(SavedIdFault::Dangling(format!(
+                    "two ships dock at the port '{}' of the station '{station_id}'",
+                    dock.station_port().0
+                )));
+            }
         }
     }
     let ids_saved = std::iter::once(state.player.id.0.as_str())

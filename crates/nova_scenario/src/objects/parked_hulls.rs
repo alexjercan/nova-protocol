@@ -16,16 +16,20 @@
 //! ([`parked_hull_clear_pose`]), one port always kept free for the player
 //! (at the starting station, the berth the fresh player ship takes,
 //! [`outward_berth`]), a thawed docked hull where it froze relative to the
-//! station, and every escort for hire on a line through the station
-//! ([`hire_offer_offsets`]).
+//! station, every new escort for hire on a line through the station
+//! ([`hire_offer_offsets`]) and every thawed one where it froze, moving as
+//! it froze relative to the station.
 //! [`dock_parked_hulls`] then docks each hull for sale or owned with the port
 //! it lies on.
 //!
 //! An escort for hire coasts: in a gravity well the line is the station's
 //! orbit, each escort on it ahead or behind with the station's speed, so it
-//! keeps its distance; in flat space the line is the station's +X. A thawed
-//! escort is placed again the same way, so it never comes back off the
-//! orbit it froze beside.
+//! keeps its distance; in flat space the line is the station's +Y, which no
+//! generated station port faces (`generate_station` opens ports level), so
+//! each escort keeps `HIRE_OFFER_CLEARANCE` off every DOCK corridor axis. A
+//! thawed escort, in flat space or in a well, takes the pose and motion it
+//! froze with relative to the station, so a hire never moves the escorts it
+//! leaves.
 //!
 //! A hull for sale that fits at no free port is not parked, with a warning:
 //! the catalogue offers what the station's ports hold. A hull for sale with
@@ -63,15 +67,20 @@ pub mod prelude {
 /// pass them by waiting.
 const BERTH_FRAMES: u32 = 30;
 
-/// A parked hull frozen with its station: its name, where it lay in the
-/// station root's frame, how it is listed and its ship record, already
-/// parked ([`FrozenShip::parked`]).
+/// A parked hull frozen with its station: its name, where it lay and how it
+/// moved in the station root's frame, how it is listed and its ship record,
+/// already parked ([`FrozenShip::parked`]).
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct FrozenParkedHull {
     name: String,
     pose: Transform,
+    /// Linear velocity net of the station's velocity and of its spin
+    /// carrying the hull about it, and angular velocity net of the station's
+    /// spin, both in the station root's frame, engine units. A thawed escort
+    /// for hire takes it back; a docked hull moves with the station.
+    motion: (Vec3, Vec3),
     terms: ParkedHullType,
     ship: FrozenShip,
 }
@@ -80,6 +89,12 @@ impl FrozenParkedHull {
     /// The name the list shows.
     pub fn name(&self) -> &str {
         &self.name
+    }
+
+    /// How the hull moved in the station root's frame: linear and angular
+    /// velocity net of the station's motion, engine units.
+    pub fn motion(&self) -> (Vec3, Vec3) {
+        self.motion
     }
 
     /// How the hull is listed.
@@ -99,8 +114,9 @@ pub enum PendingParkedHull {
     /// A new offer: a hull for sale, parked at the next free port in design
     /// order, or an escort for hire, coasting beside the station.
     Offer(Box<StationHullOffer>),
-    /// A hull thawed with its station: a docked one parks where it froze,
-    /// an escort for hire coasts where a new one would.
+    /// A hull thawed with its station, where it froze relative to the
+    /// station: a docked one moving with the station, an escort for hire
+    /// moving as it froze relative to it.
     Frozen(Box<FrozenParkedHull>),
 }
 
@@ -143,8 +159,17 @@ fn body_pose(world: &World, entity: Entity) -> (Vec3, Quat) {
     }
 }
 
-/// Freeze every hull parked at `station`, each where it lies in the
-/// station root's frame.
+/// A body's linear and angular velocity, zero before avian has seen it.
+fn body_motion(world: &World, entity: Entity) -> (Vec3, Vec3) {
+    let body = world.entity(entity);
+    (
+        body.get::<LinearVelocity>().copied().unwrap_or_default().0,
+        body.get::<AngularVelocity>().copied().unwrap_or_default().0,
+    )
+}
+
+/// Freeze every hull parked at `station`, each where it lies and how it
+/// moves in the station root's frame.
 ///
 /// # Errors
 ///
@@ -170,18 +195,25 @@ pub fn freeze_parked_hulls(
     };
     let (at, turn) = body_pose(world, station);
     let inverse = turn.inverse();
+    let (velocity, spin) = body_motion(world, station);
     hulls
         .iter()
         .map(|hull| {
             let body = world.entity(hull);
             let (position, rotation) = body_pose(world, hull);
+            let (hull_velocity, hull_spin) = body_motion(world, hull);
+            let arm = position - at;
             Ok(FrozenParkedHull {
                 name: body
                     .get::<Name>()
                     .unwrap_or_else(|| panic!("freeze_parked_hulls: hull {hull} has no name"))
                     .to_string(),
-                pose: Transform::from_translation(inverse * (position - at))
+                pose: Transform::from_translation(inverse * arm)
                     .with_rotation((inverse * rotation).normalize()),
+                motion: (
+                    inverse * (hull_velocity - (velocity + spin.cross(arm))),
+                    inverse * (hull_spin - spin),
+                ),
                 terms: *body.get::<ParkedHullType>().unwrap_or_else(|| {
                     panic!("freeze_parked_hulls: hull {hull} has no ParkedHullType")
                 }),
@@ -284,8 +316,9 @@ fn resolve_hull(
 /// nothing parked) is that port, out of the free ones, and its envelope
 /// stands in every sale's way, so `berth_at_start` finds the same berth
 /// once the sales are docked. A thawed docked hull parks where it froze relative to the
-/// station, moving as the station moves. Every escort for hire, new or
-/// thawed, coasts where [`hire_offer_place`] puts it.
+/// station, moving as the station moves. A thawed escort for hire coasts
+/// where it froze relative to the station, moving as it froze relative to
+/// it; a new escort for hire coasts where [`hire_offer_place`] puts it.
 ///
 /// The station's pose is its `Transform`: a station spawned this frame has
 /// no avian pose yet, and the spawn and the thaw both set the `Transform`.
@@ -418,11 +451,18 @@ fn park_pending_hulls(
                 PendingParkedHull::Frozen(frozen)
                     if matches!(frozen.terms, ParkedHullType::Hire { .. }) =>
                 {
-                    let (pose, motion) = places.next().expect("one place per escort for hire");
+                    let pose = *transform * frozen.pose;
+                    let arm = pose.translation - transform.translation;
+                    let (linear, angular) = frozen.motion;
                     let mut hull =
                         spawn_parked_hull(&mut commands, station, &frozen.name, frozen.terms, pose);
                     thaw_ship(&mut hull, frozen.ship.clone());
-                    hull.insert((LinearVelocity(motion), AngularVelocity::ZERO));
+                    hull.insert((
+                        LinearVelocity(
+                            velocity.0 + spin.0.cross(arm) + transform.rotation * linear,
+                        ),
+                        AngularVelocity(spin.0 + transform.rotation * angular),
+                    ));
                 }
                 PendingParkedHull::Offer(offer) => {
                     // The player ship's berth is the port the rule keeps.
@@ -564,9 +604,9 @@ pub fn parked_envelopes(world: &World, station: Entity) -> Vec<PlacedSectionColl
         .collect()
 }
 
-/// Where each escort for hire of `pending` coasts, in list order, and its
-/// velocity: the station at `station` moving at `velocity` and `spin`, in
-/// the well centred on `well` if any, with reach `station_reach`. Each
+/// Where each new escort for hire of `pending` coasts, in list order, and
+/// its velocity: the station at `station` moving at `velocity` and `spin`,
+/// in the well centred on `well` if any, with reach `station_reach`. Each
 /// stands at its [`hire_offer_offsets`] place on the line
 /// ([`hire_offer_place`]).
 fn hire_places(
@@ -584,11 +624,6 @@ fn hire_places(
         .filter_map(|hull| match hull {
             PendingParkedHull::Offer(offer) if offer.terms != HullOfferType::Sale => {
                 Some((ShipDesignSource::Inline(offer.design.clone()), &offer.name))
-            }
-            PendingParkedHull::Frozen(frozen)
-                if matches!(frozen.terms, ParkedHullType::Hire { .. }) =>
-            {
-                Some((frozen.ship.design().clone(), &frozen.name))
             }
             _ => None,
         })
@@ -609,7 +644,7 @@ fn hire_places(
 /// by the angle `offset` spans on it carries the station's pose and
 /// velocity to the escort's: the escort flies the station's orbit, shifted
 /// along it, and keeps its distance. In flat space, or for a station at rest
-/// in the well, the escort stands `offset` along the station's +X, at the
+/// in the well, the escort stands `offset` along the station's +Y, at the
 /// station's velocity plus its spin about the station.
 fn hire_offer_place(
     station: &Transform,
@@ -633,7 +668,7 @@ fn hire_offer_place(
             )
         }
         None => {
-            let arm = station.rotation * Vec3::X * offset;
+            let arm = station.rotation * Vec3::Y * offset;
             (
                 Transform::from_translation(station.translation + arm)
                     .with_rotation(station.rotation),
@@ -731,7 +766,7 @@ mod tests {
     }
 
     #[test]
-    fn an_escort_for_hire_in_flat_space_stands_on_the_station_x_axis_and_turns_with_it() {
+    fn an_escort_for_hire_in_flat_space_stands_on_the_station_y_axis_and_turns_with_it() {
         let station = Transform::from_translation(Vec3::new(1.0, 2.0, 3.0))
             .with_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2));
         let velocity = Vec3::new(1.0, 0.0, 0.0);
@@ -739,8 +774,8 @@ mod tests {
         let (pose, motion) = hire_offer_place(&station, velocity, spin, None, -20.0);
         assert!(pose
             .translation
-            .abs_diff_eq(Vec3::new(1.0, -18.0, 3.0), 1e-4));
+            .abs_diff_eq(Vec3::new(21.0, 2.0, 3.0), 1e-4));
         assert_eq!(pose.rotation, station.rotation);
-        assert!(motion.abs_diff_eq(Vec3::new(3.0, 0.0, 0.0), 1e-4));
+        assert!(motion.abs_diff_eq(Vec3::new(1.0, 2.0, 0.0), 1e-4));
     }
 }

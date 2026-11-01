@@ -34,6 +34,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Fixes
 
+- **(breaking)** An escort for hire keeps its place and motion beside its station, in flat space or a well, after a Load or a sector stream, instead of moving to the other side after a hire.
 - **(breaking)** A ship that streams back in or loads with a world keeps its RCS magazine instead of a free full one; an idle one refills for the time away. Older world saves are refused.
 
 ## [0.16.0] - 2026-10-28

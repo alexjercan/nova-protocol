@@ -57,13 +57,15 @@
 //! # A docked pair and the active window
 //!
 //! The player is always inside the active window, so the player's own dock
-//! never meets a retiring cell. A pair of NPC hulls at retirement is a fault
+//! never meets a retiring cell. A ship docked at a station with a durable id
+//! on both hulls and both ports freezes inside the station's record and
+//! thaws docked. A pair of NPC hulls at retirement is a fault
 //! (`nova_world::freeze_body` under `DockPolicy::Refuse`), and so is a station
-//! hub with a hull docked.
+//! hub with any other hull docked.
 //!
-//! A world save keeps the player's dock and refuses every other one but a
-//! station's parked hulls; a Load rebuilds the saved connection with
-//! [`restore_docking_connection`].
+//! A world save keeps the player's dock, a station's parked hulls and those
+//! station docks, and refuses every other one. A Load or a thaw rebuilds a
+//! kept connection with [`restore_docking_connection`].
 
 use avian3d::{
     collision::contact_types::ContactId,
@@ -454,6 +456,43 @@ fn connect(
     connection
 }
 
+/// One body's local docking joint frame as a record keeps it. Engine units.
+/// Every docking joint is built with local frames, so the record holds no
+/// global one.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct SavedJointFrame {
+    /// The anchor.
+    pub anchor: Vec3,
+    /// The basis.
+    pub basis: Quat,
+}
+
+impl SavedJointFrame {
+    /// The record of a docking joint's `frame`.
+    ///
+    /// # Panics
+    ///
+    /// On a global anchor or basis: a docking joint is built with local
+    /// frames.
+    pub fn of(frame: &JointFrame) -> Self {
+        let (JointAnchor::Local(anchor), JointBasis::Local(basis)) = (frame.anchor, frame.basis)
+        else {
+            panic!("a docking joint is built with local frames, but a frame is global");
+        };
+        Self { anchor, basis }
+    }
+
+    /// The local joint frame this record holds.
+    pub fn frame(self) -> JointFrame {
+        JointFrame {
+            anchor: JointAnchor::Local(self.anchor),
+            basis: JointBasis::Local(self.basis),
+        }
+    }
+}
+
 /// Rebuild a saved connection: `record` held by a fixed joint with the local
 /// frames `frames` (first body, second body), both ports reserved, both
 /// sleeves started out and both hulls docked, exactly as `DOCK` left them.
@@ -463,7 +502,8 @@ fn connect(
 /// builds the joint from the saved frames rather than from where the hulls
 /// stand, and it fires nothing. It drops no contact between the hulls, so
 /// call it before the first physics step with both: a Load holds the clocks
-/// from before either spawned.
+/// from before either spawned, and a sector thaw restores in the frame that
+/// spawns both.
 ///
 /// # Panics
 ///

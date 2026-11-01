@@ -437,7 +437,8 @@ it, and `PlayerFleetMarker` requires it, so an escort does too; a neutralized es
 loses both. The root takes the bought hull's name. The old port's despawn
 releases the dock, and `redock_bought_hull` docks the new hull with the
 station, giving up with a warning after `REDOCK_FRAMES`. A docked ship
-that is not the station's own parked hull keeps the station from retiring,
+that is neither the station's own parked hull nor a plain AI hull with an id,
+which freezes inside the station's record, keeps the station from retiring,
 so the player undocks the bought hull normally.
 
 After its hulls for sale the station lists one to three escorts for hire
@@ -451,8 +452,14 @@ half-diagonal (`design_reach`). In a gravity well that holds the station,
 `hire_offer_place` rotates the station's pose and velocity about the orbit
 pole by the offset over the orbit radius, so an escort shares the station's
 orbit a little ahead or behind and does not drift; in flat space it stands
-along the station's +X with the station's velocity and spin. A thaw places
-the escorts again by the same rule. Fighting roles (scavenger, armored) the
+along the station's +Y with the station's velocity and spin. A generated
+station opens its ports level: no port's DOCK corridor runs along Y, and each
+escort keeps `HIRE_OFFER_CLEARANCE` off every corridor axis. Each parked
+record keeps the hull's pose and motion relative to the station; a thaw, in
+flat space or in a well, puts each escort back at that pose with the
+station's velocity, its spin about the station and the saved relative
+motion, so a hire never moves the escorts it leaves. Load refuses a
+non-finite saved motion. Fighting roles (scavenger, armored) the
 civilization can build, cycled from a seeded start, none where it builds no
 fighting role. Each keeps its roster slot, so `escort_id` (station id, stem
 `<stem>_<index>_escort`, the slot as index) gives one escort one id however

@@ -705,6 +705,9 @@ fn autopilot_record(world: &World, entity: Entity) -> serde_json::Value {
             AutopilotAction::Orbit { well, .. } => ("Orbit", label(world, well)),
             // The velocity IS the goal, so it is what the record carries.
             AutopilotAction::MatchVelocity { velocity, .. } => ("MatchVelocity", vec3(velocity)),
+            AutopilotAction::DockApproach { station, .. } => {
+                ("DockApproach", label(world, station))
+            }
         };
         serde_json::json!({
             "action": action,
@@ -720,6 +723,7 @@ fn autopilot_record(world: &World, entity: Entity) -> serde_json::Value {
             AutopilotAction::GotoPos { .. } => "GotoPos",
             AutopilotAction::Orbit { .. } => "Orbit",
             AutopilotAction::MatchVelocity { .. } => "MatchVelocity",
+            AutopilotAction::DockApproach { .. } => "DockApproach",
         });
     serde_json::json!({
         "engaged": engaged,

@@ -91,10 +91,10 @@ pub use crate::save::{
     write_world, FrozenTransient, FrozenTransientType, RegisteredScenarios, ResumedWorld,
     SaveReason, SavedAutopilot, SavedAutopilotAction, SavedChart, SavedChartCell, SavedChartMark,
     SavedChartMarkType, SavedComponentLock, SavedControls, SavedDock, SavedDockHelm, SavedFleet,
-    SavedJointFrame, SavedLock, SavedObjective, SavedObjectiveLine, SavedObjectiveType,
-    SavedPlayer, WorldFolder, WorldListing, WorldLock, WorldRefusal, WorldResumeProgress,
-    WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus,
-    WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_VERSION,
+    SavedLock, SavedObjective, SavedObjectiveLine, SavedObjectiveType, SavedPlayer, WorldFolder,
+    WorldListing, WorldLock, WorldRefusal, WorldResumeProgress, WorldResumeRefused,
+    WorldSaveHeader, WorldSaveSession, WorldSaveState, WorldSaveStatus, WORLD_RESUME_SECONDS_MAX,
+    WORLD_SAVE_VERSION,
 };
 pub use crate::{
     civilizations::{
@@ -153,7 +153,7 @@ pub mod prelude {
         write_world, FrozenTransient, FrozenTransientType, RegisteredScenarios, ResumedWorld,
         SaveReason, SavedAutopilot, SavedAutopilotAction, SavedChart, SavedChartCell,
         SavedChartMark, SavedChartMarkType, SavedComponentLock, SavedControls, SavedDock,
-        SavedDockHelm, SavedFleet, SavedJointFrame, SavedLock, SavedObjective, SavedObjectiveLine,
+        SavedDockHelm, SavedFleet, SavedLock, SavedObjective, SavedObjectiveLine,
         SavedObjectiveType, SavedPlayer, WorldFolder, WorldListing, WorldLock, WorldRefusal,
         WorldResumeProgress, WorldResumeRefused, WorldSaveHeader, WorldSaveSession, WorldSaveState,
         WorldSaveStatus, WORLD_RESUME_SECONDS_MAX, WORLD_SAVE_VERSION,

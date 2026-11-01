@@ -1628,7 +1628,8 @@ fn yard_frame(advancement: f32, jitter: [f32; 3], scale: f32) -> Frame {
 #[cfg(test)]
 mod tests {
     use nova_ship::prelude::{
-        BaseSectionConfig, HullSectionConfig, LinkPoint, LinkPointSkinType, SectionConfig,
+        exit_normal, BaseSectionConfig, HullSectionConfig, LinkPoint, LinkPointSkinType,
+        SectionConfig,
     };
 
     use super::*;
@@ -2251,6 +2252,42 @@ mod tests {
                     blocked_exits(&structure, &exits).is_empty(),
                     "{archetype} at {advancement} has a blocked lane"
                 );
+            }
+        }
+    }
+
+    /// Every docking port opens level: its mouth ([`exit_normal`]) never
+    /// faces the station's +Y or -Y. A station's escorts for hire coast on
+    /// its Y line in flat space (`hire_offer_place` in `nova_scenario`), so a
+    /// port facing Y would put an escort in its DOCK corridor.
+    #[test]
+    fn every_generated_station_docking_port_opens_level() {
+        let parts = snapshot();
+        for archetype in StationArchetypeType::ALL {
+            for advancement in ADVANCEMENTS {
+                for seed in 0..4 {
+                    let context = format!("{archetype} a {advancement} seed {seed}");
+                    let station = generate_station(&parts, request(seed, archetype, advancement))
+                        .unwrap_or_else(|failure| panic!("{context}: {failure}"));
+                    for section in &station.design.sections {
+                        let part = parts
+                            .parts()
+                            .iter()
+                            .find(|part| part.id() == section.source.prototype_id())
+                            .expect("a snapshot part");
+                        if part.family != ShipPartFamilyType::Docking {
+                            continue;
+                        }
+                        let mouth = section.rotation
+                            * exit_normal(&part.config.kind).expect("a docking port has a mouth");
+                        assert!(
+                            mouth.y.abs() < GRID_EPSILON,
+                            "{context}: port '{}' at {} opens along {mouth}",
+                            section.id,
+                            section.position
+                        );
+                    }
+                }
             }
         }
     }

@@ -179,7 +179,9 @@ pub(crate) fn track_role_goal(
     let frozen_owned = frozen
         .iter()
         .flat_map(|(_, sector)| sector.bodies())
-        .filter(|body| matches!(body.body(), FrozenBodyType::Station(station) if station.owned()))
+        .filter(
+            |body| matches!(body.body(), FrozenBodyType::Station(station, _) if station.owned()),
+        )
         .count();
     let next = goal_progress(
         goal,

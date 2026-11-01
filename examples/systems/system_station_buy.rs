@@ -1209,7 +1209,7 @@ mod walk {
     /// A record keeps a design, not its section list, so `sections` holds
     /// the ids of `want` the record carries.
     fn record_views(body: &FrozenBody, want: &[ParkedView]) -> Vec<ParkedView> {
-        let FrozenBodyType::Station(station) = body.body() else {
+        let FrozenBodyType::Station(station, _) = body.body() else {
             panic!("station buy: the station froze as {:?}", body.body());
         };
         station

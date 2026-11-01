@@ -188,6 +188,57 @@ impl DockingPorts<'_, '_> {
             .map(|(position, rotation, ..)| (position.0, rotation.0))
     }
 
+    /// The velocity of a ship root, as avian holds it.
+    pub(crate) fn body_velocity(&self, root: Entity) -> Option<Vec3> {
+        self.bodies
+            .get(root)
+            .ok()
+            .map(|(_, _, velocity, _)| velocity.0)
+    }
+
+    /// Whether `root` has a free, live port.
+    pub(crate) fn has_free_port(&self, root: Entity) -> bool {
+        self.ports.iter().any(|(_, mount, _)| mount.0 == root)
+    }
+
+    /// The pair of `first_section` on `first_ship` and `second_section` on
+    /// `second_ship`, graded whether or not it passes; `None` when either
+    /// port is held, dead or not mounted on its ship, or either ship already
+    /// holds a connection. What a DOCK approach flies once it has picked its
+    /// pair, so a nearer pair cannot take the approach over.
+    pub(crate) fn pair(
+        &self,
+        first_ship: Entity,
+        first_section: Entity,
+        second_ship: Entity,
+        second_section: Entity,
+    ) -> Option<DockingPair> {
+        if first_ship == second_ship
+            || self.docked.contains(first_ship)
+            || self.docked.contains(second_ship)
+        {
+            return None;
+        }
+        let (_, first_root, first_config) = self.ports.get(first_section).ok()?;
+        let (_, second_root, second_config) = self.ports.get(second_section).ok()?;
+        if first_root.0 != first_ship || second_root.0 != second_ship {
+            return None;
+        }
+        let (.., first_velocity, first_spin) = self.bodies.get(first_ship).ok()?;
+        let (.., second_velocity, second_spin) = self.bodies.get(second_ship).ok()?;
+        Some(judge_pair(
+            first_ship,
+            first_section,
+            self.pose(first_section, first_ship)?,
+            second_ship,
+            second_section,
+            self.pose(second_section, second_ship)?,
+            first_config.envelope().strictest(second_config.envelope()),
+            (first_velocity.0 - second_velocity.0).length(),
+            (first_spin.0 - second_spin.0).length(),
+        ))
+    }
+
     /// The best pair of free ports between `first_ship` and `second_ship`
     /// that passes every gate, or `None` when none does.
     ///
@@ -195,7 +246,10 @@ impl DockingPorts<'_, '_> {
     /// would hide an eligible pair behind a nearer one that is facing the
     /// wrong way.
     pub fn best_candidate(&self, first_ship: Entity, second_ship: Entity) -> Option<DockingPair> {
-        self.rank_pairs(first_ship, second_ship, true)
+        self.graded_pairs(first_ship, second_ship)
+            .filter(|(pair, ..)| pair.is_eligible())
+            .min_by(rank)
+            .map(|(pair, ..)| pair)
     }
 
     /// The nearest pair of free ports between the two ships, eligible or not.
@@ -204,78 +258,92 @@ impl DockingPorts<'_, '_> {
     /// BEFORE the pair is eligible - that is the whole of the approach - so
     /// this one gates nothing and reports the measurements instead.
     pub fn nearest_pair(&self, first_ship: Entity, second_ship: Entity) -> Option<DockingPair> {
-        self.rank_pairs(first_ship, second_ship, false)
+        self.graded_pairs(first_ship, second_ship)
+            .min_by(rank)
+            .map(|(pair, ..)| pair)
+    }
+
+    /// Every pair of free ports between the two ships, graded, best first by
+    /// [`rank`]; empty when either ship already holds a connection.
+    pub(crate) fn ranked_pairs(&self, first_ship: Entity, second_ship: Entity) -> Vec<DockingPair> {
+        let mut ranked: Vec<_> = self.graded_pairs(first_ship, second_ship).collect();
+        ranked.sort_by(rank);
+        ranked.into_iter().map(|(pair, ..)| pair).collect()
     }
 
     /// The shared walk: every free port on one hull against every free port on
-    /// the other, ranked by face gap, then alignment, then the two section
-    /// ids.
-    ///
-    /// The ids are what make the answer a FUNCTION of the world rather than of
-    /// query iteration order - two ports mounted symmetrically on the same
-    /// hull are the same distance and the same alignment away, and without the
-    /// last key the pair chosen would depend on archetype layout.
-    fn rank_pairs(
+    /// the other, graded, each with the two section ids [`rank`] breaks ties
+    /// on. Empty when either ship already holds a connection.
+    fn graded_pairs(
         &self,
         first_ship: Entity,
         second_ship: Entity,
-        eligible_only: bool,
-    ) -> Option<DockingPair> {
-        if first_ship == second_ship
-            || self.docked.contains(first_ship)
-            || self.docked.contains(second_ship)
-        {
-            return None;
-        }
-        let (.., first_velocity, first_spin) = self.bodies.get(first_ship).ok()?;
-        let (.., second_velocity, second_spin) = self.bodies.get(second_ship).ok()?;
-        let relative_speed = (first_velocity.0 - second_velocity.0).length();
-        let relative_spin = (first_spin.0 - second_spin.0).length();
-
-        let mut best: Option<(DockingPair, &str, &str)> = None;
-        for (first_section, first_root, first_config) in &self.ports {
-            if first_root.0 != first_ship {
-                continue;
-            }
-            let Some(first_pose) = self.pose(first_section, first_ship) else {
-                continue;
-            };
-            for (second_section, second_root, second_config) in &self.ports {
-                if second_root.0 != second_ship {
-                    continue;
-                }
-                let Some(second_pose) = self.pose(second_section, second_ship) else {
-                    continue;
-                };
-                let pair = judge_pair(
-                    first_ship,
-                    first_section,
-                    first_pose,
-                    second_ship,
-                    second_section,
-                    second_pose,
-                    first_config.envelope().strictest(second_config.envelope()),
-                    relative_speed,
-                    relative_spin,
-                );
-                if eligible_only && !pair.is_eligible() {
-                    continue;
-                }
-                let keys = (
-                    self.ids.get(first_section).map_or("", |id| id.0.as_str()),
-                    self.ids.get(second_section).map_or("", |id| id.0.as_str()),
-                );
-                let better = best.as_ref().is_none_or(|(best, first_key, second_key)| {
-                    (pair.gap, pair.opposition, keys.0, keys.1)
-                        < (best.gap, best.opposition, first_key, second_key)
-                });
-                if better {
-                    best = Some((pair, keys.0, keys.1));
-                }
-            }
-        }
-        best.map(|(pair, ..)| pair)
+    ) -> impl Iterator<Item = (DockingPair, &str, &str)> + '_ {
+        let motion = (first_ship != second_ship
+            && !self.docked.contains(first_ship)
+            && !self.docked.contains(second_ship))
+        .then(|| {
+            let (.., first_velocity, first_spin) = self.bodies.get(first_ship).ok()?;
+            let (.., second_velocity, second_spin) = self.bodies.get(second_ship).ok()?;
+            Some((
+                (first_velocity.0 - second_velocity.0).length(),
+                (first_spin.0 - second_spin.0).length(),
+            ))
+        })
+        .flatten();
+        motion
+            .into_iter()
+            .flat_map(move |(relative_speed, relative_spin)| {
+                self.ports
+                    .iter()
+                    .filter(move |(_, root, _)| root.0 == first_ship)
+                    .filter_map(move |(section, _, config)| {
+                        Some((section, self.pose(section, first_ship)?, config))
+                    })
+                    .flat_map(move |(first_section, first_pose, first_config)| {
+                        self.ports
+                            .iter()
+                            .filter(move |(_, root, _)| root.0 == second_ship)
+                            .filter_map(move |(second_section, _, second_config)| {
+                                let second_pose = self.pose(second_section, second_ship)?;
+                                Some((
+                                    judge_pair(
+                                        first_ship,
+                                        first_section,
+                                        first_pose,
+                                        second_ship,
+                                        second_section,
+                                        second_pose,
+                                        first_config.envelope().strictest(second_config.envelope()),
+                                        relative_speed,
+                                        relative_spin,
+                                    ),
+                                    self.ids.get(first_section).map_or("", |id| id.0.as_str()),
+                                    self.ids.get(second_section).map_or("", |id| id.0.as_str()),
+                                ))
+                            })
+                    })
+            })
     }
+}
+
+/// The order pairs rank in: face gap, then alignment, then the two section
+/// ids.
+///
+/// The ids are what make the answer a FUNCTION of the world rather than of
+/// query iteration order - two ports mounted symmetrically on the same hull
+/// are the same distance and the same alignment away, and without the last
+/// key the pair chosen would depend on archetype layout. A total order, so a
+/// non-finite grade cannot break the sort.
+fn rank(
+    (a, a_first, a_second): &(DockingPair, &str, &str),
+    (b, b_first, b_second): &(DockingPair, &str, &str),
+) -> core::cmp::Ordering {
+    a.gap
+        .total_cmp(&b.gap)
+        .then(a.opposition.total_cmp(&b.opposition))
+        .then_with(|| a_first.cmp(b_first))
+        .then_with(|| a_second.cmp(b_second))
 }
 
 /// Measure one pair of poses against `envelope`. Grades nothing away: the

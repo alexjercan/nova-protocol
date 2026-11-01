@@ -3,5 +3,6 @@
 mod docked_helm;
 mod names;
 mod station_derelict;
+mod station_hires;
 mod station_hub;
 mod syntax;
