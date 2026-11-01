@@ -39,17 +39,25 @@
 //! script. The shot is the one artifact that shows the Map's route bending:
 //! the markers above cannot prove a rendered frame.
 //!
+//! The flown leg is recorded as [`LOOP_NAME`] from a fixed camera abeam the
+//! lane. On this lane the planner's corner lies on +Y of the rock, so a camera
+//! on +X sees the bend in the frame, where one overhead would see the hull
+//! pass across the rock. Armed by `NOVA_CAPTURE` like the shot; unarmed,
+//! `loop_start` and `loop_end` are no-ops. An armed run is frame-clocked (see
+//! `nova_autopilot::loops`), so every deadline counts rendered frames at 30
+//! fps.
+//!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example system_goto_detour --features debug
 //! # look for: `goto detour: ...`, `autopilot: cycle complete, no panic`
 //! ```
 //!
-//! Map route frame (isolated display, software or real GPU):
+//! Map route frame and detour loop (isolated display, software or real GPU):
 //! ```text
 //! NOVA_CAPTURE_DIR=target/shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example system_goto_detour --features debug
-//! # writes target/shots/goto-detour-map.png
+//! # writes target/shots/goto-detour-map.png and target/shots/goto-detour.webm
 //! ```
 
 #[path = "../shared/dev_fixtures/mod.rs"]
@@ -116,6 +124,27 @@ const MAP_DEADLINE_SECS: f32 = 60.0;
 #[cfg(feature = "debug")]
 const MAP_SHOT: &str = "goto-detour-map.png";
 
+/// The flown leg's loop, under `NOVA_CAPTURE_DIR`.
+#[cfg(feature = "debug")]
+const LOOP_NAME: &str = "goto-detour";
+
+/// The leg flies about 26 s of game time, 790 frames at 30 fps; the default
+/// 600-frame cap would abort the run. 1200 is 40 s of runway.
+#[cfg(feature = "debug")]
+const LOOP_FRAME_CAP: u32 = 1200;
+
+/// Rendered-frame seconds the encode gets once the loop closes.
+#[cfg(feature = "debug")]
+const LOOP_DEADLINE_SECS: f32 = 60.0;
+
+/// The loop camera: abeam the rock on +X, centred above the lane so the rock
+/// and the +Y bend both sit in frame. At 2800 m the 45 degree lens spans about
+/// 4100 m of the lane and 2300 m of the bend.
+#[cfg(feature = "debug")]
+const LOOP_CAMERA_AT: Meters3 = Meters3::new(2800.0, 450.0, -1500.0);
+#[cfg(feature = "debug")]
+const LOOP_LOOK_AT: Meters3 = Meters3::new(0.0, 450.0, -1500.0);
+
 /// How far the game clock may advance in one frame of this harnessed lane.
 /// See `system_flight_legs`' own note on the software-rasterizer clamp.
 #[cfg(feature = "debug")]
@@ -132,6 +161,10 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        app.add_plugins(LoopCapturePlugin::new(LoopProfile {
+            frame_cap: LOOP_FRAME_CAP,
+            ..default()
+        }));
         app.add_plugins(detour_script());
     }
 
@@ -306,10 +339,23 @@ fn detour_script() -> Script {
         .on_enter(press_action("interface_toggle"))
         .until(frames(1))
         .add()
-        .step("let the key up and fly the goto")
+        .step("let the key up")
         .on_enter(release_action("interface_toggle"))
+        .until(frames(1))
+        .add()
+        .step("frame the lane and fly the goto")
+        .on_enter(|world| {
+            hide_status_bar(world);
+            pose_camera(world, LOOP_CAMERA_AT, LOOP_LOOK_AT);
+            loop_start(world, LOOP_NAME);
+        })
         .until(goto_completed())
         .deadline(LEG_DEADLINE_SECS)
+        .add()
+        .step("close the detour loop")
+        .on_enter(|world| loop_end(world, LOOP_NAME))
+        .until(loop_written(LOOP_NAME))
+        .deadline(LOOP_DEADLINE_SECS)
         .add()
         .step("read the detour")
         .on_enter(read_the_detour)
