@@ -4,14 +4,27 @@
 
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
-use nova_gameplay::{prelude::*, transform::prelude::PointRotationInput};
+use nova_gameplay::{
+    prelude::*,
+    transform::prelude::{PointRollInput, PointRotationInput},
+};
 
 use super::rig::{
     CameraInputRotate, CombatInput, FreeLookInput, SpaceshipCameraFreeLookInputMarker,
     SpaceshipCameraInputMarker, SpaceshipCameraNormalInputMarker, SpaceshipCameraTurretInputMarker,
     SpaceshipRotationInputActiveMarker,
 };
-use crate::prelude::*;
+use crate::{
+    input::player::{RollLeftInput, RollRightInput},
+    prelude::*,
+};
+
+/// The manual roll rate while Q or E is held, in radians per second.
+///
+/// A quarter turn a second sits inside the hull turn-rate band the command
+/// slew follows (`FlightSettings` 10 to 240 deg/s): a light hull keeps up
+/// with the view, and a heavy one trails it the way it trails the mouse.
+pub(crate) const MANUAL_ROLL_RATE: f32 = core::f32::consts::FRAC_PI_2;
 
 /// The mode that the camera is currently in for controlling the spaceship.
 ///
@@ -188,6 +201,54 @@ pub(super) fn on_rotation_input_completed(
 ) {
     for mut input in &mut q_input {
         **input = Vec2::ZERO;
+    }
+}
+
+/// The one nonzero writer of the Normal rig's [`PointRollInput`]: E minus Q,
+/// held, at [`MANUAL_ROLL_RATE`]. Positive (E) rolls clockwise as seen from
+/// behind. The integrator consumes each write, so a frame this system skips
+/// (a scenario load gates its set) rolls nothing.
+///
+/// Recomputed from the held keys every frame, so a release, a focus loss or a
+/// context going quiet clears it with no Complete edge to miss. It writes zero
+/// on every path where the mouse may not steer the hull: paused, control
+/// suspended, RCS held, an autopilot owning the command, or another rig
+/// (FreeLook, Turret) holding the look.
+pub(super) fn apply_roll_input(
+    time: Res<Time>,
+    pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
+    q_left: Query<&TriggerState, With<Action<RollLeftInput>>>,
+    q_right: Query<&TriggerState, With<Action<RollRightInput>>>,
+    q_held_helm: Query<
+        (),
+        (
+            With<PlayerSpaceshipMarker>,
+            Or<(With<RcsActive>, With<Autopilot>)>,
+        ),
+    >,
+    mut q_rig: Query<
+        (&mut PointRollInput, Has<SpaceshipRotationInputActiveMarker>),
+        With<SpaceshipCameraNormalInputMarker>,
+    >,
+) {
+    let free = !pause.get().is_frozen()
+        && !crate::input::player::control::player_control_is_suspended(control)
+        && q_held_helm.is_empty();
+    let direction = match (action_held(&q_left), action_held(&q_right)) {
+        (false, true) => 1.0,
+        (true, false) => -1.0,
+        _ => 0.0,
+    };
+    for (mut roll, active) in &mut q_rig {
+        let next = if free && active {
+            direction * MANUAL_ROLL_RATE * time.delta_secs()
+        } else {
+            0.0
+        };
+        if **roll != next {
+            **roll = next;
+        }
     }
 }
 
@@ -755,6 +816,247 @@ mod tests {
             before.angle_between(after) < 1.0e-6,
             "the frozen camera turned by {} rad",
             before.angle_between(after)
+        );
+    }
+
+    /// Q and E drive the Normal rig's manual roll through the REAL
+    /// enhanced-input rig (`spawn_flight_rig`): E alone rolls positive, Q
+    /// alone negative, both held cancel to exactly zero, and release clears
+    /// it. RCS and an engaged autopilot zero it even with E held; so does
+    /// another rig (FreeLook) holding the active marker instead of Normal -
+    /// `apply_roll_input` is the ONLY writer of the Normal rig's
+    /// `PointRollInput`, and it never touches `PointRotationInput`.
+    #[test]
+    fn q_and_e_roll_only_the_live_normal_rig() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        use crate::input::player::{test_support::spawn_flight_rig, FlightInputMarker};
+
+        const DT: f32 = 1.0 / 60.0;
+        const RATE: f32 = MANUAL_ROLL_RATE * DT;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_systems(Update, apply_roll_input);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            DT,
+        )));
+
+        let normal = app
+            .world_mut()
+            .spawn((
+                SpaceshipCameraNormalInputMarker,
+                SpaceshipRotationInputActiveMarker,
+                PointRollInput::default(),
+            ))
+            .id();
+        let free_look = app
+            .world_mut()
+            .spawn((
+                SpaceshipCameraFreeLookInputMarker,
+                PointRollInput::default(),
+            ))
+            .id();
+        let ship = app
+            .world_mut()
+            .spawn((SpaceshipRootMarker, PlayerSpaceshipMarker))
+            .id();
+
+        // The context registry finalizes in App::finish, so run the plugin
+        // lifecycle BEFORE spawning the action rig, like `mode_app` does.
+        app.finish();
+        app.cleanup();
+        app.update(); // the zero-delta ManualDuration frame.
+        spawn_flight_rig(&mut app);
+        app.update();
+
+        let roll = |app: &App, rig: Entity| app.world().get::<PointRollInput>(rig).unwrap().0;
+        let press = |app: &mut App, key: KeyCode| {
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .press(key);
+        };
+        let release = |app: &mut App, key: KeyCode| {
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .release(key);
+        };
+
+        // 1. E held: positive roll at the full rate.
+        press(&mut app, KeyCode::KeyE);
+        app.update();
+        assert!(
+            (roll(&app, normal) - RATE).abs() < 1e-5,
+            "E alone should roll positive at the full rate, got {}",
+            roll(&app, normal)
+        );
+
+        // 2. Q held (E released): negative roll.
+        release(&mut app, KeyCode::KeyE);
+        press(&mut app, KeyCode::KeyQ);
+        app.update();
+        assert!(
+            (roll(&app, normal) + RATE).abs() < 1e-5,
+            "Q alone should roll negative at the full rate, got {}",
+            roll(&app, normal)
+        );
+
+        // 3. Q and E together: exact cancellation.
+        press(&mut app, KeyCode::KeyE);
+        app.update();
+        assert_eq!(roll(&app, normal), 0.0, "Q and E together must cancel");
+
+        // 4. Both released: no sticky roll.
+        release(&mut app, KeyCode::KeyQ);
+        release(&mut app, KeyCode::KeyE);
+        app.update();
+        assert_eq!(roll(&app, normal), 0.0, "releasing both leaves no roll");
+
+        // 5. E held while RCS is active on the player ship: zeroed.
+        press(&mut app, KeyCode::KeyE);
+        app.world_mut().entity_mut(ship).insert(RcsActive);
+        app.update();
+        assert_eq!(
+            roll(&app, normal),
+            0.0,
+            "RCS zeroes the roll even with E held"
+        );
+
+        // ...and the same with an engaged autopilot instead of RCS.
+        app.world_mut().entity_mut(ship).remove::<RcsActive>();
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::Stop));
+        app.update();
+        assert_eq!(
+            roll(&app, normal),
+            0.0,
+            "an engaged autopilot zeroes the roll even with E held"
+        );
+        app.world_mut().entity_mut(ship).remove::<Autopilot>();
+
+        // 6. The FreeLook rig holds the active marker instead of Normal: the
+        // Normal rig goes inert, and the FreeLook rig - never matched by the
+        // query - stays at its untouched value. Single writer, proven.
+        app.world_mut()
+            .entity_mut(normal)
+            .remove::<SpaceshipRotationInputActiveMarker>();
+        app.world_mut()
+            .entity_mut(free_look)
+            .insert(SpaceshipRotationInputActiveMarker);
+        app.update();
+        assert_eq!(
+            roll(&app, normal),
+            0.0,
+            "the Normal rig is inert without the active marker"
+        );
+        assert_eq!(
+            roll(&app, free_look),
+            0.0,
+            "the FreeLook rig is never the Normal rig's writer"
+        );
+
+        // 7. Coexistence: hand the active marker back to Normal, give it a
+        // live look input, and confirm the roll writer neither skips its own
+        // write nor clobbers the look.
+        app.world_mut()
+            .entity_mut(free_look)
+            .remove::<SpaceshipRotationInputActiveMarker>();
+        app.world_mut()
+            .entity_mut(normal)
+            .insert(SpaceshipRotationInputActiveMarker);
+        let look = Vec2::new(0.4, -0.3);
+        app.world_mut()
+            .entity_mut(normal)
+            .insert(PointRotationInput(look));
+        app.update();
+        assert!(
+            (roll(&app, normal) - RATE).abs() < 1e-5,
+            "roll keeps writing alongside a live look input, got {}",
+            roll(&app, normal)
+        );
+        assert_eq!(
+            app.world().get::<PointRotationInput>(normal).unwrap().0,
+            look,
+            "the roll writer must never touch PointRotationInput"
+        );
+    }
+    /// Holding E while the camera set is gated off - a scenario load closes
+    /// it, the integrator keeps running - rolls the Normal rig nothing: the
+    /// last write was consumed and nothing writes again. When the gate opens,
+    /// the rig resumes at one frame's step, with no roll banked from the
+    /// hold for the camera or the hull command to snap to.
+    #[test]
+    fn a_held_roll_does_not_bank_while_the_camera_set_is_gated() {
+        use core::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        use crate::input::player::{test_support::spawn_flight_rig, FlightInputMarker};
+
+        #[derive(Resource)]
+        struct Gate(bool);
+
+        const DT: f32 = 1.0 / 60.0;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.add_plugins(PointRotationPlugin);
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.add_input_context::<FlightInputMarker>();
+        app.insert_resource(Gate(true));
+        app.add_systems(Update, apply_roll_input.run_if(|gate: Res<Gate>| gate.0));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+            DT,
+        )));
+        let normal = app
+            .world_mut()
+            .spawn((
+                SpaceshipCameraNormalInputMarker,
+                SpaceshipRotationInputActiveMarker,
+                PointRotation::default(),
+            ))
+            .id();
+        app.finish();
+        app.cleanup();
+        app.update();
+        spawn_flight_rig(&mut app);
+        app.update();
+
+        let output = |app: &App| **app.world().get::<PointRotationOutput>(normal).unwrap();
+        let step = MANUAL_ROLL_RATE * DT;
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyE);
+        app.update();
+        let before = output(&app);
+        assert!(
+            (before.angle_between(Quat::IDENTITY) - step).abs() < 1e-4,
+            "E rolls one frame's step while the set runs"
+        );
+
+        app.world_mut().resource_mut::<Gate>().0 = false;
+        for _ in 0..30 {
+            app.update();
+        }
+        assert!(
+            output(&app).angle_between(before) < 1e-6,
+            "a gated writer leaves the rig where it was, drifted {}",
+            output(&app).angle_between(before)
+        );
+
+        app.world_mut().resource_mut::<Gate>().0 = true;
+        app.update();
+        assert!(
+            (output(&app).angle_between(before) - step).abs() < 1e-4,
+            "the reopened set rolls one step, not the banked hold"
         );
     }
 }

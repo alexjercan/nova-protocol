@@ -1,5 +1,5 @@
 //! Human piloting: turns keyboard/mouse/gamepad input into ship intent. The
-//! always-on flight rig drives the flight verbs (burn, the STOP/GOTO/ORBIT
+//! always-on flight rig drives the flight verbs (burn, roll, the STOP/GOTO/ORBIT
 //! autopilot commands, RCS fine-adjust), and per-section `input_mapping`
 //! bindings (thruster/turret/torpedo/railgun/mining) drive the sections. Keys
 //! off the human's ship marker
@@ -49,7 +49,7 @@ use weapons::{
 };
 use wheel::{on_wheel_step, on_wheel_zoom, WheelDownInput, WheelUpInput};
 
-pub(crate) use self::flight_rig::FlightInputMarker;
+pub(crate) use self::flight_rig::{FlightInputMarker, RollLeftInput, RollRightInput};
 pub use self::{
     control::{resume_player_control, suspend_player_control, PlayerControlSuspended},
     hints::{FlightVerbHints, VerbHint},

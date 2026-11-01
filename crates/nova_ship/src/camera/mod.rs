@@ -54,8 +54,8 @@ use self::{
     framing::{update_burn_push, update_camera_rig, update_chase_camera_input, BurnPush},
     handback::on_autopilot_disengaged,
     mode::{
-        derive_control_mode_and_raised, on_rotation_input, on_rotation_input_completed,
-        sync_spaceship_control_mode,
+        apply_roll_input, derive_control_mode_and_raised, on_rotation_input,
+        on_rotation_input_completed, sync_spaceship_control_mode,
     },
     rig::{
         destroy_camera_controller, insert_camera_controller, insert_camera_freelook,
@@ -141,6 +141,7 @@ impl Plugin for SpaceshipCameraControllerPlugin {
                     .run_if(in_state(nova_gameplay::PauseStates::Unpaused)),
                 update_chase_camera_input,
                 sync_spaceship_control_mode,
+                apply_roll_input,
                 update_camera_rig,
             )
                 .chain()

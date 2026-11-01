@@ -2,6 +2,8 @@
 
 The full control reference, keyboard and gamepad side by side. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; CANCEL, a main-drive burn, a bound thruster key, entering RCS or the engaged verb pressed again disengages them immediately, while the mouse only swings the camera. New players should start with [Your first flight](../getting-started/), which teaches these one at a time. Every one of these is REBINDABLE in-game under **Settings > Controls**, reachable from both the main menu and the pause menu - one binding group at a time, keyboard and gamepad in their own columns. Pressing a key another action in the same live set already holds is refused by name, and `Reset Defaults` puts the whole table back. The MOUSE group in that same list holds no bindings - it is the three mouse sensitivity sliders, covered in [Settings](../settings/#mouse).
 
+Q and E are now the default roll keys. If an older saved control setting assigned either key to another action, that conflicting override returns to its default on load. Check **Settings > Controls** to rebind the displaced action to a free key.
+
 A dash means the action has no binding on that device.
 
 ## Flight
@@ -25,6 +27,11 @@ A dash means the action has no binding on that device.
                     aria-label="Right bumper"
                 ></span>
             </td>
+        </tr>
+        <tr>
+            <td>Roll left / right - turn the hull about its nose</td>
+            <td><kbd>Q</kbd> / <kbd>E</kbd> (hold)</td>
+            <td>unbound</td>
         </tr>
         <tr>
             <td>GOTO - fly to the current lock</td>
@@ -116,6 +123,8 @@ A dash means the action has no binding on that device.
 DOCK needs a docking port on both hulls, so it is offered only on a ship built with one: build a hull with a docking port in the editor, or fly the `docking_approach` example. A dock starts neutral: the other ship flies the pair until <kbd>H</kbd> takes the helm, and <kbd>D</kbd> again lets go. A dock with a derelict or neutralized hull, ship or station, gives you the helm at once; a living station keeps it and refuses <kbd>H</kbd>. See [Docking port](../sections/docking/).
 
 Dock and Helm appear in **Settings > Controls > FLIGHT** with <kbd>D</kbd> and <kbd>H</kbd> as rebindable defaults.
+
+Roll turns the view and the hull together at a quarter turn a second, through the same controller that points the nose, and draws no RCS. <kbd>Q</kbd> rolls left and <kbd>E</kbd> rolls right; holding both holds still. Roll does nothing in free look, with weapons raised, while RCS is held or while an autopilot verb is flying. Roll Left and Roll Right appear in **Settings > Controls > FLIGHT**; no gamepad button is free for them, and a ship's own section keys cannot take <kbd>Q</kbd> or <kbd>E</kbd>.
 
 Mining has no flight key. Each mining beam section has its own key, like a weapon or a thruster: the mining tug's bow beam answers <kbd>V</kbd>, and a beam placed in the editor starts on <kbd>V</kbd> with no gamepad button. Hold a beam's key with an ore rock travel-locked, in front of that emitter and within 100 m; it opens, runs its tip out and cuts the rock once a second where it hits. Release the key and that beam retracts. Rebind each beam on the [Ship pane](../interface/#rebinding-a-section). See [Mining beam](../sections/mining-beam/).
 

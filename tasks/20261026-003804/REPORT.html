@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Task 20261026-003804 - Manual ship roll through the rotation controller (proposal)</title>
+<style>
+  :root { --bg:#0d1110; --panel:#151b19; --ink:#d8e2dc; --dim:#8a9a92; --line:#2a3530;
+          --meas:#5fb98a; --src:#6aa6d8; --prop:#d8a24a; --bad:#d86a5a; }
+  body { background:var(--bg); color:var(--ink); font:15px/1.5 ui-monospace,Menlo,Consolas,monospace; margin:0; }
+  main { max-width:1100px; margin:0 auto; padding:24px; }
+  h1 { font-size:22px; margin:0 0 4px; } h2 { font-size:17px; border-bottom:1px solid var(--line); padding-bottom:4px; margin-top:36px; }
+  h3 { font-size:15px; margin:20px 0 6px; }
+  .sub { color:var(--dim); }
+  .tag { display:inline-block; padding:1px 7px; border-radius:3px; font-size:12px; font-weight:bold; color:#0d1110; margin-right:6px; }
+  .meas { background:var(--meas); } .src { background:var(--src); } .prop { background:var(--prop); } .bad { background:var(--bad); }
+  .box { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:12px 16px; margin:12px 0; }
+  .box.src-b { border-left:4px solid var(--src); } .box.prop-b { border-left:4px solid var(--prop); } .box.bad-b { border-left:4px solid var(--bad); } .box.meas-b { border-left:4px solid var(--meas); }
+  table { border-collapse:collapse; width:100%; margin:8px 0; font-size:13px; }
+  th, td { border:1px solid var(--line); padding:5px 8px; text-align:left; vertical-align:top; }
+  th { background:#1b2320; color:var(--dim); font-weight:normal; }
+  code { color:#e8d9a8; } a { color:var(--src); }
+  pre { background:#0a0d0c; border:1px solid var(--line); padding:10px; overflow-x:auto; font-size:12.5px; }
+  .rec { border:2px solid var(--prop); }
+  ul { margin:6px 0; padding-left:22px; }
+  .legend span { margin-right:14px; }
+  nav ol { margin:6px 0; padding-left:22px; columns:2; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .flow { display:flex; flex-direction:column; gap:0; }
+  .node { background:#10171a; border:1px solid var(--line); border-radius:5px; padding:6px 10px; font-size:13px; }
+  .node.new { border:1px dashed var(--prop); background:#1b170e; }
+  .node.dead { border:1px dashed var(--bad); color:var(--dim); }
+  .node small { color:var(--dim); display:block; }
+  .arrow { text-align:center; color:var(--dim); font-size:13px; line-height:1.4; }
+  .side { margin-left:22px; border-left:2px solid var(--line); padding-left:10px; margin-top:4px; }
+  @media (max-width:760px) {
+    main { padding:12px; }
+    .grid2 { grid-template-columns:1fr; }
+    nav ol { columns:1; }
+    table { display:block; overflow-x:auto; }
+    th, td { min-width:9em; }
+    code { overflow-wrap:anywhere; }
+    td code { overflow-wrap:normal; white-space:nowrap; }
+    h1 { font-size:19px; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Manual ship roll through the existing rotation controller</h1>
+<div class="sub">Task <code>tasks/20261026-003804</code> (#91/#92/#93 sequence) - proposal only - status OPEN - 2026-10-31</div>
+
+<div class="box legend">
+  <span><span class="tag src">SOURCE</span>read from code or docs at the cited line</span>
+  <span><span class="tag meas">MEASURED</span>counted or run in this session</span>
+  <span><span class="tag prop">PROPOSED</span>not approved, not implemented</span>
+  <span><span class="tag bad">RISK</span>failure or break to guard</span>
+</div>
+
+<div class="box prop-b rec">
+  <b>Owner decision (latest, overrides the task's old RCS title):</b> manual roll uses the EXISTING rotation controller
+  (Controller section PD loop), not RCS. Roll costs no RCS. This page makes no gameplay, binding, default, or test change.
+  Bindings, rates, and signs below are options, not picks.
+</div>
+
+<nav class="box">
+  <ol>
+    <li><a href="#summary">Summary</a></li>
+    <li><a href="#graph">Old vs proposed graph</a></li>
+    <li><a href="#map">Current rotation path</a></li>
+    <li><a href="#authority">Authority and precedence</a></li>
+    <li><a href="#seat">Where roll enters</a></li>
+    <li><a href="#bindings">Bindings and conflicts</a></li>
+    <li><a href="#physics">Physical roll capability</a></li>
+    <li><a href="#camera">Camera, HUD, docking, wiki</a></li>
+    <li><a href="#risks">Risks and loud failures</a></li>
+    <li><a href="#accept">Acceptance and proof</a></li>
+    <li><a href="#decisions">Decisions needed</a></li>
+  </ol>
+</nav>
+
+<h2 id="summary">1. Summary</h2>
+<div class="box src-b">
+<span class="tag src">SOURCE</span>
+<ul>
+  <li>The player's rotation command is a full world quaternion, not an aim direction. Mouse or right stick
+    drives a camera "point rotation" rig with local yaw and pitch only; its output is slewed into the
+    Controller section command, and a 3-axis PD loop applies torque to the hull.</li>
+  <li>The command already has a roll degree of freedom. The PD clamps acceleration per principal axis and
+    turns the hull about any axis, roll included. Nothing in the player input path writes roll.</li>
+  <li>The chase camera takes its up vector from the same rig, so rolling the rig rolls the view; the
+    autopilot and scripted align turn by shortest arc from the previous command, so a pilot roll persists
+    through maneuvers.</li>
+  <li>Q and E are the free keyboard pair in the Flight context (R, F, C are runtime section defaults). The gamepad has no free button in the Flight context.</li>
+</ul>
+</div>
+<div class="box prop-b">
+<span class="tag prop">PROPOSED</span>
+Add a roll rate to the normal camera rig's integrator (roll about the rig's forward axis). Everything after the rig
+- slew, PD, torque, docked wrench, controller stacking, adrift freeze - is reused unchanged. No RCS read or write.
+Recommendation for the seat: <b>option A (roll the rig)</b>, see <a href="#seat">section 5</a>. Binding choice stays with the owner.
+</div>
+
+<h2 id="graph">2. Old vs proposed graph</h2>
+<div class="grid2">
+<div>
+<h3><span class="tag src">SOURCE</span>Now</h3>
+<div class="flow">
+  <div class="node">Mouse motion / Right Stick<small>action <code>camera_rotate</code>, <a href="../../crates/nova_ship/src/camera/rig.rs">rig.rs:248-256</a></small></div>
+  <div class="arrow">Fire&lt;CameraInputRotate&gt; (Vec2)</div>
+  <div class="node"><code>on_rotation_input</code><small>zeroes on pause or RCS; <a href="../../crates/nova_ship/src/camera/mode.rs">mode.rs:132-183</a></small></div>
+  <div class="arrow">PointRotationInput(Vec2: yaw, pitch)</div>
+  <div class="node"><code>point_rotation_update_system</code> (PostUpdate)<small>local yaw + pitch, no world up; <a href="../../crates/nova_gameplay/src/transform/point_rotation.rs">point_rotation.rs:79-127</a></small></div>
+  <div class="arrow">PointRotationOutput(Quat)</div>
+  <div class="node"><code>update_controller_target_rotation_torque</code><small>slew at hull turn rate; skipped with Autopilot / RcsActive / no live computer; <a href="../../crates/nova_ship/src/input/player/intent.rs">intent.rs:20-85</a></small></div>
+  <div class="arrow">ControllerSectionRotationInput(Quat)</div>
+  <div class="node">SyncRotationInput -&gt; PDControllerSystems::Sync (FixedUpdate)<small><a href="../../crates/nova_ship/src/sections/controller_section.rs">controller_section.rs:446-479</a>; <a href="../../crates/nova_ship/src/physics/pd_controller.rs">pd_controller.rs:120-219</a></small></div>
+  <div class="arrow">PDControllerOutput(Vec3 torque)</div>
+  <div class="node"><code>sync_controller_section_forces</code> -&gt; avian torque<small><a href="../../crates/nova_ship/src/sections/controller_section.rs">controller_section.rs:481-503</a></small></div>
+  <div class="side">
+    <div class="node dead">Roll: no source writes it. Roll appears only as a side effect of composed yaw/pitch.</div>
+  </div>
+</div>
+</div>
+<div>
+<h3><span class="tag prop">PROPOSED</span>Option A</h3>
+<div class="flow">
+  <div class="node">Mouse motion / Right Stick<small>unchanged</small></div>
+  <div class="arrow">Vec2 yaw, pitch</div>
+  <div class="node new">Roll source (owner picks keys / pad)<small>new flight-rig action; signed axis</small></div>
+  <div class="arrow">roll rate (rad/s, owner sets)</div>
+  <div class="node new">Normal rig integrator<small>yaw + pitch + roll about rig forward; same zeroing on pause</small></div>
+  <div class="arrow">PointRotationOutput(Quat) - now carries roll</div>
+  <div class="node">intent slew -&gt; ControllerSectionRotationInput<small>unchanged; roll shares the one slew step</small></div>
+  <div class="arrow"></div>
+  <div class="node">PD loop -&gt; torque -&gt; hull<small>unchanged; roll is a principal axis</small></div>
+  <div class="side">
+    <div class="node">Chase camera up = rig up<small>view rolls with the command, <a href="../../crates/nova_ship/src/camera/chase.rs">chase.rs:260</a></small></div>
+    <div class="node">RcsBudget<small>never read or written by roll</small></div>
+  </div>
+</div>
+</div>
+</div>
+
+<h2 id="map">3. Current rotation path</h2>
+<table>
+  <tr><th>Stage</th><th>Owner</th><th>Schedule / set</th><th>State</th><th>Source</th></tr>
+  <tr><td>Look input binding</td><td><code>nova_ship::camera::rig</code></td><td>enhanced-input rig on camera</td><td><code>CameraInputRotate</code> Vec2; mouse uses <code>MousePath::Look</code> sensitivity and <code>Negate::all</code>; right stick x2</td><td><a href="../../crates/nova_ship/src/camera/rig.rs">rig.rs:237-273, 328-330</a></td></tr>
+  <tr><td>Input to rig</td><td><code>camera::mode::on_rotation_input</code></td><td>observer</td><td>writes the ACTIVE rig only; zero while paused or RCS active</td><td><a href="../../crates/nova_ship/src/camera/mode.rs">mode.rs:132-192</a></td></tr>
+  <tr><td>Rig integrator</td><td><code>nova_gameplay::transform::point_rotation</code></td><td>PostUpdate</td><td>forward/right basis; yaw about local up, pitch about local right</td><td><a href="../../crates/nova_gameplay/src/transform/point_rotation.rs">point_rotation.rs:53, 79-138</a></td></tr>
+  <tr><td>Three rigs</td><td><code>camera::rig</code>, <code>camera::mode</code></td><td>observer on mode change</td><td>Normal steers the ship; FreeLook and Turret seed from the active output and steer only the camera/turrets</td><td><a href="../../crates/nova_ship/src/camera/rig.rs">rig.rs:143-208</a>; <a href="../../crates/nova_ship/src/camera/mode.rs">mode.rs:81-123</a></td></tr>
+  <tr><td>Command slew</td><td><code>input::player::intent</code></td><td>Update</td><td>slew to rig output at <code>ship_turn_rate</code>; geodesic step</td><td><a href="../../crates/nova_ship/src/input/player/intent.rs">intent.rs:61-84</a>; <a href="../../crates/nova_ship/src/flight/guidance.rs">guidance.rs:362-386, 451-457</a></td></tr>
+  <tr><td>Flight writers</td><td><code>NovaFlightSystems</code></td><td>FixedUpdate, after SyncStack, before SyncRotationInput</td><td>orders, autopilot, scripted align write the same command</td><td><a href="../../crates/nova_ship/src/flight/mod.rs">mod.rs:184-232</a></td></tr>
+  <tr><td>Copy to PD</td><td><code>ControllerSectionSystems::SyncRotationInput</code></td><td>FixedUpdate chain: SyncTarget, SyncStack, SyncRotationInput, PD Sync, SpaceshipSectionSystems</td><td>skips <code>SectionInactiveMarker</code></td><td><a href="../../crates/nova_ship/src/sections/controller_section.rs">controller_section.rs:435-479</a></td></tr>
+  <tr><td>PD torque</td><td><code>physics::pd_controller</code></td><td><code>PDControllerSystems::Sync</code></td><td>axis-angle error, per-principal-axis acceleration clamp, brake past sustained speed; docked pair inertia</td><td><a href="../../crates/nova_ship/src/physics/pd_controller.rs">pd_controller.rs:120-219</a></td></tr>
+  <tr><td>Apply</td><td><code>sync_controller_section_forces</code></td><td><code>SpaceshipSectionSystems</code></td><td>skips docked roots (helm wrench applies instead) and inactive controllers</td><td><a href="../../crates/nova_ship/src/sections/controller_section.rs">controller_section.rs:481-503</a></td></tr>
+</table>
+
+<h2 id="authority">4. Authority and precedence</h2>
+<p><span class="tag src">SOURCE</span> for the "now" column. <span class="tag prop">PROPOSED</span> for the roll column.</p>
+<table>
+  <tr><th>State</th><th>Who writes the ship command now</th><th>Roll under option A</th><th>Source</th></tr>
+  <tr><td>Manual, Normal camera</td><td>player rig via intent slew</td><td>roll input rolls rig, view, and hull</td><td><a href="../../crates/nova_ship/src/input/player/intent.rs">intent.rs:20-85</a></td></tr>
+  <tr><td>Autopilot / order engaged</td><td>autopilot or order; player mouse is camera-only</td><td>command keeps the roll it had (shortest-arc turns). Roll input: owner decides (camera-only like the mouse, or ignored)</td><td><a href="../../crates/nova_ship/src/input/player/intent.rs">intent.rs:39</a>; <a href="../../crates/nova_ship/src/flight/autopilot.rs">autopilot.rs:1644, 1702</a>; <a href="../../crates/nova_ship/src/flight/order.rs">order.rs:294-295, 396</a></td></tr>
+  <tr><td>Autopilot disengage</td><td>normal rig re-seeded from hull attitude</td><td>rig adopts hull roll; no snap</td><td><a href="../../crates/nova_ship/src/camera/handback.rs">handback.rs:41-55</a></td></tr>
+  <tr><td>RCS held</td><td>heading frozen; mouse translates</td><td>frozen too unless owner allows roll during RCS (needs the RCS gates changed)</td><td><a href="../../crates/nova_ship/src/input/player/intent.rs">intent.rs:40-42</a>; <a href="../../crates/nova_ship/src/camera/mode.rs">mode.rs:165-177</a></td></tr>
+  <tr><td>FreeLook / Turret</td><td>normal rig dormant; hull holds</td><td>owner decides: roll the hull (write normal rig) or roll nothing</td><td><a href="../../crates/nova_ship/src/camera/mode.rs">mode.rs:81-123</a></td></tr>
+  <tr><td>Docked, not driving</td><td>no write; parked helm</td><td>no roll</td><td><a href="../../crates/nova_ship/src/input/player/intent.rs">intent.rs:55-60</a></td></tr>
+  <tr><td>Docked, driving (Helm)</td><td>player command; wrench over the pair</td><td>pair rolls at pair inertia</td><td><a href="../../crates/nova_ship/src/physics/pd_controller.rs">pd_controller.rs:150-153</a>; <a href="../../crates/nova_ship/src/sections/controller_section.rs">controller_section.rs:482-487</a></td></tr>
+  <tr><td>No live controller</td><td>command freezes; no torque</td><td>no roll (correct "adrift")</td><td><a href="../../crates/nova_ship/src/input/player/intent.rs">intent.rs:65-76</a>; <a href="../../crates/nova_ship/src/sections/controller_section.rs">controller_section.rs:488-496</a></td></tr>
+  <tr><td>Paused / control suspended</td><td>rig rate zeroed / skipped; suspension parks the command at the hull attitude (<a href="../../crates/nova_ship/src/input/player/control.rs">control.rs:70-89</a>)</td><td>roll rate zeroed the same way</td><td><a href="../../crates/nova_ship/src/camera/mode.rs">mode.rs:145-163</a></td></tr>
+  <tr><td>AI ships, torpedoes</td><td>own writers on their own controllers</td><td>untouched; roll is player-rig only</td><td><a href="../../crates/nova_ship/src/sections/torpedo_section/projectile.rs">projectile.rs:531-541</a></td></tr>
+</table>
+
+<h2 id="seat">5. Where roll enters</h2>
+<table>
+  <tr><th>Option</th><th>What changes</th><th>Good</th><th>Limits / break</th></tr>
+  <tr class="rec"><td><b>A. Roll the normal rig</b> (recommended)</td><td>rig integrator gains a roll term about its forward axis; a new roll action feeds it</td><td>one writer, one quaternion; camera, aim ray, slew, PD, docking helm, handback all reuse; roll survives autopilot</td><td>view rolls with the command (intended for 6DOF, but a design call); changes a <code>nova_gameplay</code> type shared by three rigs; mode seeding carries roll into FreeLook/Turret rigs</td></tr>
+  <tr><td>B. Hull-only roll offset</td><td>intent multiplies rig output by a held roll offset</td><td>camera stays level</td><td>camera up and hull up diverge; next yaw turns about camera up, not hull up; handback re-seed folds the offset into the rig and double-counts; second roll state to persist and save</td></tr>
+  <tr><td>C. Write the controller command directly</td><td>new system writes <code>ControllerSectionRotationInput</code></td><td>no rig change</td><td>intent slews the command back to the rig every frame; two writers fight; breaks the one-writer seam at <a href="../../crates/nova_ship/src/sections/controller_section.rs">controller_section.rs:367-391</a></td></tr>
+</table>
+<div class="box prop-b">
+<span class="tag prop">PROPOSED</span> Interface sketch for A (shape only; type and name are decisions):
+<pre>// nova_gameplay::transform::point_rotation (owning crate first)
+// either widen the existing input ...
+pub struct PointRotationInput(pub Vec3);   // x yaw, y pitch, z roll (rad this frame)
+// ... or add a sibling the same integrator reads
+pub struct PointRollInput(pub f32);        // rad this frame, about rig forward
+
+fn compute_point_rotation(state, input) -&gt; PointRotationState {
+    // existing yaw, pitch ...
+    if roll != 0.0 {
+        let q = Quat::from_axis_angle(state.forward, roll);
+        state.right = (q * state.right).normalize();   // forward unchanged
+    }
+}</pre>
+Callers to update after the owning change: <code>mode.rs</code> writers and tests, <code>control.rs</code> zeroing, <code>rig.rs</code> tests
+(<a href="../../crates/nova_ship/src/camera/mode.rs">mode.rs:135, 187</a>; <a href="../../crates/nova_ship/src/input/player/control.rs">control.rs:87</a>).
+</div>
+
+<h2 id="bindings">6. Bindings and conflicts</h2>
+<p><span class="tag src">SOURCE</span> Every Flight-rig action runs with <code>consume_input: false</code>; the conflict test pairs only actions live at the same instant
+(<a href="../../crates/nova_ship/src/input/bindings.rs">bindings.rs:23-26, 221-250</a>). A new flight action also becomes a reserved source that content <code>input_mapping</code> lint refuses (<a href="../../crates/nova_ship/src/input/bindings.rs">bindings.rs:142-159</a>).</p>
+<h3>Flight-context allocation now</h3>
+<table>
+  <tr><th>Action</th><th>Keyboard / mouse</th><th>Gamepad</th><th>Source</th></tr>
+  <tr><td>Main Drive</td><td>W, Space</td><td>Right Trigger</td><td rowspan="2"><a href="../../crates/nova_ship/src/input/bindings.rs">bindings.rs:30-59</a></td></tr>
+  <tr><td>Stop / Go To / Orbit / Off / Dock / Helm</td><td>X / G / O / Z / D / H</td><td>B / Y / A / X / unbound / unbound</td></tr>
+  <tr><td>Radar hold / tap</td><td>Ctrl</td><td>D-Pad Up</td><td><a href="../../crates/nova_ship/src/input/bindings.rs">bindings.rs:64-76</a></td></tr>
+  <tr><td>Component next / prev</td><td>] / [</td><td>D-Pad Right / Left</td><td><a href="../../crates/nova_ship/src/input/bindings.rs">bindings.rs:77-82</a></td></tr>
+  <tr><td>RCS modifier / aim</td><td>Shift + mouse</td><td>Left Thumb + Left Stick</td><td><a href="../../crates/nova_ship/src/input/bindings.rs">bindings.rs:88-99</a></td></tr>
+  <tr><td>Zoom / combat component step / RCS vertical</td><td>Wheel</td><td>none</td><td><a href="../../crates/nova_ship/src/input/bindings.rs">bindings.rs:100-115</a></td></tr>
+  <tr><td>Camera aim (= ship steer) / Free Look / Raise Weapons</td><td>mouse / Left Alt / Right Mouse</td><td>Right Stick / Left Trigger / Left Trigger 2</td><td><a href="../../crates/nova_ship/src/input/bindings.rs">bindings.rs:123-140</a></td></tr>
+  <tr><td>Scenario advance / skip</td><td>Enter</td><td>D-Pad Down</td><td><a href="../../crates/nova_scenario/src/loader/lifecycle.rs">lifecycle.rs:702-713</a></td></tr>
+  <tr><td>Open Interface (Always)</td><td>Tab</td><td>Right Thumb</td><td><a href="../../crates/nova_interface/src/bindings.rs">nova_interface bindings.rs:50-53</a></td></tr>
+  <tr><td>HUD cinematic (Always)</td><td>`</td><td>Select</td><td><a href="../../crates/nova_hud/src/lib.rs">nova_hud lib.rs:432-435</a></td></tr>
+  <tr><td>Debug (not rig)</td><td>F3, F11, F12</td><td>-</td><td><a href="../../crates/nova_debug/src/diagnostics.rs">diagnostics.rs:61</a>; <a href="../../crates/nova_debug/src/lib.rs">lib.rs:102</a>; <a href="../../crates/nova_debug/src/screenshot.rs">screenshot.rs:32</a></td></tr>
+</table>
+<div class="box meas-b"><span class="tag meas">MEASURED</span> grep of <code>assets/base/**/*.ron</code> section input sources: 5 x <code>Mouse(Left)</code>, 5 x <code>Gamepad(RightTrigger2)</code>, 1 x <code>Keyboard(KeyV)</code>. No base content RON uses Q, E, R, or F. Mods that bind a newly reserved key would fail lint (intended).</div>
+<div class="box src-b"><span class="tag src">SOURCE</span> Runtime section defaults are NOT in the RON: open-world start roles bind every railgun to R and every torpedo bay to F (<a href="../../crates/nova_scenario/src/objects/start_role.rs">start_role.rs:105-117</a>), and added mining emitters take V, B, N, then C (<a href="../../crates/nova_ship/src/sections/section_add.rs">section_add.rs:44-45</a>). Reserving R, F, or C for roll would collide with these generated mappings. Q and E have no runtime section default (the parts gallery pick key Q is browser-only, <a href="../../crates/nova_ship/src/gallery/input.rs">gallery/input.rs:20</a>).</div>
+<div class="box src-b"><span class="tag src">SOURCE</span> In the fixed binding tables, Q, E, R, F are bound only in the <code>Viewer</code> and Ship-pane contexts (orbit, tilt, part roll, socket, pick), which never run beside Flight
+(<a href="../../crates/nova_interface/src/bindings.rs">nova_interface bindings.rs:60-75, 135-156</a>). The pad: four face buttons, four D-pad directions, both bumpers, Left Trigger 2, Right Trigger 2 (base-content fire, see the grep above), both stick clicks, Select and Start are taken in or always beside Flight. Dock and Helm already ship keyboard-only for this reason (<a href="../../crates/nova_ship/src/input/bindings.rs">bindings.rs:47-59</a>).</div>
+
+<h3><span class="tag prop">PROPOSED</span> Options (no pick)</h3>
+<table>
+  <tr><th>Id</th><th>Source</th><th>Limits</th></tr>
+  <tr><td>K1</td><td>Q / E pair, digital</td><td>only letter pair with no fixed-table or runtime-default use in Flight; matches Viewer turn-left/right; digital needs an owner-set roll rate; no analog fine control</td></tr>
+  <tr><td>K2</td><td>R / F, C, or another letter pair</td><td>R and F are the start-role railgun and torpedo keys, C the fourth mining key: collides with generated section mappings; any other pair needs a runtime-default sweep</td></tr>
+  <tr><td>K3</td><td>modifier + mouse X</td><td>no free modifier: Shift is RCS, Ctrl radar, Alt free look; would also need a new <code>MousePath</code> sensitivity</td></tr>
+  <tr><td>G1</td><td>pad unbound (keyboard only)</td><td>shipped precedent (Dock, Helm); pad pilots cannot roll</td></tr>
+  <tr><td>G2</td><td>bumpers as roll pair</td><td>displaces Main Drive (Right Trigger) and Free Look (Left Trigger)</td></tr>
+  <tr><td>G3</td><td>chord: hold a button + Right Stick X = roll</td><td>needs a free hold button (none); changes look on that stick while held</td></tr>
+  <tr><td>G4</td><td>D-Pad Left / Right</td><td>displaces component lock prev/next</td></tr>
+</table>
+<p><span class="tag bad">RISK</span> Adding a flight action changes the pinned count, names, and readout tests (<a href="../../crates/nova_ship/src/input/bindings.rs">bindings.rs:180-300</a>); those existing tests update with the change.</p>
+
+<h2 id="physics">7. Physical roll capability</h2>
+<div class="box src-b">
+<span class="tag src">SOURCE</span>
+<ul>
+  <li>The PD error is the full axis-angle of <code>command * hull^-1</code>, so a pure roll error gives an axis along the hull nose (<a href="../../crates/nova_ship/src/physics/pd_controller.rs">pd_controller.rs:187-198</a>).</li>
+  <li>The clamp is per principal axis in acceleration units, so roll gets the same authored angular acceleration as pitch and yaw; torque = acceleration x principal inertia (<a href="../../crates/nova_ship/src/physics/pd_controller.rs">pd_controller.rs:200-219</a>). A long hull has its smallest inertia about the nose, so roll needs the least torque for the same rate.</li>
+  <li>The command slew caps the geodesic step, so roll and yaw/pitch share one turn-rate budget per frame (<a href="../../crates/nova_ship/src/flight/guidance.rs">guidance.rs:362-370</a>).</li>
+  <li>Stacked controllers share one hull-wide ceiling (<a href="../../crates/nova_ship/src/sections/controller_section.rs">controller_section.rs:200-230</a>).</li>
+</ul>
+</div>
+<div class="box src-b"><span class="tag src">SOURCE</span> Existing PD tests already drive roll about the long axis: a 1.5 rad/s roll despins with a tracking or frozen command, and under saturating authority (<a href="../../crates/nova_ship/src/physics/pd_controller.rs">pd_controller.rs:784-822, 884</a>). They prove roll damping, not a commanded roll to a new angle. Not run in this session.</div>
+<div class="box"><span class="tag bad">NOT MEASURED</span> No run in this session drove a rolled command. Roll rate and settle time on base hulls are unknown until a spike or the implementation runs. The claims above are source-derived.</div>
+
+<h2 id="camera">8. Camera, HUD, docking, wiki</h2>
+<table>
+  <tr><th>Area</th><th>Now</th><th>Under option A</th><th>Source</th></tr>
+  <tr><td>Chase camera</td><td>position and <code>look_at</code> up both from <code>anchor_rot</code> = active rig output</td><td>view rolls with the command, instantly; hull follows at turn rate</td><td><a href="../../crates/nova_ship/src/camera/chase.rs">chase.rs:225-260</a>; <a href="../../crates/nova_ship/src/camera/framing.rs">framing.rs:59-80</a></td></tr>
+  <tr><td>Turret aim</td><td>turret rig forward ray</td><td>forward is unchanged by roll; aim point unchanged</td><td><a href="../../crates/nova_ship/src/input/player/intent.rs">intent.rs:94-140</a></td></tr>
+  <tr><td>HUD</td><td>no roll or horizon instrument found by inspection (not exhaustive); the docking sight states roll is not drawn</td><td>owner decides whether a roll cue ships</td><td><a href="../../web/src/wiki/hud.md">hud.md:121</a> (docking sight only)</td></tr>
+  <tr><td>Dock capture</td><td>roll ignored; relative spin must be at most 5 deg/s</td><td>rolling during the last meters can block capture via spin, not via roll angle</td><td><a href="../../crates/nova_ship/src/sections/docking_section/port.rs">port.rs:101</a>; <a href="../../crates/nova_ship/src/sections/docking_section/tests.rs">tests.rs:273</a>; <a href="../../web/src/wiki/sections/docking.md">docking.md:32, 55</a></td></tr>
+  <tr><td>Docking wiki</td><td>line 50 says lining up the roll axis is the hard part; lines 32 and 55 say roll is ignored</td><td>line 50 dies (false today)</td><td><a href="../../web/src/wiki/sections/docking.md">docking.md:50</a></td></tr>
+  <tr><td>Flight wiki</td><td>"point the hull by mouse or stick"; RCS "no rotation"</td><td>add roll control text after binding approval; RCS text stays true</td><td><a href="../../web/src/wiki/flight-autopilot.md">flight-autopilot.md:26, 87-94</a></td></tr>
+  <tr><td>Playable example</td><td>docking_approach: "Roll is not assisted and not drawn"</td><td>natural host for a hand-flown roll check</td><td><a href="../../examples/playable/docking_approach.rs">docking_approach.rs:26-27</a></td></tr>
+</table>
+
+<h2 id="risks">9. Risks and loud failures</h2>
+<table>
+  <tr><th>Risk</th><th>Failure</th><th>Guard</th></tr>
+  <tr><td>Rig basis drift</td><td>roll around forward with repeated normalize lets forward/right lose orthogonality; <code>from_mat3</code> on a bad basis returns garbage (<a href="../../crates/nova_gameplay/src/transform/point_rotation.rs">point_rotation.rs:134-137</a>)</td><td>re-orthonormalize after roll; unit test on the pure function</td></tr>
+  <tr><td>Stale roll rate</td><td>a held rate left at pause or surface open keeps rolling the view (same class as <a href="../../crates/nova_ship/src/camera/mode.rs">mode.rs:149-152</a>)</td><td>zero roll on every path that zeroes look</td></tr>
+  <tr><td>Mode seeding</td><td>FreeLook/Turret seed carries roll; return to Normal is not re-seeded by design (<a href="../../crates/nova_ship/src/camera/mode.rs">mode.rs:81-84</a>)</td><td>assert hull roll unchanged across a FreeLook round trip</td></tr>
+  <tr><td>Docking helm</td><td>a pair rolls on its joints at pair inertia</td><td>docked-driving roll check; joint basis already sign-sensitive (avian cover note)</td></tr>
+  <tr><td>Input collision</td><td>reused source double-drives (<code>consume_input: false</code>)</td><td>existing conflict test must stay green</td></tr>
+  <tr><td>RCS cost leak</td><td>roll must not touch <code>RcsBudget</code></td><td>assert magazine unchanged across a roll</td></tr>
+  <tr><td>Loud: no controller</td><td>roll input on an adrift hull</td><td>command freezes; no torque; HUD/keybind dock shows nothing new unless approved</td></tr>
+</table>
+
+<h2 id="accept">10. Acceptance and proof</h2>
+<p><span class="tag prop">PROPOSED</span> Every new permanent test needs owner approval before writing.</p>
+<table>
+  <tr><th>Kind</th><th>Behavior to prove</th><th>Judge by</th></tr>
+  <tr><td>Unit (pure)</td><td>roll step keeps rig forward fixed and rotates up by the commanded angle; basis stays right-handed</td><td>vector asserts on <code>compute_point_rotation</code></td></tr>
+  <tr><td>ECS asserted example</td><td>roll input -&gt; hull angular velocity along its nose, then settles at the commanded roll; <code>RcsBudget</code> unchanged; zero live controllers -&gt; no roll</td><td><code>Rotation</code>, <code>AngularVelocity</code>, <code>RcsBudget</code> after N fixed ticks (warm-up tick first)</td></tr>
+  <tr><td>Existing tests</td><td>binding count, names, readout, conflicts; docking roll test</td><td><a href="../../crates/nova_ship/src/input/bindings.rs">bindings.rs:167-300</a>; <a href="../../crates/nova_ship/src/sections/docking_section/tests.rs">tests.rs:273</a></td></tr>
+  <tr><td>nova-bench</td><td>pilot rolls in docking_approach, docks with a roll offset, RCS pips unchanged</td><td>inspected frames: spar horizon turns, hull turns after the view; log lines with roll angle</td></tr>
+</table>
+<p><span class="tag src">SOURCE</span> Closest existing shapes: <code>a_camera_flip_reaches_the_command_over_many_frames</code> (<a href="../../crates/nova_ship/src/input/player/intent.rs">intent.rs:677</a>) for the ECS example; <a href="../../examples/systems/system_attitude_hold.rs">system_attitude_hold.rs</a> and <a href="../../examples/systems/system_turn_limit.rs">system_turn_limit.rs</a> for a hand-playable host beside docking_approach.</p>
+<p>Not timing: compare roll settle only against a named reference set, never as an absolute assert.</p>
+
+<h2 id="decisions">11. Decisions needed</h2>
+<ol>
+  <li>Seat: option A (roll the rig, view rolls) or B (hull-only offset).</li>
+  <li>Keyboard source (K1-K3) and gamepad source (G1-G4), action name, label, and settings row.</li>
+  <li>Roll rate for digital keys, analog scale, sign convention.</li>
+  <li>Roll during RCS, FreeLook, Turret, and while the autopilot holds the helm.</li>
+  <li>HUD roll cue: none or a named instrument.</li>
+  <li>Docs: flight wiki roll text, keybind table, docking.md line 50 removal, changelog entry.</li>
+</ol>
+
+</main>
+</body>
+</html>

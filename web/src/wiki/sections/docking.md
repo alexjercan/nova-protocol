@@ -47,8 +47,6 @@ Docking is one key, and everything before it is flying. Lock the other ship the 
 
 Inside 80 m the **docking sight** draws itself: a flat cross over each port face, and a line running between the two faces with a tick on it for every cell of capture distance left. Square the two crosses up, stand the line perpendicular to them, then close the gap. The crosses turn green when the facing is inside the envelope, and the line turns green when the gap, the relative speed and the relative spin are. Three green and the chip lights.
 
-Nothing flies the roll for you, and nothing is going to. Lining a port up on the roll axis by hand is the hard part of an approach, and it is meant to be.
-
 The DOCK chip lights on the [keybind dock](../../hud/) only while a pair of ports is genuinely eligible, so the chip is the readout: if it is dark, something in the envelope is still wrong (or the target itself refuses - see [Who lets you dock](#who-lets-you-dock)). Three things have to be true at once for the envelope alone.
 
 - **The gap.** Ten meters or less, measured **face to face** between the two retracted ports - not between the two ships, and not between their centres. A port buried behind a wing measures from its own face like any other.

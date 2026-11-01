@@ -610,6 +610,180 @@ mod tests {
             "manual aim commands a point, no lead velocity"
         );
     }
+
+    /// Q/E manual roll: a camera-rig roll command reaches the hull through
+    /// the intent slew and the controller PD, with no RCS involved. While the
+    /// roll is held, the hull spins about its own forward axis in the
+    /// commanded sense; once it releases and the loop settles, the hull has
+    /// rolled by about the commanded 0.5 rad with its nose unmoved, no spin
+    /// left, and the RCS magazine untouched. A controller carrying
+    /// `SectionInactiveMarker` instead freezes the command: the hull never
+    /// turns.
+    #[test]
+    fn a_rig_roll_turns_the_hull_about_its_nose_without_rcs() {
+        use std::time::Duration;
+
+        use bevy::time::TimeUpdateStrategy;
+
+        /// A hull, its controller (live or inactive), and the Normal camera
+        /// rig feeding it through `update_controller_target_rotation_torque`.
+        /// Returns (app, hull, rig).
+        fn spawn_fixture(inactive: bool) -> (App, Entity, Entity) {
+            let mut app = App::new();
+            app.add_plugins((
+                MinimalPlugins,
+                TransformPlugin,
+                bevy::asset::AssetPlugin::default(),
+                bevy::mesh::MeshPlugin,
+            ));
+            app.add_plugins(PhysicsPlugins::default());
+            app.add_plugins((
+                crate::physics::prelude::PDControllerPlugin,
+                ControllerSectionPlugin::default(),
+                PointRotationPlugin,
+            ));
+            app.insert_resource(Gravity(Vec3::ZERO));
+            app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs_f32(
+                1.0 / 60.0,
+            )));
+            app.init_resource::<FlightSettings>();
+            app.add_systems(Update, update_controller_target_rotation_torque);
+            app.finish();
+
+            let hull = app
+                .world_mut()
+                .spawn((
+                    RigidBody::Dynamic,
+                    Transform::default(),
+                    SpaceshipRootMarker,
+                    PlayerSpaceshipMarker,
+                    RcsBudget::default(),
+                ))
+                .id();
+            for z in [-1.0, 0.0, 1.0] {
+                app.world_mut().spawn((
+                    ChildOf(hull),
+                    Transform::from_xyz(0.0, 0.0, z),
+                    Collider::cuboid(1.0, 1.0, 1.0),
+                    ColliderDensity(1.0),
+                ));
+            }
+            let mut controller_entity = app.world_mut().spawn((
+                ChildOf(hull),
+                Transform::default(),
+                controller_section(ControllerSectionConfig {
+                    steering_lag: 0.5,
+                    ..Default::default()
+                }),
+            ));
+            if inactive {
+                controller_entity.insert(SectionInactiveMarker);
+            }
+            let controller = controller_entity.id();
+            // The stack tuning never measures this bare fixture hull (it has
+            // no `HullRadius`), so hand the live PD the authority a measured
+            // hull would have derived; otherwise `compute_pd_torque` clamps
+            // every tick to zero and nothing turns.
+            app.world_mut()
+                .get_mut::<PDController>(controller)
+                .unwrap()
+                .max_angular_acceleration = 10.0;
+
+            let hull_rotation = app.world().get::<Transform>(hull).unwrap().rotation;
+            let rig = app
+                .world_mut()
+                .spawn((
+                    SpaceshipCameraInputMarker,
+                    SpaceshipCameraNormalInputMarker,
+                    PointRotation {
+                        initial_rotation: hull_rotation,
+                    },
+                ))
+                .id();
+
+            (app, hull, rig)
+        }
+
+        const ROLL_RATE: f32 = 0.5 / 60.0;
+
+        // --- Active controller: the roll must reach the hull. ---
+        let (mut app, hull, rig) = spawn_fixture(false);
+        let spent_before = app.world().get::<RcsBudget>(hull).unwrap().spent;
+        // First update has dt = 0; warm it up before driving the roll.
+        app.update();
+
+        for _ in 0..60 {
+            app.world_mut().get_mut::<PointRollInput>(rig).unwrap().0 = ROLL_RATE;
+            app.update();
+
+            let forward = app.world().get::<Rotation>(hull).unwrap().0 * Vec3::NEG_Z;
+            let spin = app.world().get::<AngularVelocity>(hull).unwrap().0;
+            let speed = spin.length();
+            if speed > 1e-3 {
+                assert!(
+                    spin.dot(forward).abs() > 0.9 * speed,
+                    "spin must stay along the hull's own forward axis while \
+                     rolling, spin {spin:?}, forward {forward:?}"
+                );
+                assert!(
+                    spin.dot(forward) > 0.0,
+                    "a positive roll must spin the hull in the commanded \
+                     sense, spin {spin:?}, forward {forward:?}"
+                );
+            }
+        }
+
+        app.world_mut().get_mut::<PointRollInput>(rig).unwrap().0 = 0.0;
+        for _ in 0..180 {
+            app.update();
+        }
+
+        let forward_after = app.world().get::<Rotation>(hull).unwrap().0 * Vec3::NEG_Z;
+        let forward_drift = Vec3::NEG_Z.angle_between(forward_after);
+        assert!(
+            forward_drift < 1.0f32.to_radians(),
+            "a pure roll must not move the nose, drifted {forward_drift} rad"
+        );
+        let rotation = app.world().get::<Rotation>(hull).unwrap().0;
+        let commanded_roll = Quat::from_axis_angle(Vec3::NEG_Z, 0.5);
+        let residual = rotation.angle_between(commanded_roll);
+        assert!(
+            residual < 0.05,
+            "the hull must settle on about the commanded 0.5 rad roll, \
+             residual {residual} rad (rotation {rotation:?})"
+        );
+        let settled_spin = app.world().get::<AngularVelocity>(hull).unwrap().length();
+        assert!(
+            settled_spin < 1e-2,
+            "the hull must stop spinning once settled, at {settled_spin} rad/s"
+        );
+        let spent_after = app.world().get::<RcsBudget>(hull).unwrap().spent;
+        assert_eq!(
+            spent_before, spent_after,
+            "a manual roll must not touch the RCS magazine"
+        );
+
+        // --- Inactive controller: the command freezes and the hull never
+        // turns. ---
+        let (mut app, hull, rig) = spawn_fixture(true);
+        app.update();
+        for _ in 0..240 {
+            app.world_mut().get_mut::<PointRollInput>(rig).unwrap().0 = ROLL_RATE;
+            app.update();
+        }
+        let rotation = app.world().get::<Rotation>(hull).unwrap().0;
+        let rolled = rotation.angle_between(Quat::IDENTITY);
+        assert!(
+            rolled < 1e-3,
+            "an inactive controller must freeze the command - the hull must \
+             not roll, got {rolled} rad"
+        );
+        let spin = app.world().get::<AngularVelocity>(hull).unwrap().length();
+        assert!(
+            spin < 1e-3,
+            "an inactive controller must leave the hull with no spin, got {spin} rad/s"
+        );
+    }
 }
 
 #[cfg(test)]

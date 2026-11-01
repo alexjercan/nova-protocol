@@ -30,6 +30,13 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
         ActionBinding::new("main_drive", "FLIGHT", "Main Drive")
             .keyboard([Keyboard(KeyCode::KeyW), Keyboard(KeyCode::Space)])
             .gamepad([Gamepad(GamepadButton::RightTrigger)]),
+        // Roll about the hull's nose, through the same camera rig the mouse
+        // steers. Q and E hold no fixed or runtime section default in flight
+        // (start roles take R and F, mining emitters V, B, N, C). Keyboard
+        // only, for the reason `dock` gives: no pad button is free.
+        ActionBinding::new("roll_left", "FLIGHT", "Roll Left").keyboard([Keyboard(KeyCode::KeyQ)]),
+        ActionBinding::new("roll_right", "FLIGHT", "Roll Right")
+            .keyboard([Keyboard(KeyCode::KeyE)]),
         ActionBinding::new("autopilot_stop", "FLIGHT", "Autopilot: Stop")
             .keyboard([Keyboard(KeyCode::KeyX)])
             .gamepad([Gamepad(GamepadButton::East)]),
@@ -177,10 +184,10 @@ mod tests {
         assert_eq!(before, names.len(), "duplicate action name in {names:?}");
     }
 
-    /// The fixed rigs: 15 on the flight rig, 3 camera.
+    /// The fixed rigs: 17 on the flight rig, 3 camera.
     #[test]
-    fn the_fixed_rigs_name_eighteen_actions() {
-        assert_eq!(flight_bindings().len(), 15);
+    fn the_fixed_rigs_name_twenty_actions() {
+        assert_eq!(flight_bindings().len(), 17);
         assert_eq!(camera_bindings().len(), 3);
     }
 
@@ -197,6 +204,8 @@ mod tests {
             names,
             vec![
                 "main_drive",
+                "roll_left",
+                "roll_right",
                 "autopilot_stop",
                 "autopilot_goto",
                 "autopilot_orbit",
@@ -274,6 +283,8 @@ mod tests {
             rows,
             vec![
                 ("Main Drive", "W / Space", "Right Trigger"),
+                ("Roll Left", "Q", "Unbound"),
+                ("Roll Right", "E", "Unbound"),
                 ("Autopilot: Stop", "X", "B"),
                 ("Autopilot: Go To", "G", "Y"),
                 ("Autopilot: Orbit", "O", "A"),

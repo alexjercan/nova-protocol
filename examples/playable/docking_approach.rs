@@ -23,8 +23,9 @@
 //! and helm are inert. Press the helm key to fly the pair yourself, and the
 //! dock key again to let go.
 //!
-//! Roll is not assisted and not drawn: the ports are round and the capture
-//! ignores how the two hulls are clocked about the axis.
+//! Q and E roll the hull about its nose by hand. Nothing assists or draws the
+//! roll: the ports are round and the capture ignores how the two hulls are
+//! clocked about the axis.
 //!
 //! Neither hull is shipped content. The tender and the spar are built in
 //! `shared/docking_pair.rs` from catalog PROTOTYPE sections, so mounting a

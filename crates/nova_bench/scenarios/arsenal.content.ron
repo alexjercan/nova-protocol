@@ -142,9 +142,9 @@
                             )),
                             controller: Player((
                                 input_mapping: {
-                                    "railgun": [Keyboard(KeyQ)],
-                                    "bay_port": [Keyboard(KeyE)],
-                                    "bay_starboard": [Keyboard(KeyR)],
+                                    "railgun": [Keyboard(KeyR)],
+                                    "bay_port": [Keyboard(KeyF)],
+                                    "bay_starboard": [Keyboard(KeyT)],
                                     "pdc_dorsal": [Keyboard(KeyA)],
                                     "pdc_ventral": [Keyboard(KeyS)],
                                 },

@@ -3,7 +3,7 @@
 use bevy::prelude::*;
 use nova_gameplay::{
     prelude::*,
-    transform::prelude::{PointRotationInput, PointRotationOutput},
+    transform::prelude::{PointRollInput, PointRotationInput, PointRotationOutput},
 };
 
 use crate::prelude::*;
@@ -86,6 +86,9 @@ fn clear_player_control_intent(world: &mut World) {
     }
     for mut input in world.query::<&mut PointRotationInput>().iter_mut(world) {
         **input = Vec2::ZERO;
+    }
+    for mut roll in world.query::<&mut PointRollInput>().iter_mut(world) {
+        **roll = 0.0;
     }
     let player_rotation = players
         .first()

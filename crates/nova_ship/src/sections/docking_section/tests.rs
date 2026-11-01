@@ -459,6 +459,127 @@ fn a_dock_between_a_pitched_and_a_yawed_hull_holds_the_capture_pose() {
     );
 }
 
+/// A manual Q/E roll turns the hull about its nose, which is the docking
+/// axis of a bow port. A dock taken from that rolled pose, against a partner
+/// yawed so the two rotations do not commute, pairs the two exact ports,
+/// anchors the joint on the capture midpoint at the clocking the hulls met
+/// at, and holds that clocking without spin on every following tick.
+#[test]
+fn a_dock_after_a_roll_about_the_nose_holds_the_rolled_capture_pose() {
+    let mut app = docking_app();
+    let roll = 45.0_f32.to_radians();
+    let first = spawn_hull(&mut app, Vec3::ZERO, Quat::from_rotation_z(roll));
+    let second = spawn_hull(
+        &mut app,
+        Vec3::NEG_Z * (1.0 + NOMINAL_GAP),
+        Quat::from_rotation_y(std::f32::consts::PI + 8.0_f32.to_radians()),
+    );
+    let first_port = spawn_port(&mut app, first, "fore", Vec3::ZERO, Quat::IDENTITY);
+    let second_port = spawn_port(&mut app, second, "fore", Vec3::ZERO, Quat::IDENTITY);
+    settle(&mut app);
+
+    let (p1, r1, p2, r2, anchor) = app
+        .world_mut()
+        .run_system_once(move |ports: DockingPorts| {
+            let (p1, r1) = ports.body_pose(first).expect("the first hull is a body");
+            let (p2, r2) = ports.body_pose(second).expect("the second hull is a body");
+            let face1 = ports.pose(first_port, first).expect("a posed port").face;
+            let face2 = ports.pose(second_port, second).expect("a posed port").face;
+            (p1, r1, p2, r2, face1.midpoint(face2))
+        })
+        .expect("the capture pose reads");
+    let rolled = r1.angle_between(Quat::from_rotation_z(roll)).to_degrees();
+    assert!(
+        rolled < 0.1,
+        "the first hull meets the dock still rolled, {rolled} deg off the roll"
+    );
+
+    app.world_mut().trigger(DockingConnectionRequest {
+        entity: first,
+        target: second,
+    });
+    app.update();
+
+    let live = connections(&mut app);
+    assert_eq!(live.len(), 1, "one command, one connection");
+    assert_eq!(
+        (
+            live[0].first_ship,
+            live[0].first_section,
+            live[0].second_ship,
+            live[0].second_section,
+        ),
+        (first, first_port, second, second_port),
+        "the connection pairs the two bow ports of the two hulls"
+    );
+    let connection = {
+        let world = app.world_mut();
+        world
+            .query_filtered::<Entity, With<DockingConnection>>()
+            .single(world)
+            .expect("one connection entity")
+    };
+    for port in [first_port, second_port] {
+        assert_eq!(
+            app.world().get::<DockedPort>(port).map(|docked| docked.0),
+            Some(connection),
+            "both ports are reserved by that connection"
+        );
+    }
+
+    let world = app.world_mut();
+    let joint = world
+        .query::<&FixedJoint>()
+        .single(world)
+        .expect("one joint");
+    let (frame1, frame2) = (
+        joint.local_frame1().expect("frame 1 is local"),
+        joint.local_frame2().expect("frame 2 is local"),
+    );
+    let anchor1 = p1 + r1 * Vec3::from(frame1.translation);
+    let anchor2 = p2 + r2 * Vec3::from(frame2.translation);
+    assert!(
+        anchor1.distance(anchor) < 1e-4 && anchor2.distance(anchor) < 1e-4,
+        "both anchors sit on the capture midpoint {anchor}: {anchor1} {anchor2}"
+    );
+    let basis1 = r1 * frame1.rotation;
+    let basis2 = r2 * frame2.rotation;
+    let error = basis1.angle_between(basis2).to_degrees();
+    // f32 `angle_between` resolves about 0.04 deg next to identity.
+    assert!(
+        error < 0.1,
+        "the joint holds the rolled relative rotation the hulls met at, not \
+         one {error} deg off it"
+    );
+
+    let met = r2.inverse() * r1;
+    for tick in 0..60 {
+        app.update();
+        let r1 = app.world().get::<Rotation>(first).expect("a body").0;
+        let r2 = app.world().get::<Rotation>(second).expect("a body").0;
+        let slip = (r2.inverse() * r1).angle_between(met).to_degrees();
+        assert!(
+            slip < 0.1,
+            "tick {tick}: the docked pair keeps the clocking it met at, not \
+             {slip} deg off it"
+        );
+        for ship in [first, second] {
+            let spin = app
+                .world()
+                .get::<AngularVelocity>(ship)
+                .expect("a docked hull is a body")
+                .0
+                .length();
+            assert!(
+                spin < 0.1,
+                "tick {tick}: the dock holds {ship} still, not at {spin} rad/s"
+            );
+        }
+    }
+    assert_eq!(joints(&mut app), 1, "the joint holds");
+    assert_eq!(connections(&mut app).len(), 1, "the dock holds");
+}
+
 /// A Load can hand a dock back with its saved basis on the other quaternion
 /// sign cover than the thawed hulls: the basis was taken against the body
 /// quaternions the dock saw, and avian rebuilds a thawed `Rotation` from the

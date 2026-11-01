@@ -8,7 +8,9 @@ use bevy::prelude::*;
 
 /// Glob-import surface for the point-rotation rig.
 pub mod prelude {
-    pub use super::{PointRotation, PointRotationInput, PointRotationOutput, PointRotationPlugin};
+    pub use super::{
+        PointRollInput, PointRotation, PointRotationInput, PointRotationOutput, PointRotationPlugin,
+    };
 }
 
 /// Component that marks an entity as a point that can be rotated.
@@ -32,6 +34,18 @@ impl Default for PointRotation {
 /// The delta by how much to rotate the point
 #[derive(Component, Default, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
 pub struct PointRotationInput(pub Vec2);
+
+/// The roll delta for this frame, in radians about the point's forward axis.
+///
+/// Positive turns the point clockwise as seen looking down its forward axis:
+/// the right side drops. A sibling of [`PointRotationInput`] so the look
+/// writers and the roll writer never share one component.
+///
+/// The integrator consumes it: it applies the delta once and sets it to zero.
+/// A frame on which the writer does not run (a scenario load gates the camera
+/// set, but not this integrator) therefore rolls nothing.
+#[derive(Component, Default, Clone, Copy, Debug, Deref, DerefMut, Reflect)]
+pub struct PointRollInput(pub f32);
 
 /// The target rotation state of the point, which is computed from the State and the Input.
 #[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
@@ -73,16 +87,27 @@ fn initialize_point_rotation_system(
     commands
         .entity(entity)
         .insert(PointRotationInput(Vec2::ZERO))
+        .insert(PointRollInput(0.0))
         .insert(PointRotationOutput(point.initial_rotation));
 }
 
 fn point_rotation_update_system(
-    mut q_point: Query<(&PointRotationInput, &mut PointRotationOutput), With<PointRotation>>,
+    mut q_point: Query<
+        (
+            &PointRotationInput,
+            &mut PointRollInput,
+            &mut PointRotationOutput,
+        ),
+        With<PointRotation>,
+    >,
 ) {
-    for (input, mut out) in &mut q_point {
+    for (input, mut roll, mut out) in &mut q_point {
         let mut state = PointRotationState::from(**out);
-        state = compute_point_rotation(&state, input);
+        state = compute_point_rotation(&state, input, **roll);
         **out = point_rotation_quat(state);
+        if **roll != 0.0 {
+            **roll = 0.0;
+        }
     }
 }
 
@@ -103,6 +128,7 @@ impl From<Quat> for PointRotationState {
 fn compute_point_rotation(
     state: &PointRotationState,
     input: &PointRotationInput,
+    roll: f32,
 ) -> PointRotationState {
     let mut new_state = *state;
 
@@ -121,6 +147,14 @@ fn compute_point_rotation(
         let pitch_quat = Quat::from_axis_angle(right, delta_y);
         new_state.forward = (pitch_quat * new_state.forward).normalize();
         new_state.right = (pitch_quat * new_state.right).normalize();
+    }
+
+    if roll != 0.0 {
+        let roll_quat = Quat::from_axis_angle(new_state.forward, roll);
+        // Project out any forward component left by the normalizations above:
+        // a skewed basis makes `from_mat3` return garbage.
+        let right = (roll_quat * new_state.right).reject_from_normalized(new_state.forward);
+        new_state.right = right.normalize();
     }
 
     new_state
@@ -150,7 +184,7 @@ mod test {
         };
 
         let input = PointRotationInput(Vec2::new(-std::f32::consts::FRAC_PI_2, 0.0));
-        let new_state = compute_point_rotation(&initial_state, &input);
+        let new_state = compute_point_rotation(&initial_state, &input, 0.0);
         assert!(new_state.forward.abs_diff_eq(Vec3::X, 1e-6));
         assert!(new_state.right.abs_diff_eq(Vec3::Z, 1e-6));
     }
@@ -164,7 +198,7 @@ mod test {
         };
 
         let input = PointRotationInput(Vec2::new(0.0, std::f32::consts::FRAC_PI_2));
-        let new_state = compute_point_rotation(&initial_state, &input);
+        let new_state = compute_point_rotation(&initial_state, &input, 0.0);
         assert!(new_state.forward.abs_diff_eq(Vec3::Y, 1e-6));
         assert!(new_state.right.abs_diff_eq(Vec3::X, 1e-6));
     }
@@ -181,7 +215,7 @@ mod test {
             -std::f32::consts::FRAC_PI_4,
             std::f32::consts::FRAC_PI_4,
         ));
-        let new_state = compute_point_rotation(&initial_state, &input);
+        let new_state = compute_point_rotation(&initial_state, &input, 0.0);
         let expected_forward = Vec3::new(0.5, 0.70710677, -0.5).normalize();
         let expected_right = Vec3::new(0.70710677, 0.0, 0.70710677).normalize();
         assert!(new_state.forward.abs_diff_eq(expected_forward, 1e-6));
@@ -197,7 +231,7 @@ mod test {
         };
 
         let input = PointRotationInput(Vec2::new(std::f32::consts::FRAC_PI_2, 0.0));
-        let new_state = compute_point_rotation(&initial_state, &input);
+        let new_state = compute_point_rotation(&initial_state, &input, 0.0);
         assert!(new_state.forward.abs_diff_eq(Vec3::NEG_X, 1e-6));
         assert!(new_state.right.abs_diff_eq(Vec3::NEG_Z, 1e-6));
     }
@@ -211,8 +245,72 @@ mod test {
         };
 
         let input = PointRotationInput(Vec2::new(0.0, -std::f32::consts::FRAC_PI_2));
-        let new_state = compute_point_rotation(&initial_state, &input);
+        let new_state = compute_point_rotation(&initial_state, &input, 0.0);
         assert!(new_state.forward.abs_diff_eq(Vec3::NEG_Y, 1e-6));
         assert!(new_state.right.abs_diff_eq(Vec3::X, 1e-6));
+    }
+    /// A positive roll turns the point about its own forward axis: the
+    /// forward ray does not move, the right side drops, and the output quat
+    /// carries exactly that basis.
+    #[test]
+    fn a_positive_roll_keeps_forward_and_drops_the_right_side() {
+        let yawed = Quat::from_rotation_y(0.7) * Quat::from_rotation_x(0.3);
+        let state = PointRotationState::from(yawed);
+        let angle = 0.4;
+
+        let rolled = compute_point_rotation(&state, &PointRotationInput::default(), angle);
+        assert!(rolled.forward.abs_diff_eq(state.forward, 1e-6));
+        let up = state.right.cross(state.forward).normalize();
+        let expected_right = state.right * angle.cos() - up * angle.sin();
+        assert!(
+            rolled.right.abs_diff_eq(expected_right, 1e-5),
+            "right {:?}, expected {expected_right:?}",
+            rolled.right
+        );
+
+        let output = point_rotation_quat(rolled);
+        assert!((output * Vec3::NEG_Z).abs_diff_eq(state.forward, 1e-5));
+        assert!((output * Vec3::X).abs_diff_eq(expected_right, 1e-5));
+        assert!(
+            output.angle_between(Quat::from_axis_angle(state.forward, angle) * yawed) < 1e-4,
+            "the roll is a rotation about the forward axis"
+        );
+
+        let back = compute_point_rotation(&rolled, &PointRotationInput::default(), -angle);
+        assert!(
+            back.right.abs_diff_eq(state.right, 1e-5),
+            "the opposite roll undoes it"
+        );
+    }
+    /// One written roll delta turns the point once. The integrator consumes
+    /// it, so the frames after it - where a gated or paused writer did not
+    /// run - roll nothing more.
+    #[test]
+    fn a_roll_delta_applies_once_and_does_not_repeat() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_plugins(PointRotationPlugin);
+        let point = app.world_mut().spawn(PointRotation::default()).id();
+        app.update();
+
+        let angle = 0.25;
+        app.world_mut().get_mut::<PointRollInput>(point).unwrap().0 = angle;
+        app.update();
+        let rolled = **app.world().get::<PointRotationOutput>(point).unwrap();
+        assert!(
+            rolled.angle_between(Quat::from_axis_angle(Vec3::NEG_Z, angle)) < 1e-5,
+            "the written delta rolls the point once, got {rolled:?}"
+        );
+        assert_eq!(**app.world().get::<PointRollInput>(point).unwrap(), 0.0);
+
+        for _ in 0..10 {
+            app.update();
+        }
+        let held = **app.world().get::<PointRotationOutput>(point).unwrap();
+        assert!(
+            held.angle_between(rolled) < 1e-6,
+            "frames without a write roll nothing, drifted {}",
+            held.angle_between(rolled)
+        );
     }
 }

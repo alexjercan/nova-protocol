@@ -22,6 +22,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Cargo canisters now hold up to 1,000 kg. A wreck packs its drop into mixed canisters, and an intake takes the whole items that fit your hold, leaving the rest in the canister.
 - A neutralized ship now drops its patrol, escort slot or order and brakes to a stop on its own RCS. With no flight computer or RCS, an empty magazine, a dock or a strong well, it drifts on.
 - GOTO now flies around rocks and planetoids on its leg, 200 m off your hull by default, for the player, AI patrols and scripted orders alike; the predicted path and map route show the bend.
+- Q and E now roll your ship about its nose through the controller section, view and hull together, with no RCS cost. No gamepad binding; mods cannot bind Q or E to sections.
 
 ### Modding & Mod Portal
 

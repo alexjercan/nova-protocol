@@ -30,6 +30,17 @@ pub(crate) struct FlightInputMarker;
 #[action_output(f32)]
 pub(super) struct FlightBurnInput;
 
+/// Roll left (Q): held, read each frame by the camera's roll writer
+/// (`crate::camera::mode::apply_roll_input`) with [`RollRightInput`].
+#[derive(InputAction)]
+#[action_output(bool)]
+pub(crate) struct RollLeftInput;
+
+/// Roll right (E): the positive half of the roll pair.
+#[derive(InputAction)]
+#[action_output(bool)]
+pub(crate) struct RollRightInput;
+
 /// Engage the STOP maneuver (kill all velocity); pressing it again while
 /// stopping disengages.
 #[derive(InputAction)]
@@ -126,6 +137,24 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                         ..default()
                     },
                     bindings.bundle("main_drive"),
+                ),
+                (
+                    Name::new("Input: Roll Left"),
+                    Action::<RollLeftInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings.bundle("roll_left"),
+                ),
+                (
+                    Name::new("Input: Roll Right"),
+                    Action::<RollRightInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings.bundle("roll_right"),
                 ),
                 (
                     Name::new("Input: Autopilot Stop"),
@@ -831,7 +860,7 @@ mod tests {
             &[(
                 "autopilot_off".to_string(),
                 BindingSpec {
-                    keyboard: vec![nova_input::prelude::InputSource::Keyboard(KeyCode::KeyQ)],
+                    keyboard: vec![nova_input::prelude::InputSource::Keyboard(KeyCode::KeyJ)],
                     gamepad: vec![],
                 },
             )]
@@ -862,13 +891,50 @@ mod tests {
         app.update();
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
-            .press(KeyCode::KeyQ);
+            .press(KeyCode::KeyJ);
         app.update();
         app.update();
         assert!(
             app.world().get::<Autopilot>(ship).is_none(),
             "the saved key disengages the autopilot"
         );
+    }
+
+    #[test]
+    fn a_saved_binding_on_the_new_roll_key_yields_to_the_fixed_default() {
+        use nova_input::prelude::{BindingSpec, InputSource};
+
+        let mut bindings = InputBindings::from_actions(crate::input::bindings::flight_bindings());
+        bindings.apply_overrides(
+            &[(
+                "autopilot_off".to_string(),
+                BindingSpec {
+                    keyboard: vec![InputSource::Keyboard(KeyCode::KeyQ)],
+                    gamepad: vec![],
+                },
+            )]
+            .into_iter()
+            .collect(),
+        );
+
+        assert_eq!(
+            bindings
+                .get("autopilot_off")
+                .expect("CANCEL is bound")
+                .spec()
+                .keyboard,
+            vec![InputSource::Keyboard(KeyCode::KeyZ)],
+            "a saved override cannot silently make Q fire both CANCEL and roll"
+        );
+        assert_eq!(
+            bindings
+                .get("roll_left")
+                .expect("roll is bound")
+                .spec()
+                .keyboard,
+            vec![InputSource::Keyboard(KeyCode::KeyQ)],
+        );
+        assert!(!bindings.overrides().contains_key("autopilot_off"));
     }
 
     /// The other end of the same path: a rebind made while the ship is ALREADY
