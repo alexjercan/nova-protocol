@@ -7,7 +7,10 @@ use nova_events::prelude::{MetersPerSecond, MetersPerSecondSquared};
 use nova_gameplay::test_support::settle;
 
 use super::support::*;
-use crate::{flight::accumulate_rcs_axis, prelude::*};
+use crate::{
+    flight::{accumulate_rcs_axis, autopilot::rcs_magazine_ready},
+    prelude::*,
+};
 /// The virtual-joystick accumulator integrates the held offset and clamps it to
 /// the unit range the primitive expects, so a sustained push saturates at 1 and
 /// pulling back walks it toward the other rail rather than running away.
@@ -22,6 +25,24 @@ fn accumulate_rcs_axis_integrates_and_clamps_to_the_unit_range() {
     assert_eq!(accumulate_rcs_axis(-0.9, -0.5), -1.0);
     // Pulling back from a rail walks toward the other one.
     assert!((accumulate_rcs_axis(1.0, -0.4) - 0.6).abs() < 1e-6);
+}
+
+/// The autopilot keeps a part-spent magazine that paused for a tick, leaves an
+/// empty one alone, and takes a refilling one back only from half full.
+#[test]
+fn the_autopilot_takes_a_refilling_rcs_magazine_back_only_from_half_full() {
+    let delay = FlightSettings::default().rcs_recovery_delay;
+    let magazine = |fraction: f32, idle: f32| {
+        let mut budget = RcsBudget::default();
+        budget.spent = (1.0 - fraction) * budget.capacity;
+        budget.idle = idle;
+        budget
+    };
+    assert!(rcs_magazine_ready(&magazine(0.2, 0.0), delay));
+    assert!(rcs_magazine_ready(&magazine(0.2, delay * 0.5), delay));
+    assert!(!rcs_magazine_ready(&magazine(0.0, delay * 0.5), delay));
+    assert!(!rcs_magazine_ready(&magazine(0.2, delay + 0.1), delay));
+    assert!(rcs_magazine_ready(&magazine(0.5, delay + 0.1), delay));
 }
 
 #[test]

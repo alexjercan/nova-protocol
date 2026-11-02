@@ -729,7 +729,7 @@ pub struct FlightSettings {
     /// The autopilot hands a settle or trim to RCS only below this speed
     /// (u/s): the STOP/GOTO settle against the hull's speed, the ORBIT and
     /// velocity-hold trim against the velocity error. Above it, or on an empty
-    /// magazine, the main drive keeps the goal.
+    /// magazine that has not refilled to half, the main drive keeps the goal.
     pub rcs_handoff_speed: f32,
     /// RCS thrust as an acceleration (u/s^2): how hard a full-deflection RCS
     /// command pushes. A full magazine lasts about six seconds of held input -
