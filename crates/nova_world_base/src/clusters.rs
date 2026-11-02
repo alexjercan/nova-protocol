@@ -20,10 +20,11 @@
 //!
 //! A cell resolves the bodies it owns in one fixed order - every cluster's
 //! parents, then every cluster's rocks by node and index, then every
-//! cluster's hulls by node and index, then its background scatter - and each
-//! one is placed or skipped for a named reason: its clearance sphere crosses a
-//! face of its cell, it comes within [`CLEARANCE_MARGIN`] of a body placed
-//! before it, or it is a hull with no companion. [`SectorClusters`] counts
+//! cluster's hulls by node and index, then every station, then every living
+//! station's traffic hulls, then its background scatter - and each one is
+//! placed or skipped for a named reason: its clearance sphere crosses a face
+//! of its cell, it comes within [`CLEARANCE_MARGIN`] of a body placed before
+//! it, or it is a hull with no companion. [`SectorClusters`] counts
 //! all three. A PARENT - a cluster's planetoid - is never skipped: the core
 //! pull keeps it inside its cell and the lattice keeps it clear of every other
 //! parent, so a parent that does not fit is a generator bug and a loud
@@ -45,6 +46,15 @@
 //! An overlap retry moves an ambiguous mobile body, or translates a placed
 //! escort and its paired hull together. It preserves the same-cell companion
 //! rule and their authored separation, or fails with a named sector fault.
+//!
+//! # A living station has traffic
+//!
+//! The cell that owns a living station also plans [`STATION_TRAFFIC_HULLS`]
+//! hulls 2 to 4 km from it, whatever the station's cluster drew. They resolve
+//! after every other body, so no existing body moves. A cell skips a traffic
+//! hull like any hull, and also skips one that stands past its cluster's
+//! extent. A traffic hull needs no companion: its station already has one in
+//! the cell. It has no escorts and takes the same patrol as any intact ship.
 //!
 //! # Every hull is a generated ship
 //!
@@ -223,6 +233,21 @@ const HULL_ESCORTS: usize = 3;
 /// checks an escort against its own hull. An overlap retry keeps a placed
 /// pair within this authored band.
 const ESCORT_DISTANCE: (Meters, Meters) = (Meters(1_650.0), Meters(2_200.0));
+
+/// How many traffic hulls a living station plans beside itself, whatever
+/// its cluster type drew. A bounded count, so the station always has
+/// visitors. A 125-cell window holds about one station, so this adds at most
+/// this many hulls per window.
+const STATION_TRAFFIC_HULLS: usize = 2;
+
+/// The first ship slot of a station's traffic hulls. It stands above every
+/// cluster hull slot, so a traffic hull's `ship_key` streams never meet a
+/// cluster hull's.
+const STATION_TRAFFIC_SLOT0: usize = 64;
+const _: () = assert!(DERELICT_FIELD_HULLS.1 < STATION_TRAFFIC_SLOT0);
+
+/// How far from its station a traffic hull stands, centre to centre.
+const STATION_TRAFFIC_DISTANCE: (Meters, Meters) = (Meters(2_000.0), Meters(4_000.0));
 
 /// The highest chance an asteroid-rich cluster places its one hull, at full
 /// traffic.
@@ -572,6 +597,8 @@ enum BodySource {
     Escort([i32; 3], usize, usize),
     /// The cluster's one station.
     Station([i32; 3]),
+    /// A traffic hull of the cluster's living station, and its own index.
+    StationTraffic([i32; 3], usize),
     Background,
 }
 
@@ -582,8 +609,18 @@ impl BodySource {
             | Self::Rock(node, _)
             | Self::Hull(node, _)
             | Self::Escort(node, ..)
-            | Self::Station(node) => Some(node),
+            | Self::Station(node)
+            | Self::StationTraffic(node, _) => Some(node),
             Self::Background => None,
+        }
+    }
+
+    /// The node and ship slot of a source that plans a ship.
+    fn ship_slot(self) -> Option<([i32; 3], usize)> {
+        match self {
+            Self::Hull(node, slot) => Some((node, slot)),
+            Self::StationTraffic(node, index) => Some((node, STATION_TRAFFIC_SLOT0 + index)),
+            _ => None,
         }
     }
 }
@@ -591,7 +628,8 @@ impl BodySource {
 /// Why a planned body was not placed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SkipType {
-    /// Its clearance sphere crosses a face of the cell its centre is in.
+    /// Its clearance sphere crosses a face of the cell its centre is in, or a
+    /// station's traffic hull stands past its cluster's extent.
     Face,
     /// It comes within [`CLEARANCE_MARGIN`] of a body placed before it.
     Clearance,
@@ -1736,8 +1774,8 @@ fn halo_nodes(coord: SectorCoord, edge: Meters) -> Vec<[i32; 3]> {
 
 /// Plan one cell: replay every cluster in its halo, keep the bodies it owns,
 /// lay out the hulls it owns from `parts`, lay out and pose the station a
-/// civilization keeps at each cluster, draw a background scatter if it owns
-/// none, and resolve them all.
+/// civilization keeps at each cluster, lay out the traffic hulls of each living
+/// station, draw a background scatter if it owns none, and resolve them all.
 ///
 /// Every owned hull is laid out BEFORE the cell checks where it fits: the
 /// check needs the hull's own clearance, and a hull whose layout fails fails
@@ -1759,6 +1797,18 @@ pub(crate) fn plan_sector(
     items: &GameItems,
     input: SectorGenerationInput,
 ) -> Result<SectorPlan, SectorFault> {
+    plan_sector_with(fields, parts, items, input, STATION_TRAFFIC_HULLS)
+}
+
+/// [`plan_sector`] with `traffic_hulls` traffic hulls per living station.
+/// Only the tests pass a count other than [`STATION_TRAFFIC_HULLS`].
+fn plan_sector_with(
+    fields: &EnvironmentFields,
+    parts: &ShipPartSnapshot,
+    items: &GameItems,
+    input: SectorGenerationInput,
+    traffic_hulls: usize,
+) -> Result<SectorPlan, SectorFault> {
     let coord = input.coord;
     let edge = input.geometry.sector_edge;
     let civilizations = CivilizationField::new(input.seed);
@@ -1772,6 +1822,7 @@ pub(crate) fn plan_sector(
     let mut rocks = Vec::new();
     let mut hulls = Vec::new();
     let mut stations_owned = Vec::new();
+    let mut traffic = Vec::new();
     for node in halo_nodes(coord, edge) {
         let Some(cluster) = cluster_at(fields, input.seed, edge, node)? else {
             continue;
@@ -1784,6 +1835,7 @@ pub(crate) fn plan_sector(
                 body: member.body.clone(),
                 position: member.position,
                 escorts: Vec::new(),
+                skipped: None,
             };
         let before = parents.len() + rocks.len() + hulls.len() + stations_owned.len();
         parents.extend(
@@ -1897,7 +1949,56 @@ pub(crate) fn plan_sector(
                     })),
                     position: pose.position,
                     escorts: Vec::new(),
+                    skipped: None,
                 });
+                if !dead {
+                    for index in 0..traffic_hulls {
+                        let mut stream = SeedStream::new(
+                            Fnv32::new()
+                                .write(&input.seed.to_le_bytes())
+                                .write(b"station_traffic")
+                                .write(&node[0].to_le_bytes())
+                                .write(&node[1].to_le_bytes())
+                                .write(&node[2].to_le_bytes())
+                                .write(&(index as u64).to_le_bytes())
+                                .finish(),
+                        );
+                        let direction = unit_sphere_point(stream.next_u32());
+                        let distance = across(STATION_TRAFFIC_DISTANCE, stream.unit());
+                        let yaw = stream.unit() * std::f32::consts::TAU;
+                        let lineage = stream.unit();
+                        let position = Meters3(pose.position.get() + direction * distance.get());
+                        let traffic_id = sector_id(coord, &format!("{stem}_traffic"), index);
+                        let ship = plan_ship(
+                            parts,
+                            items,
+                            &civilizations,
+                            input.seed,
+                            HullSlot {
+                                id: &traffic_id.to_string(),
+                                node,
+                                cluster: cluster.cluster_type,
+                                slot: STATION_TRAFFIC_SLOT0 + index,
+                                anchor: cluster.anchor,
+                                environment: cluster.environment,
+                                planetoids: &planetoids,
+                                position,
+                                yaw,
+                                lineage,
+                            },
+                        )?;
+                        let reach = extent(cluster.cluster_type).get() - ship.clearance.get();
+                        let past_extent = position.distance(cluster.anchor).get() > reach;
+                        traffic.push(Candidate {
+                            id: traffic_id,
+                            source: BodySource::StationTraffic(node, index),
+                            body: ClusterBody::Ship(Box::new(ship)),
+                            position,
+                            escorts: Vec::new(),
+                            skipped: past_extent.then_some(SkipType::Face),
+                        });
+                    }
+                }
             }
         }
         if parents.len() + rocks.len() + hulls.len() + stations_owned.len() > before {
@@ -1932,6 +2033,7 @@ pub(crate) fn plan_sector(
                 body: rock(environment, &mut stream),
                 position,
                 escorts: Vec::new(),
+                skipped: None,
             });
         }
     }
@@ -1941,6 +2043,7 @@ pub(crate) fn plan_sector(
         .chain(rocks)
         .chain(hulls)
         .chain(stations_owned)
+        .chain(traffic)
         .chain(background);
     let mut plan = SectorPlan {
         coord,
@@ -1965,8 +2068,8 @@ fn plan_patrols(input: SectorGenerationInput, bodies: &mut [PlannedBody]) {
         .map(|(index, body)| (index, body.position, body.body.clearance()))
         .collect();
     for (index, body) in bodies.iter_mut().enumerate() {
-        let (None, BodySource::Hull(node, slot), ClusterBody::Ship(ship)) =
-            (body.skipped, body.source, &mut body.body)
+        let (None, Some((node, slot)), ClusterBody::Ship(ship)) =
+            (body.skipped, body.source.ship_slot(), &mut body.body)
         else {
             continue;
         };
@@ -2000,6 +2103,9 @@ struct Candidate {
     /// A hull's escorts, in the order they are tried. Empty for every other
     /// body.
     escorts: Vec<Candidate>,
+    /// A skip decided while planning. `resolve` keeps it and does not stand
+    /// the body.
+    skipped: Option<SkipType>,
 }
 
 /// Why a body with `clearance` at `position` does not fit the cell beside
@@ -2060,13 +2166,14 @@ fn resolve(
         body,
         position,
         escorts,
+        skipped: planned_skip,
     } in candidates
     {
         if !position.get().is_finite() {
             return Err(SectorFault::InvalidGeometry { id: id.to_string() });
         }
         let clearance = body.clearance();
-        let mut skipped = fits(input, &standing, position, clearance);
+        let mut skipped = planned_skip.or_else(|| fits(input, &standing, position, clearance));
         if let (BodySource::Parent(..), Some(reason)) = (source, skipped) {
             return Err(SectorFault::Generation {
                 id: id.to_string(),
@@ -2414,6 +2521,66 @@ mod tests {
         );
     }
 
+    /// The cell of a start station plans its traffic hulls 2 to 4 km from the
+    /// station, and planning them moves no other body: the plan with traffic
+    /// removed (`plan_sector_with` and zero hulls) holds the same other bodies
+    /// at the same places.
+    #[test]
+    fn a_living_station_cell_plans_two_traffic_hulls_and_moves_no_other_body() {
+        let world = crate::tests::fixture_world();
+        let edge = Meters(32_000.0);
+        let mut checked = 0;
+        for seed in [SEED, 20_260_923, 1, 7, 11] {
+            let Ok(start) = crate::start::starting_station(seed, &world) else {
+                continue;
+            };
+            let coord = SectorCoord::containing(start.position, edge);
+            let config = WorldConfig {
+                seed,
+                sector_edge: edge,
+                active_radius: 2,
+                generator: crate::tests::fixture_world(),
+            };
+            let fields = EnvironmentFields::new(seed);
+            let plan = |traffic: usize| {
+                plan_sector_with(
+                    &fields,
+                    config.generator.parts(),
+                    config.generator.items(),
+                    config.input(coord),
+                    traffic,
+                )
+                .unwrap_or_else(|fault| panic!("{seed} {coord}: {fault}"))
+            };
+            let (with, without) = (plan(STATION_TRAFFIC_HULLS), plan(0));
+            let is_traffic =
+                |body: &&PlannedBody| matches!(body.source, BodySource::StationTraffic(..));
+            let traffic: Vec<&PlannedBody> = with.bodies.iter().filter(is_traffic).collect();
+            assert_eq!(traffic.len(), STATION_TRAFFIC_HULLS, "{seed} {coord}");
+            assert_eq!(without.bodies.iter().filter(is_traffic).count(), 0);
+            for body in traffic.iter().filter(|body| body.skipped.is_none()) {
+                let distance = body.position.distance(start.position).get();
+                assert!(
+                    (STATION_TRAFFIC_DISTANCE.0.get()..=STATION_TRAFFIC_DISTANCE.1.get())
+                        .contains(&distance),
+                    "{seed} {}: {distance} m from the station",
+                    body.id
+                );
+                assert_eq!(SectorCoord::containing(body.position, edge), coord);
+                checked += 1;
+            }
+            let others = |plan: &SectorPlan| {
+                plan.bodies
+                    .iter()
+                    .filter(|body| !is_traffic(body))
+                    .map(|body| (body.id.clone(), body.position, body.skipped))
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(others(&with), others(&without), "{seed} {coord}");
+        }
+        assert!(checked > 0, "no seed placed a traffic hull");
+    }
+
     /// A 40 m rock candidate on the z axis of the origin cell.
     fn rock_at(id: &str, source: BodySource, z: f32) -> Candidate {
         Candidate {
@@ -2425,6 +2592,7 @@ mod tests {
             },
             position: Meters3::new(0.0, 0.0, z),
             escorts: Vec::new(),
+            skipped: None,
         }
     }
 
@@ -2450,6 +2618,7 @@ mod tests {
                     )
                 })
                 .collect(),
+            skipped: None,
         }
     }
 
