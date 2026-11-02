@@ -9,7 +9,8 @@
 //! the ships, the stations, the trade profiles and the visit writer
 //! (`nova_world_base::station_visits`) are the shipped ones. The example
 //! only READS. It never writes the world clock or the visit ledger, and the
-//! player moves only for the shot, after the dock is asserted. A watcher system samples
+//! player moves only for the shot and, once the visit is over, to dock and
+//! take a visit job off the board. A watcher system samples
 //! the visitor's and the station's balances and holds each frame, so the
 //! receipt can be checked against what moved on the capture frame.
 //!
@@ -25,6 +26,7 @@
 //! | 3 | `outcome: a docked visit posts its jobs under visit ids` | every receipt job is a valid [`JobSourceType::Visit`] job of this visit and index, posted at this station, and stands in [`JobPostings`] stamped at the capture |
 //! | 4 | `outcome: a visit ends with its ship released` | after the dwell the visit is no longer pending, the ship is undocked and holds no order of the visit, its next visit is later than the end, and the posted jobs still stand |
 //! | 5 | `outcome: pending visits stay within the living stations` | on every sampled frame the pending visits number at most the live living stations, and at least one visit was pending |
+//! | 6 | `outcome: a docked player accepts a visit job from the board` | the player docks at the station under a Dock order, the Jobs pane lists each open visit posting the hull can take with no refresh `X` (a slot row keeps its `X`), and an Accept click makes [`Jobs`] hold the job while [`JobPostings`] keeps its visit posting |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
@@ -37,8 +39,9 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! `NOVA_CAPTURE=1` also writes `station-visits-docked.png` of the docked
-//! visitor and `station-visits-released.png` of the same station after the
-//! visitor left.
+//! visitor, `station-visits-released.png` of the same station after the
+//! visitor left and `station-visits-jobs-pane.png` of the Jobs pane with the
+//! player docked.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -101,9 +104,13 @@ mod walk {
     use std::{collections::BTreeMap, sync::Arc};
 
     use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
-    use bevy::ecs::system::RunSystemOnce;
+    use bevy::{ecs::system::RunSystemOnce, ui::InteractionDisabled};
     use nova_protocol::{
-        nova_debug::harness::{shoot, AutopilotPlugin, Predicate},
+        nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
+        nova_interface::{
+            jobs::prelude::{JOBS_PANE, JOB_ACCEPT_PREFIX},
+            pane::InterfacePaneType,
+        },
         prelude::*,
     };
     use nova_ui::widget::TextFieldValue;
@@ -132,6 +139,15 @@ mod walk {
     /// The frames the capture path writes.
     const DOCKED_SHOT: &str = "station-visits-docked.png";
     const RELEASED_SHOT: &str = "station-visits-released.png";
+    const JOBS_SHOT: &str = "station-visits-jobs-pane.png";
+
+    /// The interface tab that opens the Jobs pane.
+    const JOBS_TAB: &str = "InterfaceTabJobs";
+    /// A board row's `X` prefix. `nova_interface` keeps it crate-private; a
+    /// rename there fails the control assert below, not silently.
+    const JOB_REFRESH_PREFIX: &str = "JobRefresh-";
+    /// A board row's name prefix: `JobRowPosted-<row>`.
+    const JOB_ROW_PREFIX: &str = "JobRowPosted-";
 
     /// The writer's reach, centre to centre, as a census filter. The census
     /// only reports; the writer owns the real rule.
@@ -190,6 +206,10 @@ mod walk {
         before: Option<Ledger>,
         /// The first reading with the tracked visit docked.
         after: Option<Ledger>,
+        /// The jobs the tracked visit's receipt lists.
+        posted: Vec<JobId>,
+        /// The Accept button the walk clicks and the job behind it.
+        accept: Option<(String, JobId)>,
         /// The play seconds the tracked visit docked and ended at.
         docked_at_s: Option<f64>,
         ended_at_s: Option<f64>,
@@ -937,6 +957,7 @@ mod walk {
                 "station visits: '{id}' is stamped at the capture"
             );
         }
+        world.resource_mut::<VisitWatch>().posted = receipt.jobs.clone();
         nova_probe::probe_marker(
             world,
             "outcome: a docked visit posts its jobs under visit ids",
@@ -1106,6 +1127,252 @@ mod walk {
         );
     }
 
+    /// Whether the player is docked at the tracked visit's station.
+    fn player_docked_at_the_visit_station() -> Arc<Predicate> {
+        when(|world| {
+            let Some(visit) = world.resource::<VisitWatch>().bound.clone() else {
+                return false;
+            };
+            let (Some(player), Some(station)) =
+                (the_player(world), find_ship(world, &visit.station))
+            else {
+                return false;
+            };
+            world.get::<DockedShip>(player).is_some_and(|docked| {
+                world
+                    .get::<DockingConnection>(docked.connection)
+                    .is_some_and(|connection| connection.joins(station))
+            })
+        })
+    }
+
+    /// Give the player the Dock order the visit writer gives a visitor: the
+    /// helm flies the corridor and asks for the capture the way the DOCK key
+    /// does. No pose is written. The autopilot harness sends no flight input,
+    /// so the order holds the helm alone.
+    fn order_the_player_to_dock(world: &mut World) {
+        let visit = world
+            .resource::<VisitWatch>()
+            .bound
+            .clone()
+            .expect("station visits: a visit bound");
+        let station =
+            body(world, &visit.station).expect("station visits: the visited station stands");
+        let player = player(world);
+        let mut entity = world.entity_mut(player);
+        if !entity.contains::<ShipOrderReports>() {
+            entity.insert(ShipOrderReports::default());
+        }
+        entity.insert((
+            ShipHelmOrder::new(
+                "station visits: the player docks".to_string(),
+                ShipOrderDirective::Dock { station },
+            ),
+            ShipOrderHelmAuthority,
+        ));
+        info!(
+            "station visits: the player is ordered to dock with '{}'",
+            visit.station
+        );
+    }
+
+    /// Every board row the Jobs pane draws, with the texts under it.
+    fn posted_rows(world: &mut World) -> Vec<(usize, Vec<String>)> {
+        let rows: Vec<(usize, Entity)> = world
+            .query::<(Entity, &Name)>()
+            .iter(world)
+            .filter_map(|(entity, name)| {
+                let index = name.as_str().strip_prefix(JOB_ROW_PREFIX)?.parse().ok()?;
+                Some((index, entity))
+            })
+            .collect();
+        rows.into_iter()
+            .map(|(index, row)| {
+                let mut texts = Vec::new();
+                let mut stack = vec![row];
+                while let Some(entity) = stack.pop() {
+                    let entity = world.entity(entity);
+                    if let Some(text) = entity.get::<Text>() {
+                        texts.push(text.0.clone());
+                    }
+                    if let Some(children) = entity.get::<Children>() {
+                        stack.extend(children.iter());
+                    }
+                }
+                (index, texts)
+            })
+            .collect()
+    }
+
+    fn node_named(world: &mut World, name: &str) -> Option<Entity> {
+        world
+            .query::<(Entity, &Name)>()
+            .iter(world)
+            .find(|(_, found)| found.as_str() == name)
+            .map(|(entity, _)| entity)
+    }
+
+    /// Whether the interface shows `pane` over the paused world.
+    fn the_interface_shows(pane: InterfacePaneType) -> Arc<Predicate> {
+        when(move |world| {
+            world
+                .get_resource::<State<PauseStates>>()
+                .is_some_and(|pause| *pause.get() == PauseStates::Interface)
+                && world
+                    .get_resource::<InterfacePaneType>()
+                    .is_some_and(|shown| *shown == pane)
+        })
+    }
+
+    /// Claim 6, first half: the board lists the open visit postings with no
+    /// refresh `X`, and a slot row keeps its own. Picks the Accept to click.
+    fn assert_the_board(world: &mut World) {
+        let station = world
+            .resource::<VisitWatch>()
+            .bound
+            .clone()
+            .expect("station visits: a visit bound")
+            .station;
+        let posted = world.resource::<VisitWatch>().posted.clone();
+        let items = world.resource::<GameItems>().clone();
+        assert!(
+            world.get_resource::<InterfacePaneType>() == Some(&InterfacePaneType::Jobs),
+            "station visits: the Jobs pane is open"
+        );
+        assert!(
+            node_named(world, JOBS_PANE).is_some(),
+            "station visits: the Jobs pane '{JOBS_PANE}' is drawn"
+        );
+        let rows = posted_rows(world);
+        let mut listed = Vec::new();
+        let mut unlisted = Vec::new();
+        for id in &posted {
+            let open = world.resource::<JobPostings>().visit_posting(id).cloned();
+            let Some(posting) = open else {
+                continue;
+            };
+            if world.resource::<Jobs>().holds(id) {
+                continue;
+            }
+            let title = posting.offer.title(&items);
+            match rows.iter().find(|(_, texts)| texts.contains(&title)) {
+                Some((row, _)) => listed.push((id.clone(), title, *row)),
+                None => unlisted.push((id.clone(), title, posting.offer.kind.clone())),
+            }
+        }
+        info!(
+            "station visits: the Jobs pane draws {} board row(s); open visit postings listed \
+             {listed:?}, unlisted {unlisted:?}",
+            rows.len()
+        );
+        assert!(
+            !listed.is_empty(),
+            "station visits: the Jobs pane lists no open visit posting of {posted:?} at \
+             '{station}': rows {rows:?}, unlisted {unlisted:?}"
+        );
+        let mut accept = None;
+        for (id, title, row) in &listed {
+            let refresh = format!("{JOB_REFRESH_PREFIX}{row}");
+            assert!(
+                node_named(world, &refresh).is_none(),
+                "station visits: the visit row {row} '{title}' ({id}) shows a refresh button \
+                 '{refresh}'"
+            );
+            let button = format!("{JOB_ACCEPT_PREFIX}{row}");
+            let button_entity = node_named(world, &button)
+                .unwrap_or_else(|| panic!("station visits: the visit row {row} shows {button}"));
+            if accept.is_none()
+                && !world
+                    .entity(button_entity)
+                    .contains::<InteractionDisabled>()
+            {
+                accept = Some((button, id.clone()));
+            }
+        }
+        // Control: a slot row of the same board keeps its `X`, so the absence
+        // above is the row kind, not a renamed prefix.
+        let slot_refresh = rows
+            .iter()
+            .filter(|(row, _)| !listed.iter().any(|(.., listed_row)| listed_row == row))
+            .filter(|(row, _)| node_named(world, &format!("{JOB_REFRESH_PREFIX}{row}")).is_some())
+            .count();
+        assert!(
+            slot_refresh > 0,
+            "station visits: no slot row of the board shows a refresh button, so the absence on \
+             the visit rows proves nothing: rows {rows:?}"
+        );
+        let accept = accept.unwrap_or_else(|| {
+            panic!("station visits: every listed visit row greys its Accept: {listed:?}")
+        });
+        info!(
+            "station visits: PASS the board lists {} open visit posting(s) with no refresh \
+             button, {slot_refresh} slot row(s) keep theirs; Accept '{}' for '{}'",
+            listed.len(),
+            accept.0,
+            accept.1
+        );
+        world.resource_mut::<VisitWatch>().accept = Some(accept);
+    }
+
+    /// The Accept button the walk aims at.
+    fn accept_button(world: &World) -> String {
+        world
+            .resource::<VisitWatch>()
+            .accept
+            .as_ref()
+            .map(|(button, _)| button.clone())
+            .expect("station visits: an Accept was chosen")
+    }
+
+    /// Advance when the pointer stands over the chosen Accept.
+    fn pointer_over_the_accept() -> Arc<Predicate> {
+        when(|world| pointer_over_node(accept_button(world))(world))
+    }
+
+    fn the_accept_is_held() -> Arc<Predicate> {
+        when(|world| {
+            world
+                .resource::<VisitWatch>()
+                .accept
+                .as_ref()
+                .is_some_and(|(_, id)| world.resource::<Jobs>().holds(id))
+        })
+    }
+
+    /// Claim 6, second half: the click made the job held, and the visit
+    /// posting stays.
+    fn assert_the_accept(world: &mut World) {
+        let (button, id) = world
+            .resource::<VisitWatch>()
+            .accept
+            .clone()
+            .expect("station visits: an Accept was chosen");
+        assert!(
+            world.resource::<Jobs>().holds(&id),
+            "station visits: Jobs holds '{id}' after the click on '{button}'"
+        );
+        let postings = world.resource::<JobPostings>();
+        let posting = postings.visit_posting(&id).unwrap_or_else(|| {
+            panic!("station visits: JobPostings dropped the held visit posting '{id}'")
+        });
+        let remaining = posting.remaining(play_seconds(world));
+        let held = world.resource::<Jobs>().held().len();
+        nova_probe::probe_marker(
+            world,
+            "outcome: a docked player accepts a visit job from the board",
+            serde_json::json!({
+                "job": id.to_string(),
+                "button": button,
+                "held_jobs": held,
+                "posting_remaining_s": remaining,
+            }),
+        );
+        info!(
+            "station visits: PASS the player accepted the visit job '{id}' through '{button}': \
+             Jobs holds it ({held} held), its visit posting stands with {remaining:.0} s left"
+        );
+    }
+
     /// The walk. Every beat waits on a world value.
     pub(super) fn script() -> AutopilotPlugin<GameStates> {
         let script = AutopilotPlugin::<GameStates>::new()
@@ -1215,6 +1482,69 @@ mod walk {
             .add()
             .step("station visits: assert the end and the bound")
             .on_enter(assert_the_end)
+            .add()
+            .step("station visits: order the player to dock at the station")
+            .on_enter(order_the_player_to_dock)
+            .until(and(
+                player_docked_at_the_visit_station(),
+                frames(SETTLE_FRAMES),
+            ))
+            .deadline(PLAY_WAIT_SECS)
+            .add()
+            .step("station visits: press the interface key")
+            .on_enter(press_action("interface_toggle"))
+            .until(frames(1))
+            .add()
+            .step("station visits: let the interface key up")
+            .on_enter(release_action("interface_toggle"))
+            .until(when(|world| {
+                world
+                    .get_resource::<State<PauseStates>>()
+                    .is_some_and(|pause| *pause.get() == PauseStates::Interface)
+            }))
+            .deadline(SESSION_SECS)
+            .add()
+            .click_named(
+                "station visits: open the Jobs tab",
+                JOBS_TAB,
+                the_interface_shows(InterfacePaneType::Jobs),
+                BEAT_SECS,
+            )
+            .step("station visits: the board shows")
+            .until(ui_node_present(format!("{JOB_ACCEPT_PREFIX}0")))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station visits: settle the Jobs pane")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station visits: assert the board rows")
+            .on_enter(assert_the_board)
+            .add()
+            .step("station visits: shoot the Jobs pane")
+            .on_enter(|world: &mut World| shoot(world, JOBS_SHOT))
+            .until(shot_written(JOBS_SHOT))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station visits: aim at the visit job's Accept")
+            .each(|world: &mut World, _, _| {
+                let button = accept_button(world);
+                keep_hovering_named(button)(world);
+            })
+            .until(pointer_over_the_accept())
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station visits: press Accept")
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(pointer_pressed())
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station visits: release Accept")
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(and(the_accept_is_held(), frames(SETTLE_FRAMES)))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("station visits: assert the accept")
+            .on_enter(assert_the_accept)
             .add()
     }
 }
