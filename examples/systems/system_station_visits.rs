@@ -1487,17 +1487,17 @@ mod walk {
         // the dock rule refuses every ship there with `StationOccupied`
         // (the census prints it). The player lets go and holds still.
         script
-            .step("station visits: release the player from the starting station")
+            // Moved aside on the release frame: a visit that binds while the
+            // player still stands at its berth finds that port's corridor
+            // blocked by the player and withdraws.
+            .step("station visits: release the player and hold it at rest beside the station")
             .on_enter(|world: &mut World| {
                 let player = player(world);
                 world.trigger(DockingReleaseRequest { entity: player });
+                rest_aside_of_the_station(world);
             })
             .until(and(player_free(), frames(SETTLE_FRAMES)))
             .deadline(SESSION_SECS)
-            .add()
-            .step("station visits: hold the player at rest beside the station")
-            .on_enter(rest_aside_of_the_station)
-            .until(frames(SETTLE_FRAMES))
             .add()
             .step("station visits: play time runs until a visit binds")
             .until(a_visit_is_pending_or_late())
