@@ -346,8 +346,10 @@ pub struct Autopilot {
     /// so the goal stands still (a corner replanned from the live position
     /// would move every tick and reset the maneuver), replaced when its own
     /// leg is blocked, dropped when it is reached or the direct leg clears.
-    /// Transient: a save does not keep it, and a loaded leg replans from
-    /// scratch against the bodies it finds.
+    /// A DOCK approach's leg A also holds it, and moves it with the station
+    /// each tick so it stands still in the station's frame. Transient: a
+    /// save does not keep it, and a loaded leg replans from scratch against
+    /// the bodies it finds.
     pub detour: Option<Vec3>,
 }
 

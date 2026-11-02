@@ -21,6 +21,10 @@ const STATION_VELOCITY: Vec3 = Vec3::new(0.5, 0.0, 0.0);
 /// well past the approach's own liveness deadline.
 const APPROACH_FRAMES: usize = 12_000;
 
+/// Fixed ticks an approach round an orbiting station may take: 300 s, past
+/// the 270 s liveness deadline of its 60 u start.
+const ORBIT_APPROACH_FRAMES: usize = 18_000;
+
 /// The containment radius of a one-cell hull about its centre: half the cube's
 /// diagonal. This rig runs no section plugin to publish it.
 const CELL_ENVELOPE: f32 = 0.866;
@@ -569,6 +573,70 @@ fn docks_from_behind_the_slab(at: Vec3) {
 
     let mut frames = 0;
     while app.world().get::<ShipOrderReported>(ship).is_none() && frames < APPROACH_FRAMES {
+        app.update();
+        frames += 1;
+        let contacts = touching(&app, ship, station);
+        assert!(
+            contacts.is_empty(),
+            "the hull touches the station at tick {frames}: {contacts:?}"
+        );
+    }
+
+    assert_eq!(
+        report_outcomes(&app, ship),
+        vec![ShipOrderOutcome::Complete],
+        "the order completes once, after {frames} ticks"
+    );
+    let docked = *app
+        .world()
+        .get::<DockedShip>(ship)
+        .expect("the captured ship is docked");
+    let connection = *app
+        .world()
+        .get::<DockingConnection>(docked.connection)
+        .expect("the dock names its connection");
+    assert_eq!(
+        (connection.first_section, connection.second_section),
+        (port, station_port),
+        "the capture joins the hull's port to the slab's"
+    );
+}
+
+/// The same approach from 60 u under a slab orbiting a strong well at
+/// 12 u/s, close to a generated station's orbit: the detour corner moves with
+/// the station, so the hull reaches it and captures with no contact. A corner
+/// held as a fixed world point fell behind the station while the hull flew
+/// station velocity plus closing; the hull chased it round the orbit and the
+/// order failed on its deadline 214 u from the station.
+#[test]
+fn a_dock_order_from_behind_an_orbiting_station_routes_round_it_and_captures() {
+    const RADIUS: f32 = 300.0;
+    let mut app = dock_orbit_app();
+    let well = spawn_strong_well(&mut app);
+    let mu = app
+        .world()
+        .get::<nova_gameplay::gravity::GravityWell>(well)
+        .unwrap()
+        .mu;
+    let at = Vec3::new(RADIUS, 0.0, 0.0);
+    let orbit = Vec3::Z * nova_gameplay::gravity::circular_orbit_speed(mu, RADIUS);
+    let (station, station_port) = slab_station(&mut app, false, at);
+    let offset = Vec3::new(0.0, -60.0, 0.0);
+    let (ship, port) = placed_visitor(&mut app, station, offset, Quat::IDENTITY);
+    // The settles let the well pull both bodies: start them again on the
+    // orbit, together.
+    for (body, position) in [(station, at), (ship, at + offset)] {
+        app.world_mut().entity_mut(body).insert((
+            Transform::from_translation(position),
+            Position(position),
+            LinearVelocity(orbit),
+            AngularVelocity::ZERO,
+        ));
+    }
+    order_dock(&mut app, ship, station);
+
+    let mut frames = 0;
+    while app.world().get::<ShipOrderReported>(ship).is_none() && frames < ORBIT_APPROACH_FRAMES {
         app.update();
         frames += 1;
         let contacts = touching(&app, ship, station);

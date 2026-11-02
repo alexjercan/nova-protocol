@@ -1777,7 +1777,12 @@ pub(super) fn autopilot_step(
                             .chain([dock.station_bubble])
                             .collect();
                         let goal = com_world + (entry_face - pair.first.face);
-                        let leg = plan_leg(com_world, goal, autopilot.detour, policy, &obstacles);
+                        // The command below is station velocity plus closing, so a corner
+                        // held as a fixed world point falls behind an orbiting station.
+                        let held = autopilot
+                            .detour
+                            .map(|corner| corner + dock.station_velocity * dt);
+                        let leg = plan_leg(com_world, goal, held, policy, &obstacles);
                         if !leg.goal.is_finite() {
                             return disengaged(DisengageType::NoSafeLeg);
                         }
