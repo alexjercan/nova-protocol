@@ -12,19 +12,20 @@ use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::{EntityId, Meters, Meters3, ScenarioAddressableMarker};
 use nova_gameplay::{
     prelude::{
-        AssetRef, BuildRecipe, CargoCanister, CargoCanisterRuntimeId, DamageMark, DamageMarks,
-        DerelictShipMarker, Health, HealthApplyDamage, IntegrityDestroyMarker, ItemDesignId,
-        ItemRoleType, PlayerSpaceshipMarker, SectionMarker, ShipCredits, ShipInventory,
-        ShipInventoryStock, SpaceshipRootMarker, TempEntity, TraderMarket,
+        circular_orbit_speed, AssetRef, BuildRecipe, CargoCanister, CargoCanisterRuntimeId,
+        DamageMark, DamageMarks, DerelictShipMarker, GravitySettings, GravityWell, Health,
+        HealthApplyDamage, IntegrityDestroyMarker, ItemDesignId, ItemRoleType, NovaGravityPlugin,
+        PlayerSpaceshipMarker, SectionMarker, ShipCredits, ShipInventory, ShipInventoryStock,
+        SpaceshipRootMarker, TempEntity, TraderMarket,
     },
     test_support::{settle, test_items, unfinished_integrity_physics_app},
 };
 use nova_scenario::prelude::{
-    freeze_ship, AsteroidCarvePlugin, AsteroidField, AsteroidMarker, AsteroidPlugin,
-    CurrentScenario, MinedCanisterQueue, MinedOreDrop, MiningPlugin, ParkedHullsPlugin,
-    SectionSource, ShipDesign, ShipDesignSource, SpaceshipController, SpaceshipDesign,
-    SpaceshipPlugin, SpaceshipSectionConfig, StationBuilds, StationDesignSource, StationHullOffer,
-    StationMarker, StationServices, StationStorage, WreckCargoPlugin,
+    freeze_ship, station_orbit_velocity, AsteroidCarvePlugin, AsteroidField, AsteroidMarker,
+    AsteroidPlugin, CurrentScenario, MinedCanisterQueue, MinedOreDrop, MiningPlugin,
+    ParkedHullsPlugin, SectionSource, ShipDesign, ShipDesignSource, SpaceshipController,
+    SpaceshipDesign, SpaceshipPlugin, SpaceshipSectionConfig, StationBuilds, StationDesignSource,
+    StationHullOffer, StationMarker, StationServices, StationStorage, WreckCargoPlugin,
 };
 use nova_ship::prelude::{
     cargo_canister, docking_section, thruster_section, AINonCombatant, BaseSectionConfig,
@@ -1485,11 +1486,18 @@ fn station_dock_home(input: SectorGenerationInput) -> SectorManifest {
 /// the real [`DockingConnectionRequest`] path, and settles. Returns the app,
 /// the visitor and station entities, and the observer used to materialize.
 fn build_station_dock() -> (App, Entity, Entity, ObserverBody) {
-    let mut app = ship_app();
+    dock_visitor_at_station(ship_app(), station_dock_home)
+}
+
+/// [`build_station_dock`] in `app`, with the cell `home_of` generates.
+fn dock_visitor_at_station(
+    mut app: App,
+    home_of: fn(SectorGenerationInput) -> SectorManifest,
+) -> (App, Entity, Entity, ObserverBody) {
     load_docking_section(&mut app);
 
     let home = SectorCoord::ORIGIN;
-    let config = answering(station_dock_home);
+    let config = answering(home_of);
     let edge = config.sector_edge;
     let world = app.world_mut();
     arm(world, config, home);
@@ -1637,6 +1645,33 @@ fn assert_dock_matches(
     expected: &DockSnapshot,
     context: &str,
 ) {
+    assert_dock_pose_matches(world, ship, station, expected, context);
+    let got = dock_snapshot(world, ship, station);
+    assert!(
+        got.ship_velocity
+            .abs_diff_eq(expected.ship_velocity, 1.0e-3),
+        "{context}: the ship's linear velocity changed: {:?} vs {:?}",
+        got.ship_velocity,
+        expected.ship_velocity
+    );
+    assert!(
+        got.station_velocity
+            .abs_diff_eq(expected.station_velocity, 1.0e-3),
+        "{context}: the station's linear velocity changed: {:?} vs {:?}",
+        got.station_velocity,
+        expected.station_velocity
+    );
+}
+
+/// [`assert_dock_matches`] without the velocities: the connection's order and
+/// ports, the joint frames and the station-relative pose.
+fn assert_dock_pose_matches(
+    world: &mut World,
+    ship: Entity,
+    station: Entity,
+    expected: &DockSnapshot,
+    context: &str,
+) {
     let got = dock_snapshot(world, ship, station);
     assert_eq!(
         got.station_first, expected.station_first,
@@ -1684,20 +1719,6 @@ fn assert_dock_matches(
         "{context}: the station-relative rotation moved: {:?} vs {:?}",
         got.relative_rotation,
         expected.relative_rotation
-    );
-    assert!(
-        got.ship_velocity
-            .abs_diff_eq(expected.ship_velocity, 1.0e-3),
-        "{context}: the ship's linear velocity changed: {:?} vs {:?}",
-        got.ship_velocity,
-        expected.ship_velocity
-    );
-    assert!(
-        got.station_velocity
-            .abs_diff_eq(expected.station_velocity, 1.0e-3),
-        "{context}: the station's linear velocity changed: {:?} vs {:?}",
-        got.station_velocity,
-        expected.station_velocity
     );
 }
 
@@ -1846,6 +1867,207 @@ fn a_ship_docked_at_a_station_freezes_and_thaws_docked() {
             before_text, after_text,
             "the ship's frozen record, including its controller, is unchanged but for RCS idle \
              catch-up"
+        );
+    }
+}
+
+/// Radius, in engine units, of the orbit the orbiting-station proof stands on:
+/// the radius of a live seed whose visitor jumped when its dock thawed.
+const ORBIT_RADIUS: f32 = 147.0;
+
+/// Period, in seconds, of that orbit.
+const ORBIT_PERIOD_S: f32 = 72.0;
+
+/// The gravitational parameter that gives [`ORBIT_RADIUS`] a circular orbit of
+/// [`ORBIT_PERIOD_S`]: `mu = omega^2 * r^3`.
+fn orbit_mu() -> f32 {
+    let omega = std::f32::consts::TAU / ORBIT_PERIOD_S;
+    omega * omega * ORBIT_RADIUS.powi(3)
+}
+
+/// Where the orbited well stands for a station at `centre`: [`ORBIT_RADIUS`]
+/// along +X, engine units.
+fn orbit_well_position(centre: Meters3) -> Vec3 {
+    centre.to_engine() + Vec3::X * ORBIT_RADIUS
+}
+
+/// [`station_dock_home`] with the station and its visitor both riding the
+/// circular orbit of the well at [`orbit_well_position`], at the speed the
+/// gravity layer integrates.
+fn orbiting_station_dock_home(input: SectorGenerationInput) -> SectorManifest {
+    let centre = input.coord.centre(input.geometry.sector_edge);
+    let mut manifest = station_dock_home(input);
+    let velocity =
+        station_orbit_velocity(orbit_mu(), orbit_well_position(centre), centre.to_engine())
+            .expect("the station stands off the well's centre");
+    manifest.stations[0].spawn.initial_velocity = velocity;
+    manifest.ships[0].spawn.initial_velocity = velocity;
+    manifest
+}
+
+/// [`build_station_dock`] in orbit: the gravity layer runs, a static well
+/// stands at [`orbit_well_position`] with [`orbit_mu`], and the station and
+/// its docked visitor ride a circular orbit about it.
+fn build_orbiting_station_dock() -> (App, Entity, Entity, ObserverBody) {
+    let mut app = unfinished_ship_app();
+    app.add_plugins(NovaGravityPlugin);
+    app.finish();
+    let centre = SectorCoord::ORIGIN.centre(answering(orbiting_station_dock_home).sector_edge);
+    let well = orbit_well_position(centre);
+    app.world_mut().spawn((
+        RigidBody::Static,
+        Transform::from_translation(well),
+        Position(well),
+        GravityWell::from_mass(orbit_mu(), 85.0, &GravitySettings::default()),
+    ));
+    dock_visitor_at_station(app, orbiting_station_dock_home)
+}
+
+/// `entity`'s absolute position, linear velocity and angular velocity.
+fn absolute_motion(world: &World, entity: Entity) -> (Vec3, Vec3, Vec3) {
+    (
+        world.get::<Position>(entity).expect("a pose").0,
+        world.get::<LinearVelocity>(entity).expect("a velocity").0,
+        world.get::<AngularVelocity>(entity).expect("a spin").0,
+    )
+}
+
+/// A visitor docked at a station that rides a circular orbit thaws with the
+/// motion it froze with: right after the thaw both hulls hold their absolute
+/// pose, linear velocity and spin, and after more frames of gravity they
+/// match a pair that never froze, with the dock's frames and the
+/// station-relative pose unchanged.
+#[test]
+fn a_visitor_docked_at_an_orbiting_station_thaws_with_its_motion() {
+    let (mut app, visitor, station, observer) = build_orbiting_station_dock();
+    let (mut control, control_visitor, control_station, _) = build_orbiting_station_dock();
+    let home = SectorCoord::ORIGIN;
+    let visitor_id = sector_id(home, "ship", 0);
+    let station_id = sector_id(home, "station", 0);
+
+    let world = app.world_mut();
+    let before_dock = dock_snapshot(world, visitor, station);
+    let before_station = absolute_motion(world, station);
+    let before_visitor = absolute_motion(world, visitor);
+    let circular = circular_orbit_speed(orbit_mu(), ORBIT_RADIUS);
+    assert!(
+        (before_station.1.length() - circular).abs() < 0.05 * circular && circular > 10.0,
+        "the station rides the circular orbit, not rest: speed {} vs circular {circular}",
+        before_station.1.length()
+    );
+
+    walk_to::<Answers>(world, home.offset(5, 0, 0));
+    assert!(
+        body_with_id(world, &visitor_id).is_empty(),
+        "the visitor freezes with the station it is docked to"
+    );
+    walk_to::<Answers>(world, home);
+    materialize::<Answers>(world, home, observer);
+
+    let world = app.world_mut();
+    let [thawed_visitor] = body_with_id(world, &visitor_id)[..] else {
+        panic!("the visitor must come back once");
+    };
+    let [thawed_station] = body_with_id(world, &station_id)[..] else {
+        panic!("the station must come back once");
+    };
+    assert!(
+        world.get::<DockedShip>(thawed_visitor).is_some(),
+        "the thawed visitor carries the dock"
+    );
+    assert_eq!(
+        world.query::<&UndockSeparation>().iter(world).count(),
+        0,
+        "a thaw never leaves an undock separation behind"
+    );
+    assert_dock_matches(
+        world,
+        thawed_visitor,
+        thawed_station,
+        &before_dock,
+        "right after thaw",
+    );
+    for (name, got, expected) in [
+        (
+            "station",
+            absolute_motion(world, thawed_station),
+            before_station,
+        ),
+        (
+            "visitor",
+            absolute_motion(world, thawed_visitor),
+            before_visitor,
+        ),
+    ] {
+        assert!(
+            got.0.abs_diff_eq(expected.0, 1.0e-3),
+            "right after thaw: the {name}'s position moved: {:?} vs {:?}",
+            got.0,
+            expected.0
+        );
+        assert!(
+            got.1.abs_diff_eq(expected.1, 1.0e-3),
+            "right after thaw: the {name}'s linear velocity changed: {:?} vs {:?}",
+            got.1,
+            expected.1
+        );
+        assert!(
+            got.2.abs_diff_eq(expected.2, 1.0e-3),
+            "right after thaw: the {name}'s spin changed: {:?} vs {:?}",
+            got.2,
+            expected.2
+        );
+    }
+
+    settle(&mut app);
+    settle(&mut control);
+    let world = app.world_mut();
+    let after_dock = dock_snapshot(world, thawed_visitor, thawed_station);
+    assert_dock_pose_matches(
+        world,
+        thawed_visitor,
+        thawed_station,
+        &before_dock,
+        "after settling more",
+    );
+    assert!(
+        world.get::<DockedShip>(thawed_visitor).is_some(),
+        "the visitor is still docked after settling"
+    );
+    let control_world = control.world_mut();
+    assert_dock_pose_matches(
+        control_world,
+        control_visitor,
+        control_station,
+        &after_dock,
+        "against the pair that never froze",
+    );
+    let world = app.world_mut();
+    for (name, thawed, never_froze) in [
+        (
+            "station",
+            absolute_motion(world, thawed_station),
+            absolute_motion(control.world(), control_station),
+        ),
+        (
+            "visitor",
+            absolute_motion(world, thawed_visitor),
+            absolute_motion(control.world(), control_visitor),
+        ),
+    ] {
+        assert!(
+            thawed.1.abs_diff_eq(never_froze.1, 1.0e-3),
+            "after settling: the {name}'s linear velocity differs from the pair that never \
+             froze: {:?} vs {:?}",
+            thawed.1,
+            never_froze.1
+        );
+        assert!(
+            thawed.2.abs_diff_eq(never_froze.2, 1.0e-3),
+            "after settling: the {name}'s spin differs from the pair that never froze: \
+             {:?} vs {:?}",
+            thawed.2,
+            never_froze.2
         );
     }
 }
