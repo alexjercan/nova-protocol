@@ -1174,6 +1174,16 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_station_visits",
+        &[
+            "a profiled ship binds a visit to a living station",
+            "a docked visit's receipt conserves credits and goods",
+            "a docked visit posts its jobs under visit ids",
+            "a visit ends with its ship released",
+            "pending visits stay within the living stations",
+        ],
+    ),
+    (
         "system_role_goals",
         &[
             "the charter opens standing with its lines at zero",
@@ -1249,7 +1259,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 626;
+const SYSTEMS_INVARIANTS: usize = 631;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

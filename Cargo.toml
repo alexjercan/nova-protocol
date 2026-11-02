@@ -884,6 +884,14 @@ name = "system_station_jobs"
 path = "examples/systems/system_station_jobs.rs"
 required-features = ["debug"]
 
+# Station visits: real seeded generated traffic binds a visit to a living
+# station, docks, trades and posts jobs once from its profile, dwells and is
+# released, with the receipt checked against what moved on the capture frame.
+[[example]]
+name = "system_station_visits"
+path = "examples/systems/system_station_visits.rs"
+required-features = ["debug"]
+
 # A bounty hunter's kill-list charter: six completed Neutralize fixture jobs
 # stand the station line, and buying one station through the Station pane
 # meets it, which the Map and a save/load round trip preserve.
