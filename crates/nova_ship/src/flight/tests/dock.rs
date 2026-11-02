@@ -157,6 +157,92 @@ fn a_dock_order_flies_a_side_port_hull_onto_a_moving_stations_free_port() {
     assert!(app.world().get::<Autopilot>(ship).is_none());
 }
 
+/// A dock order captures at a station in a circular orbit 200 u from a
+/// strong well, where the pull (1.05 u/s^2) is over the RCS gravity gate. The
+/// visitor co-orbits from 28 u off. Both bodies fall in the well, so the
+/// approach trims on the RCS against the tidal difference only. Gated on the
+/// whole pull, it hunted on its drive with its port axis swinging up to
+/// 130 deg off and overran its deadline 27 u out.
+#[test]
+fn a_dock_order_captures_at_a_station_orbiting_a_strong_well() {
+    const RADIUS: f32 = 200.0;
+    let mut app = dock_orbit_app();
+    let well = spawn_strong_well(&mut app);
+    let mu = app
+        .world()
+        .get::<nova_gameplay::gravity::GravityWell>(well)
+        .unwrap()
+        .mu;
+    let at = Vec3::new(RADIUS, 0.0, 0.0);
+    let orbit = Vec3::Z * nova_gameplay::gravity::circular_orbit_speed(mu, RADIUS);
+    let station = spawn_block(&mut app, at, orbit, 100.0);
+    app.world_mut()
+        .entity_mut(station)
+        .insert((StationMarker, HullEnvelopeRadius(CELL_ENVELOPE)));
+    let free = spawn_port(
+        &mut app,
+        station,
+        "dorsal",
+        Quat::from_rotation_x(FRAC_PI_2),
+    );
+    settle(&mut app);
+    let offset = Vec3::new(0.0, 20.0, 20.0);
+    let (ship, port) = visitor(&mut app, at + offset);
+    // The settles let the well pull both bodies: start them again on the
+    // orbit, together.
+    for (body, position) in [(station, at), (ship, at + offset)] {
+        app.world_mut().entity_mut(body).insert((
+            Transform::from_translation(position),
+            Position(position),
+            LinearVelocity(orbit),
+            AngularVelocity::ZERO,
+        ));
+    }
+    app.world_mut().entity_mut(ship).insert((
+        ShipHelmOrder::new("visit".to_string(), ShipOrderDirective::Dock { station }),
+        ShipOrderHelmAuthority,
+        ShipOrderReports::default(),
+    ));
+
+    let mut frames = 0;
+    while app.world().get::<ShipOrderReported>(ship).is_none() && frames < APPROACH_FRAMES {
+        app.update();
+        frames += 1;
+    }
+
+    let reports: Vec<_> = app
+        .world()
+        .get::<ShipOrderReports>(ship)
+        .unwrap()
+        .0
+        .iter()
+        .map(|report| report.outcome)
+        .collect();
+    assert_eq!(
+        reports,
+        vec![ShipOrderOutcome::Complete],
+        "the order completes once, after {frames} ticks"
+    );
+    let docked = *app
+        .world()
+        .get::<DockedShip>(ship)
+        .expect("the captured ship is docked");
+    let connection = *app
+        .world()
+        .get::<DockingConnection>(docked.connection)
+        .expect("the dock names its connection");
+    assert_eq!(
+        (connection.first_section, connection.second_section),
+        (port, free),
+        "the capture joins the visitor's port to the station's"
+    );
+    let radius = position_of(&app, station).length();
+    assert!(
+        (radius - RADIUS).abs() < 0.05 * RADIUS,
+        "the station still orbits near {RADIUS} u, at {radius} u"
+    );
+}
+
 /// The moving station with two free ports facing +Y: `forward` stands 0.3 u
 /// further out than `flush` and 0.3 u to its side, so a hull resting at
 /// `flush`'s berth gap is nearer `forward`'s face than `flush`'s. Returns the

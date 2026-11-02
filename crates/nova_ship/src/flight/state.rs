@@ -456,7 +456,9 @@ pub enum AutopilotAction {
     /// seen. With no clear pair the approach disengages with `NoSafeDockPath`
     /// and flies nothing. Inside the swept tube the hull only closes or backs
     /// out along the axis. It matches the station root's linear velocity only: a port on
-    /// a spinning station is not led.
+    /// a spinning station is not led. In a gravity well the station falls with
+    /// the hull, so the RCS gravity gate reads the difference between the two
+    /// pulls, not the whole pull.
     ///
     /// Never self-completes and never docks: the helm order that engaged it
     /// asks for the capture. While every pair is held, it holds the station's

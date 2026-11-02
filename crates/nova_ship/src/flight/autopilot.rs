@@ -498,6 +498,37 @@ pub(super) fn local_gravity_accel(
         .fold(0.0f32, f32::max)
 }
 
+/// The strongest pull that differs between `point` and `frame`, u/s^2: per
+/// well, the length of its shaped pull at `point` less its pull at `frame`.
+/// A hull that holds a velocity relative to a body falling in the same well
+/// holds against this tidal difference, not against the whole pull. The ship
+/// and the body fall together, so their velocity difference does not see the
+/// shared pull.
+pub(super) fn relative_gravity_accel(
+    wells: &[WellSample],
+    point: Vec3,
+    frame: Vec3,
+    gravity_settings: &GravitySettings,
+) -> f32 {
+    let pull = |sample: &WellSample, at: Vec3| {
+        let well = &sample.well;
+        let offset = sample.position - at;
+        offset.normalize_or_zero()
+            * well_accel(
+                well.mu,
+                offset.length(),
+                well.body_radius,
+                well.soi_radius,
+                gravity_settings.fade_fraction,
+                gravity_settings.surface_margin,
+            )
+    };
+    wells
+        .iter()
+        .map(|sample| (pull(sample, point) - pull(sample, frame)).length())
+        .fold(0.0f32, f32::max)
+}
+
 /// Whether an RCS pushing at `rcs_accel` u/s^2 out-pushes a local well pull
 /// of `gravity_accel` u/s^2 by the [`RCS_GRAVITY_AUTHORITY`] margin.
 pub(super) fn rcs_has_gravity_authority(gravity_accel: f32, rcs_accel: f32) -> bool {
@@ -1542,7 +1573,22 @@ pub(super) fn autopilot_step(
     // a goal it will lose. Scanning every well (they are few) rather than
     // reading `DominantWell` keeps this correct for a ship that has not
     // been assigned one yet.
-    let local_gravity_accel = local_gravity_accel(env.wells, com_world, gravity_settings);
+    //
+    // A DOCK approach flies in its station's frame, and every station root is
+    // a dynamic ship root the same wells pull. Its velocity error does not see
+    // the pull both bodies share, only the difference across the gap. Gated
+    // on the whole pull, a hull closing on a station orbiting a planetoid
+    // (1 u/s^2) was refused the RCS, hunted on its drive with its port axis
+    // swinging up to 130 deg off, and overran its deadline 27 u out.
+    let local_gravity_accel = match (autopilot.action, env.dock) {
+        (AutopilotAction::DockApproach { .. }, Some(dock)) => relative_gravity_accel(
+            env.wells,
+            com_world,
+            dock.station_bubble.0,
+            gravity_settings,
+        ),
+        _ => local_gravity_accel(env.wells, com_world, gravity_settings),
+    };
     let desired = match autopilot.action {
         AutopilotAction::Stop => {
             // STOP has a spatial goal too: the predicted rest point.

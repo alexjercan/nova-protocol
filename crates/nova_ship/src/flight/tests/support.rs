@@ -64,6 +64,21 @@ pub(super) fn brake_flight_app() -> App {
 /// The flight harness plus docking and the helm order driver, wired ahead of
 /// the autopilot as production wires it, for the DOCK order tests.
 pub(super) fn dock_flight_app() -> App {
+    let mut app = unfinished_dock_flight_app();
+    app.finish();
+    app
+}
+
+/// [`dock_flight_app`] plus the real gravity layer: wells pull the station
+/// and the visitor alike.
+pub(super) fn dock_orbit_app() -> App {
+    let mut app = unfinished_dock_flight_app();
+    app.add_plugins(nova_gameplay::gravity::NovaGravityPlugin);
+    app.finish();
+    app
+}
+
+fn unfinished_dock_flight_app() -> App {
     let mut app = unfinished_flight_app();
     app.add_plugins(DockingSectionPlugin { render: false });
     app.add_systems(
@@ -72,7 +87,6 @@ pub(super) fn dock_flight_app() -> App {
             .before(autopilot_system)
             .in_set(NovaFlightSystems),
     );
-    app.finish();
     app
 }
 
