@@ -38,6 +38,12 @@
 //! #           `station visits: PASS the visit ended`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
+//! The frame-time window opens when the tracked visit binds and is refused if
+//! the visit docks or ends first: it measures the streamed window, station
+//! traffic included, while one Dock order flies. `probe run
+//! system_station_visits --repeat 5` gives a repeat set; a matched reference
+//! is the same seed on the same build with only the compared change.
+//!
 //! `NOVA_CAPTURE=1` also writes `station-visits-docked.png` of the docked
 //! visitor, `station-visits-released.png` of the same station after the
 //! visitor left and `station-visits-jobs-pane.png` of the Jobs pane with the
@@ -52,7 +58,8 @@ use clap::Parser;
 #[command(
     about = "New Game on a pinned seed, then play time runs until a generated ship with a trade \
              profile visits a living station: it binds, docks, trades and posts jobs once, \
-             dwells, is released and flies clear. Reads the world only. Autopilot-only correctness range",
+             dwells, is released and flies clear. Reads the world only. Its frame-time window runs \
+             while the visit approaches",
     long_about = None
 )]
 struct Cli;
@@ -83,8 +90,15 @@ fn main() -> bevy::app::AppExit {
                 bevy::ecs::error::panic,
             ));
         }
-        // No frame-time claim: the range holds ledger values and play stamps.
-        app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
+        // The frame-time claim is the cost of the window while the tracked
+        // visit approaches: every streamed hull, the station traffic among
+        // them, flies, and the visitor's Dock order runs. It opens on the bind
+        // and is refused once the visit docks or ends.
+        app.add_plugins(
+            nova_probe::NovaProbePlugin::default()
+                .ready_frametime(walk::the_visit_approaches)
+                .live_frametime(walk::the_visit_approaches),
+        );
         app.add_plugins(walk::VisitWatchPlugin);
         app.add_plugins(walk::script());
         app.add_systems(
@@ -672,6 +686,23 @@ mod walk {
             .pending(&tracked.ship)
             .filter(|visit| visit.id == tracked)
             .cloned()
+    }
+
+    /// Whether the tracked visit is approaching its station while play time
+    /// runs: the frame-time window.
+    pub(super) fn the_visit_approaches(world: &World) -> bool {
+        let running = world
+            .get_resource::<Time<Virtual>>()
+            .is_some_and(|time| !time.is_paused() && time.relative_speed() > 0.0);
+        let playing = world
+            .get_resource::<State<GameStates>>()
+            .is_some_and(|state| *state.get() == GameStates::Playing);
+        running
+            && playing
+            && world.get_resource::<VisitWatch>().is_some()
+            && world.get_resource::<StationVisits>().is_some()
+            && tracked_visit(world)
+                .is_some_and(|visit| matches!(visit.phase, StationVisitPhaseType::Approaching))
     }
 
     /// Advance when the tracked visit is docked, ended, or past its window.
