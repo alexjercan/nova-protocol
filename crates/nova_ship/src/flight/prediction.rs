@@ -29,6 +29,7 @@ use super::{
         ObstacleQuery, WellSample,
     },
     capability::{ship_capabilities, LiveFlightComputers, ShipCapabilityQuery},
+    dock_forecast::FieldBody,
     manual::rcs_push,
 };
 use crate::{physics::compute_pd_torque, prelude::*, sections::thruster_section::engine_direction};
@@ -157,7 +158,7 @@ pub(super) struct FlightPredictionRun {
     avoid_margin: f32,
     /// The sized bodies the leg routes around, frozen at the seed. A body
     /// that moves after the seed is not foreseen, like a moving target.
-    obstacles: Vec<(Entity, Vec3, f32)>,
+    obstacles: Vec<FieldBody>,
     /// The mover's cruise cap, engine units per second, when it wears one.
     cruise_cap: Option<f32>,
     /// What the mover is permitted to do.

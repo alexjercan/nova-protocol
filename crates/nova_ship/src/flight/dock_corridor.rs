@@ -142,10 +142,38 @@ pub(super) fn dock_entry(
     (com_along - hull.com_depth).max(berth_gap)
 }
 
+/// The forecast sphere, (body, centre, radius), nearest `entry` along the
+/// segment `entry -> berth` that comes within its radius plus `clearance` of
+/// it: its body and how far from `entry` the segment passes nearest it.
+pub(super) fn forecast_blocker(
+    entry: Vec3,
+    berth: Vec3,
+    clearance: f32,
+    forecast: &[(Entity, Vec3, f32)],
+) -> Option<(Entity, f32)> {
+    let leg = berth - entry;
+    let len_sq = leg.length_squared();
+    forecast
+        .iter()
+        .filter_map(|&(body, center, radius)| {
+            let t = if len_sq > f32::EPSILON {
+                ((center - entry).dot(leg) / len_sq).clamp(0.0, 1.0)
+            } else {
+                0.0
+            };
+            let closest = entry + leg * t;
+            let keep = radius + clearance;
+            (closest.distance_squared(center) < keep * keep)
+                .then(|| (body, closest.distance(entry)))
+        })
+        .min_by(|(_, a), (_, b)| a.total_cmp(b))
+}
+
 /// The collider that refused a corridor: what it is and whose.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct DockBlocker {
-    /// The collider entity the sweep met.
+    /// The collider entity the sweep met, or the field body whose forecast
+    /// path crossed the corridor.
     pub(super) collider: Entity,
     /// Its name, where it has one.
     pub(super) name: Option<String>,
@@ -240,6 +268,13 @@ impl DockCorridors<'_, '_> {
     /// of `ship`. Anything else it meets refuses the pair: a station section
     /// beside the port, a turret, a docked hull, a rock.
     ///
+    /// The cast sees the field where it stands now. A body that moves past the
+    /// station comes back through `forecast`, its path relative to the station
+    /// as (body, centre, radius) spheres: the pair is refused where the hull's
+    /// centre of mass, anywhere from the entry to the berth, would come within
+    /// a sphere's radius plus `clearance`. A planet the station orbits closely
+    /// sweeps every port near its orbit plane once per orbit.
+    ///
     /// # Errors
     ///
     /// The first collider the sweep met, or `None` when the hull or the
@@ -249,6 +284,7 @@ impl DockCorridors<'_, '_> {
         ship: Entity,
         pair: &DockingPair,
         clearance: f32,
+        forecast: &[(Entity, Vec3, f32)],
     ) -> Result<DockPlan, Option<DockBlocker>> {
         let bubble = self.bubble(pair.second_ship).ok_or(None)?;
         let hull = self.port_envelope(ship, pair).ok_or(None)?;
@@ -287,23 +323,39 @@ impl DockCorridors<'_, '_> {
             &filter,
             &|collider| !self.sensors.contains(collider),
         );
-        match hit {
-            None => Ok(DockPlan {
-                own_port: pair.first_section,
-                station_port: pair.second_section,
-                entry,
-                lateral,
-            }),
-            Some(hit) => {
-                let (name, id) = self.labels.get(hit.entity).unwrap_or((None, None));
-                Err(Some(DockBlocker {
-                    collider: hit.entity,
-                    name: name.map(|name| name.to_string()),
-                    id: id.map(|id| id.0.clone()),
-                    body: self.collider_of.get(hit.entity).ok().map(|of| of.body),
-                    distance: hit.distance,
-                }))
-            }
+        if let Some(hit) = hit {
+            return Err(Some(self.blocker(
+                hit.entity,
+                self.collider_of.get(hit.entity).ok().map(|of| of.body),
+                hit.distance,
+            )));
+        }
+        // The centre of mass rides `com_depth` behind the port face and up to
+        // `com_radius` off the axis, at any roll.
+        let com_entry = pair.second.face + axis * (entry + hull.com_depth);
+        let com_berth = pair.second.face + axis * (berth_gap + hull.com_depth);
+        if let Some((body, distance)) =
+            forecast_blocker(com_entry, com_berth, clearance + hull.com_radius, forecast)
+        {
+            return Err(Some(self.blocker(body, Some(body), distance)));
+        }
+        Ok(DockPlan {
+            own_port: pair.first_section,
+            station_port: pair.second_section,
+            entry,
+            lateral,
+        })
+    }
+
+    /// `entity`, attached to `body`, met `distance` along the corridor.
+    fn blocker(&self, entity: Entity, body: Option<Entity>, distance: f32) -> DockBlocker {
+        let (name, id) = self.labels.get(entity).unwrap_or((None, None));
+        DockBlocker {
+            collider: entity,
+            name: name.map(|name| name.to_string()),
+            id: id.map(|id| id.0.clone()),
+            body,
+            distance,
         }
     }
 }

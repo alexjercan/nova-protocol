@@ -196,6 +196,19 @@ pub fn plan_leg(
     obstacles: &[(Vec3, f32)],
 ) -> LegPlan {
     let goal = goal_outside(goal, policy.clear_clearance(), obstacles);
+    route_leg(from, goal, held, policy, obstacles)
+}
+
+/// [`plan_leg`] to a goal that must not move: the goal is flown as given, not
+/// pushed out of a bubble. A DOCK approach's corridor entry is fixed by the
+/// port, and its selection already keeps it clear of every body.
+pub(super) fn route_leg(
+    from: Vec3,
+    goal: Vec3,
+    held: Option<Vec3>,
+    policy: DetourPolicy,
+    obstacles: &[(Vec3, f32)],
+) -> LegPlan {
     let mut corner = held;
     if let Some(held) = corner {
         let clear = first_blocker(

@@ -481,6 +481,27 @@ pub(super) fn spawn_strong_well(app: &mut App) -> Entity {
         .id()
 }
 
+/// A planet on rails at the origin: a well of `mu` on a solid sphere of
+/// `radius` that GOTO legs route round, like a generated planet. Panics when
+/// the surface-gravity cap would lower `mu`.
+pub(super) fn spawn_planet(app: &mut App, radius: f32, mu: f32) -> Entity {
+    let well =
+        nova_gameplay::gravity::GravityWell::from_mass(mu, radius, &GravitySettings::default());
+    assert_eq!(
+        well.mu, mu,
+        "the surface-gravity cap lowered the planet's mu"
+    );
+    app.world_mut()
+        .spawn((
+            RigidBody::Static,
+            Transform::default(),
+            Collider::sphere(radius),
+            BodyRadius(radius),
+            well,
+        ))
+        .id()
+}
+
 /// Shipped 5-section player geometry (same as
 /// `hold_reverse_decel_from_300_keeps_the_hull_steady`).
 pub(super) fn diag_ship(app: &mut App) -> (Entity, Entity) {

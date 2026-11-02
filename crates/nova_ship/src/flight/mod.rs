@@ -42,6 +42,7 @@ mod authority;
 mod autopilot;
 mod capability;
 mod dock_corridor;
+mod dock_forecast;
 mod guidance;
 mod manual;
 mod navigation;

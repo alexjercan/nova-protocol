@@ -11,7 +11,13 @@ use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_events::prelude::EntityId;
 use nova_gameplay::{prelude::*, test_support::settle};
 
-use super::{super::dock_corridor::DockCorridors, support::*};
+use super::{
+    super::{
+        dock_corridor::{forecast_blocker, DockCorridors},
+        dock_forecast::{station_frame_sweep, FieldBody},
+    },
+    support::*,
+};
 use crate::prelude::*;
 
 /// The station's drift, engine units per second (5 m/s along +X).
@@ -667,6 +673,144 @@ fn a_dock_order_from_far_behind_an_orbiting_station_routes_round_it_and_captures
     );
 }
 
+/// A station on a circular orbit 148 u out about an 88.5 u planet (period
+/// 72 s), 60 u over its surface, with its only port 60 degrees out of the
+/// orbit plane, is docked with no contact with the planet. In the station's
+/// frame the planet circles it at 12.9 u/s. Leg A once planned round the
+/// planet's world snapshot, so the hull was dragged onto the planet's surface:
+/// its collider touched the planet's 3947 ticks in, with the centre of mass
+/// 89.5 u from the planet's centre.
+#[test]
+fn a_dock_order_at_a_station_orbiting_close_to_a_planet_captures_without_touching_it() {
+    const RADIUS: f32 = 88.5;
+    const MU: f32 = 24_700.0;
+    const ORBIT: f32 = 148.0;
+    let mut app = dock_orbit_app();
+    let planet = spawn_planet(&mut app, RADIUS, MU);
+    let at = Vec3::new(ORBIT, 0.0, 0.0);
+    let velocity = Vec3::Z * nova_gameplay::gravity::circular_orbit_speed(MU, ORBIT);
+    let (station, station_port) = slab_station(&mut app, false, at);
+    // The orbit's normal is -Y: the port leans 60 degrees out of the plane
+    // toward it and 30 degrees in-plane toward the planet.
+    let axis = Vec3::new(-0.5, -(60.0_f32).to_radians().sin(), 0.0).normalize();
+    let tilt = Quat::from_rotation_arc(Vec3::Y, axis);
+    // Past the planet on the far side of the orbit, so the straight leg to
+    // the corridor entry crosses the planet.
+    let offset = Vec3::new(-280.0, 0.0, 0.0);
+    let (ship, port) = placed_visitor(&mut app, station, offset, Quat::IDENTITY);
+    // The slab's colliders take the tilt in a settle: the corridor sweep
+    // reads them, not the root.
+    app.world_mut().entity_mut(station).insert((
+        Transform::from_translation(at).with_rotation(tilt),
+        Position(at),
+        Rotation(tilt),
+    ));
+    settle(&mut app);
+    // The settles let the well pull both bodies: start them again on the
+    // orbit, together.
+    app.world_mut().entity_mut(station).insert((
+        Transform::from_translation(at).with_rotation(tilt),
+        Position(at),
+        Rotation(tilt),
+        LinearVelocity(velocity),
+        AngularVelocity::ZERO,
+    ));
+    app.world_mut().entity_mut(ship).insert((
+        Transform::from_translation(at + offset),
+        Position(at + offset),
+        LinearVelocity(velocity),
+        AngularVelocity::ZERO,
+    ));
+    order_dock(&mut app, ship, station);
+
+    let mut frames = 0;
+    let mut closest = f32::MAX;
+    while app.world().get::<ShipOrderReported>(ship).is_none() && frames < ORBIT_APPROACH_FRAMES {
+        app.update();
+        frames += 1;
+        closest = closest.min(position_of(&app, ship).length());
+        let contacts = touching(&app, ship, station);
+        assert!(
+            contacts.is_empty(),
+            "the hull touches the station at tick {frames}: {contacts:?}"
+        );
+        let contacts = touching(&app, ship, planet);
+        assert!(
+            contacts.is_empty(),
+            "the hull touches the planet at tick {frames}, {closest} u from its centre: {contacts:?}"
+        );
+    }
+
+    assert_eq!(
+        report_outcomes(&app, ship),
+        vec![ShipOrderOutcome::Complete],
+        "the order completes once, after {frames} ticks"
+    );
+    let docked = *app
+        .world()
+        .get::<DockedShip>(ship)
+        .expect("the captured ship is docked");
+    let connection = *app
+        .world()
+        .get::<DockingConnection>(docked.connection)
+        .expect("the dock names its connection");
+    assert_eq!(
+        (connection.first_section, connection.second_section),
+        (port, station_port),
+        "the capture joins the hull's port to the slab's"
+    );
+}
+
+/// A station on a 72 s orbit 148 u out about an 88.5 u planet sees the planet
+/// circle it in its own frame. The forecast keeps that ring: a corridor 70 u
+/// out along the orbit's track is refused on the planet, though the planet
+/// stands 164 u from it now, and a corridor along the orbit's normal is not.
+#[test]
+fn a_planet_an_orbiting_station_circles_refuses_a_corridor_its_path_crosses() {
+    const RADIUS: f32 = 88.5;
+    const MU: f32 = 24_700.0;
+    const ORBIT: f32 = 148.0;
+    let planet = Entity::from_raw_u32(7).expect("a valid index");
+    let gravity = GravitySettings::default();
+    let wells = [(
+        planet,
+        Vec3::ZERO,
+        nova_gameplay::gravity::GravityWell::from_mass(MU, RADIUS, &gravity),
+    )];
+    let field = [FieldBody {
+        entity: planet,
+        center: Vec3::ZERO,
+        radius: RADIUS,
+        velocity: None,
+        feels_wells: false,
+    }];
+    let station = Vec3::new(ORBIT, 0.0, 0.0);
+    let velocity = Vec3::Z * nova_gameplay::gravity::circular_orbit_speed(MU, ORBIT);
+    let forecast: Vec<_> = station_frame_sweep(station, velocity, &field, &wells, &gravity, 80.0)
+        .into_iter()
+        .map(|sphere| (sphere.body, station + sphere.offset, sphere.radius))
+        .collect();
+    let corridor = |axis: Vec3, field: &[(Entity, Vec3, f32)]| {
+        forecast_blocker(station + axis * 70.0, station + axis * 5.0, 0.0, field)
+    };
+
+    assert_eq!(
+        corridor(Vec3::Z, &[(planet, Vec3::ZERO, RADIUS)]),
+        None,
+        "the planet where it stands now is clear of the corridor along the orbit's track"
+    );
+    assert_eq!(
+        corridor(Vec3::Z, &forecast).map(|(body, _)| body),
+        Some(planet),
+        "the planet's path crosses the corridor along the orbit's track"
+    );
+    assert_eq!(
+        corridor(Vec3::Y, &forecast),
+        None,
+        "the planet's path stays clear of the corridor along the orbit's normal"
+    );
+}
+
 /// A pylon standing in the only corridor refuses the approach before the hull
 /// moves: the sweep names the pylon, and the order fails on its first engaged
 /// tick with the hull where it started and nothing touched.
@@ -681,7 +825,7 @@ fn a_dock_order_whose_only_corridor_is_blocked_fails_and_names_the_blocker() {
         .world_mut()
         .run_system_once(move |corridors: DockCorridors| {
             let pair = corridors.ports.ranked_pairs(ship, station)[0];
-            corridors.plan(ship, &pair, 0.0).err().flatten()
+            corridors.plan(ship, &pair, 0.0, &[]).err().flatten()
         })
         .expect("the sweep runs");
     assert_eq!(

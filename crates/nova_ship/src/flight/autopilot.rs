@@ -9,17 +9,23 @@
 //! unit per second squared.
 
 use avian3d::prelude::*;
-use bevy::{ecs::entity::EntityHashSet, platform::collections::HashMap, prelude::*};
+use bevy::{
+    ecs::entity::{EntityHashMap, EntityHashSet},
+    platform::collections::HashMap,
+    prelude::*,
+};
 use nova_gameplay::prelude::*;
 
 use super::{
     capability::{ship_capabilities, LiveFlightComputers, ShipCapabilityQuery},
     dock_corridor::{dock_berth_gap, DockCorridors, DOCK_FINAL_LEG_ANGLE, DOCK_FINAL_LEG_LATERAL},
+    dock_forecast::{station_frame_sweep, DockForecast, FieldBody, DOCK_FORECAST_REFRESH},
     guidance::{
         arrival_eta, flip_lead, goto_desired_velocity, goto_flip_point, orbit_band_floor,
         orbit_desired_velocity, orbit_plane_normal, orbit_ring_offset, orbit_target_radius,
         ship_turn_rate, slew_rotation, slew_urgency, spool_tail, stop_rest_distance, FlipEstimate,
     },
+    navigation::route_leg,
     thrusters::{
         balance_throttles, burn_input, choose_group, cluster_thrusters, hold_for_opposed_wind_down,
         spool, BalanceEngine,
@@ -180,9 +186,8 @@ pub(super) struct FlightEnvironment<'a> {
     /// The mover's resolved detour margin: the daylight a GOTO leg keeps
     /// between the mover's skin and a body's.
     pub(super) avoid_margin: f32,
-    /// The sized bodies a GOTO leg routes around, (centre, radius), with the
-    /// leg's own target left out. See [`ObstacleQuery`].
-    pub(super) obstacles: &'a [(Entity, Vec3, f32)],
+    /// The sized bodies a GOTO leg routes around. See [`ObstacleQuery`].
+    pub(super) obstacles: &'a [FieldBody],
     /// The mover's [`FlightCruiseCap`], engine units per second, when it
     /// wears one.
     pub(super) cruise_cap: Option<f32>,
@@ -190,12 +195,12 @@ pub(super) struct FlightEnvironment<'a> {
     pub(super) capabilities: ShipCapabilities,
     /// The station a DOCK approach flies to, as this tick reads it; `None`
     /// for every other action and for a station that is gone.
-    pub(super) dock: Option<DockTarget>,
+    pub(super) dock: Option<DockTarget<'a>>,
 }
 
 /// A DOCK approach's station, as one step reads it.
 #[derive(Clone, Copy, Debug)]
-pub(super) struct DockTarget {
+pub(super) struct DockTarget<'a> {
     /// The selected pair, graded this tick; `None` while it is held and no
     /// other pair is free, so the approach waits.
     pub(super) pair: Option<DockingPair>,
@@ -204,14 +209,22 @@ pub(super) struct DockTarget {
     /// The station's centre of mass and containment radius: the body leg A
     /// routes around.
     pub(super) station_bubble: (Vec3, f32),
+    /// Every field body's path relative to the station, (body, centre,
+    /// radius) in this tick's world frame: what leg A routes around besides
+    /// the station. See [`station_frame_sweep`].
+    pub(super) forecast: &'a [(Entity, Vec3, f32)],
 }
 
 /// The proportional gain of a DOCK approach's closing velocity, per second.
 const DOCK_CLOSING_GAIN: f32 = 0.3;
 
 /// The offset inside which a DOCK approach closes at [`DOCK_NEAR_CAP`],
-/// engine units.
-const DOCK_CLOSING_SWITCH: f32 = 6.0;
+/// engine units (20 m). Above it the proportional law slows the hull to
+/// 0.6 u/s. At an orbiting station the RCS trims the tidal pull for the whole
+/// close and refills only when idle. A 6 u crawl at the near cap took 30 s,
+/// and a magazine taken back at half full ran dry 2 u short of the berth. The
+/// hull then left the lateral gate and backed out to the entry.
+const DOCK_CLOSING_SWITCH: f32 = 2.0;
 
 /// The fastest a DOCK approach closes outside [`DOCK_CLOSING_SWITCH`],
 /// engine units per second (20 m/s).
@@ -305,7 +318,8 @@ pub(super) const DETOUR_HYSTERESIS: f32 = 10.0;
 /// nav beacon (a mark to fly TO, whose volume stops nothing), a ship (hulls are
 /// flown AT and fought around, never detoured) and a station (a dock to arrive
 /// at; a DOCK approach adds its own station's bubble).
-/// Avian `Position` where the body has one, the render pose otherwise.
+/// Avian `Position` where the body has one, the render pose otherwise; a
+/// static body, or one with no `LinearVelocity`, does not move.
 pub(super) type ObstacleQuery<'w, 's> = Query<
     'w,
     's,
@@ -314,6 +328,12 @@ pub(super) type ObstacleQuery<'w, 's> = Query<
         Option<&'static Position>,
         &'static GlobalTransform,
         &'static BodyRadius,
+        (
+            Option<&'static RigidBody>,
+            Option<&'static LinearVelocity>,
+            Has<GravityAffected>,
+            Has<GravityWell>,
+        ),
     ),
     (
         Without<BeaconMarker>,
@@ -343,19 +363,24 @@ pub(super) fn routes_around_bodies(action: AutopilotAction) -> bool {
 pub(super) fn obstacle_field(
     q_obstacles: &ObstacleQuery,
     legs: impl IntoIterator<Item = AutopilotAction>,
-) -> Vec<(Entity, Vec3, f32)> {
+) -> Vec<FieldBody> {
     if !legs.into_iter().any(routes_around_bodies) {
         return Vec::new();
     }
     q_obstacles
         .iter()
-        .map(|(entity, position, transform, radius)| {
-            (
+        .map(
+            |(entity, position, transform, radius, (body, velocity, affected, well))| FieldBody {
                 entity,
-                position.map_or_else(|| transform.translation(), |p| p.0),
-                **radius,
-            )
-        })
+                center: position.map_or_else(|| transform.translation(), |p| p.0),
+                radius: **radius,
+                velocity: velocity
+                    .filter(|_| !body.is_some_and(RigidBody::is_static))
+                    .map(|velocity| velocity.0),
+                // The physics pulls an affected body that is no well itself.
+                feels_wells: affected && !well,
+            },
+        )
         .collect()
 }
 
@@ -768,7 +793,9 @@ pub(super) fn arrival_target(
 /// sweeps clear replaces it; its deadline and leg A corner are cleared, so the
 /// step arms a new one. With no free pair the selection and its deadline are
 /// kept and the approach waits. `clearance` is the leg's clearance outside the
-/// station's bubble, the hull's arm plus its detour margin.
+/// station's bubble, the hull's arm plus its detour margin. `forecast` is the
+/// field's paths relative to the station; a corridor they come within
+/// `clearance` of is refused like a swept one.
 ///
 /// The sweep runs only on a selection, at most once per free pair each time;
 /// a selected pair is never swept again while both its ports stay free, so a
@@ -780,12 +807,13 @@ pub(super) fn arrival_target(
 /// [`DisengageType::NoSafeDockPath`] when no free pair's corridor is clear or
 /// the station's hull is unmeasured. The refusal is warned here, with the
 /// first-ranked pair's blocker.
-fn dock_approach_target(
+fn dock_approach_target<'a>(
     ship: Entity,
     autopilot: &mut Mut<Autopilot>,
     corridors: &DockCorridors,
     clearance: f32,
-) -> Result<Option<DockTarget>, DisengageType> {
+    forecast: &'a [(Entity, Vec3, f32)],
+) -> Result<Option<DockTarget<'a>>, DisengageType> {
     let AutopilotAction::DockApproach {
         station,
         plan: selected,
@@ -817,7 +845,7 @@ fn dock_approach_target(
             let mut first_refusal = None;
             let mut chosen = None;
             for pair in ranked {
-                match corridors.plan(ship, &pair, clearance) {
+                match corridors.plan(ship, &pair, clearance, forecast) {
                     Ok(plan) => {
                         chosen = Some((pair, plan));
                         break;
@@ -870,7 +898,60 @@ fn dock_approach_target(
         pair,
         station_velocity,
         station_bubble,
+        forecast,
     }))
+}
+
+/// The field forecast a DOCK approach by `ship` to `station` reads at `now`,
+/// as (body, centre, radius) in this tick's world frame: the held one while it
+/// is for the same station and younger than [`DOCK_FORECAST_REFRESH`], a new
+/// one stepped from `field` and `wells` otherwise. A body whose path stays
+/// `margin` past the station's bubble, or past the hull where the hull stands
+/// farther out, is left out. Empty
+/// while the station is gone or unmeasured; the selection then refuses or
+/// waits on its own.
+fn dock_forecast(
+    held: &mut EntityHashMap<DockForecast>,
+    (ship, station): (Entity, Entity),
+    now: f32,
+    corridors: &DockCorridors,
+    (field, wells, gravity): (&[FieldBody], &[WellSample], &GravitySettings),
+    center_of_mass: Vec3,
+    margin: f32,
+) -> Vec<(Entity, Vec3, f32)> {
+    let (Some((station_center, bubble_radius)), Some(station_velocity)) = (
+        corridors.bubble(station),
+        corridors.ports.body_velocity(station),
+    ) else {
+        held.remove(&ship);
+        return Vec::new();
+    };
+    let fresh = held.get(&ship).is_some_and(|forecast| {
+        forecast.station == station && now - forecast.made_at < DOCK_FORECAST_REFRESH
+    });
+    if !fresh {
+        let wells: Vec<(Entity, Vec3, GravityWell)> = wells
+            .iter()
+            .map(|sample| (sample.entity, sample.position, sample.well.clone()))
+            .collect();
+        let reach = center_of_mass.distance(station_center).max(bubble_radius) + margin;
+        held.insert(
+            ship,
+            DockForecast {
+                station,
+                made_at: now,
+                spheres: station_frame_sweep(
+                    station_center,
+                    station_velocity,
+                    field,
+                    &wells,
+                    gravity,
+                    reach,
+                ),
+            },
+        );
+    }
+    held[&ship].world(station_center)
 }
 
 /// Flies every engaged autopilot one fixed tick: gathers each driving ship's
@@ -963,7 +1044,10 @@ pub(super) fn autopilot_system(
     // How many maneuvers each live hull has ended each way, so the ending's
     // debug line is said at the first and every tenfold, not once per
     // engagement.
-    mut endings: Local<EndingTally>,
+    //
+    // Each DOCK approach's held field forecast, stepped again every
+    // DOCK_FORECAST_REFRESH seconds rather than every tick.
+    (mut endings, mut forecasts): (Local<EndingTally>, Local<EntityHashMap<DockForecast>>),
     q_roots: Query<(), With<SpaceshipRootMarker>>,
     dock_corridors: DockCorridors,
 ) {
@@ -986,6 +1070,11 @@ pub(super) fn autopilot_system(
             .is_ok_and(|(.., (docked, assembly), _)| docked.is_some() && assembly.is_none())
     });
     endings.retain(|(ship, _), _| q_roots.contains(*ship));
+    forecasts.retain(|ship, _| {
+        q_ship.get(*ship).is_ok_and(|(_, autopilot, ..)| {
+            matches!(autopilot.action, AutopilotAction::DockApproach { .. })
+        })
+    });
     for (
         ship,
         mut autopilot,
@@ -1043,11 +1132,31 @@ pub(super) fn autopilot_system(
             &settings,
         );
         let avoid_margin = resolved_avoid_margin(avoid_margin, &settings);
+        let arrival_standoff = resolved_arrival_standoff(standoff_override, &settings);
+        let forecast = match autopilot.action {
+            AutopilotAction::DockApproach { station, .. } => dock_forecast(
+                &mut forecasts,
+                (ship, station),
+                time.elapsed_secs(),
+                &dock_corridors,
+                (&obstacles, &wells, &gravity_settings),
+                body.center_of_mass,
+                // The corridor entry stands within the bubble plus the
+                // clearance, the hysteresis and the hull's arm, and the
+                // refusal reads the clearance and the arm again; a corner
+                // rounds a body by its clear clearance plus its arrival
+                // window. A path that stays farther out meets neither.
+                2.0 * (2.0 * body.mover_radius + avoid_margin + DETOUR_HYSTERESIS)
+                    + arrival_standoff,
+            ),
+            _ => Vec::new(),
+        };
         let dock = match dock_approach_target(
             ship,
             &mut autopilot,
             &dock_corridors,
             body.mover_radius + avoid_margin,
+            &forecast,
         ) {
             Ok(dock) => dock,
             Err(reason) => {
@@ -1067,7 +1176,7 @@ pub(super) fn autopilot_system(
             settings: &settings,
             gravity: &gravity_settings,
             wells: &wells,
-            arrival_standoff: resolved_arrival_standoff(standoff_override, &settings),
+            arrival_standoff,
             avoid_margin,
             obstacles: &obstacles,
             cruise_cap: cruise_cap.map(|cap| **cap),
@@ -1676,8 +1785,8 @@ pub(super) fn autopilot_step(
             let obstacles: Vec<(Vec3, f32)> = env
                 .obstacles
                 .iter()
-                .filter(|(entity, ..)| Some(*entity) != target.entity)
-                .map(|(_, center, radius)| (*center, *radius))
+                .filter(|body| Some(body.entity) != target.entity)
+                .map(|body| (body.center, body.radius))
                 .collect();
             let plan = plan_leg(com_world, target.goal, autopilot.detour, policy, &obstacles);
             // A plan that is not finite was planned against a body that is
@@ -1784,19 +1893,25 @@ pub(super) fn autopilot_step(
                             hysteresis: DETOUR_HYSTERESIS,
                             arrive_radius: mover_radius + arrival_standoff + DETOUR_HYSTERESIS,
                         };
-                        let obstacles: Vec<(Vec3, f32)> = env
-                            .obstacles
+                        // Leg A flies in the station's frame: the field enters as
+                        // its forecast paths relative to the station, which stand
+                        // still in that frame, beside the station's own bubble.
+                        let obstacles: Vec<(Vec3, f32)> = dock
+                            .forecast
                             .iter()
-                            .map(|(_, center, radius)| (*center, *radius))
+                            .map(|&(_, center, radius)| (center, radius))
                             .chain([dock.station_bubble])
                             .collect();
                         let goal = com_world + (entry_face - pair.first.face);
-                        // The command below is station velocity plus closing, so a corner
-                        // held as a fixed world point falls behind an orbiting station.
+                        // The command below is station velocity plus closing, and
+                        // every body above stands still in the station's frame, so
+                        // a corner moves with the station.
                         let held = autopilot
                             .detour
                             .map(|corner| corner + dock.station_velocity * dt);
-                        let leg = plan_leg(com_world, goal, held, policy, &obstacles);
+                        // The entry is fixed by the port and kept clear of every
+                        // path by the selection; it is flown as given.
+                        let leg = route_leg(com_world, goal, held, policy, &obstacles);
                         if !leg.goal.is_finite() {
                             return disengaged(DisengageType::NoSafeLeg);
                         }
