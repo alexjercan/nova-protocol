@@ -54,7 +54,8 @@
 //! after every other body, so no existing body moves. A cell skips a traffic
 //! hull like any hull, and also skips one that stands past its cluster's
 //! extent. A traffic hull needs no companion: its station already has one in
-//! the cell. It has no escorts and takes the same patrol as any intact ship.
+//! the cell. It belongs to its station's civilization, has no escorts and
+//! takes the same patrol as any intact ship.
 //!
 //! # Every hull is a generated ship
 //!
@@ -91,7 +92,7 @@ use nova_world::prelude::*;
 use crate::{
     civilizations::{CivilizationField, CivilizationStatusType},
     environment::{Environment, EnvironmentFields},
-    sector_ships::{plan_patrol, plan_ship, trader_market, HullSlot, PlannedShip},
+    sector_ships::{plan_patrol, plan_ship, trader_market, HullLineageType, HullSlot, PlannedShip},
     sector_stations::StationClaims,
     ship_parts::ShipPartSnapshot,
     station_hulls::station_hulls,
@@ -1887,7 +1888,7 @@ fn plan_sector_with(
                     planetoids: &planetoids,
                     position: hull.hull.position,
                     yaw,
-                    lineage,
+                    lineage: HullLineageType::Cluster(lineage),
                 },
             )?;
             planned.body = ClusterBody::Ship(Box::new(ship));
@@ -1966,7 +1967,6 @@ fn plan_sector_with(
                         let direction = unit_sphere_point(stream.next_u32());
                         let distance = across(STATION_TRAFFIC_DISTANCE, stream.unit());
                         let yaw = stream.unit() * std::f32::consts::TAU;
-                        let lineage = stream.unit();
                         let position = Meters3(pose.position.get() + direction * distance.get());
                         let traffic_id = sector_id(coord, &format!("{stem}_traffic"), index);
                         let ship = plan_ship(
@@ -1984,7 +1984,7 @@ fn plan_sector_with(
                                 planetoids: &planetoids,
                                 position,
                                 yaw,
-                                lineage,
+                                lineage: HullLineageType::Station(civilization),
                             },
                         )?;
                         let reach = extent(cluster.cluster_type).get() - ship.clearance.get();
@@ -2522,11 +2522,12 @@ mod tests {
     }
 
     /// The cell of a start station plans its traffic hulls 2 to 4 km from the
-    /// station, and planning them moves no other body: the plan with traffic
+    /// station as intact ships of the station's own civilization, and
+    /// planning them moves no other body: the plan with traffic
     /// removed (`plan_sector_with` and zero hulls) holds the same other bodies
     /// at the same places.
     #[test]
-    fn a_living_station_cell_plans_two_traffic_hulls_and_moves_no_other_body() {
+    fn a_living_station_cell_plans_two_own_traffic_hulls_and_moves_no_other_body() {
         let world = crate::tests::fixture_world();
         let edge = Meters(32_000.0);
         let mut checked = 0;
@@ -2558,6 +2559,28 @@ mod tests {
             let traffic: Vec<&PlannedBody> = with.bodies.iter().filter(is_traffic).collect();
             assert_eq!(traffic.len(), STATION_TRAFFIC_HULLS, "{seed} {coord}");
             assert_eq!(without.bodies.iter().filter(is_traffic).count(), 0);
+            let keeper = with
+                .bodies
+                .iter()
+                .find_map(|body| match &body.body {
+                    ClusterBody::Station(station) if body.id == start.id => {
+                        Some(station.civilization)
+                    }
+                    _ => None,
+                })
+                .unwrap_or_else(|| panic!("{seed} {coord}: the start station is planned"));
+            for body in &traffic {
+                let ClusterBody::Ship(ship) = &body.body else {
+                    panic!("{seed} {}: a traffic hull plans a ship", body.id);
+                };
+                assert_eq!(ship.civilization, keeper, "{seed} {}", body.id);
+                assert_eq!(
+                    ship.condition,
+                    SectorShipConditionType::Intact,
+                    "{seed} {}",
+                    body.id
+                );
+            }
             for body in traffic.iter().filter(|body| body.skipped.is_none()) {
                 let distance = body.position.distance(start.position).get();
                 assert!(

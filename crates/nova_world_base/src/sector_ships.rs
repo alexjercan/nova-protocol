@@ -12,7 +12,9 @@
 //! anchor, weighted by their outward-biased selection weight. Its first hull
 //! is the primary's; each later hull has a [`SECONDARY_CIVILIZATION_CHANCE`]
 //! of belonging to another civilization in reach of the hull, weighted by its
-//! influence there, and stays the primary's when no other is in reach. The
+//! influence there, and stays the primary's when no other is in reach. A
+//! station's traffic hull ([`HullLineageType::Station`]) is its station's
+//! civilization's instead, so it flies its station's colours. The
 //! civilization's role weights at the cluster's environment pick the role,
 //! among the roles its advancement can build. A living civilization's hull is
 //! an intact ship, level in its local frame with the cluster's seeded yaw; an
@@ -127,8 +129,19 @@ pub struct HullSlot<'a> {
     pub position: Meters3,
     /// Its seeded yaw, in radians.
     pub yaw: f32,
-    /// Its draw for a secondary civilization, in `[0, 1)`.
-    pub lineage: f32,
+    /// Which civilization builds it.
+    pub lineage: HullLineageType,
+}
+
+/// Which civilization builds a hull.
+#[derive(Clone, Copy, Debug)]
+pub enum HullLineageType {
+    /// The cluster's primary civilization. A later slot whose draw, in
+    /// `[0, 1)`, falls under [`SECONDARY_CIVILIZATION_CHANCE`] belongs to
+    /// another civilization in reach of the hull.
+    Cluster(f32),
+    /// The civilization of the living station the hull is traffic of.
+    Station(Civilization),
 }
 
 /// One generated ship a cell owns, laid out before the cell checks where it
@@ -187,21 +200,26 @@ pub fn plan_ship(
     let role_draw = stream.unit();
     let turn = [stream.unit(), stream.unit(), stream.unit()];
 
-    let primary = primary_civilization(civilizations, seed, hull.node, hull.anchor)?;
-    let civilization = if hull.slot > 0 && hull.lineage < SECONDARY_CIVILIZATION_CHANCE {
-        let others: Vec<(Civilization, f32)> = civilizations
-            .in_reach(hull.position)?
-            .into_iter()
-            .filter(|reach| reach.civilization.id != primary.id)
-            .map(|reach| (reach.civilization, reach.influence))
-            .collect();
-        if others.is_empty() {
-            primary
-        } else {
-            pick(&others, civilization_draw)
+    let civilization = match hull.lineage {
+        HullLineageType::Station(civilization) => civilization,
+        HullLineageType::Cluster(lineage) => {
+            let primary = primary_civilization(civilizations, seed, hull.node, hull.anchor)?;
+            if hull.slot > 0 && lineage < SECONDARY_CIVILIZATION_CHANCE {
+                let others: Vec<(Civilization, f32)> = civilizations
+                    .in_reach(hull.position)?
+                    .into_iter()
+                    .filter(|reach| reach.civilization.id != primary.id)
+                    .map(|reach| (reach.civilization, reach.influence))
+                    .collect();
+                if others.is_empty() {
+                    primary
+                } else {
+                    pick(&others, civilization_draw)
+                }
+            } else {
+                primary
+            }
         }
-    } else {
-        primary
     };
 
     let buildable = parts.eligible_roles(civilization.id, civilization.advancement);

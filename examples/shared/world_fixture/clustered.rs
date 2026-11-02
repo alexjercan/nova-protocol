@@ -968,7 +968,7 @@ pub fn plan_cell(
                         planetoids: &planetoids,
                         position: member.position,
                         yaw,
-                        lineage,
+                        lineage: HullLineageType::Cluster(lineage),
                     },
                 )?;
                 member.body = ClusterBody::Ship(Box::new(ship));
