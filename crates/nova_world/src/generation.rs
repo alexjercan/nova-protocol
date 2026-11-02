@@ -937,21 +937,7 @@ fn check_market(trades: bool, market: Option<&TraderMarket>) -> Result<(), Strin
         (true, None) => Err("none; a generated trader states its market".to_string()),
         (false, Some(_)) => Err("a market on a body that does not trade".to_string()),
         (false, None) => Ok(()),
-        (true, Some(market)) => {
-            let preference = market.role_preference;
-            if preference
-                .iter()
-                .all(|share| share.is_finite() && *share >= 0.0)
-                && preference.iter().sum::<f32>() > 0.0
-            {
-                Ok(())
-            } else {
-                Err(format!(
-                    "role preferences {preference:?}; each finite and at least 0, summing \
-                     above 0"
-                ))
-            }
-        }
+        (true, Some(market)) => market.validate(),
     }
 }
 

@@ -4521,6 +4521,101 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
     }
 }
 
+/// A living saved station that offers Trade prices a visit by its market,
+/// so a Load refuses one with no market, or with role preferences that
+/// price nothing, before a visit could dock there; the same station with a
+/// valid market opens.
+#[test]
+fn a_load_refuses_a_living_trade_station_with_no_market_or_an_unpriceable_one() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Market").unwrap();
+    drop(lock);
+    let east = SectorCoord::new(1, 0, 0);
+    let trading_station = |market: Option<TraderMarket>| {
+        let mut world = World::new();
+        let station = world
+            .spawn((
+                spaceship_scenario_object(SpaceshipConfig::default()),
+                ShipInventory::new(&items(), 10_000, []),
+                DamageMarks::default(),
+                RcsBudget::default(),
+                StationMarker,
+                StationPost::Fixed {
+                    position: Vec3::ZERO,
+                },
+                StationServices(vec![StationServiceType::Trade]),
+                StationBuilds(Vec::new()),
+                StationPdcReserve::full(),
+                StationStorage::default(),
+            ))
+            .id();
+        if let Some(market) = market {
+            world.entity_mut(station).insert(market);
+        }
+        let frozen = freeze_station(&world, station).expect("a bare station is settled");
+        ledger_holding(
+            east,
+            Some("post"),
+            &FrozenBodyType::Station(Box::new(frozen), Vec::new()),
+        )
+    };
+    let market = |role_preference: [f32; 4]| TraderMarket {
+        cluster: ClusterType::RockOnly,
+        civilization: CivilizationId {
+            world_seed: 1,
+            node: [0, 0, 0],
+        },
+        role_preference,
+        target: BTreeMap::new(),
+        profile: None,
+    };
+    let open = || {
+        open_world(
+            root.path(),
+            "market",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios(),
+            &designs(),
+            &profiles(),
+        )
+    };
+    let cases = [
+        (
+            trading_station(None),
+            "the station 'post' offers Trade but prices by no market",
+        ),
+        (
+            trading_station(Some(market([0.0; 4]))),
+            "'post' prices by role preferences [0.0, 0.0, 0.0, 0.0]; each finite and at least \
+             0, summing above 0",
+        ),
+    ];
+    for (generation, (sectors, expected)) in (1..).zip(cases) {
+        let saved_state = WorldSaveState {
+            sectors,
+            ..state(generation, 750)
+        };
+        write_world(&folder, &header("Market", generation), &saved_state).unwrap();
+        assert_eq!(
+            open().map(|_| ()),
+            Err(WorldRefusal::Unreadable(format!(
+                "state.{generation}.ron: {expected}"
+            ))),
+            "case at generation {generation}"
+        );
+    }
+    let priced = WorldSaveState {
+        sectors: trading_station(Some(market([1.0, 0.0, 0.0, 0.0]))),
+        ..state(3, 750)
+    };
+    write_world(&folder, &header("Market", 3), &priced).unwrap();
+    let (_, lock, _, saved) = open().expect("a station with a valid market opens");
+    assert_eq!(saved.generation, 3);
+    drop(lock);
+}
+
 /// A clock reading the play-time clock never wrote: not finite, or below
 /// zero. The clock starts at zero and only advances, so every stamp in the
 /// save reads against it.
@@ -4670,9 +4765,8 @@ fn a_world_whose_trader_has_no_role_preference_is_refused_on_open() {
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
-                "state.{generation}.ron: 'trader' prices by the role preferences \
-                 {role_preference:?}, which must each be finite and at least zero and sum \
-                 above zero"
+                "state.{generation}.ron: 'trader' prices by role preferences \
+                 {role_preference:?}; each finite and at least 0, summing above 0"
             ))),
             "case at generation {generation}"
         );

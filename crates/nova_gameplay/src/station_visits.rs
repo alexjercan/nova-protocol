@@ -6,11 +6,16 @@
 //! Load puts it back and a New Game clears it. Only the open world crate
 //! writes it. A visit is bound when a ship takes a Dock order to a station
 //! ([`StationVisits::bind`]), moves to [`StationVisitPhaseType::Docked`]
-//! with its receipt on the frame the dock captures ([`StationVisits::dock`])
-//! and ends when the ship lets go or the visit fails
-//! ([`StationVisits::end`]). The receipt is written in the same frame as
-//! the transfers it lists, so a visit trades and posts at most once,
-//! whatever freezes, thaws or Loads come after.
+//! with its receipt on the frame the dock captures ([`StationVisits::dock`]),
+//! to [`StationVisitPhaseType::Departing`] when the ship lets go
+//! ([`StationVisits::depart`]), and ends when the ship stands clear of the
+//! station or the visit fails ([`StationVisits::end`]). The receipt is
+//! written in the same frame as the transfers it lists, so a visit trades
+//! and posts at most once, whatever freezes, thaws or Loads come after.
+//!
+//! A visit's phase clock, [`StationVisit::live_s`], counts only the play
+//! seconds the open world walked the visit ([`StationVisits::count_live`]):
+//! a frozen ship does not simulate, so its visit resumes where it stood.
 
 use std::{collections::BTreeMap, fmt};
 
@@ -30,6 +35,10 @@ pub mod prelude {
         StationVisitRefusalType, StationVisits, VisitTradeLine,
     };
 }
+
+/// How far a phase clock may run past the play clock's reading of its
+/// phase before [`StationVisits::validate`] refuses it: rounding only.
+const LIVE_ROUNDING_S: f64 = 1e-6;
 
 /// The stable id of one visit of one ship.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -90,6 +99,27 @@ pub enum StationVisitPhaseType {
         /// What the visit traded and posted.
         receipt: StationVisitReceipt,
     },
+    /// Let go at `released_at_s` and flying clear of the station's port
+    /// corridors. The station stays reserved, so the next visitor never
+    /// plans its corridor through the departing hull.
+    Departing {
+        /// The `WorldClock` play seconds at the capture.
+        docked_at_s: f64,
+        /// The `WorldClock` play seconds at the release.
+        released_at_s: f64,
+        /// What the visit traded and posted while docked.
+        receipt: StationVisitReceipt,
+    },
+}
+
+impl StationVisitPhaseType {
+    /// What the visit traded and posted, once it docked.
+    pub fn receipt(&self) -> Option<&StationVisitReceipt> {
+        match self {
+            Self::Approaching => None,
+            Self::Docked { receipt, .. } | Self::Departing { receipt, .. } => Some(receipt),
+        }
+    }
 }
 
 /// A ship's pending visit to a station.
@@ -106,6 +136,10 @@ pub struct StationVisit {
     pub profile: TradeProfileDesignId,
     /// The `WorldClock` play seconds at the bind.
     pub bound_at_s: f64,
+    /// The play seconds the open world walked this visit in its current
+    /// phase: zero at the bind, the capture and the release, and still while
+    /// the ship or its station stands frozen.
+    pub live_s: f64,
     /// Where it stands.
     pub phase: StationVisitPhaseType,
 }
@@ -198,6 +232,7 @@ impl StationVisits {
             station,
             profile,
             bound_at_s: now_s,
+            live_s: 0.0,
             phase: StationVisitPhaseType::Approaching,
         });
         Ok(id)
@@ -225,6 +260,55 @@ impl StationVisits {
             docked_at_s: now_s,
             receipt,
         };
+        visit.live_s = 0.0;
+    }
+
+    /// Record that `ship`'s docked visit let go at `now_s` and now flies
+    /// clear of its station.
+    ///
+    /// # Panics
+    ///
+    /// When `ship` has no docked visit: the open world releases a visit
+    /// once, when its dwell passes.
+    pub fn depart(&mut self, ship: &GeneratedBodyId, now_s: f64) {
+        let visit = self
+            .ships
+            .get_mut(ship)
+            .and_then(|visits| visits.pending.as_mut())
+            .unwrap_or_else(|| panic!("StationVisits releases '{ship}', which has no visit"));
+        let StationVisitPhaseType::Docked {
+            docked_at_s,
+            receipt,
+        } = &mut visit.phase
+        else {
+            panic!("StationVisits releases '{}', which is not docked", visit.id);
+        };
+        visit.phase = StationVisitPhaseType::Departing {
+            docked_at_s: *docked_at_s,
+            released_at_s: now_s,
+            receipt: std::mem::take(receipt),
+        };
+        visit.live_s = 0.0;
+    }
+
+    /// Add `seconds` of play the open world walked `ship`'s pending visit
+    /// for to its phase clock.
+    ///
+    /// # Panics
+    ///
+    /// When `ship` has no pending visit, or `seconds` is negative or not
+    /// finite.
+    pub fn count_live(&mut self, ship: &GeneratedBodyId, seconds: f64) {
+        assert!(
+            seconds.is_finite() && seconds >= 0.0,
+            "StationVisits counts {seconds} s of play for '{ship}'"
+        );
+        let visit = self
+            .ships
+            .get_mut(ship)
+            .and_then(|visits| visits.pending.as_mut())
+            .unwrap_or_else(|| panic!("StationVisits counts '{ship}', which has no visit"));
+        visit.live_s += seconds;
     }
 
     /// End `ship`'s pending visit, docked or not, and let it bind its next
@@ -266,8 +350,9 @@ impl StationVisits {
     /// a visit filed under another ship, a visit number the ship has not
     /// reached, a ship that visits itself, two visits to one station, a
     /// stamp that is not finite, is negative or stands ahead of the clock at
-    /// `clock_seconds`, a capture before the bind, or a receipt job that is
-    /// not this visit's posting at this station.
+    /// `clock_seconds`, a capture before the bind, a release before the
+    /// capture, a phase clock longer than its phase has stood, or a receipt
+    /// job that is not this visit's posting at this station.
     pub fn validate(&self, clock_seconds: f64) -> Result<(), String> {
         let stamp_ok = |at: f64| at.is_finite() && at >= 0.0 && at <= clock_seconds;
         let mut stations = Vec::new();
@@ -313,20 +398,48 @@ impl StationVisits {
                     visit.id, visit.bound_at_s
                 ));
             }
-            let StationVisitPhaseType::Docked {
-                docked_at_s,
-                receipt,
-            } = &visit.phase
-            else {
-                continue;
+            let phase_start = match &visit.phase {
+                StationVisitPhaseType::Approaching => visit.bound_at_s,
+                StationVisitPhaseType::Docked { docked_at_s, .. }
+                | StationVisitPhaseType::Departing { docked_at_s, .. } => {
+                    if !stamp_ok(*docked_at_s) || *docked_at_s < visit.bound_at_s {
+                        return Err(format!(
+                            "the visit '{}' docked at {docked_at_s} s of play, bound at {} s, \
+                             but the clock reads {clock_seconds} s",
+                            visit.id, visit.bound_at_s
+                        ));
+                    }
+                    match &visit.phase {
+                        StationVisitPhaseType::Departing { released_at_s, .. } => {
+                            if !stamp_ok(*released_at_s) || released_at_s < docked_at_s {
+                                return Err(format!(
+                                    "the visit '{}' was let go at {released_at_s} s of play, \
+                                     docked at {docked_at_s} s, but the clock reads \
+                                     {clock_seconds} s",
+                                    visit.id
+                                ));
+                            }
+                            *released_at_s
+                        }
+                        _ => *docked_at_s,
+                    }
+                }
             };
-            if !stamp_ok(*docked_at_s) || *docked_at_s < visit.bound_at_s {
+            // The clock and the phase clock add the same frame deltas from
+            // different bases, so they may round apart by a few ulps.
+            if !(visit.live_s.is_finite()
+                && visit.live_s >= 0.0
+                && visit.live_s <= clock_seconds - phase_start + LIVE_ROUNDING_S)
+            {
                 return Err(format!(
-                    "the visit '{}' docked at {docked_at_s} s of play, bound at {} s, but the \
-                     clock reads {clock_seconds} s",
-                    visit.id, visit.bound_at_s
+                    "the visit '{}' walked {} s of its phase, which began at {phase_start} s of \
+                     play, but the clock reads {clock_seconds} s",
+                    visit.id, visit.live_s
                 ));
             }
+            let Some(receipt) = visit.phase.receipt() else {
+                continue;
+            };
             for job in &receipt.jobs {
                 let own = job.station == visit.station
                     && matches!(&job.source, JobSourceType::Visit { visit: posted, .. } if *posted == visit.id);

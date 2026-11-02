@@ -17,23 +17,32 @@
 //!   [`VISIT_EXTRAS_MAX`] unaccepted ones, and stores the receipt. The
 //!   receipt marks the visit docked, so nothing runs twice, whatever
 //!   freezes, thaws or Loads come after;
-//! - [`VISIT_DWELL`] of play after the capture the ship cancels its order,
-//!   asks to be let go and the visit ends. Its next visit waits a seeded
-//!   [`VISIT_WAIT`].
+//! - [`VISIT_DWELL`] of play after the capture the ship cancels its order
+//!   and asks to be let go, and the visit departs: once undocked, the ship
+//!   takes a Move order out along the line from the station's centre
+//!   through it, [`VISIT_DEPART_CLEARANCE`] past both hulls' reach. The
+//!   station stays reserved until that order reports or
+//!   [`VISIT_DEPART_MAX`] of play passes, so the next visitor never plans
+//!   its corridor through the departing hull. Then the visit ends and the
+//!   ship's next visit waits a seeded [`VISIT_WAIT`].
+//!
+//! Every limit counts the play seconds the writer walked the visit, its
+//! [`StationVisit::live_s`]: a ship (and, docked, its station) settled in
+//! the window. Nothing happens off the window: a frozen ship is not walked,
+//! and its visit resumes the thaw with the time it had left.
 //!
 //! Nothing is saved but the ledger. A thawed or loaded ship carries no helm
-//! order, so the writer installs the Dock order again from the pending
+//! order, so the writer installs the visit's order again from the pending
 //! visit: an approaching ship resumes its approach, a docked one holds its
-//! restored dock until its dwell passes. Nothing happens off the window: a
-//! frozen ship is not walked, and its visit waits for the thaw.
+//! restored dock until its dwell passes, and a departing one flies clear.
 //!
 //! A visit ends with a warning and no transfer when its Dock order fails
 //! (no safe path, a hostile station, an overrun), when a script gives its
-//! ship another order before the capture, when it has not docked
-//! [`VISIT_APPROACH_MAX`] of play after the bind (frozen play time counts),
-//! or when its ship or its station is neutralized, derelict or taken by the
-//! player. A ship docked at a station that stops living is let go. The
-//! `ondestroyed` of either body ends the visit in [`end_visits_on_loss`].
+//! ship another order before the capture, when it has not docked after
+//! [`VISIT_APPROACH_MAX`] of walked play, or when its ship or its station is
+//! neutralized, derelict or taken by the player. A ship docked at a station
+//! that stops living is let go. The `ondestroyed` of either body ends the
+//! visit in [`end_visits_on_loss`].
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -51,8 +60,8 @@ use nova_gameplay::prelude::{
 };
 use nova_ship::prelude::{
     cancel_ship_order, AISpaceshipMarker, DockAdmission, DockedShip, DockingConnection,
-    DockingReleaseRequest, ShipHelmOrder, ShipOrderDirective, ShipOrderHelmAuthority,
-    ShipOrderReported, ShipOrderReports,
+    DockingReleaseRequest, HullEnvelopeRadius, ShipHelmOrder, ShipOrderDirective,
+    ShipOrderHelmAuthority, ShipOrderReported, ShipOrderReports,
 };
 use nova_world::prelude::WorldConfig;
 
@@ -77,6 +86,33 @@ fn order_key(visit: &StationVisitId) -> String {
     visit.to_string()
 }
 
+/// The helm order key a departing visit's Move order is reported under.
+fn depart_key(visit: &StationVisitId) -> String {
+    format!("{visit}_depart")
+}
+
+/// The key of the order `phase` flies under.
+fn phase_key(visit: &StationVisitId, phase: &StationVisitPhaseType) -> String {
+    match phase {
+        StationVisitPhaseType::Departing { .. } => depart_key(visit),
+        StationVisitPhaseType::Approaching | StationVisitPhaseType::Docked { .. } => {
+            order_key(visit)
+        }
+    }
+}
+
+/// How far past both hulls' reach, centre to centre, a departing visitor
+/// flies before its station takes the next one. A DOCK corridor ends where
+/// the approaching hull's centre of mass clears the station's bubble by
+/// that hull's own reach, its avoidance margin and the 100 m detour
+/// hysteresis, so a departure past this clears it for a visitor up to a
+/// few hundred metres across.
+const VISIT_DEPART_CLEARANCE: Meters = Meters(1_000.0);
+
+/// The walked play seconds a departing visit may fly before its station is
+/// free again whatever its Move order says.
+const VISIT_DEPART_MAX: f64 = 300.0;
+
 /// A seeded wait in `band` for `ship`'s visit number `ordinal`, in the
 /// world of `seed`.
 fn seeded_wait(seed: u32, ship: &GeneratedBodyId, ordinal: u32, band: (f64, f64)) -> f64 {
@@ -92,9 +128,9 @@ fn seeded_wait(seed: u32, ship: &GeneratedBodyId, ordinal: u32, band: (f64, f64)
     band.0 + (band.1 - band.0) * f64::from(draw)
 }
 
-/// The play seconds a visit may stay Approaching before it gives up: a Dock
-/// order that waits on a busy port or a station out of the window never
-/// reports, and the station stays reserved meanwhile.
+/// The walked play seconds a visit may stay Approaching before it gives up:
+/// a Dock order that waits on a busy port or a station out of the window
+/// never reports, and the station stays reserved meanwhile.
 const VISIT_APPROACH_MAX: f64 = 900.0;
 
 /// One live station a ship could visit.
@@ -156,6 +192,7 @@ pub(crate) fn drive_station_visits(
     mut commands: Commands,
     config: Res<WorldConfig<NovaLayeredWorld>>,
     clock: Res<WorldClock>,
+    time: Res<Time<Virtual>>,
     items: Res<GameItems>,
     table: Res<GamePriceTable>,
     profiles: Res<GameTradeProfiles>,
@@ -208,9 +245,13 @@ pub(crate) fn drive_station_visits(
         With<StationMarker>,
     >,
     connections: Query<&DockingConnection>,
+    envelopes: Query<&HullEnvelopeRadius>,
     mut holds: Query<(&mut ShipInventory, &mut ShipCredits)>,
 ) {
     let now = clock.play_seconds;
+    // The play seconds this frame adds to the clock: the same virtual delta
+    // `advance_world_clock` reads.
+    let walked = time.delta_secs_f64();
     let seed = config.seed;
     let live_stations: BTreeMap<&GeneratedBodyId, LiveStation> = stations
         .iter()
@@ -239,11 +280,11 @@ pub(crate) fn drive_station_visits(
         })
     };
 
-    for ((ship, id, _, _, settled), (order, reported, docked, has_reports), flags) in &ships {
-        let Some(visit) = visits.pending(id).cloned() else {
+    for ((ship, id, at, _, settled), (order, reported, docked, has_reports), flags) in &ships {
+        let Some(mut visit) = visits.pending(id).cloned() else {
             continue;
         };
-        let key = order_key(&visit.id);
+        let key = phase_key(&visit.id, &visit.phase);
         let ours = order.is_some_and(|order| order.key == key);
         let station = live_stations.get(&visit.station);
         let at_station = station.is_some_and(|station| docked_at(docked, station.entity));
@@ -270,6 +311,8 @@ pub(crate) fn drive_station_visits(
             // A thawed hull gets its hold when it settles.
             continue;
         }
+        visits.count_live(id, walked);
+        visit.live_s += walked;
         if station.is_some_and(|station| !station.living) {
             warn!(
                 "nova_world_base: the visit '{}' ends: '{}' is no longer a living station",
@@ -350,10 +393,10 @@ pub(crate) fn drive_station_visits(
                         false,
                         false,
                     );
-                } else if now - visit.bound_at_s > VISIT_APPROACH_MAX {
+                } else if visit.live_s > VISIT_APPROACH_MAX {
                     warn!(
                         "nova_world_base: the visit '{}' to '{}' ends with no transfer: no dock \
-                         {VISIT_APPROACH_MAX:.0} s after the bind",
+                         after {VISIT_APPROACH_MAX:.0} s of walked play",
                         visit.id, visit.station
                     );
                     end_visit(
@@ -373,10 +416,43 @@ pub(crate) fn drive_station_visits(
                     }
                 }
             }
-            StationVisitPhaseType::Docked { docked_at_s, .. } => {
-                if now - docked_at_s >= VISIT_DWELL {
+            StationVisitPhaseType::Docked { .. } => {
+                if visit.live_s >= VISIT_DWELL {
                     info!(
                         "nova_world_base: the visit '{}' leaves '{}' at {now:.1} s of play",
+                        visit.id, visit.station
+                    );
+                    visits.depart(id, now);
+                    commands.queue(move |world: &mut World| {
+                        if ours {
+                            cancel_ship_order(world, ship);
+                        }
+                        if at_station {
+                            world.trigger(DockingReleaseRequest { entity: ship });
+                        }
+                    });
+                } else if let (true, None, Some(station)) = (at_station, order, station) {
+                    // A restored dock after a thaw or a Load: the order holds
+                    // it so the ship's own AI never flies the docked hull.
+                    install(&mut commands, station.entity);
+                }
+            }
+            StationVisitPhaseType::Departing { .. } => {
+                let clear = if ours && reported {
+                    Some("its departure order reported")
+                } else if order.is_some_and(|order| order.key != key) {
+                    Some("another order replaced its departure order")
+                } else if visit.live_s > VISIT_DEPART_MAX {
+                    Some("its departure ran out of time")
+                } else if station.is_none() {
+                    Some("its station left the window")
+                } else {
+                    None
+                };
+                if let Some(reason) = clear {
+                    info!(
+                        "nova_world_base: the visit '{}' clears '{}' at {now:.1} s of play: \
+                         {reason}",
                         visit.id, visit.station
                     );
                     end_visit(
@@ -387,12 +463,32 @@ pub(crate) fn drive_station_visits(
                         ship,
                         &visit,
                         ours,
-                        at_station,
+                        false,
                     );
-                } else if let (true, None, Some(station)) = (at_station, order, station) {
-                    // A restored dock after a thaw or a Load: the order holds
-                    // it so the ship's own AI never flies the docked hull.
-                    install(&mut commands, station.entity);
+                } else if let (None, None, Some(station)) = (order, docked, station) {
+                    // Undocked, or thawed or loaded with no order: fly clear.
+                    // A hull not measured yet waits a frame for its reach.
+                    if let (Ok(own), Ok(host)) =
+                        (envelopes.get(ship), envelopes.get(station.entity))
+                    {
+                        let from = at.translation();
+                        let host_at = station.at.to_engine();
+                        let out = (from - host_at).try_normalize().unwrap_or(Vec3::Y);
+                        let reach = **own + **host + VISIT_DEPART_CLEARANCE.to_engine();
+                        if !has_reports {
+                            commands.entity(ship).insert(ShipOrderReports::default());
+                        }
+                        commands.entity(ship).insert((
+                            ShipHelmOrder::new(
+                                key.clone(),
+                                ShipOrderDirective::Move {
+                                    position: host_at + out * reach,
+                                    arrival_standoff: None,
+                                },
+                            ),
+                            ShipOrderHelmAuthority,
+                        ));
+                    }
                 }
             }
         }
@@ -609,7 +705,7 @@ pub(crate) fn end_visits_on_loss(
             "nova_world_base: the visit '{}' to '{}' ends: '{subject}' was destroyed",
             visit.id, visit.station
         );
-        let key = order_key(&visit.id);
+        let key = phase_key(&visit.id, &visit.phase);
         if let Some((ship, ..)) = ships
             .iter()
             .find(|(_, body, order)| **body == visit.id.ship && order.key == key)
@@ -621,7 +717,7 @@ pub(crate) fn end_visits_on_loss(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::{collections::BTreeMap, time::Duration};
 
     use nova_events::prelude::{OnDestroyedEventInfo, SectorCoord};
     use nova_gameplay::prelude::{
@@ -724,7 +820,8 @@ mod tests {
 
     /// A visitor and a station that admits it, 1 km apart, in an app that
     /// runs only the visit writer and its loss observer. The test drives
-    /// `WorldClock` by hand.
+    /// `WorldClock` and the virtual delta by hand, as `advance_world_clock`
+    /// would keep them in step.
     struct Rig {
         app: App,
         ship: Entity,
@@ -747,6 +844,7 @@ mod tests {
                 generator: crate::tests::fixture_world(),
             })
             .insert_resource(WorldClock::default())
+            .insert_resource(Time::<Virtual>::default())
             .insert_resource(items.clone())
             .insert_resource(flat_price_table())
             .insert_resource(GameTradeProfiles(BTreeMap::from([(
@@ -770,6 +868,7 @@ mod tests {
                     market(None),
                     ShipInventory::new(&items, 1_000_000, [(rations(), 3)]),
                     ShipCredits(START_CR),
+                    HullEnvelopeRadius(20.0),
                 ))
                 .id();
             app.world_mut()
@@ -801,16 +900,71 @@ mod tests {
                     market(Some(self.profile.id.clone())),
                     hold,
                     ShipCredits(credits),
+                    HullEnvelopeRadius(3.0),
                 ))
                 .id()
         }
 
+        /// Run one frame at `play_seconds`: the frame's virtual delta is the
+        /// play the clock gained since the last frame.
         fn at(&mut self, play_seconds: f64) {
+            let world = self.app.world_mut();
+            let gained = play_seconds - world.resource::<WorldClock>().play_seconds;
+            world.resource_mut::<WorldClock>().play_seconds = play_seconds;
+            world
+                .resource_mut::<Time<Virtual>>()
+                .advance_by(Duration::from_secs_f64(gained.max(0.0)));
+            self.app.update();
+        }
+
+        /// Freeze the visitor out of the window, run a frame `frozen_for` of
+        /// play later while it is gone, and thaw it as a fresh entity with
+        /// its hold and balance and no helm order, docked again when it
+        /// froze docked.
+        fn freeze_and_thaw(&mut self, frozen_for: f64) {
+            let world = self.app.world();
+            let hold = world.get::<ShipInventory>(self.ship).unwrap().clone();
+            let credits = world.get::<ShipCredits>(self.ship).unwrap().0;
+            let connection = world
+                .get::<DockedShip>(self.ship)
+                .map(|docked| docked.connection);
+            if let Some(connection) = connection {
+                self.app.world_mut().despawn(connection);
+            }
+            self.app.world_mut().despawn(self.ship);
+            let now = self.app.world().resource::<WorldClock>().play_seconds;
+            self.at(now + frozen_for);
+            self.ship = self.spawn_ship(hold, credits);
+            if connection.is_some() {
+                self.capture(self.ship);
+            }
+        }
+
+        /// The undock the release asks for, then the departure order: the
+        /// ship takes its Move order on the next frame, which the test
+        /// reports complete, as a flown order would.
+        fn fly_clear(&mut self, visit: &StationVisitId, now: f64) -> Vec3 {
+            if let Some(docked) = self.app.world().get::<DockedShip>(self.ship) {
+                let connection = docked.connection;
+                self.app.world_mut().despawn(connection);
+                self.app
+                    .world_mut()
+                    .entity_mut(self.ship)
+                    .remove::<DockedShip>();
+            }
+            self.at(now);
+            let Some((key, ShipOrderDirective::Move { position, .. })) = self.order() else {
+                panic!(
+                    "the departing ship takes a Move order, not {:?}",
+                    self.order()
+                );
+            };
+            assert_eq!(key, depart_key(visit));
             self.app
                 .world_mut()
-                .resource_mut::<WorldClock>()
-                .play_seconds = play_seconds;
-            self.app.update();
+                .entity_mut(self.ship)
+                .insert(ShipOrderReported);
+            position
         }
 
         /// The play second the ship's first visit may bind at, rounded up.
@@ -1050,17 +1204,23 @@ mod tests {
         assert_eq!(docked_receipt(&rig.visit().unwrap()).1, receipt);
         assert_eq!(rig.order().map(|order| order.0), Some(key));
 
-        // The dwell passes: the visit ends and the order goes.
+        // The dwell passes: the visit departs, flies clear and ends.
         let leaves_at = docked_at + VISIT_DWELL;
         rig.at(leaves_at);
-        assert_visit_ended(&rig, leaves_at);
+        assert!(matches!(
+            rig.visit().map(|visit| visit.phase),
+            Some(StationVisitPhaseType::Departing { .. })
+        ));
+        rig.fly_clear(&visit.id, leaves_at + 1.0);
+        rig.at(leaves_at + 2.0);
+        assert_visit_ended(&rig, leaves_at + 2.0);
         assert_eq!(rig.ledger(), settled, "leaving moves nothing");
     }
 
     #[test]
     fn an_empty_profile_visit_docks_and_leaves_without_moving_anything() {
         let mut rig = Rig::new(empty_profile());
-        let (_, bound_at) = rig.bind();
+        let (visit, bound_at) = rig.bind();
         let before = rig.ledger();
 
         let docked_at = bound_at + 10.0;
@@ -1075,7 +1235,9 @@ mod tests {
 
         let leaves_at = docked_at + VISIT_DWELL;
         rig.at(leaves_at);
-        assert_visit_ended(&rig, leaves_at);
+        rig.fly_clear(&visit.id, leaves_at + 1.0);
+        rig.at(leaves_at + 2.0);
+        assert_visit_ended(&rig, leaves_at + 2.0);
         assert_eq!(rig.ledger(), before, "leaving moves nothing");
     }
 
@@ -1186,5 +1348,140 @@ mod tests {
             "the docked visitor asks to be let go"
         );
         assert!(rig.order().is_none(), "the visit's order is cancelled");
+    }
+
+    /// A frozen ship does not simulate, so a visit counts only the play its
+    /// writer walked: an approach frozen 800 s in resumes with 100 s left
+    /// however long it stood frozen, and a dock frozen 30 s in keeps its
+    /// visitor docked for the other 30 s of its dwell after the thaw.
+    #[test]
+    fn a_frozen_visit_resumes_its_approach_and_dwell_with_the_time_they_had_left() {
+        let mut rig = Rig::new(trading_profile(0));
+        let (_, bound_at) = rig.bind();
+        rig.at(bound_at + 800.0);
+        rig.freeze_and_thaw(5_000.0);
+        let thawed_at = bound_at + 5_801.0;
+        rig.at(thawed_at);
+        let visit = rig.visit().expect("the approach resumes after the thaw");
+        assert_eq!(visit.phase, StationVisitPhaseType::Approaching);
+        assert!(
+            (visit.live_s - 801.0).abs() < 1e-6,
+            "frozen play is not walked: {} s",
+            visit.live_s
+        );
+        assert_eq!(
+            rig.order().map(|order| order.0),
+            Some(visit.id.to_string()),
+            "the Dock order comes back"
+        );
+        rig.at(thawed_at + 99.0);
+        assert!(
+            rig.visit().is_some(),
+            "the approach still has its last second"
+        );
+        rig.at(thawed_at + 100.0);
+        assert!(
+            rig.visit().is_none(),
+            "the approach runs out on walked play"
+        );
+
+        let mut rig = Rig::new(trading_profile(0));
+        let (_, bound_at) = rig.bind();
+        let docked_at = bound_at + 10.0;
+        rig.capture(rig.ship);
+        rig.at(docked_at);
+        rig.at(docked_at + 30.0);
+        rig.freeze_and_thaw(2_000.0);
+        let thawed_at = docked_at + 2_031.0;
+        rig.at(thawed_at);
+        let visit = rig.visit().expect("the docked visit stands after the thaw");
+        assert!(matches!(visit.phase, StationVisitPhaseType::Docked { .. }));
+        rig.at(thawed_at + 28.0);
+        assert!(
+            matches!(
+                rig.visit().map(|visit| visit.phase),
+                Some(StationVisitPhaseType::Docked { .. })
+            ),
+            "59 walked seconds keep the visitor docked"
+        );
+        rig.at(thawed_at + 29.0);
+        assert!(
+            matches!(
+                rig.visit().map(|visit| visit.phase),
+                Some(StationVisitPhaseType::Departing { .. })
+            ),
+            "the 60th walked second lets it go"
+        );
+    }
+
+    /// A visitor let go keeps its station until it has flown clear, so the
+    /// next ship never binds while the departing hull sits in a port
+    /// corridor: the next bind waits for the departure order's report, and
+    /// the departure point stands past both hulls' reach.
+    #[test]
+    fn a_departing_visitor_keeps_its_station_until_it_flies_clear() {
+        let mut rig = Rig::new(trading_profile(0));
+        let (visit, bound_at) = rig.bind();
+        let items = nova_gameplay::test_support::test_items();
+        let next_id = GeneratedBodyId::new(SectorCoord::new(0, 0, 0), "visitor", 1);
+        let next = rig
+            .app
+            .world_mut()
+            .spawn((
+                SpaceshipRootMarker,
+                AISpaceshipMarker,
+                next_id.clone(),
+                GlobalTransform::from_xyz(-100.0, 0.0, 0.0),
+                Allegiance::Neutral,
+                market(Some(rig.profile.id.clone())),
+                ShipInventory::new(&items, 1_000_000, []),
+                ShipCredits(START_CR),
+            ))
+            .id();
+        let docked_at = bound_at + 10.0;
+        rig.capture(rig.ship);
+        rig.at(docked_at);
+        let leaves_at =
+            (docked_at + VISIT_DWELL).max(seeded_wait(SEED, &next_id, 0, FIRST_VISIT_WAIT).ceil());
+        rig.at(leaves_at);
+        let pending = |rig: &Rig, ship: &GeneratedBodyId| {
+            rig.app
+                .world()
+                .resource::<StationVisits>()
+                .pending(ship)
+                .cloned()
+        };
+        assert!(matches!(
+            pending(&rig, &rig.ship_id).map(|visit| visit.phase),
+            Some(StationVisitPhaseType::Departing { .. })
+        ));
+        assert!(
+            pending(&rig, &next_id).is_none(),
+            "a due ship does not bind a station whose visitor is still departing"
+        );
+
+        let mark = rig.fly_clear(&visit.id, leaves_at + 1.0);
+        assert!(
+            pending(&rig, &next_id).is_none(),
+            "nor while it flies clear"
+        );
+        let host = Vec3::new(100.0, 0.0, 0.0);
+        assert!(
+            mark.distance(host) >= 20.0 + 3.0 + VISIT_DEPART_CLEARANCE.to_engine() - 1e-3,
+            "the departure mark {mark} stands past both hulls' reach"
+        );
+        assert!(
+            (mark - host).dot(Vec3::new(-1.0, 0.0, 0.0)) > 0.0,
+            "out along the line from the station through the ship"
+        );
+        rig.at(leaves_at + 2.0);
+        assert_visit_ended(&rig, leaves_at + 2.0);
+        rig.at(leaves_at + 3.0);
+        assert_eq!(
+            pending(&rig, &next_id).map(|visit| visit.station),
+            Some(rig.station_id.clone()),
+            "the station takes its next visitor once the last one is clear"
+        );
+        assert!(rig.app.world().get::<ShipHelmOrder>(next).is_some());
     }
 }

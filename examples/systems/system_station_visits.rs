@@ -1,6 +1,6 @@
 //! system_station_visits: real seeded generated traffic visits a station in
 //! the full game: a profiled ship binds a visit, flies a Dock order, trades
-//! and posts jobs once on the capture, dwells, and is released.
+//! and posts jobs once on the capture, dwells, is released and flies clear.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed the way the Create World modal does, then lets the player go from
@@ -24,7 +24,7 @@
 //! | 1 | `outcome: a profiled ship binds a visit to a living station` | within the bounded play time a visit is pending whose ship carries a trade profile and whose station is a live, living one that offers Trade or Jobs |
 //! | 2 | `outcome: a docked visit's receipt conserves credits and goods` | the visit is Docked with a receipt, its ship stands docked at its station, and across the capture frame the ship's and the station's balances and holds moved by exactly the receipt's lines, nothing created or lost |
 //! | 3 | `outcome: a docked visit posts its jobs under visit ids` | every receipt job is a valid [`JobSourceType::Visit`] job of this visit and index, posted at this station, and stands in [`JobPostings`] stamped at the capture |
-//! | 4 | `outcome: a visit ends with its ship released` | after the dwell the visit is no longer pending, the ship is undocked and holds no order of the visit, its next visit is later than the end, and the posted jobs still stand |
+//! | 4 | `outcome: a visit ends with its ship released` | after the dwell the visit departs, then is no longer pending; it was let go between its capture and its end, the ship is undocked and holds no order of the visit, its next visit is later than the end, and the posted jobs still stand |
 //! | 5 | `outcome: pending visits stay within the living stations` | on every sampled frame the pending visits number at most the live living stations, and at least one visit was pending |
 //! | 6 | `outcome: a docked player accepts a visit job from the board` | the player docks at the station under a Dock order, the Jobs pane lists each open visit posting the hull can take with no refresh `X` (a slot row keeps its `X`), and an Accept click makes [`Jobs`] hold the job while [`JobPostings`] keeps its visit posting |
 //!
@@ -52,7 +52,7 @@ use clap::Parser;
 #[command(
     about = "New Game on a pinned seed, then play time runs until a generated ship with a trade \
              profile visits a living station: it binds, docks, trades and posts jobs once, \
-             dwells and is released. Reads the world only. Autopilot-only correctness range",
+             dwells, is released and flies clear. Reads the world only. Autopilot-only correctness range",
     long_about = None
 )]
 struct Cli;
@@ -160,8 +160,9 @@ mod walk {
     /// Play seconds a bound visit gets to dock, from its bind.
     const DOCK_WITHIN_S: f64 = 900.0;
     /// Play seconds a docked visit gets to end, from its capture: the
-    /// writer's 60 s dwell and slack for the undock.
-    const END_WITHIN_S: f64 = 180.0;
+    /// writer's 60 s dwell, its 300 s departure limit and slack for the
+    /// undock.
+    const END_WITHIN_S: f64 = 420.0;
 
     /// How far aside of the station the player rests while the visit runs.
     const REST_ASIDE: Meters = Meters(3_000.0);
@@ -210,8 +211,10 @@ mod walk {
         posted: Vec<JobId>,
         /// The Accept button the walk clicks and the job behind it.
         accept: Option<(String, JobId)>,
-        /// The play seconds the tracked visit docked and ended at.
+        /// The play seconds the tracked visit docked, was let go and ended
+        /// at.
         docked_at_s: Option<f64>,
+        released_at_s: Option<f64>,
         ended_at_s: Option<f64>,
         /// The most pending visits on one frame, and the live living
         /// stations on that frame.
@@ -365,6 +368,9 @@ mod walk {
                         watch.after = reading(visit, &profiles, &bodies);
                         watch.docked_at_s = Some(*docked_at_s);
                     }
+                }
+                StationVisitPhaseType::Departing { released_at_s, .. } => {
+                    watch.released_at_s = Some(*released_at_s);
                 }
             },
             _ => {
@@ -1039,6 +1045,14 @@ mod walk {
                 play_seconds(world)
             )
         });
+        let released_at_s = watch.released_at_s.unwrap_or_else(|| {
+            panic!("station visits: the visit '{tracked}' ended with no departure seen")
+        });
+        assert!(
+            docked_at_s <= released_at_s && released_at_s <= ended_at_s,
+            "station visits: '{tracked}' docked at {docked_at_s:.1} s, was let go at \
+             {released_at_s:.1} s and ended by {ended_at_s:.1} s"
+        );
         let visits = world.resource::<StationVisits>().clone();
         assert!(
             visits.pending(&tracked.ship).is_none(),
@@ -1058,11 +1072,11 @@ mod walk {
                 "station visits: '{}' is released from the station",
                 tracked.ship
             );
-            let key = tracked.to_string();
+            let keys = [tracked.to_string(), format!("{tracked}_depart")];
             assert!(
                 world
                     .get::<ShipHelmOrder>(ship)
-                    .is_none_or(|order| order.key != key),
+                    .is_none_or(|order| !keys.contains(&order.key)),
                 "station visits: '{}' holds no order of the ended visit",
                 tracked.ship
             );
@@ -1083,14 +1097,16 @@ mod walk {
             serde_json::json!({
                 "visit": tracked.to_string(),
                 "docked_at_s": docked_at_s,
+                "released_at_s": released_at_s,
                 "ended_seen_at_s": ended_at_s,
                 "next_visit_at_s": next,
                 "jobs_still_posted": still,
             }),
         );
         info!(
-            "station visits: PASS the visit ended: '{tracked}' docked at {docked_at_s:.1} s, ended \
-             by {ended_at_s:.1} s, next visit not before {next:.1} s, {still} posted job(s) stand"
+            "station visits: PASS the visit ended: '{tracked}' docked at {docked_at_s:.1} s, let go \
+             at {released_at_s:.1} s, ended by {ended_at_s:.1} s, next visit not before {next:.1} \
+             s, {still} posted job(s) stand"
         );
 
         let (max_pending, live_at_max, samples, over_bound_frames) = {

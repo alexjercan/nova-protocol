@@ -296,6 +296,24 @@ pub struct TraderMarket {
 }
 
 impl TraderMarket {
+    /// Refuse a market no generation writes: a role preference that is not
+    /// finite or is negative, or preferences that sum to zero, which price
+    /// nothing.
+    pub fn validate(&self) -> Result<(), String> {
+        let preference = self.role_preference;
+        if preference
+            .iter()
+            .all(|share| share.is_finite() && *share >= 0.0)
+            && preference.iter().sum::<f32>() > 0.0
+        {
+            Ok(())
+        } else {
+            Err(format!(
+                "role preferences {preference:?}; each finite and at least 0, summing above 0"
+            ))
+        }
+    }
+
     /// The role with the highest preference, the first in
     /// [`ShipRoleType::ALL`] order on a tie.
     pub fn leading_role(&self) -> ShipRoleType {

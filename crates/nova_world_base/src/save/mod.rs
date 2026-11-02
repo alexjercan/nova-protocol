@@ -57,7 +57,7 @@ use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
     kg_text, CargoCanisterRuntimeId, Chart, CivilizationStances, ClusterType, GameItems,
     GameTradeProfiles, GoalRecord, ItemDesignId, JobPostings, JobSourceType, Jobs, SavedBodyRef,
-    SavedOwner, SavedSectionRef, SavedTargetRef, StationVisitPhaseType, StationVisits,
+    SavedOwner, SavedSectionRef, SavedTargetRef, StationServiceType, StationVisits,
     CARGO_CANISTER_MAX_MASS_G,
 };
 use nova_scenario::prelude::{
@@ -637,7 +637,7 @@ fn read_state(
         .station_visits
         .validate(state.clock.play_seconds)
         .and_then(|()| check_saved_visits(&state))
-        .and_then(|()| check_saved_profiles(&state, profiles))
+        .and_then(|()| check_saved_markets(&state, profiles))
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     state
         .stances
@@ -762,9 +762,9 @@ fn check_saved_visits(state: &WorldSaveState) -> Result<(), String> {
             .station_visits
             .pending(&visit.ship)
             .filter(|pending| pending.id == *visit);
-        let posted = match posted_by.map(|pending| &pending.phase) {
-            Some(StationVisitPhaseType::Docked { receipt, .. }) => receipt.jobs.contains(job),
-            Some(StationVisitPhaseType::Approaching) => false,
+        let posted = match posted_by.map(|pending| pending.phase.receipt()) {
+            Some(Some(receipt)) => receipt.jobs.contains(job),
+            Some(None) => false,
             None => state.station_visits.issued(visit),
         };
         if !posted {
@@ -813,10 +813,14 @@ fn check_saved_visits(state: &WorldSaveState) -> Result<(), String> {
     Ok(())
 }
 
-/// Every trade profile the save names is in `profiles`: each pending visit's
-/// and each saved trader ship's. A station runs no profile. A profile the
-/// catalog lost is a save this build cannot drive, so the Load refuses it.
-pub(crate) fn check_saved_profiles(
+/// Every saved market can drive a visit: each pending visit's trade profile
+/// and each saved trader ship's is in `profiles`, a station runs no
+/// profile, and a living station that offers Trade carries a market
+/// (`check_saved_clock` already refused one that prices nothing). A profile
+/// the catalog lost is a save this build cannot drive, and a living Trade
+/// station with no market has no prices for a visit to trade at, so the
+/// Load refuses either rather than fail in play.
+pub(crate) fn check_saved_markets(
     state: &WorldSaveState,
     profiles: &GameTradeProfiles,
 ) -> Result<(), String> {
@@ -828,29 +832,41 @@ pub(crate) fn check_saved_profiles(
             ));
         }
     }
-    let check_ship = |ship: &FrozenShip, owner: &str| -> Result<(), String> {
-        match ship.market().and_then(|market| market.profile.as_ref()) {
-            Some(profile) if profiles.get(profile).is_none() => Err(format!(
-                "{owner} runs the trade profile '{profile}', which the catalog lacks"
-            )),
-            _ => Ok(()),
-        }
-    };
     for (_, record) in state.sectors.iter() {
         for body in record.each_body() {
             let id = body.id().unwrap_or_default();
             match body.body() {
-                FrozenBodyType::Ship(ship) => check_ship(ship, &format!("'{id}'"))?,
+                FrozenBodyType::Ship(ship) => {
+                    let Some(market) = ship.market() else {
+                        continue;
+                    };
+                    if let Some(profile) = &market.profile {
+                        if profiles.get(profile).is_none() {
+                            return Err(format!(
+                                "'{id}' runs the trade profile '{profile}', which the catalog \
+                                 lacks"
+                            ));
+                        }
+                    }
+                }
                 FrozenBodyType::Station(station, _) => {
-                    if let Some(profile) = station
-                        .ship()
-                        .market()
-                        .and_then(|market| market.profile.as_ref())
-                    {
-                        return Err(format!(
-                            "the station '{id}' runs the trade profile '{profile}'; a station \
-                             runs none"
-                        ));
+                    let trades = !station.ship().is_derelict()
+                        && station.services().contains(&StationServiceType::Trade);
+                    match station.ship().market() {
+                        None if trades => {
+                            return Err(format!(
+                                "the station '{id}' offers Trade but prices by no market"
+                            ));
+                        }
+                        None => {}
+                        Some(market) => {
+                            if let Some(profile) = &market.profile {
+                                return Err(format!(
+                                    "the station '{id}' runs the trade profile '{profile}'; a \
+                                     station runs none"
+                                ));
+                            }
+                        }
                     }
                 }
                 _ => {}
@@ -882,8 +898,9 @@ fn check_saved_start(state: &WorldSaveState) -> Result<(), String> {
 /// The saved clock is a reading the play-time clock wrote (finite, at least
 /// zero), every ledger body froze at or before it, every frozen trader
 /// prices by role preferences `price` accepts (each finite and at least
-/// zero, their sum above zero), and every parked hull's motion relative to
-/// its station is finite. Runs before the stamp checks that read the clock.
+/// zero, their sum above zero:
+/// [`TraderMarket::validate`](nova_gameplay::prelude::TraderMarket::validate)),
+/// and every parked hull's motion relative to its station is finite. Runs before the stamp checks that read the clock.
 /// Load checks on open: a thaw asserts its stamp against the clock
 /// (`WorldClock::elapsed_since`), the first trade asserts the preference
 /// sum (`nova_gameplay::market::price`) and a thawed escort for hire takes
@@ -899,20 +916,11 @@ fn check_saved_clock(state: &WorldSaveState) -> Result<(), String> {
         ));
     }
     let check_market = |ship: &FrozenShip, owner: &str| -> Result<(), String> {
-        let Some(market) = ship.market() else {
-            return Ok(());
-        };
-        let preference = market.role_preference;
-        let each_valid = preference
-            .iter()
-            .all(|share| share.is_finite() && *share >= 0.0);
-        if !each_valid || preference.iter().sum::<f32>() <= 0.0 {
-            return Err(format!(
-                "{owner} prices by the role preferences {preference:?}, which must each be \
-                 finite and at least zero and sum above zero"
-            ));
-        }
-        Ok(())
+        ship.market().map_or(Ok(()), |market| {
+            market
+                .validate()
+                .map_err(|fault| format!("{owner} prices by {fault}"))
+        })
     };
     check_market(
         &state.player.ship,

@@ -38,7 +38,7 @@ use nova_world::prelude::{
 
 use super::{
     check_saved_controls, check_saved_fleet, check_saved_ids, check_saved_items,
-    check_saved_profiles, check_saved_rcs, check_saved_stock, check_saved_visits,
+    check_saved_markets, check_saved_rcs, check_saved_stock, check_saved_visits,
     controls::freeze_controls,
     transients::{freeze_transients, hold_resumed_transients},
     write_world, SavedChart, SavedFleet, SavedIdFault, SavedObjective, SavedObjectiveLine,
@@ -685,7 +685,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
                 .and_then(|()| check_saved_items(&state, &items))
                 .and_then(|()| check_saved_stock(&state, &items))
                 .and_then(|()| check_saved_rcs(&state, &designs))
-                .and_then(|()| check_saved_profiles(&state, &profiles))
+                .and_then(|()| check_saved_markets(&state, &profiles))
                 .map_err(|reason| SectorSnapshotError::InvalidSavedState { reason })
         });
     if let Err(error) = checked {
