@@ -129,6 +129,7 @@ mod tests {
                     },
                     role_preference: [1.0, 1.0, 0.0, 0.0],
                     target: BTreeMap::from([(ore.clone(), 10)]),
+                    profile: None,
                 },
                 ShipInventory::new(&items, 1_000_000, []),
             ))

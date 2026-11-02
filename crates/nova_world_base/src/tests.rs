@@ -46,6 +46,7 @@ pub(crate) fn fixture_world() -> NovaLayeredWorld {
         &loaded(),
         &styles(),
         &nova_gameplay::test_support::test_items(),
+        &nova_gameplay::prelude::GameTradeProfiles::default(),
     )
     .expect("the fixture packs build a snapshot and every role and archetype has a style")
 }
@@ -88,6 +89,7 @@ fn world(on: ScenarioWorldType) -> World {
     world.insert_resource(loaded());
     world.insert_resource(styles());
     world.insert_resource(nova_gameplay::test_support::test_items());
+    world.init_resource::<GameTradeProfiles>();
     world
 }
 

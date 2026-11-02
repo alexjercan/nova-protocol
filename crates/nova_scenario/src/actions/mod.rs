@@ -429,6 +429,13 @@ registry::scenario_actions! {
         effect: Injection,
         inspect: Reflect,
     },
+    /// Give one generated AI trader a trade profile, or take it away.
+    SetTradeProfile(SetTradeProfileActionConfig) {
+        label: "Set Trade Profile",
+        stem: "trade_profile",
+        effect: Injection,
+        inspect: Reflect,
+    },
     /// Set or clear one AI ship's territorial leash.
     SetAILeash(SetAILeashActionConfig) {
         label: "Set AI Leash",

@@ -160,8 +160,11 @@ pub(crate) fn drive_pending_leave(
                             RegisteredScenarios::from(world.resource::<GameScenarios>());
                         let roles = world.resource::<GameStartRoles>();
                         let designs = world.resource::<GameShipDesigns>();
-                        open_world(root, &slug, packs, roles, items, &scenarios, designs)
-                            .map_err(|refusal| refusal.to_string())
+                        let profiles = world.resource::<GameTradeProfiles>();
+                        open_world(
+                            root, &slug, packs, roles, items, &scenarios, designs, profiles,
+                        )
+                        .map_err(|refusal| refusal.to_string())
                     }
                     (None, ..) => Err("this system has no folder for saved worlds".to_string()),
                     (_, None, _) | (_, _, None) => Err("no content is loaded".to_string()),

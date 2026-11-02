@@ -707,6 +707,23 @@ const CREATE_PAGES = [
         ],
     },
     {
+        slug: "trade-profiles",
+        md: "trade-profiles.md",
+        title: "Trade profiles for mods",
+        category: "Modding reference",
+        parent: "mod-files",
+        toc: true,
+        tags: ["modding", "reference", "stations"],
+        summary:
+            "Author what a visiting ship trades with a station and which jobs it posts: the roles it is drawn for, the items and price limits it trades, and the procurement jobs it leaves on the board.",
+        related: ["prices", "stations", "objects"],
+        headings: [
+            "The TradeProfile item",
+            "Overlay and lint",
+            "Base trade profiles",
+        ],
+    },
+    {
         slug: "styles",
         md: "styles.md",
         title: "Ship skin styles for mods",
@@ -887,6 +904,7 @@ const CREATE_PAGES = [
             "SetAILeash",
             "SetAIEngageRange",
             "SetAIPointDefenseRange",
+            "SetTradeProfile",
             "TimerStart",
             "TimerCancel",
             "VariableSet",

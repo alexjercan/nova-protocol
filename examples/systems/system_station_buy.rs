@@ -1364,6 +1364,7 @@ mod walk {
             world.resource::<GameItems>(),
             &RegisteredScenarios::from(world.resource::<GameScenarios>()),
             world.resource::<GameShipDesigns>(),
+            world.resource::<GameTradeProfiles>(),
         )
         .unwrap_or_else(|refusal| panic!("station buy: cannot open the leave save: {refusal}"));
         for section in &buy.old {

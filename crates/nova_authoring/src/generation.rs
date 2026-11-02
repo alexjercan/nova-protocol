@@ -11,7 +11,7 @@
 //! build - `nova_modding` (a dependency) turns on `nova_scenario/serde`, and
 //! Cargo feature unification carries it here.
 
-use nova_gameplay::prelude::{ItemDesign, PriceTable};
+use nova_gameplay::prelude::{ItemDesign, PriceTable, TradeProfileDesign};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::{
     CampaignConfig, ScenarioConfig, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig,
@@ -32,8 +32,9 @@ pub mod prelude {
         build_lesson_content, build_lessons, build_price_table, build_price_table_content,
         build_scenario_contents, build_scenarios, build_section_catalog, build_section_content,
         build_ship_content, build_ships, build_start_role_content, build_start_roles,
-        build_station_content, build_stations, build_style_content, build_styles, content_files,
-        serialize_content, spawned_ship_sections,
+        build_station_content, build_stations, build_style_content, build_styles,
+        build_trade_profile_content, build_trade_profiles, content_files, serialize_content,
+        spawned_ship_sections,
     };
 }
 
@@ -180,6 +181,21 @@ pub fn build_price_table_content() -> Vec<Content> {
     vec![Content::PriceTable(build_price_table())]
 }
 
+/// The base game's trade profiles, in the order the file carries them.
+pub fn build_trade_profiles() -> Vec<TradeProfileDesign> {
+    base_content::build().trade_profiles
+}
+
+/// The trade profile catalog wrapped as one `Vec<Content>` of
+/// `Content::TradeProfile` items - the shape the committed
+/// `assets/base/trade_profiles/base.content.ron` file carries.
+pub fn build_trade_profile_content() -> Vec<Content> {
+    build_trade_profiles()
+        .into_iter()
+        .map(Content::TradeProfile)
+        .collect()
+}
+
 /// The base game's training lessons, in the order the file carries them.
 pub fn build_lessons() -> Vec<Lesson> {
     base_content::build().lessons
@@ -272,6 +288,10 @@ pub fn content_files() -> Vec<(String, String)> {
         (
             "base/market/base.content.ron".to_string(),
             serialize_content(&build_price_table_content()),
+        ),
+        (
+            "base/trade_profiles/base.content.ron".to_string(),
+            serialize_content(&build_trade_profile_content()),
         ),
         (
             "base/training/base.content.ron".to_string(),

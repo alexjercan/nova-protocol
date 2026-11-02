@@ -275,11 +275,7 @@ mod walk {
                 let cell = SectorCoord::new(x, 0, 0);
                 let station = GeneratedBodyId::new(cell, "cluster_station", 0);
                 Job {
-                    id: JobId {
-                        station: station.clone(),
-                        slot: 0,
-                        posting: 0,
-                    },
+                    id: JobId::slot(station.clone(), 0, 0),
                     kind: JobType::Neutralize {
                         hull: GeneratedBodyId::new(cell, "cluster_hull", index as u32),
                         hull_name: format!("Fixture target {index}"),
@@ -851,6 +847,7 @@ mod walk {
             world.resource::<GameItems>(),
             &RegisteredScenarios::from(world.resource::<GameScenarios>()),
             world.resource::<GameShipDesigns>(),
+            world.resource::<GameTradeProfiles>(),
         )
         .unwrap_or_else(|refusal| panic!("role goals: cannot open the leave save: {refusal}"));
         assert_eq!(

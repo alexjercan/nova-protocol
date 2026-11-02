@@ -219,6 +219,22 @@ pub(crate) fn post_station_boards(
     });
     let now = clock.play_seconds;
     let rule = table.0.jobs;
+    // A visit posting that stood its window or that the player completed or
+    // dropped comes off its board wherever its station is: the window runs
+    // on the play clock, live or not.
+    // Through the bypass: a frame that expires nothing must not mark the
+    // postings changed.
+    let gone = postings
+        .bypass_change_detection()
+        .expire_visit_postings(&jobs, now);
+    if !gone.is_empty() {
+        postings.set_changed();
+    }
+    for id in gone {
+        info!(
+            "nova_world_base: the visit posting '{id}' comes off its board at {now:.1} s of play"
+        );
+    }
     // One pass over the live bodies: a renewed slot looks its few possible
     // ids up here instead of scanning every body again.
     let worn: BTreeMap<&GeneratedBodyId, Entity> = bodies
@@ -252,12 +268,11 @@ pub(crate) fn post_station_boards(
         }
         let mut renewing: Vec<JobId> = Vec::new();
         let mut standing: Vec<Job> = Vec::new();
+        let mut window_renewed = false;
         match postings.board(id) {
-            None => renewing.extend((0..JOBS_PER_BOARD).map(|slot| JobId {
-                station: id.clone(),
-                slot,
-                posting: 0,
-            })),
+            None => {
+                renewing.extend((0..JOBS_PER_BOARD).map(|slot| JobId::slot(id.clone(), slot, 0)))
+            }
             Some(slots) => {
                 for (slot, posting) in slots.iter().enumerate() {
                     let job_id = &posting.offer.id;
@@ -265,13 +280,19 @@ pub(crate) fn post_station_boards(
                         standing.push(posting.offer.clone());
                         continue;
                     }
-                    let why = if jobs.is_completed(job_id) {
-                        "handed in"
+                    let (why, expired) = if jobs.is_completed(job_id) {
+                        ("handed in", false)
+                    } else if posting.paid_refresh_requested {
+                        ("paid refresh", false)
                     } else if jobs.is_dropped(job_id) {
-                        "dropped"
+                        ("dropped", false)
                     } else {
-                        "expired"
+                        ("expired", true)
                     };
+                    // A renewal the slot's offer window caused takes every
+                    // visit posting the player does not hold off the board;
+                    // a hand-in, a drop or a paid refresh leaves them.
+                    window_renewed |= expired;
                     let mut taken_out = 0;
                     for body_id in job_id.possible_bodies() {
                         if let Some(body) = worn.get(&body_id) {
@@ -280,10 +301,7 @@ pub(crate) fn post_station_boards(
                             taken_out += 1;
                         }
                     }
-                    let next = JobId {
-                        posting: posting.posting + 1,
-                        ..job_id.clone()
-                    };
+                    let next = job_id.next_posting();
                     info!(
                         "nova_world_base: the station '{id}' renews slot {slot} at {now:.1} s of \
                          play ({why}): '{job_id}' -> '{next}', {taken_out} body(ies) taken out"
@@ -292,11 +310,16 @@ pub(crate) fn post_station_boards(
                 }
             }
         }
-        if renewing.is_empty() {
-            if posted.is_some() {
-                continue;
+        if window_renewed {
+            let retired = postings.retire_visit_postings(id, &jobs, now);
+            if retired > 0 {
+                info!(
+                    "nova_world_base: the station '{id}' retires {retired} visit posting(s) as a \
+                     slot window passes"
+                );
             }
-        } else {
+        }
+        if !renewing.is_empty() {
             let mut excluded = postings.named_bodies(rule, now, &jobs);
             excluded.extend(retired.iter().cloned());
             let field = job_field(&around, &excluded, &wrecks, &hulls);
@@ -328,7 +351,19 @@ pub(crate) fn post_station_boards(
             .expect("the station's board was posted above or before")
             .iter()
             .map(|slot| slot.offer.clone())
+            .chain(
+                postings
+                    .visit_postings(id)
+                    .iter()
+                    .map(|posting| posting.offer.clone()),
+            )
             .collect();
+        // The board on the root changes only when a slot renewed or a
+        // visit posting came or went: an unchanged insert would wake every
+        // reader of the board each frame.
+        if posted.is_some_and(|posted| posted.0 == board) {
+            continue;
+        }
         // The board posts every job; the Jobs pane reads the marker and
         // hides, on this one board, the jobs the current hull cannot do
         // (`plan_job_hull_fit`), so the gate follows a refit with no timer.
@@ -881,7 +916,7 @@ pub(crate) fn fly_escort_legs(
 }
 
 /// The `id` field of a fired event's payload, when it carries one.
-fn event_subject(event: &GameEvent) -> Option<&str> {
+pub(crate) fn event_subject(event: &GameEvent) -> Option<&str> {
     event.info().data.as_ref()?.get("id")?.as_str()
 }
 
@@ -1235,11 +1270,7 @@ mod tests {
     }
 
     fn job_id(slot: u32) -> JobId {
-        JobId {
-            station: poster(),
-            slot,
-            posting: 0,
-        }
+        JobId::slot(poster(), slot, 0)
     }
 
     /// The id of body `index` of `part` the job `id` spawns, under the stem
@@ -1247,7 +1278,12 @@ mod tests {
     fn spawned(id: &JobId, part: &str, index: u32) -> GeneratedBodyId {
         GeneratedBodyId::new(
             id.station.origin,
-            format!("{}_job_{}_{}_{part}", id.station.stem, id.slot, id.posting),
+            format!(
+                "{}_job_{}_{}_{part}",
+                id.station.stem,
+                id.slot_posting().unwrap().0,
+                id.slot_posting().unwrap().1
+            ),
             index,
         )
     }
@@ -2115,5 +2151,168 @@ mod tests {
             vec![(poster(), "JOB-1 Hand in".to_string())],
             "the hand-in takes its code off and the next job moves up"
         );
+    }
+
+    /// A visitor's open job comes off the board at the first renewal its
+    /// station's offer window causes, and stands through a paid refresh of
+    /// another slot; a held one stands through both.
+    #[test]
+    fn an_open_visit_job_leaves_at_the_first_expiry_renewal_and_stands_through_a_paid_refresh() {
+        use nova_gameplay::prelude::{
+            GameTradeProfiles, JobSourceType, PriceClamp, PriceFactor, PriceTable, RestockRule,
+            ScarcityRule, StationVisitId, VISIT_EXTRA_OFFER_SECONDS,
+        };
+        use nova_world::prelude::{SectorClusterTypes, SectorRoot};
+
+        use crate::test_support::{fixture_loaded, fixture_styles};
+
+        let items = test_items();
+        let factor = PriceFactor { ask: 1.0, bid: 1.0 };
+        let mut app = App::new();
+        app.insert_resource(WorldConfig {
+            seed: 42,
+            sector_edge: crate::OPEN_WORLD_SECTOR_EDGE,
+            active_radius: crate::OPEN_WORLD_ACTIVE_RADIUS,
+            generator: NovaLayeredWorld::from_loaded(
+                &fixture_loaded(),
+                &fixture_styles(),
+                &items,
+                &GameTradeProfiles::default(),
+            )
+            .unwrap(),
+        });
+        app.insert_resource(GamePriceTable(PriceTable {
+            clamp: PriceClamp {
+                min: 0.25,
+                max: 3.0,
+            },
+            scarcity: ScarcityRule {
+                starved: factor,
+                glut: factor,
+                glut_share: 3.0,
+                unkept: factor,
+            },
+            restock: RestockRule {
+                recovery_seconds: 600.0,
+            },
+            jobs: JobOfferRule {
+                offer_seconds: 1_000.0,
+                escort_offer_seconds: 1_000.0,
+            },
+            clusters: Vec::new(),
+            roles: Vec::new(),
+        }));
+        app.insert_resource(items);
+        app.init_resource::<WorldClock>();
+        app.init_resource::<GameStartRoles>();
+        app.init_resource::<Jobs>();
+        app.init_resource::<JobPostings>();
+        app.add_systems(Update, post_station_boards);
+        let mut home = None;
+        for coord in cube_around(SectorCoord::ORIGIN) {
+            let root = app
+                .world_mut()
+                .spawn((SectorRoot(coord), SectorClusterTypes(Vec::new())))
+                .id();
+            if coord == SectorCoord::ORIGIN {
+                home = Some(root);
+            }
+        }
+        app.world_mut().spawn((
+            StationMarker,
+            poster(),
+            ChildOf(home.unwrap()),
+            StationServices(vec![StationServiceType::Jobs]),
+        ));
+        let set_clock = |app: &mut App, now: f64| {
+            app.world_mut().resource_mut::<WorldClock>().play_seconds = now;
+            app.update();
+        };
+        let visit_job = |index: u32| Job {
+            id: JobId {
+                station: poster(),
+                source: JobSourceType::Visit {
+                    visit: StationVisitId {
+                        ship: hull_id(),
+                        ordinal: 0,
+                    },
+                    index,
+                },
+            },
+            kind: JobType::Procure {
+                item: item(),
+                count: 1,
+            },
+            target: poster(),
+            reward_cr: 10,
+        };
+        let (held, open) = (visit_job(0), visit_job(1));
+        let standing = |app: &App, job: &Job| {
+            app.world()
+                .resource::<JobPostings>()
+                .visit_posting(&job.id)
+                .is_some()
+        };
+
+        set_clock(&mut app, 0.0);
+        let board = app
+            .world()
+            .resource::<JobPostings>()
+            .board(&poster())
+            .unwrap()
+            .to_vec();
+        assert_eq!(
+            board.len(),
+            JOBS_PER_BOARD as usize,
+            "the board posts its slots"
+        );
+        {
+            let world = app.world_mut();
+            let mut postings = world.resource_mut::<JobPostings>();
+            postings.post_visit(held.clone(), 900.0);
+            postings.post_visit(open.clone(), 900.0);
+            postings.request_paid_refresh(&board[0].offer.id);
+            world.resource_mut::<Jobs>().accept(held.clone());
+        }
+        set_clock(&mut app, 950.0);
+        assert_eq!(
+            app.world()
+                .resource::<JobPostings>()
+                .board(&poster())
+                .unwrap()[0]
+                .posting,
+            1,
+            "the paid refresh renewed its slot"
+        );
+        assert!(
+            standing(&app, &open),
+            "a paid refresh leaves an open visit job"
+        );
+        assert!(standing(&app, &held));
+
+        set_clock(&mut app, 1_000.0);
+        assert_eq!(
+            app.world()
+                .resource::<JobPostings>()
+                .board(&poster())
+                .unwrap()[1]
+                .posting,
+            1,
+            "the window renewed the other slots"
+        );
+        assert!(
+            !standing(&app, &open),
+            "the first expiry renewal takes the open visit job, inside its own 20 minutes"
+        );
+        assert!(standing(&app, &held), "a held visit job stands");
+        set_clock(&mut app, 900.0 + 2.0 * VISIT_EXTRA_OFFER_SECONDS);
+        assert!(
+            standing(&app, &held),
+            "a held visit job outlives its own deadline"
+        );
+        app.world()
+            .resource::<JobPostings>()
+            .validate(900.0 + 2.0 * VISIT_EXTRA_OFFER_SECONDS)
+            .unwrap();
     }
 }

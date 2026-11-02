@@ -622,6 +622,7 @@ fn verb_of(autopilot: Option<&Autopilot>) -> &'static str {
         Some(AutopilotAction::GotoPos { .. }) => "GotoPos",
         Some(AutopilotAction::Orbit { .. }) => "Orbit",
         Some(AutopilotAction::MatchVelocity { .. }) => "MatchVelocity",
+        Some(AutopilotAction::DockApproach { .. }) => "DockApproach",
     }
 }
 

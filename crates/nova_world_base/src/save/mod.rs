@@ -18,7 +18,10 @@
 //!
 //! The format is strict: an unknown field, a format other than
 //! [`WORLD_SAVE_VERSION`], another catalog or a start role the loaded content
-//! does not hold refuses the world. Nothing is migrated. Native only: the web build has no saved worlds.
+//! does not hold refuses the world. Nothing is migrated. A missing or
+//! unknown field or variant names a save of another build under the same
+//! format, and refuses as one. Native only: the web build has
+//! no saved worlds.
 //!
 //! The state carries the scenario ([`SavedScenario`]) beside the sectors: a
 //! Load resumes the same scenario with its objectives, variables, timers and
@@ -33,8 +36,10 @@
 //! item ids pass the same check as every saved hold, and the player's
 //! [`Jobs`]: the jobs held and the jobs completed, checked the same way, the
 //! [`JobPostings`]: each station board's slot postings, their stamps and
-//! their offers as posted, whose item ids pass the same check,
-//! the [`WorldClock`], the play time every frozen body's stamp and every
+//! their offers as posted, whose item ids pass the same check, the
+//! [`StationVisits`]: each ship's next visit ordinal and pending visit,
+//! refused when it names no saved ship or station or is stamped ahead of the
+//! clock, the [`WorldClock`], the play time every frozen body's stamp and every
 //! posting reads against, the player's [`CivilizationStances`], refused when
 //! a stamp is ahead of that clock, and the role goal's [`GoalRecord`],
 //! refused when stamped ahead of it.
@@ -51,8 +56,9 @@ use nova_assets::{prelude::LoadedSectionPacks, storage::write_atomic};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
     kg_text, CargoCanisterRuntimeId, Chart, CivilizationStances, ClusterType, GameItems,
-    GoalRecord, ItemDesignId, JobPostings, Jobs, SavedBodyRef, SavedOwner, SavedSectionRef,
-    SavedTargetRef, CARGO_CANISTER_MAX_MASS_G,
+    GameTradeProfiles, GoalRecord, ItemDesignId, JobPostings, JobSourceType, Jobs, SavedBodyRef,
+    SavedOwner, SavedSectionRef, SavedTargetRef, StationVisitPhaseType, StationVisits,
+    CARGO_CANISTER_MAX_MASS_G,
 };
 use nova_scenario::prelude::{
     FleetEscort, FrozenShip, GameScenarios, GameShipDesigns, GameStartRoles, SavedScenario,
@@ -304,9 +310,11 @@ pub struct WorldSaveState {
     /// Every posted station board's slot postings, their play-time stamps
     /// and their offers.
     pub postings: JobPostings,
+    /// Every ship's next station-visit ordinal and its pending visit.
+    pub station_visits: StationVisits,
     /// The play-time clock: the seconds of unpaused, armed play the world
-    /// has seen. Every frozen body's `frozen_at` and every posting's stamp
-    /// reads against it.
+    /// has seen. Every frozen body's `frozen_at`, every posting's stamp and
+    /// every visit's bind reads against it.
     pub clock: WorldClock,
     /// The player's table of civilization stances: every civilization whose
     /// standing differs from the seed or has something pending.
@@ -533,12 +541,13 @@ pub fn open_world(
     items: &GameItems,
     scenarios: &RegisteredScenarios,
     designs: &GameShipDesigns,
+    profiles: &GameTradeProfiles,
 ) -> Result<(WorldFolder, WorldLock, WorldSaveHeader, WorldSaveState), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
     let lock = lock_world(&path)?;
     let header = read_header(&path, loaded, roles)?;
-    let state = read_state(&path, &header, items, scenarios, designs)?;
+    let state = read_state(&path, &header, items, scenarios, designs, profiles)?;
     sweep_orphans(&path, &state_file(header.generation));
     Ok((
         WorldFolder {
@@ -568,11 +577,12 @@ pub fn check_world(
     items: &GameItems,
     scenarios: &RegisteredScenarios,
     designs: &GameShipDesigns,
+    profiles: &GameTradeProfiles,
 ) -> Result<(), WorldRefusal> {
     check_slug(slug)?;
     let path = root.join(slug);
     let header = read_header(&path, loaded, roles)?;
-    read_state(&path, &header, items, scenarios, designs).map(drop)
+    read_state(&path, &header, items, scenarios, designs, profiles).map(drop)
 }
 
 /// Read and check the state file `header` names in the world folder `path`.
@@ -582,12 +592,13 @@ fn read_state(
     items: &GameItems,
     scenarios: &RegisteredScenarios,
     designs: &GameShipDesigns,
+    profiles: &GameTradeProfiles,
 ) -> Result<WorldSaveState, WorldRefusal> {
     let state_name = state_file(header.generation);
     let text = std::fs::read_to_string(path.join(&state_name))
         .map_err(|e| WorldRefusal::Unreadable(format!("{state_name}: {e}")))?;
     let state: WorldSaveState =
-        ron::from_str(&text).map_err(|e| WorldRefusal::Unreadable(format!("{state_name}: {e}")))?;
+        ron::from_str(&text).map_err(|error| unreadable(&state_name, &error))?;
     if state.format != header.format || state.generation != header.generation {
         return Err(WorldRefusal::Unreadable(format!(
             "{state_name} is format {} generation {}; {HEADER_FILE} names format {} generation {}",
@@ -621,6 +632,12 @@ fn read_state(
     state
         .postings
         .validate(state.clock.play_seconds)
+        .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
+    state
+        .station_visits
+        .validate(state.clock.play_seconds)
+        .and_then(|()| check_saved_visits(&state))
+        .and_then(|()| check_saved_profiles(&state, profiles))
         .map_err(|fault| WorldRefusal::Unreadable(format!("{state_name}: {fault}")))?;
     state
         .stances
@@ -720,6 +737,125 @@ fn check_saved_fleet(state: &WorldSaveState) -> Result<(), String> {
             ));
         }
         held.push(escort.side);
+    }
+    Ok(())
+}
+
+/// Every pending station visit names a ship and a station the save holds. A
+/// visit binds bodies in a live cell, and a save records every cell the
+/// window held live, so a pending visit at a body the save lacks names
+/// nothing a Load could thaw. A ship held back by the observer counts, by its
+/// generated id. Every visit job, posted or held, names a visit that posted
+/// it: a docked visit whose receipt lists it, or one that already ended. A
+/// visit that posted again on its capture would trip `JobPostings::post_visit`.
+fn check_saved_visits(state: &WorldSaveState) -> Result<(), String> {
+    let visit_jobs = state
+        .postings
+        .each_visit_posting()
+        .map(|posting| &posting.offer.id)
+        .chain(state.jobs.held().iter().map(|job| &job.id));
+    for job in visit_jobs {
+        let JobSourceType::Visit { visit, .. } = &job.source else {
+            continue;
+        };
+        let posted_by = state
+            .station_visits
+            .pending(&visit.ship)
+            .filter(|pending| pending.id == *visit);
+        let posted = match posted_by.map(|pending| &pending.phase) {
+            Some(StationVisitPhaseType::Docked { receipt, .. }) => receipt.jobs.contains(job),
+            Some(StationVisitPhaseType::Approaching) => false,
+            None => state.station_visits.issued(visit),
+        };
+        if !posted {
+            return Err(format!(
+                "the visit job '{job}' names the visit '{visit}', which never posted it"
+            ));
+        }
+    }
+    if state.station_visits.pending_visits().next().is_none() {
+        return Ok(());
+    }
+    let mut ships = BTreeSet::new();
+    let mut stations = BTreeSet::new();
+    for body in state
+        .sectors
+        .iter()
+        .flat_map(|(_, record)| record.each_body())
+    {
+        let Some(id) = body.id() else {
+            continue;
+        };
+        match body.body() {
+            FrozenBodyType::Ship(_) | FrozenBodyType::PendingShip { .. } => {
+                ships.insert(id);
+            }
+            FrozenBodyType::Station(..) | FrozenBodyType::PendingStation { .. } => {
+                stations.insert(id);
+            }
+            _ => {}
+        }
+    }
+    for visit in state.station_visits.pending_visits() {
+        if !ships.contains(visit.id.ship.to_string().as_str()) {
+            return Err(format!(
+                "the station visit '{}' is pending for no saved ship",
+                visit.id
+            ));
+        }
+        if !stations.contains(visit.station.to_string().as_str()) {
+            return Err(format!(
+                "the station visit '{}' is pending at '{}', which is no saved station",
+                visit.id, visit.station
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Every trade profile the save names is in `profiles`: each pending visit's
+/// and each saved trader ship's. A station runs no profile. A profile the
+/// catalog lost is a save this build cannot drive, so the Load refuses it.
+pub(crate) fn check_saved_profiles(
+    state: &WorldSaveState,
+    profiles: &GameTradeProfiles,
+) -> Result<(), String> {
+    for visit in state.station_visits.pending_visits() {
+        if profiles.get(&visit.profile).is_none() {
+            return Err(format!(
+                "the station visit '{}' runs the trade profile '{}', which the catalog lacks",
+                visit.id, visit.profile
+            ));
+        }
+    }
+    let check_ship = |ship: &FrozenShip, owner: &str| -> Result<(), String> {
+        match ship.market().and_then(|market| market.profile.as_ref()) {
+            Some(profile) if profiles.get(profile).is_none() => Err(format!(
+                "{owner} runs the trade profile '{profile}', which the catalog lacks"
+            )),
+            _ => Ok(()),
+        }
+    };
+    for (_, record) in state.sectors.iter() {
+        for body in record.each_body() {
+            let id = body.id().unwrap_or_default();
+            match body.body() {
+                FrozenBodyType::Ship(ship) => check_ship(ship, &format!("'{id}'"))?,
+                FrozenBodyType::Station(station, _) => {
+                    if let Some(profile) = station
+                        .ship()
+                        .market()
+                        .and_then(|market| market.profile.as_ref())
+                    {
+                        return Err(format!(
+                            "the station '{id}' runs the trade profile '{profile}'; a station \
+                             runs none"
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
     }
     Ok(())
 }
@@ -1678,6 +1814,23 @@ fn lock_world(path: &Path) -> Result<WorldLock, WorldRefusal> {
     }
 }
 
+/// The refusal of `file`, which does not read as this build's layout. A
+/// missing or unknown field or variant is a save of another build under the
+/// same [`WORLD_SAVE_VERSION`], released or not, and the message says so; a
+/// layout change within one release keeps the format, so the format check
+/// cannot tell it apart. Any other fault reads as it is.
+fn unreadable(file: &str, error: &ron::error::SpannedError) -> WorldRefusal {
+    match error.code {
+        ron::Error::MissingStructField { .. }
+        | ron::Error::NoSuchStructField { .. }
+        | ron::Error::NoSuchEnumVariant { .. } => WorldRefusal::Unreadable(format!(
+            "{file} does not match the {WORLD_SAVE_VERSION} layout of this build; a save from \
+             another {WORLD_SAVE_VERSION} build is refused, not migrated: {error}"
+        )),
+        _ => WorldRefusal::Unreadable(format!("{file}: {error}")),
+    }
+}
+
 /// Only the format of a header, read before the whole header so a header of
 /// another layout refuses as [`WorldRefusal::Format`], not as unreadable. Any
 /// value is read, so a numbered development save names its number.
@@ -1706,8 +1859,8 @@ fn read_header(
             return Err(WorldRefusal::Format { found });
         }
     }
-    let header: WorldSaveHeader = ron::from_str(&text)
-        .map_err(|e| WorldRefusal::Unreadable(format!("{HEADER_FILE}: {e}")))?;
+    let header: WorldSaveHeader =
+        ron::from_str(&text).map_err(|error| unreadable(HEADER_FILE, &error))?;
     if header.catalog != loaded.digest.0 {
         return Err(WorldRefusal::Catalog {
             saved: header.catalog,

@@ -239,6 +239,7 @@ enum Verb {
     GotoPos,
     Orbit,
     MatchVelocity,
+    DockApproach,
 }
 
 #[cfg(feature = "debug")]
@@ -250,6 +251,7 @@ impl Verb {
             AutopilotAction::GotoPos { .. } => Verb::GotoPos,
             AutopilotAction::Orbit { .. } => Verb::Orbit,
             AutopilotAction::MatchVelocity { .. } => Verb::MatchVelocity,
+            AutopilotAction::DockApproach { .. } => Verb::DockApproach,
         }
     }
 }
@@ -606,7 +608,9 @@ fn note_a_completion(
         AutopilotAction::Stop => Leg::Stop,
         AutopilotAction::Goto { .. } => Leg::Goto,
         AutopilotAction::GotoPos { .. } => Leg::GotoPos,
-        AutopilotAction::Orbit { .. } | AutopilotAction::MatchVelocity { .. } => return,
+        AutopilotAction::Orbit { .. }
+        | AutopilotAction::MatchVelocity { .. }
+        | AutopilotAction::DockApproach { .. } => return,
     };
     info!("flight legs: {} reported {leg:?}", legs.subject.ship());
     legs.completed.push(leg);

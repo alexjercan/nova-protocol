@@ -498,6 +498,68 @@ impl EventAction<NovaEventWorld> for ClearShipOrderActionConfig {
     }
 }
 
+/// Give one generated AI trader the trade profile it runs on its station
+/// visits, or take its profile away.
+///
+/// `Some` names a profile of the merged catalog; the ship's next visit runs
+/// it. A visit already bound keeps the profile it was bound under. `None`
+/// takes the profile away: the ship binds no further visit. The target is a
+/// scoped AI ship with a trade market: a generated trader, never a station.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct SetTradeProfileActionConfig {
+    /// The `EntityId` of the scoped AI trader.
+    #[reflect(@Names::Object)]
+    pub ship: String,
+    /// The profile it runs from now on; `None` takes it away.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub profile: Option<TradeProfileDesignId>,
+}
+
+impl EventAction<NovaEventWorld> for SetTradeProfileActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let id = self.ship.clone();
+        let profile = self.profile.clone();
+        debug!("SetTradeProfile: '{}' -> {:?}", id, profile);
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                let Some(ship) = ai_ship(world, &id, "SetTradeProfile") else {
+                    return;
+                };
+                if let Some(profile) = &profile {
+                    if world
+                        .get_resource::<GameTradeProfiles>()
+                        .is_none_or(|profiles| profiles.get(profile).is_none())
+                    {
+                        error!(
+                            "SetTradeProfile: '{id}' cannot run '{profile}': the trade profile \
+                             catalog lacks it"
+                        );
+                        return;
+                    }
+                }
+                let mut entity = world.entity_mut(ship);
+                if entity.contains::<StationMarker>() {
+                    error!("SetTradeProfile: '{id}' is a station; a station runs no profile");
+                    return;
+                }
+                let Some(mut market) = entity.get_mut::<TraderMarket>() else {
+                    error!(
+                        "SetTradeProfile: '{id}' has no trade market; only a generated \
+                         trader visits stations"
+                    );
+                    return;
+                };
+                market.profile = profile;
+            });
+        });
+    }
+}
+
 /// A territorial tether for one AI ship, or its removal.
 ///
 /// A CONSTRAINT, not a mission: it says where the ship may fight, and it

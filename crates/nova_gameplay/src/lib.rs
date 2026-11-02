@@ -68,8 +68,10 @@ pub mod saved_refs;
 pub mod settings;
 pub mod shake;
 pub mod soft_dot;
+pub mod station_visits;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
+pub mod trade_profile;
 pub mod transform;
 pub mod transient_light;
 
@@ -130,8 +132,9 @@ pub mod prelude {
         open_objectives::prelude::*, plugin::prelude::*, projectile_hooks::prelude::*,
         relations::prelude::*, render_target::prelude::*, role_icon::prelude::*,
         rounds::prelude::*, saved_refs::prelude::*, settings::prelude::*, shake::prelude::*,
-        soft_dot::prelude::*, transform::prelude::*, transient_light::prelude::*, EscapeOwner,
-        GameMode, GameStates, PauseStates,
+        soft_dot::prelude::*, station_visits::prelude::*, trade_profile::prelude::*,
+        transform::prelude::*, transient_light::prelude::*, EscapeOwner, GameMode, GameStates,
+        PauseStates,
     };
 }
 

@@ -41,6 +41,7 @@ use crate::{
         PROVOKED_WINDOW_SECONDS,
     },
     inventory::prelude::{ItemCategoryType, ItemDesign, ItemDesignId},
+    trade_profile::prelude::TradeProfileDesignId,
 };
 
 /// Glob-import surface: `use nova_gameplay::market::prelude::*`.
@@ -288,6 +289,10 @@ pub struct TraderMarket {
     /// The stock it keeps: what it spawned holding. An item it names
     /// nowhere is one it keeps none of.
     pub target: BTreeMap<ItemDesignId, u32>,
+    /// The trade profile a generated ship visits stations by. `None` on a
+    /// station, which never visits, and on a ship whose role no profile
+    /// names or whose profile a script cleared: such a ship never visits.
+    pub profile: Option<TradeProfileDesignId>,
 }
 
 impl TraderMarket {
@@ -828,6 +833,7 @@ mod tests {
                 node: [0, 0, 0],
             },
             role_preference: [1.0, 1.0, 0.0, 0.0],
+            profile: None,
             target: target
                 .iter()
                 .map(|(id, count)| ((*id).into(), *count))

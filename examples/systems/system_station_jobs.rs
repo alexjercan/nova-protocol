@@ -889,6 +889,7 @@ mod walk {
             world.resource::<GameItems>(),
             &RegisteredScenarios::from(world.resource::<GameScenarios>()),
             world.resource::<GameShipDesigns>(),
+            world.resource::<GameTradeProfiles>(),
         )
         .unwrap_or_else(|refusal| panic!("station jobs: cannot open the leave save: {refusal}"));
         assert_eq!(
@@ -1080,8 +1081,8 @@ mod walk {
                 world.get::<JobBoard>(station).is_some_and(|board| {
                     board
                         .0
-                        .get(job.id.slot as usize)
-                        .is_some_and(|posted| posted.id.posting == job.id.posting + 1)
+                        .get(slot_of(&job.id) as usize)
+                        .is_some_and(|posted| posting_of(&posted.id) == posting_of(&job.id) + 1)
                 })
             })
         })
@@ -1097,13 +1098,13 @@ mod walk {
                 .resource::<Jobs>()
                 .held()
                 .first()
-                .map(|job| job.id.slot);
+                .map(|job| slot_of(&job.id));
             station_root(world).is_some_and(|station| {
                 world.get::<JobBoard>(station).is_some_and(|board| {
                     board.0.len() == before.len()
                         && board.0.iter().enumerate().all(|(slot, posted)| {
                             held_slot == Some(slot as u32)
-                                || posted.id.posting == before[slot].id.posting + 1
+                                || posting_of(&posted.id) == posting_of(&before[slot].id) + 1
                         })
                 })
             })
@@ -1130,7 +1131,7 @@ mod walk {
             "station jobs: the renewed board still posts {JOBS_PER_BOARD} jobs"
         );
         for (slot, old) in before.iter().enumerate() {
-            if slot as u32 == job.id.slot {
+            if slot as u32 == slot_of(&job.id) {
                 continue;
             }
             assert_eq!(
@@ -1138,12 +1139,8 @@ mod walk {
                 "station jobs: slot {slot} is unchanged by the hand-in"
             );
         }
-        let new = board[job.id.slot as usize].clone();
-        let expected = JobId {
-            station: job.id.station.clone(),
-            slot: job.id.slot,
-            posting: job.id.posting + 1,
-        };
+        let new = board[slot_of(&job.id) as usize].clone();
+        let expected = job.id.next_posting();
         assert_eq!(
             new.id, expected,
             "station jobs: the renewed slot posts under the next posting"
@@ -1192,7 +1189,9 @@ mod walk {
         );
         info!(
             "station jobs: PASS the hand-in renewed slot {}: '{}' -> '{}' ({title})",
-            job.id.slot, job.id, new.id
+            slot_of(&job.id),
+            job.id,
+            new.id
         );
     }
 
@@ -1244,19 +1243,20 @@ mod walk {
             .0
             .clone();
         assert_eq!(
-            board[held.id.slot as usize], held,
+            board[slot_of(&held.id) as usize],
+            held,
             "station jobs: the held slot keeps its job"
         );
         let deadline = offer_deadline_text(f64::from(rule.offer_seconds));
         let mut renewed_ids = Vec::new();
         for (slot, old) in before.iter().enumerate() {
-            if slot as u32 == held.id.slot {
+            if slot as u32 == slot_of(&held.id) {
                 continue;
             }
             let new = board[slot].clone();
             assert_eq!(
-                new.id.posting,
-                old.id.posting + 1,
+                posting_of(&new.id),
+                posting_of(&old.id) + 1,
                 "station jobs: slot {slot} renews once past the offer window"
             );
             let posting = world
@@ -1332,19 +1332,20 @@ mod walk {
             .0
             .clone();
         assert_eq!(
-            board[held.id.slot as usize], held,
+            board[slot_of(&held.id) as usize],
+            held,
             "station jobs: the thaw keeps the held slot's job"
         );
         let mut renewed_ids = Vec::new();
         let mut replaced_ids = Vec::new();
         for (slot, old) in before.iter().enumerate() {
-            if slot as u32 == held.id.slot {
+            if slot as u32 == slot_of(&held.id) {
                 continue;
             }
             let new = board[slot].clone();
             assert_eq!(
-                new.id.posting,
-                old.id.posting + 1,
+                posting_of(&new.id),
+                posting_of(&old.id) + 1,
                 "station jobs: slot {slot} renews once on the thaw"
             );
             let posting = world
@@ -1722,4 +1723,18 @@ mod walk {
             .on_enter(assert_the_renewed_slot)
             .add()
     }
+}
+
+/// The board slot a slot job stands in.
+fn slot_of(id: &nova_protocol::prelude::JobId) -> u32 {
+    id.slot_posting()
+        .unwrap_or_else(|| panic!("station jobs: '{id}' is no slot posting"))
+        .0
+}
+
+/// The posting number of a slot job.
+fn posting_of(id: &nova_protocol::prelude::JobId) -> u32 {
+    id.slot_posting()
+        .unwrap_or_else(|| panic!("station jobs: '{id}' is no slot posting"))
+        .1
 }

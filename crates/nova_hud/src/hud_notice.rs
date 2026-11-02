@@ -391,11 +391,7 @@ mod tests {
 
         let mut app = notice_app();
         let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
-        let id = JobId {
-            station: station.clone(),
-            slot: 0,
-            posting: 0,
-        };
+        let id = JobId::slot(station.clone(), 0, 0);
         let mut jobs = Jobs::default();
         jobs.accept(Job {
             id: id.clone(),

@@ -95,11 +95,7 @@ mod tests {
         let mut chart = Chart::default();
         chart.find_station(&station, false, false, None, 0.0);
         let job = |slot: u32, kind: JobType| Job {
-            id: JobId {
-                station: station.clone(),
-                slot,
-                posting: 0,
-            },
+            id: JobId::slot(station.clone(), slot, 0),
             kind,
             target: station.clone(),
             reward_cr: 100,

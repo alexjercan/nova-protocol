@@ -17,7 +17,7 @@ use nova_assets::prelude::LoadedSectionPacks;
 #[cfg(not(target_arch = "wasm32"))]
 use nova_events::prelude::{EntityId, GeneratedBodyId};
 use nova_events::prelude::{Meters3, SectorCoord};
-use nova_gameplay::prelude::{ClusterType, GameItems, StanceType};
+use nova_gameplay::prelude::{ClusterType, GameItems, GameTradeProfiles, StanceType};
 #[cfg(not(target_arch = "wasm32"))]
 use nova_gameplay::prelude::{PointRotation, PointRotationOutput, SectionInactiveMarker};
 #[cfg(not(target_arch = "wasm32"))]
@@ -211,14 +211,16 @@ pub fn start_session(
     loaded: &LoadedSectionPacks,
     styles: &GameStyles,
     items: &GameItems,
+    profiles: &GameTradeProfiles,
 ) -> Result<OpenWorldSession, String> {
-    let generator = NovaLayeredWorld::from_loaded(loaded, styles, items).map_err(|faults| {
-        faults
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("; ")
-    })?;
+    let generator =
+        NovaLayeredWorld::from_loaded(loaded, styles, items, profiles).map_err(|faults| {
+            faults
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join("; ")
+        })?;
     let start = starting_station(seed, &generator).map_err(|fault| fault.to_string())?;
     Ok(OpenWorldSession { seed, role, start })
 }

@@ -12,9 +12,10 @@ use bevy::prelude::*;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack, LoadedSectionPacks};
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::{
-    CargoCanisterIdAllocator, Chart, CivilizationStances, ClockFreeze, DamageMarks, GoalRecord,
-    JobMixType, JobPostings, Jobs, PlayerSpaceshipMarker, PointRotationOutput, RoleIconType,
-    ShipInventory, ShipInventoryStock, ShipRoleType,
+    CargoCanisterIdAllocator, Chart, CivilizationStances, ClockFreeze, DamageMarks,
+    GameTradeProfiles, GoalRecord, JobMixType, JobPostings, Jobs, PlayerSpaceshipMarker,
+    PointRotationOutput, RoleIconType, ShipInventory, ShipInventoryStock, ShipRoleType,
+    StationVisits,
 };
 use nova_scenario::prelude::{
     spaceship_scenario_object, CurrentScenario, GameShipDesigns, GameStartRoles, GeneratedMarks,
@@ -130,9 +131,13 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
     bevy::tasks::IoTaskPool::get_or_init(bevy::tasks::TaskPool::default);
     let loaded = fixture_loaded();
     let items = nova_gameplay::test_support::test_items();
-    let generator = NovaLayeredWorld::from_loaded(&loaded, &fixture_styles(), &items).expect(
-        "the fixture packs build a snapshot and every role and station archetype has a style",
-    );
+    let generator = NovaLayeredWorld::from_loaded(
+        &loaded,
+        &fixture_styles(),
+        &items,
+        &GameTradeProfiles::default(),
+    )
+    .expect("the fixture packs build a snapshot and every role and station archetype has a style");
     // The session New Game would have inserted: the save snapshots its
     // starting station.
     world.insert_resource(OpenWorldSession {
@@ -177,6 +182,8 @@ pub fn arm_save_fixture(world: &mut World) -> Entity {
     world.init_resource::<Chart>();
     world.init_resource::<Jobs>();
     world.init_resource::<JobPostings>();
+    world.init_resource::<StationVisits>();
+    world.init_resource::<GameTradeProfiles>();
     world.init_resource::<CivilizationStances>();
     world.init_resource::<GoalRecord>();
     // The catalog the save names a prototype hull by; the fixture ship is

@@ -459,6 +459,7 @@ fn refuse_broken(
         &HashSet::from([scenario.id.clone()]),
         items,
         styles,
+        &GameTradeProfiles::default(),
     );
     let errors: Vec<_> = issues
         .iter()

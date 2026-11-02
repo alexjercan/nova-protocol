@@ -191,6 +191,7 @@ fn create_starts_the_declared_new_game_on_the_typed_seed_as_the_selected_role() 
         &fixture_loaded(),
         &fixture_styles(),
         app.world().resource::<GameItems>(),
+        app.world().resource::<GameTradeProfiles>(),
     )
     .expect("the fixture seed has a living ally station near the origin");
     assert_eq!(

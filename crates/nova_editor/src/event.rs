@@ -773,6 +773,12 @@ impl ActionChoiceExt for ActionChoice {
                     ship: String::new(),
                 })
             }
+            ActionChoice::SetTradeProfile => {
+                EventActionConfig::SetTradeProfile(SetTradeProfileActionConfig {
+                    ship: String::new(),
+                    profile: None,
+                })
+            }
             ActionChoice::SetAILeash => EventActionConfig::SetAILeash(SetAILeashActionConfig {
                 ship: String::new(),
                 leash: None,
@@ -2287,6 +2293,7 @@ mod name_coverage {
                 &HashSet::new(),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &nova_gameplay::prelude::GameTradeProfiles::default(),
             );
             let dangling = issues
                 .iter()

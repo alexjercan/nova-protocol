@@ -4,7 +4,9 @@ use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::Alpha;
 use nova_events::prelude::GeneratedBodyId;
-use nova_gameplay::prelude::{GameItems, GravitySettings, GravityWell, SectionClass};
+use nova_gameplay::prelude::{
+    GameItems, GameTradeProfiles, GravitySettings, GravityWell, SectionClass,
+};
 use nova_input::prelude::InputSource;
 use nova_ship::prelude::GameStyles;
 
@@ -44,6 +46,7 @@ struct Catalog<'a> {
     scenarios: &'a HashSet<String>,
     items: &'a GameItems,
     styles: &'a GameStyles,
+    profiles: &'a GameTradeProfiles,
 }
 
 /// What the lint knows about one ship a spawn declares.
@@ -122,8 +125,9 @@ pub fn lint_campaign(
 /// bundle), `ships` (the ship catalog it may spawn by id), `stations` (the
 /// station catalog it may spawn by id), `known_scenarios` (every scenario id
 /// a `NextScenario` may target), `items` (every item a ship's stock may
-/// name) and `styles` (every style an inline design may wear) - all of them
-/// normally base + all installed bundles.
+/// name), `styles` (every style an inline design may wear) and `profiles`
+/// (every trade profile a `SetTradeProfile` may give) - all of them normally
+/// base + all installed bundles.
 pub fn lint_scenario(
     scenario: &ScenarioConfig,
     sections: &KnownSections,
@@ -132,6 +136,7 @@ pub fn lint_scenario(
     known_scenarios: &HashSet<String>,
     items: &GameItems,
     styles: &GameStyles,
+    profiles: &GameTradeProfiles,
 ) -> Vec<LintIssue> {
     let catalog = Catalog {
         sections,
@@ -140,6 +145,7 @@ pub fn lint_scenario(
         scenarios: known_scenarios,
         items,
         styles,
+        profiles,
     };
     let id = scenario.id.as_str();
     let mut issues = Vec::new();
@@ -1328,6 +1334,21 @@ fn check_action(
         EventActionConfig::ClearShipOrder(config) => {
             check_orderable_ship(&config.ship, "ClearShipOrder", scenario, declared, issues);
         }
+        EventActionConfig::SetTradeProfile(config) => {
+            check_ai_ship(&config.ship, "SetTradeProfile", scenario, declared, issues);
+            if let Some(profile) = &config.profile {
+                if catalog.profiles.get(profile).is_none() {
+                    issues.push(LintIssue::error(
+                        scenario,
+                        format!(
+                            "SetTradeProfile on '{}' names the trade profile '{profile}', which \
+                             no loaded bundle defines",
+                            config.ship
+                        ),
+                    ));
+                }
+            }
+        }
         EventActionConfig::SetAILeash(config) => {
             check_ai_ship(&config.ship, "SetAILeash", scenario, declared, issues);
             if let Some(leash) = &config.leash {
@@ -2233,6 +2254,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let messages: Vec<&str> = errors(&issues)
             .iter()
@@ -2285,6 +2307,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             errors(&issues).is_empty(),
@@ -2316,6 +2339,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert_eq!(
             issues
@@ -2353,6 +2377,7 @@ mod tests {
                 &known(&[]),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &GameTradeProfiles::default(),
             );
             assert!(
                 issues.iter().any(|issue| {
@@ -2375,6 +2400,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             !issues
@@ -2410,6 +2436,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             issues.iter().any(|issue| {
@@ -2604,6 +2631,7 @@ mod tests {
             &known(&["test_scenario", "next_chapter"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(issues.is_empty(), "clean scenario flagged: {issues:?}");
     }
@@ -2640,6 +2668,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
 
         let errs = errors(&issues);
@@ -2668,6 +2697,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -2703,6 +2733,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 2, "{issues:?}");
@@ -2738,6 +2769,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 2, "{issues:?}");
@@ -2771,6 +2803,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -2819,6 +2852,7 @@ mod tests {
                 &known(&["test_scenario"]),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &GameTradeProfiles::default(),
             )
         };
 
@@ -2896,6 +2930,7 @@ mod tests {
                 &known(&["test_scenario"]),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &GameTradeProfiles::default(),
             )
         };
 
@@ -2948,6 +2983,7 @@ mod tests {
                 &known(&["test_scenario"]),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &GameTradeProfiles::default(),
             )
         };
         let session_seeded = |role: ScenarioRole| {
@@ -3015,6 +3051,7 @@ mod tests {
                 &known(&["test_scenario"]),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &GameTradeProfiles::default(),
             )
         };
 
@@ -3090,6 +3127,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -3115,6 +3153,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(errors(&issues).is_empty(), "{issues:?}");
 
@@ -3128,6 +3167,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(errors(&issues).is_empty(), "{issues:?}");
     }
@@ -3147,6 +3187,7 @@ mod tests {
                 &known(&["test_scenario"]),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &GameTradeProfiles::default(),
             );
             errors(&issues)
                 .iter()
@@ -3226,6 +3267,7 @@ mod tests {
                 &known(&["test_scenario"]),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &GameTradeProfiles::default(),
             );
             errors(&issues)
                 .into_iter()
@@ -3280,6 +3322,7 @@ mod tests {
                 &known(&["test_scenario"]),
                 &test_items(),
                 &GameStyles::default(),
+                &GameTradeProfiles::default(),
             );
             errors(&issues)
                 .into_iter()
@@ -3335,6 +3378,7 @@ mod tests {
             &known(&["test_scenario"]),
             &test_items(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let messages: Vec<&str> = errors(&issues)
             .into_iter()
@@ -3370,6 +3414,7 @@ mod tests {
                 &known(&["test_scenario"]),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &GameTradeProfiles::default(),
             );
             let refusals: Vec<_> = errors(&issues)
                 .into_iter()
@@ -3405,12 +3450,67 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let refusals: Vec<_> = errors(&issues)
             .into_iter()
             .filter(|issue| issue.message.contains("SetAIEngageRange"))
             .collect();
         assert_eq!(refusals.len(), 1, "{issues:?}");
+    }
+
+    /// `SetTradeProfile` names a profile some loaded bundle defines; an
+    /// unknown one is an error, a known one and a clear are not.
+    #[test]
+    fn a_trade_profile_action_refuses_a_profile_no_bundle_defines() {
+        use nova_gameplay::prelude::{TradeProfileDesign, TradeProfileDesignId};
+
+        let set = |profile: Option<&str>| {
+            EventActionConfig::SetTradeProfile(SetTradeProfileActionConfig {
+                ship: "trader".to_string(),
+                profile: profile.map(TradeProfileDesignId::from),
+            })
+        };
+        let s = scenario(
+            vec![
+                spawn_armed_ship(
+                    "trader",
+                    SpaceshipController::AI(AIControllerConfig::default()),
+                ),
+                set(Some("known")),
+                set(Some("lost")),
+                set(None),
+            ],
+            vec![],
+        );
+        let profiles = GameTradeProfiles(
+            [(
+                TradeProfileDesignId::from("known"),
+                TradeProfileDesign {
+                    id: "known".into(),
+                    generated: Vec::new(),
+                    trades: Vec::new(),
+                    jobs: Vec::new(),
+                },
+            )]
+            .into(),
+        );
+        let issues = lint_scenario(
+            &s,
+            &sections(&[]),
+            &ships(&[]),
+            &stations(&[]),
+            &known(&["test_scenario"]),
+            &GameItems::default(),
+            &GameStyles::default(),
+            &profiles,
+        );
+        let refusals: Vec<_> = errors(&issues)
+            .into_iter()
+            .filter(|issue| issue.message.contains("SetTradeProfile"))
+            .collect();
+        assert_eq!(refusals.len(), 1, "{issues:?}");
+        assert!(refusals[0].message.contains("'lost'"), "{issues:?}");
     }
 
     /// A patrol with no waypoints has no loop to fly, so nothing could ever
@@ -3440,6 +3540,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             errors(&issues)
@@ -3483,6 +3584,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(errors(&issues).is_empty(), "{issues:?}");
     }
@@ -3520,6 +3622,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert!(
@@ -3577,6 +3680,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -3647,6 +3751,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         for id in [
@@ -3731,6 +3836,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         for id in ["falling", "elliptic", "drifting"] {
@@ -3781,6 +3887,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(errors(&issues).is_empty(), "{issues:?}");
     }
@@ -3817,6 +3924,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 3, "{issues:?}");
@@ -3906,6 +4014,7 @@ mod tests {
                 &known(&["test_scenario"]),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &GameTradeProfiles::default(),
             );
             errors(&issues)
                 .into_iter()
@@ -3993,6 +4102,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 2, "{issues:?}");
@@ -4033,6 +4143,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(errors(&issues).is_empty(), "{issues:?}");
 
@@ -4044,6 +4155,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             issues.is_empty(),
@@ -4058,6 +4170,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -4086,6 +4199,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 2, "{issues:?}");
@@ -4105,6 +4219,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -4131,6 +4246,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 1, "{issues:?}");
@@ -4171,6 +4287,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             errors(&issues)
@@ -4188,6 +4305,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             errors(&issues).is_empty(),
@@ -4262,6 +4380,7 @@ mod tests {
                 &known(&["test_scenario"]),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &GameTradeProfiles::default(),
             )
         };
         let kinds: [(&str, fn(MetersPerSecond3) -> ScenarioObjectConfig); 2] =
@@ -4348,6 +4467,7 @@ mod tests {
                 &known(&["test_scenario"]),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &GameTradeProfiles::default(),
             )
         };
         let paths: [(&str, fn(ScenarioObjectConfig) -> EventActionConfig); 2] =
@@ -4419,6 +4539,7 @@ mod tests {
                 &known(&["test_scenario"]),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &GameTradeProfiles::default(),
             )
         };
 
@@ -4485,6 +4606,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             errors(&issues)
@@ -4535,6 +4657,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "only the ghost flags: {issues:?}");
@@ -4581,6 +4704,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             errors(&issues).iter().any(|i| i.message.contains("ghost")),
@@ -4615,6 +4739,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 2, "{issues:?}");
@@ -4651,6 +4776,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("non-lingering"));
@@ -4664,6 +4790,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert_eq!(issues.len(), 1, "delayed is the same trap: {issues:?}");
 
@@ -4676,6 +4803,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             issues.is_empty(),
@@ -4713,6 +4841,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("one line per beat"));
@@ -4726,6 +4855,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("never read"));
@@ -4739,6 +4869,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         )
         .is_empty());
     }
@@ -4773,6 +4904,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 2, "{issues:?}");
@@ -4789,6 +4921,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("auto_advance_secs"));
@@ -4805,6 +4938,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("auto_advance_secs"));
@@ -4817,6 +4951,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert_eq!(issues.len(), 1, "{issues:?}");
         assert!(issues[0].message.contains("outside (0, 60]"));
@@ -4831,6 +4966,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         )
         .is_empty());
         let s = scenario(vec![outcome_adv(Some(6.0))], vec![]);
@@ -4842,6 +4978,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         )
         .is_empty());
     }
@@ -4878,6 +5015,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 1, "{issues:?}");
@@ -4918,6 +5056,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             issues.is_empty(),
@@ -4943,6 +5082,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert_eq!(
             errors(&issues).len(),
@@ -4989,6 +5129,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             issues.is_empty(),
@@ -5017,6 +5158,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert_eq!(
             errors(&issues).len(),
@@ -5092,6 +5234,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             errors(&issues)
@@ -5120,6 +5263,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             errors(&issues)
@@ -5154,6 +5298,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             !issues
@@ -5196,6 +5341,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             errors(&issues).is_empty(),
@@ -5229,6 +5375,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             !issues.iter().any(|i| i.message.contains("NarrativeCues")),
@@ -5253,6 +5400,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             issues.iter().any(|i| i.message.contains("NarrativeCues")),
@@ -5291,6 +5439,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             issues
@@ -5337,6 +5486,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             issues
@@ -5382,6 +5532,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             !issues
@@ -5425,6 +5576,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             !issues
@@ -5463,6 +5615,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             errors(&issues).iter().any(|issue| {
@@ -5497,6 +5650,7 @@ mod tests {
                 &known(&[]),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &GameTradeProfiles::default(),
             );
             errors(&issues)
                 .iter()
@@ -5536,6 +5690,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert_eq!(
             errors(&issues)
@@ -5577,6 +5732,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             errors(&issues)
@@ -5595,6 +5751,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             !errors(&issues)
@@ -5632,6 +5789,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             issues.iter().any(|issue| {
@@ -5656,6 +5814,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             errors(&issues).iter().any(|issue| {
@@ -5694,6 +5853,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             errors(&issues).iter().any(|issue| {
@@ -5767,6 +5927,7 @@ mod tests {
             &known(&[]),
             &GameItems::default(),
             &GameStyles::default(),
+            &GameTradeProfiles::default(),
         );
         assert!(
             errors(&issues)

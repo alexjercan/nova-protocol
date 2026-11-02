@@ -1,7 +1,7 @@
 //! The content MERGE: flatten every enabled bundle's `Content` in dependency
 //! order and overlay it by id into the game's registries (`GameSections`,
 //! `GameShipDesigns`, `GameScenarios`, `GameCampaigns`, `GameStyles`,
-//! `GameItems`, `GameStationDesigns`, `GameStartRoles`), linting the result
+//! `GameItems`, `GameStationDesigns`, `GameStartRoles`, `GameTradeProfiles`), linting the result
 //! as it goes.
 
 /// Glob-import surface: `use nova_assets::merge::prelude::*` re-exports the
@@ -19,7 +19,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::{
-    price_table_faults, Fnv64, GameItems, GamePriceTable, GameStates, ItemDesign, PriceTable,
+    price_table_faults, trade_profile_faults, Fnv64, GameItems, GamePriceTable, GameStates,
+    GameTradeProfiles, ItemDesign, PriceTable, TradeProfileDesign,
 };
 use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
 use nova_scenario::prelude::{
@@ -652,6 +653,39 @@ pub fn register_bundles(
                 .extend(found);
         }
     }
+    // Every MERGED trade profile, checked against the merged items: a profile
+    // may trade an item another mod ships.
+    for profile in &outcome.trade_profiles {
+        let found: Vec<nova_scenario::prelude::LintIssue> =
+            trade_profile_faults(profile, &merged_items)
+                .into_iter()
+                .map(|message| nova_scenario::prelude::LintIssue {
+                    severity: nova_scenario::prelude::LintSeverity::Error,
+                    scenario: profile.id.to_string(),
+                    message,
+                })
+                .collect();
+        for issue in &found {
+            warn!(
+                "register_bundles: content lint [{:?}] trade profile '{}': {}",
+                issue.severity, issue.scenario, issue.message
+            );
+        }
+        if !found.is_empty() {
+            content_issues
+                .0
+                .entry(profile.id.to_string())
+                .or_default()
+                .extend(found);
+        }
+    }
+    let merged_profiles = GameTradeProfiles(
+        outcome
+            .trade_profiles
+            .iter()
+            .map(|profile| (profile.id.clone(), profile.clone()))
+            .collect(),
+    );
     for scenario in outcome.scenarios.values() {
         let found = nova_scenario::prelude::lint_scenario(
             scenario,
@@ -661,6 +695,7 @@ pub fn register_bundles(
             &merged_scenarios,
             &merged_items,
             &merged_styles,
+            &merged_profiles,
         );
         for issue in &found {
             warn!(
@@ -749,6 +784,7 @@ pub fn register_bundles(
     commands.insert_resource(GameShipDesigns(outcome.ships));
     commands.insert_resource(GameStationDesigns(outcome.stations));
     commands.insert_resource(GameStartRoles(outcome.start_roles));
+    commands.insert_resource(merged_profiles);
     // The gate above refuses a base that states no table, so a merge over a
     // loaded catalog always has one. Without a catalog nothing was gated and
     // no generated world arms, so there is no trader to price.
@@ -1045,6 +1081,9 @@ pub struct MergeOutcome {
     /// whole table. `None` only when no bundle states one, which the gate in
     /// [`register_bundles`] refuses for a base pack.
     pub price_table: Option<PriceTable>,
+    /// Trade profiles in registration order, overlaid last-wins by id - so a
+    /// mod replaces a base profile by declaring the same id.
+    pub trade_profiles: Vec<TradeProfileDesign>,
     /// Human-readable messages, one per intra-bundle duplicate id that was
     /// skipped. Empty on clean data.
     pub conflicts: Vec<String>,
@@ -1182,6 +1221,12 @@ fn merge_content_item(item: &Content, into: &mut MergeOutcome) {
         },
         // One table, not a registry: a later bundle replaces it whole.
         Content::PriceTable(table) => into.price_table = Some(table.clone()),
+        Content::TradeProfile(profile) => {
+            match into.trade_profiles.iter_mut().find(|p| p.id == profile.id) {
+                Some(existing) => *existing = profile.clone(),
+                None => into.trade_profiles.push(profile.clone()),
+            }
+        }
     }
 }
 

@@ -1191,6 +1191,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1227,6 +1228,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1241,6 +1243,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         );
         assert!(issues.is_empty(), "a known ship lints clean: {issues:?}");
     }
@@ -1287,6 +1290,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1302,6 +1306,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         )
         .is_empty());
     }
@@ -1619,6 +1624,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         );
         assert!(
             issues
@@ -1663,6 +1669,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         );
         let errs = errors(&issues);
         assert_eq!(errs.len(), 1, "{issues:?}");
@@ -1714,6 +1721,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         );
         assert_eq!(
             issues
@@ -1734,6 +1742,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         );
         assert!(issues.is_empty(), "{issues:?}");
     }
@@ -1808,6 +1817,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         );
         assert_eq!(
             issues
@@ -1834,6 +1844,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         );
         assert!(
             issues
@@ -1859,6 +1870,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         );
         assert_eq!(
             issues
@@ -1889,6 +1901,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         );
         assert!(
             issues
@@ -1913,6 +1926,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         );
         assert!(
             issues
@@ -1991,6 +2005,7 @@ mod tests {
             &known(&["test_scenario"]),
             &GameItems::default(),
             &GameStyles::default(),
+            &nova_gameplay::prelude::GameTradeProfiles::default(),
         );
         assert!(issues.is_empty(), "{issues:?}");
     }

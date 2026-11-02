@@ -245,6 +245,7 @@ pub fn lint_errors(
         &HashSet::from([scenario.id.clone()]),
         items,
         styles,
+        &nova_gameplay::prelude::GameTradeProfiles::default(),
     )
     .into_iter()
     .filter(|issue| issue.severity == LintSeverity::Error)

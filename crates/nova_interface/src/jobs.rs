@@ -500,6 +500,9 @@ struct PostedRow {
     time_left: (f32, String),
     /// Why Accept is greyed, if it is.
     refusal: Option<String>,
+    /// A slot posting: the row shows the `X` that asks a paid refresh. A
+    /// visit posting has no slot to renew.
+    refreshable: bool,
     /// Its `X` was pressed: the row asks Refresh or Back.
     confirming: bool,
     /// Why a Refresh confirm would be refused right now, if `confirming`
@@ -713,7 +716,7 @@ fn update_jobs_pane(
                 !jobs.holds(&job.id) && !jobs.is_completed(&job.id) && !jobs.is_dropped(&job.id)
             })
             .filter_map(|job| {
-                let remaining = postings.slot(&job.id)?.remaining(rule, now);
+                let remaining = postings.remaining(&job.id, rule, now)?;
                 if remaining <= 0.0 {
                     return None;
                 }
@@ -737,6 +740,7 @@ fn update_jobs_pane(
                     reward_cr: job.reward_cr.into(),
                     time_left: time_left(job, remaining),
                     refusal,
+                    refreshable: postings.slot(&job.id).is_some(),
                     confirming,
                     refresh_refusal,
                 })
@@ -800,9 +804,9 @@ fn update_jobs_pane(
             hand_in: station_name(&chart, &job.target),
             reward_cr: job.reward_cr.into(),
             time_left: postings
-                .slot(&job.id)
+                .remaining(&job.id, rule, now)
                 .filter(|_| !held)
-                .map(|slot| time_left(job, slot.remaining(rule, now))),
+                .map(|remaining| time_left(job, remaining)),
             progress: held.then(|| job.progress(hold, done)),
             refusal: held.then(|| hand_in_refusal(job)).flatten(),
             show,
@@ -1302,6 +1306,9 @@ fn board_panel(
                         Pickable::IGNORE,
                     ))
                     .with_children(|column| {
+                        if !row.refreshable {
+                            return;
+                        }
                         let mut ask = column.spawn((
                             Name::new(format!("{JOB_REFRESH_PREFIX}{index}")),
                             compact_button(ButtonSpec::new("").fit().ghost()),
@@ -1843,8 +1850,8 @@ fn apply_job_commands(
             continue;
         };
         let expired = postings
-            .slot(&job.id)
-            .is_none_or(|slot| slot.is_expired(table.0.jobs, clock.play_seconds));
+            .remaining(&job.id, table.0.jobs, clock.play_seconds)
+            .is_none_or(|remaining| remaining <= 0.0);
         match plan_job_accept(
             job,
             Some(station_id),
@@ -2174,11 +2181,7 @@ mod tests {
         let iron = ItemDesignId::from(ItemRoleType::IronOre.id());
         let station_id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
         let job = Job {
-            id: JobId {
-                station: station_id.clone(),
-                slot: 0,
-                posting: 0,
-            },
+            id: JobId::slot(station_id.clone(), 0, 0),
             kind: JobType::Procure {
                 item: iron.clone(),
                 count: 4,
@@ -2214,6 +2217,7 @@ mod tests {
                 StationBuilds(Vec::new()),
                 JobBoard(Vec::new()),
                 TraderMarket {
+                    profile: None,
                     cluster: ClusterType::RockOnly,
                     civilization,
                     role_preference: [1.0; 4],
@@ -2287,11 +2291,11 @@ mod tests {
     #[test]
     fn a_refused_accept_posts_a_refusal_notice_and_buzzes_once() {
         let mut app = jobs_app();
-        let id = JobId {
-            station: GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0),
-            slot: 0,
-            posting: 0,
-        };
+        let id = JobId::slot(
+            GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0),
+            0,
+            0,
+        );
 
         app.world_mut().write_message(JobAcceptCommand { id });
         app.update();
@@ -2312,11 +2316,11 @@ mod tests {
     #[test]
     fn a_drop_of_a_job_no_longer_held_is_refused_and_changes_nothing() {
         let mut app = jobs_app();
-        let id = JobId {
-            station: GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0),
-            slot: 0,
-            posting: 0,
-        };
+        let id = JobId::slot(
+            GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0),
+            0,
+            0,
+        );
 
         app.world_mut()
             .write_message(JobDropCommand { id: id.clone() });
@@ -2359,11 +2363,7 @@ mod tests {
         let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
         let caller = GeneratedBodyId::new(SectorCoord::ORIGIN, "job_caller", 0);
         let job = Job {
-            id: JobId {
-                station: station.clone(),
-                slot: 0,
-                posting: 0,
-            },
+            id: JobId::slot(station.clone(), 0, 0),
             kind: JobType::Distress {
                 caller: caller.clone(),
             },
@@ -2484,11 +2484,7 @@ mod tests {
         let station_id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
         let caller = GeneratedBodyId::new(SectorCoord::ORIGIN, "job_caller", 0);
         let job = Job {
-            id: JobId {
-                station: station_id.clone(),
-                slot: 0,
-                posting: 0,
-            },
+            id: JobId::slot(station_id.clone(), 0, 0),
             kind: JobType::Distress { caller },
             target: station_id.clone(),
             reward_cr: 146,
@@ -2543,11 +2539,7 @@ mod tests {
         let station_id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
         let caller = GeneratedBodyId::new(SectorCoord::ORIGIN, "job_caller", 0);
         let job = Job {
-            id: JobId {
-                station: station_id.clone(),
-                slot: 0,
-                posting: 0,
-            },
+            id: JobId::slot(station_id.clone(), 0, 0),
             kind: JobType::Distress { caller },
             target: station_id.clone(),
             reward_cr: 146,
@@ -2596,11 +2588,7 @@ mod tests {
     fn post_current(app: &mut App, job: &Job) {
         let iron = ItemDesignId::from(ItemRoleType::IronOre.id());
         let filler = |slot: u32| Job {
-            id: JobId {
-                station: job.id.station.clone(),
-                slot,
-                posting: 0,
-            },
+            id: JobId::slot(job.id.station.clone(), slot, 0),
             kind: JobType::Procure {
                 item: iron.clone(),
                 count: 1,
@@ -2988,11 +2976,7 @@ mod tests {
         }]);
         let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
         let job = Job {
-            id: JobId {
-                station: station.clone(),
-                slot: 0,
-                posting: 0,
-            },
+            id: JobId::slot(station.clone(), 0, 0),
             kind: JobType::Procure {
                 item: item.clone(),
                 count: 4,
@@ -3047,11 +3031,7 @@ mod tests {
         let mut rig = pane_pointer_rig();
         rig.app.init_resource::<JobsRuntime>();
         let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
-        let job = |slot| JobId {
-            station: station.clone(),
-            slot,
-            posting: 0,
-        };
+        let job = |slot| JobId::slot(station.clone(), slot, 0);
         // One row as each list names it: both lists spawn rows through
         // `spawn_row`, so the posted and the held row take the same path.
         let rows = [("JobRowPosted-0", job(0)), ("JobRowHeld-0", job(1))];

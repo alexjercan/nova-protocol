@@ -303,6 +303,8 @@ Large mods can use one scenario per file and list all of them in `content`.
   player picks one in Settings.
 - A [price table](../prices/) holds the factors a generated trader prices
   every item by. One table: a mod that states one replaces it.
+- A [trade profile](../trade-profiles/) says what a visiting ship trades with a
+  station and which jobs it posts on the station's board.
 - An [item](../objects/#inventory) is one entry in the catalog a ship's stock,
   a cargo canister, or a trade can carry - what it is called, what it is for,
   what it weighs, and what a trader pays for it.

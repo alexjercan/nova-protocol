@@ -2,11 +2,12 @@
 //!
 //! The base game is a built-in mod. This domain owns its scenarios, the
 //! campaign that groups chapter scenarios, items, start roles, the price table,
+//! trade profiles,
 //! section prototypes,
 //! semantic craft assemblies, and path-based asset refs. Generic authoring
 //! helpers, lint, and serialization tooling stay outside it.
 
-use nova_gameplay::prelude::{ItemDesign, PriceTable};
+use nova_gameplay::prelude::{ItemDesign, PriceTable, TradeProfileDesign};
 use nova_scenario::prelude::{
     CampaignConfig, ScenarioConfig, ShipDesignPrototype, StartRole, StationDesignPrototype,
 };
@@ -24,6 +25,7 @@ pub(crate) mod ships;
 pub(crate) mod start_roles;
 pub(crate) mod stations;
 pub(crate) mod styles;
+pub(crate) mod trade_profiles;
 
 use assets::BaseContentAssets;
 
@@ -35,6 +37,7 @@ pub(crate) struct BaseContent {
     pub(crate) stations: Vec<StationDesignPrototype>,
     pub(crate) start_roles: Vec<StartRole>,
     pub(crate) price_table: PriceTable,
+    pub(crate) trade_profiles: Vec<TradeProfileDesign>,
     pub(crate) scenarios: Vec<ScenarioConfig>,
     pub(crate) campaigns: Vec<CampaignConfig>,
     pub(crate) styles: Vec<ShipStyleConfig>,
@@ -51,6 +54,7 @@ pub(crate) fn build() -> BaseContent {
         stations: stations::station_catalog(&assets),
         start_roles: start_roles::start_role_catalog(),
         price_table: market::price_table(),
+        trade_profiles: trade_profiles::trade_profile_catalog(),
         scenarios: scenarios::catalog(&assets),
         campaigns: campaigns::campaign_catalog(),
         styles: styles::style_catalog(&assets),

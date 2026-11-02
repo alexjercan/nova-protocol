@@ -38,10 +38,11 @@
 use std::collections::BTreeSet;
 
 use bevy::prelude::{Quat, Vec3};
-use nova_events::prelude::{Meters, Meters3, MetersPerSecond3};
+use nova_events::prelude::{GeneratedBodyId, Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{
-    Allegiance, CivilizationId, ClusterType, Fnv32, GameItems, ItemCategoryType, ItemDesignId,
-    ItemRoleType, SeedStream, ShipInventoryStock, ShipRoleType, TraderMarket,
+    Allegiance, CivilizationId, ClusterType, Fnv32, GameItems, GameTradeProfiles, ItemCategoryType,
+    ItemDesignId, ItemRoleType, SeedStream, ShipInventoryStock, ShipRoleType, TradeProfileDesignId,
+    TraderMarket,
 };
 use nova_scenario::prelude::{
     AIControllerConfig, ShipDesign, ShipDesignSource, SpaceshipConfig, SpaceshipController,
@@ -326,7 +327,9 @@ pub fn plan_ship(
 
 /// The market a trader of `civilization` keeps in a cluster of type
 /// `cluster`: the civilization's role preference, and `stock`, what the
-/// trader spawns holding, as its target.
+/// trader spawns holding, as its target. No trade profile: the generator
+/// draws a ship's profile when it writes the manifest
+/// ([`draw_trade_profile`]), and a station never has one.
 pub(crate) fn trader_market(
     cluster: ClusterType,
     civilization: &Civilization,
@@ -340,7 +343,30 @@ pub(crate) fn trader_market(
             .stacks()
             .map(|(item, count)| (item.clone(), count))
             .collect(),
+        profile: None,
     }
+}
+
+/// The trade profile the intact generated ship `ship` of `role` visits
+/// stations by in the world of `seed`: drawn by weight among the profiles
+/// that name the role ([`GameTradeProfiles::draw`]), off a stream keyed by
+/// the seed and the ship id alone, so no other draw of the ship moves.
+/// `None` when no profile names the role.
+pub(crate) fn draw_trade_profile(
+    seed: u32,
+    ship: &GeneratedBodyId,
+    role: ShipRoleType,
+    profiles: &GameTradeProfiles,
+) -> Option<TradeProfileDesignId> {
+    let draw = SeedStream::new(
+        Fnv32::new()
+            .write(&seed.to_le_bytes())
+            .write(b"sector_ship_trade_profile")
+            .write(ship.to_string().as_bytes())
+            .finish(),
+    )
+    .unit();
+    profiles.draw(role, draw).map(|profile| profile.id.clone())
 }
 
 /// The seed of one `aspect` of the hull in `slot` of the cluster at `node`.

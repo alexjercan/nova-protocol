@@ -179,6 +179,7 @@ mod tests {
             },
             role_preference: [0.0, 1.0, 0.0, 0.0],
             target: BTreeMap::new(),
+            profile: None,
         }
     }
 

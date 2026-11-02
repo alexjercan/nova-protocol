@@ -49,6 +49,7 @@ never panics a scenario). All 53 at a glance:
 | [`SetAILeash`](#setaileash) | [ship state](#ship-state) | tether an AI ship's combat to a centre and radius, or release it |
 | [`SetAIEngageRange`](#setaiengagerange) | [ship state](#ship-state) | change how far an AI ship looks for hostiles, or restore the default |
 | [`SetAIPointDefenseRange`](#setaipointdefenserange) | [ship state](#ship-state) | change how close an inbound torpedo gets before the guns answer |
+| [`SetTradeProfile`](#settradeprofile) | [ship state](#ship-state) | give a generated AI trader a trade profile for its station visits, or clear it |
 | [`VariableSet`](#variableset) | [variables](#variables-timers-debugging) | evaluate an expression and store the result in a variable |
 | [`TimerStart`](#timerstart) | [variables](#variables-timers-debugging) | start (or restart) a keyed scenario timer |
 | [`TimerCancel`](#timercancel) | [variables](#variables-timers-debugging) | cancel a running timer |
@@ -1411,6 +1412,31 @@ SetAIPointDefenseRange((ship: "escort")),   // back to the default
 Short stages the intercept close in, where the player can see it. Past the
 turret's own ~1.8 km reach it only wastes the opening shots, so authoring
 wider than the guns can shoot buys nothing.
+
+</details>
+
+### SetTradeProfile
+
+Give a generated AI trader the [trade profile](../trade-profiles/) it runs on
+its station visits, or take it away.
+
+```ron
+SetTradeProfile((ship: "sector_1_0_0_cluster_1_0_0_hull_2", profile: Some("base/ore_hauler"))),
+SetTradeProfile((ship: "sector_1_0_0_cluster_1_0_0_hull_2")),   // no further visits
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `ship` | string | required | scoped AI ship root with a trade market: a generated trader, never a station |
+| `profile` | `Option` profile id | `None` | `Some("id")` sets the profile its next visit runs; omitted takes it away |
+
+A visit already under way keeps the profile it started with. An unknown
+profile id or a ship that is not AI-driven fails lint. At run time a station,
+a ship without a trade market or an unknown profile is refused with an error
+in the log, and nothing changes.
 
 </details>
 

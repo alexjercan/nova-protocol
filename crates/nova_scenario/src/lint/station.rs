@@ -467,6 +467,7 @@ mod tests {
                 &known(&["test_scenario"]),
                 &GameItems::default(),
                 &GameStyles::default(),
+                &nova_gameplay::prelude::GameTradeProfiles::default(),
             )
         };
         let unknown = lint("no_such_station");

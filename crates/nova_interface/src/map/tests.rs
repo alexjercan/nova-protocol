@@ -1435,6 +1435,7 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
         .spawn((
             StationMarker,
             TraderMarket {
+                profile: None,
                 cluster: ClusterType::AsteroidRich,
                 civilization,
                 role_preference: [0.0; 4],
@@ -3195,11 +3196,7 @@ fn a_marked_job_body_lists_every_matching_job() {
     let poster = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
     let caller = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_derelict", 0);
     let job = |slot, kind| Job {
-        id: JobId {
-            station: poster.clone(),
-            slot,
-            posting: 0,
-        },
+        id: JobId::slot(poster.clone(), slot, 0),
         kind,
         target: poster.clone(),
         reward_cr: 100,

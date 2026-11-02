@@ -17,8 +17,9 @@
 //! - [`Content::UiTheme`] - a [`UiThemeConfig`], one look the whole UI paints in,
 //! - [`Content::Item`] - an [`ItemDesign`], a thing a ship carries and trades,
 //! - [`Content::Station`] - a [`StationDesignPrototype`], a parked hull a scenario spawns by id,
-//! - [`Content::StartRole`] - a [`StartRole`], one New Game start: a hull and a kit, and
-//! - [`Content::PriceTable`] - a [`PriceTable`], the factors a generated trader prices by.
+//! - [`Content::StartRole`] - a [`StartRole`], one New Game start: a hull and a kit,
+//! - [`Content::PriceTable`] - a [`PriceTable`], the factors a generated trader prices by, and
+//! - [`Content::TradeProfile`] - a [`TradeProfileDesign`], what a visiting ship trades and posts.
 //!
 //! The kind lives IN the RON structure (an externally-tagged enum), so ONE
 //! loader reads any content file and a downstream router (`nova_assets`'s
@@ -48,7 +49,7 @@ use bevy::{
     prelude::*,
     reflect::TypePath,
 };
-use nova_gameplay::prelude::{ItemDesign, PriceTable};
+use nova_gameplay::prelude::{ItemDesign, PriceTable, TradeProfileDesign};
 // The pure serde format types live in the engine-free `nova_mod_format`
 // crate so the portal generator builds without bevy; re-exported here so game
 // code keeps importing them from nova_modding.
@@ -163,6 +164,16 @@ pub enum Content {
     /// one. A factor that can push a bid above its ask fails at lint and at
     /// load.
     PriceTable(PriceTable),
+    /// A [`TradeProfileDesign`] - registers into `GameTradeProfiles` keyed by
+    /// its id. What a visiting ship trades with a station and which jobs it
+    /// posts on the station's board, and the roles of generated ships it is
+    /// drawn for.
+    ///
+    /// A mod adds a profile by declaring a new id and replaces a base one by
+    /// declaring its id, like an item. An unknown item, a zero quantity,
+    /// limit, count, reward or weight, a repeated item and side and a
+    /// repeated role fail at lint and at load.
+    TradeProfile(TradeProfileDesign),
 }
 
 /// The fixed [`Content::id`] of the [`Content::PriceTable`] singleton: a
@@ -189,6 +200,7 @@ impl Content {
             Content::Station(_) => "station",
             Content::StartRole(_) => "start role",
             Content::PriceTable(_) => "price table",
+            Content::TradeProfile(_) => "trade profile",
         }
     }
 
@@ -207,6 +219,7 @@ impl Content {
             Content::Station(design) => design.id.as_str(),
             Content::StartRole(role) => role.id.as_str(),
             Content::PriceTable(_) => PRICE_TABLE_ID,
+            Content::TradeProfile(profile) => profile.id.as_str(),
         }
     }
 

@@ -879,6 +879,17 @@ pub fn validate_manifest(
         check_ship_design(&design.hull).map_err(|value| refuse(&station.id, "design", value))?;
         check_market(!station.is_dead(), station.market.as_ref())
             .map_err(|value| refuse(&station.id, "market", value))?;
+        if let Some(profile) = station
+            .market
+            .as_ref()
+            .and_then(|market| market.profile.as_ref())
+        {
+            return Err(refuse(
+                &station.id,
+                "market",
+                format!("the trade profile '{profile}'; a station runs none"),
+            ));
+        }
         if station.is_dead() && !station.hulls.is_empty() {
             return Err(refuse(
                 &station.id,

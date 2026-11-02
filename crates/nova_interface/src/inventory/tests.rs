@@ -2977,6 +2977,7 @@ fn a_market_trader_prices_its_rows_against_the_reference_and_sells_the_whole_sta
         [(plate.clone(), 1), (ore.clone(), 40)],
     ));
     world.entity_mut(station).insert(TraderMarket {
+        profile: None,
         cluster: ClusterType::PlanetHeavy,
         civilization: CivilizationId {
             world_seed: 1,

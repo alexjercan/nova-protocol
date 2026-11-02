@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPacks};
 use nova_events::prelude::Meters;
-use nova_gameplay::prelude::{GameItems, ShipRoleType};
+use nova_gameplay::prelude::{GameItems, GameTradeProfiles, ShipRoleType};
 use nova_ship::prelude::GameStyles;
 use nova_world::prelude::*;
 
@@ -17,6 +17,7 @@ use crate::{
     clusters::{plan_sector, validate_cluster_geometry},
     environment::EnvironmentFields,
     role_style_id,
+    sector_ships::draw_trade_profile,
     ship_parts::{station_carries, ShipPartFault, ShipPartPack, ShipPartSnapshot},
     station_layout::{StationArchetypeType, STATION_FAMILIES},
 };
@@ -60,6 +61,7 @@ pub struct NovaLayeredWorld {
     parts: Arc<ShipPartSnapshot>,
     catalog: ContentCatalogDigest,
     items: Arc<GameItems>,
+    profiles: Arc<GameTradeProfiles>,
 }
 
 /// Equal when both pin one catalog and one ship-part snapshot. Compares two
@@ -91,6 +93,7 @@ impl NovaLayeredWorld {
         loaded: &LoadedSectionPacks,
         styles: &GameStyles,
         items: &GameItems,
+        profiles: &GameTradeProfiles,
     ) -> Result<Self, Vec<ShipPartFault>> {
         let packs: Vec<ShipPartPack> = loaded
             .packs
@@ -131,6 +134,7 @@ impl NovaLayeredWorld {
                         parts: Arc::new(parts),
                         catalog: loaded.digest,
                         items: Arc::new(items.clone()),
+                        profiles: Arc::new(profiles.clone()),
                     })
                 } else {
                     Err(faults)
@@ -177,14 +181,23 @@ impl SectorGenerator for NovaLayeredWorld {
         validate_cluster_geometry(geometry)
     }
 
+    /// Every intact ship of the manifest carries the trade profile
+    /// [`draw_trade_profile`] gives it, on its market.
     fn generate(&self, input: SectorGenerationInput) -> Result<SectorManifest, SectorFault> {
-        plan_sector(
+        let mut manifest = plan_sector(
             &EnvironmentFields::new(input.seed),
             &self.parts,
             &self.items,
             input,
         )?
-        .manifest()
+        .manifest()?;
+        for ship in &mut manifest.ships {
+            if let Some(market) = &mut ship.market {
+                market.profile =
+                    draw_trade_profile(input.seed, &ship.id, ship.role, &self.profiles);
+            }
+        }
+        Ok(manifest)
     }
 }
 

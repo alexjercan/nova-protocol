@@ -21,14 +21,15 @@ use nova_gameplay::prelude::{
     nova_blast, resumed_lifetime, station_job_offers, AssetRef, CargoCanister,
     CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, CivilizationId, CivilizationStances,
     ClockFreeze, ClusterType, DamageLevel, DamageMarks, DamageType, FreezeOwner, FrozenRoundFlight,
-    GameItems, GoalLine, GoalProgress, GoalRecord, Health, ImpactSparkMarker, ImpactSparkPlugin,
-    ImpactSparks, IntegrityDestroyMarker, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType,
-    Job, JobField, JobId, JobMixType, JobPostings, JobType, Jobs, NeutralizedMarker,
-    PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput, ProjectileDamage,
-    ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef, SavedLifetime,
-    SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits, ShipInventory,
-    SpaceshipRootMarker, StanceType, StationServiceType, StationSummary, TempEntity,
-    TorpedoProjectileMarker, TraderMarket, TurretBulletProjectileMarker,
+    GameItems, GameTradeProfiles, GoalLine, GoalProgress, GoalRecord, Health, ImpactSparkMarker,
+    ImpactSparkPlugin, ImpactSparks, IntegrityDestroyMarker, ItemCategoryType, ItemDesign,
+    ItemDesignId, ItemRoleType, Job, JobField, JobId, JobMixType, JobPostings, JobType, Jobs,
+    NeutralizedMarker, PlayerFleetMarker, PlayerSpaceshipMarker, PointRotationOutput,
+    ProjectileDamage, ProjectileOwner, RailgunSlugProjectileMarker, RoundRake, SavedBodyRef,
+    SavedLifetime, SavedOwner, SavedSectionRef, SavedTargetRef, SectionMarker, ShipCredits,
+    ShipInventory, SpaceshipRootMarker, StanceType, StationServiceType, StationSummary,
+    StationVisits, TempEntity, TorpedoProjectileMarker, TradeProfileDesign, TraderMarket,
+    TurretBulletProjectileMarker,
 };
 use nova_scenario::prelude::{
     freeze_asteroid, freeze_fleet, freeze_ore_drop, freeze_ship, freeze_station,
@@ -118,6 +119,27 @@ fn designs() -> GameShipDesigns {
     GameShipDesigns::default()
 }
 
+/// The trade profile catalog every opened world is checked against: one
+/// profile a script would give, [`FIXTURE_PROFILE`].
+fn profiles() -> GameTradeProfiles {
+    let id = FIXTURE_PROFILE.into();
+    GameTradeProfiles(
+        [(
+            FIXTURE_PROFILE.into(),
+            TradeProfileDesign {
+                id,
+                generated: Vec::new(),
+                trades: Vec::new(),
+                jobs: Vec::new(),
+            },
+        )]
+        .into(),
+    )
+}
+
+/// The one profile [`profiles`] holds.
+const FIXTURE_PROFILE: &str = "fixture_profile";
+
 /// The start roles every header is checked against: the fixture's one.
 fn roles() -> GameStartRoles {
     fixture_roles()
@@ -194,6 +216,7 @@ fn state(generation: u64, credits: u32) -> WorldSaveState {
         chart: Chart::default(),
         jobs: Jobs::default(),
         postings: JobPostings::default(),
+        station_visits: StationVisits::default(),
         clock: WorldClock::default(),
         stances: CivilizationStances::default(),
         goal: GoalRecord::default(),
@@ -270,7 +293,8 @@ fn a_world_another_game_holds_open_is_refused() {
             &roles(),
             &items(),
             &scenarios(),
-            &designs()
+            &designs(),
+            &profiles()
         )
         .unwrap_err(),
         WorldRefusal::Locked
@@ -283,7 +307,8 @@ fn a_world_another_game_holds_open_is_refused() {
         &roles(),
         &items(),
         &scenarios(),
-        &designs()
+        &designs(),
+        &profiles()
     )
     .is_ok());
 }
@@ -386,7 +411,8 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
             &roles(),
             &items(),
             &scenarios(),
-            &designs()
+            &designs(),
+            &profiles()
         ),
         Err(WorldRefusal::Catalog { .. })
     ));
@@ -399,7 +425,7 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
                 &roles(),
                 &items(),
                 &scenarios(),
-                &designs()
+                &designs(), &profiles()
             ),
             Err(WorldRefusal::Format { found: refused }) if refused == found
         ));
@@ -416,7 +442,8 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
             &roles(),
             &items(),
             &scenarios(),
-            &designs()
+            &designs(),
+            &profiles()
         ),
         Err(WorldRefusal::InvalidName(_))
     ));
@@ -476,6 +503,7 @@ fn a_written_world_opens_as_it_was_saved() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(opened, folder);
@@ -517,6 +545,7 @@ fn a_state_of_another_release_than_its_header_is_refused() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     ) else {
         panic!("a mixed-release world opened");
     };
@@ -577,6 +606,7 @@ fn a_saved_fleet_opens_as_it_was_frozen_and_a_doubled_slot_is_refused() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     drop(lock);
@@ -606,6 +636,7 @@ fn a_saved_fleet_opens_as_it_was_frozen_and_a_doubled_slot_is_refused() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .map(|_| ())
     .unwrap_err();
@@ -634,6 +665,7 @@ fn a_failed_write_leaves_the_last_good_save() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(read.generation, 1);
@@ -663,6 +695,7 @@ fn opening_a_world_removes_the_files_its_header_does_not_name() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(
@@ -885,6 +918,7 @@ fn the_first_frame_and_a_leave_each_write_a_save() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!((header.generation, header.credits), (2, 410));
@@ -1364,6 +1398,7 @@ fn a_world_whose_saved_controls_name_what_it_does_not_keep_is_refused_on_open() 
             &items(),
             &scenarios(),
             &designs(),
+            &profiles(),
         )
         .map(|_| ())
     };
@@ -1440,6 +1475,7 @@ fn a_save_header_carries_the_play_time_hull_fleet_open_objectives_and_chart() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(header.play_seconds, 90.0);
@@ -1516,6 +1552,7 @@ fn a_met_goal_is_not_listed_among_a_save_header_s_open_objectives() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert!(header.objectives.is_empty(), "{:?}", header.objectives);
@@ -1550,6 +1587,7 @@ fn a_saved_clock_resumes_at_the_play_time_it_was_written_with() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(
@@ -1607,6 +1645,7 @@ fn a_saved_stance_table_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(
@@ -1639,10 +1678,206 @@ fn a_saved_stance_table_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     );
     assert!(
         matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("stance stamp")),
         "a stamp ahead of the clock refuses the save: {refused:?}"
+    );
+}
+
+/// A ship's pending station visit is written with the world and comes back
+/// on a Load under the same id. A visit at a station the save lacks, a visit
+/// bound after the saved clock, a visit under a profile the catalog lacks,
+/// a visit job its visit never posted, and a state without the visit table (a save of an earlier build under the
+/// same format) are saves the Load refuses.
+#[test]
+fn a_pending_station_visit_resumes_and_a_bad_station_clock_or_layout_is_refused() {
+    let root = tempfile::tempdir().unwrap();
+    let (folder, lock) = create_world(root.path(), "Session").unwrap();
+    drop(lock);
+    let coord = SectorCoord::new(3, 0, 0);
+    let ship = GeneratedBodyId::new(coord, "cluster_3_0_0_hull", 0);
+    let station = GeneratedBodyId::new(coord, "cluster_3_0_0_station", 0);
+    let mut station_visits = StationVisits::default();
+    let id = station_visits
+        .bind(ship.clone(), station.clone(), FIXTURE_PROFILE.into(), 100.0)
+        .unwrap();
+    // Held bodies: a pending visit binds the ids, not the bodies' state.
+    let ledger = |bodies: &[FrozenBodyType]| -> FrozenSectors {
+        let transform = ron::to_string(&Transform::IDENTITY).unwrap();
+        let entries: Vec<String> = bodies
+            .iter()
+            .map(|body| {
+                let (FrozenBodyType::PendingShip { id } | FrozenBodyType::PendingStation { id }) =
+                    body
+                else {
+                    unreachable!("the fixture holds bodies back only");
+                };
+                format!(
+                    "(id: Some({}), name: None, transform: {transform}, visibility: None, \
+                     motion: None, body: {}, frozen_at: 0.0)",
+                    ron::to_string(id).unwrap(),
+                    ron::to_string(body).unwrap()
+                )
+            })
+            .collect();
+        ron::from_str(&format!(
+            "{{{}: Visited([{}])}}",
+            ron::to_string(&coord).unwrap(),
+            entries.join(", ")
+        ))
+        .unwrap()
+    };
+    let held_ship = FrozenBodyType::PendingShip {
+        id: ship.to_string(),
+    };
+    let held_station = FrozenBodyType::PendingStation {
+        id: station.to_string(),
+    };
+    let saved = |generation: u64, bodies: &[FrozenBodyType], play_seconds: f64| WorldSaveState {
+        sectors: ledger(bodies),
+        station_visits: station_visits.clone(),
+        clock: WorldClock { play_seconds },
+        ..state(generation, 750)
+    };
+    let open = || {
+        open_world(
+            root.path(),
+            "session",
+            &catalog(7),
+            &roles(),
+            &items(),
+            &scenarios(),
+            &designs(),
+            &profiles(),
+        )
+        .map(|_| ())
+    };
+
+    write_world(
+        &folder,
+        &header("Session", 1),
+        &saved(1, &[held_ship.clone(), held_station.clone()], 200.0),
+    )
+    .unwrap();
+    let resumed = load(root.path(), 7);
+    let visits = resumed.resource::<StationVisits>();
+    assert_eq!(*visits, station_visits, "the Load restored the visit table");
+    assert_eq!(
+        visits.pending(&ship).map(|visit| &visit.id),
+        Some(&id),
+        "the visit resumed under its id"
+    );
+    drop(resumed);
+
+    write_world(
+        &folder,
+        &header("Session", 2),
+        &saved(2, std::slice::from_ref(&held_ship), 200.0),
+    )
+    .unwrap();
+    assert_eq!(
+        open(),
+        Err(WorldRefusal::Unreadable(format!(
+            "state.2.ron: the station visit '{id}' is pending at '{station}', which is no saved \
+             station"
+        ))),
+        "a visit at a station the save lacks"
+    );
+
+    write_world(
+        &folder,
+        &header("Session", 3),
+        &saved(3, &[held_ship.clone(), held_station.clone()], 50.0),
+    )
+    .unwrap();
+    let refused = open();
+    assert!(
+        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("bound at")),
+        "a visit bound after the saved clock: {refused:?}"
+    );
+
+    let mut lost_profile = StationVisits::default();
+    let lost = lost_profile
+        .bind(ship.clone(), station.clone(), "lost_profile".into(), 100.0)
+        .unwrap();
+    write_world(
+        &folder,
+        &header("Session", 4),
+        &WorldSaveState {
+            station_visits: lost_profile,
+            ..saved(4, &[held_ship.clone(), held_station.clone()], 200.0)
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        open(),
+        Err(WorldRefusal::Unreadable(format!(
+            "state.4.ron: the station visit '{lost}' runs the trade profile 'lost_profile', \
+             which the catalog lacks"
+        ))),
+        "a visit under a profile the catalog lacks"
+    );
+
+    let unposted = nova_gameplay::prelude::Job {
+        id: nova_gameplay::prelude::JobId {
+            station: station.clone(),
+            source: nova_gameplay::prelude::JobSourceType::Visit {
+                visit: id.clone(),
+                index: 0,
+            },
+        },
+        kind: nova_gameplay::prelude::JobType::Procure {
+            item: "IronOre".into(),
+            count: 2,
+        },
+        target: station.clone(),
+        reward_cr: 40,
+    };
+    let mut postings = nova_gameplay::prelude::JobPostings::default();
+    postings.post_visit(unposted.clone(), 150.0);
+    write_world(
+        &folder,
+        &header("Session", 5),
+        &WorldSaveState {
+            postings,
+            ..saved(5, &[held_ship.clone(), held_station.clone()], 200.0)
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        open(),
+        Err(WorldRefusal::Unreadable(format!(
+            "state.5.ron: the visit job '{}' names the visit '{id}', which never posted it",
+            unposted.id
+        ))),
+        "a visit job of a visit still approaching would post twice at its capture"
+    );
+
+    let empty = WorldSaveState {
+        station_visits: StationVisits::default(),
+        ..saved(6, &[], 200.0)
+    };
+    write_world(&folder, &header("Session", 6), &empty).unwrap();
+    let text = std::fs::read_to_string(root.path().join("session/state.6.ron")).unwrap();
+    let table = "station_visits:(ships:{}),";
+    assert_eq!(text.matches(table).count(), 1, "the table is written once");
+    std::fs::write(
+        root.path().join("session/state.6.ron"),
+        text.replace(table, ""),
+    )
+    .unwrap();
+    let refused = open();
+    assert!(
+        matches!(
+            refused,
+            Err(WorldRefusal::Unreadable(ref reason))
+                if reason.starts_with(&format!(
+                    "state.6.ron does not match the {WORLD_SAVE_VERSION} layout of this build"
+                )) && reason.contains("station_visits")
+        ),
+        "a state of an earlier build: {refused:?}"
     );
 }
 
@@ -1676,6 +1911,7 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(
@@ -1710,6 +1946,7 @@ fn a_saved_goal_record_resumes_and_a_stamp_ahead_of_the_clock_is_refused() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     );
     assert!(
         matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("stamped met")),
@@ -1733,11 +1970,7 @@ fn a_saved_posting_record_resumes_with_its_offers_and_a_held_job_outlives_its_sl
     let draw = |posting: u32, slots: &[u32], standing: &[Job]| {
         let ids: Vec<JobId> = slots
             .iter()
-            .map(|&slot| JobId {
-                station: poster.clone(),
-                slot,
-                posting,
-            })
+            .map(|&slot| JobId::slot(poster.clone(), slot, posting))
             .collect();
         station_job_offers(
             7,
@@ -1775,6 +2008,7 @@ fn a_saved_posting_record_resumes_with_its_offers_and_a_held_job_outlives_its_sl
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(
@@ -1818,6 +2052,7 @@ fn a_saved_posting_record_resumes_with_its_offers_and_a_held_job_outlives_its_sl
             &items(),
             &scenarios(),
             &designs(),
+            &profiles(),
         )
     };
     let mut state = state;
@@ -1870,11 +2105,7 @@ fn a_dropped_job_id_is_saved_and_load_restores_it() {
     let draw = |posting: u32, slots: &[u32], standing: &[Job]| {
         let ids: Vec<JobId> = slots
             .iter()
-            .map(|&slot| JobId {
-                station: poster.clone(),
-                slot,
-                posting,
-            })
+            .map(|&slot| JobId::slot(poster.clone(), slot, posting))
             .collect();
         station_job_offers(
             7,
@@ -1914,6 +2145,7 @@ fn a_dropped_job_id_is_saved_and_load_restores_it() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert!(
@@ -1991,6 +2223,7 @@ fn a_world_that_disarms_and_rearms_never_overwrites_its_save() {
             &items(),
             &scenarios(),
             &designs(),
+            &profiles(),
         )
         .unwrap();
         assert_eq!((header.generation, header.credits), (1, 300));
@@ -2172,6 +2405,7 @@ fn a_save_waits_visibly_until_the_player_camera_is_ready() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(saved.player.view, expected_view);
@@ -2265,6 +2499,7 @@ fn load_in(mut app: App, root: &Path, digest: u64, roles: &GameStartRoles) -> Wo
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     resume_world(&mut world, folder, lock, &header, state);
@@ -2446,6 +2681,7 @@ fn a_load_saves_nothing_until_its_transients_are_back() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(header.generation, 2);
@@ -2534,6 +2770,7 @@ fn a_save_waits_out_a_live_blast_and_a_raking_slug() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     let [FrozenTransient {
@@ -2600,6 +2837,7 @@ fn a_damage_spark_does_not_fail_the_save() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert!(
@@ -3349,7 +3587,8 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
                 &roles(),
                 &items(),
                 &scenarios(),
-                &designs()
+                &designs(),
+                &profiles()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -3381,6 +3620,7 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
             &items(),
             &scenarios(),
             &designs(),
+            &profiles(),
         )
         .unwrap();
         assert_eq!(saved.transients.len(), 1);
@@ -3413,6 +3653,7 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
             &items(),
             &scenarios(),
             &designs(),
+            &profiles(),
         )
         .unwrap();
         assert_eq!(saved.transients.len(), 1);
@@ -3436,6 +3677,7 @@ fn a_world_with_a_duplicate_id_is_refused_on_open() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(saved.transients.len(), 2);
@@ -3518,7 +3760,8 @@ fn a_world_with_a_duplicate_or_unminted_canister_is_refused_on_open() {
                 &roles(),
                 &items(),
                 &scenarios(),
-                &designs()
+                &designs(),
+                &profiles()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -3541,6 +3784,7 @@ fn a_world_with_a_duplicate_or_unminted_canister_is_refused_on_open() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(saved.sectors.len(), 1);
@@ -3907,7 +4151,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             &roles(),
             &items(),
             &scenarios(),
-            &designs()
+            &designs(),
+            &profiles()
         ),
         refused(1, "the player ship 'player'")
     );
@@ -3920,7 +4165,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             &roles(),
             &items(),
             &scenarios(),
-            &designs()
+            &designs(),
+            &profiles()
         )
         .map(|_| ()),
         refused(1, "the player ship 'player'")
@@ -3957,7 +4203,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
                 &roles(),
                 &items(),
                 &scenarios(),
-                &designs()
+                &designs(),
+                &profiles()
             ),
             refused(generation, &owner),
             "check_world at generation {generation}"
@@ -3970,7 +4217,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
                 &roles(),
                 &items(),
                 &scenarios(),
-                &designs()
+                &designs(),
+                &profiles()
             )
             .map(|_| ()),
             refused(generation, &owner),
@@ -4009,7 +4257,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             &roles(),
             &items(),
             &scenarios(),
-            &designs()
+            &designs(),
+            &profiles()
         ),
         chart_refused
     );
@@ -4021,7 +4270,8 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
             &roles(),
             &items(),
             &scenarios(),
-            &designs()
+            &designs(),
+            &profiles()
         )
         .map(|_| ()),
         chart_refused
@@ -4035,6 +4285,7 @@ fn a_world_holding_an_item_the_catalog_lacks_is_refused_by_check_and_open() {
         &extended,
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(
@@ -4219,7 +4470,8 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
                 &roles(),
                 &items(),
                 &scenarios(),
-                &designs()
+                &designs(),
+                &profiles()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -4244,6 +4496,7 @@ fn a_world_whose_saved_stock_is_over_its_hold_canister_or_storage_cap_is_refused
             &items(),
             &scenarios(),
             &designs(),
+            &profiles(),
         )
         .unwrap();
         assert_eq!(saved.generation, generation, "stock within its caps opens");
@@ -4290,7 +4543,8 @@ fn a_world_whose_clock_is_not_finite_or_negative_is_refused_on_open() {
                 &roles(),
                 &items(),
                 &scenarios(),
-                &designs()
+                &designs(),
+                &profiles()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -4327,7 +4581,8 @@ fn a_world_whose_body_froze_ahead_of_the_clock_is_refused_on_open() {
                 &roles(),
                 &items(),
                 &scenarios(),
-                &designs()
+                &designs(),
+                &profiles()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -4352,6 +4607,7 @@ fn a_world_whose_body_froze_ahead_of_the_clock_is_refused_on_open() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(saved.generation, 4, "a body frozen at the clock opens");
@@ -4383,6 +4639,7 @@ fn a_world_whose_trader_has_no_role_preference_is_refused_on_open() {
                     },
                     role_preference,
                     target: BTreeMap::new(),
+                    profile: None,
                 },
             ))
             .id();
@@ -4408,7 +4665,8 @@ fn a_world_whose_trader_has_no_role_preference_is_refused_on_open() {
                 &roles(),
                 &items(),
                 &scenarios(),
-                &designs()
+                &designs(),
+                &profiles()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -4433,6 +4691,7 @@ fn a_world_whose_trader_has_no_role_preference_is_refused_on_open() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(saved.generation, 4, "a trader with a preference opens");
@@ -4506,7 +4765,8 @@ fn a_saved_station_pdc_reserve_opens_as_it_froze_and_a_malformed_one_is_refused(
                 &roles(),
                 &items(),
                 &scenarios(),
-                &designs()
+                &designs(),
+                &profiles()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -4530,6 +4790,7 @@ fn a_saved_station_pdc_reserve_opens_as_it_froze_and_a_malformed_one_is_refused(
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     let reserves: Vec<StationPdcReserve> = saved
@@ -4610,6 +4871,7 @@ fn a_world_whose_parked_escort_moves_non_finite_is_refused_on_open() {
             &items(),
             &scenarios(),
             &designs(),
+            &profiles(),
         )
         .map(|_| ())
     };
@@ -4715,7 +4977,8 @@ fn a_saved_ships_rcs_magazine_overspent_negative_non_finite_or_brakeless_is_refu
                 &roles(),
                 &items(),
                 &scenarios(),
-                &designs()
+                &designs(),
+                &profiles()
             )
             .map(|_| ()),
             Err(WorldRefusal::Unreadable(format!(
@@ -4738,6 +5001,7 @@ fn a_saved_ships_rcs_magazine_overspent_negative_non_finite_or_brakeless_is_refu
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     assert_eq!(
@@ -4784,7 +5048,8 @@ fn a_saved_ships_rcs_magazine_overspent_negative_non_finite_or_brakeless_is_refu
             &roles(),
             &items(),
             &scenarios(),
-            &designs()
+            &designs(),
+            &profiles()
         )
         .map(|_| ()),
         Err(WorldRefusal::Unreadable(
@@ -4807,6 +5072,7 @@ fn a_saved_ships_rcs_magazine_overspent_negative_non_finite_or_brakeless_is_refu
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     )
     .unwrap();
     let brakes: Vec<_> = saved
@@ -4977,6 +5243,7 @@ fn a_load_restores_a_real_station_dock_through_a_real_physics_tick() {
             &items(),
             &scenarios(),
             &designs(),
+            &profiles(),
         )
         .unwrap();
         resume_world(&mut world, folder, lock, &header, state);
@@ -5299,6 +5566,7 @@ fn a_load_refuses_a_station_dock_that_names_a_port_its_ship_lacks() {
             &items(),
             &scenarios(),
             &designs(),
+            &profiles(),
         ),
         Ok(()),
         "the real dock's own ports open clean"
@@ -5329,6 +5597,7 @@ fn a_load_refuses_a_station_dock_that_names_a_port_its_ship_lacks() {
         &items(),
         &scenarios(),
         &designs(),
+        &profiles(),
     );
     assert!(
         matches!(

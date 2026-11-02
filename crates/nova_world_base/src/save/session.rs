@@ -21,8 +21,9 @@ use bevy::{
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_gameplay::prelude::{
     open_objectives, CargoCanisterIdAllocator, CargoCanisterRuntimeId, Chart, CivilizationStances,
-    GoalProgress, GoalRecord, JobPostings, Jobs, OpenObjectiveType, OwnedShipMarker,
-    PlayerFleetMarker, PlayerSpaceshipMarker, ShipCredits, UnsettledBody,
+    GameTradeProfiles, GoalProgress, GoalRecord, JobPostings, Jobs, OpenObjectiveType,
+    OwnedShipMarker, PlayerFleetMarker, PlayerSpaceshipMarker, ShipCredits, StationVisits,
+    UnsettledBody,
 };
 use nova_scenario::prelude::{
     freeze_fleet, freeze_ship, CurrentScenario, GameShipDesigns, GeneratedMarks, NovaEventWorld,
@@ -36,8 +37,8 @@ use nova_world::prelude::{
 };
 
 use super::{
-    check_saved_controls, check_saved_fleet, check_saved_ids, check_saved_items, check_saved_rcs,
-    check_saved_stock,
+    check_saved_controls, check_saved_fleet, check_saved_ids, check_saved_items,
+    check_saved_profiles, check_saved_rcs, check_saved_stock, check_saved_visits,
     controls::freeze_controls,
     transients::{freeze_transients, hold_resumed_transients},
     write_world, SavedChart, SavedFleet, SavedIdFault, SavedObjective, SavedObjectiveLine,
@@ -253,6 +254,8 @@ pub struct ResumedWorld {
     pub jobs: Jobs,
     /// The station boards' slot postings the save holds.
     pub postings: JobPostings,
+    /// The ships' station visits the save holds.
+    pub station_visits: StationVisits,
     /// The play-time clock the save holds.
     pub clock: WorldClock,
     /// The player's table of civilization stances the save holds.
@@ -286,6 +289,7 @@ pub fn resume_world(
         chart,
         jobs,
         postings,
+        station_visits,
         clock,
         stances,
         goal,
@@ -298,6 +302,7 @@ pub fn resume_world(
         chart,
         jobs,
         postings,
+        station_visits,
         clock,
         stances,
         goal,
@@ -334,9 +339,9 @@ pub(crate) fn save_systems() -> ScheduleConfigs<ScheduleSystem> {
         .run_if(resource_exists::<WorldSaveSession>)
 }
 
-/// Seed the ledger, the chart, the jobs, the postings, the clock, the
-/// civilization stances and the goal record `Cleanup` just cleared with the
-/// save's, on the frame the world arms.
+/// Seed the ledger, the chart, the jobs, the postings, the station visits,
+/// the clock, the civilization stances and the goal record `Cleanup` just
+/// cleared with the save's, on the frame the world arms.
 ///
 /// # Panics
 ///
@@ -356,6 +361,7 @@ pub(crate) fn restore_resumed_world(world: &mut World) {
         chart,
         jobs,
         postings,
+        station_visits,
         clock,
         stances,
         goal,
@@ -366,6 +372,7 @@ pub(crate) fn restore_resumed_world(world: &mut World) {
     *world.resource_mut::<Chart>() = chart;
     *world.resource_mut::<Jobs>() = jobs;
     *world.resource_mut::<JobPostings>() = postings;
+    *world.resource_mut::<StationVisits>() = station_visits;
     *world.resource_mut::<WorldClock>() = clock;
     *world.resource_mut::<CivilizationStances>() = stances;
     *world.resource_mut::<GoalRecord>() = goal;
@@ -558,6 +565,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
     let chart = world.resource::<Chart>().clone();
     let jobs = world.resource::<Jobs>().clone();
     let postings = world.resource::<JobPostings>().clone();
+    let station_visits = world.resource::<StationVisits>().clone();
     let clock = *world.resource::<WorldClock>();
     let stances = world.resource::<CivilizationStances>().clone();
     let goal = *world.resource::<GoalRecord>();
@@ -566,6 +574,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         .duration_since(UNIX_EPOCH)
         .map_or(0, |since| since.as_secs());
     let designs = world.resource::<GameShipDesigns>().clone();
+    let profiles = world.resource::<GameTradeProfiles>().clone();
     let hull = match ship.design() {
         ShipDesignSource::Prototype { id, .. } => designs
             .get_design(id)
@@ -648,6 +657,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
         chart,
         jobs,
         postings,
+        station_visits,
         clock,
         stances,
         goal,
@@ -666,6 +676,8 @@ pub(crate) fn snapshot_world(world: &mut World) {
                 .validate()
                 .and_then(|()| state.jobs.validate())
                 .and_then(|()| state.postings.validate(state.clock.play_seconds))
+                .and_then(|()| state.station_visits.validate(state.clock.play_seconds))
+                .and_then(|()| check_saved_visits(&state))
                 .and_then(|()| state.stances.validate(state.clock.play_seconds))
                 .and_then(|()| state.goal.validate(state.clock.play_seconds))
                 .and_then(|()| check_saved_fleet(&state))
@@ -673,6 +685,7 @@ pub(crate) fn snapshot_world(world: &mut World) {
                 .and_then(|()| check_saved_items(&state, &items))
                 .and_then(|()| check_saved_stock(&state, &items))
                 .and_then(|()| check_saved_rcs(&state, &designs))
+                .and_then(|()| check_saved_profiles(&state, &profiles))
                 .map_err(|reason| SectorSnapshotError::InvalidSavedState { reason })
         });
     if let Err(error) = checked {

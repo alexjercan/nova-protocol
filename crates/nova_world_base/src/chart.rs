@@ -3,28 +3,29 @@
 //! find, each stamped with the [`WorldClock`] of the find, and what the
 //! player sees at a station while docked there.
 //!
-//! The chart, the player's [`Jobs`], the player's
-//! [`CivilizationStances`] and the role goal's [`GoalRecord`] are
-//! cleared with the frozen ledger, in `NovaWorldSystems::Cleanup`, so a
-//! Retry, an unload or a replaced scenario starts new ones. A Load puts the
-//! saved four back after that clear, on the frame the world arms.
+//! The chart, the player's [`Jobs`], the [`JobPostings`], the
+//! [`StationVisits`], the player's [`CivilizationStances`] and the role
+//! goal's [`GoalRecord`] are cleared with the frozen ledger, in
+//! `NovaWorldSystems::Cleanup`, so a New Game, a Retry, an unload or a
+//! replaced scenario starts new ones. A Load puts the saved records back
+//! after that clear, on the frame the world arms.
 
 use bevy::prelude::*;
 use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{
     Chart, ChartSectorEdge, CivilizationStances, DerelictShipMarker, GoalProgress, GoalRecord,
     JobPostings, Jobs, OwnedStationMarker, PlayerSpaceshipMarker, ShipInventory, StationMarker,
-    StationServices, StationStorage, StationSummary, TraderMarket, WorldClock,
+    StationServices, StationStorage, StationSummary, StationVisits, TraderMarket, WorldClock,
 };
 use nova_ship::prelude::{DockedShip, DockingConnection, SensorContacts};
 use nova_world::prelude::{CurrentSector, SectorClusterTypes, SectorRoot, WorldConfig};
 
 use crate::NovaLayeredWorld;
 
-/// Forget the chart, the jobs, the job postings, the civilization stances
-/// and the role goal's record and progress on every frame
-/// `Cleanup` drops the frozen ledger, and keep [`ChartSectorEdge`] on the
-/// armed world's edge.
+/// Forget the chart, the jobs, the job postings, the station visits, the
+/// civilization stances and the role goal's record and progress on every
+/// frame `Cleanup` drops the frozen ledger, and keep [`ChartSectorEdge`] on
+/// the armed world's edge.
 #[expect(
     clippy::too_many_arguments,
     reason = "one system clearing every session record the ledger owns"
@@ -36,6 +37,7 @@ pub(crate) fn clear_chart(
     mut chart: ResMut<Chart>,
     mut jobs: ResMut<Jobs>,
     mut postings: ResMut<JobPostings>,
+    mut visits: ResMut<StationVisits>,
     mut stances: ResMut<CivilizationStances>,
     mut goal: ResMut<GoalRecord>,
     mut progress: ResMut<GoalProgress>,
@@ -48,6 +50,9 @@ pub(crate) fn clear_chart(
     }
     if !postings.is_empty() {
         postings.clear();
+    }
+    if !visits.is_empty() {
+        visits.clear();
     }
     if !stances.is_empty() {
         stances.clear();

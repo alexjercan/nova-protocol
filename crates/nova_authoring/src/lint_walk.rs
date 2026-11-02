@@ -10,7 +10,10 @@ use std::{
 };
 
 use nova_assets::items::{item_pack_faults, ItemPack};
-use nova_gameplay::prelude::{price_table_faults, GameItems, ItemDesign, PriceTable};
+use nova_gameplay::prelude::{
+    price_table_faults, trade_profile_faults, GameItems, GameTradeProfiles, ItemDesign, PriceTable,
+    TradeProfileDesign,
+};
 use nova_input::prelude::InputSource;
 use nova_mod_format::{
     deps::{transitive_deps, DepGraph},
@@ -60,6 +63,7 @@ struct WalkedBundle {
     stations: Vec<StationDesignPrototype>,
     start_roles: Vec<StartRole>,
     price_tables: Vec<PriceTable>,
+    trade_profiles: Vec<TradeProfileDesign>,
     scenarios: Vec<ScenarioConfig>,
     campaigns: Vec<CampaignConfig>,
     lessons: Vec<Lesson>,
@@ -128,6 +132,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     let mut stations = Vec::new();
     let mut start_roles = Vec::new();
     let mut price_tables = Vec::new();
+    let mut trade_profiles = Vec::new();
     let mut scenarios = Vec::new();
     let mut campaigns = Vec::new();
     let mut lessons = Vec::new();
@@ -141,6 +146,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
             Content::Station(station) => stations.push(station.clone()),
             Content::StartRole(role) => start_roles.push(role.clone()),
             Content::PriceTable(table) => price_tables.push(table.clone()),
+            Content::TradeProfile(profile) => trade_profiles.push(profile.clone()),
             Content::Scenario(scenario) => scenarios.push(scenario.clone()),
             Content::Campaign(campaign) => campaigns.push(campaign.clone()),
             Content::Lesson(lesson) => lessons.push(lesson.clone()),
@@ -157,6 +163,7 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         stations,
         start_roles,
         price_tables,
+        trade_profiles,
         scenarios,
         campaigns,
         lessons,
@@ -331,6 +338,14 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
     }
     let known_styles = GameStyles(visible_styles);
 
+    // Visible trade profiles, overlaid last-wins by id like the merge.
+    let mut known_profiles = GameTradeProfiles::default();
+    for walked in effective_bundles(bundle, all) {
+        for profile in &walked.trade_profiles {
+            known_profiles.0.insert(profile.id.clone(), profile.clone());
+        }
+    }
+
     let mut issues = Vec::new();
     for scenario in &bundle.scenarios {
         for issue in lint_scenario(
@@ -341,6 +356,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
             &known_scenarios,
             &known_items,
             &known_styles,
+            &known_profiles,
         ) {
             issues.push((bundle.id.clone(), issue));
         }
@@ -415,6 +431,21 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
                 message,
             },
         ));
+    }
+
+    // Trade profiles: the faults the merge reports, against the items this
+    // bundle sees with what it depends on.
+    for profile in &bundle.trade_profiles {
+        for message in trade_profile_faults(profile, &known_items) {
+            issues.push((
+                bundle.id.clone(),
+                LintIssue {
+                    severity: LintSeverity::Error,
+                    scenario: profile.id.to_string(),
+                    message,
+                },
+            ));
+        }
     }
 
     // A bounded generated world must fit the streamed window: a sphere past
@@ -1327,6 +1358,7 @@ mod tests {
             stations: Vec::new(),
             start_roles: Vec::new(),
             price_tables: Vec::new(),
+            trade_profiles: Vec::new(),
             scenarios,
             campaigns,
             lessons,

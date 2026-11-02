@@ -216,11 +216,7 @@ mod tests {
     fn handed_in(x: i32, slot: u32, kind: JobType) -> Job {
         let station = GeneratedBodyId::new(SectorCoord::new(x, 0, 0), "cluster_station", 0);
         Job {
-            id: JobId {
-                station: station.clone(),
-                slot,
-                posting: 0,
-            },
+            id: JobId::slot(station.clone(), slot, 0),
             kind,
             target: station,
             reward_cr: 100,

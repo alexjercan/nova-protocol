@@ -196,6 +196,7 @@ fn ship(id: GeneratedBodyId, position: Meters3, prototype: &str) -> SectorShip {
 /// nothing.
 fn market() -> TraderMarket {
     TraderMarket {
+        profile: None,
         cluster: ClusterType::RockOnly,
         civilization: CivilizationId {
             world_seed: 7,
@@ -344,7 +345,7 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
         &str,
         fn(SectorGenerationInput) -> SectorManifest,
         fn(&SectorFault) -> bool,
-    ); 29] = [
+    ); 30] = [
         (
             "the wrong cell",
             |input| empty(input.coord.offset(1, 0, 0), Vec::new()),
@@ -635,6 +636,23 @@ fn a_malformed_generator_answer_is_refused_before_preparation() {
                     fault,
                     SectorFault::Manifest {
                         field: "allegiance",
+                        ..
+                    }
+                )
+            },
+        ),
+        (
+            "a station that runs a trade profile",
+            |input| {
+                let mut manifest = one_station(input);
+                manifest.stations[0].market.as_mut().unwrap().profile = Some("ore_hauler".into());
+                manifest
+            },
+            |fault| {
+                matches!(
+                    fault,
+                    SectorFault::Manifest {
+                        field: "market",
                         ..
                     }
                 )

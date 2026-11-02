@@ -45,14 +45,16 @@
 //! done. It derives the start role's goal progress from those records every
 //! frame and stamps the goal met once, as a saved fact
 //! (`nova_gameplay::prelude::GoalRecord`). A world save carries the chart,
-//! the player's [`Jobs`], the [`JobPostings`], the [`WorldClock`] and the
-//! goal record; on the web they last one session.
+//! the player's [`Jobs`], the [`JobPostings`], the [`StationVisits`], the
+//! [`WorldClock`] and the goal record; on the web they last one session.
 #![warn(missing_docs)]
 
 use bevy::prelude::*;
 use nova_assets::prelude::LoadedSectionPacks;
 use nova_events::prelude::Meters;
-use nova_gameplay::prelude::{Chart, GameItems, JobPostings, Jobs, PlayerSpaceshipMarker};
+use nova_gameplay::prelude::{
+    Chart, GameItems, GameTradeProfiles, JobPostings, Jobs, PlayerSpaceshipMarker, StationVisits,
+};
 use nova_scenario::prelude::{CurrentScenario, OpenWorldSession, ScenarioWorldType};
 use nova_ship::prelude::GameStyles;
 #[cfg(not(target_arch = "wasm32"))]
@@ -79,6 +81,7 @@ mod stance;
 mod start;
 mod station_hulls;
 mod station_layout;
+mod station_visits;
 
 #[cfg(all(not(target_arch = "wasm32"), any(test, feature = "test-support")))]
 pub mod test_support;
@@ -223,6 +226,7 @@ impl Plugin for NovaWorldBasePlugin {
         app.init_resource::<Chart>();
         app.init_resource::<Jobs>();
         app.init_resource::<JobPostings>();
+        app.init_resource::<StationVisits>();
         // A hull the player neutralizes is an offence against its
         // civilization the moment its marker lands; a provocation is stamped
         // the moment the tally crosses.
@@ -236,6 +240,7 @@ impl Plugin for NovaWorldBasePlugin {
         app.add_observer(jobs::distress_on_answer);
         app.add_observer(jobs::neutralize_on_kill);
         app.add_observer(jobs::drop_on_loss);
+        app.add_observer(station_visits::end_visits_on_loss);
         // In `Update`, not `PreUpdate`: a menu entry swaps the scenario in
         // `StateTransition`, and a ship destroyed in `FixedUpdate` leaves the
         // world. Both land after `PreUpdate`, and the streaming stages would
@@ -286,6 +291,10 @@ impl Plugin for NovaWorldBasePlugin {
                     rcs_reserve::recover_thawed_rcs_budgets,
                     stance::expire_stances,
                     stance::sync_civilization_sides,
+                    // After the thawed holds catch up and the sides follow
+                    // their stances; before the boards, so a visit's posted
+                    // jobs are on this frame's board.
+                    station_visits::drive_station_visits,
                     jobs::post_station_boards,
                     // After the boards, so a renewal's despawns land first.
                     jobs::mark_held_job_targets,
@@ -451,6 +460,12 @@ fn sync_open_world(world: &mut World) {
              content merge refused the catalog and logged why"
         );
     };
+    let Some(profiles) = world.get_resource::<GameTradeProfiles>() else {
+        panic!(
+            "nova_world_base: a generated-world scenario is live with no GameTradeProfiles; the \
+             content merge refused the catalog and logged why"
+        );
+    };
     let armed = world.get_resource::<WorldConfig<NovaLayeredWorld>>();
     let generator = match armed {
         Some(armed) if armed.generator.catalog() != loaded.digest => panic!(
@@ -460,16 +475,18 @@ fn sync_open_world(world: &mut World) {
             loaded.digest.0
         ),
         Some(armed) => armed.generator.clone(),
-        None => NovaLayeredWorld::from_loaded(loaded, styles, items).unwrap_or_else(|faults| {
-            panic!(
-                "nova_world_base: the loaded content does not arm the open world:\n  {}",
-                faults
-                    .iter()
-                    .map(ToString::to_string)
-                    .collect::<Vec<_>>()
-                    .join("\n  ")
-            )
-        }),
+        None => NovaLayeredWorld::from_loaded(loaded, styles, items, profiles).unwrap_or_else(
+            |faults| {
+                panic!(
+                    "nova_world_base: the loaded content does not arm the open world:\n  {}",
+                    faults
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>()
+                        .join("\n  ")
+                )
+            },
+        ),
     };
     let config = WorldConfig {
         seed,

@@ -67,6 +67,7 @@ use crate::{
     hash::Fnv64,
     inventory::prelude::{cr_text, GameItems, ItemCategoryType, ItemDesignId, ShipInventory},
     market::prelude::JobOfferRule,
+    station_visits::prelude::StationVisitId,
 };
 
 /// Glob-import surface: `use nova_gameplay::jobs::prelude::*`.
@@ -76,9 +77,10 @@ pub mod prelude {
         plan_job_hull_fit, plan_job_offer_refresh, station_job_offers, EscortLeg, Job,
         JobAcceptRefusalType, JobAccepted, JobBoard, JobDone, JobField, JobHandInPartner,
         JobHandInPlan, JobHandInRefusalType, JobHull, JobHullFit, JobHullRefusalType, JobId,
-        JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType, JobPostings, JobType,
-        JobWreck, Jobs, SlotPosting, StarterBoardMarker, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD,
-        JOB_OFFER_REFRESH_FEE_CR, RAIDERS_PER_CARGO_CR,
+        JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType, JobPostings, JobSourceType,
+        JobType, JobWreck, Jobs, SlotPosting, StarterBoardMarker, VisitPosting, ESCORT_RAIDERS_MAX,
+        JOBS_PER_BOARD, JOB_OFFER_REFRESH_FEE_CR, RAIDERS_PER_CARGO_CR, VISIT_EXTRAS_MAX,
+        VISIT_EXTRA_OFFER_SECONDS,
     };
 }
 
@@ -87,6 +89,18 @@ pub mod prelude {
 /// Agent decision 2026-10-16 for owner review: three, so the board reads at
 /// a glance and a station never carries the player's whole plan.
 pub const JOBS_PER_BOARD: u32 = 3;
+
+/// The most unaccepted visit postings one station keeps beside its slots. A
+/// docked visitor posts its profile's jobs in list order until the station
+/// holds this many and skips the rest.
+///
+/// Owner decision 2026-11-02.
+pub const VISIT_EXTRAS_MAX: usize = 3;
+
+/// The play seconds an unaccepted visit posting stands: twenty minutes.
+///
+/// Owner decision 2026-11-02.
+pub const VISIT_EXTRA_OFFER_SECONDS: f64 = 1_200.0;
 
 /// The fewest and the most units one procurement asks for, both included.
 const PROCURE_COUNT: (u32, u32) = (2, 8);
@@ -108,43 +122,99 @@ pub const RAIDERS_PER_CARGO_CR: u32 = 700;
 /// The most raiders one escort meets.
 pub const ESCORT_RAIDERS_MAX: u32 = 3;
 
-/// The identity of a posted job: the station that posted it, its slot on
-/// that station's board and the slot's posting number when it was posted.
-/// The poster is read off the id, never kept twice. A renewed slot posts
-/// under the next posting number, so the bodies an earlier offer of the
-/// slot put in the world are never minted again.
+/// The identity of a posted job: the station that posted it and what
+/// posted it there. The poster is read off the id, never kept twice.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct JobId {
     /// The generated station that posted the job.
     pub station: GeneratedBodyId,
-    /// The job's slot on that station's board, below [`JOBS_PER_BOARD`].
-    pub slot: u32,
-    /// The slot's posting number: zero for the slot's first offer, one more
-    /// for each renewal ([`JobPostings::post`]).
-    pub posting: u32,
+    /// The board slot or the station visit that posted it.
+    pub source: JobSourceType,
+}
+
+/// What posted a job on a station's board.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum JobSourceType {
+    /// One of the board's [`JOBS_PER_BOARD`] slots. A renewed slot posts
+    /// under the next posting number, so the bodies an earlier offer of the
+    /// slot put in the world are never minted again.
+    Slot {
+        /// The slot, below [`JOBS_PER_BOARD`].
+        slot: u32,
+        /// The slot's posting number: zero for the slot's first offer, one
+        /// more for each renewal ([`JobPostings::post`]).
+        posting: u32,
+    },
+    /// A docked visitor's profile ([`VisitPosting`]). A visit id is never
+    /// reused, so neither is this one.
+    Visit {
+        /// The visit that posted the job.
+        visit: StationVisitId,
+        /// The job's place in the visitor's profile job list.
+        index: u32,
+    },
 }
 
 impl JobId {
+    /// The id of posting `posting` of slot `slot` on `station`'s board.
+    pub fn slot(station: GeneratedBodyId, slot: u32, posting: u32) -> Self {
+        Self {
+            station,
+            source: JobSourceType::Slot { slot, posting },
+        }
+    }
+
+    /// The slot and its posting number, for a slot job; `None` for a visit
+    /// posting.
+    pub fn slot_posting(&self) -> Option<(u32, u32)> {
+        match self.source {
+            JobSourceType::Slot { slot, posting } => Some((slot, posting)),
+            JobSourceType::Visit { .. } => None,
+        }
+    }
+
+    /// The id of the same slot's next posting.
+    ///
+    /// # Panics
+    ///
+    /// On a visit posting, which has no slot to renew.
+    pub fn next_posting(&self) -> Self {
+        let (slot, posting) = self
+            .slot_posting()
+            .unwrap_or_else(|| panic!("JobId renews '{self}', which is no slot posting"));
+        Self::slot(self.station.clone(), slot, posting + 1)
+    }
+
     /// The id of body `index` of the kind `part` this job puts in the world:
     /// in the poster's cell, under the stem
     /// `<station stem>_job_<slot>_<posting>_<part>`.
+    ///
+    /// # Panics
+    ///
+    /// On a visit posting: [`Job::validate`] refuses a visit job that puts
+    /// a body in the world.
     fn spawned_body(&self, part: &str, index: u32) -> GeneratedBodyId {
+        let (slot, posting) = self
+            .slot_posting()
+            .unwrap_or_else(|| panic!("the visit job '{self}' puts no body in the world"));
         GeneratedBodyId::new(
             self.station.origin,
-            format!(
-                "{}_job_{}_{}_{part}",
-                self.station.stem, self.slot, self.posting
-            ),
+            format!("{}_job_{slot}_{posting}_{part}", self.station.stem),
             index,
         )
     }
 
     /// Every body id an offer under this id could have put in the world,
     /// whatever its kind: the hauler, [`ESCORT_RAIDERS_MAX`] raiders and the
-    /// caller. A renewal takes the live ones out of the world first.
+    /// caller. A renewal takes the live ones out of the world first. None
+    /// for a visit posting, which only procures.
     pub fn possible_bodies(&self) -> Vec<GeneratedBodyId> {
+        if self.slot_posting().is_none() {
+            return Vec::new();
+        }
         std::iter::once(self.spawned_body("hauler", 0))
             .chain((0..ESCORT_RAIDERS_MAX).map(|index| self.spawned_body("raider", index)))
             .chain(std::iter::once(self.spawned_body("caller", 0)))
@@ -153,9 +223,17 @@ impl JobId {
 }
 
 impl fmt::Display for JobId {
-    /// `<station id>#<slot>.<posting>`.
+    /// `<station id>#<slot>.<posting>` for a slot job,
+    /// `<station id>#<visit id>.<index>` for a visit posting.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}#{}.{}", self.station, self.slot, self.posting)
+        match &self.source {
+            JobSourceType::Slot { slot, posting } => {
+                write!(formatter, "{}#{slot}.{posting}", self.station)
+            }
+            JobSourceType::Visit { visit, index } => {
+                write!(formatter, "{}#{visit}.{index}", self.station)
+            }
+        }
     }
 }
 
@@ -201,26 +279,154 @@ impl SlotPosting {
     }
 }
 
-/// Every station's slot postings: the posting number, the play-time stamp
-/// and the offer of each of the [`JOBS_PER_BOARD`] slots of every board the
-/// open world has posted. A session resource like [`Jobs`]: a world save
-/// carries it, a Load puts it back, and it is cleared with the chart.
+/// A job a docked visitor posted beside a station's slots, and when.
+///
+/// It never takes a slot. Unaccepted, it stands until
+/// [`VISIT_EXTRA_OFFER_SECONDS`] of play pass or a slot of its station
+/// renews because its window passed ([`JobPostings::retire_visit_postings`]),
+/// whichever comes first. Accepted, it stands while the player holds it.
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct VisitPosting {
+    /// The [`crate::clock::WorldClock`] reading when the visitor posted it.
+    pub posted_at: f64,
+    /// The job, under a [`JobSourceType::Visit`] id.
+    pub offer: Job,
+}
+
+impl VisitPosting {
+    /// The play seconds the unaccepted posting has left at `now`: zero or
+    /// below once it expired.
+    pub fn remaining(&self, now: f64) -> f64 {
+        (self.posted_at - now) + VISIT_EXTRA_OFFER_SECONDS
+    }
+}
+
+/// Every station's postings: the posting number, the play-time stamp and
+/// the offer of each of the [`JOBS_PER_BOARD`] slots of every board the
+/// open world has posted, and the [`VisitPosting`]s docked visitors added
+/// beside them. A session resource like [`Jobs`]: a world save carries it,
+/// a Load puts it back, and it is cleared with the chart.
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct JobPostings {
     boards: BTreeMap<GeneratedBodyId, Vec<SlotPosting>>,
+    visits: BTreeMap<GeneratedBodyId, Vec<VisitPosting>>,
 }
 
 impl JobPostings {
-    /// Whether no board has been posted.
+    /// Whether no board has been posted and no visitor posted a job.
     pub fn is_empty(&self) -> bool {
-        self.boards.is_empty()
+        self.boards.is_empty() && self.visits.is_empty()
     }
 
-    /// Forget every board.
+    /// Forget every board and every visit posting.
     pub fn clear(&mut self) {
         self.boards.clear();
+        self.visits.clear();
+    }
+
+    /// The visit postings of `station`, in posting order.
+    pub fn visit_postings(&self, station: &GeneratedBodyId) -> &[VisitPosting] {
+        self.visits.get(station).map_or(&[], Vec::as_slice)
+    }
+
+    /// The visit posting `id`, while it stands.
+    pub fn visit_posting(&self, id: &JobId) -> Option<&VisitPosting> {
+        self.visit_postings(&id.station)
+            .iter()
+            .find(|posting| posting.offer.id == *id)
+    }
+
+    /// The play seconds the unheld offer `id` has left at `now` under
+    /// `rule`, while its slot or its visit posting stands.
+    pub fn remaining(&self, id: &JobId, rule: JobOfferRule, now: f64) -> Option<f64> {
+        match id.source {
+            JobSourceType::Slot { .. } => self.slot(id).map(|slot| slot.remaining(rule, now)),
+            JobSourceType::Visit { .. } => {
+                self.visit_posting(id).map(|posting| posting.remaining(now))
+            }
+        }
+    }
+
+    /// How many visit postings of `station` the player neither holds,
+    /// completed nor dropped: the ones [`VISIT_EXTRAS_MAX`] counts.
+    pub fn open_visit_postings(&self, station: &GeneratedBodyId, jobs: &Jobs) -> usize {
+        self.visit_postings(station)
+            .iter()
+            .filter(|posting| is_open(jobs, &posting.offer.id))
+            .count()
+    }
+
+    /// Post `offer`, a docked visitor's job, at `now`.
+    ///
+    /// # Panics
+    ///
+    /// When `offer` is no visit job or is posted already: a visit posts its
+    /// jobs once, at its capture.
+    pub fn post_visit(&mut self, offer: Job, now: f64) {
+        assert!(
+            matches!(offer.id.source, JobSourceType::Visit { .. }),
+            "JobPostings posts '{}' as a visit job",
+            offer.id
+        );
+        assert!(
+            self.visit_posting(&offer.id).is_none(),
+            "JobPostings posts the visit job '{}' twice",
+            offer.id
+        );
+        self.visits
+            .entry(offer.id.station.clone())
+            .or_default()
+            .push(VisitPosting {
+                posted_at: now,
+                offer,
+            });
+    }
+
+    /// Take every visit posting of `station` the player does not hold off
+    /// the board, as a slot of the station renews at `now` because its
+    /// window passed. A posting from `now` stands: the visit that docked
+    /// this frame posted it after the window passed. Gives back how many
+    /// went.
+    pub fn retire_visit_postings(
+        &mut self,
+        station: &GeneratedBodyId,
+        jobs: &Jobs,
+        now: f64,
+    ) -> usize {
+        let Some(postings) = self.visits.get_mut(station) else {
+            return 0;
+        };
+        let before = postings.len();
+        postings.retain(|posting| posting.posted_at >= now || jobs.holds(&posting.offer.id));
+        let retired = before - postings.len();
+        if postings.is_empty() {
+            self.visits.remove(station);
+        }
+        retired
+    }
+
+    /// Take every visit posting off the board that is over at `now`: one
+    /// the player completed or dropped, and one the player does not hold
+    /// whose [`VISIT_EXTRA_OFFER_SECONDS`] passed. A held one stands.
+    /// Gives back the ids that went.
+    pub fn expire_visit_postings(&mut self, jobs: &Jobs, now: f64) -> Vec<JobId> {
+        let mut gone = Vec::new();
+        self.visits.retain(|_, postings| {
+            postings.retain(|posting| {
+                let id = &posting.offer.id;
+                let stands = jobs.holds(id) || (is_open(jobs, id) && posting.remaining(now) > 0.0);
+                if !stands {
+                    gone.push(id.clone());
+                }
+                stands
+            });
+            !postings.is_empty()
+        });
+        gone
     }
 
     /// The slots of `station`'s board, if it has posted.
@@ -231,9 +437,10 @@ impl JobPostings {
     /// The slot the job `id` was posted in, if its station has posted and
     /// the slot is still on that posting.
     pub fn slot(&self, id: &JobId) -> Option<&SlotPosting> {
+        let (slot, posting) = id.slot_posting()?;
         self.board(&id.station)?
-            .get(id.slot as usize)
-            .filter(|slot| slot.posting == id.posting)
+            .get(slot as usize)
+            .filter(|standing| standing.posting == posting)
     }
 
     /// Request a paid refresh of the slot that posted `id`: the open world
@@ -245,23 +452,27 @@ impl JobPostings {
     ///
     /// # Panics
     ///
-    /// When `id`'s station has no board, or `id` names a slot or posting
-    /// that board does not carry: the caller refreshes a posting its own
-    /// board still shows ([`JobPostings::slot`]), never a forged id.
+    /// When `id` is a visit posting, `id`'s station has no board, or `id`
+    /// names a slot or posting that board does not carry: the caller
+    /// refreshes a posting its own board still shows ([`JobPostings::slot`]),
+    /// never a forged id.
     pub fn request_paid_refresh(&mut self, id: &JobId) {
+        let (slot, posting) = id
+            .slot_posting()
+            .unwrap_or_else(|| panic!("JobPostings refreshes '{id}', which holds no slot"));
         let slots = self
             .boards
             .get_mut(&id.station)
             .unwrap_or_else(|| panic!("JobPostings refreshes '{id}', whose station has no board"));
-        let slot = slots
-            .get_mut(id.slot as usize)
+        let standing = slots
+            .get_mut(slot as usize)
             .unwrap_or_else(|| panic!("JobPostings refreshes '{id}', off the board"));
         assert_eq!(
-            slot.posting, id.posting,
+            standing.posting, posting,
             "JobPostings refreshes '{id}' but the slot is on posting {}",
-            slot.posting
+            standing.posting
         );
-        slot.paid_refresh_requested = true;
+        standing.paid_refresh_requested = true;
     }
 
     /// Post `offers` at `now`, all of one station: a station with no board
@@ -283,12 +494,11 @@ impl JobPostings {
         let Some(slots) = self.boards.get_mut(&station) else {
             assert!(
                 offers.len() == JOBS_PER_BOARD as usize
-                    && offers.iter().enumerate().all(|(slot, offer)| offer.id
-                        == JobId {
-                            station: station.clone(),
-                            slot: slot as u32,
-                            posting: 0,
-                        }),
+                    && offers
+                        .iter()
+                        .enumerate()
+                        .all(|(slot, offer)| offer.id
+                            == JobId::slot(station.clone(), slot as u32, 0)),
                 "JobPostings opens '{station}' with offers other than its first postings"
             );
             let slots = offers
@@ -309,18 +519,22 @@ impl JobPostings {
                 "JobPostings posts '{}' beside '{station}'",
                 offer.id
             );
-            let slot = slots
-                .get_mut(offer.id.slot as usize)
+            let (slot, posting) = offer
+                .id
+                .slot_posting()
+                .unwrap_or_else(|| panic!("JobPostings posts '{}' on a slot", offer.id));
+            let standing = slots
+                .get_mut(slot as usize)
                 .unwrap_or_else(|| panic!("JobPostings posts '{}' off the board", offer.id));
             assert_eq!(
-                offer.id.posting,
-                slot.posting + 1,
+                posting,
+                standing.posting + 1,
                 "JobPostings posts '{}' but the slot is on posting {}",
                 offer.id,
-                slot.posting
+                standing.posting
             );
-            *slot = SlotPosting {
-                posting: offer.id.posting,
+            *standing = SlotPosting {
+                posting,
                 posted_at: now,
                 offer,
                 paid_refresh_requested: false,
@@ -362,6 +576,17 @@ impl JobPostings {
             .values()
             .flatten()
             .flat_map(|slot| slot.offer.item_ids())
+            .chain(
+                self.visits
+                    .values()
+                    .flatten()
+                    .flat_map(|posting| posting.offer.item_ids()),
+            )
+    }
+
+    /// Every visit posting, in station order.
+    pub fn each_visit_posting(&self) -> impl Iterator<Item = &VisitPosting> + '_ {
+        self.visits.values().flatten()
     }
 
     /// Refuse a record a Load could not have built: a board with other than
@@ -386,11 +611,7 @@ impl JobPostings {
                         slot.posted_at
                     ));
                 }
-                let id = JobId {
-                    station: station.clone(),
-                    slot: index as u32,
-                    posting: slot.posting,
-                };
+                let id = JobId::slot(station.clone(), index as u32, slot.posting);
                 if slot.offer.id != id {
                     return Err(format!(
                         "the postings of '{station}' post '{}' on slot {index}, posting {}",
@@ -400,8 +621,42 @@ impl JobPostings {
                 slot.offer.validate()?;
             }
         }
+        for (station, postings) in &self.visits {
+            if postings.is_empty() {
+                return Err(format!("the visit postings of '{station}' are empty"));
+            }
+            for (index, posting) in postings.iter().enumerate() {
+                let id = &posting.offer.id;
+                if id.station != *station || id.slot_posting().is_some() {
+                    return Err(format!(
+                        "the visit postings of '{station}' hold '{id}', no visit job of it"
+                    ));
+                }
+                if !posting.posted_at.is_finite()
+                    || posting.posted_at < 0.0
+                    || posting.posted_at > clock_seconds
+                {
+                    return Err(format!(
+                        "the visit posting '{id}' is stamped at {} s of play but the clock \
+                         reads {clock_seconds} s",
+                        posting.posted_at
+                    ));
+                }
+                if postings[..index].iter().any(|other| other.offer.id == *id) {
+                    return Err(format!(
+                        "the visit postings of '{station}' hold '{id}' twice"
+                    ));
+                }
+                posting.offer.validate()?;
+            }
+        }
         Ok(())
     }
+}
+
+/// Whether the player neither holds, completed nor dropped the job `id`.
+fn is_open(jobs: &Jobs, id: &JobId) -> bool {
+    !jobs.holds(id) && !jobs.is_completed(id) && !jobs.is_dropped(id)
 }
 
 /// Which kinds a start role's boards lean to. Authored on the start role;
@@ -686,11 +941,21 @@ impl Job {
     /// reward, a slot past the board, a hand-in elsewhere than the poster,
     /// or a spawned body not named by the job.
     pub fn validate(&self) -> Result<(), String> {
-        if self.id.slot >= JOBS_PER_BOARD {
-            return Err(format!(
-                "the job '{}' holds slot {}, past the {JOBS_PER_BOARD} a board posts",
-                self.id, self.id.slot
-            ));
+        match self.id.source {
+            JobSourceType::Slot { slot, .. } if slot >= JOBS_PER_BOARD => {
+                return Err(format!(
+                    "the job '{}' holds slot {slot}, past the {JOBS_PER_BOARD} a board posts",
+                    self.id
+                ));
+            }
+            JobSourceType::Visit { .. } if !self.kind.is_procurement() => {
+                return Err(format!(
+                    "the visit job '{}' is a {}, not a procurement",
+                    self.id,
+                    self.kind.label()
+                ));
+            }
+            JobSourceType::Slot { .. } | JobSourceType::Visit { .. } => {}
         }
         if self.reward_cr == 0 {
             return Err(format!("the job '{}' pays nothing", self.id));
@@ -1211,8 +1476,13 @@ pub fn station_job_offers(
     for (index, id) in ids.iter().enumerate() {
         assert!(
             id.station == *station
-                && id.slot < JOBS_PER_BOARD
-                && ids[..index].iter().all(|other| other.slot != id.slot),
+                && id
+                    .slot_posting()
+                    .is_some_and(|(slot, _)| slot < JOBS_PER_BOARD)
+                && ids[..index]
+                    .iter()
+                    .all(|other| other.slot_posting().map(|(slot, _)| slot)
+                        != id.slot_posting().map(|(slot, _)| slot)),
             "station_job_offers: '{id}' is not a slot of its own on the board of '{station}'"
         );
     }
@@ -1257,12 +1527,13 @@ pub fn station_job_offers(
     ids.iter()
         .map(|id| {
             let id = id.clone();
+            let (slot, posting) = id.slot_posting().expect("checked above: a slot id");
             let key = Fnv64::new()
                 .write(&seed.to_le_bytes())
                 .write(b"station_jobs")
                 .write(station.to_string().as_bytes())
-                .write(&id.slot.to_le_bytes())
-                .write(&id.posting.to_le_bytes())
+                .write(&slot.to_le_bytes())
+                .write(&posting.to_le_bytes())
                 .finish();
             let mut rng = WyRand::from_seed(key.to_le_bytes());
             // A fixed number of draws per slot, whatever the kind decides.
@@ -1765,11 +2036,7 @@ mod tests {
     /// The ids of `station`'s first postings, in slot order.
     fn first_ids(station: &GeneratedBodyId) -> Vec<JobId> {
         (0..JOBS_PER_BOARD)
-            .map(|slot| JobId {
-                station: station.clone(),
-                slot,
-                posting: 0,
-            })
+            .map(|slot| JobId::slot(station.clone(), slot, 0))
             .collect()
     }
 
@@ -1841,8 +2108,7 @@ mod tests {
         );
         for (slot, job) in posted.iter().enumerate() {
             job.validate().unwrap();
-            assert_eq!(job.id.slot, slot as u32);
-            assert_eq!(job.id.posting, 0);
+            assert_eq!(job.id.slot_posting(), Some((slot as u32, 0)));
             assert_eq!(job.posted_by(), &station(1));
             assert_eq!(&job.target, &station(1));
         }
@@ -1962,7 +2228,7 @@ mod tests {
                             hauler.to_string(),
                             format!(
                                 "sector_1_0_0_cluster_0_0_0_station_job_{}_0_hauler_0",
-                                job.id.slot
+                                job.id.slot_posting().unwrap().0
                             )
                         );
                         assert!(job.reward_cr > cargo_cr / 2);
@@ -2154,11 +2420,7 @@ mod tests {
     fn an_offer_refresh_checks_current_held_expired_docked_and_the_fee_in_order() {
         let poster = station(1);
         let elsewhere = station(2);
-        let id = JobId {
-            station: poster.clone(),
-            slot: 0,
-            posting: 0,
-        };
+        let id = JobId::slot(poster.clone(), 0, 0);
         assert_eq!(
             plan_job_offer_refresh(&id, false, false, false, Some(&poster), 1_000, 1_000),
             Err(JobOfferRefreshRefusalType::Stale)
@@ -2230,10 +2492,7 @@ mod tests {
 
         postings.request_paid_refresh(&id);
         assert!(postings.slot(&id).unwrap().paid_refresh_requested);
-        let renewed = JobId {
-            posting: 1,
-            ..id.clone()
-        };
+        let renewed = id.next_posting();
         let drawn = station_job_offers(
             10,
             std::slice::from_ref(&renewed),
@@ -2369,11 +2628,7 @@ mod tests {
         elsewhere.target = station(2);
         assert!(elsewhere.validate().unwrap_err().contains("poster"));
         let mut foreign = Job {
-            id: JobId {
-                station: poster.clone(),
-                slot: 1,
-                posting: 0,
-            },
+            id: JobId::slot(poster.clone(), 1, 0),
             kind: JobType::Escort {
                 hauler: body("other_hauler", 0),
                 cargo_cr: 500,
@@ -2392,11 +2647,7 @@ mod tests {
     #[test]
     fn validate_refuses_a_leg_no_undone_escort_holds_and_an_undone_escort_without_a_leg() {
         let (_, poster, procurement) = a_procurement();
-        let id = JobId {
-            station: poster.clone(),
-            slot: 1,
-            posting: 0,
-        };
+        let id = JobId::slot(poster.clone(), 1, 0);
         let escort = Job {
             kind: JobType::Escort {
                 hauler: id.spawned_body("hauler", 0),
@@ -2478,11 +2729,7 @@ mod tests {
                 .map(|offer| (0, 0.0, offer))
                 .collect::<Vec<_>>()
         );
-        let renewed = JobId {
-            station: poster.clone(),
-            slot: 0,
-            posting: 1,
-        };
+        let renewed = JobId::slot(poster.clone(), 0, 1);
         let standing = before[1..].to_vec();
         let drawn = station_job_offers(
             10,
@@ -2566,10 +2813,7 @@ mod tests {
             postings.slot(&id).unwrap().paid_refresh_requested,
             "the request marks the slot's current posting"
         );
-        let renewed = JobId {
-            posting: 1,
-            ..id.clone()
-        };
+        let renewed = id.next_posting();
         let drawn = station_job_offers(
             10,
             std::slice::from_ref(&renewed),
@@ -2595,11 +2839,7 @@ mod tests {
             board(10, &poster, &[], &catalog(), JobMixType::Combat, &field()),
             0.0,
         );
-        postings.request_paid_refresh(&JobId {
-            station: poster,
-            slot: JOBS_PER_BOARD,
-            posting: 0,
-        });
+        postings.request_paid_refresh(&JobId::slot(poster, JOBS_PER_BOARD, 0));
     }
 
     #[test]
@@ -2611,11 +2851,7 @@ mod tests {
             board(10, &poster, &[], &catalog(), JobMixType::Combat, &field()),
             0.0,
         );
-        postings.request_paid_refresh(&JobId {
-            station: poster,
-            slot: 0,
-            posting: 1,
-        });
+        postings.request_paid_refresh(&JobId::slot(poster, 0, 1));
     }
 
     /// A posted offer is the record: a dropped recovery whose wreck is gone
@@ -2647,10 +2883,7 @@ mod tests {
         let mut gone = field.clone();
         gone.wrecks.retain(|candidate| candidate.id != wreck);
         let other = (k + 1) % JOBS_PER_BOARD as usize;
-        let next = JobId {
-            posting: 1,
-            ..before[other].id.clone()
-        };
+        let next = before[other].id.next_posting();
         let standing: Vec<Job> = before
             .iter()
             .filter(|job| job.id != before[other].id)
@@ -2679,10 +2912,7 @@ mod tests {
             "the dropped recovery's posting is retired"
         );
 
-        let renewed = JobId {
-            posting: 1,
-            ..recovery.id.clone()
-        };
+        let renewed = recovery.id.next_posting();
         let standing: Vec<Job> = postings
             .board(&poster)
             .unwrap()
@@ -2920,11 +3150,7 @@ mod tests {
     fn the_hull_gate_refuses_each_kind_the_hull_cannot_do_and_passes_a_fit_hull() {
         let items = catalog();
         let poster = station(0);
-        let id = |slot| JobId {
-            station: poster.clone(),
-            slot,
-            posting: 0,
-        };
+        let id = |slot| JobId::slot(poster.clone(), slot, 0);
         let job = |slot, kind| Job {
             id: id(slot),
             kind,
@@ -3025,11 +3251,7 @@ mod tests {
     #[test]
     fn a_held_job_measures_the_stack_in_the_hold_and_a_located_job_by_done() {
         let poster = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
-        let id = JobId {
-            station: poster.clone(),
-            slot: 0,
-            posting: 0,
-        };
+        let id = JobId::slot(poster.clone(), 0, 0);
         let procure = Job {
             id: id.clone(),
             kind: JobType::Procure {
@@ -3071,5 +3293,106 @@ mod tests {
         };
         assert_eq!(escort.progress(Some(&hold), false), (0, 1));
         assert_eq!(escort.progress(Some(&hold), true), (1, 1));
+    }
+
+    /// A visit job: the `index`th job of `ship`'s first visit to `station`,
+    /// a procurement of iron ore.
+    fn visit_job(station: &GeneratedBodyId, ship: &GeneratedBodyId, index: u32) -> Job {
+        Job {
+            id: JobId {
+                station: station.clone(),
+                source: JobSourceType::Visit {
+                    visit: crate::station_visits::prelude::StationVisitId {
+                        ship: ship.clone(),
+                        ordinal: 0,
+                    },
+                    index,
+                },
+            },
+            kind: JobType::Procure {
+                item: "IronOre".into(),
+                count: 2,
+            },
+            target: station.clone(),
+            reward_cr: 40,
+        }
+    }
+
+    /// A visitor's jobs stand beside the slots under their own ids. An
+    /// accepted one outlives the window renewal and its own deadline; an
+    /// open one goes at the first window renewal of its station after its
+    /// posting or at its own [`VISIT_EXTRA_OFFER_SECONDS`], whichever comes
+    /// first; a completed
+    /// one leaves the board without taking the others with it.
+    #[test]
+    fn an_accepted_visit_job_outlives_renewal_and_deadline_while_an_open_one_does_not() {
+        let station = station(1);
+        let ship = body("cluster_1_0_0_hull", 0);
+        let [held, open, done, late] = [0, 1, 2, 3].map(|index| visit_job(&station, &ship, index));
+        assert_eq!(
+            held.id.to_string(),
+            format!("{station}#{ship}_visit_0.0"),
+            "a visit job is named by its station, its visit and its index"
+        );
+        assert_eq!(held.id.slot_posting(), None, "a visit job holds no slot");
+        held.validate().unwrap();
+
+        let mut postings = JobPostings::default();
+        let mut jobs = Jobs::default();
+        for job in [&held, &open, &done] {
+            postings.post_visit(job.clone(), 100.0);
+        }
+        assert_eq!(postings.open_visit_postings(&station, &jobs), 3);
+        jobs.accept(held.clone());
+        jobs.accept(done.clone());
+        assert_eq!(
+            postings.open_visit_postings(&station, &jobs),
+            1,
+            "a held job is no open posting"
+        );
+        jobs.complete(&done.id);
+        assert_eq!(
+            postings.expire_visit_postings(&jobs, 200.0),
+            vec![done.id.clone()],
+            "a completed job leaves the board and the others stand"
+        );
+
+        // The window renewal takes the open one and keeps the held one.
+        assert_eq!(postings.retire_visit_postings(&station, &jobs, 200.0), 1);
+        assert!(postings.visit_posting(&open.id).is_none());
+        assert!(postings.visit_posting(&held.id).is_some());
+
+        // A later visitor's open job dies at its own deadline; the held one
+        // stands past it.
+        postings.post_visit(late.clone(), 300.0);
+        assert_eq!(
+            postings.retire_visit_postings(&station, &jobs, 300.0),
+            0,
+            "a visitor that docks on the renewal frame keeps its posting"
+        );
+        let deadline = 300.0 + VISIT_EXTRA_OFFER_SECONDS;
+        assert!(postings
+            .expire_visit_postings(&jobs, deadline - 1.0)
+            .is_empty());
+        assert_eq!(
+            postings.remaining(
+                &late.id,
+                JobOfferRule {
+                    offer_seconds: 60.0,
+                    escort_offer_seconds: 60.0,
+                },
+                deadline - 1.0
+            ),
+            Some(1.0)
+        );
+        assert_eq!(
+            postings.expire_visit_postings(&jobs, deadline),
+            vec![late.id.clone()]
+        );
+        assert!(postings.visit_posting(&held.id).is_some());
+        assert!(postings
+            .expire_visit_postings(&jobs, deadline * 10.0)
+            .is_empty());
+        postings.validate(deadline * 10.0).unwrap();
     }
 }
