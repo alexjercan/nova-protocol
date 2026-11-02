@@ -372,6 +372,13 @@ mod walk {
                 StationVisitPhaseType::Departing { released_at_s, .. } => {
                     watch.released_at_s = Some(*released_at_s);
                 }
+                StationVisitPhaseType::Withdrawing { failed_at_s } => {
+                    panic!(
+                        "station visits: FAIL the visit '{}' withdrew at {failed_at_s:.1} s of \
+                         play without docking",
+                        visit.id
+                    );
+                }
             },
             _ => {
                 if watch.ended_at_s.is_none() {

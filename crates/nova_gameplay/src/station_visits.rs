@@ -9,7 +9,10 @@
 //! with its receipt on the frame the dock captures ([`StationVisits::dock`]),
 //! to [`StationVisitPhaseType::Departing`] when the ship lets go
 //! ([`StationVisits::depart`]), and ends when the ship stands clear of the
-//! station or the visit fails ([`StationVisits::end`]). The receipt is
+//! station ([`StationVisits::end`]). An approach that fails or runs out of
+//! time moves to [`StationVisitPhaseType::Withdrawing`]
+//! ([`StationVisits::withdraw`]) and also ends once the ship stands clear;
+//! a visit whose ship or station is lost ends at once. The receipt is
 //! written in the same frame as the transfers it lists, so a visit trades
 //! and posts at most once, whatever freezes, thaws or Loads come after.
 //!
@@ -110,13 +113,21 @@ pub enum StationVisitPhaseType {
         /// What the visit traded and posted while docked.
         receipt: StationVisitReceipt,
     },
+    /// Its approach failed or ran out of time at `failed_at_s`, with nothing
+    /// traded, and it flies clear of the station's port corridors like a
+    /// departing visit. The station stays reserved, so the next visitor never
+    /// plans its corridor through the hull that failed.
+    Withdrawing {
+        /// The `WorldClock` play seconds the approach failed at.
+        failed_at_s: f64,
+    },
 }
 
 impl StationVisitPhaseType {
     /// What the visit traded and posted, once it docked.
     pub fn receipt(&self) -> Option<&StationVisitReceipt> {
         match self {
-            Self::Approaching => None,
+            Self::Approaching | Self::Withdrawing { .. } => None,
             Self::Docked { receipt, .. } | Self::Departing { receipt, .. } => Some(receipt),
         }
     }
@@ -137,7 +148,8 @@ pub struct StationVisit {
     /// The `WorldClock` play seconds at the bind.
     pub bound_at_s: f64,
     /// The play seconds the open world walked this visit in its current
-    /// phase: zero at the bind, the capture and the release, and still while
+    /// phase: zero at the bind, the capture, the release and the failure, and
+    /// still while
     /// the ship or its station stands frozen.
     pub live_s: f64,
     /// Where it stands.
@@ -291,6 +303,28 @@ impl StationVisits {
         visit.live_s = 0.0;
     }
 
+    /// Record that `ship`'s approaching visit failed at `now_s`, with
+    /// nothing traded, and now flies clear of its station.
+    ///
+    /// # Panics
+    ///
+    /// When `ship` has no approaching visit: the open world withdraws a visit
+    /// once, on the frame its approach fails.
+    pub fn withdraw(&mut self, ship: &GeneratedBodyId, now_s: f64) {
+        let visit = self
+            .ships
+            .get_mut(ship)
+            .and_then(|visits| visits.pending.as_mut())
+            .unwrap_or_else(|| panic!("StationVisits withdraws '{ship}', which has no visit"));
+        assert!(
+            visit.phase == StationVisitPhaseType::Approaching,
+            "StationVisits withdraws '{}', which is not approaching",
+            visit.id
+        );
+        visit.phase = StationVisitPhaseType::Withdrawing { failed_at_s: now_s };
+        visit.live_s = 0.0;
+    }
+
     /// Add `seconds` of play the open world walked `ship`'s pending visit
     /// for to its phase clock.
     ///
@@ -350,8 +384,8 @@ impl StationVisits {
     /// a visit filed under another ship, a visit number the ship has not
     /// reached, a ship that visits itself, two visits to one station, a
     /// stamp that is not finite, is negative or stands ahead of the clock at
-    /// `clock_seconds`, a capture before the bind, a release before the
-    /// capture, a phase clock longer than its phase has stood, or a receipt
+    /// `clock_seconds`, a capture or a failure before the bind, a release
+    /// before the capture, a phase clock longer than its phase has stood, or a receipt
     /// job that is not this visit's posting at this station.
     pub fn validate(&self, clock_seconds: f64) -> Result<(), String> {
         let stamp_ok = |at: f64| at.is_finite() && at >= 0.0 && at <= clock_seconds;
@@ -400,6 +434,16 @@ impl StationVisits {
             }
             let phase_start = match &visit.phase {
                 StationVisitPhaseType::Approaching => visit.bound_at_s,
+                StationVisitPhaseType::Withdrawing { failed_at_s } => {
+                    if !stamp_ok(*failed_at_s) || *failed_at_s < visit.bound_at_s {
+                        return Err(format!(
+                            "the visit '{}' failed at {failed_at_s} s of play, bound at {} s, \
+                             but the clock reads {clock_seconds} s",
+                            visit.id, visit.bound_at_s
+                        ));
+                    }
+                    *failed_at_s
+                }
                 StationVisitPhaseType::Docked { docked_at_s, .. }
                 | StationVisitPhaseType::Departing { docked_at_s, .. } => {
                     if !stamp_ok(*docked_at_s) || *docked_at_s < visit.bound_at_s {

@@ -21,8 +21,8 @@
 //!   and asks to be let go, and the visit departs: once undocked, the ship
 //!   takes a Move order out along the line from the station's centre
 //!   through it, [`VISIT_DEPART_CLEARANCE`] past both hulls' reach. The
-//!   station stays reserved until that order reports or
-//!   [`VISIT_DEPART_MAX`] of play passes, so the next visitor never plans
+//!   station stays reserved until that order reports, the ship stands that
+//!   far out or [`VISIT_DEPART_MAX`] of play passes, so the next visitor never plans
 //!   its corridor through the departing hull. Then the visit ends and the
 //!   ship's next visit waits a seeded [`VISIT_WAIT`].
 //!
@@ -36,11 +36,16 @@
 //! visit: an approaching ship resumes its approach, a docked one holds its
 //! restored dock until its dwell passes, and a departing one flies clear.
 //!
-//! A visit ends with a warning and no transfer when its Dock order fails
-//! (no safe path, a hostile station, an overrun), when a script gives its
-//! ship another order before the capture, when it has not docked after
-//! [`VISIT_APPROACH_MAX`] of walked play, or when its ship or its station is
-//! neutralized, derelict or taken by the player. A ship docked at a station
+//! A visit withdraws with a warning and no transfer when its Dock order
+//! fails (no safe path, a hostile station, an overrun) or when it has not
+//! docked after [`VISIT_APPROACH_MAX`] of walked play: the ship flies clear
+//! like a departing visitor, and the station stays reserved until it does,
+//! so the next visitor never plans its corridor through the failed hull. A
+//! departing or withdrawing visit also ends as soon as its ship stands that
+//! far from the station. A visit ends at once with a warning and no
+//! transfer when a script gives its ship another order before the capture,
+//! or when its ship or its station is neutralized, derelict or taken by the
+//! player. A ship docked at a station
 //! that stops living is let go. The `ondestroyed` of either body ends the
 //! visit in [`end_visits_on_loss`].
 
@@ -94,7 +99,9 @@ fn depart_key(visit: &StationVisitId) -> String {
 /// The key of the order `phase` flies under.
 fn phase_key(visit: &StationVisitId, phase: &StationVisitPhaseType) -> String {
     match phase {
-        StationVisitPhaseType::Departing { .. } => depart_key(visit),
+        StationVisitPhaseType::Departing { .. } | StationVisitPhaseType::Withdrawing { .. } => {
+            depart_key(visit)
+        }
         StationVisitPhaseType::Approaching | StationVisitPhaseType::Docked { .. } => {
             order_key(visit)
         }
@@ -109,8 +116,8 @@ fn phase_key(visit: &StationVisitId, phase: &StationVisitPhaseType) -> String {
 /// few hundred metres across.
 const VISIT_DEPART_CLEARANCE: Meters = Meters(1_000.0);
 
-/// The walked play seconds a departing visit may fly before its station is
-/// free again whatever its Move order says.
+/// The walked play seconds a departing or withdrawing visit may fly before
+/// its station is free again whatever its Move order says.
 const VISIT_DEPART_MAX: f64 = 300.0;
 
 /// A seeded wait in `band` for `ship`'s visit number `ordinal`, in the
@@ -362,20 +369,12 @@ pub(crate) fn drive_station_visits(
                     visits.dock(id, now, receipt);
                 } else if ours && reported {
                     warn!(
-                        "nova_world_base: the visit '{}' to '{}' ends with no transfer: its \
-                         Dock order failed",
+                        "nova_world_base: the visit '{}' to '{}' withdraws with no transfer: \
+                         its Dock order failed",
                         visit.id, visit.station
                     );
-                    end_visit(
-                        &mut commands,
-                        &mut visits,
-                        seed,
-                        now,
-                        ship,
-                        &visit,
-                        true,
-                        false,
-                    );
+                    visits.withdraw(id, now);
+                    commands.queue(move |world: &mut World| cancel_ship_order(world, ship));
                 } else if let (false, Some(order)) = (ours, order) {
                     // A script ordered the ship elsewhere: the visit gives way.
                     warn!(
@@ -395,20 +394,14 @@ pub(crate) fn drive_station_visits(
                     );
                 } else if visit.live_s > VISIT_APPROACH_MAX {
                     warn!(
-                        "nova_world_base: the visit '{}' to '{}' ends with no transfer: no dock \
-                         after {VISIT_APPROACH_MAX:.0} s of walked play",
+                        "nova_world_base: the visit '{}' to '{}' withdraws with no transfer: no \
+                         dock after {VISIT_APPROACH_MAX:.0} s of walked play",
                         visit.id, visit.station
                     );
-                    end_visit(
-                        &mut commands,
-                        &mut visits,
-                        seed,
-                        now,
-                        ship,
-                        &visit,
-                        ours,
-                        false,
-                    );
+                    visits.withdraw(id, now);
+                    if ours {
+                        commands.queue(move |world: &mut World| cancel_ship_order(world, ship));
+                    }
                 } else if !ours {
                     // Just bound, thawed or loaded: the order is never saved.
                     if let Some(station) = station {
@@ -437,7 +430,16 @@ pub(crate) fn drive_station_visits(
                     install(&mut commands, station.entity);
                 }
             }
-            StationVisitPhaseType::Departing { .. } => {
+            StationVisitPhaseType::Departing { .. } | StationVisitPhaseType::Withdrawing { .. } => {
+                // A hull not measured yet waits a frame for its reach.
+                let reach = station.and_then(|station| {
+                    let (own, host) = (
+                        envelopes.get(ship).ok()?,
+                        envelopes.get(station.entity).ok()?,
+                    );
+                    Some((station, **own + **host + VISIT_DEPART_CLEARANCE.to_engine()))
+                });
+                let from = at.translation();
                 let clear = if ours && reported {
                     Some("its departure order reported")
                 } else if order.is_some_and(|order| order.key != key) {
@@ -446,6 +448,12 @@ pub(crate) fn drive_station_visits(
                     Some("its departure ran out of time")
                 } else if station.is_none() {
                     Some("its station left the window")
+                } else if docked.is_none()
+                    && reach.is_some_and(|(station, reach)| {
+                        from.distance(station.at.to_engine()) >= reach
+                    })
+                {
+                    Some("its ship stands clear")
                 } else {
                     None
                 };
@@ -465,30 +473,23 @@ pub(crate) fn drive_station_visits(
                         ours,
                         false,
                     );
-                } else if let (None, None, Some(station)) = (order, docked, station) {
+                } else if let (None, None, Some((station, reach))) = (order, docked, reach) {
                     // Undocked, or thawed or loaded with no order: fly clear.
-                    // A hull not measured yet waits a frame for its reach.
-                    if let (Ok(own), Ok(host)) =
-                        (envelopes.get(ship), envelopes.get(station.entity))
-                    {
-                        let from = at.translation();
-                        let host_at = station.at.to_engine();
-                        let out = (from - host_at).try_normalize().unwrap_or(Vec3::Y);
-                        let reach = **own + **host + VISIT_DEPART_CLEARANCE.to_engine();
-                        if !has_reports {
-                            commands.entity(ship).insert(ShipOrderReports::default());
-                        }
-                        commands.entity(ship).insert((
-                            ShipHelmOrder::new(
-                                key.clone(),
-                                ShipOrderDirective::Move {
-                                    position: host_at + out * reach,
-                                    arrival_standoff: None,
-                                },
-                            ),
-                            ShipOrderHelmAuthority,
-                        ));
+                    let host_at = station.at.to_engine();
+                    let out = (from - host_at).try_normalize().unwrap_or(Vec3::Y);
+                    if !has_reports {
+                        commands.entity(ship).insert(ShipOrderReports::default());
                     }
+                    commands.entity(ship).insert((
+                        ShipHelmOrder::new(
+                            key.clone(),
+                            ShipOrderDirective::Move {
+                                position: host_at + out * reach,
+                                arrival_standoff: None,
+                            },
+                        ),
+                        ShipOrderHelmAuthority,
+                    ));
                 }
             }
         }
@@ -1275,7 +1276,7 @@ mod tests {
     struct Releases(Vec<Entity>);
 
     #[test]
-    fn a_lost_station_or_a_stalled_approach_ends_the_visit_without_a_transfer() {
+    fn a_lost_station_ends_the_visit_and_a_stalled_approach_withdraws_without_a_transfer() {
         // Destroyed: the observer ends it on the event.
         let mut rig = Rig::new(trading_profile(2));
         let (_, bound_at) = rig.bind();
@@ -1304,17 +1305,96 @@ mod tests {
         assert_visit_ended(&rig, bound_at + 1.0);
         assert_eq!(rig.ledger(), before, "no transfer, no posting");
 
-        // An approach that never docks gives the station back.
+        // An approach that never docks withdraws, flies clear and gives the
+        // station back.
         let mut rig = Rig::new(trading_profile(2));
-        let (_, bound_at) = rig.bind();
+        let (visit, bound_at) = rig.bind();
+        let before = rig.ledger();
         rig.at(bound_at + VISIT_APPROACH_MAX);
-        assert!(
-            rig.visit().is_some(),
+        assert_eq!(
+            rig.visit().map(|visit| visit.phase),
+            Some(StationVisitPhaseType::Approaching),
             "the approach still stands at the limit"
         );
-        let ended_at = bound_at + VISIT_APPROACH_MAX + 1.0;
-        rig.at(ended_at);
-        assert_visit_ended(&rig, ended_at);
+        let failed_at = bound_at + VISIT_APPROACH_MAX + 1.0;
+        rig.at(failed_at);
+        assert_eq!(
+            rig.visit().map(|visit| visit.phase),
+            Some(StationVisitPhaseType::Withdrawing {
+                failed_at_s: failed_at
+            })
+        );
+        rig.fly_clear(&visit.id, failed_at + 1.0);
+        rig.at(failed_at + 2.0);
+        assert_visit_ended(&rig, failed_at + 2.0);
+        assert_eq!(rig.ledger(), before, "no transfer, no posting");
+    }
+
+    /// A visitor whose Dock order fails near the station sits in or beside a
+    /// port corridor, so it keeps the station until it stands clear: the next
+    /// due ship does not bind and fail on its hull. A failed ship that already
+    /// stands that far out gives the station back at once.
+    #[test]
+    fn a_failed_approach_keeps_its_station_until_its_ship_stands_clear() {
+        let mut rig = Rig::new(trading_profile(2));
+        let (visit, bound_at) = rig.bind();
+        let before = rig.ledger();
+        let items = nova_gameplay::test_support::test_items();
+        let next_id = GeneratedBodyId::new(SectorCoord::new(0, 0, 0), "visitor", 1);
+        rig.app.world_mut().spawn((
+            SpaceshipRootMarker,
+            AISpaceshipMarker,
+            next_id.clone(),
+            GlobalTransform::from_xyz(-100.0, 0.0, 0.0),
+            Allegiance::Neutral,
+            market(Some(rig.profile.id.clone())),
+            ShipInventory::new(&items, 1_000_000, []),
+            ShipCredits(START_CR),
+        ));
+        let pending = |rig: &Rig, ship: &GeneratedBodyId| {
+            rig.app
+                .world()
+                .resource::<StationVisits>()
+                .pending(ship)
+                .cloned()
+        };
+        let failed_at = bound_at.max(seeded_wait(SEED, &next_id, 0, FIRST_VISIT_WAIT).ceil()) + 1.0;
+        rig.app
+            .world_mut()
+            .entity_mut(rig.ship)
+            .insert(ShipOrderReported);
+        rig.at(failed_at);
+        assert_eq!(
+            rig.visit().map(|visit| visit.phase),
+            Some(StationVisitPhaseType::Withdrawing {
+                failed_at_s: failed_at
+            })
+        );
+        assert_eq!(rig.order(), None, "the failed Dock order goes");
+        assert!(
+            pending(&rig, &next_id).is_none(),
+            "a due ship does not bind a station whose failed visitor is still near"
+        );
+        rig.fly_clear(&visit.id, failed_at + 1.0);
+        assert!(
+            pending(&rig, &next_id).is_none(),
+            "nor while it flies clear"
+        );
+
+        rig.app
+            .world_mut()
+            .entity_mut(rig.ship)
+            .insert(GlobalTransform::from_xyz(-2_000.0, 0.0, 0.0))
+            .remove::<ShipOrderReported>();
+        rig.at(failed_at + 2.0);
+        assert_visit_ended(&rig, failed_at + 2.0);
+        assert_eq!(rig.ledger(), before, "no transfer, no posting");
+        rig.at(failed_at + 3.0);
+        assert_eq!(
+            pending(&rig, &next_id).map(|visit| visit.station),
+            Some(rig.station_id.clone()),
+            "the station takes its next visitor once the failed one stands clear"
+        );
     }
 
     /// A visitor docked at a station that stops living leaves at once: the
@@ -1381,7 +1461,10 @@ mod tests {
         );
         rig.at(thawed_at + 100.0);
         assert!(
-            rig.visit().is_none(),
+            matches!(
+                rig.visit().map(|visit| visit.phase),
+                Some(StationVisitPhaseType::Withdrawing { .. })
+            ),
             "the approach runs out on walked play"
         );
 
