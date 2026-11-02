@@ -503,7 +503,9 @@ pub(super) fn local_gravity_accel(
 /// A hull that holds a velocity relative to a body falling in the same well
 /// holds against this tidal difference, not against the whole pull. The ship
 /// and the body fall together, so their velocity difference does not see the
-/// shared pull.
+/// shared pull. Each well is compared with itself, so this reads low for two
+/// bodies that inside overlapping SOIs fall toward different dominant wells;
+/// a generated orbiting station stands inside one SOI only.
 pub(super) fn relative_gravity_accel(
     wells: &[WellSample],
     point: Vec3,
@@ -1576,10 +1578,9 @@ pub(super) fn autopilot_step(
     //
     // A DOCK approach flies in its station's frame, and every station root is
     // a dynamic ship root the same wells pull. Its velocity error does not see
-    // the pull both bodies share, only the difference across the gap. Gated
-    // on the whole pull, a hull closing on a station orbiting a planetoid
-    // (1 u/s^2) was refused the RCS, hunted on its drive with its port axis
-    // swinging up to 130 deg off, and overran its deadline 27 u out.
+    // the pull both bodies share, only the difference across the gap; gated
+    // on the whole pull, a hull could never trim on its RCS at an orbiting
+    // station.
     let local_gravity_accel = match (autopilot.action, env.dock) {
         (AutopilotAction::DockApproach { .. }, Some(dock)) => relative_gravity_accel(
             env.wells,

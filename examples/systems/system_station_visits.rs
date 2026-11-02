@@ -39,10 +39,14 @@
 //! #           `autopilot: cycle complete, no panic`
 //! ```
 //! The frame-time window opens when the tracked visit binds and is refused if
-//! the visit docks or ends first: it measures the streamed window, station
-//! traffic included, while one Dock order flies. `probe run
-//! system_station_visits --repeat 5` gives a repeat set; a matched reference
-//! is the same seed on the same build with only the compared change.
+//! the visit leaves its approach first: it measures the streamed window,
+//! station traffic included, while one Dock order flies. The walk holds
+//! `Time<Virtual>`'s clamp at 1 s, not the default 0.25 s;
+//! `NOVA_PROBE_MAX_DELTA` pins it for a comparison. `probe run
+//! system_station_visits --release --repeat 5` gives a repeat set on a
+//! hardware GPU; on lavapipe the approach can end inside the window. A
+//! matched reference is the same seed on the same build with only the
+//! compared change.
 //!
 //! `NOVA_CAPTURE=1` also writes `station-visits-docked.png` of the docked
 //! visitor, `station-visits-released.png` of the same station after the

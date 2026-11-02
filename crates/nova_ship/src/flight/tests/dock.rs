@@ -161,8 +161,7 @@ fn a_dock_order_flies_a_side_port_hull_onto_a_moving_stations_free_port() {
 /// strong well, where the pull (1.05 u/s^2) is over the RCS gravity gate. The
 /// visitor co-orbits from 28 u off. Both bodies fall in the well, so the
 /// approach trims on the RCS against the tidal difference only. Gated on the
-/// whole pull, it hunted on its drive with its port axis swinging up to
-/// 130 deg off and overran its deadline 27 u out.
+/// whole pull, the hull hunts on its drive and overruns its deadline.
 #[test]
 fn a_dock_order_captures_at_a_station_orbiting_a_strong_well() {
     const RADIUS: f32 = 200.0;
