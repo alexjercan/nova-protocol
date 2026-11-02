@@ -1229,6 +1229,9 @@ mod tests {
 
         let mut app = App::new();
         app.init_resource::<Order>();
+        // The autopilot sweeps dock corridors through a `SpatialQuery`; no
+        // physics plugin runs here to insert its collider trees.
+        app.init_resource::<avian3d::collider_tree::ColliderTrees>();
         app.add_plugins((
             bevy::time::TimePlugin,
             crate::physics::prelude::PDControllerPlugin,
