@@ -49,6 +49,13 @@ use crate::{
 /// exceeds `rcs_accel * 0.15 = 0.74`, so its orbits stay on the main drive.
 const RCS_GRAVITY_AUTHORITY: f32 = 0.15;
 
+/// The magazine fill an idle RCS must refill to before the autopilot hands it
+/// a goal again. A trim that took the goal back on any nonempty magazine spent
+/// each tick's recovery the tick it arrived, so a magazine emptied against a
+/// standing pull (a tidal one at an orbiting station) never refilled and the
+/// main drive and the RCS traded the goal every tick.
+const RCS_RESUME_FRACTION: f32 = 0.5;
+
 /// The RCS deflection an RCS settle may still be pushing at when a rest leg
 /// releases, as a fraction of full deflection - the same wind-down the main
 /// drive's throttle is held to before release. The settle is proportional
@@ -529,6 +536,12 @@ pub(super) fn relative_gravity_accel(
         .iter()
         .map(|sample| (pull(sample, point) - pull(sample, frame)).length())
         .fold(0.0f32, f32::max)
+}
+
+/// Whether the autopilot may hand `budget`'s RCS a goal: a magazine in use
+/// keeps it down to empty, and an idle one only from [`RCS_RESUME_FRACTION`].
+fn rcs_magazine_ready(budget: &RcsBudget) -> bool {
+    !budget.is_empty() && (budget.idle == 0.0 || budget.fraction() >= RCS_RESUME_FRACTION)
 }
 
 /// Whether an RCS pushing at `rcs_accel` u/s^2 out-pushes a local well pull
@@ -1866,7 +1879,7 @@ pub(super) fn autopilot_step(
     // (`MatchVelocity::rcs`) flies as a hull without it.
     let capabilities = env.capabilities;
     let rcs_granted = capabilities.rcs_enabled && rcs_permitted;
-    let rcs_capable = rcs_granted && !helm.rcs_budget.is_empty() && error_speed > 1e-3;
+    let rcs_capable = rcs_granted && rcs_magazine_ready(&helm.rcs_budget) && error_speed > 1e-3;
     // The RCS takes a goal only where it has CLEAR authority over the local
     // gravity: its `rcs_accel` push must comfortably exceed the inward
     // pull, or a perturbed ship falls faster than RCS can correct - the

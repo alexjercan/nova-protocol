@@ -91,7 +91,7 @@ RCS is controlled translation rather than a main-engine burn: it accelerates at 
 <details class="explain">
 <summary>Show explanation</summary>
 
-Every push draws from the magazine by the velocity change it actually delivers, in any direction, braking included. An empty magazine pushes nothing, and holding the input on an empty magazine keeps it empty: the refill starts only once you let go. The push is a single linear impulse through the center of mass, so RCS never rotates the hull. The autopilot uses the same thrusters and the same magazine - **GOTO** settles its arrival on RCS, and **STOP** brakes entirely on RCS without turning the ship whenever it is moving below 100 m/s. Faster stops, or an empty magazine, still turn the main drive into the braking direction. The main drive never draws from the magazine.
+Every push draws from the magazine by the velocity change it actually delivers, in any direction, braking included. An empty magazine pushes nothing, and holding the input on an empty magazine keeps it empty: the refill starts only once you let go. The push is a single linear impulse through the center of mass, so RCS never rotates the hull. The autopilot uses the same thrusters and the same magazine - **GOTO** settles its arrival on RCS, and **STOP** brakes entirely on RCS without turning the ship whenever it is moving below 100 m/s. Faster stops, or an empty magazine, still turn the main drive into the braking direction. After the jets pause, the autopilot uses them again only once the magazine is at least half full. The main drive never draws from the magazine.
 
 </details>
 

@@ -26,6 +26,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Generated traders now fly to a station within 20 km, dock, trade real cargo and credits, post their jobs, undock after 60 s and fly 1 km clear. A station takes one visitor at a time.
 - Each living station now has two generated ships of its own civilization 2 to 4 km from it, so most new worlds have a trader in visit range of the start station.
 - A visitor posts up to 3 extra jobs beside a station's 3 slots. An open one goes at the next slot expiry or after 20 minutes; an accepted one stays until you finish or lose it.
+- The autopilot now waits for a paused RCS magazine to refill to half before it uses RCS again, so a hold against a steady pull no longer swaps between drive and RCS each tick.
 - **(breaking)** World saves now carry station visits and visitor jobs, so a docked visitor stays docked and never trades twice. Older world saves are refused.
 
 ### Modding & Mod Portal

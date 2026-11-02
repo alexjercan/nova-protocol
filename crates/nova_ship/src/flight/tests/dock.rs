@@ -21,9 +21,9 @@ const STATION_VELOCITY: Vec3 = Vec3::new(0.5, 0.0, 0.0);
 /// well past the approach's own liveness deadline.
 const APPROACH_FRAMES: usize = 12_000;
 
-/// Fixed ticks an approach round an orbiting station may take: 300 s, past
-/// the 270 s liveness deadline of its 60 u start.
-const ORBIT_APPROACH_FRAMES: usize = 18_000;
+/// Fixed ticks an approach round an orbiting station may take: 500 s, past
+/// the 422 s liveness deadline of its 300 u start.
+const ORBIT_APPROACH_FRAMES: usize = 30_000;
 
 /// The containment radius of a one-cell hull about its centre: half the cube's
 /// diagonal. This rig runs no section plugin to publish it.
@@ -602,14 +602,15 @@ fn docks_from_behind_the_slab(at: Vec3) {
     );
 }
 
-/// The same approach from 60 u under a slab orbiting a strong well at
-/// 12 u/s, close to a generated station's orbit: the detour corner moves with
-/// the station, so the hull reaches it and captures with no contact. A corner
-/// held as a fixed world point fell behind the station while the hull flew
-/// station velocity plus closing; the hull chased it round the orbit and the
-/// order failed on its deadline 214 u from the station.
+/// The same approach from 300 u under a slab orbiting a strong well at
+/// 12 u/s, close to a generated station's orbit, captures with no contact.
+/// Two faults each failed it on its deadline. A detour corner held as a fixed
+/// world point fell behind the station, and the hull chased it round the
+/// orbit. A trim against the tidal pull emptied the RCS magazine, then spent
+/// each tick's refill at once, so the hull held at the corridor entry with the
+/// drive and the RCS trading the goal and the axes never inside the gate.
 #[test]
-fn a_dock_order_from_behind_an_orbiting_station_routes_round_it_and_captures() {
+fn a_dock_order_from_far_behind_an_orbiting_station_routes_round_it_and_captures() {
     const RADIUS: f32 = 300.0;
     let mut app = dock_orbit_app();
     let well = spawn_strong_well(&mut app);
@@ -621,7 +622,7 @@ fn a_dock_order_from_behind_an_orbiting_station_routes_round_it_and_captures() {
     let at = Vec3::new(RADIUS, 0.0, 0.0);
     let orbit = Vec3::Z * nova_gameplay::gravity::circular_orbit_speed(mu, RADIUS);
     let (station, station_port) = slab_station(&mut app, false, at);
-    let offset = Vec3::new(0.0, -60.0, 0.0);
+    let offset = Vec3::new(0.0, -300.0, 0.0);
     let (ship, port) = placed_visitor(&mut app, station, offset, Quat::IDENTITY);
     // The settles let the well pull both bodies: start them again on the
     // orbit, together.
