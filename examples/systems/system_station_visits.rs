@@ -1072,6 +1072,75 @@ mod walk {
         info!("station visits: the player stands off the visitor at {stand:?}");
     }
 
+    /// Pin the scenario camera on the tracked visit's station, from the side
+    /// away from the player's stand-off, far enough out for the whole station
+    /// and the visitor while it is docked. The chase rig frames the player's
+    /// own hull, which hid the station in every shot at an orbiting station.
+    fn frame_the_station(world: &mut World) {
+        let Some(visit) = world.resource::<VisitWatch>().bound.clone() else {
+            return;
+        };
+        let Some(station) = body(world, &visit.station) else {
+            return;
+        };
+        let at = |world: &World, entity: Entity| {
+            world
+                .get::<GlobalTransform>(entity)
+                .map(|transform| transform.translation())
+        };
+        let Some(hub) = at(world, station) else {
+            return;
+        };
+        let visitor = body(world, &visit.id.ship).and_then(|ship| at(world, ship));
+        let envelope = world
+            .get::<HullEnvelopeRadius>(station)
+            .map_or(0.0, |radius| **radius);
+        let player = at(world, player(world)).unwrap_or(hub + Vec3::X);
+        // Engine units: the station's reach, out to a visitor that still
+        // stands near it.
+        let reach = visitor
+            .map_or(0.0, |visitor| visitor.distance(hub))
+            .min(4.0 * envelope)
+            .max(envelope);
+        let middle = visitor.filter(|visitor| visitor.distance(hub) <= 4.0 * envelope);
+        let middle = middle.map_or(hub, |visitor| (visitor + hub) * 0.5);
+        let away = (middle - player).normalize_or(Vec3::Z);
+        let eye = middle + (away + Vec3::Y * 0.3).normalize() * (3.0 * reach).max(40.0);
+        let camera = world
+            .query_filtered::<Entity, With<ScenarioCameraMarker>>()
+            .iter(world)
+            .next();
+        let Some(camera) = camera else {
+            warn!("station visits: no scenario camera to frame the station");
+            return;
+        };
+        world.entity_mut(camera).insert(ScriptedCameraPose {
+            position: Meters3::from_engine(eye),
+            look_at: Meters3::from_engine(middle),
+        });
+        info!(
+            "station visits: the camera frames '{}' from {} m, visitor {}",
+            visit.station,
+            Meters::from_engine(eye.distance(middle)).get(),
+            if visitor.is_some() {
+                "in frame"
+            } else {
+                "gone"
+            }
+        );
+    }
+
+    /// Hand the camera back to the chase rig, which never stopped solving.
+    fn release_the_frame(world: &mut World) {
+        let cameras: Vec<Entity> = world
+            .query_filtered::<Entity, With<ScriptedCameraPose>>()
+            .iter(world)
+            .collect();
+        for camera in cameras {
+            world.entity_mut(camera).remove::<ScriptedCameraPose>();
+        }
+    }
+
     /// Claims 4 and 5: the visit ended, the ship is free, the bound held.
     fn assert_the_end(world: &mut World) {
         let watch = world.resource::<VisitWatch>();
@@ -1521,9 +1590,16 @@ mod walk {
             .until(frames(SETTLE_FRAMES))
             .add()
             .step("station visits: shoot the docked visitor")
-            .on_enter(|world: &mut World| shoot(world, DOCKED_SHOT))
+            .on_enter(|world: &mut World| {
+                frame_the_station(world);
+                shoot(world, DOCKED_SHOT);
+            })
             .until(shot_written(DOCKED_SHOT))
             .deadline(BEAT_SECS)
+            .add()
+            .step("station visits: hand the camera back after the docked shot")
+            .on_enter(release_the_frame)
+            .until(frames(1))
             .add()
             .step("station visits: play time runs until the visit ends")
             .until(the_visit_ended_or_late())
@@ -1537,9 +1613,16 @@ mod walk {
             .until(frames(SETTLE_FRAMES))
             .add()
             .step("station visits: shoot the station after the visitor left")
-            .on_enter(|world: &mut World| shoot(world, RELEASED_SHOT))
+            .on_enter(|world: &mut World| {
+                frame_the_station(world);
+                shoot(world, RELEASED_SHOT);
+            })
             .until(shot_written(RELEASED_SHOT))
             .deadline(BEAT_SECS)
+            .add()
+            .step("station visits: hand the camera back after the released shot")
+            .on_enter(release_the_frame)
+            .until(frames(1))
             .add()
             .step("station visits: assert the end and the bound")
             .on_enter(assert_the_end)

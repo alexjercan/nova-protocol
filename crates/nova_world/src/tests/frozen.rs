@@ -1935,8 +1935,8 @@ fn absolute_motion(world: &World, entity: Entity) -> (Vec3, Vec3, Vec3) {
 /// A visitor docked at a station that rides a circular orbit thaws with the
 /// motion it froze with: right after the thaw both hulls hold their absolute
 /// pose, linear velocity and spin, and after more frames of gravity they
-/// match a pair that never froze, with the dock's frames and the
-/// station-relative pose unchanged.
+/// match a pair that never froze in position, velocity and spin, with the
+/// dock's frames and the station-relative pose unchanged.
 #[test]
 fn a_visitor_docked_at_an_orbiting_station_thaws_with_its_motion() {
     let (mut app, visitor, station, observer) = build_orbiting_station_dock();
@@ -2055,6 +2055,13 @@ fn a_visitor_docked_at_an_orbiting_station_thaws_with_its_motion() {
             absolute_motion(control.world(), control_visitor),
         ),
     ] {
+        assert!(
+            thawed.0.abs_diff_eq(never_froze.0, 1.0e-2),
+            "after settling: the {name}'s position differs from the pair that never froze: \
+             {:?} vs {:?}",
+            thawed.0,
+            never_froze.0
+        );
         assert!(
             thawed.1.abs_diff_eq(never_froze.1, 1.0e-3),
             "after settling: the {name}'s linear velocity differs from the pair that never \
