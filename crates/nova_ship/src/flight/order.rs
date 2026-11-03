@@ -901,6 +901,7 @@ fn engage_leg(
                     station: *station,
                     plan: None,
                     deadline: None,
+                    settled: false,
                 }));
             Ok(())
         }

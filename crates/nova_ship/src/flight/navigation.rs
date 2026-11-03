@@ -196,19 +196,6 @@ pub fn plan_leg(
     obstacles: &[(Vec3, f32)],
 ) -> LegPlan {
     let goal = goal_outside(goal, policy.clear_clearance(), obstacles);
-    route_leg(from, goal, held, policy, obstacles)
-}
-
-/// [`plan_leg`] to a goal that must not move: the goal is flown as given, not
-/// pushed out of a bubble. A DOCK approach's corridor entry is fixed by the
-/// port, and its selection already keeps it clear of every body.
-pub(super) fn route_leg(
-    from: Vec3,
-    goal: Vec3,
-    held: Option<Vec3>,
-    policy: DetourPolicy,
-    obstacles: &[(Vec3, f32)],
-) -> LegPlan {
     let mut corner = held;
     if let Some(held) = corner {
         let clear = first_blocker(
@@ -245,6 +232,168 @@ pub(super) fn route_leg(
         goal: corner.unwrap_or(goal),
         corner,
     }
+}
+
+/// How many directions [`search_leg`] tries a corner in about its goal.
+const SEARCH_DIRECTIONS: usize = 128;
+
+/// The nearest a [`search_leg`] corner stands from its goal, engine units;
+/// each further ring doubles it up to the mover's own distance.
+const SEARCH_NEAREST: f32 = 8.0;
+
+/// What [`search_leg`] says to fly this tick, and the length of the path it
+/// planned to the goal: through both corners when it needed two.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct SearchedLeg {
+    /// The position to fly at now and the corner to hold.
+    pub(super) plan: LegPlan,
+    /// The planned path's length, engine units.
+    pub(super) length: f32,
+}
+
+/// Plan one tick of a leg to a `goal` that must not move, round `obstacles`
+/// that stand still in the frame the leg is flown in.
+///
+/// A DOCK approach's leg A flies here in its station's frame, where a planet
+/// the station orbits closely is a ring of spheres with the station's bubble
+/// in its hole. [`plan_leg`] rounds the first blocker only, so its corner
+/// lands in the next sphere and hops between them; the way round the ring is
+/// never tried.
+///
+/// The direct leg is flown once it is clear, by the clear clearance while a
+/// corner is held. A held corner is kept while its leg stays clear, until it
+/// is reached. Otherwise corners are searched: [`SEARCH_DIRECTIONS`]
+/// directions about the goal at distances doubling from [`SEARCH_NEAREST`] to
+/// the mover's own distance, each past the mover's arrival window from it and
+/// outside every bubble by the clear clearance plus that window, as
+/// [`corner_around`] places its corner: wherever the mover calls a corner
+/// reached, it stands outside every bubble, so its next leg is never judged on
+/// contact alone. The shortest corner whose leg is clear
+/// and that sees the goal by the clear clearance wins. With none, the shortest
+/// pair of corners does, where the first is held and the second is searched
+/// again once the first is reached. With no pair, the corner rounds the first
+/// blocker as [`plan_leg`] does.
+pub(super) fn search_leg(
+    from: Vec3,
+    goal: Vec3,
+    held: Option<Vec3>,
+    policy: DetourPolicy,
+    obstacles: &[(Vec3, f32)],
+) -> SearchedLeg {
+    let blocked = |a: Vec3, b: Vec3, clearance: f32| {
+        first_blocker(a, b, clearance, policy.hull, obstacles.iter().copied()).is_some()
+    };
+    let through = |corner: Vec3| SearchedLeg {
+        plan: LegPlan {
+            goal: corner,
+            corner: Some(corner),
+        },
+        length: from.distance(corner) + corner.distance(goal),
+    };
+    let direct_clearance = if held.is_some() {
+        policy.clear_clearance()
+    } else {
+        policy.clearance
+    };
+    if !blocked(from, goal, direct_clearance) {
+        return SearchedLeg {
+            plan: LegPlan { goal, corner: None },
+            length: from.distance(goal),
+        };
+    }
+    if let Some(held) = held.filter(|&held| {
+        from.distance(held) > policy.arrive_radius && !blocked(from, held, policy.clearance)
+    }) {
+        return through(held);
+    }
+
+    let span = from.distance(goal);
+    let mut rings = Vec::new();
+    let mut distance = SEARCH_NEAREST;
+    while distance < span {
+        rings.push(distance);
+        distance *= 2.0;
+    }
+    rings.push(span);
+    let candidates: Vec<Vec3> = rings
+        .into_iter()
+        .flat_map(|distance| search_directions().map(move |direction| goal + direction * distance))
+        .filter(|&corner| {
+            from.distance(corner) > policy.arrive_radius
+                && obstacles.iter().all(|(center, radius)| {
+                    let keep = radius + policy.clear_clearance() + policy.arrive_radius;
+                    corner.distance_squared(*center) >= keep * keep
+                })
+        })
+        .collect();
+    let first: Vec<Vec3> = candidates
+        .iter()
+        .copied()
+        .filter(|&corner| !blocked(from, corner, policy.clearance))
+        .collect();
+    let sighted = |corner: Vec3| !blocked(corner, goal, policy.clear_clearance());
+    if let Some(corner) = first
+        .iter()
+        .copied()
+        .filter(|&corner| sighted(corner))
+        .min_by(|a, b| through(*a).length.total_cmp(&through(*b).length))
+    {
+        return through(corner);
+    }
+    let last: Vec<Vec3> = candidates
+        .into_iter()
+        .filter(|&corner| sighted(corner))
+        .collect();
+    let mut pairs: Vec<(f32, Vec3, Vec3)> = first
+        .iter()
+        .flat_map(|&one| {
+            last.iter().map(move |&two| {
+                (
+                    from.distance(one) + one.distance(two) + two.distance(goal),
+                    one,
+                    two,
+                )
+            })
+        })
+        .collect();
+    pairs.sort_by(|a, b| a.0.total_cmp(&b.0));
+    if let Some(&(length, one, _)) = pairs
+        .iter()
+        .find(|(_, one, two)| !blocked(*one, *two, policy.clearance))
+    {
+        return SearchedLeg {
+            plan: LegPlan {
+                goal: one,
+                corner: Some(one),
+            },
+            length,
+        };
+    }
+    match first_blocker(
+        from,
+        goal,
+        policy.clearance,
+        policy.hull,
+        obstacles.iter().copied(),
+    ) {
+        Some(blocker) => through(corner_around(from, goal, blocker, policy)),
+        None => SearchedLeg {
+            plan: LegPlan { goal, corner: None },
+            length: span,
+        },
+    }
+}
+
+/// [`SEARCH_DIRECTIONS`] unit directions spread evenly over the sphere: a
+/// Fibonacci lattice, the same set on every call.
+fn search_directions() -> impl Iterator<Item = Vec3> {
+    let golden = core::f32::consts::PI * (3.0 - 5.0_f32.sqrt());
+    (0..SEARCH_DIRECTIONS).map(move |index| {
+        let y = 1.0 - (index as f32 + 0.5) * 2.0 / SEARCH_DIRECTIONS as f32;
+        let ring = (1.0 - y * y).max(0.0).sqrt();
+        let angle = golden * index as f32;
+        Vec3::new(ring * angle.cos(), y, ring * angle.sin())
+    })
 }
 
 #[cfg(test)]
@@ -538,5 +687,59 @@ mod tests {
             "the flown goal is pushed out of the bubble, got {:?}",
             plan.goal
         );
+    }
+
+    /// A station orbiting 148 u from an 89.5 u planet sees the planet as a
+    /// ring of spheres about it, with its own 25 u bubble filling the ring's
+    /// hole. A hull 336 u above the ring, on the far side from a goal below
+    /// it, has no single clear corner; the search takes two, round the ring's
+    /// rim, and every leg it flies stays clear.
+    #[test]
+    fn a_goal_past_a_ring_with_a_filled_hole_is_reached_by_clear_corners() {
+        let policy = DetourPolicy {
+            clearance: 30.0,
+            hull: 10.0,
+            hysteresis: 10.0,
+            arrive_radius: 20.0,
+        };
+        let mut obstacles: Vec<(Vec3, f32)> = (0..60)
+            .map(|index| {
+                let angle = index as f32 * core::f32::consts::TAU / 60.0;
+                (Vec3::new(angle.cos(), 0.0, angle.sin()) * 148.0, 89.5)
+            })
+            .collect();
+        obstacles.push((Vec3::ZERO, 25.0));
+        let axis = Vec3::new(0.5, -(60.0_f32).to_radians().sin(), 0.0).normalize();
+        let goal = axis * 68.0;
+        let start = Vec3::new(0.0, 336.0, 0.0);
+        let clear = |from: Vec3, to: Vec3| {
+            first_blocker(
+                from,
+                to,
+                policy.clearance,
+                policy.hull,
+                obstacles.iter().copied(),
+            )
+            .is_none()
+        };
+
+        let first = search_leg(start, goal, None, policy, &obstacles);
+        let corner = first.plan.corner.expect("the direct leg is blocked");
+        assert!(
+            !clear(corner, goal),
+            "no single corner sees the goal: the first of two, got {corner:?}"
+        );
+        let mut from = start;
+        let mut corners = 0;
+        while let Some(corner) = search_leg(from, goal, None, policy, &obstacles).plan.corner {
+            assert!(
+                clear(from, corner),
+                "the leg {from:?} -> {corner:?} is clear"
+            );
+            from = corner;
+            corners += 1;
+            assert!(corners <= 2, "two corners reach the goal");
+        }
+        assert!(clear(from, goal), "the last leg is clear");
     }
 }

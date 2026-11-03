@@ -25,7 +25,7 @@ use super::{
         orbit_desired_velocity, orbit_plane_normal, orbit_ring_offset, orbit_target_radius,
         ship_turn_rate, slew_rotation, slew_urgency, spool_tail, stop_rest_distance, FlipEstimate,
     },
-    navigation::route_leg,
+    navigation::search_leg,
     thrusters::{
         balance_throttles, burn_input, choose_group, cluster_thrusters, hold_for_opposed_wind_down,
         spool, BalanceEngine,
@@ -306,6 +306,13 @@ fn dock_approach_deadline(to_entry: f32, corridor: f32, turn_rate: f32) -> f32 {
         + dock_closing_secs(corridor, GAP_SLACK);
     core::f32::consts::PI / turn_rate + DOCK_CLOSING_ALLOWANCE * closing + AI_EVADE_LEG_SLACK_SECS
 }
+
+/// The relative speed, u/s, at or under which a DOCK approach counts its hull
+/// settled onto the station's velocity: the closing cap plus 30%. A hull that
+/// arrives from cruise at an orbiting station arms its deadline 13 u/s off
+/// the station's velocity, overshoots while it brakes and plans a longer leg
+/// back; settled, it flies the closing law the deadline models.
+const DOCK_SETTLE_SPEED: f32 = 2.6;
 
 /// Extra clearance (u, 100 m) a DETOURING leg demands before it calls the
 /// direct leg clear again, so a leg grazing the margin cannot flip
@@ -797,6 +804,9 @@ pub(super) fn arrival_target(
 /// field's paths relative to the station; a corridor they come within
 /// `clearance` of is refused like a swept one.
 ///
+/// One approach per station flies at a time ([`dock_turns`]): without the
+/// `turn`, the approach waits as it does on held ports, before any selection.
+///
 /// The sweep runs only on a selection, at most once per free pair each time;
 /// a selected pair is never swept again while both its ports stay free, so a
 /// body that moves into its corridor later is not seen.
@@ -811,8 +821,8 @@ fn dock_approach_target<'a>(
     ship: Entity,
     autopilot: &mut Mut<Autopilot>,
     corridors: &DockCorridors,
-    clearance: f32,
-    forecast: &'a [(Entity, Vec3, f32)],
+    (clearance, forecast): (f32, &'a [(Entity, Vec3, f32)]),
+    turn: bool,
 ) -> Result<Option<DockTarget<'a>>, DisengageType> {
     let AutopilotAction::DockApproach {
         station,
@@ -836,6 +846,14 @@ fn dock_approach_target<'a>(
         );
         return Err(DisengageType::NoSafeDockPath);
     };
+    if !turn {
+        return Ok(Some(DockTarget {
+            pair: None,
+            station_velocity,
+            station_bubble,
+            forecast,
+        }));
+    }
     let held =
         selected.and_then(|plan| ports.pair(ship, plan.own_port, station, plan.station_port));
     let pair = match held {
@@ -864,11 +882,13 @@ fn dock_approach_target<'a>(
                     if let AutopilotAction::DockApproach {
                         plan: selected,
                         deadline,
+                        settled,
                         ..
                     } = &mut autopilot.action
                     {
                         *selected = Some(plan);
                         *deadline = None;
+                        *settled = false;
                     }
                     Some(pair)
                 }
@@ -900,6 +920,41 @@ fn dock_approach_target<'a>(
         station_bubble,
         forecast,
     }))
+}
+
+/// The one DOCK approach that flies to each station this tick, from every
+/// driving hull's action. Two hulls flown into one station's approach space at
+/// once foul each other's corridor and attitude: both overran in a live run.
+/// An approach whose deadline is armed is already flying and keeps its turn;
+/// otherwise the lowest entity bits take it. The rest wait at the station's
+/// velocity with their deadlines held, as on held ports, and take a turn when
+/// it ends.
+fn dock_turns(
+    approaches: impl Iterator<Item = (Entity, AutopilotAction)>,
+) -> EntityHashMap<Entity> {
+    let mut turns: EntityHashMap<(bool, u64, Entity)> = EntityHashMap::default();
+    for (ship, action) in approaches {
+        let AutopilotAction::DockApproach {
+            station, deadline, ..
+        } = action
+        else {
+            continue;
+        };
+        // Armed sorts first, then the lower bits.
+        let rank = (deadline.is_none(), ship.to_bits(), ship);
+        turns
+            .entry(station)
+            .and_modify(|best| {
+                if (rank.0, rank.1) < (best.0, best.1) {
+                    *best = rank;
+                }
+            })
+            .or_insert(rank);
+    }
+    turns
+        .into_iter()
+        .map(|(station, (_, _, ship))| (station, ship))
+        .collect()
 }
 
 /// The field forecast a DOCK approach by `ship` to `station` reads at `now`,
@@ -1070,6 +1125,12 @@ pub(super) fn autopilot_system(
             .is_ok_and(|(.., (docked, assembly), _)| docked.is_some() && assembly.is_none())
     });
     endings.retain(|(ship, _), _| q_roots.contains(*ship));
+    let dock_turns = dock_turns(
+        q_ship
+            .iter()
+            .filter(|(.., (docked, _), _)| docked.is_none_or(|docked| docked.drives))
+            .map(|(ship, autopilot, ..)| (ship, autopilot.action)),
+    );
     forecasts.retain(|ship, _| {
         q_ship.get(*ship).is_ok_and(|(_, autopilot, ..)| {
             matches!(autopilot.action, AutopilotAction::DockApproach { .. })
@@ -1155,8 +1216,8 @@ pub(super) fn autopilot_system(
             ship,
             &mut autopilot,
             &dock_corridors,
-            body.mover_radius + avoid_margin,
-            &forecast,
+            (body.mover_radius + avoid_margin, &forecast),
+            dock_turns.values().any(|&turn| turn == ship),
         ) {
             Ok(dock) => dock,
             Err(reason) => {
@@ -1199,6 +1260,35 @@ pub(super) fn autopilot_system(
             autopilot.set_changed();
         }
 
+        if let (
+            AutopilotAction::DockApproach {
+                station,
+                deadline: before,
+                settled: was_settled,
+                ..
+            },
+            AutopilotAction::DockApproach {
+                deadline: Some(deadline),
+                settled,
+                ..
+            },
+        ) = (action, autopilot.action)
+        {
+            let event = match (before, was_settled, settled) {
+                (None, _, _) => Some("armed"),
+                (Some(_), false, true) => Some("settled"),
+                _ => None,
+            };
+            if let Some(event) = event {
+                debug!(
+                    "autopilot_system: ship {ship:?} {event} its DOCK approach to station \
+                     {station:?}: {deadline:.1} s left, {:.1} u from it, {:.2} u/s off its velocity",
+                    dock.map_or(f32::NAN, |dock| dock.station_bubble.0.distance(body.center_of_mass)),
+                    dock.map_or(f32::NAN, |dock| (body.linear_velocity - dock.station_velocity)
+                        .length()),
+                );
+            }
+        }
         if let Some(gravity) = step.brake_degraded {
             debug!(
                 "autopilot_system: well pull {gravity} exceeds brake authority on the arrival \
@@ -1911,24 +2001,32 @@ pub(super) fn autopilot_step(
                             .map(|corner| corner + dock.station_velocity * dt);
                         // The entry is fixed by the port and kept clear of every
                         // path by the selection; it is flown as given.
-                        let leg = route_leg(com_world, goal, held, policy, &obstacles);
-                        if !leg.goal.is_finite() {
+                        let leg = search_leg(com_world, goal, held, policy, &obstacles);
+                        if !leg.plan.goal.is_finite() {
                             return disengaged(DisengageType::NoSafeLeg);
                         }
-                        autopilot.detour = leg.corner;
-                        let routed = leg.corner.map_or_else(
-                            || com_world.distance(goal),
-                            |corner| com_world.distance(corner) + corner.distance(goal),
-                        );
-                        (leg.goal - com_world, routed, false)
+                        autopilot.detour = leg.plan.corner;
+                        (leg.plan.goal - com_world, leg.length, false)
                     };
-                    let AutopilotAction::DockApproach { deadline, .. } = &mut autopilot.action
+                    let AutopilotAction::DockApproach {
+                        deadline, settled, ..
+                    } = &mut autopilot.action
                     else {
                         unreachable!("the arm matched a DOCK approach");
                     };
+                    let corridor = plan.entry - berth_gap;
                     let left = deadline.get_or_insert_with(|| {
-                        dock_approach_deadline(to_entry, plan.entry - berth_gap, turn_rate)
+                        dock_approach_deadline(to_entry, corridor, turn_rate)
                     });
+                    // Once, on the first tick the hull flies near the station's
+                    // velocity: the leg it plans from there is the one the
+                    // closing law flies. A hull that never settles keeps the
+                    // deadline it was armed with.
+                    if !*settled && (velocity - dock.station_velocity).length() <= DOCK_SETTLE_SPEED
+                    {
+                        *settled = true;
+                        *left = left.max(dock_approach_deadline(to_entry, corridor, turn_rate));
+                    }
                     *left -= dt;
                     if *left <= 0.0 {
                         return disengaged(DisengageType::DockDeadline);

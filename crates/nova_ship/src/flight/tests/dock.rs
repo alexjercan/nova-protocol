@@ -347,6 +347,7 @@ fn a_dock_order_captures_on_the_best_eligible_pair_when_it_is_not_the_selected_o
             station,
             plan: Some(seeded_plan(port, flush)),
             deadline: None,
+            settled: false,
         },
     );
 
@@ -402,6 +403,7 @@ fn a_nearer_free_pair_does_not_rearm_a_dock_approachs_deadline() {
             station,
             plan: Some(seeded_plan(port, flush)),
             deadline: Some(armed),
+            settled: true,
         },
     );
 
@@ -436,6 +438,142 @@ fn a_nearer_free_pair_does_not_rearm_a_dock_approachs_deadline() {
     );
 }
 
+/// A hull ordered to dock while 12 u/s off the station's velocity arms its
+/// deadline on the first tick, brakes past where it planned from and re-arms
+/// once, on the first tick it flies within 2.6 u/s of the station's velocity,
+/// from the leg it plans there. It docks; the deadline rose that once.
+#[test]
+fn a_dock_approach_armed_off_the_stations_velocity_rearms_once_when_it_settles() {
+    let mut app = dock_flight_app();
+    let (station, _forward, _flush) = station_with_a_forward_port(&mut app);
+    let (ship, _port) = placed_visitor(
+        &mut app,
+        station,
+        Vec3::new(0.0, 10.0, 20.0),
+        Quat::IDENTITY,
+    );
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(LinearVelocity(STATION_VELOCITY + Vec3::new(12.0, 0.0, 0.0)));
+    engage_dock(
+        &mut app,
+        ship,
+        station,
+        AutopilotAction::DockApproach {
+            station,
+            plan: None,
+            deadline: None,
+            settled: false,
+        },
+    );
+
+    let mut last = None;
+    let mut rises = Vec::new();
+    let mut frames = 0;
+    while app.world().get::<ShipOrderReported>(ship).is_none() && frames < APPROACH_FRAMES {
+        app.update();
+        frames += 1;
+        let Some(autopilot) = app.world().get::<Autopilot>(ship) else {
+            continue;
+        };
+        let AutopilotAction::DockApproach {
+            deadline, settled, ..
+        } = autopilot.action
+        else {
+            panic!("the approach is the only maneuver: {:?}", autopilot.action);
+        };
+        if let (Some(before), Some(now)) = (last, deadline) {
+            if now > before {
+                let speed = (app.world().get::<LinearVelocity>(ship).unwrap().0
+                    - app.world().get::<LinearVelocity>(station).unwrap().0)
+                    .length();
+                rises.push((frames, settled, speed));
+            }
+        }
+        last = deadline;
+    }
+
+    assert_eq!(
+        report_outcomes(&app, ship),
+        vec![ShipOrderOutcome::Complete],
+        "the approach docks, after {frames} ticks"
+    );
+    assert_eq!(rises.len(), 1, "the deadline rises once: {rises:?}");
+    let (_, settled, speed) = rises[0];
+    assert!(
+        settled && speed <= 2.6,
+        "it rises when the hull settles: {rises:?}"
+    );
+}
+
+/// Two hulls ordered to dock at one station do not fly their approaches at
+/// once: the second waits at the station's velocity with no deadline armed
+/// until the first docks.
+#[test]
+fn a_second_dock_approach_to_a_station_waits_until_the_first_ends() {
+    let mut app = dock_flight_app();
+    let (station, _forward, _flush) = station_with_a_forward_port(&mut app);
+    let (first, _) = placed_visitor(
+        &mut app,
+        station,
+        Vec3::new(0.0, 10.0, 20.0),
+        Quat::IDENTITY,
+    );
+    let (second, _) = placed_visitor(
+        &mut app,
+        station,
+        Vec3::new(0.0, 10.0, -20.0),
+        Quat::IDENTITY,
+    );
+    let approach = AutopilotAction::DockApproach {
+        station,
+        plan: None,
+        deadline: None,
+        settled: false,
+    };
+    engage_dock(&mut app, first, station, approach);
+    engage_dock(&mut app, second, station, approach);
+    // Equal claims go to the lower entity bits.
+    let (first, second) = if first.to_bits() < second.to_bits() {
+        (first, second)
+    } else {
+        (second, first)
+    };
+
+    let mut frames = 0;
+    while app.world().get::<ShipOrderReported>(first).is_none() && frames < APPROACH_FRAMES {
+        app.update();
+        frames += 1;
+        if app.world().get::<DockedShip>(first).is_some() {
+            continue;
+        }
+        let waiting = app
+            .world()
+            .get::<Autopilot>(second)
+            .map(|autopilot| autopilot.action);
+        assert!(
+            matches!(
+                waiting,
+                Some(AutopilotAction::DockApproach { deadline: None, .. })
+            ),
+            "the second approach waits unarmed at tick {frames}: {waiting:?}"
+        );
+        let drift = (app.world().get::<LinearVelocity>(second).unwrap().0
+            - app.world().get::<LinearVelocity>(station).unwrap().0)
+            .length();
+        assert!(
+            drift < 0.05,
+            "the second hull holds the station's velocity at tick {frames}: {drift} u/s"
+        );
+    }
+
+    assert_eq!(
+        report_outcomes(&app, first),
+        vec![ShipOrderOutcome::Complete],
+        "the first approach docks, after {frames} ticks"
+    );
+}
+
 /// A selected pair whose station port another hull holds is replaced by the
 /// free pair, and only that replacement re-arms the deadline: an approach
 /// armed with one second left still docks on the free port.
@@ -452,6 +590,7 @@ fn a_dock_approach_on_a_held_port_retargets_to_the_free_one() {
             station,
             plan: Some(seeded_plan(port, held)),
             deadline: Some(1.0),
+            settled: true,
         },
     );
 

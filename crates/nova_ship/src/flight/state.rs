@@ -476,6 +476,9 @@ pub enum AutopilotAction {
         /// until the step arms it for a newly selected pair; it does not run
         /// while the approach waits for a port.
         deadline: Option<f32>,
+        /// Whether the deadline has had its one re-arm, on the first tick the
+        /// hull flew near the station's velocity. Cleared with the deadline.
+        settled: bool,
     },
 }
 
