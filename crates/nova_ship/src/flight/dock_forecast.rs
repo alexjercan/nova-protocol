@@ -76,11 +76,33 @@ pub(super) struct DockForecast {
     pub(super) station: Entity,
     /// When it was made, seconds of fixed time.
     pub(super) made_at: f32,
+    /// The station's rotation when it was made.
+    pub(super) rotation: Quat,
+    /// The station's mean angular velocity, radians per second, over the
+    /// time since the forecast before it: its rotation change over that
+    /// time, zero for the first forecast to a station. Avian's
+    /// `AngularVelocity` on a live station changes axis and sign from one
+    /// second to the next by up to about 1 deg/s; led with directly, it moves
+    /// the frame 0.6 u/s at 40 u and the RCS chases that until the
+    /// magazine is empty. A steady spin keeps its full lead.
+    pub(super) spin: Vec3,
     /// Every path sphere that can reach the approach.
     pub(super) spheres: Vec<ForecastSphere>,
 }
 
 impl DockForecast {
+    /// The station's mean spin from `earlier` at `earlier_at` to `rotation`
+    /// at `now`, radians per second, taken the short way round.
+    pub(super) fn mean_spin(earlier: Quat, earlier_at: f32, rotation: Quat, now: f32) -> Vec3 {
+        let elapsed = now - earlier_at;
+        if elapsed <= 0.0 {
+            return Vec3::ZERO;
+        }
+        let turn = rotation * earlier.inverse();
+        let turn = if turn.w < 0.0 { -turn } else { turn };
+        turn.to_scaled_axis() / elapsed
+    }
+
     /// The spheres in the world frame of this tick: each offset from the
     /// station's centre of mass `station_center` now.
     pub(super) fn world(&self, station_center: Vec3) -> Vec<(Entity, Vec3, f32)> {

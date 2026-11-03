@@ -211,8 +211,9 @@ pub(super) struct DockTarget<'a> {
     pub(super) pair: Option<DockingPair>,
     /// The station root's velocity, engine units per second.
     pub(super) station_velocity: Vec3,
-    /// The station root's angular velocity, radians per second: leg B leads
-    /// the port with it.
+    /// The station root's mean angular velocity over the last forecast
+    /// refresh, radians per second: leg B leads the port with it. See
+    /// [`DockForecast::spin`].
     pub(super) station_spin: Vec3,
     /// The station's centre of mass and containment radius: the body leg A
     /// routes around.
@@ -842,7 +843,7 @@ fn dock_approach_target<'a>(
     ship: Entity,
     autopilot: &mut Mut<Autopilot>,
     corridors: &DockCorridors,
-    (clearance, forecast, refreshed): (f32, &'a [(Entity, Vec3, f32)], bool),
+    (clearance, forecast, refreshed, station_spin): (f32, &'a [(Entity, Vec3, f32)], bool, Vec3),
     (turn, dt): (bool, f32),
 ) -> Result<Option<DockTarget<'a>>, DisengageType> {
     let AutopilotAction::DockApproach {
@@ -870,9 +871,7 @@ fn dock_approach_target<'a>(
         )
     };
     let ports = &corridors.ports;
-    let (Some(station_velocity), Some(station_spin)) =
-        (ports.body_velocity(station), ports.body_spin(station))
-    else {
+    let Some(station_velocity) = ports.body_velocity(station) else {
         return Ok(None);
     };
     if !ports.has_free_port(ship) {
@@ -1061,7 +1060,8 @@ pub(super) fn dock_turns(
 /// farther out, is left out. Empty
 /// while the station is gone or unmeasured; the selection then refuses or
 /// waits on its own. The flag says the forecast was stepped this tick: the
-/// approach casts its corridors again on it.
+/// approach casts its corridors again on it. The vector is the station's mean
+/// spin, [`DockForecast::spin`].
 fn dock_forecast(
     held: &mut EntityHashMap<DockForecast>,
     (ship, station): (Entity, Entity),
@@ -1070,13 +1070,14 @@ fn dock_forecast(
     (field, wells, gravity): (&[FieldBody], &[WellSample], &GravitySettings),
     center_of_mass: Vec3,
     margin: f32,
-) -> (Vec<(Entity, Vec3, f32)>, bool) {
-    let (Some((station_center, bubble_radius)), Some(station_velocity)) = (
+) -> (Vec<(Entity, Vec3, f32)>, bool, Vec3) {
+    let (Some((station_center, bubble_radius)), Some(station_velocity), Some((_, rotation))) = (
         corridors.bubble(station),
         corridors.ports.body_velocity(station),
+        corridors.ports.body_pose(station),
     ) else {
         held.remove(&ship);
-        return (Vec::new(), false);
+        return (Vec::new(), false, Vec3::ZERO);
     };
     let fresh = held.get(&ship).is_some_and(|forecast| {
         forecast.station == station && now - forecast.made_at < DOCK_FORECAST_REFRESH
@@ -1087,11 +1088,19 @@ fn dock_forecast(
             .map(|sample| (sample.entity, sample.position, sample.well.clone()))
             .collect();
         let reach = center_of_mass.distance(station_center).max(bubble_radius) + margin;
+        let spin = held
+            .get(&ship)
+            .filter(|earlier| earlier.station == station)
+            .map_or(Vec3::ZERO, |earlier| {
+                DockForecast::mean_spin(earlier.rotation, earlier.made_at, rotation, now)
+            });
         held.insert(
             ship,
             DockForecast {
                 station,
                 made_at: now,
+                rotation,
+                spin,
                 spheres: station_frame_sweep(
                     station_center,
                     station_velocity,
@@ -1103,7 +1112,8 @@ fn dock_forecast(
             },
         );
     }
-    (held[&ship].world(station_center), !fresh)
+    let forecast = &held[&ship];
+    (forecast.world(station_center), !fresh, forecast.spin)
 }
 
 /// Flies every engaged autopilot one fixed tick: gathers each driving ship's
@@ -1291,7 +1301,7 @@ pub(super) fn autopilot_system(
         );
         let avoid_margin = resolved_avoid_margin(avoid_margin, &settings);
         let arrival_standoff = resolved_arrival_standoff(standoff_override, &settings);
-        let (forecast, refreshed) = match autopilot.action {
+        let (forecast, refreshed, station_spin) = match autopilot.action {
             AutopilotAction::DockApproach { station, .. } => dock_forecast(
                 &mut forecasts,
                 (ship, station),
@@ -1307,13 +1317,18 @@ pub(super) fn autopilot_system(
                 2.0 * (2.0 * body.mover_radius + avoid_margin + DETOUR_HYSTERESIS)
                     + arrival_standoff,
             ),
-            _ => (Vec::new(), false),
+            _ => (Vec::new(), false, Vec3::ZERO),
         };
         let dock = match dock_approach_target(
             ship,
             &mut autopilot,
             &dock_corridors,
-            (body.mover_radius + avoid_margin, &forecast, refreshed),
+            (
+                body.mover_radius + avoid_margin,
+                &forecast,
+                refreshed,
+                station_spin,
+            ),
             (dock_turns.values().any(|&turn| turn == ship), dt),
         ) {
             Ok(dock) => dock,
@@ -1402,7 +1417,7 @@ pub(super) fn autopilot_system(
                 warn!(
                     "autopilot_system: ship {ship:?} overran its DOCK approach to station \
                      {station:?}: gap {:?} u, axes {:?} deg off opposed, relative speed {:?} \
-                     u/s, relative spin {:?} deg/s, station spin {:?} deg/s; disengaging",
+                     u/s, relative spin {:?} deg/s, station mean spin {:?} deg/s; disengaging",
                     pair.map(|pair| pair.gap),
                     pair.map(|pair| (-pair.opposition).clamp(-1.0, 1.0).acos().to_degrees()),
                     pair.map(|pair| pair.relative_speed),

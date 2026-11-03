@@ -15,7 +15,7 @@ use super::{
     super::{
         autopilot::dock_turns,
         dock_corridor::{forecast_blocker, DockCorridors},
-        dock_forecast::{station_frame_sweep, FieldBody},
+        dock_forecast::{station_frame_sweep, DockForecast, FieldBody},
         state::DOCK_BLOCKED_SECS,
     },
     support::*,
@@ -1091,6 +1091,33 @@ fn a_dock_approach_to_an_orbiting_station_keeps_its_rcs_for_the_corridor() {
 /// circle it in its own frame. The forecast keeps that ring: a corridor 70 u
 /// out along the orbit's track is refused on the planet, though the planet
 /// stands 164 u from it now, and a corridor along the orbit's normal is not.
+/// A DOCK approach leads the port with the station's spin measured from its
+/// rotation over a forecast refresh: a steady spin keeps its rate, and a
+/// jitter that leaves the station where it was leads with nothing, whatever
+/// the instantaneous angular velocity said between.
+#[test]
+fn a_stations_mean_spin_keeps_a_steady_spin_and_drops_a_jitter_that_returns() {
+    let steady = Vec3::new(0.0, 2.0_f32.to_radians(), 0.0);
+    let start = Quat::from_rotation_x(0.7);
+    let turned = Quat::from_scaled_axis(steady * 1.5) * start;
+    let spin = DockForecast::mean_spin(start, 10.0, turned, 11.5);
+    assert!(
+        (spin - steady).length() < 1e-4,
+        "a steady 2 deg/s spin is led at {spin:?} rad/s"
+    );
+    // The same turn written on the other quaternion cover is the same spin.
+    let spin = DockForecast::mean_spin(start, 10.0, -turned, 11.5);
+    assert!(
+        (spin - steady).length() < 1e-4,
+        "the negated rotation is led at {spin:?} rad/s"
+    );
+    assert_eq!(
+        DockForecast::mean_spin(start, 10.0, start, 11.0),
+        Vec3::ZERO,
+        "a station back where it stood a second before leads with no spin"
+    );
+}
+
 #[test]
 fn a_planet_an_orbiting_station_circles_refuses_a_corridor_its_path_crosses() {
     const RADIUS: f32 = 88.5;
