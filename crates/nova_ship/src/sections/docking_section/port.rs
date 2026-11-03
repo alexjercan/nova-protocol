@@ -196,6 +196,11 @@ impl DockingPorts<'_, '_> {
             .map(|(_, _, velocity, _)| velocity.0)
     }
 
+    /// The angular velocity of a ship root, as avian holds it.
+    pub(crate) fn body_spin(&self, root: Entity) -> Option<Vec3> {
+        self.bodies.get(root).ok().map(|(.., spin)| spin.0)
+    }
+
     /// Whether `root` has a free, live port.
     pub(crate) fn has_free_port(&self, root: Entity) -> bool {
         self.ports.iter().any(|(_, mount, _)| mount.0 == root)

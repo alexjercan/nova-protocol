@@ -902,6 +902,8 @@ fn engage_leg(
                     plan: None,
                     deadline: None,
                     settled: false,
+                    engaged_s: 0.0,
+                    blocked_s: None,
                 }));
             Ok(())
         }

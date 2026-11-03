@@ -452,21 +452,24 @@ pub enum AutopilotAction {
     /// berth gap. Roll about the port axis is left free, which is why the
     /// corridor is swept as a roll-invariant envelope of the whole hull.
     ///
-    /// A pair is flown only after one shape cast along its corridor, made when
-    /// the pair is selected, hits no collider but the station's own port
-    /// section and this hull; a body that moves into the corridor later is not
-    /// seen. With no clear pair the approach disengages with `NoSafeDockPath`
-    /// and flies nothing. Inside the swept tube the hull only closes or backs
-    /// out along the axis. It matches the station root's linear velocity only: a port on
-    /// a spinning station is not led. In a gravity well the station falls with
-    /// the hull, so the RCS gravity gate reads the difference between the two
-    /// pulls, not the whole pull.
+    /// A pair is flown only after one shape cast along its corridor hits no
+    /// collider but the station's own port section and this hull. The cast
+    /// runs again on every field-forecast refresh while the pair is held, so
+    /// a body or hull that moves into the corridor later drops the pair. With
+    /// no clear pair the approach holds the station's velocity and casts again
+    /// on each refresh; it disengages with `NoSafeDockPath` once it has held
+    /// that way for 300 s in all. Inside the swept tube the
+    /// hull only closes or backs out along the axis, at the velocity of the
+    /// station's point under its centre of mass, so a port on a spinning
+    /// station is led. In a gravity well the station falls with the hull, so
+    /// the RCS gravity gate reads the difference between the two pulls, not
+    /// the whole pull.
     ///
     /// Never self-completes and never docks: the helm order that engaged it
     /// asks for the capture. While every pair is held, or while another
-    /// hull's approach to the same station flies (one flies at a time), it
-    /// holds the station's velocity and waits. Only `ShipOrderDirective::Dock`
-    /// engages it.
+    /// hull's approach to the same station has the turn (one flies at a time:
+    /// an armed approach, else the longest engaged), it holds the station's
+    /// velocity and waits. Only `ShipOrderDirective::Dock` engages it.
     DockApproach {
         /// The station to dock with.
         station: Entity,
@@ -481,8 +484,21 @@ pub enum AutopilotAction {
         /// Whether the deadline has had its one re-arm, on the first tick the
         /// hull flew near the station's velocity. Cleared with the deadline.
         settled: bool,
+        /// Seconds this approach has been engaged, walked tick by tick: the
+        /// station's turn goes to the longest engaged, so a later hull never
+        /// takes it from one already waiting.
+        engaged_s: f32,
+        /// Seconds this approach has held with no clear corridor, in all;
+        /// `None` until it first finds none.
+        blocked_s: Option<f32>,
     },
 }
+
+/// The total seconds a DOCK approach holds for a clear corridor before it
+/// refuses with `NoSafeDockPath`: a docked hull's 60 s dwell and its undock,
+/// with room for a slow departure, while a body parked in the only corridor
+/// still ends the order.
+pub(super) const DOCK_BLOCKED_SECS: f32 = 300.0;
 
 /// A DOCK approach's selected pair and the corridor its sweep cleared.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]

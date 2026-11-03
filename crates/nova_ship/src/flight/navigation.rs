@@ -49,7 +49,7 @@ pub struct DetourPolicy {
 impl DetourPolicy {
     /// The clearance a leg must keep to be called CLEAR again, once the mover
     /// is already detouring.
-    fn clear_clearance(&self) -> f32 {
+    pub(super) fn clear_clearance(&self) -> f32 {
         self.clearance + self.hysteresis
     }
 }

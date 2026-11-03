@@ -24,6 +24,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - GOTO now flies around rocks and planetoids on its leg, 200 m off your hull by default, for the player, AI patrols and scripted orders alike; the predicted path and map route show the bend.
 - Q and E now roll your ship about its nose through the controller section, view and hull together, with no RCS cost. No gamepad binding; mods cannot bind Q or E to sections.
 - Generated traders now fly to a station within 20 km, dock, trade real cargo and credits, post their jobs, undock after 60 s and fly 1 km clear. A station takes one visitor at a time.
+- Visiting ships dock at stations that orbit a planet or spin, take turns at a station, and hold up to 5 minutes for a clear approach before they give up.
 - Each living station now has two generated ships of its own civilization 2 to 4 km from it, so most new worlds have a trader in visit range of the start station.
 - A visitor posts up to 3 extra jobs beside a station's 3 slots. An open one goes at the next slot expiry or after 20 minutes; an accepted one stays until you finish or lose it.
 - The autopilot now waits for a refilling RCS magazine to reach half before it uses RCS again, so a hold against a steady pull no longer swaps between drive and RCS each tick.

@@ -13,8 +13,10 @@ use nova_gameplay::{prelude::*, test_support::settle};
 
 use super::{
     super::{
+        autopilot::dock_turns,
         dock_corridor::{forecast_blocker, DockCorridors},
         dock_forecast::{station_frame_sweep, FieldBody},
+        state::DOCK_BLOCKED_SECS,
     },
     support::*,
 };
@@ -348,6 +350,8 @@ fn a_dock_order_captures_on_the_best_eligible_pair_when_it_is_not_the_selected_o
             plan: Some(seeded_plan(port, flush)),
             deadline: None,
             settled: false,
+            engaged_s: 0.0,
+            blocked_s: None,
         },
     );
 
@@ -404,6 +408,8 @@ fn a_nearer_free_pair_does_not_rearm_a_dock_approachs_deadline() {
             plan: Some(seeded_plan(port, flush)),
             deadline: Some(armed),
             settled: true,
+            engaged_s: 0.0,
+            blocked_s: None,
         },
     );
 
@@ -464,6 +470,8 @@ fn a_dock_approach_armed_off_the_stations_velocity_rearms_once_when_it_settles()
             plan: None,
             deadline: None,
             settled: false,
+            engaged_s: 0.0,
+            blocked_s: None,
         },
     );
 
@@ -530,6 +538,8 @@ fn a_second_dock_approach_to_a_station_waits_until_the_first_ends() {
         plan: None,
         deadline: None,
         settled: false,
+        engaged_s: 0.0,
+        blocked_s: None,
     };
     engage_dock(&mut app, first, station, approach);
     engage_dock(&mut app, second, station, approach);
@@ -591,6 +601,8 @@ fn a_dock_approach_on_a_held_port_retargets_to_the_free_one() {
             plan: Some(seeded_plan(port, held)),
             deadline: Some(1.0),
             settled: true,
+            engaged_s: 0.0,
+            blocked_s: None,
         },
     );
 
@@ -950,11 +962,25 @@ fn a_planet_an_orbiting_station_circles_refuses_a_corridor_its_path_crosses() {
     );
 }
 
-/// A pylon standing in the only corridor refuses the approach before the hull
-/// moves: the sweep names the pylon, and the order fails on its first engaged
-/// tick with the hull where it started and nothing touched.
+/// Seconds of fixed time the rig has flown.
+fn flown_s(app: &App) -> f32 {
+    app.world().resource::<Time<Fixed>>().elapsed_secs()
+}
+
+/// Run the rig for `secs` of fixed time, calling `each` after every update.
+fn fly_for(app: &mut App, secs: f32, mut each: impl FnMut(&App)) {
+    let until = flown_s(app) + secs;
+    while flown_s(app) < until {
+        app.update();
+        each(app);
+    }
+}
+
+/// A pylon standing in the only corridor holds the approach before the hull
+/// moves: the hull waits where it started, nothing touched, and the order
+/// fails once the approach has held for its bound with no clear corridor.
 #[test]
-fn a_dock_order_whose_only_corridor_is_blocked_fails_and_names_the_blocker() {
+fn a_dock_order_whose_only_corridor_stays_blocked_holds_unmoved_then_fails_and_names_the_blocker() {
     let mut app = dock_flight_app();
     let (station, _) = slab_station(&mut app, true, Vec3::ZERO);
     let offset = Vec3::new(0.0, -9.0, 0.0);
@@ -974,23 +1000,237 @@ fn a_dock_order_whose_only_corridor_is_blocked_fails_and_names_the_blocker() {
     );
 
     order_dock(&mut app, ship, station);
-    let mut frames = 0;
-    while app.world().get::<ShipOrderReported>(ship).is_none() && frames < 10 {
+    let start = flown_s(&app);
+    while app.world().get::<ShipOrderReported>(ship).is_none()
+        && flown_s(&app) - start < DOCK_BLOCKED_SECS + 2.0
+    {
         app.update();
-        frames += 1;
         assert!(touching(&app, ship, station).is_empty());
+        let moved = (position_of(&app, ship) - position_of(&app, station) - offset).length();
+        assert!(
+            moved < 0.05,
+            "the holding hull moved {moved} u off its start at {} s",
+            flown_s(&app) - start
+        );
     }
+    let held = flown_s(&app) - start;
     assert_eq!(
         report_outcomes(&app, ship),
         vec![ShipOrderOutcome::Failed],
-        "the order fails once, after {frames} ticks"
+        "the order fails once, after {held} s"
     );
-    assert!(frames <= 3, "the refusal took {frames} ticks");
-    let moved = (position_of(&app, ship) - position_of(&app, station) - offset).length();
     assert!(
-        moved < 0.01,
-        "the refused hull moved {moved} u off its start"
+        held >= DOCK_BLOCKED_SECS - 0.1,
+        "the approach held {held} s, short of its {DOCK_BLOCKED_SECS} s bound"
     );
+}
+
+/// A hull that parks in a flying approach's corridor drops its pair on the
+/// next forecast refresh; the approach holds, touching nothing, and docks once
+/// the hull leaves. Cast only at selection, the corridor was flown into
+/// whatever entered it later; refused on a parked hull, the order failed for
+/// good where the hull would soon leave (a player's order behind a docked
+/// visitor, seed 29).
+#[test]
+fn a_hull_that_parks_in_a_flying_approachs_corridor_holds_it_until_the_hull_leaves() {
+    let mut app = dock_flight_app();
+    let (station, station_port) = slab_station(&mut app, false, Vec3::ZERO);
+    let (ship, port) = placed_visitor(&mut app, station, Vec3::new(0.0, -9.0, 0.0), Quat::IDENTITY);
+    order_dock(&mut app, ship, station);
+    let selected = |app: &App| {
+        matches!(
+            app.world()
+                .get::<Autopilot>(ship)
+                .map(|autopilot| autopilot.action),
+            Some(AutopilotAction::DockApproach { plan: Some(_), .. })
+        )
+    };
+    let holding = |app: &App| {
+        matches!(
+            app.world()
+                .get::<Autopilot>(ship)
+                .map(|autopilot| autopilot.action),
+            Some(AutopilotAction::DockApproach {
+                plan: None,
+                blocked_s: Some(_),
+                ..
+            })
+        )
+    };
+    let mut frames = 0;
+    while !selected(&app) && frames < 10 {
+        app.update();
+        frames += 1;
+    }
+    assert!(selected(&app), "the clear corridor is selected at once");
+    fly_for(&mut app, 2.0, |_| {});
+
+    let above = position_of(&app, station) + Vec3::new(0.0, 3.0, 0.0);
+    let parked = spawn_block(&mut app, above, STATION_VELOCITY, 1.0);
+    let parked_at = flown_s(&app);
+    while !holding(&app) && flown_s(&app) - parked_at < 2.5 {
+        app.update();
+    }
+    assert!(
+        holding(&app),
+        "the approach drops its pair within a refresh of the hull parking: {:?}",
+        app.world()
+            .get::<Autopilot>(ship)
+            .map(|autopilot| autopilot.action)
+    );
+    fly_for(&mut app, 30.0, |app| {
+        assert!(holding(app), "the approach holds while the hull stays");
+        assert!(touching(app, ship, station).is_empty());
+        assert!(touching(app, ship, parked).is_empty());
+    });
+
+    app.world_mut().entity_mut(parked).despawn();
+    let mut frames = 0;
+    while app.world().get::<ShipOrderReported>(ship).is_none() && frames < APPROACH_FRAMES {
+        app.update();
+        frames += 1;
+        let contacts = touching(&app, ship, station);
+        assert!(
+            contacts.is_empty(),
+            "the hull touches the station at tick {frames}: {contacts:?}"
+        );
+    }
+    assert_eq!(
+        report_outcomes(&app, ship),
+        vec![ShipOrderOutcome::Complete],
+        "the order completes once the hull has left, after {frames} ticks"
+    );
+    let docked = *app
+        .world()
+        .get::<DockedShip>(ship)
+        .expect("the captured ship is docked");
+    let connection = *app
+        .world()
+        .get::<DockingConnection>(docked.connection)
+        .expect("the dock names its connection");
+    assert_eq!(
+        (connection.first_section, connection.second_section),
+        (port, station_port)
+    );
+}
+
+/// A beam of 13 heavy cells along X, its centre of mass at the root, with one
+/// free port on the +X end cell facing -Z, drifting with the rig's station.
+fn beam_station(app: &mut App) -> (Entity, Entity) {
+    const HALF: i32 = 6;
+    let station = app
+        .world_mut()
+        .spawn((
+            SpaceshipRootMarker,
+            StationMarker,
+            HullEnvelopeRadius(HALF as f32 + 1.0),
+            RigidBody::Dynamic,
+            Transform::default(),
+            LinearVelocity(STATION_VELOCITY),
+        ))
+        .id();
+    for x in -HALF..=HALF {
+        app.world_mut().spawn((
+            ChildOf(station),
+            Name::new(format!("cell_{x}")),
+            EntityId(format!("cell_{x}")),
+            Transform::from_xyz(x as f32, 0.0, 0.0),
+            Collider::cuboid(1.0, 1.0, 1.0),
+            ColliderDensity(100.0),
+        ));
+    }
+    let port = spawn_port(app, station, "end", Quat::IDENTITY);
+    app.world_mut()
+        .entity_mut(port)
+        .insert(Transform::from_xyz(HALF as f32, 0.0, 0.0));
+    settle(app);
+    (station, port)
+}
+
+/// A dock order captures at a station spinning 2 deg/s, about its port's axis
+/// and about an axis across it, with no contact. Matched to the centre of
+/// mass's velocity alone, the hull lagged the turning entry and the port by
+/// their speed over the 0.3/s closing gain, 1.5 to 4.3 u off the axis, outside
+/// the 0.3 u gate, and held at the entry until its deadline ran out.
+#[test]
+fn a_dock_order_captures_at_a_spinning_station() {
+    for axis in [Vec3::Z, Vec3::Y] {
+        let mut app = dock_flight_app();
+        let (station, station_port) = beam_station(&mut app);
+        let at = position_of(&app, station) + Vec3::new(6.0, 3.0, -20.0);
+        let (ship, port) = visitor(&mut app, at);
+        app.world_mut()
+            .entity_mut(station)
+            .insert(AngularVelocity(axis * 2.0_f32.to_radians()));
+        order_dock(&mut app, ship, station);
+
+        let mut frames = 0;
+        while app.world().get::<ShipOrderReported>(ship).is_none() && frames < APPROACH_FRAMES {
+            app.update();
+            frames += 1;
+            let contacts = touching(&app, ship, station);
+            assert!(
+                contacts.is_empty(),
+                "spin about {axis}: the hull touches the station at tick {frames}: {contacts:?}"
+            );
+        }
+        assert_eq!(
+            report_outcomes(&app, ship),
+            vec![ShipOrderOutcome::Complete],
+            "spin about {axis}: the order completes once, after {frames} ticks"
+        );
+        let docked = *app
+            .world()
+            .get::<DockedShip>(ship)
+            .expect("the captured ship is docked");
+        let connection = *app
+            .world()
+            .get::<DockingConnection>(docked.connection)
+            .expect("the dock names its connection");
+        assert_eq!(
+            (connection.first_section, connection.second_section),
+            (port, station_port),
+            "spin about {axis}"
+        );
+    }
+}
+
+/// A station's turn goes to an armed approach, else to the longest engaged,
+/// whatever the entity bits: a visitor bound after the player was ordered in
+/// never takes the turn from it.
+#[test]
+fn a_later_dock_approach_never_takes_a_stations_turn_from_one_already_waiting() {
+    let station = Entity::from_raw_u32(1).expect("a valid index");
+    let approach = |engaged_s: f32, deadline: Option<f32>| AutopilotAction::DockApproach {
+        station,
+        plan: None,
+        deadline,
+        settled: false,
+        engaged_s,
+        blocked_s: None,
+    };
+    // Both index orders, so the entity bits favour each hull once.
+    for (early, late) in [(2, 90), (90, 2)] {
+        let early = Entity::from_raw_u32(early).expect("a valid index");
+        let late = Entity::from_raw_u32(late).expect("a valid index");
+        let armed = Entity::from_raw_u32(50).expect("a valid index");
+        let waiting = [(early, approach(120.0, None)), (late, approach(4.0, None))];
+        assert_eq!(
+            dock_turns(waiting.into_iter()).get(&station),
+            Some(&early),
+            "the longest engaged takes the turn over the entity bits ({early:?}, {late:?})"
+        );
+        let flying = [
+            (early, approach(120.0, None)),
+            (late, approach(4.0, None)),
+            (armed, approach(1.0, Some(300.0))),
+        ];
+        assert_eq!(
+            dock_turns(flying.into_iter()).get(&station),
+            Some(&armed),
+            "an armed approach keeps the turn"
+        );
+    }
 }
 
 /// The containment radius of [`walled_station`] about its centre of mass,
