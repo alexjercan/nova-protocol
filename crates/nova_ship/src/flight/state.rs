@@ -449,7 +449,9 @@ pub enum AutopilotAction {
     /// term, with the hull turned so the two port axes oppose. Leg A routes
     /// around the station's envelope and every sized body to the corridor
     /// entry on the station port's axis. Leg B closes along that axis to the
-    /// berth gap. Roll about the port axis is left free, which is why the
+    /// berth gap. Only leg B may use the RCS: the hull holds against a
+    /// station's tidal pull all the way in, and leg A on the RCS emptied the
+    /// magazine before the corridor. Roll about the port axis is left free, which is why the
     /// corridor is swept as a roll-invariant envelope of the whole hull.
     ///
     /// A pair is flown only after one shape cast along its corridor hits no

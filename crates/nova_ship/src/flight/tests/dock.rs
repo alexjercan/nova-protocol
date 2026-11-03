@@ -993,6 +993,100 @@ fn a_dock_order_taken_inside_a_planets_swept_ring_leaves_it_and_captures_without
     );
 }
 
+/// A DOCK approach to a station on a 72 s orbit 148 u out about an 88.5 u
+/// planet spends no RCS before its port reaches the corridor, and captures.
+/// The hull holds against the tidal pull all the way in; trimmed on the RCS
+/// through leg A, the 30 u/s magazine ran dry before the entry (seed 26 of
+/// `system_station_visits`), and with the RCS refused the hull turned its
+/// drive onto each error and swung its port past the gates until its deadline.
+#[test]
+fn a_dock_approach_to_an_orbiting_station_keeps_its_rcs_for_the_corridor() {
+    const RADIUS: f32 = 88.5;
+    const MU: f32 = 24_700.0;
+    const ORBIT: f32 = 148.0;
+    let mut app = dock_orbit_app();
+    spawn_planet(&mut app, RADIUS, MU);
+    let at = Vec3::new(ORBIT, 0.0, 0.0);
+    let velocity = Vec3::Z * nova_gameplay::gravity::circular_orbit_speed(MU, ORBIT);
+    let (station, station_port) = slab_station(&mut app, false, at);
+    let axis = Vec3::new(-0.5, -(60.0_f32).to_radians().sin(), 0.0).normalize();
+    let tilt = Quat::from_rotation_arc(Vec3::Y, axis);
+    let offset = Vec3::new(-280.0, 0.0, 0.0);
+    let (ship, port) = placed_visitor(&mut app, station, offset, Quat::IDENTITY);
+    app.world_mut().entity_mut(station).insert((
+        Transform::from_translation(at).with_rotation(tilt),
+        Position(at),
+        Rotation(tilt),
+    ));
+    settle(&mut app);
+    app.world_mut().entity_mut(station).insert((
+        Transform::from_translation(at).with_rotation(tilt),
+        Position(at),
+        Rotation(tilt),
+        LinearVelocity(velocity),
+        AngularVelocity::ZERO,
+    ));
+    app.world_mut().entity_mut(ship).insert((
+        Transform::from_translation(at + offset),
+        Position(at + offset),
+        LinearVelocity(velocity),
+        AngularVelocity::ZERO,
+        RcsBudget::default(),
+    ));
+    order_dock(&mut app, ship, station);
+
+    let mut frames = 0;
+    let mut first_spend = None;
+    while app.world().get::<ShipOrderReported>(ship).is_none() && frames < ORBIT_APPROACH_FRAMES {
+        app.update();
+        frames += 1;
+        if first_spend.is_some() {
+            continue;
+        }
+        let spent = app
+            .world()
+            .get::<RcsBudget>(ship)
+            .expect("a root budget")
+            .spent;
+        if spent > 0.0 {
+            let Some(Autopilot {
+                action:
+                    AutopilotAction::DockApproach {
+                        plan: Some(plan), ..
+                    },
+                ..
+            }) = app.world().get::<Autopilot>(ship)
+            else {
+                panic!("the hull spends RCS at tick {frames} with no DOCK pair planned");
+            };
+            let gap = app
+                .world()
+                .get::<GlobalTransform>(port)
+                .expect("a port pose")
+                .translation()
+                .distance(
+                    app.world()
+                        .get::<GlobalTransform>(station_port)
+                        .expect("a station port pose")
+                        .translation(),
+                );
+            first_spend = Some((frames, gap, plan.entry + plan.lateral));
+        }
+    }
+
+    let (tick, gap, corridor) = first_spend.expect("the close spends RCS");
+    assert!(
+        gap <= corridor + 2.0,
+        "the hull first spends RCS at tick {tick}, {gap} u from the station port, outside the \
+         {corridor} u corridor"
+    );
+    assert_eq!(
+        report_outcomes(&app, ship),
+        vec![ShipOrderOutcome::Complete],
+        "the order completes once, after {frames} ticks"
+    );
+}
+
 /// A station on a 72 s orbit 148 u out about an 88.5 u planet sees the planet
 /// circle it in its own frame. The forecast keeps that ring: a corridor 70 u
 /// out along the orbit's track is refused on the planet, though the planet

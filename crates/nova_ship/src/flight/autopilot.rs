@@ -1874,7 +1874,8 @@ pub(super) fn autopilot_step(
     // rather than a goal to arrive at.
     let mut hold_axis: Option<(Vec3, Vec3)> = None;
     let mut is_velocity_hold = false;
-    // Cleared by a MatchVelocity that leaves every push to the drive.
+    // Cleared by a MatchVelocity that leaves every push to the drive, and by
+    // a DockApproach outside its corridor tube.
     let mut rcs_permitted = true;
     // Set by the arrival leg when it loses its stopping plan this tick; the
     // system logs the edge.
@@ -2036,6 +2037,16 @@ pub(super) fn autopilot_step(
                 return disengaged(DisengageType::TargetGone);
             };
             is_velocity_hold = true;
+            // Only the final close holds the port axes on the RCS. Near an
+            // orbiting station the hull holds against the tidal pull, 0.3 to
+            // 0.8 u/s^2 within a few hundred u of a station on a 73 s orbit;
+            // trimmed on the RCS through leg A, that emptied the magazine
+            // before the corridor entry (seed 26). With the RCS refused, the
+            // hull turned its drive onto each error and swung the port past
+            // the lateral and angle gates every 10-15 s until the deadline.
+            // Leg A, an escape and a hold fly on the drive, so the magazine
+            // refills for the tube.
+            rcs_permitted = false;
             let policy = DetourPolicy {
                 clearance: mover_radius + env.avoid_margin,
                 hull: mover_radius,
@@ -2146,6 +2157,7 @@ pub(super) fn autopilot_step(
                     // The corridor is kept clear of every path, so only leg A
                     // can stand inside one.
                     let escape = escape.filter(|_| !in_tube);
+                    rcs_permitted = in_tube;
                     let (offset, to_entry, closing, frame) = if in_tube {
                         autopilot.detour = None;
                         let aligned =
