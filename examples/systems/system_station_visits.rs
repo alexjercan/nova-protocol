@@ -43,10 +43,13 @@
 //! station traffic included, while one Dock order flies. The walk holds
 //! `Time<Virtual>`'s clamp at 1 s, not the default 0.25 s;
 //! `NOVA_PROBE_MAX_DELTA` pins it for a comparison. `probe run
-//! system_station_visits --release --repeat 5` gives a repeat set on a
-//! hardware GPU; on lavapipe the approach can end inside the window. A
-//! matched reference is the same seed on the same build with only the
-//! compared change.
+//! system_station_visits --release --repeat 5 --timeout 900` gives a repeat
+//! set on a hardware GPU; on lavapipe the approach can end inside the window.
+//! The clean pass's deadline is the timeout less 30 s; at seed 13 the visit
+//! ends about 370 s into play, before the player docks and accepts, so the
+//! default timeout ends the walk on its backstop. Let the profiled pass finish: `checks.json` is written
+//! only at the end. A matched reference is the same seed on the same build
+//! with only the compared change.
 //!
 //! `NOVA_CAPTURE=1` also writes `station-visits-docked.png` of the docked
 //! visitor, `station-visits-released.png` of the same station after the
