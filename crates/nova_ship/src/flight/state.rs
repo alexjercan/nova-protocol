@@ -466,7 +466,9 @@ pub enum AutopilotAction {
     /// and settles only outside them. Inside the swept tube the
     /// hull only closes or backs out along the axis, at the velocity of the
     /// station's point under its centre of mass, so a port on a spinning
-    /// station is led. In a gravity well the station falls with the hull, so
+    /// station is led; the spin is the station's mean over the last forecast
+    /// refresh, measured from its rotation, because its instantaneous
+    /// angular velocity jitters about a held attitude. In a gravity well the station falls with the hull, so
     /// the RCS gravity gate reads the difference between the two pulls, not
     /// the whole pull.
     ///

@@ -643,8 +643,9 @@ mod walk {
     /// A station that orbits the well nearest to it: the player rides the
     /// station's own orbit, a [`REST_ASIDE`] chord behind it, or on the far
     /// side of an orbit too small for that chord, with the station's velocity
-    /// turned through the same angle about the well. It keeps that chord and
-    /// the orbit's radius, so neither the planet nor the station reaches it.
+    /// turned through the same angle about the well. It keeps that chord, the
+    /// orbit's diameter on the far side, and the orbit's radius, so neither
+    /// the planet nor the station reaches it.
     /// Left at world rest it fell into the planet (seed 26); at the station's
     /// velocity off the orbit it climbed away on an eccentric orbit and the
     /// observer retired the station's sector, or fell back through the

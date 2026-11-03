@@ -1087,10 +1087,6 @@ fn a_dock_approach_to_an_orbiting_station_keeps_its_rcs_for_the_corridor() {
     );
 }
 
-/// A station on a 72 s orbit 148 u out about an 88.5 u planet sees the planet
-/// circle it in its own frame. The forecast keeps that ring: a corridor 70 u
-/// out along the orbit's track is refused on the planet, though the planet
-/// stands 164 u from it now, and a corridor along the orbit's normal is not.
 /// A DOCK approach leads the port with the station's spin measured from its
 /// rotation over a forecast refresh: a steady spin keeps its rate, and a
 /// jitter that leaves the station where it was leads with nothing, whatever
@@ -1118,6 +1114,10 @@ fn a_stations_mean_spin_keeps_a_steady_spin_and_drops_a_jitter_that_returns() {
     );
 }
 
+/// A station on a 72 s orbit 148 u out about an 88.5 u planet sees the planet
+/// circle it in its own frame. The forecast keeps that ring: a corridor 70 u
+/// out along the orbit's track is refused on the planet, though the planet
+/// stands 164 u from it now, and a corridor along the orbit's normal is not.
 #[test]
 fn a_planet_an_orbiting_station_circles_refuses_a_corridor_its_path_crosses() {
     const RADIUS: f32 = 88.5;
