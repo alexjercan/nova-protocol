@@ -309,7 +309,7 @@ agents:
   worker-sol:
     description: Implement an owner-approved Nova design and verify the result using Sol.
     harness: pi
-    model: openai-codex/gpt-6-sol
+    model: openai-codex/gpt-6.1-sol
     thinking: high
     delegates:
       - scout-haiku
@@ -393,7 +393,7 @@ agents:
   basic-worker-sol:
     description: Implement an owner-approved Nova design and verify the result using Sol at medium thinking.
     harness: pi
-    model: openai-codex/gpt-6-sol
+    model: openai-codex/gpt-6.1-sol
     thinking: medium
     delegates:
       - scout-haiku
