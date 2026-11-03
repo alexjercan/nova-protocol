@@ -641,15 +641,16 @@ mod walk {
     /// DOCK corridor`).
     ///
     /// A station that orbits the well nearest to it: the player rides the
-    /// station's own orbit, a [`REST_ASIDE`] chord behind it, with the
-    /// station's velocity turned through the same angle about the well. It
-    /// keeps that chord and the orbit's radius, so the planet the station
-    /// circles never reaches it. Left at world rest it fell into the planet
-    /// (seed 26); at the station's velocity off the orbit it climbed away on
-    /// an eccentric orbit and the observer retired the station's sector
-    /// (seed 29). Otherwise, or on an orbit too small for the chord, the
-    /// player stands beside the line from the nearest profiled ship that
-    /// works, at the station's velocity.
+    /// station's own orbit, a [`REST_ASIDE`] chord behind it, or on the far
+    /// side of an orbit too small for that chord, with the station's velocity
+    /// turned through the same angle about the well. It keeps that chord and
+    /// the orbit's radius, so neither the planet nor the station reaches it.
+    /// Left at world rest it fell into the planet (seed 26); at the station's
+    /// velocity off the orbit it climbed away on an eccentric orbit and the
+    /// observer retired the station's sector, or fell back through the
+    /// station's corridor (seed 29). Otherwise the player stands beside the
+    /// line from the nearest profiled ship that works, at the station's
+    /// velocity.
     fn rest_aside_of_the_station(world: &mut World) {
         // `NOVA_VISIT_REST=collar` leaves the player where the release set it
         // (at the station's collar): a repro of the first run's Dock failure.
@@ -684,11 +685,9 @@ mod walk {
         let behind = well.and_then(|well| {
             let radius = hub.get() - well.get();
             let normal = radius.cross(velocity).try_normalize()?;
-            let half_chord = REST_ASIDE.get() / (2.0 * radius.length());
-            (half_chord < 1.0).then(|| {
-                let turn = Quat::from_axis_angle(normal, -2.0 * half_chord.asin());
-                (Meters3(well.get() + turn * radius), turn * velocity)
-            })
+            let half_chord = (REST_ASIDE.get() / (2.0 * radius.length())).min(1.0);
+            let turn = Quat::from_axis_angle(normal, -2.0 * half_chord.asin());
+            Some((Meters3(well.get() + turn * radius), turn * velocity))
         });
         let (rule, stand, velocity) = match behind {
             Some((stand, velocity)) => ("behind on the station's orbit", stand, velocity),
@@ -712,9 +711,9 @@ mod walk {
             AngularVelocity::ZERO,
         ));
         info!(
-            "station visits: the player {player:?} rests at {stand:?}, {} m aside of \
+            "station visits: the player {player:?} rests at {stand:?}, {:.0} m aside of \
              '{station_id}' ({rule}), moving at {:?} m/s",
-            REST_ASIDE.get(),
+            stand.distance(hub).get(),
             Meters3::from_engine(velocity)
         );
     }
