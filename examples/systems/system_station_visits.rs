@@ -636,17 +636,20 @@ mod walk {
     }
 
     /// Put the player at rest [`REST_ASIDE`] from the offering station, in the
-    /// station's own frame: it takes the station's velocity, so an orbiting
-    /// station does not leave it behind at world rest to fall into the planet.
+    /// station's own frame, so its hull stands in no Dock corridor (a first
+    /// run parked at the collar and the writer's Dock order failed on `no safe
+    /// DOCK corridor`).
     ///
-    /// Side: when the station moves and a gravity well is nearest to it, along
-    /// the orbit normal `(hub - well) x velocity`. A point offset along that
-    /// normal that moves with the station starts at periapsis of its own orbit
-    /// (velocity above circular there), so it never falls closer to the planet
-    /// than its start and the planet the station circles never sweeps it.
-    /// Otherwise beside the line from the nearest profiled ship that works, so
-    /// its hull stands in no Dock corridor (a first run parked at the collar
-    /// and the writer's Dock order failed on `no safe DOCK corridor`).
+    /// A station that orbits the well nearest to it: the player rides the
+    /// station's own orbit, a [`REST_ASIDE`] chord behind it, with the
+    /// station's velocity turned through the same angle about the well. It
+    /// keeps that chord and the orbit's radius, so the planet the station
+    /// circles never reaches it. Left at world rest it fell into the planet
+    /// (seed 26); at the station's velocity off the orbit it climbed away on
+    /// an eccentric orbit and the observer retired the station's sector
+    /// (seed 29). Otherwise, or on an orbit too small for the chord, the
+    /// player stands beside the line from the nearest profiled ship that
+    /// works, at the station's velocity.
     fn rest_aside_of_the_station(world: &mut World) {
         // `NOVA_VISIT_REST=collar` leaves the player where the release set it
         // (at the station's collar): a repro of the first run's Dock failure.
@@ -678,21 +681,30 @@ mod walk {
             .iter(world)
             .map(|at| Meters3::from_engine(at.translation()))
             .min_by(|a, b| a.distance(hub).get().total_cmp(&b.distance(hub).get()));
-        let normal = well
-            .map(|well| (hub.get() - well.get()).cross(velocity).normalize_or_zero())
-            .filter(|normal| normal.length_squared() > 0.5);
-        let (rule, side) = match normal {
-            Some(normal) => ("orbit normal", normal),
+        let behind = well.and_then(|well| {
+            let radius = hub.get() - well.get();
+            let normal = radius.cross(velocity).try_normalize()?;
+            let half_chord = REST_ASIDE.get() / (2.0 * radius.length());
+            (half_chord < 1.0).then(|| {
+                let turn = Quat::from_axis_angle(normal, -2.0 * half_chord.asin());
+                (Meters3(well.get() + turn * radius), turn * velocity)
+            })
+        });
+        let (rule, stand, velocity) = match behind {
+            Some((stand, velocity)) => ("behind on the station's orbit", stand, velocity),
             None => {
                 let along = (ship.get() - hub.get()).normalize_or_zero();
                 let mut side = along.cross(Vec3::Y);
                 if side.length_squared() < 1e-6 {
                     side = along.cross(Vec3::X);
                 }
-                ("beside the line", side.normalize())
+                (
+                    "beside the line",
+                    Meters3(hub.get() + side.normalize() * REST_ASIDE.get()),
+                    velocity,
+                )
             }
         };
-        let stand = Meters3(hub.get() + side * REST_ASIDE.get());
         let player = player(world);
         world.entity_mut(player).insert((
             Position(stand.to_engine()),
@@ -701,7 +713,7 @@ mod walk {
         ));
         info!(
             "station visits: the player {player:?} rests at {stand:?}, {} m aside of \
-             '{station_id}' ({rule}), at the station's velocity {:?} m/s",
+             '{station_id}' ({rule}), moving at {:?} m/s",
             REST_ASIDE.get(),
             Meters3::from_engine(velocity)
         );
