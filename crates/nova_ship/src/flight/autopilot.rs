@@ -220,10 +220,10 @@ const DOCK_CLOSING_GAIN: f32 = 0.3;
 
 /// The offset inside which a DOCK approach closes at [`DOCK_NEAR_CAP`],
 /// engine units (20 m). Above it the proportional law slows the hull to
-/// 0.6 u/s. At an orbiting station the RCS trims the tidal pull for the whole
-/// close and refills only when idle. A 6 u crawl at the near cap took 30 s,
-/// and a magazine taken back at half full ran dry 2 u short of the berth. The
-/// hull then left the lateral gate and backed out to the entry.
+/// 0.6 u/s. The crawl is kept short: at an orbiting station the RCS trims the
+/// tidal pull through the whole close and refills only when idle, so a long
+/// crawl empties the magazine short of the berth and the hull drifts out of
+/// the lateral gate.
 const DOCK_CLOSING_SWITCH: f32 = 2.0;
 
 /// The fastest a DOCK approach closes outside [`DOCK_CLOSING_SWITCH`],
@@ -2006,7 +2006,22 @@ pub(super) fn autopilot_step(
                             return disengaged(DisengageType::NoSafeLeg);
                         }
                         autopilot.detour = leg.plan.corner;
-                        (leg.plan.goal - com_world, leg.length, false)
+                        // A held corner's length runs straight on past it; the
+                        // settle re-arm below reads the whole route a fresh
+                        // search plans, which may take a second corner.
+                        let settling = matches!(
+                            autopilot.action,
+                            AutopilotAction::DockApproach { settled: false, .. }
+                        ) && (velocity - dock.station_velocity).length()
+                            <= DOCK_SETTLE_SPEED;
+                        let routed = if settling && held.is_some() {
+                            search_leg(com_world, goal, None, policy, &obstacles)
+                                .length
+                                .max(leg.length)
+                        } else {
+                            leg.length
+                        };
+                        (leg.plan.goal - com_world, routed, false)
                     };
                     let AutopilotAction::DockApproach {
                         deadline, settled, ..

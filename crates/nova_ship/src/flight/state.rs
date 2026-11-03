@@ -463,8 +463,10 @@ pub enum AutopilotAction {
     /// pulls, not the whole pull.
     ///
     /// Never self-completes and never docks: the helm order that engaged it
-    /// asks for the capture. While every pair is held, it holds the station's
-    /// velocity and waits. Only `ShipOrderDirective::Dock` engages it.
+    /// asks for the capture. While every pair is held, or while another
+    /// hull's approach to the same station flies (one flies at a time), it
+    /// holds the station's velocity and waits. Only `ShipOrderDirective::Dock`
+    /// engages it.
     DockApproach {
         /// The station to dock with.
         station: Entity,

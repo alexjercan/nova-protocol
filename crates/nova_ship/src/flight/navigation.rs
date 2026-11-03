@@ -241,6 +241,11 @@ const SEARCH_DIRECTIONS: usize = 128;
 /// each further ring doubles it up to the mover's own distance.
 const SEARCH_NEAREST: f32 = 8.0;
 
+/// How many first corners and how many last corners, each the shortest
+/// through itself, [`search_leg`] pairs when no single corner serves: at most
+/// this squared pairs are sorted and tested.
+const SEARCH_PAIRED: usize = 96;
+
 /// What [`search_leg`] says to fly this tick, and the length of the path it
 /// planned to the goal: through both corners when it needed two.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -270,7 +275,7 @@ pub(super) struct SearchedLeg {
 /// reached, it stands outside every bubble, so its next leg is never judged on
 /// contact alone. The shortest corner whose leg is clear
 /// and that sees the goal by the clear clearance wins. With none, the shortest
-/// pair of corners does, where the first is held and the second is searched
+/// pair of corners, from the [`SEARCH_PAIRED`] shortest of each, does, where the first is held and the second is searched
 /// again once the first is reached. With no pair, the corner rounds the first
 /// blocker as [`plan_leg`] does.
 pub(super) fn search_leg(
@@ -340,10 +345,18 @@ pub(super) fn search_leg(
     {
         return through(corner);
     }
-    let last: Vec<Vec3> = candidates
-        .into_iter()
-        .filter(|&corner| sighted(corner))
-        .collect();
+    let shortest = |mut corners: Vec<Vec3>| {
+        corners.sort_by(|a, b| through(*a).length.total_cmp(&through(*b).length));
+        corners.truncate(SEARCH_PAIRED);
+        corners
+    };
+    let first = shortest(first);
+    let last = shortest(
+        candidates
+            .into_iter()
+            .filter(|&corner| sighted(corner))
+            .collect(),
+    );
     let mut pairs: Vec<(f32, Vec3, Vec3)> = first
         .iter()
         .flat_map(|&one| {
