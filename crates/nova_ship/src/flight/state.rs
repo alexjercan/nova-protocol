@@ -458,7 +458,10 @@ pub enum AutopilotAction {
     /// a body or hull that moves into the corridor later drops the pair. With
     /// no clear pair the approach holds the station's velocity and casts again
     /// on each refresh; it disengages with `NoSafeDockPath` once it has held
-    /// that way for 300 s in all. Inside the swept tube the
+    /// that way for 300 s in all. A hull inside a forecast body's path (a
+    /// planet the station orbits sweeps a ring round it) first flies out of
+    /// every path under the GOTO arrival law, uncapped by the closing term,
+    /// and settles only outside them. Inside the swept tube the
     /// hull only closes or backs out along the axis, at the velocity of the
     /// station's point under its centre of mass, so a port on a spinning
     /// station is led. In a gravity well the station falls with the hull, so

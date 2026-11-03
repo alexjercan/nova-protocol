@@ -912,6 +912,87 @@ fn a_dock_order_at_a_station_orbiting_close_to_a_planet_captures_without_touchin
     );
 }
 
+/// A hull that takes its Dock order inside the ring an orbiting station's
+/// planet sweeps in the station's frame leaves the ring and docks with no
+/// contact. The station orbits 148 u out about an 88.5 u planet (72 s); the
+/// hull starts 170 u from it in the orbit plane, at its velocity, where the
+/// planet comes round in about 47 s. Every leg from inside the ring was
+/// blocked, so the corner hopped each refresh and the 2 u/s closing cap held
+/// the hull there until the planet struck it (seed 26 of
+/// `system_station_visits`).
+#[test]
+fn a_dock_order_taken_inside_a_planets_swept_ring_leaves_it_and_captures_without_touching_it() {
+    const RADIUS: f32 = 88.5;
+    const MU: f32 = 24_700.0;
+    const ORBIT: f32 = 148.0;
+    let mut app = dock_orbit_app();
+    let planet = spawn_planet(&mut app, RADIUS, MU);
+    let at = Vec3::new(ORBIT, 0.0, 0.0);
+    let velocity = Vec3::Z * nova_gameplay::gravity::circular_orbit_speed(MU, ORBIT);
+    let (station, station_port) = slab_station(&mut app, false, at);
+    let axis = Vec3::new(-0.5, -(60.0_f32).to_radians().sin(), 0.0).normalize();
+    let tilt = Quat::from_rotation_arc(Vec3::Y, axis);
+    let offset = Vec3::new(0.0, 0.0, 170.0);
+    let (ship, port) = placed_visitor(&mut app, station, offset, Quat::IDENTITY);
+    app.world_mut().entity_mut(station).insert((
+        Transform::from_translation(at).with_rotation(tilt),
+        Position(at),
+        Rotation(tilt),
+    ));
+    settle(&mut app);
+    app.world_mut().entity_mut(station).insert((
+        Transform::from_translation(at).with_rotation(tilt),
+        Position(at),
+        Rotation(tilt),
+        LinearVelocity(velocity),
+        AngularVelocity::ZERO,
+    ));
+    app.world_mut().entity_mut(ship).insert((
+        Transform::from_translation(at + offset),
+        Position(at + offset),
+        LinearVelocity(velocity),
+        AngularVelocity::ZERO,
+    ));
+    order_dock(&mut app, ship, station);
+
+    let mut frames = 0;
+    let mut closest = f32::MAX;
+    while app.world().get::<ShipOrderReported>(ship).is_none() && frames < ORBIT_APPROACH_FRAMES {
+        app.update();
+        frames += 1;
+        closest = closest.min(position_of(&app, ship).length());
+        let contacts = touching(&app, ship, station);
+        assert!(
+            contacts.is_empty(),
+            "the hull touches the station at tick {frames}: {contacts:?}"
+        );
+        let contacts = touching(&app, ship, planet);
+        assert!(
+            contacts.is_empty(),
+            "the hull touches the planet at tick {frames}, {closest} u from its centre: {contacts:?}"
+        );
+    }
+
+    assert_eq!(
+        report_outcomes(&app, ship),
+        vec![ShipOrderOutcome::Complete],
+        "the order completes once, after {frames} ticks"
+    );
+    let docked = *app
+        .world()
+        .get::<DockedShip>(ship)
+        .expect("the captured ship is docked");
+    let connection = *app
+        .world()
+        .get::<DockingConnection>(docked.connection)
+        .expect("the dock names its connection");
+    assert_eq!(
+        (connection.first_section, connection.second_section),
+        (port, station_port),
+        "the capture joins the hull's port to the slab's"
+    );
+}
+
 /// A station on a 72 s orbit 148 u out about an 88.5 u planet sees the planet
 /// circle it in its own frame. The forecast keeps that ring: a corridor 70 u
 /// out along the orbit's track is refused on the planet, though the planet

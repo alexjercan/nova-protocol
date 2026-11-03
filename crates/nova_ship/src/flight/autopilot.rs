@@ -21,7 +21,9 @@ use super::{
     dock_corridor::{
         dock_berth_gap, DockBlocker, DockCorridors, DOCK_FINAL_LEG_ANGLE, DOCK_FINAL_LEG_LATERAL,
     },
-    dock_forecast::{station_frame_sweep, DockForecast, FieldBody, DOCK_FORECAST_REFRESH},
+    dock_forecast::{
+        station_frame_sweep, swept_exit, DockForecast, FieldBody, DOCK_FORECAST_REFRESH,
+    },
     guidance::{
         arrival_eta, flip_lead, goto_desired_velocity, goto_flip_point, orbit_band_floor,
         orbit_desired_velocity, orbit_plane_normal, orbit_ring_offset, orbit_target_radius,
@@ -2053,6 +2055,37 @@ pub(super) fn autopilot_step(
                 .copied()
                 .chain([dock.station_bubble])
                 .collect();
+            // A hull inside a forecast path stands where that body will be
+            // within the horizon: a planet the station orbits closely sweeps
+            // its ring once per orbit at the orbit speed, many times the
+            // closing cap. Every leg from inside is blocked, so the corner
+            // hops each refresh while the body comes round. The hull flies
+            // out of the set first, under the GOTO arrival law in the
+            // station's frame, to the nearest point clear of every path and
+            // the station's bubble.
+            let escape = forecast
+                .iter()
+                .any(|&(center, radius)| com_world.distance(center) < radius + mover_radius)
+                .then(|| {
+                    let clear = swept_exit(com_world, policy.clear_clearance(), &obstacles);
+                    let to_clear = clear - com_world;
+                    let relative = velocity - dock.station_velocity;
+                    let (accel, lead) = braking_plan(
+                        -to_clear.normalize_or_zero(),
+                        relative.length().max(settings.min_approach_speed),
+                    );
+                    let flee = goto_desired_velocity(
+                        to_clear,
+                        0.0,
+                        accel,
+                        settings.decel_margin,
+                        lead,
+                        settings.min_approach_speed,
+                        0.0,
+                        cruise_cap,
+                    );
+                    (clear, flee)
+                });
             match dock.pair {
                 // No pair to fly: move with the station and wait, clear of
                 // every forecast path. A point that stands still in the
@@ -2063,7 +2096,10 @@ pub(super) fn autopilot_step(
                 // station's plating does not sweep into it.
                 None => {
                     let clear = goal_outside(com_world, policy.clear_clearance(), &forecast);
-                    if clear == com_world {
+                    if let Some((_, flee)) = escape {
+                        autopilot.detour = None;
+                        dock.station_velocity + flee
+                    } else if clear == com_world {
                         autopilot.detour = None;
                         let (center, radius) = dock.station_bubble;
                         if com_world.distance(center) <= radius + policy.clearance {
@@ -2107,6 +2143,9 @@ pub(super) fn autopilot_step(
                     // to the entry.
                     let in_tube = (0.0..=plan.entry + DOCK_FINAL_LEG_LATERAL).contains(&along)
                         && lateral < plan.lateral;
+                    // The corridor is kept clear of every path, so only leg A
+                    // can stand inside one.
+                    let escape = escape.filter(|_| !in_tube);
                     let (offset, to_entry, closing, frame) = if in_tube {
                         autopilot.detour = None;
                         let aligned =
@@ -2119,6 +2158,15 @@ pub(super) fn autopilot_step(
                             closing,
                             // The tube turns with the station.
                             dock.frame_velocity(com_world),
+                        )
+                    } else if let Some((clear, _)) = escape {
+                        autopilot.detour = None;
+                        let goal = com_world + (entry_face - pair.first.face);
+                        (
+                            clear - com_world,
+                            com_world.distance(clear) + clear.distance(goal),
+                            false,
+                            dock.station_velocity,
                         )
                     } else {
                         let goal = com_world + (entry_face - pair.first.face);
@@ -2171,10 +2219,12 @@ pub(super) fn autopilot_step(
                         dock_approach_deadline(to_entry, corridor, turn_rate)
                     });
                     // Once, on the first tick the hull flies near the station's
-                    // velocity: the leg it plans from there is the one the
-                    // closing law flies. A hull that never settles keeps the
-                    // deadline it was armed with.
-                    if !*settled && (velocity - dock.station_velocity).length() <= DOCK_SETTLE_SPEED
+                    // velocity outside every path: the leg it plans from there
+                    // is the one the closing law flies. A hull that never
+                    // settles keeps the deadline it was armed with.
+                    if escape.is_none()
+                        && !*settled
+                        && (velocity - dock.station_velocity).length() <= DOCK_SETTLE_SPEED
                     {
                         *settled = true;
                         *left = left.max(dock_approach_deadline(to_entry, corridor, turn_rate));
@@ -2186,10 +2236,10 @@ pub(super) fn autopilot_step(
                     hold_axis =
                         Some((body.rotation.inverse() * pair.first.axis, -pair.second.axis));
                     frame
-                        + if closing {
-                            dock_final_close_velocity(offset)
-                        } else {
-                            dock_closing_velocity(offset)
+                        + match escape {
+                            Some((_, flee)) => flee,
+                            None if closing => dock_final_close_velocity(offset),
+                            None => dock_closing_velocity(offset),
                         }
                 }
             }

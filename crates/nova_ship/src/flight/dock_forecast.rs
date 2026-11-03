@@ -206,3 +206,37 @@ fn sample_path(body: &FieldBody, path: &[Vec3], reach: f32, spheres: &mut Vec<Fo
         radius,
     }));
 }
+
+/// How many steps [`swept_exit`] takes at most.
+const SWEPT_EXIT_STEPS: usize = 16;
+
+/// The nearest point clear of every sphere in `spheres` by `clearance`, from
+/// `from` inside their union.
+///
+/// A hull inside a forecast path is where that body will stand within the
+/// horizon, and every leg from it is blocked. Pushing out of one sphere at a
+/// time lands inside the next one along a path. A step instead follows the
+/// depth-weighted sum of the pushes out of every sphere that holds the point,
+/// as long as the deepest push. Along a path of overlapping spheres (a
+/// planet's ring) the pushes along the path cancel, so the steps cross it.
+/// Bounded: a set with no way out returns the last point.
+pub(super) fn swept_exit(from: Vec3, clearance: f32, spheres: &[(Vec3, f32)]) -> Vec3 {
+    let mut point = from;
+    for _ in 0..SWEPT_EXIT_STEPS {
+        let mut push = Vec3::ZERO;
+        let mut deepest = 0.0f32;
+        for &(center, radius) in spheres {
+            let offset = point - center;
+            let depth = radius + clearance - offset.length();
+            if depth > 0.0 {
+                push += offset.normalize_or(Vec3::Y) * depth;
+                deepest = deepest.max(depth);
+            }
+        }
+        if deepest <= 0.0 {
+            return point;
+        }
+        point += push.normalize_or(Vec3::Y) * (deepest + 1.0);
+    }
+    point
+}
