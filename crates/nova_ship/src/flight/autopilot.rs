@@ -2164,7 +2164,7 @@ pub(super) fn autopilot_step(
                     // can stand inside one.
                     let escape = escape.filter(|_| !in_tube);
                     // Leg A and an escape fly on the drive, so the magazine
-                    // is full at the entry. Near an orbiting station the hull
+                    // is spent only near the entry. Near an orbiting station the hull
                     // holds against the tidal pull, 0.3 to 0.8 u/s^2 within a
                     // few hundred u of a station on a 73 s orbit; trimmed on
                     // the RCS through leg A, that emptied the magazine before
