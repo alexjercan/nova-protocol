@@ -1890,7 +1890,8 @@ pub(super) fn autopilot_step(
     let mut hold_axis: Option<(Vec3, Vec3)> = None;
     let mut is_velocity_hold = false;
     // Cleared by a MatchVelocity that leaves every push to the drive, and by
-    // a DockApproach flying its pair outside the corridor tube.
+    // a DockApproach flying its pair outside the corridor tube, except
+    // within DOCK_CLOSING_SWITCH of the corridor entry.
     let mut rcs_permitted = true;
     // Set by the arrival leg when it loses its stopping plan this tick; the
     // system logs the edge.
@@ -2167,11 +2168,17 @@ pub(super) fn autopilot_step(
                     // holds against the tidal pull, 0.3 to 0.8 u/s^2 within a
                     // few hundred u of a station on a 73 s orbit; trimmed on
                     // the RCS through leg A, that emptied the magazine before
-                    // the corridor (seed 26). A hull that waits for a pair or
-                    // the station's turn keeps the RCS: on the drive alone it
-                    // turned onto each error for minutes and then overran a
-                    // 70 u approach at a fixed station (seed 13).
-                    rcs_permitted = in_tube;
+                    // the corridor (seed 26). The last DOCK_CLOSING_SWITCH to
+                    // the entry trims on the RCS: there the command is capped
+                    // at DOCK_NEAR_CAP, inside the drive's attitude_deadband,
+                    // so the drive takes the error as a crumb and the port
+                    // sat aligned just outside the tube until its deadline
+                    // (seed 13). A hull that waits for a pair or the
+                    // station's turn keeps the RCS: on the drive alone it
+                    // turned onto each error for minutes and then overran.
+                    rcs_permitted = in_tube
+                        || (escape.is_none()
+                            && entry_face.distance(pair.first.face) <= DOCK_CLOSING_SWITCH);
                     let (offset, to_entry, closing, frame) = if in_tube {
                         autopilot.detour = None;
                         let aligned =

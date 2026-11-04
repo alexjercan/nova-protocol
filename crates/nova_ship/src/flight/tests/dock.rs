@@ -994,7 +994,8 @@ fn a_dock_order_taken_inside_a_planets_swept_ring_leaves_it_and_captures_without
 }
 
 /// A DOCK approach to a station on a 72 s orbit 148 u out about an 88.5 u
-/// planet spends no RCS before its port reaches the corridor, and captures.
+/// planet spends no RCS before its port is within 2 u of the corridor entry,
+/// and captures.
 /// The hull holds against the tidal pull all the way in; trimmed on the RCS
 /// through leg A, the 30 u/s magazine ran dry before the entry (seed 26 of
 /// `system_station_visits`), and with the RCS refused the hull turned its
@@ -1070,15 +1071,17 @@ fn a_dock_approach_to_an_orbiting_station_keeps_its_rcs_for_the_corridor() {
                         .expect("a station port pose")
                         .translation(),
                 );
-            first_spend = Some((frames, gap, plan.entry + plan.lateral));
+            first_spend = Some((frames, gap, plan.entry));
         }
     }
 
-    let (tick, gap, corridor) = first_spend.expect("the close spends RCS");
+    let (tick, gap, entry) = first_spend.expect("the close spends RCS");
+    // The RCS opens 2 u from the entry; the port origins sit 0.5 u behind
+    // their faces, so the origin gap reads 1 u more.
     assert!(
-        gap <= corridor + 2.0,
-        "the hull first spends RCS at tick {tick}, {gap} u from the station port, outside the \
-         {corridor} u corridor"
+        gap <= entry + 3.0,
+        "the hull first spends RCS at tick {tick}, {gap} u from the station port, more than \
+         2 u short of the {entry} u corridor entry"
     );
     assert_eq!(
         report_outcomes(&app, ship),
@@ -1581,5 +1584,84 @@ fn a_dock_approach_that_drifts_off_axis_inside_the_corridor_backs_out_along_it()
         report_outcomes(&app, ship),
         vec![ShipOrderOutcome::Complete],
         "the order completes once, after {frames} ticks"
+    );
+}
+
+/// A hull aligned with the slab's port, 1.5 u beyond the corridor entry and
+/// 1 u off the axis, nearly at rest in the station's frame, trims into the
+/// tube and captures. Within 2 u of the entry the 0.2 u/s closing command sits
+/// inside the drive's crumb band, so on the drive alone the port sat aligned
+/// outside the tube until the order's deadline ran out (seed 13 of
+/// `system_station_visits`).
+#[test]
+fn a_dock_hull_drifting_just_outside_the_corridor_entry_trims_into_it_and_captures() {
+    let mut app = dock_flight_app();
+    let (station, station_port) = slab_station(&mut app, false, Vec3::ZERO);
+    let facing_down = Quat::from_rotation_z(-FRAC_PI_2);
+    let (ship, port) = placed_visitor(&mut app, station, Vec3::new(1.0, 12.0, 0.0), facing_down);
+    let mut inputs = app
+        .world_mut()
+        .query::<(&ChildOf, &mut ControllerSectionRotationInput)>();
+    for (&ChildOf(parent), mut input) in inputs.iter_mut(app.world_mut()) {
+        if parent == ship {
+            **input = facing_down;
+        }
+    }
+    order_dock(&mut app, ship, station);
+
+    let mut frames = 0;
+    let plan = loop {
+        app.update();
+        frames += 1;
+        if let Some(AutopilotAction::DockApproach {
+            plan: Some(plan), ..
+        }) = app
+            .world()
+            .get::<Autopilot>(ship)
+            .map(|autopilot| autopilot.action)
+        {
+            break plan;
+        }
+        assert!(frames < 600, "the approach never planned a corridor");
+    };
+
+    // Re-place the port 1.5 u beyond the entry and 1 u off the axis, at rest
+    // in the station's frame but for a 0.02 u/s drift toward the axis: faster
+    // carries the hull past 2 u from the entry, where the drive burns again.
+    let (station_face, axis) = port_face(&app, station, station_port);
+    let (face, _) = port_face(&app, ship, port);
+    let target = station_face + axis * (plan.entry + 1.5) + Vec3::X;
+    let at = position_of(&app, ship) + (target - face);
+    let station_velocity = **app.world().get::<LinearVelocity>(station).unwrap();
+    app.world_mut().entity_mut(ship).insert((
+        Transform::from_translation(at).with_rotation(facing_down),
+        Position(at),
+        Rotation(facing_down),
+        LinearVelocity(station_velocity + Vec3::new(-0.02, 0.0, 0.0)),
+        AngularVelocity::ZERO,
+    ));
+
+    while app.world().get::<ShipOrderReported>(ship).is_none() && frames < APPROACH_FRAMES {
+        app.update();
+        frames += 1;
+    }
+
+    assert_eq!(
+        report_outcomes(&app, ship),
+        vec![ShipOrderOutcome::Complete],
+        "the order completes once, after {frames} ticks"
+    );
+    let docked = *app
+        .world()
+        .get::<DockedShip>(ship)
+        .expect("the captured ship is docked");
+    let connection = *app
+        .world()
+        .get::<DockingConnection>(docked.connection)
+        .expect("the dock names its connection");
+    assert_eq!(
+        (connection.first_section, connection.second_section),
+        (port, station_port),
+        "the capture joins the hull's port to the slab's"
     );
 }
