@@ -47,9 +47,15 @@
 //! set on a hardware GPU; on lavapipe the approach can end inside the window.
 //! The clean pass's deadline is the timeout less 30 s; at seed 13 the visit
 //! ends about 370 s into play, before the player docks and accepts, so the
-//! default timeout ends the walk on its backstop. Let the profiled pass finish: `checks.json` is written
-//! only at the end. A matched reference is the same seed on the same build
-//! with only the compared change.
+//! default timeout ends the walk on its backstop. That recipe is unpinned.
+//! With `NOVA_PROBE_MAX_DELTA=0.015625` the frame-time passes run the sim
+//! slower than real time: earlier pinned sets with
+//! `NOVA_AUTOPILOT_DEADLINE=1470` and `--timeout 1500` still ended every
+//! frame-time pass on that deadline before the player's final dock. No
+//! pinned budget is known to finish the walk. Let
+//! the profiled pass finish: `checks.json` is written only at the end. A
+//! matched reference is the same seed on the same build with only the
+//! compared change.
 //!
 //! `NOVA_CAPTURE=1` also writes `station-visits-docked.png` of the docked
 //! visitor, `station-visits-released.png` of the same station after the
