@@ -79,16 +79,18 @@ this directory is reachable from shipped content.
 | `bay_door.wav` | torpedo bay and cargo intake `door_sound` (one file, both directions) |
 | `railgun_fire.wav` | railgun `fire_sound` |
 | `railgun_charge.wav` | railgun `charge_sound` - a LOOP, driven up in gain and rate as the charge fills |
-| `railgun_reload.wav` | railgun `reload_sound`, on the magazine coming back to capacity |
+| `railgun_reload.wav` | railgun `reload_sound`, once per reload batch that lands |
 
 ### Ordnance and impacts
 
 | File | Authored on |
 | --- | --- |
 | `torpedo_launch.wav` | torpedo bay `launch_sound` |
-| `torpedo_detonate.wav` | the warhead's `detonation_sound` |
+| `torpedo_ignite.wav` | torpedo bay `ignition_sound`, the drive lighting as the cold coast ends (recorded) |
+| `torpedo_detonate.wav` | the warhead's `detonation_sound`, played at the blast |
 | `torpedo_dud.wav` | torpedo bay `dud_sound`, a torpedo breaking up on contact with its warhead unfired (recorded) |
 | `torpedo_intercept.wav` | torpedo bay `intercept_sound`, a torpedo shot down or caught in a blast (recorded) |
+| `torpedo_rack.wav` | torpedo bay `reload_sound`, once per torpedo a reload returns to the rack (recorded) |
 | `impact.wav` | impact table `impact_kinetic` - the Kinetic default, so anything with no material row of its own |
 | `impact_rock.wav` | impact table `impact_kinetic_<kind>` - a slug on stone, one row per asteroid kind |
 | `impact_pierce.wav` | impact table `impact_pierce` - the Pierce default |
@@ -146,13 +148,15 @@ ship's cockpit voice. Only the player's ship plays them.
 
 ## Recorded (licensed)
 
-These files are trimmed recordings, not renderer output. Both are CC0 1.0, so
+These files are trimmed recordings, not renderer output. All are CC0 1.0, so
 no attribution is required; the source is kept so a replacement can be traced.
 
 | File | Source | Author | License | Original |
 | --- | --- | --- | --- | --- |
 | `torpedo_dud.wav` | https://kenney.nl/assets/sci-fi-sounds | Kenney (kenney.nl) | CC0 1.0 | Sci-Fi Sounds 1.0, `Audio/impactMetal_000.ogg`, first 0.45 s with a 120 ms fade |
 | `torpedo_intercept.wav` | https://freesound.org/people/ReadeOnly/sounds/186958/ | ReadeOnly | CC0 1.0 | `explosion7.wav` (HQ preview), first 0.25 s with an 80 ms fade |
+| `torpedo_ignite.wav` | https://freesound.org/people/gracenew/sounds/857959/ | gracenew | CC0 1.0 | `Rocket Launch` (HQ preview), first 0.80 s with a 200 ms fade |
+| `torpedo_rack.wav` | https://freesound.org/people/P%C3%B3l/sounds/385936/ | Pól | CC0 1.0 | `S011_Gear_Change_Mono.wav` (HQ preview), 175 ms lead trimmed, the remaining 0.32 s with an 80 ms fade |
 
 ## Web (wasm) builds
 
