@@ -6,7 +6,9 @@
 //! - damage applied to a target -> a small camera-shake kick + a spark burst
 //!   (`On<HealthApplyDamage>`);
 //! - a section/asteroid destroyed or a torpedo detonating -> a big camera-shake
-//!   kick + a bigger burst (`On<Add, IntegrityDestroyMarker>`).
+//!   kick + a bigger burst (`On<Add, IntegrityDestroyMarker>`);
+//! - the player's torpedo getting the kill -> the camera held at a trauma
+//!   floor, unattenuated (`On<PlayerKillConfirmed>`).
 //!
 //! **Camera shake** reuses the generic trauma model from [`shake`](crate::shake)
 //! ([`CameraShakePlugin`]): it is drift-free (offset is un-applied and re-applied
@@ -113,6 +115,11 @@ pub struct ShakeSettings {
     pub hit_trauma: f32,
     /// Trauma added by one (attenuated) destruction event.
     pub destroy_trauma: f32,
+    /// The least trauma the camera holds when the player's torpedo gets the
+    /// kill ([`PlayerKillConfirmed`]). A floor and not an impulse, and with no
+    /// distance falloff: a kill far down the range still lands in the seat,
+    /// and one beside a close blast adds nothing to it.
+    pub player_kill_floor: f32,
     /// Trauma decay per second (passed to [`CameraShake::decay`]).
     pub decay: f32,
     /// Peak positional offset at full trauma, world units ([`CameraShake::max_offset`]).
@@ -148,6 +155,9 @@ impl Default for ShakeSettings {
             //                  residual trauma; raising it would erase single hits)
             hit_trauma: 0.05,
             destroy_trauma: 0.16,
+            // A little over a point-blank destroy: the kill is the bigger
+            // news, and squared by `exponent` it is still a short bump.
+            player_kill_floor: 0.20,
             decay: 3.2,
             max_offset: Vec3::new(0.10, 0.10, 0.06),
             max_kick: Vec3::new(0.003, 0.003, 0.0045),
@@ -336,6 +346,7 @@ impl Plugin for NovaJuicePlugin {
 
         app.add_observer(on_damage_juice);
         app.add_observer(on_destroy_juice);
+        app.add_observer(on_player_kill_juice);
 
         app.add_systems(
             Update,
@@ -553,6 +564,24 @@ fn on_destroy_juice(
         &mut commands,
         &mut q_shake_input,
     );
+}
+
+/// The player's torpedo got the kill: hold the camera at
+/// [`ShakeSettings::player_kill_floor`] or above.
+///
+/// Not distance-attenuated and not throttled. The event fires once per
+/// defeated hull, and it is about the pilot, not about where the hull was.
+fn on_player_kill_juice(
+    _confirmed: On<PlayerKillConfirmed>,
+    settings: Res<JuiceSettings>,
+    mut q_shake_input: Query<&mut CameraShakeInput, With<SfxListenerMarker>>,
+) {
+    if !settings.shake_on() {
+        return;
+    }
+    for mut input in &mut q_shake_input {
+        input.trauma_floor = input.trauma_floor.max(settings.shake.player_kill_floor);
+    }
 }
 
 #[cfg(test)]

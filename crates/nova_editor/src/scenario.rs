@@ -49,7 +49,8 @@ use crate::{
         objects_of, sections_of, EditContext, NodeId, ObjectNodes, ScenarioNode, SectionNodes,
         ShipDriver, ShipNode, AMMO_DRY_SOUND, ASTEROID_TEXTURE, DESTROY_SOUND, KILL_CONFIRM_SOUND,
         LOCK_OFF_SOUND, LOCK_ON_SOUND, RADAR_DENY_SOUND, RADAR_RETARGET_SOUND, RCS_LOOP_SOUND,
-        SAFETY_ON_SOUND, SHIP_COLLAPSE_SOUND, WARN_HULL_SOUND, WARN_LOCK_SOUND,
+        SAFETY_ON_SOUND, SHIP_COLLAPSE_SOUND, TORPEDO_CLOSING_SOUND, WARN_HULL_SOUND,
+        WARN_LOCK_SOUND,
     },
     station::{station_design_id, StationCatalogs},
 };
@@ -574,6 +575,7 @@ pub(crate) fn ship_design(ship: &LoweredShip) -> ShipDesign {
             ammo_dry_sound: Some(AssetRef::from(AMMO_DRY_SOUND)),
             warn_hull_sound: Some(AssetRef::from(WARN_HULL_SOUND)),
             kill_confirm_sound: Some(AssetRef::from(KILL_CONFIRM_SOUND)),
+            torpedo_closing_sound: Some(AssetRef::from(TORPEDO_CLOSING_SOUND)),
             rcs_loop_sound: Some(AssetRef::from(RCS_LOOP_SOUND)),
             ..default()
         },
@@ -1515,6 +1517,10 @@ mod tests {
         assert_eq!(
             voice.kill_confirm_sound,
             Some(AssetRef::from(KILL_CONFIRM_SOUND))
+        );
+        assert_eq!(
+            voice.torpedo_closing_sound,
+            Some(AssetRef::from(TORPEDO_CLOSING_SOUND))
         );
         assert_eq!(voice.rcs_loop_sound, Some(AssetRef::from(RCS_LOOP_SOUND)));
     }

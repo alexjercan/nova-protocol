@@ -122,6 +122,11 @@ pub struct CameraShakeInput {
     /// Trauma to add this frame. Consumed and reset to zero after it is applied.
     pub add_trauma: f32,
 
+    /// Raise trauma to at least this, this frame, after `add_trauma` lands.
+    /// Consumed and reset to zero after it is applied. A floor and not an
+    /// impulse: it never stacks on trauma that is already higher.
+    pub trauma_floor: f32,
+
     /// When true, trauma and the applied offset are cleared this frame and the
     /// flag is reset to false.
     pub reset: bool,
@@ -295,6 +300,10 @@ fn camera_shake_apply_system(
         if input.add_trauma != 0.0 {
             state.trauma = add_trauma(state.trauma, input.add_trauma);
             input.add_trauma = 0.0;
+        }
+        if input.trauma_floor > 0.0 {
+            state.trauma = state.trauma.max(input.trauma_floor.min(1.0));
+            input.trauma_floor = 0.0;
         }
 
         state.trauma = decay_trauma(state.trauma, shake.decay, dt);

@@ -63,6 +63,10 @@ pub struct ShipFeedbackSounds {
     /// hull, on `PlayerKillConfirmed`.
     #[reflect(ignore)]
     pub kill_confirm: Option<AssetRef<AudioSource>>,
+    /// The player's torpedo is closing on the locked target - the tick,
+    /// repeated faster as `PlayerTorpedoEta` falls.
+    #[reflect(ignore)]
+    pub torpedo_closing: Option<AssetRef<AudioSource>>,
     /// RCS fine-adjust LOOP: plays continuously while the ship is burning the
     /// RCS primitive. Unlike the one-shots above this is sustained, resolved
     /// and volume-tracked by the audio module (one loop per distinct handle),

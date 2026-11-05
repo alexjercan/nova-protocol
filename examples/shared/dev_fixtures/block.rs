@@ -158,6 +158,7 @@ fn presentation() -> ShipPresentationConfig {
         ammo_dry_sound: sound("ammo_dry"),
         warn_hull_sound: sound("warn_hull"),
         kill_confirm_sound: sound("kill_confirm"),
+        torpedo_closing_sound: sound("torpedo_closing"),
         rcs_loop_sound: sound("rcs_loop"),
         ..ShipPresentationConfig::default()
     }

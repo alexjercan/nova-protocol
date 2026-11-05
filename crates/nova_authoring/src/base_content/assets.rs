@@ -139,6 +139,8 @@ pub struct BaseContentAssets {
     pub ship_warn_hull_sound: AssetRef<AudioSource>,
     /// The kill stinger: the ship's torpedo got the kill.
     pub ship_kill_confirm_sound: AssetRef<AudioSource>,
+    /// The closing tone: the ship's torpedo nearing its locked target.
+    pub ship_torpedo_closing_sound: AssetRef<AudioSource>,
     /// The ship's RCS fine-adjust loop: plays while the RCS primitive burns,
     /// player- or autopilot-driven.
     pub ship_rcs_loop_sound: AssetRef<AudioSource>,
@@ -298,6 +300,9 @@ impl BaseContentAssets {
             ship_ammo_dry_sound: AssetRef::from("self://sounds/ammo_dry.wav".to_string()),
             ship_warn_hull_sound: AssetRef::from("self://sounds/warn_hull.wav".to_string()),
             ship_kill_confirm_sound: AssetRef::from("self://sounds/kill_confirm.wav".to_string()),
+            ship_torpedo_closing_sound: AssetRef::from(
+                "self://sounds/torpedo_closing.wav".to_string(),
+            ),
             ship_rcs_loop_sound: AssetRef::from("self://sounds/rcs_loop.wav".to_string()),
             section_destroy_sound: AssetRef::from("self://sounds/explosion.wav".to_string()),
             ship_collapse_sound: AssetRef::from("self://sounds/destroy_ship.wav".to_string()),

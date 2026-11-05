@@ -257,7 +257,7 @@ kits - `armoured_*` (10), `civilian_*` (12), `industrial_*` (14),
 All are generated from committed JSON recipes (`scripts/gen-greebles.py`,
 `scripts/greeble-recipes/`), and a mod can ship its own `.glb` the same way.
 
-### Sounds (40 wav)
+### Sounds (41 wav)
 
 All under `dep://base/sounds/`: `ammo_dry.wav`, `bay_door.wav`,
 `cargo_eject.wav`, `destroy_rock.wav`, `destroy_ship.wav`, `dry_fire.wav`,
@@ -268,9 +268,10 @@ All under `dep://base/sounds/`: `ammo_dry.wav`, `bay_door.wav`,
 `radar_deny.wav`, `radar_retarget.wav`, `railgun_charge.wav`,
 `railgun_fire.wav`, `railgun_reload.wav`, `rcs_loop.wav`, `safety_on.wav`,
 `salvage_pickup.wav`, `thruster_capital_loop.wav`, `thruster_loop.wav`,
-`thruster_vector_loop.wav`, `torpedo_detonate.wav`, `torpedo_dud.wav`,
-`torpedo_ignite.wav`, `torpedo_intercept.wav`, `torpedo_launch.wav`,
-`torpedo_rack.wav`, `turret_fire.wav`, `warn_hull.wav`, `warn_lock.wav`.
+`thruster_vector_loop.wav`, `torpedo_closing.wav`, `torpedo_detonate.wav`,
+`torpedo_dud.wav`, `torpedo_ignite.wav`, `torpedo_intercept.wav`,
+`torpedo_launch.wav`, `torpedo_rack.wav`, `turret_fire.wav`, `warn_hull.wav`,
+`warn_lock.wav`.
 
 (UI chrome sounds - menu clicks, objective chimes - are engine assets, not
 base bundle resources, and are NOT dep-referenceable.)

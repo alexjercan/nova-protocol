@@ -194,6 +194,12 @@ pub struct ShipPresentationConfig {
     #[reflect(ignore)]
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub kill_confirm_sound: Option<AssetRef<AudioSource>>,
+    /// The closing tone: one tick, repeated faster as this ship's soonest
+    /// torpedo on its locked target nears impact, from 8 s out. For the
+    /// player's ship only.
+    #[reflect(ignore)]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub torpedo_closing_sound: Option<AssetRef<AudioSource>>,
     /// The hull fraction the alarm above fires at, clamped to `0..=1`.
     ///
     /// A SHIP decision, and the reason it is authored at all: a cheap civilian
@@ -226,6 +232,7 @@ impl Default for ShipPresentationConfig {
             ammo_dry_sound: None,
             warn_hull_sound: None,
             kill_confirm_sound: None,
+            torpedo_closing_sound: None,
             warn_hull_fraction: DEFAULT_WARN_HULL_FRACTION,
             rcs_loop_sound: None,
         }
@@ -256,6 +263,7 @@ impl ShipPresentationConfig {
             ammo_dry_sound: Some(AssetRef::from("base/sounds/ammo_dry.wav")),
             warn_hull_sound: Some(AssetRef::from("base/sounds/warn_hull.wav")),
             kill_confirm_sound: Some(AssetRef::from("base/sounds/kill_confirm.wav")),
+            torpedo_closing_sound: Some(AssetRef::from("base/sounds/torpedo_closing.wav")),
             rcs_loop_sound: Some(AssetRef::from("base/sounds/rcs_loop.wav")),
             ..Self::default()
         }

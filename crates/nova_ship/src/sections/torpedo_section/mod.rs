@@ -31,9 +31,12 @@ use crate::{physics::prelude::rigid_body_point_velocity, prelude::*};
 
 /// Building the bay, its fire timer, and the launch that spawns a torpedo.
 mod bay;
-/// The look of a torpedo dying without its warhead: the dud puff and the
-/// intercept pop (gated by the plugin's `render` flag).
+/// The look of a torpedo dying: the dud puff, the intercept pop and the
+/// warhead's shock shell (gated by the plugin's `render` flag).
 mod death;
+/// The player's torpedo time to impact on the locked hull, the shared source
+/// the cockpit closing tone and the lock readout read.
+mod eta;
 /// Save/restore of a flying torpedo: [`frozen::FrozenTorpedo`] pairs the
 /// bay-launch bundle [`bay::TorpedoLaunch`]/[`bay::spawn_torpedo`] builds with
 /// the in-flight state only a save needs to carry.
@@ -51,31 +54,37 @@ mod render;
 /// Scripted launches: an authored one-shot order that fires a bay and commits
 /// the projectile with no controller involved (scenario-timer emplacements).
 mod scripted;
+/// The flight trail a lit torpedo lays behind it (gated by the plugin's
+/// `render` flag and the graphics tier).
+mod trail;
 
 pub(crate) use bay::TorpedoLaunchConfig;
 use bay::*;
 pub use bay::{TorpedoBayDoorsMoved, TorpedoLaunched};
 use death::*;
+use eta::*;
+pub use eta::{torpedo_time_to_impact, PlayerTorpedoEta, TorpedoEta};
 pub use frozen::{freeze_torpedo, thaw_torpedo, FrozenTorpedo, SavedTorpedoTarget};
 pub use kill_credit::TorpedoBlastCredit;
 use kill_credit::*;
 use projectile::*;
 use render::*;
 use scripted::*;
+use trail::*;
 
 /// The `torpedo_section` spawner, the bay, arming and steering state, the guidance and target
 /// components, the blast, and `TorpedoSectionPlugin`.
 pub mod prelude {
     pub use super::{
         freeze_torpedo, preview_torpedo_section, scripted::ScriptedTorpedoOrder, thaw_torpedo,
-        torpedo_section, BlastMomentum, FrozenTorpedo, SavedTorpedoTarget, TorpedoArming,
-        TorpedoBayDoorsMoved, TorpedoBlast, TorpedoBlastCredit, TorpedoColdLaunch,
-        TorpedoControllerMarker, TorpedoDeathType, TorpedoEngineFigures, TorpedoGuidance,
-        TorpedoIgnited, TorpedoKilled, TorpedoLaunched, TorpedoSectionConfig,
-        TorpedoSectionConfigHelper, TorpedoSectionInput, TorpedoSectionPartOf,
-        TorpedoSectionPlugin, TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker,
-        TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity,
-        TorpedoTargetPosition, TorpedoType, TorpedoTypeConfig, TorpedoWeave,
+        torpedo_section, torpedo_time_to_impact, BlastMomentum, FrozenTorpedo, PlayerTorpedoEta,
+        SavedTorpedoTarget, TorpedoArming, TorpedoBayDoorsMoved, TorpedoBlast, TorpedoBlastCredit,
+        TorpedoColdLaunch, TorpedoControllerMarker, TorpedoDeathType, TorpedoEngineFigures,
+        TorpedoEta, TorpedoGuidance, TorpedoIgnited, TorpedoKilled, TorpedoLaunched,
+        TorpedoSectionConfig, TorpedoSectionConfigHelper, TorpedoSectionInput,
+        TorpedoSectionPartOf, TorpedoSectionPlugin, TorpedoSectionSpawnerFireState,
+        TorpedoSectionSpawnerMarker, TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen,
+        TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TorpedoTypeConfig, TorpedoWeave,
     };
 }
 
@@ -1005,7 +1014,34 @@ impl Plugin for TorpedoSectionPlugin {
             // effect on the first death that needs it.
             app.init_resource::<DefaultTorpedoDeathEffects>();
             app.add_observer(on_torpedo_killed_effect);
+
+            // The warhead's shock shell: spawned with the blast, grown and
+            // faded by the tick.
+            app.register_type::<TorpedoBlastShell>();
+            app.init_resource::<TorpedoBlastShellAssets>();
+            app.add_observer(on_torpedo_blast_shell);
+
+            // The flight trail: ignition marks the torpedo, the emit pass
+            // lays segments behind it, the fade pass thins them.
+            app.register_type::<TorpedoTrailEmitter>();
+            app.register_type::<TorpedoTrailSegment>();
+            app.init_resource::<TorpedoTrailAssets>();
+            app.add_observer(on_torpedo_ignited_trail);
+            app.add_systems(
+                Update,
+                (
+                    tick_torpedo_blast_shell,
+                    (emit_torpedo_trail, fade_torpedo_trail).chain(),
+                )
+                    .in_set(super::SpaceshipSectionSystems),
+            );
         }
+
+        // The player's time to impact on every build: the cockpit tone reads
+        // it, and a headless run has a cockpit too.
+        app.register_type::<PlayerTorpedoEta>();
+        app.init_resource::<PlayerTorpedoEta>();
+        app.add_observer(clear_player_torpedo_eta);
 
         // Kill credit on every build: it decides an event the audio and juice
         // layers answer, and a headless run still has to fire it.
@@ -1092,6 +1128,10 @@ impl Plugin for TorpedoSectionPlugin {
                 // perturbed command, not the bare one.
                 torpedo_terminal_weave,
                 torpedo_sync_system,
+                // After the sync, so the estimate reads this frame's target
+                // anchor and velocity. The cockpit audio reads it later, in
+                // `ShipAudioSystems`.
+                update_player_torpedo_eta,
                 torpedo_thrust_system,
             )
                 .chain()

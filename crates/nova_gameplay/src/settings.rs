@@ -16,9 +16,10 @@
 //!   blast/launch, turret muzzle), the render-scale fraction the scenario view
 //!   is drawn at before upscaling (the fill lever for the web target; applied
 //!   by `nova_scenario::render_scale`), how many transient lights may burn and
-//!   whether the camera shakes. [`GraphicsQuality`] names the three budgets
-//!   the menu offers as presets; a budget that matches none is the menu's
-//!   Custom. `apply_graphics_budget` pushes the shake and particle gates onto
+//!   whether the camera shakes; the torpedo trail length is derived from the
+//!   tier ([`GraphicsBudget::trail_seconds`]). [`GraphicsQuality`] names the
+//!   three budgets the menu offers as presets; a budget that matches none is
+//!   the menu's Custom. `apply_graphics_budget` pushes the shake and particle gates onto
 //!   the combat juice ([`crate::juice::JuiceSettings`]), so the budget->cost
 //!   policy lives in one place instead of being re-derived at every spawn
 //!   site. The particle cut is the one the frame-time baseline validates as a
@@ -301,6 +302,24 @@ impl GraphicsBudget {
         GraphicsQuality::ALL
             .into_iter()
             .find(|tier| Self::for_quality(*tier) == self)
+    }
+
+    /// Seconds a torpedo's flight trail lasts behind it: 1.5 on High, 0.75 on
+    /// Medium, none on Low.
+    ///
+    /// DERIVED from the tier and not a lever: there is no menu row and no
+    /// stored value for it. A budget that matches no tier (the menu's Custom)
+    /// takes the Medium length while particles are on and none while they are
+    /// off, because the trail is a spawned effect and a spawn-less budget
+    /// spawns none.
+    pub fn trail_seconds(self) -> f32 {
+        match self.preset() {
+            Some(GraphicsQuality::High) => 1.5,
+            Some(GraphicsQuality::Medium) => 0.75,
+            Some(GraphicsQuality::Low) => 0.0,
+            None if self.particles => 0.75,
+            None => 0.0,
+        }
     }
 
     /// The lowest render-scale a persisted or authored value may take, so a

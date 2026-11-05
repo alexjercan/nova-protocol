@@ -1,7 +1,8 @@
-//! The look of a torpedo dying without its warhead, answering
+//! The look of a torpedo dying. Without its warhead, answering
 //! [`TorpedoKilled`]: a dud is a grey puff of broken casing, an intercept is a
 //! small hot pop with a few sparks. Both are far smaller than a detonation, so
-//! neither reads as a warhead going off.
+//! neither reads as a warhead going off. With its warhead: the shock shell, a
+//! faint sphere that runs out to the blast radius under the fireball.
 //!
 //! Gated on [`GraphicsBudget::particles`] like the blast. The sound half lives
 //! in `ship_audio` and plays on every tier.
@@ -88,6 +89,130 @@ pub(super) fn on_torpedo_killed_effect(
             count: INTERCEPT_SPARKS,
             force: 1.0,
         });
+    }
+}
+
+/// Seconds the shock shell takes to reach the blast radius.
+const SHELL_EXPAND_SECS: f32 = 0.3;
+
+/// Seconds the shock shell lives: the expansion and a short fade past it.
+const SHELL_SECS: f32 = 0.45;
+
+/// How many fade steps the shell's material has. Each is its own shared
+/// material, so a fading shell swaps handles and never writes an asset.
+const SHELL_FADE_STEPS: usize = 8;
+
+/// The shell's colour at full strength, added to what is behind it: a faint
+/// cold white, under the fireball, so it reads as the pressure front and not
+/// as more fire.
+const SHELL_COLOR: LinearRgba = LinearRgba::new(0.30, 0.34, 0.40, 1.0);
+
+/// A warhead's shock front: a thin sphere that eases out to the blast radius
+/// and fades. Spawned at a torpedo blast by [`on_torpedo_blast_shell`].
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+#[reflect(Component)]
+pub(super) struct TorpedoBlastShell {
+    /// The blast radius the shell expands to, world units.
+    radius: f32,
+}
+
+/// The one sphere and the [`SHELL_FADE_STEPS`] fade materials every shell is
+/// drawn with, brightest first. Double-sided, so a camera inside the blast
+/// still sees the front pass it.
+#[derive(Resource, Debug)]
+pub(super) struct TorpedoBlastShellAssets {
+    mesh: Handle<Mesh>,
+    fades: Vec<Handle<StandardMaterial>>,
+}
+
+impl FromWorld for TorpedoBlastShellAssets {
+    fn from_world(world: &mut World) -> Self {
+        let mesh = world.resource_mut::<Assets<Mesh>>().add(
+            Sphere::new(1.0)
+                .mesh()
+                .ico(3)
+                .expect("ico subdivision 3 is valid"),
+        );
+        let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
+        let fades = (0..SHELL_FADE_STEPS)
+            .map(|step| {
+                let strength = 1.0 - step as f32 / SHELL_FADE_STEPS as f32;
+                materials.add(StandardMaterial {
+                    base_color: Color::LinearRgba(SHELL_COLOR * strength),
+                    alpha_mode: bevy::prelude::AlphaMode::Add,
+                    unlit: true,
+                    double_sided: true,
+                    cull_mode: None,
+                    ..default()
+                })
+            })
+            .collect();
+        Self { mesh, fades }
+    }
+}
+
+/// The shell's radius `age` seconds after the blast: an ease-out (cubic) from
+/// nothing to exactly `radius` at [`SHELL_EXPAND_SECS`], held there after.
+pub(super) fn shell_scale(age: f32, radius: f32) -> f32 {
+    let t = (age / SHELL_EXPAND_SECS).clamp(0.0, 1.0);
+    radius * (1.0 - (1.0 - t).powi(3))
+}
+
+/// The fade step for a shell `age` seconds old: the brightest at birth, the
+/// faintest at the end of [`SHELL_SECS`].
+fn shell_fade_step(age: f32) -> usize {
+    let t = (age / SHELL_SECS).clamp(0.0, 1.0);
+    ((t * SHELL_FADE_STEPS as f32) as usize).min(SHELL_FADE_STEPS - 1)
+}
+
+/// Spawn the shock shell at a torpedo's blast. A blast no bay owns (a
+/// scripted detonation, a range rig) draws none, like its fireball.
+///
+/// Particle-gated: the shell is part of the blast's look, and the Low tier
+/// draws no blast.
+pub(super) fn on_torpedo_blast_shell(
+    add: On<Add, NovaBlast>,
+    budget: Option<Res<GraphicsBudget>>,
+    assets: Res<TorpedoBlastShellAssets>,
+    q_blast: Query<(&Transform, &NovaBlast), With<TorpedoSectionPartOf>>,
+    mut commands: Commands,
+) {
+    if !budget.as_deref().is_none_or(|b| b.particles) {
+        return;
+    }
+    let Ok((transform, blast)) = q_blast.get(add.entity) else {
+        return;
+    };
+    commands.spawn((
+        Name::new("Torpedo Blast Shell"),
+        TorpedoBlastShell {
+            radius: blast.radius,
+        },
+        Mesh3d(assets.mesh.clone()),
+        MeshMaterial3d(assets.fades[0].clone()),
+        Transform::from_translation(transform.translation).with_scale(Vec3::ZERO),
+        bevy::light::NotShadowCaster,
+        TempEntity(SHELL_SECS),
+    ));
+}
+
+/// Grow every shell by [`shell_scale`] and step its material down the fade.
+pub(super) fn tick_torpedo_blast_shell(
+    assets: Res<TorpedoBlastShellAssets>,
+    mut q_shell: Query<(
+        &TorpedoBlastShell,
+        &TempEntityState,
+        &mut Transform,
+        &mut MeshMaterial3d<StandardMaterial>,
+    )>,
+) {
+    for (shell, state, mut transform, mut material) in &mut q_shell {
+        let age = state.elapsed_secs();
+        transform.scale = Vec3::splat(shell_scale(age, shell.radius));
+        let fade = &assets.fades[shell_fade_step(age)];
+        if material.0 != *fade {
+            material.0 = fade.clone();
+        }
     }
 }
 
@@ -207,4 +332,20 @@ fn build_intercept_pop_effect() -> EffectAsset {
         .render(size_over_lifetime)
         .render(mask)
         .render(color_over_lifetime)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The shell reaches exactly the blast radius when its expansion ends,
+    /// and holds there.
+    #[test]
+    fn the_shock_shell_reaches_the_blast_radius_at_its_expansion_time() {
+        let radius = 3.5;
+        assert!(shell_scale(0.1, radius) < radius);
+        assert_eq!(shell_scale(SHELL_EXPAND_SECS, radius), radius);
+        assert_eq!(shell_scale(0.3, radius), radius);
+        assert_eq!(shell_scale(SHELL_SECS, radius), radius);
+    }
 }

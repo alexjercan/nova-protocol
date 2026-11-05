@@ -22,6 +22,9 @@
 //! - the player's torpedo getting the kill -> the ship's authored
 //!   `kill_confirm` stinger (`On<PlayerKillConfirmed>`).
 //!
+//! The closing tone polls instead: the ship's authored `torpedo_closing` tick,
+//! faster as `PlayerTorpedoEta` falls (`play_torpedo_closing_tone`).
+//!
 //! The continuous cues - the thruster hum and the RCS hiss - are one looping
 //! voice per (ship, authored sound) pair, each following its own ship.
 //!
@@ -66,7 +69,7 @@ use self::{
     },
     cues::{
         play_dry_fire_cue, play_hull_warning_cue, play_lock_cues, play_safety_engaged_cue,
-        play_threat_lock_cue,
+        play_threat_lock_cue, play_torpedo_closing_tone,
     },
     loops::{drive_railgun_charge_loops, drive_rcs_loops, drive_thruster_loops},
     machinery::{
@@ -126,6 +129,10 @@ const KILL_CONFIRM_VOLUME: f32 = 0.30;
 /// [`LOCK_ON_VOLUME`] acquire cue.
 const DRY_FIRE_VOLUME: f32 = 0.22;
 const RADAR_RETARGET_VOLUME: f32 = 0.18;
+/// The closing tone. Under the retarget tick: it repeats up to twelve times a
+/// second for the last seconds of a run, and a cue that often has to sit
+/// under everything the pilot chose to hear.
+const TORPEDO_CLOSING_VOLUME: f32 = 0.14;
 
 /// The retractable PDC housing, rising and folding. Background machinery, so
 /// both land just under the dry-fire click and above the PDC's own report.
@@ -234,13 +241,14 @@ const TORPEDO_LAUNCH_MIN_INTERVAL: f32 = 0.15;
 const TORPEDO_DEATH_MIN_INTERVAL: f32 = 0.08;
 
 /// The ship's one-shot CUE systems: the cockpit's lock, safety, dry-fire,
-/// threat and hull-warning voices.
+/// threat, hull-warning and torpedo closing voices.
 ///
-/// In `Update`, after [`SpaceshipSectionSystems`]. Three of the five POLL
-/// section state rather than reading a message - the dry-fire click
-/// edge-latches per turret off this frame's trigger and magazine, and the hull
-/// alarm off this frame's health - so the set answers the tick the sections
-/// just took rather than the one before it. The engine's own `AudioSystems`
+/// In `Update`, after [`SpaceshipSectionSystems`]. Four of the six POLL
+/// state rather than reading a message - the dry-fire click edge-latches per
+/// turret off this frame's trigger and magazine, the hull alarm off this
+/// frame's health, and the closing tone off this frame's
+/// `PlayerTorpedoEta` - so the set answers the tick the sections just took
+/// rather than the one before it. The engine's own `AudioSystems`
 /// mixing pass is in `PostUpdate`, so every voice raised here is placed and
 /// levelled before a sink opens for it.
 ///
@@ -299,6 +307,7 @@ impl Plugin for ShipAudioPlugin {
                 play_dry_fire_cue,
                 play_threat_lock_cue,
                 play_hull_warning_cue,
+                play_torpedo_closing_tone,
             )
                 .in_set(ShipAudioSystems),
         );

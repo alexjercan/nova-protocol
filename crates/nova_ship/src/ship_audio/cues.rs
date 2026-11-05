@@ -1,5 +1,6 @@
-//! Cockpit cues: the lock/safety chirps the ship answers with, and the
-//! dry-fire click on an empty trigger pull. All resolve the PLAYER ship's own
+//! Cockpit cues: the lock/safety chirps the ship answers with, the dry-fire
+//! click on an empty trigger pull, the threat and hull alarms, and the
+//! torpedo closing tone. All resolve the PLAYER ship's own
 //! authored sounds, so a ship without them is silent rather than borrowing
 //! another hull's voice.
 //!
@@ -14,7 +15,8 @@ use nova_gameplay::prelude::*;
 
 use super::{
     AMMO_DRY_VOLUME, DRY_FIRE_VOLUME, LOCK_OFF_VOLUME, LOCK_ON_VOLUME, RADAR_DENY_VOLUME,
-    RADAR_RETARGET_VOLUME, SAFETY_ON_VOLUME, WARN_HULL_VOLUME, WARN_LOCK_VOLUME,
+    RADAR_RETARGET_VOLUME, SAFETY_ON_VOLUME, TORPEDO_CLOSING_VOLUME, WARN_HULL_VOLUME,
+    WARN_LOCK_VOLUME,
 };
 use crate::{prelude::*, sections::turret_section::TurretSectionDryFireSound};
 
@@ -81,6 +83,64 @@ pub(super) fn play_lock_cues(
     }
     if denied_now {
         play(&sounds.radar_deny, RADAR_DENY_VOLUME);
+    }
+}
+
+/// Seconds to impact at and under which the closing tone ticks. Above it the
+/// cockpit is quiet: a torpedo a long way out is not news yet.
+pub(super) const CLOSING_TONE_START_SECS: f32 = 8.0;
+
+/// Seconds between closing-tone ticks at `tti` seconds to impact: about one a
+/// second at [`CLOSING_TONE_START_SECS`], tightening to 12.5 a second at
+/// impact. Never longer as the time falls, so the tone only ever speeds up.
+pub(super) fn closing_tick_interval(tti: f32) -> f32 {
+    (0.08 + 0.11 * tti).clamp(0.08, 1.0)
+}
+
+/// The closing tone's state: the torpedo it is counting down and the seconds
+/// to its next tick.
+#[derive(Debug, Default)]
+pub(super) struct ClosingTone {
+    torpedo: Option<Entity>,
+    until_tick: f32,
+}
+
+/// The closing tone: the player's soonest torpedo on its locked target,
+/// ticking faster as it nears impact.
+///
+/// Reads [`PlayerTorpedoEta`], the same estimate the lock readout shows, so
+/// the tone and the number cannot disagree. Silent above
+/// [`CLOSING_TONE_START_SECS`]. A new torpedo taking the lead starts the
+/// count afresh with a tick at once, and the tone stops on the frame the
+/// estimate goes away: the torpedo hit, died, or stopped closing.
+///
+/// On every graphics tier, like the rest of the cockpit's voice, and on
+/// [`AudioRoute::Hull`], unplaced.
+pub(super) fn play_torpedo_closing_tone(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    time: Res<Time>,
+    eta: Res<PlayerTorpedoEta>,
+    q_player_sounds: PlayerShipSounds,
+    mut tone: Local<ClosingTone>,
+) {
+    let Some(eta) = eta.0.filter(|eta| eta.seconds <= CLOSING_TONE_START_SECS) else {
+        *tone = ClosingTone::default();
+        return;
+    };
+    if tone.torpedo == Some(eta.torpedo) {
+        tone.until_tick -= time.delta_secs();
+        if tone.until_tick > 0.0 {
+            return;
+        }
+    }
+    tone.torpedo = Some(eta.torpedo);
+    tone.until_tick = closing_tick_interval(eta.seconds);
+    if let Some(handle) = player_ship_sounds(&q_player_sounds)
+        .and_then(|sounds| sounds.torpedo_closing.as_ref())
+        .map(|r| r.resolve(&asset_server))
+    {
+        commands.play_sfx(handle, AudioRoute::Hull, TORPEDO_CLOSING_VOLUME);
     }
 }
 
@@ -357,6 +417,23 @@ mod tests {
     /// entity.
     fn spawn_player_ship(app: &mut App, sounds: ShipFeedbackSounds) -> Entity {
         app.world_mut().spawn((PlayerSpaceshipMarker, sounds)).id()
+    }
+
+    /// The tone only ever speeds up as the torpedo closes.
+    #[test]
+    fn the_closing_tick_interval_never_grows_as_time_to_impact_falls() {
+        let mut previous = closing_tick_interval(CLOSING_TONE_START_SECS);
+        let mut tti = CLOSING_TONE_START_SECS;
+        while tti > 0.0 {
+            tti -= 0.05;
+            let interval = closing_tick_interval(tti);
+            assert!(
+                interval <= previous,
+                "{interval} s at {tti} s after {previous} s"
+            );
+            previous = interval;
+        }
+        assert_eq!(closing_tick_interval(0.0), 0.08);
     }
 
     #[test]
