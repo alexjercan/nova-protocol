@@ -2,6 +2,7 @@
 //! and the observers that turn them into burns, autopilot verbs and RCS
 //! fine-adjust.
 
+use avian3d::prelude::LinearVelocity;
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
@@ -42,7 +43,8 @@ pub(crate) struct RollLeftInput;
 pub(crate) struct RollRightInput;
 
 /// Engage the STOP maneuver (kill all velocity); pressing it again while
-/// stopping disengages.
+/// stopping disengages. With [`RcsModifierInput`] held it is the MATCH chord
+/// instead, and never STOP (see [`on_autopilot_stop_input`]).
 #[derive(InputAction)]
 #[action_output(bool)]
 pub(super) struct AutopilotStopInput;
@@ -157,6 +159,24 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                     bindings.bundle("roll_right"),
                 ),
                 (
+                    // The RCS fine-adjust modifier (SHIFT). Plain Down: Start on
+                    // press, Complete on release; the observers read those into
+                    // RcsActive. SHIFT is otherwise free (only CTRL is taken, by
+                    // the radar). Pad: LeftThumb, the one free button.
+                    // Spawned before STOP and the wheel actions: enhanced input
+                    // triggers a context's events in action order, so a SHIFT
+                    // edge in the same frame as X or a wheel line enters RCS
+                    // (which drops any maneuver) before the MATCH chord engages
+                    // and before `super::wheel` reads RcsActive.
+                    Name::new("Input: RCS Modifier"),
+                    Action::<RcsModifierInput>::new(),
+                    ActionSettings {
+                        consume_input: false,
+                        ..default()
+                    },
+                    bindings.bundle("rcs_modifier"),
+                ),
+                (
                     Name::new("Input: Autopilot Stop"),
                     Action::<AutopilotStopInput>::new(),
                     ActionSettings {
@@ -255,23 +275,6 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                         ..default()
                     },
                     bindings.bundle("component_prev"),
-                ),
-                (
-                    // The RCS fine-adjust modifier (SHIFT). Plain Down: Start on
-                    // press, Complete on release; the observers read those into
-                    // RcsActive. SHIFT is otherwise free (only CTRL is taken, by
-                    // the radar). Pad: LeftThumb, the one free button.
-                    // Spawned before the wheel actions: enhanced input triggers
-                    // a context's events in action order, so a SHIFT edge in the
-                    // same frame as a wheel line moves RcsActive before
-                    // `super::wheel` reads it.
-                    Name::new("Input: RCS Modifier"),
-                    Action::<RcsModifierInput>::new(),
-                    ActionSettings {
-                        consume_input: false,
-                        ..default()
-                    },
-                    bindings.bundle("rcs_modifier"),
                 ),
                 (
                     // The wheel is an axis (y = vertical): swizzle y into the
@@ -448,11 +451,31 @@ pub(super) fn on_flight_burn_input_completed(
     intent.burn = 0.0;
 }
 
+/// X: STOP. Shift + X: MATCH, which takes the hull's velocity onto the
+/// travel lock's on the RCS alone ([`AutopilotAction::MatchTarget`]).
+///
+/// The chord reads the RCS modifier's held state, not [`RcsActive`], so a
+/// hull whose RCS is withheld still hears MATCH and refuses it rather than
+/// braking. Enhanced input writes every action's state before it triggers
+/// any event, so a SHIFT pressed in the same frame counts.
 pub(super) fn on_autopilot_stop_input(
     _: On<Start<AutopilotStopInput>>,
     mut commands: Commands,
-    ship: Single<(Entity, Option<&Autopilot>, Option<&DockedShip>), With<PlayerSpaceshipMarker>>,
+    ship: Single<
+        (
+            Entity,
+            Option<&Autopilot>,
+            Option<&TravelLock>,
+            Option<&DockedShip>,
+        ),
+        With<PlayerSpaceshipMarker>,
+    >,
+    q_budget: Query<&RcsBudget>,
+    q_modifier: Query<&TriggerState, With<Action<RcsModifierInput>>>,
+    q_connections: Query<&DockingConnection>,
+    q_motion: Query<(), With<LinearVelocity>>,
     q_capabilities: ShipCapabilityQuery,
+    mut refusals: MessageWriter<MatchRefusal>,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
@@ -460,12 +483,60 @@ pub(super) fn on_autopilot_stop_input(
         return;
     }
 
-    let (entity, autopilot, docked) = ship.into_inner();
+    let (entity, autopilot, travel, docked) = ship.into_inner();
     if docked.is_some_and(|docked| !docked.drives) {
-        debug!("on_autopilot_stop_input: a docked hull flies STOP only with the helm");
+        debug!("on_autopilot_stop_input: a docked hull flies STOP or MATCH only with the helm");
         return;
     }
-    match autopilot.map(|ap| ap.action) {
+    let action = autopilot.map(|ap| ap.action);
+    let capabilities = ship_capabilities(entity, &q_capabilities);
+    if crate::camera::action_held(&q_modifier) {
+        if let Some(AutopilotAction::MatchTarget { .. }) = action {
+            debug!("on_autopilot_stop_input: disengaging MATCH");
+            commands.entity(entity).remove::<Autopilot>();
+            return;
+        }
+        // MATCH rides the STOP verb: withheld, the chord is as dark as X.
+        if !capabilities.stop_enabled {
+            debug!("on_autopilot_stop_input: STOP is not enabled, so neither is MATCH");
+            return;
+        }
+        let Some(target) = travel
+            .and_then(|travel| travel.0)
+            .filter(|target| q_motion.contains(*target))
+        else {
+            debug!("on_autopilot_stop_input: no travel lock with a velocity to match");
+            refusals.write(MatchRefusal(MatchRefusalType::NoTarget));
+            return;
+        };
+        // The partner moves with the pair: there is nothing to match.
+        if docked
+            .and_then(|docked| q_connections.get(docked.connection).ok())
+            .is_some_and(|connection| connection.joins(target))
+        {
+            debug!("on_autopilot_stop_input: the travel lock is the docked partner");
+            return;
+        }
+        if !capabilities.rcs_enabled {
+            debug!("on_autopilot_stop_input: RCS is not enabled, MATCH refused");
+            refusals.write(MatchRefusal(MatchRefusalType::RcsDisabled));
+            return;
+        }
+        let budget = q_budget
+            .get(entity)
+            .expect("every ship root carries an RcsBudget: NovaFlightPlugin requires it");
+        if budget.is_empty() {
+            debug!("on_autopilot_stop_input: the RCS magazine is empty, MATCH refused");
+            refusals.write(MatchRefusal(MatchRefusalType::RcsEmpty));
+            return;
+        }
+        debug!("on_autopilot_stop_input: engaging MATCH {target:?}");
+        commands
+            .entity(entity)
+            .insert(Autopilot::engage(AutopilotAction::MatchTarget { target }));
+        return;
+    }
+    match action {
         // Toggle off an active STOP... (disengage stays ungated so a
         // capability withdrawn mid-maneuver can never strand the ship
         // braking).
@@ -476,7 +547,7 @@ pub(super) fn on_autopilot_stop_input(
         //...but braking overrides any other maneuver (or engages fresh) -
         // only if this ship has STOP. Withheld, and the press is a no-op
         // (matches the dark hint).
-        _ if ship_capabilities(entity, &q_capabilities).stop_enabled => {
+        _ if capabilities.stop_enabled => {
             debug!("on_autopilot_stop_input: engaging STOP");
             commands
                 .entity(entity)
@@ -795,19 +866,22 @@ pub(super) fn release_rcs_without_the_helm(
 /// Accumulate mouse motion into the ship-local `RcsIntent` XZ plane while RCS is
 /// active: mouse X -> strafe (+X), mouse Y -> forward/back (Z). Held-direction,
 /// so the offset persists when the mouse stops; the pilot pulls back to null it.
-/// A no-op unless the ship is [`RcsActive`], so the shared mouse_motion binding
-/// does nothing outside RCS mode.
+/// A no-op unless the ship is [`RcsActive`] with no maneuver engaged, so the
+/// shared mouse_motion binding does nothing outside RCS mode.
 pub(super) fn on_rcs_aim(
     fire: On<Fire<RcsAimInput>>,
-    ship: Single<(&mut RcsIntent, Has<RcsActive>), With<PlayerSpaceshipMarker>>,
+    ship: Single<(&mut RcsIntent, Has<RcsActive>, Has<Autopilot>), With<PlayerSpaceshipMarker>>,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
     if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
-    let (mut intent, active) = ship.into_inner();
-    if !active {
+    let (mut intent, active, engaged) = ship.into_inner();
+    // A MATCH chorded with SHIFT still held owns the RCS command: the mouse
+    // is not a breakout (it never is during a maneuver), and the autopilot
+    // rewrites the intent every tick anyway.
+    if !active || engaged {
         return;
     }
     // DELTA-driven: SET the intent from THIS frame's mouse motion rather than
@@ -1086,6 +1160,7 @@ mod tests {
         app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
         app.add_plugins(bevy::state::app::StatesPlugin);
         app.init_state::<nova_gameplay::PauseStates>();
+        app.add_message::<MatchRefusal>();
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_flight_burn_input)
             .add_observer(on_flight_burn_input_started)
@@ -1132,6 +1207,180 @@ mod tests {
         assert!(
             app.world().get::<Autopilot>(ship).is_none(),
             "a fresh burn press takes the ship back"
+        );
+    }
+
+    /// The real rig with the STOP, burn and RCS observers, a player ship with
+    /// a full magazine, and a moving body on its travel lock. MATCH refusals
+    /// collect in a `Messages` resource nothing clears, so a test reads every
+    /// one it caused.
+    fn match_rig_app() -> (App, Entity, Entity) {
+        use bevy::input::InputPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.init_resource::<Messages<MatchRefusal>>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_flight_burn_input)
+            .add_observer(on_flight_burn_input_started)
+            .add_observer(on_flight_burn_input_completed)
+            .add_observer(on_autopilot_stop_input)
+            .add_observer(on_rcs_modifier_start)
+            .add_observer(on_rcs_modifier_released);
+
+        let (ship, _) = spawn_flyable_ship(app.world_mut());
+        let target = app.world_mut().spawn(LinearVelocity(Vec3::X)).id();
+        app.world_mut().entity_mut(ship).insert((
+            FlightIntent::default(),
+            RcsIntent::default(),
+            RcsBudget::default(),
+            TravelLock(Some(target)),
+        ));
+        app.finish();
+        app.cleanup();
+        app.update();
+        spawn_flight_rig(&mut app);
+        app.update();
+        (app, ship, target)
+    }
+
+    fn keys(app: &mut App) -> Mut<'_, ButtonInput<KeyCode>> {
+        app.world_mut().resource_mut::<ButtonInput<KeyCode>>()
+    }
+
+    fn engaged(app: &App, ship: Entity) -> Option<AutopilotAction> {
+        app.world().get::<Autopilot>(ship).map(|ap| ap.action)
+    }
+
+    fn match_refusals(app: &App) -> Vec<MatchRefusalType> {
+        let messages = app.world().resource::<Messages<MatchRefusal>>();
+        messages
+            .get_cursor()
+            .read(messages)
+            .map(|MatchRefusal(refusal)| *refusal)
+            .collect()
+    }
+
+    /// Shift + X engages MATCH on the travel lock and never STOP, in either
+    /// press order and in one frame. Releasing Shift keeps it; Shift + X again
+    /// cancels it; plain X is still STOP and takes over; a fresh burn press
+    /// takes the ship back.
+    #[test]
+    fn shift_x_matches_the_travel_lock_and_never_stops() {
+        let (mut app, ship, target) = match_rig_app();
+        let matching = Some(AutopilotAction::MatchTarget { target });
+
+        keys(&mut app).press(KeyCode::ShiftLeft);
+        app.update();
+        app.update();
+        keys(&mut app).press(KeyCode::KeyX);
+        for frame in 0..3 {
+            app.update();
+            assert_eq!(engaged(&app, ship), matching, "frame {frame}: Shift + X");
+        }
+        keys(&mut app).release(KeyCode::KeyX);
+        app.update();
+        keys(&mut app).release(KeyCode::ShiftLeft);
+        app.update();
+        app.update();
+        assert_eq!(engaged(&app, ship), matching, "releasing Shift keeps MATCH");
+
+        keys(&mut app).press(KeyCode::ShiftLeft);
+        app.update();
+        assert_eq!(
+            engaged(&app, ship),
+            None,
+            "a fresh Shift enters RCS and drops MATCH"
+        );
+        tap(&mut app, KeyCode::KeyX);
+        assert_eq!(engaged(&app, ship), matching, "Shift + X engages again");
+        tap(&mut app, KeyCode::KeyX);
+        assert_eq!(engaged(&app, ship), None, "Shift + X again cancels MATCH");
+        keys(&mut app).release(KeyCode::ShiftLeft);
+        app.update();
+
+        // Both keys in one frame: the modifier's Start runs first and drops
+        // nothing, so the chord engages MATCH and keeps it.
+        keys(&mut app).press(KeyCode::ShiftLeft);
+        keys(&mut app).press(KeyCode::KeyX);
+        app.update();
+        app.update();
+        assert_eq!(engaged(&app, ship), matching, "one-frame Shift + X");
+        keys(&mut app).release(KeyCode::KeyX);
+        keys(&mut app).release(KeyCode::ShiftLeft);
+        app.update();
+        app.update();
+
+        tap(&mut app, KeyCode::KeyX);
+        assert_eq!(
+            engaged(&app, ship),
+            Some(AutopilotAction::Stop),
+            "plain X is still STOP, and it takes over from MATCH"
+        );
+
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(Autopilot::engage(AutopilotAction::MatchTarget { target }));
+        keys(&mut app).press(KeyCode::KeyW);
+        app.update();
+        app.update();
+        assert_eq!(
+            engaged(&app, ship),
+            None,
+            "a fresh burn press cancels MATCH"
+        );
+        assert!(match_refusals(&app).is_empty(), "nothing was refused");
+    }
+
+    /// Shift + X with no matchable lock, the RCS withheld or an empty magazine
+    /// posts its refusal and flies nothing: it never falls through to STOP.
+    #[test]
+    fn shift_x_refuses_with_a_notice_and_never_stops() {
+        let (mut app, ship, _) = match_rig_app();
+        let chord = |app: &mut App| {
+            keys(app).press(KeyCode::ShiftLeft);
+            app.update();
+            tap(app, KeyCode::KeyX);
+            keys(app).release(KeyCode::ShiftLeft);
+            app.update();
+        };
+
+        app.world_mut().entity_mut(ship).insert(TravelLock(None));
+        chord(&mut app);
+        let still = app.world_mut().spawn_empty().id();
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(TravelLock(Some(still)));
+        chord(&mut app);
+        let moving = app.world_mut().spawn(LinearVelocity(Vec3::Z)).id();
+        app.world_mut().entity_mut(ship).insert((
+            TravelLock(Some(moving)),
+            ShipCapabilities {
+                rcs_enabled: false,
+                ..default()
+            },
+        ));
+        chord(&mut app);
+        app.world_mut()
+            .entity_mut(ship)
+            .insert(ShipCapabilities::default());
+        let mut budget = *app.world().get::<RcsBudget>(ship).unwrap();
+        budget.spent = budget.capacity;
+        app.world_mut().entity_mut(ship).insert(budget);
+        chord(&mut app);
+
+        assert_eq!(engaged(&app, ship), None, "no refused chord flies anything");
+        assert_eq!(
+            match_refusals(&app),
+            vec![
+                MatchRefusalType::NoTarget,
+                MatchRefusalType::NoTarget,
+                MatchRefusalType::RcsDisabled,
+                MatchRefusalType::RcsEmpty,
+            ],
+            "each refusal says why"
         );
     }
 
@@ -1671,6 +1920,7 @@ mod tests {
         // whose avian `on_add` hook reads `JointGraph`. Physics is not in
         // this app, so the resource is inserted here.
         app.init_resource::<avian3d::dynamics::solver::joint_graph::JointGraph>();
+        app.add_message::<MatchRefusal>();
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_flight_burn_input)
             .add_observer(on_flight_burn_input_started)

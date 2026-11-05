@@ -150,7 +150,10 @@ Flight:
 - `flight.main_drive`: hold to thrust along the nose. There is no brake;
   release and you keep drifting.
 - `flight.autopilot_stop`: tap to kill all velocity and hold position. It
-  does not fight gravity: inside a well it lets you fall.
+  does not fight gravity: inside a well it lets you fall. With
+  `flight.rcs_modifier` held the tap is MATCH, not STOP: the RCS alone takes
+  your velocity onto the `travel_lock`'s and lets go. It never closes or
+  docks, and a second such tap cancels it.
 - `flight.autopilot_goto`: tap to fly to whatever is under `travel_lock`.
   Needs a `travel_lock`: without one the tap does nothing.
 - `flight.autopilot_orbit`: tap to enter orbit around `me.gravity_well`.

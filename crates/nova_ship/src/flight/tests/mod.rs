@@ -16,6 +16,7 @@ mod detour;
 mod dock;
 mod goto;
 mod manual;
+mod match_target;
 mod match_velocity;
 mod neutralized_brake;
 mod orbit;

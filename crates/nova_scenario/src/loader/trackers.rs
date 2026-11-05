@@ -296,10 +296,12 @@ pub(super) fn track_player_autopilot_completions(
             }
             // None reports a scenario completion: a waypoint leg is the AI
             // patrol's own business, an orbit and a dock approach never
-            // complete, and a held velocity is a state rather than an errand.
+            // complete, a held velocity is a state rather than an errand, and
+            // no scenario event names a velocity match.
             AutopilotAction::GotoPos { .. }
             | AutopilotAction::Orbit { .. }
             | AutopilotAction::MatchVelocity { .. }
+            | AutopilotAction::MatchTarget { .. }
             | AutopilotAction::DockApproach { .. } => {}
         }
         commands.entity(ship).remove::<PlayerAutopilotCompleted>();

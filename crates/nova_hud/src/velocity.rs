@@ -87,8 +87,8 @@ impl VelocityHudPalette {
 /// The palette the velocity widget should wear right now. Pure so the
 /// rcs/engaged/manual decision is unit-testable apart from the material
 /// plumbing. RCS fine-adjust (the pilot's SHIFT modal) wins over an engaged
-/// autopilot - though the two are mutually exclusive on the player ship, since
-/// entering RCS disengages the autopilot.
+/// autopilot. Entering RCS disengages the autopilot, so the two meet only on a
+/// MATCH engaged by the Shift + X chord while Shift is still held.
 pub(crate) fn desired_velocity_palette(engaged: bool, rcs_active: bool) -> VelocityHudPalette {
     if rcs_active {
         VelocityHudPalette::RCS_ACTIVE
@@ -766,8 +766,8 @@ mod tests {
 
     #[test]
     fn desired_velocity_palette_picks_by_state() {
-        // Manual, autopilot, RCS - and RCS wins over engaged (mutually
-        // exclusive in practice, but the precedence is pinned).
+        // Manual, autopilot, RCS - and RCS wins over engaged (a MATCH flown
+        // with Shift still held).
         assert_eq!(
             desired_velocity_palette(false, false),
             VelocityHudPalette::default()

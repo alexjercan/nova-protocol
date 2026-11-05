@@ -7,7 +7,10 @@
 //! dock refusal ([`FlightVerbHints::dock_refusal`]) posts here when it starts
 //! or names another station; the DOCK chip only goes dark. A held job whose
 //! work is done ([`JobDone`]) posts `JOB-n done: hand in at STN-m`, naming
-//! no credits: payment stays at the hand-in.
+//! no credits: payment stays at the hand-in. A MATCH refused for its target,
+//! RCS or magazine, or cut short ([`MatchRefusal`]), posts why. The gates the
+//! chord shares with STOP (no STOP capability, docked without the helm, the
+//! docked partner) stay silent, as STOP does.
 //!
 //! One slot, no queue: a new text replaces the shown one and plays the cue; the
 //! same text again while it shows restarts the dwell and stays quiet. The dwell
@@ -21,7 +24,10 @@
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_ship::input::prelude::FlightVerbHints;
+use nova_ship::{
+    flight::prelude::{MatchRefusal, MatchRefusalType},
+    input::prelude::FlightVerbHints,
+};
 use nova_ui::{
     hud::{chip_node, ChipTone},
     theme::ActiveUiTheme,
@@ -122,9 +128,10 @@ pub fn hud_notice_hud() -> impl Bundle {
     )
 }
 
-/// Registers [`HudNotice`], posts a station's dock refusal and a held job's
-/// done to it, and runs `post_dock_refusal_notice`, `show_hud_notice` and
-/// `paint_hud_notice` chained in Update within [`NovaHudSystems`]. The box
+/// Registers [`HudNotice`], posts a station's dock refusal, a MATCH refusal
+/// and a held job's done to it, and runs `post_dock_refusal_notice`,
+/// `post_match_refusal_notice`, `show_hud_notice` and `paint_hud_notice`
+/// chained in Update within [`NovaHudSystems`]. The box
 /// itself is a player-scoped widget spawned by `NovaHudPlugin`.
 #[derive(Default)]
 pub struct HudNoticePlugin;
@@ -132,13 +139,21 @@ pub struct HudNoticePlugin;
 impl Plugin for HudNoticePlugin {
     fn build(&self, app: &mut App) {
         app.add_message::<HudNotice>();
+        // Owned by `nova_ship`'s flight layer; registered here as well so the
+        // notice reader stands alone. A second registration is a no-op.
+        app.add_message::<MatchRefusal>();
         app.init_resource::<ShownNotice>();
         app.register_type::<HudNoticeMarker>();
         app.register_type::<HudNoticeText>();
         app.add_observer(post_job_done_notice);
         app.add_systems(
             Update,
-            (post_dock_refusal_notice, show_hud_notice, paint_hud_notice)
+            (
+                post_dock_refusal_notice,
+                post_match_refusal_notice,
+                show_hud_notice,
+                paint_hud_notice,
+            )
                 .chain()
                 .in_set(NovaHudSystems),
         );
@@ -159,6 +174,27 @@ fn post_dock_refusal_notice(
         notices.write(HudNotice(line.clone()));
     }
     *last = hints.dock_refusal.clone();
+}
+
+/// Post why a MATCH was refused or ended short of the match.
+fn post_match_refusal_notice(
+    mut refusals: MessageReader<MatchRefusal>,
+    mut notices: MessageWriter<HudNotice>,
+) {
+    for MatchRefusal(refusal) in refusals.read() {
+        notices.write(HudNotice(match_refusal_line(*refusal).to_string()));
+    }
+}
+
+/// The notice line for a MATCH refusal.
+fn match_refusal_line(refusal: MatchRefusalType) -> &'static str {
+    match refusal {
+        MatchRefusalType::NoTarget => "MATCH: NO TARGET",
+        MatchRefusalType::RcsDisabled => "MATCH: NO RCS",
+        MatchRefusalType::RcsEmpty => "MATCH: RCS EMPTY",
+        MatchRefusalType::TargetLost => "MATCH: TARGET LOST",
+        MatchRefusalType::NoFlightComputer => "MATCH: NO FLIGHT COMPUTER",
+    }
 }
 
 /// Post `JOB-n done: hand in at STN-m` when a held job's work is done. The

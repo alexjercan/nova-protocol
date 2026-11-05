@@ -74,6 +74,7 @@ pub(super) fn on_wheel_step<A: InputAction<Output = f32>>(
             &mut ComponentLock,
             Has<RcsActive>,
             Option<&mut RcsIntent>,
+            Has<Autopilot>,
         ),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
@@ -86,8 +87,10 @@ pub(super) fn on_wheel_step<A: InputAction<Output = f32>>(
     }
     let direction: isize = if start.value > 0.0 { 1 } else { -1 };
     let raised = action_held(&q_combat);
-    for (lock, focus, mut component, rcs_active, rcs_intent) in &mut q_ship {
+    for (lock, focus, mut component, rcs_active, rcs_intent, engaged) in &mut q_ship {
         match wheel_role(rcs_active, raised) {
+            // A MATCH chorded with SHIFT still held owns the RCS command.
+            WheelRoleType::Rcs if engaged => {}
             WheelRoleType::Rcs => {
                 if let Some(mut intent) = rcs_intent {
                     intent.y = crate::flight::accumulate_rcs_axis(

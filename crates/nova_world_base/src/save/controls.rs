@@ -116,6 +116,11 @@ pub enum SavedAutopilotAction {
         /// The insertion plan; `None` before the first engaged tick.
         plan: Option<OrbitPlan>,
     },
+    /// Match `target`'s velocity on the RCS.
+    MatchTarget {
+        /// The body whose velocity is matched.
+        target: SavedTargetRef,
+    },
     /// Hold a world-space velocity.
     MatchVelocity {
         /// The velocity.
@@ -229,6 +234,9 @@ impl SavedControls {
             None | Some(SavedAutopilotAction::Stop) => {}
             Some(SavedAutopilotAction::Goto { target: goal }) => {
                 target("the autopilot's GOTO target", goal)?;
+            }
+            Some(SavedAutopilotAction::MatchTarget { target: goal }) => {
+                target("the autopilot's MATCH target", goal)?;
             }
             Some(SavedAutopilotAction::GotoPos { position }) => {
                 if !position.is_finite() {
@@ -393,6 +401,11 @@ pub(crate) fn freeze_controls(
                 AutopilotAction::Goto { target: goal } => SavedAutopilotAction::Goto {
                     target: target("the autopilot's GOTO target", goal)?,
                 },
+                AutopilotAction::MatchTarget { target: goal } => {
+                    SavedAutopilotAction::MatchTarget {
+                        target: target("the autopilot's MATCH target", goal)?,
+                    }
+                }
                 AutopilotAction::GotoPos { position } => SavedAutopilotAction::GotoPos { position },
                 AutopilotAction::Orbit { well, plan } => SavedAutopilotAction::Orbit {
                     well: body("the autopilot's ORBIT well", well)?,
@@ -702,6 +715,9 @@ pub(crate) fn resolve_controls(
         Some(SavedAutopilotAction::Goto { target }) => {
             resolve(world, &mut faults, "the autopilot's GOTO target", target)
         }
+        Some(SavedAutopilotAction::MatchTarget { target }) => {
+            resolve(world, &mut faults, "the autopilot's MATCH target", target)
+        }
         Some(SavedAutopilotAction::Orbit { well, .. }) => {
             let found = live_by_id::<With<RigidBody>>(world, &well.0);
             faults
@@ -851,6 +867,9 @@ pub(crate) fn apply_controls(world: &mut World, resolved: ResolvedControls, spaw
         let action = match &saved.action {
             SavedAutopilotAction::Stop => AutopilotAction::Stop,
             SavedAutopilotAction::Goto { .. } => AutopilotAction::Goto {
+                target: goal.expect(resolved),
+            },
+            SavedAutopilotAction::MatchTarget { .. } => AutopilotAction::MatchTarget {
                 target: goal.expect(resolved),
             },
             SavedAutopilotAction::GotoPos { position } => AutopilotAction::GotoPos {

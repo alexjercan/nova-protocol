@@ -804,6 +804,8 @@ pub(super) fn predict_flight_path(
                 capabilities: run.capabilities,
                 // Only GOTO, GotoPos and STOP legs are predicted.
                 dock: None,
+                match_velocity: None,
+                match_docked: false,
             };
             let step = autopilot_step(
                 &mut run.autopilot,

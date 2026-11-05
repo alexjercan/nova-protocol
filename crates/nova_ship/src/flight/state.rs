@@ -377,6 +377,28 @@ pub struct PlayerAutopilotCompleted {
     pub action: AutopilotAction,
 }
 
+/// The player's MATCH chord was refused, or its engaged
+/// [`AutopilotAction::MatchTarget`] ended without a match. The HUD posts it
+/// as a notice; nothing else flies instead.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct MatchRefusal(pub MatchRefusalType);
+
+/// Why a MATCH was refused or ended short of the match.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MatchRefusalType {
+    /// The chord was pressed with no travel lock, or on a lock with no
+    /// velocity to match.
+    NoTarget,
+    /// The hull's `rcs_enabled` capability is off.
+    RcsDisabled,
+    /// The RCS magazine is empty.
+    RcsEmpty,
+    /// The engaged target is gone.
+    TargetLost,
+    /// The hull has no live flight computer to fly the match.
+    NoFlightComputer,
+}
+
 /// The autopilot's goal.
 #[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 pub enum AutopilotAction {
@@ -441,6 +463,23 @@ pub enum AutopilotAction {
         /// RCS push slid along with no plume and no turn, as if the leader
         /// dragged it.
         rcs: bool,
+    },
+    /// Bring this hull's velocity onto `target`'s root velocity on the RCS
+    /// alone: the player's Shift + STOP chord, captured from the travel lock
+    /// at the press.
+    ///
+    /// Each tick commands the whole relative velocity as one RCS push, which
+    /// `rcs_burn_system` clamps to one full-deflection step and pays from the
+    /// hull's own [`RcsBudget`]. The main drive stays dark and the rotation
+    /// command holds where the pilot left it, so the hull keeps its attitude
+    /// and roll. Completes once the relative speed is at most
+    /// `MATCH_RELEASE_SPEED` or the target is docked to this hull; never
+    /// closes, picks a port or docks. Ends with a [`MatchRefusal`] when the
+    /// target is gone, the flight computer is lost, the RCS capability is
+    /// withdrawn or the magazine runs dry.
+    MatchTarget {
+        /// The body whose velocity is matched.
+        target: Entity,
     },
     /// Fly one free docking port of this hull onto a free port of `station`
     /// and hold it in the capture envelope, moving with the station.

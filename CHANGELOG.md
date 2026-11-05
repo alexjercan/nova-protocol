@@ -29,6 +29,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A visitor posts up to 3 extra jobs beside a station's 3 slots. An open one goes at the next slot expiry or after 20 minutes; an accepted one stays until you finish or lose it.
 - The autopilot now waits for a refilling RCS magazine to reach half before it uses RCS again, so a hold against a steady pull no longer swaps between drive and RCS each tick.
 - **(breaking)** World saves now carry station visits and visitor jobs, so a docked visitor stays docked and never trades twice. Older world saves are refused.
+- Shift + X is now MATCH, not STOP: it matches your travel lock's velocity on RCS alone, keeps the hull's attitude, never docks, and says why when it has no target, RCS or magazine.
 
 ### Modding & Mod Portal
 

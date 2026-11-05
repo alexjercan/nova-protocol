@@ -67,6 +67,23 @@ A dash means the action has no binding on that device.
             </td>
         </tr>
         <tr>
+            <td>MATCH - match the travel lock's velocity on RCS only</td>
+            <td><kbd>Shift</kbd> (hold) + <kbd>X</kbd></td>
+            <td>
+                <span
+                    class="pf pf-stick-left-click"
+                    role="img"
+                    aria-label="Left stick click"
+                ></span>
+                (hold) +
+                <span
+                    class="pf pf-face-east"
+                    role="img"
+                    aria-label="East face button"
+                ></span>
+            </td>
+        </tr>
+        <tr>
             <td>CANCEL autopilot (resume manual)</td>
             <td><kbd>Z</kbd></td>
             <td>

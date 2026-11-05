@@ -77,8 +77,8 @@ pub use self::{
         resolved_arrival_standoff, resolved_avoid_margin, Autopilot, AutopilotAction,
         AutopilotPhase, BodyRadius, DockPlan, FlightArrivalStandoff, FlightAvoidMargin,
         FlightCruiseCap, FlightIntent, FlightSettings, MainDriveCommanded, ManeuverTelemetry,
-        NeutralizedBrakeType, OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent,
-        StationPost,
+        MatchRefusal, MatchRefusalType, NeutralizedBrakeType, OrbitPlan, PlayerAutopilotCompleted,
+        RcsActive, RcsBudget, RcsIntent, StationPost,
     },
     well_target::WellTargetType,
 };
@@ -114,11 +114,11 @@ pub mod prelude {
         AutopilotPhase, BodyRadius, DetourPolicy, DockPlan, FlightArrivalStandoff, FlightAuthority,
         FlightAvoidMargin, FlightCruiseCap, FlightIntent, FlightPrediction,
         FlightPredictionEndType, FlightSettings, LegPlan, MainDriveCommanded, ManeuverTelemetry,
-        NeutralizedBrakeType, NovaFlightPlugin, NovaFlightSystems, OrbitPlan,
-        PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent, RcsPuffMarker, RcsPuffPlugin,
-        ScriptedAlign, ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective, ShipOrderEngaged,
-        ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport, ShipOrderReported,
-        ShipOrderReports, StationPost, SuspendedArrivalStandoff, WellTargetType,
+        MatchRefusal, MatchRefusalType, NeutralizedBrakeType, NovaFlightPlugin, NovaFlightSystems,
+        OrbitPlan, PlayerAutopilotCompleted, RcsActive, RcsBudget, RcsIntent, RcsPuffMarker,
+        RcsPuffPlugin, ScriptedAlign, ScriptedAlignSettled, ShipHelmOrder, ShipOrderDirective,
+        ShipOrderEngaged, ShipOrderHelmAuthority, ShipOrderOutcome, ShipOrderReport,
+        ShipOrderReported, ShipOrderReports, StationPost, SuspendedArrivalStandoff, WellTargetType,
     };
 }
 
@@ -141,6 +141,9 @@ impl Plugin for NovaFlightPlugin {
         // NovaGravityPlugin). init_resource is idempotent, so the gravity
         // plugin owning the same resource is fine.
         app.init_resource::<GravitySettings>();
+        // Written by the MATCH chord and by `autopilot_system`; the player
+        // input plugin registers it too, and the second call is a no-op.
+        app.add_message::<MatchRefusal>();
 
         app.init_resource::<FlightSettings>()
             // Register the whole reflected tree, not just the resource root.

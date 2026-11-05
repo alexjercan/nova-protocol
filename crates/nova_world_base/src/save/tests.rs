@@ -1078,11 +1078,11 @@ fn a_load_restores_the_goto_order_locks_and_focus() {
     assert_eq!(world.get::<LockFocus>(player).unwrap().target, Some(target));
 }
 
-/// STOP, an ORBIT with its insertion plan, and a held velocity each come
-/// back as saved, the well on its respawned body.
+/// STOP, an ORBIT with its insertion plan, a held velocity and a MATCH each
+/// come back as saved, the well and the matched body on their respawned body.
 #[test]
-fn a_load_restores_a_stop_an_orbit_and_a_held_velocity() {
-    let orders: [fn(Entity) -> AutopilotAction; 3] = [
+fn a_load_restores_a_stop_an_orbit_a_held_velocity_and_a_match() {
+    let orders: [fn(Entity) -> AutopilotAction; 4] = [
         |_| AutopilotAction::Stop,
         |well| AutopilotAction::Orbit {
             well,
@@ -1096,6 +1096,7 @@ fn a_load_restores_a_stop_an_orbit_and_a_held_velocity() {
             facing: Some(Dir3::NEG_Z),
             rcs: true,
         },
+        |target| AutopilotAction::MatchTarget { target },
     ];
     for order in orders {
         let root = tempfile::tempdir().unwrap();

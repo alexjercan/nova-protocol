@@ -14,6 +14,7 @@ use bevy::{
     platform::collections::HashMap,
     prelude::*,
 };
+use nova_events::prelude::MetersPerSecond;
 use nova_gameplay::prelude::*;
 
 use super::{
@@ -66,6 +67,12 @@ const RCS_GRAVITY_AUTHORITY: f32 = 0.15;
 /// lands, so without this floor the magazine stays near empty and the main
 /// drive and the RCS trade the goal every tick.
 const RCS_RESUME_FRACTION: f32 = 0.5;
+
+/// The relative speed at or under which a MATCH lets go: a tenth of the 5 m/s
+/// dock capture gate. One 64 Hz tick of the largest measured tidal pull at an
+/// orbiting station (11 m/s^2) adds 0.17 m/s after the last push, so a hull
+/// near one still releases instead of draining its magazine.
+const MATCH_RELEASE_SPEED: MetersPerSecond = MetersPerSecond(0.5);
 
 /// The RCS deflection an RCS settle may still be pushing at when a rest leg
 /// releases, as a fraction of full deflection - the same wind-down the main
@@ -201,6 +208,14 @@ pub(super) struct FlightEnvironment<'a> {
     /// The station a DOCK approach flies to, as this tick reads it; `None`
     /// for every other action and for a station that is gone.
     pub(super) dock: Option<DockTarget<'a>>,
+    /// The MATCH target root's velocity, engine units per second; `None` for
+    /// every other action and for a target that is gone.
+    pub(super) match_velocity: Option<Vec3>,
+    /// Whether the MATCH target is docked to this hull. A docked pair moves
+    /// as one body, but the two roots' velocities still differ by the pair's
+    /// spin, so a MATCH that kept flying would push the pair until the
+    /// magazine is empty.
+    pub(super) match_docked: bool,
 }
 
 /// A DOCK approach's station, as one step reads it.
@@ -435,6 +450,10 @@ pub(super) enum DisengageType {
     /// No free pair of the DOCK approach has a corridor its hull can close
     /// along without touching anything, or the station's hull is unmeasured.
     NoSafeDockPath,
+    /// The MATCH hull's `rcs_enabled` capability is off.
+    RcsDisabled,
+    /// The MATCH hull's RCS magazine is empty.
+    RcsEmpty,
 }
 
 /// How a step ended the maneuver.
@@ -1210,7 +1229,12 @@ pub(super) fn autopilot_system(
     // Each DOCK approach's held field forecast, stepped again every
     // DOCK_FORECAST_REFRESH seconds rather than every tick.
     (mut endings, mut forecasts): (Local<EndingTally>, Local<EntityHashMap<DockForecast>>),
-    q_roots: Query<(), With<SpaceshipRootMarker>>,
+    (q_roots, q_motion, q_connections, mut match_refusals): (
+        Query<(), With<SpaceshipRootMarker>>,
+        Query<&LinearVelocity>,
+        Query<&DockingConnection>,
+        MessageWriter<MatchRefusal>,
+    ),
     dock_corridors: DockCorridors,
 ) {
     let dt = time.delta_secs();
@@ -1355,6 +1379,18 @@ pub(super) fn autopilot_system(
             cruise_cap: cruise_cap.map(|cap| **cap),
             capabilities: ship_capabilities(ship, &q_capabilities),
             dock,
+            match_velocity: match autopilot.action {
+                AutopilotAction::MatchTarget { target } => {
+                    q_motion.get(target).ok().map(|velocity| velocity.0)
+                }
+                _ => None,
+            },
+            match_docked: match autopilot.action {
+                AutopilotAction::MatchTarget { target } => docked
+                    .and_then(|docked| q_connections.get(docked.connection).ok())
+                    .is_some_and(|connection| connection.joins(target)),
+                _ => false,
+            },
         };
         let action = autopilot.action;
         let step = autopilot_step(
@@ -1408,6 +1444,18 @@ pub(super) fn autopilot_system(
             );
         }
         if let Some(AutopilotEndType::Disengaged(reason)) = step.end {
+            if let (true, AutopilotAction::MatchTarget { .. }) = (is_player, action) {
+                let refusal = match reason {
+                    DisengageType::TargetGone => Some(MatchRefusalType::TargetLost),
+                    DisengageType::RcsDisabled => Some(MatchRefusalType::RcsDisabled),
+                    DisengageType::RcsEmpty => Some(MatchRefusalType::RcsEmpty),
+                    DisengageType::NoFlightComputer => Some(MatchRefusalType::NoFlightComputer),
+                    _ => None,
+                };
+                if let Some(refusal) = refusal {
+                    match_refusals.write(MatchRefusal(refusal));
+                }
+            }
             // Every overrun fails its DOCK order, so each one is said with its
             // metrics: the tally would hide a retried ship's later overruns.
             if let (DisengageType::DockDeadline, AutopilotAction::DockApproach { station, .. }) =
@@ -1601,6 +1649,12 @@ pub(super) fn autopilot_step(
     else {
         return disengaged(DisengageType::NoFlightComputer);
     };
+    // MATCH flies no engine and turns nothing, so it needs neither a live
+    // engine nor the plan below. It still needs the flight computer above:
+    // no live controller, no autopilot of any kind.
+    if let AutopilotAction::MatchTarget { .. } = autopilot.action {
+        return match_target_step(autopilot, body, helm, env);
+    }
     // How far behind a turning command the hull trails, for the arrival
     // plan: the slowest loop's, when several disagree.
     let tracking_lag = live_pds()
@@ -2047,6 +2101,9 @@ pub(super) fn autopilot_step(
             hold_axis = facing.map(|facing| (Vec3::NEG_Z, Vec3::from(facing)));
             rcs_permitted = rcs;
             velocity
+        }
+        AutopilotAction::MatchTarget { .. } => {
+            unreachable!("autopilot_step: MATCH returns from match_target_step before the plan")
         }
         AutopilotAction::DockApproach { .. } => {
             let Some(dock) = env.dock else {
@@ -2849,6 +2906,69 @@ pub(super) fn autopilot_step(
         main_drive_commanded,
         end: None,
         brake_degraded,
+        held: false,
+    }
+}
+
+/// One MATCH tick: the RCS alone takes the relative velocity to the target's
+/// root velocity, the engines spool dark and the rotation command holds where
+/// the pilot put it. Each tick asks for the whole relative velocity as
+/// one push; `rcs_burn_system` clamps it to one full-deflection step and pays
+/// it from the magazine, so the last push delivers only the residual.
+///
+/// Ends `Completed` once the relative speed is at most
+/// [`MATCH_RELEASE_SPEED`] or the target is docked to this hull, and
+/// disengages when the target is gone, the RCS
+/// capability is off or the magazine is empty. The drive never takes over.
+fn match_target_step(
+    autopilot: &mut Autopilot,
+    body: &FlightBody,
+    helm: &mut FlightHelm,
+    env: &FlightEnvironment,
+) -> AutopilotStep {
+    let ended = |end| AutopilotStep {
+        telemetry: None,
+        main_drive_commanded: false,
+        end: Some(end),
+        brake_degraded: None,
+        held: false,
+    };
+    let settings = env.settings;
+    let Some(target_velocity) = env.match_velocity else {
+        return ended(AutopilotEndType::Disengaged(DisengageType::TargetGone));
+    };
+    let relative = body.linear_velocity - target_velocity;
+    if env.match_docked || relative.length() <= MATCH_RELEASE_SPEED.to_engine() {
+        return ended(AutopilotEndType::Completed);
+    }
+    if !env.capabilities.rcs_enabled {
+        return ended(AutopilotEndType::Disengaged(DisengageType::RcsDisabled));
+    }
+    if helm.rcs_budget.is_empty() {
+        return ended(AutopilotEndType::Disengaged(DisengageType::RcsEmpty));
+    }
+    let full_step = settings.rcs_accel * env.dt;
+    helm.rcs_intent = if full_step > 0.0 {
+        (body.rotation.inverse() * (-relative / full_step)).clamp_length_max(1.0)
+    } else {
+        Vec3::ZERO
+    };
+    // A drive the pilot left lit winds down; nothing relights it.
+    for engine in &mut helm.engines {
+        engine.input = spool(
+            engine.input,
+            0.0,
+            settings.spool_up_rate,
+            settings.spool_down_rate,
+            env.dt,
+        );
+    }
+    autopilot.phase = AutopilotPhase::Burn;
+    AutopilotStep {
+        telemetry: None,
+        main_drive_commanded: false,
+        end: None,
+        brake_degraded: None,
         held: false,
     }
 }

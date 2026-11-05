@@ -58,7 +58,7 @@ pub use self::{
         SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
     },
 };
-use crate::input::bindings::flight_bindings;
+use crate::{flight::prelude::MatchRefusal, input::bindings::flight_bindings};
 
 /// The input sources and per-verb bindings, the verb hints and
 /// `SpaceshipPlayerInputPlugin`.
@@ -110,6 +110,8 @@ impl Plugin for SpaceshipPlayerInputPlugin {
         app.register_type::<PlayerControlSuspended>();
         app.add_systems(PreUpdate, sync_flight_context);
         app.add_message::<SectionInputBindingChanged>();
+        // The MATCH chord's refusals; the flight plugin registers it too.
+        app.add_message::<MatchRefusal>();
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_player_added_spawn_flight_input);
         app.add_systems(

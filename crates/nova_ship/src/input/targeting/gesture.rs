@@ -118,7 +118,7 @@ pub(super) fn on_radar_cancel(
 }
 
 /// The tap clear (staged): lowered - the combat lock first,
-/// else the travel lock (disengaging an engaged GOTO with it); raised - only
+/// else the travel lock (disengaging an engaged GOTO or MATCH with it); raised - only
 /// ever the combat lock. Emits [`LockClearedToast`] so the mode-scoped
 /// gesture is legible on the HUD.
 #[expect(
@@ -162,11 +162,14 @@ pub(super) fn on_lock_clear_tap(
                 target,
             });
             // Clearing the designation disengages an engaged GOTO (decision
-            // from the recap Q&A); other maneuvers (STOP/ORBIT) are not
-            // lock-bound and keep flying.
-            if autopilot
-                .is_some_and(|autopilot| matches!(autopilot.action, AutopilotAction::Goto { .. }))
-            {
+            // from the recap Q&A), and so does a MATCH on it; other
+            // maneuvers (STOP/ORBIT) are not lock-bound and keep flying.
+            if autopilot.is_some_and(|autopilot| {
+                matches!(
+                    autopilot.action,
+                    AutopilotAction::Goto { .. } | AutopilotAction::MatchTarget { .. }
+                )
+            }) {
                 commands.entity(ship).remove::<Autopilot>();
             }
         }

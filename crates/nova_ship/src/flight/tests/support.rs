@@ -97,6 +97,8 @@ fn unfinished_flight_app() -> App {
     // Production requires the magazine through NovaFlightPlugin, which this
     // rig does not load.
     app.register_required_components::<SpaceshipRootMarker, RcsBudget>();
+    // `autopilot_system` writes the MATCH refusals NovaFlightPlugin registers.
+    app.add_message::<MatchRefusal>();
     app.add_plugins(PDControllerPlugin);
     app.configure_sets(
         FixedUpdate,

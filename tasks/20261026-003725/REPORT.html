@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relative speed and attitude assist while docking stays manual (research; one narrow slice implemented later)</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f1f2ee;
+  --paper: #fafaf7;
+  --ink: #17191b;
+  --muted: #5b6167;
+  --rule: #d5d8d2;
+  --code-bg: #e8eae5;
+  --accent: #b84a1c;
+  --shipped: #1f6b66;
+  --shipped-soft: #dbeeeb;
+  --measured: #2f4fa8;
+  --measured-soft: #e1e7f7;
+  --modeled: #8a5a00;
+  --modeled-soft: #faf0d8;
+  --proposed: #7b2e63;
+  --proposed-soft: #f5e2ee;
+  --grid: #e3e5e0;
+  --c1: #2a78d6;
+  --c2: #eb6834;
+  --c3: #1baf7a;
+  --c4: #eda100;
+  --c5: #e87ba4;
+  --body: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #121416;
+    --paper: #191c1f;
+    --ink: #e4e6e1;
+    --muted: #a0a6ac;
+    --rule: #30353a;
+    --code-bg: #24282c;
+    --accent: #ef8d56;
+    --shipped: #62c2ba;
+    --shipped-soft: #15302e;
+    --measured: #93aef2;
+    --measured-soft: #1c2640;
+    --modeled: #e7b556;
+    --modeled-soft: #382c12;
+    --proposed: #e48ebf;
+    --proposed-soft: #3a1e30;
+    --grid: #2a2e32;
+    --c1: #3987e5;
+    --c2: #d95926;
+    --c3: #199e70;
+    --c4: #c98500;
+    --c5: #d55181;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--body); }
+main { max-width: 1060px; margin: 0 auto; padding: 28px 22px 80px; }
+h1 { font-size: 1.75rem; line-height: 1.2; margin: 0 0 6px; }
+h2 { font-size: 1.25rem; margin: 40px 0 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
+h3 { font-size: 1.02rem; margin: 22px 0 8px; }
+p, li { max-width: 82ch; }
+code, pre { font-family: var(--mono); font-size: 0.86em; }
+code { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; overflow-wrap: anywhere; }
+pre { background: var(--code-bg); padding: 10px 12px; border-radius: 6px; overflow-x: auto; white-space: pre; }
+a { color: var(--accent); overflow-wrap: anywhere; }
+.sub { color: var(--muted); margin: 0 0 18px; }
+.card { background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 12px 18px; margin: 14px 0; }
+.tag { display: inline-block; font: 600 0.72rem/1.6 var(--body); letter-spacing: 0.04em; text-transform: uppercase; padding: 0 7px; border-radius: 4px; vertical-align: 1px; white-space: nowrap; }
+.tag.s { background: var(--shipped-soft); color: var(--shipped); }
+.tag.m { background: var(--measured-soft); color: var(--measured); }
+.tag.d { background: var(--modeled-soft); color: var(--modeled); }
+.tag.p { background: var(--proposed-soft); color: var(--proposed); }
+.callout-s { border-left: 4px solid var(--shipped); }
+.callout-m { border-left: 4px solid var(--measured); }
+.callout-d { border-left: 4px solid var(--modeled); }
+.callout-p { border-left: 4px solid var(--proposed); }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0; font-variant-numeric: tabular-nums; }
+caption { text-align: left; color: var(--muted); font-size: 0.88rem; padding: 0 0 6px; caption-side: top; }
+th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
+td.num, th.num { text-align: right; }
+table.wide { min-width: 720px; }
+.hint { display: none; color: var(--muted); font-size: 0.82rem; margin: 0 0 4px; }
+@media (max-width: 640px) { .hint { display: block; } }
+tr.total td { border-top: 2px solid var(--rule); font-weight: 600; }
+figure { margin: 18px 0; }
+figcaption { color: var(--muted); font-size: 0.88rem; margin-top: 6px; max-width: 92ch; }
+.schem { font: 700 0.72rem/1 var(--mono); letter-spacing: 0.08em; color: var(--modeled); border: 1.5px dashed var(--modeled); border-radius: 4px; padding: 3px 6px; display: inline-block; margin: 0 0 6px; }
+.schem.p { color: var(--proposed); border-color: var(--proposed); }
+.schem.m { color: var(--measured); border-color: var(--measured); }
+.chartwrap { overflow-x: auto; }
+svg.chart { width: 100%; min-width: 620px; height: auto; display: block; background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; }
+svg .grid { stroke: var(--grid); stroke-width: 1; }
+svg .axis { fill: var(--muted); font: 11px var(--body); }
+svg .lab { fill: var(--ink); font: 12px var(--body); }
+svg .val { fill: var(--ink); font: 600 12px var(--body); }
+svg .seg { fill: var(--ink); font: 600 10.5px var(--body); }
+svg .note { fill: var(--muted); font: 11px var(--body); }
+svg .cap { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+svg .free { stroke: var(--accent); stroke-width: 2; stroke-dasharray: 6 4; }
+svg .freelab { fill: var(--accent); font: 600 11px var(--body); }
+svg .i1 { fill: var(--c1); } svg .i2 { fill: var(--c2); } svg .i3 { fill: var(--c3); }
+svg .i4 { fill: var(--c4); } svg .i5 { fill: var(--c5); }
+svg .box { fill: var(--paper); stroke: var(--ink); stroke-width: 1.3; }
+svg .box.s { stroke: var(--shipped); }
+svg .box.p { stroke: var(--proposed); stroke-width: 2; stroke-dasharray: 6 3; fill: var(--proposed-soft); }
+svg .box.x { stroke: var(--muted); stroke-dasharray: 3 3; }
+svg .edge { stroke: var(--muted); stroke-width: 1.4; fill: none; }
+svg .edge.p { stroke: var(--proposed); stroke-width: 2; }
+svg .ah { fill: var(--muted); }
+svg .ahp { fill: var(--proposed); }
+svg .fl { fill: var(--ink); font: 600 12px var(--body); }
+svg .fs { fill: var(--muted); font: 10.5px var(--mono); }
+svg .fp { fill: var(--proposed); font: 600 11px var(--body); }
+svg .dot { fill: var(--c1); stroke: var(--paper); stroke-width: 2; }
+svg .dot.root { fill: var(--c2); }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; color: var(--muted); margin: 6px 0 0; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -1px; margin-right: 5px; }
+.sw.i1 { background: var(--c1); } .sw.i2 { background: var(--c2); } .sw.i3 { background: var(--c3); }
+.sw.i4 { background: var(--c4); } .sw.i5 { background: var(--c5); }
+.sw.free { background: var(--accent); width: 14px; height: 3px; vertical-align: 3px; }
+details { margin: 10px 0; }
+summary { cursor: pointer; color: var(--accent); }
+.toc { columns: 2; font-size: 0.92rem; }
+.decision { font-weight: 600; border: 2px solid var(--proposed); border-radius: 8px; padding: 12px 16px; background: var(--proposed-soft); }
+@media (max-width: 700px) {
+  main { padding: 18px 12px 60px; }
+  h1 { font-size: 1.4rem; }
+  .toc { columns: 1; }
+  .card { padding: 10px 12px; }
+}
+.tag.u { background: var(--code-bg); color: var(--muted); border: 1px dashed var(--muted); }
+kbd { font-family: var(--mono); font-size: 0.82em; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--paper); }
+.legend > span { white-space: normal; }
+pre code { padding: 0; background: none; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Relative speed and attitude assist while docking stays manual</h1>
+<p class="sub">Task <code>tasks/20261026-003725</code> - research and plan only (see the status update for the later MATCH slice) - written 2026-11-04 at <code>a894103e3</code> - task CLOSED 2026-11-05 for the MATCH slice only</p>
+
+<div class="card legend">
+  <span><span class="tag s">source</span> read at the cited line</span>
+  <span><span class="tag m">measured</span> from an existing run artifact</span>
+  <span><span class="tag d">modeled</span> arithmetic from source constants</span>
+  <span><span class="tag p">proposed</span> not approved, not implemented</span>
+  <span><span class="tag u">unverified</span> not checked in this pass</span>
+</div>
+
+<div class="card callout-p">
+  <b>Historical record.</b> This page is a source map of commit <code>a894103e3</code>. Every <code>path:line</code> citation and every "today" statement refers to that commit, not to the current tree.
+  Its recommendation, API sketch, phases and decision list were never approved; they are not an open obligation of the closed task.
+</div>
+
+<div class="card callout-p">
+  <b>Scope.</b> This page changes no gameplay, input, binding, default, content, doc, changelog or test.
+  It does not report new player runs. Names, keys, ranges and labels in the proposed sections are working labels for
+  discussion. A recommendation here is not an approval.
+</div>
+
+<div class="card">
+  <b>Status update (2026-11-04, after this report).</b> The owner approved one narrow slice, not the recommendation below:
+  <kbd>X</kbd> stays STOP, and <kbd>Shift</kbd> + <kbd>X</kbd> (MATCH) takes the hull's velocity onto the travel lock's on the finite RCS, with no approach, no docking and no drive fallback.
+  That slice was implemented on 2026-11-04 and committed on 2026-11-05, after the owner reported that MATCH works fine in game (see the task's "Delivered" section). It differs from this page's proposal: it brakes the relative velocity to zero once and lets go at 0.5 m/s (no hold of the last relative velocity),
+  matches the target's centre-of-mass velocity (not its point velocity), has no attitude part, rides the STOP key instead of a new action, and adds no telemetry or capability.
+  For that slice the implementation chose activation, setpoint, empty-magazine, save and status-name behavior; the owner accepted the slice in game as shipped.
+  Everything else on this page stays research and proposal. The decisions in section 12 were not answered; the task closed on the slice alone.
+</div>
+
+<nav class="card toc">
+  <ol>
+    <li><a href="#summary">Summary and top recommendation</a></li>
+    <li><a href="#endstate">End state, what dies, blast radius</a></li>
+    <li><a href="#today">What exists today</a></li>
+    <li><a href="#graph">Existing vs proposed graph</a></li>
+    <li><a href="#friction">Where the friction is</a></li>
+    <li><a href="#physics">Physics, budget and units</a></li>
+    <li><a href="#ux">UX options</a></li>
+    <li><a href="#slice">Recommended first slice and API sketch</a></li>
+    <li><a href="#risks">Risks and loud failures</a></li>
+    <li><a href="#phases">Phased plan</a></li>
+    <li><a href="#proof">Proof plan</a></li>
+    <li><a href="#decisions">Owner decisions</a></li>
+    <li><a href="#side">Side findings</a></li>
+    <li><a href="#checked">What was checked</a></li>
+  </ol>
+</nav>
+
+<h2 id="summary">1. Summary and top recommendation</h2>
+<p><span class="tag s">source</span> Today the player docks by hand: the mouse turns the hull through the camera rig, <kbd>Shift</kbd> enters RCS
+fine-adjust (translation in the hull frame, heading frozen in the <b>world</b> frame), and <kbd>D</kbd> asks for capture against the travel lock.
+Nothing holds motion or attitude <b>relative to the target</b>. STOP kills world velocity, not relative velocity. The NPC
+<code>DockApproach</code> already flies the target's frame, but it closes and holds the pair for the AI. A player cannot reach it.</p>
+
+<div class="decision">
+  Top recommendation <span class="tag p">proposed</span>: one player-armed assist that makes the <b>target body</b> the pilot's frame of reference: the hull moves with the target's point under the hull's centre of mass. It has two parts.
+  <ol>
+    <li><b>Velocity part:</b> while armed, the RCS trims the relative velocity back to the value the pilot last left it at.</li>
+    <li><b>Attitude part:</b> only while RCS fine-adjust is held, the frozen heading co-rotates with the target. The heading includes the roll the pilot chose with <kbd>Q</kbd>/<kbd>E</kbd>.</li>
+  </ol>
+  The assist never closes the gap, picks a port, aligns an axis, changes the pilot's roll relative to the target, or presses <kbd>D</kbd>. On a target that spins about the hull's nose, co-rotation turns the hull in the world frame with it. That is following the target, not roll alignment. It runs on the finite RCS
+  magazine and shows one status word.
+</div>
+
+<p>Why this shape: it removes the target's own motion (drift, orbit, tidal pull, spin) from the problem. It leaves the skill
+of a stationary-target dock unchanged: square the plates, close the gap, press <kbd>D</kbd>. The existing <code>MatchVelocity</code> and
+<code>Autopilot</code> paths do not fit. In normal flight, a manual burn start or a <kbd>Shift</kbd> press removes the <code>Autopilot</code>. The exceptions are pause, suspended control, a docked hull without the helm, and <kbd>Shift</kbd> on a hull without RCS
+(<a href="../../crates/nova_ship/src/input/player/flight_rig.rs">flight_rig.rs:422-441, 725-750</a>), so an autopilot-based assist could not run beside manual control.</p>
+
+<h2 id="endstate">2. End state, what dies, blast radius</h2>
+<div class="tablewrap"><table>
+<tr><th>Item</th><th>Statement</th></tr>
+<tr><td>End state <span class="tag p">proposed</span></td><td>An armed assist holds the approved relative motion and attitude only while it is available. The pilot still steers, closes, picks when to press <kbd>D</kbd>, and can cancel at any time. If a target or capability is invalid, the assist refuses and shows why. There is no hidden snap.</td></tr>
+<tr><td>What dies now</td><td>Nothing. This is research only.</td></tr>
+<tr><td>What dies at implementation <span class="tag p">proposed</span></td><td>No gameplay path is replaced. The assist is additive. Invalidated text dies with it: the docking wiki "Docking is one key, and everything before it is flying" paragraph (<a href="../../web/src/wiki/sections/docking.md">docking.md:46</a>) needs a new sentence and a wiki tooltip target. So does the HUD page's "Nothing on it flies for you" (<a href="../../web/src/wiki/hud.md">hud.md:121</a>), and the bench pilot page's flying procedure (<a href="../../crates/nova_bench/src/pages/docking.md">pages/docking.md:33-47</a>). Controls lists gain one row. The pinned binding tests <code>the_fixed_rigs_name_twenty_actions</code> and <code>the_action_names_are_pinned</code> (<a href="../../crates/nova_ship/src/input/bindings.rs">bindings.rs:189, 197</a>) change with a new action.</td></tr>
+<tr><td>May break</td><td>Helm ownership (mouse vs assist), the Normal camera rig during RCS mode, the RCS magazine (an armed assist never lets it idle), docked pairs (the driver pays for the group), keybind and reserved-source lint, and the bench observation schema. AI is not touched: it keeps <code>MatchVelocity</code>/<code>DockApproach</code>.</td></tr>
+<tr><td>Must fail loudly</td><td>Arm with no travel lock, a non-ship target, no RCS capability, no live flight computer (attitude part), an empty magazine, out of range, or a lost or despawned target. Each case shows a status word and writes a debug log line. It never falls back to world-frame STOP or to a drive burn.</td></tr>
+</table></div>
+
+<h2 id="today">3. What exists today</h2>
+<div class="tablewrap"><p class="hint">Scroll the table sideways.</p>
+<table class="wide">
+<caption>Feature slice map (all <span class="tag s">source</span> unless tagged)</caption>
+<tr><th>Concern</th><th>Owner and evidence</th><th>Fact that matters here</th></tr>
+<tr><td>Helm (attitude)</td><td><a href="../../crates/nova_ship/src/input/player/intent.rs">intent.rs:20-80</a></td><td>The chase camera's <code>PointRotationOutput</code> is slewed into <code>ControllerSectionRotationInput</code>. It is a world-frame command. It is skipped with <code>Autopilot</code> or <code>RcsActive</code> present (:38-43), so in RCS mode the heading is held fixed in world space.</td></tr>
+<tr><td>Roll</td><td><a href="../../crates/nova_ship/src/input/bindings.rs">bindings.rs:33-39</a>; <a href="../../crates/nova_ship/src/camera/mode.rs">mode.rs:27, 217-252</a></td><td><kbd>Q</kbd>/<kbd>E</kbd> roll the Normal rig at pi/2 rad/s (90 deg/s). The roll writer is zeroed while <code>RcsActive</code> or <code>Autopilot</code> is present (:223-229). Roll is chosen before RCS mode and then frozen.</td></tr>
+<tr><td>RCS fine-adjust</td><td><a href="../../crates/nova_ship/src/input/player/flight_rig.rs">flight_rig.rs:720-825</a>; <a href="../../crates/nova_ship/src/flight/manual.rs">manual.rs:28-33, 210-245, 439</a></td><td>Holding <kbd>Shift</kbd> inserts <code>RcsActive</code> and removes <code>Autopilot</code>. Mouse or left-stick delta sets a hull-local <code>RcsIntent</code>, which decays (x0.4 per tick) when motion stops. A push is a torque-free impulse at the COM. Residual velocity persists.</td></tr>
+<tr><td>RCS magazine</td><td><a href="../../crates/nova_ship/src/flight/state.rs">state.rs:172-270, 825-828</a></td><td>Starter capacity is 300 m/s (more for designs above 65 sections). Full deflection is 5 g. Refill is 100 m/s per second, after 2 s with no nonzero command. A command held on an empty magazine keeps it empty.</td></tr>
+<tr><td>Capture</td><td><a href="../../crates/nova_ship/src/input/player/flight_rig.rs">flight_rig.rs:668-700</a>; <a href="../../crates/nova_ship/src/sections/docking_section/connection.rs">connection.rs:330-380</a>; <a href="../../crates/nova_ship/src/sections/docking_section/port.rs">port.rs:95-118, 209-262</a></td><td><kbd>D</kbd> triggers <code>DockingConnectionRequest</code> against the <code>TravelLock</code>. Admission refusal comes first, then <code>best_candidate</code> (gate, then rank). A press with no eligible pair is a silent no-op. Relative speed is the difference of the two roots' <code>LinearVelocity</code> (:237, :289), and relative spin is the difference of their angular velocities.</td></tr>
+<tr><td>Envelope</td><td><a href="../../crates/nova_ship/src/sections/docking_section/mod.rs">docking_section/mod.rs:106-132</a></td><td>A 10 m face gap, 15 deg facing, 5 m/s relative speed and 5 deg/s relative spin. Roll is excluded (the ports are cylindrical). A pair is judged by the stricter port.</td></tr>
+<tr><td>Occupied / refused</td><td><a href="../../crates/nova_ship/src/sections/docking_section/admission.rs">admission.rs:29-42</a>; <a href="../../crates/nova_ship/src/input/player/hints.rs">hints.rs:97-104</a></td><td>One connection per ship root and one per port (<code>Without&lt;DockedPort&gt;</code>). A station with every port held refuses with <code>StationOccupied</code>, shown as "<i>name</i> DOCK OCCUPIED".</td></tr>
+<tr><td>Docking sight</td><td><a href="../../crates/nova_hud/src/docking_sight.rs">docking_sight.rs:1-45, 63, 213, 241</a></td><td>Draws <code>nearest_pair</code> inside 8 u (80 m). There are two tones: the plates for facing, and the line for gap+speed+spin together. So a failing line does not say whether speed or spin failed. The cross is built from the player hull's up, so roll is not drawn.</td></tr>
+<tr><td>RCS chip</td><td><a href="../../crates/nova_hud/src/flight_status.rs">flight_status.rs:1-15, 77-81</a></td><td>Ten pips, shown only while RCS is commanded, pushing, or short of full. The mode chip already uses the word <code>MATCH</code> for <code>MatchVelocity</code> (:490).</td></tr>
+<tr><td>MatchVelocity</td><td><a href="../../crates/nova_ship/src/flight/state.rs">state.rs:414-454</a>; <a href="../../crates/nova_ship/src/flight/autopilot.rs">autopilot.rs:2037-2048</a></td><td>An <code>Autopilot</code> action for AI. It holds a fixed world velocity, an optional nose direction (no roll), and an <code>rcs</code> flag. It does not track a target entity. The AI rewrites it each tick. It is saved as a world vector. On an empty or refilling magazine it hands the goal to the main drive, which turns the hull (autopilot.rs:2325-2334).</td></tr>
+<tr><td>DockApproach (NPC)</td><td><a href="../../crates/nova_ship/src/flight/state.rs">state.rs:455-508</a>; <a href="../../crates/nova_ship/src/flight/autopilot.rs">autopilot.rs:228-236, 2050-2240</a></td><td>Only <code>ShipOrderDirective::Dock</code> engages it (station visits, scenario orders). It flies the station's point velocity <code>v + omega x r</code> (<code>frame_velocity</code>) using the mean spin, and holds the port axis. It closes on its own and never presses dock (the order asks). It is not saved (controls.rs:412-417).</td></tr>
+<tr><td>STOP / GOTO</td><td><a href="../../crates/nova_ship/src/flight/state.rs">state.rs:383-391, 797</a>; <a href="../../crates/nova_ship/src/flight/autopilot.rs">autopilot.rs:730-737</a></td><td>STOP rests in the world frame. GOTO parks 500 m off the target surface by default. <span class="tag u">unverified</span> The GOTO target query reads pose and radius, not velocity, so whether it parks at rest <i>relative to</i> a moving target was not checked.</td></tr>
+<tr><td>Gravity</td><td><a href="../../crates/nova_ship/src/flight/autopilot.rs">autopilot.rs:56-68, 560-580</a></td><td><code>relative_gravity_accel</code> gives the tidal difference between a hull and a body that falls in the same well. The autopilot takes a refilling magazine back only at half full (<code>RCS_RESUME_FRACTION</code>).</td></tr>
+<tr><td>Capabilities</td><td><a href="../../crates/nova_ship/src/flight/capability.rs">capability.rs:35-80</a></td><td><code>rcs_enabled</code> and <code>dock_enabled</code> are scenario permissions. Tutorials withhold verbs through them.</td></tr>
+<tr><td>Bindings</td><td><a href="../../crates/nova_ship/src/input/bindings.rs">bindings.rs:26-112, 156</a>; <a href="../../crates/nova_input/src/registry.rs">registry.rs:100-131</a></td><td>Flight actions do not consume input, so <code>flight_rig_reserved_sources</code> guards against collisions. <kbd>D</kbd> and <kbd>H</kbd> are keyboard-only because every reachable pad button is used (:55-61). Rebinds persist as <code>BindingSpec</code> rows in <code>settings.ron</code> (<a href="../../crates/nova_menu/src/settings_store.rs">settings_store.rs:124</a>).</td></tr>
+<tr><td>Save / load</td><td><a href="../../crates/nova_world_base/src/save/controls.rs">controls.rs:55-75, 395-436, 575-610</a></td><td>Locks are saved as <code>SavedTargetRef</code> (stable body id, canister, or transient index). A missing id waits; an ambiguous id refuses. <code>Autopilot</code> is saved; a DOCK approach refuses to save.</td></tr>
+<tr><td>Camera handback</td><td><a href="../../crates/nova_ship/src/camera/handback.rs">handback.rs:14-60</a></td><td>When <code>Autopilot</code> is removed, the rig is re-seeded from the hull and the camera eases over 0.45 s. This is the existing pattern for any non-mouse writer of the helm.</td></tr>
+</table></div>
+
+<h2 id="graph">4. Existing vs proposed graph</h2>
+<p class="hint">Scroll the diagrams sideways.</p>
+<figure>
+<div class="chartwrap">
+<svg class="chart" viewBox="0 0 960 330" role="img" aria-labelledby="g1t">
+<title id="g1t">Existing player docking control flow</title>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+<marker id="ahp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ahp" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<text class="fl" x="20" y="26">Existing (source)</text>
+<rect class="box s" x="20" y="45" width="170" height="44" rx="6"/><text class="fl" x="32" y="64">mouse / Q E</text><text class="fs" x="32" y="80">camera Normal rig</text>
+<rect class="box s" x="20" y="125" width="170" height="44" rx="6"/><text class="fl" x="32" y="144">Shift + mouse</text><text class="fs" x="32" y="160">RcsActive, RcsIntent</text>
+<rect class="box s" x="20" y="205" width="170" height="44" rx="6"/><text class="fl" x="32" y="224">D key</text><text class="fs" x="32" y="240">on_dock_input</text>
+<rect class="box s" x="20" y="275" width="170" height="44" rx="6"/><text class="fl" x="32" y="294">X G O Z</text><text class="fs" x="32" y="310">insert/remove Autopilot</text>
+<rect class="box s" x="280" y="45" width="230" height="44" rx="6"/><text class="fl" x="292" y="64">helm writer (intent.rs)</text><text class="fs" x="292" y="80">Without Autopilot, RcsActive</text>
+<rect class="box s" x="280" y="125" width="230" height="44" rx="6"/><text class="fl" x="292" y="144">rcs_burn_system</text><text class="fs" x="292" y="160">RcsBudget spend</text>
+<rect class="box s" x="280" y="205" width="230" height="44" rx="6"/><text class="fl" x="292" y="224">DockingConnectionRequest</text><text class="fs" x="292" y="240">admission, best_candidate</text>
+<rect class="box s" x="280" y="275" width="230" height="44" rx="6"/><text class="fl" x="292" y="294">autopilot_system</text><text class="fs" x="292" y="310">STOP world rest, GOTO 500 m</text>
+<rect class="box s" x="600" y="85" width="190" height="44" rx="6"/><text class="fl" x="612" y="104">PD controller</text><text class="fs" x="612" y="120">world rotation command</text>
+<rect class="box s" x="600" y="205" width="190" height="44" rx="6"/><text class="fl" x="612" y="224">DockedShip + joint</text><text class="fs" x="612" y="240">capture, no auto press</text>
+<rect class="box x" x="820" y="125" width="125" height="64" rx="6"/><text class="fl" x="830" y="144">DockApproach</text><text class="fs" x="830" y="160">NPC orders only</text><text class="fs" x="830" y="176">frame_velocity</text>
+<path class="edge" d="M190,67 L278,67" marker-end="url(#ah)"/>
+<path class="edge" d="M190,147 L278,147" marker-end="url(#ah)"/>
+<path class="edge" d="M190,227 L278,227" marker-end="url(#ah)"/>
+<path class="edge" d="M190,297 L278,297" marker-end="url(#ah)"/>
+<path class="edge" d="M510,67 L598,100" marker-end="url(#ah)"/>
+<path class="edge" d="M510,310 L805,310 L805,112 L794,112" marker-end="url(#ah)"/>
+<rect class="box s" x="600" y="146" width="190" height="44" rx="6"/><text class="fl" x="612" y="165">hull COM impulse</text><text class="fs" x="612" y="181">no torque, residual persists</text>
+<path class="edge" d="M510,150 L598,165" marker-end="url(#ah)"/>
+<path class="edge" d="M510,227 L598,227" marker-end="url(#ah)"/>
+<path class="edge" d="M150,125 C200,105 230,100 278,80" stroke-dasharray="4 3"/>
+<text class="note" x="206" y="122">Shift removes Autopilot</text>
+</svg></div>
+<figcaption>Existing: the hull command is world-frame. RCS mode freezes it. The only target-frame flight (<code>DockApproach</code>) is NPC-only and closes on its own.</figcaption>
+</figure>
+
+<figure>
+<span class="schem p">PROPOSED - NOT APPROVED</span>
+<div class="chartwrap">
+<svg class="chart" viewBox="0 0 960 300" role="img" aria-labelledby="g2t">
+<title id="g2t">Proposed assist control flow</title>
+<defs><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+<marker id="ahp2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ahp" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="box p" x="20" y="30" width="170" height="44" rx="6"/><text class="fp" x="32" y="49">arm/disarm verb</text><text class="fs" x="32" y="65">key: owner decision</text>
+<rect class="box s" x="20" y="110" width="170" height="44" rx="6"/><text class="fl" x="32" y="129">TravelLock</text><text class="fs" x="32" y="145">same target as D</text>
+<rect class="box s" x="20" y="190" width="170" height="44" rx="6"/><text class="fl" x="32" y="209">Shift + mouse</text><text class="fs" x="32" y="225">RcsIntent (pilot)</text>
+<rect class="box p" x="270" y="70" width="230" height="64" rx="6"/><text class="fp" x="282" y="89">drive_frame_match</text><text class="fs" x="282" y="105">after manual_burn_system</text><text class="fs" x="282" y="121">writes RCS trim + status</text>
+<rect class="box p" x="270" y="190" width="230" height="64" rx="6"/><text class="fp" x="282" y="209">hold_frame_attitude</text><text class="fs" x="282" y="225">only with RcsActive</text><text class="fs" x="282" y="241">helm cmd + Normal rig</text>
+<rect class="box s" x="580" y="70" width="190" height="44" rx="6"/><text class="fl" x="592" y="89">rcs_burn_system</text><text class="fs" x="592" y="105">pilot + trim, one magazine</text>
+<rect class="box s" x="580" y="190" width="190" height="44" rx="6"/><text class="fl" x="592" y="209">PD controller</text><text class="fs" x="592" y="225">co-rotating command</text>
+<rect class="box p" x="580" y="130" width="190" height="44" rx="6"/><text class="fp" x="592" y="149">status word chip</text><text class="fs" x="592" y="165">HUD + bench telemetry</text>
+<rect class="box s" x="820" y="110" width="125" height="64" rx="6"/><text class="fl" x="830" y="129">D key</text><text class="fs" x="830" y="145">unchanged</text><text class="fs" x="830" y="161">pilot only</text>
+<path class="edge p" d="M190,52 L268,90" marker-end="url(#ahp2)"/>
+<path class="edge" d="M190,132 L268,110" marker-end="url(#ah2)"/>
+<path class="edge" d="M190,212 L268,120" marker-end="url(#ah2)"/>
+<path class="edge" d="M190,212 L268,215" marker-end="url(#ah2)"/>
+<path class="edge p" d="M500,92 L578,92" marker-end="url(#ahp2)"/>
+<path class="edge p" d="M500,110 L578,150" marker-end="url(#ahp2)"/>
+<path class="edge p" d="M500,222 L578,212" marker-end="url(#ahp2)"/>
+<text class="note" x="20" y="285">Disarm: manual burn start, any Autopilot engage, dock capture, lock change or loss. The assist never writes DockingConnectionRequest.</text>
+</svg></div>
+<figcaption>Proposed: one component on the player root, two writers in the existing <code>NovaFlightSystems</code> chain. Dashed purple = new. <kbd>D</kbd>, admission and the capture search are untouched.</figcaption>
+</figure>
+
+<h2 id="friction">5. Where the friction is</h2>
+<p class="hint">Scroll the table sideways.</p>
+<div class="tablewrap"><table class="wide">
+<tr><th>Situation</th><th>Pilot work today</th><th>Evidence</th></tr>
+<tr><td>Stationary target</td><td>Null your own drift, square the plates, close, press <kbd>D</kbd>.</td><td><span class="tag m">measured</span> One headless pi pilot docked on the Spar fixture by tick 2,807 in 13 turns, with zero damage and no autopilot (<a href="../20261025-214714/TASK.md">20261025-214714/TASK.md:46</a>). One run is not ease evidence. Its <code>/tmp</code> artifacts are gone.</td></tr>
+<tr><td>Moving target</td><td>The pilot must cancel the target's velocity by hand. STOP rests in the world frame, so it adds the target's whole speed back.</td><td><span class="tag s">source</span> state.rs:383. <span class="tag u">unverified</span> No player run.</td></tr>
+<tr><td>Orbiting station</td><td>The relative velocity drifts under the tidal difference while the pilot is not pushing.</td><td><span class="tag m">measured</span> One AI run on an uncommitted TMPDIAG build, seed 29: <code>rgrav</code> 1.10, 0.645 and 0.53 u/s<sup>2</sup> at 325, 86.8 and 46.3 u from the station (local, gitignored <code>evidence/visits-20261102/orbit-dock-live/REPORT.md:58-59</code>). The NPC approach needed several fixes there (<a href="../20261026-003723/TASK.md">20261026-003723/TASK.md:33-35, 61-62</a>). This is AI evidence, not player evidence.</td></tr>
+<tr><td>Spinning or tumbling target</td><td>In RCS mode the heading is world-frozen, so the target's port turns out of the 15 deg cone. The pilot must leave RCS, re-aim, and re-enter.</td><td><span class="tag s">source</span> intent.rs:38-43, mode.rs:223-229. <span class="tag u">unverified</span> Which shipped targets spin, and how fast.</td></tr>
+<tr><td>Which gate failed</td><td>The line tone merges gap, speed and spin.</td><td><span class="tag s">source</span> docking_sight.rs:241. Feedback is a separate question (task <code>20261026-003807</code>).</td></tr>
+</table></div>
+<p>Bounded conclusion: the source shows that relative-motion work grows with target motion. No player run measured how much of that work is unfair friction and how much is intended skill. The proof plan in section 11 measures it.</p>
+
+<h2 id="physics">6. Physics, budget and units</h2>
+<h3>RCS budget <span class="tag d">modeled</span></h3>
+<ul>
+<li>Full deflection is 5 x 9.81 = 49.05 m/s<sup>2</sup>, so 300 m/s lasts 300 / 49.05 = 6.1 s of held full input (state.rs:764-766 says "about six seconds").</li>
+<li>A full refill needs 2 s idle + 300 / 100 = 3 s, so 5 s with <b>no</b> command. An assist that trims every tick never lets the magazine idle.</li>
+</ul>
+<h3>Tidal hold cost <span class="tag d">modeled</span></h3>
+<p>Relative to a free-falling station, a hull at distance <i>d</i> feels a tidal difference of about omega<sup>2</sup>d (across the orbit) to 2 omega<sup>2</sup>d (along the radius). The source cites a 73 s orbit (autopilot.rs:2168-2170), so omega = 2 pi / 73 = 0.0861 rad/s and omega<sup>2</sup> = 0.00741 s<sup>-2</sup>.</p>
+<div class="tablewrap"><table>
+<caption>Continuous trim time of a full 300 m/s magazine</caption>
+<tr><th>Case</th><th class="num">Tidal accel, m/s<sup>2</sup></th><th class="num">Magazine lasts, s</th><th>Label</th></tr>
+<tr><td>d = 100 m, 73 s orbit</td><td class="num">0.74 to 1.48</td><td class="num">405 to 202</td><td><span class="tag d">modeled</span></td></tr>
+<tr><td>d = 460 m, 73 s orbit</td><td class="num">3.41 to 6.82</td><td class="num">88 to 44</td><td><span class="tag d">modeled</span></td></tr>
+<tr><td>seed 29 AI diag (one run, TMPDIAG build), 46.3 to 325 u</td><td class="num">5.3 to 11.0</td><td class="num">57 to 27</td><td><span class="tag m">measured</span> accel; time modeled</td></tr>
+</table></div>
+<p>So the hold is affordable close in and expensive far out. The seed 29 station's orbit period was not recovered, so the model and the measurement are not a matched pair. The linear model over-predicts far out: at 3,250 m it gives 24 to 48 m/s<sup>2</sup>, against 11 measured. The source comment gives 3 to 8 m/s<sup>2</sup> within a few hundred u. Do not use the model beyond about 1 km. This is the reason for a range gate and a visible empty state, not for a drive fallback: a drive hold turns the hull, which breaks the attitude part and takes the heading from the pilot.</p>
+
+<h3>Co-rotation vs the capture speed gate <span class="tag d">modeled</span></h3>
+<p>The capture gate compares the two roots' <code>LinearVelocity</code> (port.rs:237). <span class="tag s">source</span> That is centre-of-mass velocity: Nova says so at autopilot.rs:228-233, and avian 0.7.0 <code>velocity_at_point</code> adds <code>omega x r</code> to it (registry <code>avian3d-0.7.0/src/dynamics/rigid_body/world_query.rs:31-38</code>). The recommended hold uses the target's point velocity at the hull's COM, so it follows a spinning target. A hull rigidly co-rotating with a target spinning at omega, with centres <i>d</i> apart, has relative spin 0 but relative speed omega x d. The 5 m/s gate then caps omega at 5 / d: 2.86 deg/s at d = 100 m, 1.43 deg/s at 200 m. Above that, a perfect co-rotating hold cannot capture. The pilot would need to stop co-rotating at the last moment. This is a property of the current gate, not of the assist. If the hold used the target's COM velocity instead, the hull would not follow the port's swing and this limit would not apply. Owner decisions 3 and 7 cover it.</p>
+
+<h3>Units and named edges</h3>
+<ul>
+<li>Author the range and any rates in meters (<code>Meters</code>, <code>MetersPerSecond</code>). Convert once in <code>FlightSettings::default</code> with <code>to_engine()</code>, as <code>rcs_accel</code> does (state.rs:825-828). One engine unit is 10 m.</li>
+<li>Flight math stays in u and u/s (avian <code>Position</code>, <code>LinearVelocity</code>). The HUD converts with <code>MetersPerSecond::from_engine</code> (flight_status.rs:11-15). The bench converts in <code>docking_view</code> (observation.rs:545-585).</li>
+</ul>
+
+<h2 id="ux">7. UX options</h2>
+<p class="hint">Scroll the table sideways.</p>
+<div class="tablewrap"><table class="wide">
+<tr><th>Question</th><th>Options and consequences</th><th>Recommendation <span class="tag p">proposed</span></th></tr>
+<tr><td>Activation</td><td><b>Hold a key:</b> clear, but the pilot already holds <kbd>Shift</kbd> and moves the mouse, and no pad button is free. <b>Toggle:</b> one press, but there is a hidden state, so the HUD must show it. <b>Automatic in RCS mode:</b> no key, but it changes RCS for every user (mining, salvage) and spends the magazine unasked.</td><td>Toggle, with a visible status word. Key and pad source: owner decision.</td></tr>
+<tr><td>Components</td><td><b>Combined:</b> one verb, one word. <b>Separate velocity and attitude verbs:</b> finer control, but two keys and two chips. <b>Velocity only:</b> smallest, but leaves the spin case open.</td><td>Combined verb. The attitude part is active only inside RCS mode, so it never fights the mouse.</td></tr>
+<tr><td>Reference</td><td><b>Target body frame:</b> one lock, no port UI. A rigid body moves every port with it. <b>Exact port:</b> enables axis alignment, but needs port selection and drifts toward automatic alignment.</td><td>Body frame of the travel lock (the same target <kbd>D</kbd> uses). The reference point is the target's point under the hull's COM (<code>v + omega x r</code>). The alternative is the target's COM velocity, which does not follow spin.</td></tr>
+<tr><td>Velocity setpoint</td><td><b>Hold the last relative velocity:</b> the target frame feels inertial and closing keeps its skill. <b>Damp to zero:</b> safer, but the delta-driven mouse RCS cannot hold a push, so closing becomes stop-and-go. <b>Pilot-set rate:</b> needs a new input.</td><td>Hold the last relative velocity, latched when pilot RCS input stops. Damp-to-zero is the alternative.</td></tr>
+<tr><td>Translation frame</td><td>Pilot RCS stays in the hull frame (as today). A target-frame RCS input would change muscle memory.</td><td>Keep the hull frame.</td></tr>
+<tr><td>Attitude</td><td><b>Co-rotate the latched relative rotation:</b> keeps the pilot's aim and roll. <b>Align the port axis:</b> automatic alignment, roll undefined. <b>None.</b></td><td>Co-rotate. Never align. Never change the pilot's roll relative to the target.</td></tr>
+<tr><td>Override</td><td>Main drive start, any autopilot verb, <kbd>Z</kbd>, the arm key, dock capture, lock change.</td><td>All of them disarm. Pilot RCS composes with the trim and re-latches the setpoint.</td></tr>
+<tr><td>Feedback</td><td>A sentence line, or one word plus a tooltip and wiki.</td><td>One word on the existing chip row (working labels: <code>SYNC</code>, <code>DRY</code>, <code>RANGE</code>, <code>LOST</code>). <code>MATCH</code> is taken (flight_status.rs:490). Explanations go in the tooltip and wiki only.</td></tr>
+</table></div>
+
+<h2 id="slice">8. Recommended first slice and API sketch</h2>
+<p><span class="tag p">proposed</span> Slice 1 = velocity part + status + bench telemetry. Slice 2 = attitude part + camera rig. Splitting them gives a clean manual vs velocity-only bench comparison before any helm change.</p>
+<pre><code>// UNAPPROVED SKETCH - names, fields and placement are owner decisions.
+// crates/nova_ship/src/flight/state.rs
+/// The player's relative-frame assist; absent = off.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+pub struct FrameMatch {
+    /// The body whose frame is held: the travel lock at arm time.
+    pub target: Entity,
+    /// Held velocity relative to the target's point under this hull's COM
+    /// (body_point_velocity), in the target's local frame, u/s. Re-latched
+    /// on every tick the pilot commands RCS.
+    pub velocity: Vec3,
+    /// q_target^-1 * q_ship, latched when RCS fine-adjust starts (slice 2).
+    pub attitude: Option&lt;Quat&gt;,
+}
+
+/// What the assist did this tick: read by the HUD chip and the bench.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+pub enum FrameMatchStateType { Holding, Dry, Range, Lost, NoRcs, NoHelm }
+
+// FlightSettings: frame_match_range (authored Meters, value = decision).
+
+// Shared pure helper, extracted from DockTarget::frame_velocity
+// (autopilot.rs:228-236) so the NPC and the assist read one law:
+pub(crate) fn body_point_velocity(v: Vec3, spin: Vec3, com: Vec3, point: Vec3) -&gt; Vec3;
+
+// Systems, inside NovaFlightSystems (flight/mod.rs:210-235):
+//   manual_burn_system -&gt; drive_frame_match -&gt; rcs_burn_system
+//   drive_frame_match writes a per-tick RCS trim (new field or component:
+//   decision) so decay_player_rcs_intent never decays assist output.
+//   hold_frame_attitude (slice 2) writes ControllerSectionRotationInput
+//   and rotates the Normal rig by the same delta while RcsActive.
+// Observers: arm/disarm verb (flight_rig.rs), remove FrameMatch on
+//   Add&lt;Autopilot&gt;, Add&lt;DockedShip&gt;, burn Start, TravelLock change.</code></pre>
+<p>Why the trim stays separate: <code>RcsIntent</code> is the pilot's decaying input (manual.rs:28-33). Mixing the trim into it would leak assist output into the next tick's pilot input. This means <code>rcs_burn_system</code>'s input changes first (the owning interface), and its callers follow the compiler errors.</p>
+
+<h2 id="risks">9. Risks and loud failures</h2>
+<p class="hint">Scroll the table sideways.</p>
+<div class="tablewrap"><table class="wide">
+<tr><th>Risk</th><th>Failure scenario</th><th>Guard <span class="tag p">proposed</span></th></tr>
+<tr><td>Hidden capture</td><td>The assist holds the pair inside the envelope and the dock looks automatic.</td><td>The assist has no path to <code>DockingConnectionRequest</code>, and does not reuse the NPC order layer, which fires it as soon as a pair is eligible (<a href="../../crates/nova_ship/src/flight/order.rs">order.rs:746-756</a>). Proof: assisted runs never dock without a <kbd>D</kbd> press in the audit.</td></tr>
+<tr><td>Held closing speed</td><td>The pilot leaves a closing speed latched, and the hold keeps it through the 5 m/s gate or into a collision.</td><td>The assist never raises or lowers the pilot's held closing speed. It only removes the target's own motion. A Newtonian hull would coast the same way. The damp-to-zero setpoint (decision 3) is the safer alternative.</td></tr>
+<tr><td>Magazine never refills</td><td>Continuous trim keeps <code>idle</code> at 0, and the pilot finds the RCS empty at the gap.</td><td>The <code>DRY</code> state stops trimming so recovery can start. Resume rule (half-full floor like <code>RCS_RESUME_FRACTION</code>, or stay off): decision.</td></tr>
+<tr><td>Tidal cost far out</td><td>Arming about 460 m from an orbiting station spends the magazine in about 44-88 s (modeled).</td><td>A range gate (<code>RANGE</code>) authored in meters.</td></tr>
+<tr><td>Spin jitter</td><td>The instantaneous angular velocity of an attitude-holding station jitters, and the trim chases it.</td><td>Reuse the mean-spin approach of <code>DockForecast::spin</code> (dock_forecast.rs:88; described at state.rs:470-473). <span class="tag u">unverified</span> for non-station targets.</td></tr>
+<tr><td>Camera lurch</td><td>The co-rotated hull leaves the Normal rig stale, and on <kbd>Shift</kbd> release the helm slews the hull back toward the stale rig (slew-limited, intent.rs:61-77).</td><td>Rotate the rig with the hull, or re-seed like <code>on_autopilot_disengaged</code> (handback.rs:55).</td></tr>
+<tr><td>Docked group</td><td>The assist pushes a docked pair or station group.</td><td>Disarm on <code>Add&lt;DockedShip&gt;</code>. The driver-pays rule (manual.rs:229-236) is unchanged.</td></tr>
+<tr><td>Damage</td><td>The controller dies mid-hold, or RCS capability is lost.</td><td><code>NoHelm</code> / <code>NoRcs</code> state. The velocity part still runs without a helm. No drive fallback.</td></tr>
+<tr><td>Lost target</td><td>The target despawns, leaves the window, docks elsewhere, or the lock changes.</td><td>Disarm with <code>LOST</code> shown briefly. The trim drops to zero the same tick.</td></tr>
+<tr><td>Binding collision</td><td>The new key double-drives a section <code>input_mapping</code>.</td><td>Add it to <code>flight_rig_reserved_sources</code> (bindings.rs:156). Content lint catches the rest.</td></tr>
+<tr><td>Save mid-hold</td><td>The load restores drift without the hold.</td><td>Decision: not saved (load shows the assist off), or saved through the travel lock's <code>SavedTargetRef</code> (a missing id waits).</td></tr>
+<tr><td>Spinning target</td><td>A perfect co-rotation fails the COM speed gate above 5/d rad/s.</td><td>Document it. A gate change is outside this task.</td></tr>
+</table></div>
+
+<h2 id="phases">10. Phased plan</h2>
+<ol>
+<li><b>Decisions.</b> Settle section 12. No code before that.</li>
+<li><b>Telemetry.</b> Add the RCS magazine fraction and the assist state to the bench observation (a decision, because it is a new schema field). Without them, no run can show cost.</li>
+<li><b>Slice 1, velocity.</b> Change <code>rcs_burn_system</code>'s input first. Extract <code>body_point_velocity</code>. Add the component, the system, the verb, the binding row and reserved source, and the chip word. Update the wiki docking and flight pages, the HUD page, the controls list and the changelog.</li>
+<li><b>Bench gate 1.</b> Matched manual vs velocity-only sets (section 11).</li>
+<li><b>Slice 2, attitude.</b> Co-rotation in RCS mode plus the camera rig. Bench gate 2 on the spinning and orbiting fixtures.</li>
+<li><b>Review.</b> Inspect rendered sight and chip frames on an isolated display. Re-read the <code>[Unreleased]</code> changelog.</li>
+</ol>
+
+<h2 id="proof">11. Proof plan</h2>
+<h3>Permanent assertions (each needs approval first)</h3>
+<ul>
+<li>ECS example: an armed assist on an eligible pair never inserts <code>DockedShip</code> without a <code>DockInput</code> start.</li>
+<li>ECS examples: a burn start, an autopilot engage, a dock capture, and a lock loss each remove the assist in the same tick.</li>
+<li>ECS example: on an empty magazine the assist commands nothing, and <code>RcsBudget::idle</code> grows.</li>
+<li>Unit test: <code>body_point_velocity</code> equals <code>v + spin x (point - com)</code>, shared by the NPC and the assist.</li>
+</ul>
+<h3>Matched bench design <span class="tag p">proposed</span></h3>
+<p class="hint">Scroll the table sideways.</p>
+<div class="tablewrap"><table class="wide">
+<tr><th>Fixture</th><th>Exists?</th><th>Expected assisted outcome</th></tr>
+<tr><td>F1 stationary Spar, 76 m, 18 deg off</td><td><a href="../../crates/nova_bench/scenarios/docking.content.ron">docking.content.ron</a> yes</td><td>About equal to manual (the control case).</td></tr>
+<tr><td>F2 warship to tender, 115 m, 12 deg</td><td><a href="../../crates/nova_bench/scenarios/docking_warship_tender.content.ron">docking_warship_tender.content.ron</a> yes</td><td>About equal (a large-hull control).</td></tr>
+<tr><td>F3 drifting target, constant velocity</td><td>new fixture</td><td>Fewer corrective pushes, no STOP misuse.</td></tr>
+<tr><td>F4 orbiting station</td><td>open-world seed (26 or 29 from the station-visits work) <span class="tag u">unverified</span> on bench</td><td>Lower drift. Visible magazine cost.</td></tr>
+<tr><td>F5 spinning derelict</td><td>new fixture; initial spin authoring <span class="tag u">unverified</span></td><td>Slice 2 only: fewer RCS re-entries.</td></tr>
+<tr><td>F6 RCS withheld or controller destroyed</td><td>capability field exists; damage fixture new</td><td><code>NoRcs</code> / <code>NoHelm</code> shown; manual still possible.</td></tr>
+<tr><td>F7 empty magazine at arm</td><td>no authoring for a spent magazine <span class="tag u">unverified</span></td><td><code>DRY</code>; recovery starts; no drive burn.</td></tr>
+<tr><td>F8 occupied station</td><td>new fixture or seed</td><td>The hold works. <kbd>D</kbd> does nothing, and the HUD already shows "DOCK OCCUPIED".</td></tr>
+<tr><td>F9 save mid-hold, target missing on load</td><td>save path exists</td><td>Load shows the assist off (or waits, per the decision). No hold on a wrong body.</td></tr>
+</table></div>
+<p>Arms: M = current manual, A = assisted. Same fixture, gameplay seed, pilot, prompt and budgets. Interleave M A A M, at least 5 per arm on F1, F3 and F4 first. Record: docked, the tick of 80 m sight entry and of capture, <kbd>D</kbd> presses (accepted and refused), RCS spent, peak relative speed inside 80 m, damage, and assist on-time. Compare distributions against the named M reference set. Do not assert timing. Rough cost <span class="tag d">modeled</span>: 30 runs x 83 s (one measured F1 run) = at least 42 min plus build, serialized on a quiet host. F4 open-world runs are much longer and were not measured. A human playtest on an isolated display is the only proof of feel.</p>
+
+<h2 id="decisions">12. Owner decisions</h2>
+<ol>
+<li>Accept the frame-hold concept (velocity part, then attitude in RCS mode), or prefer velocity-only?</li>
+<li>Activation: toggle or hold, and which key and pad source. The pad has no free button today.</li>
+<li>Velocity setpoint: hold the last relative velocity, or damp to zero?</li>
+<li>Range gate value in meters, and whether it is per hull or global.</li>
+<li>Empty magazine: stop and resume at half full, or stop and stay off?</li>
+<li>Save: persist through the travel lock, or clear on save?</li>
+<li>Spinning targets: accept the COM speed gate limit, or open a separate gate task?</li>
+<li>New schema: the bench telemetry fields, and a capability flag so tutorials can withhold the verb.</li>
+<li>Status words and the verb name (<code>MATCH</code> is taken).</li>
+</ol>
+
+<h2 id="side">13. Side findings (not fixed here)</h2>
+<ul>
+<li><span class="tag s">source</span> docking_sight.rs:26 says "the pilot has no roll control". <kbd>Q</kbd>/<kbd>E</kbd> roll now exists (bindings.rs:33-39), so the comment is stale. The conclusion (roll is not drawn) still holds.</li>
+<li><span class="tag s">source</span> The task's earlier citations drifted: <code>MatchVelocity</code> is now state.rs:432-454 (not 346-380), and the RCS constants are at :825-828.</li>
+<li><span class="tag s">source</span> A wiki comment at <a href="../../web/src/wiki/sections/docking.md">docking.md:38</a> cites <code>connection.rs:193</code> and <code>port.rs:305-306</code>. The refusal is now at connection.rs:351-358.</li>
+<li><span class="tag s">source</span> The bench page says "The RCS has no up or down" (<a href="../../crates/nova_bench/src/pages/docking.md">pages/docking.md:41</a>), but in RCS mode the wheel drives <code>RcsIntent.y</code> (<a href="../../crates/nova_ship/src/input/player/wheel.rs">wheel.rs:90-95</a>). <span class="tag u">unverified</span> Whether bench pilots can send wheel input.</li>
+<li><span class="tag s">source</span> The bench observation has no RCS magazine field (observation.rs:545-585, 609), so the earlier manual dock could not show cost.</li>
+</ul>
+
+<h2 id="checked">14. What was checked</h2>
+<ul id="checkedlist">
+<li><b>Source read</b> by the main worker at <code>a894103e3</code>: the files cited in sections 3 to 9, the two bench fixtures, the bench <code>docking_view</code>, the docking wiki page, and the station-visits task and its local evidence. The two discovery workers could not write files. Their inline reports arrived after the review, and the main worker cross-checked them. They added the main-drive fallback of <code>MatchVelocity</code>, the NPC auto-capture path, two invalidated doc spots, the pinned binding tests and two stale doc references. Each was verified at the cited line before it was added.</li>
+<li><b>Independent read-only review</b> (one Claude worker): it re-opened every cited path and line, recomputed all section 6 arithmetic, and checked the claims for overclaim, unlabelled approval, auto docking and roll alignment. It found 12 issues, none high. All were fixed: wording on roll, the reference point, caveats on the TMPDIAG data, the 460 m row, the <code>DockForecast</code> citation, the occupied-port row, qualifiers on autopilot cancellation, a new held-closing-speed risk row, and the cost floor. It confirmed avian 0.7.0 point velocity is <code>linear_velocity + omega x r</code>.</li>
+<li><b>Structure</b>: 32 relative links resolve to files, every in-page anchor exists, tags balance, and there is no external URL, script or image.</li>
+<li><b>Render</b>: headless Chromium with <code>DISPLAY</code> unset, at 1280 and 390 px, light and forced dark. The reviewer found clipped wide tables and diagrams on mobile with no cue, an overlapping label, a crossing edge, and padding in the code block. Scroll hints, the rerouted edge and the CSS fix were applied. The main worker then re-rendered and inspected the desktop graphs and the mobile summary.</li>
+<li><b>Not done</b>: no build, test, game, bench or probe run, and no human playtest. Real browser dark-mode switching was not tested. The tags marked unverified stay unverified.</li>
+</ul>
+
+</main>
+</body>
+</html>

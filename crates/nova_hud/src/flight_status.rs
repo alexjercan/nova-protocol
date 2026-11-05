@@ -487,7 +487,7 @@ fn mode_chip_label(autopilot: &Autopilot) -> String {
         AutopilotAction::Stop => "STOP",
         AutopilotAction::Goto { .. } | AutopilotAction::GotoPos { .. } => "GOTO",
         AutopilotAction::Orbit { .. } => "ORBIT",
-        AutopilotAction::MatchVelocity { .. } => "MATCH",
+        AutopilotAction::MatchVelocity { .. } | AutopilotAction::MatchTarget { .. } => "MATCH",
         AutopilotAction::DockApproach { .. } => "DOCK",
     };
     let phase = match autopilot.phase {
@@ -629,11 +629,13 @@ fn drive_destination_anchor(
             }
             // The orbited well is the maneuver's destination.
             AutopilotAction::Orbit { well, .. } => Some(ScreenIndicatorAnchorKind::Entity(well)),
-            // None has a destination to anchor on: a brake and a velocity to
-            // hold. A dock approach has one, but only an AI helm order flies
-            // it, and the player ship takes no helm order.
+            // None has a destination to anchor on: a brake, a velocity to
+            // hold and a velocity to match. A dock approach has one, but only
+            // an AI helm order flies it, and the player ship takes no helm
+            // order.
             AutopilotAction::Stop
             | AutopilotAction::MatchVelocity { .. }
+            | AutopilotAction::MatchTarget { .. }
             | AutopilotAction::DockApproach { .. } => None,
         });
     }
