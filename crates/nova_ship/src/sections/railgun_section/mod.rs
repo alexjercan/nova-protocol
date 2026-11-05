@@ -53,9 +53,7 @@ mod wake;
 
 pub use firing::RailgunFired;
 use firing::*;
-pub(crate) use firing::{
-    RailgunSectionChargeSound, RailgunSectionFireSound, RailgunSectionReloadSound,
-};
+pub(crate) use firing::{RailgunSectionChargeSound, RailgunSectionFireSound};
 use render::*;
 pub use scripted::ScriptedRailgunOrder;
 use scripted::{hold_scripted_railgun_trigger, on_railgun_fired_retire_scripted_order};
@@ -157,8 +155,8 @@ pub struct RailgunSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub charge_sound: Option<AssetRef<AudioSource>>,
-    /// A shell going back into the breech, played when the magazine returns to
-    /// capacity. For a one-shell lance that is the whole of its cadence: the
+    /// A shell going back into the breech, played each time a reload batch
+    /// lands. For a one-shell lance that is the whole of its cadence: the
     /// reload is the silence, and this is the silence ending.
     #[reflect(ignore)]
     #[cfg_attr(
@@ -352,7 +350,7 @@ pub fn preview_railgun_section(config: RailgunSectionConfig) -> impl Bundle {
         // resolves it from the gun that fired without reading the config.
         RailgunSectionFireSound(config.fire_sound.clone()),
         RailgunSectionChargeSound(config.charge_sound.clone()),
-        RailgunSectionReloadSound(config.reload_sound.clone()),
+        SectionReloadSound(config.reload_sound.clone()),
         RailgunSectionConfigHelper(config),
     )
 }

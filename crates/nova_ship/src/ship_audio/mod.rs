@@ -1,15 +1,21 @@
 //! The ship's soundtrack: the mapping from Nova gameplay events to sounds,
 //! played through the generic engine in [`nova_gameplay::audio`].
 //!
-//! Five cues are one-shots fired from existing seams via observers, so no
-//! gameplay system has to know about audio:
-//! - a section/asteroid destroyed or a torpedo detonating -> `Explosion`
+//! The one-shots are fired from existing seams via observers, so no gameplay
+//! system has to know about audio:
+//! - a section/asteroid destroyed -> `Explosion`
 //!   (`On<Add, IntegrityDestroyMarker>`);
 //! - damage applied to a target -> `Impact` (`On<HealthApplyDamage>`);
 //! - a turret round spawned -> the firing turret's authored `fire_sound`
 //!   (`On<Add, TurretBulletProjectileMarker>`, authored-or-silent);
 //! - a torpedo spawned -> the bay's authored `launch_sound`
-//!   (`On<Add, TorpedoProjectileMarker>`, authored-or-silent);
+//!   (`On<TorpedoLaunched>`, authored-or-silent);
+//! - a torpedo's drive lighting -> the bay's authored `ignition_sound`
+//!   (`On<TorpedoIgnited>`);
+//! - a torpedo's warhead bursting -> the bay's authored `detonation_sound`
+//!   (`On<Add, NovaBlast>` on a torpedo blast);
+//! - a reload batch landing -> the section's authored reload sound, the
+//!   lance's breech or the bay's rack (`On<SectionReloadLanded>`);
 //! - a lance discharging -> the railgun's authored `fire_sound` (`On<RailgunFired>`);
 //! - a torpedo dying unfired -> the bay's authored `dud_sound` or
 //!   `intercept_sound` (`On<TorpedoKilled>`);
@@ -54,8 +60,9 @@ mod test_support;
 use self::{
     combat::{
         on_collapse_play_hull_loss, on_destroyed_play_explosion, on_player_kill_play_stinger,
-        on_railgun_fire_play_sfx, on_reload_complete_play_sfx, on_surface_impact_play_sfx,
-        on_torpedo_killed_play_sfx, on_torpedo_launch_play_sfx, on_turret_fire_play_sfx,
+        on_railgun_fire_play_sfx, on_reload_landed_play_sfx, on_surface_impact_play_sfx,
+        on_torpedo_blast_play_detonation, on_torpedo_ignited_play_sfx, on_torpedo_killed_play_sfx,
+        on_torpedo_launch_play_sfx, on_turret_fire_play_sfx,
     },
     cues::{
         play_dry_fire_cue, play_hull_warning_cue, play_lock_cues, play_safety_engaged_cue,
@@ -82,6 +89,10 @@ const EXPLOSION_VOLUME: f32 = 0.40;
 /// above the boom's, so equal numbers are not equal loudness. 0.30 puts it
 /// just under the explosion, where a launch belongs.
 const TORPEDO_LAUNCH_VOLUME: f32 = 0.30;
+/// A torpedo's drive lighting, a beat after the launch and further out. Under
+/// the launch: the launch is the pilot's own trigger answering, and the
+/// ignition is the torpedo going about its business.
+const TORPEDO_IGNITION_VOLUME: f32 = 0.24;
 /// The loudest cue in the set BY NUMBER, and the intent is that it be the
 /// loudest by ear too: a lance fires once a reload cycle, so it can afford to
 /// be the punctuation the PDC stream never is. It is not there yet - the slug
@@ -165,11 +176,13 @@ const MINING_DOOR_CLOSE_VOLUME: f32 = 0.14;
 /// [`nova_gameplay::audio::SALVAGE_PICKUP_VOLUME`].
 const CARGO_EJECT_VOLUME: f32 = 0.20;
 
-/// A shell going back into the lance. Well under the shot
+/// A reload batch landing: a shell going back into the lance, a torpedo
+/// seating in the bay's rack. Well under the lance's shot
 /// ([`RAILGUN_FIRE_VOLUME`], about 6 dB) - it is an answer to a silence, not an
 /// event in the fight - but clearly above the machinery band, because twelve
-/// seconds of nothing is exactly when a pilot has stopped listening.
-const RAILGUN_RELOAD_VOLUME: f32 = 0.17;
+/// seconds of nothing is exactly when a pilot has stopped listening. One level
+/// for every section: the clunk is the same kind of news on each.
+const SECTION_RELOAD_VOLUME: f32 = 0.17;
 
 /// The capacitor bank, at FULL charge. The loop is driven up to this from
 /// [`RAILGUN_CHARGE_FLOOR`] as the shot approaches, and its playback rate rises
@@ -256,6 +269,8 @@ impl Plugin for ShipAudioPlugin {
         app.add_observer(on_surface_impact_play_sfx);
         app.add_observer(on_turret_fire_play_sfx);
         app.add_observer(on_torpedo_launch_play_sfx);
+        app.add_observer(on_torpedo_ignited_play_sfx);
+        app.add_observer(on_torpedo_blast_play_detonation);
         app.add_observer(on_railgun_fire_play_sfx);
         app.add_observer(on_torpedo_killed_play_sfx);
         app.add_observer(on_player_kill_play_stinger);
@@ -265,7 +280,7 @@ impl Plugin for ShipAudioPlugin {
         app.add_observer(on_mining_doors_play_sfx);
         app.add_observer(on_canister_ejected_play_sfx);
         app.add_observer(on_canister_taken_play_sfx);
-        app.add_observer(on_reload_complete_play_sfx);
+        app.add_observer(on_reload_landed_play_sfx);
         app.add_observer(on_collapse_play_hull_loss);
 
         // Lock/safety UI cues: message-driven one-shots, so no gating needed

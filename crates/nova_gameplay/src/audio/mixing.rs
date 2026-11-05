@@ -83,6 +83,11 @@ pub enum ThrottleKey {
     /// reads as one event. A cell key would not do it - a capital ship's tubes
     /// sit further apart than [`SFX_AREA_CELL`].
     TorpedoLaunch(Entity),
+    /// One salvo's drives lighting, keyed by the ship that fired it, for the
+    /// same reason as [`ThrottleKey::TorpedoLaunch`]: tubes that launch on one
+    /// frame with one `ignition_delay` light on one frame too. Its own key, so
+    /// a launch report never swallows the ignition that follows it.
+    TorpedoIgnition(Entity),
     /// A torpedo dying without its warhead, a dud or an intercept, keyed by
     /// the [`area_cell`] it died in. Point defense breaks up a salvo inside a
     /// fraction of a second in one patch of sky, and that is one burst of

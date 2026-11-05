@@ -443,6 +443,9 @@ fn is_false(b: &bool) -> bool {
 /// child node), resolves, and plays - authored-or-silent. `pub` because
 /// nova_scenario's asteroid bundle constructs it.
 ///
+/// A torpedo never reaches the destroy observer with it: its fuze copies the
+/// snapshot onto the blast it spawns, and the detonation cue plays it there.
+///
 /// It used to carry the HIT voice too. That half is the engine's now
 /// ([`nova_gameplay::prelude::ImpactSounds`]), because what a hit sounds like
 /// depends on the round as well as the target, and a per-target field can only

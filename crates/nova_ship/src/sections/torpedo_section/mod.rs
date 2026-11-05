@@ -218,13 +218,10 @@ pub struct TorpedoSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub door_sound: Option<AssetRef<AudioSource>>,
-    /// The sound this torpedo's DETONATION plays. Snapshotted onto the
-    /// projectile as [`DestroySound`]. AUTHORED-OR-SILENT.
-    ///
-    /// FIXME: nothing plays it. `torpedo_detonate_system` despawns the torpedo
-    /// with no destroy edge, and a torpedo section's death is quiet
-    /// ([`QuietDestroyMarker`]). Remove this note when the detonation itself
-    /// triggers the cue.
+    /// The sound this torpedo's DETONATION plays, at the blast. Snapshotted
+    /// onto the projectile as [`DestroySound`]; the fuze hands it to the blast
+    /// it spawns, so it plays after the bay is gone. A dud or an intercept
+    /// never plays it. AUTHORED-OR-SILENT.
     #[reflect(ignore)]
     #[cfg_attr(
         feature = "serde",
@@ -251,6 +248,24 @@ pub struct TorpedoSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub intercept_sound: Option<AssetRef<AudioSource>>,
+    /// The sound a torpedo's drive makes as it lights, at the end of the cold
+    /// coast. Read off the launch snapshot like `dud_sound`, so a torpedo
+    /// thawed mid-coast still has it. AUTHORED-OR-SILENT.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub ignition_sound: Option<AssetRef<AudioSource>>,
+    /// The sound the rack makes each time a reload batch lands in the bay.
+    /// Snapshotted onto the section as `SectionReloadSound`. A bay with no
+    /// `reload` never plays it. AUTHORED-OR-SILENT.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub reload_sound: Option<AssetRef<AudioSource>>,
     /// Hit points on EACH of the projectile's two collider sections
     /// (controller and thruster); either one reaching zero shoots the
     /// torpedo down (silently - no blast). The default is set so no SINGLE
@@ -316,6 +331,8 @@ impl Default for TorpedoSectionConfig {
             detonation_sound: None,
             dud_sound: None,
             intercept_sound: None,
+            ignition_sound: None,
+            reload_sound: None,
             projectile_health: default_projectile_health(),
             torpedo_type: TorpedoTypeConfig::default(),
             ammunition: AmmoCapacity::Unlimited,
@@ -563,6 +580,13 @@ pub struct TorpedoControllerMarker;
 /// inserted on the spawned projectile.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct TorpedoThrusterMarker;
+
+/// Marker for a torpedo's exhaust cone, the "Thruster Exhaust" child of its
+/// thruster section. The cone's origin is the nozzle: its base sits at local
+/// `y = 0` and the plume runs out along `+Y`. The ignition flare scales it
+/// there.
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct TorpedoExhaustMarker;
 
 /// Marker for the particle-effect entity spawned at a torpedo's detonation
 /// blast, so the render systems can drive/reset it.
@@ -966,7 +990,16 @@ impl Plugin for TorpedoSectionPlugin {
             app.init_resource::<DefaultLaunchPuffEffect>();
             app.add_observer(insert_torpedo_spawner_effect);
             app.add_observer(on_torpedo_launch_effect);
+            app.add_observer(on_torpedo_launch_light);
             app.add_observer(on_torpedo_ignition);
+            // The plume overshoot as the drive lights: the observer marks
+            // the cone, the system scales it back to rest and unmarks it.
+            app.register_type::<TorpedoIgnitionFlare>();
+            app.add_observer(on_torpedo_ignition_flare);
+            app.add_systems(
+                Update,
+                tick_torpedo_ignition_flare.in_set(super::SpaceshipSectionSystems),
+            );
 
             // The dud puff and the intercept pop. Each builds its shared
             // effect on the first death that needs it.

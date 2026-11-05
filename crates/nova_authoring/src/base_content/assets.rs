@@ -106,6 +106,12 @@ pub struct BaseContentAssets {
     pub torpedo_dud_sound: AssetRef<AudioSource>,
     /// A torpedo shot down before it could fuze. A licensed recording.
     pub torpedo_intercept_sound: AssetRef<AudioSource>,
+    /// A torpedo's drive lighting as its cold coast ends: a crack into a
+    /// steady burn. A licensed recording.
+    pub torpedo_ignition_sound: AssetRef<AudioSource>,
+    /// A torpedo seating in the bay's rack as a reload batch lands: one heavy
+    /// mechanical clunk. A licensed recording.
+    pub torpedo_rack_sound: AssetRef<AudioSource>,
     /// The lance's discharge: the capacitor bank dumping, the slug leaving,
     /// and the hull taking the recoil, in the order the shot does them.
     pub railgun_fire_sound: AssetRef<AudioSource>,
@@ -275,6 +281,8 @@ impl BaseContentAssets {
             torpedo_intercept_sound: AssetRef::from(
                 "self://sounds/torpedo_intercept.wav".to_string(),
             ),
+            torpedo_ignition_sound: AssetRef::from("self://sounds/torpedo_ignite.wav".to_string()),
+            torpedo_rack_sound: AssetRef::from("self://sounds/torpedo_rack.wav".to_string()),
             railgun_fire_sound: AssetRef::from("self://sounds/railgun_fire.wav".to_string()),
             railgun_charge_sound: AssetRef::from("self://sounds/railgun_charge.wav".to_string()),
             railgun_reload_sound: AssetRef::from("self://sounds/railgun_reload.wav".to_string()),

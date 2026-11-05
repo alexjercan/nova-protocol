@@ -225,7 +225,7 @@ fn distance_to_skin(
 ///   covers the point" is the only sense "arrived" can have there.
 #[expect(
     clippy::type_complexity,
-    reason = "the fuze reads the whole projectile: pose, lock, arming, warhead and owner"
+    reason = "the fuze reads the whole projectile: pose, lock, arming, warhead, owner and voice"
 )]
 pub(super) fn torpedo_detonate_system(
     mut commands: Commands,
@@ -241,6 +241,7 @@ pub(super) fn torpedo_detonate_system(
             &TorpedoBlast,
             &TorpedoSectionPartOf,
             Option<&ProjectileOwner>,
+            Option<&DestroySound>,
         ),
         // A shot-down torpedo must not detonate in the one-tick gap before
         // despawn_shot_down_torpedoes removes it (see TorpedoShotDownMarker).
@@ -270,6 +271,7 @@ pub(super) fn torpedo_detonate_system(
         blast,
         part_of,
         owner,
+        detonation_sound,
     ) in &q_torpedo
     {
         // Do not detonate until the torpedo has armed (cleared the muzzle), so a
@@ -326,6 +328,12 @@ pub(super) fn torpedo_detonate_system(
             // through ProjectileOwner.
             if let Some(&owner) = owner {
                 blast_entity.insert(owner);
+            }
+            // The warhead's voice moves to the blast, because the torpedo is
+            // gone by the time anything answers it: the audio layer plays it
+            // as the blast lands.
+            if let Some(sound) = detonation_sound {
+                blast_entity.insert(sound.clone());
             }
         }
     }

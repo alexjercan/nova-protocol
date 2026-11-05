@@ -145,6 +145,8 @@ fn siege_bay(assets: &BaseContentAssets) -> SectionConfig {
             detonation_sound: Some(assets.torpedo_detonation_sound.clone()),
             dud_sound: Some(assets.torpedo_dud_sound.clone()),
             intercept_sound: Some(assets.torpedo_intercept_sound.clone()),
+            ignition_sound: Some(assets.torpedo_ignition_sound.clone()),
+            reload_sound: Some(assets.torpedo_rack_sound.clone()),
             projectile_health: 50000.0,
             torpedo_type: breaker(),
             ammunition: AmmoCapacity::Limited(6),

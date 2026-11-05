@@ -205,13 +205,15 @@ fn torpedo_bay_prototype(
             launch_effect: None,
             launch_sound: Some(meshes.torpedo_launch_sound.clone()),
             door_sound: Some(meshes.torpedo_door_sound.clone()),
-            // The blast reuses the section-destruction wav. Authoring is
-            // per target, so the two can diverge.
             detonation_sound: Some(meshes.torpedo_detonation_sound.clone()),
             // Recorded, not generated: a broken casing and a small pop. Both
             // stay far under the warhead so neither reads as a detonation.
             dud_sound: Some(meshes.torpedo_dud_sound.clone()),
             intercept_sound: Some(meshes.torpedo_intercept_sound.clone()),
+            // Recorded too: the drive catching, and the rack clunk once per
+            // torpedo the reload below returns.
+            ignition_sound: Some(meshes.torpedo_ignition_sound.clone()),
+            reload_sound: Some(meshes.torpedo_rack_sound.clone()),
             // Above the hardest single PDC round (4.0 authored x the 2.0
             // Kinetic speed ceiling), so an intercept costs two or three
             // rounds instead of one lucky tap.

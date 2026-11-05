@@ -31,20 +31,23 @@
 //! [`TorpedoSectionConfig`]: super::torpedo_section::TorpedoSectionConfig
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::{
-    DerelictShipMarker, ItemDesignId, NeutralizedMarker, SectionInactiveMarker, ShipInventory,
-    StationMarker,
+use nova_gameplay::{
+    asset_ref::AssetRef,
+    prelude::{
+        DerelictShipMarker, ItemDesignId, NeutralizedMarker, SectionInactiveMarker, ShipInventory,
+        StationMarker,
+    },
 };
 
 use super::turret_section::TurretSectionConfig;
 
-/// `SectionAmmo`, `SectionReload`, `SectionReloadConfig` and the station PDC
-/// reserve.
+/// `SectionAmmo`, `SectionReload`, `SectionReloadConfig`, the reload event and
+/// sound, and the station PDC reserve.
 pub mod prelude {
     pub use super::{
-        AmmoCapacity, ReloadConfig, SectionAmmo, SectionReload, SectionReloadComplete,
-        SectionReloadConfig, StationPdcReserve, SuspendedSectionAmmo, STATION_PDC_RESERVE_CAPACITY,
-        STATION_PDC_RESERVE_RECHARGE_SECONDS,
+        AmmoCapacity, ReloadConfig, SectionAmmo, SectionReload, SectionReloadConfig,
+        SectionReloadLanded, SectionReloadSound, StationPdcReserve, SuspendedSectionAmmo,
+        STATION_PDC_RESERVE_CAPACITY, STATION_PDC_RESERVE_RECHARGE_SECONDS,
     };
 }
 
@@ -406,9 +409,8 @@ impl SectionReload {
 /// A section with no [`SectionReload`] (or no [`SectionAmmo`]) never reloads,
 /// preserving the unlimited-ammo default. `Res<Time>` here is the fixed clock.
 ///
-/// Reports [`SectionReloadComplete`] on the batch that brings a magazine back
-/// to CAPACITY - see that event for why full, and not each batch, is the thing
-/// worth telling anyone about.
+/// Reports [`SectionReloadLanded`] on every tick that moves rounds into a
+/// magazine.
 ///
 /// A full magazine moves nothing, so its parent's reserve is not read: an
 /// editor preview section starts full under a view entity with no
@@ -457,6 +459,10 @@ pub fn tick_section_reload(
             let loaded = reload.advance(&mut ammo, reserve.rounds, dt);
             if loaded > 0 {
                 reserve.rounds -= loaded;
+                commands.trigger(SectionReloadLanded {
+                    entity: section,
+                    rounds: loaded,
+                });
             }
         } else {
             let mut inventory = parent
@@ -468,10 +474,11 @@ pub fn tick_section_reload(
             let loaded = reload.advance(&mut ammo, inventory.count(&item), dt);
             if loaded > 0 {
                 inventory.remove(&item, loaded);
+                commands.trigger(SectionReloadLanded {
+                    entity: section,
+                    rounds: loaded,
+                });
             }
-        }
-        if ammo.rounds >= ammo.capacity {
-            commands.trigger(SectionReloadComplete { entity: section });
         }
     }
 }
@@ -493,22 +500,29 @@ pub fn recharge_station_pdc_reserve(
     }
 }
 
-/// A weapon section's magazine came back to CAPACITY.
+/// A reload batch landed in a weapon section's magazine.
 ///
-/// FULL, not "a batch returned", because full is the only reload boundary that
-/// means the same thing on every weapon. A PDC trickling rounds back has no
-/// moment its reload finished - it never stopped - while a one-shell lance has
-/// exactly one, and it is the twelve-second silence ending. Reporting each
-/// batch would fire several times a second per mount across a fleet and say
-/// nothing at any of them.
+/// One event per tick that moved rounds, so a rack that refills one torpedo
+/// at a time reports each torpedo, and a one-shell lance reports once, as its
+/// silence ends. A tick long enough to finish more than one delay still
+/// reports once, with every round it moved.
 ///
-/// The gameplay seam only: what a section DOES with it (the lance's chamber
-/// clunk) is the audio layer's, and a section that authors nothing is silent.
+/// A PDC trickle fires this too, at its own batch rate. No sound answers it,
+/// because no turret carries a [`SectionReloadSound`]: the event is the
+/// gameplay seam only, and what a section does with it is the audio layer's.
 #[derive(EntityEvent, Clone, Copy, Debug)]
-pub struct SectionReloadComplete {
-    /// The section whose magazine filled.
+pub struct SectionReloadLanded {
+    /// The section whose magazine took the batch.
     pub entity: Entity,
+    /// Rounds the batch moved into the magazine. Never zero.
+    pub rounds: u32,
 }
+
+/// The sound a section plays each time a reload batch lands
+/// ([`SectionReloadLanded`]), snapshotted from its weapon config at spawn: the
+/// lance's breech, the torpedo bay's rack. AUTHORED-OR-SILENT.
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct SectionReloadSound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
 
 #[cfg(test)]
 mod tests {
@@ -796,48 +810,43 @@ mod tests {
         assert!(app.world().get::<ShipInventory>(ship).unwrap().is_empty());
     }
 
-    /// FULL is the boundary that is reported, and it is reported once. A
-    /// magazine that refills in several batches must stay quiet through the
-    /// ones that do not finish it, and a magazine already full must not report
-    /// every tick it spends sitting there.
+    /// Every batch that lands is reported, with the rounds it moved, and a
+    /// full magazine reports nothing. A six-round rack at four, refilling one
+    /// per batch, lands two batches and then goes quiet.
     #[test]
-    fn a_magazine_reports_the_tick_it_comes_back_to_capacity_and_not_before_or_after() {
+    fn a_rack_refilling_one_per_batch_reports_each_batch_that_lands() {
         #[derive(Resource, Default)]
-        struct Filled(usize);
+        struct Landed(Vec<u32>);
 
         let mut app = reload_app();
-        app.init_resource::<Filled>();
-        app.add_observer(|_: On<SectionReloadComplete>, mut filled: ResMut<Filled>| filled.0 += 1);
+        app.init_resource::<Landed>();
+        app.add_observer(|landed: On<SectionReloadLanded>, mut log: ResMut<Landed>| {
+            log.0.push(landed.rounds);
+        });
 
-        // Two batches to fill: the first must be silent.
         let ship = app.world_mut().spawn(reserve(10)).id();
-        let mut ammo = SectionAmmo::new(2);
-        ammo.rounds = 0;
+        let mut ammo = SectionAmmo::new(6);
+        ammo.rounds = 4;
         let section = app
             .world_mut()
             .spawn((ammo, reload_cfg(1.0, 1), ChildOf(ship)))
             .id();
 
         app.update(); // warm-up, dt 0
-        app.update(); // first batch: one of two rounds back
-        assert_eq!(app.world().get::<SectionAmmo>(section).unwrap().rounds, 1);
-        assert_eq!(
-            app.world().resource::<Filled>().0,
-            0,
-            "a part-filled magazine has not finished reloading"
-        );
+        app.update(); // first batch: 5 of 6
+        assert_eq!(app.world().get::<SectionAmmo>(section).unwrap().rounds, 5);
+        assert_eq!(app.world().resource::<Landed>().0, [1]);
 
         app.update(); // second batch: full
-        assert_eq!(app.world().get::<SectionAmmo>(section).unwrap().rounds, 2);
-        assert_eq!(app.world().resource::<Filled>().0, 1);
+        assert_eq!(app.world().get::<SectionAmmo>(section).unwrap().rounds, 6);
 
         for _ in 0..3 {
             app.update();
         }
         assert_eq!(
-            app.world().resource::<Filled>().0,
-            1,
-            "a magazine sitting full reports nothing"
+            app.world().resource::<Landed>().0,
+            [1, 1],
+            "two batches landed, and a full rack reports nothing"
         );
     }
 

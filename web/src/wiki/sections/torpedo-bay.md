@@ -28,9 +28,17 @@ The tube fills two cells of the build - twice a unit section's volume, and twice
 
 The iris is honest. A safed bay keeps it shut and so does an empty one, so an open iris on another hull is never decoration - something is about to come out of it.
 
+**The rack tells you when it is loaded.** Each torpedo the reload returns seats in the rack with one heavy clunk, so you can count a bay back up by ear. Another hull's bay clunks too, which is your warning that it has something to fire again.
+
+<!-- Verified against crates/nova_ship/src/sections/ammo.rs tick_section_reload (SectionReloadLanded on every batch) and ship_audio/combat.rs on_reload_landed_play_sfx; base bays reload 1 torpedo per 10 s and author reload_sound torpedo_rack.wav in crates/nova_authoring/src/base_content/sections/torpedo_bay.rs. -->
+
 ## How a torpedo runs in
 
 **A torpedo is dropped, not fired.** The bay kicks it clear on a cold charge and the drive catches about six tenths of a second later, a few body lengths out - lighting a torch inside the hull that launched it is how a ship kills itself. For that window the torpedo is cargo: no thrust, no guidance, no fuze, and nothing that can be hit. It cannot be shot down, and it cannot touch the ship it is leaving.
+
+**You see and hear both halves.** The ejection lights the tube mouth with a short cold-blue blink. When the drive catches, the motor cracks into a steady burn and the exhaust flares past its normal size for a moment before it settles. On the lowest graphics setting the flare is gone, but you still hear the burn.
+
+<!-- Verified against crates/nova_ship/src/sections/torpedo_section/render.rs on_torpedo_launch_light (0.12 s, transient-light cap), on_torpedo_ignition_flare / ignition_flare_scale (peak 1.6x, 0.15 s, particles tier only) and ship_audio/combat.rs on_torpedo_ignited_play_sfx (every tier). -->
 
 **Then it homes.** Once the drive catches, the torpedo steers on the combat lock with **proportional-navigation** guidance - turning toward where the target will be - after an arming gate clears. It curves through [gravity wells](../../gravity-wells/) like everything else, and from that moment it is a body the other side can shoot at. Not cheaply: a warhead carries more hit points than the hardest single PDC round can deliver, so an intercept costs a short burst rather than one lucky tap. A scripted battery may author far tougher ordnance, which then takes sustained fire across the whole closing window. How a defending battery picks and holds its torpedoes is on the [Turret](../turret/#point-defense) page.
 
@@ -40,7 +48,7 @@ The iris is honest. A safed bay keeps it shut and so does an empty one, so an op
 
 <!-- Verified against crates/nova_ship/src/sections/torpedo_section/mod.rs TorpedoArming (both conditions, the snapshot, and the dead-launcher case) with the authored arm_time 0.5 s / arm_distance 50 m defaults there; the snapshot is taken in bay.rs shoot_spawn_projectile as launch HullRadius + blast_radius.to_engine(). Figures: standard warhead blast radius 300 m at crates/nova_authoring/src/base_content/sections/torpedo_bay.rs; 324 m measured live on the torpedo range's 24.4 m boat (examples/systems/system_torpedo_launch.rs, `range: torpedo fired ... arms no nearer than`); 494 m is that blast on the development carrier fixture's 194.2 m arm, measured by system_hull_scaling. -->
 
-**The warhead bursts just before contact.** Against a locked ship or rock the fuze fires about thirty meters from the nearest part of that body's skin. That near-contact margin keeps the physical torpedo from becoming a dud on the hull, while the warhead still delivers almost all its rated pressure and puts the crater on the target. Fire one at a bare point in space instead - a scripted volley, or a torpedo whose target dies mid-flight - and it bursts a half-radius short, because there is no surface left to reach.
+**The warhead bursts just before contact.** Against a locked ship or rock the fuze fires about thirty meters from the nearest part of that body's skin. That near-contact margin keeps the physical torpedo from becoming a dud on the hull, while the warhead still delivers almost all its rated pressure and puts the crater on the target. Fire one at a bare point in space instead - a scripted volley, or a torpedo whose target dies mid-flight - and it bursts a half-radius short, because there is no surface left to reach. Either way the warhead's boom comes from the blast itself.
 
 **A torpedo that dies unfired tells you how.** One that strikes a hull or a rock without fuzing breaks up in a grey puff with a dull clank: a dud. One that point defense shoots down, or that another blast catches, pops small and hot with a few sparks and a sharp crack: an intercept. Neither is a detonation, so there is no fireball and no warhead sound. When your own torpedo's blast defeats a ship, a short cockpit tone confirms the kill.
 

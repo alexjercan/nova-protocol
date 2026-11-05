@@ -823,8 +823,11 @@ kind: Torpedo((
 - `launch_sound` (optional) - the sound a departing torpedo plays
   (`dep://base/sounds/torpedo_launch.wav` is the base whoosh); omit for a
   silent launch.
-- `detonation_sound` (optional) - the sound the warhead plays when it blasts.
-  Omit for a silent detonation.
+- `ignition_sound` (optional) - the sound the drive makes as it lights at the
+  end of the cold coast (`dep://base/sounds/torpedo_ignite.wav` is the base
+  burn); omit for a silent ignition.
+- `detonation_sound` (optional) - the sound the warhead plays when it blasts,
+  heard at the blast. Omit for a silent detonation.
 - `dud_sound` (optional) - the sound a torpedo plays when it strikes a hull or a
   rock and breaks up with its warhead unfired
   (`dep://base/sounds/torpedo_dud.wav` is the base clank); omit for a silent
@@ -833,6 +836,9 @@ kind: Torpedo((
   blast destroys it before it fuzes (`dep://base/sounds/torpedo_intercept.wav`
   is the base pop); omit for a silent intercept. A dud and an intercept never
   play `detonation_sound`.
+- `reload_sound` (optional) - the rack clunk, played once each time a reload
+  batch lands in the bay (`dep://base/sounds/torpedo_rack.wav` is the base
+  one). A bay with no `reload` never plays it; omit for a silent rack.
 - `door_sound` (optional) - the muzzle iris servo
   (`dep://base/sounds/bay_door.wav` is the base one), played on BOTH edges of
   its travel: one servo, two directions, one file. A bay that authors no
@@ -1064,9 +1070,10 @@ kind: Railgun((
   it is arriving at something. A loop and not a one-shot because
   `charge_seconds` is a number a mod may set to anything, and a fixed-length
   file would either end early or be cut off.
-- `reload_sound` (optional) - a shell going back into the breech, played when
-  the magazine returns to capacity. For a one-shell railgun that IS the whole of
-  its cadence: the reload is the silence, and this is the silence ending.
+- `reload_sound` (optional) - a shell going back into the breech, played each
+  time a reload batch lands. For a one-shell railgun that IS the whole of its
+  cadence: the reload is the silence, and this is the silence ending. A gun
+  with a larger magazine plays it once per batch, not only when full.
 - `ammunition` - shells carried: `Limited(n)`, or `Unlimited` (the default
   every weapon section shares).
 - `reload` - the same `Disabled` / `Batch((delay, amount))` a turret and a bay

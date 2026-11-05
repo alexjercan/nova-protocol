@@ -207,6 +207,7 @@ pub(super) fn insert_torpedo_section(
         .insert((
             TorpedoSectionSpawnerEntity(spawner),
             TorpedoSectionDoorSound(config.door_sound.clone()),
+            SectionReloadSound(config.reload_sound.clone()),
         ))
         .add_children(&[body, spawner]);
 
@@ -444,6 +445,7 @@ pub(crate) fn spawn_torpedo(commands: &mut Commands, launch: TorpedoLaunch) -> E
         thruster.with_children(|grandchildren| {
             grandchildren.spawn((
                 Name::new("Thruster Exhaust"),
+                TorpedoExhaustMarker,
                 Transform::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2))
                     .with_translation(Vec3::new(0.0, 0.0, -0.45)),
                 ThrusterExhaustConfig {

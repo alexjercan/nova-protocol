@@ -649,6 +649,130 @@ pub(super) fn on_torpedo_ignition(ignited: On<TorpedoIgnited>, mut commands: Com
     });
 }
 
+/// Brightness of the launch light, in lumens. Five times under the ignition
+/// light: the ejection charge is a cold puff of gas, and the drive lighting a
+/// beat later must stay the bigger of the two.
+const LAUNCH_LIGHT_LUMENS: f32 = 20_000.0;
+
+/// How far the launch light reaches, in world units (100 m): the tube mouth
+/// and the plating around it.
+const LAUNCH_LIGHT_RANGE: f32 = 10.0;
+
+/// How long the launch light burns, in seconds. A blink, shorter than the
+/// ignition light, so the two read as two events on a zero-delay bay.
+const LAUNCH_LIGHT_SECS: f32 = 0.12;
+
+/// Light the tube mouth when a torpedo leaves it: one cold-blue blink at the
+/// torpedo, in the launch puff's colour.
+///
+/// Budgeted by the transient-light cap only, like the ignition light: the
+/// light is the effect, so the Low tier's cap of zero is what turns it off,
+/// not the particle flag. It changes nothing about the launch itself.
+pub(super) fn on_torpedo_launch_light(
+    launched: On<TorpedoLaunched>,
+    q_torpedo: Query<&Transform, With<TorpedoProjectileMarker>>,
+    mut commands: Commands,
+) {
+    // A root spawned this tick: its Transform is its world pose, and its
+    // GlobalTransform has not been propagated yet.
+    let Ok(transform) = q_torpedo.get(launched.torpedo) else {
+        return;
+    };
+    commands.trigger(LightFlash {
+        at: transform.translation,
+        color: Color::srgb(0.55, 0.72, 1.0),
+        peak_intensity: LAUNCH_LIGHT_LUMENS,
+        range: LAUNCH_LIGHT_RANGE,
+        duration: LAUNCH_LIGHT_SECS,
+    });
+}
+
+/// Seconds the ignition flare lasts. At and past this the cone is back at
+/// its rest scale.
+const IGNITION_FLARE_SECS: f32 = 0.15;
+
+/// Seconds the flare takes to reach its peak. Fast, so it reads as a catch.
+const IGNITION_FLARE_RISE_SECS: f32 = 0.03;
+
+/// The flare's peak scale over the cone's rest scale.
+const IGNITION_FLARE_PEAK: f32 = 1.6;
+
+/// A torpedo's exhaust cone overshooting as its drive lights. Inserted on the
+/// cone by [`on_torpedo_ignition_flare`]; [`tick_torpedo_ignition_flare`]
+/// scales the cone and removes this when the flare is over.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+#[reflect(Component)]
+pub(super) struct TorpedoIgnitionFlare {
+    /// Seconds since the drive lit.
+    age: f32,
+    /// The cone's rest scale, restored when the flare ends.
+    base: Vec3,
+}
+
+/// The cone's scale over its rest scale, `age` seconds after ignition: a
+/// linear rise to [`IGNITION_FLARE_PEAK`] over [`IGNITION_FLARE_RISE_SECS`],
+/// then a quadratic ease back down that is exactly 1.0 from
+/// [`IGNITION_FLARE_SECS`] on.
+///
+/// The cone's origin is the nozzle ([`TorpedoExhaustMarker`]), so a uniform
+/// scale grows the plume out of the nozzle and does not move it.
+pub(super) fn ignition_flare_scale(age: f32) -> f32 {
+    let overshoot = IGNITION_FLARE_PEAK - 1.0;
+    if age <= 0.0 || age >= IGNITION_FLARE_SECS {
+        1.0
+    } else if age < IGNITION_FLARE_RISE_SECS {
+        1.0 + overshoot * age / IGNITION_FLARE_RISE_SECS
+    } else {
+        let fall =
+            (age - IGNITION_FLARE_RISE_SECS) / (IGNITION_FLARE_SECS - IGNITION_FLARE_RISE_SECS);
+        1.0 + overshoot * (1.0 - fall).powi(2)
+    }
+}
+
+/// Start the plume overshoot on the torpedo whose drive lit.
+///
+/// Particle-gated like the launch puff: a scaled cone is the plume getting
+/// bigger, and the Low tier draws no extra plume. The ignition sound plays on
+/// every tier; it is the audio layer's.
+pub(super) fn on_torpedo_ignition_flare(
+    ignited: On<TorpedoIgnited>,
+    budget: Option<Res<GraphicsBudget>>,
+    q_children: Query<&Children>,
+    q_cone: Query<&Transform, With<TorpedoExhaustMarker>>,
+    mut commands: Commands,
+) {
+    if !budget.as_deref().is_none_or(|b| b.particles) {
+        return;
+    }
+    for cone in q_children.iter_descendants(ignited.torpedo) {
+        if let Ok(transform) = q_cone.get(cone) {
+            commands.entity(cone).insert(TorpedoIgnitionFlare {
+                age: 0.0,
+                base: transform.scale,
+            });
+        }
+    }
+}
+
+/// Scale every flaring cone by [`ignition_flare_scale`], and put it back at
+/// rest and drop the flare once it is over. The only writer of the cone's
+/// Transform: the throttle drives the cone through its material, not its
+/// scale.
+pub(super) fn tick_torpedo_ignition_flare(
+    time: Res<Time>,
+    mut commands: Commands,
+    mut q_flare: Query<(Entity, &mut Transform, &mut TorpedoIgnitionFlare)>,
+) {
+    let dt = time.delta_secs();
+    for (cone, mut transform, mut flare) in &mut q_flare {
+        flare.age += dt;
+        transform.scale = flare.base * ignition_flare_scale(flare.age);
+        if flare.age >= IGNITION_FLARE_SECS {
+            commands.entity(cone).remove::<TorpedoIgnitionFlare>();
+        }
+    }
+}
+
 /// Particle capacity of the built-in launch puff, a per-INSTANCE GPU buffer
 /// held by every bay spawner in the scene.
 ///
@@ -878,6 +1002,20 @@ pub(super) fn on_torpedo_launch_effect(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The flare overshoots for its whole life and then sits at exactly the
+    /// rest scale, so the cone the throttle drives afterwards is the cone it
+    /// always was.
+    #[test]
+    fn the_ignition_flare_overshoots_then_rests_at_exactly_one() {
+        for age in [0.001, 0.015, IGNITION_FLARE_RISE_SECS, 0.08, 0.149] {
+            let scale = ignition_flare_scale(age);
+            assert!(scale > 1.0, "age {age}: scale {scale}");
+        }
+        for age in [IGNITION_FLARE_SECS, 0.2, 5.0] {
+            assert_eq!(ignition_flare_scale(age), 1.0, "age {age}");
+        }
+    }
 
     /// The warhead must point the way the torpedo flies. The body mesh is built
     /// in the CONTROLLER's frame, which `shoot_spawn_projectile` mounts a

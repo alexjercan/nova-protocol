@@ -18,15 +18,15 @@ use nova_gameplay::{
 use super::{
     routing::{owning_root, route_for, route_from},
     DESTROY_SHIP_VOLUME, EXPLOSION_MIN_INTERVAL, EXPLOSION_VOLUME, IMPACT_MIN_INTERVAL,
-    IMPACT_VOLUME, KILL_CONFIRM_VOLUME, RAILGUN_FIRE_VOLUME, RAILGUN_RELOAD_VOLUME,
-    TORPEDO_DEATH_MIN_INTERVAL, TORPEDO_DUD_VOLUME, TORPEDO_INTERCEPT_VOLUME,
-    TORPEDO_LAUNCH_MIN_INTERVAL, TORPEDO_LAUNCH_VOLUME, TURRET_FIRE_MIN_INTERVAL,
-    TURRET_FIRE_VOLUME,
+    IMPACT_VOLUME, KILL_CONFIRM_VOLUME, RAILGUN_FIRE_VOLUME, SECTION_RELOAD_VOLUME,
+    TORPEDO_DEATH_MIN_INTERVAL, TORPEDO_DUD_VOLUME, TORPEDO_IGNITION_VOLUME,
+    TORPEDO_INTERCEPT_VOLUME, TORPEDO_LAUNCH_MIN_INTERVAL, TORPEDO_LAUNCH_VOLUME,
+    TURRET_FIRE_MIN_INTERVAL, TURRET_FIRE_VOLUME,
 };
 use crate::{
     prelude::*,
     sections::{
-        railgun_section::{RailgunSectionFireSound, RailgunSectionReloadSound},
+        railgun_section::RailgunSectionFireSound,
         torpedo_section::{
             TorpedoLaunchConfig, TorpedoSectionLaunchSound, TorpedoSectionSpawnerEntity,
         },
@@ -110,39 +110,41 @@ pub(super) fn on_destroyed_play_explosion(
     }
 }
 
-/// The lance's breech cycle, when its magazine comes back to capacity.
+/// The reload cue, each time a batch lands in a magazine: the lance's breech,
+/// the torpedo bay's rack.
 ///
-/// Placed at the GUN and routed by whose hull it is on, like the shot: a
+/// Placed at the SECTION and routed by whose hull it is on, like the shot: a
 /// raider's lance chambering across the arena is a thing worth hearing, and it
 /// is exactly the tell that says the next one is coming.
 ///
-/// AUTHORED-OR-SILENT, and the reason the report is section-generic while this
-/// is not: every weapon with a magazine reports, and only the ones that author
-/// a breech have one. A PDC's reload is a trickle with no moment in it.
-pub(super) fn on_reload_complete_play_sfx(
-    complete: On<SectionReloadComplete>,
+/// AUTHORED-OR-SILENT on the section's [`SectionReloadSound`]. Every weapon
+/// with a magazine reports a batch, and only the ones that author a reload
+/// sound have one: a PDC's reload is a trickle with no moment in it, and no
+/// turret carries the component.
+pub(super) fn on_reload_landed_play_sfx(
+    landed: On<SectionReloadLanded>,
     asset_server: Res<AssetServer>,
-    q_sound: Query<&RailgunSectionReloadSound>,
+    q_sound: Query<&SectionReloadSound>,
     q_where: Query<&GlobalTransform>,
     q_child_of: Query<&ChildOf>,
     q_is_root: Query<(), With<SpaceshipRootMarker>>,
     q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut commands: Commands,
 ) {
-    let gun = complete.entity;
+    let section = landed.entity;
     let Some(handle) = q_sound
-        .get(gun)
+        .get(section)
         .ok()
         .and_then(|sound| sound.0.as_ref())
         .map(|r| r.resolve(&asset_server))
     else {
         return;
     };
-    let Ok(at) = q_where.get(gun) else {
+    let Ok(at) = q_where.get(section) else {
         return;
     };
-    let route = route_for(gun, &q_child_of, &q_is_root, &q_is_player);
-    commands.play_sfx_at(handle, route, RAILGUN_RELOAD_VOLUME, at.translation());
+    let route = route_for(section, &q_child_of, &q_is_root, &q_is_player);
+    commands.play_sfx_at(handle, route, SECTION_RELOAD_VOLUME, at.translation());
 }
 
 /// The hull-loss cue, on the frame a ship COLLAPSES.
@@ -346,6 +348,98 @@ pub(super) fn on_torpedo_launch_play_sfx(
         TORPEDO_LAUNCH_VOLUME,
         source.translation,
     );
+}
+
+/// The drive lighting, when a torpedo's cold coast ends.
+///
+/// AUTHORED-OR-SILENT: the bay's `ignition_sound`, read off the torpedo's own
+/// [`TorpedoLaunchConfig`] snapshot, so a torpedo thawed mid-coast still has
+/// it. Placed where the drive lit and routed off the torpedo, which has no
+/// ship above it: the exterior route, whoever fired it.
+///
+/// THROTTLED PER SHIP like the launch: a salvo's drives light on one frame,
+/// and that is one ignition.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one observer: the bank, the clock, the throttle, the torpedo's voice, its owner and its route"
+)]
+pub(super) fn on_torpedo_ignited_play_sfx(
+    ignited: On<TorpedoIgnited>,
+    asset_server: Res<AssetServer>,
+    time: Res<Time>,
+    mut throttle: ResMut<SfxThrottle>,
+    q_torpedo: Query<(&TorpedoLaunchConfig, &ProjectileOwner)>,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+) {
+    let Ok((config, owner)) = q_torpedo.get(ignited.torpedo) else {
+        return;
+    };
+    let Some(sound) = config.ignition_sound.as_ref() else {
+        return;
+    };
+    // The same interval as the launch: the salvo it collapses is the same
+    // salvo, one `ignition_delay` later.
+    if !throttle.allow(
+        ThrottleKey::TorpedoIgnition(owner.0),
+        time.elapsed_secs(),
+        TORPEDO_LAUNCH_MIN_INTERVAL,
+    ) {
+        return;
+    }
+    let route = route_for(ignited.torpedo, &q_child_of, &q_is_root, &q_is_player);
+    commands.play_sfx_at(
+        sound.resolve(&asset_server),
+        route,
+        TORPEDO_IGNITION_VOLUME,
+        ignited.at,
+    );
+}
+
+/// The warhead, as a torpedo's blast lands.
+///
+/// AUTHORED-OR-SILENT: the bay's `detonation_sound`, which the fuze moves from
+/// the torpedo onto the blast it spawns ([`DestroySound`]), because the
+/// torpedo is despawned in the same flush. A dud or an intercept spawns no
+/// blast, so neither ever plays it.
+///
+/// Throttled per area cell with the other explosions: a salvo bursting on one
+/// hull is one boom. The blast has no ship above it, so the route is the
+/// exterior one.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one observer: the bank, the clock, the throttle, the blast's voice and its route"
+)]
+pub(super) fn on_torpedo_blast_play_detonation(
+    add: On<Add, NovaBlast>,
+    asset_server: Res<AssetServer>,
+    time: Res<Time>,
+    mut throttle: ResMut<SfxThrottle>,
+    q_blast: Query<(&Transform, &DestroySound), With<TorpedoSectionPartOf>>,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+) {
+    let Ok((transform, sound)) = q_blast.get(add.entity) else {
+        return;
+    };
+    let Some(sound) = sound.0.as_ref() else {
+        return;
+    };
+    // Spawned this flush and unparented: the Transform is the world pose.
+    let at = transform.translation;
+    if !throttle.allow(
+        ThrottleKey::Explosion(cue_group(None, at)),
+        time.elapsed_secs(),
+        EXPLOSION_MIN_INTERVAL,
+    ) {
+        return;
+    }
+    let route = route_for(add.entity, &q_child_of, &q_is_root, &q_is_player);
+    commands.play_sfx_at(sound.resolve(&asset_server), route, EXPLOSION_VOLUME, at);
 }
 
 /// The dud or the intercept, when a torpedo dies with its warhead unfired.
@@ -953,15 +1047,15 @@ mod tests {
     }
 
     #[test]
-    fn a_filled_magazine_clunks_with_the_breech_its_own_gun_authored() {
-        // The report is section-generic - every magazine that fills reports -
-        // and only a gun that authored a breech has one. A PDC's trickle
-        // reload must stay silent under the same event.
+    fn a_landed_batch_clunks_with_the_reload_sound_its_own_section_authored() {
+        // The report is section-generic - every batch that lands reports -
+        // and only a section that authored a reload sound has one. A PDC's
+        // trickle reload must stay silent under the same event.
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
         app.init_resource::<LastPlayed>();
-        app.add_observer(on_reload_complete_play_sfx);
+        app.add_observer(on_reload_landed_play_sfx);
         app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
             last.0 = Some(ev.handle.clone());
         });
@@ -973,19 +1067,23 @@ mod tests {
         let lance = app
             .world_mut()
             .spawn((
-                RailgunSectionReloadSound(Some(AssetRef::from("base/sounds/railgun_reload.wav"))),
+                SectionReloadSound(Some(AssetRef::from("base/sounds/railgun_reload.wav"))),
                 GlobalTransform::default(),
             ))
             .id();
-        app.world_mut()
-            .trigger(SectionReloadComplete { entity: lance });
+        app.world_mut().trigger(SectionReloadLanded {
+            entity: lance,
+            rounds: 1,
+        });
         app.world_mut().flush();
         assert_eq!(app.world().resource::<LastPlayed>().0, Some(breech));
 
         app.world_mut().resource_mut::<LastPlayed>().0 = None;
         let pdc = app.world_mut().spawn(GlobalTransform::default()).id();
-        app.world_mut()
-            .trigger(SectionReloadComplete { entity: pdc });
+        app.world_mut().trigger(SectionReloadLanded {
+            entity: pdc,
+            rounds: 1,
+        });
         app.world_mut().flush();
         assert_eq!(
             app.world().resource::<LastPlayed>().0,
