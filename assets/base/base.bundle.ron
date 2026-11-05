@@ -302,6 +302,7 @@
         "sounds/thruster_capital_loop.wav",
         "sounds/thruster_loop.wav",
         "sounds/thruster_vector_loop.wav",
+        "sounds/torpedo_closing.wav",
         "sounds/torpedo_detonate.wav",
         "sounds/torpedo_dud.wav",
         "sounds/torpedo_ignite.wav",

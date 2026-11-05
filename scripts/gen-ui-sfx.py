@@ -12,7 +12,7 @@ the WebAudio attack/decay envelope ([`nova_sfx.env_ui`]) that is most of why
 they read as one set.
 
 AVIONICS (`assets/base/sounds/`) is the cockpit: lock, radar, safety, dry
-magazine, the kill stinger, and the two threat alarms. It is world CONTENT, so a mod can reship it, but it is an INSTRUMENT
+magazine, the kill stinger, the torpedo closing tick, and the two threat alarms. It is world CONTENT, so a mod can reship it, but it is an INSTRUMENT
 and not machinery - a lock tone is the ship telling you something, not a thing
 happening in space. So it is this recipe darkened: lower, shorter, with a
 little of the world voice's metal ring underneath. That ring is the only
@@ -383,6 +383,23 @@ def kill_confirm(rng):
     return out
 
 
+def torpedo_closing(rng):
+    """The player's torpedo closing on the locked target: one tick, repeated
+    faster as time to impact falls, up to 12.5 a second.
+
+    The smallest avionics cue, because it repeats more than any other. One
+    sine pip at one pitch, so the RATE is the only thing that changes: no
+    climb (that is `lock_on`), no double pip (that is `kill_confirm`), and no
+    square, whose harmonics at twelve a second are a buzz. A breath of panel
+    ring under it keeps it in the cockpit. 45 ms, so even the fastest rate
+    leaves a gap between ticks.
+    """
+    out = silence(0.045)
+    out = place(out, tone(0.030, 1568.0, 0.34, "sine", attack=0.002), 0.0)
+    out = place(out, instrument_ring(0.028, rng, [(3136.0, 0.010, 1.0)], 0.10), 0.0)
+    return out
+
+
 # name -> (renderer, output path relative to the repo root)
 #
 # The split is OWNERSHIP, not voice: `assets/sounds/` is engine chrome the game
@@ -413,6 +430,7 @@ CUES = {
     "safety_on": (safety_on, "assets/base/sounds/safety_on.wav"),
     "ammo_dry": (ammo_dry, "assets/base/sounds/ammo_dry.wav"),
     "kill_confirm": (kill_confirm, "assets/base/sounds/kill_confirm.wav"),
+    "torpedo_closing": (torpedo_closing, "assets/base/sounds/torpedo_closing.wav"),
 }
 
 
