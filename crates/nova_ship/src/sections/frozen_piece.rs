@@ -228,7 +228,8 @@ pub enum FrozenArtType {
     },
     /// A thruster's exhaust cone. Its inner cone is rebuilt by the same
     /// observer that built it the first time, so only the outer config is
-    /// saved.
+    /// saved. A piece has no drive above it, so the thaw ends with no cone:
+    /// `thruster_shader_update_system` despawns both on the next frame.
     Exhaust(ThrusterExhaustConfig),
     /// A point light: a railgun's charge glow.
     Light {

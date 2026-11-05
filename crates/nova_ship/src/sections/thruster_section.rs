@@ -627,9 +627,8 @@ pub(crate) fn thruster_impulse_system(
 /// One cone of a thruster's exhaust: what it is, and which throttle step it is
 /// currently drawn at.
 ///
-/// The spec rides the entity rather than being re-derived from the config,
-/// because a plume outlives its section - a severed drive keeps drawing its
-/// cone while it tumbles away - and the swap must still know what to swap to.
+/// The spec rides the entity rather than being re-derived from the config, so
+/// the swap knows what to swap to without reading the config again.
 #[derive(Component, Clone, Copy, Debug)]
 struct ThrusterExhaustPlume {
     /// The shape and colour half of this cone's material.
@@ -639,9 +638,10 @@ struct ThrusterExhaustPlume {
 }
 
 fn thruster_shader_update_system(
+    mut commands: Commands,
     time: Res<Time>,
     q_thruster: Query<
-        (&ThrusterSectionInput, Has<SectionInactiveMarker>),
+        (Option<&ThrusterSectionInput>, Has<SectionInactiveMarker>),
         With<ThrusterSectionMarker>,
     >,
     // PLUME is graded HERE rather than in a system of its own, because two
@@ -649,6 +649,7 @@ fn thruster_shader_update_system(
     // effect owns the curve; this owns the swap.
     q_plume: Query<&DamageLevel, With<DamagePlume>>,
     mut q_render: Query<(
+        Entity,
         &mut ThrusterExhaustPlume,
         &mut MeshMaterial3d<ThrusterPlumeMaterial>,
         &ChildOf,
@@ -658,24 +659,30 @@ fn thruster_shader_update_system(
     mut materials: ResMut<Assets<ThrusterPlumeMaterial>>,
 ) {
     let seconds = time.elapsed_secs();
-    for (mut plume, mut material, &ChildOf(parent)) in &mut q_render {
+    for (cone, mut plume, mut material, &ChildOf(parent)) in &mut q_render {
         let section = find_thruster_section(parent, &q_thruster, &q_child);
 
         let wanted = match section {
             // No section above it at all: the drive died and its art detached
-            // with the wreck, which still draws this cone. A dead drive is not
-            // burning, so the plume goes out rather than keeping the last value
-            // it was given. An inactive one is the same.
-            None => 0.0,
-            Some((_, _, true)) => 0.0,
+            // with the wreck. Even the idle bucket keeps the full emissive, so
+            // a dead nozzle would glow like a parked one for the wreck's whole
+            // life. The cone goes instead; the inner cone finds no section
+            // either, and `try_despawn` covers whichever of the two goes first.
+            None => {
+                commands.entity(cone).try_despawn();
+                continue;
+            }
+            // An inactive drive, or an editor preview that carries no input,
+            // keeps its idle cone.
+            Some((_, None, _) | (_, _, true)) => 0.0,
             // A drive that wears no plume effect, or is not hurt enough to show
             // one, scales by exactly 1.0 - so this line is what an undamaged
             // thruster always did.
-            Some((section, input, false)) => {
+            Some((section, Some(input), false)) => {
                 let damage = q_plume
                     .get(section)
                     .map_or(1.0, |level| plume_scale(level.0, seconds));
-                *input * damage
+                input * damage
             }
         };
 
@@ -697,18 +704,18 @@ fn thruster_shader_update_system(
 fn find_thruster_section(
     parent: Entity,
     q_thruster: &Query<
-        (&ThrusterSectionInput, Has<SectionInactiveMarker>),
+        (Option<&ThrusterSectionInput>, Has<SectionInactiveMarker>),
         With<ThrusterSectionMarker>,
     >,
     q_child: &Query<&ChildOf>,
-) -> Option<(Entity, ThrusterSectionInput, bool)> {
+) -> Option<(Entity, Option<f32>, bool)> {
     let mut parent = parent;
     loop {
         if let Ok((input, inactive)) = q_thruster.get(parent) {
             // The ENTITY comes back too: the plume effect hangs on the section,
             // not on the cone, so a caller that only got the input would have
             // to walk the same chain again to find it.
-            return Some((parent, input.clone(), inactive));
+            return Some((parent, input.map(|input| input.0), inactive));
         }
 
         let Ok(ChildOf(grandparent)) = q_child.get(parent) else {
@@ -1137,6 +1144,128 @@ mod test {
         assert_eq!(full.base.emissive, spec.emissive);
         assert_eq!(full.extension.thruster_exhaust_radius, spec.radius);
         assert_eq!(full.extension.thruster_exhaust_height, spec.height);
+    }
+
+    /// A destroyed drive leaves a wreck that carries its art for 30 s. A dead
+    /// nozzle must not keep glowing like an idle one: both cones go with the
+    /// drive. A live drive on the same hull and an inert editor preview keep
+    /// their idle cones.
+    #[test]
+    fn a_detached_thruster_wreck_draws_no_exhaust() {
+        use bevy_rand::prelude::{EntropyPlugin, WyRand};
+        use nova_gameplay::{
+            prelude::{DetachedPieceMarker, ExplodableEntity, IntegrityDestroyMarker},
+            test_support::{settle, unfinished_integrity_physics_app},
+        };
+
+        let mut app = unfinished_integrity_physics_app();
+        app.add_plugins(EntropyPlugin::<WyRand>::default());
+        app.init_asset::<ThrusterPlumeMaterial>();
+        app.init_resource::<ExhaustMeshes>();
+        app.init_resource::<ExhaustMaterials>();
+        app.add_observer(insert_thruster_shader);
+        app.add_systems(Update, thruster_shader_update_system);
+        app.finish();
+
+        let root = app
+            .world_mut()
+            .spawn((RigidBody::Dynamic, Transform::default()))
+            .id();
+        fn drive(app: &mut App, parent: Entity, at: Vec3, bundle: impl Bundle) -> Entity {
+            let world = app.world_mut();
+            let section = world
+                .spawn((ChildOf(parent), Transform::from_translation(at), bundle))
+                .id();
+            // The exhaust node `insert_thruster_section_render` hangs on every
+            // drive; the cones are built onto it by `insert_thruster_shader`.
+            world.spawn((
+                Name::new("Thruster Exhaust"),
+                ChildOf(section),
+                ThrusterExhaustConfig::default(),
+                Transform::default(),
+            ));
+            section
+        }
+        let dying = drive(
+            &mut app,
+            root,
+            Vec3::ZERO,
+            (
+                thruster_section(ThrusterSectionConfig::default()),
+                (ExplodableEntity, Collider::cuboid(1.0, 1.0, 1.0)),
+            ),
+        );
+        let live = drive(
+            &mut app,
+            root,
+            Vec3::X * 2.0,
+            (
+                thruster_section(ThrusterSectionConfig::default()),
+                Collider::cuboid(1.0, 1.0, 1.0),
+            ),
+        );
+        let shelf = app.world_mut().spawn(Transform::default()).id();
+        let preview = drive(
+            &mut app,
+            shelf,
+            Vec3::ZERO,
+            preview_thruster_section(ThrusterSectionConfig::default()),
+        );
+        settle(&mut app);
+
+        let cones_under = |app: &mut App, top: Entity| -> usize {
+            let mut query = app
+                .world_mut()
+                .query_filtered::<Entity, With<ThrusterExhaustPlume>>();
+            let cones: Vec<Entity> = query.iter(app.world()).collect();
+            cones
+                .into_iter()
+                .filter(|&cone| {
+                    let mut node = cone;
+                    while let Some(&ChildOf(parent)) = app.world().get::<ChildOf>(node) {
+                        if parent == top {
+                            return true;
+                        }
+                        node = parent;
+                    }
+                    false
+                })
+                .count()
+        };
+        for section in [dying, live, preview] {
+            assert_eq!(
+                cones_under(&mut app, section),
+                2,
+                "the fixture builds an outer and an inner cone on every drive"
+            );
+        }
+
+        app.world_mut()
+            .entity_mut(dying)
+            .insert(IntegrityDestroyMarker);
+        settle(&mut app);
+
+        let piece = app
+            .world_mut()
+            .query_filtered::<Entity, With<DetachedPieceMarker>>()
+            .single(app.world())
+            .expect("the dead drive leaves one wreck");
+        assert!(!app.world().entities().contains(dying));
+        assert_eq!(
+            cones_under(&mut app, piece),
+            0,
+            "the wreck of a dead drive draws no exhaust"
+        );
+        assert_eq!(
+            cones_under(&mut app, live),
+            2,
+            "a live drive keeps its cones"
+        );
+        assert_eq!(
+            cones_under(&mut app, preview),
+            2,
+            "an inert preview drive keeps its cones"
+        );
     }
 
     /// The registry is bounded by SHAPES times buckets, not by drives: a
