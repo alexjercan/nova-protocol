@@ -2291,6 +2291,8 @@
             detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
             dud_sound: Some("self://sounds/torpedo_dud.wav"),
             intercept_sound: Some("self://sounds/torpedo_intercept.wav"),
+            ignition_sound: Some("self://sounds/torpedo_ignite.wav"),
+            reload_sound: Some("self://sounds/torpedo_rack.wav"),
             torpedo_type: (
                 name: "Serpent",
                 tint: Srgba((
@@ -2499,6 +2501,8 @@
             detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
             dud_sound: Some("self://sounds/torpedo_dud.wav"),
             intercept_sound: Some("self://sounds/torpedo_intercept.wav"),
+            ignition_sound: Some("self://sounds/torpedo_ignite.wav"),
+            reload_sound: Some("self://sounds/torpedo_rack.wav"),
             torpedo_type: (
                 name: "Lance",
                 tint: Srgba((
