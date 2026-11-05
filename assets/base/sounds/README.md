@@ -157,7 +157,7 @@ no attribution is required; the source is kept so a replacement can be traced.
 | `torpedo_dud.wav` | https://kenney.nl/assets/sci-fi-sounds | Kenney (kenney.nl) | CC0 1.0 | Sci-Fi Sounds 1.0, `Audio/impactMetal_000.ogg`, first 0.45 s with a 120 ms fade |
 | `torpedo_intercept.wav` | https://freesound.org/people/ReadeOnly/sounds/186958/ | ReadeOnly | CC0 1.0 | `explosion7.wav` (HQ preview), first 0.25 s with an 80 ms fade |
 | `torpedo_ignite.wav` | https://freesound.org/people/gracenew/sounds/857959/ | gracenew | CC0 1.0 | `Rocket Launch` (HQ preview), first 0.80 s with a 200 ms fade |
-| `torpedo_rack.wav` | https://freesound.org/people/P%C3%B3l/sounds/385936/ | Pól | CC0 1.0 | `S011_Gear_Change_Mono.wav` (HQ preview), 175 ms lead trimmed, the remaining 0.32 s with an 80 ms fade |
+| `torpedo_rack.wav` | https://freesound.org/people/P%C3%B3l/sounds/385936/ | Pól | CC0 1.0 | `S011_Gear_Change_Mono.wav` (HQ preview), 175 ms lead trimmed, the remaining 0.32 s with an 80 ms fade, peak at -9 dBFS: at -3 dBFS the clunk sat too loud under the shared reload volume |
 
 ## Web (wasm) builds
 
