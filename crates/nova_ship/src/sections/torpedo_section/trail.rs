@@ -33,7 +33,8 @@ const TRAIL_TAIL_OFFSET: f32 = 1.0;
 const TRAIL_COLOR: LinearRgba = LinearRgba::new(0.22, 0.28, 0.38, 1.0);
 
 /// A torpedo whose lit drive is laying a trail. Inserted on
-/// [`TorpedoIgnited`]; the trail stops when the torpedo is shot down or gone.
+/// [`TorpedoIgnited`], or by [`thaw_torpedo`] for a torpedo saved with its
+/// drive lit; the trail stops when the torpedo is shot down or gone.
 #[derive(Component, Clone, Copy, Debug, Default, Reflect)]
 #[reflect(Component)]
 pub(super) struct TorpedoTrailEmitter {

@@ -67,6 +67,10 @@ pub use eta::{torpedo_time_to_impact, PlayerTorpedoEta, TorpedoEta};
 pub use frozen::{freeze_torpedo, thaw_torpedo, FrozenTorpedo, SavedTorpedoTarget};
 pub use kill_credit::TorpedoBlastCredit;
 use kill_credit::*;
+// The warhead's voice is answered in `ship_audio`, which drives the real fuze
+// to prove the blast carries it.
+#[cfg(test)]
+pub(crate) use projectile::torpedo_detonate_system;
 use projectile::*;
 use render::*;
 use scripted::*;
@@ -940,7 +944,7 @@ impl TorpedoArming {
     /// position and its launcher's live centre of mass (`None` once the
     /// launcher is gone), latching `armed` once both conditions hold.
     /// Returns the (possibly updated) armed state.
-    fn tick(&mut self, dt: f32, position: Vec3, launcher: Option<Vec3>) -> bool {
+    pub(crate) fn tick(&mut self, dt: f32, position: Vec3, launcher: Option<Vec3>) -> bool {
         if self.armed {
             return true;
         }

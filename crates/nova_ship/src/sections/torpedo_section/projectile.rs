@@ -227,7 +227,7 @@ fn distance_to_skin(
     clippy::type_complexity,
     reason = "the fuze reads the whole projectile: pose, lock, arming, warhead, owner and voice"
 )]
-pub(super) fn torpedo_detonate_system(
+pub(crate) fn torpedo_detonate_system(
     mut commands: Commands,
     time: Res<Time>,
     q_torpedo: Query<
@@ -320,6 +320,11 @@ pub(super) fn torpedo_detonate_system(
                 // way. The target's motion belongs to the fuze window, not to
                 // where the fireball goes.
                 BlastMomentum(torpedo_velocity),
+                // The warhead's voice moves to the blast, because the torpedo
+                // is gone by the time anything answers it. In the spawn bundle,
+                // not a later insert: the audio observer answers the blast's
+                // Add inside this command, and a later insert is not there yet.
+                detonation_sound.cloned().unwrap_or_default(),
             ));
             // The blast inherits the torpedo's owner so the damage it deals
             // stays attributable to the ship that fired the torpedo: nova
@@ -328,12 +333,6 @@ pub(super) fn torpedo_detonate_system(
             // through ProjectileOwner.
             if let Some(&owner) = owner {
                 blast_entity.insert(owner);
-            }
-            // The warhead's voice moves to the blast, because the torpedo is
-            // gone by the time anything answers it: the audio layer plays it
-            // as the blast lands.
-            if let Some(sound) = detonation_sound {
-                blast_entity.insert(sound.clone());
             }
         }
     }

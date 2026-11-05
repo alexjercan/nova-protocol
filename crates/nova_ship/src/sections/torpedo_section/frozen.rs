@@ -344,6 +344,15 @@ pub fn thaw_torpedo(
         },
     );
 
+    // The trail starts on the live ignition, and a thaw is no ignition: no
+    // sound, flare or light. A torpedo saved with its drive lit gets the
+    // emitter here, and lays trail from where it is thawed.
+    if record.cold.is_none() {
+        commands
+            .entity(torpedo)
+            .insert(TorpedoTrailEmitter::default());
+    }
+
     let controller_health = record.controller_health;
     let thruster_health = record.thruster_health;
     commands.queue(move |world: &mut World| {

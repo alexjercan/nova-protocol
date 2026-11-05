@@ -1162,4 +1162,62 @@ mod tests {
         app.world_mut().flush();
         assert_eq!(app.world().resource::<LastPlayed>().0, None);
     }
+
+    #[test]
+    fn a_fuzed_torpedo_voices_its_warhead_as_the_blast_lands() {
+        // The real fuze, not a hand-built blast: the warhead's voice rides from
+        // the torpedo onto the blast it spawns, and the blast observer has to
+        // find it there on Add. Bevy runs that observer inside the spawn
+        // command, so a voice inserted by a later command is never heard.
+        use avian3d::collider_tree::ColliderTrees;
+
+        use crate::sections::torpedo_section::torpedo_detonate_system;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        // An empty broad phase: no skin to find, so the fuze arms on the
+        // frozen aim point under the torpedo.
+        app.init_resource::<ColliderTrees>();
+        app.init_resource::<SfxThrottle>();
+        app.init_resource::<LastPlayed>();
+        app.add_systems(Update, torpedo_detonate_system);
+        app.add_observer(on_torpedo_blast_play_detonation);
+        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.handle.clone());
+        });
+        let warhead: Handle<AudioSource> = app
+            .world()
+            .resource::<AssetServer>()
+            .load("base/sounds/torpedo_detonate.wav");
+
+        let bay = app.world_mut().spawn_empty().id();
+        let mut arming = TorpedoArming::new(0.5, 5.0, Vec3::ZERO, 0.0);
+        arming.tick(1.0, Vec3::ZERO, None);
+        app.world_mut().spawn((
+            TorpedoProjectileMarker,
+            Transform::default(),
+            TorpedoTargetPosition(Vec3::ZERO),
+            arming,
+            TorpedoBlast {
+                radius: 30.0,
+                damage: 100.0,
+            },
+            TorpedoSectionPartOf(bay),
+            DestroySound(Some(AssetRef::from("base/sounds/torpedo_detonate.wav"))),
+        ));
+        app.update();
+
+        let mut q_blast = app.world_mut().query_filtered::<(), With<NovaBlast>>();
+        assert_eq!(
+            q_blast.iter(app.world()).count(),
+            1,
+            "the armed torpedo on its aim point fuzed"
+        );
+        assert_eq!(
+            app.world().resource::<LastPlayed>().0,
+            Some(warhead),
+            "the blast must play the warhead the torpedo carried"
+        );
+    }
 }

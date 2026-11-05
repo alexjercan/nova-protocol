@@ -103,14 +103,21 @@ const TORPEDO_IGNITION_VOLUME: f32 = 0.24;
 /// explosion. Raising it is a call for the seat, not for a spreadsheet.
 const RAILGUN_FIRE_VOLUME: f32 = 0.55;
 
-/// A torpedo breaking up on contact, its warhead unfired. Under the impact
-/// band's top and far under the explosion: a dud is a hit with no blast, and
-/// the gap between this and [`EXPLOSION_VOLUME`] is the whole message.
-const TORPEDO_DUD_VOLUME: f32 = 0.24;
+/// A torpedo breaking up on contact, its warhead unfired. About 2 dB under
+/// the explosion: a dud is a hit with no blast, and the gap between this and
+/// [`EXPLOSION_VOLUME`] is the message.
+///
+/// The level also sets the reach, because every positional cue shares one
+/// rolloff and one audible cut. A dud has to be heard where a section
+/// explosion is: 0.32 carries to about 273 u, the explosion to 281 u, and
+/// 0.24 fell under the cut at 260 u. Only the explosion's own level reaches
+/// exactly as far.
+const TORPEDO_DUD_VOLUME: f32 = 0.32;
 /// A torpedo shot down. A little over the dud - it is the defender's win -
-/// and still well under the explosion, so a salvo broken up by point defense
-/// never sounds like a salvo landing.
-const TORPEDO_INTERCEPT_VOLUME: f32 = 0.26;
+/// and still under the explosion, so a salvo broken up by point defense never
+/// sounds like a salvo landing. Its sample is also about 8 dB quieter than
+/// the warhead's. Carries to about 275 u; see [`TORPEDO_DUD_VOLUME`].
+const TORPEDO_INTERCEPT_VOLUME: f32 = 0.34;
 
 /// UI (non-positional) volumes for the lock/safety cues - informational
 /// ticks, kept under the combat sounds.

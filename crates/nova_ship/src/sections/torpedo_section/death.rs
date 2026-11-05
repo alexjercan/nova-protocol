@@ -102,10 +102,12 @@ const SHELL_SECS: f32 = 0.45;
 /// material, so a fading shell swaps handles and never writes an asset.
 const SHELL_FADE_STEPS: usize = 8;
 
-/// The shell's colour at full strength, added to what is behind it: a faint
-/// cold white, under the fireball, so it reads as the pressure front and not
-/// as more fire.
-const SHELL_COLOR: LinearRgba = LinearRgba::new(0.30, 0.34, 0.40, 1.0);
+/// The shell's colour at full strength, added once to what is behind it: a
+/// faint cold white, under the fireball, so it reads as the pressure front and
+/// not as more fire. Low on purpose: an unlit additive sphere adds the same
+/// amount over its whole disc, and at 0.3 it washes the target and the
+/// fireball out to a flat grey ball.
+const SHELL_COLOR: LinearRgba = LinearRgba::new(0.05, 0.06, 0.08, 1.0);
 
 /// A warhead's shock front: a thin sphere that eases out to the blast radius
 /// and fades. Spawned at a torpedo blast by [`on_torpedo_blast_shell`].
@@ -117,8 +119,9 @@ pub(super) struct TorpedoBlastShell {
 }
 
 /// The one sphere and the [`SHELL_FADE_STEPS`] fade materials every shell is
-/// drawn with, brightest first. Double-sided, so a camera inside the blast
-/// still sees the front pass it.
+/// drawn with, brightest first. Back faces only: one layer of the shell from
+/// outside (its far wall) and from a camera inside the blast. Both faces
+/// would add the colour twice over the disc.
 #[derive(Resource, Debug)]
 pub(super) struct TorpedoBlastShellAssets {
     mesh: Handle<Mesh>,
@@ -137,12 +140,16 @@ impl FromWorld for TorpedoBlastShellAssets {
         let fades = (0..SHELL_FADE_STEPS)
             .map(|step| {
                 let strength = 1.0 - step as f32 / SHELL_FADE_STEPS as f32;
+                // The fade is in the colour, alpha stays 1: additive blending
+                // multiplies the colour by alpha, so fading both squares it.
                 materials.add(StandardMaterial {
-                    base_color: Color::LinearRgba(SHELL_COLOR * strength),
+                    base_color: Color::LinearRgba(LinearRgba {
+                        alpha: 1.0,
+                        ..SHELL_COLOR * strength
+                    }),
                     alpha_mode: bevy::prelude::AlphaMode::Add,
                     unlit: true,
-                    double_sided: true,
-                    cull_mode: None,
+                    cull_mode: Some(bevy::render::render_resource::Face::Front),
                     ..default()
                 })
             })
