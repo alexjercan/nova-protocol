@@ -24,6 +24,10 @@ camera). The avionics cues are the ship talking to its own pilot.
 
 ## The voices
 
+Most cues are generated. The few that are not are licensed recordings, listed
+under [Recorded (licensed)](#recorded-licensed); never run a renderer over
+them.
+
 Two renderers, kept deliberately disjoint, over the shared DSP toolkit in
 `scripts/nova_sfx.py`:
 
@@ -36,8 +40,8 @@ weight. `gen-ui-sfx.py` builds the avionics from the interface recipe darkened,
 with a little of the world voice's metal ring underneath, because a lock tone
 is an instrument reporting rather than a thing happening in space.
 
-Every cue seeds its own generator from a hash of its NAME, so a rerun is
-byte-identical and adding a cue rewrites no other cue's bytes. Files are mono,
+Every generated cue seeds its own generator from a hash of its NAME, so a
+rerun is byte-identical and adding a cue rewrites no other cue's bytes. Files are mono,
 44100 Hz, 16-bit PCM, peak normalized to -3 dBFS: balance is NOT set here, the
 per-cue constants in `nova_ship/src/ship_audio/` do that.
 
@@ -83,6 +87,8 @@ this directory is reachable from shipped content.
 | --- | --- |
 | `torpedo_launch.wav` | torpedo bay `launch_sound` |
 | `torpedo_detonate.wav` | the warhead's `detonation_sound` |
+| `torpedo_dud.wav` | torpedo bay `dud_sound`, a torpedo breaking up on contact with its warhead unfired (recorded) |
+| `torpedo_intercept.wav` | torpedo bay `intercept_sound`, a torpedo shot down or caught in a blast (recorded) |
 | `impact.wav` | impact table `impact_kinetic` - the Kinetic default, so anything with no material row of its own |
 | `impact_rock.wav` | impact table `impact_kinetic_<kind>` - a slug on stone, one row per asteroid kind |
 | `impact_pierce.wav` | impact table `impact_pierce` - the Pierce default |
@@ -108,24 +114,24 @@ table carries one Kinetic row per shipped kind and every rock rings like stone.
 | `thruster_loop.wav` | the basic thruster's `loop_sound` |
 | `thruster_vector_loop.wav` | the 3x3x2 drive's `loop_sound` |
 | `thruster_capital_loop.wav` | the 5x5x3 drive's `loop_sound` |
-| `rcs_loop.wav` | the controller's `rcs_loop_sound` |
+| `rcs_loop.wav` | presentation `rcs_loop_sound` |
 
 ### Avionics
 
-Every one of these is authored on the flight COMPUTER, because knowing any of
-it is a sensor capability rather than a property of the hull: a ship built
-without a controller flies blind and gets no warnings at all.
+Every one of these is authored on the ship design's `presentation`, the
+ship's cockpit voice. Only the player's ship plays them.
 
 | File | Authored on |
 | --- | --- |
-| `lock_on.wav` | controller `lock_on_sound` |
-| `lock_off.wav` | controller `lock_off_sound` |
-| `radar_deny.wav` | controller `radar_deny_sound` |
-| `radar_retarget.wav` | controller `radar_retarget_sound` |
-| `safety_on.wav` | controller `safety_on_sound` |
-| `ammo_dry.wav` | controller `ammo_dry_sound` - the cockpit gauge behind the guns' own clicks |
-| `warn_lock.wav` | controller `warn_lock_sound`, on a hostile's `CombatLock` arriving |
-| `warn_hull.wav` | controller `warn_hull_sound`, below `warn_hull_fraction` of the built hull |
+| `lock_on.wav` | presentation `lock_on_sound` |
+| `lock_off.wav` | presentation `lock_off_sound` |
+| `radar_deny.wav` | presentation `radar_deny_sound` |
+| `radar_retarget.wav` | presentation `radar_retarget_sound` |
+| `safety_on.wav` | presentation `safety_on_sound` |
+| `ammo_dry.wav` | presentation `ammo_dry_sound` - the cockpit gauge behind the guns' own clicks |
+| `warn_lock.wav` | presentation `warn_lock_sound`, on a hostile's `CombatLock` arriving |
+| `warn_hull.wav` | presentation `warn_hull_sound`, below `warn_hull_fraction` of the built hull |
+| `kill_confirm.wav` | presentation `kill_confirm_sound`, once per hull the player's torpedo blast defeated |
 
 ### Handling
 
@@ -134,9 +140,19 @@ without a controller flies blind and gets no warnings at all.
 | `salvage_pickup.wav` | the cargo intake's `take_sound` |
 | `cargo_eject.wav` | the cargo intake's `eject_sound` |
 | `mining_pulse.wav` | the mining beam's `pulse_sound`, once per pulse that passes its checks |
-| `radar_deny.wav` | the mining beam's `refusal_sound`, once per refused pulse (also the controller's `radar_deny_sound`) |
+| `radar_deny.wav` | the mining beam's `refusal_sound`, once per refused pulse (also the presentation `radar_deny_sound`) |
 | `mining_door_open.wav` | the mining beam's `door_open_sound`, when its lids start to part |
 | `mining_door_close.wav` | the mining beam's `door_close_sound`, when its lids start to shut |
+
+## Recorded (licensed)
+
+These files are trimmed recordings, not renderer output. Both are CC0 1.0, so
+no attribution is required; the source is kept so a replacement can be traced.
+
+| File | Source | Author | License | Original |
+| --- | --- | --- | --- | --- |
+| `torpedo_dud.wav` | https://kenney.nl/assets/sci-fi-sounds | Kenney (kenney.nl) | CC0 1.0 | Sci-Fi Sounds 1.0, `Audio/impactMetal_000.ogg`, first 0.45 s with a 120 ms fade |
+| `torpedo_intercept.wav` | https://freesound.org/people/ReadeOnly/sounds/186958/ | ReadeOnly | CC0 1.0 | `explosion7.wav` (HQ preview), first 0.25 s with an 80 ms fade |
 
 ## Web (wasm) builds
 

@@ -12,7 +12,7 @@ the WebAudio attack/decay envelope ([`nova_sfx.env_ui`]) that is most of why
 they read as one set.
 
 AVIONICS (`assets/base/sounds/`) is the cockpit: lock, radar, safety, dry
-magazine, and the two threat alarms. It is world CONTENT, so a mod can reship it, but it is an INSTRUMENT
+magazine, the kill stinger, and the two threat alarms. It is world CONTENT, so a mod can reship it, but it is an INSTRUMENT
 and not machinery - a lock tone is the ship telling you something, not a thing
 happening in space. So it is this recipe darkened: lower, shorter, with a
 little of the world voice's metal ring underneath. That ring is the only
@@ -362,6 +362,27 @@ def ammo_dry(rng):
     return out
 
 
+def kill_confirm(rng):
+    """The computer confirming the player's torpedo got the kill.
+
+    A double pip high, then a held fifth below it that the panel rings under:
+    a statement that resolves, where `lock_on` is two steps that climb. The
+    double pip is the part a pilot learns - the explosion outside already
+    said something died, this says it was yours.
+    """
+    out = silence(0.32)
+    out = place(out, tone(0.040, 1175.0, 0.28, "square"), 0.0)
+    out = place(out, tone(0.040, 1175.0, 0.28, "square"), 0.060)
+    out = place(out, tone(0.180, 784.0, 0.30, "square"), 0.120)
+    out = place(
+        out,
+        instrument_ring(0.14, rng, [(1960.0, 0.07, 1.0), (3140.0, 0.04, 0.35)], 0.45),
+        0.120,
+    )
+    out = place(out, tone(0.200, 196.0, 0.18, "triangle"), 0.120)
+    return out
+
+
 # name -> (renderer, output path relative to the repo root)
 #
 # The split is OWNERSHIP, not voice: `assets/sounds/` is engine chrome the game
@@ -391,6 +412,7 @@ CUES = {
     "radar_retarget": (radar_retarget, "assets/base/sounds/radar_retarget.wav"),
     "safety_on": (safety_on, "assets/base/sounds/safety_on.wav"),
     "ammo_dry": (ammo_dry, "assets/base/sounds/ammo_dry.wav"),
+    "kill_confirm": (kill_confirm, "assets/base/sounds/kill_confirm.wav"),
 }
 
 
