@@ -1,6 +1,6 @@
 //! Combat one-shots: explosions, impacts, turret fire, torpedo launches and
-//! the railgun's report, each resolving the target's authored sound or staying
-//! silent.
+//! deaths, the railgun's report and the kill stinger, each resolving the
+//! target's authored sound or staying silent.
 //!
 //! Every cue here is ROUTED before it is played: `route_for` walks to the ship
 //! the noise belongs to, and the player's own ship is
@@ -11,21 +11,25 @@
 use avian3d::prelude::{ComputedCenterOfMass, RigidBody};
 use bevy::prelude::*;
 use nova_gameplay::{
-    audio::{body_middle, cue_body, cue_group, SfxThrottle, ThrottleKey},
+    audio::{area_cell, body_middle, cue_body, cue_group, SfxThrottle, ThrottleKey},
     prelude::*,
 };
 
 use super::{
     routing::{owning_root, route_for, route_from},
     DESTROY_SHIP_VOLUME, EXPLOSION_MIN_INTERVAL, EXPLOSION_VOLUME, IMPACT_MIN_INTERVAL,
-    IMPACT_VOLUME, RAILGUN_FIRE_VOLUME, RAILGUN_RELOAD_VOLUME, TORPEDO_LAUNCH_MIN_INTERVAL,
-    TORPEDO_LAUNCH_VOLUME, TURRET_FIRE_MIN_INTERVAL, TURRET_FIRE_VOLUME,
+    IMPACT_VOLUME, KILL_CONFIRM_VOLUME, RAILGUN_FIRE_VOLUME, RAILGUN_RELOAD_VOLUME,
+    TORPEDO_DEATH_MIN_INTERVAL, TORPEDO_DUD_VOLUME, TORPEDO_INTERCEPT_VOLUME,
+    TORPEDO_LAUNCH_MIN_INTERVAL, TORPEDO_LAUNCH_VOLUME, TURRET_FIRE_MIN_INTERVAL,
+    TURRET_FIRE_VOLUME,
 };
 use crate::{
     prelude::*,
     sections::{
         railgun_section::{RailgunSectionFireSound, RailgunSectionReloadSound},
-        torpedo_section::{TorpedoSectionLaunchSound, TorpedoSectionSpawnerEntity},
+        torpedo_section::{
+            TorpedoLaunchConfig, TorpedoSectionLaunchSound, TorpedoSectionSpawnerEntity,
+        },
         turret_section::{TurretSectionFireSound, TurretSectionPartOf},
     },
 };
@@ -52,8 +56,9 @@ fn nearest<'a, C: Component>(
     }
 }
 
-/// Explosion cue on any destruction (section, asteroid, or torpedo detonation,
-/// which all funnel through `IntegrityDestroyMarker`).
+/// Explosion cue on any destruction that funnels through
+/// `IntegrityDestroyMarker`: a section or an asteroid. A torpedo section is
+/// skipped (see [`QuietDestroyMarker`]).
 #[expect(
     clippy::too_many_arguments,
     reason = "one observer: the bank, the clock, where the death was, what came apart, its voice, its route and the throttle"
@@ -68,9 +73,15 @@ pub(super) fn on_destroyed_play_explosion(
     q_child_of: Query<&ChildOf>,
     q_is_root: Query<(), With<SpaceshipRootMarker>>,
     q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    q_quiet: Query<(), With<QuietDestroyMarker>>,
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
+    // A torpedo section's death is a dud or an intercept, voiced on
+    // `TorpedoKilled`; walking up from it would find the warhead's sound.
+    if q_quiet.contains(add.entity) {
+        return;
+    }
     // The destroyed entity has existed for frames, so its GlobalTransform is
     // valid world-space.
     let Ok(source) = q_transform.get(add.entity) else {
@@ -335,6 +346,73 @@ pub(super) fn on_torpedo_launch_play_sfx(
         TORPEDO_LAUNCH_VOLUME,
         source.translation,
     );
+}
+
+/// The dud or the intercept, when a torpedo dies with its warhead unfired.
+///
+/// AUTHORED-OR-SILENT: the bay's `dud_sound` or `intercept_sound`, read off
+/// the torpedo's own [`TorpedoLaunchConfig`] snapshot, so a torpedo whose bay
+/// is gone still has its voice. Every torpedo, the player's and a hostile's.
+///
+/// Throttled per AREA CELL, not per ship: point defense breaks up a salvo in
+/// one patch of sky, and that is one burst. The torpedo has no ship above it,
+/// so the route is the exterior one whoever fired it.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one observer: the bank, the clock, the throttle, the torpedo's voice and its route"
+)]
+pub(super) fn on_torpedo_killed_play_sfx(
+    killed: On<TorpedoKilled>,
+    asset_server: Res<AssetServer>,
+    time: Res<Time>,
+    mut throttle: ResMut<SfxThrottle>,
+    q_config: Query<&TorpedoLaunchConfig>,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+) {
+    let Ok(config) = q_config.get(killed.torpedo) else {
+        return;
+    };
+    let (sound, volume) = match killed.death {
+        TorpedoDeathType::Contact => (&config.dud_sound, TORPEDO_DUD_VOLUME),
+        TorpedoDeathType::Damage => (&config.intercept_sound, TORPEDO_INTERCEPT_VOLUME),
+    };
+    let Some(sound) = sound.as_ref() else {
+        return;
+    };
+    if !throttle.allow(
+        ThrottleKey::TorpedoDeath(area_cell(killed.at)),
+        time.elapsed_secs(),
+        TORPEDO_DEATH_MIN_INTERVAL,
+    ) {
+        return;
+    }
+    let route = route_for(killed.torpedo, &q_child_of, &q_is_root, &q_is_player);
+    commands.play_sfx_at(sound.resolve(&asset_server), route, volume, killed.at);
+}
+
+/// The kill stinger, once per hull the player's torpedo got.
+///
+/// A cockpit cue, on [`AudioRoute::Hull`]: the computer confirming the kill,
+/// not the kill itself, which has its own explosion out in the world.
+/// AUTHORED-OR-SILENT on the player ship's [`ShipFeedbackSounds::kill_confirm`].
+pub(super) fn on_player_kill_play_stinger(
+    _confirmed: On<PlayerKillConfirmed>,
+    asset_server: Res<AssetServer>,
+    q_player: Query<&ShipFeedbackSounds, With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+) {
+    let Some(handle) = q_player
+        .iter()
+        .next()
+        .and_then(|sounds| sounds.kill_confirm.as_ref())
+        .map(|sound| sound.resolve(&asset_server))
+    else {
+        return;
+    };
+    commands.play_sfx(handle, AudioRoute::Hull, KILL_CONFIRM_VOLUME);
 }
 
 /// The lance's report, on the tick the shot leaves.

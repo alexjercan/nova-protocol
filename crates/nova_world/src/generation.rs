@@ -1000,6 +1000,7 @@ fn check_ship_design(design: &ShipDesign) -> Result<(), String> {
         warn_lock_sound,
         ammo_dry_sound,
         warn_hull_sound,
+        kill_confirm_sound,
         warn_hull_fraction: _,
         rcs_loop_sound,
     } = &design.presentation;
@@ -1013,6 +1014,7 @@ fn check_ship_design(design: &ShipDesign) -> Result<(), String> {
         ("warn_lock_sound", warn_lock_sound),
         ("ammo_dry_sound", ammo_dry_sound),
         ("warn_hull_sound", warn_hull_sound),
+        ("kill_confirm_sound", kill_confirm_sound),
         ("rcs_loop_sound", rcs_loop_sound),
     ] {
         if let Some(AssetRef::Handle(handle)) = sound {

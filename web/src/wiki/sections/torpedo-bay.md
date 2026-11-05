@@ -42,6 +42,10 @@ The iris is honest. A safed bay keeps it shut and so does an empty one, so an op
 
 **The warhead bursts just before contact.** Against a locked ship or rock the fuze fires about thirty meters from the nearest part of that body's skin. That near-contact margin keeps the physical torpedo from becoming a dud on the hull, while the warhead still delivers almost all its rated pressure and puts the crater on the target. Fire one at a bare point in space instead - a scripted volley, or a torpedo whose target dies mid-flight - and it bursts a half-radius short, because there is no surface left to reach.
 
+**A torpedo that dies unfired tells you how.** One that strikes a hull or a rock without fuzing breaks up in a grey puff with a dull clank: a dud. One that point defense shoots down, or that another blast catches, pops small and hot with a few sparks and a sharp crack: an intercept. Neither is a detonation, so there is no fireball and no warhead sound. When your own torpedo's blast defeats a ship, a short cockpit tone confirms the kill.
+
+<!-- Verified against crates/nova_ship/src/sections/torpedo_section/bay.rs classify_torpedo_death, death.rs and ship_audio/combat.rs on_torpedo_killed_play_sfx / on_player_kill_play_stinger; kill credit window 0.5 s in torpedo_section/kill_credit.rs. -->
+
 ## The two run-ins
 
 A bay is loaded with a **torpedo type**. The two shipped bays are **Torpedo Bay (Serpent)** and **Torpedo Bay (Lance)**. They share the same tube, warhead, blast, and six-round rack; only the run-in differs.

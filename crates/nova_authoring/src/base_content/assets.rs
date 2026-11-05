@@ -101,6 +101,11 @@ pub struct BaseContentAssets {
     /// The warhead. A hard front and a spray of fragments, distinct from
     /// [`Self::section_destroy_sound`] because a section failure is structural.
     pub torpedo_detonation_sound: AssetRef<AudioSource>,
+    /// A torpedo breaking up on contact with its warhead unfired. A licensed
+    /// recording (see `assets/base/sounds/README.md`).
+    pub torpedo_dud_sound: AssetRef<AudioSource>,
+    /// A torpedo shot down before it could fuze. A licensed recording.
+    pub torpedo_intercept_sound: AssetRef<AudioSource>,
     /// The lance's discharge: the capacitor bank dumping, the slug leaving,
     /// and the hull taking the recoil, in the order the shot does them.
     pub railgun_fire_sound: AssetRef<AudioSource>,
@@ -126,6 +131,8 @@ pub struct BaseContentAssets {
     /// speed - slower is more serious, which is the opposite of how alarms
     /// usually escalate and is why this one lands.
     pub ship_warn_hull_sound: AssetRef<AudioSource>,
+    /// The kill stinger: the ship's torpedo got the kill.
+    pub ship_kill_confirm_sound: AssetRef<AudioSource>,
     /// The ship's RCS fine-adjust loop: plays while the RCS primitive burns,
     /// player- or autopilot-driven.
     pub ship_rcs_loop_sound: AssetRef<AudioSource>,
@@ -264,6 +271,10 @@ impl BaseContentAssets {
             torpedo_detonation_sound: AssetRef::from(
                 "self://sounds/torpedo_detonate.wav".to_string(),
             ),
+            torpedo_dud_sound: AssetRef::from("self://sounds/torpedo_dud.wav".to_string()),
+            torpedo_intercept_sound: AssetRef::from(
+                "self://sounds/torpedo_intercept.wav".to_string(),
+            ),
             railgun_fire_sound: AssetRef::from("self://sounds/railgun_fire.wav".to_string()),
             railgun_charge_sound: AssetRef::from("self://sounds/railgun_charge.wav".to_string()),
             railgun_reload_sound: AssetRef::from("self://sounds/railgun_reload.wav".to_string()),
@@ -278,6 +289,7 @@ impl BaseContentAssets {
             ship_warn_lock_sound: AssetRef::from("self://sounds/warn_lock.wav".to_string()),
             ship_ammo_dry_sound: AssetRef::from("self://sounds/ammo_dry.wav".to_string()),
             ship_warn_hull_sound: AssetRef::from("self://sounds/warn_hull.wav".to_string()),
+            ship_kill_confirm_sound: AssetRef::from("self://sounds/kill_confirm.wav".to_string()),
             ship_rcs_loop_sound: AssetRef::from("self://sounds/rcs_loop.wav".to_string()),
             section_destroy_sound: AssetRef::from("self://sounds/explosion.wav".to_string()),
             ship_collapse_sound: AssetRef::from("self://sounds/destroy_ship.wav".to_string()),

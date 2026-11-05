@@ -59,6 +59,10 @@ pub struct ShipFeedbackSounds {
     /// [`ShipHullWarning`].
     #[reflect(ignore)]
     pub warn_hull: Option<AssetRef<AudioSource>>,
+    /// The player's torpedo got the kill - the stinger, once per defeated
+    /// hull, on `PlayerKillConfirmed`.
+    #[reflect(ignore)]
+    pub kill_confirm: Option<AssetRef<AudioSource>>,
     /// RCS fine-adjust LOOP: plays continuously while the ship is burning the
     /// RCS primitive. Unlike the one-shots above this is sustained, resolved
     /// and volume-tracked by the audio module (one loop per distinct handle),

@@ -83,6 +83,12 @@ pub enum ThrottleKey {
     /// reads as one event. A cell key would not do it - a capital ship's tubes
     /// sit further apart than [`SFX_AREA_CELL`].
     TorpedoLaunch(Entity),
+    /// A torpedo dying without its warhead, a dud or an intercept, keyed by
+    /// the [`area_cell`] it died in. Point defense breaks up a salvo inside a
+    /// fraction of a second in one patch of sky, and that is one burst of
+    /// pops, not six on top of each other. Torpedoes dying in different cells
+    /// are still heard apart.
+    TorpedoDeath(IVec3),
 }
 
 /// Quantize a world position to a [`SFX_AREA_CELL`]-sized integer cell, so

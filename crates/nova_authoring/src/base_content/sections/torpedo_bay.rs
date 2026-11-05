@@ -208,6 +208,10 @@ fn torpedo_bay_prototype(
             // The blast reuses the section-destruction wav. Authoring is
             // per target, so the two can diverge.
             detonation_sound: Some(meshes.torpedo_detonation_sound.clone()),
+            // Recorded, not generated: a broken casing and a small pop. Both
+            // stay far under the warhead so neither reads as a detonation.
+            dud_sound: Some(meshes.torpedo_dud_sound.clone()),
+            intercept_sound: Some(meshes.torpedo_intercept_sound.clone()),
             // Above the hardest single PDC round (4.0 authored x the 2.0
             // Kinetic speed ceiling), so an intercept costs two or three
             // rounds instead of one lucky tap.

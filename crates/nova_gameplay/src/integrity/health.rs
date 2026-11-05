@@ -22,7 +22,7 @@ use bevy::prelude::*;
 pub mod prelude {
     pub use super::{
         destructible_body, Health, HealthApplyDamage, HealthIsolated, HealthZeroMarker,
-        NovaHealthPlugin,
+        HealthZeroedBy, NovaHealthPlugin,
     };
 }
 
@@ -48,9 +48,26 @@ impl Health {
 /// Marks a node whose health has reached zero. Inserted by `on_damage`; the
 /// integrity core turns it into [`IntegrityDisabledMarker`](super::components::IntegrityDisabledMarker)
 /// on structure nodes and sections only.
+///
+/// Requires [`HealthZeroedBy`], so a node zeroed outside `on_damage` (the carve
+/// spending a plate) still names its killer, as unknown.
 #[derive(Component, Clone, Debug, Reflect)]
 #[reflect(Component)]
+#[require(HealthZeroedBy)]
 pub struct HealthZeroMarker;
+
+/// The source of the hit that zeroed this node: the
+/// [`HealthApplyDamage::source`] of the hit that took it to zero. `None` is
+/// unknown - an unattributed hit, or a node zeroed by something other than
+/// damage.
+///
+/// Inserted with [`HealthZeroMarker`] in one insert, so an `Add` observer of the
+/// marker reads it. The first killer wins: a node at zero absorbs every later
+/// hit, so nothing inserts this twice. A torpedo reads it to tell a dud (it
+/// struck a body) from an intercept (a round or a blast broke it up).
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct HealthZeroedBy(pub Option<Entity>);
 
 /// Marks a pool that absorbs its damage instead of passing it up `ChildOf`.
 ///
@@ -98,6 +115,7 @@ impl Plugin for NovaHealthPlugin {
 
         app.register_type::<Health>();
         app.register_type::<HealthZeroMarker>();
+        app.register_type::<HealthZeroedBy>();
         app.register_type::<HealthIsolated>();
         app.add_observer(on_damage);
     }
@@ -150,7 +168,9 @@ fn on_damage(
     damage.amount = applied;
     if health.current <= 0.0 {
         health.current = 0.0;
-        commands.entity(entity).insert(HealthZeroMarker);
+        commands
+            .entity(entity)
+            .insert((HealthZeroMarker, HealthZeroedBy(damage.source)));
     }
 }
 

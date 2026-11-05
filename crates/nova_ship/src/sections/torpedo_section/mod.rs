@@ -31,10 +31,16 @@ use crate::{physics::prelude::rigid_body_point_velocity, prelude::*};
 
 /// Building the bay, its fire timer, and the launch that spawns a torpedo.
 mod bay;
+/// The look of a torpedo dying without its warhead: the dud puff and the
+/// intercept pop (gated by the plugin's `render` flag).
+mod death;
 /// Save/restore of a flying torpedo: [`frozen::FrozenTorpedo`] pairs the
 /// bay-launch bundle [`bay::TorpedoLaunch`]/[`bay::spawn_torpedo`] builds with
 /// the in-flight state only a save needs to carry.
 mod frozen;
+/// Kill credit: which hull a torpedo blast damaged, so the defeat that follows
+/// confirms the player's kill.
+mod kill_credit;
 /// In-flight torpedo behavior: target tracking, arming, detonation, and PN
 /// guidance (steer / thrust). These systems act on the spawned projectiles, not
 /// on the bay that launched them.
@@ -46,9 +52,13 @@ mod render;
 /// the projectile with no controller involved (scenario-timer emplacements).
 mod scripted;
 
+pub(crate) use bay::TorpedoLaunchConfig;
 use bay::*;
 pub use bay::{TorpedoBayDoorsMoved, TorpedoLaunched};
+use death::*;
 pub use frozen::{freeze_torpedo, thaw_torpedo, FrozenTorpedo, SavedTorpedoTarget};
+pub use kill_credit::TorpedoBlastCredit;
+use kill_credit::*;
 use projectile::*;
 use render::*;
 use scripted::*;
@@ -59,12 +69,13 @@ pub mod prelude {
     pub use super::{
         freeze_torpedo, preview_torpedo_section, scripted::ScriptedTorpedoOrder, thaw_torpedo,
         torpedo_section, BlastMomentum, FrozenTorpedo, SavedTorpedoTarget, TorpedoArming,
-        TorpedoBayDoorsMoved, TorpedoBlast, TorpedoColdLaunch, TorpedoControllerMarker,
-        TorpedoEngineFigures, TorpedoGuidance, TorpedoIgnited, TorpedoLaunched,
-        TorpedoSectionConfig, TorpedoSectionConfigHelper, TorpedoSectionInput,
-        TorpedoSectionPartOf, TorpedoSectionPlugin, TorpedoSectionSpawnerFireState,
-        TorpedoSectionSpawnerMarker, TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen,
-        TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TorpedoTypeConfig, TorpedoWeave,
+        TorpedoBayDoorsMoved, TorpedoBlast, TorpedoBlastCredit, TorpedoColdLaunch,
+        TorpedoControllerMarker, TorpedoDeathType, TorpedoEngineFigures, TorpedoGuidance,
+        TorpedoIgnited, TorpedoKilled, TorpedoLaunched, TorpedoSectionConfig,
+        TorpedoSectionConfigHelper, TorpedoSectionInput, TorpedoSectionPartOf,
+        TorpedoSectionPlugin, TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker,
+        TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity,
+        TorpedoTargetPosition, TorpedoType, TorpedoTypeConfig, TorpedoWeave,
     };
 }
 
@@ -207,15 +218,39 @@ pub struct TorpedoSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub door_sound: Option<AssetRef<AudioSource>>,
-    /// The sound this torpedo's DETONATION plays (the blast destroying the
-    /// projectile fires the destroy observer). Snapshotted onto the projectile
-    /// as [`DestroySound`]. AUTHORED-OR-SILENT.
+    /// The sound this torpedo's DETONATION plays. Snapshotted onto the
+    /// projectile as [`DestroySound`]. AUTHORED-OR-SILENT.
+    ///
+    /// FIXME: nothing plays it. `torpedo_detonate_system` despawns the torpedo
+    /// with no destroy edge, and a torpedo section's death is quiet
+    /// ([`QuietDestroyMarker`]). Remove this note when the detonation itself
+    /// triggers the cue.
     #[reflect(ignore)]
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub detonation_sound: Option<AssetRef<AudioSource>>,
+    /// The sound a torpedo makes when it dies on CONTACT: it struck a hull or
+    /// a rock and broke up with its warhead unfired - a dud. Read off the
+    /// torpedo's own launch snapshot, so it plays after the bay is gone.
+    /// AUTHORED-OR-SILENT.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub dud_sound: Option<AssetRef<AudioSource>>,
+    /// The sound a torpedo makes when it is SHOT DOWN: rounds or another blast
+    /// broke it up before it could fuze. Heard for every torpedo, the
+    /// player's and a hostile's alike. Read off the launch snapshot like
+    /// `dud_sound`. AUTHORED-OR-SILENT.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub intercept_sound: Option<AssetRef<AudioSource>>,
     /// Hit points on EACH of the projectile's two collider sections
     /// (controller and thruster); either one reaching zero shoots the
     /// torpedo down (silently - no blast). The default is set so no SINGLE
@@ -279,6 +314,8 @@ impl Default for TorpedoSectionConfig {
             launch_sound: None,
             door_sound: None,
             detonation_sound: None,
+            dud_sound: None,
+            intercept_sound: None,
             projectile_health: default_projectile_health(),
             torpedo_type: TorpedoTypeConfig::default(),
             ammunition: AmmoCapacity::Unlimited,
@@ -930,7 +967,19 @@ impl Plugin for TorpedoSectionPlugin {
             app.add_observer(insert_torpedo_spawner_effect);
             app.add_observer(on_torpedo_launch_effect);
             app.add_observer(on_torpedo_ignition);
+
+            // The dud puff and the intercept pop. Each builds its shared
+            // effect on the first death that needs it.
+            app.init_resource::<DefaultTorpedoDeathEffects>();
+            app.add_observer(on_torpedo_killed_effect);
         }
+
+        // Kill credit on every build: it decides an event the audio and juice
+        // layers answer, and a headless run still has to fire it.
+        app.register_type::<TorpedoBlastCredit>();
+        app.add_observer(on_damage_stamp_torpedo_credit);
+        app.add_observer(on_defeated_confirm_player_kill);
+        app.add_observer(on_destroyed_confirm_player_kill);
 
         // A torpedo whose body is shot dead must die as a whole -
         // without this the collider-less root keeps flying, armed, and still
@@ -1029,8 +1078,43 @@ impl Plugin for TorpedoSectionPlugin {
 /// panicked mid collision-event flush (live-game crash, 20260710).
 /// `torpedo_detonate_system` excludes marked roots, so the warhead cannot
 /// fire in the gap.
-#[derive(Component, Debug, Clone, Reflect)]
-pub struct TorpedoShotDownMarker;
+///
+/// Carries how the torpedo died, decided once by the first body section to
+/// die: a later section in the same burst does not overwrite it.
+#[derive(Component, Clone, Copy, Debug, Reflect)]
+pub struct TorpedoShotDownMarker {
+    /// How the torpedo died.
+    pub death: TorpedoDeathType,
+}
+
+/// How a torpedo died without its warhead firing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
+pub enum TorpedoDeathType {
+    /// It struck a body - a hull, a rock, another torpedo - and broke up: a
+    /// dud. Any contact death is a dud, locked or not.
+    Contact,
+    /// Rounds or a blast broke it up before it could fuze: an intercept. Also
+    /// the answer when the killer is unknown.
+    Damage,
+}
+
+/// A torpedo died without its warhead firing. Triggered once per torpedo by
+/// `despawn_shot_down_torpedoes`, the frame it is removed and before its
+/// despawn applies, so an observer can still read the torpedo.
+///
+/// The seam the render and audio halves hang the dud and intercept cues on.
+/// A detonation is not this event: the blast has cues of its own.
+#[derive(Event, Clone, Copy, Debug)]
+pub struct TorpedoKilled {
+    /// The torpedo that died. Still alive while the observers run.
+    pub torpedo: Entity,
+    /// Where it died, in world space.
+    pub at: Vec3,
+    /// How it died.
+    pub death: TorpedoDeathType,
+    /// Whether it was homing on a locked target ([`TorpedoTargetEntity`]).
+    pub targeted: bool,
+}
 
 #[cfg(test)]
 mod tests {

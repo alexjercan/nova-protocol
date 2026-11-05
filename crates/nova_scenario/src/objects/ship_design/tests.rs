@@ -418,6 +418,7 @@ fn the_base_voice_names_every_cue_at_a_file_that_exists() {
         ("warn lock", &voice.warn_lock_sound),
         ("ammo dry", &voice.ammo_dry_sound),
         ("warn hull", &voice.warn_hull_sound),
+        ("kill confirm", &voice.kill_confirm_sound),
         ("rcs loop", &voice.rcs_loop_sound),
     ] {
         let path = sound

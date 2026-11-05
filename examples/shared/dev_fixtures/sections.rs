@@ -169,6 +169,8 @@ pub fn siege_torpedo_bay() -> SectionConfig {
             launch_sound: Some(sound("torpedo_launch")),
             door_sound: Some(sound("bay_door")),
             detonation_sound: Some(sound("torpedo_detonate")),
+            dud_sound: Some(sound("torpedo_dud")),
+            intercept_sound: Some(sound("torpedo_intercept")),
             // Armored ordnance: a PDC burst (~800 DPS) cannot chew through
             // this inside the ~6 s closing window, so point defense visibly
             // hammers it and still loses.

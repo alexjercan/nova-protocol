@@ -57,36 +57,89 @@ fn torpedo_fire_interval(fire_rate: f32) -> Option<f32> {
 /// torpedo. Static states what is already true of a body awaiting removal: it
 /// is not simulated. It also keeps the warning meaningful, because a dynamic
 /// massless body is then always a defect rather than an expected frame.
+///
+/// The section's [`HealthZeroedBy`] decides how the torpedo died - see
+/// [`classify_torpedo_death`].
 pub(super) fn on_torpedo_body_destroyed(
     add: On<Add, HealthZeroMarker>,
-    q_section: Query<&ChildOf>,
+    q_section: Query<(&ChildOf, &HealthZeroedBy)>,
     q_torpedo: Query<Entity, With<TorpedoProjectileMarker>>,
+    q_source: Query<(Has<ColliderOf>, Has<ProjectileDamage>, Has<NovaBlast>)>,
     mut commands: Commands,
 ) {
     let entity = add.entity;
-    let Ok(ChildOf(parent)) = q_section.get(entity) else {
+    let Ok((ChildOf(parent), zeroed_by)) = q_section.get(entity) else {
         return;
     };
     let Ok(root) = q_torpedo.get(*parent) else {
         return;
     };
-    // try_insert: both body sections can die in the same burst, and the
-    // root itself may already be despawning for another reason.
+    let source = zeroed_by.0.and_then(|source| q_source.get(source).ok());
+    let death = classify_torpedo_death(
+        source.is_some(),
+        source.is_some_and(|(body, _, _)| body),
+        source.is_some_and(|(_, round, blast)| round || blast),
+    );
+    // try_*: both body sections can die in the same burst, and the root
+    // itself may already be despawning for another reason. `_if_new` keeps
+    // the FIRST section's verdict: the second insert of the burst is queued
+    // before the first has landed, so a presence check could not see it.
     commands
         .entity(root)
-        .try_insert((TorpedoShotDownMarker, RigidBody::Static));
+        .try_insert_if_new(TorpedoShotDownMarker { death })
+        .try_insert(RigidBody::Static);
+}
+
+/// How a torpedo died, from the source of the hit that zeroed its section.
+///
+/// A CONTACT death needs a live body on the other side - a collider - that is
+/// not a weapon: a round and a blast both reach a torpedo as colliders too,
+/// and a weapon kill is an intercept. Anything not provably a body is
+/// [`TorpedoDeathType::Damage`], an unknown killer included: an intercept is
+/// the death a dud must not be mistaken for. A body despawned in the same
+/// flush as the hit is a known false negative.
+pub(super) fn classify_torpedo_death(
+    source_alive: bool,
+    source_is_body: bool,
+    source_is_weapon: bool,
+) -> TorpedoDeathType {
+    if source_alive && source_is_body && !source_is_weapon {
+        TorpedoDeathType::Contact
+    } else {
+        TorpedoDeathType::Damage
+    }
 }
 
 /// Remove shot-down torpedoes, one schedule pass after the marker landed -
 /// by then every command the integrity pipeline queued for the dying
 /// section has been applied to a still-live entity (see
 /// [`TorpedoShotDownMarker`] for the crash this ordering prevents).
+///
+/// Triggers [`TorpedoKilled`] first, so its observers run against a torpedo
+/// that is still there.
 pub(super) fn despawn_shot_down_torpedoes(
-    q_torpedo: Query<Entity, (With<TorpedoProjectileMarker>, With<TorpedoShotDownMarker>)>,
+    q_torpedo: Query<
+        (
+            Entity,
+            &TorpedoShotDownMarker,
+            &Transform,
+            Has<TorpedoTargetEntity>,
+        ),
+        With<TorpedoProjectileMarker>,
+    >,
     mut commands: Commands,
 ) {
-    for torpedo in &q_torpedo {
-        debug!("despawn_shot_down_torpedoes: torpedo {torpedo:?} shot down");
+    for (torpedo, shot_down, transform, targeted) in &q_torpedo {
+        debug!(
+            "despawn_shot_down_torpedoes: torpedo {torpedo:?} shot down ({:?})",
+            shot_down.death
+        );
+        commands.trigger(TorpedoKilled {
+            torpedo,
+            at: transform.translation,
+            death: shot_down.death,
+            targeted,
+        });
         commands.entity(torpedo).try_despawn();
     }
 }
@@ -339,6 +392,8 @@ pub(crate) fn spawn_torpedo(commands: &mut Commands, launch: TorpedoLaunch) -> E
         let mut controller =
             parent.spawn((
                 TorpedoControllerMarker,
+                // The torpedo's death has its own look (`death.rs`).
+                QuietDestroyMarker,
                 ActiveCollisionHooks::FILTER_PAIRS,
                 base_section(BaseSectionConfig {
                     id: "torpedo_controller".to_string(),
@@ -364,6 +419,7 @@ pub(crate) fn spawn_torpedo(commands: &mut Commands, launch: TorpedoLaunch) -> E
 
         let mut thruster = parent.spawn((
             TorpedoThrusterMarker,
+            QuietDestroyMarker,
             ActiveCollisionHooks::FILTER_PAIRS,
             base_section(BaseSectionConfig {
                 id: "torpedo_thruster".to_string(),
@@ -1555,6 +1611,89 @@ mod tests {
     }
 
     #[test]
+    fn only_a_live_body_that_is_not_a_weapon_kills_a_torpedo_by_contact() {
+        use TorpedoDeathType::{Contact, Damage};
+        assert_eq!(classify_torpedo_death(true, true, false), Contact);
+        // A round or a blast is a collider too, and a weapon kill is an
+        // intercept.
+        assert_eq!(classify_torpedo_death(true, true, true), Damage);
+        assert_eq!(classify_torpedo_death(true, false, true), Damage);
+        // Not provably a body: a node with no collider, or a killer that is
+        // already gone or was never named.
+        assert_eq!(classify_torpedo_death(true, false, false), Damage);
+        assert_eq!(classify_torpedo_death(false, false, false), Damage);
+    }
+
+    /// The kills the death rig recorded, in event order.
+    #[derive(Resource, Default)]
+    struct Killed(Vec<(Entity, TorpedoDeathType)>);
+
+    /// A torpedo struck by a hull is a dud, one broken up by a round or a blast
+    /// is an intercept, and each dies with exactly ONE event however many of
+    /// its body sections the hit killed.
+    #[test]
+    fn a_contact_kill_is_a_dud_and_a_round_or_blast_kill_is_an_intercept() {
+        let mut app = App::new();
+        app.add_plugins(nova_gameplay::integrity::health::NovaHealthPlugin);
+        app.add_observer(on_torpedo_body_destroyed);
+        app.add_systems(Update, despawn_shot_down_torpedoes);
+        app.init_resource::<Killed>();
+        app.add_observer(|killed: On<TorpedoKilled>, mut log: ResMut<Killed>| {
+            log.0.push((killed.torpedo, killed.death));
+        });
+
+        let hull = app.world_mut().spawn_empty().id();
+        let plate = app.world_mut().spawn(ColliderOf { body: hull }).id();
+        let round = app
+            .world_mut()
+            .spawn((
+                ProjectileDamage::new(4.0, DamageType::Kinetic),
+                ColliderOf { body: hull },
+            ))
+            .id();
+        let blast = app
+            .world_mut()
+            .spawn((
+                NovaBlast {
+                    radius: 30.0,
+                    max_damage: 750.0,
+                    kind: DamageType::Explosive,
+                },
+                ColliderOf { body: hull },
+            ))
+            .id();
+
+        let mut expected = Vec::new();
+        for (source, death) in [
+            (plate, TorpedoDeathType::Contact),
+            (round, TorpedoDeathType::Damage),
+            (blast, TorpedoDeathType::Damage),
+        ] {
+            let torpedo = app
+                .world_mut()
+                .spawn((TorpedoProjectileMarker, Transform::default()))
+                .id();
+            // Both body sections die in the one burst.
+            for _ in 0..2 {
+                let section = app
+                    .world_mut()
+                    .spawn((SectionMarker, Health::new(1.0), ChildOf(torpedo)))
+                    .id();
+                app.world_mut().trigger(HealthApplyDamage {
+                    entity: section,
+                    source: Some(source),
+                    amount: 2.0,
+                });
+            }
+            app.update();
+            assert!(!app.world().entities().contains(torpedo));
+            expected.push((torpedo, death));
+        }
+
+        assert_eq!(app.world().resource::<Killed>().0, expected);
+    }
+
+    #[test]
     fn a_shot_down_torpedo_cannot_detonate_in_the_removal_gap() {
         // Armed, on its target, but marked shot down: the fuze must stay
         // quiet for the tick between the marker and the despawn.
@@ -1570,7 +1709,9 @@ mod tests {
             .world_mut()
             .spawn((
                 TorpedoProjectileMarker,
-                TorpedoShotDownMarker,
+                TorpedoShotDownMarker {
+                    death: TorpedoDeathType::Damage,
+                },
                 Transform::default(),
                 TorpedoTargetPosition(Vec3::ZERO),
                 arming,

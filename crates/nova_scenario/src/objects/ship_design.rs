@@ -188,6 +188,12 @@ pub struct ShipPresentationConfig {
     #[reflect(ignore)]
     #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
     pub warn_hull_sound: Option<AssetRef<AudioSource>>,
+    /// The kill stinger: this ship's torpedo blast reached a hull that was
+    /// defeated right after. Played once per defeated hull, for the player's
+    /// ship only.
+    #[reflect(ignore)]
+    #[cfg_attr(feature = "serde", serde(skip_serializing_if = "Option::is_none"))]
+    pub kill_confirm_sound: Option<AssetRef<AudioSource>>,
     /// The hull fraction the alarm above fires at, clamped to `0..=1`.
     ///
     /// A SHIP decision, and the reason it is authored at all: a cheap civilian
@@ -219,6 +225,7 @@ impl Default for ShipPresentationConfig {
             warn_lock_sound: None,
             ammo_dry_sound: None,
             warn_hull_sound: None,
+            kill_confirm_sound: None,
             warn_hull_fraction: DEFAULT_WARN_HULL_FRACTION,
             rcs_loop_sound: None,
         }
@@ -248,6 +255,7 @@ impl ShipPresentationConfig {
             warn_lock_sound: Some(AssetRef::from("base/sounds/warn_lock.wav")),
             ammo_dry_sound: Some(AssetRef::from("base/sounds/ammo_dry.wav")),
             warn_hull_sound: Some(AssetRef::from("base/sounds/warn_hull.wav")),
+            kill_confirm_sound: Some(AssetRef::from("base/sounds/kill_confirm.wav")),
             rcs_loop_sound: Some(AssetRef::from("base/sounds/rcs_loop.wav")),
             ..Self::default()
         }

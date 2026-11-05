@@ -252,6 +252,7 @@ pub(crate) fn default_presentation(assets: &BaseContentAssets) -> ShipPresentati
         warn_lock_sound: Some(assets.ship_warn_lock_sound.clone()),
         ammo_dry_sound: Some(assets.ship_ammo_dry_sound.clone()),
         warn_hull_sound: Some(assets.ship_warn_hull_sound.clone()),
+        kill_confirm_sound: Some(assets.ship_kill_confirm_sound.clone()),
         rcs_loop_sound: Some(assets.ship_rcs_loop_sound.clone()),
         ..ShipPresentationConfig::default()
     }

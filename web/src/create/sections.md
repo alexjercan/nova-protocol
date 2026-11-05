@@ -823,9 +823,16 @@ kind: Torpedo((
 - `launch_sound` (optional) - the sound a departing torpedo plays
   (`dep://base/sounds/torpedo_launch.wav` is the base whoosh); omit for a
   silent launch.
-- `detonation_sound` (optional) - the sound the warhead plays when it blasts;
-  rides the torpedo's own destroy event, so it fires even when a torpedo is shot
-  down. Omit for a silent detonation.
+- `detonation_sound` (optional) - the sound the warhead plays when it blasts.
+  Omit for a silent detonation.
+- `dud_sound` (optional) - the sound a torpedo plays when it strikes a hull or a
+  rock and breaks up with its warhead unfired
+  (`dep://base/sounds/torpedo_dud.wav` is the base clank); omit for a silent
+  dud.
+- `intercept_sound` (optional) - the sound a torpedo plays when a round or a
+  blast destroys it before it fuzes (`dep://base/sounds/torpedo_intercept.wav`
+  is the base pop); omit for a silent intercept. A dud and an intercept never
+  play `detonation_sound`.
 - `door_sound` (optional) - the muzzle iris servo
   (`dep://base/sounds/bay_door.wav` is the base one), played on BOTH edges of
   its travel: one servo, two directions, one file. A bay that authors no

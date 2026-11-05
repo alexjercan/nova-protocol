@@ -1739,6 +1739,7 @@ pub(crate) fn hull_components(design: &ResolvedShipDesign) -> impl Bundle {
             warn_lock: presentation.warn_lock_sound.clone(),
             ammo_dry: presentation.ammo_dry_sound.clone(),
             warn_hull: presentation.warn_hull_sound.clone(),
+            kill_confirm: presentation.kill_confirm_sound.clone(),
             rcs_loop: presentation.rcs_loop_sound.clone(),
         },
         ShipHullWarning(presentation.warn_hull_fraction.clamp(0.0, 1.0)),

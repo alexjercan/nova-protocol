@@ -89,6 +89,8 @@ pub(crate) const WARN_LOCK_SOUND: &str = "base/sounds/warn_lock.wav";
 pub(crate) const AMMO_DRY_SOUND: &str = "base/sounds/ammo_dry.wav";
 /// The hull is critical.
 pub(crate) const WARN_HULL_SOUND: &str = "base/sounds/warn_hull.wav";
+/// The ship's torpedo got the kill.
+pub(crate) const KILL_CONFIRM_SOUND: &str = "base/sounds/kill_confirm.wav";
 /// The RCS fine-adjust loop, sustained while the ship burns it.
 pub(crate) const RCS_LOOP_SOUND: &str = "base/sounds/rcs_loop.wav";
 

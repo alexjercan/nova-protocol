@@ -10,7 +10,11 @@
 //!   (`On<Add, TurretBulletProjectileMarker>`, authored-or-silent);
 //! - a torpedo spawned -> the bay's authored `launch_sound`
 //!   (`On<Add, TorpedoProjectileMarker>`, authored-or-silent);
-//! - a lance discharging -> the railgun's authored `fire_sound` (`On<RailgunFired>`).
+//! - a lance discharging -> the railgun's authored `fire_sound` (`On<RailgunFired>`);
+//! - a torpedo dying unfired -> the bay's authored `dud_sound` or
+//!   `intercept_sound` (`On<TorpedoKilled>`);
+//! - the player's torpedo getting the kill -> the ship's authored
+//!   `kill_confirm` stinger (`On<PlayerKillConfirmed>`).
 //!
 //! The continuous cues - the thruster hum and the RCS hiss - are one looping
 //! voice per (ship, authored sound) pair, each following its own ship.
@@ -49,9 +53,9 @@ mod test_support;
 
 use self::{
     combat::{
-        on_collapse_play_hull_loss, on_destroyed_play_explosion, on_railgun_fire_play_sfx,
-        on_reload_complete_play_sfx, on_surface_impact_play_sfx, on_torpedo_launch_play_sfx,
-        on_turret_fire_play_sfx,
+        on_collapse_play_hull_loss, on_destroyed_play_explosion, on_player_kill_play_stinger,
+        on_railgun_fire_play_sfx, on_reload_complete_play_sfx, on_surface_impact_play_sfx,
+        on_torpedo_killed_play_sfx, on_torpedo_launch_play_sfx, on_turret_fire_play_sfx,
     },
     cues::{
         play_dry_fire_cue, play_hull_warning_cue, play_lock_cues, play_safety_engaged_cue,
@@ -85,12 +89,25 @@ const TORPEDO_LAUNCH_VOLUME: f32 = 0.30;
 /// explosion. Raising it is a call for the seat, not for a spreadsheet.
 const RAILGUN_FIRE_VOLUME: f32 = 0.55;
 
+/// A torpedo breaking up on contact, its warhead unfired. Under the impact
+/// band's top and far under the explosion: a dud is a hit with no blast, and
+/// the gap between this and [`EXPLOSION_VOLUME`] is the whole message.
+const TORPEDO_DUD_VOLUME: f32 = 0.24;
+/// A torpedo shot down. A little over the dud - it is the defender's win -
+/// and still well under the explosion, so a salvo broken up by point defense
+/// never sounds like a salvo landing.
+const TORPEDO_INTERCEPT_VOLUME: f32 = 0.26;
+
 /// UI (non-positional) volumes for the lock/safety cues - informational
 /// ticks, kept under the combat sounds.
 const LOCK_ON_VOLUME: f32 = 0.30;
 const LOCK_OFF_VOLUME: f32 = 0.28;
 const SAFETY_ON_VOLUME: f32 = 0.30;
 const RADAR_DENY_VOLUME: f32 = 0.26;
+/// The kill stinger. At the lock chirp's level: both are the computer
+/// reporting a thing the pilot did, and this one must stay under the threat
+/// alarm ([`WARN_LOCK_VOLUME`]).
+const KILL_CONFIRM_VOLUME: f32 = 0.30;
 
 /// The turret dry-fire click and the radar retarget tick. The retarget tick is
 /// the quietest cue of the set - it can repeat several times within one held
@@ -197,6 +214,12 @@ const EXPLOSION_MIN_INTERVAL: f32 = 0.06;
 /// sounds.
 const TORPEDO_LAUNCH_MIN_INTERVAL: f32 = 0.15;
 
+/// Minimum seconds between torpedo-death cues in one area cell. Point defense
+/// breaks a salvo up a few hundredths of a second apart; this keeps the pops
+/// from stacking into one loud one while two kills a beat apart still both
+/// sound.
+const TORPEDO_DEATH_MIN_INTERVAL: f32 = 0.08;
+
 /// The ship's one-shot CUE systems: the cockpit's lock, safety, dry-fire,
 /// threat and hull-warning voices.
 ///
@@ -234,6 +257,8 @@ impl Plugin for ShipAudioPlugin {
         app.add_observer(on_turret_fire_play_sfx);
         app.add_observer(on_torpedo_launch_play_sfx);
         app.add_observer(on_railgun_fire_play_sfx);
+        app.add_observer(on_torpedo_killed_play_sfx);
+        app.add_observer(on_player_kill_play_stinger);
         app.add_observer(on_stow_doors_play_sfx);
         app.add_observer(on_bay_doors_play_sfx);
         app.add_observer(on_intake_door_play_sfx);

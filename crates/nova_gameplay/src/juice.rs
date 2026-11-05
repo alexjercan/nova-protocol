@@ -49,7 +49,10 @@ use crate::{
 
 /// The shake and spark settings, `JuiceSettings` and `NovaJuicePlugin`.
 pub mod prelude {
-    pub use super::{JuiceSettings, NovaJuicePlugin, ShakeSettings, SparkSettings};
+    pub use super::{
+        JuiceSettings, NovaJuicePlugin, PlayerKillConfirmed, QuietDestroyMarker, ShakeSettings,
+        SparkSettings,
+    };
 }
 
 /// Minimum seconds between successive impact / destruction juice events per cell.
@@ -73,6 +76,31 @@ pub enum JuiceEventKind {
     Impact,
     /// A target was destroyed / a torpedo detonated.
     Destroy,
+}
+
+/// Marks a destructible whose destruction throws no destroy juice and plays no
+/// destroy sound: no spark burst, no camera kick, no explosion cue.
+///
+/// For a body whose death has its own look and sound. A torpedo's controller
+/// and thruster sections carry it, because a torpedo that dies is a dud or an
+/// intercept, and `nova_ship` presents each of those itself. The generic
+/// orange burst on top of either told the player nothing about which one it
+/// was, and the explosion cue found the warhead's `detonation_sound` on the
+/// torpedo above the section, so a dud boomed like a hit.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct QuietDestroyMarker;
+
+/// The player's ship got the kill: a hull its torpedo blast damaged was
+/// defeated (destroyed or neutralized) inside the kill-credit window.
+///
+/// Fired once per defeated hull by `nova_ship`'s torpedo kill credit. Declared
+/// here, below every consumer, so the juice and the audio layers can both
+/// answer it.
+#[derive(Event, Clone, Copy, Debug)]
+pub struct PlayerKillConfirmed {
+    /// Where the defeated hull was, in world space.
+    pub at: Vec3,
 }
 
 /// Tunables for the trauma-driven camera shake. Fed into a [`CameraShake`] on the
@@ -297,6 +325,7 @@ impl Plugin for NovaJuicePlugin {
             .register_type::<ShakeSettings>()
             .register_type::<SparkSettings>()
             .register_type::<JuiceEventKind>()
+            .register_type::<QuietDestroyMarker>()
             .init_resource::<JuiceThrottle>();
 
         // The look the burst takes. Added HERE rather than left to the app, so
@@ -480,7 +509,8 @@ fn on_damage_juice(
 }
 
 /// Destruction juice on any destroy (section, asteroid, or torpedo detonation, all
-/// of which funnel through `IntegrityDestroyMarker`).
+/// of which funnel through `IntegrityDestroyMarker`), except a body marked
+/// [`QuietDestroyMarker`].
 #[expect(
     clippy::too_many_arguments,
     reason = "one observer: the settings, the clock, where the death was, what came apart, the listener and the throttle"
@@ -493,11 +523,12 @@ fn on_destroy_juice(
     q_bodies: Query<(&GlobalTransform, Option<&ComputedCenterOfMass>), With<RigidBody>>,
     q_parents: Query<&ChildOf>,
     q_camera: Query<&GlobalTransform, With<SfxListenerMarker>>,
+    q_quiet: Query<(), With<QuietDestroyMarker>>,
     mut throttle: ResMut<JuiceThrottle>,
     mut commands: Commands,
     mut q_shake_input: Query<&mut CameraShakeInput, With<SfxListenerMarker>>,
 ) {
-    if !settings.master_enabled {
+    if !settings.master_enabled || q_quiet.contains(add.entity) {
         return;
     }
     // The destroyed entity has existed for frames, so its GlobalTransform is valid.
