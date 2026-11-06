@@ -572,8 +572,8 @@ fn indicator_state<M: Component>(world: &mut World, what: &str) -> (Vec2, Vec2, 
     (center, size, *visibility)
 }
 
-/// Text of the given readout line. Mandatory: the readout ships with both
-/// lines, so a missing one is a broken HUD.
+/// Text of the given readout line. Mandatory: the readout always fills DST and
+/// CLS, so a missing one is a broken HUD.
 #[cfg(feature = "debug")]
 fn readout_line(world: &mut World, which: TorpedoTargetReadoutLine) -> String {
     world

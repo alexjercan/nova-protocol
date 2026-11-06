@@ -115,7 +115,7 @@ pub struct TorpedoTargetHudMarker;
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TorpedoTargetReticleMarker;
 
-/// Marker for the readout column riding the reticle's right edge.
+/// Marker for the readout column beside the reticle.
 #[derive(Component, Debug, Clone, Reflect)]
 pub struct TorpedoTargetReadoutMarker;
 
@@ -129,6 +129,9 @@ pub enum TorpedoTargetReadoutLine {
     /// `CLS <closing>` - signed closing speed in m/s, positive when
     /// approaching.
     ClosingSpeed,
+    /// `TTI <seconds> s` - time until the player's soonest torpedo reaches the
+    /// locked hull. Hidden while [`PlayerTorpedoEta`] holds no estimate.
+    TimeToImpact,
 }
 
 /// Marker for the health bar backdrop node.
@@ -269,6 +272,21 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                             TextFont::from_font_size(READOUT_FONT_PX),
                             TextLayout {
                                 linebreak: LineBreak::NoWrap,
+                                ..default()
+                            },
+                            Pickable::IGNORE,
+                        ),
+                        (
+                            Name::new("TorpedoTargetReadoutTimeToImpact"),
+                            TorpedoTargetReadoutLine::TimeToImpact,
+                            Text::new(""),
+                            TextFont::from_font_size(READOUT_FONT_PX),
+                            TextLayout {
+                                linebreak: LineBreak::NoWrap,
+                                ..default()
+                            },
+                            Node {
+                                display: Display::None,
                                 ..default()
                             },
                             Pickable::IGNORE,
@@ -518,6 +536,11 @@ pub(crate) fn closing_line(closing: Option<f32>) -> String {
     }
 }
 
+/// The `TTI` line: seconds to one decimal, from [`PlayerTorpedoEta`].
+pub(crate) fn tti_line(seconds: f32) -> String {
+    format!("TTI {seconds:.1} s")
+}
+
 /// Health as a fraction in [0, 1]; a non-positive `max` reads as empty.
 fn health_fraction(health: &Health) -> f32 {
     if health.max <= 0.0 {
@@ -535,8 +558,10 @@ fn health_color(fraction: f32) -> Color {
 
 /// Fill the readout from the locked target: distance and closing speed from
 /// the transforms and `LinearVelocity`s, health bar from the target root's
-/// `Health`. Degrades gracefully: missing velocity on either body blanks the
-/// closing line, a target without `Health` hides the bar. With no lock the
+/// `Health`, time to impact from [`PlayerTorpedoEta`]. Degrades gracefully:
+/// missing velocity on either body blanks the closing line, a target without
+/// `Health` hides the bar, and no estimate takes the time-to-impact line out of
+/// the column rather than showing a number nothing measured. With no lock the
 /// readout is not updated at all - it is a child of the reticle indicator,
 /// which the widget already hides.
 #[expect(clippy::type_complexity, reason = "one query per readout part")]
@@ -546,7 +571,11 @@ fn update_target_readout(
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
     q_target: Query<(&GlobalTransform, Option<&LinearVelocity>, Option<&Health>)>,
-    mut q_lines: Query<(&mut Text, &TorpedoTargetReadoutLine)>,
+    eta: Res<PlayerTorpedoEta>,
+    mut q_lines: Query<
+        (&mut Text, &mut Node, &TorpedoTargetReadoutLine),
+        Without<TorpedoTargetHealthFillMarker>,
+    >,
     mut q_bar: Query<&mut Visibility, With<TorpedoTargetHealthBarMarker>>,
     mut q_fill: Query<(&mut Node, &mut BackgroundColor), With<TorpedoTargetHealthFillMarker>>,
 ) {
@@ -570,13 +599,24 @@ fn update_target_readout(
         _ => None,
     };
 
-    for (mut text, line) in &mut q_lines {
+    for (mut text, mut node, line) in &mut q_lines {
         let content = match line {
-            TorpedoTargetReadoutLine::Distance => distance_line(distance),
-            TorpedoTargetReadoutLine::ClosingSpeed => closing_line(closing),
+            TorpedoTargetReadoutLine::Distance => Some(distance_line(distance)),
+            TorpedoTargetReadoutLine::ClosingSpeed => Some(closing_line(closing)),
+            TorpedoTargetReadoutLine::TimeToImpact => eta.0.map(|eta| tti_line(eta.seconds)),
         };
-        if **text != content {
-            **text = content;
+        let display = if content.is_some() {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != display {
+            node.display = display;
+        }
+        if let Some(content) = content {
+            if **text != content {
+                **text = content;
+            }
         }
     }
 
@@ -682,7 +722,7 @@ mod tests {
             .query::<&TorpedoTargetReadoutLine>()
             .iter(&world)
             .count();
-        assert_eq!(lines, 2, "distance and closing-speed lines");
+        assert_eq!(lines, 3, "distance, closing-speed and time-to-impact lines");
     }
 
     #[test]
@@ -766,6 +806,8 @@ mod tests {
         assert_eq!(closing_line(Some(12.34)), "CLS +123.4 m/s");
         assert_eq!(closing_line(Some(-3.21)), "CLS -32.1 m/s");
         assert_eq!(closing_line(None), "CLS   ---");
+        assert_eq!(tti_line(4.21), "TTI 4.2 s");
+        assert_eq!(tti_line(93.0), "TTI 93.0 s");
     }
 
     #[test]
@@ -907,6 +949,7 @@ mod tests {
     // -- readout system behavior --
 
     fn spawn_readout_world(world: &mut World) -> Entity {
+        world.init_resource::<PlayerTorpedoEta>();
         world.spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()));
         world
             .spawn((
@@ -999,6 +1042,42 @@ mod tests {
             .next()
             .expect("bar exists");
         assert_eq!(bar_visibility, Visibility::Hidden);
+    }
+
+    #[test]
+    fn the_time_to_impact_line_shows_only_while_a_torpedo_eta_exists() {
+        fn line_display(world: &mut World) -> Display {
+            world
+                .query::<(&Node, &TorpedoTargetReadoutLine)>()
+                .iter(world)
+                .find(|(_, line)| **line == TorpedoTargetReadoutLine::TimeToImpact)
+                .map(|(node, _)| node.display)
+                .expect("line exists")
+        }
+
+        let mut world = World::new();
+        let player = spawn_readout_world(&mut world);
+        let target = world.spawn(GlobalTransform::IDENTITY).id();
+        world.get_mut::<CombatLock>(player).unwrap().0 = Some(target);
+
+        world.run_system_once(update_target_readout).unwrap();
+        assert_eq!(line_display(&mut world), Display::None);
+
+        let torpedo = world.spawn_empty().id();
+        world.resource_mut::<PlayerTorpedoEta>().0 = Some(TorpedoEta {
+            torpedo,
+            seconds: 4.2,
+        });
+        world.run_system_once(update_target_readout).unwrap();
+        assert_eq!(line_display(&mut world), Display::Flex);
+        assert_eq!(
+            line_text(&mut world, TorpedoTargetReadoutLine::TimeToImpact),
+            "TTI 4.2 s"
+        );
+
+        world.resource_mut::<PlayerTorpedoEta>().0 = None;
+        world.run_system_once(update_target_readout).unwrap();
+        assert_eq!(line_display(&mut world), Display::None);
     }
 
     // -- focus meter --

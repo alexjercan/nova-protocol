@@ -44,7 +44,7 @@ The iris is honest. A safed bay keeps it shut and so does an empty one, so an op
 
 **A lit torpedo leaves a trail.** A faint cold ribbon follows the drive and stays in the sky after the torpedo has moved on, thinning to nothing: 1.5 seconds of path on High, 0.75 on Medium, none on Low. A salvo's paths stay readable while it runs in. The ribbon ends where point defense breaks a torpedo up.
 
-**Your cockpit counts your torpedo in.** When your soonest torpedo on the hull you have locked is under eight seconds out, the cockpit ticks, and the ticks come faster as it closes: about one a second at eight seconds, a fast patter in the last second. The tone stops the moment no torpedo of yours is closing on your lock.
+**Your cockpit counts your torpedo in.** When your soonest torpedo on the hull you have locked is under eight seconds out, the cockpit ticks, and the ticks come faster as it closes: about one a second at eight seconds, a fast patter in the last second. The tone stops the moment no torpedo of yours is closing on your lock. The lock readout's `TTI` line shows the same estimate in seconds, range over closing speed, so it can move as the torpedo turns and the target maneuvers.
 
 <!-- Verified against crates/nova_ship/src/sections/torpedo_section/trail.rs (TorpedoIgnited starts the emitter, a 0.05 s sample, unparented TempEntity segments, shot-down stops it), crates/nova_gameplay/src/settings.rs GraphicsBudget::trail_seconds (1.5 / 0.75 / 0 s), torpedo_section/eta.rs PlayerTorpedoEta and ship_audio/cues.rs play_torpedo_closing_tone / closing_tick_interval (CLOSING_TONE_START_SECS 8.0, 0.08 + 0.11 s per second of TTI, clamped 0.08-1.0 s). -->
 

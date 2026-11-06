@@ -35,7 +35,7 @@ The three families are three **reaches**, and the ladder is the shape of every f
 
 Enemy gunships close to about a kilometer and fight there, inside everyone's guns. The railgun's reach is nine times that, which is its whole reason to exist: it is the weapon that answers a hostile still burning in, the one that outranges every mount on the ship carrying it, and the only one of the three that arrives before its target can react - a slug is unanswerable in flight, so the charge is the only window the other side gets.
 
-A torpedo owns the long end but pays for it in time. Fired at the edge of its reach a Serpent is a minute and a half out, and every one of those seconds is a second the defender's mounts are working on it. That is why the torpedo fight is about saturation, the railgun fight is about the line, and the gun fight is about closing.
+A torpedo owns the long end but pays for it in time. Fired at the edge of its reach a Serpent is a minute and a half out, and every one of those seconds is a second the defender's mounts are working on it. The lock readout's `TTI` line counts those seconds down. That is why the torpedo fight is about saturation, the railgun fight is about the line, and the gun fight is about closing.
 
 </details>
 

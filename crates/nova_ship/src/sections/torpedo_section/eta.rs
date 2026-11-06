@@ -2,8 +2,8 @@
 //! player's torpedoes reaches the hull the player has locked.
 //!
 //! [`PlayerTorpedoEta`] is the one shared source. The cockpit closing tone
-//! reads it, and the lock readout's time-to-impact line will read the same
-//! number, so the tone and the readout can never disagree.
+//! and the lock readout's time-to-impact line both read it, so the tone and
+//! the readout can never disagree.
 
 use super::*;
 

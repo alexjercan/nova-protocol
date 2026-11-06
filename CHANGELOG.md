@@ -41,6 +41,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - The lock readout now moves to the free side of the reticle to stay on screen and clear of the target inset, and the inset caption sits on a darker slab clear of its corner brackets.
 - At an interface scale other than 100%, the lock bracket and the target and objective markers now sit on their targets. They drew away from them, or off the screen, before.
+- The lock readout now shows TTI, the seconds until your soonest lit torpedo reaches the locked hull. The line hides while no torpedo of yours is closing on the lock.
 
 ### Internals & Tooling
 
