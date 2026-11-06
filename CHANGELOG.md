@@ -37,6 +37,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `TradeProfile` content gives generated ship roles weighted buy/sell lists, with quantity and per-unit price limit, and Procure jobs for their station visits.
 - New `SetTradeProfile` action gives a generated AI trader a trade profile or clears it. An unknown profile or a non-AI target fails lint.
 
+### Interface & HUD
+
+- The lock readout now moves to the free side of the reticle to stay on screen and clear of the target inset, and the inset caption sits on a darker slab clear of its corner brackets.
+- At an interface scale other than 100%, the lock bracket and the target and objective markers now sit on their targets. They drew away from them, or off the screen, before.
+
 ### Internals & Tooling
 
 - `probe scenario` now opens its frame-time window once the scenario is built instead of refusing every capture at the loader's clock hold.

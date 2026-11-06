@@ -353,6 +353,85 @@ fn clamp_box_to_rect(center: Vec2, size: Vec2, viewport: Vec2, margin_px: f32) -
     center.clamp(min, max)
 }
 
+/// The shift (px) that holds `min..max` inside `room_min..room_max`. An extent
+/// wider than the room centres on it, like [`clamp_box_to_rect`].
+fn hold_extent(min: f32, max: f32, room_min: f32, room_max: f32) -> f32 {
+    if max - min > room_max - room_min {
+        (room_min + room_max) / 2.0 - (min + max) / 2.0
+    } else if min < room_min {
+        room_min - min
+    } else if max > room_max {
+        room_max - max
+    } else {
+        0.0
+    }
+}
+
+/// Where a `desired` box must move (UI px) to stay whole inside a `view` inset
+/// by `margin_px` on both axes AND clear of `keep_out` grown by `gap_px`.
+/// Returns the displacement to add to `desired`; zero when it already fits.
+///
+/// The view wins: a box that cannot clear the keep-out without leaving the
+/// margin stays where the view holds it, overlap and all. When it can, the
+/// shortest of the four axis moves that just clear the grown rect is taken, and
+/// a tie takes the vertical move. Stateless on purpose - the same inputs give
+/// the same answer, so a box on the boundary cannot flicker between two
+/// states it remembers.
+pub(crate) fn fit_box(
+    desired: Rect,
+    view: Vec2,
+    margin_px: f32,
+    keep_out: Option<Rect>,
+    gap_px: f32,
+) -> Vec2 {
+    let margin_px = margin_px.max(0.0);
+    let (room_min, room_max) = (Vec2::splat(margin_px), view - margin_px);
+    let held = Vec2::new(
+        hold_extent(desired.min.x, desired.max.x, room_min.x, room_max.x),
+        hold_extent(desired.min.y, desired.max.y, room_min.y, room_max.y),
+    );
+    let Some(keep_out) = keep_out else {
+        return held;
+    };
+    let box_ = Rect {
+        min: desired.min + held,
+        max: desired.max + held,
+    };
+    let grown = keep_out.inflate(gap_px.max(0.0));
+    let overlaps = box_.min.x < grown.max.x
+        && box_.max.x > grown.min.x
+        && box_.min.y < grown.max.y
+        && box_.max.y > grown.min.y;
+    if !overlaps {
+        return held;
+    }
+
+    // Vertical moves first, so a strict `<` below leaves a tie to them.
+    let moves = [
+        Vec2::new(0.0, grown.min.y - box_.max.y),
+        Vec2::new(0.0, grown.max.y - box_.min.y),
+        Vec2::new(grown.min.x - box_.max.x, 0.0),
+        Vec2::new(grown.max.x - box_.min.x, 0.0),
+    ];
+    // Float slack so a move that lands exactly on the margin stays legal.
+    const EDGE_SLACK_PX: f32 = 1e-3;
+    let mut best: Option<Vec2> = None;
+    for shift in moves {
+        let (min, max) = (box_.min + shift, box_.max + shift);
+        if min.x < room_min.x - EDGE_SLACK_PX
+            || min.y < room_min.y - EDGE_SLACK_PX
+            || max.x > room_max.x + EDGE_SLACK_PX
+            || max.y > room_max.y + EDGE_SLACK_PX
+        {
+            continue;
+        }
+        if best.is_none_or(|best| shift.length() < best.length()) {
+            best = Some(shift);
+        }
+    }
+    held + best.unwrap_or(Vec2::ZERO)
+}
+
 /// Direction from the viewport center toward an off-screen projected point.
 /// Falls back to straight down when the point sits on the center.
 fn direction_from_center(pos: Vec2, center: Vec2) -> Vec2 {
@@ -375,6 +454,52 @@ fn arrow_angle(dir: Vec2) -> f32 {
     dir.x.atan2(-dir.y)
 }
 
+/// A camera's projection in UI px: the px a [`Node`]'s `Val::Px` counts.
+///
+/// [`Camera::world_to_viewport`] and [`Camera::logical_viewport_size`] answer
+/// in window logical px. The UI multiplies every `Val::Px` by [`UiScale`], so
+/// a window px is `1 / UiScale` UI px. Every indicator converts here, once;
+/// without it a 150% interface draws each indicator half as far again from
+/// the view's corner as its anchor.
+#[derive(Clone, Copy)]
+pub(crate) struct UiProjection<'a> {
+    camera: &'a Camera,
+    pose: &'a GlobalTransform,
+    ui_scale: f32,
+}
+
+impl<'a> UiProjection<'a> {
+    /// The projection of `camera` at `pose` for a UI drawn at `ui_scale`.
+    pub(crate) fn new(camera: &'a Camera, pose: &'a GlobalTransform, ui_scale: &UiScale) -> Self {
+        Self {
+            camera,
+            pose,
+            ui_scale: ui_scale.0,
+        }
+    }
+
+    /// The size of the view, or `None` while the camera has no target.
+    pub(crate) fn view_size(&self) -> Option<Vec2> {
+        self.camera
+            .logical_viewport_size()
+            .map(|size| size / self.ui_scale)
+    }
+
+    /// Where `world` lands on the view, or `None` when it does not project
+    /// (behind the camera).
+    pub(crate) fn point(&self, world: Vec3) -> Option<Vec2> {
+        self.camera
+            .world_to_viewport(self.pose, world)
+            .ok()
+            .map(|point| point / self.ui_scale)
+    }
+
+    /// The camera's right vector in the world.
+    pub(crate) fn right(&self) -> Dir3 {
+        self.pose.right()
+    }
+}
+
 /// The on-screen RADIUS (px) of a world-space bounding radius about
 /// `anchor_pos`: project a point one radius toward the camera's right and read
 /// the pixel distance from the anchor's own projected point. Only the anchor
@@ -385,13 +510,9 @@ fn projected_radius_px(
     world_radius: f32,
     anchor_pos: Vec3,
     center: Vec2,
-    camera_transform: &GlobalTransform,
-    camera: &Camera,
+    projection: UiProjection,
 ) -> Option<f32> {
-    let edge_world = anchor_pos + camera_transform.right() * world_radius;
-    let edge = camera
-        .world_to_viewport(camera_transform, edge_world)
-        .ok()?;
+    let edge = projection.point(anchor_pos + projection.right() * world_radius)?;
     Some(center.distance(edge))
 }
 
@@ -429,15 +550,14 @@ fn clearance_offset(
     world_radius: Option<f32>,
     anchor_pos: Vec3,
     projected: Option<Vec2>,
-    camera_transform: &GlobalTransform,
-    camera: &Camera,
+    projection: UiProjection,
 ) -> Vec2 {
     let Some(direction) = clearance.direction.try_normalize() else {
         return Vec2::ZERO;
     };
     let edge = match (world_radius, projected) {
         (Some(radius), Some(center)) => {
-            projected_radius_px(radius, anchor_pos, center, camera_transform, camera).unwrap_or(0.0)
+            projected_radius_px(radius, anchor_pos, center, projection).unwrap_or(0.0)
         }
         _ => 0.0,
     };
@@ -465,8 +585,7 @@ fn indicator_size(
     anchor_entity: Option<Entity>,
     anchor_pos: Vec3,
     projected: Option<Vec2>,
-    camera_transform: &GlobalTransform,
-    camera: &Camera,
+    projection: UiProjection,
     q_children: &Query<&Children>,
     q_aabb: &Query<&ColliderAabb, Without<Sensor>>,
 ) -> Vec2 {
@@ -482,7 +601,7 @@ fn indicator_size(
             let Some((_, radius)) = subtree_bounding_sphere(entity, q_children, q_aabb) else {
                 return fallback;
             };
-            projected_radius_px(radius * scale, anchor_pos, center, camera_transform, camera)
+            projected_radius_px(radius * scale, anchor_pos, center, projection)
                 .map(|px| Vec2::splat((2.0 * px).max(min_px)))
                 .unwrap_or(fallback)
         }
@@ -531,6 +650,7 @@ fn update_screen_indicators(
         ),
     >,
     q_camera: Query<(Entity, &Camera), With<ScreenIndicatorCamera>>,
+    ui_scale: Res<UiScale>,
 ) {
     // Without a projection camera every indicator hides, rather than freezing
     // at a stale position. More than one tagged camera is a consumer bug:
@@ -566,7 +686,8 @@ fn update_screen_indicators(
             continue;
         };
         let camera_transform = &camera_transform;
-        let Some(viewport) = camera.logical_viewport_size() else {
+        let projection = UiProjection::new(camera, camera_transform, &ui_scale);
+        let Some(viewport) = projection.view_size() else {
             visibility.set_if_neq(Visibility::Hidden);
             continue;
         };
@@ -594,7 +715,7 @@ fn update_screen_indicators(
 
         // Err here means the anchor does not project (behind the camera); the
         // viewport size was checked above.
-        let projected = camera.world_to_viewport(camera_transform, anchor_pos).ok();
+        let projected = projection.point(anchor_pos);
         let view_pos = camera_transform
             .affine()
             .inverse()
@@ -609,8 +730,7 @@ fn update_screen_indicators(
             anchor_entity,
             anchor_pos,
             projected,
-            camera_transform,
-            camera,
+            projection,
             &q_children,
             &q_aabb,
         );
@@ -624,8 +744,7 @@ fn update_screen_indicators(
                     }),
                     anchor_pos,
                     projected,
-                    camera_transform,
-                    camera,
+                    projection,
                 )
             });
 
@@ -774,6 +893,90 @@ mod tests {
     }
 
     #[test]
+    fn a_box_is_held_inside_the_view_on_both_axes() {
+        let view = Vec2::new(800.0, 600.0);
+        let rect = |x: f32, y: f32, w: f32, h: f32| Rect::new(x, y, x + w, y + h);
+
+        // Already inside the margin: no move.
+        assert_eq!(
+            fit_box(rect(100.0, 100.0, 80.0, 30.0), view, 12.0, None, 12.0),
+            Vec2::ZERO
+        );
+        // Past the right and bottom edges: pulled back to the margin on both.
+        assert_eq!(
+            fit_box(rect(760.0, 580.0, 80.0, 30.0), view, 12.0, None, 12.0),
+            Vec2::new(-52.0, -22.0)
+        );
+        // Past the left and top edges: pushed in to the margin on both.
+        assert_eq!(
+            fit_box(rect(-30.0, -10.0, 80.0, 30.0), view, 12.0, None, 12.0),
+            Vec2::new(42.0, 22.0)
+        );
+        // Wider than the room: centred on that axis, not clamped to one side.
+        assert_eq!(
+            fit_box(rect(0.0, 100.0, 900.0, 30.0), view, 12.0, None, 12.0),
+            Vec2::new(-50.0, 0.0)
+        );
+    }
+
+    #[test]
+    fn a_box_over_a_keep_out_takes_the_shortest_move_that_stays_in_view() {
+        let view = Vec2::new(800.0, 600.0);
+        let rect = |x: f32, y: f32, w: f32, h: f32| Rect::new(x, y, x + w, y + h);
+        let inset = rect(544.0, 12.0, 244.0, 244.0);
+
+        // The grown keep-out is (532, 0)-(800, 268). A box hanging 20 px into
+        // it clears downward (to y = 268) cheaper than leftward.
+        let desired = rect(600.0, 248.0, 100.0, 60.0);
+        let shift = fit_box(desired, view, 12.0, Some(inset), 12.0);
+        assert_eq!(shift, Vec2::new(0.0, 20.0));
+
+        // Deep in the keep-out's corner the left move is the shorter one.
+        let desired = rect(500.0, 100.0, 100.0, 60.0);
+        let shift = fit_box(desired, view, 12.0, Some(inset), 12.0);
+        assert_eq!(shift, Vec2::new(-68.0, 0.0));
+
+        // Down would leave the view: the box moves up instead of off-screen,
+        // and with no legal move at all the view keeps its hold.
+        let near_floor = rect(560.0, 300.0, 100.0, 60.0);
+        let low_view = Vec2::new(800.0, 372.0);
+        assert_eq!(
+            fit_box(
+                near_floor,
+                low_view,
+                12.0,
+                Some(rect(500.0, 280.0, 200.0, 60.0)),
+                0.0
+            ),
+            Vec2::new(0.0, -80.0),
+            "the up move clears the keep-out and stays in view"
+        );
+        let squeezed = rect(560.0, 130.0, 100.0, 60.0);
+        let tight_view = Vec2::new(800.0, 184.0);
+        assert_eq!(
+            fit_box(
+                squeezed,
+                tight_view,
+                12.0,
+                Some(rect(0.0, 0.0, 800.0, 184.0)),
+                0.0
+            ),
+            Vec2::new(0.0, -18.0),
+            "nothing clears the keep-out inside the view, so only the hold applies"
+        );
+
+        // A tie between a vertical and a horizontal move takes the vertical.
+        let tie = fit_box(
+            rect(300.0, 300.0, 100.0, 100.0),
+            view,
+            12.0,
+            Some(rect(250.0, 250.0, 200.0, 200.0)),
+            0.0,
+        );
+        assert_eq!(tie, Vec2::new(0.0, -150.0));
+    }
+
+    #[test]
     fn clamp_box_to_rect_degenerate_box_centers() {
         // A box wider than the viewport must not panic (f32::clamp panics on
         // min > max); it degenerates to the center.
@@ -907,9 +1110,11 @@ mod tests {
         (Transform::IDENTITY, camera)
     }
 
+    /// The rig's view: the test camera and a UI at 100%.
     fn spawn_camera(world: &mut World) {
         let (transform, camera) = test_camera();
         world.spawn((transform, camera, ScreenIndicatorCamera));
+        world.init_resource::<UiScale>();
     }
 
     fn node_rect(world: &World, entity: Entity) -> (f32, f32, f32, f32) {
@@ -919,6 +1124,34 @@ mod tests {
             other => panic!("expected Val::Px, got {other:?}"),
         };
         (px(node.left), px(node.top), px(node.width), px(node.height))
+    }
+
+    /// The camera answers in window px and the UI multiplies `Val::Px` by the
+    /// interface scale. At 150% an indicator is written at two thirds of its
+    /// window position, or it draws half as far again from the view's corner
+    /// as its anchor.
+    #[test]
+    fn an_indicator_stays_on_its_anchor_at_a_larger_interface_scale() {
+        let mut world = World::new();
+        spawn_camera(&mut world);
+        world.resource_mut::<UiScale>().0 = 1.5;
+        let indicator = world
+            .spawn(screen_indicator(ScreenIndicatorConfig {
+                anchor: Some(ScreenIndicatorAnchorKind::Point(Vec3::new(0.0, 0.0, -10.0))),
+                size: ScreenIndicatorSize::Fixed(Vec2::splat(30.0)),
+                ..default()
+            }))
+            .id();
+
+        world.run_system_once(update_screen_indicators).unwrap();
+
+        // The anchor is at the window centre, (400, 300) window px.
+        let (left, top, width, height) = node_rect(&world, indicator);
+        let centre = Vec2::new(left + width / 2.0, top + height / 2.0);
+        assert!(
+            centre.distance(Vec2::new(400.0, 300.0) / 1.5) < 0.01,
+            "the indicator centre is {centre} UI px"
+        );
     }
 
     #[test]
@@ -1358,6 +1591,7 @@ mod tests {
     #[test]
     fn missing_camera_hides_indicators() {
         let mut world = World::new();
+        world.init_resource::<UiScale>();
         let indicator = world
             .spawn(screen_indicator(ScreenIndicatorConfig {
                 anchor: Some(ScreenIndicatorAnchorKind::Point(Vec3::new(0.0, 0.0, -10.0))),
@@ -1416,6 +1650,8 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, TransformPlugin, ChaseCameraPlugin));
         app.add_plugins(ScreenIndicatorPlugin);
+        // `UiPlugin` owns the scale in the game; this rig has no UI stack.
+        app.init_resource::<UiScale>();
         // The production camera-write order: the chase move lands before
         // propagation, so the rendered camera pose is this frame's.
         app.add_plugins(nova_ship::camera::CameraAuthorityPlugin);

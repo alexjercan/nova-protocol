@@ -104,6 +104,18 @@ const INSET_BORDER_SAFE_COLOR: Color = Color::srgba(0.65, 0.7, 0.75, 0.8);
 const INSET_TICK_LEN_PX: f32 = 16.0;
 const INSET_TICK_THICK_PX: f32 = 4.0;
 
+/// How far a tick stands off the panel edge it hugs.
+const INSET_TICK_OFFSET_PX: f32 = 2.0;
+
+/// The caption's left offset: past the bottom-left tick's arm (its offset plus
+/// its length) and a 2 px gap, so the caption never covers the armed corner.
+const INSET_CAPTION_LEFT_PX: f32 = INSET_TICK_OFFSET_PX + INSET_TICK_LEN_PX + 2.0;
+
+/// The caption slab's alpha. Denser than a HUD chip's: a chip sits over
+/// space, the caption over the lit hull in the viewfinder image, where the
+/// chip fill left red text on pale plating.
+const INSET_CAPTION_FILL_ALPHA: f32 = 0.85;
+
 /// Faction-line colors: the relation palette the retired reticle tint used,
 /// now living on the inset's rich surface.
 const FACTION_HOSTILE_COLOR: Color = nova_ui::theme::semantic::THREAT;
@@ -301,7 +313,7 @@ fn armed_tick(horizontal: bool, right: bool, bottom: bool) -> impl Bundle {
     } else {
         (Val::Px(INSET_TICK_THICK_PX), Val::Px(INSET_TICK_LEN_PX))
     };
-    let offset = Val::Px(2.0);
+    let offset = Val::Px(INSET_TICK_OFFSET_PX);
     let auto = Val::Auto;
     (
         Name::new("ArmedTick"),
@@ -319,6 +331,36 @@ fn armed_tick(horizontal: bool, right: bool, bottom: bool) -> impl Bundle {
         BackgroundColor(INSET_BORDER_HOT_COLOR),
         Visibility::Hidden,
     )
+}
+
+/// The shown inset panel as a rect other HUD pieces keep clear of.
+///
+/// Read from the panel's own `Node` and the view size rather than from last
+/// frame's layout: the panel is a root UI node, so its containing block is the
+/// whole view and `right`/`top`/`width`/`height` in px place it exactly. That
+/// holds in the same frame `clear_the_status_bar` moves it, and needs no
+/// layout pass in a unit test.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct TargetInsetKeepOut<'w, 's> {
+    q_panel: Query<'w, 's, (&'static Node, &'static Visibility), With<TargetInsetHudMarker>>,
+}
+
+impl TargetInsetKeepOut<'_, '_> {
+    /// The panel's rect in UI px on a `view` of that size, or `None` while the
+    /// panel is hidden (or not placed in px).
+    pub(crate) fn rect(&self, view: Vec2) -> Option<Rect> {
+        let (node, visibility) = self.q_panel.iter().next()?;
+        if *visibility == Visibility::Hidden {
+            return None;
+        }
+        let (Val::Px(right), Val::Px(top), Val::Px(width), Val::Px(height)) =
+            (node.right, node.top, node.width, node.height)
+        else {
+            return None;
+        };
+        let left = view.x - right - width;
+        Some(Rect::new(left, top, left + width, top + height))
+    }
 }
 
 /// The inset panel bundle: a corner-anchored node showing the render target,
@@ -389,7 +431,7 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
                 TextColor(INSET_BORDER_SAFE_COLOR),
                 Node {
                     position_type: PositionType::Absolute,
-                    left: Val::Px(4.0),
+                    left: Val::Px(INSET_CAPTION_LEFT_PX),
                     bottom: Val::Px(4.0),
                     // The caption is the inset's header cell (demo 2 `.zh`):
                     // a small-caps line on the family's slab, not loose text
@@ -398,7 +440,7 @@ pub fn target_inset_hud(image: Handle<Image>) -> impl Bundle {
                     border_radius: BorderRadius::all(Val::Px(nova_ui::hud::CHIP_RADIUS)),
                     ..default()
                 },
-                BackgroundColor(nova_ui::hud::CHIP_FILL_QUIET),
+                BackgroundColor(nova_ui::hud::CHIP_FILL.with_alpha(INSET_CAPTION_FILL_ALPHA)),
             ),
             armed_tick(true, false, false),
             armed_tick(false, false, false),
@@ -1167,6 +1209,47 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
+
+    // -- caption --
+
+    /// The caption sits on the inside of the bottom edge, so its box must stay
+    /// clear of every armed corner tick, the bottom-left L first.
+    #[test]
+    fn the_inset_caption_clears_the_corner_brackets() {
+        use crate::chip_layout_rig::{chip_layout_app, measure, settle};
+
+        let mut app = chip_layout_app();
+        app.world_mut()
+            .spawn(target_inset_hud(Handle::<Image>::default()));
+        let caption = app
+            .world_mut()
+            .query_filtered::<Entity, With<TargetInsetCaptionMarker>>()
+            .single(app.world())
+            .expect("one caption");
+        app.world_mut().entity_mut(caption).insert(Text::new(
+            "RAIDER 1 - NEUTRALIZED\nDST 12.50 km  CLS +100.0 m/s",
+        ));
+        settle(&mut app);
+
+        let caption_rect = measure(&app, caption).rect;
+        assert!(
+            caption_rect.width() > 0.0,
+            "delivery guard: the caption was laid out"
+        );
+        let ticks: Vec<Entity> = app
+            .world_mut()
+            .query_filtered::<Entity, With<TargetInsetArmedTickMarker>>()
+            .iter(app.world())
+            .collect();
+        assert_eq!(ticks.len(), 8, "delivery guard: two ticks per corner");
+        for tick in ticks {
+            let tick_rect = measure(&app, tick).rect;
+            assert!(
+                tick_rect.intersect(caption_rect).is_empty(),
+                "the caption {caption_rect:?} covers the tick {tick_rect:?}"
+            );
+        }
+    }
 
     // -- placement --
 

@@ -6,10 +6,10 @@
 //! A thin consumer of the [`screen_indicator`](mod@super::screen_indicator)
 //! widget: the widget owns projection, sizing and visibility; this module
 //! spawns the reticle, drives its anchor from the lock resource, and fills
-//! the readout content. The readout is a child of the reticle node at
-//! `left: 100%`, so UI layout keeps it on the reticle's scaled edge and
-//! visibility inheritance hides it with the reticle - no projection or
-//! visibility code of its own.
+//! the readout content. The readout is a child of the reticle node, so
+//! visibility inheritance hides it with the reticle. Its slot is chosen by
+//! `fit_lock_readout` after the indicator pass: beside the reticle, on
+//! whichever side keeps it inside the view and clear of the target inset.
 //!
 //! The lock's range and closing speed arrive as ENGINE figures (world units,
 //! one of which is 10 m, off a transform and an avian `LinearVelocity`). They
@@ -17,7 +17,7 @@
 //! `MetersPerSecond::from_engine`, and `nova_ui::units` formats them.
 
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{prelude::*, ui::UiSystems};
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
@@ -26,7 +26,7 @@ use nova_ui::{
     theme::combat,
 };
 
-use crate::prelude::*;
+use crate::{prelude::*, screen_indicator::fit_box, target_inset::TargetInsetKeepOut};
 
 /// Minimum on-screen size (px) of the target reticle. This is its historical
 /// fixed size: the reticle grows to match larger targets but never shrinks
@@ -37,8 +37,17 @@ const MIN_RETICLE_PX: f32 = 32.0;
 /// Font size (px) of the readout lines, matching the flight-status readout.
 const READOUT_FONT_PX: f32 = 14.0;
 
-/// Gap (px) between the reticle edge and the readout column.
+/// Gap (px) between the reticle edge and the readout's near edge while the
+/// readout holds [`LOCK_READOUT_EMPHASIS`]. The hold grows the readout about
+/// its own centre, so a gap measured at rest let the hot readout touch the
+/// reticle bracket.
 const READOUT_GAP_PX: f32 = 8.0;
+
+/// The least clear space between the readout and every edge of the view (px).
+const READOUT_VIEW_MARGIN_PX: f32 = 12.0;
+
+/// The least clear space between the readout and the target inset panel (px).
+const READOUT_INSET_GAP_PX: f32 = 12.0;
 
 /// Peak scale of the lock readout while the weapons are hot - demo 2's
 /// `.lock-read.emph`.
@@ -217,11 +226,11 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
                     TorpedoTargetReadoutMarker,
                     Node {
                         position_type: PositionType::Absolute,
-                        // Riding the reticle's right edge: `left: 100%` of the
-                        // reticle node tracks its ApparentSize scaling for free.
-                        left: Val::Percent(100.0),
+                        // Beside the reticle, relative to its top-left corner.
+                        // `fit_lock_readout` writes both every frame the
+                        // reticle is shown.
+                        left: Val::Px(0.0),
                         top: Val::Px(0.0),
-                        margin: UiRect::left(Val::Px(READOUT_GAP_PX)),
                         flex_direction: FlexDirection::Column,
                         align_items: AlignItems::FlexStart,
                         row_gap: Val::Px(2.0),
@@ -298,7 +307,8 @@ pub fn torpedo_target_hud(config: TorpedoTargetHudConfig) -> impl Bundle {
 /// meter.
 /// Adds `drive_reticle_anchor`, `update_target_readout`, `update_focus_meter`
 /// and `emphasize_lock_on_weapons_hot` in Update within
-/// [`super::NovaHudSystems`].
+/// [`super::NovaHudSystems`], and `fit_lock_readout` in PostUpdate after
+/// `ScreenIndicatorSystems` and before UI layout.
 #[derive(Default)]
 pub struct TorpedoTargetHudPlugin;
 
@@ -314,6 +324,126 @@ impl Plugin for TorpedoTargetHudPlugin {
             )
                 .in_set(super::NovaHudSystems),
         );
+        // The slot needs the reticle box the indicator pass just wrote, and
+        // must land before layout reads the readout's `left`/`top`.
+        app.add_systems(
+            PostUpdate,
+            fit_lock_readout
+                .after(ScreenIndicatorSystems)
+                .before(UiSystems::Layout),
+        );
+    }
+}
+
+/// The gap (px) a `width` readout stands off the reticle at rest, so that its
+/// near edge is [`READOUT_GAP_PX`] off at the hold emphasis.
+fn readout_rest_gap(width: f32) -> f32 {
+    READOUT_GAP_PX + (LOCK_READOUT_EMPHASIS - 1.0) * width / 2.0
+}
+
+/// The readout's `left`/`top` (px, from the reticle's top-left corner) that
+/// keeps it inside the view and clear of `keep_out`.
+///
+/// Slots in order: right of the reticle, then left of it. The first whose
+/// swept box needs no move wins; with neither free the right slot takes its
+/// displacement, so the view still holds the readout whole.
+///
+/// The swept box is the rest box united with the box at the composed peak. The
+/// readout is a child of the reticle, and a node's `UiTransform` scale acts
+/// about its own centre while its parent's scales the child's offset from the
+/// PARENT's centre. So at the peak the readout's centre sits at
+/// `reticle_centre + RETICLE_FIRING_PULSE * (rest_centre - reticle_centre)`
+/// and its size is scaled by both. Every in-between box lies in the union, so
+/// a hot, firing lock clears the inset at its largest.
+///
+/// A non-zero displacement moves the rest box one-to-one but the peak box by
+/// the reticle's pulse scale; the extra 12 % of the move lands away from the
+/// keep-out, and into the view margin by at most 12 % of the move.
+fn lock_readout_origin(reticle: Rect, size: Vec2, view: Vec2, keep_out: Option<Rect>) -> Vec2 {
+    let centre = reticle.center();
+    let displacement = |min: Vec2| {
+        let rest = Rect::from_corners(min, min + size);
+        let peak = Rect::from_center_size(
+            centre + (rest.center() - centre) * RETICLE_FIRING_PULSE,
+            size * (RETICLE_FIRING_PULSE * LOCK_READOUT_EMPHASIS),
+        );
+        fit_box(
+            rest.union(peak),
+            view,
+            READOUT_VIEW_MARGIN_PX,
+            keep_out,
+            READOUT_INSET_GAP_PX,
+        )
+    };
+    let gap = readout_rest_gap(size.x);
+    let right = Vec2::new(reticle.max.x + gap, reticle.min.y);
+    let left = Vec2::new(reticle.min.x - gap - size.x, reticle.min.y);
+    let origin = if displacement(right) == Vec2::ZERO {
+        right
+    } else if displacement(left) == Vec2::ZERO {
+        left
+    } else {
+        right + displacement(right)
+    };
+    origin - reticle.min
+}
+
+/// Place the lock readout beside the reticle, on the side that stays in view
+/// and clear of the target inset.
+///
+/// Reads the reticle box the indicator pass wrote this frame (px) and the
+/// readout's last measured size, so a readout that changes length is off by
+/// that change for one frame. Writes only on change.
+fn fit_lock_readout(
+    inset: TargetInsetKeepOut,
+    q_camera: Query<&Camera, With<ScreenIndicatorCamera>>,
+    ui_scale: Res<UiScale>,
+    q_reticle: Query<
+        (&Node, &Visibility),
+        (
+            With<TorpedoTargetReticleMarker>,
+            Without<TorpedoTargetReadoutMarker>,
+        ),
+    >,
+    mut q_readout: Query<
+        (&mut Node, &ComputedNode, &ChildOf),
+        (
+            With<TorpedoTargetReadoutMarker>,
+            Without<TargetInsetHudMarker>,
+        ),
+    >,
+) {
+    let Some(view) = q_camera
+        .iter()
+        .next()
+        .and_then(|camera| camera.logical_viewport_size())
+        .map(|size| size / ui_scale.0)
+    else {
+        return;
+    };
+    let keep_out = inset.rect(view);
+    for (mut node, computed, &ChildOf(parent)) in &mut q_readout {
+        let Ok((reticle, visibility)) = q_reticle.get(parent) else {
+            continue;
+        };
+        if *visibility == Visibility::Hidden {
+            continue;
+        }
+        let (Val::Px(left), Val::Px(top), Val::Px(width), Val::Px(height)) =
+            (reticle.left, reticle.top, reticle.width, reticle.height)
+        else {
+            continue;
+        };
+        let reticle = Rect::new(left, top, left + width, top + height);
+        let size = computed.size() * computed.inverse_scale_factor();
+        let origin = lock_readout_origin(reticle, size, view, keep_out);
+        let (want_left, want_top) = (Val::Px(origin.x), Val::Px(origin.y));
+        if node.left != want_left {
+            node.left = want_left;
+        }
+        if node.top != want_top {
+            node.top = want_top;
+        }
     }
 }
 
@@ -645,6 +775,133 @@ mod tests {
         assert_eq!(health_fraction(&health(150.0, 100.0)), 1.0);
         assert_eq!(health_fraction(&health(-5.0, 100.0)), 0.0);
         assert_eq!(health_fraction(&health(5.0, 0.0)), 0.0);
+    }
+
+    // -- readout slot --
+
+    /// The reproduced failure at 1280x720 with a 150 % interface: a view of
+    /// 853.33 x 480 UI px, the inset in its corner, the reticle left of it, and
+    /// the readout's right slot running under the inset's left edge.
+    #[test]
+    fn the_lock_readout_takes_the_free_side_of_the_reticle_when_the_inset_holds_its_slot() {
+        use bevy::camera::{ComputedCameraValues, RenderTargetInfo};
+
+        let mut world = World::new();
+        world.insert_resource(UiScale(1.5));
+        world.spawn((
+            Camera {
+                computed: ComputedCameraValues {
+                    target_info: Some(RenderTargetInfo {
+                        physical_size: UVec2::new(1280, 720),
+                        scale_factor: 1.0,
+                    }),
+                    ..default()
+                },
+                ..default()
+            },
+            ScreenIndicatorCamera,
+        ));
+        world.spawn(torpedo_target_hud(TorpedoTargetHudConfig::default()));
+        let inset = world
+            .spawn(target_inset_hud(Handle::<Image>::default()))
+            .id();
+        let reticle_entity = world
+            .query_filtered::<Entity, With<TorpedoTargetReticleMarker>>()
+            .single(&world)
+            .unwrap();
+        let readout_entity = world
+            .query_filtered::<Entity, With<TorpedoTargetReadoutMarker>>()
+            .single(&world)
+            .unwrap();
+
+        let view = Vec2::new(1280.0, 720.0) / 1.5;
+        let reticle = Rect::new(314.7, 113.3, 314.7 + 147.3, 113.3 + 146.7);
+        {
+            let mut node = world.get_mut::<Node>(reticle_entity).unwrap();
+            node.left = Val::Px(reticle.min.x);
+            node.top = Val::Px(reticle.min.y);
+            node.width = Val::Px(reticle.width());
+            node.height = Val::Px(reticle.height());
+        }
+        world.entity_mut(reticle_entity).insert(Visibility::Visible);
+        let readout_size = Vec2::new(122.0, 65.0);
+        let gap = readout_rest_gap(readout_size.x);
+        // What the hold emphasis adds to each side of the readout.
+        let hold_growth = (LOCK_READOUT_EMPHASIS - 1.0) * readout_size.x / 2.0;
+        world.entity_mut(readout_entity).insert(ComputedNode {
+            size: readout_size * 1.5,
+            inverse_scale_factor: 1.0 / 1.5,
+            ..default()
+        });
+
+        let readout_rest = |world: &World| {
+            let node = world.get::<Node>(readout_entity).unwrap();
+            let (Val::Px(left), Val::Px(top)) = (node.left, node.top) else {
+                panic!(
+                    "the readout is not placed in px: {:?} {:?}",
+                    node.left, node.top
+                );
+            };
+            Rect::from_corners(
+                reticle.min + Vec2::new(left, top),
+                reticle.min + Vec2::new(left, top) + readout_size,
+            )
+        };
+        let overlaps = |a: Rect, b: Rect| {
+            a.min.x < b.max.x && a.max.x > b.min.x && a.min.y < b.max.y && a.max.y > b.min.y
+        };
+
+        // Shown: the panel is the inset's real rect.
+        world.entity_mut(inset).insert(Visibility::Visible);
+        let panel = Rect::new(view.x - 12.0 - 256.0, 12.0, view.x - 12.0, 12.0 + 256.0);
+        assert!(
+            overlaps(
+                Rect::from_corners(
+                    Vec2::new(reticle.max.x + gap, reticle.min.y),
+                    Vec2::new(reticle.max.x + gap, reticle.min.y) + readout_size,
+                ),
+                panel
+            ),
+            "delivery guard: the right slot is under the inset"
+        );
+        world.run_system_once(fit_lock_readout).unwrap();
+        let rest = readout_rest(&world);
+        // The same box at the composed firing peak: the reticle scales the
+        // readout's offset from its own centre, the readout scales itself.
+        let peak = Rect::from_center_size(
+            reticle.center() + (rest.center() - reticle.center()) * RETICLE_FIRING_PULSE,
+            readout_size * (RETICLE_FIRING_PULSE * LOCK_READOUT_EMPHASIS),
+        );
+        let room = Rect::new(12.0, 12.0, view.x - 12.0, view.y - 12.0);
+        for (what, shape) in [("rest", rest), ("peak", peak)] {
+            assert!(
+                !overlaps(shape, panel.inflate(12.0)),
+                "the {what} readout {shape:?} is under the inset {panel:?}"
+            );
+            assert!(
+                shape.min.cmpge(room.min - 0.01).all() && shape.max.cmple(room.max + 0.01).all(),
+                "the {what} readout {shape:?} leaves the view {room:?}"
+            );
+        }
+        assert!(
+            rest.max.x <= reticle.min.x,
+            "the readout moved to the left of the reticle"
+        );
+        assert!(
+            (reticle.min.x - (rest.max.x + hold_growth) - READOUT_GAP_PX).abs() < 0.01,
+            "the held readout {rest:?} is not {READOUT_GAP_PX} px off the reticle {reticle:?}"
+        );
+
+        // Hidden: nothing holds the right slot, so the readout keeps it.
+        world.entity_mut(inset).insert(Visibility::Hidden);
+        world.run_system_once(fit_lock_readout).unwrap();
+        let node = world.get::<Node>(readout_entity).unwrap();
+        // Its near edge is the gap off the reticle once the hold has grown it.
+        assert_eq!(
+            node.left,
+            Val::Px(reticle.width() + READOUT_GAP_PX + hold_growth)
+        );
+        assert_eq!(node.top, Val::Px(0.0));
     }
 
     // -- readout system behavior --
