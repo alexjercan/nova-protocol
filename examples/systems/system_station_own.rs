@@ -117,7 +117,10 @@ mod walk {
             press_action, release_action, shoot, AutopilotPlugin, Predicate, SHOT_DEADLINE_SECS,
         },
         nova_events::engine::GameEvent,
-        nova_interface::{pane::InterfacePaneType, station::STATION_BUY_BUTTON},
+        nova_interface::{
+            pane::InterfacePaneType,
+            station::{STATION_BUY_ASK, STATION_BUY_BUTTON},
+        },
         nova_world_base::prelude::WorldSaveState,
         prelude::*,
     };
@@ -157,6 +160,7 @@ mod walk {
 
     /// The PNGs the capture path shoots.
     const BUY_SHOT: &str = "station-own-buy.png";
+    const ARMED_SHOT: &str = "station-own-armed.png";
     const OWNED_SHOT: &str = "station-own-owned.png";
     const DOCKED_SHOT: &str = "station-own-docked.png";
     const CHART_SHOT: &str = "station-own-chart.png";
@@ -1359,12 +1363,27 @@ mod walk {
             .on_enter(record_before_buy)
             .until(frames(1))
             .add();
-        let script = shoot_the_block(script, "to buy", STATION_BUY_BUTTON, BUY_SHOT).click_named(
-            "station own: buy the station",
-            STATION_BUY_BUTTON,
-            when(|world| station_root(world).is_some_and(|station| owned(world, station))),
-            SESSION_SECS,
-        );
+        let script = shoot_the_block(script, "to buy", STATION_BUY_BUTTON, BUY_SHOT)
+            .click_named(
+                "station own: ask to buy the station",
+                STATION_BUY_BUTTON,
+                ui_node_present(STATION_BUY_ASK),
+                SESSION_SECS,
+            )
+            .step("station own: settle the armed buy")
+            .until(frames(SETTLE_FRAMES))
+            .add()
+            .step("station own: shoot the armed buy")
+            .on_enter(|world: &mut World| shoot(world, ARMED_SHOT))
+            .until(shot_written(ARMED_SHOT))
+            .deadline(SHOT_DEADLINE_SECS)
+            .add()
+            .click_named(
+                "station own: confirm the buy",
+                STATION_BUY_BUTTON,
+                when(|world| station_root(world).is_some_and(|station| owned(world, station))),
+                SESSION_SECS,
+            );
         // The pane pushed its report under the interface pause; the tracker
         // drains it once the clock runs again.
         let script = tap(script, "the interface key", "interface_toggle", unpaused())

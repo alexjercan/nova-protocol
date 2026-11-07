@@ -9,7 +9,7 @@
 
 use bevy::{ecs::relationship::RelatedSpawner, platform::collections::HashSet, prelude::*};
 
-use super::UiText;
+use super::{ThemedRadius, UiText};
 use crate::theme::{ActiveUiTheme, UiMetric, BORDER_W};
 
 /// Marks a panel surface, so the reconciler paints it and repaints it live on a
@@ -147,9 +147,9 @@ pub fn panel_head(title: &str, tag: Option<&str>) -> impl Bundle {
                     Node {
                         padding: UiRect::axes(px(7.0), px(2.0)),
                         border: UiRect::all(px(BORDER_W)),
-                        border_radius: BorderRadius::all(px(4.0)),
                         ..default()
                     },
+                    ThemedRadius::control(),
                     BorderColor::all(Color::NONE),
                     children![(
                         PanelHeadTitle,

@@ -26,7 +26,9 @@ use nova_gameplay::{
     },
     PauseStates,
 };
-use nova_input::prelude::{ActionContext, ActiveContexts, InputBindings, InputSources};
+use nova_input::prelude::{
+    ActionContext, ActiveContexts, InputBindings, InputDeviceType, InputSources,
+};
 use nova_ship::prelude::{GalleryAction, GalleryState, HeldPart};
 use nova_ui::{
     prelude::*,
@@ -140,11 +142,29 @@ pub(crate) fn toggle_interface(
     if !sources.just_pressed(action) {
         return;
     }
-    if ship.is_some_and(|ship| ship.rebind_armed()) {
+    toggle_interface_state(
+        *current.get(),
+        !player.is_empty(),
+        ship.is_some_and(|ship| ship.rebind_armed()),
+        &mut next,
+    );
+}
+
+/// The one open-or-close step the toggle key and the card's Close button
+/// share: flight opens the interface when a player ship exists, the interface
+/// closes to flight, and an armed section rebind refuses both so the capture
+/// is not lost.
+fn toggle_interface_state(
+    current: PauseStates,
+    player_present: bool,
+    rebind_armed: bool,
+    next: &mut NextState<PauseStates>,
+) {
+    if rebind_armed {
         return;
     }
-    match current.get() {
-        PauseStates::Unpaused if !player.is_empty() => next.set(PauseStates::Interface),
+    match current {
+        PauseStates::Unpaused if player_present => next.set(PauseStates::Interface),
         PauseStates::Interface => next.set(PauseStates::Unpaused),
         PauseStates::Unpaused
         | PauseStates::Paused
@@ -300,6 +320,114 @@ pub(crate) struct InterfacePaneBody;
 /// start cell; a scenario with no streamed world never shows it.
 #[derive(Component)]
 pub(crate) struct InterfacePaneClock;
+
+/// The Close button at the right end of the title row.
+#[derive(Component)]
+pub(crate) struct InterfaceCloseButton;
+
+/// The title row's next-pane hint: a key chip and the word `Next`. Hidden
+/// when the card is narrower than [`PANE_FOOTER_SPLIT_PX`].
+#[derive(Component)]
+pub(crate) struct InterfaceNextHint;
+
+/// The key chip of [`InterfaceNextHint`], whose text follows the live
+/// `interface_next_tab` binding.
+#[derive(Component)]
+pub(crate) struct InterfaceNextKey;
+
+/// Width of the Close button's slot in the title row, in logical px: room for
+/// the word, a 14 px key chip of a short key name and the button's padding.
+const CLOSE_SLOT_PX: f32 = 120.0;
+
+/// Close the interface from its Close button, by the path the toggle key
+/// takes.
+fn on_interface_close_click(
+    _activate: On<Activate>,
+    player: Query<(), With<PlayerSpaceshipMarker>>,
+    current: Res<State<PauseStates>>,
+    mut next: ResMut<NextState<PauseStates>>,
+    ship: Option<Res<ShipRuntime>>,
+) {
+    toggle_interface_state(
+        *current.get(),
+        !player.is_empty(),
+        ship.is_some_and(|ship| ship.rebind_armed()),
+        &mut next,
+    );
+}
+
+/// Write the live key names into the title row's chips: the Close chip reads
+/// `interface_toggle`, the Next chip `interface_next_tab`, both for the device
+/// the player pressed last. Repaints when the bindings or the device change
+/// and on a new card.
+///
+/// # Panics
+///
+/// When either action is not registered in [`InputBindings`].
+pub(crate) fn refresh_card_head_keys(
+    bindings: Res<InputBindings>,
+    device: Res<InputDeviceType>,
+    q_new: Query<(), Or<(Added<InterfaceCloseButton>, Added<InterfaceNextKey>)>>,
+    q_close: Query<Entity, With<InterfaceCloseButton>>,
+    q_next: Query<Entity, With<InterfaceNextKey>>,
+    q_children: Query<&Children>,
+    mut q_label: Query<&mut Text, With<KeyChipLabel>>,
+) {
+    if !bindings.is_changed() && !device.is_changed() && q_new.is_empty() {
+        return;
+    }
+    let shown = |action: &str| {
+        bindings
+            .get(action)
+            .unwrap_or_else(|| panic!("the card head names `{action}`, which is not registered"))
+            .hint_display(*device)
+    };
+    for (chips, action) in [
+        (q_close.iter().collect::<Vec<_>>(), "interface_toggle"),
+        (q_next.iter().collect::<Vec<_>>(), "interface_next_tab"),
+    ] {
+        let key = shown(action);
+        for chip in chips {
+            for node in q_children.iter_descendants(chip) {
+                if let Ok(mut text) = q_label.get_mut(node) {
+                    if text.0 != key {
+                        text.0.clone_from(&key);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Hide the next-pane hint when the card is narrower than
+/// [`PANE_FOOTER_SPLIT_PX`] logical px, so the tabs and the Close button keep
+/// their room.
+pub(crate) fn fit_card_head(
+    q_window: Query<&Window, With<PrimaryWindow>>,
+    scale: Res<UiScale>,
+    mut q_hint: Query<&mut Node, With<InterfaceNextHint>>,
+) {
+    let Ok(window) = q_window.single() else {
+        return;
+    };
+    let display = if ui_width(window, &scale) < PANE_FOOTER_SPLIT_PX {
+        Display::None
+    } else {
+        Display::Flex
+    };
+    for mut node in &mut q_hint {
+        if node.display != display {
+            node.display = display;
+        }
+    }
+}
+
+/// The width the UI lays out in, in logical px: the window's logical width
+/// over the [`UiScale`]. `Window::width` is before the scale, so at 150% on a
+/// 1280 px window the UI has 853 px. Every layout breakpoint reads this.
+pub(crate) fn ui_width(window: &Window, scale: &UiScale) -> f32 {
+    window.width() / scale.0
+}
 
 /// The `Name` of the title row's play clock, for tests and captures.
 pub const INTERFACE_PANE_CLOCK: &str = "InterfacePaneClock";
@@ -545,6 +673,45 @@ fn spawn_interface_card(
                         },
                         TextLayout::new(Justify::Right, LineBreak::NoWrap),
                     ));
+                    head.spawn((
+                        InterfaceNextHint,
+                        Name::new("InterfaceNextHint"),
+                        Node {
+                            align_items: AlignItems::Center,
+                            flex_shrink: 0.0,
+                            ..default()
+                        },
+                    ))
+                    .with_children(|hint| {
+                        hint.spawn((InterfaceNextKey, key_chip("", 12.0)));
+                        hint.spawn((
+                            themed_label("Next", 12.0, UiColor::Secondary),
+                            TextLayout::new(Justify::Left, LineBreak::NoWrap),
+                            Node {
+                                margin: UiRect::left(px(6)),
+                                ..default()
+                            },
+                        ));
+                    });
+                    // A fixed slot: the chip's text follows the binding, and
+                    // the head must not move when it does.
+                    head.spawn((
+                        Name::new("InterfaceCloseSlot"),
+                        Node {
+                            min_width: px(CLOSE_SLOT_PX),
+                            flex_shrink: 0.0,
+                            justify_content: JustifyContent::FlexEnd,
+                            ..default()
+                        },
+                    ))
+                    .with_children(|slot| {
+                        slot.spawn((
+                            InterfaceCloseButton,
+                            Name::new("InterfaceClose"),
+                            button(ButtonSpec::new("Close").ghost().key("").fit()),
+                        ))
+                        .observe(on_interface_close_click);
+                    });
                 });
             card.spawn((
                 InterfacePaneBody,
@@ -793,11 +960,11 @@ pub(crate) fn side_panel(overflow: Overflow) -> impl Bundle {
             row_gap: px(10),
             padding: UiRect::all(px(12)),
             border: UiRect::all(px(1)),
-            border_radius: BorderRadius::all(px(4)),
             overflow,
             ..default()
         },
         panel_paint(),
+        ThemedRadius::control(),
     )
 }
 
@@ -822,13 +989,13 @@ pub(crate) fn panel_preview_frame() -> impl Bundle {
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             border: UiRect::all(px(1)),
-            border_radius: BorderRadius::all(px(4)),
             ..default()
         },
         BackgroundColor(Color::NONE),
         ThemedFill::alpha(UiColor::Surface, 0.6),
         BorderColor::all(Color::NONE),
         ThemedBorder::new(UiColor::Secondary),
+        ThemedRadius::control(),
     )
 }
 
@@ -881,7 +1048,7 @@ pub(crate) fn refusable_button<'a>(
 /// hint that wraps cannot push the view up.
 const PANE_FOOTER_PX: f32 = 96.0;
 
-/// Window width, in logical px, from which the Map and Ship footer lays out
+/// UI width ([`ui_width`]), in logical px, from which the Map and Ship footer lays out
 /// on one row: the legend, the hints at half the width and the buttons. Under
 /// it the hints take a second row, because at 640 px the legend and the
 /// buttons leave them 79 px.
@@ -1235,13 +1402,14 @@ fn pane_footer(
 /// probe), which leaves the footer in the wide band it spawned in.
 pub(crate) fn fit_pane_footer(
     q_window: Query<&Window, With<PrimaryWindow>>,
+    scale: Res<UiScale>,
     mut q_footer: Query<(&mut Node, &Children), With<InterfacePaneFooter>>,
     mut q_zone: Query<(&PaneFooterZoneType, &mut Node), Without<InterfacePaneFooter>>,
 ) {
     let Ok(window) = q_window.single() else {
         return;
     };
-    let narrow = window.width() < PANE_FOOTER_SPLIT_PX;
+    let narrow = ui_width(window, &scale) < PANE_FOOTER_SPLIT_PX;
     for (mut node, zones) in &mut q_footer {
         let target = footer_node(narrow);
         if *node != target {
@@ -1257,8 +1425,9 @@ pub(crate) fn fit_pane_footer(
     }
 }
 
-/// Write each footer hint from the live bindings when the hint is new or the
-/// bindings change, so a rebind moves the hint with the key.
+/// Write each footer hint from the live bindings, for the device the player
+/// pressed last, when the hint is new or the bindings or the device change,
+/// so a rebind or a pad press moves the hint with the key.
 ///
 /// # Panics
 ///
@@ -1267,10 +1436,11 @@ pub(crate) fn fit_pane_footer(
 /// one vocabulary, and a hint for a missing action would name no key.
 pub(crate) fn refresh_pane_input_hints(
     bindings: Res<InputBindings>,
+    device: Res<InputDeviceType>,
     mut q_hint: Query<(Ref<PaneInputHint>, &mut Text)>,
 ) {
     for (hint, mut text) in &mut q_hint {
-        if !hint.is_added() && !bindings.is_changed() {
+        if !hint.is_added() && !bindings.is_changed() && !device.is_changed() {
             continue;
         }
         let keys = hint
@@ -1282,7 +1452,7 @@ pub(crate) fn refresh_pane_input_hints(
                     .unwrap_or_else(|| {
                         panic!("footer hint names `{name}`, which is not registered")
                     })
-                    .keyboard_display()
+                    .hint_display(*device)
             })
             .chain(hint.raw_key.map(str::to_owned))
             .collect::<Vec<_>>()

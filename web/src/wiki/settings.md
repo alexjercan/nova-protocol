@@ -86,7 +86,9 @@ player measuring frame times or chasing input latency, at the cost of tearing.
 The web build has neither row: the game fits the canvas the page gives it and
 the browser presents on its own schedule. The panels themselves are sized as a
 share of the window, so a narrow browser column still gets a readable Settings
-modal with its Back button on screen.
+modal with its Back button on screen. <kbd>Esc</kbd>, or <kbd>B</kbd> on a pad,
+does what **Back** does on every main-menu screen; in the pause menu it closes
+Settings first, and the next <kbd>Esc</kbd> resumes.
 
 ## Pause when unfocused
 
@@ -118,7 +120,9 @@ glyphs you actually press. The same table is laid out on the
 Click a chip and it prompts `PRESS A KEY`; the next key, mouse button or pad
 button you press becomes that column's whole binding. <kbd>Esc</kbd> backs out,
 which is why no row can be bound to it, and **Reset Defaults** puts the whole
-table back.
+table back. It asks twice: the first press puts **Cancel** where the button
+was, beside a red **Confirm** and what it resets. **Cancel**, <kbd>Esc</kbd>
+or any other button cancels.
 
 A press something else could answer at the same instant is refused by name -
 `W is already bound to Main Drive` - and the chip stays armed for another try.

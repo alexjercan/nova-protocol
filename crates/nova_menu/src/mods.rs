@@ -24,9 +24,10 @@ use crate::{
     portal::{
         explore_entries, on_catalog_retry, portal_display_name, portal_status_tag,
         portal_version_author_line, spawn_explore_note, spawn_explore_row, spawn_portal_actions,
-        spawn_portal_button, PortalActionKind, UpdateRequested,
+        spawn_uninstall_button, spawn_uninstall_prompt, uninstall_prompt, UninstallStep,
+        UpdateRequested,
     },
-    widgets::MenuSfxButton,
+    widgets::{close_screen, MenuSfxButton},
 };
 
 /// Marker for the Mods panel root, toggled by the Mods button.
@@ -216,7 +217,13 @@ pub(crate) fn on_mods_back(
     mut panel: Single<&mut Visibility, With<ModsPanel>>,
     mut reload: MessageWriter<ReloadContent>,
 ) {
-    **panel = Visibility::Hidden;
+    close_mods(&mut panel, &mut reload);
+}
+
+/// Hide the Mods screen and ask for a content reload: the body of Back, which
+/// Escape runs too.
+pub(crate) fn close_mods(panel: &mut Visibility, reload: &mut MessageWriter<ReloadContent>) {
+    close_screen(panel);
     // Everything behind this panel reads content: the Scenarios picker, the
     // campaign list, the ship catalog. An install writes to disk and the merge
     // is change-gated, so leaving is where the game catches up with what the
@@ -309,6 +316,7 @@ pub(crate) fn mod_details_dirty(
     jobs: Option<Res<InstallJobs>>,
     downloaded: Option<Res<DownloadedMods>>,
     updates: Res<UpdateRequested>,
+    uninstall: Res<UninstallStep>,
 ) -> bool {
     active.is_changed()
         || selected.is_changed()
@@ -318,6 +326,7 @@ pub(crate) fn mod_details_dirty(
         || jobs.is_some_and(|j| j.is_changed())
         || downloaded.is_some_and(|d| d.is_changed())
         || updates.is_changed()
+        || uninstall.is_changed()
 }
 
 /// Rebuild the left list's rows for the active tab. Installed: one row per
@@ -611,6 +620,7 @@ pub(crate) fn refresh_mod_details(
     jobs: Option<Res<InstallJobs>>,
     downloaded: Option<Res<DownloadedMods>>,
     updates: Res<UpdateRequested>,
+    uninstall: Res<UninstallStep>,
     panels: Query<Entity, With<ModDetailsPanel>>,
 ) {
     let Ok(panel) = panels.single() else {
@@ -654,7 +664,11 @@ pub(crate) fn refresh_mod_details(
                         ModDetailsActions,
                         Node {
                             flex_direction: FlexDirection::Row,
+                            // A narrow pane wraps the last slot under the
+                            // row; the slots keep their width and place.
+                            flex_wrap: FlexWrap::Wrap,
                             column_gap: px(8),
+                            row_gap: px(8),
                             margin: UiRect::top(px(12)),
                             ..default()
                         },
@@ -679,6 +693,7 @@ pub(crate) fn refresh_mod_details(
                                     Name::new("Mod Details Toggle Slot"),
                                     Node {
                                         width: px(180),
+                                        flex_shrink: 0.0,
                                         ..default()
                                     },
                                 ))
@@ -700,13 +715,11 @@ pub(crate) fn refresh_mod_details(
                             // Installed-tab parity: a DOWNLOADED mod is
                             // uninstallable from here too.
                             if is_downloaded {
-                                spawn_portal_button(
-                                    actions,
-                                    "Mod Details Uninstall Button",
-                                    "Uninstall",
-                                    &m.id,
-                                    PortalActionKind::Uninstall,
-                                );
+                                let armed = uninstall.armed_on(&m.id);
+                                spawn_uninstall_button(actions, &m.id, armed);
+                                if armed {
+                                    spawn_uninstall_prompt(actions, uninstall_prompt(&m.meta.name));
+                                }
                             }
                         }
                     });
@@ -761,6 +774,9 @@ pub(crate) fn refresh_mod_details(
                             installed_version,
                             updating,
                             catalog_ready,
+                            uninstall
+                                .armed_on(&entry.id)
+                                .then(|| uninstall_prompt(&portal_display_name(&entry))),
                         );
                     });
             });

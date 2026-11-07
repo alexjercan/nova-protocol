@@ -18,6 +18,8 @@ use nova_ui::{
     },
 };
 
+use crate::widgets::close_screen;
+
 /// Marker for the Scenarios panel root, toggled by the Scenarios button.
 #[derive(Component)]
 pub(crate) struct ScenariosPanel;
@@ -597,7 +599,7 @@ pub(crate) fn on_scenarios_back(
     _activate: On<Activate>,
     mut panel: Single<&mut Visibility, With<ScenariosPanel>>,
 ) {
-    **panel = Visibility::Hidden;
+    close_screen(&mut panel);
 }
 
 /// Select the clicked row's scenario: write [`SelectedScenarioId`] (which

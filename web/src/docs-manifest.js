@@ -798,7 +798,7 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "Everything that can fire a scenario handler: thirty-four event kinds, payloads, lifecycle edges, hold events, and dispatch order.",
+            "Everything that can fire a scenario handler: forty-five event kinds, payloads, lifecycle edges, hold events, and dispatch order.",
         related: ["filters", "actions", "scenarios"],
         headings: [
             "OnStart",
@@ -830,6 +830,7 @@ const CREATE_PAGES = [
             "OnDocked",
             "OnUndocked",
             "Hold events",
+            "OnJobAccepted",
             "Dispatch order",
         ],
     },
@@ -863,7 +864,7 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "All 51 actions a scenario handler can run, grouped by spawning, mission, sound, pacing, flow, ship state, helm orders, forced fire, AI constraints, timers, and camera.",
+            "All 55 actions a scenario handler can run, grouped by spawning, mission, sound, pacing, flow, ship state, helm orders, forced fire, AI constraints, timers, and camera.",
         related: ["objects", "events", "expressions"],
         headings: [
             "SpawnScenarioObject",
@@ -876,6 +877,7 @@ const CREATE_PAGES = [
             "ObjectiveMarkerDetach",
             "NarrativeCue",
             "HudReadout",
+            "ObjectiveChipHold",
             "HintEmphasisSet",
             "HintEmphasisClear",
             "PlaySound",

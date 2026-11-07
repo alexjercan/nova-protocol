@@ -46,6 +46,38 @@ pub const CAPTURE_DIR_ENV: &str = "NOVA_CAPTURE_DIR";
 /// by editing this.
 pub const CAPTURE_RESOLUTION: (u32, u32) = (1920, 1080);
 
+/// Environment variable that overrides the capture window size, as
+/// `<width>x<height>` in pixels (`1280x720`). It wins over
+/// [`CAPTURE_RESOLUTION`] and over a loop profile, so one script shoots the
+/// same walk at a second size to check a layout at it.
+pub const CAPTURE_SIZE_ENV: &str = "NOVA_CAPTURE_SIZE";
+
+/// Environment variable that sets the interface scale of a capturing run, as
+/// one of the percent steps the Settings screen offers (`75`, `100`, `125`,
+/// `150`). The harness settings store is inert, so without it every shot is
+/// at 100%.
+pub const CAPTURE_UI_SCALE_ENV: &str = "NOVA_CAPTURE_UI_SCALE";
+
+/// The window size [`CAPTURE_SIZE_ENV`] asks for, or `None` when it is unset.
+///
+/// # Panics
+///
+/// On a value that is not `<width>x<height>` with both above zero. A typo that
+/// fell back to the default would label a 1920x1080 shot as another size.
+pub fn capture_size_override() -> Option<(u32, u32)> {
+    let value = std::env::var(CAPTURE_SIZE_ENV).ok()?;
+    Some(parse_capture_size(&value).unwrap_or_else(|| {
+        panic!("{CAPTURE_SIZE_ENV}={value:?} is not <width>x<height> in pixels, such as 1280x720")
+    }))
+}
+
+/// Parse `<width>x<height>`, both above zero.
+fn parse_capture_size(value: &str) -> Option<(u32, u32)> {
+    let (width, height) = value.split_once('x')?;
+    let size = (width.parse().ok()?, height.parse().ok()?);
+    (size.0 > 0 && size.1 > 0).then_some(size)
+}
+
 /// Whether this run is on the capture path ([`CAPTURE_ENV`] is set).
 ///
 /// A script reads it ONCE while building its steps rather than per frame: the
@@ -143,6 +175,14 @@ fn resolve_capture_path(capture_dir: Option<&str>, path: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_capture_size_is_width_x_height_and_anything_else_is_refused() {
+        assert_eq!(parse_capture_size("1280x720"), Some((1280, 720)));
+        assert_eq!(parse_capture_size("1280"), None);
+        assert_eq!(parse_capture_size("0x720"), None);
+        assert_eq!(parse_capture_size("wide x tall"), None);
+    }
 
     /// Every branch of the resolution, asserted against an explicit capture
     /// dir instead of whatever the ambient env happens to hold.

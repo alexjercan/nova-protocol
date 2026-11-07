@@ -351,6 +351,16 @@ function rustNumber(rel: string, pattern: RegExp): number {
             `${name} stays down with a travel lock alone`
         );
     }
+    // A low or reloading magazine paints a shown gauge; it never raises one.
+    for (const magazine of [{ lowAmmo: true }, { reloading: true }]) {
+        assert.equal(
+            hudElements({ ...idle, travelLock: true, ...magazine }).find(
+                (e) => e.name === "Ammo gauges"
+            )?.on,
+            false,
+            "the ammo gauges stay down in normal flight whatever the magazine holds"
+        );
+    }
     for (const [combatLock, travelLock, expected] of [
         [false, false, false],
         [false, true, true],

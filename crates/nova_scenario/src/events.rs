@@ -209,6 +209,10 @@ scenario_events! {
     /// `hull` = the catalogue name, `price_cr` = the hire price). Once per
     /// hire.
     OnEscortHired => OnEscortHiredEvent { label: "On Escort Hired" },
+    /// The Jobs pane accepted a board offer (`id` = the job's id). Once per
+    /// accept; a refused accept fires none, and a Load fires none for a job
+    /// it restores.
+    OnJobAccepted => OnJobAcceptedEvent { label: "On Job Accepted" },
     /// A Ship pane buy at a docked station made the station the player's
     /// (`id` = the buying ship; `station` = the station's scenario id,
     /// `price_cr` = the price). Once per buy.

@@ -83,7 +83,8 @@ fn teardown_scenario_entities(
     // A mark on a generated body is the scenario's, like its objectives: the
     // next scenario streams its own world and owes the old one no chips. The
     // spent-handler record goes with it; a resumed load seeds its own after
-    // this command, in the same queue.
+    // this command, in the same queue. The chip holds go too: `OnResume` sets
+    // them again for an objective the save still has.
     commands.queue(|world: &mut World| {
         if let Some(mut marks) = world.get_resource_mut::<GeneratedMarks>() {
             if !marks.is_empty() {
@@ -94,6 +95,9 @@ fn teardown_scenario_entities(
             if !spent.0.is_empty() {
                 spent.0.clear();
             }
+        }
+        if let Some(mut holds) = world.get_resource_mut::<ObjectiveChipHolds>() {
+            holds.clear_all();
         }
     });
     // The objectives HUD mirror dies with the scenario too (same reset class as

@@ -302,9 +302,13 @@ fn explore_actions_trigger_the_right_events_with_the_right_ids() {
         entity_by_name(&mut app, "Mod Details Update Button").is_none(),
         "matching version strings offer no Update"
     );
-    let uninstall = entity_by_name(&mut app, "Mod Details Uninstall Button").expect("uninstall");
-    app.world_mut().trigger(Activate { entity: uninstall });
-    app.update();
+    // Uninstall asks first; its Confirm does it.
+    for _ in 0..2 {
+        let uninstall =
+            entity_by_name(&mut app, "Mod Details Uninstall Button").expect("uninstall");
+        app.world_mut().trigger(Activate { entity: uninstall });
+        app.update();
+    }
     assert_eq!(
         app.world().resource::<PortalCaptures>().uninstalls,
         vec!["bravo".to_string()],

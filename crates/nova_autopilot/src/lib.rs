@@ -41,6 +41,8 @@
 //! | `NOVA_AUTOPILOT` ([`AUTOPILOT_ENV`](autopilot::AUTOPILOT_ENV)) | the scripted state driver | [`AutopilotPlugin`](autopilot::AutopilotPlugin) | any (presence only) |
 //! | `NOVA_CAPTURE` ([`CAPTURE_ENV`](capture::CAPTURE_ENV)) | the CAPTURE path of a script that has one - it takes its shots (and records its [`loops`], which also pins the armed run's frame clock to the loop cadence) instead of driving straight through | [`capturing`](capture::capturing), which the script reads while building its steps | any (presence only) |
 //! | `NOVA_CAPTURE_DIR` ([`CAPTURE_DIR_ENV`](capture::CAPTURE_DIR_ENV)) | nothing on its own | [`capture_window`](capture::capture_window) | directory RELATIVE capture paths resolve under; absolute paths ignore it |
+//! | `NOVA_CAPTURE_SIZE` ([`CAPTURE_SIZE_ENV`](capture::CAPTURE_SIZE_ENV)) | nothing on its own | [`capture_size_override`](capture::capture_size_override), which `nova_debug`'s `force_capture_resolution` applies | `<width>x<height>` in pixels; a malformed value panics |
+//! | `NOVA_CAPTURE_UI_SCALE` ([`CAPTURE_UI_SCALE_ENV`](capture::CAPTURE_UI_SCALE_ENV)) | nothing on its own | `nova_debug`'s `force_capture_resolution`, which sets the `UiScale` factor | `75`, `100`, `125` or `150`; any other value panics |
 //! | `NOVA_AUTOPILOT_DEADLINE` ([`DEADLINE_ENV`](completion::DEADLINE_ENV)) | nothing on its own | the [`completion`] watcher | seconds before the run error-exits naming the laggards (default [`DEFAULT_DEADLINE_SECS`](completion::DEFAULT_DEADLINE_SECS)); the RUN-level backstop under a script's own per-step [`deadline`](autopilot::StepBuilder::deadline)s |
 //!
 //! `NOVA_CAPTURE` arms the SHOTS, never the driver. A capturing run therefore
@@ -114,7 +116,8 @@ pub mod prelude {
     pub use crate::{
         autopilot::{AutopilotLoop, AutopilotPlugin, StepBuilder, AUTOPILOT_ENV},
         capture::{
-            capture_window, capturing, CaptureLog, CAPTURE_DIR_ENV, CAPTURE_ENV, CAPTURE_RESOLUTION,
+            capture_size_override, capture_window, capturing, CaptureLog, CAPTURE_DIR_ENV,
+            CAPTURE_ENV, CAPTURE_RESOLUTION, CAPTURE_SIZE_ENV, CAPTURE_UI_SCALE_ENV,
         },
         completion::{
             register, AutopilotCompletionSystems, HarnessCompletion, AUTOPILOT, DEADLINE_ENV,

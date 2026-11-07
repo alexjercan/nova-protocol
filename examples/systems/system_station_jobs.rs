@@ -848,10 +848,6 @@ mod walk {
             "station jobs: the chart view labels the job JOB-1: {shown:?}"
         );
         assert!(
-            shown.contains(&"JOB".to_string()),
-            "station jobs: the panel says JOB: {shown:?}"
-        );
-        assert!(
             shown.contains(&title),
             "station jobs: the panel names the job: {shown:?}"
         );
@@ -1555,7 +1551,7 @@ mod walk {
         .add()
         .step("station jobs: select the job on the chart")
         .on_enter(|world: &mut World| activate_named(world, "MapChartMarkJOB-1"))
-        .until(a_text_reads(|text| text == "JOB"))
+        .until(a_text_reads(|text| text.starts_with("Reward ")))
         .deadline(BEAT_SECS)
         .add()
         .step("station jobs: settle the panel")

@@ -95,7 +95,7 @@ A dash means the action has no binding on that device.
             </td>
         </tr>
         <tr>
-            <td>RCS fine translation (when a scenario grants it)</td>
+            <td>RCS fine translation (unless a scenario withholds it)</td>
             <td>
                 <kbd>Shift</kbd> (hold) +
                 <span
@@ -145,7 +145,7 @@ Roll turns the view and the hull together at a quarter turn a second, through th
 
 Mining has no flight key. Each mining beam section has its own key, like a weapon or a thruster: the mining tug's bow beam answers <kbd>V</kbd>, and a beam placed in the editor starts on <kbd>V</kbd> with no gamepad button. Hold a beam's key with an ore rock travel-locked, in front of that emitter and within 100 m; it opens, runs its tip out and cuts the rock once a second where it hits. Release the key and that beam retracts. Rebind each beam on the [Ship pane](../interface/#rebinding-a-section). See [Mining beam](../sections/mining-beam/).
 
-RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip in the keybind dock stays dark until it is available), and the training range hands it over for one leg of its pattern. See [Flight & autopilot](../flight-autopilot/#rcs-fine-docking-thrusters).
+RCS is a docking aid on top of standard flight. Every ship has it unless a scenario withholds it: the RCS chip in the keybind dock stays dark while it is withheld, and Basic Training hands it over at the beat that teaches it. See [Flight & autopilot](../flight-autopilot/#rcs-fine-docking-thrusters).
 
 ## Targeting and camera
 

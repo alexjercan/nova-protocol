@@ -27,8 +27,13 @@ use nova_ship::{
 use nova_ui::hud::{chip_node, chip_paint, ChipText, ChipTone};
 
 use super::{
-    emphasis::prelude::*, hull_shell::prelude::*, screen_indicator::prelude::*,
-    situation::prelude::*, velocity::prelude::*, NAV_CYAN,
+    emphasis::prelude::*,
+    hull_shell::prelude::*,
+    screen_indicator::{fit_box, prelude::*, UiProjection},
+    situation::prelude::*,
+    target_inset::TargetInsetKeepOut,
+    velocity::prelude::*,
+    NAV_CYAN,
 };
 
 /// The flight-status and autopilot-destination spawners with their configs, markers and
@@ -62,6 +67,15 @@ const CHIP_FONT_PX: f32 = 12.0;
 /// reads the same whatever the hull behind it measures.
 const CHIP_SHELL_GAP_PX: f32 = 12.0;
 
+/// The least clear space between the flight chip stack and every edge of the
+/// view (px): a shell too wide to stand outside of, or a stack riding low or
+/// high on the screen, holds the stack this far inside the view.
+const CHIP_VIEW_MARGIN_PX: f32 = 12.0;
+
+/// The least clear space between the flight chip stack and the target inset
+/// panel (px). The inset is a keep-out: a chip under it is unreadable.
+const CHIP_INSET_GAP_PX: f32 = 12.0;
+
 /// How far the speed chip rides above the ship's centre of mass (px; screen y
 /// grows downward). Lifted clear of the bottom-centre keybind dock: the ship
 /// sits low-centre under the chase camera, so a chip level with it landed on
@@ -70,13 +84,17 @@ const CHIP_SHELL_GAP_PX: f32 = 12.0;
 /// rather than becoming screen furniture.
 const SPEED_CHIP_LIFT_PX: f32 = -90.0;
 
-/// The mode chip stacks one row above the speed chip, keeping the same 24 px
-/// gap after the lift above.
-const MODE_CHIP_LIFT_PX: f32 = -114.0;
+/// Row pitch of the chip stack (px). The speed chip is 28 px tall and grows
+/// by [`SPEED_CHIP_EMPHASIS`] in a burn; this pitch keeps the 25 px mode chip
+/// clear of it at that peak. The stack's box spans half a pitch past the outer
+/// rows, which is also the room a burn-grown chip needs.
+const CHIP_ROW_PITCH_PX: f32 = 30.0;
 
-/// The RCS magazine chip stacks one row below the speed chip, keeping the same
-/// 24 px row pitch as the mode chip above it.
-const RCS_CHIP_LIFT_PX: f32 = -66.0;
+/// The mode chip stacks one row above the speed chip.
+const MODE_CHIP_LIFT_PX: f32 = SPEED_CHIP_LIFT_PX - CHIP_ROW_PITCH_PX;
+
+/// The RCS magazine chip stacks one row below the speed chip.
+const RCS_CHIP_LIFT_PX: f32 = SPEED_CHIP_LIFT_PX + CHIP_ROW_PITCH_PX;
 
 /// Pips on the RCS magazine chip; each is a tenth of the magazine.
 const RCS_PIPS: usize = 10;
@@ -348,12 +366,20 @@ impl Plugin for FlightStatusHudPlugin {
 /// its root origin, which on an asymmetric build is somewhere inside the
 /// structure - is what both spheres are centred on.
 ///
-/// So the chip is anchored on the centre of mass and pushed out by the shell's
-/// own projected radius, plus [`CHIP_SHELL_GAP_PX`] and half the chip's own
-/// width: a projected world radius tracks hull size and camera zoom together,
-/// which a pixel constant cannot.
+/// So the chips are anchored on the centre of mass and pushed out by the
+/// shell's own projected radius, plus [`CHIP_SHELL_GAP_PX`] and half the chip's
+/// own width: a projected world radius tracks hull size and camera zoom
+/// together, which a pixel constant cannot.
 /// The OUTER radius is used even in flat space, where the gravity shell is
 /// hidden, so the readouts do not jump sideways when a ship leaves a well.
+///
+/// The chips are one stack that moves as a unit. Its box spans the three
+/// rows - always, shown or not, so it does not hop when the mode chip appears -
+/// and [`fit_box`] holds that box inside the view by [`CHIP_VIEW_MARGIN_PX`] on
+/// both axes and clear of the target inset by [`CHIP_INSET_GAP_PX`]. Every chip
+/// takes the same displacement, so the rows keep their pitch and one left edge.
+/// The fit applies only while the centre of mass is on screen; off it the
+/// indicator pass hides the chips, and a fit would only chase a dead point.
 ///
 /// Whether a chip is shown at all stays with its driver: this only moves the
 /// ones that are already on.
@@ -361,6 +387,7 @@ fn anchor_flight_chips(
     envelopes: Res<HudShellEnvelopes>,
     q_hud: Query<&FlightStatusHudTargetEntity, With<FlightStatusHudMarker>>,
     mut q_chip: Query<(
+        Entity,
         &mut ScreenIndicatorAnchor,
         &mut ScreenIndicatorOffset,
         &FlightChipLift,
@@ -374,6 +401,8 @@ fn anchor_flight_chips(
     // agree with it to the pixel.
     transform_helper: TransformHelper,
     q_camera: Query<(Entity, &Camera), With<ScreenIndicatorCamera>>,
+    ui_scale: Res<UiScale>,
+    inset: TargetInsetKeepOut,
 ) {
     let Some((camera_entity, camera)) = q_camera.iter().next() else {
         return;
@@ -381,12 +410,28 @@ fn anchor_flight_chips(
     let Ok(camera_transform) = transform_helper.compute_global_transform(camera_entity) else {
         return;
     };
+    let projection = UiProjection::new(camera, &camera_transform, &ui_scale);
 
-    for (mut anchor, mut offset, lift, computed, &ChildOf(parent)) in &mut q_chip {
+    // One chip's unfitted placement. The stack's box needs every chip's width
+    // before any chip can be written, hence two passes.
+    struct Placed {
+        chip: Entity,
+        hud: Entity,
+        lift: f32,
+        half_width: f32,
+        /// Projected outer shell radius (UI px) plus the gap: the stack's
+        /// left edge relative to the centre of mass.
+        stand_off: f32,
+        com: Vec2,
+        view: Option<Vec2>,
+    }
+    let mut placed: Vec<Placed> = Vec::new();
+
+    for (chip, mut anchor, _, lift, computed, &ChildOf(hud)) in &mut q_chip {
         if anchor.is_none() {
             continue;
         }
-        let Ok(ship) = q_hud.get(parent) else {
+        let Ok(ship) = q_hud.get(hud) else {
             continue;
         };
         let Ok(center_of_mass) = q_ship.get(**ship) else {
@@ -411,11 +456,10 @@ fn anchor_flight_chips(
         // One radius along the camera's own right vector, so the projected
         // distance is the shell's on-screen radius at this zoom whatever the
         // ship's attitude.
-        let edge = com + camera_transform.right() * radius;
-        let (Ok(projected_com), Ok(projected_edge)) = (
-            camera.world_to_viewport(&camera_transform, com),
-            camera.world_to_viewport(&camera_transform, edge),
-        ) else {
+        let edge = com + projection.right() * radius;
+        let (Some(projected_com), Some(projected_edge)) =
+            (projection.point(com), projection.point(edge))
+        else {
             continue;
         };
         // The widget CENTRES the node on the offset point, so the gap is a
@@ -424,10 +468,55 @@ fn anchor_flight_chips(
         // centres `Content` chips with - so a chip that changes length is off
         // by half that change for exactly one frame.
         let half_width = computed.size().x * computed.inverse_scale_factor() / 2.0;
-        offset.set_if_neq(ScreenIndicatorOffset(Vec2::new(
-            projected_edge.x - projected_com.x + CHIP_SHELL_GAP_PX + half_width,
-            **lift,
-        )));
+        placed.push(Placed {
+            chip,
+            hud,
+            lift: **lift,
+            half_width,
+            stand_off: projected_edge.x - projected_com.x + CHIP_SHELL_GAP_PX,
+            com: projected_com,
+            view: projection.view_size(),
+        });
+    }
+
+    for hud in placed
+        .iter()
+        .map(|p| p.hud)
+        .collect::<std::collections::BTreeSet<_>>()
+    {
+        let stack: Vec<&Placed> = placed.iter().filter(|p| p.hud == hud).collect();
+        let first = stack[0];
+        let widest = stack
+            .iter()
+            .map(|p| p.half_width * 2.0)
+            .fold(0.0_f32, f32::max);
+        let delta = match first.view {
+            Some(view) if first.com.cmpge(Vec2::ZERO).all() && first.com.cmple(view).all() => {
+                let left = first.com.x + first.stand_off;
+                let stack_box = Rect::new(
+                    left,
+                    first.com.y + MODE_CHIP_LIFT_PX - CHIP_ROW_PITCH_PX / 2.0,
+                    left + widest,
+                    first.com.y + RCS_CHIP_LIFT_PX + CHIP_ROW_PITCH_PX / 2.0,
+                );
+                fit_box(
+                    stack_box,
+                    view,
+                    CHIP_VIEW_MARGIN_PX,
+                    inset.rect(view),
+                    CHIP_INSET_GAP_PX,
+                )
+            }
+            _ => Vec2::ZERO,
+        };
+        for p in stack {
+            if let Ok((_, _, mut offset, ..)) = q_chip.get_mut(p.chip) {
+                offset.set_if_neq(ScreenIndicatorOffset(Vec2::new(
+                    p.stand_off + p.half_width + delta.x,
+                    p.lift + delta.y,
+                )));
+            }
+        }
     }
 }
 
@@ -1003,6 +1092,7 @@ mod tests {
             },
             ScreenIndicatorCamera,
         ));
+        world.init_resource::<UiScale>();
     }
 
     /// The on-screen radius (px) of a world radius `radius` at `RIG_RANGE` down
@@ -1048,11 +1138,11 @@ mod tests {
 
     /// The chips clear the OUTER shell by the authored pixel gap, on their own
     /// authored rows - whatever the hull under it measures. The 20 u hull and
-    /// the 200 u hull are the bug: a fixed offset put the second one's chip
+    /// the 100 u hull are the bug: a fixed offset put the second one's chip
     /// inside the ship.
     #[test]
     fn the_chips_park_twelve_pixels_outside_the_projected_gravity_shell() {
-        for envelope in [20.0, 200.0] {
+        for envelope in [20.0, 100.0] {
             let mut world = World::new();
             world.init_resource::<HudShellEnvelopes>();
             let (speed, mode) = spawn_chip_rig(&mut world, Vec3::ZERO, envelope);
@@ -1077,8 +1167,271 @@ mod tests {
             );
             // The rows are untouched: this moves the chips out, not up.
             assert_eq!(offset_of(&world, speed).y, -90.0);
-            assert_eq!(offset_of(&world, mode).y, -114.0);
+            assert_eq!(offset_of(&world, mode).y, -120.0);
         }
+    }
+
+    /// A shell wider than the view cannot have a chip outside it: the chip
+    /// stays inside the window, where the speed can still be read. The view
+    /// is the window in UI px, so a 150% interface has two thirds as many.
+    #[test]
+    fn a_shell_wider_than_the_view_keeps_the_chips_inside_the_window() {
+        for ui_scale in [1.0, 1.5] {
+            let mut world = World::new();
+            world.init_resource::<HudShellEnvelopes>();
+            let (speed, mode) = spawn_chip_rig(&mut world, Vec3::ZERO, 400.0);
+            world.resource_mut::<UiScale>().0 = ui_scale;
+            assert!(
+                projected_px(400.0) > RIG_WIDTH / 2.0,
+                "delivery guard: the shell leaves the view"
+            );
+
+            world.run_system_once(anchor_flight_chips).unwrap();
+
+            // The ship is at the view centre and the chips measure zero wide
+            // here.
+            let expected = RIG_WIDTH / ui_scale / 2.0 - CHIP_VIEW_MARGIN_PX;
+            for chip in [speed, mode] {
+                assert!(
+                    (offset_of(&world, chip).x - expected).abs() < 0.5,
+                    "{ui_scale}x: chip at {} px, expected {expected}",
+                    offset_of(&world, chip).x
+                );
+            }
+        }
+    }
+
+    /// One placed stack: the chips' boxes in UI px (speed, mode, RCS), their
+    /// rows, the view, and the inset rect while the panel is shown.
+    struct PlacedStack {
+        boxes: Vec<(Rect, f32)>,
+        offsets: Vec<Vec2>,
+        view: Vec2,
+        com: Vec2,
+        panel: Rect,
+    }
+
+    /// Place the three chips of a ship whose centre of mass projects to
+    /// `com_window` (window px) on a `window`-sized view at `ui_scale`, with
+    /// the target inset panel shown or hidden at its corner.
+    fn place_stack(
+        window: UVec2,
+        ui_scale: f32,
+        com_window: Vec2,
+        envelope: f32,
+        inset_shown: bool,
+    ) -> PlacedStack {
+        use crate::target_inset::target_inset_hud;
+
+        let mut world = World::new();
+        world.init_resource::<HudShellEnvelopes>();
+        world.insert_resource(UiScale(ui_scale));
+        world.spawn((
+            Transform::IDENTITY,
+            Camera {
+                computed: ComputedCameraValues {
+                    clip_from_view: Mat4::perspective_infinite_reverse_rh(
+                        FRAC_PI_2,
+                        window.x as f32 / window.y as f32,
+                        0.1,
+                    ),
+                    target_info: Some(RenderTargetInfo {
+                        physical_size: window,
+                        scale_factor: 1.0,
+                    }),
+                    ..default()
+                },
+                ..default()
+            },
+            ScreenIndicatorCamera,
+        ));
+        // A 90 degree vertical fov puts the half-height of the view at one
+        // range, so a window offset from the centre is that fraction of it.
+        let half = window.as_vec2() / 2.0;
+        let offset = (com_window - half) / half.y * RIG_RANGE;
+        let ship = world
+            .spawn(Transform::from_xyz(offset.x, -offset.y, -RIG_RANGE))
+            .id();
+        world
+            .resource_mut::<HudShellEnvelopes>()
+            .insert(ship, envelope);
+
+        let layer = world
+            .spawn(flight_status_hud(FlightStatusHudConfig { target: ship }))
+            .id();
+        let chips: Vec<Entity> = world.entity(layer).get::<Children>().unwrap()[..3].to_vec();
+        // Speed, mode, RCS: the widths and heights a live layout gives them.
+        let sizes = [
+            Vec2::new(83.0, 28.0),
+            Vec2::new(120.0, 25.0),
+            Vec2::new(70.0, 22.0),
+        ];
+        for (&chip, size) in chips.iter().zip(sizes) {
+            world.entity_mut(chip).insert(ComputedNode {
+                size: size * ui_scale,
+                inverse_scale_factor: 1.0 / ui_scale,
+                ..default()
+            });
+            **world
+                .entity_mut(chip)
+                .get_mut::<ScreenIndicatorAnchor>()
+                .unwrap() = Some(ScreenIndicatorAnchorKind::Entity(ship));
+        }
+        let inset = world
+            .spawn(target_inset_hud(Handle::<Image>::default()))
+            .id();
+        world.entity_mut(inset).insert(if inset_shown {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        });
+
+        world.run_system_once(anchor_flight_chips).unwrap();
+
+        let view = window.as_vec2() / ui_scale;
+        let com = com_window / ui_scale;
+        let offsets: Vec<Vec2> = chips.iter().map(|&chip| offset_of(&world, chip)).collect();
+        let boxes = chips
+            .iter()
+            .zip(sizes)
+            .zip(&offsets)
+            .map(|((&chip, size), offset)| {
+                let lift = **world.entity(chip).get::<FlightChipLift>().unwrap();
+                (Rect::from_center_size(com + offset, size), lift)
+            })
+            .collect();
+        // The panel is a corner node: 256 px square, 12 px off the top-right.
+        let panel = Rect::new(view.x - 12.0 - 256.0, 12.0, view.x - 12.0, 12.0 + 256.0);
+        PlacedStack {
+            boxes,
+            offsets,
+            view,
+            com,
+            panel,
+        }
+    }
+
+    /// The reproduced failure: at 1280x720 with a 150 % interface the stack of
+    /// a ship with a shell wider than the view was held on the view's right
+    /// edge, under the inset. The stack must clear the inset as ONE unit, and
+    /// the scales that worked keep working untouched.
+    #[test]
+    fn the_flight_chip_stack_clears_the_target_inset_as_one_unit() {
+        let overlaps = |a: Rect, b: Rect| {
+            a.min.x < b.max.x && a.max.x > b.min.x && a.min.y < b.max.y && a.max.y > b.min.y
+        };
+
+        // 1280x720 at 150 %: the centre of mass is UI (426.7, 369).
+        let com_window = Vec2::new(640.0, 553.5);
+        let shown = place_stack(UVec2::new(1280, 720), 1.5, com_window, 400.0, true);
+        let hidden = place_stack(UVec2::new(1280, 720), 1.5, com_window, 400.0, false);
+        let held_in_view = hidden.boxes.iter().fold(
+            Rect::new(f32::MAX, f32::MAX, f32::MIN, f32::MIN),
+            |all, (rect, _)| all.union(*rect),
+        );
+        assert!(
+            overlaps(held_in_view, shown.panel),
+            "delivery guard: held at the view edge the stack sits under the inset"
+        );
+        let room = Rect::new(
+            CHIP_VIEW_MARGIN_PX,
+            CHIP_VIEW_MARGIN_PX,
+            shown.view.x - CHIP_VIEW_MARGIN_PX,
+            shown.view.y - CHIP_VIEW_MARGIN_PX,
+        );
+        for (rect, lift) in &shown.boxes {
+            assert!(
+                !overlaps(*rect, shown.panel.inflate(CHIP_INSET_GAP_PX)),
+                "the chip on row {lift} at {rect:?} is under the inset {:?}",
+                shown.panel
+            );
+            assert!(
+                rect.min.cmpge(room.min - 0.01).all() && rect.max.cmple(room.max + 0.01).all(),
+                "the chip on row {lift} at {rect:?} leaves the view {room:?}"
+            );
+        }
+        // One rigid move: the unfitted stack shares one left edge and the row
+        // pitch, so the fitted one must too.
+        let left = shown.boxes[0].0.min.x;
+        let first_centre = shown.boxes[0].0.center().y;
+        for ((rect, lift), offset) in shown.boxes.iter().zip(&shown.offsets) {
+            assert!(
+                (rect.min.x - left).abs() < 0.01,
+                "the chip on row {lift} starts at x = {}, the stack at {left}",
+                rect.min.x
+            );
+            assert!(
+                (rect.center().y - first_centre - (lift - shown.boxes[0].1)).abs() < 0.01,
+                "the row pitch broke at {offset:?}"
+            );
+        }
+
+        // The scales that work today: nothing is near the inset or an edge, so
+        // the chips stand exactly where the shell puts them.
+        for (ui_scale, com_window) in [
+            (0.75, Vec2::new(960.0, 831.0)),
+            (1.0, Vec2::new(960.0, 831.0)),
+        ] {
+            let window = UVec2::new(1920, 1080);
+            let placed = place_stack(window, ui_scale, com_window, 20.0, true);
+            // The shell the chips stand outside of: 5 m of clearance plus 6 m
+            // between the shells, in world units, projected at the rig range.
+            let outer = 20.0 + Meters(11.0).to_engine();
+            let shell_px = outer * (window.y as f32 / 2.0) / RIG_RANGE / ui_scale;
+            for ((rect, lift), offset) in placed.boxes.iter().zip(&placed.offsets) {
+                let half_width = rect.width() / 2.0;
+                let expected = Vec2::new(shell_px + CHIP_SHELL_GAP_PX + half_width, *lift);
+                assert!(
+                    (*offset - expected).abs().max_element() < 0.5,
+                    "{ui_scale}x: the chip on row {lift} is at {offset:?}, expected {expected:?}"
+                );
+            }
+            assert!(placed.com.x > 0.0, "{ui_scale}x: the rig is on screen");
+        }
+    }
+
+    /// The speed chip is the tallest chip and grows while the autopilot burns.
+    /// The mode row above it and the magazine row under it must clear it at
+    /// its peak scale.
+    #[test]
+    fn the_chip_rows_clear_the_speed_chip_at_its_peak_emphasis() {
+        use crate::chip_layout_rig::{chip_layout_app, measure, only_descendant_with, settle};
+
+        let mut app = chip_layout_app();
+        let ship = app.world_mut().spawn_empty().id();
+        let hud = app
+            .world_mut()
+            .spawn(flight_status_hud(FlightStatusHudConfig { target: ship }))
+            .id();
+        let speed = only_descendant_with::<SpeedChipUIMarker>(&mut app, hud);
+        let mode = only_descendant_with::<ModeChipUIMarker>(&mut app, hud);
+        let rcs = only_descendant_with::<RcsBudgetChipUIMarker>(&mut app, hud);
+        app.world_mut()
+            .entity_mut(speed)
+            .insert(Text::new("11.7 m/s"));
+        app.world_mut()
+            .entity_mut(mode)
+            .insert(Text::new("AP MATCH - BURN"));
+        settle(&mut app);
+
+        let half_height = |chip: Entity| measure(&app, chip).size.y / 2.0;
+        assert!(
+            half_height(mode) > 0.0 && half_height(rcs) > 0.0,
+            "delivery guard: the chips were laid out"
+        );
+        let speed_half = half_height(speed) * SPEED_CHIP_EMPHASIS;
+        let mode_bottom = MODE_CHIP_LIFT_PX + half_height(mode);
+        let speed_top = SPEED_CHIP_LIFT_PX - speed_half;
+        assert!(
+            mode_bottom <= speed_top,
+            "the mode chip ends at {mode_bottom} px, the speed chip starts at {speed_top} px"
+        );
+        let rcs_top = RCS_CHIP_LIFT_PX - half_height(rcs);
+        let speed_bottom = SPEED_CHIP_LIFT_PX + speed_half;
+        assert!(
+            rcs_top >= speed_bottom,
+            "the magazine chip starts at {rcs_top} px, the speed chip ends at {speed_bottom} px"
+        );
     }
 
     /// The chips hang off the same point the shells are centred on - the live

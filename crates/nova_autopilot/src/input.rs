@@ -364,11 +364,15 @@ pub fn ui_node_rect(world: &World, name: &str) -> Option<Rect> {
         // "no such node": nothing has spawned one yet.
         return None;
     };
+    // A node's inverse scale factor divides by the window scale AND the
+    // interface scale. The pointer lives in window logical px, so the
+    // interface scale goes back on.
+    let ui_scale = world.get_resource::<UiScale>().map_or(1.0, |scale| scale.0);
     let rects: Vec<Rect> = query
         .iter(world)
         .filter(|(node_name, _, _, visibility)| node_name.as_str() == name && visibility.get())
         .map(|(_, transform, computed, _)| {
-            let scale = computed.inverse_scale_factor();
+            let scale = computed.inverse_scale_factor() * ui_scale;
             Rect::from_center_size(transform.translation * scale, computed.size() * scale)
         })
         .filter(is_a_target)
@@ -911,6 +915,22 @@ mod tests {
             None,
             "an unknown name resolves to nothing rather than to some other node"
         );
+    }
+
+    /// The interface scale multiplies layout as the window scale does, but
+    /// the pointer does not know it: a node at 150% sits 1.5 times further
+    /// out in window px than its own inverse scale factor says.
+    #[test]
+    fn a_named_node_resolves_in_window_px_at_a_larger_interface_scale() {
+        let mut app = app();
+        app.insert_resource(UiScale(1.5));
+        // Laid out at (400, 120) interface px, so (600, 180) window px.
+        spawn_named_node_at_scale(&mut app, "Scenarios List", Vec2::new(400.0, 120.0), 1.5);
+
+        let rect = ui_node_rect(app.world_mut(), "Scenarios List").expect("a laid-out node");
+
+        assert_eq!(rect.center(), Vec2::new(600.0, 180.0));
+        assert_eq!(rect.size(), NODE_SIZE * 1.5);
     }
 
     /// The four worlds `ui_node_rect` collapses into `None`, told apart. A

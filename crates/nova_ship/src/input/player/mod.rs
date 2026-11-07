@@ -52,13 +52,16 @@ use wheel::{on_wheel_step, on_wheel_zoom, WheelDownInput, WheelUpInput};
 pub(crate) use self::flight_rig::{FlightInputMarker, RollLeftInput, RollRightInput};
 pub use self::{
     control::{resume_player_control, suspend_player_control, PlayerControlSuspended},
-    hints::{FlightVerbHints, VerbHint},
+    hints::{FlightVerbHints, StopVerbType, VerbHint},
     weapons::{
         SectionInputBindingChanged, SpaceshipMiningInputBinding, SpaceshipRailgunInputBinding,
         SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
     },
 };
-use crate::{flight::prelude::MatchRefusal, input::bindings::flight_bindings};
+use crate::{
+    flight::prelude::MatchRefusal, input::bindings::flight_bindings,
+    sections::prelude::DockPressRefusal,
+};
 
 /// The input sources and per-verb bindings, the verb hints and
 /// `SpaceshipPlayerInputPlugin`.
@@ -67,7 +70,7 @@ pub mod prelude {
         resume_player_control, suspend_player_control, FlightVerbHints, PlayerControlSuspended,
         SectionInputBindingChanged, SpaceshipMiningInputBinding, SpaceshipPlayerInputPlugin,
         SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding, SpaceshipTorpedoInputBinding,
-        SpaceshipTurretInputBinding, VerbHint,
+        SpaceshipTurretInputBinding, StopVerbType, VerbHint,
     };
 }
 
@@ -112,6 +115,8 @@ impl Plugin for SpaceshipPlayerInputPlugin {
         app.add_message::<SectionInputBindingChanged>();
         // The MATCH chord's refusals; the flight plugin registers it too.
         app.add_message::<MatchRefusal>();
+        // The DOCK press's refusals; the docking plugin registers it too.
+        app.add_message::<DockPressRefusal>();
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_player_added_spawn_flight_input);
         app.add_systems(

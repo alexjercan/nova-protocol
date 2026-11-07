@@ -1371,7 +1371,7 @@ pub(crate) fn spawn_map_chart_objectives(panel: &mut ChildSpawnerCommands) {
 /// Show the OBJECTIVES block while the chart view shows with nothing
 /// selected, rebuild its rows whenever what [`open_objectives`] lists, the
 /// goal's met stamp, or the focused chart layer changes, and hide it
-/// otherwise. The heading carries the focused layer (`OBJECTIVES  Y{layer}`)
+/// otherwise. The heading carries the focused layer (`OBJECTIVES  LAYER {layer}`)
 /// with the layer's visited cell count as its tooltip, since the chart's own
 /// header fields render unreliably with nothing selected. A held job's row
 /// selects its JOB mark; a met goal reads one row with its stamp.
@@ -1444,7 +1444,7 @@ pub(crate) fn update_map_chart_objectives(
                 ))
                 .with_children(|heading| {
                     heading.spawn(themed_label(
-                        &format!("OBJECTIVES  Y{}", runtime.chart_layer),
+                        &format!("OBJECTIVES  LAYER {}", runtime.chart_layer),
                         12.0,
                         UiColor::Label,
                     ));
@@ -1848,14 +1848,6 @@ pub(crate) fn chart_panel_field(
             jobs.job(id)
                 .map_or_else(String::new, |job| job_title(job, items)),
             UiColor::Body,
-        ),
-        (Some(MapChartMarkType::Job(_)), MapPanelField::Kind) => {
-            ("JOB".to_string(), MAP_CHART_JOB_COLOR)
-        }
-        (Some(MapChartMarkType::Job(id)), MapPanelField::Range) => (
-            jobs.job(id)
-                .map_or_else(String::new, |job| format!("Cell {}", job_cell(job))),
-            UiColor::Primary,
         ),
         (Some(MapChartMarkType::Job(id)), MapPanelField::Bearing) => (
             jobs.job(id).map_or_else(String::new, |job| {

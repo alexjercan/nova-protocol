@@ -9,6 +9,8 @@ fn the_env_contract_names_are_the_documented_ones() {
     assert_eq!(AUTOPILOT_ENV, "NOVA_AUTOPILOT");
     assert_eq!(CAPTURE_ENV, "NOVA_CAPTURE");
     assert_eq!(CAPTURE_DIR_ENV, "NOVA_CAPTURE_DIR");
+    assert_eq!(CAPTURE_SIZE_ENV, "NOVA_CAPTURE_SIZE");
+    assert_eq!(CAPTURE_UI_SCALE_ENV, "NOVA_CAPTURE_UI_SCALE");
     assert_eq!(DEADLINE_ENV, "NOVA_AUTOPILOT_DEADLINE");
     assert_eq!((AUTOPILOT, LOOP_CAPTURE), ("autopilot", "loop_capture"));
 }

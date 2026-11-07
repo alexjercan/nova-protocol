@@ -1123,7 +1123,8 @@ pub(crate) fn on_map_cancel_button(_activate: On<Activate>, mut runtime: ResMut<
 /// CANCEL button enabled while a GOTO flies, and both hidden in the chart
 /// along with the icon frame; the [`MapPanelHeaderMarker`] node hides with
 /// them in the chart overview with nothing selected, and returns on local Map
-/// or a selected chart mark.
+/// or a selected chart mark. A job selected on the chart hides the Kind and
+/// Range lines.
 /// Rewrites text, colour, the icon, the frame and the button state in place
 /// and only on a difference, so a held selection writes nothing.
 #[expect(
@@ -1139,7 +1140,10 @@ pub(crate) fn update_map_panel(
     jobs: Res<Jobs>,
     items: Option<Res<GameItems>>,
     q_autopilot: Query<&Autopilot>,
-    mut q_field: Query<(&MapPanelField, &mut Text, &mut ThemedText)>,
+    mut q_field: Query<
+        (&MapPanelField, &mut Text, &mut ThemedText, &mut Node),
+        Without<MapPanelHeaderMarker>,
+    >,
     mut q_icon: Query<
         (
             &ChildOf,
@@ -1149,7 +1153,14 @@ pub(crate) fn update_map_panel(
         ),
         With<MapPanelIcon>,
     >,
-    mut q_frame: Query<&mut Node, (Without<MapPanelIcon>, Without<MapPanelHeaderMarker>)>,
+    mut q_frame: Query<
+        &mut Node,
+        (
+            Without<MapPanelIcon>,
+            Without<MapPanelHeaderMarker>,
+            Without<MapPanelField>,
+        ),
+    >,
     mut q_header: Query<&mut Node, With<MapPanelHeaderMarker>>,
     q_goto_button: Query<(Entity, Has<InteractionDisabled>), With<MapGotoButton>>,
     q_cancel_button: Query<(Entity, Has<InteractionDisabled>), With<MapCancelButton>>,
@@ -1215,10 +1226,27 @@ pub(crate) fn update_map_panel(
             }
             None => (contact.kind.note().to_string(), UiColor::Label),
         },
-        (None, None) => ("Click a contact to select it.".to_string(), UiColor::Label),
+        (None, None) => (
+            "Click a contact to select it.".to_string(),
+            UiColor::Secondary,
+        ),
     };
 
-    for (field, mut text, mut themed) in &mut q_field {
+    // A held job's `JOB-n` code and SECTOR block already say what it is and
+    // where, so its Kind and Range lines take no row instead of a blank gap.
+    let job_selected =
+        runtime.chart && matches!(runtime.chart_selected, Some(MapChartMarkType::Job(_)));
+
+    for (field, mut text, mut themed, mut node) in &mut q_field {
+        let display = if job_selected && matches!(field, MapPanelField::Kind | MapPanelField::Range)
+        {
+            Display::None
+        } else {
+            Display::Flex
+        };
+        if node.display != display {
+            node.display = display;
+        }
         let (value, color) = match (&selected, field) {
             (_, MapPanelField::Note) if runtime.goto_note.is_some() && !runtime.chart => {
                 note.clone()

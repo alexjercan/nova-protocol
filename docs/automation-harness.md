@@ -62,6 +62,8 @@ so.
 | `NOVA_AUTOPILOT` | the scripted state driver | `AutopilotPlugin` | any (presence only) |
 | `NOVA_CAPTURE` | the CAPTURE path of a script that has one: its shot steps write PNGs instead of driving straight through | `capturing()`, which a script reads while building its steps | any (presence only) |
 | `NOVA_CAPTURE_DIR` | nothing on its own | `capture_window`, and the scenario `Screenshot` action (`nova_scenario/src/actions/view.rs`) reads it independently | directory that relative capture paths resolve under; absolute paths ignore it |
+| `NOVA_CAPTURE_SIZE` | nothing on its own | `capture_size_override`, applied by `force_capture_resolution` | `<width>x<height>` in pixels, in place of 1920x1080; a malformed value panics |
+| `NOVA_CAPTURE_UI_SCALE` | nothing on its own | `force_capture_resolution`, which sets the `UiScale` factor | `75`, `100`, `125` or `150`; any other value panics |
 | `NOVA_AUTOPILOT_DEADLINE` | nothing on its own | the completion watcher | seconds before the run gives up and error-exits naming the laggards (default 120); the RUN-level backstop under a script's own per-step deadlines |
 
 `NOVA_CAPTURE` arms the SHOTS, never a driver. A capturing run therefore sets

@@ -620,6 +620,11 @@ impl ActionChoiceExt for ActionChoice {
                 label: None,
                 visible: true,
             }),
+            ActionChoice::ObjectiveChipHold => {
+                EventActionConfig::ObjectiveChipHold(ObjectiveChipHoldActionConfig {
+                    id: String::new(),
+                })
+            }
             ActionChoice::HintEmphasisSet => {
                 EventActionConfig::HintEmphasisSet(HintEmphasisSetActionConfig {
                     verb: String::new(),

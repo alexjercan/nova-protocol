@@ -49,7 +49,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
         (
             ItemRoleType::HullPlate.id(),
             "Hull plate",
-            "Structural plating for hull sections.",
+            "Structural plating. Ship pane repairs spend it on damaged sections. Destroyed sections need a station rebuild.",
             Repair,
             10_000,
             1,

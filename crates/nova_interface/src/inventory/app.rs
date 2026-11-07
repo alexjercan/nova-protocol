@@ -13,7 +13,6 @@ use bevy::{
     input::mouse::MouseWheel,
     picking::hover::Hovered,
     prelude::*,
-    text::TextLayoutInfo,
     ui::InteractionDisabled,
     ui_widgets::{
         Activate, Button, Slider, SliderPrecision, SliderRange, SliderStep, SliderValue,
@@ -27,11 +26,12 @@ use nova_ship::prelude::{
     CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedShip, DockingConnection,
 };
 use nova_ui::{
-    screen::drive_wheel_scroll,
+    screen::{drive_wheel_scroll, EllipsisText},
     theme::UiColor,
     widget::{
         badge, slider_track, text_field, BadgeKind, ButtonSpec, TextFieldError, TextFieldFocused,
-        TextFieldSpec, TextFieldValue, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText,
+        TextFieldSpec, TextFieldValue, ThemedBorder, ThemedFill, ThemedImageTint, ThemedRadius,
+        ThemedText, Tooltip,
     },
 };
 
@@ -44,7 +44,7 @@ use crate::{
     icons::{icon_node, InterfaceIcons},
     pane::{
         compact_button, control_row, divider, fixed_cell, play_menu_select, side_panel,
-        spawn_credit_figure, themed_label, InterfacePaneType, SUMMARY_LINES,
+        spawn_credit_figure, themed_label, ui_width, InterfacePaneType, SUMMARY_LINES,
     },
     terminal::NovaOsAppInput,
     viewer::cycle_index,
@@ -61,12 +61,12 @@ const PRICE_PX: f32 = 72.0;
 const DEAL_PX: f32 = 44.0;
 /// Gap between the cells of a row and of its heading line, in logical px.
 const CELL_GAP_PX: f32 = 6.0;
-/// Window width, in logical px, from which the Inventory stores lay out
+/// UI width ([`ui_width`]), in logical px, from which the Inventory stores lay out
 /// Own, Partner and Storage as three equal columns. Under it, with Storage
 /// drawn beside the partner, Storage stacks under Partner so the priced
 /// columns keep one-line rows: three equal columns leave a priced row's name
 /// a few characters at 1200 px, and at 1024 px none. A name that still
-/// overflows ends in `...` ([`fit_inventory_row_names`]).
+/// overflows ends in `...` ([`EllipsisText`]).
 const INVENTORY_STACK_SPLIT_PX: f32 = 1200.0;
 /// The Partner column's grid share of the height against 1.0 for Storage
 /// stacked under it: a 7-item board stays whole at 1024x768, and Storage
@@ -458,13 +458,13 @@ fn filter_chip(
             column_gap: px(4),
             padding: UiRect::axes(px(8), px(0)),
             border: UiRect::all(px(1)),
-            border_radius: BorderRadius::all(px(4)),
             ..default()
         },
         BackgroundColor(Color::NONE),
         ThemedFill::alpha(color, fill),
         BorderColor::all(Color::NONE),
         ThemedBorder::alpha(color, border),
+        ThemedRadius::control(),
     ))
     .observe(on_inventory_filter_chip)
     .with_children(|chip_node| {
@@ -500,13 +500,13 @@ fn inventory_column(
                 row_gap: px(4),
                 padding: UiRect::all(px(8)),
                 border: UiRect::all(px(1)),
-                border_radius: BorderRadius::all(px(4)),
                 overflow: Overflow::clip(),
                 ..default()
             },
             BackgroundColor(Color::NONE),
             BorderColor::all(Color::NONE),
             ThemedBorder::alpha(UiColor::Secondary, 0.35),
+            ThemedRadius::control(),
         ))
         .with_children(|panel| {
             if side == InventorySideType::Partner {
@@ -686,12 +686,13 @@ pub(crate) struct InventoryColumnsRow;
 /// causes no relayout. No window, as in a headless run, lays out wide.
 pub(crate) fn fit_inventory_columns(
     q_window: Query<&Window, With<PrimaryWindow>>,
+    scale: Res<UiScale>,
     mut q_row: Query<(&mut Node, &Children), With<InventoryColumnsRow>>,
     mut q_panel: Query<(&InventoryColumnPanel, &mut Node), Without<InventoryColumnsRow>>,
 ) {
     let narrow = q_window
         .single()
-        .is_ok_and(|window| window.width() < INVENTORY_STACK_SPLIT_PX);
+        .is_ok_and(|window| ui_width(window, &scale) < INVENTORY_STACK_SPLIT_PX);
     for (mut row, panels) in &mut q_row {
         let drawn = |side| {
             q_panel
@@ -789,11 +790,11 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                     hint.spawn(themed_label(
                         "Docked, double-click an item to move its stack, Shift for one.",
                         12.0,
-                        UiColor::Label,
+                        UiColor::Secondary,
                     ));
                     hint.spawn((
                         InventoryInspectorField::SelectCue,
-                        themed_label("", 12.0, UiColor::Label),
+                        themed_label("", 12.0, UiColor::Secondary),
                     ));
                 });
             panel
@@ -817,13 +818,13 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                                     align_items: AlignItems::Center,
                                     justify_content: JustifyContent::Center,
                                     border: UiRect::all(px(1)),
-                                    border_radius: BorderRadius::all(px(4)),
                                     ..default()
                                 },
                                 BackgroundColor(Color::NONE),
                                 ThemedFill::alpha(UiColor::Surface, 0.6),
                                 BorderColor::all(Color::NONE),
                                 ThemedBorder::new(UiColor::Secondary),
+                                ThemedRadius::control(),
                             ))
                             .with_children(|frame| {
                                 frame.spawn((
@@ -985,13 +986,13 @@ fn about_box(item: &mut ChildSpawnerCommands) {
                     min_height: percent(100),
                     padding: UiRect::all(px(4)),
                     border: UiRect::all(px(1)),
-                    border_radius: BorderRadius::all(px(4)),
                     ..default()
                 },
                 BackgroundColor(Color::NONE),
                 ThemedFill::new(UiColor::Surface),
                 BorderColor::all(Color::NONE),
                 ThemedBorder::new(UiColor::Accent),
+                ThemedRadius::control(),
             ))
             .with_children(|full| {
                 full.spawn((
@@ -1225,13 +1226,13 @@ fn action_chip(
                 align_items: AlignItems::Center,
                 padding: UiRect::axes(px(8), px(0)),
                 border: UiRect::all(px(1)),
-                border_radius: BorderRadius::all(px(4)),
                 ..default()
             },
             BackgroundColor(Color::NONE),
             ThemedFill::alpha(color, fill),
             BorderColor::all(Color::NONE),
             ThemedBorder::alpha(color, border),
+            ThemedRadius::control(),
         ))
         .observe(on_inventory_draft_action_chip)
         .with_children(|chip| {
@@ -1302,7 +1303,7 @@ fn inventory_row(
             cell.spawn((
                 themed_label(&design.name, 13.0, UiColor::Body),
                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
-                InventoryRowName(design.name.clone()),
+                EllipsisText(design.name.clone()),
                 Pickable::IGNORE,
             ));
         });
@@ -1329,80 +1330,6 @@ fn inventory_row(
             });
         }
     });
-}
-
-/// The full item name a row's Name label shortens to fit its cell.
-#[derive(Component)]
-pub(crate) struct InventoryRowName(String);
-
-/// What a shortened row name ends in.
-const ROW_NAME_ELLIPSIS: &str = "...";
-
-/// Fit each row name to its cell with [`fitted_row_name`]. It reads this
-/// frame's text layout, so a shortened or restored name draws one frame
-/// after its row spawns or its cell resizes.
-pub(crate) fn fit_inventory_row_names(
-    mut names: Query<(
-        &InventoryRowName,
-        &mut Text,
-        &TextLayoutInfo,
-        &ComputedNode,
-        &ChildOf,
-    )>,
-    cells: Query<&ComputedNode>,
-) {
-    for (name, mut text, layout, node, child_of) in &mut names {
-        let Ok(cell) = cells.get(child_of.parent()) else {
-            continue;
-        };
-        // Compare in physical px, where the layout rounds the width up
-        // before it stores it in logical px; the round undoes the float
-        // error of that conversion.
-        let shown_width = (layout.size.x / node.inverse_scale_factor()).round();
-        let Some(fitted) =
-            fitted_row_name(&name.0, &text.0, shown_width, cell.content_box().size().x)
-        else {
-            continue;
-        };
-        if text.0 != fitted {
-            text.0 = fitted;
-        }
-    }
-}
-
-/// The name a `width` cell shows for `full`, given the `shown` name laid out
-/// `shown_width` wide, or `None` to keep `shown`. Both widths are physical px.
-///
-/// The row font is monospace (Iosevka Term), so one advance is the laid-out
-/// width over the shown chars. The layout rounds that width up, so the
-/// advance is never under the true one and differs a little by length. An
-/// overflowing name shortens to the longest prefix that fits with
-/// [`ROW_NAME_ELLIPSIS`] after it, at least one char shorter. A shortened
-/// name grows back only to the whole `full` name, once its rounded-up width
-/// fits: growing to a longer prefix could alternate between two lengths
-/// whose rounded widths fall on either side of the cell.
-pub(crate) fn fitted_row_name(
-    full: &str,
-    shown: &str,
-    shown_width: f32,
-    width: f32,
-) -> Option<String> {
-    let shown_chars = shown.chars().count();
-    // Not laid out yet: no advance to read.
-    if shown_chars == 0 || shown_width <= 0.0 {
-        return None;
-    }
-    let advance = shown_width / shown_chars as f32;
-    if shown_width > width {
-        let fits = ((width / advance).floor().max(0.0) as usize).min(shown_chars - 1);
-        let kept: String = full
-            .chars()
-            .take(fits.saturating_sub(ROW_NAME_ELLIPSIS.len()))
-            .collect();
-        return Some(format!("{}{ROW_NAME_ELLIPSIS}", kept.trim_end()));
-    }
-    (shown != full && (full.chars().count() as f32 * advance).ceil() <= width)
-        .then(|| full.to_string())
 }
 
 /// Show the clicked category, or every category for `All`, with one click if
@@ -3406,7 +3333,7 @@ pub(crate) fn update_inventory_panel(
                     ));
                 }
                 if section.stacks.is_empty() {
-                    rows.spawn(themed_label("Inventory empty.", 12.0, UiColor::Label));
+                    rows.spawn(themed_label("Inventory empty.", 12.0, UiColor::Secondary));
                     continue;
                 }
                 let visible: Vec<RowStack> = section
@@ -3419,7 +3346,7 @@ pub(crate) fn update_inventory_panel(
                     rows.spawn(themed_label(
                         "Nothing in this category.",
                         12.0,
-                        UiColor::Label,
+                        UiColor::Secondary,
                     ));
                 }
                 for stack in visible {
@@ -3952,6 +3879,7 @@ pub(crate) fn update_inventory_trade_controls(
             &InventoryTradeAllButton,
             &mut Node,
             Has<InteractionDisabled>,
+            Option<&Tooltip>,
         ),
         Without<InventoryPriceHeadings>,
     >,
@@ -3982,21 +3910,60 @@ pub(crate) fn update_inventory_trade_controls(
             theirs,
             their_cr,
         );
-        Some((trade, planned.is_ok()))
+        let own_title = ships.title(pair.own, InventorySideType::Own);
+        let partner_title = ships.title(partner, InventorySideType::Partner);
+        let (seller, buyer) = match trade {
+            ItemTradeType::Buy => (&partner_title, &own_title),
+            ItemTradeType::Sell => (&own_title, &partner_title),
+        };
+        let refusal = planned.err().map(|refusal| {
+            trade_refusal_text(
+                &ships.items,
+                refusal,
+                &draft.item,
+                seller,
+                buyer,
+                &partner_title,
+            )
+        });
+        Some((trade, refusal))
     });
-    for (button, trade_all, mut node, disabled) in &mut q_trade_all {
-        let (shown, enabled) = match whole {
-            Some((trade, enabled)) if trade == trade_all.0 => (true, enabled),
-            _ => (false, false),
+    for (button, trade_all, mut node, disabled, tooltip) in &mut q_trade_all {
+        let (shown, refusal) = match &whole {
+            Some((trade, refusal)) if *trade == trade_all.0 => (true, refusal.as_deref()),
+            _ => (false, None),
         };
         let display = if shown { Display::Flex } else { Display::None };
         if node.display != display {
             node.display = display;
         }
-        if enabled && disabled {
-            commands.entity(button).remove::<InteractionDisabled>();
-        } else if !enabled && !disabled {
-            commands.entity(button).insert(InteractionDisabled);
+        // The reason a greyed button carries, as `refusable_button` sets it:
+        // the form's summary line names the same refusal for the draft.
+        match refusal {
+            Some(why) => {
+                if !disabled {
+                    commands.entity(button).insert(InteractionDisabled);
+                }
+                if tooltip.is_none_or(|tooltip| tooltip.0 != why) {
+                    commands.entity(button).insert(Tooltip(why.to_string()));
+                }
+            }
+            None if shown => {
+                if disabled {
+                    commands.entity(button).remove::<InteractionDisabled>();
+                }
+                if tooltip.is_some() {
+                    commands.entity(button).remove::<Tooltip>();
+                }
+            }
+            None => {
+                if !disabled {
+                    commands.entity(button).insert(InteractionDisabled);
+                }
+                if tooltip.is_some() {
+                    commands.entity(button).remove::<Tooltip>();
+                }
+            }
         }
     }
 }

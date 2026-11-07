@@ -3159,13 +3159,13 @@ fn chart_objectives_heading_follows_the_focused_layer() {
         (text, tooltip)
     }
     let (text, tooltip) = heading(app.world_mut());
-    assert_eq!(text, "OBJECTIVES  Y2");
+    assert_eq!(text, "OBJECTIVES  LAYER 2");
     assert_eq!(tooltip, "1 visited cells on layer 2");
 
     app.world_mut().resource_mut::<MapRuntime>().chart_layer = 3;
     settle(app);
     let (text, tooltip) = heading(app.world_mut());
-    assert_eq!(text, "OBJECTIVES  Y3");
+    assert_eq!(text, "OBJECTIVES  LAYER 3");
     assert_eq!(tooltip, "0 visited cells on layer 3");
 }
 

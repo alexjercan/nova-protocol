@@ -34,11 +34,11 @@ use nova_hud::prelude::{ChartSceneCell, ChartSceneMark, ChartSceneMarkType, Char
 use nova_interface::prelude::{icon_node, InterfaceIcons};
 use nova_scenario::prelude::{GameScenarios, GameShipDesigns, GameStartRoles};
 use nova_ui::{
-    screen::{scroll_column, scroll_viewport},
+    screen::{scroll_column, scroll_viewport, EllipsisText},
     theme,
     theme::UiColor,
     widget::{
-        badge, list_row, separator, themed_button, BadgeKind, ButtonVariant, Selected,
+        badge, list_row, separator, themed_button, BadgeKind, ButtonSpec, ButtonVariant, Selected,
         ThemedBorder, ThemedRadius, ThemedText, UiText,
     },
 };
@@ -52,10 +52,10 @@ use crate::{
     preview::{preview_node, MenuChartPreview},
     scenarios::NewGameScenario,
     widgets::{
-        actions_row, button_slot, button_variant, danger_button, detail_row, MAIN_SLOT_W,
-        SIDE_SLOT_W,
+        actions_row, button_slot, button_variant, close_screen, danger_button, detail_row,
+        MAIN_SLOT_W, SIDE_SLOT_W,
     },
-    world_setup::{WorldsRoot, ROLE_ICON_PX},
+    world_setup::{new_game_button, WorldsRoot, ROLE_ICON_PX},
 };
 
 /// How many cells the Load preview reaches out from the save's cell.
@@ -264,7 +264,7 @@ pub(crate) fn on_load_back(
     _activate: On<Activate>,
     mut panel: Single<&mut Visibility, With<LoadPanel>>,
 ) {
-    **panel = Visibility::Hidden;
+    close_screen(&mut panel);
 }
 
 /// Select the clicked row's world: write [`SelectedWorldSlug`] and move the
@@ -423,51 +423,56 @@ pub(crate) fn latest_world(listings: &[WorldListing]) -> Option<&WorldListing> {
 #[derive(Component, Clone, Debug)]
 pub(crate) struct ContinueWorld(pub(crate) String);
 
-/// The menu panel's node that holds Continue and its caption.
+/// The menu panel's node that holds Continue, its caption and New Game.
 /// [`refresh_continue`] redraws it when [`WorldListings`] changes, so a
-/// deleted or refused save does not stay named there.
+/// deleted or refused save does not stay named there and New Game takes the
+/// lit face back once the last save is gone.
 #[derive(Component)]
 pub(crate) struct ContinueSlot;
 
-/// Draw Continue and its caption in `slot` for the newest readable save of
-/// `listings` ([`latest_world`]), its age read against `now`. Draws nothing
-/// when no listed world has a readable header.
-pub(crate) fn spawn_continue(slot: &mut ChildSpawnerCommands, listings: &[WorldListing], now: u64) {
-    let Some(latest) = latest_world(listings) else {
-        return;
-    };
-    let Ok(header) = &latest.header else {
-        return;
-    };
-    slot.spawn((
-        Name::new("Continue Button"),
-        ContinueWorld(latest.folder.slug.clone()),
-        button_variant("Continue", ButtonVariant::Primary, None),
-        observe(on_continue_world),
-    ));
-    slot.spawn((
-        Name::new("Continue Caption"),
-        UiText,
-        Text::new(format!(
-            "{}, saved {}",
-            header.name,
-            saved_ago_text(now, header.saved_at_unix)
-        )),
-        TextFont {
-            font_size: FontSize::Px(12.0),
-            ..default()
-        },
-        TextColor(Color::NONE),
-        ThemedText::new(UiColor::Label),
-        Node {
-            margin: UiRect::bottom(px(6)),
-            ..default()
-        },
-    ));
+/// Draw the menu's head actions in `slot`: Continue and its caption for the
+/// newest readable save of `listings` ([`latest_world`]), its age read against
+/// `now`, then New Game. Continue is the only primary button when it is drawn;
+/// with no readable save New Game is.
+pub(crate) fn spawn_primary_actions(
+    slot: &mut ChildSpawnerCommands,
+    listings: &[WorldListing],
+    now: u64,
+) {
+    let latest = latest_world(listings)
+        .and_then(|latest| latest.header.as_ref().ok().map(|header| (latest, header)));
+    if let Some((latest, header)) = latest {
+        slot.spawn((
+            Name::new("Continue Button"),
+            ContinueWorld(latest.folder.slug.clone()),
+            button_variant("Continue", ButtonVariant::Primary, None),
+            observe(on_continue_world),
+        ));
+        slot.spawn((
+            Name::new("Continue Caption"),
+            UiText,
+            Text::new(format!(
+                "{}, saved {}",
+                header.name,
+                saved_ago_text(now, header.saved_at_unix)
+            )),
+            TextFont {
+                font_size: FontSize::Px(12.0),
+                ..default()
+            },
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Secondary),
+            Node {
+                margin: UiRect::bottom(px(6)),
+                ..default()
+            },
+        ));
+    }
+    slot.spawn(new_game_button(latest.is_none()));
 }
 
 /// Redraw [`ContinueSlot`] from [`WorldListings`]. A refused root draws no
-/// Continue.
+/// Continue, only New Game.
 pub(crate) fn refresh_continue(
     mut commands: Commands,
     listings: Res<WorldListings>,
@@ -477,13 +482,11 @@ pub(crate) fn refresh_continue(
         return;
     };
     commands.entity(slot).despawn_related::<Children>();
-    let Ok(rows) = &listings.0 else {
-        return;
-    };
+    let rows = listings.0.as_deref().unwrap_or_default();
     let now = now_unix();
     commands
         .entity(slot)
-        .with_children(|slot| spawn_continue(slot, rows, now));
+        .with_children(|slot| spawn_primary_actions(slot, rows, now));
 }
 
 /// Open the newest saved world from the menu's Continue button: read the
@@ -913,7 +916,11 @@ fn spawn_load_row(
             info.spawn((
                 Name::new("Load World Row Name"),
                 UiText,
+                // The info column is the clipped cell; the details pane names
+                // the world in full.
+                EllipsisText(title.clone()),
                 Text::new(title),
+                TextLayout::new(Justify::Left, LineBreak::NoWrap),
                 TextFont {
                     font_size: FontSize::Px(15.0),
                     ..default()
@@ -1360,7 +1367,7 @@ pub(crate) fn refresh_load_details(
                     .with_children(|slot| {
                         let mut load = slot.spawn((
                             Name::new("Load World Button"),
-                            themed_button("Load"),
+                            nova_ui::widget::button(ButtonSpec::new("Load").primary()),
                             LoadWorldButton,
                             observe(on_load_world),
                         ));

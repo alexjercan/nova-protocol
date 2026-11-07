@@ -729,8 +729,12 @@ pub(super) fn on_autopilot_off_input(
 /// eligible at all - is decided by
 /// [`on_docking_connection_request`](crate::prelude::DockingConnectionRequest)
 /// when the request lands, so the offer the HUD drew a frame ago can never be
-/// the pair that is built. A press with no candidate is a silent no-op, which
-/// is what the dark chip already says.
+/// the pair that is built.
+///
+/// A press with no candidate writes why ([`DockPressRefusal`]). That stays
+/// here, not in the request: world start and a bought hull's redock send the
+/// same request for the player with no key pressed. A target that refuses,
+/// or one that is no ship root (an asteroid or planet lock), writes nothing.
 ///
 /// The same key is the way out, exactly as `ORBIT` is left by pressing
 /// `ORBIT`, whoever holds the pair's helm. The undock branch is deliberately
@@ -741,6 +745,10 @@ pub(super) fn on_dock_input(
     mut commands: Commands,
     ship: Single<(Entity, Option<&TravelLock>, Option<&DockedShip>), With<PlayerSpaceshipMarker>>,
     q_capabilities: ShipCapabilityQuery,
+    q_roots: Query<(), With<SpaceshipRootMarker>>,
+    admission: DockAdmission,
+    ports: DockingPorts,
+    mut refusals: MessageWriter<DockPressRefusal>,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
@@ -761,8 +769,23 @@ pub(super) fn on_dock_input(
     }
     let Some(target) = travel.and_then(|travel| travel.0) else {
         debug!("on_dock_input: no travel lock, nothing to dock with");
+        refusals.write(DockPressRefusal(DockPressRefusalType::NoLock));
         return;
     };
+
+    if q_roots.contains(target)
+        && admission.admits(entity, target)
+        && ports.best_candidate(entity, target).is_none()
+    {
+        // With no candidate the nearest pair fails `is_eligible`, so a pair
+        // past the first two gates failed the last one.
+        refusals.write(DockPressRefusal(match ports.nearest_pair(entity, target) {
+            None => DockPressRefusalType::NoFreePort,
+            Some(pair) if !pair.gap_holds() => DockPressRefusalType::TooFar,
+            Some(pair) if !pair.facing_holds() => DockPressRefusalType::NotFacing,
+            Some(_) => DockPressRefusalType::TooFast,
+        }));
+    }
 
     debug!("on_dock_input: requesting a dock with {target:?}");
     commands.trigger(DockingConnectionRequest { entity, target });

@@ -15,7 +15,10 @@ use super::support::{
     all_texts, app, checkbox_of, downloaded_set, entity_by_name, label_of, mod_row, mods_app,
     observe_portal_events, selected_mod, PortalCaptures,
 };
-use crate::mods::{dep_status, on_mod_toggle, DepStatus, ModEnableCheckbox, ModToggle};
+use crate::{
+    mods::{dep_status, on_mod_toggle, DepStatus, ModEnableCheckbox, ModToggle},
+    portal::UninstallStep,
+};
 
 /// Clicking a non-base mod's toggle flips its id in `EnabledMods` (the set the
 /// nova_assets re-merge watches). Driven via `trigger(Activate)` like the other
@@ -309,14 +312,81 @@ fn installed_tab_details_offer_uninstall_for_downloaded_mods() {
         entity_by_name(&mut app, "Mod Details Toggle Button").is_some(),
         "Enable/Disable stays alongside Uninstall"
     );
-    let uninstall = entity_by_name(&mut app, "Mod Details Uninstall Button")
-        .expect("a downloaded mod's details gain Uninstall on the Installed tab");
-    app.world_mut().trigger(Activate { entity: uninstall });
-    app.update();
+    for _ in 0..2 {
+        let uninstall = entity_by_name(&mut app, "Mod Details Uninstall Button")
+            .expect("a downloaded mod's details gain Uninstall on the Installed tab");
+        app.world_mut().trigger(Activate { entity: uninstall });
+        app.update();
+    }
     assert_eq!(
         app.world().resource::<PortalCaptures>().uninstalls,
         vec!["demo".to_string()],
         "the Installed-tab Uninstall fires with the right id"
+    );
+}
+
+/// Uninstall deletes files, so the first press only asks. The second press
+/// does it; a press on anything else withdraws the ask.
+#[test]
+fn uninstall_needs_a_second_press() {
+    let mut app = mods_app();
+    app.insert_resource(downloaded_set(&[("demo", "0.2.0")]));
+    app.insert_resource(InstallJobs::default());
+    app.insert_resource(PendingRemovals::default());
+    observe_portal_events(&mut app);
+    app.update();
+    let demo_row = mod_row(&mut app, "demo").expect("demo row");
+    app.world_mut().trigger(Activate { entity: demo_row });
+    app.update();
+
+    let press = |app: &mut App| {
+        let uninstall = entity_by_name(app, "Mod Details Uninstall Button").expect("uninstall");
+        app.world_mut().trigger(Activate { entity: uninstall });
+        app.update();
+    };
+
+    press(&mut app);
+    assert!(
+        app.world()
+            .resource::<PortalCaptures>()
+            .uninstalls
+            .is_empty(),
+        "the first press deletes nothing"
+    );
+    let texts = all_texts(&mut app);
+    assert!(
+        texts.iter().any(|t| t == "Confirm"),
+        "armed label: {texts:?}"
+    );
+    assert!(
+        texts
+            .iter()
+            .any(|t| t == "Deletes Demo Mod from this computer."),
+        "the sentence says what happens: {texts:?}"
+    );
+
+    // Any other press withdraws the ask, so the next press asks again.
+    let toggle = entity_by_name(&mut app, "Mod Details Toggle Button").expect("toggle");
+    app.world_mut().trigger(Activate { entity: toggle });
+    app.update();
+    assert_eq!(
+        *app.world().resource::<UninstallStep>(),
+        UninstallStep::Idle
+    );
+    press(&mut app);
+    assert!(
+        app.world()
+            .resource::<PortalCaptures>()
+            .uninstalls
+            .is_empty(),
+        "after a withdrawn ask the next press asks again"
+    );
+
+    press(&mut app);
+    assert_eq!(
+        app.world().resource::<PortalCaptures>().uninstalls,
+        vec!["demo".to_string()],
+        "the second press uninstalls"
     );
 }
 

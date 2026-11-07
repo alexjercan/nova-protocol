@@ -35,7 +35,7 @@ What a dock is NOT is a merge. The two ships stay two ships: two hulls, two pilo
 
 ## Flying the approach
 
-<!-- Widget values: crates/nova_authoring/src/base_content/sections/docking_port.rs:23 (DOCK_TUBE_TRAVEL 0.5 cells = 5 m), :89 (capture_distance 10 m), :92 (capture_angle 15 deg), :96-97 (5 m/s, 5 deg/s); every gate is inclusive and graded on the stricter port, gap between retracted faces plus GAP_SLACK 0.0625 units (0.625 m) for f32 noise, speed and spin as relative magnitudes: crates/nova_ship/src/sections/docking_section/port.rs:93-119, :305-306; a refused DOCK logs at debug only: connection.rs:193. -->
+<!-- Widget values: crates/nova_authoring/src/base_content/sections/docking_port.rs:23 (DOCK_TUBE_TRAVEL 0.5 cells = 5 m), :89 (capture_distance 10 m), :92 (capture_angle 15 deg), :96-97 (5 m/s, 5 deg/s); every gate is inclusive and graded on the stricter port, gap between retracted faces plus GAP_SLACK 0.0625 units (0.625 m) for f32 noise, speed and spin as relative magnitudes: crates/nova_ship/src/sections/docking_section/port.rs:39 (GAP_SLACK), :93-113 (the gates), :296-319 (relative speed and spin); a refused DOCK logs at debug only: connection.rs:352, :356, :375. -->
 
 <div class="widget" data-widget="docking-envelope">
 <p>Two docking ports seen from the side, at the widest gap that docks: 10 m or less between the two retracted faces, the two ports facing each other within 15 degrees, moving at 5 m/s or less and turning at 5 degrees a second or less relative to each other. Roll is ignored. After the clamp, each sleeve runs 5 m out and the two meet across the gap.</p>
@@ -57,11 +57,15 @@ You do not choose the ports. The game pairs the nearest eligible ones on the two
 
 ## Who lets you dock
 
-<!-- Behavior verified against crates/nova_ship/src/sections/docking_section/admission.rs DockAdmission::admits, read by the DOCK chip (input/player/hints.rs) and on_docking_connection_request (connection.rs). -->
+<!-- Behavior verified against crates/nova_ship/src/sections/docking_section/admission.rs DockAdmission::admits, read by the DOCK chip (input/player/hints.rs) and on_docking_connection_request (connection.rs). The notice lines: hints.rs dock_refusal_line and update_flight_verb_hints, posted by crates/nova_hud/src/hud_notice.rs post_dock_refusal_notice. The press lines: flight_rig.rs on_dock_input, posted by hud_notice.rs post_dock_press_notice. -->
 
 The geometry is only half of it: the DOCK chip also goes dark, and a request refuses, while the target itself will not have you. A target refuses while it reads [Hostile](../../factions/) to you, while it is on the Enemy side, while it is [answering](../../factions/#retaliation) any ship's fire, or while its AI is actively fighting. A calm ally or Neutral lets you in, and a **neutralized** ship always admits a boarding, whatever side it was. A station you own lets you in whatever your side.
 
 A ship holds one dock at a time. A station holds one ship per docking port: you can dock while any of its ports is free, and once every port is held the HUD posts `<NAME> DOCK OCCUPIED` as a notice. Everything docked at a station turns with it as one body, held level by the station's bridge.
+
+Two refusals name a station. The HUD posts each once, when your travel lock settles on the station, not when you press the key: `<NAME> REFUSES DOCKING` for a living station on the Enemy side or hostile to you, and `<NAME> DOCK OCCUPIED` for a station with every live port held, even one you own.
+
+A press of the DOCK key that does nothing posts why, once per press, in the HUD notice. `DOCK: NO LOCK` means you have no travel lock. `DOCK: NO FREE PORT` means the two hulls have no pair of free live ports, which is also what a ship that already holds its one dock gives. Otherwise the game reads the nearest port pair and names the first check it fails: `DOCK: TOO FAR` for the gap, `DOCK: NOT FACING` for the facing, `DOCK: TOO FAST` for relative speed or relative spin. A press stays silent for a target that refuses you, so a ship that refuses you only keeps the chip dark, and a station has said so at the lock. It also stays silent with DOCK withheld, and on a lock that is no ship or station, such as an asteroid or a planet.
 
 A dock already made is never re-judged this way - a ship under fire from someone else stays docked with you. Only you hitting a docked Neutral with a crew aboard forces the undock, at once (see [Letting go](#letting-go)).
 

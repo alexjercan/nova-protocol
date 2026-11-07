@@ -712,3 +712,105 @@ fn a_semicolon_typed_into_a_field_does_not_open_the_shell_when_the_field_lets_go
     app.update();
     assert_eq!(pause_state(&app), PauseStates::Commands);
 }
+
+/// Settings is a layer of the pause overlay: Escape peels it off and the game
+/// stays paused, and only the next Escape resumes.
+#[test]
+fn escape_closes_pause_settings_before_it_resumes() {
+    use crate::settings::PauseSettingsPanel;
+
+    let mut app = app();
+    enter_playing(&mut app);
+    press_escape(&mut app);
+    assert_eq!(pause_state(&app), PauseStates::Paused);
+
+    let settings = find_named(&mut app, "Pause Settings Button").expect("pause Settings button");
+    app.world_mut().trigger(Activate { entity: settings });
+    app.update();
+    let panel = app
+        .world_mut()
+        .query_filtered::<Entity, With<PauseSettingsPanel>>()
+        .single(app.world())
+        .expect("one pause Settings panel");
+    assert_ne!(
+        *app.world().get::<Visibility>(panel).expect("a UI node"),
+        Visibility::Hidden,
+        "the Settings button opens the panel"
+    );
+
+    press_escape(&mut app);
+    assert_eq!(
+        *app.world().get::<Visibility>(panel).expect("a UI node"),
+        Visibility::Hidden,
+        "Escape closes the panel"
+    );
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Paused,
+        "and the game stays paused"
+    );
+
+    press_escape(&mut app);
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Unpaused,
+        "the next Escape resumes"
+    );
+}
+
+/// The pad's B button is Back for the Settings layer and nothing more: with
+/// no screen to close it leaves the pause as it is.
+#[test]
+fn the_pad_back_button_closes_pause_settings_and_never_resumes() {
+    use crate::settings::PauseSettingsPanel;
+
+    fn press_pad_back(app: &mut App, pad: Entity) {
+        let digital = |app: &mut App, press: bool| {
+            let mut pad = app.world_mut().entity_mut(pad);
+            let mut pad = pad.get_mut::<Gamepad>().expect("the pad was spawned");
+            if press {
+                pad.digital_mut().press(GamepadButton::East);
+            } else {
+                pad.digital_mut().release(GamepadButton::East);
+                pad.digital_mut().clear();
+            }
+        };
+        digital(app, true);
+        app.update();
+        digital(app, false);
+        app.update();
+    }
+
+    let mut app = app();
+    enter_playing(&mut app);
+    press_escape(&mut app);
+    let settings = find_named(&mut app, "Pause Settings Button").expect("pause Settings button");
+    app.world_mut().trigger(Activate { entity: settings });
+    app.update();
+    let panel = app
+        .world_mut()
+        .query_filtered::<Entity, With<PauseSettingsPanel>>()
+        .single(app.world())
+        .expect("one pause Settings panel");
+    assert_ne!(
+        *app.world().get::<Visibility>(panel).expect("a UI node"),
+        Visibility::Hidden,
+        "delivery guard: the panel is open"
+    );
+    let pad = app.world_mut().spawn(Gamepad::default()).id();
+
+    press_pad_back(&mut app, pad);
+    assert_eq!(
+        *app.world().get::<Visibility>(panel).expect("a UI node"),
+        Visibility::Hidden,
+        "B closes the panel"
+    );
+    assert_eq!(pause_state(&app), PauseStates::Paused);
+
+    press_pad_back(&mut app, pad);
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Paused,
+        "B with no screen open does not resume"
+    );
+}

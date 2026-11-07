@@ -16,8 +16,8 @@ use nova_scenario::prelude::CampaignConfig;
 const CAMPAIGN: &str = "season_one";
 const CHAPTER_ONE: &str = "season_one_chapter_one";
 
-/// The scenario a MOD's campaign is declared over: the training range New Game
-/// starts, which is base content and not a member of the base campaign.
+/// The scenario a MOD's campaign is declared over: the training range, which
+/// is base content and not a member of the base campaign.
 const MEMBER: &str = "tutorial";
 
 /// Base's own content, merged the way the game merges it.

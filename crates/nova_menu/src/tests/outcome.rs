@@ -8,6 +8,7 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use nova_gameplay::prelude::*;
+use nova_input::prelude::{BindingSpec, InputBindings, InputDeviceType, InputSource};
 use nova_scenario::prelude::*;
 use nova_ui::theme::ActiveUiTheme;
 
@@ -19,6 +20,70 @@ use crate::{
     outcome::{StartFailureCamera, StartFailureOverlay},
     settings::FocusPauseSetting,
 };
+
+/// Every text under `name`'s entity: the label and the key chip.
+fn texts_under(app: &mut App, name: &str) -> Vec<String> {
+    let root = find_named(app, name).unwrap_or_else(|| panic!("no entity named {name}"));
+    let mut found = Vec::new();
+    let mut stack = vec![root];
+    while let Some(entity) = stack.pop() {
+        if let Some(text) = app.world().get::<Text>(entity) {
+            found.push(text.0.clone());
+        }
+        if let Some(children) = app.world().get::<Children>(entity) {
+            stack.extend(children.iter());
+        }
+    }
+    found
+}
+
+/// The key hint is the player's binding, not a literal: Enter moved to J
+/// reads J on the button Enter's replacement runs.
+#[test]
+fn the_outcome_button_names_the_live_advance_key() {
+    let mut app = app_with_outcome();
+    enter_playing(&mut app);
+    assert!(app.world_mut().resource_mut::<InputBindings>().rebind(
+        "scenario_advance",
+        BindingSpec {
+            keyboard: vec![InputSource::Keyboard(KeyCode::KeyJ)],
+            gamepad: Vec::new(),
+        },
+    ));
+
+    app.world_mut()
+        .resource_mut::<NovaEventWorld>()
+        .next_scenario = Some(NextScenarioActionConfig {
+        scenario_id: "next_chapter".to_string(),
+        linger: true,
+        delay: None,
+    });
+    app.world_mut().resource_mut::<CurrentOutcome>().0 = Some(OutcomeActionConfig {
+        outcome: ScenarioOutcomeKind::Victory,
+        message: None,
+        auto_advance_secs: None,
+    });
+    app.update();
+
+    let texts = texts_under(&mut app, "Outcome Primary Button");
+    assert!(texts.iter().any(|t| t == "J"), "chip names J: {texts:?}");
+    assert!(
+        !texts.iter().any(|t| t == "Enter"),
+        "no stale Enter: {texts:?}"
+    );
+
+    // A rebind under a shown overlay repaints the chip.
+    assert!(app.world_mut().resource_mut::<InputBindings>().rebind(
+        "scenario_advance",
+        BindingSpec {
+            keyboard: vec![InputSource::Keyboard(KeyCode::KeyK)],
+            gamepad: Vec::new(),
+        },
+    ));
+    app.update();
+    let texts = texts_under(&mut app, "Outcome Primary Button");
+    assert!(texts.iter().any(|t| t == "K"), "chip names K: {texts:?}");
+}
 
 /// Defeat with a queued lingering retry (the shakedown death shape):
 /// DEFEAT banner, message, a Retry button that releases the lingering
@@ -46,7 +111,20 @@ fn defeat_overlay_offers_retry_that_releases_the_lingering_switch() {
     assert!(texts.iter().any(|t| t == "DEFEAT"), "banner: {texts:?}");
     assert!(texts.iter().any(|t| t == "Your ship broke apart."));
     assert!(texts.iter().any(|t| t == "Retry"), "retry label: {texts:?}");
-    assert!(texts.iter().any(|t| t == "[Enter] Retry"), "key hint");
+    assert!(
+        !texts.iter().any(|t| t.starts_with("[Enter]")),
+        "the literal hint line is gone: {texts:?}"
+    );
+    let retry_texts = texts_under(&mut app, "Outcome Primary Button");
+    assert!(
+        retry_texts.iter().any(|t| t == "Enter"),
+        "the advance key sits on Retry: {retry_texts:?}"
+    );
+    let menu_texts = texts_under(&mut app, "Outcome Menu Button");
+    assert!(
+        !menu_texts.iter().any(|t| t == "Enter"),
+        "only the button Enter runs carries the key: {menu_texts:?}"
+    );
 
     let retry = find_named(&mut app, "Outcome Primary Button").expect("retry button");
     app.world_mut().trigger(Activate { entity: retry });
@@ -171,7 +249,11 @@ fn victory_overlay_without_a_queued_next_offers_only_the_menu() {
         find_named(&mut app, "Outcome Primary Button").is_none(),
         "nothing queued: no Continue/Retry"
     );
-    assert!(texts.iter().any(|t| t == "[Enter] Main Menu"), "key hint");
+    let menu_texts = texts_under(&mut app, "Outcome Menu Button");
+    assert!(
+        menu_texts.iter().any(|t| t == "Enter"),
+        "with nothing queued Enter runs Main Menu: {menu_texts:?}"
+    );
 
     // Clearing the outcome (what scenario teardown does) removes the
     // overlay on the next frame.
@@ -643,6 +725,8 @@ fn a_defeat_sounds_and_a_victory_leaves_the_chime_to_the_objective_panel() {
         app.init_resource::<ActiveUiTheme>();
         app.init_resource::<CurrentOutcome>();
         app.init_resource::<NovaEventWorld>();
+        app.init_resource::<InputBindings>();
+        app.init_resource::<InputDeviceType>();
         app.add_systems(Update, sync_outcome_overlay);
         app.update();
         app.world_mut().resource_mut::<CurrentOutcome>().0 =

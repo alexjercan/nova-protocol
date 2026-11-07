@@ -58,7 +58,7 @@ use crate::{
     mods::ModsPanel,
     scenarios::{NewGameScenario, ScenariosPanel},
     settings::{spawn_binding_chips, FieldNoteSetting, SettingsPanel, TrainingPromptSetting},
-    widgets::{back_button, button, button_variant},
+    widgets::{back_button, button, button_variant, close_screen, MenuScreen},
 };
 
 /// Marker for the Training modal root, toggled by the Training button.
@@ -177,6 +177,7 @@ pub(crate) fn spawn_training_panel(commands: &mut Commands) {
             DespawnOnExit(GameStates::MainMenu),
             Name::new("Training Panel Root"),
             TrainingPanel,
+            MenuScreen,
             overlay_root(),
         ))
         .with_children(|parent| {
@@ -500,7 +501,7 @@ pub(crate) fn on_training_back(
     _activate: On<Activate>,
     mut panel: Single<&mut Visibility, With<TrainingPanel>>,
 ) {
-    **panel = Visibility::Hidden;
+    close_screen(&mut panel);
 }
 
 /// Select a lesson: the ONE path into [`SelectedLessonId`] that marks a lesson

@@ -6,7 +6,10 @@
 //! button, greyed with the reason as its tooltip while the buy is refused.
 //! A station a civilization sells to its allies only wears an `ALLIES ONLY`
 //! badge beside its name, with its Buy greyed. A click raises a
-//! [`StationBuyCommand`]; [`apply_station_buy_commands`] plans it with
+//! [`StationBuyCommand`] on the second press: the first arms the buy, the
+//! button reads `Confirm` in the danger variant and a line under it asks
+//! `Buy <station> for <price>?` (see [`StationRuntime::confirm_buy`]).
+//! [`apply_station_buy_commands`] plans it with
 //! [`plan_station_buy`], charges the price as a `StationBuy` credit change,
 //! queues one `StationBought` report and makes the station the player's
 //! ([`owned_station`]). Docked at a station the player owns, the name wears
@@ -25,11 +28,24 @@ use nova_ui::{prelude::*, theme::UiColor};
 use super::{card_actions, offer_cell, spawn_card_price, StationRuntime};
 use crate::{
     icons::InterfaceIcons,
-    pane::{control_row, refusable_button, themed_label, ActionOutcomeType},
+    pane::{
+        compact_button, control_row, play_menu_select, refusable_button, themed_label,
+        ActionOutcomeType, InterfacePaneType,
+    },
 };
 
 /// The name of the station Buy button.
 pub const STATION_BUY_BUTTON: &str = "StationBuy";
+
+/// The name of the Cancel button the armed Buy draws where Buy was.
+const STATION_BUY_CANCEL_BUTTON: &str = "StationBuyCancel";
+
+/// Width of that Cancel button, in logical px. The `Buy station` button is
+/// 92 px wide; Cancel must cover all of it.
+const BUY_BOX_PX: f32 = 96.0;
+
+/// The name of the question line the armed Buy button draws under it.
+pub const STATION_BUY_ASK: &str = "StationBuyAsk";
 
 /// A request to buy the docked station, raised by the "This station" Buy
 /// button.
@@ -59,6 +75,8 @@ struct StationRow {
     /// Why the buy is refused, or `None` when it is allowed or the station
     /// is already owned.
     refusal: Option<String>,
+    /// Whether the first press armed the buy and the button asks to confirm.
+    confirming: bool,
 }
 
 /// The docked station a buy reads: the player ship, the station, whether it
@@ -185,6 +203,7 @@ pub(crate) fn spawn_station_sale_block(panel: &mut ChildSpawnerCommands) {
 /// and respawn its rows when the price, the refusal or the ownership changes.
 pub(crate) fn update_station_sale_block(
     mut commands: Commands,
+    runtime: Res<StationRuntime>,
     sale: StationSale,
     q_credits: Query<&ShipCredits>,
     icons: Res<InterfaceIcons>,
@@ -207,6 +226,7 @@ pub(crate) fn update_station_sale_block(
                 &docked.name,
                 &StationBuyRefusalType::NotAllied,
             )),
+            confirming: false,
             name: docked.name,
         }),
         StationSaleType::Owned => Some(StationRow {
@@ -215,6 +235,7 @@ pub(crate) fn update_station_sale_block(
             short_cr: None,
             name: docked.name,
             refusal: None,
+            confirming: false,
         }),
         StationSaleType::ForSale => {
             let own_cr = q_credits.get(docked.player).map_or(0, |credits| credits.0);
@@ -228,6 +249,7 @@ pub(crate) fn update_station_sale_block(
                     }
                     _ => None,
                 },
+                confirming: runtime.confirm_buy && refusal.is_none(),
                 refusal: refusal.map(|refusal| station_refusal_text(&docked.name, &refusal)),
                 name: docked.name,
             })
@@ -274,24 +296,111 @@ pub(crate) fn update_station_sale_block(
             }
             if row.sale != StationSaleType::Owned {
                 cell.spawn(card_actions()).with_children(|actions| {
-                    refusable_button(
-                        actions,
-                        STATION_BUY_BUTTON.to_string(),
-                        "Buy station",
-                        row.refusal.as_deref(),
-                    )
-                    .observe(on_station_buy_button);
+                    if row.confirming {
+                        // Cancel takes the whole box Buy had, so the second
+                        // press of a double click lands on it, not on
+                        // Confirm. Any button but Buy disarms, so it needs
+                        // no handler of its own.
+                        actions
+                            .spawn(Node {
+                                width: px(BUY_BOX_PX),
+                                flex_shrink: 0.0,
+                                ..default()
+                            })
+                            .with_children(|slot| {
+                                slot.spawn((
+                                    Name::new(STATION_BUY_CANCEL_BUTTON),
+                                    compact_button(ButtonSpec::new("Cancel")),
+                                ));
+                            });
+                        actions
+                            .spawn((
+                                Name::new(STATION_BUY_BUTTON),
+                                compact_button(ButtonSpec::new("Confirm").fit().danger()),
+                            ))
+                            .observe(on_station_buy_button);
+                    } else {
+                        refusable_button(
+                            actions,
+                            STATION_BUY_BUTTON.to_string(),
+                            "Buy station",
+                            row.refusal.as_deref(),
+                        )
+                        .observe(on_station_buy_button);
+                    }
                 });
+                if let (true, Some(price_cr)) = (row.confirming, row.price_cr) {
+                    cell.spawn((
+                        Name::new(STATION_BUY_ASK),
+                        themed_label(
+                            &format!("Buy {} for {}?", row.name, cr_text(price_cr)),
+                            13.0,
+                            UiColor::Body,
+                        ),
+                    ));
+                }
             }
         });
     }
     shown.0 = row;
 }
 
-/// Raise a [`StationBuyCommand`] when the Buy button is clicked. The press
-/// is silent: the outcome plays the one cue.
-fn on_station_buy_button(_activate: On<Activate>, mut buys: MessageWriter<StationBuyCommand>) {
-    buys.write(StationBuyCommand);
+/// Take the Buy button's step: the first press arms the buy, the second
+/// raises a [`StationBuyCommand`]. The arming press plays the select cue; the
+/// buy is silent, as its outcome plays the one cue.
+fn on_station_buy_button(
+    _activate: On<Activate>,
+    mut runtime: ResMut<StationRuntime>,
+    mut buys: MessageWriter<StationBuyCommand>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
+) {
+    if runtime.confirm_buy {
+        runtime.confirm_buy = false;
+        buys.write(StationBuyCommand);
+    } else {
+        runtime.confirm_buy = true;
+        play_menu_select(&mut commands, bank.as_deref());
+    }
+}
+
+/// Disarm the buy when the player presses any other button.
+pub(crate) fn disarm_station_buy_on_other_press(
+    activate: On<Activate>,
+    q_names: Query<&Name>,
+    mut runtime: ResMut<StationRuntime>,
+) {
+    if !runtime.confirm_buy {
+        return;
+    }
+    let is_buy = q_names
+        .get(activate.entity)
+        .is_ok_and(|name| name.as_str() == STATION_BUY_BUTTON);
+    if !is_buy {
+        runtime.confirm_buy = false;
+    }
+}
+
+/// Disarm the buy once the Station pane is not the open pane, or the buy is
+/// refused: not docked at a station for sale, or short of its price.
+pub(crate) fn disarm_station_buy(
+    mut runtime: ResMut<StationRuntime>,
+    pause: Res<State<PauseStates>>,
+    pane: Res<InterfacePaneType>,
+    sale: StationSale,
+    q_credits: Query<&ShipCredits>,
+) {
+    if !runtime.confirm_buy {
+        return;
+    }
+    let open = *pause.get() == PauseStates::Interface && *pane == InterfacePaneType::Station;
+    let allowed = sale.docked().is_some_and(|docked| {
+        let own_cr = q_credits.get(docked.player).map_or(0, |credits| credits.0);
+        plan_station_buy(docked.price_cr, Some(docked.sale), own_cr).is_ok()
+    });
+    if !(open && allowed) {
+        runtime.confirm_buy = false;
+    }
 }
 
 /// Apply [`StationBuyCommand`]s by the [`plan_station_buy`] rule: charge the

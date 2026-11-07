@@ -24,6 +24,7 @@
 #![warn(missing_docs)]
 
 pub mod context;
+pub mod device;
 pub mod dispatch;
 pub mod poll;
 pub mod registry;
@@ -33,10 +34,12 @@ pub mod source;
 use bevy::prelude::*;
 
 use crate::{
-    context::ActiveContexts, registry::InputBindings, sensitivity::prelude::MouseSensitivityPlugin,
+    context::ActiveContexts, device::InputDeviceType, registry::InputBindings,
+    sensitivity::prelude::MouseSensitivityPlugin,
 };
 
-/// Installs the empty [`InputBindings`] table and the mouse sensitivities.
+/// Installs the empty [`InputBindings`] table, the active-device tracker and
+/// the mouse sensitivities.
 /// Every crate that owns actions registers into the table from its own plugin's
 /// `build`, so it is complete before the first frame and stays populated with
 /// no ship in the world.
@@ -45,6 +48,12 @@ pub struct NovaInputPlugin;
 impl Plugin for NovaInputPlugin {
     fn build(&self, app: &mut App) {
         install(app);
+        app.register_type::<InputDeviceType>();
+        // In `PostUpdate`: a press edge lives through the frame it lands in,
+        // a scripted one included (it is synthesized in `PreUpdate`), so the
+        // tracker sees every press. The new answer is then the same for every
+        // `Update` reader of the next frame, with no ordering between them.
+        app.add_systems(PostUpdate, device::track_input_device);
         app.add_plugins(MouseSensitivityPlugin);
     }
 }
@@ -59,6 +68,7 @@ impl Plugin for NovaInputPlugin {
 fn install(app: &mut App) {
     app.init_resource::<InputBindings>();
     app.init_resource::<ActiveContexts>();
+    app.init_resource::<InputDeviceType>();
     app.init_resource::<ButtonInput<KeyCode>>();
     app.init_resource::<ButtonInput<MouseButton>>();
 }
@@ -94,6 +104,7 @@ impl RegisterInputActions for App {
 pub mod prelude {
     pub use super::{
         context::{ActionContext, ActiveContexts},
+        device::InputDeviceType,
         dispatch,
         dispatch::{DispatchError, DrivenPresses, InputPhase, SynthesizedGamepad},
         poll::InputSources,

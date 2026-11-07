@@ -13,7 +13,7 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ui::{
     theme::UiColor,
-    widget::{badge, slider_track, BadgeKind},
+    widget::{badge, slider_track, BadgeKind, ThemedRadius},
 };
 use nova_world_base::prelude::CivilizationField;
 
@@ -88,10 +88,10 @@ pub(crate) fn spawn_market_strip(stores: &mut ChildSpawnerCommands) {
             row_gap: px(6),
             padding: UiRect::all(px(8)),
             border: UiRect::all(px(1)),
-            border_radius: BorderRadius::all(px(4)),
             ..default()
         },
         panel_paint(),
+        ThemedRadius::control(),
     ));
 }
 

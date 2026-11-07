@@ -594,11 +594,13 @@ export function clearStep(
 
 // The contextual HUD model (crates/nova_hud/src/): which elements are up in
 // a given situation. Cinematic clears every tier (lib.rs:152-162); the ammo
-// layer opens on hot OR low OR reloading (situation.rs:47-49,
-// ammo_readout.rs:180); the mode chip and destination marker follow the
-// autopilot (flight_status.rs:302-335); the reticle follows the combat lock
-// (torpedo_target.rs drive_reticle_anchor); the viewfinder shows the combat
-// lock, else the travel lock (target_inset.rs inset_subject).
+// layer opens on hot weapons OR a combat lock and on nothing else
+// (situation.rs ammo_relevant, ammo_readout.rs sync_ammo_gate) - a low or
+// reloading magazine only changes how a shown gauge is painted; the mode chip
+// and destination marker follow the autopilot (flight_status.rs:302-335); the
+// reticle follows the combat lock (torpedo_target.rs drive_reticle_anchor);
+// the viewfinder shows the combat lock, else the travel lock
+// (target_inset.rs inset_subject).
 // Weapons are hot while raised OR combat-locked (nova_ship
 // input/targeting/safety.rs:30), so a lock is never shown safe.
 export interface HudSituationsModel {
@@ -629,7 +631,6 @@ export function hudElements(s: HudSituationsModel): HudElementState[] {
         detail: s.cinematic ? "cleared at Cinematic" : detail,
     });
     const weaponsHot = s.weaponsRaised || s.combatLock;
-    const ammoOpen = weaponsHot || s.lowAmmo || s.reloading;
     return [
         e(
             "Velocity sphere",
@@ -680,13 +681,13 @@ export function hudElements(s: HudSituationsModel): HudElementState[] {
         e(
             "Ammo gauges",
             "instrument",
-            ammoOpen,
-            !ammoOpen
-                ? "raised by hot weapons, low ammo or a reload"
-                : s.lowAmmo && !s.reloading
-                  ? "forced up: amber warn breath at a quarter magazine"
-                  : s.reloading
-                    ? "forced up: reload pulse"
+            weaponsHot,
+            !weaponsHot
+                ? "arrive with raised weapons or a combat lock"
+                : s.reloading
+                  ? "reload pulse on the incoming batch"
+                  : s.lowAmmo
+                    ? "amber warn breath at a quarter magazine"
                     : "lit while weapons are hot"
         ),
         e(

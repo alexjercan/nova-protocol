@@ -2,7 +2,7 @@
     Item((
         id: "HullPlate",
         name: "Hull plate",
-        about: "Structural plating for hull sections.",
+        about: "Structural plating. Ship pane repairs spend it on damaged sections. Destroyed sections need a station rebuild.",
         category: Repair,
         mass_g: 10000,
         price_lot: 1,

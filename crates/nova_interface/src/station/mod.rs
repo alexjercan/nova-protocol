@@ -59,14 +59,18 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::{screen::drive_wheel_scroll, theme::UiColor, widget::ThemedText};
+use nova_ui::{
+    screen::drive_wheel_scroll,
+    theme::UiColor,
+    widget::{ThemedRadius, ThemedText},
+};
 
 pub use self::{
     escorts::EscortHireCommand,
     hull_info::HULL_INFO_CLOSE,
     settle::StanceSettleCommand,
     shipyard::HullBuyCommand,
-    station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
+    station_buy::{StationBuyCommand, STATION_BUY_ASK, STATION_BUY_BUTTON},
 };
 pub(crate) use self::{
     escorts::*, hull_info::*, hull_preview::*, settle::*, shipyard::*, station_buy::*,
@@ -84,7 +88,7 @@ pub mod prelude {
         hull_info::HULL_INFO_CLOSE,
         settle::StanceSettleCommand,
         shipyard::HullBuyCommand,
-        station_buy::{StationBuyCommand, STATION_BUY_BUTTON},
+        station_buy::{StationBuyCommand, STATION_BUY_ASK, STATION_BUY_BUTTON},
         StationRuntime, STATION_NOTICE, STATION_PANEL,
     };
 }
@@ -100,6 +104,10 @@ pub const STATION_NOTICE: &str = "StationNotice";
 pub struct StationRuntime {
     /// The last Buy, Board or Hire result, shown on the notice line.
     pub notice: ActionNotice,
+    /// The first press of the station Buy armed it: the button reads
+    /// Confirm and the next press buys. Escape, another button, a pane switch,
+    /// closing the interface and a refused buy disarm it.
+    pub(crate) confirm_buy: bool,
 }
 
 /// The living station the player ship is docked with, if any. The Station
@@ -161,11 +169,11 @@ pub(crate) fn station_body(body: &mut ChildSpawnerCommands) {
             row_gap: px(10),
             padding: UiRect::all(px(12)),
             border: UiRect::all(px(1)),
-            border_radius: BorderRadius::all(px(4)),
             overflow: Overflow::scroll_y(),
             ..default()
         },
         panel_paint(),
+        ThemedRadius::control(),
         ScrollPosition::default(),
         Hovered::default(),
     ))
@@ -373,10 +381,12 @@ impl Plugin for StationPanePlugin {
         app.add_message::<EscortHireCommand>();
         app.add_message::<StationBuyCommand>();
         app.add_message::<StanceSettleCommand>();
+        app.add_observer(disarm_station_buy_on_other_press);
         app.add_systems(
             Update,
             (
                 end_hull_info,
+                disarm_station_buy,
                 sync_hull_info_header,
                 apply_station_buy_commands,
                 apply_station_hull_buy_commands,

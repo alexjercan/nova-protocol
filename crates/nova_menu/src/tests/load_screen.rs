@@ -24,7 +24,7 @@ use crate::{
 
 /// A menu app entered the real way, with the Load picker's plugin wiring in
 /// place.
-fn menu() -> App {
+pub(super) fn menu() -> App {
     let mut app = app();
     // The fixture saves under its own scenario id; a Load looks it up.
     let mut scenarios = dummy_scenarios();
@@ -37,7 +37,7 @@ fn menu() -> App {
     app
 }
 
-fn named(app: &mut App, name: &str) -> Entity {
+pub(super) fn named(app: &mut App, name: &str) -> Entity {
     let mut names = app.world_mut().query::<(Entity, &Name)>();
     names
         .iter(app.world())
@@ -46,7 +46,7 @@ fn named(app: &mut App, name: &str) -> Entity {
         .unwrap_or_else(|| panic!("no entity named '{name}'"))
 }
 
-fn press(app: &mut App, name: &str) {
+pub(super) fn press(app: &mut App, name: &str) {
     let entity = named(app, name);
     app.world_mut().trigger(Activate { entity });
     app.update();
@@ -143,7 +143,7 @@ fn row_values(app: &mut App, name: &str) -> Vec<String> {
 /// Save the fixture world `name` under `root` through the production
 /// pipeline, as a player flying "Fixture hull" for 90 s with one trade goal
 /// open, and release its lock so Load can take it.
-fn save_fixture_world(app: &mut App, root: &Path, name: &str) {
+pub(super) fn save_fixture_world(app: &mut App, root: &Path, name: &str) {
     if !app.is_plugin_added::<WorldSaveTestPlugin>() {
         app.add_plugins(WorldSaveTestPlugin);
     }
@@ -175,6 +175,24 @@ fn save_fixture_world(app: &mut App, root: &Path, name: &str) {
     ));
     save_until_idle(app);
     app.world_mut().remove_resource::<WorldSaveSession>();
+}
+
+/// A menu app whose worlds folder `root` holds one saved world called `name`,
+/// entered the way a player coming back from a world is: the card is built
+/// again, so it reads the folder.
+pub(super) fn menu_with_a_save(root: &Path, name: &str) -> App {
+    let mut app = menu();
+    app.insert_resource(WorldsRoot(Some(root.to_path_buf())));
+    save_fixture_world(&mut app, root, name);
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::Loading);
+    app.update();
+    app.world_mut()
+        .resource_mut::<NextState<GameStates>>()
+        .set(GameStates::MainMenu);
+    app.update();
+    app
 }
 
 /// The text of the one [`Text`] entity named `name`.

@@ -24,13 +24,13 @@ use nova_ui::{
     theme::{GameUiThemes, SelectedUiTheme, UiColor, UiThemeDiagnostic},
     widget::{
         panel_header, segmented_container, segmented_container_wrapping, segmented_option,
-        segmented_option_compact, segmented_option_fit, separator, slider_track, ButtonValue,
-        Selected, ThemedImageTint, ThemedText, UiText,
+        segmented_option_compact, segmented_option_fit, separator, slider_track, ButtonSpec,
+        ButtonValue, Selected, ThemedImageTint, ThemedText, UiText,
     },
 };
 use serde::{Deserialize, Serialize};
 
-use crate::widgets::MenuSfxButton;
+use crate::widgets::{button_slot, close_screen, MenuSfxButton, MAIN_SLOT_W};
 
 /// How wide the Settings panel grows, as a percentage of the window.
 ///
@@ -93,7 +93,7 @@ pub(crate) fn on_settings_back(
     _activate: On<Activate>,
     mut panel: Single<&mut Visibility, With<SettingsPanel>>,
 ) {
-    **panel = Visibility::Hidden;
+    close_screen(&mut panel);
 }
 
 /// One row of the Audio tab: which mixer track its slider moves.
@@ -274,9 +274,33 @@ pub(crate) struct RebindChip {
     pub(crate) device: RebindDevice,
 }
 
-/// The Reset Defaults button at the foot of the Controls tab.
+/// The Reset Defaults button at the foot of the Controls tab. Its second press,
+/// drawn as Confirm, does the reset.
 #[derive(Component)]
 pub(crate) struct ResetBindings;
+
+/// Whether Reset Defaults has been pressed once and waits for its Confirm.
+///
+/// The reset wipes every binding at once, so the first press arms the button
+/// and only a second press on it resets. Any other button press, and Escape,
+/// disarms it ([`disarm_reset_on_other_press`]).
+#[derive(Resource, Default, Debug, PartialEq, Eq)]
+pub(crate) enum ResetBindingsStep {
+    /// Nothing is asked for.
+    #[default]
+    Idle,
+    /// Reset Defaults was pressed once; its Confirm is on screen.
+    Confirm,
+}
+
+/// What the armed Reset Defaults says it will do. Short enough to stay on the
+/// buttons' line in a 1280x720 window at a 150% interface.
+const RESET_BINDINGS_PROMPT: &str = "Resets key and pad bindings in every group.";
+
+/// The height (px) of a `segmented_option`, which the Reset Defaults button
+/// and its Cancel are. The armed Confirm takes it too, so the row is as tall
+/// armed as idle.
+const RESET_BUTTON_HEIGHT_PX: f32 = 28.0;
 
 /// The armed rebind and the last refusal.
 ///
@@ -772,6 +796,7 @@ pub(crate) fn settings_tab_dirty(
     group: Res<SettingsControlsGroup>,
     bindings: Res<InputBindings>,
     rebind: Res<PendingRebind>,
+    reset: Res<ResetBindingsStep>,
     budget: Res<GraphicsBudget>,
     // The theme ROW is rebuilt from the registry, and the sentence under it
     // from the diagnostic; neither moves under the pointer the way a slider
@@ -785,6 +810,7 @@ pub(crate) fn settings_tab_dirty(
         || group.is_changed()
         || bindings.is_changed()
         || rebind.is_changed()
+        || reset.is_changed()
         || budget.is_changed()
         || themes.is_changed()
         || diagnostic.is_changed()
@@ -826,6 +852,7 @@ pub(crate) fn refresh_settings_tab(
     values: SettingsValues,
     bindings: Res<InputBindings>,
     rebind: Res<PendingRebind>,
+    reset: Res<ResetBindingsStep>,
     // Absent on a bare menu rig that never ran asset loading, which is exactly
     // the text-chip fallback the keycap table is designed to degrade to.
     hud_assets: Option<Res<NovaHudAssets>>,
@@ -865,6 +892,7 @@ pub(crate) fn refresh_settings_tab(
                     list,
                     &bindings,
                     &rebind,
+                    *reset == ResetBindingsStep::Confirm,
                     group.0,
                     glyphs,
                     *values.sensitivity,
@@ -1365,6 +1393,7 @@ fn build_controls_tab(
     list: &mut ChildSpawnerCommands,
     bindings: &InputBindings,
     rebind: &PendingRebind,
+    reset_armed: bool,
     open_group: &str,
     glyphs: Option<&KeyGlyphs>,
     sensitivity: MouseSensitivity,
@@ -1397,12 +1426,73 @@ fn build_controls_tab(
     }
 
     list.spawn(separator());
+    // One row in both states, so arming never grows the list: a Confirm on a
+    // row of its own under the last row of a scrolled page was below the fold.
     list.spawn((
-        Name::new("Reset Bindings"),
-        segmented_option("Reset Defaults"),
-        ResetBindings,
-        observe(on_reset_bindings),
-    ));
+        Name::new("Reset Bindings Row"),
+        Node {
+            flex_direction: FlexDirection::Row,
+            // A prompt that wraps grows the row downward; the buttons keep
+            // the top line, where Reset Defaults was.
+            align_items: AlignItems::FlexStart,
+            column_gap: px(12),
+            ..default()
+        },
+    ))
+    .with_children(|row| {
+        if !reset_armed {
+            row.spawn(button_slot("Reset Bindings Slot", MAIN_SLOT_W))
+                .with_children(|slot| {
+                    slot.spawn((
+                        Name::new("Reset Bindings"),
+                        segmented_option("Reset Defaults"),
+                        ResetBindings,
+                        observe(on_reset_bindings),
+                    ));
+                });
+            return;
+        }
+        // Cancel takes the whole box Reset Defaults had, so the second press
+        // of a double click lands on it, not on Confirm. Any button but the
+        // reset disarms, so it needs no handler of its own.
+        row.spawn(button_slot("Reset Bindings Slot", MAIN_SLOT_W))
+            .with_children(|slot| {
+                slot.spawn((
+                    Name::new("Reset Bindings Cancel"),
+                    segmented_option("Cancel"),
+                    MenuSfxButton,
+                ));
+            });
+        // The height and type size of the slot button beside it.
+        let mut confirm = ButtonSpec::new("Confirm").danger().fit();
+        confirm.min_height = RESET_BUTTON_HEIGHT_PX;
+        confirm.font_size = 12.0;
+        row.spawn((
+            Name::new("Reset Bindings"),
+            nova_ui::widget::button(confirm),
+            ResetBindings,
+            observe(on_reset_bindings),
+        ));
+        row.spawn((
+            Name::new("Reset Bindings Prompt"),
+            UiText,
+            Text::new(RESET_BINDINGS_PROMPT),
+            TextFont {
+                font_size: FontSize::Px(12.0),
+                ..default()
+            },
+            TextColor(Color::NONE),
+            ThemedText::new(UiColor::Body),
+            Node {
+                // Takes the width the buttons leave and wraps inside it.
+                flex_grow: 1.0,
+                flex_basis: px(0),
+                min_width: px(0),
+                align_self: AlignSelf::Center,
+                ..default()
+            },
+        ));
+    });
 }
 
 /// One mouse path's row, in the Audio slider's own presentation. The slider
@@ -1429,16 +1519,37 @@ fn build_sensitivity_row(list: &mut ChildSpawnerCommands, path: MousePath, perce
 /// Put every action back on what it shipped with. The only way out of a remap
 /// a player cannot undo by hand - a row rebound onto a key they can no longer
 /// find is otherwise permanent.
+///
+/// The first press only arms the button; the press on its Confirm resets.
 pub(crate) fn on_reset_bindings(
     _activate: On<Activate>,
+    mut step: ResMut<ResetBindingsStep>,
     mut bindings: ResMut<InputBindings>,
     mut rebind: ResMut<PendingRebind>,
 ) {
+    if *step == ResetBindingsStep::Idle {
+        *step = ResetBindingsStep::Confirm;
+        return;
+    }
+    *step = ResetBindingsStep::Idle;
     let names: Vec<&'static str> = bindings.names().collect();
     for name in names {
         bindings.reset(name);
     }
     disarm(&mut rebind);
+}
+
+/// Disarm Reset Defaults when any button but its own is pressed: a tab, a
+/// group, a row, Back. The armed prompt belongs to one decision, and moving on
+/// from it is a no.
+pub(crate) fn disarm_reset_on_other_press(
+    activate: On<Activate>,
+    resets: Query<(), With<ResetBindings>>,
+    mut step: ResMut<ResetBindingsStep>,
+) {
+    if !resets.contains(activate.entity) && *step == ResetBindingsStep::Confirm {
+        *step = ResetBindingsStep::Idle;
+    }
 }
 
 /// Arm the clicked chip. The click itself is still down, so the capture waits

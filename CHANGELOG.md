@@ -36,6 +36,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** `Item` content now requires `price_lot`, the item count one `ask_cr`/`bid_cr` prices: 100 for a PDC round, 1 for other base items. An item without it fails lint, then load.
 - New `TradeProfile` content gives generated ship roles weighted buy/sell lists, with quantity and per-unit price limit, and Procure jobs for their station visits.
 - New `SetTradeProfile` action gives a generated AI trader a trade profile or clears it. An unknown profile or a non-AI target fails lint.
+- New `OnJobAccepted` scenario event fires when the Jobs pane accepts a board offer, with the job's id as `id`.
+- **(breaking)** An `ObjectiveComplete` id that no `Objective` in the same scenario posts now fails lint and load. It was a warning.
+- New `ObjectiveChipHold` action keeps one objective's HUD chip up until it leaves. It is not saved: run it from `OnResume` too. An id no Objective posts fails lint.
 - New optional sounds: torpedo bay `ignition_sound`, `dud_sound`, `intercept_sound` and `reload_sound`; ship presentation `torpedo_closing_sound` and `kill_confirm_sound`.
 
 ### Interface & HUD
@@ -43,6 +46,23 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The lock readout now moves to the free side of the reticle to stay on screen and clear of the target inset, and the inset caption sits on a darker slab clear of its corner brackets.
 - At an interface scale other than 100%, the lock bracket and the target and objective markers now sit on their targets. They drew away from them, or off the screen, before.
 - The lock readout now shows TTI, the seconds until your soonest lit torpedo reaches the locked hull. The line hides while no torpedo of yours is closing on the lock.
+- The chart's OBJECTIVES heading now reads `LAYER 2`, not `Y2`, and a selected job's panel drops its repeated JOB and Cell lines.
+- A DOCK press that does nothing now says why in the HUD notice: no lock, no free port, too far, not facing or too fast. Targets that refuse you and asteroid or planet locks stay silent.
+- A fresh New Game world now posts a Take a job objective with the interface key under it. The chip stays up until your first accepted job, also across a Load.
+- The Hull plate description now says Ship pane repairs spend it and a destroyed section needs a station rebuild.
+- Key hints now follow the device you pressed last: the flight dock row, the TAB card and its footer, objectives and the outcome screen show pad buttons after a pad press and keys after a key press.
+- Holding the RCS key lights the RCS chip and turns the dock row's STOP chip into MATCH. The chip goes dark when MATCH would refuse. With Shift up it reads STOP, also over a flying match.
+- The TAB card now has a Close button and a Next hint with the live keys. Esc backs out one level first: a held part, a Jobs confirm, hull Info, a trade draft or an armed buy.
+- Esc or pad B now backs out of the open main-menu screen one level and closes the pause menu's Settings; Esc then resumes. Back buttons show Esc, or B after a pad press.
+- Buy station, Reset Defaults and mod Uninstall now ask twice: the first press puts Cancel where the button was, beside a red Confirm and a sentence that says what it does. Esc also cancels.
+- The Jobs pane lists now scroll, long titles end in an ellipsis, rows wrap at narrow widths instead of clipping their buttons, and an empty list or an undocked board says what to do next.
+- The main menu groups its buttons, lights one action (Continue, else New Game) and scrolls in a small window. New Game shows its step, fits a small window and says why Create is disabled.
+- Panels, cards and chips in the Phosphor theme now share one sharp 2 px corner, and pill bars are rectangles. Reticles, map blips and status dots stay round.
+- Menus and modals now dim and block the screen behind them, tooltips flip to stay inside the window, and the TAB panes pick their narrow layout from the interface scale as well as the window.
+- Unavailable dock chips and small instruction lines are easier to read.
+- The speed, autopilot and RCS chips beside your ship no longer overlap in a burn. In a small or scaled window they stay on screen and move clear of the target inset.
+- At an interface scale other than 100%, the flight chips now sit beside your ship. They drew away from it, or off the screen, before.
+- Ammo gauges now show only with weapons raised or a combat lock held. A low or reloading magazine no longer brings them up in normal flight; it still pulses while they show.
 
 ### Audio & Visuals
 
@@ -57,9 +77,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Internals & Tooling
 
 - `probe scenario` now opens its frame-time window once the scenario is built instead of refusing every capture at the loader's clock hold.
+- New `NOVA_CAPTURE_SIZE` and `NOVA_CAPTURE_UI_SCALE` set a scripted run's window size and interface scale, and harness clicks now land at any interface scale. New `screenshot_key_hints` example.
 
 ### Fixes
 
+- A GOTO or ORBIT cue now moves aside while a HUD notice would cover it, and returns when the notice ends.
 - **(breaking)** An escort for hire keeps its place and motion beside its station, in flat space or a well, after a Load or a sector stream, instead of moving to the other side after a hire.
 - **(breaking)** A ship that streams back in or loads with a world keeps its RCS magazine instead of a free full one; an idle one refills for the time away. Older world saves are refused.
 - A torpedo warhead's `detonation_sound` now plays at the blast. A real detonation never played it.

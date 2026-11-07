@@ -28,6 +28,7 @@ struct Declared {
     cinematic_keys: HashSet<String>,
     objective_ids: HashSet<String>,
     completed_objectives: HashSet<String>,
+    held_objective_chips: HashSet<String>,
     /// The ships this scenario spawns BY NAME, so a check can ask what one of
     /// them is built from and who drives it. Scattered ships are absent on
     /// purpose: their ids are `<prefix><n>`, minted at runtime, so nothing
@@ -522,13 +523,25 @@ pub fn lint_scenario(
         }
     }
 
+    // Errors: at runtime an unknown id is the same no-op as an objective that
+    // already ended, so a typo would leave the objective up or the cue fading
+    // with nothing to say why.
     for completed in &declared.completed_objectives {
         if !declared.objective_ids.contains(completed) {
-            issues.push(LintIssue::warn(
+            issues.push(LintIssue::error(
                 id,
                 format!(
                     "ObjectiveComplete '{completed}' has no matching Objective in this scenario"
                 ),
+            ));
+        }
+    }
+
+    for held in &declared.held_objective_chips {
+        if !declared.objective_ids.contains(held) {
+            issues.push(LintIssue::error(
+                id,
+                format!("ObjectiveChipHold '{held}' has no matching Objective in this scenario"),
             ));
         }
     }
@@ -1025,6 +1038,9 @@ fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
         }
         EventActionConfig::ObjectiveComplete(config) => {
             declared.completed_objectives.insert(config.id.clone());
+        }
+        EventActionConfig::ObjectiveChipHold(config) => {
+            declared.held_objective_chips.insert(config.id.clone());
         }
         _ => {}
     }
@@ -4713,7 +4729,7 @@ mod tests {
     }
 
     #[test]
-    fn unset_variable_and_unmatched_complete_are_warns() {
+    fn an_unset_variable_warns_and_an_unmatched_complete_errors() {
         let s = scenario(
             vec![EventActionConfig::ObjectiveComplete(
                 ObjectiveCompleteActionConfig {
@@ -4741,10 +4757,13 @@ mod tests {
             &GameStyles::default(),
             &GameTradeProfiles::default(),
         );
-        assert!(errors(&issues).is_empty(), "warn-only: {issues:?}");
         assert_eq!(issues.len(), 2, "{issues:?}");
-        assert!(issues.iter().any(|i| i.message.contains("never_set")));
-        assert!(issues.iter().any(|i| i.message.contains("never_posted")));
+        assert!(issues
+            .iter()
+            .any(|i| i.severity == LintSeverity::Warn && i.message.contains("never_set")));
+        assert!(errors(&issues)
+            .iter()
+            .any(|i| i.message.contains("never_posted")));
     }
 
     /// Outcome + non-lingering NextScenario in one handler warns: undelayed it

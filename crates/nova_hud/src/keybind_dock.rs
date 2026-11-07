@@ -26,13 +26,18 @@
 //! becomes available: the spotlight pulses the dim chip in the unavailable
 //! alpha band.
 
-use bevy::{platform::collections::HashSet, prelude::*};
+use bevy::{platform::collections::HashSet, prelude::*, ui::UiSystems};
 use nova_ship::input::prelude::*;
 use nova_ui::hud as chip;
 
 use super::{
-    emphasis::prelude::*, key_glyphs::prelude::*, screen_indicator::prelude::*,
-    situation::prelude::*, NovaHudAssets, OBJECTIVE_GOLD,
+    emphasis::prelude::*,
+    hud_notice::{HudNoticeKeepOut, NOTICE_BOTTOM_PX},
+    key_glyphs::prelude::*,
+    screen_indicator::{fit_box, prelude::*},
+    situation::prelude::*,
+    target_inset::{prelude::*, TargetInsetKeepOut},
+    NovaHudAssets, OBJECTIVE_GOLD,
 };
 
 /// The keybind-dock and verb-cue spawners, `DockChip` with its state and emphasis, `DOCK_VERBS`,
@@ -69,6 +74,9 @@ const CUE_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
     gap_px: 16.0,
     min_px: 48.0,
 };
+
+/// The gap (px) a cue keeps from the shown notice box and the target inset.
+const CUE_NOTICE_GAP_PX: f32 = 8.0;
 use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
     widget::{ThemedBorder, ThemedText},
@@ -214,9 +222,9 @@ struct GotoCueUIMarker;
 fn chip_paint(state: DockChipState, theme: &ActiveUiTheme) -> (Color, Color, Color) {
     match state {
         DockChipState::Dim => (
-            chip::CHIP_FILL_QUIET.with_alpha(0.28),
-            theme.color_alpha(UiColor::Primary, 0.16),
-            theme.color_alpha(UiColor::Label, 0.55),
+            chip::CHIP_FILL_QUIET.with_alpha(0.62),
+            theme.color_alpha(UiColor::Primary, 0.22),
+            theme.color_alpha(UiColor::Label, 0.8),
         ),
         DockChipState::Available => (
             chip::CHIP_FILL,
@@ -236,7 +244,7 @@ fn chip_paint(state: DockChipState, theme: &ActiveUiTheme) -> (Color, Color, Col
 /// over the phosphor HUD either way.
 fn glyph_tint(state: DockChipState) -> Color {
     match state {
-        DockChipState::Dim => Color::WHITE.with_alpha(0.45),
+        DockChipState::Dim => Color::WHITE.with_alpha(0.6),
         _ => Color::WHITE,
     }
 }
@@ -256,7 +264,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
         column_gap: Val::Px(6.0),
         padding: UiRect::new(Val::Px(4.0), Val::Px(8.0), Val::Px(3.0), Val::Px(3.0)),
         border: UiRect::all(Val::Px(1.0)),
-        border_radius: BorderRadius::all(Val::Px(4.0)),
+        border_radius: BorderRadius::all(Val::Px(chip::CHIP_RADIUS)),
         ..default()
     };
     let chip_of = |index: usize, node: Node| {
@@ -457,6 +465,91 @@ impl Plugin for KeybindDockPlugin {
             )
                 .in_set(super::NovaHudSystems),
         );
+        // The fit needs the cue box the indicator pass just wrote, and must
+        // land before layout reads the cue's `left`/`top`.
+        app.add_systems(
+            PostUpdate,
+            clear_cues_of_notice
+                .after(ScreenIndicatorSystems)
+                .before(UiSystems::Layout),
+        );
+    }
+}
+
+/// Move a cue off the shown notice. The notice holds its place: a cue follows
+/// a lock anywhere on the screen, so no fixed notice slot can avoid it.
+///
+/// Only a cue within [`CUE_NOTICE_GAP_PX`] of the box moves. Its room ends at
+/// the notice's bottom edge, so the move cannot land on the keybind dock row,
+/// and a move that would reach the shown target inset or a cue already placed
+/// clears those too.
+/// The indicator pass rewrites `left`/`top` from the anchor every frame, so
+/// the shift does not accumulate and the cue returns when the notice ends.
+fn clear_cues_of_notice(
+    notice: HudNoticeKeepOut,
+    inset: TargetInsetKeepOut,
+    q_camera: Query<&Camera, With<ScreenIndicatorCamera>>,
+    ui_scale: Res<UiScale>,
+    mut q_cue: Query<
+        (&mut Node, &ComputedNode, &Visibility),
+        (
+            Or<(With<GotoCueUIMarker>, With<OrbitCueUIMarker>)>,
+            Without<TargetInsetHudMarker>,
+        ),
+    >,
+) {
+    let Some(view) = q_camera
+        .iter()
+        .next()
+        .and_then(|camera| camera.logical_viewport_size())
+        .map(|size| size / ui_scale.0)
+    else {
+        return;
+    };
+    let Some(keep_out) = notice.rect(view) else {
+        return;
+    };
+    let room = Vec2::new(view.x, view.y - NOTICE_BOTTOM_PX);
+    let mut taken: Vec<Rect> = inset.rect(view).into_iter().collect();
+    for (mut node, computed, visibility) in &mut q_cue {
+        if *visibility == Visibility::Hidden {
+            continue;
+        }
+        let (Val::Px(left), Val::Px(top)) = (node.left, node.top) else {
+            continue;
+        };
+        let min = Vec2::new(left, top);
+        let cue = Rect::from_corners(min, min + computed.size() * computed.inverse_scale_factor());
+        if cue
+            .intersect(keep_out.inflate(CUE_NOTICE_GAP_PX))
+            .is_empty()
+        {
+            taken.push(cue);
+            continue;
+        }
+        let moved = |shift: Vec2| Rect::from_corners(cue.min + shift, cue.max + shift);
+        let mut blocked = keep_out;
+        let mut shift = fit_box(cue, room, 0.0, Some(blocked), CUE_NOTICE_GAP_PX);
+        // A refit can land on a rect the last fit cleared, so each pass adds
+        // what it hit. Every pass adds a rect, which bounds the loop.
+        for _ in 0..taken.len() {
+            let hit = taken
+                .iter()
+                .filter(|rect| {
+                    !moved(shift)
+                        .intersect(rect.inflate(CUE_NOTICE_GAP_PX))
+                        .is_empty()
+                })
+                .fold(blocked, |all, rect| all.union(*rect));
+            if hit == blocked {
+                break;
+            }
+            blocked = hit;
+            shift = fit_box(cue, room, 0.0, Some(blocked), CUE_NOTICE_GAP_PX);
+        }
+        node.left = Val::Px(left + shift.x);
+        node.top = Val::Px(top + shift.y);
+        taken.push(moved(shift));
     }
 }
 
@@ -485,14 +578,22 @@ fn verb_hint(hints: &FlightVerbHints, index: usize) -> &VerbHint {
 /// while the hull is held by a docking joint, and HELM while the player holds
 /// the docked pair's helm.
 ///
+/// STOP is hot only while the maneuver its own word names flies
+/// ([`FlightVerbHints::stop_flying`]: STOP while a STOP burns, MATCH while a
+/// match flies and the modifier is held). A flying match leaves the plain
+/// STOP chip lit as an offer and not hot.
+///
 /// `Hot` is checked BEFORE availability, because it means "this is what the
 /// ship is doing", not "press this": the ORBIT offer is retired the moment you
 /// are parked (`orbit.available` goes false), and that is precisely when the
 /// ORBIT chip should read as the live maneuver.
+///
+/// RCS is hot while the modifier is held: the held key is a live state, the
+/// same meaning HELM's hot paint has.
 fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize) -> DockChipState {
     let hint = verb_hint(hints, index);
     let hot = match DOCK_VERBS[index] {
-        "STOP" => situations.maneuver == Some(ManeuverChip::Stop),
+        "STOP" => hints.stop_flying,
         "GOTO" => situations.maneuver == Some(ManeuverChip::Goto),
         "ORBIT" => situations.maneuver == Some(ManeuverChip::Orbit),
         "CANCEL" => hints.engaged,
@@ -503,6 +604,7 @@ fn chip_state(hints: &FlightVerbHints, situations: &HudSituations, index: usize)
         // exact moment docking becomes worth reporting.
         "DOCK" => situations.docked,
         "HELM" => hints.helm_held,
+        "RCS" => hints.rcs_held && hint.available,
         _ => false,
     };
     if hot {
@@ -599,9 +701,15 @@ fn update_dock(
     mut q_glyph: Query<(&mut ImageNode, &mut Node), (With<ChipGlyph>, Without<DockChip>)>,
     mut q_key_text: Query<
         (&mut Text, &mut Node),
-        (With<ChipKeyText>, Without<DockChip>, Without<ChipGlyph>),
+        (
+            With<ChipKeyText>,
+            Without<DockChip>,
+            Without<ChipGlyph>,
+            Without<ChipLabel>,
+        ),
     >,
     mut q_text_color: Query<&mut TextColor, Or<(With<ChipLabel>, With<ChipKeyText>)>>,
+    mut q_label: Query<&mut Text, (With<ChipLabel>, Without<ChipKeyText>)>,
     q_added: Query<(), Added<DockChip>>,
 ) {
     // Skip quiet frames, but never skip freshly spawned chips (a respawned HUD
@@ -658,11 +766,27 @@ fn update_dock(
         let (fill_color, border_color, text_color) = chip_paint(next, &theme);
         fill.set_if_neq(BackgroundColor(fill_color));
         border.set_if_neq(BorderColor::all(border_color));
+        let word = chip_word(&hints, **chip);
         for &child in children {
             if let Ok(mut color) = q_text_color.get_mut(child) {
                 color.set_if_neq(TextColor(text_color));
             }
+            if let Ok(mut label) = q_label.get_mut(child) {
+                if label.0 != word {
+                    label.0 = word.to_string();
+                }
+            }
         }
+    }
+}
+
+/// The word chip `index` shows. STOP reads MATCH while the RCS modifier is
+/// held, because the key press is then the MATCH chord; the chip index and its
+/// emphasis name do not change.
+fn chip_word(hints: &FlightVerbHints, index: usize) -> &'static str {
+    match (dock_verb(index), hints.stop_verb) {
+        ("STOP", StopVerbType::Match) => "MATCH",
+        (verb, _) => verb,
     }
 }
 
@@ -897,6 +1021,9 @@ mod tests {
             helm_station: false,
             dock_refusal: None,
             engaged,
+            stop_verb: StopVerbType::Stop,
+            stop_flying: false,
+            rcs_held: false,
         }
     }
 
@@ -1066,6 +1193,101 @@ mod tests {
         for chip in &chips[..7] {
             assert!(seen(&app, *chip), "the main verbs keep their slots");
         }
+    }
+
+    fn chip_word_of(app: &App, chip: Entity) -> String {
+        app.world()
+            .entity(chip)
+            .get::<Children>()
+            .unwrap()
+            .iter()
+            .find_map(|child| {
+                let entity = app.world().entity(child);
+                entity.get::<ChipLabel>()?;
+                Some(entity.get::<Text>()?.0.clone())
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn the_stop_chip_reads_match_while_the_rcs_modifier_is_held() {
+        let mut app = glyph_app();
+        app.init_resource::<HintEmphasis>();
+        app.insert_resource(hints(false, false, None));
+        app.add_systems(Update, update_dock);
+        app.world_mut().spawn(keybind_dock_hud());
+        app.update();
+        let stop = chips(&app)[0];
+        assert_eq!(chip_word_of(&app, stop), "STOP");
+
+        let mut held = hints(false, false, None);
+        held.stop_verb = StopVerbType::Match;
+        held.rcs_held = true;
+        app.insert_resource(held);
+        app.update();
+        assert_eq!(chip_word_of(&app, stop), "MATCH");
+
+        app.insert_resource(hints(false, false, None));
+        app.update();
+        assert_eq!(chip_word_of(&app, stop), "STOP");
+    }
+
+    #[test]
+    fn the_stop_chip_is_hot_only_while_its_own_word_is_flying() {
+        let mut app = glyph_app();
+        app.init_resource::<HintEmphasis>();
+        app.insert_resource(hints(false, true, None));
+        app.add_systems(Update, update_dock);
+        app.world_mut().spawn(keybind_dock_hud());
+        app.update();
+        let stop = chips(&app)[0];
+        let state = |app: &App| *app.world().entity(stop).get::<DockChipState>().unwrap();
+        assert_eq!(state(&app), DockChipState::Available);
+
+        // A flying match with the modifier up: the word is STOP, lit as an
+        // offer, not hot.
+        app.insert_resource(hints(false, true, None));
+        app.update();
+        assert_eq!(chip_word_of(&app, stop), "STOP");
+        assert_eq!(state(&app), DockChipState::Available);
+
+        // The same match with the modifier held: the word is MATCH and hot.
+        let mut chord = hints(false, true, None);
+        chord.stop_verb = StopVerbType::Match;
+        chord.rcs_held = true;
+        chord.stop_flying = true;
+        app.insert_resource(chord);
+        app.update();
+        assert_eq!(chip_word_of(&app, stop), "MATCH");
+        assert_eq!(state(&app), DockChipState::Hot);
+
+        // A STOP burn with the modifier up: hot on its own word.
+        let mut burning = hints(false, true, None);
+        burning.stop_flying = true;
+        app.insert_resource(burning);
+        app.update();
+        assert_eq!(chip_word_of(&app, stop), "STOP");
+        assert_eq!(state(&app), DockChipState::Hot);
+    }
+
+    #[test]
+    fn the_rcs_chip_is_hot_while_the_modifier_is_held() {
+        let mut app = glyph_app();
+        app.init_resource::<HintEmphasis>();
+        let mut available = hints(false, false, None);
+        available.rcs.available = true;
+        app.insert_resource(available.clone());
+        app.add_systems(Update, update_dock);
+        app.world_mut().spawn(keybind_dock_hud());
+        app.update();
+        let rcs = chips(&app)[5];
+        let state = |app: &App| *app.world().entity(rcs).get::<DockChipState>().unwrap();
+        assert_eq!(state(&app), DockChipState::Available);
+
+        available.rcs_held = true;
+        app.insert_resource(available);
+        app.update();
+        assert_eq!(state(&app), DockChipState::Hot);
     }
 
     /// DoD 1: the dock renders ONE chip per verb, each carrying the keycap

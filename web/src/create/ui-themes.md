@@ -131,7 +131,7 @@ Three numbers the whole interface is drawn with:
 metrics: Some((
     border_width: 1.0,
     radius: 2.0,
-    panel_radius: 10.0,
+    panel_radius: 2.0,
 )),
 ```
 
@@ -139,7 +139,7 @@ metrics: Some((
 |---|---|
 | `border_width` | Hairline border width, in logical pixels. |
 | `radius` | Control corner radius. Phosphor is 2.0 and square-ish, hardware 7.0 and moulded. |
-| `panel_radius` | Panel corner radius, larger than a control's in both shipped looks. |
+| `panel_radius` | Panel corner radius. Phosphor is 2.0, the same hard corner as its controls; hardware 10.0, a moulded case. |
 
 `metrics: None` takes the nearest ancestor's three whole. A root theme must
 carry them.

@@ -7,12 +7,13 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use nova_gameplay::prelude::*;
+use nova_input::prelude::{InputBindings, InputDeviceType};
 use nova_scenario::prelude::*;
 use nova_ui::{
     prelude::REPORT_Z,
     theme,
     theme::UiColor,
-    widget::{panel, ThemedRadius, ThemedText},
+    widget::{panel, ButtonVariant, KeyChipLabel, ThemedRadius, ThemedText},
 };
 #[cfg(not(target_arch = "wasm32"))]
 use nova_world_base::prelude::WorldSaveSession;
@@ -21,7 +22,7 @@ use nova_world_base::prelude::WorldSaveSession;
 use crate::pause::on_retry;
 use crate::{
     pause::{focus_lost, on_back_to_menu, FocusPause},
-    widgets::button,
+    widgets::{button, button_variant},
 };
 
 /// Marker for the outcome overlay root (see `sync_outcome_overlay`). Carries
@@ -45,6 +46,8 @@ pub(crate) fn sync_outcome_overlay(
     outcome: Res<CurrentOutcome>,
     world: Option<Res<NovaEventWorld>>,
     bank: Option<Res<SoundBank<UiSfx>>>,
+    bindings: Res<InputBindings>,
+    device: Res<InputDeviceType>,
     #[cfg(not(target_arch = "wasm32"))] saved: Option<Res<WorldSaveSession>>,
     q_existing: Query<(Entity, &OutcomeOverlay)>,
 ) {
@@ -100,12 +103,23 @@ pub(crate) fn sync_outcome_overlay(
         ScenarioOutcomeKind::Defeat => "Retry",
     });
     // A Defeat in a saved world with nothing queued (the open world's death)
-    // offers the last save, through the pause menu's Load last save. [Enter]
-    // still goes to the menu. The web build keeps no saved worlds.
+    // offers the last save, through the pause menu's Load last save. The
+    // advance input still goes to the menu. The web build keeps no saved worlds.
     #[cfg(not(target_arch = "wasm32"))]
     let load_last_save =
         !queued && saved.is_some() && matches!(config.outcome, ScenarioOutcomeKind::Defeat);
     let message = config.message.clone();
+    // The advance input runs the primary button, else Main Menu. That button
+    // names the key the player has bound; a missing action draws no chip.
+    let advance_key = bindings
+        .get("scenario_advance")
+        .map(|action| action.hint_display(*device));
+    let primary_key = primary.and(advance_key.as_deref());
+    let menu_key = if primary.is_none() {
+        advance_key.as_deref()
+    } else {
+        None
+    };
 
     commands
         .spawn((
@@ -176,7 +190,7 @@ pub(crate) fn sync_outcome_overlay(
                     if let Some(primary) = primary {
                         parent.spawn((
                             Name::new("Outcome Primary Button"),
-                            button(primary),
+                            button_variant(primary, ButtonVariant::Default, primary_key),
                             observe(on_outcome_advance),
                         ));
                     }
@@ -190,31 +204,43 @@ pub(crate) fn sync_outcome_overlay(
                     }
                     parent.spawn((
                         Name::new("Outcome Menu Button"),
-                        button("Main Menu"),
+                        button_variant("Main Menu", ButtonVariant::Default, menu_key),
                         observe(on_back_to_menu),
-                    ));
-                    // The keyboard/gamepad route into the same mechanics
-                    // (the loader's scenario-advance input).
-                    let hint = match primary {
-                        Some(label) => format!("[Enter] {label}"),
-                        None => "[Enter] Main Menu".to_string(),
-                    };
-                    parent.spawn((
-                        Name::new("Outcome Key Hint"),
-                        Text::new(hint),
-                        TextFont {
-                            font_size: FontSize::Px(12.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Label),
-                        Node {
-                            margin: UiRect::top(px(4)),
-                            ..default()
-                        },
                     ));
                 });
         });
+}
+
+/// Repaint the advance key on a shown overlay's buttons after a rebind or a
+/// device change. In place: a rebuild would despawn a button between a press
+/// and its release and drop the click, and a mouse press after pad use is
+/// itself a device change.
+pub(crate) fn refresh_outcome_keys(
+    bindings: Res<InputBindings>,
+    device: Res<InputDeviceType>,
+    q_overlay: Query<Entity, With<OutcomeOverlay>>,
+    q_children: Query<&Children>,
+    mut q_label: Query<&mut Text, With<KeyChipLabel>>,
+) {
+    if !bindings.is_changed() && !device.is_changed() {
+        return;
+    }
+    // A missing action drew no chip, so there is none to repaint.
+    let Some(key) = bindings
+        .get("scenario_advance")
+        .map(|action| action.hint_display(*device))
+    else {
+        return;
+    };
+    for overlay in &q_overlay {
+        for node in q_children.iter_descendants(overlay) {
+            if let Ok(mut text) = q_label.get_mut(node) {
+                if text.0 != key {
+                    text.0.clone_from(&key);
+                }
+            }
+        }
+    }
 }
 
 /// The outcome overlay's Continue/Retry button: release the lingering
@@ -448,7 +474,7 @@ pub(crate) fn sync_start_failure_cursor(
 /// `OnEnter(Paused)` freeze (`pause_clocks` + the `Unpaused` set-gates) that ESC does,
 /// and clearing it releases the pause. The overlay's own input stays live because it is
 /// a modal over a paused world (the pause overlay is interactive the same way): the
-/// buttons dispatch through observers, and the [Enter] advance is re-allowed under an
+/// buttons dispatch through observers, and the advance input is re-allowed under an
 /// outcome by `decide_advance`.
 ///
 /// Single source of truth is `CurrentOutcome`: teardown clears it on Continue/Retry

@@ -11,6 +11,7 @@
 //! arithmetic. The float half is the same conversion on the other side of the
 //! screen: a label the world says the position of.
 
+mod ellipsis;
 mod float;
 mod list;
 pub mod prelude;
@@ -20,11 +21,13 @@ mod scroll;
 mod tests;
 
 use bevy::prelude::*;
+pub use ellipsis::{EllipsisFit, EllipsisText};
 pub use float::*;
 pub use list::*;
 pub use scroll::*;
 
-/// Wire the shared scroll driver and clamp.
+/// Wire the shared scroll driver and clamp, and the ellipsis fitter.
 pub(crate) fn build(app: &mut App) {
     scroll::build(app);
+    ellipsis::build(app);
 }

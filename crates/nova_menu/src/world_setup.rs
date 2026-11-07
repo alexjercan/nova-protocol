@@ -35,11 +35,13 @@ use nova_ship::prelude::{
 };
 use nova_ui::{
     prelude::REPORT_Z,
+    screen::{scroll_bar, scroll_column, scroll_row, scroll_viewport},
     theme,
     theme::UiColor,
     widget::{
-        list_row, panel, separator, text_field, ButtonVariant, Selected, TextFieldError,
-        TextFieldSpec, TextFieldValue, ThemedBorder, ThemedRadius, ThemedText, UiText,
+        list_row, panel, panel_head, separator, text_field, ButtonVariant, PanelHeadTag,
+        PanelHeadTitle, Selected, TextFieldError, TextFieldSpec, TextFieldValue, ThemedBorder,
+        ThemedRadius, ThemedText, Tooltip, UiText,
     },
 };
 #[cfg(not(target_arch = "wasm32"))]
@@ -53,17 +55,29 @@ use crate::{
     preview::{preview_node, MenuChartPreview, MenuHullPreview},
     scenarios::NewGameScenario,
     widgets::{
-        actions_row, back_button, button, button_slot, button_variant, detail_row, MenuSfxButton,
-        MAIN_SLOT_W, SIDE_SLOT_W,
+        actions_row, back_button, button, button_slot, button_variant, detail_row, MenuSfxBack,
+        MenuSfxButton, MAIN_SLOT_W, SIDE_SLOT_W,
     },
 };
 
-/// The panel width on the world step.
-const WORLD_STEP_W: f32 = 420.0;
+/// The modal's width as a share of the window, up to [`WORLD_SETUP_MAX_W`].
+/// Both steps share it, so Next does not resize the modal under the pointer
+/// and a long role text wraps instead of widening it.
+const WORLD_SETUP_WIDTH_PCT: f32 = 92.0;
 
-/// The panel width on the role step: the role list and the details side by
+/// The modal's widest size in px: the role list and the role details side by
 /// side.
-const ROLE_STEP_W: f32 = 760.0;
+const WORLD_SETUP_MAX_W: f32 = 640.0;
+
+/// What the modal head's tag reads on the world step.
+const WORLD_STEP_TAG: &str = "1/2 WORLD";
+
+/// What the modal head's tag reads on the role step.
+const ROLE_STEP_TAG: &str = "2/2 ROLE";
+
+/// The sentence beside the button row, and the tooltip of Create, when no
+/// start role is loaded.
+const NO_ROLE_REASON: &str = "Create is unavailable: no start role is loaded.";
 
 /// The role list's width on the role step.
 const ROLE_LIST_W: f32 = 240.0;
@@ -92,8 +106,15 @@ const RANDOMIZE_SLOT_W: f32 = 130.0;
 /// The one line over the fields: what a world is, in brief.
 const PROFILE_TEXT: &str = "A seeded open world of asteroid clusters, planetoids and derelicts.";
 
-/// The height of the seed's chart preview on the world step.
+/// The height of the seed's chart preview on the world step, where the
+/// window has room for it.
 const SEED_PREVIEW_H: f32 = 200.0;
+
+/// The lowest a preview shrinks to in a window too short for its step.
+const PREVIEW_MIN_H: f32 = 80.0;
+
+/// The space (px) kept between the modal and the top and bottom window edges.
+const WORLD_SETUP_VIEW_MARGIN_PX: f32 = 8.0;
 
 /// The height of the hull's view on the role step.
 const HULL_PREVIEW_H: f32 = 150.0;
@@ -135,9 +156,9 @@ pub(crate) struct SeedPreview;
 #[derive(Component)]
 pub(crate) struct SeedPreviewCaption;
 
-/// Marker for the panel, widened on the role step.
+/// Marker for the head of the modal, whose tag names the step shown.
 #[derive(Component)]
-pub(crate) struct WorldSetupPanel;
+pub(crate) struct WorldSetupHead;
 
 /// Marker for the world step: the name, the seed and Next.
 #[derive(Component)]
@@ -198,6 +219,21 @@ fn label(name: &'static str, text: &str) -> impl Bundle {
     )
 }
 
+/// The main menu's New Game button. It is the lit call-to-action only while
+/// `lit`: with a save to continue, Continue takes that place.
+pub(crate) fn new_game_button(lit: bool) -> impl Bundle {
+    let variant = if lit {
+        ButtonVariant::Primary
+    } else {
+        ButtonVariant::Default
+    };
+    (
+        Name::new("New Game Button"),
+        button_variant("New Game", variant, None),
+        observe(on_new_game),
+    )
+}
+
 /// Open the modal on the world step with a fresh seed and the first start
 /// role selected.
 pub(crate) fn on_new_game(
@@ -241,6 +277,9 @@ pub(crate) fn on_new_game(
                 height: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
+                // The panel's height cap resolves against the space inside
+                // this padding, so a short window keeps a margin round it.
+                padding: UiRect::vertical(px(WORLD_SETUP_VIEW_MARGIN_PX)),
                 ..default()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
@@ -250,11 +289,15 @@ pub(crate) fn on_new_game(
             parent
                 .spawn((
                     Name::new("New Game Panel"),
-                    WorldSetupPanel,
                     Node {
                         flex_direction: FlexDirection::Column,
                         align_items: AlignItems::Stretch,
-                        width: px(WORLD_STEP_W),
+                        width: percent(WORLD_SETUP_WIDTH_PCT),
+                        max_width: px(WORLD_SETUP_MAX_W),
+                        // A short window (720 px at 150%) is lower than the
+                        // steps: the previews give up height, so the head
+                        // and the button row stay in view.
+                        max_height: percent(100),
                         padding: UiRect::all(px(20)),
                         row_gap: px(8),
                         border: UiRect::all(px(theme::BORDER_W)),
@@ -266,13 +309,8 @@ pub(crate) fn on_new_game(
                 .with_children(|parent| {
                     parent.spawn((
                         Name::new("New Game Title"),
-                        Text::new("New Game"),
-                        TextFont {
-                            font_size: FontSize::Px(24.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Body),
+                        WorldSetupHead,
+                        panel_head("New Game", Some(WORLD_STEP_TAG)),
                     ));
                     parent
                         .spawn((Name::new("World Step"), WorldStep, step_node(Display::Flex)))
@@ -291,6 +329,9 @@ fn step_node(display: Display) -> Node {
         flex_direction: FlexDirection::Column,
         align_items: AlignItems::Stretch,
         row_gap: px(8),
+        // Lets the step go under its content height, so its preview shrinks
+        // inside a height-capped panel.
+        min_height: px(0),
         ..default()
     }
 }
@@ -373,7 +414,7 @@ fn spawn_world_step(seed: String, name: String) -> impl FnOnce(&mut ChildSpawner
                 "Seed Preview",
                 Node {
                     height: px(SEED_PREVIEW_H),
-                    flex_shrink: 0.0,
+                    min_height: px(PREVIEW_MIN_H),
                     margin: UiRect::top(px(4)),
                     border: UiRect::all(px(theme::BORDER_W)),
                     ..default()
@@ -425,6 +466,9 @@ fn spawn_role_step(
                 Node {
                     flex_direction: FlexDirection::Row,
                     column_gap: px(16),
+                    // Goes under its content height in a short window; the
+                    // role lines scroll, so the button row stays in view.
+                    min_height: px(0),
                     ..default()
                 },
             ))
@@ -482,6 +526,10 @@ fn spawn_role_step(
                         flex_direction: FlexDirection::Column,
                         flex_grow: 1.0,
                         flex_basis: px(0),
+                        // Long role text wraps in the details instead of
+                        // widening the modal.
+                        min_width: px(0),
+                        min_height: px(0),
                         row_gap: px(6),
                         ..default()
                     },
@@ -497,11 +545,13 @@ fn spawn_role_step(
                         back_button("Back"),
                         observe(on_world_back),
                     ));
+                // Escape runs Back here, so only Back carries the key chip.
                 actions
                     .spawn(button_slot("Cancel Role Step Button Slot", SIDE_SLOT_W))
                     .with_child((
                         Name::new("Cancel Role Step Button"),
-                        back_button("Cancel"),
+                        button("Cancel"),
+                        MenuSfxBack,
                         observe(on_cancel_new_game),
                     ));
                 actions
@@ -513,39 +563,67 @@ fn spawn_role_step(
                             observe(on_create_world),
                         ));
                         if selected.is_none() {
-                            create.insert(InteractionDisabled);
+                            create
+                                .insert((InteractionDisabled, Tooltip(NO_ROLE_REASON.to_string())));
                         }
                     });
             });
-    }
-}
-
-/// Show `step` and hide the other, and size the panel for it. Both steps
-/// stay spawned, so the fields keep what was typed.
-fn show_step(nodes: &mut StepNodes, step: WorldSetupStepType) {
-    for (mut node, world, role) in nodes {
-        let shown = match step {
-            WorldSetupStepType::World => world,
-            WorldSetupStepType::Role => role,
-        };
-        if world || role {
-            node.display = if shown { Display::Flex } else { Display::None };
-        } else {
-            node.width = px(match step {
-                WorldSetupStepType::World => WORLD_STEP_W,
-                WorldSetupStepType::Role => ROLE_STEP_W,
-            });
+        // On screen as well as in the tooltip: a disabled button explains
+        // itself to a player who is not hovering it.
+        if selected.is_none() {
+            parent.spawn(label("Create Disabled Reason", NO_ROLE_REASON));
         }
     }
 }
 
-/// The step nodes and the panel, for [`show_step`].
-type StepNodes<'w, 's> = Query<
+/// Show `step` and hide the other. Both steps stay spawned, so the fields
+/// keep what was typed.
+fn show_step(nodes: &mut StepNodes, step: WorldSetupStepType) {
+    for (mut node, world, _) in nodes {
+        let shown = match step {
+            WorldSetupStepType::World => world,
+            WorldSetupStepType::Role => !world,
+        };
+        node.display = if shown { Display::Flex } else { Display::None };
+    }
+}
+
+/// The two step nodes, for [`show_step`].
+pub(crate) type StepNodes<'w, 's> = Query<
     'w,
     's,
     (&'static mut Node, Has<WorldStep>, Has<RoleStep>),
-    Or<(With<WorldStep>, With<RoleStep>, With<WorldSetupPanel>)>,
+    Or<(With<WorldStep>, With<RoleStep>)>,
 >;
+
+/// Write the step shown into the modal head's tag, so `1/2 WORLD` becomes
+/// `2/2 ROLE` when Next lands and back when Back does.
+pub(crate) fn sync_world_setup_tag(
+    steps: Query<&Node, With<RoleStep>>,
+    heads: Query<&Children, With<WorldSetupHead>>,
+    tags: Query<&Children, With<PanelHeadTag>>,
+    mut legends: Query<&mut Text, With<PanelHeadTitle>>,
+) {
+    let Some(role_step) = steps.iter().next() else {
+        return;
+    };
+    let wanted = if role_step.display == Display::None {
+        WORLD_STEP_TAG
+    } else {
+        ROLE_STEP_TAG
+    };
+    for head in &heads {
+        for tag in head.iter().filter_map(|child| tags.get(child).ok()) {
+            for legend in tag.iter() {
+                if let Ok(mut text) = legends.get_mut(legend) {
+                    if text.0 != wanted {
+                        text.0 = wanted.to_string();
+                    }
+                }
+            }
+        }
+    }
+}
 
 /// Go on to the role step when the typed seed and name are accepted.
 ///
@@ -573,6 +651,28 @@ pub(crate) fn on_world_next(
 /// Go back to the world step, with the name and seed as they were typed.
 pub(crate) fn on_world_back(_activate: On<Activate>, mut nodes: StepNodes) {
     show_step(&mut nodes, WorldSetupStepType::World);
+}
+
+/// Back out of the modal one level, as Escape does: from the role step to the
+/// world step (the Back button), else close the modal (the Cancel button).
+/// Returns whether the modal was open to answer.
+pub(crate) fn back_out_of_new_game(
+    commands: &mut Commands,
+    overlays: &Query<Entity, With<WorldSetupOverlay>>,
+    nodes: &mut StepNodes,
+) -> bool {
+    if overlays.is_empty() {
+        return false;
+    }
+    let on_role_step = nodes
+        .iter()
+        .any(|(node, _, role)| role && node.display != Display::None);
+    if on_role_step {
+        show_step(nodes, WorldSetupStepType::World);
+    } else {
+        close_new_game(commands, overlays);
+    }
+    true
 }
 
 /// Select the pressed role and move the row highlight to it.
@@ -772,7 +872,7 @@ pub(crate) fn refresh_start_role_details(
                     "Start Role Hull Preview",
                     Node {
                         height: px(HULL_PREVIEW_H),
-                        flex_shrink: 0.0,
+                        min_height: px(PREVIEW_MIN_H),
                         border: UiRect::all(px(theme::BORDER_W)),
                         ..default()
                     },
@@ -782,49 +882,66 @@ pub(crate) fn refresh_start_role_details(
             ));
         }
         details.spawn((Name::new("Start Role Details Separator"), separator()));
-        for (label, value) in card {
-            details.spawn(detail_row(
-                "Start Role Details Hull Line",
-                label,
-                value,
-                UiColor::Body,
-            ));
-        }
-        details.spawn(detail_row(
-            "Start Role Details Credits",
-            "Credits",
-            cr_text(role.kit.credits),
-            UiColor::Body,
-        ));
-        details.spawn(detail_row(
-            "Start Role Details Kit",
-            "Cargo",
-            cargo,
-            UiColor::Body,
-        ));
-        for (index, step) in steps.into_iter().enumerate() {
-            details.spawn(detail_row(
-                "Start Role Details Milestone",
-                if index == 0 { "Milestones" } else { "" },
-                step,
-                UiColor::Body,
-            ));
-        }
-        details.spawn((
-            Name::new("Start Role Details Lore"),
-            UiText,
-            Text::new(role.lore.clone()),
-            TextFont {
-                font_size: FontSize::Px(12.0),
-                ..default()
-            },
-            TextColor(Color::NONE),
-            ThemedText::new(UiColor::Label),
-            Node {
-                margin: UiRect::top(px(8)),
-                ..default()
-            },
-        ));
+        // Only the lines scroll: the role's name, text and hull view stay
+        // in view over them in a short window.
+        details
+            .spawn((Name::new("Start Role Details Lines Row"), scroll_row()))
+            .with_children(|row| {
+                row.spawn((
+                    Name::new("Start Role Details Lines"),
+                    Node {
+                        row_gap: px(6),
+                        ..scroll_column()
+                    },
+                    scroll_viewport(),
+                ))
+                .with_children(|lines| {
+                    for (label, value) in card {
+                        lines.spawn(detail_row(
+                            "Start Role Details Hull Line",
+                            label,
+                            value,
+                            UiColor::Body,
+                        ));
+                    }
+                    lines.spawn(detail_row(
+                        "Start Role Details Credits",
+                        "Credits",
+                        cr_text(role.kit.credits),
+                        UiColor::Body,
+                    ));
+                    lines.spawn(detail_row(
+                        "Start Role Details Kit",
+                        "Cargo",
+                        cargo,
+                        UiColor::Body,
+                    ));
+                    for (index, step) in steps.into_iter().enumerate() {
+                        lines.spawn(detail_row(
+                            "Start Role Details Milestone",
+                            if index == 0 { "Milestones" } else { "" },
+                            step,
+                            UiColor::Body,
+                        ));
+                    }
+                    lines.spawn((
+                        Name::new("Start Role Details Lore"),
+                        UiText,
+                        Text::new(role.lore.clone()),
+                        TextFont {
+                            font_size: FontSize::Px(12.0),
+                            ..default()
+                        },
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Label),
+                        Node {
+                            margin: UiRect::top(px(8)),
+                            ..default()
+                        },
+                    ));
+                });
+                row.spawn((Name::new("Start Role Details Scroll Bar"), scroll_bar()));
+            });
     });
 }
 
@@ -1087,7 +1204,13 @@ pub(crate) fn on_cancel_new_game(
     mut commands: Commands,
     overlays: Query<Entity, With<WorldSetupOverlay>>,
 ) {
-    for overlay in &overlays {
+    close_new_game(&mut commands, &overlays);
+}
+
+/// Despawn the modal: the body of every Cancel, which Escape runs from the
+/// world step.
+fn close_new_game(commands: &mut Commands, overlays: &Query<Entity, With<WorldSetupOverlay>>) {
+    for overlay in overlays {
         commands.entity(overlay).despawn();
     }
 }

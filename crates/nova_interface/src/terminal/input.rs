@@ -32,7 +32,13 @@ use nova_ui::{
 };
 
 use super::{components::*, sound::*};
-use crate::pane::InterfacePaneType;
+use crate::{
+    inventory::InventoryRuntime,
+    jobs::JobsRuntime,
+    pane::InterfacePaneType,
+    ship::ShipViewSubject,
+    station::{close_hull_info, StationRuntime},
+};
 
 /// Whether either Control key is down. The prompt reads it to tell a readline
 /// chord from a typed character.
@@ -40,14 +46,70 @@ pub(crate) fn control_held(keys: &ButtonInput<KeyCode>) -> bool {
     keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight)
 }
 
+/// The interface's sub-levels, from the innermost out. Escape leaves one.
+#[derive(SystemParam)]
+pub(crate) struct InterfaceLevels<'w> {
+    pane: Option<ResMut<'w, InterfacePaneType>>,
+    held: Option<ResMut<'w, HeldPart>>,
+    jobs: Option<ResMut<'w, JobsRuntime>>,
+    subject: Option<Res<'w, ShipViewSubject>>,
+    inventory: Option<ResMut<'w, InventoryRuntime>>,
+    station: Option<ResMut<'w, StationRuntime>>,
+}
+
+impl InterfaceLevels<'_> {
+    /// Leave the innermost level the open pane has: a part in hand, a Jobs
+    /// confirm, the hull Info, an Inventory draft, or an armed station buy. Returns whether one was
+    /// left. Each level belongs to one pane, so a stale one on another pane
+    /// does not eat the press.
+    fn leave_one(&mut self) -> bool {
+        let Some(pane) = self.pane.as_deref().copied() else {
+            return false;
+        };
+        match pane {
+            InterfacePaneType::Ship => {
+                if let Some(held) = self.held.as_mut().filter(|held| held.0.is_some()) {
+                    held.0 = None;
+                    return true;
+                }
+                if self
+                    .subject
+                    .as_ref()
+                    .is_some_and(|subject| subject.0.is_some())
+                {
+                    if let Some(pane) = self.pane.as_mut() {
+                        close_hull_info(pane);
+                    }
+                    return true;
+                }
+                false
+            }
+            InterfacePaneType::Jobs => self.jobs.as_mut().is_some_and(|jobs| jobs.clear_ask()),
+            InterfacePaneType::Inventory => self
+                .inventory
+                .as_mut()
+                .is_some_and(|inventory| inventory.draft.take().is_some()),
+            InterfacePaneType::Station => self
+                .station
+                .as_mut()
+                .is_some_and(|station| std::mem::take(&mut station.confirm_buy)),
+            InterfacePaneType::Map => false,
+        }
+    }
+}
+
 /// The ONE owner of the back-out gesture for both surfaces (per the
 /// `context-key-handled-in-one-owner` lesson), so one press never closes two
 /// layers. Precedence: an armed rebind capture keeps the key, then a browse
 /// surface over a pane (the Ship pane's catalogue, in [`InputMode::Browse`])
-/// closes itself, then a part in hand in the Ship pane is put away and the
-/// press ends there, then the modal closes to the state it covered, then the
-/// pane closes to flight. The pause
+/// closes itself, then a focused text field reverts and blurs itself, then the
+/// open pane leaves its innermost level (see [`InterfaceLevels`]) and the press
+/// ends there, then the modal closes to the state it covered, then the pane
+/// closes to flight. The pause
 /// menu's own toggle ignores both surfaces, so it comes last.
+///
+/// [`InputMode`] resolves in `PreUpdate`, so a field that blurs itself in
+/// `Update` still reads [`InputMode::Insert`] here, whichever system runs first.
 ///
 /// Escape is the one gesture that stays off the registry: it is the universal
 /// back-out, and a rebind that stranded a player inside a surface would have no
@@ -61,8 +123,7 @@ pub(crate) fn close_surface_from_menu_keys(
     mut close: ResMut<NovaOsCloseTransition>,
     ship: Option<Res<crate::ship::ShipRuntime>>,
     mode: Option<Res<InputMode>>,
-    pane: Option<Res<InterfacePaneType>>,
-    held: Option<ResMut<HeldPart>>,
+    mut levels: InterfaceLevels,
 ) {
     let start = gamepads
         .iter()
@@ -70,18 +131,15 @@ pub(crate) fn close_surface_from_menu_keys(
     if !(keys.just_pressed(KeyCode::Escape) || start) {
         return;
     }
-    if ship.is_some_and(|ship| ship.rebind_armed())
-        || mode.is_some_and(|mode| *mode == InputMode::Browse)
-    {
+    if ship.is_some_and(|ship| ship.rebind_armed()) || mode.as_deref() == Some(&InputMode::Browse) {
         return;
     }
-    if *current.get() == PauseStates::Interface
-        && pane.is_some_and(|pane| *pane == InterfacePaneType::Ship)
-    {
-        if let Some(mut held) = held.filter(|held| held.0.is_some()) {
-            held.0 = None;
-            return;
-        }
+    let interface = *current.get() == PauseStates::Interface;
+    if interface && mode.as_deref() == Some(&InputMode::Insert) {
+        return;
+    }
+    if interface && levels.leave_one() {
+        return;
     }
     match current.get() {
         PauseStates::Commands => close.closing = true,

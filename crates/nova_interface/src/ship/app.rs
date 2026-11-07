@@ -8,10 +8,10 @@ use bevy::{
     input::mouse::MouseWheel,
     picking::hover::Hovered,
     prelude::{
-        default, BackgroundColor, BorderRadius, ChildOf, ChildSpawnerCommands, Color, ComputedNode,
-        Display, Entity, FlexDirection, FlexWrap, Has, Justify, JustifyContent, LineBreak,
-        MessageReader, Name, Node, Overflow, Pickable, PositionType, Query, ResMut, ScrollPosition,
-        TextLayout, UiRect, Val, With, ZIndex,
+        default, BackgroundColor, ChildOf, ChildSpawnerCommands, Color, ComputedNode, Display,
+        Entity, FlexDirection, FlexWrap, Has, Justify, JustifyContent, LineBreak, MessageReader,
+        Name, Node, Overflow, Pickable, PositionType, Query, ResMut, ScrollPosition, TextLayout,
+        UiRect, Val, With, ZIndex,
     },
     ui_widgets::{Slider, SliderPrecision, SliderRange, SliderStep, SliderValue, TrackClick},
 };
@@ -19,7 +19,10 @@ use nova_gameplay::prelude::*;
 use nova_ui::{
     screen::drive_wheel_scroll,
     theme::UiColor,
-    widget::{button, slider_track, text_field, ButtonSpec, TextFieldSpec, ThemedFill, Tooltip},
+    widget::{
+        button, slider_track, text_field, ButtonSpec, TextFieldSpec, ThemedFill, ThemedRadius,
+        Tooltip,
+    },
 };
 
 use super::{
@@ -125,12 +128,12 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                                     Node {
                                         height: Val::Px(6.0),
                                         flex_shrink: 0.0,
-                                        border_radius: BorderRadius::all(Val::Px(3.0)),
                                         overflow: Overflow::clip(),
                                         ..default()
                                     },
                                     BackgroundColor(Color::NONE),
                                     ThemedFill::alpha(UiColor::Secondary, 0.25),
+                                    ThemedRadius::control(),
                                 ))
                                 .with_children(|track| {
                                     track.spawn((

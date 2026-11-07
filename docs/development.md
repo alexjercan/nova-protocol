@@ -411,7 +411,7 @@ What is on disk today, in reading order:
   interface and the command shell (`screenshot_interface`,
   `screenshot_command_shell`), the Rock
   hollow combat beats (`screenshot_radar_lock`, `screenshot_contextual_hud`,
-  `screenshot_combat_lock`, `screenshot_combat_hud`, `screenshot_combat_wide`,
+  `screenshot_key_hints`, `screenshot_combat_lock`, `screenshot_combat_hud`, `screenshot_combat_wide`,
   `screenshot_hull_juice`, `screenshot_torpedo_run`, `screenshot_comms`), the
   spinal lance
   (`screenshot_railgun`) and the flight computer around a real well

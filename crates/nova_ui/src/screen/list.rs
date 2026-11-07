@@ -10,17 +10,26 @@ use crate::{layer::MENU_PANEL_Z, theme::BORDER_W, widget::ThemedSeparator};
 /// Width of the list pane, as a share of the screen card.
 const LIST_PANE_PERCENT: f32 = 40.0;
 
+/// How dark the scrim behind a menu screen is. Matches the pause Settings
+/// modal, so a screen dims what it covers the same in both places.
+const OVERLAY_SCRIM_ALPHA: f32 = 0.6;
+
 /// The full-screen overlay a menu screen spawns above the menu card: centered,
-/// transparent to picking, and stacked explicitly.
+/// a dimmed scrim that takes every pick aimed at what it covers, and stacked
+/// explicitly. It spawns hidden; a hidden node takes no pick.
 ///
-/// The [`GlobalZIndex`] is load-bearing. Sibling z-order otherwise falls back to
+/// The scrim is what makes the screen modal. Without it the menu card showed
+/// beside a screen narrower than the window and its buttons still answered,
+/// so a click beside the Load list could start a new game.
+///
+/// The [`GlobalZIndex`] is required. Sibling z-order otherwise falls back to
 /// entity-id ordering, and ids freed by a despawned scene get recycled, so the
 /// overlay stacked nondeterministically against the menu card.
 pub fn overlay_root() -> impl Bundle {
     (
         Visibility::Hidden,
         Pickable {
-            should_block_lower: false,
+            should_block_lower: true,
             is_hoverable: false,
         },
         Node {
@@ -30,6 +39,7 @@ pub fn overlay_root() -> impl Bundle {
             justify_content: JustifyContent::Center,
             ..default()
         },
+        BackgroundColor(Color::BLACK.with_alpha(OVERLAY_SCRIM_ALPHA)),
         GlobalZIndex(MENU_PANEL_Z),
     )
 }

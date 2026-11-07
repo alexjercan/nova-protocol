@@ -187,7 +187,7 @@ fn mark_name(code: &str) -> String {
 
 /// The OBJECTIVES heading on Y layer `layer`.
 fn heading(layer: i32) -> String {
-    format!("OBJECTIVES  Y{layer}")
+    format!("OBJECTIVES  LAYER {layer}")
 }
 
 fn when(check: impl Fn(&World) -> bool + Send + Sync + 'static) -> Arc<Predicate> {

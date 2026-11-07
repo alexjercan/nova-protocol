@@ -221,6 +221,44 @@ impl EventAction<NovaEventWorld> for ObjectiveCompleteActionConfig {
     }
 }
 
+/// Keep one objective's HUD chip up, unread, until the objective leaves: pushes
+/// `id` into the HUD's [`ObjectiveChipHolds`]. Every other chip still fades on
+/// its dwell or when the interface opens.
+///
+/// The hold is not saved, so a scenario that wants it across a Load runs this
+/// from `OnResume` too. That handler runs on every Load, including one after
+/// the objective ended, so an id with no active objective is a valid no-op; a
+/// hold that names no authored `Objective` is a lint error instead.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ObjectiveChipHoldActionConfig {
+    /// The id of the objective whose chip stays up.
+    #[reflect(@Names::Objective)]
+    pub id: String,
+}
+
+impl EventAction<NovaEventWorld> for ObjectiveChipHoldActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        if !world
+            .objectives()
+            .iter()
+            .any(|objective| objective.id == self.id)
+        {
+            debug!("ObjectiveChipHold: '{}' is not active", self.id);
+            return;
+        }
+        let id = self.id.clone();
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| {
+                // Headless rigs run scenario scripts without the HUD plugins.
+                if let Some(mut holds) = world.get_resource_mut::<ObjectiveChipHolds>() {
+                    holds.hold(&id);
+                }
+            });
+        });
+    }
+}
+
 /// Attach the gold objective marker to the scenario object whose [`EntityId`]
 /// matches `target_id`: inserts [`ObjectiveMarkerTarget`] with `label`, and the
 /// HUD's objective-markers observer grows the chip. Scoped-only lookup, same

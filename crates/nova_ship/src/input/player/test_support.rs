@@ -8,7 +8,7 @@ use nova_input::prelude::*;
 
 use super::flight_rig::{
     flight_input_rig, AutopilotGotoInput, AutopilotOffInput, AutopilotOrbitInput,
-    AutopilotStopInput,
+    AutopilotStopInput, RcsModifierInput,
 };
 use crate::{input::bindings::flight_bindings, prelude::*};
 
@@ -29,6 +29,7 @@ pub(crate) fn spawn_flight_rig_from(app: &mut App, bindings: InputBindings) -> E
 pub(super) fn hint_world() -> World {
     let mut world = World::new();
     world.init_resource::<FlightVerbHints>();
+    world.insert_resource(InputDeviceType::default());
     // The hints read their LABELS off this table and their EXISTENCE off the
     // rig below, so a fixture missing either draws nothing.
     world.insert_resource(InputBindings::from_actions(flight_bindings()));
@@ -49,6 +50,14 @@ pub(super) fn hint_world() -> World {
         bindings![KeyCode::KeyZ, GamepadButton::West],
     ));
     world
+}
+
+/// The RCS modifier action with a `TriggerState` a test sets: `Fired` is the
+/// modifier held.
+pub(super) fn spawn_rcs_modifier(world: &mut World) -> Entity {
+    world
+        .spawn((Action::<RcsModifierInput>::new(), TriggerState::None))
+        .id()
 }
 
 /// A flyable player ship: live controller (with PD, all verbs granted) +

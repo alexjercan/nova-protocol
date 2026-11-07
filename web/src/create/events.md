@@ -1,7 +1,7 @@
 # Events
 
 Everything that can fire a handler. A handler's `name:` field names one of
-the THIRTY-FOUR event kinds below, written bare (they are unit variants):
+the FORTY-FIVE event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
@@ -62,6 +62,7 @@ The whole vocabulary at a glance:
 | [`OnStripped`](#hold-events) | `id`, `type_name`, `hull`, `section`, `parts` | an Inventory pane strip takes a section off a docked wreck, once per section, the berth port last; or a Ship pane delete takes a section off the ship itself |
 | [`OnStored`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player stores a stack in a docked station's storage |
 | [`OnWithdrawn`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player withdraws a stack from a docked station's storage, or Take all or Strip takes one from a dead station's |
+| [`OnJobAccepted`](#onjobaccepted) | `id` | the Jobs pane accepts a board offer; `id` is the job's id; a refused accept and a Load fire none |
 
 Entity payload fields are what an `Entity` filter can match: `id` /
 `type_name` name the event's SUBJECT, `other_id` / `other_type_name` its other
@@ -820,7 +821,7 @@ To react to a dock with anything, omit `id` and keep `other_id`.
 
 ## Hold events
 
-Twelve edges report what a ship's hold and purse do. Each fires ONCE per
+Fifteen edges report what a ship's hold and purse do. Each fires ONCE per
 occurrence from the system that did the work, never from a poll of the
 inventory, so a handler counts occurrences, not frames.
 
@@ -903,6 +904,32 @@ A prospecting berth that wants one of each:
 The example mod's `example_prospect` scenario runs all but `OnRebuilt`,
 `OnSwapped`, `OnAdded`, `OnShipBought`, `OnEscortHired`, `OnStationBought`,
 `OnStripped`, `OnStored` and `OnWithdrawn`.
+
+</details>
+
+## OnJobAccepted
+
+Fires once per successful accept from the Jobs pane. Payload: `id` only, and
+it is the JOB's id, not an entity id. There is no `type_name` and no
+`other_id`.
+
+```ron
+(
+    name: OnJobAccepted,
+    once: true,
+    actions: [ObjectiveComplete((id: "take_a_job"))],
+),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+An `Entity` filter on `id` matches a job id here, not a scenario object. A
+job id reads `<station id>#<slot>.<posting>` for a slot job and
+`<station id>#<visit id>.<index>` for a visit posting.
+
+A refused accept fires nothing, and neither does a Load that restores held
+jobs, so a handler on this event never runs twice for one job.
 
 </details>
 

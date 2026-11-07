@@ -3,14 +3,14 @@
 //!
 //! Demo 2's ruleset (`web/design/hud_rework_poc.html`, `reflect()`) is written
 //! against a handful of situations - autopilot burn, combat lock, weapons hot,
-//! firing, low ammo - and every contextual rule keys off one of them. Sensing
+//! firing - and every contextual rule keys off one of them. Sensing
 //! them ONCE into [`HudSituations`] keeps the widgets dumb (a chip asks "is the
 //! burn live?", not "is there an `Autopilot` with a `Goto` action on the single
 //! player ship?") and keeps the ruleset readable in one place instead of
 //! scattered across a dozen queries that could drift apart.
 //!
 //! No new gameplay state: every field is read from components the HUD already
-//! consumed ([`Autopilot`], [`CombatLock`], [`WeaponsHot`], [`SectionAmmo`],
+//! consumed ([`Autopilot`], [`CombatLock`], [`WeaponsHot`],
 //! [`TurretSectionInput`]).
 
 use bevy::prelude::*;
@@ -52,18 +52,19 @@ pub struct HudSituations {
     pub weapons_hot: bool,
     /// A weapon trigger is down right now.
     pub firing: bool,
-    /// Some player weapon group is at or below its low-ammo mark.
-    pub low_ammo: bool,
-    /// Some player weapon is restoring an idle reload batch.
-    pub reloading: bool,
     /// The ship is held by a docking connection - the DOCK chip's hot state.
     pub docked: bool,
 }
 
 impl HudSituations {
-    /// Whether ammo gauges matter: weapons hot, low ammunition, or active reload.
+    /// Whether the ammo gauges show: combat mode (weapons hot) or a held
+    /// combat lock, and nothing else. The targeting chain heats the safety on
+    /// the frame a lock lands; the lock is named too so one written outside
+    /// that chain (a save restore) does not wait on the safety. Magazine
+    /// state is not an input: a low, empty or reloading magazine changes how
+    /// a shown gauge is painted and never brings one up in normal flight.
     pub fn ammo_relevant(&self) -> bool {
-        self.weapons_hot || self.low_ammo || self.reloading
+        self.weapons_hot || self.combat_lock
     }
 
     /// Whether nothing is going on - the near-empty idle-cruise screen.
@@ -88,47 +89,23 @@ pub fn sense_hud_situations(
         ),
         With<PlayerSpaceshipMarker>,
     >,
-    q_inventory: Query<&ShipInventory>,
-    q_sections: Query<
-        (
-            NameOrEntity,
-            &ChildOf,
-            Option<&SectionAmmo>,
-            Option<&SectionReload>,
-            Option<&TurretSectionInput>,
-        ),
-        With<SectionMarker>,
-    >,
+    q_sections: Query<(&ChildOf, &TurretSectionInput), With<SectionMarker>>,
 ) {
     let next = match q_ship.single() {
         Ok((ship, autopilot, combat, hot, docked)) => {
             let weapons_hot = hot.is_some_and(|hot| hot.0);
-            let mut firing = false;
-            let mut low_ammo = false;
-            let mut reloading = false;
-            for (name, &ChildOf(parent), ammo, reload, trigger) in &q_sections {
-                if parent != ship {
-                    continue;
-                }
-                // A held trigger only counts as firing while the safety is off
-                // - the section systems refuse the shot otherwise, so a pulsing
-                // reticle would be a lie.
-                firing |= weapons_hot && trigger.is_some_and(|trigger| trigger.0);
-                low_ammo |= ammo.is_some_and(super::ammo_readout::is_low_ammo);
-                reloading |= ammo.zip(reload).is_some_and(|(ammo, reload)| {
-                    let reserve = q_inventory.get(ship).unwrap_or_else(|_| {
-                        panic!("weapon section {name} reloads from a ship with no ShipInventory")
-                    });
-                    reload.is_reloading(ammo, reserve.count(&reload.item))
-                });
-            }
+            // A held trigger only counts as firing while the safety is off -
+            // the section systems refuse the shot otherwise, so a pulsing
+            // reticle would be a lie.
+            let firing = weapons_hot
+                && q_sections
+                    .iter()
+                    .any(|(&ChildOf(parent), trigger)| parent == ship && trigger.0);
             HudSituations {
                 maneuver: autopilot.and_then(maneuver_chip),
                 combat_lock: combat.is_some_and(|combat| combat.0.is_some()),
                 weapons_hot,
                 firing,
-                low_ammo,
-                reloading,
                 docked,
             }
         }
@@ -158,8 +135,6 @@ fn maneuver_chip(autopilot: &Autopilot) -> Option<ManeuverChip> {
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::test_support::test_items;
-
     use super::*;
 
     fn sense_app() -> App {
@@ -226,88 +201,5 @@ mod tests {
         app.world_mut().entity_mut(ship).insert(WeaponsHot(true));
         app.update();
         assert!(situations(&app).firing, "safety off with the trigger down");
-    }
-
-    /// A nearly-dry magazine is news; a full one is not. Another ship's empty
-    /// weapon is not the player's problem.
-    #[test]
-    fn low_ammo_reads_the_players_own_weapons_only() {
-        let mut app = sense_app();
-        let ship = app.world_mut().spawn(PlayerSpaceshipMarker).id();
-        let other = app.world_mut().spawn_empty().id();
-        let mine = app
-            .world_mut()
-            .spawn((SectionMarker, SectionAmmo::new(10), ChildOf(ship)))
-            .id();
-        app.world_mut().spawn((
-            SectionMarker,
-            SectionAmmo {
-                rounds: 0,
-                ..SectionAmmo::new(10)
-            },
-            ChildOf(other),
-        ));
-        app.update();
-        assert!(
-            !situations(&app).low_ammo,
-            "a full own magazine and another ship's empty one are both quiet"
-        );
-
-        app.world_mut().entity_mut(mine).insert(SectionAmmo {
-            rounds: 0,
-            ..SectionAmmo::new(10)
-        });
-        app.update();
-        assert!(situations(&app).low_ammo, "my own group ran dry");
-    }
-
-    #[test]
-    fn reload_reads_the_players_incomplete_magazine_with_reserve() {
-        let mut app = sense_app();
-        let items = test_items();
-        let ship = app
-            .world_mut()
-            .spawn((
-                PlayerSpaceshipMarker,
-                ShipInventory::new(&items, 10_000, [(ItemRoleType::PdcRound.into(), 4)]),
-            ))
-            .id();
-        let section = app
-            .world_mut()
-            .spawn((
-                SectionMarker,
-                SectionAmmo::new(10),
-                SectionReload::from_config(
-                    SectionReloadConfig {
-                        delay: 3.0,
-                        amount: 4,
-                    },
-                    ItemRoleType::PdcRound.into(),
-                ),
-                ChildOf(ship),
-            ))
-            .id();
-        app.update();
-        assert!(!situations(&app).reloading, "full magazine is at rest");
-
-        app.world_mut()
-            .entity_mut(section)
-            .get_mut::<SectionAmmo>()
-            .unwrap()
-            .rounds = 9;
-        app.update();
-        assert!(
-            situations(&app).reloading,
-            "missing ammo keeps the gauge up"
-        );
-
-        app.world_mut()
-            .entity_mut(ship)
-            .insert(ShipInventory::new(&items, 10_000, []));
-        app.update();
-        assert!(
-            !situations(&app).reloading,
-            "an empty reserve reloads nothing"
-        );
     }
 }

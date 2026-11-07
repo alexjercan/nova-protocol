@@ -240,6 +240,23 @@ fn cancel_closes_only_the_modal() {
     assert_eq!(app.world().resource::<LoadedScenario>().0, None);
 }
 
+/// The modal head names the step: `1/2 WORLD` until Next lands, then `2/2 ROLE`.
+#[test]
+fn the_new_game_head_names_the_step_it_is_on() {
+    let mut app = menu();
+    worlds_at(&mut app);
+    press(&mut app, "New Game Button");
+    let texts = super::support::all_text(&mut app);
+    assert!(texts.iter().any(|t| t == "1/2 WORLD"), "{texts:?}");
+    assert!(!texts.iter().any(|t| t == "2/2 ROLE"), "{texts:?}");
+
+    press(&mut app, "World Next Button");
+    app.update();
+    let texts = super::support::all_text(&mut app);
+    assert!(texts.iter().any(|t| t == "2/2 ROLE"), "{texts:?}");
+    assert!(!texts.iter().any(|t| t == "1/2 WORLD"), "{texts:?}");
+}
+
 /// A name whose folder exists is refused under the field, back on the world
 /// step: nothing starts, and the existing world's folder is left as it was.
 #[test]

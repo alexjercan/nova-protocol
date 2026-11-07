@@ -1092,6 +1092,10 @@ name = "screenshot_contextual_hud"
 path = "examples/screenshots/screenshot_contextual_hud.rs"
 
 [[example]]
+name = "screenshot_key_hints"
+path = "examples/screenshots/screenshot_key_hints.rs"
+
+[[example]]
 name = "screenshot_combat_lock"
 path = "examples/screenshots/screenshot_combat_lock.rs"
 

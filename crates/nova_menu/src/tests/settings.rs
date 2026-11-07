@@ -21,9 +21,9 @@ use super::support::{
     all_texts, entity_by_name, mods_app, mods_app_storing_settings_at, scratch_store,
 };
 use crate::settings::{
-    ResetBindings, SensitivityLabel, SensitivitySlider, SettingsActiveTab, SettingsControlsGroup,
-    SettingsPanel, SettingsTab, SettingsTabKind, VolumeChannel, VolumeLabel, VolumeSlider,
-    WindowModeSetting, MOUSE_GROUP,
+    ResetBindings, ResetBindingsStep, SensitivityLabel, SensitivitySlider, SettingsActiveTab,
+    SettingsControlsGroup, SettingsPanel, SettingsTab, SettingsTabKind, VolumeChannel, VolumeLabel,
+    VolumeSlider, WindowModeSetting, MOUSE_GROUP,
 };
 
 /// Open a settings tab and let the body reconcile. The tab BUTTON is exercised
@@ -872,10 +872,8 @@ fn reset_defaults_puts_every_row_back() {
         .overrides()
         .is_empty());
 
-    let reset = entity_by_name(&mut app, "Reset Bindings").expect("the reset button exists");
-    app.world_mut()
-        .trigger(bevy::ui_widgets::Activate { entity: reset });
-    app.update();
+    press_reset(&mut app);
+    press_reset(&mut app);
 
     assert!(
         app.world()
@@ -883,6 +881,66 @@ fn reset_defaults_puts_every_row_back() {
             .overrides()
             .is_empty(),
         "every row is back on what it shipped with"
+    );
+}
+
+/// Press the Reset button as it stands: Reset Defaults, then its Confirm.
+fn press_reset(app: &mut App) {
+    let reset = entity_by_name(app, "Reset Bindings").expect("the reset button exists");
+    app.world_mut()
+        .trigger(bevy::ui_widgets::Activate { entity: reset });
+    app.update();
+}
+
+/// Reset Defaults wipes every binding, so the first press only asks. The
+/// second press does it; any other press, or Back, withdraws the ask.
+#[test]
+fn reset_defaults_needs_a_second_press() {
+    let mut app = mods_app();
+    open_tab(&mut app, SettingsTabKind::Controls);
+    arm_chip(&mut app, "Rebind: main_drive Desk");
+    tap_key(&mut app, KeyCode::KeyJ);
+    let moved = app.world().resource::<InputBindings>().overrides().len();
+    assert!(moved > 0, "a binding moved off its default");
+
+    press_reset(&mut app);
+    assert_eq!(
+        *app.world().resource::<ResetBindingsStep>(),
+        ResetBindingsStep::Confirm
+    );
+    assert_eq!(
+        app.world().resource::<InputBindings>().overrides().len(),
+        moved,
+        "the first press changes nothing"
+    );
+    assert!(
+        all_texts(&mut app).iter().any(|t| t == "Confirm"),
+        "the armed button reads Confirm"
+    );
+
+    // Any other button withdraws the ask.
+    let other = entity_by_name(&mut app, "Rebind: main_drive Desk").expect("a chip");
+    app.world_mut()
+        .trigger(bevy::ui_widgets::Activate { entity: other });
+    app.update();
+    assert_eq!(
+        *app.world().resource::<ResetBindingsStep>(),
+        ResetBindingsStep::Idle,
+        "another press disarms"
+    );
+    assert_eq!(
+        app.world().resource::<InputBindings>().overrides().len(),
+        moved
+    );
+
+    press_reset(&mut app);
+    press_reset(&mut app);
+    assert!(
+        app.world()
+            .resource::<InputBindings>()
+            .overrides()
+            .is_empty(),
+        "the second press resets"
     );
 }
 

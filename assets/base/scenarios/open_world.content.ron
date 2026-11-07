@@ -97,6 +97,13 @@
                             shadows: false,
                         )),
                     )),
+                    Objective((
+                        id: "take_a_job",
+                        message: "Take a job",
+                    )),
+                    ObjectiveChipHold((
+                        id: "take_a_job",
+                    )),
                 ],
             ),
             (
@@ -187,6 +194,9 @@
                             shadows: false,
                         )),
                     )),
+                    ObjectiveChipHold((
+                        id: "take_a_job",
+                    )),
                 ],
             ),
             (
@@ -201,6 +211,15 @@
                     Outcome((
                         outcome: Defeat,
                         message: Some("Your ship was destroyed."),
+                    )),
+                ],
+            ),
+            (
+                name: OnJobAccepted,
+                once: true,
+                actions: [
+                    ObjectiveComplete((
+                        id: "take_a_job",
                     )),
                 ],
             ),

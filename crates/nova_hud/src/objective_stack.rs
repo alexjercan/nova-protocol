@@ -14,6 +14,11 @@
 //!   player opens the TAB interface. Once read it does not come back; re-wording an objective
 //!   posts it again, unread.
 //!
+//! A scenario can opt ONE objective out of that read model with the
+//! `ObjectiveChipHold` action: a chip named in [`ObjectiveChipHolds`] stays up,
+//! unread, until its objective leaves. The first-step cue needs it because a
+//! pilot can open the interface, close it again and still not know the step.
+//!
 //! That read model is the owner's call: idle cruise has NO objective cue at
 //! all, on purpose. The
 //! standing answers to "what am I doing" are the world-anchored objective
@@ -31,9 +36,9 @@
 //! the owner retired that card, so the stack is the sole presentation of a
 //! posting and no handover gate stands between the two.
 
-use bevy::{ecs::relationship::RelatedSpawner, prelude::*};
+use bevy::{ecs::relationship::RelatedSpawner, platform::collections::HashSet, prelude::*};
 use nova_gameplay::{objectives::GameObjectives, prelude::*};
-use nova_input::prelude::{source_label, InputBindings};
+use nova_input::prelude::{InputBindings, InputDeviceType};
 use nova_ui::{
     hud::{chip_node, ChipText, ChipTone},
     prelude::bottom_edge_px,
@@ -44,11 +49,11 @@ use super::{emphasis::prelude::*, HudTier, NovaHudAssets, NovaHudSystems};
 use crate::prelude::*;
 
 /// The `objective_stack_hud` spawner, `ObjectiveNotifications`, the stack chip,
-/// `OBJECTIVE_DWELL_SECS` and `ObjectiveStackPlugin`.
+/// `ObjectiveChipHolds`, `OBJECTIVE_DWELL_SECS` and `ObjectiveStackPlugin`.
 pub mod prelude {
     pub use super::{
-        objective_stack_hud, ObjectiveNotifications, ObjectiveStackChip, ObjectiveStackHudMarker,
-        ObjectiveStackPlugin, OBJECTIVE_DWELL_SECS,
+        objective_stack_hud, ObjectiveChipHolds, ObjectiveNotifications, ObjectiveStackChip,
+        ObjectiveStackHudMarker, ObjectiveStackPlugin, OBJECTIVE_DWELL_SECS,
     };
 }
 
@@ -96,6 +101,12 @@ const CHIP_FONT_PX: f32 = 17.0;
 /// here more than anywhere - Tab is one of the WIDE caps.
 const TAB_GLYPH_PX: f32 = 18.0;
 const TAB_FONT_PX: f32 = 11.0;
+
+/// The footer word under a stack of ordinary notifications.
+const TAB_LABEL_OBJECTIVES: &str = "OBJECTIVES";
+/// The footer word while a held chip is up. A held chip can name a step no
+/// Interface list carries, so the footer names what the key opens.
+const TAB_LABEL_INTERFACE: &str = "INTERFACE";
 
 /// Marker for the top-centre stack root; spawned by [`objective_stack_hud`].
 #[derive(Component, Debug, Clone, Reflect)]
@@ -189,6 +200,36 @@ impl ObjectiveNotifications {
     }
 }
 
+/// The objective ids whose chips stay up, unread, until the objective leaves.
+///
+/// Set by the `ObjectiveChipHold` scenario action, cleared wholesale on
+/// scenario teardown, and never saved: a resumed scenario sets it again from
+/// `OnResume`. The dwell and the interface sweep still run on a held chip;
+/// `keep_held_objective_chips` undoes them each frame, so a chip read before
+/// its hold arrived comes back too.
+#[derive(Resource, Debug, Clone, Default, Reflect)]
+#[reflect(Resource)]
+pub struct ObjectiveChipHolds {
+    ids: HashSet<String>,
+}
+
+impl ObjectiveChipHolds {
+    /// Hold the chip of the objective `id`.
+    pub fn hold(&mut self, id: &str) {
+        self.ids.insert(id.to_string());
+    }
+
+    /// Whether the chip of the objective `id` is held.
+    pub fn contains(&self, id: &str) -> bool {
+        self.ids.contains(id)
+    }
+
+    /// Drop every hold (scenario teardown).
+    pub fn clear_all(&mut self) {
+        self.ids.clear();
+    }
+}
+
 /// UI bundle for the stack: a top-centre column the chips are reconciled into.
 /// Empty until an objective posts.
 pub fn objective_stack_hud() -> impl Bundle {
@@ -241,8 +282,9 @@ fn clear_the_readout_strip(
 /// Drives the objective notification stack: posting detection, the read
 /// lifecycle and the rendered chips. Inits [`ObjectiveNotifications`]; runs
 /// `post_objective_notifications`, `age_objective_notifications`,
-/// `read_on_nova_os`, `sync_objective_chips`, `breathe_objective_chips` and
-/// `clear_the_readout_strip` in Update within [`NovaHudSystems`].
+/// `read_on_nova_os`, `keep_held_objective_chips`, `sync_objective_chips`,
+/// `breathe_objective_chips` and `clear_the_readout_strip` in Update within
+/// [`NovaHudSystems`].
 pub struct ObjectiveStackPlugin;
 
 impl Plugin for ObjectiveStackPlugin {
@@ -250,6 +292,8 @@ impl Plugin for ObjectiveStackPlugin {
         trace!("ObjectiveStackPlugin: build");
 
         app.init_resource::<ObjectiveNotifications>();
+        app.init_resource::<ObjectiveChipHolds>();
+        app.register_type::<ObjectiveChipHolds>();
         app.register_type::<ObjectiveStackHudMarker>();
         app.register_type::<ObjectiveStackChip>();
 
@@ -262,6 +306,7 @@ impl Plugin for ObjectiveStackPlugin {
                 post_objective_notifications.run_if(resource_changed::<GameObjectives>),
                 age_objective_notifications,
                 read_on_nova_os,
+                keep_held_objective_chips,
                 sync_objective_chips,
                 breathe_objective_chips,
                 clear_the_readout_strip,
@@ -365,6 +410,43 @@ fn read_on_nova_os(
     }
 }
 
+/// Put every held chip whose objective is live back to unread, posting it again
+/// if it already left.
+///
+/// Level-driven rather than a skip inside the read sweeps: the hold command
+/// queues behind `OnResume`'s spawn work, so the interface can read a restored
+/// chip before its hold arrives. Iterating the live objectives is what makes
+/// the chip leave with its objective, and what keeps a stale hold from drawing
+/// anything.
+fn keep_held_objective_chips(
+    holds: Res<ObjectiveChipHolds>,
+    objectives: Res<GameObjectives>,
+    mut notifications: ResMut<ObjectiveNotifications>,
+) {
+    for objective in &objectives.objectives {
+        if !holds.contains(&objective.id) {
+            continue;
+        }
+        match notifications
+            .shown
+            .iter_mut()
+            .find(|shown| shown.id == objective.id)
+        {
+            Some(shown) => {
+                if shown.read_secs.is_some() {
+                    shown.read_secs = None;
+                }
+            }
+            None => notifications.shown.push(ObjectiveNotification {
+                id: objective.id.clone(),
+                message: objective.message.clone(),
+                age_secs: 0.0,
+                read_secs: None,
+            }),
+        }
+    }
+}
+
 /// Rebuild the rendered chips from [`ObjectiveNotifications`], newest on top.
 ///
 /// Rebuild-per-frame like the comms stack, for the same reason: the list is
@@ -374,19 +456,35 @@ fn read_on_nova_os(
 /// every frame and never leave rest.
 fn sync_objective_chips(
     notifications: Res<ObjectiveNotifications>,
+    holds: Res<ObjectiveChipHolds>,
     theme: Res<ActiveUiTheme>,
     assets: Option<Res<NovaHudAssets>>,
     bindings: Option<Res<InputBindings>>,
+    device: Option<Res<InputDeviceType>>,
     mut commands: Commands,
     q_stack: Query<Entity, With<ObjectiveStackHudMarker>>,
 ) {
     let Ok(stack) = q_stack.single() else {
         return;
     };
-    let key = novaos_key_label(bindings.as_deref());
+    // The stack rebuilds every frame, so a rebind or a device flip repaints
+    // the footer on the next one.
+    let key = novaos_key_label(
+        bindings.as_deref(),
+        device.as_deref().copied().unwrap_or_default(),
+    );
     let tab_cap = assets
         .as_deref()
         .and_then(|assets| assets.key_glyphs.get(&key));
+    let label = if notifications
+        .shown
+        .iter()
+        .any(|shown| holds.contains(&shown.id))
+    {
+        TAB_LABEL_INTERFACE
+    } else {
+        TAB_LABEL_OBJECTIVES
+    };
     commands
         .entity(stack)
         .queue_silenced(rebuild_objective_stack_children(
@@ -394,6 +492,7 @@ fn sync_objective_chips(
             theme.clone(),
             key,
             tab_cap,
+            label,
         ));
 }
 
@@ -415,6 +514,7 @@ fn rebuild_objective_stack_children(
     theme: ActiveUiTheme,
     key: String,
     tab_cap: Option<KeyCap>,
+    label: &'static str,
 ) -> impl EntityCommand {
     move |mut entity: EntityWorldMut| {
         entity.despawn_related::<Children>();
@@ -427,24 +527,23 @@ fn rebuild_objective_stack_children(
                 for shown in shown.iter().rev() {
                     stack.spawn(objective_chip(shown, &theme));
                 }
-                // One TAB affordance for the whole stack, riding it: it says
-                // "the full list is in the interface", and it leaves when the
-                // last chip does.
-                stack.spawn(tab_footer(&key, tab_cap));
+                // One TAB affordance for the whole stack, riding it: it
+                // leaves when the last chip does.
+                stack.spawn(tab_footer(&key, tab_cap, label));
             },
         )));
     }
 }
 
-/// The keycap the affordance draws: whatever `interface_toggle` holds NOW, not the
-/// Tab the game ships with. A bare HUD rig carries no registry, and falls back
-/// to the shipped key rather than dropping the picture.
-fn novaos_key_label(bindings: Option<&InputBindings>) -> String {
+/// The keycap the affordance draws: whatever `interface_toggle` holds NOW on
+/// the device the player pressed last. With nothing bound it reads `Unbound`,
+/// which has no keycap art and so draws as text.
+fn novaos_key_label(bindings: Option<&InputBindings>, device: InputDeviceType) -> String {
     bindings
         .and_then(|table| table.get("interface_toggle"))
-        .map(|action| source_label(&action.keyboard))
-        .filter(|label| !label.is_empty())
-        .unwrap_or_else(|| "Tab".to_string())
+        .and_then(|action| action.hint_source(device))
+        .map(|source| source.glyph_label())
+        .unwrap_or_else(|| "Unbound".to_string())
 }
 
 /// One objective chip: the amber demo-2 chip, diamond + the objective text.
@@ -524,15 +623,14 @@ fn chip_alpha(factor: f32, theme: &ActiveUiTheme) -> Color {
     text.with_alpha(text.alpha() * factor)
 }
 
-/// The stack's TAB footer: the keycap plus a muted hint that the full list
-/// lives in the interface.
+/// The stack's TAB footer: the keycap plus the muted `label`.
 ///
 /// A key the pack does not draw falls back to its NAME, the invariant
 /// `key_glyphs` states for every consumer. The capture accepts `Comma`,
 /// `Period`, `Backslash` and every numpad key, none of which the pack has, and
 /// hiding the node instead left the affordance with no key at all - permanently
 /// and with nothing on screen to say why.
-fn tab_footer(key: &str, cap: Option<KeyCap>) -> impl Bundle {
+fn tab_footer(key: &str, cap: Option<KeyCap>, label: &'static str) -> impl Bundle {
     (
         Name::new("ObjectiveStackTab"),
         ObjectiveStackTabMarker,
@@ -584,7 +682,7 @@ fn tab_footer(key: &str, cap: Option<KeyCap>) -> impl Bundle {
             ),
             (
                 Name::new("ObjectiveStackTabLabel"),
-                Text::new("OBJECTIVES"),
+                Text::new(label),
                 TextFont::from_font_size(TAB_FONT_PX),
                 // The AMBER dim tone, not the phosphor the retired hint used:
                 // the footer belongs to the objective notification above it, and
@@ -767,12 +865,14 @@ mod tests {
         )));
         app.init_resource::<GameObjectives>();
         app.init_resource::<ObjectiveNotifications>();
+        app.init_resource::<ObjectiveChipHolds>();
         app.add_systems(
             Update,
             (
                 post_objective_notifications.run_if(resource_changed::<GameObjectives>),
                 age_objective_notifications,
                 read_on_nova_os,
+                keep_held_objective_chips,
                 sync_objective_chips,
                 breathe_objective_chips,
             )
@@ -1214,6 +1314,7 @@ mod tab_footer_sizing_tests {
         let mut app = chip_layout_app();
         app.init_resource::<GameObjectives>();
         app.init_resource::<ObjectiveNotifications>();
+        app.init_resource::<ObjectiveChipHolds>();
         // A pack that draws Tab and nothing else, with the interface moved onto a
         // key it has no art for.
         let tab = load_png(&mut app, &format!("{KEY_GLYPH_DIR}/T_Tab_Key_Alt.png"));
@@ -1273,6 +1374,7 @@ mod tab_footer_sizing_tests {
         let mut app = chip_layout_app();
         app.init_resource::<GameObjectives>();
         app.init_resource::<ObjectiveNotifications>();
+        app.init_resource::<ObjectiveChipHolds>();
 
         let tab = load_png(&mut app, &format!("{KEY_GLYPH_DIR}/T_Tab_Key_Alt.png"));
         let mut key_glyphs =
@@ -1282,6 +1384,12 @@ mod tab_footer_sizing_tests {
             key_glyphs,
             ..default()
         });
+        app.insert_resource(InputBindings::from_actions([ActionBinding::new(
+            "interface_toggle",
+            "SYSTEM",
+            "Open Interface",
+        )
+        .keyboard([InputSource::Keyboard(KeyCode::Tab)])]));
 
         app.world_mut().spawn(objective_stack_hud());
         app.world_mut()

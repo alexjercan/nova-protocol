@@ -1,6 +1,6 @@
 # Flight & autopilot
 
-Manual flight in Nova Protocol is fully **Newtonian**: momentum persists, nothing dampens you, and the only assist is the autopilot itself - which flies the same real controller and thrusters you do. There is no flight-assist toggle; how a ship handles falls out of its mass and the thrusters bolted to it. The one exception is **RCS**, an optional fine-translation mode a scenario can grant for close-in docking (see [RCS](#rcs-fine-docking-thrusters) below).
+Manual flight in Nova Protocol is fully **Newtonian**: momentum persists, nothing dampens you, and the only assist is the autopilot itself - which flies the same real controller and thrusters you do. There is no flight-assist toggle; how a ship handles falls out of its mass and the thrusters bolted to it. The one exception is **RCS**, a fine-translation mode for close-in docking that every ship has unless a scenario withholds it (see [RCS](#rcs-fine-docking-thrusters) below).
 
 <figure class="figure">
     <!-- Capture: assets/wiki-flight.png -->
@@ -96,4 +96,4 @@ Every push draws from the magazine by the velocity change it actually delivers, 
 
 </details>
 
-RCS is a capability granted per ship, like the autopilot verbs, and a scenario may **withhold** it: Basic Training starts without it and hands it over at the beat that teaches it, while Season 1's first chapter flies on it from the opening. The RCS chip in the keybind dock stays dark until a scenario grants it, so you know when it is available.
+RCS is a capability per ship, like the autopilot verbs. It is on by default, and a scenario may **withhold** it: Basic Training starts without it and hands it over at the beat that teaches it, while a New Game and Season 1's first chapter fly on it from the first frame. The RCS chip in the keybind dock stays dark while your ship has no RCS, so you know when it is available.

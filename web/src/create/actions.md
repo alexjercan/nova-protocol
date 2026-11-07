@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 53 at a glance:
+never panics a scenario). All 55 at a glance:
 
 | action | group | what it does |
 |---|---|---|
@@ -18,6 +18,7 @@ never panics a scenario). All 53 at a glance:
 | [`ObjectiveMarkerDetach`](#objectivemarkerdetach) | [mission](#mission-story) | remove that marker |
 | [`NarrativeCue`](#narrativecue) | [mission](#mission-story) | speak one line into the comms stack |
 | [`HudReadout`](#hudreadout) | [mission](#mission-story) | bind a live HUD readout to a scenario variable |
+| [`ObjectiveChipHold`](#objectivechiphold) | [mission](#mission-story) | keep one objective's HUD chip up until the objective leaves |
 | [`HintEmphasisSet`](#hintemphasisset) | [mission](#mission-story) | pulse one keybind-dock chip gold |
 | [`HintEmphasisClear`](#hintemphasisclear) | [mission](#mission-story) | drop the gold emphasis on one chip |
 | [`PlaySound`](#playsound) | [sound](#sound) | play one authored cue, heard in the cockpit |
@@ -301,7 +302,7 @@ ObjectiveComplete((id: "destroy_asteroids")),
 
 | field | type | default | meaning |
 |---|---|---|---|
-| `id` | string | required | the objective to complete; a never-posted id warns (and lints) |
+| `id` | string | required | the objective to complete; an id no `Objective` in this scenario posts fails lint and load |
 
 </details>
 
@@ -443,6 +444,44 @@ One fire is enough; the readout tracks the variable's current value every
 frame thereafter. It freezes under pause and behind the outcome overlay
 because the variable does - a time-trial's final time simply holds through
 the banner. Cleared at teardown.
+
+</details>
+
+### ObjectiveChipHold
+
+Keep one objective's HUD chip up until the objective leaves - how a scenario
+holds a first-step cue on screen past its usual reading time.
+
+```ron
+ObjectiveChipHold((id: "take_a_job")),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `id` | string | required | the objective whose chip stays up; it must be an `Objective` this scenario posts, or lint fails (below) |
+
+Every objective chip is normally read after its 12 second dwell, or when the
+player opens the interface. A held chip stays up and unread past both, and
+leaves only with its objective, so the matching
+[`ObjectiveComplete`](#objectivecomplete) removes it. Every other chip is
+unaffected. While a held chip is up the stack footer reads the interface key
+plus INTERFACE, not OBJECTIVES.
+
+Post the `Objective` FIRST. The hold does nothing when no objective with that
+id is active, and it does not wait for one to appear.
+
+The hold is NOT saved. A scenario that wants it across a Load runs the action
+from [`OnResume`](../events/#onresume) as well as after the `Objective` in
+[`OnStart`](../events/#onstart). A Load after the objective ended runs the
+action against no active objective, which is a quiet no-op and the result you
+want. Teardown clears every hold, and only teardown: an `Objective` posted again
+under a held id in the same run is held with no second action.
+
+A hold naming an id that no `Objective` in the scenario posts is a lint
+Error, which fails lint and load.
 
 </details>
 

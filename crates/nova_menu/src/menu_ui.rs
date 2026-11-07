@@ -11,26 +11,32 @@ use nova_gameplay::prelude::*;
 use nova_info::prelude::*;
 use nova_scenario::prelude::{OpenWorldSession, *};
 use nova_training::prelude::{catalog_field_notes, FieldNoteRotation, TrainingCatalog};
+#[cfg(not(target_arch = "wasm32"))]
+use nova_ui::widget::ButtonVariant;
 use nova_ui::{
     screen::{
         details_pane, footer_back_slot, list_detail_screen, list_pane, overlay_root, scroll_bar,
-        scroll_column, scroll_viewport,
+        scroll_column, scroll_row, scroll_viewport,
     },
     theme,
     theme::UiColor,
     widget::{
-        panel, panel_head, segmented_container, segmented_option_fit, ButtonVariant, Selected,
-        ThemedFill, ThemedRadius, ThemedText, ThemedTextShadow, UiText,
+        panel, panel_head, segmented_container, segmented_option_fit, Selected, ThemedFill,
+        ThemedRadius, ThemedText, ThemedTextShadow, UiText,
     },
 };
 #[cfg(not(target_arch = "wasm32"))]
-use nova_world_base::prelude::{list_worlds, WorldSaveSession};
+use nova_world_base::prelude::{list_worlds, WorldListing, WorldSaveSession};
 
+#[cfg(not(target_arch = "wasm32"))]
+use crate::widgets::button_variant;
+#[cfg(target_arch = "wasm32")]
+use crate::world_setup::new_game_button;
 #[cfg(not(target_arch = "wasm32"))]
 use crate::{
     leave::{begin_leave, LeaveTarget},
     load_screen::{
-        now_unix, on_load_back, on_load_screen, spawn_continue, ContinueSlot, LoadPanel,
+        now_unix, on_load_back, on_load_screen, spawn_primary_actions, ContinueSlot, LoadPanel,
         LoadWorldDetails, LoadWorldList, WorldChecks,
     },
     world_setup::WorldsRoot,
@@ -50,8 +56,7 @@ use crate::{
         SETTINGS_PANEL_WIDTH_PCT,
     },
     training::{on_training, spawn_menu_aside, spawn_training_panel},
-    widgets::{back_button, button, button_variant, MenuSfxButton},
-    world_setup::on_new_game,
+    widgets::{back_button, button, MenuScreen, MenuSfxButton},
 };
 
 /// The menu panel: title on top, buttons below, anchored bottom-right per the
@@ -89,133 +94,11 @@ pub(crate) fn setup_menu_ui(
         .unwrap_or_default();
     #[cfg(not(target_arch = "wasm32"))]
     checks.0.clear();
-    commands
-        .spawn((
-            DespawnOnExit(GameStates::MainMenu),
-            Name::new("Menu Panel"),
-            Node {
-                position_type: PositionType::Absolute,
-                right: px(40),
-                bottom: px(40),
-                flex_direction: FlexDirection::Column,
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::FlexStart,
-                width: px(280),
-                padding: UiRect::all(px(20)),
-                border: UiRect::all(px(theme::BORDER_W)),
-                ..default()
-            },
-            ThemedRadius::control(),
-            panel(),
-        ))
-        .with_children(|parent| {
-            parent.spawn((
-                Name::new("Title"),
-                UiText,
-                Text::new("Nova Protocol"),
-                TextFont {
-                    font_size: FontSize::Px(28.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(UiColor::Body),
-                ThemedTextShadow::alpha(UiColor::Primary, 0.35),
-                TextShadow {
-                    color: Color::NONE,
-                    offset: Vec2::ZERO,
-                },
-            ));
-            parent.spawn((
-                Name::new("Title Separator"),
-                Node {
-                    width: percent(80),
-                    height: px(2),
-                    margin: UiRect::all(px(10)),
-                    ..default()
-                },
-                BackgroundColor(Color::NONE),
-                ThemedFill::new(UiColor::Label),
-            ));
-            #[cfg(not(target_arch = "wasm32"))]
-            parent
-                .spawn((
-                    Name::new("Continue Slot"),
-                    ContinueSlot,
-                    Node {
-                        width: percent(100),
-                        flex_direction: FlexDirection::Column,
-                        align_items: AlignItems::Center,
-                        ..default()
-                    },
-                ))
-                .with_children(|slot| spawn_continue(slot, &saves, now_unix()));
-            parent.spawn((
-                Name::new("New Game Button"),
-                button_variant("New Game", ButtonVariant::Primary, None),
-                observe(on_new_game),
-            ));
-            // Saved worlds are a desktop-build concept; the web build never
-            // offers a folder to load from.
-            #[cfg(not(target_arch = "wasm32"))]
-            parent.spawn((
-                Name::new("Load Button"),
-                button("Load"),
-                observe(on_load_screen),
-            ));
-            parent.spawn((
-                Name::new("Sandbox Button"),
-                button("Sandbox"),
-                observe(on_sandbox),
-            ));
-            parent.spawn((
-                Name::new("Scenarios Button"),
-                button("Scenarios"),
-                observe(on_scenarios),
-            ));
-            parent.spawn((
-                Name::new("Lessons Button"),
-                button("Lessons"),
-                observe(on_training),
-            ));
-            parent.spawn((Name::new("Mods Button"), button("Mods"), observe(on_mods)));
-            parent.spawn((
-                Name::new("Settings Button"),
-                button("Settings"),
-                observe(on_settings),
-            ));
-            // No process to quit on wasm; the browser tab owns the lifecycle.
-            #[cfg(not(target_arch = "wasm32"))]
-            parent.spawn((
-                Name::new("Exit Button"),
-                button_variant("Exit", ButtonVariant::Danger, None),
-                observe(on_exit),
-            ));
-            parent
-                .spawn((
-                    Name::new("Menu Footer"),
-                    Node {
-                        width: percent(100),
-                        flex_direction: FlexDirection::Row,
-                        justify_content: JustifyContent::SpaceBetween,
-                        margin: UiRect::top(px(10)),
-                        ..default()
-                    },
-                ))
-                .with_children(|foot| {
-                    for text in [format!("v{APP_VERSION}"), "NOVA OS".to_string()] {
-                        foot.spawn((
-                            UiText,
-                            Text::new(text),
-                            TextFont {
-                                font_size: FontSize::Px(10.0),
-                                ..default()
-                            },
-                            TextColor(Color::NONE),
-                            ThemedText::new(UiColor::Label),
-                        ));
-                    }
-                });
-        });
+    spawn_menu_card(
+        &mut commands,
+        #[cfg(not(target_arch = "wasm32"))]
+        &saves,
+    );
 
     // The Settings overlay: hidden until the Settings button toggles it.
     commands
@@ -223,6 +106,7 @@ pub(crate) fn setup_menu_ui(
             DespawnOnExit(GameStates::MainMenu),
             Name::new("Settings Panel Root"),
             SettingsPanel,
+            MenuScreen,
             overlay_root(),
         ))
         .with_children(|parent| {
@@ -307,6 +191,7 @@ pub(crate) fn setup_menu_ui(
             DespawnOnExit(GameStates::MainMenu),
             Name::new("Mods Panel Root"),
             ModsPanel,
+            MenuScreen,
             // The mods panel has its own Back button, so covering the menu card
             // loses nothing. Rendered z-order is only visually verifiable - the
             // component-presence test pins this.
@@ -415,6 +300,7 @@ pub(crate) fn setup_menu_ui(
             DespawnOnExit(GameStates::MainMenu),
             Name::new("Scenarios Panel Root"),
             ScenariosPanel,
+            MenuScreen,
             overlay_root(),
         ))
         .with_children(|parent| {
@@ -489,6 +375,7 @@ pub(crate) fn setup_menu_ui(
             DespawnOnExit(GameStates::MainMenu),
             Name::new("Load Panel Root"),
             LoadPanel,
+            MenuScreen,
             overlay_root(),
         ))
         .with_children(|parent| {
@@ -557,6 +444,226 @@ pub(crate) fn setup_menu_ui(
     let notes = catalog_field_notes(&catalog);
     let note = rotation.pick(&notes, time.elapsed().subsec_nanos() as usize);
     spawn_menu_aside(&mut commands, note);
+}
+
+/// The gap between the card and the window edge, on the right and the bottom.
+const MENU_CARD_MARGIN: f32 = 40.0;
+
+/// The vertical gap that sets one group of main-menu buttons off from the next.
+/// The title separator stays the only rule on the card.
+const MENU_GROUP_GAP: f32 = 6.0;
+
+/// A blank gap between two button groups of the main column. It cannot shrink,
+/// or a short window would squeeze the groups together before it scrolled.
+fn group_gap() -> impl Bundle {
+    (
+        Name::new("Menu Group Gap"),
+        Node {
+            height: px(MENU_GROUP_GAP),
+            flex_shrink: 0.0,
+            ..default()
+        },
+    )
+}
+
+/// The main-menu card: the title and the footer stay fixed, the button column
+/// between them scrolls when the window is too short for it.
+///
+/// An absolute card cannot cap its height against the window, so a frame as big
+/// as the window holds it and gives it the margin; the card then takes
+/// `max_height: 100%` of that frame. The groups read `Continue`, `New Game`,
+/// `Load` | `Lessons`, `Scenarios`, `Sandbox` | `Mods`, `Settings` | `Exit`.
+/// On desktop `saves` is the worlds folder read for Continue.
+pub(crate) fn spawn_menu_card(
+    commands: &mut Commands,
+    #[cfg(not(target_arch = "wasm32"))] saves: &[WorldListing],
+) {
+    commands
+        .spawn((
+            DespawnOnExit(GameStates::MainMenu),
+            Name::new("Menu Panel Frame"),
+            Pickable::IGNORE,
+            Node {
+                position_type: PositionType::Absolute,
+                top: px(0),
+                left: px(0),
+                width: percent(100),
+                height: percent(100),
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::FlexEnd,
+                align_items: AlignItems::FlexEnd,
+                padding: UiRect::all(px(MENU_CARD_MARGIN)),
+                ..default()
+            },
+        ))
+        .with_children(|frame| {
+            frame
+                .spawn((
+                    Name::new("Menu Panel"),
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Center,
+                        justify_content: JustifyContent::FlexStart,
+                        width: px(280),
+                        max_height: percent(100),
+                        padding: UiRect::all(px(20)),
+                        border: UiRect::all(px(theme::BORDER_W)),
+                        ..default()
+                    },
+                    ThemedRadius::control(),
+                    panel(),
+                ))
+                .with_children(|card| {
+                    card.spawn((
+                        Name::new("Title"),
+                        UiText,
+                        Text::new("Nova Protocol"),
+                        TextFont {
+                            font_size: FontSize::Px(28.0),
+                            ..default()
+                        },
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Body),
+                        ThemedTextShadow::alpha(UiColor::Primary, 0.35),
+                        TextShadow {
+                            color: Color::NONE,
+                            offset: Vec2::ZERO,
+                        },
+                    ));
+                    card.spawn((
+                        Name::new("Title Separator"),
+                        Node {
+                            width: percent(80),
+                            height: px(2),
+                            margin: UiRect::all(px(10)),
+                            flex_shrink: 0.0,
+                            ..default()
+                        },
+                        BackgroundColor(Color::NONE),
+                        ThemedFill::new(UiColor::Label),
+                    ));
+                    card.spawn((Name::new("Menu Buttons Row"), scroll_row()))
+                        .with_children(|row| {
+                            row.spawn((
+                                Name::new("Menu Buttons"),
+                                Node {
+                                    align_items: AlignItems::Center,
+                                    ..scroll_column()
+                                },
+                                scroll_viewport(),
+                            ))
+                            .with_children(|list| {
+                                spawn_menu_buttons(
+                                    list,
+                                    #[cfg(not(target_arch = "wasm32"))]
+                                    saves,
+                                );
+                            });
+                            // In the card's padding, so the bar costs the
+                            // buttons no width when it shows.
+                            row.spawn((Name::new("Menu Scroll Bar"), scroll_bar()))
+                                .entry::<Node>()
+                                .and_modify(|mut node| {
+                                    node.position_type = PositionType::Absolute;
+                                    node.top = px(0);
+                                    node.bottom = px(0);
+                                    node.right = px(-12);
+                                    node.margin = UiRect::ZERO;
+                                });
+                        });
+                    card.spawn((
+                        Name::new("Menu Footer"),
+                        Node {
+                            width: percent(100),
+                            flex_direction: FlexDirection::Row,
+                            justify_content: JustifyContent::SpaceBetween,
+                            flex_shrink: 0.0,
+                            margin: UiRect::top(px(10)),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|foot| {
+                        for text in [format!("v{APP_VERSION}"), "NOVA OS".to_string()] {
+                            foot.spawn((
+                                UiText,
+                                Text::new(text),
+                                TextFont {
+                                    font_size: FontSize::Px(10.0),
+                                    ..default()
+                                },
+                                TextColor(Color::NONE),
+                                ThemedText::new(UiColor::Label),
+                            ));
+                        }
+                    });
+                });
+        });
+}
+
+/// The main column's buttons in their groups. On desktop the Continue slot
+/// heads the column and holds New Game too, so the one lit call-to-action
+/// follows whether a save is there to continue.
+fn spawn_menu_buttons(
+    list: &mut ChildSpawnerCommands,
+    #[cfg(not(target_arch = "wasm32"))] saves: &[WorldListing],
+) {
+    #[cfg(not(target_arch = "wasm32"))]
+    list.spawn((
+        Name::new("Continue Slot"),
+        ContinueSlot,
+        Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Column,
+            align_items: AlignItems::Center,
+            flex_shrink: 0.0,
+            ..default()
+        },
+    ))
+    .with_children(|slot| spawn_primary_actions(slot, saves, now_unix()));
+    // No saved worlds on the web build, so New Game is its only call-to-action.
+    #[cfg(target_arch = "wasm32")]
+    list.spawn(new_game_button(true));
+    // Saved worlds are a desktop-build concept; the web build never
+    // offers a folder to load from.
+    #[cfg(not(target_arch = "wasm32"))]
+    list.spawn((
+        Name::new("Load Button"),
+        button("Load"),
+        observe(on_load_screen),
+    ));
+    list.spawn(group_gap());
+    list.spawn((
+        Name::new("Lessons Button"),
+        button("Lessons"),
+        observe(on_training),
+    ));
+    list.spawn((
+        Name::new("Scenarios Button"),
+        button("Scenarios"),
+        observe(on_scenarios),
+    ));
+    list.spawn((
+        Name::new("Sandbox Button"),
+        button("Sandbox"),
+        observe(on_sandbox),
+    ));
+    list.spawn(group_gap());
+    list.spawn((Name::new("Mods Button"), button("Mods"), observe(on_mods)));
+    list.spawn((
+        Name::new("Settings Button"),
+        button("Settings"),
+        observe(on_settings),
+    ));
+    // No process to quit on wasm; the browser tab owns the lifecycle.
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        list.spawn(group_gap());
+        list.spawn((
+            Name::new("Exit Button"),
+            button_variant("Exit", ButtonVariant::Danger, None),
+            observe(on_exit),
+        ));
+    }
 }
 
 pub(crate) fn on_sandbox(

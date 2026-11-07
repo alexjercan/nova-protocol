@@ -18,7 +18,10 @@ use nova_ship::prelude::{
     CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedHelmType, DockedShip,
     DockingConnection,
 };
-use nova_ui::widget::{TextFieldError, TextFieldValue};
+use nova_ui::{
+    screen::EllipsisText,
+    widget::{TextFieldError, TextFieldValue},
+};
 
 use super::*;
 use crate::{
@@ -320,39 +323,14 @@ fn undocked_the_partner_slot_is_blank_and_both_columns_keep_equal_width() {
     assert_eq!((docked_own_w, docked_partner_w), (own_w, partner_w));
 }
 
-/// Iosevka Term at 13 px advances 6.5 px, and the layout rounds a width up.
-#[test]
-fn a_row_name_too_wide_for_its_cell_ends_in_an_ellipsis_and_restores_once_it_fits() {
-    // 14 chars lay out 91 px wide; an 84 px cell holds 12.
-    assert_eq!(
-        fitted_row_name("Capacitor bank", "Capacitor bank", 91.0, 84.0).as_deref(),
-        Some("Capacitor...")
-    );
-    // Still short of the whole name: keep the shortened one.
-    assert_eq!(
-        fitted_row_name("Capacitor bank", "Capacitor...", 78.0, 90.0),
-        None
-    );
-    assert_eq!(
-        fitted_row_name("Capacitor bank", "Capacitor...", 78.0, 91.0).as_deref(),
-        Some("Capacitor bank")
-    );
-    // 13 chars round 84.5 px up to 85 and overflow an 84.6 px cell. The
-    // 12-char name that replaces it lays out 78 px, which an advance of
-    // 6.5 px reads as room for 13 again: it must stay.
-    assert_eq!(
-        fitted_row_name("Flight computer core", "Flight com...", 85.0, 84.6).as_deref(),
-        Some("Flight co...")
-    );
-    assert_eq!(
-        fitted_row_name("Flight computer core", "Flight co...", 78.0, 84.6),
-        None
-    );
-}
+/// Row-name writes counted by a `Last` detector: `Changed<Text>` read inside
+/// a system, since an `EntityRef` reports no change outside one.
+#[derive(Resource, Default)]
+struct NameWrites(usize);
 
-/// A row name wider than its cell ends in `...` through the real `PostUpdate`
-/// fit at UI scales 2 and 0.8, rewrites nothing while idle, and shows whole
-/// once the cell widens.
+/// A row name wider than its cell ends in `...` through the shared fitter at
+/// UI scales 2 and 0.8, rewrites nothing while idle, and shows whole once the
+/// cell widens.
 #[test]
 fn an_overflowing_row_name_ends_in_an_ellipsis_and_shows_whole_once_its_cell_widens() {
     const FULL: &str = "Long-range capacitor bank assembly";
@@ -372,7 +350,7 @@ fn an_overflowing_row_name_ends_in_an_ellipsis_and_shows_whole_once_its_cell_wid
     let row_name = |world: &mut World| {
         let mut names = world.query_filtered::<
             (&Text, &TextLayoutInfo, &ComputedNode, &ChildOf),
-            With<InventoryRowName>,
+            With<EllipsisText>,
         >();
         let (text, layout, node, child_of) = names.single(world).expect("the hold has one row");
         let cell = world
@@ -386,6 +364,16 @@ fn an_overflowing_row_name_ends_in_an_ellipsis_and_shows_whole_once_its_cell_wid
     };
     for scale in [2.0, 0.8] {
         let (mut rig, player) = inventory_rig();
+        // The shared fitter lives in `NovaUiPlugin`.
+        rig.app.add_plugins(nova_ui::NovaUiPlugin);
+        rig.app.init_resource::<NameWrites>();
+        rig.app.add_systems(
+            Last,
+            |names: Query<(), (Changed<Text>, With<EllipsisText>)>,
+             mut writes: ResMut<NameWrites>| {
+                writes.0 += names.iter().count();
+            },
+        );
         rig.app.insert_resource(UiScale(scale));
         rig.app.insert_resource(items.clone());
         rig.app
@@ -413,11 +401,11 @@ fn an_overflowing_row_name_ends_in_an_ellipsis_and_shows_whole_once_its_cell_wid
             shown_px > 0.0 && shown_px <= cell_px,
             "scale {scale}: {shown:?} lays out {shown_px} px in a {cell_px} px cell"
         );
-        take_churn(&mut rig.app);
+        rig.app.world_mut().resource_mut::<NameWrites>().0 = 0;
         settle(&mut rig.app);
         assert_eq!(
-            take_churn(&mut rig.app),
-            Default::default(),
+            rig.app.world().resource::<NameWrites>().0,
+            0,
             "scale {scale}: a fitted name is not rewritten while idle"
         );
 
@@ -428,9 +416,9 @@ fn an_overflowing_row_name_ends_in_an_ellipsis_and_shows_whole_once_its_cell_wid
             shown_px <= cell_px,
             "scale {scale}: {shown_px} px in a {cell_px} px cell"
         );
-        take_churn(&mut rig.app);
+        rig.app.world_mut().resource_mut::<NameWrites>().0 = 0;
         settle(&mut rig.app);
-        assert_eq!(take_churn(&mut rig.app), Default::default());
+        assert_eq!(rig.app.world().resource::<NameWrites>().0, 0);
     }
 }
 

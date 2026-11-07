@@ -104,7 +104,10 @@ mod walk {
     use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
     use nova_protocol::{
         nova_debug::harness::{press_action, release_action, shoot, AutopilotPlugin, Predicate},
-        nova_interface::{pane::InterfacePaneType, station::STATION_BUY_BUTTON},
+        nova_interface::{
+            pane::InterfacePaneType,
+            station::{STATION_BUY_ASK, STATION_BUY_BUTTON},
+        },
     };
     use nova_ui::widget::TextFieldValue;
     use nova_world::prelude::{desired_sectors, SectorRoot, WorldClock, WorldConfig};
@@ -991,12 +994,19 @@ mod walk {
             .until(station_is_ally())
             .deadline(SESSION_SECS)
             .add();
-        let script = open_the_station_pane(script).click_named(
-            "role goals: buy the station",
-            STATION_BUY_BUTTON,
-            when(|world| station_root(world).is_some_and(|station| owned(world, station))),
-            SESSION_SECS,
-        );
+        let script = open_the_station_pane(script)
+            .click_named(
+                "role goals: ask to buy the station",
+                STATION_BUY_BUTTON,
+                ui_node_present(STATION_BUY_ASK),
+                SESSION_SECS,
+            )
+            .click_named(
+                "role goals: confirm the buy",
+                STATION_BUY_BUTTON,
+                when(|world| station_root(world).is_some_and(|station| owned(world, station))),
+                SESSION_SECS,
+            );
         let script = tap(script, "the interface key", "interface_toggle", unpaused())
             .step("role goals: wait for the goal tracker")
             .until(when(progress_is_met))
@@ -1027,7 +1037,7 @@ mod walk {
             script,
             "chart key",
             "map_chart",
-            a_text_reads(|text| text == "OBJECTIVES"),
+            a_text_reads(|text| text.starts_with("OBJECTIVES  LAYER ")),
         )
         .step("role goals: settle the objectives block")
         .until(frames(6))

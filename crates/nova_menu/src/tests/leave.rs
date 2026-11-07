@@ -430,7 +430,7 @@ fn dead_saved_world() -> (App, TempDir) {
 }
 
 /// A Defeat in a saved world offers Load last save beside Main Menu, and
-/// [Enter] still goes to the menu. Load last save writes nothing and reopens
+/// Enter still goes to the menu: the Enter chip is the only one on the frame. Load last save writes nothing and reopens
 /// the world from disk.
 #[test]
 fn a_defeat_in_a_saved_world_offers_load_last_save() {
@@ -441,7 +441,7 @@ fn a_defeat_in_a_saved_world_offers_load_last_save() {
         "Your ship was destroyed.",
         "Load last save",
         "Main Menu",
-        "[Enter] Main Menu",
+        "Enter",
     ] {
         assert!(texts.iter().any(|t| t == text), "{text:?} in {texts:?}");
     }

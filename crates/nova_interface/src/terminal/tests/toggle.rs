@@ -334,3 +334,90 @@ fn escape_puts_a_held_part_away_before_it_closes_the_interface() {
         "with the hand empty, Escape closes the interface"
     );
 }
+
+/// A toggle rig with the interface open on `pane` and the back-out owner in
+/// place.
+fn escape_rig(pane: crate::pane::InterfacePaneType) -> App {
+    let mut app = toggle_app();
+    app.add_systems(
+        Update,
+        close_surface_from_menu_keys.before(toggle_interface),
+    );
+    app.insert_resource(pane);
+    press_tab(&mut app);
+    assert_eq!(pause_state(&app), PauseStates::Interface);
+    app
+}
+
+/// Escape with a drop confirm up in the Jobs pane cancels the confirm and
+/// leaves the interface open. With no confirm, the next Escape closes it.
+#[test]
+fn escape_backs_out_of_a_jobs_ask_before_it_closes_the_interface() {
+    let mut app = escape_rig(crate::pane::InterfacePaneType::Jobs);
+    app.init_resource::<crate::jobs::JobsRuntime>();
+    app.world_mut()
+        .resource_mut::<crate::jobs::JobsRuntime>()
+        .confirm_drop = Some(nova_gameplay::prelude::JobId::slot(
+        nova_events::prelude::GeneratedBodyId::new(
+            nova_events::prelude::SectorCoord::ORIGIN,
+            "cluster_0_0_0_station",
+            0,
+        ),
+        0,
+        0,
+    ));
+
+    press_escape(&mut app);
+    let jobs = app.world().resource::<crate::jobs::JobsRuntime>();
+    assert!(
+        jobs.confirm_drop.is_none() && jobs.confirm_refresh.is_none(),
+        "Escape cancels the confirm"
+    );
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Interface,
+        "the press that cancels the confirm leaves the interface open"
+    );
+
+    press_escape(&mut app);
+    assert_eq!(pause_state(&app), PauseStates::Unpaused);
+}
+
+/// Escape while a text field has the keyboard belongs to the field, which
+/// reverts and blurs itself: the interface stays open.
+#[test]
+fn escape_in_a_focused_field_keeps_the_interface_open() {
+    let mut app = escape_rig(crate::pane::InterfacePaneType::Inventory);
+    app.insert_resource(nova_ui::input_mode::prelude::InputMode::Insert);
+
+    press_escape(&mut app);
+    assert_eq!(
+        pause_state(&app),
+        PauseStates::Interface,
+        "a focused field answers Escape, not the interface"
+    );
+
+    app.insert_resource(nova_ui::input_mode::prelude::InputMode::Normal);
+    press_escape(&mut app);
+    assert_eq!(pause_state(&app), PauseStates::Unpaused);
+}
+
+/// Escape over a station hull's Info goes back to the Station pane, as the
+/// header's Close does, and only the next Escape closes the interface.
+#[test]
+fn escape_closes_the_hull_info_before_the_interface() {
+    let mut app = escape_rig(crate::pane::InterfacePaneType::Ship);
+    let hull = app.world_mut().spawn_empty().id();
+    app.insert_resource(crate::ship::ShipViewSubject(Some(hull)));
+
+    press_escape(&mut app);
+    assert_eq!(
+        *app.world().resource::<crate::pane::InterfacePaneType>(),
+        crate::pane::InterfacePaneType::Station,
+        "Escape returns from the hull Info to the Station pane"
+    );
+    assert_eq!(pause_state(&app), PauseStates::Interface);
+
+    press_escape(&mut app);
+    assert_eq!(pause_state(&app), PauseStates::Unpaused);
+}

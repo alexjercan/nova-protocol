@@ -41,6 +41,30 @@ pub enum DockRefusalType {
     StationOccupied,
 }
 
+/// A deliberate `DOCK` press did nothing, and why. Only the press writes it:
+/// the HUD posts it as a notice, and the request stays the only judge of the
+/// dock itself.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DockPressRefusal(pub DockPressRefusalType);
+
+/// Why a `DOCK` press did nothing. A target that refuses ([`DockRefusalType`])
+/// is not here: a station says so at the lock, a ship by its dark chip.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DockPressRefusalType {
+    /// No travel lock.
+    NoLock,
+    /// No pair of free live ports between the two hulls, which includes a
+    /// target ship that already holds its one dock.
+    NoFreePort,
+    /// The nearest pair fails [`DockingPair::gap_holds`](super::DockingPair::gap_holds).
+    TooFar,
+    /// The nearest pair fails [`DockingPair::facing_holds`](super::DockingPair::facing_holds).
+    NotFacing,
+    /// The nearest pair fails [`DockingPair::motion_holds`](super::DockingPair::motion_holds),
+    /// by relative speed or relative spin.
+    TooFast,
+}
+
 /// The station branch of admission: what a station on `allegiance`'s side
 /// answers, dead or alive, owned or not, with or without a free port, to a
 /// ship that is `hostile` to it ([`ship_relation`]). `dead` is a derelict or

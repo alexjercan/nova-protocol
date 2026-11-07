@@ -428,7 +428,7 @@ mod smoke {
         nova_debug::harness::{shoot, AutopilotPlugin, Predicate, SHOT_DEADLINE_SECS},
         nova_interface::{
             pane::{ActionOutcomeType, InterfacePaneType},
-            station::{StationBuyCommand, StationRuntime, STATION_BUY_BUTTON},
+            station::{StationBuyCommand, StationRuntime, STATION_BUY_ASK, STATION_BUY_BUTTON},
         },
     };
     use nova_ui::theme::{SelectedUiTheme, HARDWARE_THEME_ID};
@@ -572,7 +572,13 @@ mod smoke {
         .deadline(BEAT_SECS)
         .add()
         .click_named(
-            "station own sandbox: buy the station",
+            "station own sandbox: ask to buy the station",
+            STATION_BUY_BUTTON,
+            ui_node_present(STATION_BUY_ASK),
+            BEAT_SECS,
+        )
+        .click_named(
+            "station own sandbox: confirm the buy",
             STATION_BUY_BUTTON,
             when(|world| {
                 docked(world)

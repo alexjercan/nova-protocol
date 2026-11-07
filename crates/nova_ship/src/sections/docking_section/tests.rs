@@ -2186,3 +2186,368 @@ fn docking_two_touching_hulls_leaves_their_island_sound_for_the_next_contact() {
         "the third hull's contact is linked into the docked pair's island"
     );
 }
+
+/// Frames a key stays down in the `DOCK` press tests. One frame would depend
+/// on the rig having been rebuilt, which a fresh app does on its first update.
+const PRESS_FRAMES: usize = 4;
+
+/// What the `DOCK` press rig saw since the last [`drain_press_log`].
+#[derive(Resource, Default)]
+struct PressLog {
+    refusals: Vec<DockPressRefusalType>,
+    /// Every [`DockingConnectionRequest`], whoever sent it.
+    requests: usize,
+}
+
+/// The docking section plus the REAL player input plugin and the devices it
+/// listens to, so a key reaches `on_dock_input` the way it does in the game.
+fn piloted_app() -> App {
+    let mut app = unfinished_integrity_physics_app();
+    app.add_plugins((
+        bevy::state::app::StatesPlugin,
+        bevy::input::InputPlugin,
+        bevy_enhanced_input::prelude::EnhancedInputPlugin,
+        DockingSectionPlugin { render: false },
+        NovaFlightPlugin,
+        crate::input::player::SpaceshipPlayerInputPlugin,
+    ));
+    app.init_state::<nova_gameplay::PauseStates>();
+    app.init_resource::<PressLog>();
+    app.add_systems(
+        Update,
+        |mut messages: MessageReader<DockPressRefusal>, mut log: ResMut<PressLog>| {
+            for DockPressRefusal(refusal) in messages.read() {
+                log.refusals.push(*refusal);
+            }
+        },
+    );
+    app.add_observer(
+        |_: On<DockingConnectionRequest>, mut log: ResMut<PressLog>| {
+            log.requests += 1;
+        },
+    );
+    app.finish();
+    app
+}
+
+/// Make `ship` the player, holding `lock` as its travel lock, and let the
+/// flight rig spawn and settle.
+fn take_the_helm(app: &mut App, ship: Entity, lock: Option<Entity>) {
+    app.world_mut()
+        .entity_mut(ship)
+        .insert((PlayerSpaceshipMarker, TravelLock(lock)));
+    settle(app);
+}
+
+/// The first keyboard key the live table binds to `dock`.
+fn dock_key(app: &App) -> KeyCode {
+    let bindings = app.world().resource::<nova_input::prelude::InputBindings>();
+    match bindings
+        .get("dock")
+        .expect("the player input plugin registers `dock`")
+        .keyboard
+        .first()
+    {
+        Some(nova_input::prelude::InputSource::Keyboard(key)) => *key,
+        other => panic!("`dock` carries no keyboard key: {other:?}"),
+    }
+}
+
+/// Hold `key` for [`PRESS_FRAMES`] frames, then let go and let the release
+/// land.
+fn hold_key(app: &mut App, key: KeyCode, frames: usize) {
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .press(key);
+    for _ in 0..frames {
+        app.update();
+    }
+    app.world_mut()
+        .resource_mut::<ButtonInput<KeyCode>>()
+        .release(key);
+    for _ in 0..PRESS_FRAMES {
+        app.update();
+    }
+}
+
+/// Press whatever key `dock` is bound to right now.
+fn press_dock(app: &mut App) {
+    let key = dock_key(app);
+    hold_key(app, key, PRESS_FRAMES);
+}
+
+/// The refusals and requests since the last call.
+fn drain_press_log(app: &mut App) -> (Vec<DockPressRefusalType>, usize) {
+    let mut log = app.world_mut().resource_mut::<PressLog>();
+    (
+        std::mem::take(&mut log.refusals),
+        std::mem::take(&mut log.requests),
+    )
+}
+
+/// A press with no lock, as a control that the key is heard: it must say
+/// `NoLock` exactly once and send no request.
+fn assert_dock_press_is_heard(app: &mut App, case: &str) {
+    press_dock(app);
+    assert_eq!(
+        drain_press_log(app),
+        (vec![DockPressRefusalType::NoLock], 0),
+        "{case}: the control press is heard"
+    );
+}
+
+/// A `DOCK` press that does nothing says why, once per press, and the
+/// silent cases stay silent: a target that is no ship root, a target that
+/// refuses, a withheld verb, a frozen game, a dock and its undock, no key at
+/// all, and a request nobody pressed for. Every press goes through the real
+/// rig and the live `dock` binding.
+#[test]
+fn a_dock_press_says_why_it_did_nothing_once_and_only_on_a_press() {
+    use DockPressRefusalType::*;
+
+    type Scene = fn(&mut App) -> (Entity, Option<Entity>);
+    let refusals: [(&str, DockPressRefusalType, usize, Scene); 5] = [
+        ("no lock", NoLock, 0, |app| {
+            let (player, ..) = facing_pair(app, NOMINAL_GAP);
+            (player, None)
+        }),
+        ("no free port", NoFreePort, 1, |app| {
+            let player = spawn_hull(app, Vec3::ZERO, Quat::IDENTITY);
+            let target = spawn_hull(app, Vec3::NEG_Z * 2.0, Quat::IDENTITY);
+            spawn_port(app, player, "fore", Vec3::ZERO, Quat::IDENTITY);
+            settle(app);
+            (player, Some(target))
+        }),
+        ("too far", TooFar, 1, |app| {
+            let (player, _, target, _) = facing_pair(app, BERTH_GAP + 1.0);
+            (player, Some(target))
+        }),
+        ("not facing", NotFacing, 1, |app| {
+            let player = spawn_hull(app, Vec3::ZERO, Quat::IDENTITY);
+            // Turned a quarter, with its face moved back inside the capture
+            // distance so that the angle alone fails the pair.
+            let target = spawn_hull(
+                app,
+                Vec3::new(0.5, 0.0, -1.1),
+                Quat::from_rotation_y(std::f32::consts::FRAC_PI_2),
+            );
+            spawn_port(app, player, "fore", Vec3::ZERO, Quat::IDENTITY);
+            spawn_port(app, target, "fore", Vec3::ZERO, Quat::IDENTITY);
+            settle(app);
+            (player, Some(target))
+        }),
+        ("too fast", TooFast, 1, |app| {
+            let (player, _, target, _) = facing_pair(app, NOMINAL_GAP);
+            app.world_mut().entity_mut(player).insert(LinearVelocity(
+                Vec3::NEG_Z * MetersPerSecond(8.0).to_engine(),
+            ));
+            (player, Some(target))
+        }),
+    ];
+    for (case, refusal, requests, scene) in refusals {
+        let mut app = piloted_app();
+        let (player, lock) = scene(&mut app);
+        take_the_helm(&mut app, player, lock);
+
+        press_dock(&mut app);
+
+        assert_eq!(
+            drain_press_log(&mut app),
+            (vec![refusal], requests),
+            "{case}: one line, and the request only when there was a lock"
+        );
+        assert!(connections(&mut app).is_empty(), "{case}: nothing docked");
+    }
+
+    // A lock on a body that is no ship root: the request goes out, no line.
+    let mut app = piloted_app();
+    let (player, ..) = facing_pair(&mut app, NOMINAL_GAP);
+    let rock = app
+        .world_mut()
+        .spawn((
+            Name::new("rock"),
+            RigidBody::Static,
+            Transform::from_translation(Vec3::NEG_Z * 3.0),
+        ))
+        .id();
+    take_the_helm(&mut app, player, Some(rock));
+    press_dock(&mut app);
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![], 1),
+        "a lock on a non-root body sends the request and says nothing"
+    );
+
+    // A target that refuses: the pair is too far, so a press that skipped
+    // admission would say `TooFar`, as it does once the target calms.
+    let mut app = piloted_app();
+    let (player, _, target, _) = facing_pair(&mut app, BERTH_GAP + 1.0);
+    app.world_mut()
+        .entity_mut(player)
+        .insert(Allegiance::Player);
+    app.world_mut()
+        .entity_mut(target)
+        .insert((Allegiance::Enemy, AIBehaviorState::Patrol));
+    take_the_helm(&mut app, player, Some(target));
+    press_dock(&mut app);
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![], 1),
+        "a target that refuses sends the request and says nothing"
+    );
+    app.world_mut()
+        .entity_mut(target)
+        .insert(Allegiance::Neutral);
+    press_dock(&mut app);
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![TooFar], 1),
+        "the same pair, now calm, says why"
+    );
+
+    // DOCK withheld: no lock would say NoLock, so silence is the gate.
+    let mut app = piloted_app();
+    let (player, ..) = facing_pair(&mut app, NOMINAL_GAP);
+    app.world_mut().entity_mut(player).insert(ShipCapabilities {
+        dock_enabled: false,
+        ..default()
+    });
+    take_the_helm(&mut app, player, None);
+    press_dock(&mut app);
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![], 0),
+        "a withheld DOCK says nothing and asks nothing"
+    );
+    app.world_mut()
+        .entity_mut(player)
+        .insert(ShipCapabilities::default());
+    assert_dock_press_is_heard(&mut app, "dock enabled again");
+
+    // A frozen game: the same silent setup, held by the pause state.
+    let mut app = piloted_app();
+    let (player, ..) = facing_pair(&mut app, NOMINAL_GAP);
+    take_the_helm(&mut app, player, None);
+    for frozen in [
+        nova_gameplay::PauseStates::Paused,
+        nova_gameplay::PauseStates::Interface,
+    ] {
+        app.world_mut()
+            .resource_mut::<NextState<nova_gameplay::PauseStates>>()
+            .set(frozen);
+        settle(&mut app);
+        press_dock(&mut app);
+        assert_eq!(
+            drain_press_log(&mut app),
+            (vec![], 0),
+            "{frozen:?}: a frozen game ignores the key"
+        );
+    }
+    app.world_mut()
+        .resource_mut::<NextState<nova_gameplay::PauseStates>>()
+        .set(nova_gameplay::PauseStates::Unpaused);
+    settle(&mut app);
+    assert_dock_press_is_heard(&mut app, "unfrozen");
+
+    // Held keys and presses: one line per press, however long the key is down.
+    let key = dock_key(&app);
+    hold_key(&mut app, key, 40);
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![NoLock], 0),
+        "a key held for forty frames says it once"
+    );
+    press_dock(&mut app);
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![NoLock], 0),
+        "the next press says it again"
+    );
+
+    // A rebind moves the verb to the new key and takes it off the old one.
+    let old_key = dock_key(&app);
+    let new_key = KeyCode::KeyJ;
+    assert_ne!(old_key, new_key, "the rebind moves `dock` to a new key");
+    assert!(
+        app.world_mut()
+            .resource_mut::<nova_input::prelude::InputBindings>()
+            .rebind(
+                "dock",
+                nova_input::prelude::BindingSpec {
+                    keyboard: vec![nova_input::prelude::InputSource::Keyboard(new_key)],
+                    gamepad: vec![],
+                },
+            ),
+        "the table takes the rebind"
+    );
+    settle(&mut app);
+    assert_eq!(dock_key(&app), new_key, "the live table names the new key");
+    hold_key(&mut app, old_key, PRESS_FRAMES);
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![], 0),
+        "the old key is unbound"
+    );
+    press_dock(&mut app);
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![NoLock], 0),
+        "the new key gives the line"
+    );
+
+    // No key for a long time with a lock too far to dock, and then a request
+    // nobody pressed for - world start and a redock send the same one.
+    let mut app = piloted_app();
+    let (player, _, target, _) = facing_pair(&mut app, BERTH_GAP + 1.0);
+    take_the_helm(&mut app, player, Some(target));
+    for _ in 0..120 {
+        app.update();
+    }
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![], 0),
+        "a lock that is too far says nothing until a key asks"
+    );
+    app.world_mut().trigger(DockingConnectionRequest {
+        entity: player,
+        target,
+    });
+    settle(&mut app);
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![], 1),
+        "a request with no key writes no line"
+    );
+    press_dock(&mut app);
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![TooFar], 1),
+        "the first real press on that lock says why"
+    );
+
+    // An eligible press docks, and the press after it undocks, both silent.
+    let mut app = piloted_app();
+    let (player, _, target, _) = facing_pair(&mut app, NOMINAL_GAP);
+    take_the_helm(&mut app, player, Some(target));
+    press_dock(&mut app);
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![], 1),
+        "an eligible press asks once and says nothing"
+    );
+    assert_eq!(connections(&mut app).len(), 1, "the press docked");
+    assert!(
+        app.world().get::<DockedShip>(player).is_some(),
+        "the player ship holds the dock"
+    );
+    press_dock(&mut app);
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![], 0),
+        "the undock press asks for no new dock and says nothing"
+    );
+    assert!(
+        connections(&mut app).is_empty(),
+        "the second press undocked"
+    );
+}

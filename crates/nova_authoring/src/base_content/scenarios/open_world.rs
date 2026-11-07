@@ -8,11 +8,16 @@
 //!
 //! The player starts docked at the session's starting station, the allied
 //! station nearest the seed's origin, which `SpawnStartRole` reads from the
-//! session. The harness posts no objective: the jobs the player takes and
-//! the start role's goal are the open world's aims, and neither runs on
-//! scenario objectives. The one outcome is the player's death, a Defeat with
-//! nothing queued: the menu offers Load last save in a saved world and Main
-//! Menu everywhere.
+//! session. A fresh world posts one objective, [`TAKE_A_JOB_OBJECTIVE`], so
+//! the HUD names the first step and the interface key; the player's first
+//! accepted job completes it. It is a cue, not a gate: nothing waits on it.
+//! A Load restores it through the saved scenario state, so only `OnStart`
+//! posts it. Its chip is held until then, and the hold is not saved, so both
+//! openings set it; on a Load after the accept there is nothing left to hold.
+//! The jobs the player takes and the start role's goal are the open
+//! world's aims, and neither runs on scenario objectives. The one outcome is
+//! the player's death, a Defeat with nothing queued: the menu offers Load last
+//! save in a saved world and Main Menu everywhere.
 
 use nova_events::prelude::Meters3;
 use nova_scenario::prelude::*;
@@ -23,6 +28,9 @@ use crate::{base_content::assets::BaseContentAssets, scenario_helpers::prelude::
 /// The player's ship, by the id events and tools address it with.
 const PLAYER_ID: &str = "player";
 
+/// The first-step cue a fresh world posts, by the id its completion names.
+const TAKE_A_JOB_OBJECTIVE: &str = "take_a_job";
+
 /// The open-world bootstrap scenario.
 pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
     let mut start = vec![EventActionConfig::SpawnStartRole(StartRoleSpawnConfig {
@@ -30,6 +38,17 @@ pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
     })];
     // Directional: the rig lights the whole world, wherever the start is.
     start.extend(ThreePointRig::around(OPEN_WORLD_SCENARIO_ID, Meters3::ZERO, 25.0).actions());
+    let hold = EventActionConfig::ObjectiveChipHold(ObjectiveChipHoldActionConfig {
+        id: TAKE_A_JOB_OBJECTIVE.to_string(),
+    });
+    // The objective first: a hold takes effect only on an active objective.
+    let mut fresh_start = start.clone();
+    fresh_start.push(EventActionConfig::Objective(ObjectiveActionConfig::new(
+        TAKE_A_JOB_OBJECTIVE,
+        "Take a job",
+    )));
+    fresh_start.push(hold.clone());
+    start.push(hold);
 
     ScenarioConfig {
         description: "An open world generated from your seed: sparse asteroid clusters, \
@@ -48,7 +67,7 @@ pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
                 name: EventConfig::OnStart,
                 once: true,
                 filters: vec![],
-                actions: start.clone(),
+                actions: fresh_start,
             },
             ScenarioEventConfig {
                 label: None,
@@ -66,6 +85,19 @@ pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
                     ScenarioOutcomeKind::Defeat,
                     "Your ship was destroyed.",
                 ))],
+            },
+            // Last in the list: a save names its spent `once` handlers by
+            // index, so a handler added before this one would move them.
+            ScenarioEventConfig {
+                label: None,
+                name: EventConfig::OnJobAccepted,
+                once: true,
+                filters: vec![],
+                actions: vec![EventActionConfig::ObjectiveComplete(
+                    ObjectiveCompleteActionConfig {
+                        id: TAKE_A_JOB_OBJECTIVE.to_string(),
+                    },
+                )],
             },
         ],
         ..ScenarioConfig::new(OPEN_WORLD_SCENARIO_ID, "Open World", assets.cubemap.clone())

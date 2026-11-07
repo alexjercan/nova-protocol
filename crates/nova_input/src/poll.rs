@@ -137,6 +137,26 @@ impl InputSources<'_, '_> {
                 .all(|pad| pad.digital().get_pressed().next().is_none())
     }
 
+    /// Whether any key or mouse button went down this frame.
+    pub(crate) fn any_desk_just_pressed(&self) -> bool {
+        self.keys.get_just_pressed().next().is_some()
+            || self.mouse.get_just_pressed().next().is_some()
+    }
+
+    /// Whether any pad button went down this frame.
+    pub(crate) fn any_pad_just_pressed(&self) -> bool {
+        self.gamepads
+            .iter()
+            .any(|pad| pad.digital().get_just_pressed().next().is_some())
+    }
+
+    /// Whether any pad stick sits past `threshold`.
+    pub(crate) fn any_stick_past(&self, threshold: f32) -> bool {
+        self.gamepads.iter().any(|pad| {
+            pad.left_stick().length() > threshold || pad.right_stick().length() > threshold
+        })
+    }
+
     fn edge(&self, source: InputSource) -> bool {
         match source {
             InputSource::Keyboard(key) => self.keys.just_pressed(key),

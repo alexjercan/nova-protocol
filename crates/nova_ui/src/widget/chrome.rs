@@ -313,6 +313,9 @@ pub fn separator() -> impl Bundle {
         Node {
             width: percent(100),
             height: px(BORDER_W),
+            // An overfull column must not shrink the rule away: the nodes
+            // under it would move up by its height.
+            min_height: px(BORDER_W),
             margin: UiRect::vertical(px(8)),
             ..default()
         },

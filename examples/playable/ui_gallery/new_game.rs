@@ -31,10 +31,11 @@ pub struct SeedField;
 #[derive(Component)]
 pub struct WorldNameField;
 
-/// The modal's width on the world step, as the game's `WORLD_STEP_W`.
-const WORLD_STEP_W: f32 = 420.0;
-/// The modal's width on the role step, as the game's `ROLE_STEP_W`.
-const ROLE_STEP_W: f32 = 760.0;
+/// The modal's width as a share of the window on both steps, as the game's
+/// `WORLD_SETUP_WIDTH_PCT`.
+const WORLD_SETUP_WIDTH_PCT: f32 = 92.0;
+/// The modal's widest size in px, as the game's `WORLD_SETUP_MAX_W`.
+const WORLD_SETUP_MAX_W: f32 = 640.0;
 /// The role list's width, as the game's `ROLE_LIST_W`.
 const ROLE_LIST_W: f32 = 240.0;
 /// The main action's slot, as the game's `MAIN_SLOT_W`.
@@ -153,10 +154,6 @@ fn modal(
     assets: &mut SceneAssets,
     new_game: &NewGameState,
 ) {
-    let width = match new_game.step {
-        NewGameStep::Role => ROLE_STEP_W,
-        NewGameStep::World | NewGameStep::Closed => WORLD_STEP_W,
-    };
     screen
         .spawn((
             Node {
@@ -179,7 +176,8 @@ fn modal(
                     Node {
                         flex_direction: FlexDirection::Column,
                         align_items: AlignItems::Stretch,
-                        width: px(width),
+                        width: percent(WORLD_SETUP_WIDTH_PCT),
+                        max_width: px(WORLD_SETUP_MAX_W),
                         padding: UiRect::all(px(20)),
                         row_gap: px(8),
                         border: UiRect::all(px(1)),

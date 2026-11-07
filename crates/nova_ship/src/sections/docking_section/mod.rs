@@ -37,7 +37,9 @@ mod connection;
 mod port;
 mod render;
 
-pub use admission::{station_admission, DockAdmission, DockRefusalType};
+pub use admission::{
+    station_admission, DockAdmission, DockPressRefusal, DockPressRefusalType, DockRefusalType,
+};
 pub use assembly::DockedAssembly;
 use assembly::{apply_docked_helm_wrench, measure_docked_assemblies};
 use connection::{
@@ -62,12 +64,12 @@ pub mod prelude {
     pub use super::{
         docking_section, helm_on_capture, helm_request_admitted, preview_docking_section,
         restore_docking_connection, station_admission, DockAdmission, DockPartnerType,
-        DockRefusalType, DockedAssembly, DockedHelmType, DockedPort, DockedShip, DockedStation,
-        DockingConnection, DockingConnectionRequest, DockingEnvelope, DockingHelmRequest,
-        DockingPair, DockingPorts, DockingReleaseRequest, DockingSectionConfig,
-        DockingSectionConfigHelper, DockingSectionMarker, DockingSectionPlugin,
-        DockingSectionState, DockingSystems, PortPose, SavedJointFrame, StationDock, StationDocks,
-        UndockSeparation, BERTH_GAP,
+        DockPressRefusal, DockPressRefusalType, DockRefusalType, DockedAssembly, DockedHelmType,
+        DockedPort, DockedShip, DockedStation, DockingConnection, DockingConnectionRequest,
+        DockingEnvelope, DockingHelmRequest, DockingPair, DockingPorts, DockingReleaseRequest,
+        DockingSectionConfig, DockingSectionConfigHelper, DockingSectionMarker,
+        DockingSectionPlugin, DockingSectionState, DockingSystems, PortPose, SavedJointFrame,
+        StationDock, StationDocks, UndockSeparation, BERTH_GAP,
     };
 }
 
@@ -314,6 +316,7 @@ impl Plugin for DockingSectionPlugin {
         app.register_type::<DockingConnection>();
         app.register_type::<DockedAssembly>();
         app.register_type::<UndockSeparation>();
+        app.add_message::<DockPressRefusal>();
 
         app.add_observer(on_docking_connection_request);
         app.add_observer(on_docking_release_request);

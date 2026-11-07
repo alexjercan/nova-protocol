@@ -111,12 +111,16 @@ fn card_rig() -> PanePointerRig {
     app.init_resource::<crate::inventory::InventoryRuntime>();
     app.add_observer(button_on_setting::<InterfacePaneType>);
     app.register_input_actions(crate::bindings::interface_bindings());
+    app.add_plugins(bevy::state::app::StatesPlugin);
+    app.insert_state(PauseStates::Interface);
     app.add_systems(
         Update,
         (
             leave_station_pane,
             rebuild_interface_body,
             fit_pane_footer,
+            fit_card_head,
+            refresh_card_head_keys,
             show_station_tab,
             refresh_pane_input_hints,
             show_pane_input_hints,
@@ -514,6 +518,83 @@ fn a_rebound_key_moves_its_footer_hint() {
         hints.iter().any(|hint| hint == "J GOTO") && !hints.iter().any(|hint| hint == "G GOTO"),
         "{hints:?}"
     );
+}
+
+/// The text of the key chip inside the node named `name`.
+fn chip_text(world: &mut World, name: &str) -> String {
+    let root = world
+        .query::<(Entity, &Name)>()
+        .iter(world)
+        .find(|(_, n)| n.as_str() == name)
+        .map(|(entity, _)| entity)
+        .unwrap_or_else(|| panic!("a node named {name}"));
+    let mut stack = vec![root];
+    while let Some(entity) = stack.pop() {
+        if world.get::<KeyChipLabel>(entity).is_some() {
+            return world
+                .get::<Text>(entity)
+                .expect("a chip label is text")
+                .0
+                .clone();
+        }
+        if let Some(children) = world.get::<Children>(entity) {
+            stack.extend(children.iter());
+        }
+    }
+    panic!("{name} holds a key chip");
+}
+
+#[test]
+fn the_close_button_leaves_the_interface() {
+    let mut rig = card_rig();
+    let close = rect_named(rig.app.world_mut(), "InterfaceClose").center();
+    click_at(&mut rig, close);
+    assert_eq!(
+        *rig.app.world().resource::<State<PauseStates>>().get(),
+        PauseStates::Unpaused
+    );
+}
+
+#[test]
+fn the_card_head_names_the_live_close_key() {
+    let mut rig = card_rig();
+    assert_eq!(chip_text(rig.app.world_mut(), "InterfaceClose"), "Tab");
+    assert_eq!(chip_text(rig.app.world_mut(), "InterfaceNextHint"), "M");
+    rig.app.world_mut().resource_mut::<InputBindings>().rebind(
+        "interface_toggle",
+        BindingSpec {
+            keyboard: vec![InputSource::Keyboard(KeyCode::KeyJ)],
+            gamepad: Vec::new(),
+        },
+    );
+    settle(&mut rig.app);
+    assert_eq!(chip_text(rig.app.world_mut(), "InterfaceClose"), "J");
+}
+
+#[test]
+fn the_card_head_keeps_every_control_inside_it_at_853_logical_px() {
+    let mut rig = card_rig();
+    resize_window(&mut rig.app, UVec2::new(853, 480));
+    settle(&mut rig.app);
+    let world = rig.app.world_mut();
+    let head = card_ids(world).head;
+    let head = rect_of(world, head);
+    for name in ["InterfaceClose", "InterfaceTabMap", "InterfaceTabStation"] {
+        let rect = rect_named(world, name);
+        if rect.width() > 0.0 {
+            assert!(inside(rect, head), "{name} {rect:?} in the head {head:?}");
+        }
+    }
+}
+
+#[test]
+fn a_larger_ui_scale_narrows_the_layout_width() {
+    let window = Window {
+        resolution: bevy::window::WindowResolution::new(1280, 720),
+        ..default()
+    };
+    assert_eq!(ui_width(&window, &UiScale(1.0)), 1280.0);
+    assert!((ui_width(&window, &UiScale(1.5)) - 853.333).abs() < 0.01);
 }
 
 /// Press and release `M` through the keyboard messages a window writes, one

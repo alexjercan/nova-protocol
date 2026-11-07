@@ -58,6 +58,7 @@ pub mod prelude {
 }
 
 mod ambience;
+mod back_out;
 #[cfg(not(target_arch = "wasm32"))]
 mod leave;
 #[cfg(not(target_arch = "wasm32"))]
@@ -86,6 +87,7 @@ use ambience::{
     advance_menu_backdrop, hide_hud_chrome, load_menu_ambience, restore_hud_chrome,
     stage_menu_camera, unload_menu_ambience,
 };
+use back_out::back_out_of_the_menu_screen;
 #[cfg(not(target_arch = "wasm32"))]
 use load_screen::{
     poll_world_checks, poll_world_open, refresh_continue, refresh_load_details, refresh_load_list,
@@ -101,8 +103,8 @@ use nova_training::prelude::{FieldNoteRotation, TrainingCatalog};
 #[cfg(not(target_arch = "wasm32"))]
 use nova_world_base::prelude::{WorldResumeRefused, WorldSaveSession};
 use outcome::{
-    auto_advance_outcome, clear_start_failure, regrab_cursor_on_player_spawn, sync_outcome_cursor,
-    sync_outcome_overlay, sync_outcome_pause, sync_start_failure_cursor,
+    auto_advance_outcome, clear_start_failure, refresh_outcome_keys, regrab_cursor_on_player_spawn,
+    sync_outcome_cursor, sync_outcome_overlay, sync_outcome_pause, sync_start_failure_cursor,
     sync_start_failure_overlay,
 };
 use pause::{
@@ -111,7 +113,9 @@ use pause::{
     pause_on_focus_loss, reconcile_pause_overlay, release_clocks_for_interface,
     release_clocks_for_pause_menu, release_cursor, restore_cursor, toggle_pause, FocusPause,
 };
-use portal::{drive_update_choreography, UpdateRequested};
+use portal::{
+    disarm_uninstall_on_other_press, drive_update_choreography, UninstallStep, UpdateRequested,
+};
 #[cfg(not(target_arch = "wasm32"))]
 use save_status::sync_save_notice;
 pub use scenarios::NewGameScenario;
@@ -121,10 +125,11 @@ use scenarios::{
     SelectedScenarioId,
 };
 use settings::{
-    apply_settings_rebind, on_graphics_field, on_graphics_preset, on_sensitivity_slider_change,
-    on_volume_slider_change, refresh_settings_tab, settings_tab_dirty, sync_sensitivity_slider,
-    sync_volume_slider, FieldNoteSetting, FocusPauseSetting, PendingRebind, SettingsActiveTab,
-    SettingsControlsGroup, TrainingPromptSetting, UiScaleSetting, VsyncSetting, WindowModeSetting,
+    apply_settings_rebind, disarm_reset_on_other_press, on_graphics_field, on_graphics_preset,
+    on_sensitivity_slider_change, on_volume_slider_change, refresh_settings_tab,
+    settings_tab_dirty, sync_sensitivity_slider, sync_volume_slider, FieldNoteSetting,
+    FocusPauseSetting, PendingRebind, ResetBindingsStep, SettingsActiveTab, SettingsControlsGroup,
+    TrainingPromptSetting, UiScaleSetting, VsyncSetting, WindowModeSetting,
 };
 use settings_store::SettingsStorePlugin;
 use training::{
@@ -133,7 +138,7 @@ use training::{
     PendingLessonMedia, SelectedLessonId,
 };
 use training_store::TrainingProgressPlugin;
-use widgets::{on_menu_button_activate, play_menu_focus_cue, MenuCueSystems};
+use widgets::{on_menu_button_activate, play_menu_focus_cue, refresh_back_keys, MenuCueSystems};
 
 /// The cursor rule for the frozen surfaces every game app has: the TAB
 /// interface, the command modal and the debug window (`PauseStates::Debug`)
@@ -253,6 +258,14 @@ impl Plugin for NovaMenuPlugin {
         app.init_resource::<SettingsActiveTab>();
         app.init_resource::<SettingsControlsGroup>();
         app.init_resource::<PendingRebind>();
+        // A destructive button asks twice. The step resources outlive a screen,
+        // so a menu entry or a pause drops an ask the player walked away from.
+        app.init_resource::<ResetBindingsStep>();
+        app.init_resource::<UninstallStep>();
+        app.add_observer(disarm_reset_on_other_press);
+        app.add_observer(disarm_uninstall_on_other_press);
+        app.add_systems(OnEnter(GameStates::MainMenu), disarm_confirmations);
+        app.add_systems(OnEnter(PauseStates::Paused), disarm_confirmations);
         app.add_observer(on_volume_slider_change);
         app.add_observer(on_sensitivity_slider_change);
         app.add_observer(on_graphics_preset);
@@ -317,6 +330,7 @@ impl Plugin for NovaMenuPlugin {
                 world_setup::read_world_setup.after(TextFieldSystems),
                 world_setup::refresh_seed_preview.after(TextFieldSystems),
                 world_setup::refresh_start_role_details,
+                world_setup::sync_world_setup_tag,
             )
                 .run_if(in_state(GameStates::MainMenu)),
         );
@@ -424,6 +438,7 @@ impl Plugin for NovaMenuPlugin {
         );
         app.add_observer(on_menu_button_activate);
         app.add_systems(Update, play_menu_focus_cue.in_set(MenuCueSystems));
+        app.add_systems(Update, refresh_back_keys);
         app.add_systems(
             OnEnter(GameStates::Playing),
             start_new_game_scenario.run_if(resource_equals(GameMode::NewGame)),
@@ -438,11 +453,23 @@ impl Plugin for NovaMenuPlugin {
         // and write the same `NextState` in one frame - a panel reconciled
         // before the gesture that opened it would appear a frame late, and a
         // focus pause that landed after it would find it already built.
+        //
+        // `toggle_pause` runs before the rebind capture: an armed chip answers
+        // Escape by disarming, and the pause must still find it armed.
         app.add_systems(
             Update,
             (toggle_pause, pause_on_focus_loss, reconcile_pause_overlay)
                 .chain()
+                .before(apply_settings_rebind)
                 .run_if(in_state(GameStates::Playing)),
+        );
+        // Escape on the main menu backs out of the open screen. Before the
+        // rebind capture, for the same reason as `toggle_pause`.
+        app.add_systems(
+            Update,
+            back_out_of_the_menu_screen
+                .before(apply_settings_rebind)
+                .run_if(in_state(GameStates::MainMenu)),
         );
         // The focus policy this process runs under, derived from the player's
         // setting. A range can still insert its own: the derivation only runs
@@ -559,7 +586,7 @@ impl Plugin for NovaMenuPlugin {
         app.add_systems(
             Update,
             (
-                sync_outcome_overlay,
+                (sync_outcome_overlay, refresh_outcome_keys).chain(),
                 sync_outcome_cursor,
                 sync_outcome_pause,
                 auto_advance_outcome,
@@ -580,6 +607,19 @@ impl Plugin for NovaMenuPlugin {
         app.init_resource::<ScenarioStartFailure>();
         app.add_systems(OnEnter(GameStates::MainMenu), clear_start_failure);
         app.add_observer(regrab_cursor_on_player_spawn);
+    }
+}
+
+/// Drop every destructive ask that waits on its Confirm.
+fn disarm_confirmations(
+    mut reset: ResMut<ResetBindingsStep>,
+    mut uninstall: ResMut<UninstallStep>,
+) {
+    if *reset != ResetBindingsStep::Idle {
+        *reset = ResetBindingsStep::Idle;
+    }
+    if *uninstall != UninstallStep::Idle {
+        *uninstall = UninstallStep::Idle;
     }
 }
 

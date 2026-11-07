@@ -10,7 +10,9 @@
 //! no credits: payment stays at the hand-in. A MATCH refused for its target,
 //! RCS or magazine, or cut short ([`MatchRefusal`]), posts why. The gates the
 //! chord shares with STOP (no STOP capability, docked without the helm, the
-//! docked partner) stay silent, as STOP does.
+//! docked partner) stay silent, as STOP does. A `DOCK` press that did nothing
+//! ([`DockPressRefusal`]) posts why, once per press; a target that refuses
+//! writes no press line, so a station's line is never said twice.
 //!
 //! One slot, no queue: a new text replaces the shown one and plays the cue; the
 //! same text again while it shows restarts the dwell and stays quiet. The dwell
@@ -27,6 +29,7 @@ use nova_gameplay::prelude::*;
 use nova_ship::{
     flight::prelude::{MatchRefusal, MatchRefusalType},
     input::prelude::FlightVerbHints,
+    sections::prelude::{DockPressRefusal, DockPressRefusalType},
 };
 use nova_ui::{
     hud::{chip_node, ChipTone},
@@ -49,7 +52,7 @@ const NOTICE_FADE_SECS: f32 = 0.4;
 
 /// How far off the bottom of the screen the notice box sits: clear above the
 /// keybind dock row.
-const NOTICE_BOTTOM_PX: f32 = 72.0;
+pub(crate) const NOTICE_BOTTOM_PX: f32 = 72.0;
 
 /// The widest the box grows, as a share of the window. From the midline that
 /// leaves a 5 % right margin; a longer line clips instead of wrapping.
@@ -57,6 +60,10 @@ const NOTICE_MAX_WIDTH_PERCENT: f32 = 45.0;
 
 /// Notice text size (px).
 const NOTICE_FONT_PX: f32 = 13.0;
+
+/// The box height (px): `LineBreak::NoWrap` holds the text to one line of
+/// [`NOTICE_FONT_PX`], and `chip_node` adds 10 px of padding and border.
+const NOTICE_MAX_HEIGHT_PX: f32 = 26.0;
 
 /// Notice cue volume: over the comms blip (0.22), under the objective posting
 /// blip (0.30).
@@ -128,11 +135,46 @@ pub fn hud_notice_hud() -> impl Bundle {
     )
 }
 
-/// Registers [`HudNotice`], posts a station's dock refusal, a MATCH refusal
-/// and a held job's done to it, and runs `post_dock_refusal_notice`,
-/// `post_match_refusal_notice`, `show_hud_notice` and `paint_hud_notice`
-/// chained in Update within [`NovaHudSystems`]. The box
-/// itself is a player-scoped widget spawned by `NovaHudPlugin`.
+/// The shown notice box as a rect other HUD pieces keep clear of.
+///
+/// The box's `left` and `bottom` are fixed, so only its size needs layout. On
+/// the frame the text changes, layout has not measured the new line yet, so
+/// the rect takes the widest and tallest box the node allows: a pass before
+/// layout would otherwise clear last frame's line.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct HudNoticeKeepOut<'w, 's> {
+    shown: Res<'w, ShownNotice>,
+    q_box: Query<'w, 's, &'static ComputedNode, With<HudNoticeMarker>>,
+    q_text: Query<'w, 's, Ref<'static, Text>, With<HudNoticeText>>,
+}
+
+impl HudNoticeKeepOut<'_, '_> {
+    /// The box's rect in UI px on a `view` of that size, or `None` while the
+    /// slot is empty.
+    pub(crate) fn rect(&self, view: Vec2) -> Option<Rect> {
+        self.shown.0.as_ref()?;
+        let computed = self.q_box.iter().next()?;
+        let text = self.q_text.iter().next()?;
+        let size = if text.is_changed() {
+            Vec2::new(
+                view.x * NOTICE_MAX_WIDTH_PERCENT / 100.0,
+                NOTICE_MAX_HEIGHT_PX,
+            )
+        } else {
+            computed.size() * computed.inverse_scale_factor()
+        };
+        let left = view.x / 2.0;
+        let bottom = view.y - NOTICE_BOTTOM_PX;
+        Some(Rect::new(left, bottom - size.y, left + size.x, bottom))
+    }
+}
+
+/// Registers [`HudNotice`], posts a station's dock refusal, a MATCH refusal,
+/// a refused `DOCK` press and a held job's done to it, and runs
+/// `post_dock_refusal_notice`, `post_match_refusal_notice`,
+/// `post_dock_press_notice`, `show_hud_notice` and `paint_hud_notice` chained
+/// in Update within [`NovaHudSystems`]. The box itself is a player-scoped
+/// widget spawned by `NovaHudPlugin`.
 #[derive(Default)]
 pub struct HudNoticePlugin;
 
@@ -142,6 +184,7 @@ impl Plugin for HudNoticePlugin {
         // Owned by `nova_ship`'s flight layer; registered here as well so the
         // notice reader stands alone. A second registration is a no-op.
         app.add_message::<MatchRefusal>();
+        app.add_message::<DockPressRefusal>();
         app.init_resource::<ShownNotice>();
         app.register_type::<HudNoticeMarker>();
         app.register_type::<HudNoticeText>();
@@ -151,6 +194,7 @@ impl Plugin for HudNoticePlugin {
             (
                 post_dock_refusal_notice,
                 post_match_refusal_notice,
+                post_dock_press_notice,
                 show_hud_notice,
                 paint_hud_notice,
             )
@@ -194,6 +238,27 @@ fn match_refusal_line(refusal: MatchRefusalType) -> &'static str {
         MatchRefusalType::RcsEmpty => "MATCH: RCS EMPTY",
         MatchRefusalType::TargetLost => "MATCH: TARGET LOST",
         MatchRefusalType::NoFlightComputer => "MATCH: NO FLIGHT COMPUTER",
+    }
+}
+
+/// Post why a `DOCK` press did nothing.
+fn post_dock_press_notice(
+    mut refusals: MessageReader<DockPressRefusal>,
+    mut notices: MessageWriter<HudNotice>,
+) {
+    for DockPressRefusal(refusal) in refusals.read() {
+        notices.write(HudNotice(dock_press_refusal_line(*refusal).to_string()));
+    }
+}
+
+/// The notice line for a refused `DOCK` press.
+fn dock_press_refusal_line(refusal: DockPressRefusalType) -> &'static str {
+    match refusal {
+        DockPressRefusalType::NoLock => "DOCK: NO LOCK",
+        DockPressRefusalType::NoFreePort => "DOCK: NO FREE PORT",
+        DockPressRefusalType::TooFar => "DOCK: TOO FAR",
+        DockPressRefusalType::NotFacing => "DOCK: NOT FACING",
+        DockPressRefusalType::TooFast => "DOCK: TOO FAST",
     }
 }
 

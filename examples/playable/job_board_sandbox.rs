@@ -1040,10 +1040,7 @@ mod smoke {
         .step("job sandbox: Show on Map opens the chart on the job")
         .on_enter(|world: &mut World| activate_named(world, JOB_SHOW_ON_MAP))
         .until(and(
-            and(
-                the_interface_shows(Some(InterfacePaneType::Map)),
-                a_text_reads(|text| text == "JOB"),
-            ),
+            the_interface_shows(Some(InterfacePaneType::Map)),
             and(
                 and(
                     a_text_reads(|text| text == "JOB-2"),
@@ -1079,7 +1076,7 @@ mod smoke {
         .step("job sandbox: the chart returns to its overview")
         .until(and(
             and(
-                a_text_reads(|text| text == "OBJECTIVES"),
+                a_text_reads(|text| text.starts_with("OBJECTIVES  LAYER ")),
                 no_text_reads(|text| text.starts_with("Reward ")),
             ),
             frames(SETTLE_FRAMES),
@@ -1092,7 +1089,7 @@ mod smoke {
             and(
                 and(
                     the_interface_shows(Some(InterfacePaneType::Jobs)),
-                    a_text_reads(|text| text == "JOB"),
+                    a_text_reads(|text| text == "Select a job to see its details."),
                 ),
                 and(no_text_reads(|text| text == "TASK"), frames(SETTLE_FRAMES)),
             ),

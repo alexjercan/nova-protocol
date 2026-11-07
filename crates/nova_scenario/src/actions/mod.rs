@@ -224,6 +224,13 @@ registry::scenario_actions! {
         effect: Bookkeeping,
         inspect: Reflect,
     },
+    /// Keep one objective's HUD chip up until the objective leaves.
+    ObjectiveChipHold(ObjectiveChipHoldActionConfig) {
+        label: "Objective Chip Hold",
+        stem: "chiphold",
+        effect: Bookkeeping,
+        inspect: Reflect,
+    },
     /// Pulse one keybind-dock chip gold.
     HintEmphasisSet(HintEmphasisSetActionConfig) {
         label: "Hint Emphasis",

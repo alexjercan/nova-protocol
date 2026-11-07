@@ -156,7 +156,12 @@ const SPEED_ROW_PX: f32 = -90.0;
 
 /// The mode chip's authored row.
 #[cfg(feature = "debug")]
-const MODE_ROW_PX: f32 = -114.0;
+const MODE_ROW_PX: f32 = -120.0;
+
+/// The clear space a chip keeps to the right edge of the view when the outer
+/// shell is too wide to stand outside of.
+#[cfg(feature = "debug")]
+const CHIP_VIEW_MARGIN_PX: f32 = 12.0;
 
 /// How close to the furthest live section a section has to be to count as one
 /// that DECIDES the envelope.
@@ -664,14 +669,16 @@ fn assert_shells_enclose(world: &mut World, hull: &str) {
     );
 }
 
-/// Invariant 2: both chips' near edge is [`CHIP_GAP_PX`] past the projected
-/// outer shell, on their authored rows.
+/// Invariant 2: the chips are one left-aligned stack whose near edge is
+/// [`CHIP_GAP_PX`] past the projected outer shell, on their authored row pitch,
+/// and whose widest chip's far edge is inside the view. On the biggest hull in
+/// the fleet the outer shell reaches the edge of the frame under the stock
+/// chase rig; there the widest chip holds [`CHIP_VIEW_MARGIN_PX`] off the view
+/// edge, over the shell.
 ///
 /// Asserted on the PLACEMENT, not on the drawn node: a chip whose anchor
-/// projects off the viewport is hidden by the widget's own off-screen rule, and
-/// on the biggest hull in the fleet the outer shell reaches the edge of the
-/// frame under the stock chase rig. Where the chip was PUT is the contract
-/// this invariant pins.
+/// projects off the viewport is hidden by the widget's own off-screen rule.
+/// Where the chip was PUT is the contract this invariant pins.
 #[cfg(feature = "debug")]
 fn assert_chips_clear(world: &mut World, hull: &str) {
     let ship = player_root(world);
@@ -692,23 +699,51 @@ fn assert_chips_clear(world: &mut World, hull: &str) {
     let centre_px = project(com);
     let edge_px = project(com + camera_pose.right() * gravity_radius);
 
+    let view_right = camera
+        .logical_viewport_size()
+        .expect("shell range: the camera has no viewport")
+        .x;
+
     let speed = chip_placement::<SpeedChipUIMarker>(world, "speed");
     let mode = chip_placement::<ModeChipUIMarker>(world, "mode");
-    for (what, (offset, half_width), row) in
-        [("speed", speed, SPEED_ROW_PX), ("mode", mode, MODE_ROW_PX)]
-    {
-        let near_edge = centre_px.x + offset.x - half_width;
-        let gap = near_edge - edge_px.x;
-        assert!(
-            gap >= CHIP_GAP_PX - CHIP_TOLERANCE_PX,
-            "shell range ({hull}): the {what} chip's near edge is {gap:.1} px past the \
-             projected shell edge, not {CHIP_GAP_PX:.0} px"
-        );
-        assert_eq!(
-            offset.y, row,
-            "shell range ({hull}): the {what} chip left its authored row"
-        );
-    }
+    let chips = [("speed", speed), ("mode", mode)];
+
+    // One stack: the chips share a left edge, and its widest chip decides how
+    // far the stack is from the view edge.
+    let near_edge = |(offset, half_width): (Vec2, f32)| centre_px.x + offset.x - half_width;
+    let far_edge = |(offset, half_width): (Vec2, f32)| centre_px.x + offset.x + half_width;
+    assert!(
+        (near_edge(speed) - near_edge(mode)).abs() <= CHIP_TOLERANCE_PX,
+        "shell range ({hull}): the stack is ragged, the speed chip starts at {:.1} px and the \
+         mode chip at {:.1} px",
+        near_edge(speed),
+        near_edge(mode)
+    );
+    let widest = chips
+        .iter()
+        .map(|&(_, chip)| far_edge(chip))
+        .fold(f32::MIN, f32::max);
+    let room = view_right - widest;
+    assert!(
+        room >= CHIP_VIEW_MARGIN_PX - CHIP_TOLERANCE_PX,
+        "shell range ({hull}): the widest chip's far edge is {room:.1} px inside the view, \
+         not {CHIP_VIEW_MARGIN_PX:.0} px"
+    );
+    let held_at_the_view_edge = room <= CHIP_VIEW_MARGIN_PX + CHIP_TOLERANCE_PX;
+    let gap = near_edge(speed) - edge_px.x;
+    assert!(
+        gap >= CHIP_GAP_PX - CHIP_TOLERANCE_PX || held_at_the_view_edge,
+        "shell range ({hull}): the stack's near edge is {gap:.1} px past the projected shell \
+         edge, not {CHIP_GAP_PX:.0} px, with {room:.1} px of view left"
+    );
+    // The rows move together (a stack held off an edge or the inset moves
+    // vertically too), so their pitch is the authored one.
+    assert!(
+        ((speed.0.y - mode.0.y) - (SPEED_ROW_PX - MODE_ROW_PX)).abs() <= CHIP_TOLERANCE_PX,
+        "shell range ({hull}): the rows are {:.1} px apart, not {:.1} px",
+        speed.0.y - mode.0.y,
+        SPEED_ROW_PX - MODE_ROW_PX
+    );
 
     nova_probe::probe_marker(
         world,

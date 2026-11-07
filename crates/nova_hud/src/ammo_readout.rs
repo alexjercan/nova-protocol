@@ -45,11 +45,11 @@
 //! Like the other combat overlays the layer is `HudTier::Instrument` and is
 //! spawned/despawned with the player ship by the hud/mod.rs observers.
 //!
-//! CONTEXTUAL: the gauges are not on whenever a weapon
+//! CONTEXTUAL: the gauges are a combat instrument, not on whenever a weapon
 //! has ammo - the layer carries a [`HudContextGate`] driven by
-//! `sync_ammo_gate`, so they surface while weapons are hot, a group is nearly
-//! dry, or a batch is reloading. Reload keeps its gauge visible through the
-//! quiet interval; a full magazine lets it leave idle cruise again.
+//! `sync_ammo_gate`, open in combat mode (weapons hot) or under a combat lock
+//! and shut in normal flight, travel lock or not. The low-ammo breath and the
+//! reload pulse paint a gauge that is already shown; neither opens the gate.
 
 use std::f32::consts::{FRAC_PI_2, TAU};
 
@@ -223,10 +223,10 @@ pub fn ammo_readout_hud() -> impl Bundle {
     (
         Name::new("AmmoReadoutHUD"),
         AmmoReadoutHudMarker,
-        // Contextual: shut until the weapons are hot or a group runs low. The
-        // readouts underneath are projected indicators, so the gate has to be
-        // enforced downstream of the projection - which is exactly where
-        // `apply_hud_visibility` reads it from this layer.
+        // Contextual: shut until the weapons are hot or a combat lock is
+        // held. The readouts underneath are projected indicators, so the gate
+        // has to be enforced downstream of the projection - which is exactly
+        // where `apply_hud_visibility` reads it from this layer.
         HudContextGate(false),
         screen_indicator_layer(),
     )
@@ -746,7 +746,7 @@ const RELOAD_ALPHA_END: (f32, f32) = (0.40, 0.54);
 /// Whether a weapon group is nearly dry (see [`LOW_AMMO_FRACTION`]). A group at
 /// zero rounds counts as low too: an empty gauge with a dark track is easy to
 /// mistake for "no weapon", and the amber tells you it is a weapon out of ammo.
-pub(super) fn is_low_ammo(ammo: &SectionAmmo) -> bool {
+fn is_low_ammo(ammo: &SectionAmmo) -> bool {
     ammo.capacity > 0 && (ammo.rounds as f32) <= LOW_AMMO_FRACTION * ammo.capacity as f32
 }
 
@@ -1960,30 +1960,191 @@ mod tests {
         assert!(!gate(&mut world), "safety back on hides them again");
     }
 
-    /// Low ammo forces the gauges up on its own: a dry magazine is news before
-    /// you pull the trigger, not after.
-    #[test]
-    fn low_ammo_alone_opens_the_ammo_gate() {
-        let mut world = World::new();
-        world.init_resource::<HudSituations>();
-        world.spawn(ammo_readout_hud());
+    /// The gauge wiring as the plugins register it, on a 100 ms clock: the
+    /// situation sense, the gate, the reconciler and pip driver, the real
+    /// projection, the clustering pass and the central enforcement. Returns
+    /// the app, the player ship and its one turret, which projects on screen.
+    fn gauge_app() -> (App, Entity, Entity) {
+        use bevy::{
+            camera::{ComputedCameraValues, RenderTargetInfo},
+            state::app::StatesPlugin,
+            time::TimeUpdateStrategy,
+        };
 
-        world.resource_mut::<HudSituations>().low_ammo = true;
-        world.run_system_once(sync_ammo_gate).unwrap();
-        assert!(
-            gate(&mut world),
-            "a nearly-dry group shows the gauges even with the safety on"
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, TransformPlugin, StatesPlugin));
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_millis(100),
+        ));
+        app.init_state::<nova_gameplay::GameStates>();
+        // `apply_hud_visibility` reads the pause axis.
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.init_resource::<HudVisibility>();
+        app.init_resource::<HudSituations>();
+        app.init_resource::<ActiveUiTheme>();
+        // `UiPlugin` owns the scale in the game; this rig has no UI stack.
+        app.init_resource::<UiScale>();
+        // The same registrations as `NovaHudPlugin`, which also drags in
+        // assets and materials.
+        app.add_systems(
+            Update,
+            crate::situation::sense_hud_situations
+                .in_set(HudSituationSensingSystems)
+                .before(NovaHudSystems),
         );
+        app.add_plugins((ScreenIndicatorPlugin, AmmoReadoutPlugin));
+        app.add_systems(
+            PostUpdate,
+            crate::apply_hud_visibility
+                .after(ScreenIndicatorSystems)
+                .before(bevy::ui::UiSystems::Layout),
+        );
+
+        let world = app.world_mut();
+        // 800x600, 90 degree vertical fov, at the origin looking down -Z.
+        world.spawn((
+            Transform::IDENTITY,
+            Camera {
+                computed: ComputedCameraValues {
+                    clip_from_view: Mat4::perspective_infinite_reverse_rh(
+                        FRAC_PI_2,
+                        800.0 / 600.0,
+                        0.1,
+                    ),
+                    target_info: Some(RenderTargetInfo {
+                        physical_size: UVec2::new(800, 600),
+                        scale_factor: 1.0,
+                    }),
+                    ..default()
+                },
+                ..default()
+            },
+            ScreenIndicatorCamera,
+        ));
+        let player = spawn_player(world);
+        world.entity_mut(player).insert((
+            Transform::from_xyz(0.0, 0.0, -10.0),
+            TravelLock(None),
+            CombatLock(None),
+            WeaponsHot(false),
+        ));
+        let turret = spawn_turret(world, player, Some(SectionAmmo::new(8)));
+        world.entity_mut(turret).insert(Transform::IDENTITY);
+        world.spawn((HudTier::Instrument, ammo_readout_hud()));
+        // `ManualDuration` gives the first update a zero delta.
+        app.update();
+        (app, player, turret)
     }
 
-    #[test]
-    fn active_reload_alone_opens_the_ammo_gate() {
-        let mut world = World::new();
-        world.init_resource::<HudSituations>();
-        world.spawn(ammo_readout_hud());
+    /// What the last frame left on the gauge of `section`.
+    fn gauge_visibility(app: &mut App, section: Entity) -> Visibility {
+        let world = app.world_mut();
+        world
+            .query_filtered::<(&AmmoReadoutSection, &Visibility), With<AmmoReadoutMarker>>()
+            .iter(world)
+            .find(|(readout, _)| ***readout == section)
+            .map(|(_, visibility)| *visibility)
+            .expect("the section has a gauge")
+    }
 
-        world.resource_mut::<HudSituations>().reloading = true;
-        world.run_system_once(sync_ammo_gate).unwrap();
-        assert!(gate(&mut world), "an active reload keeps its gauge visible");
+    /// Run `frames` updates and require the gauge of `section` to be drawn, or
+    /// not drawn, at the end of EVERY one of them.
+    fn hold_gauge(app: &mut App, section: Entity, frames: usize, shown: bool, state: &str) {
+        let want = if shown {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        };
+        for frame in 0..frames {
+            app.update();
+            assert_eq!(
+                gauge_visibility(app, section),
+                want,
+                "{state}: frame {frame}"
+            );
+        }
+    }
+
+    /// The reported failure: the gauges came up in normal flight whenever a
+    /// magazine was low, empty or reloading, and breathed or pulsed there.
+    /// They are a combat instrument. They show in combat mode (weapons hot) or
+    /// under a combat lock, and at no other time; magazine state changes how a
+    /// shown gauge is painted, never whether it is shown.
+    #[test]
+    fn the_ammo_gauges_show_only_in_combat_mode_or_under_a_combat_lock() {
+        const FRAMES: usize = 6;
+        let (mut app, player, turret) = gauge_app();
+        let target = app.world_mut().spawn_empty().id();
+        let set_rounds = |app: &mut App, rounds: u32| {
+            app.world_mut()
+                .get_mut::<SectionAmmo>(turret)
+                .unwrap()
+                .rounds = rounds;
+        };
+
+        // Normal flight, no lock: hidden from the frame the gauge spawns,
+        // whatever the magazine holds.
+        assert_eq!(
+            gauge_visibility(&mut app, turret),
+            Visibility::Hidden,
+            "normal flight, full: the spawn frame"
+        );
+        hold_gauge(&mut app, turret, FRAMES, false, "normal flight, full");
+        set_rounds(&mut app, 2);
+        hold_gauge(&mut app, turret, FRAMES, false, "normal flight, low");
+        set_rounds(&mut app, 0);
+        hold_gauge(&mut app, turret, FRAMES, false, "normal flight, empty");
+        app.world_mut().entity_mut(turret).insert(reload_at(
+            ItemRoleType::PdcRound.into(),
+            3.0,
+            4,
+            0.5,
+        ));
+        hold_gauge(&mut app, turret, FRAMES, false, "normal flight, reloading");
+        app.world_mut().entity_mut(turret).remove::<SectionReload>();
+        set_rounds(&mut app, 2);
+
+        // A travel lock is navigation, not combat.
+        app.world_mut()
+            .entity_mut(player)
+            .insert(TravelLock(Some(target)));
+        hold_gauge(&mut app, turret, FRAMES, false, "travel lock only, low");
+
+        // Combat mode: shown on every frame, and the low group still breathes.
+        app.world_mut().entity_mut(player).insert(WeaponsHot(true));
+        let mut alphas = Vec::new();
+        for _ in 0..FRAMES {
+            hold_gauge(&mut app, turret, 1, true, "combat mode, low");
+            let lit = lit_pip_color(app.world_mut(), turret).expect("a lit pip");
+            alphas.push(lit.alpha());
+        }
+        let (min, max) = alphas
+            .iter()
+            .fold((f32::MAX, f32::MIN), |(lo, hi), &a| (lo.min(a), hi.max(a)));
+        assert!(
+            max - min > 0.05,
+            "the low-ammo breath still runs in combat: {alphas:?}"
+        );
+
+        // Leaving combat mode hides the gauge on that frame, travel lock or
+        // not, and it stays hidden.
+        app.world_mut().entity_mut(player).insert(WeaponsHot(false));
+        hold_gauge(&mut app, turret, FRAMES, false, "combat mode left, low");
+
+        // A combat lock alone shows it, before the safety follows the lock.
+        app.world_mut()
+            .entity_mut(player)
+            .insert(CombatLock(Some(target)));
+        hold_gauge(&mut app, turret, FRAMES, true, "combat lock only, low");
+        app.world_mut().entity_mut(player).insert(CombatLock(None));
+        hold_gauge(&mut app, turret, FRAMES, false, "combat lock cleared, low");
+
+        // Repeated transitions land on their own frame every time.
+        for _ in 0..4 {
+            app.world_mut().entity_mut(player).insert(WeaponsHot(true));
+            hold_gauge(&mut app, turret, 1, true, "combat mode again");
+            app.world_mut().entity_mut(player).insert(WeaponsHot(false));
+            hold_gauge(&mut app, turret, 1, false, "combat mode left again");
+        }
     }
 }

@@ -28,7 +28,7 @@
         metrics: Some((
             border_width: 1.0,
             radius: 2.0,
-            panel_radius: 10.0,
+            panel_radius: 2.0,
         )),
         roles: (
             button: Some((

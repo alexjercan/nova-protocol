@@ -104,7 +104,8 @@ use nova_autopilot::predicate::{any_entity, frames, resource_where, shot_written
 pub use nova_autopilot::{
     autopilot::{AutopilotLoop, AutopilotPlugin},
     capture::{
-        capture_window, capturing, CaptureLog, CAPTURE_DIR_ENV, CAPTURE_ENV, CAPTURE_RESOLUTION,
+        capture_size_override, capture_window, capturing, CaptureLog, CAPTURE_DIR_ENV, CAPTURE_ENV,
+        CAPTURE_RESOLUTION, CAPTURE_SIZE_ENV, CAPTURE_UI_SCALE_ENV,
     },
     // The self-ending examples (menu_scenarios) report the autopilot collector
     // done early rather than idling out the runway. They must reach the SAME
@@ -656,20 +657,57 @@ pub fn scenario_is_built() -> Arc<Predicate> {
 /// shot in the fleet lands at the same known framing the web figures use.
 /// A `Startup` system; non-resizable so a tiling WM cannot reflow it mid-run.
 ///
-/// The size is [`LoopProfile::window_resolution`] when a
-/// [`LoopCapturePlugin`] published a profile - armed or not, it inserts one
-/// during plugin build, so it is already there when this runs and no `Startup`
-/// ordering decides the answer. An example with no loop recorder at all keeps
-/// [`CAPTURE_RESOLUTION`], the fleet's 16:9.
+/// The size is [`CAPTURE_SIZE_ENV`] when set. Else it is
+/// [`LoopProfile::window_resolution`] when a [`LoopCapturePlugin`] published a
+/// profile - armed or not, it inserts one during plugin build, so it is
+/// already there when this runs and no `Startup` ordering decides the answer.
+/// An example with no loop recorder at all keeps [`CAPTURE_RESOLUTION`], the
+/// fleet's 16:9.
+///
+/// [`CAPTURE_UI_SCALE_ENV`] sets bevy's [`UiScale`] here too. The harness
+/// settings store is inert and registers no scale system, so nothing writes
+/// the scale after this, and this is the one way a scripted run lays the
+/// interface out at a scale other than 100%. The Settings row still reads
+/// 100% in such a run.
 pub fn force_capture_resolution(
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
     profile: Option<Res<LoopProfile>>,
+    scale: Option<ResMut<UiScale>>,
 ) {
-    let (width, height) = profile.map_or(CAPTURE_RESOLUTION, |profile| profile.window_resolution);
+    let (width, height) = capture_size_override()
+        .unwrap_or_else(|| profile.map_or(CAPTURE_RESOLUTION, |profile| profile.window_resolution));
     if let Ok(mut window) = windows.single_mut() {
         window.resolution.set(width as f32, height as f32);
         window.resizable = false;
     }
+    if let (Some(mut scale), Some(factor)) = (scale, capture_ui_scale()) {
+        scale.0 = factor;
+    }
+}
+
+/// The [`UiScale`] factor [`CAPTURE_UI_SCALE_ENV`] asks for, or `None` when
+/// it is unset.
+///
+/// # Panics
+///
+/// On a value that is not one of the Settings steps: a typo that fell back to
+/// 100% would label a shot with a scale it does not have, and a scale the
+/// Settings cannot reach is not a state a player sees. Also outside a harness
+/// run, where the settings store is live and owns the scale.
+fn capture_ui_scale() -> Option<f32> {
+    let value = std::env::var(CAPTURE_UI_SCALE_ENV).ok()?;
+    assert!(
+        nova_gameplay::settings::harness_env_active(),
+        "{CAPTURE_UI_SCALE_ENV} needs NOVA_AUTOPILOT or NOVA_CAPTURE: without one the settings \
+         store is live and owns the scale"
+    );
+    Some(match value.as_str() {
+        "75" => 0.75,
+        "100" => 1.0,
+        "125" => 1.25,
+        "150" => 1.5,
+        _ => panic!("{CAPTURE_UI_SCALE_ENV}={value:?} is not one of 75, 100, 125, 150"),
+    })
 }
 
 /// Freeze the scene so every shot is a deterministic still: make every dynamic

@@ -17,7 +17,8 @@ use nova_ui::{
     theme,
     theme::UiColor,
     widget::{
-        themed_button, Selected, ThemedBorder, ThemedButton, ThemedFill, ThemedRadius, ThemedText,
+        button, themed_button, ButtonSpec, Selected, ThemedBorder, ThemedButton, ThemedFill,
+        ThemedRadius, ThemedText, UiText,
     },
 };
 
@@ -45,6 +46,32 @@ pub(crate) enum PortalActionKind {
     /// Failed job (including one the portal client's fetch-stall timeout
     /// failed).
     Dismiss,
+}
+
+/// Whether an Uninstall was pressed once and waits for its Confirm.
+///
+/// Uninstall deletes the mod's files, so the first press arms that mod's
+/// button and only a second press on it removes the mod. Any other button
+/// press, and Escape, disarms it ([`disarm_uninstall_on_other_press`]).
+#[derive(Resource, Default, Debug, PartialEq, Eq)]
+pub(crate) enum UninstallStep {
+    /// Nothing is asked for.
+    #[default]
+    Idle,
+    /// Uninstall was pressed once for this mod id; its Confirm is on screen.
+    Confirm(String),
+}
+
+impl UninstallStep {
+    /// Whether the Uninstall of `id` is armed.
+    pub(crate) fn armed_on(&self, id: &str) -> bool {
+        matches!(self, Self::Confirm(armed) if armed == id)
+    }
+}
+
+/// The sentence beside an armed Uninstall, naming what the second press does.
+pub(crate) fn uninstall_prompt(name: &str) -> String {
+    format!("Deletes {name} from this computer.")
 }
 
 /// One in-flight update request (see [`UpdateRequested`]).
@@ -154,6 +181,7 @@ pub(crate) fn on_portal_action(
     enabled: Option<Res<EnabledMods>>,
     mut jobs: Option<ResMut<InstallJobs>>,
     mut updates: ResMut<UpdateRequested>,
+    mut uninstall: ResMut<UninstallStep>,
     mut commands: Commands,
 ) {
     let Ok(action) = buttons.get(activate.entity) else {
@@ -175,9 +203,16 @@ pub(crate) fn on_portal_action(
                 id: action.id.clone(),
             });
         }
-        PortalActionKind::Uninstall => commands.trigger(UninstallPortalMod {
-            id: action.id.clone(),
-        }),
+        PortalActionKind::Uninstall => {
+            if !uninstall.armed_on(&action.id) {
+                *uninstall = UninstallStep::Confirm(action.id.clone());
+                return;
+            }
+            *uninstall = UninstallStep::Idle;
+            commands.trigger(UninstallPortalMod {
+                id: action.id.clone(),
+            });
+        }
         PortalActionKind::Update => {
             if !catalog_ready {
                 warn!(
@@ -205,6 +240,22 @@ pub(crate) fn on_portal_action(
                 jobs.0.remove(&action.id);
             }
         }
+    }
+}
+
+/// Disarm Uninstall when any button but an Uninstall is pressed: a tab, a row,
+/// Back, Enable. The armed prompt belongs to one decision, and moving on from
+/// it is a no.
+pub(crate) fn disarm_uninstall_on_other_press(
+    activate: On<Activate>,
+    actions: Query<&PortalAction>,
+    mut step: ResMut<UninstallStep>,
+) {
+    let on_uninstall = actions
+        .get(activate.entity)
+        .is_ok_and(|action| action.kind == PortalActionKind::Uninstall);
+    if !on_uninstall && *step != UninstallStep::Idle {
+        *step = UninstallStep::Idle;
     }
 }
 
@@ -403,17 +454,30 @@ pub(crate) fn spawn_portal_button(
     id: &str,
     kind: PortalActionKind,
 ) {
+    spawn_portal_slot(row, name, id, kind, themed_button(label));
+}
+
+/// [`spawn_portal_button`] around a caller-built button.
+fn spawn_portal_slot(
+    row: &mut ChildSpawnerCommands,
+    name: &'static str,
+    id: &str,
+    kind: PortalActionKind,
+    button: impl Bundle,
+) {
     row.spawn((
         Name::new(format!("{name} Slot")),
         Node {
             width: px(140),
+            // A slot that shrank would move the next one under the pointer.
+            flex_shrink: 0.0,
             ..default()
         },
     ))
     .with_children(|slot| {
         slot.spawn((
             Name::new(name),
-            themed_button(label),
+            button,
             PortalAction {
                 id: id.to_string(),
                 kind,
@@ -421,6 +485,67 @@ pub(crate) fn spawn_portal_button(
             observe(on_portal_action),
         ));
     });
+}
+
+/// The Uninstall button of mod `id`: Uninstall, or a danger Confirm once the
+/// first press armed it ([`UninstallStep`]).
+pub(crate) fn spawn_uninstall_button(row: &mut ChildSpawnerCommands, id: &str, armed: bool) {
+    const NAME: &str = "Mod Details Uninstall Button";
+    if armed {
+        // Cancel takes the place Uninstall had, so the second press of a
+        // double click lands on it, not on Confirm. Any button but an
+        // Uninstall disarms, so it needs no handler of its own.
+        row.spawn((
+            Name::new("Mod Details Uninstall Cancel Slot"),
+            Node {
+                width: px(140),
+                flex_shrink: 0.0,
+                ..default()
+            },
+            children![(
+                Name::new("Mod Details Uninstall Cancel"),
+                button(ButtonSpec::new("Cancel")),
+            )],
+        ));
+        spawn_portal_slot(
+            row,
+            NAME,
+            id,
+            PortalActionKind::Uninstall,
+            button(ButtonSpec::new("Confirm").danger()),
+        );
+    } else {
+        spawn_portal_button(row, NAME, "Uninstall", id, PortalActionKind::Uninstall);
+    }
+}
+
+/// Narrowest width (px) the armed Uninstall sentence takes beside Confirm
+/// before it wraps to a row of its own.
+const UNINSTALL_PROMPT_MIN_W: f32 = 120.0;
+
+/// The sentence of an armed Uninstall, as the last item of its button row. It
+/// takes the width the buttons leave and wraps with the row, so arming adds
+/// no line of its own under the row: a line there fell below a short details
+/// pane, which does not scroll.
+pub(crate) fn spawn_uninstall_prompt(row: &mut ChildSpawnerCommands, prompt: String) {
+    row.spawn((
+        Name::new("Mod Details Uninstall Prompt"),
+        UiText,
+        Text::new(prompt),
+        TextFont {
+            font_size: FontSize::Px(13.0),
+            ..default()
+        },
+        TextColor(Color::NONE),
+        ThemedText::new(UiColor::Body),
+        Node {
+            flex_grow: 1.0,
+            flex_basis: px(UNINSTALL_PROMPT_MIN_W),
+            min_width: px(0),
+            align_self: AlignSelf::Center,
+            ..default()
+        },
+    ));
 }
 
 /// A progress/status text line in the details action area.
@@ -460,6 +585,7 @@ pub(crate) fn spawn_portal_actions(
     installed_version: Option<String>,
     updating: bool,
     catalog_ready: bool,
+    uninstall_prompt: Option<String>,
 ) {
     match job {
         Some(InstallStatus::Failed(reason)) => {
@@ -520,19 +646,17 @@ pub(crate) fn spawn_portal_actions(
                         Name::new("Mod Details Action Buttons"),
                         Node {
                             flex_direction: FlexDirection::Row,
+                            // A narrow pane wraps the last slot under the
+                            // row; the slots keep their width and place.
+                            flex_wrap: FlexWrap::Wrap,
                             column_gap: px(8),
+                            row_gap: px(8),
                             ..default()
                         },
                     ))
                     .with_children(|row| match installed_version {
                         Some(installed) => {
-                            spawn_portal_button(
-                                row,
-                                "Mod Details Uninstall Button",
-                                "Uninstall",
-                                id,
-                                PortalActionKind::Uninstall,
-                            );
+                            spawn_uninstall_button(row, id, uninstall_prompt.is_some());
                             if installed != remote_version {
                                 if catalog_ready {
                                     spawn_portal_button(
@@ -545,6 +669,9 @@ pub(crate) fn spawn_portal_actions(
                                 } else {
                                     offline_note = true;
                                 }
+                            }
+                            if let Some(prompt) = uninstall_prompt {
+                                spawn_uninstall_prompt(row, prompt);
                             }
                         }
                         None => {

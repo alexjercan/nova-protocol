@@ -1,17 +1,20 @@
-//! screenshot_interface: the TAB interface, Map, Ship, then Inventory panes
-//! (`wiki-interface-map.png`, `wiki-interface-ship.png`, and
-//! `wiki-interface-inventory.png`), and the 0.15.0 news loop of the same walk
-//! (`news-0150-tab-interface.webm`).
+//! screenshot_interface: the TAB interface, Map, Ship, Inventory, then Jobs
+//! panes (`wiki-interface-map.png`, `wiki-interface-ship.png`,
+//! `wiki-interface-inventory.png` and `interface-jobs.png`), and the 0.15.0
+//! news loop of the first three (`news-0150-tab-interface.webm`).
 //!
 //! It boots the range with traffic from `shared/computer.rs`. The loop opens
 //! over live flight, Tab opens the interface on the Map pane, and M steps to
 //! the Ship pane and to Inventory, all through the real keyboard path. Once
-//! the loop is written, M wraps back to Map and the walk steps through the
-//! three panes again for the stills: no still is shot while the loop records.
+//! the loop is written, M steps to Jobs for its still, then wraps back to Map
+//! and the walk steps through Map, Ship and Inventory again for the stills:
+//! no still is shot while the loop records. The next-pane cycle is Map, Ship,
+//! Inventory, Jobs, then Station only while docked. The range is never
+//! docked, so the Station pane is not walked.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
-//! - `NOVA_AUTOPILOT=1` alone: the smoke path - open all three panes twice,
-//!   exit clean, capturing nothing.
+//! - `NOVA_AUTOPILOT=1` alone: the smoke path - open the panes twice, exit
+//!   clean, capturing nothing.
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1`: also write the loop and the PNGs
 //!   (staged under `NOVA_CAPTURE_DIR`).
 //!
@@ -43,7 +46,7 @@ use computer::press_tab;
 #[derive(Parser)]
 #[command(name = "screenshot_interface")]
 #[command(version = "1.0.0")]
-#[command(about = "Capture the TAB interface Map, Ship, and Inventory panes. Autopilot-only: a scripted command walk", long_about = None)]
+#[command(about = "Capture the TAB interface Map, Ship, Inventory, and Jobs panes. Autopilot-only: a scripted command walk", long_about = None)]
 struct Cli;
 
 /// The news loop: Tab over live flight, then Map, Ship and Inventory.
@@ -112,8 +115,8 @@ fn shoot_pane(
         .add()
 }
 
-/// The walk: record the loop through the three panes, then step through them
-/// again for the stills.
+/// The walk: record the loop through Map, Ship and Inventory, then shoot Jobs
+/// and step through the first three again for the stills.
 #[cfg(feature = "debug")]
 fn interface_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     let script = nova_protocol::nova_debug::harness::AutopilotPlugin::<GameStates>::new()
@@ -153,7 +156,11 @@ fn interface_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
         .deadline(60.0)
         .add();
 
-    // M wraps Inventory -> Map, so the stills walk the same three panes.
+    // M steps Inventory -> Jobs, and Jobs -> Map while the ship is not docked.
+    let script = shoot_pane(
+        next_pane(script, InterfacePaneType::Jobs),
+        "interface-jobs.png",
+    );
     let script = shoot_pane(
         next_pane(script, InterfacePaneType::Map),
         "wiki-interface-map.png",

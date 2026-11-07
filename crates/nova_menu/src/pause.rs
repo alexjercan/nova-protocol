@@ -37,11 +37,11 @@ use crate::{
 };
 use crate::{
     settings::{
-        build_settings_tabs, FocusPauseSetting, PauseSettingsPanel, SettingsActiveTab,
-        SettingsTabBody, SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT, SETTINGS_PANEL_MAX_W,
-        SETTINGS_PANEL_WIDTH_PCT,
+        build_settings_tabs, FocusPauseSetting, PauseSettingsPanel, ResetBindingsStep,
+        SettingsActiveTab, SettingsTabBody, SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT,
+        SETTINGS_PANEL_MAX_W, SETTINGS_PANEL_WIDTH_PCT,
     },
-    widgets::{back_button, button, button_variant},
+    widgets::{back_button, button, button_variant, close_screen, play_back_cue, BACK_PAD_BUTTON},
 };
 
 /// ESC (or the gamepad Start button) toggles the pause overlay. Plain
@@ -55,6 +55,9 @@ pub(crate) fn toggle_pause(
     gamepads: Query<&Gamepad>,
     escape_owner: Option<Res<EscapeOwner>>,
     rebind: Option<Res<crate::settings::PendingRebind>>,
+    input_mode: Option<Res<InputMode>>,
+    mut reset: Option<ResMut<ResetBindingsStep>>,
+    mut settings_panel: Query<&mut Visibility, With<PauseSettingsPanel>>,
     current: Res<State<PauseStates>>,
     mut next: ResMut<NextState<PauseStates>>,
     bank: Option<Res<SoundBank<UiSfx>>>,
@@ -77,6 +80,38 @@ pub(crate) fn toggle_pause(
     if rebind.is_some_and(|rebind| rebind.is_armed()) {
         return;
     }
+    // Off the `Gamepad` COMPONENT: bevy 0.19 registers no
+    // `ButtonInput<GamepadButton>` resource, so the `Option<Res<..>>` this used
+    // to ask for was `None` on every real run and Start never paused anything.
+    let pad = gamepads
+        .iter()
+        .any(|pad| pad.digital().just_pressed(GamepadButton::Start));
+    let pressed = keys.just_pressed(KeyCode::Escape) || pad;
+    // The pad's back button peels a screen but never opens or resumes the
+    // pause: in flight it is a bindable button.
+    let pad_back = gamepads
+        .iter()
+        .any(|pad| pad.digital().just_pressed(BACK_PAD_BUTTON));
+    // The Settings screen is a layer of the pause overlay: Escape peels it off
+    // and the game stays paused, the next Escape resumes. A text field in it
+    // owns its own Escape, and an armed Reset Defaults is cancelled first.
+    if (pressed || pad_back) && *current.get() == PauseStates::Paused {
+        if let Ok(mut panel) = settings_panel.single_mut() {
+            if *panel != Visibility::Hidden {
+                if input_mode.is_some_and(|mode| *mode >= InputMode::Insert) {
+                    return;
+                }
+                match reset.as_deref_mut() {
+                    Some(step) if *step == ResetBindingsStep::Confirm => {
+                        *step = ResetBindingsStep::Idle;
+                    }
+                    _ => close_screen(&mut panel),
+                }
+                play_back_cue(&mut commands, bank.as_deref());
+                return;
+            }
+        }
+    }
     // A shown outcome frame is its own paused modal (`sync_outcome_pause` holds the app
     // in `Paused` while `CurrentOutcome` is set), with its own Continue/Retry/Main Menu
     // buttons: ESC/Start must not toggle here, or it would either resume the sim behind
@@ -91,13 +126,7 @@ pub(crate) fn toggle_pause(
     if failure.is_some_and(|failure| failure.0.is_some()) {
         return;
     }
-    // Off the `Gamepad` COMPONENT: bevy 0.19 registers no
-    // `ButtonInput<GamepadButton>` resource, so the `Option<Res<..>>` this used
-    // to ask for was `None` on every real run and Start never paused anything.
-    let pad = gamepads
-        .iter()
-        .any(|pad| pad.digital().just_pressed(GamepadButton::Start));
-    if keys.just_pressed(KeyCode::Escape) || pad {
+    if pressed {
         let destination = match current.get() {
             PauseStates::Unpaused => PauseStates::Paused,
             PauseStates::Paused => PauseStates::Unpaused,
@@ -647,7 +676,7 @@ pub(crate) fn on_pause_settings_back(
     _activate: On<Activate>,
     mut panel: Single<&mut Visibility, With<PauseSettingsPanel>>,
 ) {
-    **panel = Visibility::Hidden;
+    close_screen(&mut panel);
 }
 
 pub(crate) fn on_resume(_activate: On<Activate>, mut next: ResMut<NextState<PauseStates>>) {

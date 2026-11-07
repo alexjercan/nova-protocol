@@ -9,9 +9,10 @@
 
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
+use nova_input::prelude::{gamepad_label, InputDeviceType};
 use nova_ui::{
     theme::UiColor,
-    widget::{menu_button, ButtonSpec, ButtonVariant, ThemedText, UiText},
+    widget::{menu_button, ButtonSpec, ButtonVariant, KeyChipLabel, ThemedText, UiText},
 };
 
 /// Marks menu-family buttons (main menu, pause, outcome, mods checkbox) so the
@@ -30,6 +31,30 @@ pub(crate) struct MenuSfxButton;
 #[derive(Component)]
 pub(crate) struct MenuSfxBack;
 
+/// Marks the root of a main-menu screen that sits over the menu card: Settings,
+/// Mods, Scenarios, Load and Lessons. Back hides it, and so does Escape
+/// ([`back_out_of_the_menu_screen`](crate::back_out::back_out_of_the_menu_screen)).
+#[derive(Component)]
+pub(crate) struct MenuScreen;
+
+/// Hide a menu screen: the body of every Back button that closes one.
+pub(crate) fn close_screen(visibility: &mut Visibility) {
+    *visibility = Visibility::Hidden;
+}
+
+/// Play the cue of a button that pops its screen, for the Escape answers that
+/// have no button to press.
+pub(crate) fn play_back_cue(commands: &mut Commands, bank: Option<&SoundBank<UiSfx>>) {
+    let Some(bank) = bank else {
+        return;
+    };
+    commands.play_sfx(
+        bank.get(UiSfx::MenuBack),
+        AudioRoute::Interface,
+        MENU_BACK_VOLUME,
+    );
+}
+
 /// Play a menu button's press cue. One global observer covers every menu and
 /// pause-overlay button - the `button()` helper always carries
 /// [`MenuSfxButton`] - and [`MenuSfxBack`] selects the inverted voice. A
@@ -43,15 +68,18 @@ pub(crate) fn on_menu_button_activate(
     let Ok(back) = q_button.get(activate.entity) else {
         return;
     };
+    if back {
+        play_back_cue(&mut commands, bank.as_deref());
+        return;
+    }
     let Some(bank) = bank else {
         return;
     };
-    let (key, volume) = if back {
-        (UiSfx::MenuBack, MENU_BACK_VOLUME)
-    } else {
-        (UiSfx::MenuSelect, MENU_SELECT_VOLUME)
-    };
-    commands.play_sfx(bank.get(key), AudioRoute::Interface, volume);
+    commands.play_sfx(
+        bank.get(UiSfx::MenuSelect),
+        AudioRoute::Interface,
+        MENU_SELECT_VOLUME,
+    );
 }
 
 /// The menu's own CUE systems - today the focus tick, which is the whole of
@@ -134,21 +162,64 @@ pub(crate) fn danger_button(text: &str) -> impl Bundle {
     )
 }
 
+/// The key a back-out answers to. Escape is fixed by design (see
+/// `toggle_pause`), so the chip may name it as a literal.
+pub(crate) const BACK_KEY: &str = "Esc";
+
+/// The pad button a back-out answers to, fixed like [`BACK_KEY`].
+pub(crate) const BACK_PAD_BUTTON: GamepadButton = GamepadButton::East;
+
+/// Name the back-out input of the device the player pressed last on every
+/// [`back_button`] chip: [`BACK_KEY`] at the desk, [`BACK_PAD_BUTTON`] on a
+/// pad. Repaints on a device change and on a new button.
+pub(crate) fn refresh_back_keys(
+    device: Res<InputDeviceType>,
+    q_new: Query<(), Added<MenuSfxBack>>,
+    q_back: Query<Entity, With<MenuSfxBack>>,
+    q_children: Query<&Children>,
+    mut q_label: Query<&mut Text, With<KeyChipLabel>>,
+) {
+    if !device.is_changed() && q_new.is_empty() {
+        return;
+    }
+    let key = match *device {
+        InputDeviceType::Desk => BACK_KEY.to_string(),
+        InputDeviceType::Pad => gamepad_label(BACK_PAD_BUTTON),
+    };
+    for button in &q_back {
+        for node in q_children.iter_descendants(button) {
+            if let Ok(mut text) = q_label.get_mut(node) {
+                if text.0 != key {
+                    text.0.clone_from(&key);
+                }
+            }
+        }
+    }
+}
+
 /// A menu button that pops the panel it sits on: [`button`] plus the
-/// [`MenuSfxBack`] marker that swaps its voice.
+/// [`MenuSfxBack`] marker that swaps its voice, and a trailing [`BACK_KEY`]
+/// chip because Escape runs it. A button that pops but is not the one Escape
+/// runs is a plain [`button`] with [`MenuSfxBack`].
 pub(crate) fn back_button(text: &str) -> impl Bundle {
-    (button(text), MenuSfxBack)
+    (
+        button_variant(text, ButtonVariant::Default, Some(BACK_KEY)),
+        MenuSfxBack,
+    )
 }
 
 /// A details pane's button row. `justify` puts the slots at the pane's start
-/// (a list's details) or its end (a modal's commit row).
+/// (a list's details) or its end (a modal's commit row). The row wraps, so a
+/// narrow pane drops a button to the next line instead of clipping it.
 pub(crate) fn actions_row(name: &'static str, justify: JustifyContent) -> impl Bundle {
     (
         Name::new(name),
         Node {
             flex_direction: FlexDirection::Row,
+            flex_wrap: FlexWrap::Wrap,
             justify_content: justify,
             column_gap: px(8),
+            row_gap: px(8),
             margin: UiRect::top(px(12)),
             ..default()
         },

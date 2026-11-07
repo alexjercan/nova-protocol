@@ -23,7 +23,7 @@
 //! other (see `keep_the_prompt_clear_of_the_dock`).
 
 use bevy::prelude::*;
-use nova_input::prelude::InputBindings;
+use nova_input::prelude::{InputBindings, InputDeviceType};
 use nova_ui::{
     hud::{chip_paint, ChipText, ChipTone},
     theme,
@@ -124,19 +124,20 @@ fn spawn_cinematic_prompt(mut commands: Commands) {
 fn sync_cinematic_prompt(
     prompt: Res<CinematicPrompt>,
     bindings: Res<InputBindings>,
+    device: Res<InputDeviceType>,
     mut q_row: Query<&mut Visibility, With<CinematicPromptMarker>>,
     mut q_text: Query<&mut Text, With<CinematicPromptText>>,
 ) {
-    // Every bound source, not the keyboard column: `cinematic_skip` ships a pad
-    // default, and a rebind can empty the keyboard column while leaving the
-    // action perfectly reachable. Reading `keyboard` alone told a pad player to
-    // press ENTER, and hid the prompt entirely for a keyboardless binding whose
-    // skip still fired.
+    // The source on the device the player pressed last, else the other
+    // device's: `cinematic_skip` ships a pad default, and a rebind can empty
+    // the keyboard column while leaving the action perfectly reachable.
+    // Reading `keyboard` alone told a pad player to press ENTER, and hid the
+    // prompt entirely for a keyboardless binding whose skip still fired.
     let label = prompt
         .skip_action
         .as_deref()
         .and_then(|action| bindings.get(action))
-        .and_then(|action| action.sources().next())
+        .and_then(|action| action.hint_source(*device))
         .map(|source| source.glyph_label());
     for mut visibility in &mut q_row {
         *visibility = match label {
@@ -202,6 +203,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.init_resource::<CinematicPrompt>();
+        app.init_resource::<InputDeviceType>();
         app.insert_resource(InputBindings::from_actions([
             ActionBinding::new("scenario_advance", "SCENARIO", "Advance")
                 .keyboard([InputSource::Keyboard(KeyCode::Enter)]),

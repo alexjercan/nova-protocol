@@ -48,6 +48,8 @@ the stall semantics.
 | `NOVA_AUTOPILOT_DEADLINE` | seconds before the completion watcher error-exits naming the laggards | harness |
 | `NOVA_CAPTURE` | puts a script on its CAPTURE path - its shot beats write PNGs, its loops record. Also makes the settings store INERT | harness |
 | `NOVA_CAPTURE_DIR` | directory relative capture paths stage under; absolute paths ignore it | harness |
+| `NOVA_CAPTURE_SIZE` | capture window size as `<width>x<height>`, in place of 1920x1080; a malformed value panics | harness |
+| `NOVA_CAPTURE_UI_SCALE` | interface scale of a scripted run: `75`, `100`, `125` or `150`, the Settings steps; any other value panics | harness |
 
 `NOVA_CAPTURE` arms the SHOTS, never a driver, so a capturing run sets
 `NOVA_AUTOPILOT` too and one script owns the window. `NOVA_CAPTURE_DIR` is also

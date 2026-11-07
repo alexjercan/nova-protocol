@@ -165,3 +165,83 @@ fn a_station_buy_posts_a_done_notice_that_clicks_once_and_clears_after_its_dwell
         "the dwell plays nothing more"
     );
 }
+
+/// Every text under the entity named `name`, depth first.
+fn texts_under(world: &mut World, name: &str) -> Vec<String> {
+    let root = world
+        .query::<(Entity, &Name)>()
+        .iter(world)
+        .find(|(_, n)| n.as_str() == name)
+        .map(|(entity, _)| entity)
+        .unwrap_or_else(|| panic!("a node named {name}"));
+    let mut texts = Vec::new();
+    let mut stack = vec![root];
+    while let Some(entity) = stack.pop() {
+        if let Some(text) = world.get::<Text>(entity) {
+            texts.push(text.0.clone());
+        }
+        if let Some(children) = world.get::<Children>(entity) {
+            stack.extend(children.iter());
+        }
+    }
+    texts
+}
+
+/// The first press on Buy station arms it and spends nothing: the button
+/// reads Confirm and a line asks `Buy STATION for 100 cr?`. The second press
+/// buys.
+#[test]
+fn buying_a_station_needs_a_second_press() {
+    use bevy::ui_widgets::Activate;
+
+    let mut app = station_app();
+    app.insert_resource(crate::icons::InterfaceIcons::blank());
+    app.add_systems(
+        Update,
+        update_station_sale_block.before(apply_station_buy_commands),
+    );
+    app.world_mut()
+        .commands()
+        .spawn(Node::default())
+        .with_children(spawn_station_sale_block);
+    app.world_mut().flush();
+    let player = dock_at_station(app.world_mut(), Allegiance::Player);
+    app.update();
+    app.update();
+
+    let press = |app: &mut App| {
+        let button = app
+            .world_mut()
+            .query::<(Entity, &Name)>()
+            .iter(app.world())
+            .find(|(_, name)| name.as_str() == STATION_BUY_BUTTON)
+            .map(|(entity, _)| entity)
+            .expect("the Buy button");
+        app.world_mut().trigger(Activate { entity: button });
+        app.update();
+        app.update();
+    };
+
+    press(&mut app);
+    assert_eq!(
+        app.world().get::<ShipCredits>(player),
+        Some(&ShipCredits(100)),
+        "the first press spends nothing"
+    );
+    assert_eq!(notice(&app), None, "the first press buys nothing");
+    let texts = texts_under(app.world_mut(), STATION_BUY_BUTTON);
+    assert!(texts.iter().any(|text| text == "Confirm"), "{texts:?}");
+    let asked = app
+        .world_mut()
+        .query::<&Text>()
+        .iter(app.world())
+        .any(|text| text.0 == "Buy STATION for 100 cr?");
+    assert!(asked, "the line names the station and the price");
+
+    press(&mut app);
+    assert_eq!(
+        app.world().get::<ShipCredits>(player),
+        Some(&ShipCredits(0)),
+        "the second press buys"
+    );
+}

@@ -47,7 +47,7 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
     theme::UiColor,
-    widget::{ButtonSpec, ThemedBorder, ThemedFill, ThemedText, Tooltip},
+    widget::{ButtonSpec, ThemedBorder, ThemedFill, ThemedRadius, ThemedText, Tooltip},
 };
 
 use super::{loot_text, take_loot, InventoryRuntime, InventoryShips};
@@ -462,11 +462,11 @@ pub(crate) fn spawn_strip_block(panel: &mut ChildSpawnerCommands) {
                 row_gap: Val::Px(4.0),
                 padding: UiRect::all(Val::Px(6.0)),
                 border: UiRect::all(Val::Px(1.0)),
-                border_radius: BorderRadius::all(Val::Px(4.0)),
                 ..default()
             },
             BorderColor::all(Color::NONE),
             ThemedBorder::alpha(UiColor::Accent, 0.45),
+            ThemedRadius::control(),
         ))
         .with_children(|block| {
             block
@@ -548,12 +548,12 @@ fn spawn_meter_row(
                     flex_grow: 1.0,
                     min_width: Val::Px(24.0),
                     height: Val::Px(8.0),
-                    border_radius: BorderRadius::all(Val::Px(4.0)),
                     overflow: Overflow::clip(),
                     ..default()
                 },
                 BackgroundColor(Color::NONE),
                 ThemedFill::alpha(UiColor::Secondary, 0.25),
+                ThemedRadius::control(),
             ))
             .with_children(|track| {
                 track.spawn((

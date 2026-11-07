@@ -152,7 +152,10 @@ pub fn phosphor_theme() -> UiThemeConfig {
         metrics: Some(UiMetrics {
             border_width: 1.0,
             radius: 2.0,
-            panel_radius: 10.0,
+            // The same hard corner as a control: a phosphor panel is a drawn
+            // frame on a screen, and a soft card corner beside 2 px buttons
+            // read as two design languages.
+            panel_radius: 2.0,
         }),
         roles: UiRoles {
             button: Some(phosphor_button(

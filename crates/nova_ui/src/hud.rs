@@ -44,9 +44,10 @@ pub const CHIP_FILL_QUIET: Color = Color::srgba(0.008, 0.055, 0.031, 0.5);
 /// The chip border's alpha over its tone colour (demo: `0.34`).
 pub const CHIP_BORDER_ALPHA: f32 = 0.34;
 
-/// The chip corner radius (px) - the demo's 3px, sharper than the NOVA OS
-/// panels because a HUD chip is a projected readout, not a physical panel.
-pub const CHIP_RADIUS: f32 = 3.0;
+/// The chip corner radius (px): the hard corner the phosphor controls and
+/// panels carry, because a HUD chip is a projected readout, not a physical
+/// panel.
+pub const CHIP_RADIUS: f32 = 2.0;
 
 /// The chip's default text size (px). The speed chip overrides it upward; the
 /// small labels (`.lab`, `.who`) use [`CHIP_LABEL_FONT`].

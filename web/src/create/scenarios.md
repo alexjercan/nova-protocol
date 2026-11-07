@@ -95,7 +95,8 @@ ranges in the handbook show:
   verb the player must not press is never drawn.
 - It posts ONE objective at a time, one short imperative line, completed before
   the next is posted. The objective chip is a notification that leaves once it
-  has been read, so the REASON goes to the comms stack in a
+  has been read ([`ObjectiveChipHold`](../actions/#objectivechiphold) is the
+  one exception), so the REASON goes to the comms stack in a
   [`NarrativeCue`](../actions/#narrativecue) from the range's own voice, not
   onto the board.
 - It lights the verb in hand with

@@ -59,6 +59,12 @@ pub(crate) fn spawn_hull_info_button(
     );
 }
 
+/// Leave the hull Info for the Station pane. The header's Close and Escape run
+/// this; [`end_hull_info`] then clears [`ShipViewSubject`].
+pub(crate) fn close_hull_info(pane: &mut InterfacePaneType) {
+    *pane = InterfacePaneType::Station;
+}
+
 /// Clear [`ShipViewSubject`] once the Ship pane is not on screen, and drop a
 /// subject that no longer exists.
 pub(crate) fn end_hull_info(
@@ -122,7 +128,7 @@ pub(crate) fn sync_hull_info_header(
                      mut pane: ResMut<InterfacePaneType>,
                      bank: Option<Res<SoundBank<UiSfx>>>,
                      mut commands: Commands| {
-                        *pane = InterfacePaneType::Station;
+                        close_hull_info(&mut pane);
                         play_menu_select(&mut commands, bank.as_deref());
                     },
                 );
