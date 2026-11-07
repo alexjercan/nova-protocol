@@ -21,7 +21,7 @@ use bevy::{
 
 use super::{Selected, UiText};
 use crate::theme::{
-    ActiveUiTheme, ButtonState, ResolvedState, ThemeButton, UiColor, UiMetric, BORDER_W,
+    density, ActiveUiTheme, ButtonState, ResolvedState, ThemeButton, UiColor, UiMetric, BORDER_W,
 };
 
 /// Marks a themed button so the colour observers + theme reconciler pick it up.
@@ -405,6 +405,10 @@ pub struct ButtonSpec {
     pub min_height: f32,
     /// Label font size in px.
     pub font_size: f32,
+    /// Never wrap the label, so a squeezed bar cannot fold it onto two lines.
+    pub one_line: bool,
+    /// No outer margin and a thin inside one, for a tool surface.
+    pub dense: bool,
 }
 
 impl ButtonSpec {
@@ -419,7 +423,21 @@ impl ButtonSpec {
             compact: false,
             min_height: 34.0,
             font_size: 14.0,
+            one_line: false,
+            dense: false,
         }
+    }
+
+    /// The size of a control on a tool surface: see [`density`]. It fits its
+    /// label and stays on one line.
+    pub fn dense(mut self) -> Self {
+        self.dense = true;
+        self.compact = true;
+        self.fit = true;
+        self.one_line = true;
+        self.min_height = density::CONTROL_H;
+        self.font_size = density::TEXT;
+        self
     }
 
     /// Size to the label rather than filling the row.
@@ -428,6 +446,12 @@ impl ButtonSpec {
     /// turns a bar of segments into a stack of them.
     pub fn fit(mut self) -> Self {
         self.fit = true;
+        self
+    }
+
+    /// Keep the label on one line.
+    pub fn one_line(mut self) -> Self {
+        self.one_line = true;
         self
     }
 
@@ -486,8 +510,12 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
         compact,
         min_height,
         font_size,
+        one_line,
+        dense,
     } = spec;
-    let padding = if compact {
+    let padding = if dense {
+        UiRect::axes(px(7), px(1))
+    } else if compact {
         UiRect::axes(px(7), px(4))
     } else {
         UiRect::axes(px(12), px(6))
@@ -503,7 +531,11 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
         Node {
             width: if fit { Val::Auto } else { percent(100) },
             min_height: px(min_height),
-            margin: UiRect::vertical(px(4)),
+            margin: if dense {
+                UiRect::ZERO
+            } else {
+                UiRect::vertical(px(4))
+            },
             padding,
             // The border WIDTH is layout, so it is set here; its colour, the
             // fill and the radius are the theme's and land on the reconciler's
@@ -543,6 +575,14 @@ pub fn button(spec: ButtonSpec) -> impl Bundle {
                     ButtonLabel,
                     UiText,
                     Text::new(text),
+                    TextLayout {
+                        linebreak: if one_line {
+                            LineBreak::NoWrap
+                        } else {
+                            LineBreak::WordBoundary
+                        },
+                        ..default()
+                    },
                     TextFont {
                         font_size: FontSize::Px(font_size),
                         ..default()

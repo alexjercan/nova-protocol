@@ -8,6 +8,25 @@ If you still need the folder or manifest, start with [Mod files](../mod-files/).
 For content authoring, use [Create your first scenario](../author-a-scenario/),
 [Campaign files](../campaigns/), or [Ship sections for mods](../sections/).
 
+## Package from the editor
+
+A mod built in the editor does not need the manual steps in section 1.
+**File > Package** checks the mod and writes `<id>-<version>.zip` under the
+`exports/` folder in the game's data directory. The window names the full path.
+The `editor_` prefix goes: the mod `editor_red-run` at version `0.1.0` writes
+`red-run-0.1.0.zip`, and its dependencies on other editor mods change the same
+way.
+
+The zip holds the folder that section 1 describes, with the files at its root.
+Extract it to `webmods/<id>/` and go on at section 2. You can also send it as it
+is: **Import** on the Mod Hub installs it.
+
+An error stops Package, and the Problems tab lists every finding. A dependency
+that is not installed blocks Package, but it does not block Save.
+Import refuses a zip with an entry that leaves the folder, an absolute entry, or
+no manifest. It asks first when the mod id is installed already. Package and
+Import need a disk, so the browser build does not have them.
+
 ## 1. Prepare the release folder
 
 Portal source mods live at `webmods/<id>/`. The directory name is the public mod

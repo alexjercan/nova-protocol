@@ -273,6 +273,7 @@ fn map_scenario(game_assets: &GameAssets, pilot: Pilot) -> ScenarioConfig {
         description: "Belt map and sight-line bench".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

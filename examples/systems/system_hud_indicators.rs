@@ -455,6 +455,7 @@ fn hud_indicators_scenario(game_assets: &GameAssets, sections: &GameSections) ->
 
     let events = vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],

@@ -317,6 +317,7 @@ fn shell_range(
         description: "One player hull for the HUD shell range.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

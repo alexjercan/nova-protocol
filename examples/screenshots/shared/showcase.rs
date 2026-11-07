@@ -135,6 +135,7 @@ pub fn section_ship(game_assets: &GameAssets, sections: &GameSections) -> Scenar
         description: "A ship carrying every section type for the wiki shots.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

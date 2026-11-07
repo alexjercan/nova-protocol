@@ -24,17 +24,22 @@ use nova_world::prelude::{desired_sectors, SectorRoot, WorldClock, WorldConfig};
 /// `target/example-profiles/`, so no player's saved world is in the way and
 /// nothing this run does touches it. Call it first in `main`.
 pub fn isolate_the_profile(crate_name: &str) {
-    std::env::set_var(
-        nova_assets::storage::CONFIG_ROOT_ENV,
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
-            "target/example-profiles/{crate_name}-{}-{}",
-            std::process::id(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .expect("the clock is after 1970")
-                .as_nanos(),
-        )),
-    );
+    let profile = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(format!(
+        "target/example-profiles/{crate_name}-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("the clock is after 1970")
+            .as_nanos(),
+    ));
+    std::env::set_var(nova_assets::storage::CONFIG_ROOT_ENV, &profile);
+    // Saves land here too: an editor walk's Ctrl+S is a real save.
+    if std::env::var_os(nova_assets::mod_cache::MOD_CACHE_ROOT_ENV).is_none() {
+        std::env::set_var(
+            nova_assets::mod_cache::MOD_CACHE_ROOT_ENV,
+            profile.join("data"),
+        );
+    }
 }
 
 /// Starts New Game on `seed` as start role `role` the first time the main
@@ -607,4 +612,33 @@ pub fn hold_the_walk_clock(mut time: ResMut<Time<Virtual>>) {
     if time.max_delta() != clamp {
         time.set_max_delta(clamp);
     }
+}
+
+/// Open the hub row `row`: press it to mark it, then Enter. A double click on a
+/// software GPU spans two frames that each outlast the double-click window, so
+/// a walk takes the keyboard's way to the same open.
+pub fn open_hub_row(
+    script: nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>,
+    label: &str,
+    row: &str,
+    landed: std::sync::Arc<nova_protocol::nova_debug::harness::Predicate>,
+    secs: f32,
+) -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    use nova_protocol::nova_debug::prelude::{frames, pointer_released, press_key, release_key};
+    script
+        .click_named(
+            &format!("{label}: mark the row"),
+            row,
+            pointer_released(),
+            secs,
+        )
+        .step(format!("{label}: press Enter"))
+        .on_enter(press_key(KeyCode::Enter))
+        .until(landed)
+        .deadline(secs)
+        .add()
+        .step(format!("{label}: let Enter go"))
+        .on_enter(release_key(KeyCode::Enter))
+        .until(frames(2))
+        .add()
 }

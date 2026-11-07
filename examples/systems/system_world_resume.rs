@@ -415,6 +415,7 @@ fn register_fixture_scenario(mut scenarios: ResMut<GameScenarios>) {
     );
     scenario.events.push(ScenarioEventConfig {
         label: Some("count once".to_string()),
+        position: None,
         name: EventConfig::OnUpdate,
         once: true,
         filters: vec![],
@@ -428,6 +429,7 @@ fn register_fixture_scenario(mut scenarios: ResMut<GameScenarios>) {
     });
     scenario.events.push(ScenarioEventConfig {
         label: Some("the fixture timer ends".to_string()),
+        position: None,
         name: EventConfig::OnTimerEnd,
         once: true,
         filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -443,6 +445,7 @@ fn register_fixture_scenario(mut scenarios: ResMut<GameScenarios>) {
     assert_eq!(scenario.events.len(), TIMER_END_HANDLER + 1);
     scenario.events.push(ScenarioEventConfig {
         label: Some("start the fixture timer".to_string()),
+        position: None,
         name: EventConfig::OnUpdate,
         once: true,
         filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(

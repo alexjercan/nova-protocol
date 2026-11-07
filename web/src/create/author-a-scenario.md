@@ -8,15 +8,22 @@ This page teaches one happy path. Use the
 [modding reference](../reference/) when you need the complete list of events,
 filters, actions, objects, and expression nodes.
 
-There is a second way in. Sandbox, on the main menu, opens the editor. SCENE and
+There is a second way in. **Sandbox**, on the main menu, opens the Mod Hub.
+Create a mod there, and its first scenario opens in the editor. SCENE and
 EVENTS are two MODES of it: SCENE lays out the range beside the Inspector, and
-EVENTS gives the whole window to the same script this page writes by hand - a
-row per handler, its filters and actions under it, and a condition as the
-operator with its two sides hanging beneath. Save writes it as an ordinary mod: one bundle
-per range you name, under an `editor_`-prefixed id derived from the name. The
-editor opens and overwrites nothing without that prefix, so a hand-authored mod
-like the one below is out of its reach and the two paths never fight over a
-file. Read on for what the rows mean either way.
+EVENTS draws the same script this page writes by hand as blocks that fit
+together. Drag a block off the palette and every place it fits lights up. A
+handler is a cap with a stack of actions under it, a sequence wraps its steps,
+a filter is a six-sided block, and a value is a round one, so the shape tells
+you what goes where. Fill a value on its block, and a block's `...` chip opens a
+pop-up with every field. A handler alone stands on the bare canvas, and dropping a
+block on the palette deletes it. An empty socket is a Problem, and it stops
+Play and Save until you fill it. The Assets tab adds more scenarios to the same
+mod. Save writes an ordinary mod under an `editor_`-prefixed id
+derived from its name. The editor opens and overwrites nothing without that
+prefix, so a hand-authored mod like the one below stays out of its reach until
+you import it. See [The Mod Editor](../mod-editor/) for the panels, the keys and
+what an import keeps. Read on for what the blocks mean either way.
 
 ## 1. Start with the working example
 

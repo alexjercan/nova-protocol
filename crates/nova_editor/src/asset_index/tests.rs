@@ -237,3 +237,87 @@ fn a_direct_path_is_left_exactly_as_it_was_authored() {
 
     assert_eq!(resolved.cubemap.path(), Some("base/textures/cubemap.png"));
 }
+
+/// A world with base installed and a mod open that holds `resources`, under the
+/// id `id`, or unsaved.
+fn with_project(id: Option<&str>, resources: &[&str]) -> World {
+    let mut world = installed("base", &["textures/rock.png"]);
+    let mut project = ModProject::new(
+        id.map(str::to_string),
+        "Own",
+        "tester",
+        crate::template::ScenarioTemplate::Empty,
+    );
+    project.edit().resources = resources.iter().map(|file| (*file).to_string()).collect();
+    world.insert_resource(project);
+    world
+}
+
+/// A ref into the sandbox's own `sky`.
+fn sky_of(path: &str) -> ScenarioConfig {
+    ScenarioConfig::new(
+        "editor_sandbox".to_string(),
+        "Own".to_string(),
+        AssetRef::from(path),
+    )
+}
+
+/// With a mod open the panel knows who owns a `self://` ref, so it can judge
+/// one: what the mod declares resolves, and anything else is a typing error.
+#[test]
+fn a_self_ref_is_judged_against_the_open_mods_files() {
+    let mut world = with_project(Some("editor_own"), &["hull.glb"]);
+
+    let (held, missing) = world
+        .run_system_once(|files: AssetIndex| {
+            (
+                files.resolves("self://hull.glb#Scene0"),
+                files.resolves("self://gone.glb#Scene0"),
+            )
+        })
+        .expect("the index reads");
+
+    assert!(held, "the mod declares it");
+    assert!(!missing, "the mod does not declare it");
+}
+
+/// A self ref of a saved mod reaches the asset server through the source the
+/// merge resolves it to, with its scene label kept.
+#[test]
+fn a_self_ref_resolves_into_the_open_mods_folder() {
+    let mut world = with_project(Some("editor_own"), &["hull.glb"]);
+
+    let resolved = world
+        .run_system_once(|files: AssetIndex| files.resolved(sky_of("self://hull.glb#Scene0")))
+        .expect("the index reads");
+
+    assert_eq!(
+        resolved.cubemap.path(),
+        Some("mods://editor_own/hull.glb#Scene0")
+    );
+}
+
+/// A mod with no id has no folder. Its self ref stays literal and fails loudly,
+/// where an empty base would turn it into a bare path into the game's assets.
+#[test]
+fn a_mod_with_no_folder_leaves_a_self_ref_literal() {
+    let mut world = with_project(None, &["hull.glb"]);
+
+    let resolved = world
+        .run_system_once(|files: AssetIndex| files.resolved(sky_of("self://hull.glb#Scene0")))
+        .expect("the index reads");
+
+    assert_eq!(resolved.cubemap.path(), Some("self://hull.glb#Scene0"));
+}
+
+/// The picker lists the open mod's own models beside what it can reach.
+#[test]
+fn the_picker_offers_the_open_mods_own_files() {
+    let mut world = with_project(Some("editor_own"), &["hull.glb", "note.txt"]);
+
+    let offered = world
+        .run_system_once(|files: AssetIndex| files.offers(AssetSort::Model))
+        .expect("the index reads");
+
+    assert_eq!(offered, vec!["self://hull.glb#Scene0".to_string()]);
+}

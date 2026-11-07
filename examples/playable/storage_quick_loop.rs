@@ -214,6 +214,7 @@ fn storage(game_assets: &GameAssets) -> ScenarioConfig {
         description: "A tender and its own hauler docked at a depot".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

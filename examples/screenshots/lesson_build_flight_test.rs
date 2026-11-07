@@ -156,6 +156,7 @@ fn main() -> bevy::app::AppExit {
 
     // The same app the game's Sandbox button opens.
     let mut app = editor_app(true, None);
+    app.insert_resource(EditorOpensScratch);
 
     #[cfg(feature = "debug")]
     {

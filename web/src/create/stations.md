@@ -349,7 +349,7 @@ storage_cap_g: .., stock: .., credits: ..))`, the fields of `design` above.
 The lint checks an inline station as it checks a `Station` item. A station
 spawn takes no section patches.
 
-The Sandbox editor writes the same pair. A ship marked **Station** in its
+The editor writes the same pair. A ship marked **Station** in its
 inspector saves as a `Station` item under the ship's node id and a `Station`
 object that spawns it. The editor writes the hull and its side and fills the
 rest: the four services, a 100 kg storage cap, 5000 credits, and the base

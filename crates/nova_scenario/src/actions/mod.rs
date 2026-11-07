@@ -183,6 +183,7 @@ registry::scenario_actions! {
     /// Add a HUD objective by id.
     Objective(ObjectiveActionConfig) {
         label: "Objective",
+        category: Mission,
         stem: "objective",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -190,6 +191,7 @@ registry::scenario_actions! {
     /// Complete a HUD objective by id.
     ObjectiveComplete(ObjectiveCompleteActionConfig) {
         label: "Objective Complete",
+        category: Mission,
         stem: "complete",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -197,6 +199,7 @@ registry::scenario_actions! {
     /// Attach the gold objective marker chip to the scoped object by id.
     ObjectiveMarkerAttach(ObjectiveMarkerAttachActionConfig) {
         label: "Marker Attach",
+        category: Mission,
         stem: "marker",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -204,6 +207,7 @@ registry::scenario_actions! {
     /// Remove the objective marker chip from the scoped object by id.
     ObjectiveMarkerDetach(ObjectiveMarkerDetachActionConfig) {
         label: "Marker Detach",
+        category: Mission,
         stem: "unmarker",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -212,6 +216,7 @@ registry::scenario_actions! {
     /// comms panel.
     NarrativeCue(NarrativeCueActionConfig) {
         label: "Narrative Cue",
+        category: Mission,
         stem: "cue",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -220,6 +225,7 @@ registry::scenario_actions! {
     /// display half of the scenario-variable vocabulary.
     HudReadout(HudReadoutActionConfig) {
         label: "HUD Readout",
+        category: Mission,
         stem: "readout",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -227,6 +233,7 @@ registry::scenario_actions! {
     /// Keep one objective's HUD chip up until the objective leaves.
     ObjectiveChipHold(ObjectiveChipHoldActionConfig) {
         label: "Objective Chip Hold",
+        category: Mission,
         stem: "chiphold",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -234,6 +241,7 @@ registry::scenario_actions! {
     /// Pulse one keybind-dock chip gold.
     HintEmphasisSet(HintEmphasisSetActionConfig) {
         label: "Hint Emphasis",
+        category: Mission,
         stem: "hint",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -241,6 +249,7 @@ registry::scenario_actions! {
     /// Clear a keybind-dock chip's gold emphasis.
     HintEmphasisClear(HintEmphasisClearActionConfig) {
         label: "Hint Clear",
+        category: Mission,
         stem: "unhint",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -248,6 +257,7 @@ registry::scenario_actions! {
     /// Spawn a scenario object.
     SpawnScenarioObject(ScenarioObjectConfig) {
         label: "Spawn Object",
+        category: World,
         stem: "spawn",
         effect: Injection,
         inspect: Reflect,
@@ -255,6 +265,7 @@ registry::scenario_actions! {
     /// Spawn the player ship as the start role New Game picked.
     SpawnStartRole(StartRoleSpawnConfig) {
         label: "Spawn Start Role",
+        category: World,
         stem: "role",
         effect: Injection,
         inspect: Reflect,
@@ -262,6 +273,7 @@ registry::scenario_actions! {
     /// Spawn many scenario objects across a region (id-prefixed).
     ScatterObjects(ScatterObjectsConfig) {
         label: "Scatter Objects",
+        category: World,
         stem: "scatter",
         effect: Injection,
         inspect: Reflect,
@@ -269,6 +281,7 @@ registry::scenario_actions! {
     /// Despawn the scoped object whose id matches.
     DespawnScenarioObject(DespawnScenarioObjectActionConfig) {
         label: "Despawn Object",
+        category: World,
         stem: "despawn",
         effect: Injection,
         inspect: Reflect,
@@ -276,6 +289,7 @@ registry::scenario_actions! {
     /// Spawn a spherical sensor zone that drives `OnEnter`/`OnExit`.
     CreateScenarioArea(ScenarioAreaConfig) {
         label: "Create Area",
+        category: World,
         stem: "area",
         effect: Injection,
         inspect: Reflect,
@@ -283,6 +297,7 @@ registry::scenario_actions! {
     /// Swap the scenario's skybox cubemap mid-scenario (modding hook).
     SetSkybox(SetSkyboxActionConfig) {
         label: "Set Skybox",
+        category: World,
         stem: "sky",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -290,6 +305,7 @@ registry::scenario_actions! {
     /// Pose the scenario camera for a scripted shot (photo mode).
     SetCamera(SetCameraActionConfig) {
         label: "Set Camera",
+        category: Camera,
         stem: "camera",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -298,6 +314,7 @@ registry::scenario_actions! {
     /// it (a cinematic that keeps the player's ship in the shot).
     SetCameraAnchor(SetCameraAnchorActionConfig) {
         label: "Anchor Camera",
+        category: Camera,
         stem: "anchor",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -305,6 +322,7 @@ registry::scenario_actions! {
     /// Hand the scenario camera back to the player's chase rig.
     ReleaseCamera(ReleaseCameraActionConfig) {
         label: "Release Camera",
+        category: Camera,
         stem: "release",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -312,6 +330,7 @@ registry::scenario_actions! {
     /// Block human gameplay input and clear held ship intent.
     SuspendPlayerControl(SuspendPlayerControlActionConfig) {
         label: "Suspend Player Control",
+        category: Camera,
         stem: "suspend",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -319,6 +338,7 @@ registry::scenario_actions! {
     /// Restore human gameplay input after an explicit suspension.
     ResumePlayerControl(ResumePlayerControlActionConfig) {
         label: "Resume Player Control",
+        category: Camera,
         stem: "resume",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -326,6 +346,7 @@ registry::scenario_actions! {
     /// Play an authored sound cue.
     PlaySound(PlaySoundActionConfig) {
         label: "Play Sound",
+        category: World,
         stem: "sound",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -333,6 +354,7 @@ registry::scenario_actions! {
     /// Capture the primary window to a PNG (photo mode).
     Screenshot(ScreenshotActionConfig) {
         label: "Screenshot",
+        category: Camera,
         stem: "shot",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -340,6 +362,7 @@ registry::scenario_actions! {
     /// Enable or disable the STOP maneuver on a scoped ship by id.
     SetShipCapabilityStop(SetShipCapabilityStopActionConfig) {
         label: "Set Stop Capability",
+        category: Ships,
         stem: "capstop",
         effect: Injection,
         inspect: Reflect,
@@ -347,6 +370,7 @@ registry::scenario_actions! {
     /// Enable or disable the GOTO maneuver on a scoped ship by id.
     SetShipCapabilityGoto(SetShipCapabilityGotoActionConfig) {
         label: "Set Goto Capability",
+        category: Ships,
         stem: "capgoto",
         effect: Injection,
         inspect: Reflect,
@@ -354,6 +378,7 @@ registry::scenario_actions! {
     /// Enable or disable the ORBIT maneuver on a scoped ship by id.
     SetShipCapabilityOrbit(SetShipCapabilityOrbitActionConfig) {
         label: "Set Orbit Capability",
+        category: Ships,
         stem: "caporbit",
         effect: Injection,
         inspect: Reflect,
@@ -361,6 +386,7 @@ registry::scenario_actions! {
     /// Enable or disable target LOCK on a scoped ship by id.
     SetShipCapabilityLock(SetShipCapabilityLockActionConfig) {
         label: "Set Lock Capability",
+        category: Ships,
         stem: "caplock",
         effect: Injection,
         inspect: Reflect,
@@ -368,6 +394,7 @@ registry::scenario_actions! {
     /// Enable or disable RCS fine-adjust on a scoped ship by id.
     SetShipCapabilityRcs(SetShipCapabilityRcsActionConfig) {
         label: "Set RCS Capability",
+        category: Ships,
         stem: "caprcs",
         effect: Injection,
         inspect: Reflect,
@@ -375,6 +402,7 @@ registry::scenario_actions! {
     /// Enable or disable automatic POINT DEFENSE on a scoped ship by id.
     SetShipCapabilityPointDefense(SetShipCapabilityPointDefenseActionConfig) {
         label: "Set Point Defense Capability",
+        category: Ships,
         stem: "cappd",
         effect: Injection,
         inspect: Reflect,
@@ -382,6 +410,7 @@ registry::scenario_actions! {
     /// Overwrite a scoped ship's `Allegiance` at runtime (neutral-until-provoked).
     SetAllegiance(SetAllegianceActionConfig) {
         label: "Set Allegiance",
+        category: Combat,
         stem: "allegiance",
         effect: Injection,
         inspect: Reflect,
@@ -389,6 +418,7 @@ registry::scenario_actions! {
     /// Fly an ordered ship to an authored mark with the real autopilot.
     MoveShipTo(MoveShipToActionConfig) {
         label: "Move Ship To",
+        category: Ships,
         stem: "move",
         effect: Injection,
         inspect: Reflect,
@@ -396,6 +426,7 @@ registry::scenario_actions! {
     /// Turn an ordered ship's hull onto an authored bearing and hold it.
     ForceAlign(ForceAlignActionConfig) {
         label: "Force Align",
+        category: Ships,
         stem: "align",
         effect: Injection,
         inspect: Reflect,
@@ -403,6 +434,7 @@ registry::scenario_actions! {
     /// Bring an ordered ship to rest with the real STOP maneuver.
     StopShip(StopShipActionConfig) {
         label: "Stop Ship",
+        category: Ships,
         stem: "stop",
         effect: Injection,
         inspect: Reflect,
@@ -411,6 +443,7 @@ registry::scenario_actions! {
     /// counterpart to `StopShip`, and the only one a player hull accepts.
     ZeroShipMotion(ZeroShipMotionActionConfig) {
         label: "Zero Ship Motion",
+        category: Ships,
         stem: "still",
         effect: Injection,
         inspect: Reflect,
@@ -418,6 +451,7 @@ registry::scenario_actions! {
     /// Fly an ordered ship one loop of an authored route.
     PatrolShip(PatrolShipActionConfig) {
         label: "Patrol Ship",
+        category: Ships,
         stem: "patrol",
         effect: Injection,
         inspect: Reflect,
@@ -425,6 +459,7 @@ registry::scenario_actions! {
     /// Put an ordered ship into a station-keeping orbit and hold it.
     OrbitShip(OrbitShipActionConfig) {
         label: "Orbit Ship",
+        category: Ships,
         stem: "orbit",
         effect: Injection,
         inspect: Reflect,
@@ -432,6 +467,7 @@ registry::scenario_actions! {
     /// Release an ordered ship's helm and let it drift.
     ClearShipOrder(ClearShipOrderActionConfig) {
         label: "Clear Ship Order",
+        category: Ships,
         stem: "unorder",
         effect: Injection,
         inspect: Reflect,
@@ -439,6 +475,7 @@ registry::scenario_actions! {
     /// Give one generated AI trader a trade profile, or take it away.
     SetTradeProfile(SetTradeProfileActionConfig) {
         label: "Set Trade Profile",
+        category: Trade,
         stem: "trade_profile",
         effect: Injection,
         inspect: Reflect,
@@ -446,6 +483,7 @@ registry::scenario_actions! {
     /// Set or clear one AI ship's territorial leash.
     SetAILeash(SetAILeashActionConfig) {
         label: "Set AI Leash",
+        category: Combat,
         stem: "leash",
         effect: Injection,
         inspect: Reflect,
@@ -453,6 +491,7 @@ registry::scenario_actions! {
     /// Set or clear one AI ship's hostile-detection range.
     SetAIEngageRange(SetAIEngageRangeActionConfig) {
         label: "Set AI Engage Range",
+        category: Combat,
         stem: "engage",
         effect: Injection,
         inspect: Reflect,
@@ -460,6 +499,7 @@ registry::scenario_actions! {
     /// Set or clear one AI ship's point-defense range.
     SetAIPointDefenseRange(SetAIPointDefenseRangeActionConfig) {
         label: "Set AI PD Range",
+        category: Combat,
         stem: "pd",
         effect: Injection,
         inspect: Reflect,
@@ -467,6 +507,7 @@ registry::scenario_actions! {
     /// Fire one named railgun section of a scripted ship.
     ForceRailgunFire(ForceRailgunFireActionConfig) {
         label: "Railgun Fire",
+        category: Combat,
         stem: "railgun",
         effect: Injection,
         inspect: Reflect,
@@ -474,6 +515,7 @@ registry::scenario_actions! {
     /// Launch one named torpedo bay of a scripted ship at one named target.
     ForceTorpedoFire(ForceTorpedoFireActionConfig) {
         label: "Torpedo Fire",
+        category: Combat,
         stem: "torpedo",
         effect: Injection,
         inspect: Reflect,
@@ -481,6 +523,7 @@ registry::scenario_actions! {
     /// Switch unlimited ammunition on or off for a scoped ship's weapons by id.
     SetInfiniteAmmo(SetInfiniteAmmoActionConfig) {
         label: "Set Infinite Ammo",
+        category: Combat,
         stem: "unlimited",
         effect: Injection,
         inspect: Reflect,
@@ -488,6 +531,7 @@ registry::scenario_actions! {
     /// Refill a scoped ship's finite magazines by id, or one section of it.
     RefillAmmo(RefillAmmoActionConfig) {
         label: "Refill Ammo",
+        category: Combat,
         stem: "refill",
         effect: Injection,
         inspect: Reflect,
@@ -496,6 +540,7 @@ registry::scenario_actions! {
     /// overlay that says so.
     Outcome(OutcomeActionConfig) {
         label: "Outcome",
+        category: Flow,
         stem: "outcome",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -503,6 +548,7 @@ registry::scenario_actions! {
     /// Queue a switch to another scenario by id.
     NextScenario(NextScenarioActionConfig) {
         label: "Next Scenario",
+        category: Flow,
         stem: "next",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -510,6 +556,7 @@ registry::scenario_actions! {
     /// Report a menu backdrop's act as finished; the menu picks what plays next.
     BackdropDone(BackdropDoneActionConfig) {
         label: "Backdrop Done",
+        category: Flow,
         stem: "done",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -517,6 +564,7 @@ registry::scenario_actions! {
     /// Start a keyed ordered beat chain whose cursor the engine holds.
     Sequence(SequenceActionConfig) {
         label: "Sequence",
+        category: Flow,
         stem: "sequence",
         effect: Nested,
         inspect: Opaque,
@@ -524,6 +572,7 @@ registry::scenario_actions! {
     /// Start or restart a keyed scenario timer.
     TimerStart(TimerStartActionConfig) {
         label: "Timer Start",
+        category: Flow,
         stem: "timer",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -531,6 +580,7 @@ registry::scenario_actions! {
     /// Cancel a keyed scenario timer.
     TimerCancel(TimerCancelActionConfig) {
         label: "Timer Cancel",
+        category: Flow,
         stem: "untimer",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -538,6 +588,7 @@ registry::scenario_actions! {
     /// Play an ordered beat chain as a skip-safe scene.
     Cinematic(CinematicActionConfig) {
         label: "Cinematic",
+        category: Camera,
         stem: "scene",
         effect: Nested,
         inspect: Opaque,
@@ -545,6 +596,7 @@ registry::scenario_actions! {
     /// Post the shot's title card: where, when, and one line about it.
     CinematicTitle(CinematicTitleActionConfig) {
         label: "Cinematic Title",
+        category: Camera,
         stem: "title",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -552,6 +604,7 @@ registry::scenario_actions! {
     /// End a running cinematic from the scenario.
     CancelCinematic(CancelCinematicActionConfig) {
         label: "Cancel Cinematic",
+        category: Camera,
         stem: "unscene",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -559,6 +612,7 @@ registry::scenario_actions! {
     /// Evaluate an expression into a scenario variable.
     VariableSet(VariableSetActionConfig) {
         label: "Variable Set",
+        category: Data,
         stem: "set",
         effect: Bookkeeping,
         inspect: Reflect,
@@ -566,6 +620,7 @@ registry::scenario_actions! {
     /// Log a message.
     DebugMessage(DebugMessageActionConfig) {
         label: "Debug Message",
+        category: Data,
         stem: "debug",
         effect: Bookkeeping,
         inspect: Reflect,

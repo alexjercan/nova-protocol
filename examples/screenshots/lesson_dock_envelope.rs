@@ -534,6 +534,7 @@ fn envelope_scene(game_assets: &GameAssets) -> ScenarioConfig {
         description: "A ported tender lining up on a moored spar".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

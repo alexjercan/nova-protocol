@@ -21,7 +21,10 @@ use nova_scenario::prelude::{
 };
 use nova_ship::prelude::{GameSections, GameStyles};
 
-use crate::scenario::{ship_design, HullForm, LoweredFleet, LoweredShip, SANDBOX_ID};
+use crate::{
+    project::ids::design_id,
+    scenario::{ship_design, HullForm, LoweredFleet, LoweredShip, SANDBOX_ID},
+};
 
 /// The services a sandbox station offers: the four every generated station
 /// docks a ship for.
@@ -59,13 +62,13 @@ const LINT_SOURCE: &str = "editor";
 
 /// The id the station design of `ship` is spawned by.
 ///
-/// A SAVE writes it under the ship node's own id, as it writes a ship
+/// A SAVE writes it under the scenario's namespace, as it writes a ship
 /// prototype. Play registers it into the live catalog for the session, so it
 /// is namespaced under the sandbox's id there: a node id must not replace a
 /// shipped station of the same name.
 pub(crate) fn station_design_id(ship: &LoweredShip, form: HullForm) -> StationDesignId {
     match form {
-        HullForm::Prototype => ship.id.as_str().into(),
+        HullForm::Prototype { scenario } => design_id(scenario, &ship.id).as_str().into(),
         HullForm::Inline => format!("{SANDBOX_ID}_{}", ship.id).as_str().into(),
     }
 }
@@ -113,6 +116,25 @@ pub(crate) fn station_design(
             credits: CREDITS,
         },
     }
+}
+
+/// Whether `held` is the design [`station_design`] writes for `ship`, as far as
+/// a hull says: `builds` and `stock` follow the catalogs, and a hand-written
+/// station differs in what it says about itself long before those.
+pub(crate) fn is_stock_station(held: &StationDesignPrototype, ship: &LoweredShip) -> bool {
+    let hull = ShipDesign {
+        integrity: ShipIntegrityConfig {
+            collapse_threshold: Some(STATION_COLLAPSE_THRESHOLD),
+        },
+        presentation: held.design.hull.presentation.clone(),
+        ..ship_design(ship)
+    };
+    held.name == ship.station_name()
+        && held.about == ABOUT
+        && held.design.services == SERVICES
+        && held.design.storage_cap_g == STORAGE_CAP_G
+        && held.design.credits == CREDITS
+        && format!("{:?}", held.design.hull) == format!("{hull:?}")
 }
 
 /// [`STOCK`], cut to `capacity_g` in the order it is listed.

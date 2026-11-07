@@ -262,6 +262,7 @@ fn lance_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfi
         description: "A ship with a spinal lance, and a stack of plates to rake.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

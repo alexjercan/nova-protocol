@@ -658,6 +658,7 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
         events: vec![
             ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnStart,
                 once: false,
                 filters: vec![],
@@ -670,6 +671,7 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
             },
             ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnStart,
                 once: false,
                 filters: vec![],
@@ -711,6 +713,7 @@ fn finale_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
             },
             ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnDestroyed,
                 once: false,
                 filters: vec![EventFilterConfig::Entity(EntityFilterConfig {

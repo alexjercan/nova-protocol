@@ -148,6 +148,9 @@ pub struct GalleryEntry {
     /// it cannot craft with `false` and says why in `note`; the grid and the
     /// focus card draw it muted, and the card disables Place.
     pub placeable: bool,
+    /// Whether the part belongs to what the host edits, which puts it in
+    /// [`GalleryCategory::Mod`].
+    pub own: bool,
 }
 
 /// One recipe item on the focus card: the host's icon for it, its name and
@@ -418,6 +421,27 @@ fn claim_gallery_keyboard(
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PartsGallerySystems;
 
+/// Open on All when the category the last browse left has nothing to show. The
+/// Mod chip stands only while the mod holds parts, so an empty Mod has no way
+/// back on screen. Checked on opening only: a chip pressed in an open gallery is
+/// a question, and an empty grid is its answer.
+fn leave_empty_category(
+    sections: Res<GameSections>,
+    host: Query<Option<&GalleryListing>, With<GalleryHost>>,
+    mut state: ResMut<GalleryState>,
+    mut was_open: Local<bool>,
+) {
+    let opening = state.open && !*was_open;
+    *was_open = state.open;
+    if !opening || state.category == GalleryCategory::All {
+        return;
+    }
+    let listing = host.single().ok().flatten();
+    if catalog::browsable(&sections, listing, state.category, "", false).is_empty() {
+        state.category = GalleryCategory::All;
+    }
+}
+
 /// Wires the gallery: its state, the part in hand, the keyboard claim, the
 /// overlay, the tiles and the focus view. Each host adds it; a second add is
 /// skipped, so two hosts in one app share one gallery.
@@ -444,6 +468,7 @@ impl Plugin for PartsGalleryPlugin {
                 // Browse is the gallery's own mode, so its keyboard answers
                 // under Browse and under Normal and goes quiet under a mode
                 // above it: a rebind waiting for a key gets the key.
+                leave_empty_category,
                 input::gallery_keyboard.run_if(owns_or_enters(InputMode::Browse)),
                 // Both BEFORE the rebuild: the grid is laid out from one and
                 // the tiles are spawned on the other, and either read a frame
@@ -660,6 +685,7 @@ mod tests {
     /// Clearing the filter widens the grid and leaves the category alone: the
     /// x beside the field answers "why is this grid short", and the chip row
     /// answers a different question.
+
     #[test]
     fn clearing_the_filter_keeps_the_category() {
         let mut world = World::new();

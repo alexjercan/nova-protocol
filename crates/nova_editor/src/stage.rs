@@ -30,7 +30,10 @@ use crate::{
     gizmo::GizmoAxis,
     node::{objects_of, EditContext, ObjectNodes},
     palette,
-    ui::inspector::PANEL_W as INSPECTOR_W,
+    ui::{
+        inspector::PANEL_W as INSPECTOR_W,
+        shell::{BROWSER_H, FOOT_H},
+    },
 };
 
 /// Cells across the fine grid, and so how far it reaches: half of them each way
@@ -109,7 +112,7 @@ const ROSE_ARM: f32 = 0.035;
 /// pixels - the inspector's width taken off the right, because the corner of
 /// the window is behind that panel and a rose nobody can see says nothing. It
 /// clears the key legend along the bottom by the same margin.
-const ROSE_INSET: Vec2 = Vec2::new(56.0, 80.0);
+const ROSE_INSET: Vec2 = Vec2::new(76.0, 80.0);
 
 /// The dot on the far end of an arm, as a fraction of the arm. It is what says
 /// which end is POSITIVE, on a rose with no room for letters.
@@ -139,7 +142,7 @@ pub(crate) fn draw_axis_rose(
     };
     let corner = Vec2::new(
         viewport.x - INSPECTOR_W - ROSE_INSET.x,
-        viewport.y - ROSE_INSET.y,
+        viewport.y - BROWSER_H - FOOT_H - ROSE_INSET.y,
     );
     let Ok(ray) = camera.viewport_to_world(pose, corner) else {
         return;
@@ -229,7 +232,7 @@ pub(crate) fn draw_world_grid(
 
     // Where the selection actually stands. Without it the plane is scenery: a
     // node hangs in front of it at an altitude nothing on screen reports.
-    let Some(node) = selected.0 else {
+    let Some(node) = selected.primary() else {
         return;
     };
     let Ok(pose) = q_poses.get(node) else {
@@ -288,17 +291,13 @@ pub(crate) fn draw_node_marks(
     q_bounds: Query<&ColliderAabb, Without<Sensor>>,
     mut gizmos: Gizmos<EditorGizmos>,
 ) {
-    let marks = [
-        (
-            hovered.0.filter(|node| Some(*node) != selected.0),
-            HOVER_MARK,
-        ),
-        (selected.0, MARK),
-    ];
+    let hovered = hovered.0.filter(|node| !selected.contains(*node));
+    let marks = hovered
+        .into_iter()
+        .map(|node| (node, HOVER_MARK))
+        .chain(selected.iter().map(|node| (node, MARK)));
     for (node, colour) in marks {
-        let Some(bounds) =
-            node.and_then(|node| subtree_collider_aabb(node, &q_children, &q_bounds))
-        else {
+        let Some(bounds) = subtree_collider_aabb(node, &q_children, &q_bounds) else {
             continue;
         };
         gizmos.cube(mark_box(bounds), colour);

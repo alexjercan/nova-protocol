@@ -23,8 +23,9 @@
 /// public API of this module.
 pub mod prelude {
     pub use super::{
-        bare_asset_refs, resource_ref_violations, rewrite_refs, DepRef, RefScope, DEP_SCHEME,
-        SELF_SCHEME,
+        bare_asset_refs, map_prototype_refs, map_string_leaves, map_strings_and_keys, names_string,
+        prototype_refs, resource_ref_violations, rewrite_refs, string_leaves, DepRef, RefScope,
+        DEP_SCHEME, SELF_SCHEME,
     };
 }
 
@@ -346,6 +347,190 @@ pub fn bare_asset_refs(content: &Content) -> Vec<String> {
     out.sort();
     out.dedup();
     out
+}
+
+/// Every string in `content`, keys excepted. What a reference search reads: an
+/// id or a ref is a whole leaf in any kind of content, so one walk answers for
+/// the twelve kinds and for a kind added later.
+pub fn string_leaves(content: &Content) -> Vec<String> {
+    fn collect(value: &serde_json::Value, out: &mut Vec<String>) {
+        match value {
+            serde_json::Value::String(s) => out.push(s.clone()),
+            serde_json::Value::Array(items) => items.iter().for_each(|i| collect(i, out)),
+            serde_json::Value::Object(map) => map.values().for_each(|v| collect(v, out)),
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    match serde_json::to_value(content) {
+        Ok(value) => collect(&value, &mut out),
+        Err(err) => bevy::log::error!("mod content walk: did not serialize ({err})"),
+    }
+    out
+}
+
+/// Whether `content` holds `text` as a whole string, map keys included. A build
+/// recipe holds its parts by key, so a search for what uses an item has to read
+/// the keys [`string_leaves`] leaves out.
+pub fn names_string(content: &Content, text: &str) -> bool {
+    fn holds(value: &serde_json::Value, text: &str) -> bool {
+        match value {
+            serde_json::Value::String(s) => s == text,
+            serde_json::Value::Array(items) => items.iter().any(|i| holds(i, text)),
+            serde_json::Value::Object(map) => map
+                .iter()
+                .any(|(key, held)| key == text || holds(held, text)),
+            _ => false,
+        }
+    }
+    match serde_json::to_value(content) {
+        Ok(value) => holds(&value, text),
+        Err(err) => {
+            bevy::log::error!("mod content walk: did not serialize ({err})");
+            false
+        }
+    }
+}
+
+/// Every id `content` names through a `Prototype` source: the designs a scenario
+/// spawns, at any depth. Apart from [`string_leaves`] because a spawned ship's
+/// own id is a leaf too, and an old save gives it the same text as its design.
+pub fn prototype_refs(content: &Content) -> Vec<String> {
+    fn collect(value: &serde_json::Value, out: &mut Vec<String>) {
+        match value {
+            serde_json::Value::Array(items) => items.iter().for_each(|i| collect(i, out)),
+            serde_json::Value::Object(map) => {
+                for (key, held) in map {
+                    if key == "Prototype" {
+                        let id = held.as_str().or_else(|| held.get("id")?.as_str());
+                        out.extend(id.map(str::to_string));
+                    }
+                    collect(held, out);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    match serde_json::to_value(content) {
+        Ok(value) => collect(&value, &mut out),
+        Err(err) => bevy::log::error!("mod content walk: did not serialize ({err})"),
+    }
+    out
+}
+
+/// `content` with each string leaf `change` answers for replaced, or `Err` with
+/// why the item could not be rebuilt. Keys are left alone. The same round trip
+/// [`rewrite_refs`] rests on, without its scope: a caller renaming ids or
+/// respelling refs has no owning bundle.
+pub fn map_string_leaves(
+    content: &Content,
+    change: &dyn Fn(&str) -> Option<String>,
+) -> Result<Content, String> {
+    rebuilt(content, |value| walk_leaves(value, change, false))
+}
+
+/// [`map_string_leaves`] with map keys too: a build recipe holds its parts by
+/// key, so a caller moving ids has to reach those. Field names are keys here as
+/// well, so `change` must answer only for ids no field is named.
+pub fn map_strings_and_keys(
+    content: &Content,
+    change: &dyn Fn(&str) -> Option<String>,
+) -> Result<Content, String> {
+    rebuilt(content, |value| walk_leaves(value, change, true))
+}
+
+/// `content` with each id it names through a `Prototype` source replaced where
+/// `change` answers. The other half of [`prototype_refs`].
+pub fn map_prototype_refs(
+    content: &Content,
+    change: &dyn Fn(&str) -> Option<String>,
+) -> Result<Content, String> {
+    fn walk(value: &mut serde_json::Value, change: &dyn Fn(&str) -> Option<String>) -> bool {
+        match value {
+            serde_json::Value::Array(items) => {
+                items.iter_mut().fold(false, |any, i| walk(i, change) | any)
+            }
+            serde_json::Value::Object(map) => {
+                let mut any = false;
+                for (key, held) in map.iter_mut() {
+                    if key == "Prototype" {
+                        any |= respell(held, change);
+                    }
+                    any |= walk(held, change);
+                }
+                any
+            }
+            _ => false,
+        }
+    }
+    fn respell(held: &mut serde_json::Value, change: &dyn Fn(&str) -> Option<String>) -> bool {
+        let id = match held {
+            serde_json::Value::Object(source) => source.get_mut("id"),
+            bare => Some(bare),
+        };
+        let Some(id) = id else {
+            return false;
+        };
+        match id.as_str().and_then(change) {
+            Some(changed) => {
+                *id = serde_json::Value::String(changed);
+                true
+            }
+            None => false,
+        }
+    }
+    rebuilt(content, |value| walk(value, change))
+}
+
+/// Rewrite the leaves of `value`, and the keys when `keys` is set. Answers
+/// whether anything changed.
+fn walk_leaves(
+    value: &mut serde_json::Value,
+    change: &dyn Fn(&str) -> Option<String>,
+    keys: bool,
+) -> bool {
+    match value {
+        serde_json::Value::String(s) => match change(s) {
+            Some(changed) => {
+                *s = changed;
+                true
+            }
+            None => false,
+        },
+        serde_json::Value::Array(items) => items
+            .iter_mut()
+            .fold(false, |any, i| walk_leaves(i, change, keys) | any),
+        serde_json::Value::Object(map) => {
+            let moved: Vec<(String, String)> = map
+                .keys()
+                .filter(|_| keys)
+                .filter_map(|key| Some((key.clone(), change(key)?)))
+                .collect();
+            let any = !moved.is_empty();
+            for (from, to) in moved {
+                if let Some(held) = map.remove(&from) {
+                    map.insert(to, held);
+                }
+            }
+            map.values_mut()
+                .fold(any, |any, v| walk_leaves(v, change, keys) | any)
+        }
+        _ => false,
+    }
+}
+
+/// `content` through its JSON form, with `walk` run over it. The item is only
+/// rebuilt when the walk says it changed.
+fn rebuilt(
+    content: &Content,
+    walk: impl FnOnce(&mut serde_json::Value) -> bool,
+) -> Result<Content, String> {
+    let mut value = serde_json::to_value(content).map_err(|error| error.to_string())?;
+    if !walk(&mut value) {
+        return Ok(content.clone());
+    }
+    serde_json::from_value(value).map_err(|error| error.to_string())
 }
 
 fn collect_bare(value: &serde_json::Value, out: &mut Vec<String>) {

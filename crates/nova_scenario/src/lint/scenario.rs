@@ -2848,6 +2848,7 @@ mod tests {
         };
         let exit = ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnExit,
             once: true,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -3039,6 +3040,7 @@ mod tests {
     fn on_resume(actions: Vec<EventActionConfig>) -> ScenarioEventConfig {
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnResume,
             once: true,
             filters: vec![],
@@ -4249,6 +4251,7 @@ mod tests {
         let mut s = scenario(vec![spawn_object("boss")], vec![]);
         s.events.push(ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnDestroyed,
             once: false,
             filters: vec![],
@@ -5020,6 +5023,7 @@ mod tests {
         for l in [line(Some(12.0)), line(None)] {
             s.events.push(ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnStart,
                 once: false,
                 filters: vec![],
@@ -5304,6 +5308,7 @@ mod tests {
         );
         s.events.push(ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![],
@@ -5440,6 +5445,7 @@ mod tests {
         }];
         s.events = vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -5482,6 +5488,7 @@ mod tests {
         }];
         s.events = vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![
@@ -5528,6 +5535,7 @@ mod tests {
         }];
         s.events = vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![
@@ -5577,6 +5585,7 @@ mod tests {
         }];
         s.events.push(ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(

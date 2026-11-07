@@ -107,6 +107,7 @@ fn once(
 ) -> ScenarioEventConfig {
     ScenarioEventConfig {
         label: None,
+        position: None,
         name: event,
         once: true,
         filters,

@@ -5,7 +5,11 @@
 use bevy::{
     camera::NormalizedRenderTarget,
     ecs::system::RunSystemOnce,
-    picking::pointer::{Location, PointerId},
+    picking::{
+        backend::HitData,
+        pointer::{Location, PointerId},
+    },
+    state::app::StatesPlugin,
     window::WindowRef,
 };
 use nova_events::units::prelude::*;
@@ -18,26 +22,35 @@ use super::*;
 use crate::{
     config::SelectedNode,
     event::{ActionChoice, ActionChoiceExt, ActionNode, FilterKind, FilterNode},
+    history::tests::{assert_one_step, assert_one_step_of, depth},
     node::{
         EditContext, EditorNode, NextChildOrdinal, NodeId, ObjectBodyStale, ObjectNode,
         ScenarioNode,
     },
-    ui::inspector::{
-        apply_inspector_edits, inspector_panel, sync_inspector, InspectorField, InspectorPanel,
+    ui::{
+        inspector::{
+            apply_inspector_edits, inspector_panel, sync_inspector, InspectorField, InspectorPanel,
+        },
+        pick::{sync_pick_popups, PickOption, PickPopup},
     },
 };
 
 /// The panel, the window layer and the two reconcilers that keep them in step.
 fn window_app() -> App {
     let mut app = App::new();
+    app.init_resource::<crate::ui::inspector::InspectorFolds>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<SelectedNode>();
     // A slider that cannot write says so on the status line.
     app.init_resource::<crate::config::EditorStatus>();
     // And the panel behind the window reads the View menu's toggles.
     app.init_resource::<crate::config::EditorOverlays>();
-    // File > New Scenario forgets which file the document was in.
-    app.init_resource::<crate::bundle::DocumentSlot>();
+    app.init_resource::<EditHistory>();
+    app.init_resource::<UnsavedWork>();
+    app.add_plugins(StatesPlugin);
+    app.init_state::<GameStates>();
+    app.init_state::<PauseStates>();
+    app.init_state::<ExampleStates>();
     app.init_resource::<Time>();
     app.add_message::<TextFieldSubmitted>();
     // The write-back announces a stale object body rather than leaning on
@@ -50,9 +63,10 @@ fn window_app() -> App {
     app.world_mut().spawn(window_layer());
     app.add_systems(
         Update,
-        (sync_inspector, sync_colour_windows, sync_ref_windows).chain(),
+        (sync_inspector, sync_colour_windows, sync_pick_popups).chain(),
     );
     app.add_observer(on_colour_slider);
+    app.add_observer(on_colour_release);
     app
 }
 
@@ -117,7 +131,9 @@ fn asteroid(app: &mut App, scenario: Entity) -> Entity {
 }
 
 fn select(app: &mut App, node: Entity) {
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
     app.update();
 }
 
@@ -364,7 +380,7 @@ fn a_picker_needs_the_panel_that_opened_it() {
     assert!(picker(&mut app).is_none());
 }
 
-/// A verb with no undo asks first. The document is still standing while the
+/// A verb that clears the history asks first. The document is still standing while the
 /// question is up: the row does nothing at all, and the window's own button is
 /// what carries the verb out.
 #[test]
@@ -390,7 +406,7 @@ fn a_destructive_verb_asks_before_it_runs() {
     assert_eq!(
         app.world().resource::<EditContext>().scenario(),
         document,
-        "and the document it would throw away is still standing"
+        "and the open scenario is still standing"
     );
 
     let keep = named(&mut app, "Confirm Keep Button").expect("the safe answer is on the window");
@@ -421,7 +437,16 @@ fn a_destructive_verb_asks_before_it_runs() {
     let now = app.world().resource::<EditContext>().scenario();
     assert!(
         now.is_some() && now != document,
-        "the verb ran: the old root is gone and a fresh one stands in its place"
+        "the verb ran: the new scenario is the open one"
+    );
+    assert_eq!(
+        app.world()
+            .resource::<crate::project::ModProject>()
+            .data
+            .scenarios()
+            .count(),
+        2,
+        "and the first is still in the mod"
     );
     assert_eq!(
         app.world()
@@ -476,7 +501,7 @@ fn open_the_ref_picker(app: &mut App) {
 
 fn ref_picker(app: &mut App) -> Option<Entity> {
     app.world_mut()
-        .query_filtered::<Entity, With<RefWindow>>()
+        .query_filtered::<Entity, With<PickPopup>>()
         .iter(app.world())
         .next()
 }
@@ -484,9 +509,9 @@ fn ref_picker(app: &mut App) -> Option<Entity> {
 /// What the open picker offers, in the order it lists them.
 fn offered(app: &mut App) -> Vec<String> {
     app.world_mut()
-        .query::<(&Name, &RefOption)>()
+        .query::<&PickOption>()
         .iter(app.world())
-        .map(|(_, option)| option.id.clone())
+        .map(|option| option.value.clone())
         .collect()
 }
 
@@ -516,11 +541,11 @@ fn a_reference_chip_lists_the_ids_the_document_holds() {
     open_the_ref_picker(&mut app);
 
     assert!(ref_picker(&mut app).is_some(), "the picker opened");
-    assert_eq!(offered(&mut app), vec!["asteroid_1", "beacon_1"]);
+    // The filter's id is optional, so the first row clears it.
+    assert_eq!(offered(&mut app), vec!["", "asteroid_1", "beacon_1"]);
 }
 
-/// Picking writes the id and puts the picker away: the choice is made, and a
-/// list left standing over the panel hides the row it just wrote.
+/// Picking writes the id the row holds.
 #[test]
 fn picking_an_id_writes_it_into_the_row() {
     let mut app = window_app();
@@ -534,7 +559,6 @@ fn picking_an_id_writes_it_into_the_row() {
     app.update();
 
     assert_eq!(filter_id(&app, filter), Some("beacon_1".to_string()));
-    assert!(ref_picker(&mut app).is_none(), "the picker closed itself");
 }
 
 /// The picker belongs to the ROW, like every other window here: inspect
@@ -577,13 +601,196 @@ fn a_long_choice_lists_what_each_option_does() {
     app.world_mut().trigger(Activate { entity: chip });
     app.update();
 
-    let hint = named(&mut app, "Choice Hint Outcome").expect("the outcome option says what it is");
-    assert!(
-        app.world()
-            .get::<Text>(hint)
-            .expect("the hint reads")
-            .0
-            .contains("won or lost"),
-        "the choice's own doc comment"
+    let option = named(&mut app, "Choice Option Outcome").expect("the outcome is offered");
+    let hint = &app
+        .world()
+        .get::<PickOption>(option)
+        .expect("the row is an option")
+        .hint;
+    assert!(hint.contains("won or lost"), "the choice's own doc comment");
+}
+
+/// Let go of the pointer on `target`, the way the picking layer reports it.
+fn release_on(app: &mut App, target: Entity) {
+    let screen = app
+        .world_mut()
+        .query_filtered::<Entity, With<Window>>()
+        .single(app.world())
+        .expect("one window");
+    app.world_mut().trigger(Pointer::new(
+        PointerId::Mouse,
+        Location {
+            target: NormalizedRenderTarget::Window(
+                WindowRef::Entity(screen)
+                    .normalize(None)
+                    .expect("a named window normalizes"),
+            ),
+            position: Vec2::ZERO,
+        },
+        Release {
+            button: PointerButton::Primary,
+            hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+        },
+        target,
+    ));
+    app.update();
+}
+
+/// A slider held down writes every frame, and only its end is an edit.
+fn hold_channel(app: &mut App, channel: &str, to: f32) -> Entity {
+    let slider = named(app, &format!("Colour Window Slider {channel}")).expect("a channel slider");
+    app.world_mut().trigger(ValueChange::<f32> {
+        source: slider,
+        value: to,
+        is_final: false,
+    });
+    app.update();
+    slider
+}
+
+#[test]
+fn a_colour_drag_is_one_step_at_its_end() {
+    let mut app = window_app();
+    let (_, beacon) = document(&mut app);
+    select(&mut app, beacon);
+    open_the_picker(&mut app);
+
+    assert_one_step(&mut app, "Edit Color", |app| {
+        hold_channel(app, "R", 0.2);
+        hold_channel(app, "R", 0.4);
+        assert_eq!(depth(app), 0, "a held slider is no step yet");
+        drag_channel(app, "R", 0.5);
+    });
+}
+
+/// A press on the track moves the channel with no drag, so the slider never
+/// says `is_final`. The release ends that gesture, and the drag's own release
+/// must not make it a second step.
+#[test]
+fn a_click_on_a_colour_track_is_one_step_on_release() {
+    let mut app = window_app();
+    let (_, beacon) = document(&mut app);
+    select(&mut app, beacon);
+    open_the_picker(&mut app);
+
+    assert_one_step(&mut app, "Edit Color", |app| {
+        let slider = hold_channel(app, "R", 0.3);
+        release_on(app, slider);
+        release_on(app, slider);
+    });
+}
+
+#[test]
+fn picking_a_reference_is_one_step() {
+    let mut app = window_app();
+    let (scenario, _) = document(&mut app);
+    let filter = entity_filter(&mut app, scenario, "");
+    select(&mut app, filter);
+    open_the_ref_picker(&mut app);
+
+    let read = move |app: &mut App| format!("{:?}", filter_id(app, filter));
+    assert_one_step_of(&mut app, "Edit Id", read, |app| {
+        let option = named(app, "Ref Option beacon_1").expect("the beacon is offered");
+        app.world_mut().trigger(Activate { entity: option });
+    });
+}
+
+/// A choice's list writes through the same step as every other edit.
+#[test]
+fn an_enum_popup_pick_is_one_undo_step() {
+    let mut app = window_app();
+    let (scenario, _) = document(&mut app);
+    let action = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ActionNode {
+                kind: ActionChoice::NarrativeCue.stock(),
+            },
+            NodeId("action_1".to_string()),
+            ChildOf(scenario),
+        ))
+        .id();
+    select(&mut app, action);
+    let chip = named(&mut app, "Inspector Choice Action").expect("the kind row opens a list");
+    app.world_mut().trigger(Activate { entity: chip });
+    app.update();
+
+    let read = move |app: &mut App| {
+        format!(
+            "{:?}",
+            app.world()
+                .get::<ActionNode>(action)
+                .expect("an action")
+                .kind
+        )
+    };
+    assert_one_step_of(&mut app, "Edit Kind", read, |app| {
+        let option = named(app, "Choice Option Outcome").expect("the outcome is offered");
+        app.world_mut().trigger(Activate { entity: option });
+    });
+}
+
+/// A document with nothing unsaved has nothing to lose, so the row just leaves.
+#[test]
+fn leaving_a_saved_document_asks_nothing() {
+    let mut app = window_app();
+    app.add_observer(on_destructive_item);
+    document(&mut app);
+    let row = app.world_mut().spawn(DestructiveVerb::MainMenu).id();
+
+    app.world_mut().trigger(Activate { entity: row });
+    app.update();
+    app.update();
+
+    assert!(named(&mut app, "Confirm Window").is_none());
+    assert_eq!(
+        *app.world().resource::<State<GameStates>>().get(),
+        GameStates::MainMenu
     );
+}
+
+#[test]
+fn leaving_with_unsaved_work_asks_first() {
+    let mut app = window_app();
+    app.add_observer(on_destructive_item);
+    let (_, beacon) = document(&mut app);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(beacon));
+    crate::history::tests::baseline(&mut app);
+    app.world_mut()
+        .get_mut::<Transform>(beacon)
+        .expect("the beacon stands")
+        .translation
+        .x = 40.0;
+    crate::history::commit_edit_now(app.world_mut(), "Move");
+    let before = app.world().resource::<State<GameStates>>().get().clone();
+    let row = app.world_mut().spawn(DestructiveVerb::MainMenu).id();
+
+    app.world_mut().trigger(Activate { entity: row });
+    app.update();
+
+    assert!(named(&mut app, "Confirm Window").is_some());
+    assert_eq!(*app.world().resource::<State<GameStates>>().get(), before);
+}
+
+/// The pause menu and the outcome panel live outside the editor, and they stop
+/// a leave through [`UnsavedWork`]. The question still comes up here.
+#[test]
+fn a_leave_stopped_outside_the_editor_is_asked_in_the_editor() {
+    let mut app = window_app();
+    app.add_systems(Update, ask_about_stopped_leave);
+    document(&mut app);
+    let mut unsaved = app.world_mut().resource_mut::<UnsavedWork>();
+    unsaved.hold(true);
+    assert!(
+        unsaved.stops(GuardedLeave::Exit),
+        "held work stops the leave"
+    );
+
+    app.update();
+
+    assert!(named(&mut app, "Confirm Window").is_some());
+    assert!(named(&mut app, "Confirm Discard Button").is_some());
 }

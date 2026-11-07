@@ -336,6 +336,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
     let events = vec![
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -343,6 +344,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         },
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnTimerEnd,
             once: true,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -354,6 +356,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // variable arithmetic).
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnDestroyed,
             once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -369,6 +372,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // whether it had already run.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -383,6 +387,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // filter, retiring on the pass).
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -397,6 +402,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // the ring's reach.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnUpdate,
             once: false,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -419,6 +425,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // area's id, the body's id) the area plugin reports.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnEnter,
             once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -430,6 +437,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         },
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnExit,
             once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -444,6 +452,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // never delivers. Completing an objective here is the other half.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnNeutralized,
             once: true,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -462,6 +471,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // one about the ring.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -482,6 +492,7 @@ fn showcase(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         // report asserts the counter reads exactly 1.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnUpdate,
             once: true,
             filters: vec![],

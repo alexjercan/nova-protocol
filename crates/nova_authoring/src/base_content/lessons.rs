@@ -877,7 +877,7 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "The build readout",
             still(
                 "build_readout",
-                "the editor rail's stat block on a half-built hull: Turn, Mass, Thrust, HP and \
+                "the Hierarchy panel's stat block on a half-built hull: Turn, Mass, Thrust, HP and \
                  Parts down one column with the limit note under them",
             ),
             "The editor shows your ship's turn rate, mass, thrust, health, and section count. A \
@@ -915,8 +915,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             "What decides your turn rate",
             still(
                 "build_turning",
-                "a long spine in the editor, the rail printing its turn ceiling with the \
-                 structure-limited note under it",
+                "a long spine in the editor, the build readout printing its turn ceiling with \
+                 the structure-limited note under it",
             ),
             "Turn rate is limited by your flight computers, the ship's mass, and the distance of \
              its outermost sections. Long or heavy ships usually turn more slowly.",
@@ -951,7 +951,8 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
             still(
                 "build_stacking",
                 "two flight computers on one spine in the editor, both of them listed in the \
-                 scene tree, and the rail naming the structure as what holds the turn rate down",
+                 Hierarchy, and the build readout naming the structure as what holds the turn \
+                 rate down",
             ),
             "Most ships are already limited by their structure, so another flight computer does \
              not make them turn faster. It improves turning precision and keeps the ship \

@@ -51,12 +51,12 @@ impl Refusal {
     ///
     /// A VERDICT alone - "socket is ambiguous" - is a compiler error, and the
     /// editor already knows which key resolves each case: F cycles the socket,
-    /// R rolls the part, Q picks another, Esc puts it down. A refusal that
+    /// R rolls the part, P picks another, Esc puts it down. A refusal that
     /// names one is a refusal a builder can act on without leaving the ghost.
     pub(crate) fn message(self) -> &'static str {
         match self {
             Self::NoTargetSockets => "nothing here to mate onto - aim at a part",
-            Self::NoPartSockets => "this part has no sockets - Q picks another",
+            Self::NoPartSockets => "this part has no sockets - P picks another",
             Self::Occupied => "socket occupied - F cycles to a free one",
             Self::Ambiguous => "two sockets are equally close - F picks one",
             Self::Overlap => "parts would overlap - R rolls it clear",

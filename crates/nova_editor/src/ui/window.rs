@@ -6,11 +6,11 @@
 //! not a second view of the document: a window BELONGS to the row it was
 //! opened from, so it follows what that row says and goes away with it.
 //!
-//! There is one at a time. The stage is what the builder came to look at, and
-//! a screen of stacked panels is the generic editor this one is not.
+//! There is one at a time, over the fixed panels of `ui::shell`: a window is a
+//! detail of one row, so a second one would only hide the first.
 
 use bevy::{
-    ecs::relationship::RelatedSpawnerCommands,
+    ecs::{relationship::RelatedSpawnerCommands, system::SystemParam},
     picking::hover::Hovered,
     prelude::*,
     ui_widgets::{
@@ -18,30 +18,33 @@ use bevy::{
         ValueChange,
     },
 };
+use nova_gameplay::prelude::{GameStates, GuardedLeave, PauseStates, UnsavedWork};
 use nova_ui::{
     prelude::{
         button, panel, scroll_bar, scroll_column, scroll_row, scroll_viewport, slider_track,
         themed_button, ButtonSpec, UiText,
     },
     theme,
-    theme::UiColor,
+    theme::{density, UiColor},
     widget::{ButtonCueType, ThemedBorder, ThemedRadius, ThemedText},
 };
 
 use crate::{
-    asset_index::prelude::AssetIndex,
     config::EditorSays,
-    inspect::{clipped, colour_text, write_field, DocumentIds},
-    node::reset_document,
+    history::{commit_edit, EditHistory},
+    inspect::{colour_text, write_field},
+    project::{
+        package::import_over,
+        verbs::{add_scenario, pressed},
+    },
     template::ScenarioTemplate,
     ui::{
-        inspector::{
-            apply_choice, EditTargets, InspectorField, InspectorPick, InspectorRef,
-            InspectorSwatch, Offers,
-        },
+        hub::{delete_local_mod, leave_to_hub},
+        inspector::{EditTargets, InspectorField, InspectorSwatch},
         layer,
         menu::back_to_main_menu,
     },
+    ExampleStates,
 };
 
 /// Window width. The inspector's own width, so a picker reads as the row it
@@ -49,9 +52,6 @@ use crate::{
 /// when the panel is widened.
 pub(crate) const WINDOW_W: f32 = crate::ui::inspector::PANEL_W;
 
-/// How much of an option's hint the list has room for: about three lines in a
-/// 300px window.
-const OPTION_HINT_CHARS: usize = 120;
 /// The gutter a fresh window keeps between itself and the Inspector.
 const INSPECTOR_GUTTER: f32 = 12.0;
 /// How far off the right edge a fresh window stands. Derived from the panel it
@@ -61,7 +61,7 @@ const RIGHT_MARGIN: f32 = crate::ui::inspector::PANEL_W + INSPECTOR_GUTTER;
 /// The gutter a fresh window keeps between itself and the rail.
 const RAIL_GUTTER: f32 = 12.0;
 /// Where a fresh window's top edge sits, under the top bar.
-pub(crate) const TOP_MARGIN: f32 = 96.0;
+pub(crate) const TOP_MARGIN: f32 = 64.0;
 /// How much of a window must stay on screen when it is dragged: enough to
 /// grab the bar again.
 const KEEP_ON_SCREEN: f32 = 48.0;
@@ -94,39 +94,6 @@ pub(crate) struct WindowClose {
 #[derive(Component, Clone)]
 pub(crate) struct ColourWindow {
     field: InspectorField,
-}
-
-/// The reference picker: which field it writes to, and what it lists.
-///
-/// The same [`InspectorField`] the row's text box holds, so picking an id and
-/// typing it are one edit made two ways.
-#[derive(Component, Clone)]
-pub(crate) struct RefWindow {
-    field: InspectorField,
-}
-
-/// One id the picker offers, and the window that offered it.
-#[derive(Component, Clone)]
-pub(crate) struct RefOption {
-    window: Entity,
-    id: String,
-}
-
-/// The list a long CHOICE opens: the row it writes to.
-///
-/// Its own window rather than a bar of chips in the row, because the longest
-/// choice in the editor is twenty-six actions - six wrapped lines under one
-/// row's name, every one of which has to be read to find the one you want.
-#[derive(Component, Clone)]
-pub(crate) struct ChoiceWindow {
-    field: InspectorField,
-}
-
-/// One variant the choice window offers, and the window that offered it.
-#[derive(Component, Clone)]
-pub(crate) struct ChoiceOption {
-    window: Entity,
-    variant: String,
 }
 
 /// One channel of a colour.
@@ -225,33 +192,53 @@ pub(crate) fn window_layer() -> impl Bundle {
     )
 }
 
-/// A verb that throws the document away, held back until the builder says yes.
+/// A verb that needs the builder's yes before it runs.
 ///
 /// On the menu ROW, not on the button that carries it out: the row asks, the
 /// window's own button is what actually runs the verb.
-#[derive(Component, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Component, Clone, PartialEq, Eq, Debug)]
 pub(crate) enum DestructiveVerb {
-    /// File > New Scenario.
+    /// File > New Scenario. Loses nothing; this window is where its template
+    /// is picked.
     NewScenario,
-    /// File > Back to Main Menu, which ends the session and the document.
+    /// File > Back to Main Menu, which ends the session and the project.
     MainMenu,
+    /// Quitting the app with unsaved work.
+    Exit,
+    /// File > New Mod and Open Mod: back to the hub, closing this mod.
+    Hub,
+    /// Deleting a local mod from the hub.
+    DeleteMod(String),
+    /// Importing a package over the local mod of the same id.
+    #[cfg_attr(
+        target_arch = "wasm32",
+        expect(dead_code, reason = "only a native import overwrites a mod")
+    )]
+    OverwriteImport(String),
 }
 
 impl DestructiveVerb {
     /// The window's title.
-    fn title(self) -> &'static str {
+    fn title(&self) -> &'static str {
         match self {
             Self::NewScenario => "NEW SCENARIO",
             Self::MainMenu => "BACK TO MAIN MENU",
+            Self::Exit => "EXIT",
+            Self::Hub => "CLOSE THIS MOD",
+            Self::DeleteMod(_) => "DELETE MOD",
+            Self::OverwriteImport(_) => "IMPORT OVER A MOD",
         }
     }
 
-    /// What is about to be lost, said plainly. There is no undo and no
-    /// autosave, so the sentence has to carry the whole warning.
-    fn question(self) -> &'static str {
+    /// What is about to be lost, said plainly.
+    fn question(&self) -> &'static str {
         match self {
-            Self::NewScenario => "This throws away everything on the stage and starts a new scenario from the template you pick. There is no undo.",
+            Self::NewScenario => "Pick what the new scenario starts from. It joins this mod, and undo takes it back.",
             Self::MainMenu => "Leaving ends the session. Anything not saved goes with it.",
+            Self::Exit => "Quitting ends the session. Anything not saved goes with it.",
+            Self::Hub => "Going to the Mod Hub closes this mod. Anything not saved goes with it.",
+            Self::DeleteMod(_) => "This deletes the mod and every file in it from this machine. Undo cannot bring it back.",
+            Self::OverwriteImport(_) => "A mod with this id is already here. Importing replaces every file in it, and undo cannot bring it back.",
         }
     }
 
@@ -261,10 +248,23 @@ impl DestructiveVerb {
     ///
     /// `None` for New Scenario: there is no ONE thing it goes through with -
     /// the templates are the answers, and each is its own button.
-    fn confirm(self) -> Option<&'static str> {
+    fn confirm(&self) -> Option<&'static str> {
         match self {
             Self::NewScenario => None,
             Self::MainMenu => Some("Discard and leave"),
+            Self::Exit => Some("Discard and quit"),
+            Self::Hub => Some("Discard and close"),
+            Self::DeleteMod(_) => Some("Delete mod"),
+            Self::OverwriteImport(_) => Some("Replace it"),
+        }
+    }
+
+    /// The label on the safe answer.
+    fn keep(&self) -> &'static str {
+        match self {
+            Self::DeleteMod(_) | Self::OverwriteImport(_) => "Keep it",
+            Self::NewScenario => "Cancel",
+            _ => "Keep editing",
         }
     }
 }
@@ -281,33 +281,103 @@ pub(crate) struct ConfirmAnswer;
 /// warning that wraps four times reads as fine print.
 const CONFIRM_W: f32 = 360.0;
 
+/// Everything putting the question up needs.
+#[derive(SystemParam)]
+pub(crate) struct ConfirmAsk<'w, 's> {
+    commands: Commands<'w, 's>,
+    layer: Option<Single<'w, 's, Entity, With<EditorWindowLayer>>>,
+    open: Query<'w, 's, (), With<ConfirmWindow>>,
+    screen: Option<Single<'w, 's, &'static Window>>,
+}
+
+impl ConfirmAsk<'_, '_> {
+    /// Whether the window can go up: the editor chrome stands.
+    pub(crate) fn ready(&self) -> bool {
+        self.layer.is_some()
+    }
+
+    /// Put the question up, unless one already stands.
+    pub(crate) fn ask(&mut self, verb: DestructiveVerb) {
+        let Some(layer) = self.layer.as_deref().copied() else {
+            return;
+        };
+        if !self.open.is_empty() {
+            return;
+        }
+        let size = self
+            .screen
+            .as_deref()
+            .map_or(Vec2::new(1024.0, 768.0), |screen| screen.size());
+        let at = Vec2::new(((size.x - CONFIRM_W) * 0.5).max(8.0), TOP_MARGIN);
+        self.commands
+            .entity(layer)
+            .with_children(|layer| spawn_confirm_window(layer, verb, at));
+    }
+}
+
 /// Put the question up instead of doing it.
 ///
 /// One observer for every verb, keyed on the row's own [`DestructiveVerb`].
 /// The button inside the window carries the real verb's observer, so there is
 /// no second copy of what any of them do.
+///
+/// Leaving a mod with nothing unsaved loses nothing, so it asks nothing.
+/// New Scenario always asks: the window is also where its template is picked.
 pub(crate) fn on_destructive_item(
     activate: On<Activate>,
     rows: Query<&DestructiveVerb>,
-    mut commands: Commands,
-    layer: Option<Single<Entity, With<EditorWindowLayer>>>,
-    open: Query<(), With<ConfirmWindow>>,
-    screen: Option<Single<&Window>>,
+    history: Res<EditHistory>,
+    mut game_state: ResMut<NextState<GameStates>>,
+    mut confirm: ConfirmAsk,
 ) {
     let Ok(verb) = rows.get(activate.entity) else {
         return;
     };
-    let Some(layer) = layer else {
-        return;
-    };
-    if !open.is_empty() {
+    if !history.dirty() {
+        match verb {
+            DestructiveVerb::MainMenu => {
+                game_state.set(GameStates::MainMenu);
+                return;
+            }
+            DestructiveVerb::Hub => {
+                confirm.commands.queue(leave_to_hub);
+                return;
+            }
+            _ => {}
+        }
+    }
+    confirm.ask(verb.clone());
+}
+
+/// A leave that `nova_menu` or `nova_scenario` stopped for unsaved work: go
+/// back to the editor and ask there, because the question is the editor's.
+///
+/// The leave waits in a `Local` across the frames it takes the chrome to stand
+/// up after a stop from inside the flown scenario.
+pub(crate) fn ask_about_stopped_leave(
+    mut unsaved: ResMut<UnsavedWork>,
+    mut waiting: Local<Option<GuardedLeave>>,
+    state: Res<State<ExampleStates>>,
+    mut next_state: ResMut<NextState<ExampleStates>>,
+    mut pause: ResMut<NextState<PauseStates>>,
+    mut confirm: ConfirmAsk,
+) {
+    if let Some(leave) = unsaved.take_asked() {
+        *waiting = Some(leave);
+        pause.set(PauseStates::Unpaused);
+        if *state.get() == ExampleStates::Scenario {
+            next_state.set(ExampleStates::Editor);
+        }
+    }
+    if !confirm.ready() {
         return;
     }
-    let size = screen.map_or(Vec2::new(1024.0, 768.0), |screen| screen.size());
-    let at = Vec2::new(((size.x - CONFIRM_W) * 0.5).max(8.0), TOP_MARGIN);
-    commands
-        .entity(*layer)
-        .with_children(|layer| spawn_confirm_window(layer, *verb, at));
+    if let Some(leave) = waiting.take() {
+        confirm.ask(match leave {
+            GuardedLeave::MainMenu => DestructiveVerb::MainMenu,
+            GuardedLeave::Exit => DestructiveVerb::Exit,
+        });
+    }
 }
 
 /// The question, its two answers, and the bar you can drag it by.
@@ -342,8 +412,8 @@ fn spawn_confirm_window(
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
-                    column_gap: px(8),
-                    padding: UiRect::axes(px(10), px(6)),
+                    column_gap: px(density::GAP),
+                    padding: UiRect::axes(px(density::PANEL_PAD + 1.0), px(2)),
                     border: UiRect::bottom(px(theme::BORDER_W)),
                     ..default()
                 },
@@ -370,8 +440,8 @@ fn spawn_confirm_window(
                 Node {
                     flex_direction: FlexDirection::Column,
                     align_items: AlignItems::Stretch,
-                    row_gap: px(10),
-                    padding: UiRect::all(px(10)),
+                    row_gap: px(density::GAP),
+                    padding: UiRect::all(px(density::PANEL_PAD)),
                     ..default()
                 },
             ))
@@ -406,8 +476,9 @@ fn spawn_confirm_window(
                                 Name::new(format!("Template {}", template.label())),
                                 template,
                                 ConfirmAnswer,
-                                button(ButtonSpec::new(template.label()).block()),
-                                observe(reset_document),
+                                button(ButtonSpec::new(template.label()).dense().block()),
+                                ButtonCueType::Owned,
+                                observe(on_template_row),
                             ));
                             list.spawn((
                                 Name::new(format!("Template Hint {}", template.label())),
@@ -454,7 +525,7 @@ fn spawn_confirm_window(
                             slot.spawn((
                                 Name::new("Confirm Keep Button"),
                                 ConfirmAnswer,
-                                themed_button("Keep editing"),
+                                themed_button(verb.keep()),
                                 ButtonCueType::Back,
                             ));
                         });
@@ -474,6 +545,28 @@ fn spawn_confirm_window(
                             ));
                             match verb {
                                 DestructiveVerb::MainMenu => go.observe(back_to_main_menu),
+                                DestructiveVerb::Exit => go.observe(quit_app),
+                                DestructiveVerb::Hub => {
+                                    go.observe(|_: On<Activate>, mut commands: Commands| {
+                                        commands.queue(leave_to_hub);
+                                    })
+                                }
+                                DestructiveVerb::DeleteMod(id) => {
+                                    go.observe(move |_: On<Activate>, mut commands: Commands| {
+                                        let id = id.clone();
+                                        commands.queue(move |world: &mut World| {
+                                            delete_local_mod(world, &id);
+                                        });
+                                    })
+                                }
+                                DestructiveVerb::OverwriteImport(path) => {
+                                    go.observe(move |_: On<Activate>, mut commands: Commands| {
+                                        let path = path.clone();
+                                        commands.queue(move |world: &mut World| {
+                                            import_over(world, &path);
+                                        });
+                                    })
+                                }
                                 // Answered by the template rows above.
                                 DestructiveVerb::NewScenario => unreachable!(),
                             };
@@ -481,6 +574,24 @@ fn spawn_confirm_window(
                 });
             });
     });
+}
+
+/// Discard and quit.
+fn quit_app(_activate: On<Activate>, mut exit: MessageWriter<AppExit>) {
+    exit.write(AppExit::Success);
+}
+
+/// A template row: add the scenario it starts.
+fn on_template_row(
+    activate: On<Activate>,
+    mut commands: Commands,
+    templates: Query<&ScenarioTemplate>,
+) {
+    if let Ok(template) = templates.get(activate.entity).copied() {
+        commands.queue(move |world: &mut World| {
+            pressed(world, |world| add_scenario(world, template));
+        });
+    }
 }
 
 /// Take the question down, whichever answer was pressed.
@@ -555,291 +666,6 @@ fn fresh_window_left(width: f32) -> f32 {
     (width - RIGHT_MARGIN - WINDOW_W).max(crate::ui::RAIL_W + RAIL_GUTTER)
 }
 
-/// Open the reference picker on the chip that was clicked.
-///
-/// It lists what the DOCUMENT holds - the rocks and ships on the board, the
-/// variables the script writes, the timers it starts - because that is the set
-/// the row beside it is judged against. An id can still be typed: a builder
-/// naming an object they are about to add is not making a mistake yet.
-pub(crate) fn on_open_ref_window(
-    activate: On<Activate>,
-    mut commands: Commands,
-    chips: Query<(&InspectorField, &InspectorRef)>,
-    ids: DocumentIds,
-    files: AssetIndex,
-    layer: Option<Single<Entity, With<EditorWindowLayer>>>,
-    open: Query<(Entity, &RefWindow)>,
-    screen: Option<Single<&Window>>,
-) {
-    let Ok((field, chip)) = chips.get(activate.entity) else {
-        return;
-    };
-    let Some(layer) = layer else {
-        return;
-    };
-    // One at a time, and a second press on the same chip puts it away - the
-    // rule the colour picker set, for the same reason.
-    let mut reopening = false;
-    for (window, open) in &open {
-        reopening |= open.field == *field;
-        commands.entity(window).despawn();
-    }
-    if reopening {
-        return;
-    }
-    // What the list is, and what its being empty MEANS: a document with no
-    // rocks on it yet is a different answer from a game shipping no sounds.
-    let (offered, empty) = match chip.offers {
-        Offers::Named(named) => (ids.names().offers(named), "nothing to name yet".to_string()),
-        Offers::File(sort) => (
-            files.offers(sort),
-            format!("no installed mod ships {}", sort.holds()),
-        ),
-    };
-    let size = screen.map_or(Vec2::new(1024.0, 768.0), |screen| screen.size());
-    let at = Vec2::new(fresh_window_left(size.x), TOP_MARGIN);
-    let label = chip.label.clone();
-    let field = field.clone();
-    commands.entity(*layer).with_children(|layer| {
-        spawn_ref_window(layer, field, &label, &offered, &empty, at);
-    });
-}
-
-/// Open the list of a long choice, from the button that says what is chosen.
-///
-/// The same rules the id picker keeps: one window at a time, and a second
-/// press on the same button puts it away.
-pub(crate) fn on_open_pick_window(
-    activate: On<Activate>,
-    mut commands: Commands,
-    buttons: Query<(&InspectorField, &InspectorPick)>,
-    layer: Option<Single<Entity, With<EditorWindowLayer>>>,
-    open: Query<(Entity, &ChoiceWindow)>,
-    screen: Option<Single<&Window>>,
-) {
-    let Ok((field, pick)) = buttons.get(activate.entity) else {
-        return;
-    };
-    let Some(layer) = layer else {
-        return;
-    };
-    let mut reopening = false;
-    for (window, open) in &open {
-        reopening |= open.field == *field;
-        commands.entity(window).despawn();
-    }
-    if reopening {
-        return;
-    }
-    let size = screen.map_or(Vec2::new(1024.0, 768.0), |screen| screen.size());
-    let at = Vec2::new(fresh_window_left(size.x), TOP_MARGIN);
-    let (label, options, hints) = (pick.label.clone(), pick.options.clone(), pick.hints.clone());
-    let field = field.clone();
-    commands.entity(*layer).with_children(|layer| {
-        spawn_choice_window(layer, field, &label, &options, &hints, at);
-    });
-}
-
-/// The choice list: the frame, and one row per variant the row offers.
-fn spawn_choice_window(
-    layer: &mut RelatedSpawnerCommands<ChildOf>,
-    field: InspectorField,
-    label: &str,
-    options: &[String],
-    hints: &[String],
-    at: Vec2,
-) {
-    window_frame(
-        layer,
-        "Choice Window",
-        label,
-        at,
-        ChoiceWindow { field },
-        |body, window| {
-            for (index, variant) in options.iter().enumerate() {
-                // The option and what it MEANS, in one column: this list is
-                // twenty-six actions long, and a builder who has to look up
-                // what `Hint Emphasis` does has left the editor to find out.
-                body.spawn((
-                    Name::new(format!("Choice Block {variant}")),
-                    Node {
-                        width: percent(100),
-                        flex_direction: FlexDirection::Column,
-                        margin: UiRect::bottom(px(2)),
-                        ..default()
-                    },
-                ))
-                .with_children(|block| {
-                    block.spawn((
-                        Name::new(format!("Choice Option {variant}")),
-                        ChoiceOption {
-                            window,
-                            variant: variant.clone(),
-                        },
-                        button(ButtonSpec::new(variant).block()),
-                        ButtonCueType::Owned,
-                        observe(on_choice_option),
-                    ));
-                    let Some(hint) = hints.get(index).filter(|hint| !hint.is_empty()) else {
-                        return;
-                    };
-                    block.spawn((
-                        Name::new(format!("Choice Hint {variant}")),
-                        Pickable::IGNORE,
-                        UiText,
-                        Text::new(clipped(hint, OPTION_HINT_CHARS)),
-                        TextFont {
-                            font_size: FontSize::Px(10.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Label),
-                        Node {
-                            padding: UiRect::new(px(10), px(6), px(0), px(3)),
-                            ..default()
-                        },
-                    ));
-                });
-            }
-        },
-    );
-}
-
-/// Put the variant that was picked into the row that opened the list, and put
-/// the list away.
-pub(crate) fn on_choice_option(
-    activate: On<Activate>,
-    mut commands: Commands,
-    options: Query<&ChoiceOption>,
-    windows: Query<&ChoiceWindow>,
-    mut targets: EditTargets,
-    mut says: EditorSays,
-) {
-    let Ok(option) = options.get(activate.entity) else {
-        return;
-    };
-    let Ok(window) = windows.get(option.window) else {
-        return;
-    };
-    let field = window.field.clone();
-    // The window goes FIRST: a kind swap rebuilds the panel it was opened
-    // from, and a list left standing over the rows it just changed hides them.
-    commands.entity(option.window).despawn();
-    apply_choice(
-        &mut commands,
-        &field,
-        &option.variant,
-        &mut targets,
-        &mut says,
-    );
-}
-
-/// Close a choice list whose row has gone, the same way a picker closes.
-pub(crate) fn sync_choice_windows(
-    mut commands: Commands,
-    windows: Query<(Entity, &ChoiceWindow)>,
-    buttons: Query<&InspectorField, With<InspectorPick>>,
-) {
-    for (entity, window) in &windows {
-        if !buttons.iter().any(|field| *field == window.field) {
-            commands.entity(entity).despawn();
-        }
-    }
-}
-
-/// The picker: the frame, and one row per id the document offers.
-fn spawn_ref_window(
-    layer: &mut RelatedSpawnerCommands<ChildOf>,
-    field: InspectorField,
-    label: &str,
-    offered: &[String],
-    empty: &str,
-    at: Vec2,
-) {
-    window_frame(
-        layer,
-        "Ref Window",
-        label,
-        at,
-        RefWindow { field },
-        |body, window| {
-            if offered.is_empty() {
-                // The empty picker still OPENS, and says why it is empty. A
-                // chip that did nothing would read as a broken button on a
-                // document that simply has not spawned anything yet.
-                body.spawn((
-                    Name::new("Ref Window Empty"),
-                    UiText,
-                    Text::new(empty.to_string()),
-                    TextFont {
-                        font_size: FontSize::Px(12.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Label),
-                ));
-                return;
-            }
-            for id in offered {
-                body.spawn((
-                    Name::new(format!("Ref Option {id}")),
-                    RefOption {
-                        window,
-                        id: id.clone(),
-                    },
-                    // The rail's own row: a list of ids is a list of things to
-                    // pick, and it should read like the one on the left.
-                    button(ButtonSpec::new(id).block()),
-                    ButtonCueType::Owned,
-                    observe(on_ref_option),
-                ));
-            }
-        },
-    );
-}
-
-/// Write the id that was picked into the row that opened the picker, and put
-/// the picker away: the choice is made, and a list left standing over the
-/// panel hides the row it just wrote.
-pub(crate) fn on_ref_option(
-    activate: On<Activate>,
-    mut commands: Commands,
-    options: Query<&RefOption>,
-    windows: Query<&RefWindow>,
-    mut targets: EditTargets,
-    mut says: EditorSays,
-) {
-    let Ok(option) = options.get(activate.entity) else {
-        return;
-    };
-    let Ok(window) = windows.get(option.window) else {
-        return;
-    };
-    let written = targets.edit(&window.field.clone(), |root, path, optional| {
-        write_field(root, path, optional, &option.id)
-    });
-    if let Err(reason) = written {
-        says.refuse(reason);
-        return;
-    }
-    commands.entity(option.window).despawn();
-    says.accept();
-}
-
-/// Close a picker whose row has gone: the panel is on another node, and the
-/// window belongs to the row it was opened from.
-pub(crate) fn sync_ref_windows(
-    mut commands: Commands,
-    windows: Query<(Entity, &RefWindow)>,
-    chips: Query<&InspectorField, With<InspectorRef>>,
-) {
-    for (entity, window) in &windows {
-        if !chips.iter().any(|field| *field == window.field) {
-            commands.entity(entity).despawn();
-        }
-    }
-}
-
 /// The frame every floating window shares: the panel, the bar it is dragged
 /// by, the title, the close, and a body the caller fills.
 pub(crate) fn window_frame(
@@ -883,8 +709,8 @@ pub(crate) fn window_frame(
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
-                    column_gap: px(8),
-                    padding: UiRect::axes(px(10), px(6)),
+                    column_gap: px(density::GAP),
+                    padding: UiRect::axes(px(density::PANEL_PAD + 1.0), px(2)),
                     border: UiRect::bottom(px(theme::BORDER_W)),
                     ..default()
                 },
@@ -940,8 +766,8 @@ pub(crate) fn window_frame(
                         Name::new(body_name),
                         Node {
                             align_items: AlignItems::Stretch,
-                            row_gap: px(6),
-                            padding: UiRect::all(px(10)),
+                            row_gap: px(density::GAP),
+                            padding: UiRect::all(px(density::PANEL_PAD)),
                             ..scroll_column()
                         },
                         scroll_viewport(),
@@ -1133,6 +959,7 @@ pub(crate) fn on_window_close(
 /// which of the two lands first is not something either can see.
 pub(crate) fn on_colour_slider(
     change: On<ValueChange<f32>>,
+    mut commands: Commands,
     sliders: Query<(&ColourSlider, &SliderValue)>,
     windows: Query<&ColourWindow>,
     mut targets: EditTargets,
@@ -1154,8 +981,28 @@ pub(crate) fn on_colour_slider(
     let written = targets.edit(&window.field, |root, path, optional| {
         write_field(root, path, optional, &colour_text(colour))
     });
-    if let Err(reason) = written {
-        says.flag(reason);
+    match written {
+        // A drag writes every frame and is one edit. Its end is `is_final`.
+        Ok(()) if change.is_final => commit_edit(&mut commands, window.field.edit_label()),
+        Ok(()) => {}
+        Err(reason) => says.flag(reason),
+    }
+}
+
+/// A click on a channel's track moves it without any drag, so `is_final` never
+/// comes. The release is what ends that gesture.
+pub(crate) fn on_colour_release(
+    release: On<Pointer<Release>>,
+    mut commands: Commands,
+    sliders: Query<&ColourSlider>,
+    windows: Query<&ColourWindow>,
+    parents: Query<&ChildOf>,
+) {
+    let held = std::iter::once(release.entity)
+        .chain(parents.iter_ancestors(release.entity))
+        .find_map(|entity| sliders.get(entity).ok());
+    if let Some(window) = held.and_then(|slider| windows.get(slider.window).ok()) {
+        commit_edit(&mut commands, window.field.edit_label());
     }
 }
 

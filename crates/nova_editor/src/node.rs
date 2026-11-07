@@ -18,19 +18,23 @@
 //! [`node_of_view`].
 
 use avian3d::prelude::{Collider, ColliderAabb, Sensor};
-use bevy::{prelude::*, ui_widgets::Activate};
+use bevy::prelude::*;
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{subtree_local_collider_aabb, Allegiance, AssetRef};
 use nova_input::prelude::InputSource;
+use nova_modding::prelude::Content;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::*;
 
 use crate::{
-    bundle::{insert_lifted_ship, lift_objects, DocumentSlot, FileDesigns},
+    asset::session::unregister_project_sections,
+    bundle::{insert_lifted_ship, lift_objects, FileDesigns, LiftSource},
     config::{EditorCamera, EditorSays, SelectedNode},
     event::lift,
     frame::{framed_extent, CameraFraming},
+    history::forget_history,
     preview::{insert_preview_object, PreviewArt},
+    project::{verbs::open_project_document, ModProject},
     scenario::{DEFAULT_SCENARIO_DESCRIPTION, DEFAULT_SCENARIO_NAME, DEFAULT_SKY},
     template::ScenarioTemplate,
     ExampleStates,
@@ -737,23 +741,18 @@ pub(crate) fn sync_ship_focus(
 /// carrier landed the eye inside plate; a scenario framed on ship translations
 /// alone gave one carrier at the origin a spread of zero.
 ///
-/// The free-fly rig rewrites the camera `Transform` every frame from private
-/// state, so a bare pose write is gone by the next frame. The controller is
-/// therefore removed and re-inserted around the write - the same move the
-/// gallery's camera parking makes - and its setup re-reads the transform this
-/// system just set. Keyed on the PATH (compared, not change-ticked: `exit()`
-/// at the floor marks the resource changed without moving it) plus a fresh
-/// camera, because a second editor visit spawns a new camera at the stock pose
-/// while the context still points wherever it pointed.
+/// Keyed on the PATH (compared, not change-ticked: `exit()` at the floor marks
+/// the resource changed without moving it) plus a fresh camera, because a
+/// second editor visit spawns a new camera at the stock pose while the context
+/// still points wherever it pointed.
 pub(crate) fn sync_camera_focus(
-    mut commands: Commands,
     context: Res<EditContext>,
     mut framing: ResMut<CameraFraming>,
     fresh: Query<(), Added<EditorCamera>>,
     q_children: Query<&Children>,
     q_bounds: Query<&ColliderAabb, Without<Sensor>>,
     q_poses: Query<&Transform, Without<EditorCamera>>,
-    camera: Option<Single<(Entity, &mut Transform), With<EditorCamera>>>,
+    camera: Option<Single<&mut Transform, With<EditorCamera>>>,
     mut shown: Local<Option<Vec<Entity>>>,
 ) {
     if fresh.is_empty() && shown.as_ref() == Some(&context.path) {
@@ -771,15 +770,11 @@ pub(crate) fn sync_camera_focus(
     let Some(camera) = camera else {
         return;
     };
-    let (entity, mut transform) = camera.into_inner();
+    let mut transform = camera.into_inner();
     let (centre, spread) = framed_extent(node, pose, &q_children, &q_bounds);
     *shown = Some(context.path.clone());
     *transform = frame_stage(centre, spread);
     *framing = CameraFraming::on(centre, transform.translation);
-    commands
-        .entity(entity)
-        .remove::<WASDCameraController>()
-        .insert(WASDCameraController);
 }
 
 /// Keep the automatically laid out ships in a +X row with
@@ -877,6 +872,9 @@ pub(crate) fn frame_stage(target: Vec3, spread: f32) -> Transform {
 /// document that outlived it read as the editor never resetting (owner,
 /// 2026-08-25). Despawning the scenario node takes the whole tree with it;
 /// the context and selection are cleared so nothing points into the rubble.
+///
+/// The PROJECT goes too. The next session opens through the hub, and a Ctrl+S
+/// there must not write over the mod this one saved.
 pub(crate) fn teardown_document(
     mut commands: Commands,
     mut context: ResMut<EditContext>,
@@ -889,9 +887,12 @@ pub(crate) fn teardown_document(
     if !context.path.is_empty() {
         context.path.clear();
     }
-    if selected.0.is_some() {
-        selected.0 = None;
+    if selected.primary().is_some() {
+        selected.set(None);
     }
+    commands.queue(unregister_project_sections);
+    commands.remove_resource::<ModProject>();
+    forget_history(&mut commands);
 }
 
 /// The node a picking hit belongs to: hits land on views, and the document is
@@ -924,27 +925,26 @@ pub(crate) fn mint_id(
     NodeId(format!("{prototype}_{ordinal}"))
 }
 
-/// Create the document if there is none: one empty scenario node, entered.
+/// Create the document if there is none, out of the open project.
 ///
 /// Lazily rather than at plugin build so a headless rig that never opens the
 /// editor never grows a tree. The document is NOT `DespawnOnExit` of any inner
 /// state: Play and F1 round-trip it. It dies with the SESSION instead - Back
-/// to Main Menu runs [`teardown_document`] (owner decision, 2026-08-25), so a
-/// later Sandbox entry starts on a fresh scenario.
-pub(crate) fn ensure_document(
-    mut commands: Commands,
-    sections: Option<Res<GameSections>>,
-    mut context: ResMut<EditContext>,
-) {
-    if context.scenario().is_some() {
+/// to Main Menu runs [`teardown_document`] (owner decision, 2026-08-25).
+///
+/// The player reaches the editor through the Mod Hub, which opens a project
+/// first. With none open this is a walk or a rig that came in by
+/// [`crate::EditorOpensScratch`] or stood the state up by hand, so it gets a mod
+/// with no id, founded from the default template.
+pub(crate) fn ensure_document(world: &mut World) {
+    if world.resource::<EditContext>().scenario().is_some() {
         return;
     }
-    found_document(
-        &mut commands,
-        sections.as_deref(),
-        &mut context,
-        ScenarioTemplate::default(),
-    );
+    if !world.contains_resource::<ModProject>() {
+        let template = ScenarioTemplate::default();
+        world.insert_resource(ModProject::new(None, "Scratch Mod", "", template));
+    }
+    open_project_document(world);
 }
 
 /// Found a document: one scenario node, seeded from `template`, and the context
@@ -965,7 +965,11 @@ pub(crate) fn found_document(
     // Through the SAME lift a saved file goes through: the stock range's hulks
     // and pickets are hulls with sections, and a hull the document held as an
     // opaque object was one a double click could not go inside.
-    let seed = lift_objects(template.objects(), &FileDesigns::default());
+    let seed = lift_objects(
+        template.objects(),
+        &FileDesigns::default(),
+        LiftSource::Seed,
+    );
     for object in seed.objects {
         insert_object_node(commands, scenario, object);
     }
@@ -999,40 +1003,6 @@ pub(crate) fn found_empty_document(commands: &mut Commands, context: &mut EditCo
         .id();
     context.path = vec![scenario];
     scenario
-}
-
-/// Throw the document away and found a new one - File > New Scenario.
-///
-/// Torn down and re-founded in ONE go rather than by clearing the context and
-/// letting `ensure_document` notice: that system runs on entering the editor,
-/// and a "no document, make one" pass in `Update` would also undo the teardown
-/// that ends the session (the state change lands a frame later than the
-/// despawn).
-///
-/// The template comes off the ROW that was pressed, so the picker needs no
-/// state of its own and a row that names no template starts nothing.
-///
-/// It also forgets the FILE. A new document is not the old one, and a Ctrl+S
-/// after this must not write over the range the builder just left.
-pub(crate) fn reset_document(
-    activate: On<Activate>,
-    mut commands: Commands,
-    templates: Query<&ScenarioTemplate>,
-    sections: Option<Res<GameSections>>,
-    mut context: ResMut<EditContext>,
-    mut selected: ResMut<SelectedNode>,
-    mut document: ResMut<DocumentSlot>,
-    roots: Query<Entity, With<ScenarioNode>>,
-) {
-    let Ok(template) = templates.get(activate.entity) else {
-        return;
-    };
-    for root in &roots {
-        commands.entity(root).despawn();
-    }
-    selected.0 = None;
-    document.0 = None;
-    found_document(&mut commands, sections.as_deref(), &mut context, *template);
 }
 
 /// Put one authored scenario object into the document under `scenario`, keeping
@@ -1123,15 +1093,22 @@ pub(crate) fn sync_object_views(
     mut art: PreviewArt,
     sections: Option<Res<GameSections>>,
     ships: Option<Res<GameShipDesigns>>,
+    stations: Option<Res<GameStationDesigns>>,
+    project: Option<Res<ModProject>>,
     nodes: Query<(Entity, &NodeId, &ObjectNode, Option<&Children>)>,
     views: Query<(), With<NodeView>>,
 ) {
+    // Built at the first bare node: most frames have none.
+    let mut designs = None;
     for (node, id, object, children) in &nodes {
         let bodied =
             children.is_some_and(|children| children.iter().any(|child| views.contains(child)));
         if bodied {
             continue;
         }
+        let (ships, stations) = designs.get_or_insert_with(|| {
+            drawn_designs(ships.as_deref(), stations.as_deref(), project.as_deref())
+        });
         commands.entity(node).with_children(|parent| {
             let mut view = parent.spawn((
                 DespawnOnExit(ExampleStates::Editor),
@@ -1146,10 +1123,30 @@ pub(crate) fn sync_object_views(
                 object,
                 &mut art,
                 sections.as_deref(),
-                ships.as_deref(),
+                ships,
+                stations,
             );
         });
     }
+}
+
+/// The designs a spawn may name on the stage: the game's, and the open mod's,
+/// which no catalog holds until the mod is saved and enabled.
+fn drawn_designs(
+    ships: Option<&GameShipDesigns>,
+    stations: Option<&GameStationDesigns>,
+    project: Option<&ModProject>,
+) -> (GameShipDesigns, GameStationDesigns) {
+    let mut ships = ships.cloned().unwrap_or_default();
+    let mut stations = stations.cloned().unwrap_or_default();
+    for item in project.iter().flat_map(|project| project.data.items()) {
+        match item {
+            Content::Ship(design) => ships.0.insert(0, design.clone()),
+            Content::Station(design) => stations.0.insert(0, design.clone()),
+            _ => {}
+        }
+    }
+    (ships, stations)
 }
 
 /// An object's CONFIG took an edit, so the body built from it is stale.
@@ -1244,7 +1241,7 @@ pub(crate) fn spawn_ship_node(
 /// A name a builder can then change. The id it came from does not change with
 /// it - the id is what the document, the walks and the save file key on, and a
 /// rename that moved it would break every one of them.
-fn minted_name(id: &str) -> String {
+pub(crate) fn minted_name(id: &str) -> String {
     id.split('_')
         .map(|word| {
             let mut letters = word.chars();
@@ -1489,7 +1486,30 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::*;
-    use crate::{config::EditorStatus, scenario::default_world_objects};
+    use crate::{
+        config::EditorStatus, scenario::default_world_objects, template::ScenarioTemplate,
+    };
+
+    /// No catalog holds a mod's designs until it is saved and enabled, and a
+    /// spawn that stands as authored still has to show its hull.
+    #[test]
+    fn a_kept_hull_draws_from_the_open_mods_designs() {
+        let mut project = ModProject::new(None, "Red Run", "tester", ScenarioTemplate::Range);
+        let id = ShipDesignId::from("red_run__hauler");
+        let design = ShipDesignPrototype {
+            id: id.clone(),
+            name: "Hauler".to_string(),
+            design: ShipDesign::default(),
+        };
+        project.edit().files.push(crate::project::ContentFile {
+            path: "ships.content.ron".to_string(),
+            items: vec![std::sync::Arc::new(Content::Ship(design))],
+        });
+
+        let (ships, _) = drawn_designs(None, None, Some(&project));
+
+        assert!(ships.get_design(&id).is_some());
+    }
 
     /// The half-extent a test ship's collider box carries about its own origin.
     ///
@@ -1692,7 +1712,7 @@ mod tests {
         settle_bounds(&mut app);
         let eye = app
             .world_mut()
-            .spawn((EditorCamera, WASDCameraController, Transform::default()))
+            .spawn((EditorCamera, Transform::default()))
             .id();
         let scenario = app
             .world()
@@ -1728,7 +1748,7 @@ mod tests {
         settle_bounds(&mut app);
         let eye = app
             .world_mut()
-            .spawn((EditorCamera, WASDCameraController, Transform::default()))
+            .spawn((EditorCamera, Transform::default()))
             .id();
 
         app.world_mut()
@@ -2144,7 +2164,7 @@ mod tests {
             ))
             .id();
         world.resource_mut::<EditContext>().enter(ship);
-        world.resource_mut::<SelectedNode>().0 = Some(ship);
+        world.resource_mut::<SelectedNode>().set(Some(ship));
 
         world
             .run_system_once(teardown_document)
@@ -2156,7 +2176,7 @@ mod tests {
             "the scenario node takes its whole subtree with it"
         );
         assert!(world.resource::<EditContext>().path.is_empty());
-        assert_eq!(world.resource::<SelectedNode>().0, None);
+        assert_eq!(world.resource::<SelectedNode>().primary(), None);
 
         // And the next entry starts a fresh document rather than resuming.
         world
@@ -2351,68 +2371,6 @@ mod tests {
             context.path,
             vec![scenario],
             "the scenario node is the floor"
-        );
-    }
-
-    /// File > New throws the whole document away and stands the context on a
-    /// fresh one. Everything the builder added has to go with it - a "New" that
-    /// left the old ships parented to a dead root would keep them in the world
-    /// with no row in the tree pointing at them.
-    #[test]
-    fn file_new_replaces_the_whole_document() {
-        let mut world = World::new();
-        world.init_resource::<EditContext>();
-        world.init_resource::<SelectedNode>();
-        world.init_resource::<crate::bundle::DocumentSlot>();
-        world.add_observer(reset_document);
-
-        world
-            .run_system_once(ensure_document)
-            .expect("the founding system runs");
-        let first = world
-            .resource::<EditContext>()
-            .scenario()
-            .expect("a document was founded");
-        let ship = world
-            .spawn((EditorNode, ShipNode::default(), ChildOf(first)))
-            .id();
-        world.resource_mut::<EditContext>().enter(ship);
-        world.resource_mut::<SelectedNode>().0 = Some(ship);
-        world.resource_mut::<crate::bundle::DocumentSlot>().0 = Some(crate::bundle::SaveSlot {
-            id: "editor_my_range".to_string(),
-            name: "My Range".to_string(),
-        });
-
-        // The template comes off the row that was pressed, so the trigger
-        // names a row rather than nothing.
-        let row = world.spawn(ScenarioTemplate::Range).id();
-        world.trigger(Activate { entity: row });
-        world.flush();
-
-        let second = world
-            .resource::<EditContext>()
-            .scenario()
-            .expect("a new document was founded");
-        assert_ne!(second, first, "the old root is gone, not reused");
-        assert!(
-            world.get_entity(first).is_err(),
-            "the old root was despawned"
-        );
-        assert!(
-            world.get_entity(ship).is_err(),
-            "and took its ships with it"
-        );
-        assert_eq!(
-            world.resource::<EditContext>().ship(),
-            None,
-            "the context stands on the new scenario node, not inside a dead ship"
-        );
-        assert_eq!(world.resource::<SelectedNode>().0, None);
-        assert_eq!(
-            world.resource::<crate::bundle::DocumentSlot>().0,
-            None,
-            "and it forgot the file: a Ctrl+S now must not write over the range \
-             the builder just left"
         );
     }
 

@@ -411,6 +411,7 @@ fn ram_range(game_assets: &GameAssets) -> ScenarioConfig {
         description: "Six staged contacts, from a docking touch to a wrecking ram.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

@@ -207,6 +207,7 @@ pub(crate) fn menu_waystation(
     let events = vec![
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -238,6 +239,7 @@ pub(crate) fn menu_waystation(
         },
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {

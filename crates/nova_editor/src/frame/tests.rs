@@ -17,6 +17,7 @@ fn frame_app() -> App {
     app.init_resource::<CameraFraming>();
     app.init_resource::<SelectedNode>();
     app.init_resource::<EditContext>();
+    app.init_resource::<RailTab>();
     app.insert_resource(HeldPart(None));
     app
 }
@@ -25,7 +26,6 @@ fn camera(app: &mut App) -> Entity {
     app.world_mut()
         .spawn((
             EditorCamera,
-            WASDCameraController,
             Transform::from_xyz(0.0, 5.0, 10.0).looking_at(Vec3::ZERO, Vec3::Y),
         ))
         .id()
@@ -173,22 +173,6 @@ fn a_request_raised_before_the_camera_exists_is_held() {
 }
 
 #[test]
-fn framing_hands_the_free_fly_rig_back() {
-    let mut app = frame_app();
-    let eye = camera(&mut app);
-    let node = rock(&mut app, Vec3::new(5.0, 0.0, 0.0), 1.0);
-
-    app.world_mut().resource_mut::<FrameRequest>().node = Some(node);
-    serve(&mut app);
-
-    assert!(
-        app.world().entity(eye).contains::<WASDCameraController>(),
-        "the rig re-reads the pose on setup; without the round trip it would \
-         snap the camera back next frame"
-    );
-}
-
-#[test]
 fn the_key_frames_the_selection_and_falls_back_to_the_context() {
     let mut app = frame_app();
     let scenario = app
@@ -219,7 +203,9 @@ fn the_key_frames_the_selection_and_falls_back_to_the_context() {
         Some(scenario),
         "nothing selected frames what you are standing in"
     );
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
     assert_eq!(tap(&mut app), Some(node), "a selection wins");
 }
 
@@ -227,7 +213,9 @@ fn the_key_frames_the_selection_and_falls_back_to_the_context() {
 fn the_key_stays_out_of_the_way_of_an_armed_part() {
     let mut app = frame_app();
     let node = rock(&mut app, Vec3::ZERO, 1.0);
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
     app.world_mut()
         .insert_resource(HeldPart(Some("thruster".to_string())));
     let mut keys = ButtonInput::<KeyCode>::default();
@@ -317,44 +305,6 @@ fn a_sensor_volume_is_not_part_of_a_nodes_size() {
         "the trigger volume would put the beacon in an empty screen: {:?}",
         bounds.size()
     );
-}
-
-/// The free-fly rig is a keyboard consumer like any other, and a mode that has
-/// the keyboard has it. Binding `W` to a thruster used to fly the camera
-/// forward while the key was held, so the part the chip points at slid off
-/// screen mid-gesture.
-#[test]
-fn the_camera_gives_up_its_keys_to_every_mode_above_normal() {
-    for mode in [InputMode::Browse, InputMode::Insert, InputMode::Bind] {
-        let mut app = frame_app();
-        app.insert_resource(InputMode::Normal);
-        let camera = app
-            .world_mut()
-            .spawn((EditorCamera, WASDCameraController))
-            .id();
-
-        *app.world_mut().resource_mut::<InputMode>() = mode;
-        app.world_mut()
-            .run_system_once(hold_camera_above_normal)
-            .expect("the hold runs");
-
-        assert!(
-            app.world().get::<WASDCameraController>(camera).is_none(),
-            "{mode:?} has the keyboard, so it has the rig"
-        );
-        assert!(app.world().get::<ModeHold>(camera).is_some());
-
-        *app.world_mut().resource_mut::<InputMode>() = InputMode::Normal;
-        app.world_mut()
-            .run_system_once(hold_camera_above_normal)
-            .expect("the hold runs");
-
-        assert!(
-            app.world().get::<WASDCameraController>(camera).is_some(),
-            "the rig comes back with the keyboard"
-        );
-        assert!(app.world().get::<ModeHold>(camera).is_none());
-    }
 }
 
 /// Framing RECORDS what it framed, which is what the placement ray and the

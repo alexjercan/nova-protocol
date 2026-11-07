@@ -179,6 +179,7 @@ fn arena_objects() -> Vec<ScenarioObjectConfig> {
 fn arena_script() -> Vec<ScenarioEventConfig> {
     vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],

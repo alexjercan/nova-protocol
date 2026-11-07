@@ -199,6 +199,7 @@ fn once(
 ) -> ScenarioEventConfig {
     ScenarioEventConfig {
         label: None,
+        position: None,
         name,
         once: true,
         filters,
@@ -237,6 +238,7 @@ fn repeatable(
 ) -> ScenarioEventConfig {
     ScenarioEventConfig {
         label: None,
+        position: None,
         name,
         once: false,
         filters,
@@ -380,6 +382,7 @@ pub(crate) fn chapter_one(
     let mut events = vec![
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: true,
             filters: vec![],

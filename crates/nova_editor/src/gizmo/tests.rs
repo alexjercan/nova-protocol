@@ -6,7 +6,10 @@ use avian3d::prelude::{Collider, SimpleCollider};
 use bevy::ecs::system::RunSystemOnce;
 
 use super::*;
-use crate::node::{EditorNode, NodeView, ObjectChoice};
+use crate::{
+    history::tests::{assert_one_step, depth, end_drag, first_with, history_app},
+    node::{EditorNode, NodeView, ObjectChoice},
+};
 
 /// A ray from `from` through `towards`, the way a pointer's would arrive.
 fn ray(from: Vec3, towards: Vec3) -> Ray3d {
@@ -103,7 +106,7 @@ fn a_step_across_the_seam_is_the_short_way_round() {
 fn a_move_slides_along_one_axis_and_leaves_the_others_alone() {
     let start = Transform::from_xyz(1.0, 2.0, 3.0).with_rotation(Quat::from_rotation_x(0.5));
 
-    let moved = dragged(move_handle(GizmoAxis::Y), &start, 4.0);
+    let moved = applied(Travel::Slide(Vec3::Y * 4.0), &start, start.translation);
 
     assert_eq!(moved.translation, Vec3::new(1.0, 6.0, 3.0));
     assert_eq!(moved.rotation, start.rotation, "a move does not turn");
@@ -115,10 +118,10 @@ fn a_turn_is_applied_about_the_world_axis_the_ring_names() {
     // about the node's own side.
     let start = Transform::from_xyz(5.0, 0.0, 0.0).with_rotation(Quat::from_rotation_y(1.0));
 
-    let turned = dragged(
-        turn_handle(GizmoAxis::X),
+    let turned = applied(
+        Travel::Turn(Vec3::X, std::f32::consts::FRAC_PI_2),
         &start,
-        std::f32::consts::FRAC_PI_2,
+        start.translation,
     );
 
     assert_eq!(
@@ -137,11 +140,9 @@ fn a_turn_is_applied_about_the_world_axis_the_ring_names() {
 #[test]
 fn a_gesture_is_measured_from_the_grab_and_not_frame_by_frame() {
     let start = Transform::from_xyz(0.0, 0.0, 0.0);
-    let handle = move_handle(GizmoAxis::X);
-
     // The pointer sweeps out and comes back to where it started.
-    let out = dragged(handle, &start, 12.0);
-    let back = dragged(handle, &start, 0.0);
+    let out = applied(Travel::Slide(Vec3::X * 12.0), &start, Vec3::ZERO);
+    let back = applied(Travel::Slide(Vec3::ZERO), &start, Vec3::ZERO);
 
     assert_eq!(out.translation.x, 12.0);
     assert_eq!(
@@ -157,6 +158,7 @@ fn gizmo_app() -> App {
     app.init_resource::<SelectedNode>();
     app.init_resource::<GalleryState>();
     app.init_resource::<GizmoReach>();
+    app.init_resource::<StageTool>();
     app.add_message::<ObjectBodyStale>();
     app.world_mut().spawn((
         GizmoRig,
@@ -212,7 +214,9 @@ fn rig(app: &App) -> (Transform, Visibility) {
 fn the_rig_rides_the_selected_node() {
     let mut app = gizmo_app();
     let node = ship(&mut app, Vec3::new(12.0, 0.0, -4.0));
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
 
     place(&mut app);
 
@@ -227,7 +231,9 @@ fn the_rig_clears_a_hull_it_would_otherwise_sit_inside() {
     // Close enough that camera distance alone would give a rig smaller than
     // the ship it is on.
     let node = ship(&mut app, Vec3::new(0.0, 5.0, 28.0));
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
 
     place(&mut app);
 
@@ -252,7 +258,9 @@ fn the_rig_is_sized_from_where_the_camera_is_now() {
         .world_mut()
         .spawn((EditorNode, ShipNode::default(), Transform::default()))
         .id();
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
 
     place(&mut app);
 
@@ -275,7 +283,9 @@ fn a_redrawn_body_resizes_its_rig() {
     // camera-distance floor.
     let at = Vec3::new(0.0, 5.0, 28.0);
     let node = rock(&mut app, at, Collider::sphere(3.0));
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
     place(&mut app);
     let before = rig(&app).0.scale.x;
 
@@ -299,7 +309,9 @@ fn an_unannounced_body_leaves_the_rig_the_size_it_was() {
     let mut app = gizmo_app();
     let at = Vec3::new(0.0, 5.0, 28.0);
     let node = rock(&mut app, at, Collider::sphere(3.0));
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
     place(&mut app);
     let before = rig(&app).0.scale.x;
 
@@ -345,7 +357,9 @@ fn regrow(app: &mut App, at: Vec3, body: Collider) {
 fn turning_a_node_does_not_resize_its_rig() {
     let mut app = gizmo_app();
     let node = ship(&mut app, Vec3::ZERO);
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
     place(&mut app);
     let before = rig(&app).0.scale;
 
@@ -391,11 +405,13 @@ fn heel_over(app: &mut App, node: Entity, turn: Quat, bounds: ColliderAabb) {
 fn nothing_selected_hides_the_rig() {
     let mut app = gizmo_app();
     let node = ship(&mut app, Vec3::ZERO);
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
     place(&mut app);
     assert_eq!(rig(&app).1, Visibility::Inherited);
 
-    app.world_mut().resource_mut::<SelectedNode>().0 = None;
+    app.world_mut().resource_mut::<SelectedNode>().set(None);
     place(&mut app);
 
     assert_eq!(rig(&app).1, Visibility::Hidden);
@@ -405,7 +421,9 @@ fn nothing_selected_hides_the_rig() {
 fn the_rig_stays_off_inside_a_ship_and_under_an_armed_part() {
     let mut app = gizmo_app();
     let node = ship(&mut app, Vec3::ZERO);
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
 
     // Mating decides where a part sits, so there is nothing here to drag.
     let scenario = app.world_mut().spawn(EditorNode).id();
@@ -430,7 +448,9 @@ fn a_section_selected_inside_a_ship_gets_no_handles() {
         .world_mut()
         .spawn((EditorNode, Transform::default()))
         .id();
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(section);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(section));
 
     place(&mut app);
 
@@ -440,17 +460,16 @@ fn a_section_selected_inside_a_ship_gets_no_handles() {
 #[test]
 fn a_ring_the_camera_looks_along_leaves_the_stage() {
     let mut app = gizmo_app();
+    app.world_mut().resource_mut::<StageTool>().tool = StageToolType::Turn;
     let node = ship(&mut app, Vec3::ZERO);
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
     let rings = [GizmoAxis::X, GizmoAxis::Y, GizmoAxis::Z].map(|axis| {
         app.world_mut()
             .spawn((turn_handle(axis), Visibility::Inherited))
             .id()
     });
-    let arm = app
-        .world_mut()
-        .spawn((move_handle(GizmoAxis::X), Visibility::Inherited))
-        .id();
 
     place(&mut app);
 
@@ -469,5 +488,235 @@ fn a_ring_the_camera_looks_along_leaves_the_stage() {
         "Y, seen nearly edge-on"
     );
     assert_eq!(shown(rings[2]), Visibility::Inherited, "Z, seen square-on");
-    assert_eq!(shown(arm), Visibility::Inherited, "an arm is not a ring");
+}
+
+/// A turn is one step named for what it did, however many frames it wrote.
+#[test]
+fn a_gizmo_turn_is_one_step_on_release() {
+    let mut app = history_app();
+    app.init_resource::<GizmoDrag>();
+    app.add_observer(on_gizmo_release);
+    let rock = first_with::<ObjectNode>(&mut app);
+
+    assert_one_step(&mut app, "Turn", |app| {
+        let mut state = app.world_mut().resource_mut::<GizmoDrag>();
+        state.members = vec![(rock, Transform::default())];
+        state.handle = Some(turn_handle(GizmoAxis::Y));
+        for _ in 0..3 {
+            app.world_mut()
+                .get_mut::<Transform>(rock)
+                .expect("the rock stands")
+                .rotate_y(0.1);
+            app.update();
+            assert_eq!(depth(app), 0, "a held handle is no step yet");
+        }
+        end_drag(app, rock);
+    });
+}
+
+/// Which handles are up, by kind, with `tool` in hand.
+fn kinds_up(tool: StageToolType) -> Vec<HandleKind> {
+    let mut app = gizmo_app();
+    app.world_mut().resource_mut::<StageTool>().tool = tool;
+    let node = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ObjectNode {
+                name: "Rock".to_string(),
+                ..ObjectChoice::Asteroid.stock()
+            },
+            Transform::default(),
+        ))
+        .id();
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
+    let kinds = [
+        HandleKind::Move,
+        HandleKind::Plane,
+        HandleKind::Turn,
+        HandleKind::Stretch,
+        HandleKind::Uniform,
+    ];
+    let handles = kinds.map(|kind| {
+        app.world_mut()
+            .spawn((
+                GizmoHandle {
+                    axis: GizmoAxis::Z,
+                    kind,
+                },
+                Visibility::Inherited,
+            ))
+            .id()
+    });
+    place(&mut app);
+    kinds
+        .into_iter()
+        .zip(handles)
+        .filter(|(_, handle)| {
+            app.world().get::<Visibility>(*handle) == Some(&Visibility::Inherited)
+        })
+        .map(|(kind, _)| kind)
+        .collect()
+}
+
+#[test]
+fn each_tool_shows_only_its_own_handles() {
+    assert_eq!(
+        kinds_up(StageToolType::Move),
+        [HandleKind::Move, HandleKind::Plane]
+    );
+    assert_eq!(kinds_up(StageToolType::Turn), [HandleKind::Turn]);
+    assert_eq!(
+        kinds_up(StageToolType::Scale),
+        [HandleKind::Stretch, HandleKind::Uniform]
+    );
+}
+
+#[test]
+fn the_select_tool_shows_no_rig() {
+    let mut app = gizmo_app();
+    app.world_mut().resource_mut::<StageTool>().tool = StageToolType::Select;
+    let node = ship(&mut app, Vec3::ZERO);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
+
+    place(&mut app);
+
+    assert_eq!(rig(&app).1, Visibility::Hidden);
+}
+
+#[test]
+fn a_ship_shows_no_scale_handles() {
+    let mut app = gizmo_app();
+    app.world_mut().resource_mut::<StageTool>().tool = StageToolType::Scale;
+    let node = ship(&mut app, Vec3::ZERO);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
+
+    place(&mut app);
+
+    assert_eq!(rig(&app).1, Visibility::Hidden);
+}
+
+#[test]
+fn local_space_turns_the_rig_to_the_primary_node() {
+    let mut app = gizmo_app();
+    let node = ship(&mut app, Vec3::ZERO);
+    let facing = Quat::from_rotation_y(0.7);
+    app.world_mut()
+        .get_mut::<Transform>(node)
+        .expect("a pose")
+        .rotation = facing;
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
+
+    place(&mut app);
+    assert_eq!(rig(&app).0.rotation, Quat::IDENTITY, "world axes first");
+
+    app.world_mut().resource_mut::<StageTool>().space = GizmoSpaceType::Local;
+    place(&mut app);
+    assert_eq!(rig(&app).0.rotation, facing);
+}
+
+#[test]
+fn a_group_rig_stands_at_the_centre_of_the_selection() {
+    let mut app = gizmo_app();
+    let left = ship(&mut app, Vec3::new(-10.0, 0.0, 0.0));
+    let right = ship(&mut app, Vec3::new(30.0, 4.0, 0.0));
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set_all([left, right]);
+
+    place(&mut app);
+
+    assert_eq!(rig(&app).0.translation, Vec3::new(10.0, 2.0, 0.0));
+}
+
+#[test]
+fn a_group_turn_swings_each_node_about_the_centre() {
+    let start = Transform::from_xyz(10.0, 0.0, 0.0);
+
+    let turned = applied(
+        Travel::Turn(Vec3::Y, std::f32::consts::PI),
+        &start,
+        Vec3::ZERO,
+    );
+
+    assert!((turned.translation - Vec3::new(-10.0, 0.0, 0.0)).length() < 1e-4);
+    assert!((turned.rotation * Vec3::X + Vec3::X).length() < 1e-4);
+}
+
+#[test]
+fn a_plane_square_slides_on_its_plane_and_leaves_the_normal_alone() {
+    let eye = Vec3::new(0.0, 20.0, 0.0);
+    let grab = plane_hit(ray(eye, Vec3::new(1.0, 0.0, 1.0)), Vec3::ZERO, Vec3::Y)
+        .expect("the plane is across the view");
+    let now = plane_hit(ray(eye, Vec3::new(4.0, 0.0, -2.0)), Vec3::ZERO, Vec3::Y)
+        .expect("the plane is across the view");
+
+    let across = now - grab;
+
+    assert!((across - Vec3::new(3.0, 0.0, -3.0)).length() < 1e-4);
+}
+
+#[test]
+fn ctrl_snaps_a_plane_slide_to_the_grid_on_both_axes() {
+    let cell = MOVE_SNAP.to_engine();
+    let centre = Vec3::new(0.3, 0.0, 0.2);
+
+    let by = snapped_across(
+        centre,
+        Vec3::new(cell * 2.1, 0.0, cell * 3.1),
+        Quat::IDENTITY,
+        cell,
+    );
+
+    let landed = centre + by;
+    assert!((landed.x - snapped(centre.x + cell * 2.1, cell)).abs() < 1e-4);
+    assert!((landed.z - snapped(centre.z + cell * 3.1, cell)).abs() < 1e-4);
+    assert_eq!(by.y, 0.0, "the normal stays put");
+}
+
+#[test]
+fn a_size_handle_doubles_at_one_arm_and_stops_at_the_floor() {
+    assert_eq!(stretched(Meters(40.0), 5.0, 5.0, false), Meters(80.0));
+    assert_eq!(stretched(Meters(40.0), -5.0, 5.0, false), MIN_SIZE);
+}
+
+#[test]
+fn ctrl_snaps_a_size_to_its_step() {
+    assert_eq!(stretched(Meters(40.0), 0.61, 5.0, true), Meters(45.0));
+}
+
+/// A group drag is one step on release, however many nodes and frames it wrote.
+#[test]
+fn a_group_move_is_one_undo_step() {
+    let mut app = history_app();
+    app.init_resource::<GizmoDrag>();
+    app.add_observer(on_gizmo_release);
+    let rock = first_with::<ObjectNode>(&mut app);
+    let ship = first_with::<ShipNode>(&mut app);
+
+    assert_one_step(&mut app, "Move", |app| {
+        let mut state = app.world_mut().resource_mut::<GizmoDrag>();
+        state.members = vec![(rock, Transform::default()), (ship, Transform::default())];
+        state.handle = Some(move_handle(GizmoAxis::Y));
+        for _ in 0..3 {
+            for node in [rock, ship] {
+                app.world_mut()
+                    .get_mut::<Transform>(node)
+                    .expect("the node stands")
+                    .translation
+                    .y += 1.0;
+            }
+            app.update();
+            assert_eq!(depth(app), 0, "a held handle is no step yet");
+        }
+        end_drag(app, rock);
+    });
 }

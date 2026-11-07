@@ -113,26 +113,18 @@ const SAVE_SLUG: &str = "hull_roll_1300";
 #[cfg(feature = "debug")]
 const NAME_CLEAR: usize = 48;
 
-/// The rail's scrolling viewport, which the "is it on screen" reads measure
+/// The draw list's scrolling viewport, which the "is it on screen" reads measure
 /// against.
 #[cfg(feature = "debug")]
-const RAIL_VIEWPORT: &str = "Editor Rail Scroll";
-/// The bar beside it, which the wheel beats aim at. Not the rows: a hovered
-/// Scene row raises its hint beside the rail, and a hull of 150 sections is
-/// 150 rows under wherever the pointer lands. With no viewport under the
-/// pointer the wheel goes to every viewport at once, and the rail is the only
-/// one on screen with anything to scroll.
+const DRAW_VIEWPORT: &str = "Part List Scroll";
+/// The bar beside it, which the wheel beats aim at. Not the rows: the wheel goes
+/// to the viewport under the pointer, and a press beat parks there anyway.
 #[cfg(feature = "debug")]
-const RAIL_BAR: &str = "Rail Scrollbar";
-/// The rail's top: where the wheel takes it back to before the top bar is
-/// clicked again. A row scrolled up past the viewport still takes the pick
-/// over the top bar, and a Scene row would have the File button's click.
-#[cfg(feature = "debug")]
-const RAIL_TOP: &str = "Rail Tabs";
+const DRAW_BAR: &str = "Part List Bar";
 
 /// Where the pointer is parked between gestures, in logical pixels: over the
 /// top bar's empty stretch between the Ship button and the Play button, so no
-/// rail row is hovered and no section on the stage is cross-highlighted.
+/// tree row is hovered and no section on the stage is cross-highlighted.
 /// Empty at both window sizes this walk runs at - the bar's buttons are laid
 /// out from the left, and Play is centred.
 #[cfg(feature = "debug")]
@@ -150,15 +142,15 @@ const PARK: Vec2 = Vec2::new(400.0, 18.0);
 /// bow side is -Z.
 ///
 /// Sized for the 720p loop window, where the stage is the 770 px between the
-/// rail and the inspector (both keep their pixel width) and the hull's frame
+/// Hierarchy and the Inspector (both keep their pixel width) and the hull's frame
 /// box spans some 700 of them; the same reach leaves the 1080p stills with
 /// the hull on two thirds of theirs.
 #[cfg(feature = "debug")]
 const HULL_EYE: Meters3 = Meters3::new(133.0, 84.0, -168.0);
 
 /// What the lens looks at: the ship's origin, pushed 12 m along the camera's
-/// screen-right, so the hull sits on the centre of the band between the rail
-/// and the inspector rather than on the centre of the window.
+/// screen-right, so the hull sits on the centre of the band between the
+/// Hierarchy and the Inspector rather than on the centre of the window.
 #[cfg(feature = "debug")]
 const HULL_LOOK: Meters3 = Meters3::new(-9.0, 0.0, -7.0);
 
@@ -173,6 +165,7 @@ fn main() -> bevy::app::AppExit {
 
     // The same app the game/binary runs (main menu over the ambience backdrop).
     let mut app = editor_app(true, None);
+    app.insert_resource(EditorOpensScratch);
 
     #[cfg(feature = "debug")]
     {
@@ -205,7 +198,7 @@ fn main() -> bevy::app::AppExit {
 /// the WINDOW at 720p too, so the encode carries no scale.
 ///
 /// The fleet records at 1920x1080 and scales the webm down. This loop's
-/// subject is the rail - a seed in a 10 px field, chips with 10 px words, a
+/// subject is the Ship tab - a seed in a 10 px field, chips with 10 px words, a
 /// two-line plan - and that scale would put the text at 7 px. The editor's
 /// chrome keeps its pixel size whatever the window's, so a 720p window is the
 /// same 10 px text in a smaller frame. The stills are shot after the loop, at
@@ -336,19 +329,19 @@ fn the_node_reads(name: &'static str, text: impl Into<String>) -> Arc<Predicate>
     })
 }
 
-/// Advance once the node called `name` is inside the rail's viewport - the
+/// Advance once the node called `name` is inside the list's viewport - the
 /// honest end of a wheel beat, where a frame count only guessed at the
 /// reflow.
 #[cfg(feature = "debug")]
-fn the_rail_shows(name: &'static str) -> Arc<Predicate> {
+fn the_draw_list_shows(name: &'static str) -> Arc<Predicate> {
     Arc::new(move |world: &World| {
-        let (Some(rail), Some(node)) = (
-            ui_node_rect(world, RAIL_VIEWPORT),
+        let (Some(list), Some(node)) = (
+            ui_node_rect(world, DRAW_VIEWPORT),
             ui_node_rect(world, name),
         ) else {
             return false;
         };
-        rail.contains(node.center())
+        list.contains(node.center())
     })
 }
 
@@ -383,8 +376,6 @@ fn pose_for_the_landing(world: &mut World) {
 /// Put the window at the fleet's figure size for the stills. The loop is
 /// recorded at the profile's 720p window; the figures are 1080p like every
 /// other still the site shows, and `shoot` reads the window back as it is.
-/// The rail's viewport clamps its own scroll to the taller box, which leaves
-/// the block where the loop left it: at the rail's bottom.
 #[cfg(feature = "debug")]
 fn size_the_window_for_the_figures(world: &mut World) {
     let (width, height) = CAPTURE_RESOLUTION;
@@ -426,10 +417,10 @@ trait GenerateGestures {
     /// has nothing to hold for.
     fn hold(self, label: &str, seconds: f32) -> Self;
 
-    /// Wheel the rail until the node called `name` is inside its viewport.
+    /// Wheel the draw list until the node called `name` is inside its viewport.
     /// The draw list is the whole catalog, and its last rows start below the
     /// fold at 1080 px.
-    fn scroll_the_rail_to(self, label: &str, name: &'static str) -> Self;
+    fn scroll_the_list_to(self, label: &str, name: &'static str) -> Self;
 
     /// Click into the text field called `field`, clear it with `clear`
     /// Backspaces from the end, type `text`, and Enter it when `commit` -
@@ -450,10 +441,8 @@ trait GenerateGestures {
     fn press_the_zone_chip(self, label: &str, row: &'static str, then: &'static str) -> Self;
 
     /// Click Generate and wait for the hull to land, with the pointer taken
-    /// off the rail the frame the release registers. A click's last beat
-    /// leaves the pointer on the button, and the landing grows the Scene
-    /// tree over that spot: the row that reflows under it is a hovered row,
-    /// and a hovered row raises its hint beside the rail.
+    /// off the strip the frame the release registers, so the button's hover
+    /// paint is not what the landing frame shows.
     fn press_generate(self, label: &str) -> Self;
 }
 
@@ -467,23 +456,23 @@ impl GenerateGestures for AutopilotPlugin<GameStates> {
         }
     }
 
-    fn scroll_the_rail_to(self, label: &str, name: &'static str) -> Self {
-        self.step(format!("{label}: the rail holds it"))
+    fn scroll_the_list_to(self, label: &str, name: &'static str) -> Self {
+        self.step(format!("{label}: the list holds it"))
             .until(ui_node_present(name))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
             // The aim is its own beat: the pick map catches up with a move one
             // PreUpdate later, and a wheel sent before that would land wherever
             // the pointer was.
-            .step(format!("{label}: aim the wheel at the rail's bar"))
-            .on_enter(hover_named(RAIL_BAR))
-            .until(pointer_over_node(RAIL_BAR))
+            .step(format!("{label}: aim the wheel at the list's bar"))
+            .on_enter(hover_named(DRAW_BAR))
+            .until(pointer_over_node(DRAW_BAR))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
             .step(format!("{label}: wheel it into view"))
             .on_enter(move |world: &mut World| {
-                let (Some(rail), Some(node)) = (
-                    ui_node_rect(world, RAIL_VIEWPORT),
+                let (Some(list), Some(node)) = (
+                    ui_node_rect(world, DRAW_VIEWPORT),
                     ui_node_rect(world, name),
                 ) else {
                     return;
@@ -492,9 +481,9 @@ impl GenerateGestures for AutopilotPlugin<GameStates> {
                 // a negative delta moves the content UP the screen - what a
                 // node below the box needs - and a positive one brings a node
                 // scrolled up past it back down.
-                scroll_pixels(rail.center().y - node.center().y)(world);
+                scroll_pixels(list.center().y - node.center().y)(world);
             })
-            .until(the_rail_shows(name))
+            .until(the_draw_list_shows(name))
             .deadline(BEAT_DEADLINE_SECS)
             .add()
     }
@@ -619,7 +608,7 @@ fn generate_script() -> AutopilotPlugin<GameStates> {
     let park = |label: &str, script: AutopilotPlugin<GameStates>| {
         script
             .step(format!(
-                "{label}: park the pointer clear of the rail and the stage"
+                "{label}: park the pointer clear of the panels and the stage"
             ))
             .on_enter(move_cursor(PARK))
             .until(pointer_at(PARK))
@@ -657,7 +646,8 @@ fn generate_script() -> AutopilotPlugin<GameStates> {
         .until(the_landing_camera_is_posed())
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        .scroll_the_rail_to("bring the whole draw list up", LANCE_ROW);
+        .click("open the Ship tab", "Browser Tab Ship")
+        .scroll_the_list_to("bring the whole draw list up", LANCE_ROW);
     script = park("before the roll", script);
 
     if capturing() {
@@ -671,8 +661,10 @@ fn generate_script() -> AutopilotPlugin<GameStates> {
         .hold("hold the blank stage", 0.8)
         .retype("seed the roll", "Hull Seed Field", SEED_CLEAR, SEED, true)
         .hold("hold the typed seed", 0.5)
+        .scroll_the_list_to("bring the drive up", DRIVE_ROW)
         .tick("tick the capital drive", DRIVE_ROW)
         .hold("hold the ticked drive", 0.3)
+        .scroll_the_list_to("bring the lance up", LANCE_ROW)
         .tick("tick the railgun lance", LANCE_ROW)
         // The plan line is written from the TICKS, so it names the engine and
         // the bow gun before Generate is pressed - and a line that still read
@@ -683,6 +675,7 @@ fn generate_script() -> AutopilotPlugin<GameStates> {
         .add()
         .hold("hold the plan", 0.5);
 
+    script = script.scroll_the_list_to("bring the turret up", ZONED_ROW);
     for (index, zone) in ZONE_CYCLE.iter().enumerate() {
         script = script.press_the_zone_chip(
             &format!("cycle the turret's zone {}/{}", index + 1, ZONE_CYCLE.len()),
@@ -693,10 +686,7 @@ fn generate_script() -> AutopilotPlugin<GameStates> {
 
     script = script
         .hold("hold the flank chip", 0.5)
-        .press_generate("press Generate")
-        // The landing fills the Scene tree above the block, which pushes the
-        // block down the rail; the wheel brings it back under the grown tree.
-        .scroll_the_rail_to("bring the block back under the grown tree", LANCE_ROW);
+        .press_generate("press Generate");
     script = park("after the landing", script);
     script = script.hold("hold the landed hull", 2.5);
 
@@ -721,11 +711,7 @@ fn generate_script() -> AutopilotPlugin<GameStates> {
         .on_enter(shot(PLAN_SHOT))
         .until(shot_written(PLAN_SHOT))
         .deadline(SHOT_DEADLINE_SECS)
-        .add()
-        // Back to the rail's top before the top bar is touched: the Scene rows
-        // the block was wheeled up past are still pickable where they sit,
-        // over the File button. See `RAIL_TOP`.
-        .scroll_the_rail_to("clear the top bar of scrolled-off rows", RAIL_TOP);
+        .add();
     script = park("before the File menu", script);
 
     script

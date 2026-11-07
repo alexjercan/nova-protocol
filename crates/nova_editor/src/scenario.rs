@@ -32,9 +32,11 @@
 use std::collections::HashSet;
 
 use bevy::prelude::*;
+use nova_assets::mod_refs::prelude::rewrite_refs;
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{default_comms_accent, Allegiance, AssetRef, ShipInventoryStock};
 use nova_input::prelude::InputSource;
+use nova_modding::prelude::Content;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::{
     TargetingSettings, BASIC_CONTROLLER_SECTION_ID, BASIC_THRUSTER_SECTION_ID,
@@ -52,6 +54,7 @@ use crate::{
         SAFETY_ON_SOUND, SHIP_COLLAPSE_SOUND, TORPEDO_CLOSING_SOUND, WARN_HULL_SOUND,
         WARN_LOCK_SOUND,
     },
+    project::{ids::design_id, ModProject},
     station::{station_design_id, StationCatalogs},
 };
 
@@ -250,9 +253,22 @@ pub(crate) fn setup_scenario(
     targeting: Option<Res<TargetingSettings>>,
     catalogs: StationCatalogs,
     stations: Option<ResMut<GameStationDesigns>>,
+    ships: Option<ResMut<GameShipDesigns>>,
+    project: Option<Res<ModProject>>,
 ) {
     let targeting = targeting.as_deref().cloned().unwrap_or_default();
     let fleet = lower_fleet(&q_ships, &nodes);
+    let mut stations = stations;
+    let mut scenarios = scenarios;
+    if let Some(project) = project.as_deref() {
+        register_project_content(
+            project,
+            &assets,
+            ships,
+            stations.as_deref_mut(),
+            scenarios.as_deref_mut(),
+        );
+    }
     let scenario = assets.resolved(sandbox_scenario(
         &world_settings(&context, &q_settings),
         world_objects(&context, &q_objects),
@@ -303,6 +319,40 @@ pub(crate) fn setup_scenario(
     }
 
     commands.trigger(LoadScenario(scenario));
+}
+
+/// Register what the mod holds for the life of this Play session, as the merge
+/// would: its designs and scenarios, refs resolved. Sections, styles and items
+/// reach the game through the merge only, once the mod is saved and enabled.
+fn register_project_content(
+    project: &ModProject,
+    assets: &AssetIndex,
+    mut ships: Option<ResMut<GameShipDesigns>>,
+    mut stations: Option<&mut GameStationDesigns>,
+    mut scenarios: Option<&mut GameScenarios>,
+) {
+    for item in project.data.items() {
+        match assets.scoped(|scope| rewrite_refs(item, scope)) {
+            Content::Ship(design) => {
+                if let Some(ships) = ships.as_deref_mut() {
+                    ships.0.retain(|held| held.id != design.id);
+                    ships.0.push(design);
+                }
+            }
+            Content::Station(design) => {
+                if let Some(stations) = stations.as_deref_mut() {
+                    stations.0.retain(|held| held.id != design.id);
+                    stations.0.push(design);
+                }
+            }
+            Content::Scenario(scenario) => {
+                if let Some(scenarios) = scenarios.as_deref_mut() {
+                    scenarios.insert(scenario.id.clone(), scenario);
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 /// The world the sandbox spawns: the DOCUMENT's objects once a document exists,
@@ -538,11 +588,14 @@ impl LoweredFleet {
 /// prototype the same file carries - so editing a design changes every
 /// instance of it and the file never holds two copies of one hull.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum HullForm {
+pub(crate) enum HullForm<'a> {
     /// The whole section list, written out where the ship is spawned.
     Inline,
-    /// A reference to the ship prototype of the same id.
-    Prototype,
+    /// A reference to the ship prototype `scenario` writes for the node.
+    Prototype {
+        /// The scenario the design belongs to.
+        scenario: &'a str,
+    },
 }
 
 /// The design a lowered ship spawns, in the form asked for.
@@ -552,7 +605,9 @@ pub(crate) enum HullForm {
 /// untouched editor hands over has to stay an empty design.
 fn hull_of(ship: &LoweredShip, form: HullForm) -> ShipDesignSource {
     match form {
-        HullForm::Prototype if !ship.id.is_empty() => ShipDesignSource::prototype(ship.id.as_str()),
+        HullForm::Prototype { scenario } if !ship.id.is_empty() => {
+            ShipDesignSource::prototype(design_id(scenario, &ship.id).as_str())
+        }
         _ => ShipDesignSource::Inline(ship_design(ship)),
     }
 }
@@ -606,8 +661,8 @@ pub(crate) fn range_scenario(
         description: settings.description.clone(),
         skybox_brightness: settings.skybox_brightness,
         events: range_events(
-            range.id,
-            sandbox_objects(world, fleet, range.form, range.flight, targeting),
+            range,
+            sandbox_objects(world, fleet, range, targeting),
             script,
         ),
         ..ScenarioConfig::new(
@@ -640,7 +695,7 @@ pub(crate) const DEFAULT_SCENARIO_DESCRIPTION: &str =
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Range<'a> {
     pub(crate) id: &'a str,
-    pub(crate) form: HullForm,
+    pub(crate) form: HullForm<'a>,
     /// Whether the range may compose a FLIGHT rather than the document.
     ///
     /// Play tolerates an unfinished document: one with no player ship still
@@ -649,6 +704,20 @@ pub(crate) struct Range<'a> {
     /// document is not the document, and opening it hands the builder back
     /// something they did not build.
     pub(crate) flight: bool,
+    /// What the file being written over says that no node holds.
+    pub(crate) file: FileFacts<'a>,
+}
+
+/// What a scenario's file says about its range that no node holds.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct FileFacts<'a> {
+    /// The beacons left to the engine's default signature. A file that leaves
+    /// one unset chose that, and writing a measured one back would change how
+    /// far the beacon locks.
+    pub(crate) unsigned: &'a [String],
+    /// The ids the scenario's world brings with no spawn of its own. A handler
+    /// naming one names something real.
+    pub(crate) world_ids: &'a [String],
 }
 
 /// The range Play hands off to: registered so the DEFEAT overlay's Retry can
@@ -659,6 +728,10 @@ pub(crate) const SANDBOX: Range<'static> = Range {
     id: SANDBOX_ID,
     form: HullForm::Inline,
     flight: true,
+    file: FileFacts {
+        unsigned: &[],
+        world_ids: &[],
+    },
 };
 
 /// Build the sandbox the editor plays: the range above, with the document in it.
@@ -690,15 +763,21 @@ pub(crate) fn sandbox_scenario(
 fn sandbox_objects(
     mut objects: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
-    form: HullForm,
-    flight: bool,
+    range: Range,
     targeting: &TargetingSettings,
 ) -> Vec<ScenarioObjectConfig> {
-    sign_beacons(&mut objects, fleet.player.position, targeting);
+    let Range { form, flight, .. } = range;
+    // A file's player spawn may stand as authored, with no ship node behind it.
+    let flown = objects
+        .iter()
+        .find(|object| is_player_spawn(object))
+        .map(|object| object.base.position.to_engine());
+    let spawn = flown.unwrap_or(fleet.player.position);
+    sign_beacons(&mut objects, spawn, range.file.unsigned, targeting);
     // A document with no player ship still has to be flyable, so Play hands
     // the runtime a bare hull to sit in. Saving one would write a ship node
     // the builder never added.
-    if flight || !fleet.player.id.is_empty() {
+    if (flight && flown.is_none()) || !fleet.player.id.is_empty() {
         objects.push(player_ship(&fleet.player, form));
     }
     // A blank Add Ship is a decision not yet made rather than a zero-section
@@ -709,16 +788,39 @@ fn sandbox_objects(
             .standing
             .iter()
             .filter(|ship| !flight || !ship.sections.is_empty())
-            .map(|ship| {
-                if ship.station {
-                    standing_station(ship, form)
-                } else {
-                    standing_ship(ship, form)
-                }
-            }),
+            .map(|ship| standing_spawn(ship, form)),
     );
 
     objects
+}
+
+/// Whether this object spawns the ship the player flies.
+fn is_player_spawn(object: &ScenarioObjectConfig) -> bool {
+    matches!(
+        &object.kind,
+        ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            controller: SpaceshipController::Player(_),
+            ..
+        })
+    )
+}
+
+/// The spawn a lowered ship writes.
+pub(crate) fn spawn_of(ship: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
+    if ship.driver == ShipDriver::Player {
+        player_ship(ship, form)
+    } else {
+        standing_spawn(ship, form)
+    }
+}
+
+/// The spawn of a ship nobody flies.
+fn standing_spawn(ship: &LoweredShip, form: HullForm) -> ScenarioObjectConfig {
+    if ship.station {
+        standing_station(ship, form)
+    } else {
+        standing_ship(ship, form)
+    }
 }
 
 /// The planetoid: a barren world with an explicit mass, so it reads as a
@@ -899,7 +1001,12 @@ fn picket_ship(picket: &Picket) -> ScenarioObjectConfig {
 ///
 /// A beacon that DID author a signature keeps it. `None` is the field's
 /// documented "give me the default", and this is the sandbox's answer to it.
-fn sign_beacons(objects: &mut [ScenarioObjectConfig], spawn: Vec3, targeting: &TargetingSettings) {
+fn sign_beacons(
+    objects: &mut [ScenarioObjectConfig],
+    spawn: Vec3,
+    unsigned: &[String],
+    targeting: &TargetingSettings,
+) {
     // A ratio of zero is a radar that cannot see a signed body at all. Nothing
     // this could write would help, and the division would not be a number.
     if targeting.signature_range_per_unit <= 0.0 {
@@ -913,7 +1020,9 @@ fn sign_beacons(objects: &mut [ScenarioObjectConfig], spawn: Vec3, targeting: &T
     let signature = Meters::from_engine(reach / targeting.signature_range_per_unit);
     for object in objects {
         if let ScenarioObjectKind::Beacon(beacon) = &mut object.kind {
-            beacon.lock_signature.get_or_insert(signature);
+            if !unsigned.contains(&object.base.id) {
+                beacon.lock_signature.get_or_insert(signature);
+            }
         }
     }
 }
@@ -1129,6 +1238,7 @@ fn wake_picket(picket: &Picket) -> Vec<ScenarioEventConfig> {
         // the ship that locked it.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnCombatLockStart,
             once: false,
             filters: vec![
@@ -1144,6 +1254,7 @@ fn wake_picket(picket: &Picket) -> Vec<ScenarioEventConfig> {
         // Crowded: the trip sphere's own id is the primary entity.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnEnter,
             once: false,
             filters: vec![
@@ -1181,6 +1292,7 @@ fn trip_area(picket: &Picket) -> EventActionConfig {
 fn beacon_swaps_the_sky(beacon: &SkyBeacon) -> ScenarioEventConfig {
     ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnEnter,
         once: false,
         filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -1211,16 +1323,18 @@ fn beacon_swaps_the_sky(beacon: &SkyBeacon) -> ScenarioEventConfig {
 /// wake-ups, the briefing, the outcome - is the document's, held as event
 /// nodes and lowered through [`world_script`].
 fn range_events(
-    id: &str,
+    range: Range,
     objects: Vec<ScenarioObjectConfig>,
     script: Vec<ScenarioEventConfig>,
 ) -> Vec<ScenarioEventConfig> {
     let spawned: HashSet<String> = objects
         .iter()
         .map(|object| object.base.id.clone())
+        .chain(range.file.world_ids.iter().cloned())
         .collect();
     let mut events = vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],
@@ -1233,7 +1347,7 @@ fn range_events(
             .map(EventActionConfig::SpawnScenarioObject)
             .collect(),
     }];
-    events.extend(following_the_objects(script, spawned, id));
+    events.extend(following_the_objects(script, spawned, range.id));
     events
 }
 
@@ -1321,6 +1435,7 @@ pub(crate) fn default_script() -> Vec<ScenarioEventConfig> {
         // variables have to exist before the first filter reads one.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -1340,6 +1455,7 @@ pub(crate) fn default_script() -> Vec<ScenarioEventConfig> {
         // complete - so it stays on the HUD as the sandbox's only instruction.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -1362,6 +1478,7 @@ pub(crate) fn default_script() -> Vec<ScenarioEventConfig> {
         // Death is the only outcome, and it offers this same range again.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnDestroyed,
             once: false,
             filters: player(PLAYER_ID),
@@ -1379,6 +1496,7 @@ pub(crate) fn default_script() -> Vec<ScenarioEventConfig> {
         // instantly "neutralized" off the line.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnNeutralized,
             once: false,
             filters: player(PLAYER_ID),
@@ -1440,18 +1558,54 @@ mod tests {
     /// drawn until the player closes on it, so the whole range stays inside it.
     const CAMERA_FAR: f32 = 1000.0;
 
+    /// A file's player spawn may stand as authored, with no ship node. Play
+    /// flies it: a placeholder beside it would be a second `player`.
+    #[test]
+    fn play_flies_a_kept_player_spawn_and_adds_no_placeholder() {
+        let flown = LoweredShip {
+            id: "ship_1".to_string(),
+            ..default()
+        };
+        let kept = player_ship(&flown, SANDBOX.form);
+
+        let objects = sandbox_objects(
+            vec![kept],
+            &LoweredFleet::default(),
+            SANDBOX,
+            &TargetingSettings::default(),
+        );
+
+        assert_eq!(objects.iter().filter(|o| is_player_spawn(o)).count(), 1);
+    }
+
+    /// A file that leaves a beacon's signature unset chose the engine's value.
+    #[test]
+    fn a_save_keeps_a_beacon_the_file_left_unsigned() {
+        let unsigned = vec!["beacon_veil".to_string()];
+        let mut objects = default_world_objects();
+        let targeting = TargetingSettings::default();
+
+        sign_beacons(&mut objects, RANGE_ORIGIN, &unsigned, &targeting);
+
+        let signature = |id: &str| match &find(&objects, id).kind {
+            ScenarioObjectKind::Beacon(beacon) => beacon.lock_signature,
+            _ => panic!("{id} is a beacon"),
+        };
+        assert_eq!(signature("beacon_veil"), None);
+        assert!(signature("beacon_home").is_some());
+    }
+
     fn objects() -> Vec<ScenarioObjectConfig> {
         sandbox_objects(
             default_world_objects(),
             &LoweredFleet::default(),
-            HullForm::Inline,
-            true,
+            SANDBOX,
             &TargetingSettings::default(),
         )
     }
 
     fn events() -> Vec<ScenarioEventConfig> {
-        range_events(SANDBOX_ID, objects(), default_script())
+        range_events(SANDBOX, objects(), default_script())
     }
 
     /// Every id the SCRIPT names: the entities its filters match on, and the
@@ -1552,8 +1706,10 @@ mod tests {
                 sandbox_objects(
                     default_world_objects(),
                     &LoweredFleet::default(),
-                    HullForm::Inline,
-                    false,
+                    Range {
+                        flight: false,
+                        ..SANDBOX
+                    },
                     &TargetingSettings::default(),
                 ),
             ),
@@ -1562,15 +1718,17 @@ mod tests {
                 sandbox_objects(
                     stripped,
                     &flown,
-                    HullForm::Inline,
-                    false,
+                    Range {
+                        flight: false,
+                        ..SANDBOX
+                    },
                     &TargetingSettings::default(),
                 ),
             ),
         ];
 
         for (what, objects) in ranges {
-            let events = range_events(SANDBOX_ID, objects, default_script());
+            let events = range_events(SANDBOX, objects, default_script());
             let defined = defined_ids(&events);
             let mut dangling: Vec<String> = referenced_ids(&events)
                 .difference(&defined)
@@ -1614,8 +1772,7 @@ mod tests {
                     sandbox_objects(
                         world_objects(&context, &q_objects),
                         &lower_fleet(&q_ships, &nodes),
-                        HullForm::Inline,
-                        true,
+                        SANDBOX,
                         &TargetingSettings::default(),
                     )
                 },
@@ -2205,8 +2362,7 @@ mod tests {
         let objects = sandbox_objects(
             default_world_objects(),
             &fleet,
-            HullForm::Inline,
-            true,
+            SANDBOX,
             &TargetingSettings::default(),
         );
         let escort = find(&objects, "ship_2");
@@ -2276,8 +2432,7 @@ mod tests {
         let objects = sandbox_objects(
             default_world_objects(),
             &fleet,
-            HullForm::Inline,
-            true,
+            SANDBOX,
             &TargetingSettings::default(),
         );
         assert_eq!(
@@ -2363,8 +2518,7 @@ mod tests {
                 &sandbox_objects(
                     default_world_objects(),
                     &lowered,
-                    HullForm::Inline,
-                    true,
+                    SANDBOX,
                     &TargetingSettings::default(),
                 ),
                 PLAYER_ID,
@@ -2401,7 +2555,7 @@ mod tests {
             }
         }
 
-        sign_beacons(&mut objects, RANGE_ORIGIN, &targeting);
+        sign_beacons(&mut objects, RANGE_ORIGIN, &[], &targeting);
 
         for object in &objects {
             let ScenarioObjectKind::Beacon(beacon) = &object.kind else {
@@ -2434,7 +2588,12 @@ mod tests {
         beacon.lock_signature = Some(authored);
         let id = first.base.id.clone();
 
-        sign_beacons(&mut objects, RANGE_ORIGIN, &TargetingSettings::default());
+        sign_beacons(
+            &mut objects,
+            RANGE_ORIGIN,
+            &[],
+            &TargetingSettings::default(),
+        );
 
         let signed = find(&objects, &id);
         let ScenarioObjectKind::Beacon(beacon) = &signed.kind else {

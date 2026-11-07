@@ -516,6 +516,7 @@ fn load_row(
         description: "The world's generated ships and stations in two rows.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

@@ -169,6 +169,7 @@ mod tests {
     fn the_capture_never_lists_a_spent_on_resume_handler() {
         let handler = |name: EventConfig| ScenarioEventConfig {
             label: None,
+            position: None,
             name,
             once: true,
             filters: vec![],

@@ -260,6 +260,7 @@ fn capital_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioC
 
     let events = vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],

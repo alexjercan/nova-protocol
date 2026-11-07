@@ -182,7 +182,7 @@ impl From<ItemRoleType> for ItemDesignId {
 
 /// One authored item: what it is called, what it is for, what it weighs and
 /// what a trader pays for it. Every field is required.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct ItemDesign {
@@ -318,7 +318,7 @@ pub fn lot_cr_text(credits: u32, lot: u32) -> String {
 
 /// What an item is for. There is no fuel category: thrust never consumes
 /// stock.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ItemCategoryType {
     /// Mined or salvaged bulk material.

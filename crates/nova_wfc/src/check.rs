@@ -289,6 +289,7 @@ pub fn hull_errors(
     let scenario = ScenarioConfig {
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

@@ -18,6 +18,8 @@ use nova_ship::prelude::*;
 use nova_ui::{prelude::DoubleClick, theme::UiColor};
 
 use crate::{
+    asset::{on_bench, AssetNode, SocketNode},
+    camera::ViewportPointer,
     config::{
         EditorGizmos, EditorOverlays, EditorSays, EditorStatus, Placement, PlacementPose,
         PlacementPreview, SectionGhost, SectionPreviewMarker, SelectedNode,
@@ -25,6 +27,7 @@ use crate::{
     cues::EditorCues,
     event::{ActionNode, EventNode, FilterNode, GateNode, StepNode},
     frame::{ask_for, CameraFraming, FrameRequest},
+    history::{commit_edit, delete_node, delete_nodes},
     keybind::EditorRebind,
     node::{
         node_of_view, sections_of, spawn_object_node, spawn_section_node, spawn_ship_node,
@@ -32,9 +35,16 @@ use crate::{
         SectionNodes, ShipDriver, ShipNode,
     },
     palette,
+    project::{
+        package::play_faults,
+        verbs::{accept, lower_open_document, refuse, refused_by_gaps},
+    },
     scenario::lower_fleet,
+    selection::toggling,
     snap::{self, PlacedSection},
     station::{short_fault, StationCatalogs},
+    tool::{snap_active, snapped, StageTool, MOVE_SNAP},
+    ui::canvas::CanvasDrag,
     ExampleStates,
 };
 
@@ -43,18 +53,19 @@ const PLACEMENT_ROLL_KEY: KeyCode = KeyCode::KeyR;
 /// Cycles which socket of the armed part does the mating.
 const PLACEMENT_SOCKET_KEY: KeyCode = KeyCode::KeyF;
 /// Arms whatever section is under the pointer, Factorio-pipette style; over
-/// nothing it puts the part in hand away.
-const PLACEMENT_PICK_KEY: KeyCode = KeyCode::KeyQ;
+/// nothing it puts the part in hand away. Not Q: that is the fly rig's descent
+/// and the Select tool.
+const PLACEMENT_PICK_KEY: KeyCode = KeyCode::KeyP;
 
-/// Keys the editor's own WASD camera drives (`wasd_controller`). Binding one to
-/// a section makes that section fire on every camera move once the ship flies,
-/// so placement never captures them.
-const EDITOR_CAMERA_KEYS: [KeyCode; 6] = [
+/// Keys the viewport camera drives (`crate::camera`). Placement never captures
+/// them: a key the builder held to fly is not a key they meant to bind.
+const EDITOR_CAMERA_KEYS: [KeyCode; 7] = [
     KeyCode::KeyW,
     KeyCode::KeyA,
     KeyCode::KeyS,
     KeyCode::KeyD,
-    KeyCode::Space,
+    KeyCode::KeyQ,
+    KeyCode::KeyE,
     KeyCode::ShiftLeft,
 ];
 
@@ -159,6 +170,22 @@ impl HeldBind<'_, '_> {
     fn captured_key(&self) -> Option<InputSource> {
         capture_binding(self.keyboard.as_deref()?, &EDITOR_CAMERA_KEYS).map(InputSource::from)
     }
+
+    /// Whether Alt is down, which makes LMB the camera's orbit.
+    pub(crate) fn orbiting(&self) -> bool {
+        alt_held(self.keyboard.as_deref())
+    }
+
+    /// Whether a click toggles its node rather than replacing the selection.
+    fn toggling(&self) -> bool {
+        toggling(self.keyboard.as_deref())
+    }
+}
+
+/// Whether Alt is down. Alt+LMB is the camera's orbit, so the left button's
+/// other readers stand aside for it.
+pub(crate) fn alt_held(keys: Option<&ButtonInput<KeyCode>>) -> bool {
+    keys.is_some_and(|keys| keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]))
 }
 
 /// The desk keys mining sections take, in order. A new mining section takes the
@@ -258,7 +285,12 @@ pub(crate) fn create_blank_ship(
     q_ships: Query<&ShipNode>,
     mut context: ResMut<EditContext>,
     mut says: EditorSays,
+    benches: Query<(), With<AssetNode>>,
 ) {
+    if !benches.is_empty() {
+        says.refuse("open a scenario to add a ship");
+        return;
+    }
     // A document with no ship the player flies gets one; anything built beside
     // it is scenery until something says otherwise. A second Player ship would
     // make "which one do I fly" ambiguous, and the answer belongs to the ship
@@ -274,6 +306,7 @@ pub(crate) fn create_blank_ship(
     match spawn_ship_node(&mut commands, &mut ordinals, &context, driver) {
         Some(ship) => {
             context.enter(ship);
+            commit_edit(&mut commands, "Add Ship");
             says.accept();
         }
         None => says.refuse("there is no scenario to add a ship to"),
@@ -297,10 +330,15 @@ pub(crate) fn create_scenario_object(
     framing: Res<CameraFraming>,
     mut selected: ResMut<SelectedNode>,
     mut says: EditorSays,
+    benches: Query<(), With<AssetNode>>,
 ) {
     let Ok(choice) = choices.get(activate.entity) else {
         return;
     };
+    if !benches.is_empty() {
+        says.refuse("open a scenario to add an object");
+        return;
+    }
     let Some(scenario) = context.scenario() else {
         says.refuse("there is no scenario to add an object to");
         return;
@@ -316,7 +354,8 @@ pub(crate) fn create_scenario_object(
         *choice,
         Transform::from_translation(at),
     );
-    selected.0 = Some(object);
+    selected.set(Some(object));
+    commit_edit(&mut commands, format!("Add {}", choice.label()));
     says.accept();
 }
 
@@ -333,6 +372,9 @@ pub(crate) fn create_scenario_object(
 fn in_front_of(camera: &GlobalTransform, framing: &CameraFraming) -> Vec3 {
     camera.translation() + camera.forward() * framing.distance.to_engine()
 }
+
+/// The step both placement gestures record.
+const PLACE_SECTION: &str = "Place Section";
 
 /// The key that deletes the selection.
 const DELETE_KEY: KeyCode = KeyCode::Delete;
@@ -356,6 +398,7 @@ pub(crate) type DeletableNode = Or<(
     With<ActionNode>,
     With<StepNode>,
     With<GateNode>,
+    With<SocketNode>,
 )>;
 
 /// Can `node` be deleted?
@@ -398,18 +441,19 @@ pub(crate) fn delete_key(
     selected: ResMut<SelectedNode>,
     context: Res<EditContext>,
     nodes: Query<(), DeletableNode>,
+    drag: Res<CanvasDrag>,
 ) {
-    if !keys.just_pressed(DELETE_KEY) {
+    if !keys.just_pressed(DELETE_KEY) || drag.busy() {
         return;
     }
     delete_selection(commands, cues, selected, &context, &nodes);
 }
 
-/// Despawn the marked node and clear the mark.
+/// Despawn the marked nodes and clear the marks, as one step.
 ///
-/// The node goes and takes its view with it. Its binds are part of the node,
-/// so there is no second map left holding a key bound to a section that no
-/// longer exists.
+/// A node goes and takes its view with it. Its binds are part of the node, so
+/// there is no second map left holding a key bound to a section that no longer
+/// exists.
 fn delete_selection(
     mut commands: Commands,
     mut cues: EditorCues,
@@ -417,14 +461,16 @@ fn delete_selection(
     context: &EditContext,
     nodes: &Query<(), DeletableNode>,
 ) {
-    let Some(node) = selected.0 else {
-        return;
-    };
-    if !deletable(node, context, nodes) {
-        return;
+    let going: Vec<Entity> = selected
+        .iter()
+        .filter(|node| deletable(*node, context, nodes))
+        .collect();
+    match going.as_slice() {
+        [] => return,
+        [node] => delete_node(&mut commands, *node),
+        _ => delete_nodes(&mut commands, going.clone()),
     }
-    commands.entity(node).despawn();
-    selected.0 = None;
+    selected.retain(|node| !going.contains(node));
     // Past the two guards, so pressing Del with nothing marked - or with
     // something the editor will not delete - stays silent rather than
     // claiming a part came off.
@@ -497,7 +543,7 @@ pub(crate) fn found_empty_ship(
     mut commands: Commands,
     mut ordinals: Query<&mut NextChildOrdinal>,
 ) {
-    if !mouse.just_pressed(MouseButton::Left) {
+    if !mouse.just_pressed(MouseButton::Left) || alt_held(keyboard.as_deref()) {
         return;
     }
     let HeldPart(Some(id)) = &*selection else {
@@ -536,6 +582,7 @@ pub(crate) fn found_empty_ship(
         Transform::default(),
         binds,
     );
+    commit_edit(&mut commands, PLACE_SECTION);
 }
 
 /// Compile the document and fly it.
@@ -555,7 +602,7 @@ pub(crate) fn continue_to_simulation(
     q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
     nodes: SectionNodes,
     catalogs: StationCatalogs,
-    mut game_state: ResMut<NextState<ExampleStates>>,
+    mut commands: Commands,
     mut says: EditorSays,
 ) {
     if context.ship().is_some() {
@@ -577,8 +624,34 @@ pub(crate) fn continue_to_simulation(
         ));
         return;
     }
-    game_state.set(ExampleStates::Scenario);
-    says.accept();
+    commands.queue(play_or_refuse);
+}
+
+/// Lower the document and start Play, unless the merge gate would refuse the
+/// mod: a refusal while Playing is fatal, so one is stopped here, as a Problems
+/// row and a line on the status bar.
+fn play_or_refuse(world: &mut World) {
+    if on_bench(world) {
+        refuse(world, "open a scenario to play it");
+        return;
+    }
+    if refused_by_gaps(world, "Play") {
+        return;
+    }
+    lower_open_document(world);
+    let faults = play_faults(world);
+    if let Some(first) = faults.first() {
+        let line = match faults.len() {
+            1 => format!("Play stopped: {first}"),
+            more => format!("Play stopped: {first} (+{} more)", more - 1),
+        };
+        refuse(world, line);
+        return;
+    }
+    world
+        .resource_mut::<NextState<ExampleStates>>()
+        .set(ExampleStates::Scenario);
+    accept(world);
 }
 
 /// The number of sockets the armed part carries, or `None` when nothing is
@@ -622,18 +695,23 @@ pub(crate) fn cycle_placement_pose(
 /// Roll the ghost with the wheel, and cycle its socket with Ctrl+wheel - the
 /// reversible half of [`cycle_placement_pose`].
 ///
-/// The wheel is free in the editor (the free-fly rig drives off WASD), and it
-/// is the one gesture that reads as "turn this a bit either way". CTRL and not
-/// Shift: Shift is the free-fly rig's descend key, so a builder holding it to
-/// cycle a socket also sank the camera.
+/// The wheel is the one gesture that reads as "turn this a bit either way". It
+/// is the camera's dial while RMB is held, and a panel's while the pointer is
+/// over one, so neither reaches the part. CTRL and not Shift: Shift is the fly
+/// rig's sprint.
 pub(crate) fn wheel_placement_pose(
     mut wheel: MessageReader<MouseWheel>,
     keys: Res<ButtonInput<KeyCode>>,
+    mouse: Option<Res<ButtonInput<MouseButton>>>,
+    pointer: Res<ViewportPointer>,
     selection: Res<HeldPart>,
     sections: Res<GameSections>,
     mut pose: ResMut<PlacementPose>,
 ) {
-    let Some(sockets) = armed_socket_count(&selection, &sections) else {
+    let flying = mouse.is_some_and(|mouse| mouse.pressed(MouseButton::Right));
+    let Some(sockets) =
+        armed_socket_count(&selection, &sections).filter(|_| !flying && !pointer.over_ui)
+    else {
         // Drained, so a scroll made before a part was armed is not replayed
         // into the pose on the frame it arms.
         wheel.clear();
@@ -916,6 +994,39 @@ fn ship_local_hit(ship_pose: Option<&GlobalTransform>, hit: Vec3) -> Vec3 {
     ship_pose.map_or(hit, |pose| pose.affine().inverse().transform_point3(hit))
 }
 
+/// What a press on `node` does to the selection. True when it selected that
+/// node alone, which is the press a double-click counts.
+///
+/// A press on a member of a group keeps the group, because it may be the start
+/// of a drag of all of it. The release says it was not: see
+/// [`on_stage_release`].
+fn pick(selected: &mut SelectedNode, stage: &mut StageDrag, node: Entity, toggle: bool) -> bool {
+    if toggle {
+        selected.toggle(node);
+        return false;
+    }
+    if selected.len() > 1 && selected.contains(node) {
+        stage.collapse = Some(node);
+        return false;
+    }
+    selected.set(Some(node));
+    true
+}
+
+/// A press on a group member that never became a drag was a click on that node.
+pub(crate) fn on_stage_release(
+    release: On<Pointer<Release>>,
+    mut stage: ResMut<StageDrag>,
+    mut selected: ResMut<SelectedNode>,
+) {
+    if release.button != PointerButton::Primary {
+        return;
+    }
+    if let Some(node) = stage.collapse.take() {
+        selected.set(Some(node));
+    }
+}
+
 /// Place, delete, or SELECT - depending on the armed tool and on what was
 /// clicked.
 ///
@@ -943,11 +1054,14 @@ pub(crate) fn on_click_spaceship_section(
     mut last: ResMut<DoubleClick<Entity>>,
     mut request: ResMut<FrameRequest>,
     mut selected: ResMut<SelectedNode>,
-    (q_views, q_objects): (Query<&ChildOf, With<NodeView>>, Query<(), With<ObjectNode>>),
+    (q_views, q_objects): (
+        Query<&ChildOf, With<NodeView>>,
+        Query<(), Or<(With<ObjectNode>, With<SocketNode>, With<AssetNode>)>>,
+    ),
     q_nodes: Query<(&SectionNode, &ChildOf)>,
-    mut says: EditorSays,
+    (mut says, mut stage): (EditorSays, ResMut<StageDrag>),
 ) {
-    if click.button != PointerButton::Primary {
+    if click.button != PointerButton::Primary || held.orbiting() {
         return;
     }
 
@@ -968,8 +1082,9 @@ pub(crate) fn on_click_spaceship_section(
     // thing a rock can do with it. Without this a double-click out here was
     // two selections of what was already selected.
     if q_objects.contains(node) {
-        selected.0 = Some(node);
-        if last.press(node, time.elapsed_secs()) {
+        if pick(&mut selected, &mut stage, node, held.toggling())
+            && last.press(node, time.elapsed_secs())
+        {
             ask_for(&mut request, Some(node));
         }
         return;
@@ -991,7 +1106,7 @@ pub(crate) fn on_click_spaceship_section(
     // have been a placement anyway.
     let owner = owner.parent();
     if context.ship() != Some(owner) {
-        selected.0 = Some(owner);
+        pick(&mut selected, &mut stage, owner, held.toggling());
         return;
     }
 
@@ -1000,7 +1115,7 @@ pub(crate) fn on_click_spaceship_section(
             // No tool in hand = select mode: the clicked section takes the
             // mark, exactly as its tree row would. Rebinding is the top bar's
             // Rebind action on this selection.
-            selected.0 = Some(node);
+            pick(&mut selected, &mut stage, node, held.toggling());
         }
         HeldPart(Some(_)) => {
             let Some(placement) = preview.placement.as_ref() else {
@@ -1059,6 +1174,7 @@ pub(crate) fn on_click_spaceship_section(
                 placement.solve.transform,
                 binds,
             );
+            commit_edit(&mut commands, PLACE_SECTION);
             cues.place();
         }
     }
@@ -1093,6 +1209,11 @@ pub(crate) struct StageDrag {
     pub(crate) node: Option<Entity>,
     /// Node translation minus the grab point on the ground plane.
     pub(crate) offset: Vec3,
+    /// The rest of the selection, each with where it stands from the node.
+    pub(crate) group: Vec<(Entity, Vec3)>,
+    /// The group member a press landed on, until the press is known to be a
+    /// click or a drag.
+    collapse: Option<Entity>,
 }
 
 /// Where `ray` meets the horizontal plane at `height`, or `None` when it runs
@@ -1145,6 +1266,7 @@ pub(crate) fn on_stage_drag_start(
     drag: On<Pointer<DragStart>>,
     context: Res<EditContext>,
     selection: Res<HeldPart>,
+    keys: Option<Res<ButtonInput<KeyCode>>>,
     camera: Option<Single<(&Camera, &GlobalTransform), With<crate::config::EditorCamera>>>,
     q_views: Query<&ChildOf, With<NodeView>>,
     q_sections: Query<&ChildOf, With<SectionNode>>,
@@ -1153,7 +1275,12 @@ pub(crate) fn on_stage_drag_start(
     mut state: ResMut<StageDrag>,
     mut says: EditorSays,
 ) {
-    if drag.button != PointerButton::Primary || *selection != HeldPart(None) {
+    if drag.button != PointerButton::Primary {
+        return;
+    }
+    // The press has gone on to be a drag, so it was not a click on one member.
+    state.collapse = None;
+    if *selection != HeldPart(None) || alt_held(keys.as_deref()) || toggling(keys.as_deref()) {
         return;
     }
     let Some(node) = staged_node_of_view(drag.entity, &q_views, &q_sections) else {
@@ -1181,7 +1308,17 @@ pub(crate) fn on_stage_drag_start(
     state.node = Some(node);
     state.offset = transform.translation - grab;
     // Grabbing is also pointing at: the tree marks the node being moved.
-    selected.0 = Some(node);
+    if !selected.contains(node) {
+        selected.set(Some(node));
+    }
+    state.group = selected
+        .iter()
+        .filter(|member| *member != node)
+        .filter_map(|member| {
+            let pose = q_staged.get(member).ok()?;
+            Some((member, pose.translation - transform.translation))
+        })
+        .collect();
 }
 
 /// Slide the grabbed node to keep its grab point under the pointer.
@@ -1191,6 +1328,8 @@ pub(crate) fn on_stage_drag_start(
 pub(crate) fn on_stage_drag(
     drag: On<Pointer<Drag>>,
     camera: Option<Single<(&Camera, &GlobalTransform), With<crate::config::EditorCamera>>>,
+    keys: Option<Res<ButtonInput<KeyCode>>>,
+    tool: Res<StageTool>,
     state: Res<StageDrag>,
     mut q_staged: Query<&mut Transform, Or<(With<ShipNode>, With<ObjectNode>)>>,
 ) {
@@ -1212,20 +1351,36 @@ pub(crate) fn on_stage_drag(
     ) else {
         return;
     };
-    let wanted = hit + state.offset;
+    let mut wanted = hit + state.offset;
+    if snap_active(&tool, keys.as_deref()) {
+        let cell = MOVE_SNAP.to_engine();
+        wanted.x = snapped(wanted.x, cell);
+        wanted.z = snapped(wanted.z, cell);
+    }
     if transform.translation != wanted {
         transform.translation = wanted;
+    }
+    for (member, from) in &state.group {
+        if let Ok(mut pose) = q_staged.get_mut(*member) {
+            pose.translation = wanted + *from;
+        }
     }
 }
 
 /// Let go - of the button that grabbed. Any-button matching here let an RMB
 /// camera-orbit release drop an LMB drag mid-gesture.
-pub(crate) fn on_stage_drag_end(drag: On<Pointer<DragEnd>>, mut state: ResMut<StageDrag>) {
+pub(crate) fn on_stage_drag_end(
+    drag: On<Pointer<DragEnd>>,
+    mut commands: Commands,
+    mut state: ResMut<StageDrag>,
+) {
     if drag.button != PointerButton::Primary {
         return;
     }
     if state.node.is_some() {
         state.node = None;
+        state.group.clear();
+        commit_edit(&mut commands, "Move");
     }
 }
 
@@ -1808,7 +1963,7 @@ mod tests {
         assert_eq!(object_nodes(&mut app).len(), before + 1);
         assert!(matches!(placed[0].2, ScenarioObjectKind::Beacon(_)));
         assert_eq!(
-            app.world().resource::<SelectedNode>().0,
+            app.world().resource::<SelectedNode>().primary(),
             Some(placed[0].0),
             "what you just placed is what the tree has marked"
         );
@@ -1843,7 +1998,7 @@ mod tests {
         let placed = app
             .world()
             .resource::<SelectedNode>()
-            .0
+            .primary()
             .expect("the press placed an object and marked it");
         let at = app
             .world()
@@ -1880,6 +2035,7 @@ mod tests {
 
         let mut app = document_app(vec![]);
         app.init_resource::<SelectedNode>();
+        app.init_resource::<StageDrag>();
         app.init_resource::<DoubleClick<Entity>>();
         app.init_resource::<FrameRequest>();
         app.init_resource::<EditorRebind>();
@@ -1916,7 +2072,7 @@ mod tests {
 
         press(&mut app);
         assert_eq!(
-            app.world().resource::<SelectedNode>().0,
+            app.world().resource::<SelectedNode>().primary(),
             Some(rock),
             "one press marks the object"
         );
@@ -1943,7 +2099,9 @@ mod tests {
         app.add_observer(delete_selected_node);
         let rock = object_nodes(&mut app)[0];
         let before = object_nodes(&mut app).len();
-        app.world_mut().resource_mut::<SelectedNode>().0 = Some(rock);
+        app.world_mut()
+            .resource_mut::<SelectedNode>()
+            .set(Some(rock));
 
         let button = app.world_mut().spawn_empty().id();
         app.world_mut().trigger(Activate { entity: button });
@@ -1951,7 +2109,7 @@ mod tests {
 
         assert_eq!(object_nodes(&mut app).len(), before - 1);
         assert!(app.world().get_entity(rock).is_err());
-        assert_eq!(app.world().resource::<SelectedNode>().0, None);
+        assert_eq!(app.world().resource::<SelectedNode>().primary(), None);
     }
 
     /// A drag on a part inside a ship does nothing, and the handles are not
@@ -2038,6 +2196,7 @@ mod tests {
         let mut app = document_only(vec![]);
         app.init_resource::<SelectedNode>();
         app.init_resource::<ButtonInput<KeyCode>>();
+        app.init_resource::<CanvasDrag>();
         app.add_systems(Update, delete_key);
         let scenario = app
             .world()
@@ -2064,7 +2223,9 @@ mod tests {
             ))
             .id();
         app.world_mut().resource_mut::<EditContext>().enter(ship);
-        app.world_mut().resource_mut::<SelectedNode>().0 = Some(section);
+        app.world_mut()
+            .resource_mut::<SelectedNode>()
+            .set(Some(section));
 
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -2075,7 +2236,7 @@ mod tests {
             !section_nodes(&mut app).contains(&section),
             "Del takes the marked part off"
         );
-        assert_eq!(app.world().resource::<SelectedNode>().0, None);
+        assert_eq!(app.world().resource::<SelectedNode>().primary(), None);
         assert!(
             app.world().get_entity(ship).is_ok(),
             "and takes nothing else with it"
@@ -2121,7 +2282,9 @@ mod tests {
             ))
             .id();
         app.world_mut().resource_mut::<EditContext>().enter(ship);
-        app.world_mut().resource_mut::<SelectedNode>().0 = Some(section);
+        app.world_mut()
+            .resource_mut::<SelectedNode>()
+            .set(Some(section));
 
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
@@ -2133,7 +2296,7 @@ mod tests {
             "the part being bound survives the key it is being bound to"
         );
         assert_eq!(
-            app.world().resource::<SelectedNode>().0,
+            app.world().resource::<SelectedNode>().primary(),
             Some(section),
             "and it is still the marked node the capture is aimed at"
         );
@@ -2161,7 +2324,9 @@ mod tests {
             ))
             .id();
         app.world_mut().resource_mut::<EditContext>().enter(ship);
-        app.world_mut().resource_mut::<SelectedNode>().0 = Some(ship);
+        app.world_mut()
+            .resource_mut::<SelectedNode>()
+            .set(Some(ship));
 
         let button = app.world_mut().spawn_empty().id();
         app.world_mut().trigger(Activate { entity: button });
@@ -2172,7 +2337,7 @@ mod tests {
             "the ship the editor is inside survives its own Delete"
         );
         assert_eq!(
-            app.world().resource::<SelectedNode>().0,
+            app.world().resource::<SelectedNode>().primary(),
             Some(ship),
             "and stays marked, because nothing happened"
         );
@@ -2243,6 +2408,7 @@ mod tests {
 
         let mut app = document_only(vec![hull_config("hull"), mining_section_config("miner")]);
         app.init_resource::<SelectedNode>();
+        app.init_resource::<StageDrag>();
         app.init_resource::<DoubleClick<Entity>>();
         app.init_resource::<FrameRequest>();
         app.init_resource::<EditorRebind>();

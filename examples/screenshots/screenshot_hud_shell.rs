@@ -167,6 +167,7 @@ fn hud_shell_set(game_assets: &GameAssets) -> ScenarioConfig {
         description: "The carrier under way inside a well, for the HUD shell figures.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

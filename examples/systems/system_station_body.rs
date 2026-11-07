@@ -172,6 +172,7 @@ fn station_void(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         description: "The waystation parked in a void beside the player.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

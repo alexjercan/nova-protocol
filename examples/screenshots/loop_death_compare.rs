@@ -90,6 +90,7 @@ fn plate(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
         description: "A bare plate of hull cells, one corner about to die".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

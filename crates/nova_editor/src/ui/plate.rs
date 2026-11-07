@@ -103,6 +103,9 @@ fn plate(label: &str, marked: bool, theme: &ActiveUiTheme) -> impl Bundle {
         BackgroundColor(background),
         children![(
             UiText,
+            // A pickable label would take the wheel and the camera buttons off
+            // the stage under it, which the plate itself gives up.
+            Pickable::IGNORE,
             Text::new(label.to_string()),
             TextFont {
                 font_size: FontSize::Px(11.0),
@@ -155,18 +158,14 @@ fn wanted_plates(
     hulls.sort_by(|(_, left, _), (_, right, _)| id_order(left).cmp(&id_order(right)));
     let mut wanted: Vec<(Entity, String, bool)> = hulls
         .into_iter()
-        .map(|(node, id, name)| (node, label_of(&name, &id), selected.0 == Some(node)))
+        .map(|(node, id, name)| (node, label_of(&name, &id), selected.contains(node)))
         .collect();
-    for node in [selected.0, hovered.0].into_iter().flatten() {
+    for node in selected.iter().chain(hovered.0) {
         if wanted.iter().any(|(listed, _, _)| *listed == node) {
             continue;
         }
         if let Ok((_, object, id, _)) = q_objects.get(node) {
-            wanted.push((
-                node,
-                label_of(&object.name, &id.0),
-                selected.0 == Some(node),
-            ));
+            wanted.push((node, label_of(&object.name, &id.0), selected.contains(node)));
         }
     }
     wanted

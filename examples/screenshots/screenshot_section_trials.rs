@@ -146,6 +146,7 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, sections: Re
         description: "Live-fire trials for the remodelled sections.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

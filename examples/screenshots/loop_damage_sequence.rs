@@ -229,6 +229,7 @@ fn damage_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCo
         description: "An interceptor worn down a level at a time, then cut open.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

@@ -28,10 +28,12 @@ Follow this path in order:
    working Example Mod, follow one objective from setup to victory, and launch
    it from the Scenarios menu. This introduces events, filters, actions, and
    variables without requiring the full reference.
-2. **[Publish a mod](publish-a-mod/)** - turn finished content into a
+2. **[The Mod Editor](mod-editor/)** - build the same content in the game, with
+   its panels, keys, undo, and packaging.
+3. **[Publish a mod](publish-a-mod/)** - turn finished content into a
    release, run the lint and loader checks, preview the portal, and make it
    installable by other players.
-3. **[Open the modding reference](reference/)** - learn the complete
+4. **[Open the modding reference](reference/)** - learn the complete
    format when you are ready to build larger maps, campaigns, custom ship parts,
    and more complex mission logic.
 

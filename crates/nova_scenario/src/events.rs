@@ -11,20 +11,78 @@ use crate::prelude::*;
 /// Glob-import surface: `use nova_scenario::events::prelude::*` brings the
 /// [`EventConfig`] handler-trigger enum into scope.
 pub mod prelude {
-    pub use super::EventConfig;
+    pub use super::{BlockCategoryType, EventConfig};
+}
+
+/// The group an authoring palette files a block under.
+///
+/// One closed set for both tables, because a palette lists triggers and actions
+/// side by side and a builder looks for a subject, not for a Rust type. The
+/// engine never reads it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Reflect)]
+pub enum BlockCategoryType {
+    /// What the run itself does: starting, ending, timing, chaining beats.
+    Flow,
+    /// What the player is told: objectives, comms and the HUD.
+    Mission,
+    /// What stands on the board, and what happens to the board.
+    World,
+    /// The camera, the player's controls and scripted scenes.
+    Camera,
+    /// What a ship can do and is told to do.
+    Ships,
+    /// Sides, weapons and what a fight reports.
+    Combat,
+    /// Cargo, credits, yards and what they report.
+    Trade,
+    /// Conditions: what gates a handler or a beat.
+    Logic,
+    /// Scenario variables, values and authoring aids.
+    Data,
+}
+
+impl BlockCategoryType {
+    /// Every group, in the order a palette lists them.
+    pub const ALL: [BlockCategoryType; 9] = [
+        BlockCategoryType::Flow,
+        BlockCategoryType::Mission,
+        BlockCategoryType::World,
+        BlockCategoryType::Camera,
+        BlockCategoryType::Ships,
+        BlockCategoryType::Combat,
+        BlockCategoryType::Trade,
+        BlockCategoryType::Logic,
+        BlockCategoryType::Data,
+    ];
+
+    /// The word a palette shows.
+    pub fn label(self) -> &'static str {
+        match self {
+            BlockCategoryType::Flow => "Flow",
+            BlockCategoryType::Mission => "Mission",
+            BlockCategoryType::World => "World",
+            BlockCategoryType::Camera => "Camera",
+            BlockCategoryType::Ships => "Ships",
+            BlockCategoryType::Combat => "Combat",
+            BlockCategoryType::Trade => "Trade",
+            BlockCategoryType::Logic => "Logic",
+            BlockCategoryType::Data => "Data",
+        }
+    }
 }
 
 /// Declare the closed trigger vocabulary.
 ///
 /// One row names the authored RON tag, the `nova_events` event type it
-/// dispatches on, and the label an authoring menu lists it under. The enum, the
-/// lowering, the menu list and the labels all come off it, so an event added
-/// here is an event the editor can already offer.
+/// dispatches on, the label an authoring menu lists it under, and the palette
+/// group it is filed in. The enum, the lowering, the menu list and the labels
+/// all come off it, so an event added here is an event the editor can already
+/// offer, and a row with no category does not compile.
 macro_rules! scenario_events {
     (
         $(
             $(#[$meta:meta])*
-            $variant:ident => $event:ty { label: $label:literal }
+            $variant:ident => $event:ty { label: $label:literal, category: $category:ident }
         ),* $(,)?
     ) => {
         /// The event a handler reacts to: the RON `name` of a scenario handler,
@@ -68,169 +126,176 @@ macro_rules! scenario_events {
                     $( EventConfig::$variant => $label, )*
                 }
             }
+
+            /// The group an authoring palette files this trigger under.
+            pub fn category(self) -> BlockCategoryType {
+                match self {
+                    $( EventConfig::$variant => BlockCategoryType::$category, )*
+                }
+            }
         }
     };
 }
 
 scenario_events! {
     /// Fires once, right after a scenario loads.
-    OnStart => OnStartEvent { label: "On Start" },
+    OnStart => OnStartEvent { label: "On Start", category: Flow },
     /// Fires once, instead of `OnStart`, when a saved world's scenario loads
     /// again: the saved objectives, variables, timers, story, readouts and
     /// marks are already restored, so the handler spawns only what the save
     /// does not carry.
-    OnResume => OnResumeEvent { label: "On Resume" },
+    OnResume => OnResumeEvent { label: "On Resume", category: Flow },
     /// Fires once when a ship is neutralized or directly destroyed.
-    OnDefeated => OnDefeatedEvent { label: "On Defeated" },
+    OnDefeated => OnDefeatedEvent { label: "On Defeated", category: Combat },
     /// Fires when an entity is physically destroyed.
-    OnDestroyed => OnDestroyedEvent { label: "On Destroyed" },
+    OnDestroyed => OnDestroyedEvent { label: "On Destroyed", category: Combat },
     /// Fires when a ship is NEUTRALIZED - an armed combatant that is disarmed
     /// (no working weapon) OR brain-dead (had a flight computer, none working),
     /// so it is out of the fight even with hull intact and still present in
     /// the world. Distinct from `OnDestroyed`; filters by ship id/type_name
     /// the same way.
-    OnNeutralized => OnNeutralizedEvent { label: "On Neutralized" },
+    OnNeutralized => OnNeutralizedEvent { label: "On Neutralized", category: Combat },
     /// Fires every frame while a scenario is live and unpaused.
-    OnUpdate => OnUpdateEvent { label: "On Update" },
+    OnUpdate => OnUpdateEvent { label: "On Update", category: Flow },
     /// Fires once when a keyed scenario timer ends.
-    OnTimerEnd => OnTimerEndEvent { label: "On Timer End" },
+    OnTimerEnd => OnTimerEndEvent { label: "On Timer End", category: Flow },
     /// Fires when a cinematic ends for ANY reason: its last beat ran, the
     /// player skipped it, a `CancelCinematic` stopped it, or a step blew its
     /// deadline. What the scene owes the player back - the camera, the
     /// controls, the objective it was covering - is authored here, once.
-    OnCinematicFinished => OnCinematicFinishedEvent { label: "On Cinematic Finished" },
+    OnCinematicFinished => OnCinematicFinishedEvent { label: "On Cinematic Finished", category: Camera },
     /// Fires when the player skips a cinematic, immediately BEFORE its
     /// `OnCinematicFinished`. Carries only the catch-up: what the beats that
     /// never played would have left behind.
-    OnCinematicSkipped => OnCinematicSkippedEvent { label: "On Cinematic Skipped" },
+    OnCinematicSkipped => OnCinematicSkippedEvent { label: "On Cinematic Skipped", category: Camera },
     /// Fires when a body enters an area/zone (`id` = the area, other = the body).
-    OnEnter => OnEnterEvent { label: "On Enter" },
+    OnEnter => OnEnterEvent { label: "On Enter", category: World },
     /// Fires when a body leaves an area/zone (`id` = the area, other = the body).
-    OnExit => OnExitEvent { label: "On Exit" },
+    OnExit => OnExitEvent { label: "On Exit", category: World },
     /// The player's GOTO maneuver reached its target and came to rest.
-    OnGotoComplete => OnGotoCompleteEvent { label: "On GOTO Complete" },
+    OnGotoComplete => OnGotoCompleteEvent { label: "On GOTO Complete", category: Ships },
     /// The player's STOP maneuver brought the ship to rest.
-    OnStopComplete => OnStopCompleteEvent { label: "On STOP Complete" },
+    OnStopComplete => OnStopCompleteEvent { label: "On STOP Complete", category: Ships },
     /// An ORBIT maneuver engaged for a well.
-    OnOrbitStart => OnOrbitStartEvent { label: "On Orbit Start" },
+    OnOrbitStart => OnOrbitStartEvent { label: "On Orbit Start", category: Ships },
     /// An ORBIT maneuver entered stable station-keeping.
-    OnOrbitStable => OnOrbitStableEvent { label: "On Orbit Stable" },
+    OnOrbitStable => OnOrbitStableEvent { label: "On Orbit Stable", category: Ships },
     /// One net revolution of the ORBIT ring completed. Corrections on the
     /// ring keep counting; only a sustained departure restarts the lap.
-    OnOrbitLap => OnOrbitLapEvent { label: "On Orbit Lap" },
+    OnOrbitLap => OnOrbitLapEvent { label: "On Orbit Lap", category: Ships },
     /// Stable station-keeping was lost while ORBIT remained engaged.
-    OnOrbitUnstable => OnOrbitUnstableEvent { label: "On Orbit Unstable" },
+    OnOrbitUnstable => OnOrbitUnstableEvent { label: "On Orbit Unstable", category: Ships },
     /// A surviving ship ended ORBIT or switched wells.
-    OnOrbitEnd => OnOrbitEndEvent { label: "On Orbit End" },
+    OnOrbitEnd => OnOrbitEndEvent { label: "On Orbit End", category: Ships },
     /// The player's TRAVEL lock landed on a scenario object.
-    OnTravelLockStart => OnTravelLockStartEvent { label: "On Travel Lock" },
+    OnTravelLockStart => OnTravelLockStartEvent { label: "On Travel Lock", category: Ships },
     /// The player's TRAVEL lock left a scenario object.
-    OnTravelLockEnd => OnTravelLockEndEvent { label: "On Travel Unlock" },
+    OnTravelLockEnd => OnTravelLockEndEvent { label: "On Travel Unlock", category: Ships },
     /// The player's COMBAT lock landed on a scenario object.
-    OnCombatLockStart => OnCombatLockStartEvent { label: "On Combat Lock" },
+    OnCombatLockStart => OnCombatLockStartEvent { label: "On Combat Lock", category: Combat },
     /// The player's COMBAT lock left a scenario object.
-    OnCombatLockEnd => OnCombatLockEndEvent { label: "On Combat Unlock" },
+    OnCombatLockEnd => OnCombatLockEndEvent { label: "On Combat Unlock", category: Combat },
     /// Two hulls were clamped together by `DOCK` (`id` = the ship docked
     /// with, other = the ship that asked).
-    OnDocked => OnDockedEvent { label: "On Docked" },
+    OnDocked => OnDockedEvent { label: "On Docked", category: Ships },
     /// A dock was let go, by either pilot's `DOCK`, or a lost port or ship.
     /// One event for every ending, and the pair keeps the roles it docked in.
     /// A ship despawned while docked reports only `OnDestroyed`.
-    OnUndocked => OnUndockedEvent { label: "On Undocked" },
+    OnUndocked => OnUndockedEvent { label: "On Undocked", category: Ships },
     /// A ship reached a keyed HELM order's condition - it arrived, settled on
     /// a bearing, came to rest, closed its patrol loop, or established its
     /// orbit. Cancellation, interruption and failure each have their own
     /// event, so a beat chained off a completion never runs for an order that
     /// did not finish.
-    OnShipOrderComplete => OnShipOrderCompleteEvent { label: "On Ship Order Complete" },
+    OnShipOrderComplete => OnShipOrderCompleteEvent { label: "On Ship Order Complete", category: Ships },
     /// Autonomous AI took the helm back from an installed order. TRANSIENT -
     /// the order stays installed and resumes, so a beat here must not retire
     /// what it is waiting for.
-    OnShipOrderInterrupted => OnShipOrderInterruptedEvent { label: "On Ship Order Interrupted" },
+    OnShipOrderInterrupted => OnShipOrderInterruptedEvent { label: "On Ship Order Interrupted", category: Ships },
     /// An interrupted order got its helm back and picked its directive up
     /// where it left off.
-    OnShipOrderResumed => OnShipOrderResumedEvent { label: "On Ship Order Resumed" },
+    OnShipOrderResumed => OnShipOrderResumedEvent { label: "On Ship Order Resumed", category: Ships },
     /// A ship order was retired on purpose and for good - `ClearShipOrder`, or
     /// a replacement order taking the helm. Terminal; an order that had
     /// already completed or failed does not also cancel.
-    OnShipOrderCanceled => OnShipOrderCanceledEvent { label: "On Ship Order Canceled" },
+    OnShipOrderCanceled => OnShipOrderCanceledEvent { label: "On Ship Order Canceled", category: Ships },
     /// An accepted ship order became impossible to continue: the well an orbit
     /// needed went away, or the hull lost the computer or engines the maneuver
     /// runs on. Terminal. An order REFUSED at issue time never reaches this -
     /// that is a lint error, not a scenario event.
-    OnShipOrderFailed => OnShipOrderFailedEvent { label: "On Ship Order Failed" },
+    OnShipOrderFailed => OnShipOrderFailedEvent { label: "On Ship Order Failed", category: Ships },
     /// A mining pulse carved ore off an asteroid (`id` = the asteroid, other
     /// = the mining ship; `item`, `count` = the ore and the units). One event
     /// per pulse that flips at least one corner; a barren rock fires nothing.
-    OnMined => OnMinedEvent { label: "On Mined" },
+    OnMined => OnMinedEvent { label: "On Mined", category: Trade },
     /// A cargo intake took a canister into a hold (`id` = the ship; `canister`,
     /// `item`, `count`). One event per stack the canister carried.
-    OnPickedUp => OnPickedUpEvent { label: "On Picked Up" },
+    OnPickedUp => OnPickedUpEvent { label: "On Picked Up", category: Trade },
     /// An intake dropped a canister out of a hold (`id` = the ship; `canister`,
     /// `item`, `count`). Fires when the canister leaves the hull, not when the
     /// pane queued it. One event per stack.
-    OnJettisoned => OnJettisonedEvent { label: "On Jettisoned" },
+    OnJettisoned => OnJettisonedEvent { label: "On Jettisoned", category: Trade },
     /// A Buy or Sell with a docked trader went through (`id` = the trader,
     /// other = the ship that traded; `trade`, `item`, `count`, `price_cr`).
     /// Once per confirmed trade.
-    OnTraded => OnTradedEvent { label: "On Traded" },
+    OnTraded => OnTradedEvent { label: "On Traded", category: Trade },
     /// A ship's credits balance moved (`id` = the ship; `previous_cr`,
     /// `current_cr`, `delta_cr`, `cause` = `Trade`, `Take`, `Rebuild`,
     /// `Swap`, `Add`, `ShipBuy`, `EscortHire`, `StationBuy` or `JobReward`).
     /// Once per ship per change, so a trade raises one for each party.
-    OnCreditsChanged => OnCreditsChangedEvent { label: "On Credits Changed" },
+    OnCreditsChanged => OnCreditsChangedEvent { label: "On Credits Changed", category: Trade },
     /// A Ship pane repair spent hull plates (`id` = the ship; `section` = the
     /// pane code such as `HULL-3`, `item`, `count` = plates spent). Once per
     /// repair that spends at least one plate.
-    OnRepaired => OnRepairedEvent { label: "On Repaired" },
+    OnRepaired => OnRepairedEvent { label: "On Repaired", category: Trade },
     /// A Ship pane rebuild at a docked station put a lost section back (`id`
     /// = the ship; `section` = the pane code such as `PDC-1`, `parts` = every
     /// part spent, `price_cr` = credits paid). Once per rebuild.
-    OnRebuilt => OnRebuiltEvent { label: "On Rebuilt" },
+    OnRebuilt => OnRebuiltEvent { label: "On Rebuilt", category: Trade },
     /// A Ship pane swap at a docked station replaced a live section with a
     /// part of the same family and footprint (`id` = the ship; `section` =
     /// the pane code such as `PDC-1`, `from` and `to` = the section prototype
     /// ids, `parts` = every part spent, `price_cr` = credits paid). Once per
     /// swap.
-    OnSwapped => OnSwappedEvent { label: "On Swapped" },
+    OnSwapped => OnSwappedEvent { label: "On Swapped", category: Trade },
     /// A Ship pane add at a docked station mounted a new section at a free
     /// socket (`id` = the ship; `section` = the new pane code such as
     /// `PDC-3`, `part` = the section prototype id, `at` and `point` = the
     /// pane code and socket id it was mounted on, `parts` = every part
     /// spent, `price_cr` = credits paid). Once per add.
-    OnAdded => OnAddedEvent { label: "On Added" },
+    OnAdded => OnAddedEvent { label: "On Added", category: Trade },
     /// A Ship pane buy at a docked station replaced the ship's hull with one
     /// from the station's catalogue (`id` = the ship; `hull` = the catalogue
     /// name, `price_cr` = the new hull's price). Once per buy; a free board
     /// of a ship the player owns fires none.
-    OnShipBought => OnShipBoughtEvent { label: "On Ship Bought" },
+    OnShipBought => OnShipBoughtEvent { label: "On Ship Bought", category: Trade },
     /// A Ship pane hire at a docked station added an escort to the player's
     /// fleet (`id` = the hiring ship; `escort` = the escort's scenario id,
     /// `hull` = the catalogue name, `price_cr` = the hire price). Once per
     /// hire.
-    OnEscortHired => OnEscortHiredEvent { label: "On Escort Hired" },
+    OnEscortHired => OnEscortHiredEvent { label: "On Escort Hired", category: Trade },
     /// The Jobs pane accepted a board offer (`id` = the job's id). Once per
     /// accept; a refused accept fires none, and a Load fires none for a job
     /// it restores.
-    OnJobAccepted => OnJobAcceptedEvent { label: "On Job Accepted" },
+    OnJobAccepted => OnJobAcceptedEvent { label: "On Job Accepted", category: Trade },
     /// A Ship pane buy at a docked station made the station the player's
     /// (`id` = the buying ship; `station` = the station's scenario id,
     /// `price_cr` = the price). Once per buy.
-    OnStationBought => OnStationBoughtEvent { label: "On Station Bought" },
+    OnStationBought => OnStationBoughtEvent { label: "On Station Bought", category: Trade },
     /// An Inventory pane strip took one section off the docked lootable partner
     /// (`id` = the ship that stripped; `hull` = the stripped hull's scenario
     /// id, `section` = its pane code such as `PDC-1`, `parts` = every part
     /// put in the hold). Once per section as a whole-hull strip takes it; the
     /// last one names the berth port.
-    OnStripped => OnStrippedEvent { label: "On Stripped" },
+    OnStripped => OnStrippedEvent { label: "On Stripped", category: Trade },
     /// A Store at a docked station moved items into its storage (`id` = the
     /// station, other = the ship that stored; `item`, `count`). Once per
     /// confirmed Store.
-    OnStored => OnStoredEvent { label: "On Stored" },
+    OnStored => OnStoredEvent { label: "On Stored", category: Trade },
     /// A Withdraw at a docked station moved items out of its storage (`id` =
     /// the station, other = the ship that withdrew; `item`, `count`). Once
     /// per confirmed Withdraw.
-    OnWithdrawn => OnWithdrawnEvent { label: "On Withdrawn" },
+    OnWithdrawn => OnWithdrawnEvent { label: "On Withdrawn", category: Trade },
 }
 
 #[cfg(all(test, feature = "serde"))]

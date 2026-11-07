@@ -147,6 +147,7 @@ fn turn_range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConf
             .to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

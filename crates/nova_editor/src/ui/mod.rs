@@ -9,13 +9,22 @@
 //! `inspector` on the right answers "what is THIS one". Parts are picked in the
 //! `gallery`.
 
+pub(crate) mod assets;
+pub(crate) mod browser;
 pub(crate) mod callout;
+pub(crate) mod canvas;
 pub(crate) mod files;
+pub(crate) mod hierarchy;
+pub(crate) mod hub;
 pub(crate) mod inspector;
 pub(crate) mod layer;
 pub(crate) mod menu;
+pub(crate) mod pick;
 pub(crate) mod plate;
 pub(crate) mod rail;
+pub(crate) mod settings;
+pub(crate) mod shell;
+pub(crate) mod thumbnail;
 pub(crate) mod window;
 
 use bevy::{
@@ -26,80 +35,177 @@ use bevy::{
     picking::{hover::Hovered, mesh_picking::MeshPickingCamera},
     prelude::*,
     ui::InteractionDisabled,
-    ui_widgets::{observe, Activate, Button},
+    ui_widgets::{observe, Activate},
 };
 use nova_assets::prelude::*;
 use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{
-        button, key_chip, panel, panel_header, scroll_bar, scroll_column, scroll_row,
-        scroll_viewport, separator, text_field, themed_button, ButtonLabel, ButtonSpec,
-        DoubleClick, TextFieldSpec, UiText,
+        button, key_chip, panel, scroll_bar, scroll_column, scroll_row, scroll_viewport, separator,
+        tab, tab_strip, text_field, tree_row, ButtonSpec, DoubleClick, InputMode, TextFieldSpec,
+        TextFieldValue, Tooltip, TreeRowSpec, UiText,
     },
     theme,
-    theme::{ActiveUiTheme, UiColor},
-    widget::{
-        checkbox_glyph, ButtonCueType, ListRow, Selected, ThemedBorder, ThemedCheckbox, ThemedFill,
-        ThemedRadius, ThemedText,
-    },
+    theme::{density, ActiveUiTheme, UiColor},
+    widget::{checkbox_glyph, ButtonCueType, Selected, ThemedCheckbox, ThemedText},
 };
 use nova_wfc::prelude::{WfcPlan, WfcZone};
 
 use crate::{
-    bundle::{ask_to_open, ask_to_save, ask_to_save_as},
+    asset::{item_name, AssetNode, AssetPartType, SocketNode},
+    bundle::{ask_to_save, ask_to_save_copy},
+    camera::EditorRig,
+    clipboard::{copy_item, duplicate_item, paste_item},
     config::{
-        ContextBreadcrumb, CrumbSelection, CrumbStep, EditorCamera, EditorFoot, EditorKeyLegend,
-        EditorOverlays, EditorRail, EditorStatus, HullPlanLine, InspectorHeader, PartChoice,
-        PartList, PartTick, PartZoneChip, PlacementStatus, PlayButton, RailTab, RailTabButton,
-        RebindButton, SceneList, SceneRow, SelectedNode, ShipReadout, ShipReadoutNote,
-        ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
+        EditorCamera, EditorKeyLegend, EditorOverlays, EditorRail, EditorSays, EditorStatus,
+        HullPlanLine, PartChoice, PartList, PartTick, PartZoneChip, PlacementStatus, PlayButton,
+        RailTab, RailTabButton, RebindButton, SceneList, SceneRow, SelectedNode, ShipReadout,
+        ShipReadoutNote, ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
     },
-    event::{
-        action_choice, add_script_node, event_label, filter_choice, handler_text, ActionChoice,
-        ActionKind, Expanded, FilterChoice, ScriptAdd, ScriptNodes,
-    },
+    event::{Expanded, ScriptNodes},
     frame::{
         ask_for, on_frame_selection, on_view_preset, FrameRequest, FrameSelectionItem, ViewAngle,
         ViewPresetItem,
     },
     gallery::{gallery_host, EditorChrome},
-    generate::{
-        bow_gun, generate_ship, main_engine, reroll_seed, Drawn, GenerateButton, GenerateSettings,
-        HullSeed, HullSeedField, UNAUTHORED_WEIGHT,
-    },
+    generate::{bow_gun, main_engine, Drawn, HullSeed},
     glyph::{
-        category_mark, choice_mark, object_mark, script_mark, section_mark, ship_mark, ACTION,
-        COMBINATOR, FILTER, GATE, HANDLER, INSIDE, OPEN, SCENARIO, SEQUENCE, SHIP_AI, SHUT, STEP,
+        category_mark, choice_mark, object_mark, section_mark, ship_mark, INSIDE, OPEN, SCENARIO,
+        SHIP_AI, SHUT,
     },
+    history::{commit_edit, delete_node, redo_item, undo_item},
     keybind::{on_rebind_action, EditorRebind},
     node::{
         id_order, objects_of, sections_of, split_ordinal, EditContext, NodeId, ObjectChoice,
         ObjectNode, ObjectNodes, ScenarioNode, SectionNode, SectionNodes, ShipNode, ShipNodes,
     },
     placement::{
-        continue_to_simulation, create_blank_ship, create_scenario_object, cycle_armed_socket,
-        deletable, delete_selected_node, put_armed_part_down, roll_armed_part, DeletableNode,
+        create_blank_ship, create_scenario_object, cycle_armed_socket, deletable,
+        delete_selected_node, put_armed_part_down, roll_armed_part, DeletableNode,
     },
+    project::{package::on_package_item, ModProject},
+    selection::{select_all_item, toggling},
+    tool::StageTool,
     ui::{
+        browser::{spawn_browser, ShipPaneData},
         callout::placement_callout,
-        inspector::{inspector_panel, inspector_tooltip, InspectorPanel, PANEL_W as INSPECTOR_W},
+        hierarchy::{filtered_rows, on_scene_row_menu, row_range, HierarchyFilter},
+        inspector::{inspector_empty, inspector_panel, inspector_tooltip},
         menu::{
             menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim, menu_z, on_menu_button,
-            on_menu_scrim, palette_block, toggle_all_fields, toggle_ids, toggle_key_legend,
-            toggle_link_points, toggle_object_volumes, toggle_world_grid, AddPalette,
-            ArmedMenuItem, MenuDeleteItem, MenuDropdown, MenuId, MenuLead, MenuTail, OpenMenu,
-            ScenarioMenuItem, ShipMenuItem, ViewToggle,
+            on_menu_scrim, palette_block, toggle_all_fields, toggle_handle_space, toggle_ids,
+            toggle_key_legend, toggle_link_points, toggle_object_volumes, toggle_world_grid,
+            AddPalette, ArmedMenuItem, MenuDeleteItem, MenuDropdown, MenuHistoryItem, MenuId,
+            MenuLead, MenuTail, OpenMenu, ScenarioMenuItem, ShipMenuItem, ViewToggle,
         },
         plate::plate_layer,
-        rail::{
-            next_zone, part_row, rail_tab, rail_tab_strip, scene_row, scene_tooltip,
-            skin_toggle_row, style_row, zone_label, SceneRowHint, SceneRowTrash,
-        },
+        rail::{next_zone, row_trash, scene_tooltip, zone_label, SceneRowHint, SceneRowTrash},
+        settings::on_mod_settings_item,
+        shell::{script_detail, script_mount, spawn_foot, spawn_top_bar, stage},
         window::{window_layer, DestructiveVerb},
     },
     ExampleStates,
 };
+
+/// The top bar's title word.
+#[derive(Component)]
+pub(crate) struct EditorTitle;
+
+/// Say which mod is open, which asset of it, and which ship the editor stands
+/// in.
+pub(crate) fn sync_editor_title(
+    project: Option<Res<ModProject>>,
+    context: Res<EditContext>,
+    ships: Query<(&ShipNode, &NodeId)>,
+    mut titles: Query<&mut Text, With<EditorTitle>>,
+) {
+    let Some(project) = project else {
+        return;
+    };
+    let name = project.data.meta.name.as_str();
+    let name = if name.is_empty() { "New Mod" } else { name };
+    let mut line = match project.data.open_name() {
+        Some(open) => format!("{name} / {open}"),
+        None => name.to_string(),
+    };
+    if let Some((ship, id)) = context.ship().and_then(|ship| ships.get(ship).ok()) {
+        let (label, ordinal) = tree_text(&ship.name, &id.0);
+        line = format!("{line} / {} {ordinal}", label)
+            .trim_end()
+            .to_string();
+    }
+    for mut title in &mut titles {
+        if title.0 != line {
+            title.0.clone_from(&line);
+        }
+    }
+}
+
+/// The menu bar. Every entry drops a real list: a greyed placeholder says the
+/// editor has menus while answering no press at all.
+pub(super) fn spawn_menu_bar(left: &mut RelatedSpawnerCommands<ChildOf>) {
+    left.spawn((
+        Name::new("Editor Menu Bar"),
+        Node {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            ..default()
+        },
+    ))
+    .with_children(|menus| {
+        for menu in [
+            MenuId::File,
+            MenuId::Edit,
+            MenuId::View,
+            MenuId::Add,
+            MenuId::Ship,
+        ] {
+            menus
+                .spawn((
+                    Name::new(format!("{} Menu Slot", menu.label())),
+                    menu_bar_slot(),
+                ))
+                .with_children(|slot| {
+                    slot.spawn((
+                        Name::new(format!("{} Menu Button", menu.label())),
+                        menu,
+                        button(ButtonSpec::new(menu.label()).dense().ghost()),
+                        observe(on_menu_button),
+                    ));
+                    slot.spawn((
+                        Name::new(format!("{} Menu", menu.label())),
+                        MenuDropdown,
+                        menu,
+                        menu_z(),
+                        menu_dropdown_node(),
+                        panel(),
+                    ))
+                    .with_children(|items| build_menu(items, menu));
+                });
+        }
+    });
+}
+
+/// The Scene and Events switch.
+pub(super) fn spawn_view_tabs(bar: &mut RelatedSpawnerCommands<ChildOf>) {
+    bar.spawn((Name::new("Rail Tabs"), tab_strip()))
+        .with_children(|strip| {
+            for (rail, label) in RAIL_TABS {
+                let mut entity = strip.spawn((
+                    Name::new(format!("Rail Tab {label}")),
+                    tab(label, false),
+                    RailTabButton(rail),
+                    ButtonCueType::Owned,
+                    observe(on_rail_tab),
+                ));
+                // The mark is the state the row reconciler paints from.
+                if rail == RailTab::default() {
+                    entity.insert(Selected);
+                }
+            }
+        });
+}
 
 /// Fill one dropdown.
 ///
@@ -114,8 +220,18 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
         MenuId::File => {
             // The rows that can lose work do not DO anything: they put the
             // question up (see `crate::ui::window::DestructiveVerb`), and the
-            // window's own button carries the verb. Open asks the same way,
-            // through the file window that lists what there is to open.
+            // window's own button carries the verb.
+            items.spawn((
+                Name::new("New Mod Item"),
+                DestructiveVerb::Hub,
+                menu_item_row("New Mod", MenuLead::None, MenuTail::None),
+            ));
+            items.spawn((
+                Name::new("Open Mod Item"),
+                DestructiveVerb::Hub,
+                menu_item_row("Open Mod", MenuLead::None, MenuTail::None),
+            ));
+            items.spawn(separator());
             items.spawn((
                 Name::new("New Scenario Item"),
                 DestructiveVerb::NewScenario,
@@ -128,14 +244,21 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                 observe(ask_to_save),
             ));
             items.spawn((
-                Name::new("Save As... Item"),
-                menu_item_row("Save As...", MenuLead::None, MenuTail::None),
-                observe(ask_to_save_as),
+                Name::new("Save As Copy Item"),
+                menu_item_row("Save As Copy", MenuLead::None, MenuTail::None),
+                observe(ask_to_save_copy),
+            ));
+            items.spawn(separator());
+            items.spawn((
+                Name::new("Mod Settings Item"),
+                menu_item_row("Mod Settings", MenuLead::None, MenuTail::None),
+                observe(on_mod_settings_item),
             ));
             items.spawn((
-                Name::new("Open Item"),
-                menu_item_row("Open", MenuLead::None, MenuTail::None),
-                observe(ask_to_open),
+                Name::new("Package Item"),
+                menu_item_row("Package", MenuLead::None, MenuTail::None),
+                ButtonCueType::Owned,
+                observe(on_package_item),
             ));
             items.spawn(separator());
             items.spawn((
@@ -145,14 +268,39 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
             ));
         }
         MenuId::Edit => {
-            for label in ["Undo", "Redo"] {
-                items.spawn((
-                    Name::new(format!("{label} Item")),
-                    menu_item_row(label, MenuLead::None, MenuTail::Word("soon")),
-                    InteractionDisabled,
-                ));
-            }
+            items.spawn((
+                Name::new("Undo Item"),
+                MenuHistoryItem::Undo,
+                menu_item_row("Undo", MenuLead::None, MenuTail::Key("Ctrl+Z")),
+                InteractionDisabled,
+                observe(undo_item),
+            ));
+            items.spawn((
+                Name::new("Redo Item"),
+                MenuHistoryItem::Redo,
+                menu_item_row("Redo", MenuLead::None, MenuTail::Key("Ctrl+Y")),
+                InteractionDisabled,
+                observe(redo_item),
+            ));
             items.spawn(separator());
+            items.spawn((
+                Name::new("Copy Item"),
+                menu_item_row("Copy", MenuLead::None, MenuTail::Key("Ctrl+C")),
+                ButtonCueType::Owned,
+                observe(copy_item),
+            ));
+            items.spawn((
+                Name::new("Paste Item"),
+                menu_item_row("Paste", MenuLead::None, MenuTail::Key("Ctrl+V")),
+                ButtonCueType::Owned,
+                observe(paste_item),
+            ));
+            items.spawn((
+                Name::new("Duplicate Item"),
+                menu_item_row("Duplicate", MenuLead::None, MenuTail::Key("Ctrl+D")),
+                ButtonCueType::Owned,
+                observe(duplicate_item),
+            ));
             items.spawn((
                 Name::new("Delete Item"),
                 MenuDeleteItem,
@@ -161,8 +309,37 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                 ButtonCueType::Owned,
                 observe(delete_selected_node),
             ));
+            items.spawn(separator());
+            items.spawn((
+                Name::new("Select All Item"),
+                menu_item_row("Select All", MenuLead::None, MenuTail::Key("Ctrl+A")),
+                observe(select_all_item),
+            ));
         }
         MenuId::View => {
+            for (name, label, toggle, key, verb) in [
+                ("Hierarchy", "Hierarchy", ViewToggle::Hierarchy, "Ctrl+1", 0),
+                ("Inspector", "Inspector", ViewToggle::Inspector, "Ctrl+2", 1),
+                ("Browser", "Browser", ViewToggle::Browser, "Ctrl+3", 2),
+            ] {
+                let mut row = items.spawn((
+                    Name::new(format!("{name} Panel Item")),
+                    toggle,
+                    menu_item_row(label, MenuLead::Toggle, MenuTail::Key(key)),
+                ));
+                match verb {
+                    0 => row.insert(observe(shell::toggle_hierarchy)),
+                    1 => row.insert(observe(shell::toggle_inspector)),
+                    _ => row.insert(observe(shell::toggle_browser)),
+                };
+            }
+            items.spawn(separator());
+            items.spawn((
+                Name::new("Handle Axes Item"),
+                menu_item_row("Local Axes", MenuLead::Toggle, MenuTail::Key("X")),
+                ViewToggle::LocalAxes,
+                observe(toggle_handle_space),
+            ));
             items.spawn((
                 Name::new("Key Legend Item"),
                 ViewToggle::KeyLegend,
@@ -347,21 +524,17 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                     palette_block(),
                 ))
                 .with_children(|script| {
-                    for add in ScriptAdd::ALL {
-                        script.spawn((
-                            Name::new(format!("Add {}", add.label())),
-                            add,
-                            menu_item_row(
-                                add.label(),
-                                MenuLead::Glyph(script_mark(add)),
-                                // What the word MEANS, beside it. `Gate` and
-                                // `Step` are the two rows nobody can rank from
-                                // their names alone.
-                                MenuTail::Word(add.hint()),
-                            ),
-                            observe(add_script_node),
-                        ));
-                    }
+                    // Blocks are added by dragging them out of the palette;
+                    // this row says where a builder used to the menu should go.
+                    script.spawn((
+                        Name::new("Add Script Hint"),
+                        InteractionDisabled,
+                        menu_item_row(
+                            "Drag blocks from the palette",
+                            MenuLead::Glyph(""),
+                            MenuTail::Word(""),
+                        ),
+                    ));
                 });
         }
     }
@@ -377,19 +550,18 @@ fn edited_ship<'a>(context: &EditContext, ships: &'a Query<&ShipNode>) -> Option
 /// The greyed form names the way out rather than only the refusal: Play
 /// compiles the WHOLE document, and the one thing that stops it is standing
 /// inside a ship.
-const PLAY_LABEL: &str = "Play";
-const PLAY_BLOCKED: &str = "Play (leave the ship)";
+pub(super) const PLAY_LABEL: &str = "Play";
+const PLAY_BLOCKED: &str = "Leave the ship first: Play flies the whole scenario.";
 
-/// Left rail width (px). Bounded by screen centre on the 1024-wide window,
+/// Left rail width (px). Bounded by screen centre on the narrowest window,
 /// where the editor preview ship projects: a UI panel over that point would
-/// block the placement raycast. 210 here and 300 of Inspector leave the stage
-/// a 514px band with the centre inside it, which is the whole constraint - the
-/// rows spend the rest on the type and the indent (see [`scene_row`]).
-pub(crate) const RAIL_W: f32 = 210.0;
+/// block the placement raycast. 240 here and 300 of Inspector keep the centre
+/// inside the stage down to a 760px window.
+pub(crate) const RAIL_W: f32 = 240.0;
 
 /// How many digits the seed field takes: `u64::MAX` is twenty of them, and a
 /// field that stops one short would refuse a seed the generator accepts.
-const SEED_DIGITS: usize = 20;
+pub(super) const SEED_DIGITS: usize = 20;
 
 /// How much of its own colour a style row keeps while the skin is off. Enough
 /// to read as the same list, not enough to be mistaken for the live one.
@@ -423,8 +595,12 @@ pub(crate) fn setup_editor_scene(
     // The rail is built for the ship the editor opens on. With none entered the
     // checkbox starts bare, which is what a fresh ship is.
     let skinned = edited_ship(&context, &q_ships).is_some_and(|ship| ship.skin);
-    let listed = listed_styles(&styles);
-    let drawable = listed_parts(&sections);
+    let ship_pane = ShipPaneData {
+        skinned,
+        styles: listed_styles(&styles),
+        parts: listed_parts(&sections),
+        seed: seed.0,
+    };
     // Key + rim, the same bearings the parts viewer lights its turntable with.
     // One light shining straight down puts every vertical face of every part in
     // flat shadow - fine for a ship seen from above, wrong for the gallery, where
@@ -451,10 +627,10 @@ pub(crate) fn setup_editor_scene(
     let camera = commands
         .spawn((
             DespawnOnExit(ExampleStates::Editor),
-            Name::new("WASD Camera"),
+            Name::new("Editor Camera"),
             Camera3d::default(),
             PostProcessingCamera,
-            WASDCameraController,
+            EditorRig::default(),
             // Opt in to mesh picking, which the transform gizmo rides on (see
             // `crate::gizmo`). The stage itself is picked through avian's
             // colliders, so this camera answers the pointer twice - once per
@@ -509,195 +685,15 @@ pub(crate) fn setup_editor_scene(
             },
         ))
         .with_children(|root| {
-            // The top bar: where you are, and what you can DO there. Actions
-            // live up here rather than in the rail because they are verbs of
-            // the current context, and the rail's vertical budget belongs to
-            // the tree - the old all-in-one rail ran out of screen the moment
-            // the tree grew two rows.
-            root.spawn((
-                Name::new("Editor Top Bar"),
-                GlobalZIndex(layer::CHROME_Z),
-                Node {
-                    width: percent(100),
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                    padding: UiRect::axes(px(10), px(6)),
-                    border: UiRect::bottom(px(theme::BORDER_W)),
-                    column_gap: px(10),
-                    ..default()
-                },
-                panel(),
-            ))
-            .with_children(|bar| {
-                // THREE COLUMNS, not a row with a spacer: Play sits in the
-                // middle of the SCREEN the way it does in Godot and Unity, and
-                // it only stays there if the two sides are equal-weight boxes.
-                // A spacer would centre it between the menus and the actions
-                // instead, which moves every time the breadcrumb grows a word.
-                bar.spawn((
-                    Name::new("Top Bar Left"),
-                    Node {
-                        flex_basis: px(0),
-                        flex_grow: 1.0,
-                        // NO `min_width: px(0)` here, unlike the right column.
-                        // That defeats a flex item's automatic minimum, and an
-                        // item allowed below its own content does not clip -
-                        // it overflows. At 760x600 the menu row ran out under
-                        // Play and the two labels drew over each other. The
-                        // right column can afford it because its one child is
-                        // a clip; this column's children are the menus, and a
-                        // menu button that is not there to press is not a
-                        // narrower bar, it is a missing verb.
-                        flex_direction: FlexDirection::Row,
-                        align_items: AlignItems::Center,
-                        column_gap: px(10),
-                        ..default()
-                    },
-                ))
-                .with_children(|left| {
-                    left.spawn((
-                        Name::new("Editor Title"),
-                        UiText,
-                        Text::new("EDITOR"),
-                        TextFont {
-                            font_size: FontSize::Px(16.0),
-                            ..default()
-                        },
-                        TextColor(Color::NONE), ThemedText::new(UiColor::Body),
-                    ));
-                    // The menu bar. Every entry drops a real list: a greyed
-                    // placeholder says the editor has menus while answering no
-                    // press at all.
-                    left.spawn((
-                        Name::new("Editor Menu Bar"),
-                        Node {
-                            flex_direction: FlexDirection::Row,
-                            align_items: AlignItems::Center,
-                            column_gap: px(6),
-                            ..default()
-                        },
-                    ))
-                    .with_children(|menus| {
-                        for menu in [
-                            MenuId::File,
-                            MenuId::Edit,
-                            MenuId::View,
-                            MenuId::Add,
-                            MenuId::Ship,
-                        ] {
-                            menus
-                                .spawn((
-                                    Name::new(format!("{} Menu Slot", menu.label())),
-                                    menu_bar_slot(),
-                                ))
-                                .with_children(|slot| {
-                                    slot.spawn((
-                                        Name::new(format!("{} Menu Button", menu.label())),
-                                        menu,
-                                        themed_button(menu.label()),
-                                        observe(on_menu_button),
-                                    ));
-                                    slot.spawn((
-                                        Name::new(format!("{} Menu", menu.label())),
-                                        MenuDropdown,
-                                        menu,
-                                        menu_z(),
-                                        menu_dropdown_node(),
-                                        panel(),
-                                    ))
-                                    .with_children(|items| build_menu(items, menu));
-                                });
-                        }
-                    });
-                });
-                // Dead centre, in every context, greyed inside a ship (see
-                // `sync_play_button`): a control that vanishes reads as a bug,
-                // and the greyed button says where Play went. In its own slot
-                // because `themed_button` is percent(100) wide - built for the
-                // rail - and a bare one on the bar swallows the whole row.
-                bar.spawn((
-                    Name::new("Play Slot"),
-                    Node {
-                        flex_direction: FlexDirection::Row,
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::Center,
-                        ..default()
-                    },
-                ))
-                .with_children(|slot| {
-                    slot.spawn((
-                        Name::new("Play Button"),
-                        PlayButton,
-                        themed_button("Play"),
-                        ButtonCueType::Owned,
-                        observe(continue_to_simulation),
-                    ));
-                });
-                // The right column carries the context readout. Parts, Delete
-                // and Rebind are verbs of the ship you are inside, so they hang
-                // under the Ship menu where the pointer already goes for File
-                // and Add, and the crumb has the column to itself: sharing the
-                // left one with five menu buttons cut it to "[SHIP] scenar".
-                bar.spawn((
-                    Name::new("Top Bar Right"),
-                    Node {
-                        flex_basis: px(0),
-                        flex_grow: 1.0,
-                        min_width: px(0),
-                        flex_direction: FlexDirection::Row,
-                        align_items: AlignItems::Center,
-                        justify_content: JustifyContent::FlexEnd,
-                        ..default()
-                    },
-                ))
-                .with_children(|right| {
-                    // The breadcrumb doubles as the context readout: the tree
-                    // marks the entered node, this says the same thing as a
-                    // sentence - level, path, selection (see `sync_breadcrumb`).
-                    // Phosphor rather than muted: it is the one line that says
-                    // what a click will act on, so it must not read as a
-                    // caption.
-                    // A WRAPPER carries the clip and the text hangs inside it.
-                    // `Overflow::clip` bounds a node's CHILDREN, and a text
-                    // node draws its own glyphs, so a clip on the text itself
-                    // bounds nothing and a long crumb runs on under the Play
-                    // button.
-                    //
-                    // On the wrapper and not on the column: the column is a
-                    // flex parent of exactly this, and a clip that high would
-                    // also bound anything absolutely positioned inside it. The
-                    // breadcrumb is the only thing on the bar that grows
-                    // without bound, so it is the only thing that needs any of
-                    // this.
-                    right
-                        .spawn((
-                            Name::new("Context Breadcrumb Clip"),
-                            Node {
-                                min_width: px(0),
-                                overflow: Overflow::clip(),
-                                ..default()
-                            },
-                        ))
-                        .with_child((
-                            Name::new("Context Breadcrumb"),
-                            ContextBreadcrumb,
-                            Node {
-                                flex_direction: FlexDirection::Row,
-                                align_items: AlignItems::Center,
-                                column_gap: px(4),
-                                ..default()
-                            },
-                        ));
-                });
-            });
+            spawn_top_bar(root);
 
             // The catcher an open menu drops behind itself. A sibling of the
             // bar rather than a child of it, because "anywhere else" includes
             // the rail and the viewport.
             root.spawn((menu_scrim(), observe(on_menu_scrim)));
 
-            // Everything under the bar: the rail on the left, the 3D viewport
-            // behind the rest.
+            // Everything between the toolbar and the browser: the Hierarchy on
+            // the left, the stage in the middle, the Inspector on the right.
             root.spawn((
                 Name::new("Editor Content"),
                 Pickable {
@@ -730,26 +726,32 @@ pub(crate) fn setup_editor_scene(
                         EditorRail,
                         Node {
                             width: px(RAIL_W),
-                            // The rail KEEPS its width. Beside it sits a panel
-                            // whose natural width is its widest control - a
-                            // wrapping bar of twenty-six actions - and a
-                            // shrinkable rail hands that pressure its own
-                            // columns, which is the tree clipping again.
+                            // The rail keeps its width: the panels beside it
+                            // must not hand their pressure to the tree.
                             flex_shrink: 0.0,
                             flex_direction: FlexDirection::Column,
                             align_items: AlignItems::Stretch,
-                            padding: UiRect::all(px(10)),
+                            row_gap: px(density::GAP),
+                            padding: UiRect::all(px(density::PANEL_PAD)),
                             border: UiRect::right(px(theme::BORDER_W)),
                             ..default()
                         },
                         panel(),
                     ))
                     .with_children(|column| {
-                        // The rail SCROLLS as one column, bar and all: the tree
-                        // grows with the document and the settings sit under
-                        // it, so a scenario holding twenty objects used to push
-                        // the style list off the bottom edge with no way back
-                        // to it.
+                        column.spawn((
+                            Name::new("Hierarchy Filter"),
+                            HierarchyFilter,
+                            text_field(
+                                TextFieldSpec::new("")
+                                    .placeholder("filter the tree")
+                                    .max_chars(40)
+                                    .tool(),
+                            ),
+                        ));
+                        // The rows are `sync_scene_list`'s, because what is
+                        // listed depends on where the editor stands, on the tab
+                        // and on the filter.
                         column
                             .spawn((Name::new("Editor Rail Scroll"), scroll_row()))
                             .with_children(|row| {
@@ -761,434 +763,117 @@ pub(crate) fn setup_editor_scene(
                                     },
                                     scroll_viewport(),
                                 ))
-                                .with_children(|rail| {
-                                    // The document, as a tree. The rows are built by
-                                    // `sync_scene_list`, because what is expanded depends
-                                    // on which node the editor is inside - and on which
-                                    // half of the document the tabs above are showing.
-                                    rail.spawn((Name::new("Rail Tabs"), rail_tab_strip()))
-                                        .with_children(|strip| {
-                                            for (tab, label) in RAIL_TABS {
-                                                let mut entity = strip.spawn((
-                                                    Name::new(format!("Rail Tab {label}")),
-                                                    rail_tab(tab, label),
-                                                    observe(on_rail_tab),
-                                                ));
-                                                // The MARK is the state the row
-                                                // reconciler paints from, so it
-                                                // is inserted rather than baked
-                                                // into the factory.
-                                                if tab == RailTab::default() {
-                                                    entity.insert(Selected);
-                                                }
-                                            }
-                                        });
-                                    rail.spawn((
-                                        Name::new("Scene List"),
-                                        SceneList,
-                                        rail_list_node(),
-                                    ));
-
-                                    // Ship settings: properties of the ship being edited,
-                                    // so the whole block is hidden at the scenario node by
-                                    // `sync_context_panels`.
-                                    rail.spawn((
-                                        Name::new("Ship Settings"),
-                                        ShipSettings,
-                                        Node {
-                                            width: percent(100),
-                                            flex_direction: FlexDirection::Column,
-                                            align_items: AlignItems::Stretch,
-                                            // See `rail_list_node`: in a
-                                            // scrolling column, nothing
-                                            // shrinks.
-                                            flex_shrink: 0.0,
-                                            ..default()
-                                        },
-                                    ))
-                                    .with_children(
-                                        |settings| {
-                                            settings.spawn(separator());
-                                            settings.spawn(panel_header("Ship Settings"));
-                                            // The engineer readout: properties of the hull
-                                            // being built, and they move with every part
-                                            // placed. Without them a hull that is too big to
-                                            // turn reads as the game being broken rather than
-                                            // as a hull that wants another computer.
-                                            settings.spawn((
-                                                Name::new("Ship Readout"),
-                                                ShipReadout,
-                                                UiText,
-                                                Text::new(""),
-                                                TextFont {
-                                                    font_size: FontSize::Px(READOUT_TEXT),
-                                                    ..default()
-                                                },
-                                                TextColor(Color::NONE), ThemedText::new(UiColor::Primary),
-                                                Node {
-                                                    margin: UiRect::top(px(4)),
-                                                    ..default()
-                                                },
-                                            ));
-                                            // The remedy, under the numbers it is about. Muted
-                                            // and a size down, because it is the sentence a
-                                            // builder reads ONCE per surprise and the block
-                                            // above is the one they watch.
-                                            settings.spawn((
-                                                Name::new("Ship Readout Note"),
-                                                ShipReadoutNote,
-                                                UiText,
-                                                Text::new(""),
-                                                TextFont {
-                                                    font_size: FontSize::Px(11.0),
-                                                    ..default()
-                                                },
-                                                TextColor(Color::NONE), ThemedText::new(UiColor::Label),
-                                                Node {
-                                                    margin: UiRect::bottom(px(4)),
-                                                    ..default()
-                                                },
-                                            ));
-                                            // A SETTING rather than a tool: it arms nothing, it
-                                            // changes what the ship on the stage looks like -
-                                            // and what it looks like when it flies.
-                                            settings.spawn((
-                                                Name::new("Ship Skin Toggle"),
-                                                skin_toggle_row(skinned),
-                                                observe(on_skin_toggle),
-                                            ));
-                                            // The sentence that used to hide in the key legend.
-                                            // It is a fact about THIS setting - the skin
-                                            // reflows around the part in hand - so it belongs
-                                            // under the row it is about, not in a line of keys
-                                            // View can switch off.
-                                            settings.spawn((
-                                                Name::new("Ship Skin Note"),
-                                                UiText,
-                                                Text::new("reflows around the part in hand"),
-                                                TextFont {
-                                                    font_size: FontSize::Px(11.0),
-                                                    ..default()
-                                                },
-                                                TextColor(Color::NONE), ThemedText::new(UiColor::Label),
-                                                Node {
-                                                    margin: UiRect::bottom(px(4)),
-                                                    ..default()
-                                                },
-                                            ));
-                                            // Under the toggle, and shown only while it is on,
-                                            // because it answers the question the toggle
-                                            // raises: the skin is on, and this is which of the
-                                            // shipped styles it wears. One row per style out of
-                                            // the MERGED content, so a mod's style is listed
-                                            // beside the base ones without the editor knowing
-                                            // any id.
-                                            settings
-                                                .spawn((
-                                                    Name::new("Ship Style List"),
-                                                    StyleList,
-                                                    rail_list_node(),
-                                                ))
-                                                .with_children(|list| {
-                                                    for (index, (id, name, colour)) in
-                                                        listed.iter().enumerate()
-                                                    {
-                                                        let mut row = list.spawn((
-                                                            Name::new(format!("Style: {name}")),
-                                                            style_row(id, name, *colour),
-                                                            observe(on_style_choice),
-                                                        ));
-                                                        // The first is what an
-                                                        // unset style wears, so
-                                                        // it starts marked.
-                                                        if index == 0 {
-                                                            row.insert(Selected);
-                                                        }
-                                                    }
-                                                });
-                                        },
-                                    );
-                                    // Generate: the hull THIS ship is, rolled
-                                    // out of the catalog. A ship is the unit a
-                                    // hull is, so the block sits inside one
-                                    // beside the settings for it, and
-                                    // `sync_context_panels` shows both only
-                                    // there.
-                                    rail.spawn((
-                                        Name::new("Generate Settings"),
-                                        GenerateSettings,
-                                        Node {
-                                            width: percent(100),
-                                            flex_direction: FlexDirection::Column,
-                                            align_items: AlignItems::Stretch,
-                                            // See `rail_list_node`: in a
-                                            // scrolling column, nothing
-                                            // shrinks.
-                                            flex_shrink: 0.0,
-                                            ..default()
-                                        },
-                                    ))
-                                    .with_children(|block| {
-                                        block.spawn(separator());
-                                        block.spawn(panel_header("Generate Hull"));
-                                        block.spawn((
-                                            Name::new("Generate Note"),
-                                            UiText,
-                                            Text::new(
-                                                "collapses this ship out of the ticked sections, replacing what it holds",
-                                            ),
-                                            TextFont {
-                                                font_size: FontSize::Px(11.0),
-                                                ..default()
-                                            },
-                                            TextColor(Color::NONE), ThemedText::new(UiColor::Label),
-                                            Node {
-                                                margin: UiRect::bottom(px(4)),
-                                                ..default()
-                                            },
-                                        ));
-                                        // The seed is SHOWN because it is the
-                                        // whole handle on the generator: a hull
-                                        // a builder liked is a number they can
-                                        // write down and type back in.
-                                        block.spawn((
-                                            Name::new("Hull Seed Field"),
-                                            HullSeedField,
-                                            text_field(
-                                                TextFieldSpec::new(seed.0.to_string())
-                                                    .max_chars(SEED_DIGITS)
-                                                    .dense(),
-                                            ),
-                                        ));
-                                        block.spawn((
-                                            Name::new("Reroll Seed Button"),
-                                            button(ButtonSpec::new("Reroll Seed").ghost()),
-                                            observe(reroll_seed),
-                                        ));
-                                        block.spawn((
-                                            Name::new("Generate Button"),
-                                            GenerateButton,
-                                            themed_button("Generate"),
-                                            ButtonCueType::Owned,
-                                            observe(generate_ship),
-                                        ));
-                                        // What the ticks add up to. The
-                                        // seeded roles are DERIVED - the
-                                        // biggest ticked drive is the engine,
-                                        // the biggest ticked spinal gun is the
-                                        // bow gun - so this line is the only
-                                        // place a builder is told it happened.
-                                        block.spawn((
-                                            Name::new("Hull Plan Label"),
-                                            UiText,
-                                            Text::new("HULL PLAN"),
-                                            TextFont {
-                                                font_size: FontSize::Px(10.0),
-                                                ..default()
-                                            },
-                                            TextColor(Color::NONE), ThemedText::new(UiColor::Label),
-                                            Node {
-                                                margin: UiRect::top(px(6)),
-                                                ..default()
-                                            },
-                                        ));
-                                        block.spawn((
-                                            Name::new("Hull Plan Line"),
-                                            HullPlanLine,
-                                            UiText,
-                                            Text::new("stern -\nbow -"),
-                                            TextFont {
-                                                font_size: FontSize::Px(10.0),
-                                                ..default()
-                                            },
-                                            TextColor(Color::NONE), ThemedText::new(UiColor::Secondary),
-                                        ));
-                                        // What the collapse may draw. The
-                                        // whole merged catalog, so a mod's
-                                        // section is on the list without the
-                                        // editor knowing an id - and the note
-                                        // says the terms an untuned one joins
-                                        // on, because the standard plan prices
-                                        // only the parts it ships with.
-                                        block.spawn((
-                                            Name::new("Draw Label"),
-                                            UiText,
-                                            Text::new("DRAW FROM"),
-                                            TextFont {
-                                                font_size: FontSize::Px(10.0),
-                                                ..default()
-                                            },
-                                            TextColor(Color::NONE), ThemedText::new(UiColor::Label),
-                                            Node {
-                                                margin: UiRect::top(px(6)),
-                                                ..default()
-                                            },
-                                        ));
-                                        block.spawn((
-                                            Name::new("Draw Note"),
-                                            UiText,
-                                            Text::new(format!(
-                                                "ticked sections draw at the standard plan's own weights; one it does not price joins at {UNAUTHORED_WEIGHT}. the chip on a ticked row says where on the hull it may stand",
-                                            )),
-                                            TextFont {
-                                                font_size: FontSize::Px(10.0),
-                                                ..default()
-                                            },
-                                            TextColor(Color::NONE), ThemedText::new(UiColor::Label),
-                                            Node {
-                                                margin: UiRect::bottom(px(3)),
-                                                ..default()
-                                            },
-                                        ));
-                                        block
-                                            .spawn((
-                                                Name::new("Part List"),
-                                                PartList,
-                                                rail_list_node(),
-                                            ))
-                                            .with_children(|list| {
-                                                for (id, name, drawn, zone) in &drawable {
-                                                    let mut row = list.spawn((
-                                                        Name::new(format!("Part: {id}")),
-                                                        part_row(id, name, *drawn, *zone),
-                                                        observe(on_part_choice),
-                                                    ));
-                                                    // The MARK is the setting;
-                                                    // the row's paint is only a
-                                                    // picture of it.
-                                                    if *drawn {
-                                                        row.insert(Selected);
-                                                    }
-                                                }
-                                            });
-                                    });
-                                });
+                                .with_child((
+                                    Name::new("Scene List"),
+                                    SceneList,
+                                    rail_list_node(),
+                                ));
                                 row.spawn((Name::new("Rail Scrollbar"), scroll_bar()));
                             });
+                        // The engineer readout: properties of the hull being
+                        // built. Pinned under the tree, because it moves with
+                        // every part placed and is what a builder watches.
+                        column
+                            .spawn((
+                                Name::new("Ship Settings"),
+                                ShipSettings,
+                                Node {
+                                    width: percent(100),
+                                    flex_direction: FlexDirection::Column,
+                                    align_items: AlignItems::Stretch,
+                                    flex_shrink: 0.0,
+                                    ..default()
+                                },
+                            ))
+                            .with_children(|settings| {
+                                settings.spawn(separator());
+                                settings.spawn((
+                                    Name::new("Ship Readout"),
+                                    ShipReadout,
+                                    UiText,
+                                    Text::new(""),
+                                    TextFont {
+                                        font_size: FontSize::Px(READOUT_TEXT),
+                                        ..default()
+                                    },
+                                    TextColor(Color::NONE),
+                                    ThemedText::new(UiColor::Primary),
+                                    Node {
+                                        margin: UiRect::top(px(4)),
+                                        ..default()
+                                    },
+                                ));
+                                // The remedy, under the numbers it is about.
+                                settings.spawn((
+                                    Name::new("Ship Readout Note"),
+                                    ShipReadoutNote,
+                                    UiText,
+                                    Text::new(""),
+                                    TextFont {
+                                        font_size: FontSize::Px(11.0),
+                                        ..default()
+                                    },
+                                    TextColor(Color::NONE),
+                                    ThemedText::new(UiColor::Label),
+                                ));
+                            });
                     });
-                // The Inspector, on the OTHER side of the stage from the tree:
-                // the rail says what the document holds and this says what one
-                // of those things is, and putting both in one column is what
-                // ran the old all-in-one rail out of screen.
-                content.spawn(inspector_panel());
+                content.spawn(stage());
+                content.spawn(script_mount()).with_children(|mount| {
+                    canvas::spawn_canvas_area(mount);
+                    mount.spawn(script_detail()).with_children(|detail| {
+                        detail.spawn(inspector_panel());
+                        detail.spawn(inspector_empty());
+                    });
+                });
             });
 
-            // The hint a tree row reveals on hover, and the layer the floating
-            // windows stand on. Both hang off the root rather than off the
-            // rail that raises them, because both are positioned against the
-            // SCREEN: the windows stand above everything else the editor draws
-            // - a window a panel could cover would be a window nobody opened -
-            // and the hint stands above the windows.
+            spawn_browser(root, &ship_pane);
+
+            // Contextual (see `sync_key_legend`): a builder holding a part needs
+            // the pose keys, and one in select mode needs to be told the
+            // pipette exists. One line: `fit_hints` drops what does not fit,
+            // and the hints are ordered with the gestures a builder is about to
+            // make first. The wrap and the clip are the backstop for a cell the
+            // budget got wrong: it loses a whole cell, never half a word.
+            spawn_foot(
+                root,
+                (
+                    Name::new("Editor Key Legend"),
+                    EditorKeyLegend,
+                    Node {
+                        flex_grow: 1.0,
+                        flex_basis: px(0),
+                        min_width: px(0),
+                        flex_direction: FlexDirection::Row,
+                        flex_wrap: FlexWrap::Wrap,
+                        justify_content: JustifyContent::FlexEnd,
+                        align_items: AlignItems::Center,
+                        align_content: AlignContent::FlexStart,
+                        column_gap: px(LEGEND_GAP),
+                        // Past the clip, so no sliver of the second line shows.
+                        row_gap: px(LEGEND_MAX_H),
+                        max_height: px(LEGEND_MAX_H),
+                        overflow: Overflow::clip(),
+                        ..default()
+                    },
+                    Children::spawn(SpawnWith(move |cells: &mut RelatedSpawner<ChildOf>| {
+                        cells.spawn(legend_mode_cell());
+                        for index in 0..LEGEND_CELLS {
+                            cells.spawn(legend_cell(index));
+                        }
+                    })),
+                ),
+            );
+
+            // Positioned against the screen, so they hang off the root. The
+            // windows stand above everything else the editor draws, and the
+            // hints above the windows.
             root.spawn(scene_tooltip());
             root.spawn(inspector_tooltip());
             root.spawn(placement_callout());
             root.spawn(plate_layer());
             root.spawn(window_layer());
-
-            // The foot of the screen: the placement verdict, then the key
-            // legend under it. ONE bottom-anchored column rather than two
-            // absolute rows, because the legend WRAPS - a status line pinned
-            // at a fixed height above the bottom edge sat on top of the second
-            // row of hints the moment the window was narrow enough to need one.
-            //
-            // BOUNDED, not full width: `left` and `right` pin the column
-            // between the rail and the Inspector, which is also the span the
-            // verdict is about.
-            root.spawn((
-                Name::new("Editor Foot"),
-                EditorFoot,
-                Pickable {
-                    should_block_lower: false,
-                    is_hoverable: false,
-                },
-                Node {
-                    position_type: PositionType::Absolute,
-                    bottom: px(8),
-                    left: px(RAIL_W + 12.0),
-                    right: px(INSPECTOR_W + 12.0),
-                    flex_direction: FlexDirection::Column,
-                    align_items: AlignItems::Stretch,
-                    row_gap: px(6),
-                    ..default()
-                },
-                GlobalZIndex(layer::FOOT_Z),
-                children![
-                    // A full-width row rather than an offset chip: the chip's
-                    // width follows its text, so centring is the row's job.
-                    (
-                        Name::new("Placement Status Row"),
-                        Node {
-                            width: percent(100),
-                            justify_content: JustifyContent::Center,
-                            ..default()
-                        },
-                        Pickable {
-                            should_block_lower: false,
-                            is_hoverable: false,
-                        },
-                        children![(
-                            Name::new("Placement Status"),
-                            PlacementStatus,
-                            Visibility::Hidden,
-                            Pickable {
-                                should_block_lower: false,
-                                is_hoverable: false,
-                            },
-                            Node {
-                                padding: UiRect::axes(px(10), px(4)),
-                                border: UiRect::all(px(theme::BORDER_W)),
-                                ..default()
-                            },
-                            ThemedRadius::control(),
-                            BorderColor::all(Color::NONE), ThemedBorder::new(UiColor::Danger),
-                            BackgroundColor(Color::NONE), ThemedFill::new(UiColor::Void),
-                            UiText,
-                            Text::new(""),
-                            TextFont {
-                                font_size: FontSize::Px(13.0),
-                                ..default()
-                            },
-                            TextColor(Color::NONE), ThemedText::new(UiColor::Danger),
-                        )],
-                    ),
-                    // Contextual (see `sync_key_legend`): a builder holding a
-                    // part needs the pose keys, and one in select mode needs to
-                    // be told the pipette exists.
-                    (
-                        Name::new("Editor Key Legend"),
-                        EditorKeyLegend,
-                        Pickable {
-                            should_block_lower: false,
-                            is_hoverable: false,
-                        },
-                        Node {
-                            flex_direction: FlexDirection::Row,
-                            flex_wrap: FlexWrap::Wrap,
-                            align_items: AlignItems::Center,
-                            column_gap: px(10),
-                            row_gap: px(4),
-                            // Bounded to the height it already has at the
-                            // stock shape. The legend WRAPS by design, but the
-                            // band it wraps inside is 226px at 760x600 against
-                            // 490 at 1024x768, so the same nine cells go from
-                            // three rows to five - the bottom sixth of the
-                            // buildable area, drawn through the axis rose. The
-                            // hints are ordered with the gestures a builder is
-                            // about to make first (see `sync_key_legend`), so
-                            // what a narrow window loses is the tail.
-                            max_height: px(LEGEND_MAX_H),
-                            overflow: Overflow::clip(),
-                            ..default()
-                        },
-                        Children::spawn(SpawnWith(move |cells: &mut RelatedSpawner<ChildOf>| {
-                            cells.spawn(legend_mode_cell());
-                            for index in 0..LEGEND_CELLS {
-                                cells.spawn(legend_cell(index));
-                            }
-                        })),
-                    ),
-                ],
-            ));
         });
 }
 
@@ -1199,6 +884,7 @@ pub(crate) fn setup_editor_scene(
 /// that flies cannot disagree about whether it is clad.
 pub(crate) fn on_skin_toggle(
     _activate: On<Activate>,
+    mut commands: Commands,
     context: Res<EditContext>,
     mut q_ships: Query<&mut ShipNode>,
 ) {
@@ -1207,6 +893,7 @@ pub(crate) fn on_skin_toggle(
     };
     if let Ok(mut ship) = q_ships.get_mut(ship) {
         ship.skin = !ship.skin;
+        commit_edit(&mut commands, "Toggle Skin");
     }
 }
 
@@ -1430,28 +1117,34 @@ fn rail_list_node() -> Node {
 
 /// One row the Scene tree wants: the node it points at, and how it reads.
 #[derive(Clone, PartialEq, Eq)]
-struct WantedRow {
-    node: Entity,
+pub(crate) struct WantedRow {
+    pub(crate) node: Entity,
     /// How deep under the scenario root the node sits. The row spends it on
     /// left padding, which is what makes the list read as a tree.
-    depth: usize,
+    pub(crate) depth: usize,
+    /// Which way the caret points. `None` on a row with nothing under it.
+    pub(crate) open: Option<bool>,
+    /// How many rows hang directly under this one, open or shut.
+    pub(crate) count: usize,
     /// The glyph in front of the label, saying what the node is. `@` marks the
     /// node the editor is inside, `>` the ship Play hands to the player, `-` a
     /// design beside it, and a section wears its kind.
-    lead: String,
+    pub(crate) lead: String,
     /// The node's id: what the row is CALLED, and what the driven walks find
     /// it by.
-    id: String,
+    pub(crate) id: String,
+    /// The label before elision, which is what a filter reads.
+    pub(crate) full: String,
     /// What the row READS as. The id, shortened where the id repeats what the
     /// tree already says (see [`tree_text`]).
-    label: String,
+    pub(crate) label: String,
     /// The row's right-hand column: which one this is, when the id ends in an
     /// ordinal. Held apart from the label because it is the half that must
     /// survive a narrow rail (see [`tree_text`]).
-    trail: String,
+    pub(crate) trail: String,
     /// What the row's icon MEANS, in one word. Read back by the hover hint,
     /// which is where a builder finds out what `%` was.
-    kind: String,
+    pub(crate) kind: String,
 }
 
 /// What a node reads as in a 150px rail: (label, trail).
@@ -1488,24 +1181,12 @@ const ELLIPSIS: &str = "\u{2026}";
 /// Iosevka, a monospace, so a column of the rail IS a column of text. The
 /// indent takes a step out of the budget at every depth.
 fn label_budget(depth: usize) -> usize {
-    /// What a root row fits beside its mark and its trail.
-    const AT_ROOT: usize = 22;
+    /// What a root row fits beside its caret, its mark and its count.
+    const AT_ROOT: usize = 24;
     /// What one step of indent costs, rounded to the character it eats.
     const PER_STEP: usize = 1;
 
     AT_ROOT.saturating_sub(depth * PER_STEP)
-}
-
-/// The same question for a SCRIPT row, which is drawn in a wider rail.
-///
-/// Events mode gives the tree [`EVENTS_RAIL_W`] instead of [`RAIL_W`], and a
-/// budget cut for the narrow one elides a condition that has room to be read -
-/// which is the whole reason the mode widens the rail.
-fn script_budget(depth: usize) -> usize {
-    /// What a root row of the wide rail fits beside its mark and its trail.
-    const AT_ROOT: usize = 36;
-
-    AT_ROOT.saturating_sub(depth)
 }
 
 /// `label` shortened to fit, with the cut marked.
@@ -1558,6 +1239,8 @@ pub(crate) fn on_rail_tab(
     tabs: Query<&RailTabButton>,
     mut tab: ResMut<RailTab>,
     mut selected: ResMut<SelectedNode>,
+    benches: Query<(), With<AssetNode>>,
+    mut says: EditorSays,
 ) {
     let Ok(RailTabButton(pressed)) = tabs.get(activate.entity) else {
         return;
@@ -1565,8 +1248,13 @@ pub(crate) fn on_rail_tab(
     if *tab == *pressed {
         return;
     }
+    if *pressed == RailTab::Events && !benches.is_empty() {
+        says.refuse("open a scenario to edit its events");
+        return;
+    }
     *tab = *pressed;
-    selected.0 = None;
+    selected.set(None);
+    says.accept();
 }
 
 /// Mark the tab whose half the tree is showing.
@@ -1588,85 +1276,6 @@ pub(crate) fn sync_rail_tabs(
                 commands.entity(entity).remove::<Selected>();
             }
             _ => {}
-        }
-    }
-}
-
-/// Left rail width in the events editor.
-///
-/// Wider than [`RAIL_W`] because a script is DEEP where a range is wide:
-/// scenario, handler, sequence, step, action is five levels, and every level is
-/// charged to the row's left padding before its label gets any.
-pub(crate) const EVENTS_RAIL_W: f32 = 300.0;
-
-/// Lay the screen out for the mode the tabs chose.
-///
-/// SCENE is the stage with a panel either side, and both panels are narrow for
-/// one reason: the placement raycast goes through the middle of the window, so
-/// chrome over the centre is chrome that eats the click that puts a part down.
-///
-/// EVENTS places nothing. There is no raycast to keep clear, so the rail widens
-/// and the Inspector stops being a docked panel and becomes the EDITOR - it
-/// fills everything the rail leaves, opaque, over a stage that is still there
-/// and no longer in the way. The stage's own labels sit below the chrome rung
-/// (see [`crate::ui::layer`]), so covering it takes no extra hiding; the foot
-/// does need it, because the placement verdict and the key legend are both
-/// about a stage this mode is not showing.
-///
-/// Compared before writing rather than gated on [`Res::is_changed`], for the
-/// same reason as [`sync_rail_tabs`]: the panels are spawned on entering the
-/// editor, which need not be a frame the tab changed on.
-pub(crate) fn sync_editor_mode(
-    tab: Res<RailTab>,
-    mut rails: Query<
-        &mut Node,
-        (
-            With<EditorRail>,
-            Without<InspectorPanel>,
-            Without<EditorFoot>,
-        ),
-    >,
-    mut panels: Query<&mut Node, (With<InspectorPanel>, Without<EditorFoot>)>,
-    mut feet: Query<&mut Node, With<EditorFoot>>,
-    mut headers: Query<&mut Text, With<InspectorHeader>>,
-) {
-    let events = tab.is_events();
-    let rail = px(if events { EVENTS_RAIL_W } else { RAIL_W });
-    for mut node in &mut rails {
-        if node.width != rail {
-            node.width = rail;
-        }
-    }
-    // `flex_grow` is what makes the pane the editor: the rail takes its fixed
-    // width out of the row and the panel takes the rest, whatever the window
-    // is. In Scene the panel is fixed and the auto margin pushes it right,
-    // which leaves the gap in the middle that the stage shows through.
-    let (width, grow, margin) = if events {
-        (Val::Auto, 1.0, UiRect::ZERO)
-    } else {
-        (px(INSPECTOR_W), 0.0, UiRect::left(Val::Auto))
-    };
-    for mut node in &mut panels {
-        if node.width != width {
-            node.width = width;
-        }
-        if node.flex_grow != grow {
-            node.flex_grow = grow;
-        }
-        if node.margin != margin {
-            node.margin = margin;
-        }
-    }
-    let foot = if events { Display::None } else { Display::Flex };
-    for mut node in &mut feet {
-        if node.display != foot {
-            node.display = foot;
-        }
-    }
-    let header = if events { "EVENTS" } else { "INSPECTOR" };
-    for mut text in &mut headers {
-        if text.0 != header {
-            text.0 = header.to_string();
         }
     }
 }
@@ -1701,11 +1310,17 @@ fn wanted_rows(
     q_objects: &ObjectNodes,
     nodes: &SectionNodes,
     catalog: Option<&GameSections>,
+    script: &ScriptNodes,
+    bench: &BenchTree,
     ids: bool,
+    all: bool,
 ) -> Vec<WantedRow> {
     let Some(scenario) = context.scenario() else {
         return Vec::new();
     };
+    if let Some(rows) = bench.rows(scenario) {
+        return rows;
+    }
     let Ok(root_id) = q_scenarios.get(scenario) else {
         return Vec::new();
     };
@@ -1733,22 +1348,17 @@ fn wanted_rows(
         // same list, and the walk sorts every section node in the document.
         let sections = sections_of(ship, nodes);
         let parts = sections.len();
+        let open = inside || all || script.expanded(ship);
         rows.push(WantedRow {
             node: ship,
             depth: 1,
+            open: (parts > 0).then_some(open),
+            count: parts,
             lead: glyph.to_string(),
             id: id.0.clone(),
             label: elide(&label, label_budget(1)),
-            // ONE fact, chosen in this order: where the editor is standing,
-            // then how much is folded up inside this row, then which ship it
-            // is. A ship you are already in lists its parts one row below, and
-            // a named ship - which every minted ship is - has no ordinal to
-            // draw.
-            trail: match (inside, parts) {
-                (true, _) => INSIDE.to_string(),
-                (false, 0) => ordinal,
-                (false, parts) => parts.to_string(),
-            },
+            full: label,
+            trail: if inside { INSIDE.to_string() } else { ordinal },
             kind: match (inside, parts) {
                 (true, _) => format!("{kind} - EDITING"),
                 (false, 0) => format!("{kind} - EMPTY"),
@@ -1756,7 +1366,7 @@ fn wanted_rows(
                 (false, parts) => format!("{kind} - {parts} PARTS"),
             },
         });
-        if entered != Some(ship) {
+        if !open {
             continue;
         }
         for (section, id, node, _) in sections {
@@ -1769,9 +1379,12 @@ fn wanted_rows(
             rows.push(WantedRow {
                 node: section,
                 depth: 2,
+                open: None,
+                count: 0,
                 lead: glyph.to_string(),
                 id: id.0.clone(),
                 label: elide(&label, label_budget(2)),
+                full: label,
                 trail,
                 kind: kind.to_string(),
             });
@@ -1799,27 +1412,106 @@ fn wanted_rows(
         rows.push(WantedRow {
             node: object,
             depth: 1,
+            open: None,
+            count: 0,
             lead: glyph.to_string(),
             id: id.0.clone(),
             label: elide(&label, label_budget(1)),
+            full: label,
             trail,
             kind: kind.to_string(),
         });
     }
+    // The root counts what hangs under it, which the walk above just listed.
+    rows[0].count = rows.iter().filter(|row| row.depth == 1).count();
     show_ids(&mut rows, ids, label_budget);
     rows
 }
 
 /// The document root, which both halves of the tree are hung under: it is the
 /// row that says which range this is, and the way back out of a ship.
+/// What the tree reads of the bench.
+#[derive(bevy::ecs::system::SystemParam)]
+pub(crate) struct BenchTree<'w, 's> {
+    assets: Query<'w, 's, &'static AssetNode>,
+    parts: Query<'w, 's, (Entity, &'static AssetPartType, &'static ChildOf)>,
+    sockets: Query<
+        'w,
+        's,
+        (
+            Entity,
+            &'static NodeId,
+            &'static SocketNode,
+            &'static ChildOf,
+        ),
+    >,
+}
+
+impl BenchTree<'_, '_> {
+    /// The rows of the item under `root`: the item, then a section's collider,
+    /// mesh and sockets. `None` when `root` holds a scenario.
+    fn rows(&self, root: Entity) -> Option<Vec<WantedRow>> {
+        let item = &self.assets.get(root).ok()?.0;
+        let leaf = |node: Entity, lead: &str, id: &str, label: &str, kind: &str| WantedRow {
+            node,
+            depth: 1,
+            open: None,
+            count: 0,
+            lead: lead.to_string(),
+            id: id.to_string(),
+            label: elide(label, label_budget(1)),
+            full: label.to_string(),
+            trail: String::new(),
+            kind: kind.to_string(),
+        };
+        let mut rows = Vec::new();
+        let mut parts: Vec<_> = self
+            .parts
+            .iter()
+            .filter(|(_, _, owner)| owner.parent() == root)
+            .collect();
+        parts.sort_by_key(|(_, part, _)| AssetPartType::ALL.iter().position(|all| all == *part));
+        for (node, part, _) in parts {
+            rows.push(leaf(node, "#", part.id(), part.label(), "PART"));
+        }
+        let mut sockets: Vec<_> = self
+            .sockets
+            .iter()
+            .filter(|(.., owner)| owner.parent() == root)
+            .collect();
+        sockets.sort_by_key(|(_, _, socket, _)| socket.order);
+        for (node, id, ..) in sockets {
+            rows.push(leaf(node, "o", &id.0, &id.0, "SOCKET"));
+        }
+        let name = item_name(item);
+        let head = WantedRow {
+            node: root,
+            depth: 0,
+            open: (!rows.is_empty()).then_some(true),
+            count: rows.len(),
+            lead: SCENARIO.to_string(),
+            id: item.id().to_string(),
+            label: elide(&name, label_budget(0)),
+            full: name,
+            trail: String::new(),
+            kind: item.kind().to_uppercase(),
+        };
+        rows.insert(0, head);
+        Some(rows)
+    }
+}
+
 fn scenario_row(scenario: Entity, id: &str) -> WantedRow {
     let (label, trail) = tree_text("", id);
     WantedRow {
         node: scenario,
         depth: 0,
+        open: None,
+        count: 0,
         lead: SCENARIO.to_string(),
         id: id.to_string(),
         label: elide(&label, label_budget(0)),
+        full: label,
         trail,
         kind: "SCENARIO".to_string(),
     }
@@ -1843,213 +1535,6 @@ fn show_ids(rows: &mut [WantedRow], ids: bool, budget: fn(usize) -> usize) {
     }
 }
 
-/// The SCRIPT as a tree: the root, then every handler, then what each one
-/// listens for and what it does.
-///
-/// The nesting is the document's own - a filter's operands, a sequence's steps,
-/// a step's gate - so nothing here decides what is under what. The tab shows
-/// the whole script whichever node the editor is standing on: a handler belongs
-/// to the range, not to the ship a builder happens to be inside, and hiding the
-/// script while a hull is open would hide the reason the hull is there.
-fn script_rows(
-    context: &EditContext,
-    q_scenarios: &Query<&NodeId, With<ScenarioNode>>,
-    script: &ScriptNodes,
-    ids: bool,
-) -> Vec<WantedRow> {
-    let Some(scenario) = context.scenario() else {
-        return Vec::new();
-    };
-    let Ok(root_id) = q_scenarios.get(scenario) else {
-        return Vec::new();
-    };
-    let mut rows = vec![scenario_row(scenario, &root_id.0)];
-    for handler in script.events_of(scenario) {
-        let Some(event) = script.event(handler) else {
-            continue;
-        };
-        let ordinal = ordinal_of(script, handler);
-        let open = has_children(script, handler).then(|| script.expanded(handler));
-        rows.push(script_row(
-            script,
-            handler,
-            1,
-            &tree_lead(open, HANDLER),
-            &handler_text(event),
-            // ONCE is the one fact about a handler its row cannot hold, and it
-            // is the difference between a beat and a rule.
-            if event.once { "1x" } else { &ordinal },
-            &format!("HANDLER - {}", event_label(event.trigger).to_uppercase()),
-        ));
-        if open == Some(true) {
-            filter_rows(script, handler, 2, &mut rows);
-            action_rows(script, handler, 2, &mut rows);
-        }
-    }
-    show_ids(&mut rows, ids, script_budget);
-    rows
-}
-
-/// The filters under a handler or a gate, combinators walked into.
-fn filter_rows(script: &ScriptNodes, owner: Entity, depth: usize, rows: &mut Vec<WantedRow>) {
-    for node in script.filters_of(owner) {
-        let Some(filter) = script.filter(node) else {
-            continue;
-        };
-        let choice = filter_choice(&filter.kind);
-        let nests = choice.operands() > 0;
-        let ordinal = ordinal_of(script, node);
-        let open = (nests && has_children(script, node)).then(|| script.expanded(node));
-        // An expression filter READS AS ITS CONDITION: `Expression` is the
-        // name of a kind, and what a builder scanning a handler needs from the
-        // row is which comparison it makes. The condition's own nodes are the
-        // panel's, not the tree's - see `Document::condition_rows`.
-        let text = (choice == FilterChoice::Expression)
-            .then(|| script.condition_text(node))
-            .flatten();
-        rows.push(script_row(
-            script,
-            node,
-            depth,
-            &tree_lead(open, if nests { COMBINATOR } else { FILTER }),
-            text.as_deref().unwrap_or(choice.label()),
-            &ordinal,
-            &format!("FILTER - {}", choice.label().to_uppercase()),
-        ));
-        if open == Some(true) {
-            filter_rows(script, node, depth + 1, rows);
-        }
-    }
-}
-
-/// The actions under a handler or a step, sequences opened into their beats.
-fn action_rows(script: &ScriptNodes, owner: Entity, depth: usize, rows: &mut Vec<WantedRow>) {
-    for node in script.actions_of(owner) {
-        let Some(action) = script.action(node) else {
-            continue;
-        };
-        let choice = action_choice(&action.kind);
-        let ordinal = ordinal_of(script, node);
-        // A beat chain's KEY in the trail: it is what a gate elsewhere in the
-        // script names to talk to this chain, so it is the one thing that
-        // tells two of them apart.
-        let trail = match &action.kind {
-            ActionKind::Sequence(head) => head.key.clone(),
-            ActionKind::Cinematic(head) => head.key.clone(),
-            ActionKind::Leaf(_) | ActionKind::VariableSet(_) => ordinal,
-        };
-        // A variable set READS AS ITS ASSIGNMENT, for the reason an expression
-        // filter reads as its condition: `Variable Set` names a kind, and
-        // `beat = beat + 1` says what this one does.
-        let text = script.assignment_text(node);
-        let beats = script.steps_of(node);
-        let open = (!beats.is_empty()).then(|| script.expanded(node));
-        rows.push(script_row(
-            script,
-            node,
-            depth,
-            &tree_lead(
-                open,
-                if matches!(choice, ActionChoice::Sequence | ActionChoice::Cinematic) {
-                    SEQUENCE
-                } else {
-                    ACTION
-                },
-            ),
-            text.as_deref().unwrap_or(choice.label()),
-            &trail,
-            &format!("ACTION - {}", choice.label().to_uppercase()),
-        ));
-        if open != Some(true) {
-            continue;
-        }
-        for step in beats {
-            let ordinal = ordinal_of(script, step);
-            let open = has_children(script, step).then(|| script.expanded(step));
-            rows.push(script_row(
-                script,
-                step,
-                depth + 1,
-                &tree_lead(open, STEP),
-                "Step",
-                &ordinal,
-                "STEP",
-            ));
-            if open != Some(true) {
-                continue;
-            }
-            if let Some(gate) = script.gate_of(step) {
-                let name = script.gate(gate).map(|gate| gate.trigger);
-                let label = name.map_or("Gate", event_label);
-                let open = has_children(script, gate).then(|| script.expanded(gate));
-                rows.push(script_row(
-                    script,
-                    gate,
-                    depth + 2,
-                    &tree_lead(open, GATE),
-                    label,
-                    "",
-                    &format!("GATE - {}", label.to_uppercase()),
-                ));
-                if open == Some(true) {
-                    filter_rows(script, gate, depth + 3, rows);
-                }
-            }
-            action_rows(script, step, depth + 2, rows);
-        }
-    }
-}
-
-/// Whether anything hangs under `node` in the tree.
-fn has_children(script: &ScriptNodes, node: Entity) -> bool {
-    !script.filters_of(node).is_empty()
-        || !script.actions_of(node).is_empty()
-        || !script.steps_of(node).is_empty()
-        || !script.operands_of(node).is_empty()
-        || script.gate_of(node).is_some()
-}
-
-/// A container's mark, behind the caret saying which way it opens.
-///
-/// A leaf keeps the column anyway: the marks of a handler and of the action
-/// under it have to line up, or the indentation stops reading as depth.
-fn tree_lead(open: Option<bool>, mark: &str) -> String {
-    match open {
-        Some(true) => format!("{OPEN}{mark}"),
-        Some(false) => format!("{SHUT}{mark}"),
-        None => format!(" {mark}"),
-    }
-}
-
-/// One row of the script tree, named by the node's own minted id.
-fn script_row(
-    script: &ScriptNodes,
-    node: Entity,
-    depth: usize,
-    lead: &str,
-    label: &str,
-    trail: &str,
-    kind: &str,
-) -> WantedRow {
-    WantedRow {
-        node,
-        depth,
-        lead: lead.to_string(),
-        id: script.id(node).unwrap_or_default().to_string(),
-        label: elide(label, script_budget(depth)),
-        trail: trail.to_string(),
-        kind: kind.to_string(),
-    }
-}
-
-/// Which one of its siblings a script node is, off its minted id.
-fn ordinal_of(script: &ScriptNodes, node: Entity) -> String {
-    script
-        .id(node)
-        .map(|id| split_ordinal(id).1.to_string())
-        .unwrap_or_default()
-}
-
 /// Rebuild the Scene tree when the document or the context changes, and mark
 /// the selected row.
 ///
@@ -2064,15 +1549,15 @@ pub(crate) fn sync_scene_list(
     catalog: Option<Res<GameSections>>,
     overlays: Res<EditorOverlays>,
     mut selected: ResMut<SelectedNode>,
-    tab: Res<RailTab>,
     q_scenarios: Query<&NodeId, With<ScenarioNode>>,
     q_ships: ShipNodes,
     q_objects: ObjectNodes,
     nodes: SectionNodes,
-    script: ScriptNodes,
+    (script, bench): (ScriptNodes, BenchTree),
     lists: Query<Entity, With<SceneList>>,
     fresh: Query<(), Added<SceneList>>,
     rows: Query<(Entity, &SceneRow, Has<Selected>)>,
+    filters: Query<&TextFieldValue, With<HierarchyFilter>>,
     mut shown: Local<ShownScene>,
 ) {
     // A fresh list holds no rows whatever this Local remembers: the list dies
@@ -2082,28 +1567,41 @@ pub(crate) fn sync_scene_list(
     if !fresh.is_empty() {
         shown.rows.clear();
     }
-    let wanted = match *tab {
-        RailTab::Scene => wanted_rows(
-            &context,
-            &q_scenarios,
-            &q_ships,
-            &q_objects,
-            &nodes,
-            catalog.as_deref(),
-            overlays.ids,
-        ),
-        RailTab::Events => script_rows(&context, &q_scenarios, &script, overlays.ids),
-    };
+    let filter = filters
+        .iter()
+        .next()
+        .map(|value| value.0.trim().to_lowercase())
+        .unwrap_or_default();
+    // A filter reads through every fold: a match under a shut row is still a
+    // match, and it has to be found.
+    let all = !filter.is_empty();
+    let wanted = wanted_rows(
+        &context,
+        &q_scenarios,
+        &q_ships,
+        &q_objects,
+        &nodes,
+        catalog.as_deref(),
+        &script,
+        &bench,
+        overlays.ids,
+        all,
+    );
     // A selection cannot outlive its row: a section of a ship that was left is
     // not in the tree, so there is nothing left to carry the mark.
-    if selected
-        .0
-        .is_some_and(|node| !wanted.iter().any(|row| row.node == node))
-    {
-        selected.0 = None;
+    // A block on the canvas has no row of its own.
+    let listed = |node: &Entity| wanted.iter().any(|row| row.node == *node) || script.holds(*node);
+    if !selected.iter().all(|node| listed(&node)) {
+        selected.retain(listed);
     }
     let Ok(list) = lists.single() else {
         return;
+    };
+    // After the selection pass: a filter hides a row, not the mark on it.
+    let wanted = if all {
+        filtered_rows(wanted, &filter)
+    } else {
+        wanted
     };
 
     // The WHOLE row is the signature, names included: a rename changes nothing
@@ -2117,42 +1615,46 @@ pub(crate) fn sync_scene_list(
                 // below: these rows do not exist in `rows` until next frame,
                 // and a highlight that lags a frame behind the click that made
                 // it reads as a dropped input.
-                let marked = Some(row.node) == selected.0;
+                let marked = selected.contains(row.node);
+                let spec = TreeRowSpec {
+                    depth: row.depth,
+                    caret: match row.open {
+                        Some(true) => OPEN.to_string(),
+                        Some(false) => SHUT.to_string(),
+                        None => String::new(),
+                    },
+                    lead: row.lead.clone(),
+                    label: row.label.clone(),
+                    count: match row.count {
+                        0 => String::new(),
+                        count => count.to_string(),
+                    },
+                    trail: row.trail.clone(),
+                };
                 let mut entity = list.spawn((
                     // Named by ID, drawn by LABEL: the walks and the probe
                     // find a row by the node's own key, whatever the rail has
                     // room to print.
                     Name::new(format!("Scene Row {}", row.id)),
-                    scene_row(row.depth, &row.lead, &row.label, &row.trail),
+                    tree_row(&spec),
                     SceneRow(row.node),
                     // What a hover reveals: the kind the icon stands for, and
-                    // the id the 150px row had to clip.
+                    // the id the row had to clip.
                     SceneRowHint {
                         kind: row.kind.clone(),
                         id: row.id.clone(),
+                        open: row.open,
+                        lead: row.lead.clone(),
                     },
                     observe(on_scene_row),
+                    observe(on_scene_row_menu),
                 ));
                 if marked {
                     entity.insert(Selected);
                 }
-                // The row's own delete, on the child that draws it: a press on
-                // the trash must not read as a press on the row it sits in.
-                let trash = entity.id();
-                entity.commands().queue(move |world: &mut World| {
-                    let Some(children) = world.get::<Children>(trash).map(|kids| kids.to_vec())
-                    else {
-                        return;
-                    };
-                    for child in children {
-                        if world.get::<SceneRowTrash>(child).is_some() {
-                            world.entity_mut(child).observe(on_row_trash);
-                        }
-                    }
-                });
-                if marked {
-                    entity.insert(Selected);
-                }
+                // The row's own delete, on a child: a press on the trash must
+                // not read as a press on the row it sits in.
+                entity.with_child((row_trash(), observe(on_row_trash)));
             }
         });
         shown.rows = wanted;
@@ -2163,7 +1665,7 @@ pub(crate) fn sync_scene_list(
     }
 
     for (entity, row, marked) in &rows {
-        match (Some(row.0) == selected.0, marked) {
+        match (selected.contains(row.0), marked) {
             (true, false) => {
                 commands.entity(entity).insert(Selected);
             }
@@ -2189,7 +1691,7 @@ pub(crate) fn sync_row_trash(
 ) {
     for (row, hovered, children) in &rows {
         let show =
-            (hovered.get() || selected.0 == Some(row.0)) && deletable(row.0, &context, &nodes);
+            (hovered.get() || selected.contains(row.0)) && deletable(row.0, &context, &nodes);
         let display = if show { Display::Flex } else { Display::None };
         for &child in children {
             let Ok(mut node) = trash.get_mut(child) else {
@@ -2225,8 +1727,8 @@ pub(crate) fn on_row_trash(
     if !deletable(row.0, &context, &nodes) {
         return;
     }
-    commands.entity(row.0).despawn();
-    selected.0 = None;
+    delete_node(&mut commands, row.0);
+    selected.set(None);
 }
 
 /// One click SELECTS a row and puts the camera on it; two ENTER it; one on a
@@ -2258,29 +1760,81 @@ pub(crate) fn on_scene_row(
     mut selected: ResMut<SelectedNode>,
     mut context: ResMut<EditContext>,
     mut request: ResMut<FrameRequest>,
+    input: (
+        Option<Res<ButtonInput<KeyCode>>>,
+        Option<Res<ButtonInput<MouseButton>>>,
+    ),
+    tree: (
+        Query<&Children, With<SceneList>>,
+        Query<&ChildOf>,
+        Query<(), With<SectionNode>>,
+    ),
 ) {
     let Ok(SceneRow(node)) = rows.get(activate.entity) else {
         return;
     };
+    let (keys, mouse) = input;
+    // `Button` activates on any button. The right one is the context menu's.
+    if mouse.is_some_and(|mouse| mouse.just_released(MouseButton::Right)) {
+        return;
+    }
+    let (list, owners, sections) = tree;
+    // A section of a ship the editor is not in: the row is the way in, whatever
+    // the modifiers say, because a part can only be marked from inside.
+    if sections.contains(*node) {
+        let owner = owners
+            .iter_ancestors(*node)
+            .find(|ancestor| ships.contains(*ancestor));
+        if let Some(ship) = owner.filter(|ship| context.ship() != Some(*ship)) {
+            context.enter(ship);
+            selected.set(Some(*node));
+            request.node = None;
+            return;
+        }
+    }
+    // Shift marks the run from the last mark to this row, in the order shown.
+    // A row on the path the editor stands on is a way out, which has no second
+    // meaning, so a run steps over it.
+    let shift = keys
+        .as_deref()
+        .is_some_and(|keys| keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]));
+    if let Some(from) = selected.primary().filter(|_| shift) {
+        if !context.path.contains(node) {
+            let order: Vec<Entity> = list
+                .iter()
+                .flatten()
+                .filter_map(|row| rows.get(*row).ok().map(|row| row.0))
+                .collect();
+            let run = row_range(&order, from, *node);
+            selected.set_all(run.into_iter().filter(|row| !context.path.contains(row)));
+            return;
+        }
+    }
+    // Ctrl or Shift on a row marks it and goes nowhere.
+    if toggling(keys.as_deref()) && !context.path.contains(node) {
+        selected.toggle(*node);
+        return;
+    }
     let double = last.press(*node, time.elapsed_secs());
     // A click that CHANGES the context hands the camera to
     // `crate::node::sync_camera_focus`, which frames whatever was entered - so
     // the request the first half of the double raised steps aside rather than
     // writing the camera a second time in the same frame.
     if context.leave_to(*node) {
-        selected.0 = None;
+        selected.set(None);
         request.node = None;
         return;
     }
     if scenarios.contains(*node) {
         // The root, and the editor is already standing on it: framing it is
-        // what "show me everything" means.
+        // what "show me everything" means, and the Inspector falls back to it.
         ask_for(&mut request, Some(*node));
+        selected.set(None);
         return;
     }
     if double && ships.contains(*node) {
         context.enter(*node);
-        selected.0 = None;
+        selected.set(None);
         request.node = None;
         return;
     }
@@ -2295,7 +1849,7 @@ pub(crate) fn on_scene_row(
             commands.entity(*node).insert(Expanded);
         }
     }
-    selected.0 = Some(*node);
+    selected.set(Some(*node));
     // A handler is not SOMEWHERE. The script's nodes carry no pose, so their
     // rows select and leave the camera where the builder put it, rather than
     // raising a request the framing pass can only throw away.
@@ -2314,14 +1868,11 @@ pub(crate) fn sync_status_line(
     time: Res<Time>,
     theme: Res<ActiveUiTheme>,
     mut status: ResMut<EditorStatus>,
-    lines: Query<
-        (&mut Text, &mut TextColor, &mut BorderColor, &mut Visibility),
-        With<PlacementStatus>,
-    >,
+    lines: Query<(&mut Text, &mut TextColor, &mut Visibility), With<PlacementStatus>>,
 ) {
     status.expire(time.elapsed_secs_f64());
     let line = status.line();
-    for (mut text, mut colour, mut border, mut visibility) in lines {
+    for (mut text, mut colour, mut visibility) in lines {
         match line {
             Some((message, tint)) => {
                 let tint = theme.color(tint);
@@ -2330,7 +1881,6 @@ pub(crate) fn sync_status_line(
                 }
                 if colour.0 != tint {
                     colour.0 = tint;
-                    *border = BorderColor::all(tint);
                 }
                 if *visibility != Visibility::Inherited {
                     *visibility = Visibility::Inherited;
@@ -2357,23 +1907,13 @@ pub(crate) fn sync_status_line(
 pub(crate) fn sync_play_button(
     mut commands: Commands,
     context: Res<EditContext>,
-    buttons: Query<(Entity, Has<InteractionDisabled>, &Children), With<PlayButton>>,
-    mut labels: Query<&mut Text, With<ButtonLabel>>,
+    mut buttons: Query<(Entity, Has<InteractionDisabled>, &mut Tooltip), With<PlayButton>>,
 ) {
     let disabled = context.ship().is_some();
-    for (entity, marked, children) in &buttons {
-        // The button carries its own reason. Greying it says only that the
-        // verb is gone; the sentence that said where it went lived in an
-        // observer `InteractionDisabled` makes unreachable, so it was written
-        // to a log nobody reading the screen can see.
-        let wanted = if disabled { PLAY_BLOCKED } else { PLAY_LABEL };
-        for &child in children {
-            let Ok(mut text) = labels.get_mut(child) else {
-                continue;
-            };
-            if text.0 != wanted {
-                text.0 = wanted.to_string();
-            }
+    for (entity, marked, mut tooltip) in &mut buttons {
+        let wanted = if disabled { PLAY_BLOCKED } else { "" };
+        if tooltip.0 != wanted {
+            tooltip.0 = wanted.to_string();
         }
         match (disabled, marked) {
             (true, false) => {
@@ -2400,7 +1940,7 @@ pub(crate) fn sync_play_button(
 /// and a hull is what a ship is made of.
 pub(crate) fn sync_context_panels(
     context: Res<EditContext>,
-    mut panels: Query<&mut Node, Or<(With<ShipSettings>, With<GenerateSettings>)>>,
+    mut panels: Query<&mut Node, With<ShipSettings>>,
 ) {
     let shown = if context.ship().is_some() {
         Display::Flex
@@ -2411,221 +1951,6 @@ pub(crate) fn sync_context_panels(
         if node.display != shown {
             node.display = shown;
         }
-    }
-}
-
-/// One thing the breadcrumb draws.
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) enum Crumb {
-    /// The level word: what a click in the viewport would do here.
-    Level(String),
-    /// The separator between two steps.
-    Slash,
-    /// A step of the path, and the node it goes to.
-    Step {
-        node: Entity,
-        id: String,
-        label: String,
-    },
-    /// What is selected, in its own chip.
-    Selection { node: Entity, label: String },
-}
-
-/// Write the top bar's context readout: WHAT is being edited (the level, in
-/// capitals), the path to it as PRESSABLE steps, and the selection in a chip
-/// of its own.
-///
-/// The level leads because it was the missing feedback: the bare path
-/// "scenario / ship_1" never said whether a click would select, enter or
-/// place. The same fact the tree's `@` mark shows, said as a sentence.
-///
-/// The steps are controls and not a caption: this editor's whole model is
-/// entering and leaving, and the path is the natural thing to press for it -
-/// the tree's root row was the only way back out, and nothing said so.
-///
-/// Rebuilt from a compare rather than every frame, exactly as
-/// [`sync_scene_list`] is: the row is spawned on entering the editor, and
-/// respawning it under the pointer every frame would kill its own hover.
-pub(crate) fn sync_breadcrumb(
-    mut commands: Commands,
-    context: Res<EditContext>,
-    selected: Res<SelectedNode>,
-    ids: Query<&NodeId>,
-    ships: Query<&ShipNode>,
-    objects: Query<&ObjectNode>,
-    bars: Query<Entity, With<ContextBreadcrumb>>,
-    fresh: Query<(), Added<ContextBreadcrumb>>,
-    mut shown: Local<Vec<Crumb>>,
-) {
-    let named = |node: Entity| {
-        let id = ids
-            .get(node)
-            .map_or_else(|_| String::new(), |id| id.0.clone());
-        let authored = ships
-            .get(node)
-            .map(|ship| ship.name.clone())
-            .or_else(|_| objects.get(node).map(|object| object.name.clone()))
-            .unwrap_or_default();
-        let (label, ordinal) = tree_text(&authored, &id);
-        let label = if ordinal.is_empty() {
-            label
-        } else {
-            format!("{label} {ordinal}")
-        };
-        (id, label)
-    };
-    let level = match (context.scenario(), context.ship()) {
-        (None, _) => "",
-        (Some(_), None) => "SCENARIO",
-        (Some(_), Some(_)) => "SHIP",
-    };
-    let mut wanted = Vec::new();
-    if !level.is_empty() {
-        wanted.push(Crumb::Level(level.to_string()));
-    }
-    for (index, node) in context.path.iter().enumerate() {
-        if index > 0 {
-            wanted.push(Crumb::Slash);
-        }
-        let (id, label) = named(*node);
-        wanted.push(Crumb::Step {
-            node: *node,
-            id,
-            label,
-        });
-    }
-    if let Some(node) = selected.0 {
-        wanted.push(Crumb::Selection {
-            node,
-            label: named(node).1,
-        });
-    }
-
-    // A fresh bar holds no crumbs whatever this Local remembers - the bar dies
-    // with the editor scene while a `Local` survives the state round-trip.
-    if !fresh.is_empty() {
-        shown.clear();
-    }
-    if *shown == wanted {
-        return;
-    }
-    let Ok(bar) = bars.single() else {
-        return;
-    };
-    commands.entity(bar).despawn_related::<Children>();
-    commands.entity(bar).with_children(|bar| {
-        for crumb in &wanted {
-            match crumb {
-                Crumb::Level(word) => {
-                    bar.spawn((Name::new("Crumb Level"), crumb_word(word, UiColor::Primary)));
-                }
-                Crumb::Slash => {
-                    bar.spawn(crumb_word("/", UiColor::Secondary));
-                }
-                Crumb::Step { node, id, label } => {
-                    bar.spawn((
-                        // Named by the node's own key, drawn by its name: the
-                        // walks find a step by the id whatever it reads as.
-                        Name::new(format!("Crumb {id}")),
-                        CrumbStep(*node),
-                        crumb_chip(label),
-                        observe(on_crumb_step),
-                    ));
-                }
-                Crumb::Selection { node, label } => {
-                    bar.spawn((
-                        Name::new("Crumb Selection"),
-                        CrumbSelection(*node),
-                        crumb_chip(&format!("selected {label}")),
-                        observe(on_crumb_selection),
-                    ));
-                }
-            }
-        }
-    });
-    *shown = wanted;
-}
-
-/// One word of the crumb that is not a control: the level, and the separators.
-fn crumb_word(text: &str, colour: UiColor) -> impl Bundle {
-    (
-        UiText,
-        Text::new(text.to_string()),
-        TextLayout {
-            linebreak: LineBreak::NoWrap,
-            ..default()
-        },
-        TextFont {
-            font_size: FontSize::Px(13.0),
-            ..default()
-        },
-        TextColor(Color::NONE),
-        ThemedText::new(colour),
-    )
-}
-
-/// One pressable crumb.
-///
-/// A [`ListRow`], so nova_ui's own reconciler paints the hover - the same paint
-/// the tree rows wear, which is what says the two are the same kind of thing.
-fn crumb_chip(label: &str) -> impl Bundle {
-    (
-        ListRow,
-        Button,
-        Hovered::default(),
-        Node {
-            padding: UiRect::axes(px(6), px(2)),
-            border: UiRect::all(px(theme::BORDER_W)),
-            align_items: AlignItems::Center,
-            ..default()
-        },
-        ThemedRadius::control(),
-        BorderColor::all(Color::NONE),
-        BackgroundColor(Color::NONE),
-        children![crumb_word(label, UiColor::Primary)],
-    )
-}
-
-/// Go to the step that was pressed.
-///
-/// The step the editor is already standing in FRAMES it instead: "put me back
-/// on what I am editing" is the only thing left for it to mean, and it is the
-/// same answer the tree's root row gives to its first click.
-pub(crate) fn on_crumb_step(
-    activate: On<Activate>,
-    steps: Query<&CrumbStep>,
-    scenarios: Query<(), With<ScenarioNode>>,
-    mut selected: ResMut<SelectedNode>,
-    mut context: ResMut<EditContext>,
-    mut request: ResMut<FrameRequest>,
-) {
-    let Ok(CrumbStep(node)) = steps.get(activate.entity) else {
-        return;
-    };
-    if context.current() == Some(*node) {
-        ask_for(&mut request, Some(*node));
-        return;
-    }
-    // A context change hands the camera to `crate::node::sync_camera_focus`,
-    // which frames whatever was entered - so a standing frame request steps
-    // aside rather than writing the camera a second time in the same frame.
-    if scenarios.contains(*node) {
-        context.exit_all();
-    } else {
-        context.enter(*node);
-    }
-    selected.0 = None;
-    request.node = None;
-}
-
-/// The selection chip frames what it names - the pointer's answer to F.
-pub(crate) fn on_crumb_selection(
-    activate: On<Activate>,
-    chips: Query<&CrumbSelection>,
-    mut request: ResMut<FrameRequest>,
-) {
-    if let Ok(CrumbSelection(node)) = chips.get(activate.entity) {
-        ask_for(&mut request, Some(*node));
     }
 }
 
@@ -2640,7 +1965,7 @@ pub(crate) fn sync_rebind_button(
     q_sections: Query<(&SectionNode, &ChildOf)>,
     buttons: Query<(Entity, Has<InteractionDisabled>), With<RebindButton>>,
 ) {
-    let armable = selected.0.is_some_and(|node| {
+    let armable = selected.primary().is_some_and(|node| {
         q_sections.get(node).is_ok_and(|(section, owner)| {
             context.ship() == Some(owner.parent()) && section.bindable(catalog.as_deref())
         })
@@ -2670,6 +1995,7 @@ pub(crate) fn sync_rebind_button(
 /// advertisement.
 pub(crate) fn on_style_choice(
     activate: On<Activate>,
+    mut commands: Commands,
     choices: Query<&StyleChoice>,
     context: Res<EditContext>,
     mut q_ships: Query<&mut ShipNode>,
@@ -2680,6 +2006,7 @@ pub(crate) fn on_style_choice(
     if let Ok(mut ship) = q_ships.get_mut(ship) {
         ship.style = Some(choice.0.clone());
         ship.skin = true;
+        commit_edit(&mut commands, "Pick Style");
     }
 }
 
@@ -2788,7 +2115,7 @@ const LEGEND_CELLS: usize = 8;
 
 /// How tall the legend may grow, in logical pixels: three rows of cells and the
 /// gaps between them, which is what the stock 1024x768 shape already draws.
-const LEGEND_MAX_H: f32 = 56.0;
+const LEGEND_MAX_H: f32 = 22.0;
 
 /// The width a hint cell holds even when its words are shorter, so the hints
 /// line up into columns rather than into a paragraph.
@@ -2797,6 +2124,22 @@ const LEGEND_MAX_H: f32 = 56.0;
 /// and the Inspector, so a hint too long for its column widens its own cell
 /// instead of pushing the line off the window.
 const LEGEND_CELL_W: f32 = 100.0;
+
+/// The gap between legend cells.
+const LEGEND_GAP: f32 = 10.0;
+
+/// The legend's 12 px word advance. The UI font is monospace.
+const LEGEND_WORD_ADVANCE: f32 = 6.0;
+
+/// The advance of a key on its chip, which is 2 px smaller than the words.
+const LEGEND_KEY_ADVANCE: f32 = 5.0;
+
+/// What a hint spends besides its characters: the chip's margin, padding and
+/// border, and the gap to its words.
+const LEGEND_CHIP_W: f32 = 8.0 + 2.0 * (5.0 + theme::BORDER_W) + 6.0;
+
+/// What the mode word's own margin adds to its characters.
+const LEGEND_MODE_MARGIN: f32 = 4.0;
 
 /// The legend's leading cell: which mode the keys below belong to.
 ///
@@ -2816,7 +2159,7 @@ fn legend_mode_cell() -> impl Bundle {
         Name::new("Legend Mode"),
         LegendMode,
         Node {
-            margin: UiRect::right(px(4)),
+            margin: UiRect::right(px(LEGEND_MODE_MARGIN)),
             ..default()
         },
         UiText,
@@ -2870,20 +2213,78 @@ pub(crate) struct LegendLabel;
 /// the key as it is typed, then a lowercase verb phrase.
 type Hint = (&'static str, &'static str);
 
+/// The width a hint's cell takes on the line, its gap included.
+fn hint_width((key, label): Hint) -> f32 {
+    let words = key.chars().count() as f32 * LEGEND_KEY_ADVANCE
+        + label.chars().count() as f32 * LEGEND_WORD_ADVANCE;
+    (LEGEND_CHIP_W + words).max(LEGEND_CELL_W) + LEGEND_GAP
+}
+
+/// Keep the hints that fit `room` beside the mode word and the Escape cell.
+///
+/// The hints are in priority order, so a narrow foot loses the last ones. Escape
+/// is budgeted first: it is the way back. A `room` of zero is a line not laid out
+/// yet, and keeps them all.
+fn fit_hints(hints: &mut Vec<Hint>, escape: Hint, mode: &str, room: f32) {
+    if room <= 0.0 {
+        return;
+    }
+    let mut used =
+        mode.chars().count() as f32 * LEGEND_WORD_ADVANCE + LEGEND_MODE_MARGIN + hint_width(escape);
+    let kept = hints
+        .iter()
+        .take_while(|hint| {
+            used += hint_width(**hint);
+            used <= room
+        })
+        .count();
+    hints.truncate(kept);
+}
+
 /// What the next Escape would take.
 ///
-/// Escape has five rungs and the legend used to name one of them. It is a back
-/// key, so the only useful thing it can say is what THIS press does - which is
-/// a fact the ladder in `crate::escape_backs_out` already decides and nothing
-/// else on screen reports.
-fn escape_rung(rebinding: bool, menu_open: bool, armed: bool, inside_ship: bool) -> &'static str {
-    match (rebinding, menu_open, armed, inside_ship) {
-        (true, _, _, _) => "cancel the rebind",
-        (_, true, _, _) => "close the menu",
-        (_, _, true, _) => "put the part down",
-        (_, _, _, true) => "leave the ship",
+/// Escape has several rungs and the legend used to name one of them. It is a
+/// back key, so the only useful thing it can say is what THIS press does - which
+/// is a fact the keyboard's owner and the ladder in `crate::escape_backs_out`
+/// already decide and nothing else on screen reports.
+fn escape_rung(
+    keyboard: InputMode,
+    popup: bool,
+    menu_open: bool,
+    armed: bool,
+    inside_ship: bool,
+) -> &'static str {
+    match (keyboard, popup, menu_open, armed, inside_ship) {
+        (InputMode::Bind, ..) => "cancel the rebind",
+        (InputMode::Insert, ..) => "leave the field",
+        (_, true, ..) => "cancel the pop-up",
+        (_, _, true, ..) => "close the menu",
+        (_, _, _, true, _) => "put the part down",
+        (.., true) => "leave the ship",
         _ => "pause",
     }
+}
+
+/// The Events line for this keyboard owner.
+///
+/// `Del` and `F` go with the same [`InputMode`] that gates their systems, so the
+/// line cannot offer a verb the gate holds back. A pop-up's catcher also takes
+/// every press outside it, so none of the canvas gestures reach the canvas.
+fn events_line(keyboard: InputMode, popup: bool) -> (&'static str, Vec<Hint>) {
+    if popup {
+        return ("POP-UP", vec![("click away", "keep it")]);
+    }
+    let verbs = keyboard == InputMode::Normal;
+    let hints = [
+        (true, ("drag", "move block")),
+        (true, ("LMB", "select")),
+        (verbs, ("Del", "delete")),
+        (true, ("MMB", "pan")),
+        (true, ("Ctrl+Wheel", "zoom")),
+        (verbs, ("F", "frame")),
+    ];
+    let shown = hints.into_iter().filter(|(live, _)| *live);
+    ("EVENTS", shown.map(|(_, hint)| hint).collect())
 }
 
 /// Keep the key legend in step with the armed tool AND the edit context.
@@ -2893,7 +2294,7 @@ fn escape_rung(rebinding: bool, menu_open: bool, armed: bool, inside_ship: bool)
 /// while inside a ship Tab browses parts and Escape backs out one rung.
 ///
 /// WHAT IS HERE is what no other surface can carry: the pointer gestures and
-/// the free-fly rig, which belong to no row and no menu, plus the rung the next
+/// the viewport camera, which belong to no row and no menu, plus the rung the next
 /// Escape takes. Every verb a menu row can name lives on that row with its key
 /// beside it.
 ///
@@ -2910,7 +2311,11 @@ pub(crate) fn sync_key_legend(
     overlays: Res<EditorOverlays>,
     rebind: Res<EditorRebind>,
     open_menu: Res<OpenMenu>,
-    legend: Query<(&mut Node, &Children), With<EditorKeyLegend>>,
+    tool: Res<StageTool>,
+    rail: Res<RailTab>,
+    keyboard: Res<InputMode>,
+    block_popup: Res<canvas::BlockPopup>,
+    legend: Query<(&mut Node, &Children, &ComputedNode), With<EditorKeyLegend>>,
     mut modes: Query<&mut Text, With<LegendMode>>,
     cells: Query<(&LegendCell, &Children)>,
     chips: Query<&Children, With<LegendChip>>,
@@ -2918,8 +2323,10 @@ pub(crate) fn sync_key_legend(
     mut texts: Query<&mut Text, Without<LegendMode>>,
 ) {
     let inside = context.ship().is_some();
+    let popup = block_popup.is_open();
     let escape = escape_rung(
-        rebind.target.is_some(),
+        *keyboard,
+        popup,
         open_menu.0.is_some(),
         *selection != HeldPart(None),
         inside,
@@ -2931,44 +2338,48 @@ pub(crate) fn sync_key_legend(
     // Bind FIRST, because it is a mode and the rest are tools. It takes every
     // key except Escape, so a legend that still read `Bksp leave` would be
     // advertising a verb that now binds itself to a thruster.
-    let (mode, hints): (&str, &[Hint]) = if rebind.target.is_some() {
-        ("REBINDING", &[("any key", "bind it")])
+    let tool = tool.tool.hint();
+    let (mode, mut hints): (&str, Vec<Hint>) = if rebind.target.is_some() {
+        ("REBINDING", vec![("any key", "bind it")])
+    } else if rail.is_events() {
+        events_line(*keyboard, popup)
     } else {
         match (&*selection, inside) {
             (HeldPart(None), false) => (
                 "SELECT",
-                &[
+                vec![
                     ("LMB", "select"),
                     ("LMB x2", "enter"),
                     ("drag", "move it"),
-                    ("RMB+drag", "look"),
-                    ("WASD", "fly"),
-                    ("Space/Shift", "up and down"),
+                    ("QWER", tool),
+                    ("RMB+WASD", "fly"),
+                    ("MMB", "orbit"),
+                    ("Wheel", "dolly"),
                 ],
             ),
             (HeldPart(None), true) => (
                 "IN A SHIP",
-                &[
+                vec![
                     ("LMB", "select"),
                     // The key, not the gesture: leaving is a single click on the
                     // scenario row now, which the tree shows and does not need a
                     // legend for. What the legend owes is the key that does it
                     // without the rail - see `backspace_steps_out`.
                     ("Bksp", "leave"),
-                    ("Q", "pick a part"),
-                    ("RMB+drag", "look"),
-                    ("WASD", "fly"),
-                    ("Space/Shift", "up and down"),
+                    ("P", "pick a part"),
+                    ("RMB+WASD", "fly"),
+                    ("MMB", "orbit"),
+                    ("Wheel", "dolly"),
                 ],
             ),
             (HeldPart(Some(_)), _) => (
                 "PART IN HAND",
-                &[
+                vec![
                     ("LMB", "place it"),
-                    ("Q", "pick a part"),
-                    ("RMB+drag", "look"),
-                    ("WASD", "fly"),
-                    ("Space/Shift", "up and down"),
+                    ("P", "pick a part"),
+                    ("Wheel", "roll it"),
+                    ("RMB+WASD", "fly"),
+                    ("MMB", "orbit"),
                 ],
             ),
         }
@@ -2983,9 +2394,14 @@ pub(crate) fn sync_key_legend(
     } else {
         Display::None
     };
-    let Ok((mut root, children)) = legend.single_inner() else {
+    let Ok((mut root, children, computed)) = legend.single_inner() else {
         return;
     };
+    // The line's own width: the foot shares the row with the status line, and
+    // the UI scale is already in it. It does not follow the hints, so a drop
+    // here cannot feed back.
+    let room = computed.size().x * computed.inverse_scale_factor();
+    fit_hints(&mut hints, ("Esc", escape), mode, room);
     if root.display != display {
         root.display = display;
     }
@@ -3052,18 +2468,19 @@ mod tests {
     use bevy::ecs::system::RunSystemOnce;
     use nova_scenario::prelude::{
         AIControllerConfig, DebugMessageActionConfig, EntityFilterConfig, EventActionConfig,
-        EventConfig, EventFilterConfig, ExpressionFilterConfig, ScenarioEventConfig, SectionSource,
-        SequenceActionConfig, SequenceGateConfig, SequenceStepConfig, SpaceshipConfig,
-        SpaceshipController, VariableConditionNode, VariableExpressionNode, VariableFactorNode,
-        VariableLiteral, VariableSetActionConfig, VariableTermNode,
+        EventConfig, EventFilterConfig, ScenarioEventConfig, SectionSource, SpaceshipConfig,
+        SpaceshipController,
     };
     use nova_ship::prelude::ShipStyleConfig;
+    use nova_ui::prelude::TreeCaret;
 
     use super::*;
     use crate::{
-        event::EventNode,
+        generate::UNAUTHORED_WEIGHT,
         glyph::{SHIP_AI, SHIP_PLAYER},
-        node::{EditorNode, NextChildOrdinal, ObjectChoice, ShipDriver},
+        node::{NextChildOrdinal, ObjectChoice, ShipDriver},
+        placement::continue_to_simulation,
+        ui::{inspector::PANEL_W as INSPECTOR_W, rail::style_row},
     };
 
     /// The narrowest window the editor is built for. The driven walks run at
@@ -3197,7 +2614,7 @@ mod tests {
         rows.into_iter()
             .filter_map(|row| {
                 let children = app.world().get::<Children>(row)?;
-                let (wrapper, trail) = (children.iter().nth(1)?, children.iter().nth(2)?);
+                let (wrapper, trail) = (children.iter().nth(2)?, children.iter().nth(4)?);
                 let label = app.world().get::<Children>(wrapper)?.iter().next()?;
                 Some((
                     app.world().get::<Text>(label)?.0.clone(),
@@ -3267,8 +2684,8 @@ mod tests {
             .unwrap_or_default();
         rows.into_iter()
             .filter_map(|row| {
-                let first = app.world().get::<Children>(row)?.iter().next()?;
-                Some(app.world().get::<Text>(first)?.0.clone())
+                let lead = app.world().get::<Children>(row)?.iter().nth(1)?;
+                Some(app.world().get::<Text>(lead)?.0.clone())
             })
             .collect()
     }
@@ -3303,31 +2720,11 @@ mod tests {
             .expect("the lift runs");
     }
 
-    /// Show the script half of the tree.
-    fn open_events(app: &mut App) {
-        *app.world_mut().resource_mut::<RailTab>() = RailTab::Events;
-        app.update();
-    }
-
-    /// Open every container in the script, the way a builder walking down it
-    /// with the caret would. The tree opens COLLAPSED, so a test about what the
-    /// nesting draws has to say it is looking at an opened one.
-    fn open_everything(app: &mut App) {
-        let nodes: Vec<Entity> = app
-            .world_mut()
-            .query_filtered::<Entity, With<EditorNode>>()
-            .iter(app.world())
-            .collect();
-        for node in nodes {
-            app.world_mut().entity_mut(node).insert(Expanded);
-        }
-        app.update();
-    }
-
     /// A handler with one filter and one action.
     fn handler(name: EventConfig, id: &str) -> ScenarioEventConfig {
         ScenarioEventConfig {
             label: None,
+            position: None,
             name,
             once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -3340,444 +2737,96 @@ mod tests {
         }
     }
 
-    /// A named handler reads as BOTH: the trigger that runs it and the name
-    /// its author gave it.
-    ///
-    /// One of them alone is not enough. Six handlers on `On Enter` is six
-    /// identical rows, and a row saying only `picket warden wakes` never says
-    /// when it happens.
+    /// A ship opens from the scenario level without going in: the caret is a
+    /// look at what it holds, not a change of where the editor stands.
     #[test]
-    fn a_named_handler_reads_as_its_trigger_and_its_name() {
+    fn a_caret_press_opens_a_ship_row_and_a_second_shuts_it() {
         let mut app = scene_app();
+        app.add_observer(hierarchy::on_tree_caret);
         let scenario = document(&mut app);
-        script(
-            &mut app,
-            scenario,
-            vec![
-                ScenarioEventConfig {
-                    label: Some("picket warden wakes".to_string()),
-                    ..handler(EventConfig::OnEnter, "ship_1")
-                },
-                handler(EventConfig::OnEnter, "ship_2"),
-            ],
-        );
-        open_events(&mut app);
-
-        let labels: Vec<String> = row_columns(&mut app)
-            .into_iter()
-            .map(|(label, _)| label)
-            .collect();
-        assert!(
-            labels
-                .iter()
-                .any(|label| label == "On Enter - picket warden wakes"),
-            "the named handler wears both: {labels:?}"
-        );
-        assert!(
-            labels.iter().any(|label| label == "On Enter"),
-            "and an unnamed one is still its trigger: {labels:?}"
-        );
-    }
-
-    /// The mode widens the rail, so the tree spends the width: a condition that
-    /// the Scene rail would have cut reads whole in the Events one.
-    #[test]
-    fn a_condition_reads_whole_in_the_events_rail() {
-        const CONDITION: &str = "picket_warden_awake == false";
-
-        let mut app = scene_app();
-        let scenario = document(&mut app);
-        script(
-            &mut app,
-            scenario,
-            vec![ScenarioEventConfig {
-                label: None,
-                name: EventConfig::OnUpdate,
-                once: false,
-                filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
-                    VariableConditionNode::new_equals(
-                        VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                            VariableFactorNode::new_name("picket_warden_awake"),
-                        )),
-                        VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                            VariableFactorNode::new_literal(VariableLiteral::Boolean(false)),
-                        )),
-                    ),
-                ))],
-                actions: vec![],
-            }],
-        );
-        open_events(&mut app);
-        open_everything(&mut app);
-
-        let labels: Vec<String> = row_columns(&mut app)
-            .into_iter()
-            .map(|(label, _)| label)
-            .collect();
-        assert!(
-            CONDITION.chars().count() > label_budget(2),
-            "the Scene rail would have elided this"
-        );
-        assert!(
-            labels.iter().any(|label| label == CONDITION),
-            "the filter row reads its whole condition: {labels:?}"
-        );
-    }
-
-    /// A variable set's row says what it WRITES, the same way an expression
-    /// filter's row says what it compares. `Variable Set` names a kind, and a
-    /// handler with three of them would be three copies of one row.
-    #[test]
-    fn a_variable_set_row_reads_as_what_it_writes() {
-        let mut app = scene_app();
-        let scenario = document(&mut app);
-        script(
-            &mut app,
-            scenario,
-            vec![ScenarioEventConfig {
-                label: None,
-                name: EventConfig::OnUpdate,
-                once: false,
-                filters: vec![],
-                actions: vec![EventActionConfig::VariableSet(VariableSetActionConfig {
-                    key: "beat".to_string(),
-                    expression: VariableExpressionNode::new_add(
-                        VariableTermNode::new_factor(VariableFactorNode::new_name("beat")),
-                        VariableExpressionNode::new_term(VariableTermNode::new_factor(
-                            VariableFactorNode::new_literal(VariableLiteral::Number(1.0)),
-                        )),
-                    ),
-                })],
-            }],
-        );
-        open_events(&mut app);
-        open_everything(&mut app);
-
-        let labels: Vec<String> = row_columns(&mut app)
-            .into_iter()
-            .map(|(label, _)| label)
-            .collect();
-        assert!(
-            labels.iter().any(|label| label == "beat = beat + 1"),
-            "the action row reads as its assignment: {labels:?}"
-        );
-    }
-
-    /// The two halves are separate lists over the same document: the world's
-    /// objects are not in the script, and the script is not in the world.
-    #[test]
-    fn the_tabs_show_two_halves_of_one_document() {
-        let mut app = scene_app();
-        let scenario = document(&mut app);
-        spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
-        script(
-            &mut app,
-            scenario,
-            vec![handler(EventConfig::OnDestroyed, "ship_1")],
-        );
-
+        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Ai);
+        section_node(&mut app, ship, "hull_1");
         app.update();
-        assert_eq!(
-            row_names(&mut app),
-            vec!["scenario", "ship_1"],
-            "the Scene tab is the world, script or no script"
-        );
+        assert_eq!(row_names(&mut app), vec!["scenario", "ship_1"]);
 
-        open_events(&mut app);
-        assert_eq!(
-            row_names(&mut app),
-            vec!["scenario", "event_1"],
-            "the Events tab opens on the handlers, not on everything under them"
-        );
+        press_caret(&mut app, ship);
+        assert_eq!(row_names(&mut app), vec!["scenario", "ship_1", "hull_1"]);
+        assert_eq!(app.world().resource::<EditContext>().ship(), None);
 
-        open_everything(&mut app);
-        assert_eq!(
-            row_names(&mut app),
-            vec!["scenario", "event_1", "entity_1", "debug_2"],
-            "opened, a handler is what it waits for and what it does"
-        );
+        press_caret(&mut app, ship);
+        assert_eq!(row_names(&mut app), vec!["scenario", "ship_1"]);
     }
 
-    /// A sequence is the one action that holds more script, and the tree opens
-    /// it the whole way down: the steps, the event each waits for, the filters
-    /// that qualify it, and what the step then does.
-    #[test]
-    fn a_sequence_opens_into_its_beats() {
-        let mut app = scene_app();
-        let scenario = document(&mut app);
-        script(
-            &mut app,
-            scenario,
-            vec![ScenarioEventConfig {
-                label: None,
-                name: EventConfig::OnStart,
-                once: true,
-                filters: vec![],
-                actions: vec![EventActionConfig::Sequence(SequenceActionConfig {
-                    key: "briefing".to_string(),
-                    steps: vec![SequenceStepConfig {
-                        until: Some(SequenceGateConfig {
-                            name: EventConfig::OnEnter,
-                            filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
-                                id: Some("gate_area".to_string()),
-                                ..default()
-                            })],
-                        }),
-                        deadline: Some(30.0),
-                        actions: vec![EventActionConfig::DebugMessage(DebugMessageActionConfig {
-                            message: "there".to_string(),
-                        })],
-                        ..default()
-                    }],
-                })],
-            }],
-        );
-
-        open_events(&mut app);
-        open_everything(&mut app);
-        assert_eq!(
-            row_names(&mut app),
-            vec![
-                "scenario",
-                "event_1",
-                "sequence_1",
-                "step_1",
-                "gate_1",
-                "entity_1",
-                "debug_2"
-            ],
-            "the nesting drawn is the nesting the document holds"
-        );
-        assert_eq!(
-            row_indents(&mut app),
-            vec![8.0, 17.0, 26.0, 35.0, 44.0, 53.0, 44.0],
-            "the gate and what the step does are siblings under it, and only \
-             the gate's own filters go a rung deeper"
-        );
-    }
-
-    /// The trail is the one fact the label cannot hold: a handler that retires
-    /// says so, and a sequence wears the key its gates name it by.
-    #[test]
-    fn a_script_row_trails_what_its_label_cannot_say() {
-        let mut app = scene_app();
-        let scenario = document(&mut app);
-        script(
-            &mut app,
-            scenario,
-            vec![ScenarioEventConfig {
-                label: None,
-                name: EventConfig::OnStart,
-                once: true,
-                filters: vec![],
-                actions: vec![EventActionConfig::Sequence(SequenceActionConfig {
-                    key: "briefing".to_string(),
-                    steps: vec![],
-                })],
-            }],
-        );
-
-        open_events(&mut app);
-        open_everything(&mut app);
-        assert_eq!(
-            row_columns(&mut app),
-            vec![
-                ("scenario".to_string(), String::new()),
-                ("On Start".to_string(), "1x".to_string()),
-                ("Sequence".to_string(), "briefing".to_string()),
-            ]
-        );
-    }
-
-    /// Two clicks OPEN a handler, and two more shut it again. The script has no
-    /// place to stand inside, so the gesture that enters a ship is the one that
-    /// shows what a handler holds.
-    #[test]
-    fn two_clicks_open_a_handler_and_two_more_shut_it() {
-        let mut app = scene_app();
-        let scenario = document(&mut app);
-        script(
-            &mut app,
-            scenario,
-            vec![handler(EventConfig::OnDestroyed, "ship_1")],
-        );
-        open_events(&mut app);
-        let node = app
+    /// The node of each row, in draw order.
+    fn row_nodes(app: &mut App) -> Vec<Entity> {
+        let list = app
             .world_mut()
-            .query_filtered::<Entity, With<EventNode>>()
+            .query_filtered::<Entity, With<SceneList>>()
             .single(app.world())
-            .expect("one handler");
-
-        let row = row_for(&mut app, node);
-        double_press(&mut app, row);
-        assert_eq!(
-            row_names(&mut app),
-            vec!["scenario", "event_1", "entity_1", "debug_2"],
-            "opened, the handler shows what it waits for and what it does"
-        );
-
-        let row = row_for(&mut app, node);
-        double_press(&mut app, row);
-        assert_eq!(
-            row_names(&mut app),
-            vec!["scenario", "event_1"],
-            "and shuts again"
-        );
-    }
-
-    /// The caret says which way a row opens, and a row with nothing under it
-    /// says so by having none - while still holding the column, so the marks
-    /// down the tree stay in line.
-    #[test]
-    fn a_container_row_wears_the_caret_and_a_leaf_wears_none() {
-        let mut app = scene_app();
-        let scenario = document(&mut app);
-        script(
-            &mut app,
-            scenario,
-            vec![handler(EventConfig::OnDestroyed, "ship_1")],
-        );
-        open_events(&mut app);
-
-        assert_eq!(
-            row_leads(&mut app),
-            vec![SCENARIO.to_string(), format!("{SHUT}{HANDLER}")],
-            "a shut handler points at itself"
-        );
-
-        open_everything(&mut app);
-
-        assert_eq!(
-            row_leads(&mut app),
-            vec![
-                SCENARIO.to_string(),
-                format!("{OPEN}{HANDLER}"),
-                format!(" {FILTER}"),
-                format!(" {ACTION}"),
-            ],
-            "an open one points down at the rows it put there, and its leaves              keep the column"
-        );
-    }
-
-    /// A node added into a shut container is still the node the panel is on, so
-    /// the tree opens the way down to it: a beat that vanished the moment it
-    /// was made would read as the Add row having done nothing.
-    #[test]
-    fn adding_into_a_shut_handler_opens_the_way_to_it() {
-        let mut app = scene_app();
-        let scenario = document(&mut app);
-        script(
-            &mut app,
-            scenario,
-            vec![handler(EventConfig::OnDestroyed, "ship_1")],
-        );
-        open_events(&mut app);
-        let node = app
-            .world_mut()
-            .query_filtered::<Entity, With<EventNode>>()
-            .single(app.world())
-            .expect("one handler");
-        app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
-        let add = app
-            .world_mut()
-            .spawn((ScriptAdd::Action, observe(add_script_node)))
-            .id();
-
-        app.world_mut().trigger(Activate { entity: add });
-        app.update();
-
-        let marked = app.world().resource::<SelectedNode>().0;
-        assert!(
-            marked.is_some_and(|node| row_names(&mut app).contains(&script_id(&mut app, node))),
-            "the new action has a row: {:?}",
-            row_names(&mut app)
-        );
-    }
-
-    /// The minted id of a script node, which is what its row is called.
-    fn script_id(app: &mut App, node: Entity) -> String {
+            .expect("one scene list");
         app.world()
-            .get::<NodeId>(node)
-            .expect("a minted id")
-            .0
-            .clone()
+            .get::<Children>(list)
+            .map(|children| {
+                children
+                    .iter()
+                    .filter_map(|row| app.world().get::<SceneRow>(row).map(|row| row.0))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
-    /// The three nodes the mode lays out, in an app that runs nothing else.
-    fn mode_app() -> (App, Entity, Entity, Entity) {
-        let mut app = App::new();
-        app.init_resource::<RailTab>();
-        app.add_systems(Update, sync_editor_mode);
-        let rail = app
-            .world_mut()
-            .spawn((
-                EditorRail,
-                Node {
-                    width: px(RAIL_W),
-                    ..default()
-                },
-            ))
-            .id();
-        let panel = app
-            .world_mut()
-            .spawn((
-                InspectorPanel,
-                Node {
-                    width: px(INSPECTOR_W),
-                    margin: UiRect::left(Val::Auto),
-                    ..default()
-                },
-            ))
-            .id();
-        let foot = app.world_mut().spawn((EditorFoot, Node::default())).id();
-        (app, rail, panel, foot)
+    /// A press on the caret of `node`'s row.
+    fn press_caret(app: &mut App, node: Entity) {
+        let row = row_for(app, node);
+        let caret = app
+            .world()
+            .get::<Children>(row)
+            .expect("a row has columns")
+            .iter()
+            .find(|child| app.world().get::<TreeCaret>(*child).is_some())
+            .expect("the row has a caret");
+        app.world_mut().trigger(Activate { entity: caret });
+        app.world_mut().flush();
+        app.update();
     }
 
-    /// Events is a MODE, not a filter on a list: the stage is not being placed
-    /// on, so the script takes the width the raycast was being left.
+    /// The filter finds a part under a shut ship, and takes its parents with it.
     #[test]
-    fn the_events_tab_gives_the_script_the_whole_window() {
-        let (mut app, rail, panel, foot) = mode_app();
-        *app.world_mut().resource_mut::<RailTab>() = RailTab::Events;
+    fn a_filter_reads_through_a_shut_row() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Ai);
+        section_node(&mut app, ship, "hull_1");
+        spawn_ship(&mut app, scenario, "ship_2", ShipDriver::Ai);
+        app.world_mut()
+            .spawn((HierarchyFilter, TextFieldValue("hull_1".to_string())));
         app.update();
-
         assert_eq!(
-            app.world().get::<Node>(rail).map(|node| node.width),
-            Some(px(EVENTS_RAIL_W)),
-            "the rail widens for a deep tree"
-        );
-        let pane = app.world().get::<Node>(panel).expect("the panel");
-        assert_eq!(pane.flex_grow, 1.0, "and the panel takes what is left");
-        assert_eq!(pane.margin, UiRect::ZERO, "with nothing pushing it right");
-        assert_eq!(
-            app.world().get::<Node>(foot).map(|node| node.display),
-            Some(Display::None),
-            "the foot is about a stage this mode is not showing"
+            row_names(&mut app),
+            vec!["scenario", "ship_1", "hull_1"],
+            "the other ship has no match, and the shut one opens for its part"
         );
     }
 
-    /// And back: the stage's centre is where the placement raycast goes, so
-    /// Scene has to give it up again.
+    /// `Button` activates on every mouse button, and the right one means the
+    /// row's menu: a selection or a way into the ship on top of it would be a
+    /// second verb from one click.
     #[test]
-    fn the_scene_tab_leaves_the_stage_its_centre() {
-        let (mut app, rail, panel, foot) = mode_app();
-        *app.world_mut().resource_mut::<RailTab>() = RailTab::Events;
+    fn a_right_click_is_not_a_press_on_the_row() {
+        let mut app = scene_app();
+        let scenario = document(&mut app);
+        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Ai);
         app.update();
-        *app.world_mut().resource_mut::<RailTab>() = RailTab::Scene;
-        app.update();
+        let mut mouse = ButtonInput::<MouseButton>::default();
+        mouse.press(MouseButton::Right);
+        mouse.release(MouseButton::Right);
+        app.world_mut().insert_resource(mouse);
 
-        assert_eq!(
-            app.world().get::<Node>(rail).map(|node| node.width),
-            Some(px(RAIL_W))
-        );
-        let pane = app.world().get::<Node>(panel).expect("the panel");
-        assert_eq!(pane.width, px(INSPECTOR_W));
-        assert_eq!(pane.flex_grow, 0.0);
-        assert_eq!(pane.margin, UiRect::left(Val::Auto), "docked right again");
-        assert_eq!(
-            app.world().get::<Node>(foot).map(|node| node.display),
-            Some(Display::Flex)
-        );
+        let row = row_for(&mut app, ship);
+        app.world_mut().trigger(Activate { entity: row });
+        app.world_mut().flush();
+
+        assert!(app.world().resource::<SelectedNode>().is_empty());
     }
 
     /// Switching tabs drops the mark: a node marked in one half is not in the
@@ -3786,6 +2835,7 @@ mod tests {
     #[test]
     fn switching_tabs_drops_a_selection_the_other_half_cannot_show() {
         let mut app = scene_app();
+        app.init_resource::<EditorStatus>().init_resource::<Time>();
         app.add_systems(Update, sync_rail_tabs);
         let scenario = document(&mut app);
         let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
@@ -3804,12 +2854,14 @@ mod tests {
             .id();
         app.update();
 
-        app.world_mut().resource_mut::<SelectedNode>().0 = Some(ship);
+        app.world_mut()
+            .resource_mut::<SelectedNode>()
+            .set(Some(ship));
         app.world_mut().trigger(Activate { entity: tab });
         app.update();
 
         assert_eq!(*app.world().resource::<RailTab>(), RailTab::Events);
-        assert_eq!(app.world().resource::<SelectedNode>().0, None);
+        assert_eq!(app.world().resource::<SelectedNode>().primary(), None);
         assert!(
             app.world().get::<Selected>(tab).is_some(),
             "and the tab that was pressed is the one marked"
@@ -4018,8 +3070,7 @@ mod tests {
     }
 
     /// A ship folded shut looked exactly like a ship with nothing in it. The
-    /// trail says how much is inside, and the hover hint says what the number
-    /// counts.
+    /// count says how much is inside, and the hover hint says what it counts.
     #[test]
     fn a_ship_row_says_how_many_parts_are_folded_up_inside_it() {
         let mut app = scene_app();
@@ -4029,10 +3080,18 @@ mod tests {
         section_node(&mut app, ship, "hull_section_2");
         app.update();
 
-        assert!(
-            row_columns(&mut app).contains(&("ship".to_string(), "2".to_string())),
-            "{:?}",
-            row_columns(&mut app)
+        let counts: Vec<String> = row_nodes(&mut app)
+            .into_iter()
+            .filter_map(|node| {
+                let row = row_for(&mut app, node);
+                let count = app.world().get::<Children>(row)?.iter().nth(3)?;
+                Some(app.world().get::<Text>(count)?.0.clone())
+            })
+            .collect();
+        assert_eq!(
+            counts,
+            ["1", "2"],
+            "the root counts its ship, the ship its parts"
         );
         assert!(
             row_hints(&mut app)
@@ -4128,7 +3187,7 @@ mod tests {
         let row = row_for(&mut app, ship);
         press(&mut app, row);
 
-        assert_eq!(app.world().resource::<SelectedNode>().0, Some(ship));
+        assert_eq!(app.world().resource::<SelectedNode>().primary(), Some(ship));
         assert_eq!(framed(&mut app), Some(ship));
         assert_eq!(
             app.world().resource::<EditContext>().ship(),
@@ -4152,7 +3211,7 @@ mod tests {
 
         assert_eq!(app.world().resource::<EditContext>().ship(), Some(ship));
         assert_eq!(
-            app.world().resource::<SelectedNode>().0,
+            app.world().resource::<SelectedNode>().primary(),
             None,
             "a container is entered, not selected"
         );
@@ -4189,7 +3248,10 @@ mod tests {
         app.update();
 
         assert_eq!(app.world().resource::<EditContext>().ship(), None);
-        assert_eq!(app.world().resource::<SelectedNode>().0, Some(second));
+        assert_eq!(
+            app.world().resource::<SelectedNode>().primary(),
+            Some(second)
+        );
     }
 
     /// A slow second click is a second click, not the other half of a double.
@@ -4205,7 +3267,7 @@ mod tests {
         press(&mut app, row);
 
         assert_eq!(app.world().resource::<EditContext>().ship(), None);
-        assert_eq!(app.world().resource::<SelectedNode>().0, Some(ship));
+        assert_eq!(app.world().resource::<SelectedNode>().primary(), Some(ship));
     }
 
     /// A section row SELECTS: a leaf has nothing to enter yet, and the mark is
@@ -4222,7 +3284,10 @@ mod tests {
         let row = row_for(&mut app, section);
         press(&mut app, row);
 
-        assert_eq!(app.world().resource::<SelectedNode>().0, Some(section));
+        assert_eq!(
+            app.world().resource::<SelectedNode>().primary(),
+            Some(section)
+        );
         assert_eq!(
             app.world().resource::<EditContext>().ship(),
             Some(ship),
@@ -4286,11 +3351,14 @@ mod tests {
 
         let row = row_for(&mut app, section);
         press(&mut app, row);
-        assert_eq!(app.world().resource::<SelectedNode>().0, Some(section));
+        assert_eq!(
+            app.world().resource::<SelectedNode>().primary(),
+            Some(section)
+        );
 
         app.world_mut().resource_mut::<EditContext>().exit();
         app.update();
-        assert_eq!(app.world().resource::<SelectedNode>().0, None);
+        assert_eq!(app.world().resource::<SelectedNode>().primary(), None);
     }
 
     /// An unchanged document must not respawn its rows: a row that is despawned
@@ -4363,15 +3431,9 @@ mod tests {
         app.init_state::<ExampleStates>();
         let scenario = document(&mut app);
         let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
-        // The REAL button: its label is half of what this system writes, and a
-        // bare marker entity has no label to write.
         let button = app
             .world_mut()
-            .spawn((
-                PlayButton,
-                Name::new("Play Button"),
-                themed_button(PLAY_LABEL),
-            ))
+            .spawn((PlayButton, Name::new("Play Button"), Tooltip::default()))
             .id();
         app.add_systems(Update, sync_play_button);
         app.init_resource::<EditorStatus>();
@@ -4383,7 +3445,6 @@ mod tests {
             !app.world().entity(button).contains::<InteractionDisabled>(),
             "at the scenario node Play is live"
         );
-        assert_eq!(play_label(&mut app), PLAY_LABEL);
 
         app.world_mut().resource_mut::<EditContext>().enter(ship);
         app.update();
@@ -4392,10 +3453,9 @@ mod tests {
             "inside a ship it is greyed"
         );
         assert_eq!(
-            play_label(&mut app),
+            app.world().get::<Tooltip>(button).unwrap().0,
             PLAY_BLOCKED,
-            "a greyed verb has to say where it went - the reason used to live \
-             in an observer the greying makes unreachable"
+            "a greyed verb says why in its tooltip; the label stays Play"
         );
 
         app.world_mut().trigger(Activate { entity: button });
@@ -4415,13 +3475,6 @@ mod tests {
             "and it says so on the one line the editor speaks through, rather \
              than in a log nobody building a ship is reading"
         );
-    }
-
-    /// What the Play button reads.
-    fn play_label(app: &mut App) -> String {
-        let world = app.world_mut();
-        let mut labels = world.query_filtered::<&Text, With<ButtonLabel>>();
-        labels.single(world).expect("one label").0.clone()
     }
 
     /// The rail's ship settings are a ship's own: there is no skin to toggle
@@ -4445,293 +3498,6 @@ mod tests {
         world.resource_mut::<EditContext>().enter(ship);
         world.run_system_once(sync_context_panels).unwrap();
         assert_eq!(display(&world, settings), Display::Flex);
-    }
-
-    /// What the breadcrumb reads, crumb by crumb.
-    fn crumb_words(app: &mut App) -> Vec<String> {
-        let bar = app
-            .world_mut()
-            .query_filtered::<Entity, With<ContextBreadcrumb>>()
-            .single(app.world())
-            .expect("the crumb bar exists");
-        let mut words = Vec::new();
-        let mut stack: Vec<Entity> = app
-            .world()
-            .get::<Children>(bar)
-            .map(|kids| kids.iter().rev().collect())
-            .unwrap_or_default();
-        while let Some(entity) = stack.pop() {
-            if let Some(text) = app.world().get::<Text>(entity) {
-                words.push(text.0.clone());
-            }
-            if let Some(kids) = app.world().get::<Children>(entity) {
-                stack.extend(kids.iter().rev());
-            }
-        }
-        words
-    }
-
-    /// A crumb bar over a scenario holding one ship, wired to the real
-    /// observers so a press goes the way a click does.
-    fn crumb_app() -> (App, Entity, Entity) {
-        let mut app = App::new();
-        app.init_resource::<EditContext>();
-        app.init_resource::<SelectedNode>();
-        app.init_resource::<FrameRequest>();
-        app.init_resource::<ActiveUiTheme>();
-        let scenario = app
-            .world_mut()
-            .spawn((ScenarioNode::default(), NodeId("scenario".to_string())))
-            .id();
-        let ship = app
-            .world_mut()
-            .spawn((
-                ShipNode {
-                    name: "Kestrel".to_string(),
-                    ..default()
-                },
-                NodeId("ship_1".to_string()),
-            ))
-            .id();
-        app.world_mut().spawn((ContextBreadcrumb, Node::default()));
-        app.world_mut().resource_mut::<EditContext>().path = vec![scenario];
-        app.add_systems(Update, sync_breadcrumb);
-        (app, scenario, ship)
-    }
-
-    /// The crumb named by `id`.
-    fn crumb(app: &mut App, node: Entity) -> Entity {
-        app.world_mut()
-            .query::<(Entity, &CrumbStep)>()
-            .iter(app.world())
-            .find(|(_, step)| step.0 == node)
-            .map(|(entity, _)| entity)
-            .expect("the step is on the bar")
-    }
-
-    /// Stand up the real UI, picking and widget stack over one window camera,
-    /// so a click at a window pixel goes through the shipped hit test and the
-    /// shipped `Button` -> `Activate` path. A trimmed copy of nova_interface's
-    /// pane pointer rig, which is private to that crate's tests.
-    fn add_pointer_stack(app: &mut App) {
-        use bevy::{
-            camera::{ComputedCameraValues, RenderTargetInfo},
-            image::TextureAtlasLayout,
-            text::TextPlugin,
-            ui::UiPlugin,
-            ui_widgets::ButtonPlugin,
-            window::{PrimaryWindow, WindowEvent, WindowResolution},
-        };
-
-        const WINDOW: UVec2 = UVec2::new(1280, 720);
-        app.add_plugins((
-            MinimalPlugins,
-            AssetPlugin::default(),
-            TransformPlugin,
-            bevy::a11y::AccessibilityPlugin,
-            // `ui_picking` refuses a node whose `InheritedVisibility` is not
-            // computed-true, and nothing else here propagates it.
-            bevy::camera::visibility::VisibilityPlugin,
-            bevy::input::InputPlugin,
-            bevy::picking::input::PointerInputPlugin,
-            bevy::picking::PickingPlugin,
-            bevy::picking::InteractionPlugin,
-            TextPlugin,
-            UiPlugin,
-            // The game gets this with `UiWidgetsPlugins`; the group's text
-            // input wants IME messages this app has no window backend for.
-            ButtonPlugin,
-        ));
-        // `WindowPlugin` registers this in the game; the mouse pointer reads it.
-        app.add_message::<WindowEvent>();
-        app.init_asset::<Image>()
-            .init_asset::<TextureAtlasLayout>()
-            .init_asset::<Mesh>()
-            .init_asset::<bevy::mesh::skinning::SkinnedMeshInverseBindposes>();
-        app.world_mut().spawn((
-            Window {
-                resolution: WindowResolution::new(WINDOW.x, WINDOW.y),
-                ..default()
-            },
-            PrimaryWindow,
-        ));
-        app.world_mut().spawn((
-            Camera2d,
-            Camera {
-                computed: ComputedCameraValues {
-                    target_info: Some(RenderTargetInfo {
-                        physical_size: WINDOW,
-                        scale_factor: 1.0,
-                    }),
-                    ..default()
-                },
-                ..default()
-            },
-            IsDefaultUiCamera,
-        ));
-    }
-
-    /// Run enough frames for layout, the UI stack and picking to settle.
-    fn settle(app: &mut App) {
-        for _ in 0..4 {
-            app.update();
-        }
-    }
-
-    /// Move the mouse to `window_px`, then press and release the left button,
-    /// as `bevy_winit` reports a real click to `bevy_picking`.
-    fn click_at(app: &mut App, window_px: Vec2) {
-        use bevy::{
-            input::{
-                mouse::{MouseButton, MouseButtonInput},
-                ButtonState,
-            },
-            window::{CursorMoved, PrimaryWindow, WindowEvent},
-        };
-
-        let (window, mut cursor) = app
-            .world_mut()
-            .query_filtered::<(Entity, &mut Window), With<PrimaryWindow>>()
-            .single_mut(app.world_mut())
-            .expect("the app has a primary window");
-        cursor.set_physical_cursor_position(Some(window_px.as_dvec2()));
-        app.world_mut()
-            .write_message(WindowEvent::CursorMoved(CursorMoved {
-                window,
-                position: window_px,
-                delta: None,
-            }));
-        settle(app);
-        for state in [ButtonState::Pressed, ButtonState::Released] {
-            app.world_mut()
-                .write_message(WindowEvent::MouseButtonInput(MouseButtonInput {
-                    button: MouseButton::Left,
-                    state,
-                    window,
-                }));
-            settle(app);
-        }
-    }
-
-    /// The window-space centre of a laid-out node with area.
-    fn centre_of(app: &mut App, entity: Entity) -> Vec2 {
-        let size = app
-            .world()
-            .get::<ComputedNode>(entity)
-            .expect("a laid-out node")
-            .size();
-        assert!(size.x > 0.0 && size.y > 0.0, "the node has no area");
-        app.world()
-            .get::<UiGlobalTransform>(entity)
-            .expect("a laid-out node")
-            .translation
-    }
-
-    /// The readout says WHAT is being edited before it says where: the level
-    /// in capitals, the path in the names the tree shows, and the selection.
-    /// The bare path never answered "will this click select, enter or place".
-    ///
-    /// The level is a BARE word, the one treatment a kind tag gets: the
-    /// inspector's title and the tree's hint print it that way too, and the
-    /// crumb's brackets were a third way of drawing one thing. The selection
-    /// gets a chip of its own rather than three spaces and a sentence.
-    #[test]
-    fn the_breadcrumb_names_the_level_the_path_and_the_selection() {
-        let (mut app, _, ship) = crumb_app();
-        app.update();
-        assert_eq!(crumb_words(&mut app), vec!["SCENARIO", "scenario"]);
-
-        app.world_mut().resource_mut::<EditContext>().enter(ship);
-        app.update();
-        assert_eq!(
-            crumb_words(&mut app),
-            vec!["SHIP", "scenario", "/", "Kestrel"]
-        );
-
-        app.world_mut().resource_mut::<SelectedNode>().0 = Some(ship);
-        app.update();
-        assert_eq!(
-            crumb_words(&mut app),
-            vec!["SHIP", "scenario", "/", "Kestrel", "selected Kestrel"]
-        );
-    }
-
-    /// The path is a CONTROL: pressing the scenario step leaves the ship, the
-    /// way the tree's root row does on its second click. This editor's whole
-    /// model is entering and leaving, and the crumb is the natural door.
-    #[test]
-    fn pressing_the_root_crumb_leaves_the_ship() {
-        let (mut app, scenario, ship) = crumb_app();
-        app.world_mut().resource_mut::<EditContext>().enter(ship);
-        app.world_mut().resource_mut::<SelectedNode>().0 = Some(ship);
-        app.update();
-
-        let root = crumb(&mut app, scenario);
-        app.world_mut().trigger(Activate { entity: root });
-        app.update();
-
-        assert_eq!(app.world().resource::<EditContext>().ship(), None);
-        assert_eq!(app.world().resource::<SelectedNode>().0, None);
-        assert_eq!(crumb_words(&mut app), vec!["SCENARIO", "scenario"]);
-    }
-
-    /// The step the editor is already inside has nowhere to go, so it frames
-    /// what is being edited instead - "put me back on it".
-    #[test]
-    fn pressing_the_current_crumb_frames_it() {
-        let (mut app, _, ship) = crumb_app();
-        app.world_mut().resource_mut::<EditContext>().enter(ship);
-        app.update();
-
-        let here = crumb(&mut app, ship);
-        app.world_mut().trigger(Activate { entity: here });
-        app.update();
-
-        assert_eq!(app.world().resource::<FrameRequest>().node, Some(ship));
-        assert_eq!(
-            app.world().resource::<EditContext>().ship(),
-            Some(ship),
-            "and stays where it was"
-        );
-    }
-
-    /// A real mouse click on the scenario step leaves the ship. The chips once
-    /// wore bevy_ui's old `Button` marker: they painted a hover, but no click
-    /// ever reached `Activate`, and the direct-trigger tests above bypass that.
-    #[test]
-    fn a_click_on_the_root_crumb_leaves_the_ship() {
-        let (mut app, scenario, ship) = crumb_app();
-        add_pointer_stack(&mut app);
-        app.world_mut().resource_mut::<EditContext>().enter(ship);
-        app.world_mut().resource_mut::<SelectedNode>().0 = Some(ship);
-        settle(&mut app);
-
-        let root = crumb(&mut app, scenario);
-        let at = centre_of(&mut app, root);
-        click_at(&mut app, at);
-
-        assert_eq!(app.world().resource::<EditContext>().ship(), None);
-        assert_eq!(app.world().resource::<SelectedNode>().0, None);
-    }
-
-    /// A real mouse click on the selection chip frames what it names.
-    #[test]
-    fn a_click_on_the_selection_crumb_frames_it() {
-        let (mut app, _, ship) = crumb_app();
-        add_pointer_stack(&mut app);
-        app.world_mut().resource_mut::<EditContext>().enter(ship);
-        app.world_mut().resource_mut::<SelectedNode>().0 = Some(ship);
-        settle(&mut app);
-
-        let chip = app
-            .world_mut()
-            .query_filtered::<Entity, With<CrumbSelection>>()
-            .single(app.world())
-            .expect("the selection chip is on the bar");
-        let at = centre_of(&mut app, chip);
-        click_at(&mut app, at);
-
-        assert_eq!(app.world().resource::<FrameRequest>().node, Some(ship));
     }
 
     /// Rebind is greyed until the selection can actually take a binding - the
@@ -4775,11 +3541,11 @@ mod tests {
         world.run_system_once(sync_rebind_button).unwrap();
         assert!(disabled(&world), "nothing selected, nothing to rebind");
 
-        world.resource_mut::<SelectedNode>().0 = Some(hull);
+        world.resource_mut::<SelectedNode>().set(Some(hull));
         world.run_system_once(sync_rebind_button).unwrap();
         assert!(disabled(&world), "a hull takes no binding");
 
-        world.resource_mut::<SelectedNode>().0 = Some(turret);
+        world.resource_mut::<SelectedNode>().set(Some(turret));
         world.run_system_once(sync_rebind_button).unwrap();
         assert!(!disabled(&world), "a turret of the edited ship can rebind");
     }
@@ -5055,15 +3821,58 @@ mod tests {
         );
     }
 
-    /// Escape is a back key with five rungs, so the only useful thing it can
-    /// say is which one this press takes.
+    /// Escape is a back key with several rungs, so the only useful thing it
+    /// can say is which one this press takes.
     #[test]
     fn escape_names_the_rung_the_next_press_takes() {
-        assert_eq!(escape_rung(true, true, true, true), "cancel the rebind");
-        assert_eq!(escape_rung(false, true, true, true), "close the menu");
-        assert_eq!(escape_rung(false, false, true, true), "put the part down");
-        assert_eq!(escape_rung(false, false, false, true), "leave the ship");
-        assert_eq!(escape_rung(false, false, false, false), "pause");
+        let rung = |keyboard, popup, menu, armed, inside| {
+            escape_rung(keyboard, popup, menu, armed, inside)
+        };
+        assert_eq!(
+            rung(InputMode::Bind, true, true, true, true),
+            "cancel the rebind"
+        );
+        assert_eq!(
+            rung(InputMode::Insert, true, true, true, true),
+            "leave the field"
+        );
+        assert_eq!(
+            rung(InputMode::Browse, true, true, true, true),
+            "cancel the pop-up"
+        );
+        assert_eq!(
+            rung(InputMode::Normal, false, true, true, true),
+            "close the menu"
+        );
+        assert_eq!(
+            rung(InputMode::Normal, false, false, true, true),
+            "put the part down"
+        );
+        assert_eq!(
+            rung(InputMode::Normal, false, false, false, true),
+            "leave the ship"
+        );
+        assert_eq!(rung(InputMode::Normal, false, false, false, false), "pause");
+    }
+
+    /// The legend under a pop-up offers only what its keys and clicks do.
+    #[test]
+    fn a_block_popup_takes_the_canvas_hints_off_the_legend() {
+        let keys = |line: (&str, Vec<Hint>)| -> Vec<&str> {
+            line.1.into_iter().map(|(key, _)| key).collect()
+        };
+        assert_eq!(
+            keys(events_line(InputMode::Normal, false)),
+            ["drag", "LMB", "Del", "MMB", "Ctrl+Wheel", "F"]
+        );
+        assert_eq!(
+            keys(events_line(InputMode::Insert, false)),
+            ["drag", "LMB", "MMB", "Ctrl+Wheel"],
+            "a field holds the keys, so the verbs go with it"
+        );
+        let (mode, hints) = events_line(InputMode::Browse, true);
+        assert_eq!(mode, "POP-UP");
+        assert_eq!(hints, [("click away", "keep it")]);
     }
 
     /// The legend spawns one cell per hint the longest mode needs, and every
@@ -5123,6 +3932,7 @@ mod tests {
 
         let section = app.world_mut().spawn_empty().id();
         app.world_mut().resource_mut::<EditorRebind>().target = Some(section);
+        *app.world_mut().resource_mut::<InputMode>() = InputMode::Bind;
         app.update();
 
         assert_eq!(legend_mode(&mut app), "REBINDING");
@@ -5136,6 +3946,31 @@ mod tests {
         );
     }
 
+    /// The foot has room for less than the line wants. The last hints give way
+    /// and Escape stays: at 1280 and at 1920 the wrap used to drop Escape first,
+    /// because it is the last cell.
+    #[test]
+    fn a_narrow_foot_loses_the_last_hints_and_keeps_the_way_back() {
+        let line: Vec<Hint> = vec![
+            ("LMB", "select"),
+            ("LMB x2", "enter"),
+            ("drag", "move it"),
+            ("QWER", "tool: move"),
+            ("RMB+WASD", "fly"),
+        ];
+        let escape = ("Esc", "pause");
+        let budget = |room: f32| {
+            let mut hints = line.clone();
+            fit_hints(&mut hints, escape, "SELECT", room);
+            hints.iter().map(|hint| hint.0).collect::<Vec<_>>()
+        };
+
+        assert_eq!(budget(486.0), ["LMB", "LMB x2", "drag"]);
+        assert_eq!(budget(140.0), Vec::<&str>::new());
+        assert_eq!(budget(2000.0).len(), line.len());
+        assert_eq!(budget(0.0).len(), line.len(), "not laid out yet");
+    }
+
     /// A legend with the cells up and the sync running.
     fn legend_app() -> App {
         let mut app = App::new();
@@ -5144,6 +3979,10 @@ mod tests {
         app.init_resource::<EditorOverlays>();
         app.init_resource::<EditorRebind>();
         app.init_resource::<OpenMenu>();
+        app.init_resource::<RailTab>();
+        app.init_resource::<StageTool>();
+        app.init_resource::<InputMode>();
+        app.init_resource::<canvas::BlockPopup>();
         app.add_systems(Update, sync_key_legend);
         app.world_mut().spawn((
             EditorKeyLegend,

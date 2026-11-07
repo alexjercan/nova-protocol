@@ -58,7 +58,7 @@ pub mod prelude {
 ///
 /// Here rather than beside the generator so a [`RolePriceRule`] can name a
 /// role without the world crates.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ShipRoleType {
     /// Unarmed traffic.
@@ -123,7 +123,7 @@ impl PriceFactor {
 }
 
 /// The bounds the product of every factor is held to, on each side.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct PriceClamp {
@@ -139,7 +139,7 @@ pub struct PriceClamp {
 /// `glut_share` times the target and past it, `glut`; linear between. A
 /// trader whose target holds none of the item deals at `unkept` whatever
 /// it holds.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct ScarcityRule {
@@ -160,7 +160,7 @@ pub struct ScarcityRule {
 /// thaw the play time it stood frozen is spent at once: each targeted item
 /// moves toward its target by `target * elapsed / recovery_seconds` units,
 /// never past it, see [`restocked_count`].
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct RestockRule {
@@ -174,7 +174,7 @@ pub struct RestockRule {
 /// An offer the player does not hold expires after the window for its kind,
 /// measured from its posting stamp (`nova_gameplay::jobs::SlotPosting`);
 /// a held job never expires.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct JobOfferRule {
@@ -185,7 +185,7 @@ pub struct JobOfferRule {
 }
 
 /// The factor a trader in a cluster of one type deals one category at.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct ClusterPriceRule {
@@ -199,7 +199,7 @@ pub struct ClusterPriceRule {
 
 /// The factor a civilization that fields only one role deals one category
 /// at. A civilization's factor weighs each role's by its preference share.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct RolePriceRule {
@@ -215,7 +215,7 @@ pub struct RolePriceRule {
 ///
 /// Content: the base bundle states one, and a mod's table replaces it whole.
 /// [`price_table_faults`] is the rule the merge and the lint share.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct PriceTable {

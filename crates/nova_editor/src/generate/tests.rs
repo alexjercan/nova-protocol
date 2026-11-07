@@ -9,7 +9,10 @@ use nova_input::prelude::InputSource;
 use nova_ship::prelude::{LinkPoint, GRID_EPSILON};
 
 use super::*;
-use crate::node::{EditorNode, ScenarioNode};
+use crate::{
+    history::tests::assert_one_step,
+    node::{EditorNode, ScenarioNode},
+};
 
 /// The resources the verb reads, a scenario, and one empty ship INSIDE which
 /// the editor is standing - which is where Generate lives.
@@ -139,7 +142,7 @@ fn generate_leaves_the_builder_where_they_can_roll_another() {
         "generating a hull walked out of the ship it was rolled into"
     );
     assert_eq!(
-        app.world().resource::<SelectedNode>().0,
+        app.world().resource::<SelectedNode>().primary(),
         Some(ship),
         "the tree marks the ship that just changed"
     );
@@ -723,4 +726,17 @@ fn a_hull_the_lint_refuses_never_enters_the_document() {
         line.contains("ambiguous mates"),
         "and it has to be the LINT that refused, not the collapse: {line}"
     );
+}
+
+#[test]
+fn generating_a_hull_is_one_step() {
+    let (mut app, ship) = generate_app();
+    app.world_mut()
+        .entity_mut(ship)
+        .insert(Transform::default());
+    let button = generate_button(&mut app);
+
+    assert_one_step(&mut app, "Generate Hull", |app| {
+        app.world_mut().trigger(Activate { entity: button });
+    });
 }

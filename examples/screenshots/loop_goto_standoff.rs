@@ -114,6 +114,7 @@ fn standoff(game_assets: &GameAssets) -> ScenarioConfig {
         description: "Two hulls sent to one mark from the same distance".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

@@ -203,6 +203,7 @@ fn scenario_spawning(id: &str, ship: &str) -> Content {
     Content::Scenario(ScenarioConfig {
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: true,
             filters: vec![],

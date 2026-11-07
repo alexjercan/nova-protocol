@@ -36,7 +36,12 @@ use nova_ship::prelude::{
     WellTargetType,
 };
 
+pub(crate) use self::asset::{
+    asset_kind_mut, asset_rows, content_reflect_mut, item_text, part_rows, set_item_text,
+    socket_rows, AssetPressType, AssetTextType, MeshPose,
+};
 use crate::{
+    asset::{AssetNode, AssetPartType, SocketNode},
     asset_index::prelude::AssetSort,
     config::SelectedNode,
     event::{
@@ -51,6 +56,8 @@ use crate::{
     scenario::PLAYER_ID,
     station::short_fault,
 };
+
+mod asset;
 
 /// The document nodes the inspector can be pointed at, so one `get` answers
 /// which kind of panel to draw.
@@ -67,6 +74,9 @@ pub(crate) type NodeKinds<'w, 's> = Query<
         Has<ActionNode>,
         Has<StepNode>,
         Has<GateNode>,
+        Has<AssetNode>,
+        Has<AssetPartType>,
+        Has<SocketNode>,
     ),
     With<EditorNode>,
 >;
@@ -92,6 +102,12 @@ pub(crate) enum InspectTarget {
     Step(Entity),
     /// The event one beat waits for.
     Gate(Entity),
+    /// The item on the bench.
+    Asset(Entity),
+    /// A section's collider or mesh handle.
+    AssetPart(Entity),
+    /// One socket of the section on the bench.
+    Socket(Entity),
 }
 
 impl InspectTarget {
@@ -106,7 +122,10 @@ impl InspectTarget {
             | InspectTarget::Filter(node)
             | InspectTarget::Action(node)
             | InspectTarget::Step(node)
-            | InspectTarget::Gate(node) => node,
+            | InspectTarget::Gate(node)
+            | InspectTarget::Asset(node)
+            | InspectTarget::AssetPart(node)
+            | InspectTarget::Socket(node) => node,
         }
     }
 
@@ -122,6 +141,9 @@ impl InspectTarget {
             InspectTarget::Action(_) => "ACTION",
             InspectTarget::Step(_) => "STEP",
             InspectTarget::Gate(_) => "GATE",
+            InspectTarget::Asset(_) => "ASSET",
+            InspectTarget::AssetPart(_) => "PART",
+            InspectTarget::Socket(_) => "SOCKET",
         }
     }
 }
@@ -138,9 +160,20 @@ pub(crate) fn inspected(
     context: &EditContext,
     kinds: &NodeKinds,
 ) -> Option<InspectTarget> {
-    let node = selected.0.or_else(|| context.current())?;
-    let (scenario, ship, section, object, event, filter, action, step, gate) =
+    let node = selected.primary().or_else(|| context.current())?;
+    let (scenario, ship, section, object, event, filter, action, step, gate, asset, part, socket) =
         kinds.get(node).ok()?;
+    // Before the scenario: the bench's root is both, and what it holds is the
+    // item.
+    if asset {
+        return Some(InspectTarget::Asset(node));
+    }
+    if part {
+        return Some(InspectTarget::AssetPart(node));
+    }
+    if socket {
+        return Some(InspectTarget::Socket(node));
+    }
     if scenario {
         return Some(InspectTarget::Scenario(node));
     }
@@ -199,6 +232,23 @@ pub(crate) enum FieldRoot {
     /// any authored config, and because setting it has a rule the write has
     /// to keep - the ship the player flies is never a station.
     Station,
+    /// The bench item's id. Its own root because a change is a rename: it runs
+    /// as a verb across the whole mod, not as a write into the node.
+    AssetId,
+    /// The bench item's config: a section's base, or a whole form.
+    Asset,
+    /// A section's kind payload.
+    AssetKind,
+    /// A field of the bench item reached through text and a rule.
+    AssetText(AssetTextType),
+    /// A section's render mesh transform, through [`MeshPose`].
+    MeshPose,
+    /// A button on the bench.
+    AssetPress(AssetPressType),
+    /// A socket's id: the node's [`NodeId`](crate::node::NodeId).
+    SocketId,
+    /// The socket's own fields.
+    Socket,
 }
 
 /// One step of a reflection path.
@@ -294,6 +344,8 @@ pub(crate) enum RowValue {
     /// Rebind action: the row NAMES the binding, so the row is the thing a
     /// builder presses to change it.
     Key(String),
+    /// A button, reading this. Its [`FieldRoot::AssetPress`] says what it does.
+    Press(String),
 }
 
 impl RowValue {
@@ -307,7 +359,8 @@ impl RowValue {
             | Self::Number(text)
             | Self::Colour(text)
             | Self::Fixed(text)
-            | Self::Key(text) => text.clone(),
+            | Self::Key(text)
+            | Self::Press(text) => text.clone(),
             // One line, the way the value reads on paper: three boxes are how
             // it is TYPED, not what it is.
             Self::Axes(axes) => axes.join(", "),
@@ -438,6 +491,12 @@ impl InspectorRow {
     /// The same row, saying what it is for.
     pub(crate) fn saying(mut self, hint: impl Into<String>) -> Self {
         self.hint = hint.into();
+        self
+    }
+
+    /// The same row, called `label`.
+    pub(crate) fn labelled(mut self, label: &str) -> Self {
+        label.clone_into(&mut self.label);
         self
     }
 
@@ -1170,7 +1229,7 @@ fn heading_and_label(path: &[PathStep]) -> (Vec<String>, String) {
 }
 
 /// `lock_signature` -> `Lock Signature`.
-fn pretty(name: &str) -> String {
+pub(crate) fn pretty(name: &str) -> String {
     name.split('_')
         .map(|word| {
             let mut chars = word.chars();
@@ -2386,6 +2445,21 @@ const MUZZLE: &str = "muzzle";
 /// An object's rows, cut to what the kind is worth showing.
 pub(crate) fn curated_object_rows(object: &ObjectNode, pose: &Transform) -> Vec<InspectorRow> {
     curate(object_rows(object, pose), object_picks(&object.kind))
+}
+
+/// The row a hull held as an object leads with, if `kind` is one: it is the
+/// file's, and the panel is where a modder asks why it has no sections to open.
+pub(crate) fn authored_hull_row(kind: &ScenarioObjectKind) -> Option<InspectorRow> {
+    matches!(
+        kind,
+        ScenarioObjectKind::Spaceship(_) | ScenarioObjectKind::Station(_)
+    )
+    .then(|| {
+        fixed(FieldRoot::Config, "Hull", "preserved as authored").saying(
+            "The file holds more about this spawn than a ship node can. It moves here and \
+             keeps the rest as written. Edit that hull in the file.",
+        )
+    })
 }
 
 /// What the Allegiance row says when the ship states no side and takes the

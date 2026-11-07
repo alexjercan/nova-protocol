@@ -33,6 +33,7 @@ mod tests;
 use crate::{
     bundle::resume_ordinal,
     config::{EditorSays, PartChoice, SelectedNode},
+    history::commit_edit,
     node::{
         insert_lifted_section, resume_ordinals, EditContext, NextChildOrdinal, NodeId, SectionNode,
         ShipNode,
@@ -54,11 +55,6 @@ impl Default for HullSeed {
         Self(rand::random())
     }
 }
-
-/// The rail block that generates a hull, shown only INSIDE a ship: a hull is
-/// what one ship IS, so the block sits in that ship's own settings.
-#[derive(Component)]
-pub(crate) struct GenerateSettings;
 
 /// The seed field of that block.
 #[derive(Component)]
@@ -232,7 +228,8 @@ pub(crate) fn generate_ship(
         );
     }
     resume_ordinals(&mut ordinals, ship, ordinal);
-    selected.0 = Some(ship);
+    selected.set(Some(ship));
+    commit_edit(&mut commands, "Generate Hull");
     says.note(format!("seed {} built a hull of {parts} parts", seed.0));
     says.accept();
 }

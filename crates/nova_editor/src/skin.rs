@@ -16,7 +16,7 @@
 //!
 //! Plates are DISPLAY ONLY. They carry no `SectionMarker` and no `Collider`, so
 //! the placement solver never counts one as a part, the pointer never hits one
-//! (avian's picking backend raycasts colliders), and the Q pipette cannot arm
+//! (avian's picking backend raycasts colliders), and the P pipette cannot arm
 //! one. A plate the builder could select or place against would be a part on a
 //! ship nobody built.
 

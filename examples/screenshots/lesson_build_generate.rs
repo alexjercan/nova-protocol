@@ -24,7 +24,7 @@
 //! and kept. The walk therefore does what the lesson says a builder can do: it
 //! puts the caret in the seed field, clears it and types one. The hull in the
 //! sheet is that seed's hull, the same hull the next capture will roll, and
-//! the number is legible in the rail beside it.
+//! the number is legible in the strip under it.
 //!
 //! The clear is [`SEED_CLEAR`] backspaces against a field of at most
 //! `SEED_DIGITS`. Counting against the seed that HAPPENS to be there is how
@@ -104,7 +104,7 @@ const SKIN_BARE_CELLS: u32 = 5;
 
 /// The seed the walk types, and the hull the handbook therefore ships.
 ///
-/// Short on purpose: the field is in the rail at eleven pixels, and a
+/// Short on purpose: the field is in the strip at eleven pixels, and a
 /// twenty-digit random number there is a grey bar. A number a reader could
 /// actually write down and type back in is the lesson's own claim.
 #[cfg(feature = "debug")]
@@ -214,60 +214,7 @@ fn the_hull_was_rolled() -> std::sync::Arc<nova_protocol::nova_debug::harness::P
     std::sync::Arc::new(|world: &World| count_sections(world) >= ROLLED_SECTIONS)
 }
 
-/// Where in the window the walk parks the skin toggle before pressing it.
-///
-/// Low, but clear of the key legend along the bottom edge: the row has to be
-/// under the pointer AND in the recorded frame, and the rail scrolls to put it
-/// there rather than the camera moving to find it.
-#[cfg(feature = "debug")]
-const SKIN_TOGGLE_Y: f32 = 800.0;
-
-/// The skin toggle's centre in the window, and its half height.
-#[cfg(feature = "debug")]
-fn toggle_at(world: &mut World) -> Option<(f32, f32)> {
-    let mut rows = world.query::<(&Name, &ComputedNode, &UiGlobalTransform)>();
-    rows.iter(world)
-        .find(|(name, _, _)| name.as_str() == "Ship Skin Toggle")
-        .map(|(_, node, at)| (at.translation.y, node.size().y * 0.5))
-}
-
-/// Scroll the rail by however far the toggle still is from where it is wanted.
-///
-/// Re-measured every frame rather than spent in one notch: the wheel is
-/// clamped against the content (`nova_ui::screen::scroll`), and a rolled hull's
-/// scene list is long enough that the first notch can be the clamp rather than
-/// the gap.
-#[cfg(feature = "debug")]
-fn scroll_the_toggle_into_view(world: &mut World) {
-    let Some((y, _)) = toggle_at(world) else {
-        return;
-    };
-    // Negative is down: the handler subtracts the notch from the stored offset,
-    // so a row BELOW the fold is reached with a negative wheel.
-    scroll_pixels(-(y - SKIN_TOGGLE_Y))(world);
-}
-
-/// Advance once the whole toggle row is inside the window.
-#[cfg(feature = "debug")]
-fn the_toggle_is_in_view() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| {
-        let Some(mut rows) = world.try_query::<(&Name, &ComputedNode, &UiGlobalTransform)>() else {
-            return false;
-        };
-        rows.iter(world)
-            .find(|(name, _, _)| name.as_str() == "Ship Skin Toggle")
-            .is_some_and(|(_, node, at)| {
-                let half = node.size().y * 0.5;
-                at.translation.y - half > 0.0 && at.translation.y + half < LESSON_STILL.1 as f32
-            })
-    })
-}
-
 /// Where the skin toggle actually is, for the abort path.
-///
-/// The rail is a scrolling column and a rolled hull is longer than the stub
-/// that preceded it, so the row this walk aims at can be under the fold rather
-/// than merely unhit - two failures that look identical from a stalled beat.
 #[cfg(feature = "debug")]
 fn the_toggle_diagnosis(world: &World) -> String {
     let Some(mut rows) = world.try_query::<(&Name, &ComputedNode, &UiGlobalTransform)>() else {
@@ -297,6 +244,7 @@ fn main() -> bevy::app::AppExit {
 
     // The same app the game's Sandbox button opens.
     let mut app = editor_app(true, None);
+    app.insert_resource(EditorOpensScratch);
 
     #[cfg(feature = "debug")]
     {
@@ -367,6 +315,7 @@ fn build_generate_script() -> nova_protocol::nova_debug::harness::AutopilotPlugi
         .on_enter(release_key(KeyCode::Escape))
         .add()
         // THE SEED, typed the way the lesson says it can be.
+        .click("open the Ship tab", "Browser Tab Ship")
         .click("put the caret in the seed field", "Hull Seed Field")
         .step("clear the seed the editor rolled")
         .on_enter(|world: &mut World| {
@@ -440,22 +389,6 @@ fn build_generate_script() -> nova_protocol::nova_debug::harness::AutopilotPlugi
         // that does work on it clicks the row and lets the press bubble to the
         // row's own observer (`screenshot_editor.rs`). The real gate is two
         // beats down: the plating either appears or the run says so.
-        // The rail is a scrolling column, and the hull Generate rolled makes a
-        // scene list long enough to push Ship Settings thousands of pixels
-        // under the fold - the first run of this beat found the toggle at
-        // y 5441 on a 1080 window. So the rail is scrolled the way a builder
-        // scrolls it, with the wheel over the pane.
-        .step("put the pointer over the rail")
-        .on_enter(hover_named("Scene List"))
-        .until(frames(SETTLE_FRAMES))
-        .add()
-        .step("scroll the rail down to the skin toggle")
-        .on_enter(scroll_the_toggle_into_view)
-        .each(|world: &mut World, _, _| scroll_the_toggle_into_view(world))
-        .until(the_toggle_is_in_view())
-        .diagnose(the_toggle_diagnosis)
-        .deadline(STEP_DEADLINE_SECS)
-        .add()
         .step("rest the pointer on the skin toggle")
         .on_enter(hover_named("Ship Skin Toggle"))
         .each(|world: &mut World, _, _| hover_named("Ship Skin Toggle")(world))

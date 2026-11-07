@@ -326,6 +326,7 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
     let events = vec![
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -335,6 +336,7 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
         // behind. Here that is one latch, which the finish handler then reads.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnCinematicSkipped,
             once: true,
             filters: vec![scene(OVERTURE)],
@@ -345,6 +347,7 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
         // copy the seeded zero, and `report_skip` would fail naming it.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnCinematicFinished,
             once: true,
             filters: vec![scene(OVERTURE)],
@@ -365,6 +368,7 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
         // an unskippable scene is not offered and does not answer.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnCinematicSkipped,
             once: true,
             filters: vec![scene(DEBRIEF)],
@@ -372,6 +376,7 @@ fn showcase(game_assets: &GameAssets) -> ScenarioConfig {
         },
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnCinematicFinished,
             once: true,
             filters: vec![scene(DEBRIEF)],

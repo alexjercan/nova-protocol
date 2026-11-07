@@ -18,7 +18,8 @@
 //! different colours, so it REBUILDS its children where the others repaint.
 //!
 //! One family per module - `button`, `panel`, `list_row`, `slider`,
-//! `segmented`, `chrome`, `tooltip` - all re-exported here, with the shared
+//! `segmented`, `chrome`, `tooltip`, `tabs`, `tree`, `popup`, `select` - all
+//! re-exported here, with the shared
 //! [`DoubleClick`] detector (`double_click`), so `widget::<item>` paths are
 //! unchanged. [`NovaUiPlugin`](crate::NovaUiPlugin) wires every family's
 //! observers and reconcilers.
@@ -28,18 +29,20 @@
 /// small layout helpers.
 pub mod prelude {
     pub use super::{
-        badge, button, button_on_setting, checkbox, checkbox_glyph, key_chip, list_row,
-        list_row_colors, menu_button, panel, panel_head, panel_header, panel_node, panel_radius,
-        segmented, segmented_container, segmented_container_wrapping, segmented_option,
-        segmented_option_compact, segmented_option_fit, separator, slider_meter_color,
-        slider_track, swatch, text_field, themed_button, toggle, BadgeKind, ButtonCueMute,
-        ButtonCueType, ButtonLabel, ButtonSpec, ButtonValue, ButtonVariant, DoubleClick, KeyChip,
-        KeyChipLabel, ListRow, PanelHeadTag, PanelHeadTitle, SegmentedSkin, Selected, SliderBlock,
-        SliderFill, SliderTrack, TextField, TextFieldError, TextFieldFocused, TextFieldSpec,
-        TextFieldSubmitted, TextFieldSystems, TextFieldValue, ThemedBadge, ThemedBorder,
-        ThemedButton, ThemedCheckbox, ThemedFill, ThemedImageTint, ThemedPanel, ThemedPanelHead,
-        ThemedRadius, ThemedSeparator, ThemedSwatch, ThemedText, ThemedTextShadow, ThemedToggle,
-        Tooltip, TooltipPanel, UiText, DOUBLE_CLICK_SECS,
+        badge, button, button_on_setting, checkbox, checkbox_glyph, close_popups, key_chip,
+        list_row, list_row_colors, menu_button, panel, panel_head, panel_header, panel_node,
+        panel_radius, popup_row, segmented, segmented_container, segmented_container_wrapping,
+        segmented_option, segmented_option_compact, segmented_option_fit, select, separator,
+        slider_meter_color, slider_track, spawn_popup, swatch, tab, tab_strip, text_field,
+        themed_button, toggle, tree_keep, tree_row, BadgeKind, ButtonCueMute, ButtonCueType,
+        ButtonLabel, ButtonSpec, ButtonValue, ButtonVariant, DoubleClick, KeyChip, KeyChipLabel,
+        ListRow, PanelHeadTag, PanelHeadTitle, PopupPanel, PopupRoot, PopupRow, SegmentedSkin,
+        Select, SelectChanged, SelectLabel, Selected, SliderBlock, SliderFill, SliderTrack,
+        TabLabel, TextField, TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted,
+        TextFieldSystems, TextFieldValue, ThemedBadge, ThemedBorder, ThemedButton, ThemedCheckbox,
+        ThemedFill, ThemedImageTint, ThemedPanel, ThemedPanelHead, ThemedRadius, ThemedSeparator,
+        ThemedSwatch, ThemedText, ThemedTextShadow, ThemedToggle, Tooltip, TooltipPanel, TreeCaret,
+        TreeRowSpec, UiText, DOUBLE_CLICK_SECS,
     };
 }
 
@@ -48,10 +51,14 @@ mod chrome;
 mod double_click;
 mod list_row;
 mod panel;
+mod popup;
 mod segmented;
+mod select;
 mod slider;
+mod tabs;
 mod text_field;
 mod tooltip;
+mod tree;
 
 #[cfg(test)]
 mod fixtures;
@@ -68,10 +75,14 @@ pub use chrome::*;
 pub use double_click::*;
 pub use list_row::*;
 pub use panel::*;
+pub use popup::*;
 pub use segmented::*;
+pub use select::*;
 pub use slider::*;
+pub use tabs::*;
 pub use text_field::*;
 pub use tooltip::*;
+pub use tree::*;
 
 use self::{
     button::{
@@ -85,7 +96,9 @@ use self::{
     },
     list_row::{list_row_on_interaction, reconcile_list_row_themes},
     panel::{reconcile_panel_head_themes, reconcile_panel_themes},
+    popup::{close_popup_on_press, close_popup_on_row, place_popups},
     segmented::reconcile_segmented_themes,
+    select::{open_select, pick_select_option},
     slider::{reconcile_slider_track_themes, sync_slider_tracks},
     text_field::{
         one_field_holds_the_focus, paint_text_fields, text_field_keyboard, text_field_on_pointer,
@@ -138,7 +151,11 @@ pub(crate) fn build(app: &mut App) {
         .add_observer(list_row_on_interaction::<Add, Selected>)
         .add_observer(list_row_on_interaction::<Remove, Selected>)
         .add_observer(text_field_on_pointer)
-        .add_observer(spawn_tooltip_panel);
+        .add_observer(spawn_tooltip_panel)
+        .add_observer(close_popup_on_row)
+        .add_observer(close_popup_on_press)
+        .add_observer(open_select)
+        .add_observer(pick_select_option);
 
     app.add_systems(
         Update,
@@ -159,6 +176,7 @@ pub(crate) fn build(app: &mut App) {
             reconcile_swatches,
             reconcile_toggles,
             sync_tooltips,
+            place_popups,
             // The rebuild first, then the value onto its new children. The
             // explicit edge auto-inserts an `ApplyDeferred`
             // (`ScheduleBuildSettings::auto_insert_apply_deferred`, default

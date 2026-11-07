@@ -831,6 +831,7 @@ mod tests {
     fn on_start(actions: Vec<EventActionConfig>) -> ScenarioEventConfig {
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -1033,6 +1034,7 @@ mod tests {
         ]]);
         let triggered = ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnUpdate,
             once: false,
             filters: vec![],
@@ -1083,6 +1085,7 @@ mod tests {
             )]),
             ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnUpdate,
                 once: false,
                 filters: vec![],

@@ -15,8 +15,8 @@ pub const ADD_MENU: &str = "Add Menu Button";
 /// the app opens - where the founding click lands, and where a beat points to
 /// put a ghost away without disarming the part it is holding.
 ///
-/// Below the stage's own middle and clear of all three panels: the rail takes
-/// the left 210 and the inspector the right 300 (`ui/mod.rs`,
-/// `ui/inspector.rs`), so a click out at 760 lands ON the inspector and never
-/// reaches the stage.
-pub const EMPTY_SPACE: Vec2 = Vec2::new(460.0, 660.0);
+/// Low in the stage and clear of the panels: the Hierarchy takes the left 240,
+/// the Inspector the right 300, and the browser strip and the foot the bottom
+/// 202 (`ui/shell.rs`), so a click at y 660 lands ON the strip and never reaches
+/// the stage.
+pub const EMPTY_SPACE: Vec2 = Vec2::new(460.0, 540.0);

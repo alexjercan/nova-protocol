@@ -138,6 +138,7 @@ pub fn asteroid(
 pub fn spawn_on_start(objects: Vec<ScenarioObjectConfig>) -> Vec<ScenarioEventConfig> {
     vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],

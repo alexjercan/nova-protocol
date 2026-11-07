@@ -64,6 +64,7 @@ pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
             // the save's ship state lands on the ship once it stands.
             ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnStart,
                 once: true,
                 filters: vec![],
@@ -71,6 +72,7 @@ pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
             },
             ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnResume,
                 once: true,
                 filters: vec![],
@@ -78,6 +80,7 @@ pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
             },
             ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnDestroyed,
                 once: true,
                 filters: vec![entity(PLAYER_ID)],
@@ -90,6 +93,7 @@ pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
             // index, so a handler added before this one would move them.
             ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnJobAccepted,
                 once: true,
                 filters: vec![],

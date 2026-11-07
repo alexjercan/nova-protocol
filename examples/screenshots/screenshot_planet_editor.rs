@@ -43,6 +43,7 @@ fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
 
     let mut app = editor_app(true, None);
+    app.insert_resource(EditorOpensScratch);
 
     #[cfg(feature = "debug")]
     {

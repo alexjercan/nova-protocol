@@ -203,6 +203,7 @@ fn station_void(round: Round, game_assets: &GameAssets, sections: &GameSections)
         description: "A waystation that refits, and a player who wants one more gun.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

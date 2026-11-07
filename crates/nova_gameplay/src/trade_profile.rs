@@ -65,7 +65,7 @@ impl From<&str> for TradeProfileDesignId {
 
 /// How often the open world draws a profile for a generated ship of one
 /// role, against every other profile that names the role.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct TradeProfileRoleWeight {
@@ -76,7 +76,7 @@ pub struct TradeProfileRoleWeight {
 }
 
 /// One thing a visiting ship wants to trade with the station.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct TradeIntent {
@@ -94,7 +94,7 @@ pub struct TradeIntent {
 }
 
 /// One job a visiting ship posts on the station's board when it docks.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum VisitJobType {
     /// Bring `count` of `item` to the station, for `reward_cr`.
@@ -109,7 +109,7 @@ pub enum VisitJobType {
 }
 
 /// One authored trade profile.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct TradeProfileDesign {

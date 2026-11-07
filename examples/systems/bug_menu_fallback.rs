@@ -256,6 +256,7 @@ fn hold_the_draw_empty(mut scenarios: ResMut<GameScenarios>, mut issues: ResMut<
 fn menu_fallback_probe_live(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let events = vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],

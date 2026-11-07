@@ -788,6 +788,7 @@ pub(super) fn on_next_input(
     mut world: ResMut<crate::world::NovaEventWorld>,
     pause: Res<State<PauseStates>>,
     outcome: Option<Res<CurrentOutcome>>,
+    unsaved: Option<ResMut<UnsavedWork>>,
     mut game_state: Option<ResMut<NextState<GameStates>>>,
 ) {
     // Observers bypass system-set gating; freeze intent changes while the pause
@@ -802,6 +803,9 @@ pub(super) fn on_next_input(
             world.release_lingering_next();
         }
         AdvanceDecision::ExitToMenu => {
+            if unsaved.is_some_and(|mut work| work.stops(GuardedLeave::MainMenu)) {
+                return;
+            }
             // Optional - headless rigs without the states plugin have no
             // NextState resource, and the input must not panic there.
             if let Some(state) = game_state.as_deref_mut() {
@@ -884,6 +888,7 @@ mod tests {
             .collect();
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -1284,6 +1289,7 @@ mod tests {
             description: "a range whose picket was deleted".to_string(),
             events: vec![ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnDestroyed,
                 once: false,
                 filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -1358,6 +1364,7 @@ mod tests {
             description: "a belt with a typo in it".to_string(),
             events: vec![ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnStart,
                 once: true,
                 filters: vec![],
@@ -1411,6 +1418,7 @@ mod tests {
             description: "the sandbox offers itself again".to_string(),
             events: vec![ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnDestroyed,
                 once: false,
                 filters: vec![],

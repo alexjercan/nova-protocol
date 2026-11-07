@@ -242,6 +242,7 @@ fn load_ship(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<Ga
         description: "The derived skin at the open end of a solar wing.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

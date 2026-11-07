@@ -21,16 +21,27 @@ nova_assets = { path = "../nova_assets" }
 nova_gameplay = { path = "../nova_gameplay" }
 # The save file IS the mod format: `Content`, its RON writer and its reader.
 nova_modding = { path = "../nova_modding" }
+# The dependency graph the Mod Settings window refuses a cycle against.
+nova_mod_format = { path = "../nova_mod_format" }
+# Package lints a mod's lessons as the merge does.
+nova_training = { path = "../nova_training" }
 nova_ship = { path = "../nova_ship" }
 nova_scenario = { path = "../nova_scenario" }
 # The Generate verb: a seed and the merged catalog in, a hull out. The editor
 # owns the seed and the refusal; the collapse itself belongs to that crate.
 nova_wfc = { path = "../nova_wfc" }
+# The world generator's part rules: what a section built here must satisfy.
+nova_world_base = { path = "../nova_world_base" }
 nova_ui = { path = "../nova_ui" }
 # The quantity types: what the inspector labels a row's unit from, and what the
 # range lowers its layout into. Also the engine half of the objective-set proof:
 # real handlers, driven with the same events the game fires.
 nova_events = { path = "../nova_events" }
+
+# Package and Import Package. Native only: the web build has no file store to
+# package from, and the hub says so.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+zip = { version = "3", default-features = false, features = ["deflate-flate2"] }
 
 [lints]
 workspace = true
@@ -39,6 +50,7 @@ workspace = true
 debug = ["bevy/track_location", "nova_gameplay/debug"]
 
 [dev-dependencies]
+tempfile = "3"
 # The Generate tests read the SHIPPED catalog and styles out of the
 # builders rather than off disk, so they fail on a content change rather than
 # on a missing asset server.

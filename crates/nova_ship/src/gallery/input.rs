@@ -443,6 +443,7 @@ mod tests {
             recipe: Vec::new(),
             alternate: None,
             placeable,
+            own: false,
         };
         app.world_mut().spawn((
             GalleryHost {

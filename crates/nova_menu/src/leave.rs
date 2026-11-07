@@ -358,18 +358,22 @@ pub(crate) fn on_leave_without_saving(
 
 /// The window's close button. With a saved world in play it is Exit, which
 /// waits on the leave save; a close while a leave is already pending does
-/// nothing, so it cannot cut a write short. Anywhere else the game quits at
-/// once, as it always did.
+/// nothing, so it cannot cut a write short. Unsaved work asks first
+/// ([`UnsavedWork`]). Anywhere else the game quits at once, as it always did.
 pub(crate) fn on_window_close_requested(
     mut closes: MessageReader<WindowCloseRequested>,
     mut commands: Commands,
     game: Option<Res<State<GameStates>>>,
     pending: Option<Res<PendingLeave>>,
     session: Option<ResMut<WorldSaveSession>>,
+    unsaved: Option<ResMut<UnsavedWork>>,
     mut pause: ResMut<NextState<PauseStates>>,
     mut exit: MessageWriter<AppExit>,
 ) {
     if closes.read().count() == 0 || pending.is_some() {
+        return;
+    }
+    if unsaved.is_some_and(|mut work| work.stops(GuardedLeave::Exit)) {
         return;
     }
     let playing = game.is_some_and(|game| *game.get() == GameStates::Playing);

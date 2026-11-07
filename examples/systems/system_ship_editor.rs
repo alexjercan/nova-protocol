@@ -52,6 +52,8 @@
 #[cfg(feature = "debug")]
 #[path = "shared/editor_stage.rs"]
 mod editor_stage;
+#[path = "../playable/shared/open_world_stage.rs"]
+mod open_world_stage;
 
 // Only the debug-gated autopilot below names bevy types directly.
 #[cfg(feature = "debug")]
@@ -72,9 +74,12 @@ struct Cli;
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
+    // The walk saves for real: its mods must not land in a player's folder.
+    open_world_stage::isolate_the_profile(env!("CARGO_CRATE_NAME"));
 
     // The same editor app the game/binary runs - not a bespoke copy.
     let mut app = editor_app(true, None);
+    app.insert_resource(EditorOpensScratch);
 
     // Headless smoke-test harness: inert in a normal run (gated on NOVA_AUTOPILOT).
     #[cfg(feature = "debug")]
@@ -232,7 +237,7 @@ const MENU_SHIP: &str = "Ship Menu Button";
 
 /// The sky picker's scrolling list, and the row the walk picks from it.
 #[cfg(feature = "debug")]
-const SKY_LIST: &str = "Ref Window Body";
+const SKY_LIST: &str = "Pick Body";
 #[cfg(feature = "debug")]
 const OTHER_SKY: &str = "Ref Option dep://base/textures/cubemap_alt.png";
 
@@ -349,6 +354,10 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // below the list's fold. The wheel goes to whatever the pointer is
         // over, and the pick map sees a move one PreUpdate late, so the aim is
         // its own beat.
+        .step("editor: the sky list is up")
+        .until(ui_node_present(SKY_LIST))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
         .step("editor: aim the wheel at the sky list")
         .on_enter(hover_named(SKY_LIST))
         .until(pointer_over_node(SKY_LIST))
@@ -853,6 +862,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(shot_written("editor-skin-off.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
+        .click_a_widget("editor: open the Ship tab", "Browser Tab Ship")
         .click_a_widget("editor: click Ship Skin", "Ship Skin Toggle")
         .step("editor: the skin closed over the build")
         .until(the_skin_is_on())
@@ -2395,39 +2405,10 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: the second save went straight to its file");
         })
         .add()
-        // The complaint this answers: a range saved here did not appear in the
-        // Scenarios list until the game was quit and started again, because
-        // content is merged once at boot. The save no longer reloads - a
-        // content reload is a RESTART now, and restarting a builder mid-build
-        // is worse than the wait - so what it does instead is switch its own
-        // mod ON. Leaving the editor for the main menu restarts onto it, which
-        // is the first moment the Scenarios picker is reachable at all.
-        //
-        // Only the enabled set is asserted here. Whether the registry holds the
-        // id yet depends on the machine: a mod cache that already names the
-        // slot merges the PREVIOUS bytes the moment it is switched on, and a
-        // cache that has never seen it has nothing to merge.
-        .step("editor: the save switched its own mod on")
-        .on_enter(|world: &mut World| {
-            let enabled = world.resource::<EnabledMods>();
-            assert!(
-                enabled.0.contains(SAVED_RANGE_ID),
-                "a builder must not have to go and enable their own save; the set held {:?}",
-                enabled.0
-            );
-            nova_probe::probe_marker(
-                world,
-                "outcome: a saved range is switched on for the way out",
-                serde_json::json!({}),
-            );
-            info!("editor: the save enabled mod '{SAVED_RANGE_ID}'");
-        })
-        .add()
-        // Thrown away on purpose: a walk cannot restart the process, so New
-        // Scenario is what stands in for one. It reseeds the stock range, which
-        // has no `ship_2` in it - so a `ship_2` after the Open can only have
-        // come off disk.
-        // Neither of these two verbs acts on the row: a document has no undo,
+        // Moved off on purpose: New Scenario opens an empty scenario of the
+        // same mod, which has no `ship_2` in it, so a `ship_2` after the Open
+        // can only have come out of the project.
+        // Neither of these two verbs acts on the row: New clears the history,
         // so the row asks and the window's own button is what goes through
         // with it. The first press proves the ASK - the ship is still there
         // while the question is up.
@@ -2436,7 +2417,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .on_enter(|world: &mut World| {
             assert!(
                 ui_node_rect(world, "Confirm Window").is_some(),
-                "a verb with no undo must ask before it runs"
+                "New Scenario asks which template before it runs"
             );
             let nodes = world.resource::<EditorProbe>().context_nodes.clone();
             assert!(
@@ -2449,22 +2430,26 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "outcome: a destructive verb asks first",
                 serde_json::json!({}),
             );
-            info!("editor: New Scenario asked before throwing the document away");
+            info!("editor: New Scenario asked before leaving the document");
         })
         .add()
-        .click_a_widget("editor: found the new one on the stock range", "Template Free-Flight Range")
-        .step("editor: the built document is gone")
+        .click_a_widget("editor: found the new one empty", EMPTY_TEMPLATE_ROW)
+        .step("editor: the built scenario is closed")
         .until(no_object_named("ship_2"))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .click_a_menu_item("editor: open the saved document", MENU_FILE, "Open Item")
-        .click_a_widget(
-            "editor: pick the range that was just saved",
-            SAVED_RANGE_ROW,
-        )
+        .click_a_widget("editor: show the mod's contents", "Browser Tab Assets")
+        .click_a_widget("editor: mark the scenario that was built", SAVED_RANGE_TILE)
+        // Enter, not a double click: two lavapipe frames outlast the double
+        // click window.
         .step("editor: the saved document came back")
+        .on_enter(press_key(KeyCode::Enter))
         .until(the_status_reads("opened"))
         .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: let Enter go")
+        .on_enter(release_key(KeyCode::Enter))
+        .until(frames(2))
         .add()
         .step("editor: the document came back node for node, pose for pose")
         .on_enter(|world: &mut World| {
@@ -2645,6 +2630,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // editor code, not content - so the only authored input left is this
         // list, and what the beat proves is that it is REACHABLE and carries
         // the merged catalog. A mod's section is a row in exactly this list.
+        .click_a_widget("editor: open the Ship tab for the draw list", "Browser Tab Ship")
         .step("editor: the draw list is up with the merged catalog on it")
         .until(and(
             ui_node_present("Part List"),
@@ -2716,34 +2702,15 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: the generated hull raised {} keybind chip(s)", chips.len());
         })
         .add()
-        .click_a_menu_item("editor: save the arena as", MENU_FILE, "Save As... Item")
+        .click_a_menu_item("editor: save a copy", MENU_FILE, "Save As Copy Item")
         .step("editor: the name window is up for the arena")
         .until(a_file_window_is_up())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .click_a_widget("editor: accept the arena's own name", "File Save Button")
-        .step("editor: the arena saved under its own name")
-        .until(the_status_reads("saved as Arena"))
+        .click_a_widget("editor: accept the offered copy name", "File Save Button")
+        .step("editor: the copy is a mod of its own")
+        .until(the_status_reads("saved a copy"))
         .deadline(BEAT_DEADLINE_SECS)
-        .add()
-        // Two files, not one slot written twice. New Scenario forgot the first
-        // one, so this save had to ask for a name and derive a new id from it.
-        .step("editor: the second save is a second bundle")
-        .on_enter(|world: &mut World| {
-            let enabled = world.resource::<EnabledMods>().0.clone();
-            for wanted in [SAVED_RANGE_ID, "editor_arena"] {
-                assert!(
-                    enabled.contains(wanted),
-                    "both saves owe the run a mod, and it holds {enabled:?}"
-                );
-            }
-            nova_probe::probe_marker(
-                world,
-                "outcome: a named save writes a bundle of its own",
-                serde_json::json!({}),
-            );
-            info!("editor: the run left two saved ranges: {enabled:?}");
-        })
         .add()
 }
 
@@ -3662,11 +3629,14 @@ fn inspector_labels(world: &World) -> Vec<String> {
 /// The scenario id the editor's save writes its range under: derived from the
 /// stock range's own name, which is what the offered name field holds.
 #[cfg(feature = "debug")]
-const SAVED_RANGE_ID: &str = "editor_saved_range";
 
-/// The row that range is offered on in the Open window.
+/// The tile that range is offered on in the Assets grid.
 #[cfg(feature = "debug")]
-const SAVED_RANGE_ROW: &str = "Bundle Row editor_saved_range";
+const SAVED_RANGE_TILE: &str = "Asset Tile Saved Range";
+
+/// The template that holds no `ship_2`.
+#[cfg(feature = "debug")]
+const EMPTY_TEMPLATE_ROW: &str = "Template Empty Scenario";
 
 /// What the Scene rows READ as, in draw order - the label column only.
 #[cfg(feature = "debug")]
@@ -3679,7 +3649,7 @@ fn scene_row_labels(world: &World) -> Vec<String> {
     };
     rows.iter()
         .filter_map(|row| {
-            let wrapper = world.get::<Children>(row)?.iter().nth(1)?;
+            let wrapper = world.get::<Children>(row)?.iter().nth(2)?;
             let label = world.get::<Children>(wrapper)?.iter().next()?;
             Some(world.get::<Text>(label)?.0.clone())
         })

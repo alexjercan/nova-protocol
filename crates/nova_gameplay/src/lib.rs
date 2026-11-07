@@ -134,7 +134,7 @@ pub mod prelude {
         rounds::prelude::*, saved_refs::prelude::*, settings::prelude::*, shake::prelude::*,
         soft_dot::prelude::*, station_visits::prelude::*, trade_profile::prelude::*,
         transform::prelude::*, transient_light::prelude::*, EscapeOwner, GameMode, GameStates,
-        PauseStates,
+        GuardedLeave, PauseStates, UnsavedWork,
     };
 }
 
@@ -210,6 +210,49 @@ pub enum PauseStates {
 #[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq, Reflect)]
 #[reflect(Resource)]
 pub struct EscapeOwner(pub bool);
+
+/// A way out of the running session that would end it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GuardedLeave {
+    /// Back to the main menu.
+    MainMenu,
+    /// Quit the app.
+    Exit,
+}
+
+/// Whether a surface holds work a leave would lose, and the leave it stopped.
+///
+/// Here because the editor holds the work while `nova_menu` and `nova_scenario`
+/// own the ways out, and neither may depend on the editor. A leaver calls
+/// [`Self::stops`] first and does nothing more when it answers true. The holder
+/// reads [`Self::take_asked`], puts the question to the player, and carries the
+/// leave out itself.
+#[derive(Resource, Debug, Default)]
+pub struct UnsavedWork {
+    held: bool,
+    asked: Option<GuardedLeave>,
+}
+
+impl UnsavedWork {
+    /// Say whether unsaved work exists now.
+    pub fn hold(&mut self, held: bool) {
+        self.held = held;
+    }
+
+    /// Stop `leave` if work would be lost, and keep it for the holder to ask
+    /// about. True means the caller must not go.
+    pub fn stops(&mut self, leave: GuardedLeave) -> bool {
+        if self.held {
+            self.asked = Some(leave);
+        }
+        self.held
+    }
+
+    /// The stopped leave, if one is waiting to be asked about.
+    pub fn take_asked(&mut self) -> Option<GuardedLeave> {
+        self.asked.take()
+    }
+}
 
 impl PauseStates {
     /// True when gameplay is frozen (any

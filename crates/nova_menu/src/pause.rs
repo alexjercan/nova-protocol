@@ -726,9 +726,13 @@ pub(crate) fn on_back_to_menu(
     _activate: On<Activate>,
     #[cfg(not(target_arch = "wasm32"))] mut commands: Commands,
     #[cfg(not(target_arch = "wasm32"))] mut saved: Option<ResMut<WorldSaveSession>>,
+    unsaved: Option<ResMut<UnsavedWork>>,
     mut state: ResMut<NextState<GameStates>>,
     mut pause: ResMut<NextState<PauseStates>>,
 ) {
+    if unsaved.is_some_and(|mut work| work.stops(GuardedLeave::MainMenu)) {
+        return;
+    }
     #[cfg(not(target_arch = "wasm32"))]
     if let Some(session) = saved.as_mut() {
         begin_leave(LeaveTarget::Menu, &mut commands, session, &mut pause);

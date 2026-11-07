@@ -239,6 +239,7 @@ enum Verb {
     GotoPos,
     Orbit,
     MatchVelocity,
+    MatchTarget,
     DockApproach,
 }
 
@@ -251,6 +252,7 @@ impl Verb {
             AutopilotAction::GotoPos { .. } => Verb::GotoPos,
             AutopilotAction::Orbit { .. } => Verb::Orbit,
             AutopilotAction::MatchVelocity { .. } => Verb::MatchVelocity,
+            AutopilotAction::MatchTarget { .. } => Verb::MatchTarget,
             AutopilotAction::DockApproach { .. } => Verb::DockApproach,
         }
     }
@@ -363,6 +365,7 @@ fn lane(game_assets: &GameAssets, subject: Subject) -> ScenarioConfig {
         ),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -610,6 +613,7 @@ fn note_a_completion(
         AutopilotAction::GotoPos { .. } => Leg::GotoPos,
         AutopilotAction::Orbit { .. }
         | AutopilotAction::MatchVelocity { .. }
+        | AutopilotAction::MatchTarget { .. }
         | AutopilotAction::DockApproach { .. } => return,
     };
     info!("flight legs: {} reported {leg:?}", legs.subject.ship());

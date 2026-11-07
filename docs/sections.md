@@ -1022,6 +1022,16 @@ is outside what a patch can say (a different kind, a muzzle the prototype does
 not carry), which is the only case that falls back to an `Inline` copy. So the
 editor never keeps a second list of which fields the patch reaches.
 
+The same crate builds new instances of a section on a bench
+(`crates/nova_editor/src/asset.rs`). Assets > + > Sections copies a prototype
+or a plain hull into the mod and opens it as the document: the root holds the
+`Content`, and the collider, mesh and each link point are nodes under it. Sockets
+are `SocketNode`s with a `Transform` in cells, so the gizmo moves them on a 5 m
+grid and a move is one undo step; `lowered_item` writes them back to `link_points`.
+A project section reaches `GameSections` for the session through
+`sync_project_sections`, not through a merge, because a merge refusal during
+`GameStates::Playing` is fatal. The registrations go on leaving the document.
+
 ### The derived skin
 
 `skin: true` on a ship's hull asks the game to CLAD it. Nothing authors a plate:
@@ -1109,7 +1119,7 @@ Two things it does differently from the spawner:
 - A preview plate is DISPLAY ONLY: `ShipSkinMarker` and a pose, so the shared
   `dress_skin_plate` observer still draws it, but no `SectionMarker`, no
   `Collider` and no health. The placement solver never counts one as a part,
-  the pointer never hits one, and the `Q` pipette cannot arm one.
+  the pointer never hits one, and the `P` pipette cannot arm one.
 
 Both readings go through `read_structure` (`shell_skin.rs`), so the lattice the
 editor clads on and the lattice the flown ship clads on cannot drift - and the

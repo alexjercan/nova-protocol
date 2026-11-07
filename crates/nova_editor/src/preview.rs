@@ -88,8 +88,11 @@ pub(crate) fn insert_preview_object(
     object: &ObjectNode,
     art: &mut PreviewArt,
     sections: Option<&GameSections>,
-    ships: Option<&GameShipDesigns>,
+    ships: &GameShipDesigns,
+    stations: &GameStationDesigns,
 ) {
+    let no_sections = GameSections::default();
+    let sections = sections.unwrap_or(&no_sections);
     match &object.kind {
         // Translucent, because an anchor has no body at all: what is drawn is
         // the radius it publishes, and a solid ball there would read as a rock.
@@ -173,51 +176,49 @@ pub(crate) fn insert_preview_object(
         // not one per section: the object is edited as a unit, and a hit has to
         // land on a view whose parent is the node.
         ScenarioObjectKind::Spaceship(spaceship) => {
-            // Empty catalogs to resolve against, so a rig with no
-            // `GameShipDesigns` still draws the designs that carry their own
-            // sections inline. Resolved exactly as the spawn will build it,
-            // patches included: a patch can move a section, and the box has to
-            // reach where the section will actually stand.
-            let (no_designs, no_sections) = (GameShipDesigns::default(), GameSections::default());
-            let (design, _) = resolve_ship_design(
-                &spaceship.design,
-                ships.unwrap_or(&no_designs),
-                sections.unwrap_or(&no_sections),
-            );
-            let (centre, extents) = hull_bounds(&design.sections);
-            // A COMPOUND of one box, because the merged bounds of a hull are
-            // not centred on its node: a ship whose drive hangs off the stern
-            // has more behind the origin than in front of it, and a bare
-            // `Collider::cuboid` can only be centred.
-            entity.insert(Collider::compound(vec![(
-                centre,
-                Quat::IDENTITY,
-                Collider::cuboid(extents.x, extents.y, extents.z),
-            )]));
-            entity.with_children(|parent| {
-                for section in &design.sections {
-                    let mut child = parent.spawn((
-                        Transform::from_translation(section.position)
-                            .with_rotation(section.rotation),
-                        Visibility::Inherited,
-                    ));
-                    insert_preview_section(&mut child, &section.config, PreviewRole::Display);
-                }
-            });
+            // Resolved exactly as the spawn will build it, patches included: a
+            // patch can move a section, and the box has to reach where the
+            // section will actually stand.
+            let (design, _) = resolve_ship_design(&spaceship.design, ships, sections);
+            hull_body(entity, &design.sections);
         }
-        // A station names a catalog design the editor does not build and
-        // cannot edit, so it is drawn as the unit cell a click can reach.
-        // Drawing its hull needs the station catalog on the rig; the editor
-        // does not mint stations, so that is debt for the station tooling.
-        ScenarioObjectKind::Station(_) => {
-            let (centre, extents) = hull_bounds(&[]);
-            entity.insert(Collider::compound(vec![(
-                centre,
-                Quat::IDENTITY,
-                Collider::cuboid(extents.x, extents.y, extents.z),
-            )]));
+        // Drawn the way a spaceship is. A design no catalog holds resolves to
+        // nothing, and stands as the unit cell a click can reach.
+        ScenarioObjectKind::Station(station) => {
+            let hull = match &station.design {
+                StationDesignSource::Inline(design) => Some(&design.hull),
+                StationDesignSource::Prototype(id) => {
+                    stations.get_design(id).map(|held| &held.design.hull)
+                }
+            };
+            let source = ShipDesignSource::Inline(hull.cloned().unwrap_or_default());
+            let (design, _) = resolve_ship_design(&source, ships, sections);
+            hull_body(entity, &design.sections);
         }
     }
+}
+
+/// The collider and the section views of a hull the editor did not design.
+fn hull_body(entity: &mut EntityCommands, sections: &[ResolvedSection]) {
+    let (centre, extents) = hull_bounds(sections);
+    // A COMPOUND of one box, because the merged bounds of a hull are not centred
+    // on its node: a ship whose drive hangs off the stern has more behind the
+    // origin than in front of it, and a bare `Collider::cuboid` can only be
+    // centred.
+    entity.insert(Collider::compound(vec![(
+        centre,
+        Quat::IDENTITY,
+        Collider::cuboid(extents.x, extents.y, extents.z),
+    )]));
+    entity.with_children(|parent| {
+        for section in sections {
+            let mut child = parent.spawn((
+                Transform::from_translation(section.position).with_rotation(section.rotation),
+                Visibility::Inherited,
+            ));
+            insert_preview_section(&mut child, &section.config, PreviewRole::Display);
+        }
+    });
 }
 
 /// The mesh, material and collider of a round object body.

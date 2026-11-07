@@ -78,6 +78,25 @@ pub const ICON: f32 = 44.0;
 /// every screen rather than restyle it.
 pub const BORDER_W: f32 = 1.0;
 
+/// The sizes of a dense tool surface, in logical px at UI scale 1.
+///
+/// The menu screens and the HUD are full-screen compositions with their own
+/// large type. A tool surface shows many controls at once, so it shares these.
+pub mod density {
+    /// A control: a button, a field, a select, a tab.
+    pub const CONTROL_H: f32 = 24.0;
+    /// A row of a tree or a list.
+    pub const ROW_H: f32 = 20.0;
+    /// The inside margin of a panel.
+    pub const PANEL_PAD: f32 = 5.0;
+    /// The gap between two controls in a row or a column.
+    pub const GAP: f32 = 4.0;
+    /// The text of a control or a row.
+    pub const TEXT: f32 = 12.0;
+    /// A label, a hint, a count.
+    pub const TEXT_SMALL: f32 = 11.0;
+}
+
 /// Semantic HUD accents: the meaning-carrying gameplay colours (threat, ally,
 /// nav, objective, ...), centralized here so the HUD has ONE palette source.
 ///

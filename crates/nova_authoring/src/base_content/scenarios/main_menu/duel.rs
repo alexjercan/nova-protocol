@@ -479,6 +479,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
     let events = vec![
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -513,6 +514,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         // The single spawn site for both duelists.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -531,6 +533,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         // scenario-owned movement holds for the whole duel and finale.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnShipOrderComplete,
             once: false,
             filters: vec![EventFilterConfig::ShipOrder(ShipOrderFilterConfig {
@@ -542,6 +545,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         },
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnShipOrderComplete,
             once: false,
             filters: vec![EventFilterConfig::ShipOrder(ShipOrderFilterConfig {
@@ -556,6 +560,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         // destruction could wait forever).
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnDefeated,
             once: false,
             filters: vec![entity(RIVAL_ID), number_equals(VAR_DECIDED, 0.0)],
@@ -578,6 +583,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         // forfeits, and the defeat chain covers it.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnExit,
             once: false,
             filters: vec![
@@ -597,6 +603,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         // straight into the hand-off on the usual eight-second drift.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnExit,
             once: false,
             filters: vec![
@@ -618,6 +625,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         // self-restart is legal.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -642,6 +650,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         // a beat - the wrecks stay in shot - then the menu turns.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnDefeated,
             once: false,
             filters: vec![entity(VICTOR_ID)],
@@ -657,6 +666,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         // runtime projectiles are scenario-scoped too).
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -667,6 +677,7 @@ pub(crate) fn menu_duel(assets: &BaseContentAssets) -> ScenarioConfig {
         // The watchdog's own reset (see OnStart).
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {

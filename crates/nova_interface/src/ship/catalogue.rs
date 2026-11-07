@@ -201,6 +201,7 @@ fn offered_entry(
         recipe: rows,
         alternate: None,
         placeable,
+        own: false,
     }
 }
 

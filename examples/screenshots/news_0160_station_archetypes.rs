@@ -299,6 +299,7 @@ fn load_row(
         description: "The three generated station archetypes at one scale.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

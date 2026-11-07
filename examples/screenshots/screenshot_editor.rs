@@ -41,8 +41,9 @@ use nova_protocol::prelude::*;
 mod ui_walk;
 #[cfg(feature = "debug")]
 use ui_walk::{
-    count_sections, pose_editor_camera, the_build_camera_is_posed, the_editor_can_play,
-    the_editor_is_inside_a_ship, the_skin_is_on, Gestures,
+    block_centre, block_named, canvas_middle, count_sections, pose_editor_camera,
+    the_build_camera_is_posed, the_editor_can_play, the_editor_is_inside_a_ship, the_skin_is_on,
+    Gestures,
 };
 
 #[derive(Parser)]
@@ -56,7 +57,7 @@ const EDITOR_LOOP: &str = "landing-editor-build";
 #[cfg(feature = "debug")]
 const EDITOR_SKIN_LOOP: &str = "news-0110-editor-skin";
 /// The script half: leaving the ship through the tree, switching to EVENTS,
-/// and building a handler out of the Add menu. A still of the finished script
+/// and building a handler off the block palette. A still of the finished script
 /// says what was authored; only a loop says that it was authored by pointing
 /// at rows rather than by typing a file.
 #[cfg(feature = "debug")]
@@ -87,14 +88,94 @@ const SANDBOX_DEADLINE_SECS: f32 = 90.0;
 fn the_id_row_reads(id: &'static str) -> std::sync::Arc<Predicate> {
     std::sync::Arc::new(move |world: &World| {
         world
-            .try_query::<(&Name, &nova_ui::prelude::TextFieldValue)>()
-            .and_then(|mut fields| {
-                fields
-                    .iter(world)
-                    .find(|(named, _)| named.as_str() == "Inspector Field Id")
-                    .map(|(_, value)| value.0 == id)
+            .try_query::<&Text>()
+            .is_some_and(|mut texts| texts.iter(world).any(|text| text.0 == id))
+            && !ui_node_present("Pick Body")(world)
+    })
+}
+
+/// Chip `index` of the filter the walk just dropped.
+#[cfg(feature = "debug")]
+fn filter_chip(world: &World, index: usize) -> String {
+    format!(
+        "Chip {}/{} {index}",
+        new_handler(world),
+        selected_block(world)
+    )
+}
+
+/// Press and release chip `index` of the filter the walk just dropped. A
+/// chip opens on release, so a press alone leaves the list shut.
+#[cfg(feature = "debug")]
+trait BlockChipWalk {
+    fn open_block_chip(self, label: &str, index: usize, landed: &'static str) -> Self;
+}
+
+#[cfg(feature = "debug")]
+impl BlockChipWalk for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
+    fn open_block_chip(self, label: &str, index: usize, landed: &'static str) -> Self {
+        self.step(format!("{label} is drawn"))
+            .until(std::sync::Arc::new(move |world: &World| {
+                ui_node_present(filter_chip(world, index))(world)
+            }))
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+            .step(format!("point at {label}"))
+            .on_enter(move |world: &mut World| hover_named(filter_chip(world, index))(world))
+            .until(frames(3))
+            .add()
+            .step(format!("press {label}"))
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(frames(3))
+            .add()
+            .step(format!("release {label}"))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(ui_node_present(landed))
+            .diagnose(move |world: &World| {
+                let chip = filter_chip(world, index);
+                let names = world
+                    .try_query::<&Name>()
+                    .map(|mut names| {
+                        names
+                            .iter(world)
+                            .filter(|name| name.starts_with("Pick") || name.contains(" Option "))
+                            .map(|name| name.to_string())
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_default();
+                format!("{} {names:?}", pointer_hover_diagnosis(chip)(world))
             })
-            .unwrap_or(false)
+            .deadline(STEP_DEADLINE_SECS)
+            .add()
+    }
+}
+
+/// The handler the walk dropped, whose slots the later drags aim at.
+#[cfg(feature = "debug")]
+#[derive(Resource)]
+struct NewHandler(String);
+
+#[cfg(feature = "debug")]
+fn selected_block(world: &World) -> String {
+    world
+        .resource::<EditorProbe>()
+        .shell
+        .selected_block
+        .clone()
+        .expect("the dropped block is selected")
+}
+
+#[cfg(feature = "debug")]
+fn new_handler(world: &World) -> String {
+    world.resource::<NewHandler>().0.clone()
+}
+
+#[cfg(feature = "debug")]
+fn undo_reads(label: &'static str) -> std::sync::Arc<Predicate> {
+    std::sync::Arc::new(move |world: &World| {
+        world
+            .get_resource::<EditorProbe>()
+            .is_some_and(|probe| probe.next_undo.as_deref() == Some(label))
     })
 }
 
@@ -103,6 +184,7 @@ fn main() -> bevy::app::AppExit {
 
     // The same app the game/binary runs (main menu over the ambience backdrop).
     let mut app = editor_app(true, None);
+    app.insert_resource(EditorOpensScratch);
 
     #[cfg(feature = "debug")]
     {
@@ -202,6 +284,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
     }
 
     script = script
+        .click("open the Ship tab", "Browser Tab Ship")
         .click("derive the ship skin", "Ship Skin Toggle")
         .step("let the skin close around the structure")
         .until(the_skin_is_on())
@@ -266,6 +349,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
 
     if capturing() {
         script = script
+            .click("hold the Ship tab open", "Browser Tab Ship")
             .step("open the editor skin loop")
             .on_enter(|world| loop_start(world, EDITOR_SKIN_LOOP))
             .add()
@@ -339,16 +423,39 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // on a row you are inside is the way back out.
         .click("leave the ship for the hand-off", "Scene Row scenario")
         // The script half of the document, authored the way a builder does it:
-        // a handler off the Add menu, a filter under it, and the ship named
-        // through the picker rather than typed. The walk asserts the picked id
-        // landed, because a chip that opens a list and writes nothing is the
-        // failure this whole path is built to make impossible.
+        // blocks off the palette, and the ship named through the picker rather
+        // than typed. The walk asserts the picked id landed, because a chip
+        // that opens a list and writes nothing is the failure this whole path
+        // is built to make impossible.
         .click("show the events half of the tree", "Rail Tab Events")
-        .click("open the Add menu for a handler", "Add Menu Button")
-        .click("add a handler", "Add Handler")
-        .click("open the Add menu for a filter", "Add Menu Button")
-        .click("scope the handler to one ship", "Add Filter")
-        .click("open the id picker", "Inspector Ref Id")
+        .filter_palette("On Enter")
+        .drag_block(
+            "add a handler",
+            block_named("Palette On Enter"),
+            canvas_middle(),
+            |held| held,
+            undo_reads("Add On Enter"),
+        )
+        .step("keep the handler's id")
+        .on_enter(|world: &mut World| {
+            let hat = selected_block(world);
+            world.insert_resource(NewHandler(hat));
+        })
+        .add()
+        .filter_palette("Entity")
+        .drag_block(
+            "scope the handler to one ship",
+            block_named("Palette Entity"),
+            block_centre(|world| format!("Slot {} filter 0", new_handler(world))),
+            |held| held,
+            undo_reads("Add Entity"),
+        )
+        .open_block_chip("the id list", 1, "Ref Option player_spaceship")
+        // The list holds more ids than it shows; typing brings the row up.
+        .step("type the ship's id into the list")
+        .on_enter(type_text("player_spaceship"))
+        .until(frames(6))
+        .add()
         .click(
             "name the ship the document holds",
             "Ref Option player_spaceship",
@@ -357,21 +464,27 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(the_id_row_reads("player_spaceship"))
         .deadline(STEP_DEADLINE_SECS)
         .add()
-        .click("open the Add menu for an action", "Add Menu Button")
-        .click("give the handler something to do", "Add Action")
-        // A CONDITION, on the page the filter opens. The filter is switched to
-        // an expression, which arrives holding `0 == 0`, and the comparison is
-        // then changed on its own row of that page - so the walk proves both
-        // halves: the subtree a switch mints, and the page that edits it.
-        // Last, so the capture is of the condition being authored.
-        .click("open the Add menu for a second filter", "Add Menu Button")
-        .click("add the filter that compares", "Add Filter")
-        // Seven filter kinds is one past the inspector's inline-bar limit, so
-        // the Filter row is a BUTTON that opens the choice window; the kinds
-        // live in that window, not on the row.
-        .click("open the filter kinds", "Inspector Choice Filter")
-        .click("make it an expression", "Choice Option Expression")
-        .click("compare the other way", "Inspector Choice Compare >");
+        .filter_palette("Debug Message")
+        .drag_block(
+            "give the handler something to do",
+            block_named("Palette Debug Message"),
+            block_centre(|world| format!("Slot {} 0", new_handler(world))),
+            |held| held,
+            undo_reads("Add Debug Message"),
+        )
+        // A CONDITION, last, so the capture is of the condition being authored.
+        // It arrives holding `0 == 0`, and the comparison is then changed in
+        // its own list on the block.
+        .filter_palette("==")
+        .drag_block(
+            "add the filter that compares",
+            block_named("Palette =="),
+            block_centre(|world| format!("Slot {} filter 1", new_handler(world))),
+            |held| held,
+            undo_reads("Add =="),
+        )
+        .open_block_chip("the comparison list", 2, "Choice Option >")
+        .click("compare the other way", "Choice Option >");
 
     if capturing() {
         script = script

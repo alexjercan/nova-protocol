@@ -238,6 +238,7 @@ fn load_row(
         description: "Every station design parked side by side.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

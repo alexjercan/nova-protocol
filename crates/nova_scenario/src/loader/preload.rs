@@ -446,6 +446,7 @@ mod tests {
                 )]),
                 ScenarioEventConfig {
                     label: None,
+                    position: None,
                     name: EventConfig::OnTimerEnd,
                     once: false,
                     filters: vec![],

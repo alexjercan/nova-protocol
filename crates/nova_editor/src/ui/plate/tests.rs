@@ -97,14 +97,16 @@ fn a_ship_is_named_on_the_stage_and_a_rock_is_not() {
 #[test]
 fn a_marked_rock_takes_a_plate_and_gives_it_back() {
     let (mut app, _, rock) = stage();
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(rock);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(rock));
     app.update();
     assert_eq!(
         plates(&mut app),
         vec!["Kestrel".to_string(), "asteroid 3".to_string()]
     );
 
-    app.world_mut().resource_mut::<SelectedNode>().0 = None;
+    app.world_mut().resource_mut::<SelectedNode>().set(None);
     app.update();
     assert_eq!(plates(&mut app), vec!["Kestrel".to_string()]);
 }
@@ -157,4 +159,18 @@ fn the_plates_come_off_inside_a_ship() {
     app.world_mut().resource_mut::<EditContext>().enter(ship);
     app.update();
     assert!(plates(&mut app).is_empty());
+}
+
+/// The builder's camera buttons and wheel answer on the stage, and a name plate
+/// stands on the stage. A pickable label read as UI, so RMB there did not fly.
+#[test]
+fn a_plate_and_its_label_let_the_pointer_through() {
+    let mut world = World::new();
+    let theme = ActiveUiTheme::default();
+    let plate = world.spawn(plate("Kestrel", false, &theme)).id();
+    let label = world.get::<Children>(plate).expect("the label")[0];
+
+    for part in [plate, label] {
+        assert_eq!(world.get::<Pickable>(part), Some(&Pickable::IGNORE));
+    }
 }

@@ -78,6 +78,7 @@ fn main() -> bevy::app::AppExit {
 
     // The same editor app the game binary runs - not a bespoke copy.
     let mut app = editor_app(true, None);
+    app.insert_resource(EditorOpensScratch);
 
     #[cfg(feature = "debug")]
     {
@@ -107,8 +108,8 @@ const FOUNDING_PART: &str = "basic_thruster_section";
 #[cfg(feature = "debug")]
 const CHIP: &str = "Section Keybind Label";
 
-/// The top-bar controls that must never be drawn over one another: the five
-/// menus on the left, and Play in the middle of the screen.
+/// The controls that must never be drawn over one another: the five menus in
+/// the top bar, and Play in the middle of the toolbar under them.
 ///
 /// The breadcrumb is not here because it can legitimately measure zero wide -
 /// it is inside a clip, which is the whole point of it.
@@ -209,15 +210,14 @@ fn read_the_bar(shape: &'static str) -> impl Fn(&mut World) + Send + Sync + 'sta
 }
 
 /// How tall the key legend may be, in logical pixels - the editor's own bound,
-/// which is the three rows the stock shape already draws.
+/// which is the one line the foot has.
 #[cfg(feature = "debug")]
-const LEGEND_MAX_H: f32 = 56.0;
+const LEGEND_MAX_H: f32 = 22.0;
 
 /// The key legend keeps to that bound at every shape.
 ///
-/// It wraps by design, and a narrower band wraps it further: the same nine
-/// cells measured 56 tall at 1024x768 and 96 at 760x600, over the stage the
-/// hints are about.
+/// It wraps onto a clipped second line, so a narrow window loses whole cells
+/// from the tail rather than growing over the stage the hints are about.
 #[cfg(feature = "debug")]
 fn read_the_legend(shape: &'static str) -> impl Fn(&mut World) + Send + Sync + 'static {
     move |world: &mut World| {

@@ -113,6 +113,7 @@ pub fn interface_range(game_assets: &GameAssets, sections: &GameSections) -> Sce
 
     let events = vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],

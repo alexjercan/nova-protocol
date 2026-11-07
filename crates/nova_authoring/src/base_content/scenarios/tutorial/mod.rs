@@ -242,6 +242,7 @@ fn once(
 ) -> ScenarioEventConfig {
     ScenarioEventConfig {
         label: None,
+        position: None,
         name,
         once: true,
         filters,
@@ -372,6 +373,7 @@ pub(crate) fn tutorial(
         // until Range Control hands the helm over.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: true,
             filters: vec![],

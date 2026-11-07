@@ -1331,6 +1331,18 @@ Section((
 )),
 ```
 
+To build a section without writing RON, open your mod in the **Sandbox** and
+press **+** in the Assets tab and pick **Sections**. Start from a loaded prototype or a
+plain hull: a new kind is code, so the bench copies one and edits it. The Viewport
+shows the section alone, the Hierarchy lists its collider, mesh and sockets, and
+the Inspector edits their fields. Click a socket and move or turn it with W and
+E on a 5 m grid; **Add Socket** adds one and Del removes it. A section with no
+sockets has none. On the Mesh row pick a file, or press **Import .glb** to copy a
+model into the mod and write its `self://` ref. A missing or unreadable model, a
+lint fault and a ship-part fault show in Problems, and an Error there stops Play,
+Package and Save. The section is in the parts gallery's Mod category at once,
+saved or not. A rename updates the ships that use it; a delete is refused while one does.
+
 Reuse a base id to REBALANCE or re-skin that part; give a NEW id to ADD a part
 alongside the base catalog. Either way, a ship references the section by id via
 `source: Prototype(id: "<id>")` in its `sections` list. To ship the section, package

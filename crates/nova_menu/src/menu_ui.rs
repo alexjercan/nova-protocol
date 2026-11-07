@@ -680,9 +680,13 @@ pub(crate) fn on_exit(
     _activate: On<Activate>,
     mut commands: Commands,
     mut saved: Option<ResMut<WorldSaveSession>>,
+    unsaved: Option<ResMut<UnsavedWork>>,
     mut pause: ResMut<NextState<PauseStates>>,
     mut exit: MessageWriter<AppExit>,
 ) {
+    if unsaved.is_some_and(|mut work| work.stops(GuardedLeave::Exit)) {
+        return;
+    }
     if let Some(session) = saved.as_mut() {
         begin_leave(LeaveTarget::Exit, &mut commands, session, &mut pause);
         return;

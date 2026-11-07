@@ -1,9 +1,13 @@
-//! The handles that move and turn the selected node.
+//! The handles that move, turn and size the selection.
 //!
 //! Dragging a node's BODY slides it on the ground plane
 //! ([`crate::placement::on_stage_drag`]): one gesture, two axes, no way to say
-//! "up" and no way to say "turn". The gizmo is the rest of that vocabulary -
-//! three arrows and three rings, each one axis of the same node.
+//! "up" and no way to say "turn". The gizmo is the rest of that vocabulary, and
+//! [`crate::tool::StageTool`] picks which part of it is up: arrows and plane
+//! squares, rings, or size handles.
+//!
+//! A multi-selection shares one rig at its centre. A move carries every node,
+//! and a turn swings them about that centre.
 //!
 //! It is a real rig of meshes rather than immediate-mode [`Gizmos`] lines
 //! because the handles have to be POINTED AT, and only geometry can be picked.
@@ -11,7 +15,7 @@
 //! `require_markers`: the stage already answers the pointer through avian's
 //! colliders, and a second backend that picked every mesh in the scene would
 //! double every hit on the ship. With markers required, mesh picking sees the
-//! six handles and nothing else.
+//! handles and nothing else.
 //!
 //! Scenario-node only. Inside a ship, mating decides where a part sits - the
 //! same reason [`crate::placement::on_stage_drag_start`] refuses in there.
@@ -24,14 +28,30 @@ use bevy::{
     },
     prelude::*,
 };
+use nova_events::units::prelude::*;
 use nova_gameplay::prelude::subtree_bounding_sphere;
 use nova_ship::prelude::GalleryState;
 
 use crate::{
+    asset::SocketNode,
     config::{EditorCamera, SelectedNode},
-    node::{EditContext, ObjectBodyStale, ObjectNode, ShipNode},
-    palette, ExampleStates,
+    history::commit_edit,
+    node::{EditContext, NodeView, ObjectBodyStale, ObjectNode, ShipNode},
+    palette,
+    placement::alt_held,
+    tool::{
+        set_size, size_of, snap_active, snapped, GizmoSpaceType, StageTool, StageToolType,
+        MIN_SIZE, MOVE_SNAP, SIZE_SNAP, TURN_SNAP_DEGREES,
+    },
+    ExampleStates,
 };
+
+/// What the rig can move.
+type GizmoStaged = Or<(With<ShipNode>, With<ObjectNode>, With<SocketNode>)>;
+
+/// The grid a socket snaps to: half a build cell, where a cell's faces and
+/// centre all fall.
+const SOCKET_SNAP: Meters = Meters(5.0);
 
 /// Where the arms END, in rig-local units. Everything else is a fraction of it,
 /// so the whole rig scales by scaling the root.
@@ -50,6 +70,14 @@ const TIP_RADIUS: f32 = 0.1;
 /// The turn ring, just inside the arrowheads so the two do not overlap.
 const RING: f32 = 0.82;
 const RING_THICKNESS: f32 = 0.012;
+/// The size handle's cube, on the end of an arm.
+const STRETCH_TIP: f32 = 0.11;
+/// How far along each of its two axes a plane square sits, and half its side.
+/// Far enough out that a square clears the body the arms were sized to clear.
+const PLANE_AT: f32 = 0.65;
+const PLANE_HALF: f32 = 0.1;
+/// How far along each axis the all-axes size handle sits, for the same reason.
+const UNIFORM_AT: f32 = 0.62;
 
 /// What the pointer actually hits.
 ///
@@ -90,9 +118,8 @@ pub(crate) struct GizmoHandle {
     kind: HandleKind,
 }
 
-/// A world axis. The rig is world-aligned - it never takes the node's own
-/// rotation - so "X" means the same direction whatever is selected, and a turn
-/// that went wrong is undone by dragging the same ring back.
+/// One of the rig's three axes: the world's, or the primary node's own in
+/// [`GizmoSpaceType::Local`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum GizmoAxis {
     X,
@@ -138,26 +165,76 @@ impl GizmoAxis {
 enum HandleKind {
     /// An arrow: slide along the axis.
     Move,
+    /// A square: slide across the plane the axis is the normal of.
+    Plane,
     /// A ring: turn about the axis.
     Turn,
+    /// A stick with a cube on it: grow along the axis.
+    Stretch,
+    /// The cube off the corner: grow whatever the axis.
+    Uniform,
+}
+
+impl HandleKind {
+    /// The tool this handle belongs to.
+    fn tool(self) -> StageToolType {
+        match self {
+            Self::Move | Self::Plane => StageToolType::Move,
+            Self::Turn => StageToolType::Turn,
+            Self::Stretch | Self::Uniform => StageToolType::Scale,
+        }
+    }
+
+    /// The undo step a gesture on this handle makes.
+    fn step(self) -> &'static str {
+        match self.tool() {
+            StageToolType::Turn => "Turn",
+            StageToolType::Scale => "Scale",
+            StageToolType::Move | StageToolType::Select => "Move",
+        }
+    }
+}
+
+impl GizmoHandle {
+    /// The handle's axis in the world, for a rig turned to `basis`.
+    fn axis_in(self, basis: Quat) -> Vec3 {
+        let local = match self.kind {
+            HandleKind::Uniform => Vec3::ONE.normalize(),
+            _ => self.axis.unit(),
+        };
+        basis * local
+    }
 }
 
 /// The gesture in progress.
 #[derive(Resource, Default, Debug)]
 pub(crate) struct GizmoDrag {
-    /// The node under the grab.
-    node: Option<Entity>,
-    /// The handle that was grabbed.
-    handle: Option<GizmoHandle>,
-    /// The node's pose when the grab landed.
+    /// The nodes under the grab, each with its pose when the grab landed.
     ///
-    /// Every frame's answer is applied to THIS, not to the last frame's, so a
-    /// pointer that sweeps out and comes back puts the node back where it
+    /// Every frame's answer is applied to THESE, not to the last frame's, so a
+    /// pointer that sweeps out and comes back puts the nodes back where they
     /// started.
-    start: Transform,
+    members: Vec<(Entity, Transform)>,
+    /// The handle that was grabbed. `None` when nothing is held.
+    handle: Option<GizmoHandle>,
+    /// The rig's centre at the grab. A turn swings about it.
+    centre: Vec3,
+    /// The rig's axes at the grab, so a local turn does not move its own axis.
+    basis: Quat,
+    /// The rig's arm at the grab: a size handle carried this far doubles.
+    span: f32,
+    /// Where a plane square was grabbed, on its plane.
+    grab_point: Vec3,
+    /// The size field's value at the grab, on a size handle.
+    size: Meters,
     /// The last reading of the handle's parameter: a distance along the axis
     /// for an arrow, an angle about it for a ring.
     last: f32,
+    /// The grid a snapped move steps along, in engine units.
+    step: f32,
+    /// Whether the gesture snaps with or without the snap key: a socket off the
+    /// half-cell grid mates nothing a builder can line up.
+    on_grid: bool,
     /// How far the handle has been carried since the grab.
     ///
     /// SUMMED over samples rather than taken as "now minus the grab", because
@@ -185,6 +262,8 @@ pub(crate) fn setup_gizmo(
         height: TIP,
     });
     let ring = meshes.add(Torus::new(RING - RING_THICKNESS, RING + RING_THICKNESS));
+    let square = meshes.add(Cuboid::new(PLANE_HALF * 2.0, PLANE_HALF * 2.0, 0.01));
+    let cube = meshes.add(Cuboid::from_length(STRETCH_TIP));
     let arm_grab = meshes.add(Cylinder::new(ARM_GRAB_RADIUS, ARM - ARM_START));
     let ring_grab = meshes.add(Torus::new(
         RING - RING_GRAB_THICKNESS,
@@ -206,7 +285,7 @@ pub(crate) fn setup_gizmo(
             GizmoRig,
             Transform::default(),
             // Nothing is selected on the way in, and an unparented rig at the
-            // origin would be six handles floating in empty space.
+            // origin would be handles floating in empty space.
             Visibility::Hidden,
         ))
         .with_children(|rig| {
@@ -266,7 +345,7 @@ pub(crate) fn setup_gizmo(
                     },
                     Pickable::default(),
                     Mesh3d(ring.clone()),
-                    MeshMaterial3d(paint),
+                    MeshMaterial3d(paint.clone()),
                     Transform::from_rotation(aim),
                 ))
                 .with_child((
@@ -280,15 +359,79 @@ pub(crate) fn setup_gizmo(
                     MeshMaterial3d(grab.clone()),
                     Transform::default(),
                 ));
+                rig.spawn((
+                    Name::new(format!("Gizmo Scale {}", axis.label())),
+                    GizmoHandle {
+                        axis,
+                        kind: HandleKind::Stretch,
+                    },
+                    Pickable::default(),
+                    Mesh3d(arm.clone()),
+                    MeshMaterial3d(paint.clone()),
+                    Transform::from_translation(axis.unit() * ((ARM + ARM_START) * 0.5))
+                        .with_rotation(aim),
+                ))
+                .with_child((
+                    Name::new(format!("Gizmo Scale Tip {}", axis.label())),
+                    GizmoHandle {
+                        axis,
+                        kind: HandleKind::Stretch,
+                    },
+                    Pickable::default(),
+                    Mesh3d(cube.clone()),
+                    MeshMaterial3d(paint.clone()),
+                    Transform::from_xyz(0.0, (ARM - ARM_START) * 0.5, 0.0),
+                ))
+                .with_child((
+                    Name::new(format!("Gizmo Scale Grab {}", axis.label())),
+                    GizmoHandle {
+                        axis,
+                        kind: HandleKind::Stretch,
+                    },
+                    Pickable::default(),
+                    Mesh3d(arm_grab.clone()),
+                    MeshMaterial3d(grab.clone()),
+                    Transform::default(),
+                ));
+                // The square lies across the two OTHER axes, and a cuboid built
+                // flat on Z takes its normal from the same aim the arm does.
+                let flat = Quat::from_rotation_arc(Vec3::Z, axis.unit());
+                rig.spawn((
+                    Name::new(format!("Gizmo Plane {}", axis.label())),
+                    GizmoHandle {
+                        axis,
+                        kind: HandleKind::Plane,
+                    },
+                    Pickable::default(),
+                    Mesh3d(square.clone()),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color: axis.colour().with_alpha(0.55),
+                        alpha_mode: AlphaMode::Blend,
+                        unlit: true,
+                        ..default()
+                    })),
+                    Transform::from_translation((Vec3::ONE - axis.unit()) * PLANE_AT)
+                        .with_rotation(flat),
+                ));
             }
+            rig.spawn((
+                Name::new("Gizmo Scale All"),
+                GizmoHandle {
+                    axis: GizmoAxis::X,
+                    kind: HandleKind::Uniform,
+                },
+                Pickable::default(),
+                Mesh3d(cube.clone()),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: palette::GO,
+                    unlit: true,
+                    ..default()
+                })),
+                Transform::from_translation(Vec3::splat(UNIFORM_AT)),
+            ));
         });
 }
 
-/// Put the rig on the selected node, at a size that reads from here.
-///
-/// Hidden unless there is a node to work on AND the pointer is free to work on
-/// it: inside a ship placement owns the pointer, a part armed at the scenario
-/// node is about to be put down, and the gallery covers the stage entirely.
 /// How big the rig has to be for the node it is on, measured once.
 ///
 /// Measured ONCE, and this is the whole point of the resource: a
@@ -362,14 +505,31 @@ impl GizmoReach {
     }
 }
 
+/// What the rig stands on: the nodes it moves, their centre, and its axes.
+#[derive(Debug, PartialEq)]
+struct GizmoTarget {
+    nodes: Vec<(Entity, Transform)>,
+    centre: Vec3,
+    basis: Quat,
+}
+
+/// Put the rig on the selection, at a size that reads from here.
+///
+/// Hidden unless there is a node to work on and a tool to work on it with.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the rig reads the selection, the tool, the camera and every handle"
+)]
 pub(crate) fn sync_gizmo(
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
     gallery: Res<GalleryState>,
+    tool: Res<StageTool>,
     mut reach: ResMut<GizmoReach>,
     q_children: Query<&Children>,
     q_bounds: Query<&ColliderAabb, Without<Sensor>>,
-    q_staged: Query<&Transform, (Or<(With<ShipNode>, With<ObjectNode>)>, Without<GizmoRig>)>,
+    q_staged: Query<&Transform, (GizmoStaged, Without<GizmoRig>)>,
+    q_objects: Query<&ObjectNode>,
     // The camera's `Transform`, NOT its `GlobalTransform`: propagation runs in
     // `PostUpdate`, so the global pose this system can see is the one from
     // before framing moved the camera. Sizing against that made every frame
@@ -392,30 +552,38 @@ pub(crate) fn sync_gizmo(
     };
     let (mut pose, mut visibility) = rig.into_inner();
 
-    let node = shown_on(&context, &gallery, &selected, &q_staged);
-    let (Some(node), Some(camera)) = (node, camera) else {
+    let target = shown_on(&context, &gallery, &selected, &tool, |node| {
+        let pose = q_staged.get(node).ok()?;
+        let object = q_objects.get(node).ok();
+        Some((*pose, object.and_then(|object| size_of(&object.kind))))
+    });
+    let (Some(target), Some(camera)) = (target, camera) else {
         if *visibility != Visibility::Hidden {
             *visibility = Visibility::Hidden;
         }
         return;
     };
 
-    let staged = q_staged.get(node).ok();
-    let at = staged.map_or_else(Vec3::default, |transform| transform.translation);
     // The node's own extent, so the arms clear a corvette's hull, floored by a
-    // fraction of the viewing distance so a lone beacon is not a speck.
-    let reach = reach.measure(node, &q_children, &q_bounds);
-    let watched = camera.translation.distance(at);
-    let arm = reach.max(watched * SCREEN_SPAN);
-    let wanted = Transform::from_translation(at).with_scale(Vec3::splat(arm));
+    // fraction of the viewing distance so a lone beacon is not a speck. A group
+    // has no one extent: its centre is usually open space.
+    let watched = camera.translation.distance(target.centre);
+    let arm = match target.nodes.as_slice() {
+        [(node, _)] => reach
+            .measure(*node, &q_children, &q_bounds)
+            .max(watched * SCREEN_SPAN),
+        _ => watched * SCREEN_SPAN,
+    };
+    let wanted = Transform::from_translation(target.centre)
+        .with_rotation(target.basis)
+        .with_scale(Vec3::splat(arm));
 
-    // Take the rings the camera is looking along off the stage. The rig has no
-    // rotation of its own, so an axis in rig space is that axis in the world.
-    let look = (camera.translation - at).normalize_or_zero();
+    // Up: the tool's handles, less the rings the camera is looking along.
+    let look = (camera.translation - target.centre).normalize_or_zero();
     for (handle, mut visibility) in &mut q_handles {
-        let square_on =
-            handle.kind != HandleKind::Turn || handle.axis.unit().dot(look).abs() >= SQUARE_ON;
-        let shown = if square_on {
+        let square_on = handle.kind != HandleKind::Turn
+            || handle.axis_in(target.basis).dot(look).abs() >= SQUARE_ON;
+        let shown = if square_on && handle.kind.tool() == tool.tool {
             Visibility::Inherited
         } else {
             Visibility::Hidden
@@ -433,96 +601,262 @@ pub(crate) fn sync_gizmo(
     }
 }
 
-/// The node the rig belongs on, if any.
+/// What the rig belongs on, if anything. `read` answers a node's pose and its
+/// size field, and `None` for a node the rig cannot stand on.
 ///
-/// TWO suppressions, both deliberate. Inside a ship a part's pose is decided by
+/// Three suppressions, all deliberate. Inside a ship a part's pose is decided by
 /// the socket it mates to, so an axis drag would break the mate the moment it
 /// moved - `on_stage_drag_start` says so to anyone who tries. With the gallery
-/// up the rig is behind a full-screen overlay anyway.
+/// up the rig is behind a full-screen overlay anyway. And Scale needs exactly
+/// one node with a size field: `crate::tool` says why to anyone who tries.
 fn shown_on(
     context: &EditContext,
     gallery: &GalleryState,
     selected: &SelectedNode,
-    q_staged: &Query<&Transform, (Or<(With<ShipNode>, With<ObjectNode>)>, Without<GizmoRig>)>,
-) -> Option<Entity> {
-    if context.ship().is_some() || gallery.open {
+    tool: &StageTool,
+    read: impl Fn(Entity) -> Option<(Transform, Option<Meters>)>,
+) -> Option<GizmoTarget> {
+    if context.ship().is_some() || gallery.open || tool.tool == StageToolType::Select {
         return None;
     }
-    let node = selected.0?;
-    q_staged.get(node).is_ok().then_some(node)
+    let read: Vec<_> = selected
+        .iter()
+        .filter_map(|node| read(node).map(|(pose, size)| (node, pose, size)))
+        .collect();
+    let (_, primary, size) = read.last()?;
+    if tool.tool == StageToolType::Scale && (read.len() != 1 || size.is_none()) {
+        return None;
+    }
+    let basis = match tool.space {
+        GizmoSpaceType::World => Quat::IDENTITY,
+        GizmoSpaceType::Local => primary.rotation,
+    };
+    let nodes: Vec<_> = read.iter().map(|(node, pose, _)| (*node, *pose)).collect();
+    let sum: Vec3 = nodes.iter().map(|(_, pose)| pose.translation).sum();
+    Some(GizmoTarget {
+        centre: sum / nodes.len() as f32,
+        nodes,
+        basis,
+    })
 }
 
-/// Grab a handle: remember the node's pose and where on the axis the grab fell.
+/// Grab a handle: remember the poses and where on the axis the grab fell.
 ///
 /// The drag never starts when the axis cannot be read - an arm pointing at the
 /// camera has no length on screen, and a ring seen edge-on has no angle - so a
-/// hopeless gesture leaves the node alone instead of throwing it somewhere.
+/// hopeless gesture leaves the nodes alone instead of throwing them somewhere.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "a grab reads the rig, the camera and the whole selection once"
+)]
 pub(crate) fn on_gizmo_grab(
     drag: On<Pointer<DragStart>>,
     handles: Query<&GizmoHandle>,
     camera: Option<Single<(&Camera, &GlobalTransform), With<EditorCamera>>>,
-    q_staged: Query<&Transform, Or<(With<ShipNode>, With<ObjectNode>)>>,
+    rig: Option<
+        Single<
+            &Transform,
+            (
+                With<GizmoRig>,
+                Without<ShipNode>,
+                Without<ObjectNode>,
+                Without<SocketNode>,
+            ),
+        >,
+    >,
+    q_staged: Query<&Transform, GizmoStaged>,
+    (q_objects, q_sockets): (Query<&ObjectNode>, Query<(), With<SocketNode>>),
+    (context, gallery, tool): (Res<EditContext>, Res<GalleryState>, Res<StageTool>),
     selected: Res<SelectedNode>,
+    keys: Option<Res<ButtonInput<KeyCode>>>,
     mut state: ResMut<GizmoDrag>,
 ) {
-    if drag.button != PointerButton::Primary {
+    if drag.button != PointerButton::Primary || alt_held(keys.as_deref()) {
         return;
     }
-    let (Ok(handle), Some(node)) = (handles.get(drag.entity), selected.0) else {
+    let Ok(handle) = handles.get(drag.entity) else {
         return;
     };
-    let (Ok(pose), Some(camera)) = (q_staged.get(node), camera) else {
+    let target = shown_on(&context, &gallery, &selected, &tool, |node| {
+        let pose = q_staged.get(node).ok()?;
+        let object = q_objects.get(node).ok();
+        Some((*pose, object.and_then(|object| size_of(&object.kind))))
+    });
+    let (Some(target), Some(camera)) = (target, camera) else {
         return;
     };
     let (camera, camera_pose) = *camera;
     let Some(ray) = pointer_ray(camera, camera_pose, drag.pointer_location.position) else {
         return;
     };
-    let Some(grab) = handle_parameter(*handle, ray, pose.translation) else {
-        return;
-    };
-    state.node = Some(node);
+    let axis = handle.axis_in(target.basis);
+    if handle.kind == HandleKind::Plane {
+        let Some(hit) = plane_hit(ray, target.centre, axis) else {
+            return;
+        };
+        state.grab_point = hit;
+    } else {
+        let Some(grab) = handle_parameter(*handle, ray, target.centre, axis) else {
+            return;
+        };
+        state.last = grab;
+    }
     state.handle = Some(*handle);
-    state.start = *pose;
-    state.last = grab;
+    state.centre = target.centre;
+    state.basis = target.basis;
+    state.span = rig.map_or(ARM, |rig| rig.scale.x);
+    state.size = target
+        .nodes
+        .last()
+        .and_then(|(node, _)| q_objects.get(*node).ok())
+        .and_then(|object| size_of(&object.kind))
+        .unwrap_or_default();
+    // A section is a cell or so across: the stage's grid would step a socket
+    // off the part.
+    state.on_grid = target
+        .nodes
+        .iter()
+        .any(|(node, _)| q_sockets.contains(*node));
+    state.step = if state.on_grid {
+        SOCKET_SNAP.to_engine()
+    } else {
+        MOVE_SNAP.to_engine()
+    };
+    state.members = target.nodes;
     state.carried = 0.0;
 }
 
-/// Apply the gesture: the pose it started from, plus how far the pointer has
+/// Apply the gesture: the poses it started from, plus how far the pointer has
 /// carried the handle since.
 pub(crate) fn on_gizmo_drag(
     drag: On<Pointer<Drag>>,
     camera: Option<Single<(&Camera, &GlobalTransform), With<EditorCamera>>>,
+    keys: Option<Res<ButtonInput<KeyCode>>>,
+    tool: Res<StageTool>,
     mut state: ResMut<GizmoDrag>,
-    mut q_staged: Query<&mut Transform, Or<(With<ShipNode>, With<ObjectNode>)>>,
+    mut q_staged: Query<&mut Transform, GizmoStaged>,
+    mut q_objects: Query<&mut ObjectNode>,
+    q_children: Query<&Children>,
+    mut q_views: Query<
+        &mut Transform,
+        (
+            With<NodeView>,
+            Without<ShipNode>,
+            Without<ObjectNode>,
+            Without<SocketNode>,
+        ),
+    >,
 ) {
     if drag.button != PointerButton::Primary {
         return;
     }
-    let (Some(node), Some(handle)) = (state.node, state.handle) else {
-        return;
-    };
-    let (Ok(mut pose), Some(camera)) = (q_staged.get_mut(node), camera) else {
+    let (Some(handle), Some(camera)) = (state.handle, camera) else {
         return;
     };
     let (camera, camera_pose) = *camera;
     let Some(ray) = pointer_ray(camera, camera_pose, drag.pointer_location.position) else {
         return;
     };
-    // Measured against where the node WAS: the axis line has to stay put for
-    // the whole gesture, or a move would chase its own tail.
-    let Some(now) = handle_parameter(handle, ray, state.start.translation) else {
-        return;
+    let snap = state.on_grid || snap_active(&tool, keys.as_deref());
+    // Measured against where the rig WAS: the axis line has to stay put for the
+    // whole gesture, or a move would chase its own tail.
+    let (centre, axis) = (state.centre, handle.axis_in(state.basis));
+    let travel = if handle.kind == HandleKind::Plane {
+        let Some(hit) = plane_hit(ray, centre, axis) else {
+            return;
+        };
+        let across = hit - state.grab_point;
+        Travel::Slide(if snap {
+            snapped_across(centre, across, state.basis, state.step)
+        } else {
+            across
+        })
+    } else {
+        let Some(now) = handle_parameter(handle, ray, centre, axis) else {
+            return;
+        };
+        state.carried += match handle.kind {
+            HandleKind::Turn => shortest_way(now - state.last),
+            _ => now - state.last,
+        };
+        state.last = now;
+        match handle.kind {
+            HandleKind::Turn if snap => {
+                Travel::Turn(axis, snapped(state.carried, TURN_SNAP_DEGREES.to_radians()))
+            }
+            HandleKind::Turn => Travel::Turn(axis, state.carried),
+            HandleKind::Move if snap => {
+                let step = state.step;
+                let along = centre.dot(axis);
+                Travel::Slide(axis * (snapped(along + state.carried, step) - along))
+            }
+            HandleKind::Move => Travel::Slide(axis * state.carried),
+            HandleKind::Plane | HandleKind::Stretch | HandleKind::Uniform => {
+                Travel::Size(stretched(state.size, state.carried, state.span, snap))
+            }
+        }
     };
-    state.carried += match handle.kind {
-        HandleKind::Move => now - state.last,
-        HandleKind::Turn => shortest_way(now - state.last),
-    };
-    state.last = now;
-    let wanted = dragged(handle, &state.start, state.carried);
-    if *pose != wanted {
-        *pose = wanted;
+    match travel {
+        Travel::Size(size) => {
+            let Some((node, _)) = state.members.last() else {
+                return;
+            };
+            let Ok(mut object) = q_objects.get_mut(*node) else {
+                return;
+            };
+            if size_of(&object.kind) != Some(size) {
+                set_size(&mut object.kind, size);
+            }
+            // The body rebuilds once, on release: a planet is too dear to mesh
+            // every frame of a drag. Until then its view stands in, stretched.
+            let stand_in = Vec3::splat(size.get() / state.size.get().max(f32::EPSILON));
+            for child in q_children.get(*node).into_iter().flatten() {
+                if let Ok(mut view) = q_views.get_mut(*child) {
+                    view.scale = stand_in;
+                }
+            }
+        }
+        _ => {
+            for (node, start) in &state.members {
+                let Ok(mut pose) = q_staged.get_mut(*node) else {
+                    continue;
+                };
+                let wanted = applied(travel, start, centre);
+                if *pose != wanted {
+                    *pose = wanted;
+                }
+            }
+        }
     }
+}
+
+/// `across`, with each of the plane's axes snapped to the grid. An axis of the
+/// rig that the square does not slide along reads zero and stays there.
+fn snapped_across(centre: Vec3, across: Vec3, basis: Quat, step: f32) -> Vec3 {
+    GizmoAxis::ALL
+        .into_iter()
+        .map(|axis| basis * axis.unit())
+        .map(|axis| {
+            let carried = across.dot(axis);
+            if carried.abs() < 1e-4 {
+                return Vec3::ZERO;
+            }
+            let along = centre.dot(axis);
+            axis * (snapped(along + carried, step) - along)
+        })
+        .sum()
+}
+
+/// A size carried `distance` along a size handle of the given `span`: one span
+/// out is double, and one span in is the floor.
+fn stretched(size: Meters, distance: f32, span: f32, snap: bool) -> Meters {
+    let wanted = size.get() * (1.0 + distance / span.max(f32::EPSILON));
+    let wanted = if snap {
+        snapped(wanted, SIZE_SNAP.get())
+    } else {
+        wanted
+    };
+    Meters(wanted.max(MIN_SIZE.get()))
 }
 
 /// One step of a turn, brought back into the half turn either side of zero.
@@ -536,40 +870,66 @@ fn shortest_way(step: f32) -> f32 {
 
 /// Let go - of the button that grabbed, for the reason
 /// [`crate::placement::on_stage_drag_end`] gives.
-pub(crate) fn on_gizmo_release(drag: On<Pointer<DragEnd>>, mut state: ResMut<GizmoDrag>) {
+pub(crate) fn on_gizmo_release(
+    drag: On<Pointer<DragEnd>>,
+    mut commands: Commands,
+    mut state: ResMut<GizmoDrag>,
+    mut stale: MessageWriter<ObjectBodyStale>,
+) {
     if drag.button != PointerButton::Primary {
         return;
     }
-    if state.node.is_some() {
-        *state = GizmoDrag::default();
+    let Some(handle) = state.handle else {
+        return;
+    };
+    if handle.kind.tool() == StageToolType::Scale {
+        for (node, _) in &state.members {
+            stale.write(ObjectBodyStale(*node));
+        }
     }
+    commit_edit(&mut commands, handle.kind.step());
+    *state = GizmoDrag::default();
 }
 
-/// `start` carried `delta` along or about the handle's axis.
-fn dragged(handle: GizmoHandle, start: &Transform, delta: f32) -> Transform {
-    let axis = handle.axis.unit();
-    match handle.kind {
-        HandleKind::Move => Transform {
-            translation: start.translation + axis * delta,
+/// What a gesture has done so far.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Travel {
+    /// Carried this far, in the world.
+    Slide(Vec3),
+    /// Turned about this axis through the rig's centre, by this angle.
+    Turn(Vec3, f32),
+    /// The size field now reads this.
+    Size(Meters),
+}
+
+/// `start` carried by `travel`, for a rig standing at `centre`.
+fn applied(travel: Travel, start: &Transform, centre: Vec3) -> Transform {
+    match travel {
+        Travel::Slide(by) => Transform {
+            translation: start.translation + by,
             ..*start
         },
         // The turn is applied in WORLD space - on the left - so the ring the
         // pointer is on is the axis the node turns about, whichever way the
         // node is already facing.
-        HandleKind::Turn => Transform {
-            rotation: Quat::from_axis_angle(axis, delta) * start.rotation,
-            ..*start
-        },
+        Travel::Turn(axis, angle) => {
+            let turn = Quat::from_axis_angle(axis, angle);
+            Transform {
+                translation: centre + turn * (start.translation - centre),
+                rotation: turn * start.rotation,
+                ..*start
+            }
+        }
+        Travel::Size(_) => *start,
     }
 }
 
-/// Where the pointer is on the handle's axis: a distance along it for an arrow,
-/// an angle about it for a ring.
-fn handle_parameter(handle: GizmoHandle, ray: Ray3d, origin: Vec3) -> Option<f32> {
-    let axis = handle.axis.unit();
+/// Where the pointer is on the handle's `axis`: a distance along it for an
+/// arrow or a size handle, an angle about it for a ring.
+fn handle_parameter(handle: GizmoHandle, ray: Ray3d, origin: Vec3, axis: Vec3) -> Option<f32> {
     match handle.kind {
-        HandleKind::Move => axis_parameter(ray, origin, axis),
         HandleKind::Turn => plane_angle(ray, origin, axis),
+        _ => axis_parameter(ray, origin, axis),
     }
 }
 
@@ -605,19 +965,21 @@ fn axis_parameter(ray: Ray3d, origin: Vec3, axis: Vec3) -> Option<f32> {
 /// and at every drag. [`Vec3::any_orthonormal_vector`] is a pure function of
 /// the axis, and the axis does not move during a gesture.
 fn plane_angle(ray: Ray3d, origin: Vec3, axis: Vec3) -> Option<f32> {
+    let hit = plane_hit(ray, origin, axis)? - origin;
+    let zero = axis.any_orthonormal_vector();
+    Some(hit.dot(axis.cross(zero)).atan2(hit.dot(zero)))
+}
+
+/// Where the ray crosses the plane through `origin` with normal `axis`, or
+/// `None` seen edge-on or with the plane behind the camera.
+fn plane_hit(ray: Ray3d, origin: Vec3, axis: Vec3) -> Option<Vec3> {
     let look = ray.direction.as_vec3();
     let facing = axis.dot(look);
     if facing.abs() < 1e-3 {
         return None;
     }
     let travel = axis.dot(origin - ray.origin) / facing;
-    if travel <= 0.0 {
-        // The plane is behind the camera.
-        return None;
-    }
-    let hit = ray.origin + look * travel - origin;
-    let zero = axis.any_orthonormal_vector();
-    Some(hit.dot(axis.cross(zero)).atan2(hit.dot(zero)))
+    (travel > 0.0).then(|| ray.origin + look * travel)
 }
 
 /// Register the rig, its gestures, and the picking backend that reaches them.
@@ -636,6 +998,7 @@ pub(crate) fn register(app: &mut App) {
     }
     app.init_resource::<GizmoDrag>();
     app.init_resource::<GizmoReach>();
+    app.init_resource::<StageTool>();
     app.add_observer(on_gizmo_grab);
     app.add_observer(on_gizmo_drag);
     app.add_observer(on_gizmo_release);

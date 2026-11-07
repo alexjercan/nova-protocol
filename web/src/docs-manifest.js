@@ -44,7 +44,7 @@ const WIKI_PAGES = [
             "Part 2 - The flight computer",
             "Part 3 - The line",
             "Part 4 - Something that shoots back",
-            "The sandbox",
+            "The free-flight range",
             "Mining and cargo",
             "Where to go next",
         ],
@@ -495,6 +495,17 @@ const CREATE_PAGES = [
             "Load and play it",
             "Common mistakes",
         ],
+    },
+    {
+        slug: "mod-editor",
+        md: "mod-editor.md",
+        title: "The Mod Editor",
+        category: "Learn to mod",
+        tags: ["guide", "modding"],
+        summary:
+            "The Mod Hub, the editor's panels, the keys you use most, and what happens to a mod written by hand.",
+        related: ["author-a-scenario", "publish-a-mod", "sections"],
+        headings: ["The panels", "The keys", "Mods written by hand"],
     },
     {
         slug: "publish-a-mod",

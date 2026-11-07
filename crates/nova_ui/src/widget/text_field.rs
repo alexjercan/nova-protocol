@@ -12,10 +12,17 @@ use bevy::{
 };
 
 use super::UiText;
-use crate::theme::{ActiveUiTheme, FieldState, UiColor, UiMetric, BORDER_W};
+use crate::theme::{density, ActiveUiTheme, FieldState, UiColor, UiMetric, BORDER_W};
 
 const FONT_SIZE: f32 = 14.0;
 const CHARACTER_WIDTH: f32 = 8.4;
+/// The side padding of a field. A click is measured against it.
+const SIDE_PAD: f32 = 10.0;
+/// The side padding of a tool field.
+const TOOL_SIDE_PAD: f32 = 6.0;
+/// The width of one character of the tool field's face: the same ratio as
+/// [`CHARACTER_WIDTH`] to [`FONT_SIZE`].
+const TOOL_CHARACTER_WIDTH: f32 = density::TEXT * CHARACTER_WIDTH / FONT_SIZE;
 
 /// Everything the field does with the keyboard and the pointer, as one handle.
 ///
@@ -79,6 +86,8 @@ pub struct TextFieldSpec {
     /// on a menu. Same face and the same padding either side - the caret is
     /// found by character width, so only the height gives way.
     pub dense: bool,
+    /// Draw it at the size of a tool surface: see [`density`].
+    pub tool: bool,
 }
 
 impl TextFieldSpec {
@@ -89,6 +98,7 @@ impl TextFieldSpec {
             placeholder: String::new(),
             max_chars: 256,
             dense: false,
+            tool: false,
         }
     }
 
@@ -109,6 +119,13 @@ impl TextFieldSpec {
         self.dense = true;
         self
     }
+
+    /// Draw it at the size of a tool surface: a smaller face and a thinner
+    /// padding as well as a shorter box.
+    pub fn tool(mut self) -> Self {
+        self.tool = true;
+        self
+    }
 }
 
 /// Marks a themed single-line text entry root.
@@ -119,6 +136,7 @@ pub struct TextField;
 pub(super) struct TextFieldConfig {
     placeholder: String,
     max_chars: usize,
+    tool: bool,
 }
 
 #[derive(Component)]
@@ -132,10 +150,17 @@ pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
     // A dense field gives up HEIGHT only. The horizontal padding is what
     // `caret_for_pointer` measures a click against, and the face is what
     // `CHARACTER_WIDTH` is derived from, so neither may move.
-    let (min_height, vertical_pad) = if spec.dense {
+    let (min_height, vertical_pad) = if spec.tool {
+        (px(density::CONTROL_H), px(1))
+    } else if spec.dense {
         (px(26), px(2))
     } else {
         (px(36), px(7))
+    };
+    let (side_pad, font_size) = if spec.tool {
+        (TOOL_SIDE_PAD, density::TEXT)
+    } else {
+        (SIDE_PAD, FONT_SIZE)
     };
     (
         TextField,
@@ -143,6 +168,7 @@ pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
         TextFieldConfig {
             placeholder: spec.placeholder,
             max_chars: spec.max_chars,
+            tool: spec.tool,
         },
         Button,
         Hovered::default(),
@@ -150,7 +176,7 @@ pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
             width: percent(100),
             min_height,
             align_items: AlignItems::Center,
-            padding: UiRect::axes(px(10), vertical_pad),
+            padding: UiRect::axes(px(side_pad), vertical_pad),
             border: UiRect::all(px(BORDER_W)),
             position_type: PositionType::Relative,
             ..default()
@@ -159,16 +185,24 @@ pub fn text_field(spec: TextFieldSpec) -> impl Bundle {
         // every frame, so a field takes its theme on the frame it appears.
         BorderColor::all(Color::NONE),
         BackgroundColor(Color::NONE),
-        Children::spawn(SpawnWith(|parent: &mut RelatedSpawner<ChildOf>| {
+        Children::spawn(SpawnWith(move |parent: &mut RelatedSpawner<ChildOf>| {
             parent.spawn((
                 TextFieldDisplay,
                 UiText,
                 Text::new(String::new()),
                 TextFont {
-                    font_size: FontSize::Px(FONT_SIZE),
+                    font_size: FontSize::Px(font_size),
                     ..default()
                 },
                 TextColor(Color::NONE),
+                // Sized by the box, not by the text: a shrink-only child wrapped
+                // long text a few pixels past the right padding.
+                Node {
+                    flex_grow: 1.0,
+                    flex_basis: px(0),
+                    min_width: px(0),
+                    ..default()
+                },
             ));
             parent.spawn((
                 TextFieldErrorDisplay,
@@ -210,11 +244,17 @@ fn caret_for_pointer(
     node: &ComputedNode,
     transform: &UiGlobalTransform,
     x: f32,
+    tool: bool,
 ) -> usize {
     let local = transform.try_inverse().map_or(Vec2::ZERO, |inverse| {
         inverse.transform_point2(Vec2::new(x, 0.0))
     });
-    let column = ((local.x + node.size().x * 0.5 - 10.0) / CHARACTER_WIDTH)
+    let (side_pad, character) = if tool {
+        (TOOL_SIDE_PAD, TOOL_CHARACTER_WIDTH)
+    } else {
+        (SIDE_PAD, CHARACTER_WIDTH)
+    };
+    let column = ((local.x + node.size().x * 0.5 - side_pad) / character)
         .round()
         .max(0.0) as usize;
     value
@@ -228,7 +268,15 @@ pub(super) fn text_field_on_pointer(
     press: On<Pointer<Press>>,
     mut commands: Commands,
     q_parent: Query<&ChildOf>,
-    q_fields: Query<(&TextFieldValue, &ComputedNode, &UiGlobalTransform), With<TextField>>,
+    q_fields: Query<
+        (
+            &TextFieldValue,
+            &TextFieldConfig,
+            &ComputedNode,
+            &UiGlobalTransform,
+        ),
+        With<TextField>,
+    >,
     q_focused: Query<(Entity, &TextFieldValue), With<TextFieldFocused>>,
     mut submitted: MessageWriter<TextFieldSubmitted>,
 ) {
@@ -258,10 +306,16 @@ pub(super) fn text_field_on_pointer(
     let Some(entity) = field else {
         return;
     };
-    let Ok((value, node, transform)) = q_fields.get(entity) else {
+    let Ok((value, config, node, transform)) = q_fields.get(entity) else {
         return;
     };
-    let caret = caret_for_pointer(&value.0, node, transform, press.pointer_location.position.x);
+    let caret = caret_for_pointer(
+        &value.0,
+        node,
+        transform,
+        press.pointer_location.position.x,
+        config.tool,
+    );
     commands.entity(entity).insert(TextFieldFocused {
         original: value.0.clone(),
         caret,
@@ -309,10 +363,21 @@ pub(super) fn text_field_keyboard(
         With<TextField>,
     >,
     mut submitted: MessageWriter<TextFieldSubmitted>,
+    keys: Option<Res<ButtonInput<KeyCode>>>,
 ) {
     let Ok((entity, config, mut value, mut focus)) = q_field.single_mut() else {
         return;
     };
+    // `logical_key` ignores Ctrl, so a chord arrives as its plain letter. AltGr
+    // reaches Windows as Ctrl and Alt together, and that one types.
+    let chord = keys.is_some_and(|keys| {
+        keys.any_pressed([
+            KeyCode::ControlLeft,
+            KeyCode::ControlRight,
+            KeyCode::SuperLeft,
+            KeyCode::SuperRight,
+        ]) && !keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight])
+    });
     for event in keyboard.read() {
         if event.state != ButtonState::Pressed {
             continue;
@@ -351,7 +416,7 @@ pub(super) fn text_field_keyboard(
                 value.0.insert(focus.caret, ' ');
                 focus.caret += 1;
             }
-            Key::Character(text) => {
+            Key::Character(text) if !chord => {
                 let room = config.max_chars.saturating_sub(value.0.chars().count());
                 let inserted: String = text.chars().take(room).collect();
                 value.0.insert_str(focus.caret, &inserted);
@@ -488,6 +553,53 @@ mod tests {
         press(&mut app, KeyCode::Digit2, Key::Character("2".into()));
 
         assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "123");
+    }
+
+    fn focused_on(app: &mut App, text: &str) -> Entity {
+        app.init_resource::<ButtonInput<KeyCode>>();
+        app.add_message::<KeyboardInput>();
+        app.world_mut()
+            .spawn((
+                text_field(TextFieldSpec::new(text)),
+                TextFieldFocused::at_end(text),
+            ))
+            .id()
+    }
+
+    /// winit's `logical_key` is not changed by Ctrl, so a chord arrives as its
+    /// plain letter, and Ctrl+S in a field would type an `s`.
+    #[test]
+    fn a_ctrl_chord_types_nothing() {
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
+        let field = focused_on(&mut app, "13");
+        for modifier in [KeyCode::ControlLeft, KeyCode::SuperLeft] {
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .press(modifier);
+            press(&mut app, KeyCode::KeyS, Key::Character("s".into()));
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .release(modifier);
+        }
+
+        assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "13");
+    }
+
+    /// AltGr reaches Windows as Ctrl and Alt together, and it types: `@` on a
+    /// German keyboard.
+    #[test]
+    fn altgr_still_types() {
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
+        let field = focused_on(&mut app, "13");
+        {
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.press(KeyCode::ControlLeft);
+            keys.press(KeyCode::AltRight);
+        }
+
+        press(&mut app, KeyCode::KeyQ, Key::Character("@".into()));
+
+        assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "13@");
     }
 
     /// A second focus is a state the widget cannot type in: `single_mut` reads

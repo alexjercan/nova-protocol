@@ -202,6 +202,7 @@ fn burn_rig(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig
         description: "A minimal ship under a scripted burn.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

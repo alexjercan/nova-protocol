@@ -59,32 +59,6 @@ fn under(world: &mut World, node: Entity) -> (Vec<Entity>, Vec<Entity>) {
         .expect("the walk runs")
 }
 
-/// What Add > `add` would hang the new node from, with `marked` marked.
-fn parent_for(
-    world: &mut World,
-    scenario: Entity,
-    marked: Option<Entity>,
-    add: ScriptAdd,
-) -> Option<Entity> {
-    world
-        .run_system_once(move |script: ScriptNodes| add_parent(add, marked, &script, scenario))
-        .expect("the question is asked")
-}
-
-/// Press Add > `add` with `marked` marked.
-fn added(world: &mut World, scenario: Entity, marked: Option<Entity>, add: ScriptAdd) -> Entity {
-    world
-        .run_system_once(
-            move |mut commands: Commands,
-                  script: ScriptNodes,
-                  mut ordinals: Query<&mut NextChildOrdinal>| {
-                let parent = add_parent(add, marked, &script, scenario).expect("the row is live");
-                spawn_script_node(&mut commands, &mut ordinals, parent, add)
-            },
-        )
-        .expect("the add runs")
-}
-
 /// The configs carry no `PartialEq`, and their `Debug` is the whole tree.
 fn spelled(events: &[ScenarioEventConfig]) -> String {
     format!("{events:#?}")
@@ -111,12 +85,27 @@ fn the_seeded_script_survives_a_lift_and_a_lowering() {
     assert_eq!(spelled(&round_trip(script.clone())), spelled(&script));
 }
 
+/// The canvas is a view over the tree, so opening a shipped scenario in it and
+/// saving must write what the builders wrote.
+#[test]
+fn every_shipped_scenario_lifts_and_lowers_unchanged() {
+    for scenario in nova_authoring::generation::build_scenarios() {
+        assert_eq!(
+            spelled(&round_trip(scenario.events.clone())),
+            spelled(&scenario.events),
+            "{}",
+            scenario.id,
+        );
+    }
+}
+
 /// A sequence is the one action with children, and the children are ordered:
 /// steps read back out of order are a different scenario.
 #[test]
 fn a_sequences_steps_keep_the_order_they_were_written_in() {
     let script = vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: true,
         filters: vec![],
@@ -154,6 +143,7 @@ fn a_sequences_steps_keep_the_order_they_were_written_in() {
 fn a_nested_condition_round_trips_through_operand_nodes() {
     let script = vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnEnter,
         once: false,
         filters: vec![EventFilterConfig::Conditional(
@@ -188,6 +178,7 @@ fn an_expression_filter_round_trips_through_operator_nodes() {
     );
     let script = vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -216,6 +207,7 @@ fn a_filter_switched_to_an_expression_arrives_with_a_condition() {
         &mut world,
         vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![named("player")],
@@ -244,6 +236,7 @@ fn an_operator_switched_to_a_value_drops_its_operands() {
         &mut world,
         vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
@@ -288,6 +281,7 @@ fn an_operator_switched_to_a_value_drops_its_operands() {
 fn a_variable_set_round_trips_through_operator_nodes() {
     let script = vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnUpdate,
         once: false,
         filters: vec![],
@@ -319,6 +313,7 @@ fn an_action_switched_to_a_variable_set_arrives_writing_a_value() {
         &mut world,
         vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -353,6 +348,7 @@ fn a_variable_set_reads_as_the_assignment_it_makes() {
         &mut world,
         vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnUpdate,
             once: false,
             filters: vec![],
@@ -390,10 +386,30 @@ fn a_variable_set_reads_as_the_assignment_it_makes() {
     );
 }
 
-/// What a variable set's tree row reads as.
+/// The condition under `node`, as the grammar spells it.
+fn condition_text(script: &ScriptNodes, node: Entity) -> Option<String> {
+    let root = script.operands_of(node).into_iter().next()?;
+    Some(script.lower_condition(root)?.to_string())
+}
+
+/// What a `VariableSet` writes, as the grammar spells it. An unnamed key has
+/// nothing to assign to.
+fn assignment_text(script: &ScriptNodes, node: Entity) -> Option<String> {
+    let ActionKind::VariableSet(head) = &script.action(node)?.kind else {
+        return None;
+    };
+    let key = head.key.trim();
+    if key.is_empty() {
+        return None;
+    }
+    let root = script.operands_of(node).into_iter().next()?;
+    Some(format!("{key} = {}", script.lower_expression(root)?))
+}
+
+/// What a variable set writes.
 fn assignment(world: &mut World, node: Entity) -> Option<String> {
     world
-        .run_system_once(move |script: ScriptNodes| script.assignment_text(node))
+        .run_system_once(move |script: ScriptNodes| assignment_text(&script, node))
         .expect("the walk runs")
 }
 
@@ -417,6 +433,7 @@ fn a_handler_names_what_it_places_and_what_it_expects() {
     object.base.id = "beacon_1".to_string();
     let event = ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![named("player")],
@@ -451,6 +468,7 @@ fn a_scatter_declares_a_prefix_rather_than_an_id() {
     scatter.id_prefix = "belt".to_string();
     let event = ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],
@@ -468,6 +486,7 @@ fn a_scatter_declares_a_prefix_rather_than_an_id() {
 fn one_handler() -> Vec<ScenarioEventConfig> {
     vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![named("player")],
@@ -478,134 +497,6 @@ fn one_handler() -> Vec<ScenarioEventConfig> {
 /// Add lands the node under what is marked, and a fresh filter arrives
 /// matching nothing: an id nobody typed would gate the handler on a choice
 /// nobody made.
-#[test]
-fn a_filter_lands_under_the_marked_handler() {
-    let mut world = World::new();
-    let scenario = seeded(&mut world, one_handler());
-    let handler = handlers(&mut world, scenario)[0];
-
-    added(&mut world, scenario, Some(handler), ScriptAdd::Filter);
-
-    let script = lowered(&mut world, scenario);
-    assert_eq!(script[0].filters.len(), 2, "the handler kept its own");
-    let EventFilterConfig::Entity(fresh) = &script[0].filters[1] else {
-        panic!("a fresh filter matches entities");
-    };
-    assert_eq!(fresh.id, None, "and matches none of them yet");
-}
-
-/// Add > Sequence makes the one action that takes children, already switched.
-///
-/// Its own row because it is the only way a builder finds out that beats and
-/// gates exist: reached as `Action` plus a switch to `Sequence`, the whole
-/// paced-chain half of the vocabulary is behind a menu nobody opens.
-#[test]
-fn add_sequence_makes_the_action_that_holds_beats() {
-    let mut world = World::new();
-    let scenario = seeded(&mut world, one_handler());
-    let handler = handlers(&mut world, scenario)[0];
-
-    added(&mut world, scenario, Some(handler), ScriptAdd::Sequence);
-
-    let script = lowered(&mut world, scenario);
-    let fresh = script[0].actions.last().expect("the action landed");
-    assert!(
-        matches!(fresh, EventActionConfig::Sequence(_)),
-        "Add > Sequence is a sequence, not an action to be switched: {fresh:?}"
-    );
-}
-
-/// A marked node that cannot take the new one hands the question UP: three
-/// actions in a row is three presses, not three presses and two reselections.
-#[test]
-fn a_marked_action_adds_its_sibling() {
-    let mut world = World::new();
-    let scenario = seeded(&mut world, one_handler());
-    let handler = handlers(&mut world, scenario)[0];
-    let (_, actions) = under(&mut world, handler);
-
-    assert_eq!(
-        parent_for(&mut world, scenario, Some(actions[0]), ScriptAdd::Action),
-        Some(handler)
-    );
-}
-
-/// A combinator holds exactly what it combines. A third operand under an `And`
-/// would be dropped by the lowering, so the add goes to the handler instead.
-#[test]
-fn a_full_combinator_takes_no_more_operands() {
-    let mut world = World::new();
-    let scenario = seeded(
-        &mut world,
-        vec![ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnStart,
-            once: false,
-            filters: vec![EventFilterConfig::Conditional(
-                ConditionalFilterConfig::and(named("a"), named("b")),
-            )],
-            actions: vec![],
-        }],
-    );
-    let handler = handlers(&mut world, scenario)[0];
-    let (filters, _) = under(&mut world, handler);
-    let both = filters[0];
-    let (operands, _) = under(&mut world, both);
-
-    assert_eq!(
-        parent_for(&mut world, scenario, Some(both), ScriptAdd::Filter),
-        Some(handler),
-        "a full And sends the filter to its own handler"
-    );
-    assert_eq!(
-        parent_for(&mut world, scenario, Some(operands[0]), ScriptAdd::Filter),
-        Some(handler),
-        "and so does the leaf inside it, which is the same climb"
-    );
-}
-
-/// A beat waits for one thing. The row that would give it a second is greyed,
-/// which is the same `None` the verb reads.
-#[test]
-fn a_beat_that_already_waits_takes_no_second_gate() {
-    let mut world = World::new();
-    let scenario = seeded(
-        &mut world,
-        vec![ScenarioEventConfig {
-            label: None,
-            name: EventConfig::OnStart,
-            once: false,
-            filters: vec![],
-            actions: vec![EventActionConfig::Sequence(SequenceActionConfig {
-                key: "briefing".to_string(),
-                steps: vec![SequenceStepConfig {
-                    until: Some(SequenceGateConfig {
-                        name: EventConfig::OnDestroyed,
-                        filters: vec![],
-                    }),
-                    ..default()
-                }],
-            })],
-        }],
-    );
-    let handler = handlers(&mut world, scenario)[0];
-    let (_, actions) = under(&mut world, handler);
-    let sequence = actions[0];
-    let step = world
-        .run_system_once(move |script: ScriptNodes| script.steps_of(sequence))
-        .expect("the walk runs")[0];
-
-    assert_eq!(
-        parent_for(&mut world, scenario, Some(step), ScriptAdd::Gate),
-        None
-    );
-    assert_eq!(
-        parent_for(&mut world, scenario, Some(step), ScriptAdd::Step),
-        Some(sequence),
-        "a marked beat still adds the beat after it"
-    );
-}
-
 /// Switching a combinator keeps the operands the new kind holds and drops the
 /// rest: an operand a filter cannot hold is a node with no row.
 #[test]
@@ -615,6 +506,7 @@ fn switching_a_combinator_keeps_the_operands_it_can_hold() {
         &mut world,
         vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![EventFilterConfig::Conditional(
@@ -648,6 +540,7 @@ fn leaving_a_sequence_drops_its_beats() {
         &mut world,
         vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -688,6 +581,7 @@ fn a_switched_filter_keeps_its_place_in_the_handler() {
         &mut world,
         vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![
@@ -742,6 +636,7 @@ fn objective_set() -> Vec<ScenarioEventConfig> {
     vec![
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: true,
             filters: vec![],
@@ -766,6 +661,7 @@ fn objective_set() -> Vec<ScenarioEventConfig> {
         },
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnDestroyed,
             once: true,
             filters: vec![entity_named("hulk_1")],
@@ -777,6 +673,7 @@ fn objective_set() -> Vec<ScenarioEventConfig> {
         },
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnEnter,
             once: true,
             filters: vec![entity_named("marker_area")],
@@ -788,6 +685,7 @@ fn objective_set() -> Vec<ScenarioEventConfig> {
         },
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnTimerEnd,
             once: true,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -934,6 +832,7 @@ fn an_objective_stands_until_the_beat_it_names_happens() {
 fn a_named_handler_keeps_its_name() {
     let events = round_trip(vec![ScenarioEventConfig {
         label: Some("picket warden wakes".to_string()),
+        position: None,
         name: EventConfig::OnEnter,
         once: true,
         filters: vec![],
@@ -942,4 +841,584 @@ fn a_named_handler_keeps_its_name() {
 
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].label.as_deref(), Some("picket warden wakes"));
+}
+
+/// Every shape of incomplete condition the document can hold, none of which
+/// the handler list can spell.
+fn half_built(world: &mut World, scenario: Entity) -> Entity {
+    let handler = handlers(world, scenario)[0];
+    let not = world
+        .run_system_once(
+            move |mut commands: Commands, mut ordinals: Query<&mut NextChildOrdinal>| {
+                let id = crate::node::mint_id(&mut ordinals, handler, FilterChoice::Not.stem());
+                spawn_node(
+                    &mut commands,
+                    handler,
+                    "Filter",
+                    id,
+                    FilterNode {
+                        kind: FilterKind::Not,
+                    },
+                )
+            },
+        )
+        .expect("the spawn runs");
+    world.flush();
+    not
+}
+
+/// A `Not` with nothing in it does not lower: the file cannot spell it. What
+/// must not happen is that the builder is never told.
+#[test]
+fn a_half_built_combinator_raises_a_gap_rather_than_vanishing() {
+    let mut world = World::new();
+    let scenario = seeded(&mut world, one_handler());
+    let before = lowered(&mut world, scenario)[0].filters.len();
+    let not = half_built(&mut world, scenario);
+
+    assert_eq!(
+        lowered(&mut world, scenario)[0].filters.len(),
+        before,
+        "the file has no way to spell an empty Not, so the lowering loses it"
+    );
+    let gaps = world
+        .run_system_once(move |script: ScriptNodes| script.gaps(scenario))
+        .expect("the walk runs");
+    assert_eq!(
+        gaps.iter().map(|gap| gap.0).collect::<Vec<_>>(),
+        vec![not],
+        "the block that would vanish is the block named: {gaps:?}"
+    );
+}
+
+/// A world holding the document verbs need beside the script.
+fn block_world(events: Vec<ScenarioEventConfig>) -> (World, Entity) {
+    let mut world = World::new();
+    let scenario = seeded(&mut world, events);
+    (world, scenario)
+}
+
+fn messages(world: &mut World, scenario: Entity, handler: usize) -> Vec<String> {
+    lowered(world, scenario)[handler]
+        .actions
+        .iter()
+        .map(|action| match action {
+            EventActionConfig::DebugMessage(message) => message.message.clone(),
+            other => format!("{:?}", other.tag()),
+        })
+        .collect()
+}
+
+fn three_messages() -> Vec<ScenarioEventConfig> {
+    vec![
+        ScenarioEventConfig {
+            label: None,
+            position: None,
+            name: EventConfig::OnStart,
+            once: false,
+            filters: Vec::new(),
+            actions: vec![message("a"), message("b"), message("c")],
+        },
+        ScenarioEventConfig {
+            label: None,
+            position: None,
+            name: EventConfig::OnResume,
+            once: false,
+            filters: Vec::new(),
+            actions: vec![message("x")],
+        },
+    ]
+}
+
+fn ids_of(world: &World, nodes: &[Entity]) -> Vec<String> {
+    nodes
+        .iter()
+        .map(|node| world.get::<NodeId>(*node).expect("an id").0.clone())
+        .collect()
+}
+
+/// The last action moving to the top reads in the new order, and no two
+/// siblings share an id.
+#[test]
+fn a_reorder_keeps_ids_unique_and_lowers_in_the_new_order() {
+    let (mut world, scenario) = block_world(three_messages());
+    let handler = handlers(&mut world, scenario)[0];
+    let actions = under(&mut world, handler).1;
+
+    move_block(
+        &mut world,
+        actions[2],
+        BlockSlotType::Action {
+            parent: handler,
+            index: 0,
+        },
+    )
+    .expect("an action fits a stack");
+
+    assert_eq!(messages(&mut world, scenario, 0), ["c", "a", "b"]);
+    let after = under(&mut world, handler).1;
+    let mut ids = ids_of(&world, &after);
+    ids.sort();
+    ids.dedup();
+    assert_eq!(ids.len(), 3, "every sibling keeps an id of its own");
+}
+
+/// A stack is carried by its top: what stands below goes with it, and the
+/// receiving parent's counter never hands out an ordinal twice.
+#[test]
+fn dragging_a_block_carries_the_blocks_below_it() {
+    let (mut world, scenario) = block_world(three_messages());
+    let all = handlers(&mut world, scenario);
+    let (from, to) = (all[0], all[1]);
+    let actions = under(&mut world, from).1;
+    let counter = world.get::<NextChildOrdinal>(to).expect("a counter").0;
+
+    move_block(
+        &mut world,
+        actions[1],
+        BlockSlotType::Action {
+            parent: to,
+            index: 1,
+        },
+    )
+    .expect("an action fits a stack");
+
+    assert_eq!(messages(&mut world, scenario, 0), ["a"]);
+    assert_eq!(messages(&mut world, scenario, 1), ["x", "b", "c"]);
+    assert_eq!(
+        world.get::<NextChildOrdinal>(to).expect("a counter").0,
+        counter + 2,
+        "each arrival took a fresh ordinal"
+    );
+}
+
+/// Every shape-and-slot mismatch is refused, and refused means nothing moved.
+#[test]
+fn an_illegal_drop_changes_nothing() {
+    let (mut world, scenario) = block_world(three_messages());
+    let handler = handlers(&mut world, scenario)[0];
+    let actions = under(&mut world, handler).1;
+    let before = spelled(&lowered(&mut world, scenario));
+
+    for slot in [
+        BlockSlotType::Canvas(Vec2::ZERO),
+        BlockSlotType::Filter {
+            parent: handler,
+            index: 0,
+        },
+        BlockSlotType::Value {
+            parent: handler,
+            index: 0,
+        },
+        BlockSlotType::Gate { step: handler },
+    ] {
+        let refused = move_block(&mut world, actions[0], slot);
+        assert!(refused.is_err(), "{slot:?} takes no action");
+    }
+
+    assert_eq!(spelled(&lowered(&mut world, scenario)), before);
+}
+
+/// A stack dropped into its own inside would leave no owner to lower it from.
+#[test]
+fn a_block_cannot_go_inside_itself() {
+    let (mut world, scenario) = block_world(three_messages());
+    let handler = handlers(&mut world, scenario)[0];
+    let sequence = place_new(
+        &mut world,
+        BlockItemType::Action(ActionChoice::Sequence),
+        BlockSlotType::Action {
+            parent: handler,
+            index: 3,
+        },
+    )
+    .expect("a sequence is an action");
+    let step = world
+        .run_system_once(move |script: ScriptNodes| script.steps_of(sequence)[0])
+        .expect("the walk runs");
+
+    let refused = move_block(
+        &mut world,
+        sequence,
+        BlockSlotType::Action {
+            parent: step,
+            index: 0,
+        },
+    );
+
+    assert!(refused.is_err());
+}
+
+/// A gate with no deadline is a lint error, so the gate brings one.
+#[test]
+fn a_new_gate_arrives_with_a_deadline() {
+    let (mut world, scenario) = block_world(three_messages());
+    let handler = handlers(&mut world, scenario)[0];
+    let sequence = place_new(
+        &mut world,
+        BlockItemType::Action(ActionChoice::Sequence),
+        BlockSlotType::Action {
+            parent: handler,
+            index: 0,
+        },
+    )
+    .expect("a sequence is an action");
+    let step = world
+        .run_system_once(move |script: ScriptNodes| script.steps_of(sequence)[0])
+        .expect("the walk runs");
+
+    place_new(
+        &mut world,
+        BlockItemType::Gate,
+        BlockSlotType::Gate { step },
+    )
+    .expect("an empty step takes a gate");
+
+    assert_eq!(
+        world.get::<StepNode>(step).expect("a step").deadline,
+        Some(NEW_GATE_DEADLINE)
+    );
+    assert!(
+        place_new(
+            &mut world,
+            BlockItemType::Gate,
+            BlockSlotType::Gate { step }
+        )
+        .is_err(),
+        "a step that waits takes no second gate"
+    );
+}
+
+/// A reporter lands on a literal, which is the socket's own field; it does not
+/// land on another reporter; and pulling it out leaves a `0`, so a condition
+/// never loses a side.
+#[test]
+fn a_value_socket_is_never_empty() {
+    let (mut world, scenario) = block_world(three_messages());
+    let handler = handlers(&mut world, scenario)[0];
+    let filter = place_new(
+        &mut world,
+        BlockItemType::Expr(ExprChoice::LessThan),
+        BlockSlotType::Filter {
+            parent: handler,
+            index: 0,
+        },
+    )
+    .expect("a comparison wraps itself in a filter");
+    let root = operands(&mut world, filter)[0];
+
+    let elapsed = place_new(
+        &mut world,
+        BlockItemType::Query,
+        BlockSlotType::Value {
+            parent: root,
+            index: 1,
+        },
+    )
+    .expect("a reporter replaces a literal");
+    let text = |world: &mut World| {
+        world
+            .run_system_once(move |script: ScriptNodes| condition_text(&script, filter))
+            .expect("the walk runs")
+            .expect("the condition lowers")
+    };
+    assert_eq!(text(&mut world), "0 < scenario.elapsed");
+    assert!(
+        place_new(
+            &mut world,
+            BlockItemType::Query,
+            BlockSlotType::Value {
+                parent: root,
+                index: 1,
+            },
+        )
+        .is_err(),
+        "a reporter is not replaced by a drop"
+    );
+
+    move_block(
+        &mut world,
+        elapsed,
+        BlockSlotType::Value {
+            parent: root,
+            index: 0,
+        },
+    )
+    .expect("the other socket holds a literal");
+    assert_eq!(text(&mut world), "scenario.elapsed < 0");
+}
+
+/// A comparison pulled across handlers keeps its operands, and a filter moved
+/// out of a combinator leaves the combinator incomplete and said to be.
+#[test]
+fn a_filter_pulled_from_a_combinator_leaves_a_gap_on_it() {
+    let (mut world, scenario) = block_world(three_messages());
+    let handler = handlers(&mut world, scenario)[0];
+    let both = place_new(
+        &mut world,
+        BlockItemType::Filter(FilterChoice::And),
+        BlockSlotType::Filter {
+            parent: handler,
+            index: 0,
+        },
+    )
+    .expect("a combinator is a filter");
+    let inner = place_new(
+        &mut world,
+        BlockItemType::Filter(FilterChoice::Timer),
+        BlockSlotType::Operand {
+            parent: both,
+            index: 0,
+        },
+    )
+    .expect("the socket is empty");
+    let third = BlockSlotType::Operand {
+        parent: both,
+        index: 0,
+    };
+    assert!(
+        place_new(
+            &mut world,
+            BlockItemType::Filter(FilterChoice::Timer),
+            third
+        )
+        .is_err(),
+        "a full socket refuses"
+    );
+
+    let gaps = world
+        .run_system_once(move |script: ScriptNodes| script.gaps(scenario))
+        .expect("the walk runs");
+    assert_eq!(gaps.len(), 1);
+    assert_eq!(gaps[0].0, both);
+    assert!(world.get::<FilterNode>(inner).is_some());
+}
+
+/// The stored position survives the trip through the file's shape, and a
+/// handler with no position stays that way.
+#[test]
+fn a_handler_position_round_trips_through_the_lowering() {
+    let (mut world, scenario) = block_world(three_messages());
+    let handler = handlers(&mut world, scenario)[0];
+
+    move_block(
+        &mut world,
+        handler,
+        BlockSlotType::Canvas(Vec2::new(40.0, 60.0)),
+    )
+    .expect("a handler stands on the canvas");
+
+    let events = lowered(&mut world, scenario);
+    assert_eq!(events[0].position, Some(Vec2::new(40.0, 60.0)));
+    assert_eq!(events[1].position, None);
+    assert_eq!(
+        round_trip(events.clone())[0].position,
+        Some(Vec2::new(40.0, 60.0))
+    );
+}
+
+/// The palette is the tables: nothing they declare is missing from it.
+#[test]
+fn the_palette_covers_every_kind_in_the_tables() {
+    let items = BlockItemType::all();
+    for trigger in EventConfig::ALL {
+        assert!(items.contains(&BlockItemType::Hat(trigger)), "{trigger:?}");
+    }
+    for action in ActionChoice::ALL {
+        assert!(items.contains(&BlockItemType::Action(action)), "{action:?}");
+    }
+    for filter in FilterChoice::ALL {
+        assert!(items.contains(&BlockItemType::Filter(filter)), "{filter:?}");
+    }
+    for expr in ExprChoice::ALL {
+        assert!(items.contains(&BlockItemType::Expr(expr)), "{expr:?}");
+    }
+    assert!(
+        items.iter().all(|item| !item.hint().is_empty()),
+        "every block says what it is for"
+    );
+}
+
+/// Deleting the top of a stack takes the blocks below, as dragging it would.
+#[test]
+fn deleting_a_block_takes_the_blocks_below_it() {
+    let (mut world, scenario) = block_world(three_messages());
+    let handler = handlers(&mut world, scenario)[0];
+    let actions = under(&mut world, handler).1;
+
+    delete_block(&mut world, actions[1]);
+
+    assert_eq!(messages(&mut world, scenario, 0), ["a"]);
+}
+
+/// The operator of a variable set, retyped from its stock value to `0 - 0`.
+fn retyped_subtraction(world: &mut World, handler: Entity) -> Entity {
+    let writes = place_new(
+        world,
+        BlockItemType::Action(ActionChoice::VariableSet),
+        BlockSlotType::Action {
+            parent: handler,
+            index: 0,
+        },
+    )
+    .expect("an action joins a stack");
+    let root = operands(world, writes)[0];
+    retype_expression(world, root, ExprChoice::Subtract);
+    root
+}
+
+/// The operands a retype spawns hold ordinals 1 and 2, so the counter has to
+/// stand past them or the next reporter takes an ordinal already in use.
+#[test]
+fn a_reporter_dropped_on_a_retyped_operator_keeps_its_side() {
+    let (mut world, scenario) = block_world(three_messages());
+    let handler = handlers(&mut world, scenario)[0];
+    let root = retyped_subtraction(&mut world, handler);
+
+    place_new(
+        &mut world,
+        BlockItemType::Query,
+        BlockSlotType::Value {
+            parent: root,
+            index: 1,
+        },
+    )
+    .expect("a reporter replaces a literal");
+
+    let spelled = world
+        .run_system_once(move |script: ScriptNodes| script.lower_expression(root))
+        .expect("the walk runs")
+        .expect("the operator lowers")
+        .to_string();
+    assert_eq!(spelled, "0 - scenario.elapsed");
+    let held = operands(&mut world, root);
+    let ids = ids_of(&world, &held);
+    let unique: std::collections::HashSet<&String> = ids.iter().collect();
+    assert_eq!(unique.len(), ids.len(), "{ids:?}");
+}
+
+/// A combinator holds what its kind can lower. A third condition has no socket:
+/// it would be held, drawn nowhere and dropped on save.
+#[test]
+fn a_full_combinator_refuses_a_third_condition() {
+    let (mut world, scenario) = block_world(three_messages());
+    let handler = handlers(&mut world, scenario)[0];
+    let both = place_new(
+        &mut world,
+        BlockItemType::Filter(FilterChoice::And),
+        BlockSlotType::Filter {
+            parent: handler,
+            index: 0,
+        },
+    )
+    .expect("a combinator is a filter");
+    for index in 0..2 {
+        place_new(
+            &mut world,
+            BlockItemType::Filter(FilterChoice::Timer),
+            BlockSlotType::Operand {
+                parent: both,
+                index,
+            },
+        )
+        .expect("the socket is empty");
+    }
+    let last = under(&mut world, both).0[1];
+    let slot = world
+        .run_system_once(move |script: ScriptNodes| {
+            slot_after(&script, last, BlockShapeType::Boolean)
+        })
+        .expect("the walk runs")
+        .expect("beside a filter there is a slot to ask about");
+
+    assert!(place_new(&mut world, BlockItemType::Filter(FilterChoice::Timer), slot).is_err());
+    assert_eq!(under(&mut world, both).0.len(), 2);
+}
+
+/// Three conditions on a two-socket combinator cannot be drawn or written, so a
+/// document holding them is told so rather than losing one.
+#[test]
+fn too_many_conditions_on_a_combinator_raise_a_gap() {
+    let (mut world, scenario) = block_world(three_messages());
+    let handler = handlers(&mut world, scenario)[0];
+    let both = place_new(
+        &mut world,
+        BlockItemType::Filter(FilterChoice::And),
+        BlockSlotType::Filter {
+            parent: handler,
+            index: 0,
+        },
+    )
+    .expect("a combinator is a filter");
+    for ordinal in 1..=3 {
+        world
+            .run_system_once(move |mut commands: Commands| {
+                spawn_node(
+                    &mut commands,
+                    both,
+                    "Filter",
+                    NodeId(format!("timer_{ordinal}")),
+                    FilterNode {
+                        kind: FilterChoice::Timer.stock(),
+                    },
+                );
+            })
+            .expect("the spawn runs");
+    }
+
+    let gaps = world
+        .run_system_once(move |script: ScriptNodes| script.gaps(scenario))
+        .expect("the walk runs");
+
+    assert_eq!(gaps.len(), 1, "{gaps:?}");
+    assert_eq!(gaps[0].0, both);
+}
+
+/// Both ways across one operator: the block leaves its socket for a stock `0`
+/// and takes the socket it was dropped on.
+#[test]
+fn a_reporter_crosses_its_own_operator_both_ways() {
+    let (mut world, scenario) = block_world(three_messages());
+    let handler = handlers(&mut world, scenario)[0];
+    let filter = place_new(
+        &mut world,
+        BlockItemType::Expr(ExprChoice::LessThan),
+        BlockSlotType::Filter {
+            parent: handler,
+            index: 0,
+        },
+    )
+    .expect("a comparison wraps itself in a filter");
+    let root = operands(&mut world, filter)[0];
+    let elapsed = place_new(
+        &mut world,
+        BlockItemType::Query,
+        BlockSlotType::Value {
+            parent: root,
+            index: 0,
+        },
+    )
+    .expect("a reporter replaces a literal");
+    let text = |world: &mut World| {
+        world
+            .run_system_once(move |script: ScriptNodes| condition_text(&script, filter))
+            .expect("the walk runs")
+            .expect("the condition lowers")
+    };
+    assert_eq!(text(&mut world), "scenario.elapsed < 0");
+
+    let right = BlockSlotType::Value {
+        parent: root,
+        index: 1,
+    };
+    move_block(&mut world, elapsed, right).expect("the other socket holds a literal");
+    assert_eq!(text(&mut world), "0 < scenario.elapsed");
+
+    let left = BlockSlotType::Value {
+        parent: root,
+        index: 0,
+    };
+    move_block(&mut world, elapsed, left).expect("the other socket holds a literal");
+    assert_eq!(text(&mut world), "scenario.elapsed < 0");
+    assert_eq!(operands(&mut world, root).len(), 2);
 }

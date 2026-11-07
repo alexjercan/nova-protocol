@@ -214,6 +214,7 @@ fn load_scenario(
         description: "One base hull with its greeble solve drawn over it.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

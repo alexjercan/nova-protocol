@@ -406,6 +406,7 @@ fn load_row(mut commands: Commands, game_assets: Res<GameAssets>, stands: Res<St
         description: "Three generated armored hulls from three distances at one scale.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

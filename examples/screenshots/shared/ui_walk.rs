@@ -13,9 +13,10 @@
 //! solving a placement, the camera reaching its pose. A frame is not a unit of
 //! work - the same count was milliseconds on a workstation and most of a second
 //! under lavapipe, and said nothing about whether the app had finished
-//! reacting. Nothing here counts frames at all; the only frame count a walk
-//! built on it should still need is pre-SHOT stillness, which is what
-//! `SETTLE_FRAMES` is for.
+//! reacting. The kit counts frames in one place, the aim beat of `drag_block`,
+//! because nothing reports which slot a held block is aimed at. The only other
+//! frame count a walk built on it should need is pre-SHOT stillness, which is
+//! what `SETTLE_FRAMES` is for.
 //!
 //! Included by each walk with
 //! `#[cfg(feature = "debug")] #[path = "shared/ui_walk.rs"] mod ui_walk;` -
@@ -246,10 +247,10 @@ pub fn the_editor_can_play() -> Arc<Predicate> {
 }
 
 /// Where a founding click lands, in logical pixels on the 1920x1080 capture
-/// window: clear of the ship, the rail, the top bar AND the inspector down the
-/// right edge, so nothing is under the pointer - which is the editor's own test
-/// for "found here".
-pub const FOUND_CLICK: Vec2 = Vec2::new(1300.0, 900.0);
+/// window: clear of the ship, the Hierarchy, the Inspector down the right edge,
+/// and the browser strip along the bottom (it starts at y 878), so nothing is
+/// under the pointer - which is the editor's own test for "found here".
+pub const FOUND_CLICK: Vec2 = Vec2::new(1300.0, 800.0);
 
 /// The derived skin, on the ship the walk is building.
 pub fn the_skin_is_on() -> Arc<Predicate> {
@@ -311,7 +312,7 @@ pub fn aim_at_face(world: &mut World, section: Vec3, face: Vec3) -> Vec2 {
 /// script as one line, the way `examples/ui/editor.rs` writes its ship clicks -
 /// a press and a release spelled out at every call site buried what the walk
 /// actually does.
-pub trait Gestures {
+pub trait Gestures: Sized {
     /// Press and release the pointer over the named widget, once it is on
     /// screen. Widgets act on `Activate`, which fires on RELEASE over the same
     /// node.
@@ -344,11 +345,126 @@ pub trait Gestures {
     /// drops the first section at the ship's own origin, because a blank ship
     /// has no view for a mate ray to hit.
     fn found(self, label: &str) -> Self;
+
+    /// Narrow the block palette, through the value the filter box writes.
+    fn filter_palette(self, text: &'static str) -> Self;
+
+    /// Carry a block by the pointer from the widget `from` names to the point
+    /// `to` gives, and let go. Both are read when the beat starts, because a
+    /// drop reflows the canvas and mints the names the next drag aims at.
+    ///
+    /// `held` adds beats while the block is in the air. A press that missed
+    /// fails at the lift, and a drop that missed at `landed`.
+    fn drag_block(
+        self,
+        label: &str,
+        from: BlockName,
+        to: BlockPoint,
+        held: impl FnOnce(Self) -> Self,
+        landed: Arc<Predicate>,
+    ) -> Self;
+}
+
+/// The widget a block drag starts on, read when the beat starts.
+pub type BlockName = Arc<dyn Fn(&World) -> String + Send + Sync>;
+
+/// Where a block drag ends, read when the beat starts.
+pub type BlockPoint = Arc<dyn Fn(&World) -> Option<Vec2> + Send + Sync>;
+
+/// How far past the press a drag moves to lift the block: past the canvas's
+/// start distance, and still on the block.
+const BLOCK_LIFT: Vec2 = Vec2::new(12.0, 12.0);
+
+/// Frames the aim beat holds, for the slots to light and the gap to open.
+const BLOCK_AIM_FRAMES: u32 = 4;
+
+/// The widget a walk knows at compile time, as the start of a drag.
+pub fn block_named(name: &'static str) -> BlockName {
+    Arc::new(move |_: &World| name.to_string())
+}
+
+/// The middle of the named widget, as the end of a drag.
+pub fn block_centre(name: impl Fn(&World) -> String + Send + Sync + 'static) -> BlockPoint {
+    Arc::new(move |world: &World| ui_node_centre(world, &name(world)))
+}
+
+/// The middle of the block canvas, clear of the flow when a script is short.
+pub fn canvas_middle() -> BlockPoint {
+    block_centre(|_| "Block Canvas".to_string())
 }
 
 impl Gestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     fn click(self, label: &str, name: &str) -> Self {
         self.click_named(label, name, pointer_released(), BEAT_DEADLINE_SECS)
+    }
+
+    fn filter_palette(self, text: &'static str) -> Self {
+        self.step(format!("filter the palette for {text}"))
+            .on_enter(move |world: &mut World| {
+                let mut fields = world.query::<(&Name, &mut nova_ui::prelude::TextFieldValue)>();
+                for (name, mut value) in fields.iter_mut(world) {
+                    if name.as_str() == "Palette Filter" {
+                        value.0 = text.to_string();
+                    }
+                }
+            })
+            .until(frames(BLOCK_AIM_FRAMES))
+            .add()
+    }
+
+    fn drag_block(
+        self,
+        label: &str,
+        from: BlockName,
+        to: BlockPoint,
+        held: impl FnOnce(Self) -> Self,
+        landed: Arc<Predicate>,
+    ) -> Self {
+        let aim = from.clone();
+        let hover = from.clone();
+        let lift = from;
+        let carried = self
+            .step(format!("{label}: reach"))
+            .on_enter(move |world: &mut World| {
+                let name = aim(world);
+                hover_named(name)(world);
+            })
+            .until(Arc::new(move |world: &World| {
+                pointer_over_node(hover(world))(world)
+            }))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: press"))
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(pointer_pressed())
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: lift"))
+            .on_enter(move |world: &mut World| {
+                let name = lift(world);
+                let point = ui_node_centre(world, &name).expect("the block is still on screen");
+                move_cursor(point + BLOCK_LIFT)(world);
+            })
+            .until(Arc::new(|world: &World| {
+                world
+                    .get_resource::<EditorProbe>()
+                    .is_some_and(|probe| probe.shell.dragged.is_some())
+            }))
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step(format!("{label}: carry"))
+            .on_enter(move |world: &mut World| {
+                let point = to(world).expect("the target is on screen");
+                move_cursor(point)(world);
+            })
+            .until(frames(BLOCK_AIM_FRAMES))
+            .add();
+        held(carried)
+            .step(format!("{label}: drop"))
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(landed)
+            .deadline(BEAT_DEADLINE_SECS)
+            .add()
     }
 
     fn place(self, label: &str, on: Vec3, face: Vec3) -> Self {

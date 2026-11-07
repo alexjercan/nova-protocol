@@ -1,12 +1,12 @@
-//! Save As and Open: the in-game menu that names a save slot, and the list
-//! that picks one.
+//! The small windows around a mod: name it, copy it, rename a scenario, say
+//! where a package went, and pick a file by path.
 //!
-//! No OS file dialog, on purpose. A save is a MOD - it lands in the same cache
-//! a downloaded one does, under an id derived from the name - so what a
-//! builder picks from is the set of ranges they have saved, not a directory
-//! tree. It also means the same window works where there is no directory tree
-//! to browse: the web has no local cache at all, and the list says so where
-//! the rows would be.
+//! No OS file dialog, on purpose: a mod lives in the same cache a downloaded
+//! one does, so naming is all a save needs. The path window is the one place a
+//! builder reaches outside it, and it is plain directories and a typed path, so
+//! it needs no native picker. A new use adds a [`PathPurposeType`] row.
+
+use std::path::{Path, PathBuf};
 
 use bevy::{
     ecs::relationship::RelatedSpawnerCommands,
@@ -20,63 +20,159 @@ use nova_ui::{
         button, text_field, themed_button, ButtonSpec, TextFieldSpec, TextFieldValue, UiText,
     },
     theme,
-    theme::{ActiveUiTheme, UiColor},
+    theme::{density, ActiveUiTheme, UiColor},
     widget::{ButtonCueType, ThemedBorder, ThemedText},
 };
 
 use crate::{
-    bundle::{
-        bundle_id, saved_bundles, DocumentSlot, FileRequest, FileWindowKind, FileWindowRequest,
-        NameProblem, SaveSlot,
+    asset::verbs::{add_asset, import_mesh, offers_of, AssetOffer},
+    asset_index::AssetIndex,
+    bundle::{FileWindowKind, FileWindowRequest},
+    project::{
+        ids::{is_taken, project_id, publish_id, NameProblem},
+        package::import_package,
+        store::local_ids,
+        verbs::{name_project, pressed, save_copy},
+        ModProject,
     },
-    config::EditorSays,
-    node::{EditContext, ScenarioNode},
     ui::window::{window_frame, EditorWindowLayer, TOP_MARGIN, WINDOW_W},
 };
 
 #[cfg(test)]
 mod tests;
 
-/// How long a save name may be: room for a phrase a builder will recognise in
-/// a list, and no more than an id derived from it can carry as a directory
-/// name.
-const NAME_CHARS: usize = 48;
+/// How long a name may be: room for a phrase a builder will recognise in a list,
+/// and no more than an id derived from it can carry as a directory name.
+pub(crate) const NAME_CHARS: usize = 48;
+
+/// How long a typed path may be.
+const PATH_CHARS: usize = 512;
+
+/// What a path window picks a file for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PathPurposeType {
+    /// A mod package to import.
+    ImportPackage,
+    /// A model for the open section.
+    ImportMesh,
+}
+
+impl PathPurposeType {
+    /// The window's title.
+    fn title(self) -> &'static str {
+        match self {
+            Self::ImportPackage => "Import Package",
+            Self::ImportMesh => "Import Mesh",
+        }
+    }
+
+    /// The file extension it lists.
+    fn extension(self) -> &'static str {
+        match self {
+            Self::ImportPackage => "zip",
+            Self::ImportMesh => "glb",
+        }
+    }
+
+    /// Use the picked file.
+    fn run(self, world: &mut World, path: &str) {
+        match self {
+            Self::ImportPackage => import_package(world, path),
+            Self::ImportMesh => import_mesh(world, path),
+        }
+    }
+}
 
 /// An open file window, and what it is there to do.
 ///
 /// One at a time, like every other window - and unlike the others it is not
 /// bound to an Inspector row, so it stands until it is answered or closed.
-#[derive(Component, Clone, Copy)]
+#[derive(Component, Clone)]
 pub(crate) struct FileWindow(pub(crate) FileWindowKind);
 
 /// Anything whose press takes the window down with it.
 #[derive(Component)]
 pub(crate) struct FileAnswer;
 
-/// The slots the window listed when it opened.
+/// The local ids the window saw when it opened.
 ///
 /// Read ONCE, at open. The list is disk, and a readout that re-read it every
 /// frame would be a file system walk per frame to answer a question that only
 /// changes when this window writes.
 #[derive(Component)]
-pub(crate) struct KnownBundles(pub(crate) Vec<SaveSlot>);
+pub(crate) struct KnownMods(pub(crate) Vec<String>);
 
-/// The name field of a Save As window.
+/// The name field of a naming window.
 #[derive(Component)]
 pub(crate) struct SaveNameField;
 
-/// The line under it: which slot that name lands in, and whether a save is
-/// already there.
+/// The line under it: the id that name makes, and whether it is free.
 #[derive(Component)]
 pub(crate) struct SaveIdReadout;
 
-/// The button that writes, greyed while the name makes no id.
+/// The button that writes, greyed while the name cannot be used.
 #[derive(Component)]
 pub(crate) struct SaveConfirmButton;
 
-/// One saved slot, offered as a row.
+/// The typed path of a path window.
+#[derive(Component)]
+pub(crate) struct PathField;
+
+/// The list of a path window, and the folder it shows.
+#[derive(Component, Default)]
+pub(crate) struct PathList(Option<PathBuf>);
+
+/// One row of that list.
 #[derive(Component, Clone)]
-pub(crate) struct BundleRow(pub(crate) SaveSlot);
+pub(crate) struct PathRow(PathBuf);
+
+/// One row of the chooser: the kind it adds, and the prototype it copies.
+#[derive(Component, Clone)]
+pub(crate) struct AssetOfferRow {
+    kind: &'static str,
+    from: Option<String>,
+}
+
+/// The id `typed` makes, against `known`, as the line to show, its colour, and
+/// whether it can be used. The hub's New Mod form says the same.
+pub(crate) fn id_line(typed: &str, known: &[String]) -> (String, UiColor, bool) {
+    match project_id(typed.trim()) {
+        Err(NameProblem::Unusable) => (
+            "A name needs a letter or a digit.".to_string(),
+            UiColor::Danger,
+            false,
+        ),
+        Err(NameProblem::Reserved) => (
+            "That name is the game's own. Pick another.".to_string(),
+            UiColor::Danger,
+            false,
+        ),
+        Ok(id) if is_taken(&id, known) => (
+            format!("{id} already exists. Pick another."),
+            UiColor::Danger,
+            false,
+        ),
+        Ok(id) => (
+            format!("saves as {id}, publishes as {}", publish_id(&id)),
+            UiColor::Label,
+            true,
+        ),
+    }
+}
+
+/// What a naming window opens on.
+fn offered_name(kind: &FileWindowKind, project: Option<&ModProject>) -> String {
+    let Some(project) = project else {
+        return String::new();
+    };
+    match kind {
+        FileWindowKind::NameMod => project.data.meta.name.clone(),
+        FileWindowKind::SaveCopy => format!("{} Copy", project.data.meta.name),
+        FileWindowKind::Packaged(_) | FileWindowKind::PickPath(_) | FileWindowKind::NewAsset(_) => {
+            String::new()
+        }
+    }
+}
 
 /// Put the asked-for window up.
 pub(crate) fn open_file_window(
@@ -84,13 +180,12 @@ pub(crate) fn open_file_window(
     mut asked: ResMut<FileWindowRequest>,
     layer: Option<Single<Entity, With<EditorWindowLayer>>>,
     open: Query<(), With<FileWindow>>,
-    document: Res<DocumentSlot>,
-    context: Res<EditContext>,
-    q_settings: Query<&ScenarioNode>,
+    project: Option<Res<ModProject>>,
     screen: Option<Single<&Window>>,
     // Optional: a headless rig stands the layer up without the parts browser
     // behind it.
     gallery: Option<ResMut<GalleryState>>,
+    index: AssetIndex,
 ) {
     let mut gallery = gallery;
     let Some(kind) = asked.0.take() else {
@@ -105,200 +200,193 @@ pub(crate) fn open_file_window(
     // The gallery goes down first. It is a MODE, not a panel - the editor's
     // whole chrome, this layer included, is hidden while it is up - so a window
     // raised under one would be a window nobody could see or answer. Ctrl+S
-    // from under the gallery on a document with no file is exactly that press.
+    // from under the gallery on a mod with no id is exactly that press.
     if let Some(gallery) = gallery.as_mut() {
         gallery.open = false;
         gallery.focused = false;
     }
     let size = screen.map_or(Vec2::new(1024.0, 768.0), |screen| screen.size());
     let at = Vec2::new(((size.x - WINDOW_W) * 0.5).max(8.0), TOP_MARGIN);
-    let name = offered_name(&document, &context, &q_settings);
-    let bundles = saved_bundles();
+    let name = offered_name(&kind, project.as_deref());
+    let offers = match (&kind, project.as_deref()) {
+        (FileWindowKind::NewAsset(wanted), Some(project)) => offers_of(&index, project, wanted),
+        _ => Vec::new(),
+    };
     commands
         .entity(*layer)
-        .with_children(|layer| spawn_file_window(layer, kind, &name, bundles, at));
+        .with_children(|layer| spawn_file_window(layer, kind, &name, at, &offers));
 }
 
-/// The name a Save As opens on: the one the document was last saved under, or
-/// the range's own while it has never been saved.
-///
-/// The two are the same string in a document that has been saved once, so what
-/// this really says is that a first save is offered the name the builder
-/// already gave the range rather than a blank field.
-fn offered_name(
-    document: &DocumentSlot,
-    context: &EditContext,
-    q_settings: &Query<&ScenarioNode>,
-) -> String {
-    if let Some(slot) = document.0.as_ref() {
-        return slot.name.clone();
-    }
-    context
-        .scenario()
-        .and_then(|scenario| q_settings.get(scenario).ok())
-        .map(|settings| settings.name.clone())
-        .unwrap_or_default()
+/// Small text under a field or above a list.
+fn small_line(name: &str, line: &str, colour: UiColor) -> impl Bundle {
+    (
+        Name::new(name.to_string()),
+        UiText,
+        Text::new(line.to_string()),
+        TextFont {
+            font_size: FontSize::Px(11.0),
+            ..default()
+        },
+        TextColor(Color::NONE),
+        ThemedText::new(colour),
+    )
 }
 
-/// The window: a name to save under, the saves already there, and the answers.
+/// The window, by kind.
 fn spawn_file_window(
     layer: &mut RelatedSpawnerCommands<ChildOf>,
     kind: FileWindowKind,
     name: &str,
-    bundles: Vec<SaveSlot>,
     at: Vec2,
+    offers: &[AssetOffer],
 ) {
-    let title = match kind {
-        FileWindowKind::SaveAs => "Save As",
-        FileWindowKind::Open => "Open",
+    let title = match &kind {
+        FileWindowKind::NameMod => "Name This Mod",
+        FileWindowKind::SaveCopy => "Save As Copy",
+        FileWindowKind::Packaged(_) => "Packaged",
+        FileWindowKind::PickPath(purpose) => purpose.title(),
+        FileWindowKind::NewAsset(_) => "Start From",
     };
-    let listed = bundles.clone();
+    let shown = kind.clone();
     let window = window_frame(
         layer,
         "File Window",
         title,
         at,
-        (FileWindow(kind), KnownBundles(bundles)),
-        |body, _window| {
-            if kind == FileWindowKind::Open {
+        (FileWindow(kind.clone()), KnownMods(local_ids())),
+        |body, _window| match &shown {
+            FileWindowKind::Packaged(path) => {
+                body.spawn(small_line(
+                    "Package Path Label",
+                    "The package is at",
+                    UiColor::Label,
+                ));
+                body.spawn(small_line("Package Path", path, UiColor::Primary));
+            }
+            FileWindowKind::NewAsset(wanted) => spawn_offers(body, wanted, offers),
+            FileWindowKind::PickPath(_) => {
+                body.spawn(small_line("Path Label", "Path", UiColor::Label));
                 body.spawn((
-                    Name::new("File Window Warning"),
-                    UiText,
-                    Text::new(
-                        "This replaces everything on the stage with the range you pick. There is \
-                         no undo.",
+                    Name::new("Path Field"),
+                    PathField,
+                    text_field(
+                        TextFieldSpec::new(start_folder().display().to_string())
+                            .max_chars(PATH_CHARS)
+                            .placeholder("Type a path")
+                            .tool(),
                     ),
-                    TextFont {
-                        font_size: FontSize::Px(12.0),
+                ));
+                body.spawn((
+                    Name::new("Path List"),
+                    PathList::default(),
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Stretch,
+                        row_gap: px(2),
                         ..default()
                     },
-                    TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Primary),
                 ));
             }
-            if kind == FileWindowKind::SaveAs {
-                body.spawn((
-                    Name::new("Save Name Label"),
-                    UiText,
-                    Text::new("Name"),
-                    TextFont {
-                        font_size: FontSize::Px(11.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Label),
-                ));
+            _ => {
+                body.spawn(small_line("Save Name Label", "Name", UiColor::Label));
                 body.spawn((
                     Name::new("Save Name Field"),
                     SaveNameField,
                     text_field(
                         TextFieldSpec::new(name.to_string())
                             .max_chars(NAME_CHARS)
-                            .placeholder("Name this range")
-                            .dense(),
+                            .placeholder("Name it")
+                            .tool(),
                     ),
                 ));
                 // Blank until `sync_save_name` fills it, which is the frame
                 // after this one: the id belongs to what is TYPED, and there is
                 // one place that works it out.
                 body.spawn((
-                    Name::new("Save Id Readout"),
                     SaveIdReadout,
-                    UiText,
-                    Text::new(String::new()),
-                    TextFont {
-                        font_size: FontSize::Px(11.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Label),
-                ));
-            }
-            body.spawn((
-                Name::new("Saved Ranges Label"),
-                UiText,
-                Text::new("SAVED RANGES"),
-                TextFont {
-                    font_size: FontSize::Px(11.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(UiColor::Accent),
-                Node {
-                    margin: UiRect::top(px(6)),
-                    ..default()
-                },
-            ));
-            if listed.is_empty() {
-                body.spawn((
-                    Name::new("Saved Ranges Empty"),
-                    UiText,
-                    Text::new(empty_line(kind)),
-                    TextFont {
-                        font_size: FontSize::Px(11.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Label),
-                ));
-            }
-            for slot in &listed {
-                let mut row = body.spawn((
-                    Name::new(format!("Bundle Row {}", slot.id)),
-                    BundleRow(slot.clone()),
-                    // The rail's own row, like every other list the editor
-                    // offers to pick from.
-                    button(ButtonSpec::new(slot.name.clone()).block()),
-                    ButtonCueType::Owned,
-                ));
-                row.observe(on_bundle_row);
-                // A row IS the answer when it opens one. In Save As it is a
-                // name to write over, so the window stays up and the Save
-                // button is still the press that writes.
-                if kind == FileWindowKind::Open {
-                    row.insert(FileAnswer);
-                }
-                // The id under the name, because the name alone does not tell
-                // two rows apart: ids are derived, so a builder who saved
-                // "My Range" and "My-Range!" has two files with one label on
-                // them, and the id is the half that differs.
-                body.spawn((
-                    Name::new(format!("Bundle Row Id {}", slot.id)),
-                    UiText,
-                    Text::new(slot.id.clone()),
-                    TextFont {
-                        font_size: FontSize::Px(11.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Label),
-                    Node {
-                        margin: UiRect::bottom(px(4)),
-                        ..default()
-                    },
+                    small_line("Save Id Readout", "", UiColor::Label),
                 ));
             }
         },
     );
-    // OUTSIDE the frame's scrolling body, on purpose: the list under the name
-    // field grows with every range a builder saves, and answers that scrolled
-    // away with it would leave a window with no visible way to press Save.
+    // OUTSIDE the frame's scrolling body: a long folder list must not scroll the
+    // answers away.
     layer
         .commands()
         .entity(window)
-        .with_children(|frame| spawn_answers(frame, kind));
+        .with_children(|frame| spawn_answers(frame, &kind));
 }
 
-/// Cancel, and - in a Save As window - the press that writes.
-fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: FileWindowKind) {
+/// The chooser's rows: a plain hull for a section, then what the mod can see.
+fn spawn_offers(
+    body: &mut RelatedSpawnerCommands<ChildOf>,
+    kind: &'static str,
+    offers: &[AssetOffer],
+) {
+    let row = |label: String, from: Option<String>| {
+        (
+            Name::new(format!("Offer Row {label}")),
+            AssetOfferRow { kind, from },
+            FileAnswer,
+            button(ButtonSpec::new(label).dense().block()),
+            ButtonCueType::Owned,
+            observe(on_asset_offer),
+        )
+    };
+    if kind == "section" {
+        body.spawn(row("Plain Hull".to_string(), None));
+    } else if offers.is_empty() {
+        body.spawn(small_line(
+            "Offer Empty",
+            "No loaded mod holds one to start from.",
+            UiColor::Label,
+        ));
+    }
+    for offer in offers {
+        body.spawn(row(
+            format!("{} ({})", offer.label, offer.pack),
+            Some(offer.id.clone()),
+        ));
+    }
+}
+
+/// A chooser row: make the item.
+fn on_asset_offer(activate: On<Activate>, mut commands: Commands, rows: Query<&AssetOfferRow>) {
+    let Ok(row) = rows.get(activate.entity).cloned() else {
+        return;
+    };
+    commands.queue(move |world: &mut World| {
+        pressed(world, |world| add_asset(world, row.kind, row.from));
+    });
+}
+
+/// Where a path window opens: the exports folder when it exists, because that
+/// is where a package made here lands.
+fn start_folder() -> PathBuf {
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(dir) = nova_assets::mod_cache::prelude::exports_dir().filter(|dir| dir.is_dir()) {
+        return dir;
+    }
+    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"))
+}
+
+/// Cancel, and the press that goes through with it.
+fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: &FileWindowKind) {
+    let go = match kind {
+        FileWindowKind::NameMod => Some("Save"),
+        FileWindowKind::SaveCopy => Some("Save Copy"),
+        FileWindowKind::PickPath(_) => Some("Pick"),
+        FileWindowKind::Packaged(_) | FileWindowKind::NewAsset(_) => None,
+    };
+    let keep = if go.is_some() { "Cancel" } else { "Close" };
     frame
         .spawn((
             Name::new("File Window Answers"),
             Node {
                 flex_direction: FlexDirection::Row,
                 align_items: AlignItems::Center,
-                column_gap: px(8),
-                padding: UiRect::all(px(10)),
+                column_gap: px(density::GAP),
+                padding: UiRect::all(px(density::PANEL_PAD)),
                 border: UiRect::top(px(theme::BORDER_W)),
                 ..default()
             },
@@ -320,13 +408,13 @@ fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: FileWindowKi
                     slot.spawn((
                         Name::new("File Cancel Button"),
                         FileAnswer,
-                        themed_button("Cancel"),
+                        themed_button(keep),
                         ButtonCueType::Back,
                     ));
                 });
-            if kind != FileWindowKind::SaveAs {
+            let Some(go) = go else {
                 return;
-            }
+            };
             answers
                 .spawn(Node {
                     flex_grow: 1.0,
@@ -337,7 +425,7 @@ fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: FileWindowKi
                         Name::new("File Save Button"),
                         SaveConfirmButton,
                         FileAnswer,
-                        themed_button("Save"),
+                        themed_button(go),
                         ButtonCueType::Owned,
                         observe(on_save),
                     ));
@@ -345,23 +433,7 @@ fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: FileWindowKi
         });
 }
 
-/// What the list says when it has no rows.
-#[cfg(not(target_arch = "wasm32"))]
-fn empty_line(kind: FileWindowKind) -> &'static str {
-    match kind {
-        FileWindowKind::SaveAs => "Nothing saved yet - the name above makes the first one.",
-        FileWindowKind::Open => "Nothing saved yet.",
-    }
-}
-
-/// On the web both lists are empty for one reason, and it is not that the
-/// builder has saved nothing.
-#[cfg(target_arch = "wasm32")]
-fn empty_line(_kind: FileWindowKind) -> &'static str {
-    "Saving is not available on the web yet."
-}
-
-/// Say where the typed name lands, and grey Save while it lands nowhere.
+/// Say where the typed name lands, and grey the answer while it lands nowhere.
 ///
 /// Unconditional rather than `Changed`-gated: at most one window is open, the
 /// work is a slug of forty-eight characters, and the readout has to be right
@@ -372,41 +444,14 @@ pub(crate) fn sync_save_name(
     mut commands: Commands,
     theme: Res<ActiveUiTheme>,
     fields: Query<&TextFieldValue, With<SaveNameField>>,
-    known: Query<&KnownBundles>,
+    known: Query<&KnownMods, With<FileWindow>>,
     mut readouts: Query<(&mut Text, &mut TextColor), With<SaveIdReadout>>,
     buttons: Query<(Entity, Has<InteractionDisabled>), With<SaveConfirmButton>>,
 ) {
-    let (Some(typed), Some(bundles)) = (fields.iter().next(), known.iter().next()) else {
+    let (Some(typed), Some(mods)) = (fields.iter().next(), known.iter().next()) else {
         return;
     };
-    let id = bundle_id(typed.0.trim());
-    // Resolved here rather than carried as a `ThemedText` marker: this system
-    // already writes the readout's `TextColor` every frame, and two writers for
-    // one component is two answers to one question. It runs unconditionally, so
-    // a theme flip lands on the next frame like the wording does.
-    let (line, colour) = match id.as_deref() {
-        Err(NameProblem::Unusable) => (
-            "A name needs a letter or a digit.".to_string(),
-            UiColor::Danger,
-        ),
-        // The one derived id the editor keeps for itself. Said here because
-        // the list below CANNOT say it: the sandbox is a registered scenario
-        // rather than a file, so it is in no row to collide with.
-        Err(NameProblem::Reserved) => (
-            "That name is the editor's own. Pick another.".to_string(),
-            UiColor::Danger,
-        ),
-        Ok(id) => match bundles.0.iter().find(|slot| slot.id == id) {
-            // The collision, said before the press rather than after it: two
-            // names that differ only in punctuation derive one id, and the
-            // second one written silently replaces the first.
-            Some(taken) => (
-                format!("overwrites \"{}\" ({id})", taken.name),
-                UiColor::Accent,
-            ),
-            None => (format!("saves as {id}"), UiColor::Label),
-        },
-    };
+    let (line, colour, usable) = id_line(&typed.0, &mods.0);
     let colour = theme.color(colour);
     for (mut text, mut paint) in &mut readouts {
         if text.0 != line {
@@ -417,7 +462,7 @@ pub(crate) fn sync_save_name(
         }
     }
     for (button, greyed) in &buttons {
-        match (id.is_ok(), greyed) {
+        match (usable, greyed) {
             (true, true) => {
                 commands.entity(button).remove::<InteractionDisabled>();
             }
@@ -429,69 +474,121 @@ pub(crate) fn sync_save_name(
     }
 }
 
-/// A row was pressed: it is the answer in an Open window, and a name to write
-/// over in a Save As one.
-pub(crate) fn on_bundle_row(
-    activate: On<Activate>,
-    rows: Query<&BundleRow>,
+/// The folders and matching files of `dir`, folders first.
+fn folder_rows(dir: &Path, extension: &str) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return vec![];
+    };
+    let (mut folders, mut files): (Vec<PathBuf>, Vec<PathBuf>) = entries
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter(|path| {
+            path.is_dir()
+                || path
+                    .extension()
+                    .is_some_and(|found| found.eq_ignore_ascii_case(extension))
+        })
+        .partition(|path| path.is_dir());
+    folders.sort();
+    files.sort();
+    folders.extend(files);
+    folders
+}
+
+/// Keep the path window's list on the folder the typed path stands in.
+pub(crate) fn sync_path_window(
+    mut commands: Commands,
     windows: Query<&FileWindow>,
-    mut fields: Query<&mut TextFieldValue, With<SaveNameField>>,
-    mut request: ResMut<FileRequest>,
-    mut says: EditorSays,
+    fields: Query<&TextFieldValue, With<PathField>>,
+    mut lists: Query<(Entity, &mut PathList)>,
+) {
+    let (Some(typed), Ok((entity, mut list))) = (fields.iter().next(), lists.single_mut()) else {
+        return;
+    };
+    let Some(FileWindowKind::PickPath(purpose)) = windows.iter().next().map(|window| &window.0)
+    else {
+        return;
+    };
+    let typed = Path::new(typed.0.trim());
+    let folder = if typed.is_dir() {
+        typed.to_path_buf()
+    } else {
+        typed.parent().map_or_else(PathBuf::new, Path::to_path_buf)
+    };
+    if list.0.as_ref() == Some(&folder) {
+        return;
+    }
+    let rows = folder_rows(&folder, purpose.extension());
+    let up = folder.parent().map(Path::to_path_buf);
+    list.0 = Some(folder);
+    commands.entity(entity).despawn_related::<Children>();
+    commands.entity(entity).with_children(|list| {
+        if let Some(up) = up {
+            list.spawn((
+                Name::new("Path Row Up"),
+                PathRow(up),
+                button(ButtonSpec::new("..").dense().block()),
+                observe(on_path_row),
+            ));
+        }
+        for row in rows {
+            let label = row
+                .file_name()
+                .map_or_else(String::new, |name| name.to_string_lossy().into_owned());
+            let label = if row.is_dir() {
+                format!("{label}/")
+            } else {
+                label
+            };
+            list.spawn((
+                Name::new(format!("Path Row {label}")),
+                PathRow(row),
+                button(ButtonSpec::new(label).dense().block()),
+                observe(on_path_row),
+            ));
+        }
+    });
+}
+
+/// A path row: its path goes in the field, which moves the list if it is a
+/// folder.
+fn on_path_row(
+    activate: On<Activate>,
+    rows: Query<&PathRow>,
+    mut fields: Query<&mut TextFieldValue, With<PathField>>,
 ) {
     let Ok(row) = rows.get(activate.entity) else {
         return;
     };
-    let Some(window) = windows.iter().next() else {
-        return;
-    };
-    match window.0 {
-        FileWindowKind::SaveAs => {
-            for mut value in &mut fields {
-                value.0.clone_from(&row.0.name);
-            }
-            says.accept();
-        }
-        FileWindowKind::Open => *request = FileRequest::Open(row.0.id.clone()),
+    for mut value in &mut fields {
+        value.0 = row.0.display().to_string();
     }
 }
 
-/// Write the document into the slot the typed name derives.
-///
-/// The name goes onto the RANGE as well. A document has one name - the one the
-/// Scenarios picker will list it under and the one this window offers back
-/// next time - and keeping a file name and a scenario name in step by hand is
-/// bookkeeping the editor can do.
+/// The press that goes through with the open window.
 pub(crate) fn on_save(
     _activate: On<Activate>,
-    fields: Query<&TextFieldValue, With<SaveNameField>>,
-    context: Res<EditContext>,
-    mut settings: Query<&mut ScenarioNode>,
-    mut request: ResMut<FileRequest>,
-    mut says: EditorSays,
+    mut commands: Commands,
+    names: Query<&TextFieldValue, With<SaveNameField>>,
+    paths: Query<&TextFieldValue, With<PathField>>,
+    windows: Query<&FileWindow>,
 ) {
-    let Some(typed) = fields.iter().next() else {
+    let Some(window) = windows.iter().next() else {
         return;
     };
-    let name = typed.0.trim().to_string();
-    let id = match bundle_id(&name) {
-        Ok(id) => id,
-        Err(NameProblem::Unusable) => {
-            says.refuse("a name needs a letter or a digit");
-            return;
-        }
-        Err(NameProblem::Reserved) => {
-            says.refuse("that name is the editor's own - pick another");
-            return;
-        }
+    let kind = window.0.clone();
+    let typed = match kind {
+        FileWindowKind::PickPath(_) => paths.iter().next(),
+        _ => names.iter().next(),
     };
-    if let Some(mut node) = context
-        .scenario()
-        .and_then(|scenario| settings.get_mut(scenario).ok())
-    {
-        node.name.clone_from(&name);
-    }
-    *request = FileRequest::SaveAs(SaveSlot { id, name });
+    let Some(typed) = typed.map(|typed| typed.0.trim().to_string()) else {
+        return;
+    };
+    commands.queue(move |world: &mut World| match kind {
+        FileWindowKind::NameMod => name_project(world, &typed),
+        FileWindowKind::SaveCopy => save_copy(world, &typed),
+        FileWindowKind::PickPath(purpose) => pressed(world, |world| purpose.run(world, &typed)),
+        FileWindowKind::Packaged(_) | FileWindowKind::NewAsset(_) => {}
+    });
 }
 
 /// Take the window down, whichever answer was pressed.

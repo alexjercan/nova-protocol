@@ -780,6 +780,7 @@ fn load_scenario(mut commands: Commands, game_assets: Res<GameAssets>) {
         description: "A picket with contacts in range, under the UI screens".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: true,
             filters: vec![],

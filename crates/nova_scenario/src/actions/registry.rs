@@ -6,7 +6,8 @@
 //! arm, the dispatch, the creative-map class, the reflected payload accessor
 //! and the whole authoring-menu surface, so what is left to write by hand is
 //! the payload struct, the editor's stock value, the lint and the docs - four
-//! places, each of which carries information the table cannot.
+//! places, each of which carries information the table cannot. A row with no
+//! `category` does not compile, so a new action is filed by the row that adds it.
 //!
 //! The row is deliberately not a derive. A derive would put the label and the
 //! class on the payload struct, and the payload struct is shared vocabulary; a
@@ -79,6 +80,7 @@ macro_rules! scenario_actions {
             $(#[$meta:meta])*
             $variant:ident($payload:ty) {
                 label: $label:literal,
+                category: $category:ident,
                 stem: $stem:literal,
                 effect: $effect:ident,
                 inspect: $inspect:ident,
@@ -143,6 +145,13 @@ macro_rules! scenario_actions {
             pub fn label(self) -> &'static str {
                 match self {
                     $( ActionTag::$variant => $label, )*
+                }
+            }
+
+            /// The group an authoring palette files this action under.
+            pub fn category(self) -> $crate::events::BlockCategoryType {
+                match self {
+                    $( ActionTag::$variant => $crate::events::BlockCategoryType::$category, )*
                 }
             }
 

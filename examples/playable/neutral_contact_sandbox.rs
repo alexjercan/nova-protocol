@@ -226,6 +226,7 @@ fn sandbox(world: &World) -> ScenarioConfig {
         description: "A start-role player, a Neutral raider and a Neutral station".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

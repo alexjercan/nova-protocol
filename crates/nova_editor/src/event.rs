@@ -22,15 +22,14 @@
 //! operands are. A node that kept a copy of what its children hold would be a
 //! second answer to the same question, and a save would have to pick one.
 
-use bevy::{ecs::system::SystemParam, prelude::*, ui_widgets::Activate};
+use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{default_comms_accent, Allegiance, AssetRef};
 use nova_scenario::prelude::*;
 use nova_ship::prelude::WellTargetType;
 
 use crate::{
-    config::SelectedNode,
-    node::{id_order, mint_id, split_ordinal, EditContext, EditorNode, NextChildOrdinal, NodeId},
+    node::{id_order, split_ordinal, EditorNode, NextChildOrdinal, NodeId},
     scenario::DEFAULT_SKY,
 };
 
@@ -48,6 +47,11 @@ pub(crate) struct EventNode {
     pub(crate) trigger: EventConfig,
     /// Retire the handler the first time its filters pass.
     pub(crate) once: bool,
+    /// Where the handler stands on the script canvas. `None` lets the canvas
+    /// lay it out. Out of the reflection walk: a position is dragged, never
+    /// typed into a row.
+    #[reflect(ignore)]
+    pub(crate) position: Option<Vec2>,
 }
 
 impl Default for EventNode {
@@ -56,6 +60,7 @@ impl Default for EventNode {
             label: None,
             trigger: EventConfig::OnStart,
             once: false,
+            position: None,
         }
     }
 }
@@ -328,6 +333,20 @@ impl FilterChoice {
         }
     }
 
+    /// The palette group this filter is filed under.
+    pub(crate) fn category(self) -> BlockCategoryType {
+        match self {
+            FilterChoice::Entity
+            | FilterChoice::Expression
+            | FilterChoice::Timer
+            | FilterChoice::ShipOrder
+            | FilterChoice::Cinematic
+            | FilterChoice::Not
+            | FilterChoice::And
+            | FilterChoice::Or => BlockCategoryType::Logic,
+        }
+    }
+
     /// How many child filters this kind takes. Zero for a leaf.
     pub(crate) fn operands(self) -> usize {
         match self {
@@ -363,7 +382,7 @@ impl FilterChoice {
 /// The operator kinds an expression node can be switched to, in the order the
 /// panel lists them: the comparisons first, because a condition's root is one
 /// of those and that is the row a builder lands on.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Reflect)]
 pub(crate) enum ExprChoice {
     /// Equality.
     Equal,
@@ -426,6 +445,21 @@ impl ExprChoice {
             ExprChoice::Multiply => "multiply",
             ExprChoice::Divide => "divide",
             ExprChoice::Value => "value",
+        }
+    }
+
+    /// The palette group this kind is filed under: a comparison gates, the
+    /// rest compute.
+    pub(crate) fn category(self) -> BlockCategoryType {
+        match self {
+            ExprChoice::Equal | ExprChoice::LessThan | ExprChoice::GreaterThan => {
+                BlockCategoryType::Logic
+            }
+            ExprChoice::Add
+            | ExprChoice::Subtract
+            | ExprChoice::Multiply
+            | ExprChoice::Divide
+            | ExprChoice::Value => BlockCategoryType::Data,
         }
     }
 
@@ -916,7 +950,7 @@ pub(crate) fn action_choice(kind: &ActionKind) -> ActionChoice {
 /// script has its own ID SPACE. `event_1` and `asteroid_1` are minted from
 /// different counters and can never be the same node, which is what lets the
 /// EVENTS tab number its rows from one while the world keeps its own.
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone)]
 pub(crate) struct ScriptNode;
 
 /// A container whose children are drawn under it in the tree.
@@ -978,6 +1012,7 @@ fn lift_event(
                 label: event.label,
                 trigger: event.name,
                 once: event.once,
+                position: event.position,
             },
             NodeId(format!("event_{ordinal}")),
             counter(event.filters.len() + event.actions.len()),
@@ -1348,36 +1383,6 @@ impl ScriptNodes<'_, '_> {
         self.gates.get(node).ok()
     }
 
-    /// The condition under `node`, in the text form the grammar spells it in,
-    /// or `None` where the nodes do not make one.
-    ///
-    /// For the tree row of the filter that HOLDS it: shut, the row still says
-    /// what it compares, which is the one thing a builder scanning a handler
-    /// needs from it. Open, the same condition is the rows underneath.
-    pub(crate) fn condition_text(&self, node: Entity) -> Option<String> {
-        let root = self.operands_of(node).into_iter().next()?;
-        Some(self.lower_condition(root)?.to_string())
-    }
-
-    /// What a `VariableSet` action WRITES, spelled the way the grammar spells
-    /// it, or `None` where the nodes do not make an assignment yet.
-    ///
-    /// For the same reason the expression filter's row reads as its condition:
-    /// `Variable Set` is the name of a kind, and `beat = beat + 1` is what the
-    /// action does. An unnamed key has nothing to assign TO, so the row falls
-    /// back to the kind.
-    pub(crate) fn assignment_text(&self, node: Entity) -> Option<String> {
-        let ActionKind::VariableSet(head) = &self.action(node)?.kind else {
-            return None;
-        };
-        let key = head.key.trim();
-        if key.is_empty() {
-            return None;
-        }
-        let root = self.operands_of(node).into_iter().next()?;
-        Some(format!("{key} = {}", self.lower_expression(root)?))
-    }
-
     /// The children of `node` that hold `T`, in AUTHORED order.
     ///
     /// By ordinal and nothing else: the stem sorts `objective_1` beside
@@ -1477,6 +1482,7 @@ impl ScriptNodes<'_, '_> {
                 let event = self.events.get(node).ok()?;
                 Some(ScenarioEventConfig {
                     label: event.label.clone(),
+                    position: event.position,
                     name: event.trigger,
                     once: event.once,
                     filters: self.lower_filters(node),
@@ -1740,6 +1746,8 @@ fn collect(config: &dyn PartialReflect, ids: &mut NamedIds) {
         }
         let text = named.text.to_string();
         match named.names {
+            // A binding answers from the event at runtime: it names no spawn.
+            Names::Object if payload_binding(&text).is_some() => {}
             Names::Object => ids.referenced.push(text),
             Names::NewObject => ids.declared.push(text),
             Names::Variable => ids.variables.push(text),
@@ -1855,11 +1863,12 @@ fn retype_expression(world: &mut World, node: Entity, choice: ExprChoice) {
     if held == choice.operands() {
         return;
     }
-    let mut commands = world.commands();
-    for ordinal in held..choice.operands() {
-        lift_expression(&mut commands, node, ordinal_at(ordinal), number(0.0));
+    for _ in held..choice.operands() {
+        let ordinal = next_ordinal(world, node);
+        let mut commands = world.commands();
+        lift_expression(&mut commands, node, ordinal, number(0.0));
+        world.flush();
     }
-    world.flush();
     open_up(world, node);
 }
 
@@ -1961,252 +1970,7 @@ fn drop_children(world: &mut World, node: Entity, keep: usize) {
     }
 }
 
-/// What an Add row makes while the EVENTS mode is showing.
-///
-/// SIX rows for a vocabulary of forty-eight, because the kind is mostly not
-/// chosen here: a fresh filter arrives matching entities and a fresh action
-/// arrives logging a line, and the panel's own Filter and Action rows switch
-/// either to any of the rest. A menu with one row per action would be a list
-/// nothing on this screen is tall enough to show.
-///
-/// SEQUENCE is the exception, and it earns its row: it is the one action that
-/// takes children, so a builder who does not already know it is an `Action`
-/// switched to `Sequence` has no way to guess that steps and gates exist at
-/// all.
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ScriptAdd {
-    /// One more handler, under the script.
-    Handler,
-    /// One more filter, under whatever takes filters.
-    Filter,
-    /// One more action, under whatever takes actions.
-    Action,
-    /// One more action, already switched to the chain of beats.
-    Sequence,
-    /// One more beat of a sequence.
-    Step,
-    /// The event a beat waits for.
-    Gate,
-}
-
-impl ScriptAdd {
-    /// Every script row of the Add menu, in the order it lists them.
-    pub(crate) const ALL: [ScriptAdd; 6] = [
-        ScriptAdd::Handler,
-        ScriptAdd::Filter,
-        ScriptAdd::Action,
-        ScriptAdd::Sequence,
-        ScriptAdd::Step,
-        ScriptAdd::Gate,
-    ];
-
-    /// The row label: the word the tree, the panel and the docs all use.
-    pub(crate) fn label(self) -> &'static str {
-        match self {
-            ScriptAdd::Handler => "Handler",
-            ScriptAdd::Filter => "Filter",
-            ScriptAdd::Action => "Action",
-            ScriptAdd::Sequence => "Sequence",
-            ScriptAdd::Step => "Step",
-            ScriptAdd::Gate => "Gate",
-        }
-    }
-
-    /// What the row MAKES, in the menu's right-hand column.
-    ///
-    /// The label is the vocabulary and this is what it means. `Handler` and
-    /// `Gate` are words a builder cannot rank until something says which one
-    /// runs first and which one waits - and the menu is where they are read,
-    /// before there is anything on screen to hover.
-    pub(crate) fn hint(self) -> &'static str {
-        match self {
-            ScriptAdd::Handler => "on an event",
-            ScriptAdd::Filter => "only if",
-            ScriptAdd::Action => "do this",
-            ScriptAdd::Sequence => "paced beats",
-            ScriptAdd::Step => "one beat",
-            ScriptAdd::Gate => "waits for",
-        }
-    }
-}
-
-/// The fresh filter every Add > Filter starts from.
-const NEW_FILTER: FilterChoice = FilterChoice::Entity;
-/// The fresh action every Add > Action starts from: the one that changes
-/// nothing until it is authored.
-const NEW_ACTION: ActionChoice = ActionChoice::DebugMessage;
-
-/// Where a new node of this kind would go, given what is marked.
-///
-/// `None` is the whole of "the row is greyed": the menu asks this to draw
-/// itself and the verb asks it again to do the work, so a row that can be
-/// pressed is a row whose node lands somewhere.
-///
-/// The selection does not have to be the PARENT: the answer is the NEAREST
-/// node above it that takes one. A filter marked under a handler adds the next
-/// filter to that handler, so three filters is three presses rather than three
-/// presses and two reselections.
-pub(crate) fn add_parent(
-    add: ScriptAdd,
-    marked: Option<Entity>,
-    script: &ScriptNodes,
-    scenario: Entity,
-) -> Option<Entity> {
-    let root = script.root(scenario)?;
-    let node = marked.filter(|node| script.holds(*node));
-    match add {
-        ScriptAdd::Handler => Some(root),
-        ScriptAdd::Filter => climb(node?, script, filter_home),
-        ScriptAdd::Action | ScriptAdd::Sequence => climb(node?, script, action_home),
-        ScriptAdd::Step => climb(node?, script, sequence_home),
-        ScriptAdd::Gate => climb(node?, script, gate_home),
-    }
-}
-
-/// The first node from `node` up that `takes` the new one.
-///
-/// Up through the SCRIPT only: the climb stops at the handler, never at the
-/// script node or the scenario, so a filter cannot land somewhere no row would
-/// show it.
-fn climb(
-    node: Entity,
-    script: &ScriptNodes,
-    takes: fn(Entity, &ScriptNodes) -> Option<Entity>,
-) -> Option<Entity> {
-    let mut at = Some(node);
-    while let Some(node) = at {
-        if let Some(home) = takes(node, script) {
-            return Some(home);
-        }
-        at = script.owner(node).filter(|owner| script.holds(*owner));
-    }
-    None
-}
-
-/// `node` itself, if a filter can hang from it.
-///
-/// A combinator only takes what it can hold: a third operand under an `And`
-/// would be dropped by the lowering, so the row is greyed instead of offering
-/// a filter the save would silently lose.
-fn filter_home(node: Entity, script: &ScriptNodes) -> Option<Entity> {
-    if script.event(node).is_some() || script.gate(node).is_some() {
-        return Some(node);
-    }
-    let filter = script.filter(node)?;
-    let room = filter_choice(&filter.kind).operands();
-    (script.filters_of(node).len() < room).then_some(node)
-}
-
-/// `node` itself, if an action can hang from it.
-fn action_home(node: Entity, script: &ScriptNodes) -> Option<Entity> {
-    (script.event(node).is_some() || script.step(node).is_some()).then_some(node)
-}
-
-/// `node` itself, if it is the beat chain a step would join. A cinematic holds
-/// steps the same way a sequence does, so Add > Step lands in either.
-fn sequence_home(node: Entity, script: &ScriptNodes) -> Option<Entity> {
-    let action = script.action(node)?;
-    matches!(
-        action.kind,
-        ActionKind::Sequence(_) | ActionKind::Cinematic(_)
-    )
-    .then_some(node)
-}
-
-/// `node` itself, if it is a beat still waiting for nothing.
-fn gate_home(node: Entity, script: &ScriptNodes) -> Option<Entity> {
-    (script.step(node).is_some() && script.gate_of(node).is_none()).then_some(node)
-}
-
-/// Add > Handler, Filter, Action, Step or Gate: one more node, and mark it.
-///
-/// Marked because the panel is where the new node is authored, and the panel
-/// shows what is marked - the same handover Add > Asteroid makes.
-pub(crate) fn add_script_node(
-    activate: On<Activate>,
-    mut commands: Commands,
-    rows: Query<&ScriptAdd>,
-    context: Res<EditContext>,
-    script: ScriptNodes,
-    mut ordinals: Query<&mut NextChildOrdinal>,
-    mut marked: ResMut<SelectedNode>,
-) {
-    let Ok(&add) = rows.get(activate.entity) else {
-        return;
-    };
-    let Some(scenario) = context.scenario() else {
-        return;
-    };
-    let Some(parent) = add_parent(add, marked.0, &script, scenario) else {
-        return;
-    };
-    // Open every container between the root and the new node. A node added
-    // into a collapsed parent has no row, and the tree drops a selection it
-    // cannot draw - so the beat a builder just made would vanish from the
-    // panel the moment it was made.
-    let mut open = Some(parent);
-    while let Some(node) = open {
-        commands.entity(node).insert(Expanded);
-        open = script.owner(node);
-    }
-    marked.0 = Some(spawn_script_node(&mut commands, &mut ordinals, parent, add));
-}
-
-/// Spawn one script node under `parent`, with an id minted from the parent's
-/// own counter - the same counter [`lift`] seeds, so a loaded document and an
-/// authored one number their children alike.
-fn spawn_script_node(
-    commands: &mut Commands,
-    ordinals: &mut Query<&mut NextChildOrdinal>,
-    parent: Entity,
-    add: ScriptAdd,
-) -> Entity {
-    match add {
-        ScriptAdd::Handler => {
-            let id = mint_id(ordinals, parent, "event");
-            spawn_node(commands, parent, "Event", id, EventNode::default())
-        }
-        ScriptAdd::Filter => {
-            let id = mint_id(ordinals, parent, NEW_FILTER.stem());
-            spawn_node(
-                commands,
-                parent,
-                "Filter",
-                id,
-                FilterNode {
-                    kind: NEW_FILTER.stock(),
-                },
-            )
-        }
-        ScriptAdd::Action | ScriptAdd::Sequence => {
-            let choice = if add == ScriptAdd::Sequence {
-                ActionChoice::Sequence
-            } else {
-                NEW_ACTION
-            };
-            let id = mint_id(ordinals, parent, choice.stem());
-            spawn_node(
-                commands,
-                parent,
-                "Action",
-                id,
-                ActionNode {
-                    kind: choice.stock(),
-                },
-            )
-        }
-        ScriptAdd::Step => {
-            let id = mint_id(ordinals, parent, "step");
-            spawn_node(commands, parent, "Step", id, StepNode::default())
-        }
-        ScriptAdd::Gate => {
-            let id = mint_id(ordinals, parent, "gate");
-            spawn_node(commands, parent, "Gate", id, GateNode::default())
-        }
-    }
-}
-
-/// The six spawns' one shape: a node of the script, childless, under `parent`.
+/// One script node, childless, under `parent`.
 fn spawn_node<T: Component>(
     commands: &mut Commands,
     parent: Entity,
@@ -2225,6 +1989,9 @@ fn spawn_node<T: Component>(
         ))
         .id()
 }
+
+mod blocks;
+pub(crate) use blocks::*;
 
 #[cfg(test)]
 mod tests;
@@ -2279,6 +2046,7 @@ mod name_coverage {
                 description: "name coverage".to_string(),
                 events: vec![ScenarioEventConfig {
                     label: None,
+                    position: None,
                     name: EventConfig::OnStart,
                     once: false,
                     filters: Vec::new(),

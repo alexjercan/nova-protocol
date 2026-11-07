@@ -1,6 +1,6 @@
 # Commands
 
-Press <kbd>;</kbd> anywhere - the main menu, the ship editor, mid-flight, on the pause screen, over the [interface](../interface/) - and the ship's CRT monitor opens on **NOVA COMMANDS**: one prompt that can read the run, change your settings, print the flight log, and, once you deliberately arm it, cheat.
+Press <kbd>;</kbd> anywhere - the main menu, the editor, mid-flight, on the pause screen, over the [interface](../interface/) - and the ship's CRT monitor opens on **NOVA COMMANDS**: one prompt that can read the run, change your settings, print the flight log, and, once you deliberately arm it, cheat.
 
 <figure class="figure">
     <!-- Capture: assets/loops/command-shell-open.webm -->

@@ -31,6 +31,7 @@
 
 use std::collections::BTreeMap;
 
+use bevy::reflect::Reflect;
 use serde::{Deserialize, Serialize};
 
 /// The stable id of the phosphor terminal theme the base mod ships - the
@@ -46,7 +47,7 @@ pub const HARDWARE_THEME_ID: &str = "base/hardware";
 /// Registered by id into `GameUiThemes` exactly like any other content kind, so
 /// a mod ships a look by declaring a new id and restyles a base one by
 /// declaring its id.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Reflect)]
 #[serde(deny_unknown_fields)]
 pub struct UiThemeConfig {
     /// Stable id - the overlay key, the persisted setting's value, and what
@@ -68,6 +69,7 @@ pub struct UiThemeConfig {
     pub metrics: Option<UiMetrics>,
     /// The per-control paint tables.
     #[serde(default)]
+    #[reflect(ignore)]
     pub roles: UiRoles,
 }
 
@@ -76,7 +78,7 @@ pub struct UiThemeConfig {
 /// Not per-role: these are what a border and a corner MEAN in a theme, and the
 /// two shipped looks differ in exactly these three. A role that needs its own
 /// radius carries one (see [`SurfacePaint::radius`]).
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Reflect)]
 #[serde(deny_unknown_fields)]
 pub struct UiMetrics {
     /// Hairline border width, in logical pixels.

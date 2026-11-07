@@ -50,6 +50,10 @@ pub(crate) const MENU_Z: i32 = 26;
 /// hide would be a window nobody opened.
 pub(crate) const WINDOW_Z: i32 = 30;
 
+/// The block in hand on the script canvas: over every window a drag can start
+/// under, and still under the hint that explains where it is going.
+pub(crate) const GHOST_Z: i32 = 39;
+
 /// The hover hint, frontmost: it lives for as long as the pointer rests, and
 /// it is the only surface that is allowed over an open window.
 pub(crate) const TOOLTIP_Z: i32 = 40;
@@ -76,6 +80,7 @@ mod tests {
             ("scrim", SCRIM_Z),
             ("menu", MENU_Z),
             ("window", WINDOW_Z),
+            ("ghost", GHOST_Z),
             ("tooltip", TOOLTIP_Z),
         ] {
             assert!(

@@ -14,10 +14,24 @@ use nova_scenario::prelude::{
 use nova_ship::prelude::SectionConfigPatch;
 
 use super::*;
-use crate::node::{ObjectNode, ScenarioNode};
+use crate::{
+    event::ScriptNodes,
+    node::{EditContext, ObjectNode, ObjectNodes, ScenarioNode, SectionNodes},
+    scenario::{lower_fleet, world_objects, world_script, world_settings},
+    station::StationCatalogs,
+};
 
-/// The slot these fixtures pretend a file was written under.
+/// The scenario these fixtures pretend a file was written under.
 const SAVED_ID: &str = "editor_saved_range";
+
+/// Lift the one scenario `items` hold.
+fn lift_content(items: &[Content]) -> Option<LiftedDocument> {
+    let id = items.iter().find_map(|item| match item {
+        Content::Scenario(scenario) => Some(scenario.id.clone()),
+        _ => None,
+    })?;
+    lift_scenario(items.iter(), id.as_str(), true)
+}
 
 fn section(id: &str) -> SpaceshipSectionConfig {
     SpaceshipSectionConfig {
@@ -87,6 +101,7 @@ fn scenario(actions: Vec<EventActionConfig>) -> Content {
     Content::Scenario(ScenarioConfig {
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -177,6 +192,7 @@ fn only_a_pure_start_spawn_handler_is_layout() {
         events: vec![
             ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnStart,
                 once: false,
                 filters: vec![],
@@ -184,6 +200,7 @@ fn only_a_pure_start_spawn_handler_is_layout() {
             },
             ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnStart,
                 once: false,
                 filters: vec![],
@@ -198,6 +215,7 @@ fn only_a_pure_start_spawn_handler_is_layout() {
             },
             ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnDestroyed,
                 once: false,
                 filters: vec![],
@@ -281,6 +299,25 @@ fn a_retry_naming_another_scenario_is_left_alone() {
     assert_eq!(next.scenario_id, "broadside");
 }
 
+/// A hand-written inline hull has no design file to go to: a node would write
+/// one, and the spawn would stop being what the modder wrote.
+#[test]
+fn a_hand_written_inline_hull_stays_as_authored() {
+    let items = vec![scenario(vec![spawn(instance(
+        "inline_hulk",
+        ShipDesignSource::Inline(ShipDesign {
+            sections: vec![section("spine")],
+            ..default()
+        }),
+        SpaceshipController::None,
+    ))])];
+
+    let lifted = lift_scenario(items.iter(), SAVED_ID, false).expect("it is a document");
+
+    assert!(lifted.ships.is_empty());
+    assert_eq!(lifted.objects[0].base.id, "inline_hulk");
+}
+
 /// A content file with nothing but designs is a legal mod and not a document.
 #[test]
 fn a_file_with_no_scenario_is_not_a_document() {
@@ -292,10 +329,9 @@ fn a_file_with_no_scenario_is_not_a_document() {
 #[test]
 fn the_players_keys_come_back_on_the_sections_that_fire_them() {
     let mut mapping = PlayerControllerConfig::default();
-    mapping.input_mapping.insert(
-        "thruster_2".to_string(),
-        vec![InputSource::from(KeyCode::KeyW)],
-    );
+    mapping
+        .input_mapping
+        .insert("hull_1".to_string(), vec![InputSource::from(KeyCode::KeyW)]);
     let items = vec![
         design("ship_1"),
         scenario(vec![spawn(instance(
@@ -309,7 +345,7 @@ fn the_players_keys_come_back_on_the_sections_that_fire_them() {
 
     let ship = &lifted.ships[0];
     assert_eq!(
-        ship.binds.get("thruster_2"),
+        ship.binds.get("hull_1"),
         Some(&vec![InputSource::from(KeyCode::KeyW)])
     );
 }
@@ -384,7 +420,12 @@ fn document(world: &mut World) -> Entity {
 }
 
 /// Lower whatever document `world` holds into content items.
-fn lower(world: &mut World) -> Vec<Content> {
+pub(crate) fn lower(world: &mut World) -> Vec<Content> {
+    lower_as(world, SAVED_ID)
+}
+
+/// The same, as the scenario `id`.
+pub(crate) fn lower_as(world: &mut World, id: &'static str) -> Vec<Content> {
     world
         .run_system_once(
             |context: Res<EditContext>,
@@ -396,13 +437,14 @@ fn lower(world: &mut World) -> Vec<Content> {
              catalogs: StationCatalogs| {
                 let fleet = lower_fleet(&q_ships, &nodes);
                 let stations = catalogs
-                    .designs(&fleet, HullForm::Prototype)
+                    .designs(&fleet, HullForm::Prototype { scenario: id })
                     .into_iter()
                     .map(|(design, _)| design)
                     .collect();
                 document_content(
                     &world_settings(&context, &q_settings),
-                    SAVED_ID,
+                    id,
+                    FileFacts::default(),
                     world_objects(&context, &q_objects),
                     &fleet,
                     stations,
@@ -581,7 +623,11 @@ fn a_design_is_written_once_and_referenced() {
             _ => None,
         })
         .collect();
-    assert_eq!(designs, vec!["ship_1"], "one design, under the node's id");
+    assert_eq!(
+        designs,
+        vec![design_id(SAVED_ID, "ship_1")],
+        "one design, under its scenario and the node's id"
+    );
 
     let Some(Content::Scenario(scenario)) = items
         .iter()
@@ -754,6 +800,7 @@ fn editing_a_design_leaves_its_instances_untouched() {
 fn authored_script(id: &str) -> Vec<ScenarioEventConfig> {
     vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnDestroyed,
         once: true,
         filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -947,7 +994,7 @@ fn a_ship_marked_as_a_station_is_saved_as_one_and_opens_marked() {
     assert!(
         items
             .iter()
-            .any(|item| matches!(item, Content::Station(design) if design.id.as_str() == "ship_5")),
+            .any(|item| matches!(item, Content::Station(design) if design.id.as_str() == design_id(SAVED_ID, "ship_5"))),
         "the hull is written as a station design under the node's id"
     );
     assert!(
@@ -966,4 +1013,16 @@ fn a_ship_marked_as_a_station_is_saved_as_one_and_opens_marked() {
     assert_eq!(ship.driver, ShipDriver::Ai, "a living station");
     assert_eq!(ship.name, "Outpost");
     assert_eq!(ship.sections.len(), 1, "with the hull it was built from");
+}
+
+/// Two ranges built apart both mint `ship_1`. The merge overlays ships
+/// last-wins by id, so the bare id gave the first range the second one's hull.
+#[test]
+fn two_saves_with_the_same_ship_ids_do_not_collide() {
+    let first = lower_as(&mut world_with_document(), "editor_first");
+    let second = lower_as(&mut world_with_document(), "editor_second");
+
+    let outcome = nova_assets::merge_bundles([first.iter(), second.iter()].into_iter());
+
+    assert_eq!(outcome.ships.len(), 2, "each range keeps its own hull");
 }

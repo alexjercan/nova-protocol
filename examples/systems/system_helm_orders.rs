@@ -281,6 +281,7 @@ fn orders_range(
                 .to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -622,6 +623,7 @@ fn verb_of(autopilot: Option<&Autopilot>) -> &'static str {
         Some(AutopilotAction::GotoPos { .. }) => "GotoPos",
         Some(AutopilotAction::Orbit { .. }) => "Orbit",
         Some(AutopilotAction::MatchVelocity { .. }) => "MatchVelocity",
+        Some(AutopilotAction::MatchTarget { .. }) => "MatchTarget",
         Some(AutopilotAction::DockApproach { .. }) => "DockApproach",
     }
 }

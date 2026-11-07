@@ -8,9 +8,8 @@
 //! WHAT AN ITEM DOES IS THE ITEM'S OWN BUSINESS. Each row is spawned with its
 //! own observer, exactly the way the rail's rows are, so there is no central
 //! action enum to keep in step with the menus - a new item is one `spawn` with
-//! one `observe`. Items that are not built yet carry `InteractionDisabled` and
-//! no observer: greyed says "this belongs here and is coming", absent says
-//! nothing at all.
+//! one `observe`. A row that cannot act right now carries `InteractionDisabled`:
+//! greyed says "this belongs here", absent says nothing at all.
 
 use bevy::{
     ecs::{hierarchy::ChildOf, relationship::RelatedSpawner, spawn::SpawnWith},
@@ -19,15 +18,18 @@ use bevy::{
     ui::InteractionDisabled,
     ui_widgets::{Activate, Button},
 };
-use nova_gameplay::prelude::GameStates;
+use nova_gameplay::prelude::{GameStates, UnsavedWork};
 use nova_ui::{
     theme,
     theme::{ActiveUiTheme, UiColor},
     widget::{checkbox_glyph, key_chip, ListRow, ThemedRadius, UiText},
 };
 
+use super::shell::EditorPanels;
 use crate::{
-    config::{EditorOverlays, SelectedNode},
+    config::{EditorOverlays, EditorSays, SelectedNode},
+    history::EditHistory,
+    tool::{swap_handle_space, GizmoSpaceType, StageTool},
     ui::layer,
 };
 
@@ -133,8 +135,7 @@ pub(crate) enum MenuTail<'a> {
     None,
     /// The key that runs this row.
     Key(&'a str),
-    /// A word about whether the row can be pressed at all - an unbuilt row's
-    /// `soon`.
+    /// A word about whether the row can be pressed at all.
     Word(&'a str),
 }
 
@@ -196,6 +197,7 @@ pub(crate) fn menu_item_row(label: &str, lead: MenuLead, tail: MenuTail) -> impl
         children![
             menu_item_lead(lead),
             (
+                MenuItemLabel,
                 UiText,
                 Text::new(label.to_string()),
                 TextFont {
@@ -438,6 +440,15 @@ pub(crate) fn toggle_ids(_activate: On<Activate>, mut overlays: ResMut<EditorOve
     overlays.ids = !overlays.ids;
 }
 
+/// View > Local Axes: the same verb as X.
+pub(crate) fn toggle_handle_space(
+    _activate: On<Activate>,
+    mut tool: ResMut<StageTool>,
+    mut says: EditorSays,
+) {
+    swap_handle_space(&mut tool, &mut says);
+}
+
 /// Tick the View toggles, so the menu says what is ON rather than only what
 /// can be turned on.
 ///
@@ -446,6 +457,8 @@ pub(crate) fn toggle_ids(_activate: On<Activate>, mut overlays: ResMut<EditorOve
 /// editor two drawings of a tick.
 pub(crate) fn sync_view_menu_marks(
     overlays: Res<EditorOverlays>,
+    panels: Res<EditorPanels>,
+    tool: Res<StageTool>,
     marks: Query<(&ViewToggle, &Children)>,
     mut texts: Query<&mut Text>,
 ) {
@@ -457,6 +470,10 @@ pub(crate) fn sync_view_menu_marks(
             ViewToggle::ObjectVolumes => overlays.object_volumes,
             ViewToggle::AllFields => overlays.all_fields,
             ViewToggle::Ids => overlays.ids,
+            ViewToggle::Hierarchy => panels.hierarchy,
+            ViewToggle::Inspector => panels.inspector,
+            ViewToggle::Browser => panels.browser,
+            ViewToggle::LocalAxes => tool.space == GizmoSpaceType::Local,
         };
         let Some(lead) = children.iter().next() else {
             continue;
@@ -487,6 +504,14 @@ pub(crate) enum ViewToggle {
     AllFields,
     /// The tree's ids, instead of the names the nodes were given.
     Ids,
+    /// The left panel.
+    Hierarchy,
+    /// The right panel.
+    Inspector,
+    /// The body of the browser strip.
+    Browser,
+    /// The handles' local axes, instead of the world's.
+    LocalAxes,
 }
 
 /// A disabled row's text, and an enabled one's, for the label column and the
@@ -582,8 +607,8 @@ pub(crate) fn sync_menu_delete(
     items: Query<(Entity, Has<InteractionDisabled>), With<MenuDeleteItem>>,
 ) {
     let armable = selected
-        .0
-        .is_some_and(|node| crate::placement::deletable(node, &context, &nodes));
+        .iter()
+        .any(|node| crate::placement::deletable(node, &context, &nodes));
     for (entity, marked) in &items {
         match (armable, marked) {
             (false, false) => {
@@ -593,6 +618,77 @@ pub(crate) fn sync_menu_delete(
                 commands.entity(entity).remove::<InteractionDisabled>();
             }
             _ => {}
+        }
+    }
+}
+
+/// The label of a menu row, for a row whose wording changes.
+#[derive(Component)]
+pub(crate) struct MenuItemLabel;
+
+/// Edit > Undo and Edit > Redo.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum MenuHistoryItem {
+    /// Takes the last step back.
+    Undo,
+    /// Puts the last undone step back.
+    Redo,
+}
+
+/// Name the step each row would take, and grey the row with none to take.
+pub(crate) fn sync_history_menu(
+    mut commands: Commands,
+    history: Res<EditHistory>,
+    items: Query<(
+        Entity,
+        &MenuHistoryItem,
+        Has<InteractionDisabled>,
+        &Children,
+    )>,
+    mut labels: Query<&mut Text, With<MenuItemLabel>>,
+) {
+    for (entity, item, disabled, children) in &items {
+        let (word, step) = match item {
+            MenuHistoryItem::Undo => ("Undo", history.undo_label()),
+            MenuHistoryItem::Redo => ("Redo", history.redo_label()),
+        };
+        match (step.is_some(), disabled) {
+            (true, true) => {
+                commands.entity(entity).remove::<InteractionDisabled>();
+            }
+            (false, false) => {
+                commands.entity(entity).insert(InteractionDisabled);
+            }
+            _ => {}
+        }
+        let wanted = step.map_or_else(|| word.to_string(), |step| format!("{word} {step}"));
+        for child in children.iter() {
+            if let Ok(mut label) = labels.get_mut(child) {
+                if label.0 != wanted {
+                    label.0.clone_from(&wanted);
+                }
+            }
+        }
+    }
+}
+
+/// The top bar's word for a document that differs from its file.
+#[derive(Component)]
+pub(crate) struct UnsavedMark;
+
+/// Show the mark while the document holds unsaved work, and tell the ways out
+/// of the session the same thing ([`UnsavedWork`]).
+pub(crate) fn sync_unsaved_mark(
+    history: Res<EditHistory>,
+    mut unsaved: ResMut<UnsavedWork>,
+    mut marks: Query<&mut Node, With<UnsavedMark>>,
+) {
+    let dirty = history.dirty();
+    unsaved.hold(dirty);
+    let display = if dirty { Display::Flex } else { Display::None };
+    for mut mark in &mut marks {
+        if mark.display != display {
+            mark.display = display;
         }
     }
 }
@@ -609,7 +705,7 @@ pub(crate) struct MenuDeleteItem;
 #[derive(Component)]
 pub(crate) struct ShipMenuItem;
 
-/// Grey the Ship menu's rows at the scenario node.
+/// Grey the Ship menu's rows at the scenario node and in Events.
 ///
 /// Greyed rather than absent, the same as File > Save: the menu says what the
 /// editor can do INSIDE a ship even while you are standing outside one, which
@@ -617,9 +713,10 @@ pub(crate) struct ShipMenuItem;
 pub(crate) fn sync_ship_menu(
     mut commands: Commands,
     context: Res<crate::node::EditContext>,
+    rail: Res<crate::config::RailTab>,
     items: Query<(Entity, Has<InteractionDisabled>), With<ShipMenuItem>>,
 ) {
-    let inside = context.ship().is_some();
+    let inside = context.ship().is_some() && !rail.is_events();
     for (entity, marked) in &items {
         match (inside, marked) {
             (false, false) => {
@@ -649,48 +746,15 @@ pub(crate) fn sync_scenario_menu(
     mut commands: Commands,
     context: Res<crate::node::EditContext>,
     items: Query<(Entity, Has<InteractionDisabled>), With<ScenarioMenuItem>>,
+    benches: Query<(), With<crate::asset::AssetNode>>,
 ) {
-    let inside = context.ship().is_some();
+    let inside = context.ship().is_some() || !benches.is_empty();
     for (entity, marked) in &items {
         match (inside, marked) {
             (true, false) => {
                 commands.entity(entity).insert(InteractionDisabled);
             }
             (false, true) => {
-                commands.entity(entity).remove::<InteractionDisabled>();
-            }
-            _ => {}
-        }
-    }
-}
-
-/// Grey a script Add row unless the EVENTS tab is showing and the marked node
-/// can take what the row makes.
-///
-/// The SAME question the verb asks, so the rows say what the tree already
-/// says: Gate greys the moment a beat has one, and Step is live only while a
-/// sequence is marked. Both halves of the palette stay on show, because the
-/// menu is where a builder reads what the other tab would add.
-pub(crate) fn sync_script_menu(
-    mut commands: Commands,
-    tab: Res<crate::config::RailTab>,
-    context: Res<crate::node::EditContext>,
-    marked: Res<crate::config::SelectedNode>,
-    script: crate::event::ScriptNodes,
-    items: Query<(Entity, &crate::event::ScriptAdd, Has<InteractionDisabled>)>,
-) {
-    let events = *tab == crate::config::RailTab::Events;
-    for (entity, add, greyed) in &items {
-        let live = events
-            && context
-                .scenario()
-                .and_then(|scenario| crate::event::add_parent(*add, marked.0, &script, scenario))
-                .is_some();
-        match (live, greyed) {
-            (false, false) => {
-                commands.entity(entity).insert(InteractionDisabled);
-            }
-            (true, true) => {
                 commands.entity(entity).remove::<InteractionDisabled>();
             }
             _ => {}
@@ -918,6 +982,8 @@ mod tests {
     fn the_view_rows_report_what_they_toggle() {
         let mut world = World::new();
         world.init_resource::<EditorOverlays>();
+        world.init_resource::<EditorPanels>();
+        world.init_resource::<StageTool>();
         world.add_observer(toggle_link_points);
         // The REAL row, so the test reads the mark where the widget puts it
         // rather than where it once put it.
@@ -959,6 +1025,7 @@ mod tests {
 
         let mut world = World::new();
         world.init_resource::<crate::node::EditContext>();
+        world.init_resource::<crate::config::RailTab>();
         let scenario = world.spawn(ScenarioNode::default()).id();
         let ship = world.spawn(ShipNode::default()).id();
         world.resource_mut::<crate::node::EditContext>().path = vec![scenario];
@@ -1005,45 +1072,6 @@ mod tests {
         assert!(world.entity(row).contains::<InteractionDisabled>());
     }
 
-    /// The script palette answers to the TAB, which is the other half of the
-    /// same rule: Add means "one more node here", and the EVENTS tab is a
-    /// different here.
-    #[test]
-    fn the_script_palette_is_greyed_off_the_events_tab() {
-        use crate::{
-            config::{RailTab, SelectedNode},
-            event::{lift, ScriptAdd},
-            node::{EditContext, ScenarioNode},
-        };
-
-        let mut world = World::new();
-        world.init_resource::<EditContext>();
-        world.init_resource::<RailTab>();
-        world.init_resource::<SelectedNode>();
-        let scenario = world.spawn(ScenarioNode::default()).id();
-        world.resource_mut::<EditContext>().path = vec![scenario];
-        world
-            .run_system_once(move |mut commands: Commands| {
-                lift(&mut commands, scenario, Vec::new());
-            })
-            .expect("the script exists");
-        let row = world.spawn(ScriptAdd::Handler).id();
-
-        world
-            .run_system_once(sync_script_menu)
-            .expect("the sync runs");
-        assert!(
-            world.entity(row).contains::<InteractionDisabled>(),
-            "the SCENE tab adds to the world"
-        );
-
-        *world.resource_mut::<RailTab>() = RailTab::Events;
-        world
-            .run_system_once(sync_script_menu)
-            .expect("the sync runs");
-        assert!(!world.entity(row).contains::<InteractionDisabled>());
-    }
-
     /// Edit > Delete arms on a handler the same way it arms on a rock: the
     /// script is nodes, and the one gesture that removes a node removes those
     /// too.
@@ -1061,7 +1089,7 @@ mod tests {
         let scenario = world.spawn(ScenarioNode::default()).id();
         world.resource_mut::<EditContext>().path = vec![scenario];
         let handler = world.spawn(EventNode::default()).id();
-        world.resource_mut::<SelectedNode>().0 = Some(handler);
+        world.resource_mut::<SelectedNode>().set(Some(handler));
         let row = world.spawn(MenuDeleteItem).id();
 
         world

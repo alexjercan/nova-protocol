@@ -139,6 +139,7 @@ fn station_void(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         description: "A waystation that rebuilds, and a player who lost a gun.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

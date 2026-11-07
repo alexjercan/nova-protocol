@@ -276,6 +276,7 @@ pub(crate) fn menu_gauntlet(
         // later one.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -314,6 +315,7 @@ pub(crate) fn menu_gauntlet(
         // batteries fire into the dark and skip - then the FULL reset.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnDefeated,
             once: false,
             filters: vec![entity(WARSHIP_ID)],
@@ -324,6 +326,7 @@ pub(crate) fn menu_gauntlet(
         // in-flight ordnance.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -334,6 +337,7 @@ pub(crate) fn menu_gauntlet(
         // The watchdog's own reset (see OnStart).
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -352,6 +356,7 @@ pub(crate) fn menu_gauntlet(
     for (id, _, _, period) in BATTERY_PARKS {
         events.push(ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {

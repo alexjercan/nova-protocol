@@ -2,8 +2,16 @@
 
 A Nova Protocol mod is a folder that contains one bundle manifest, one or more
 content files, and any art or audio that the mod owns. Content files can define
-eight kinds of reusable item: campaigns, scenarios, ship sections, whole
-ships, ship skin styles, training lessons, UI themes, and items.
+twelve kinds of reusable item: campaigns, scenarios, ship sections, whole
+ships, stations, ship skin styles, training lessons, UI themes, items, start
+roles, price tables, and trade profiles.
+
+The editor writes this same layout. Open **Sandbox** on the main menu to
+make a mod without hand-editing a file. Its Assets tab shows the items as file
+tiles with a count per kind, and opens each kind but lessons, which stay as
+written; ships and stations are edited in their scenario. **Mod Settings** edits the manifest and the
+dependencies. To release
+the result, see [Publish a mod](../publish-a-mod/).
 
 Use this page to choose the right file. Then open the detailed reference for the
 item you want to author.
@@ -156,7 +164,7 @@ content is rebalanced, prune the entry.
 ## Content files
 
 Every `*.content.ron` file is a RON list. One file may contain any mix of the
-eleven item kinds:
+twelve item kinds:
 
 ```ron
 [

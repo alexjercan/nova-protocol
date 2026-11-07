@@ -57,6 +57,7 @@ fn main() -> bevy::app::AppExit {
 
     // The same editor app the game binary runs - not a bespoke copy.
     let mut app = editor_app(true, None);
+    app.insert_resource(EditorOpensScratch);
 
     #[cfg(feature = "debug")]
     {

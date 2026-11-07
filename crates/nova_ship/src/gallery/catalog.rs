@@ -30,6 +30,9 @@ pub enum GalleryCategory {
     Ordnance,
     /// Docking ports.
     Docking,
+    /// The parts a host's listing marks as its own. Not in [`Self::ROW`]: the
+    /// filter row shows it only when the listing holds one.
+    Mod,
 }
 
 impl GalleryCategory {
@@ -54,6 +57,7 @@ impl GalleryCategory {
             Self::Weapons => "Weapons",
             Self::Ordnance => "Ordnance",
             Self::Docking => "Docking",
+            Self::Mod => "Mod",
         }
     }
 
@@ -108,7 +112,15 @@ pub fn browsable(
                     .is_some_and(|entry| entry.placeable || !available_only)
             })
         })
-        .filter(|(_, section)| category.accepts(&section.kind))
+        .filter(|(_, section)| {
+            if category == GalleryCategory::Mod {
+                listing
+                    .and_then(|listing| listing.entry(&section.base.id))
+                    .is_some_and(|entry| entry.own)
+            } else {
+                category.accepts(&section.kind)
+            }
+        })
         .filter(|(_, section)| {
             needle.is_empty()
                 || section.base.name.to_lowercase().contains(&needle)
@@ -367,6 +379,7 @@ mod tests {
                 recipe: Vec::new(),
                 alternate: None,
                 placeable: true,
+                own: false,
             },
             GalleryEntry {
                 id: "hauler_nose".to_string(),
@@ -375,6 +388,7 @@ mod tests {
                 recipe: Vec::new(),
                 alternate: None,
                 placeable: true,
+                own: false,
             },
         ]);
         let listed = Some(&listing);
@@ -408,6 +422,7 @@ mod tests {
             recipe: Vec::new(),
             alternate: None,
             placeable,
+            own: false,
         };
         let listing = GalleryListing(vec![
             entry("basic_thruster_section", true),

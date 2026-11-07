@@ -36,6 +36,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** `Item` content now requires `price_lot`, the item count one `ask_cr`/`bid_cr` prices: 100 for a PDC round, 1 for other base items. An item without it fails lint, then load.
 - New `TradeProfile` content gives generated ship roles weighted buy/sell lists, with quantity and per-unit price limit, and Procure jobs for their station visits.
 - New `SetTradeProfile` action gives a generated AI trader a trade profile or clears it. An unknown profile or a non-AI target fails lint.
+- Editor Mod Settings edits the manifest and dependencies. A remove that content still needs and a cycle are refused; picking from an undeclared mod adds the dependency in the same undo step.
+- Editor Assets > + > Sections builds a section in the mod: sockets on the gizmo, .glb import, live Problems. Ships can carry it, and Play flies it.
+- Editor Assets opens styles, start roles, items, price tables, trade profiles, UI themes and campaigns as undoable forms. Item and price table merge rules show in Problems.
+- Editor File > Package writes `<id>-<version>.zip` under `exports/`, ready for the portal. Mod Hub Import refuses unsafe paths and asks before it replaces a mod. Desktop only.
 - New `OnJobAccepted` scenario event fires when the Jobs pane accepts a board offer, with the job's id as `id`.
 - **(breaking)** An `ObjectiveComplete` id that no `Objective` in the same scenario posts now fails lint and load. It was a warning.
 - New `ObjectiveChipHold` action keeps one objective's HUD chip up until it leaves. It is not saved: run it from `OnResume` too. An id no Objective posts fails lint.
@@ -43,6 +47,15 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Interface & HUD
 
+- The editor now has undo and redo: Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y, and Edit rows that name the step. An UNSAVED mark shows, and leaving or closing with unsaved work asks first.
+- The editor viewport has its own camera: hold RMB to fly at constant speed, MMB or Alt+LMB orbits, Alt+RMB or the wheel dollies, Shift+MMB pans. The pipette moves from Q to P.
+- Editor tools: Q select, W move, E turn, R scale. X swaps world and local axes, and Snap or Ctrl snaps a handle. Scale drives a node's size field; a ship refuses it.
+- The editor selects many nodes: Ctrl or Shift click, a box drag, Ctrl+A. A group moves, turns and deletes as one undo step. Ctrl+D, Ctrl+C and Ctrl+V copy nodes.
+- The editor has one top bar and fixed panels: a Hierarchy tree with a filter and row menus, an Inspector with folding groups, and a strip with Assets, Problems, Ship and Log tabs.
+- Sandbox opens a Mod Hub: a recent-first list of mods with New, Import, Duplicate and Delete.
+- The editor works on a whole mod: Assets shows its items as file tiles with a kind filter and +, switching scenarios keeps edits, and one Ctrl+Z history covers it. Play tests the open scenario.
+- Editor Events is now a block canvas beside a palette: drag blocks into the slots that fit, and fill values on the block or in its pop-up. Every drop is one undo step.
+- An unfinished condition in the editor now shows as a Problem that blocks Save, Play and Package instead of vanishing on save.
 - Ship pane Rebind now takes Left Mouse. The click that arms it is not captured, and the click that binds reaches no button, tab or blip under it.
 - The lock readout now moves to the free side of the reticle to stay on screen and clear of the target inset, and the inset caption sits on a darker slab clear of its corner brackets.
 - At an interface scale other than 100%, the lock bracket and the target and objective markers now sit on their targets. They drew away from them, or off the screen, before.
@@ -83,6 +96,9 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Fixes
 
+- Editor saves no longer collide on a ship id: saved ships now carry the mod's namespace. An older `editor_` save opens and converts on its next save.
+- Pressing F1 just after Play no longer crashes the game.
+- Holding Ctrl in the editor now stops the free-fly camera, so Ctrl+S no longer moves it.
 - When a slot on your starting station's board renews, the board keeps one job your hull can do, so an unarmed start no longer runs out. A board of only hidden jobs now says so.
 - A GOTO or ORBIT cue now moves aside while a HUD notice would cover it, and returns when the notice ends.
 - **(breaking)** An escort for hire keeps its place and motion beside its station, in flat space or a well, after a Load or a sector stream, instead of moving to the other side after a hire.

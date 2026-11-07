@@ -1,10 +1,11 @@
 //! What a saved document IS: a mod bundle, in the same format a hand-written
 //! mod is authored in.
 //!
-//! The file is a `Vec<Content>`: one `Content::Ship` per design in the
+//! A document lowers to a `Vec<Content>`: one `Content::Ship` per design in the
 //! document, then one `Content::Scenario` whose spaceships reference those
 //! designs by id. Nothing is written twice - edit a design and every instance
-//! of it changes, and "export my ship" is the file you already saved.
+//! of it changes, and "export my ship" is the file you already saved. The
+//! [`crate::project::ModProject`] holds these items for each of its scenarios.
 //!
 //! THE LOWERING CONVENTION, both ways. The LAYOUT is derived: the unfiltered
 //! `OnStart` handler that spawns the board is written out of the object nodes
@@ -26,138 +27,43 @@
 use std::collections::BTreeMap;
 
 use bevy::{prelude::*, ui_widgets::Activate};
-/// The prefix on every mod id a save writes.
-///
-/// It makes the read-only rule STRUCTURAL rather than a check: the editor can
-/// only ever name a bundle that starts with this, so a hand-written mod is not
-/// something a save can reach - and the list the builder picks from is exactly
-/// the ids that carry it.
-///
-/// That second half needs the OTHER writer of the installed-mods index to
-/// honour the prefix too, or a downloaded mod could appear in the editor's own
-/// file list and be saved over as if it were a builder's range. The portal
-/// refuses an id under it (`nova_assets::portal`), so the constant lives in
-/// `nova_assets`: both writers have to agree on it, and the portal cannot see
-/// the editor.
-pub(crate) use nova_assets::mod_cache::prelude::EDITOR_ID_PREFIX as EDITOR_BUNDLE_PREFIX;
-use nova_assets::prelude::EnabledMods;
 use nova_gameplay::prelude::Allegiance;
 use nova_input::prelude::InputSource;
 use nova_modding::prelude::Content;
-#[cfg(not(target_arch = "wasm32"))]
-use nova_modding::prelude::{BundleManifest, ModMeta};
 use nova_scenario::prelude::{
     AIControllerConfig, EventActionConfig, EventConfig, ScenarioConfig, ScenarioEventConfig,
-    ScenarioObjectConfig, ScenarioObjectKind, SectionId, ShipDesignId, ShipDesignPrototype,
-    ShipDesignSource, SpaceshipController, SpaceshipSectionConfig, StationConfig, StationDesignId,
-    StationDesignPrototype, StationDesignSource,
+    ScenarioObjectConfig, ScenarioObjectKind, SectionId, ShipDesign, ShipDesignId,
+    ShipDesignPrototype, ShipDesignSource, SpaceshipConfig, SpaceshipController,
+    SpaceshipSectionConfig, StationConfig, StationDesignId, StationDesignPrototype,
+    StationDesignSource,
 };
 use nova_ship::prelude::{GameSections, TargetingSettings};
 
 use crate::{
-    config::{EditorSays, SelectedNode},
-    cues::EditorCues,
-    event::ScriptNodes,
     node::{
-        found_empty_document, insert_lifted_section, insert_object_node, insert_ship_node,
-        resume_ordinals, EditContext, NextChildOrdinal, NodeId, ObjectNodes, ScenarioNode,
-        SectionNode, SectionNodes, ShipDriver, ShipNode,
+        insert_lifted_section, insert_object_node, insert_ship_node, resume_ordinals,
+        NextChildOrdinal, NodeId, ScenarioNode, SectionNode, ShipDriver, ShipNode,
     },
-    scenario::{
-        lower_fleet, ship_design, world_objects, world_script, world_settings, HullForm,
-        LoweredFleet, Range,
+    project::{
+        ids::{design_id, node_of_design},
+        verbs::{accept, save_or_ask},
     },
-    station::StationCatalogs,
+    scenario::{ship_design, spawn_of, FileFacts, HullForm, LoweredFleet, LoweredShip, Range},
+    station::is_stock_station,
+    ui::files::PathPurposeType,
 };
 
-/// Where one document is saved: the mod id it is written under, and the name
-/// the builder typed to get that id.
-///
-/// The name is the RANGE's name as well as the mod's. A document has one name,
-/// and keeping a file name and a scenario name in step by hand is the editor's
-/// bookkeeping, not the builder's.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct SaveSlot {
-    pub(crate) id: String,
-    pub(crate) name: String,
-}
-
-/// The slot the open document belongs to, or `None` while nothing has named
-/// it. Save writes here; Save As replaces it; Open sets it to what was opened.
-#[derive(Resource, Debug, Default, Clone, PartialEq, Eq)]
-pub(crate) struct DocumentSlot(pub(crate) Option<SaveSlot>);
-
-/// Why a typed name cannot be saved under.
-///
-/// Two reasons, and the Save As readout says which: they are different things
-/// for the builder to do about it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum NameProblem {
-    /// The name holds nothing an id can be made of - it is blank, or it is all
-    /// punctuation.
-    Unusable,
-    /// The name derives an id the editor has already spoken for.
-    Reserved,
-}
-
-/// The mod id a typed name saves under.
-///
-/// DERIVED rather than typed: an id is a directory name, an enable key and a
-/// merge namespace at once, and none of those is a thing to make a builder
-/// spell. Every run of characters that is not an ASCII letter or digit becomes
-/// one `_`, so two names that differ only in punctuation land in the same slot
-/// - which the Save As window says out loud before it writes.
-///
-/// One derived id is refused rather than written: [`SANDBOX_ID`] is the range
-/// the editor lowers the OPEN document into, so a save that took it would
-/// stand in for the editor's own stage on the next load - and, because the
-/// sandbox is not a file, the Save As list could not even show the collision.
-/// "Sandbox", "sand box" and "SANDBOX!" all derive it.
-pub(crate) fn bundle_id(name: &str) -> Result<String, NameProblem> {
-    let mut id = String::from(EDITOR_BUNDLE_PREFIX);
-    let mut separated = false;
-    for character in name.chars() {
-        if !character.is_ascii_alphanumeric() {
-            separated = true;
-            continue;
-        }
-        if separated && id.len() > EDITOR_BUNDLE_PREFIX.len() {
-            id.push('_');
-        }
-        separated = false;
-        id.push(character.to_ascii_lowercase());
-    }
-    if id.len() == EDITOR_BUNDLE_PREFIX.len() {
-        return Err(NameProblem::Unusable);
-    }
-    if id == crate::scenario::SANDBOX_ID {
-        return Err(NameProblem::Reserved);
-    }
-    Ok(id)
-}
-
-/// The bundle manifest inside a slot, relative to the mod's own directory.
-#[cfg(not(target_arch = "wasm32"))]
-fn bundle_file(id: &str) -> String {
-    format!("{id}.bundle.ron")
-}
-
-/// The one content file that manifest lists.
-#[cfg(not(target_arch = "wasm32"))]
-fn content_file(id: &str) -> String {
-    format!("{id}.content.ron")
-}
-
-/// The range a save writes: the slot's own id, and hulls by reference.
+/// The range a save writes: its own id, and hulls by reference.
 ///
 /// A saved range is content the builder made, so it belongs in the Scenarios
 /// picker once the mod is enabled - unlike the sandbox Play hands off to,
 /// which the picker skips by its reserved id.
-pub(crate) fn saved_range(id: &str) -> Range<'_> {
+pub(crate) fn saved_range<'a>(id: &'a str, file: FileFacts<'a>) -> Range<'a> {
     Range {
         id,
-        form: HullForm::Prototype,
+        form: HullForm::Prototype { scenario: id },
         flight: false,
+        file,
     }
 }
 
@@ -173,6 +79,7 @@ pub(crate) fn saved_range(id: &str) -> Range<'_> {
 pub(crate) fn document_content(
     settings: &ScenarioNode,
     id: &str,
+    file: FileFacts,
     world: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
     stations: Vec<StationDesignPrototype>,
@@ -184,7 +91,7 @@ pub(crate) fn document_content(
         .filter(|ship| !ship.station)
         .map(|ship| {
             Content::Ship(ShipDesignPrototype {
-                id: ship.id.as_str().into(),
+                id: design_id(id, &ship.id).as_str().into(),
                 name: ship.id.clone(),
                 design: ship_design(ship),
             })
@@ -193,32 +100,13 @@ pub(crate) fn document_content(
     items.extend(stations.into_iter().map(Content::Station));
     items.push(Content::Scenario(crate::scenario::range_scenario(
         settings,
-        saved_range(id),
+        saved_range(id, file),
         world,
         fleet,
         script,
         targeting,
     )));
     items
-}
-
-/// The manifest that makes the saved content a loadable mod.
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn save_manifest(slot: &SaveSlot) -> BundleManifest {
-    BundleManifest {
-        content: vec![content_file(&slot.id)],
-        resources: vec![],
-        meta: ModMeta {
-            name: slot.name.clone(),
-            description: "A range built in the editor.".to_string(),
-            author: String::new(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-            dependencies: vec![],
-            icon: None,
-            screenshots: vec![],
-        },
-        new_game_scenario: None,
-    }
 }
 
 /// One ship as the document holds it, lifted out of an authored spawn.
@@ -264,12 +152,58 @@ pub(crate) struct LiftedDocument {
     pub(crate) settings: ScenarioNode,
 }
 
-/// Read a saved file back into a document.
+impl LiftedShip {
+    /// This ship as the lowering will see it.
+    fn lowered(&self) -> LoweredShip {
+        LoweredShip {
+            id: self.id.clone(),
+            name: self.name.clone(),
+            driver: self.driver,
+            allegiance: self.allegiance,
+            pilot: self.pilot.clone(),
+            sections: self.sections.clone(),
+            inputs: self
+                .sections
+                .iter()
+                .filter_map(|section| Some((section.id.clone(), self.binds.get(&section.id)?)))
+                .filter(|(_, binds)| !binds.is_empty())
+                .map(|(section, binds)| (section, binds.clone()))
+                .collect(),
+            skin: self.skin,
+            style: self.style.clone(),
+            position: self.pose.translation,
+            rotation: self.pose.rotation,
+            station: self.station,
+        }
+    }
+}
+
+/// Whose spawns are being lifted, which decides how much of one a node may hold.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum LiftSource<'a> {
+    /// The stock world: every hull with sections is the editor's own.
+    Seed,
+    /// The scenario `scenario` of a mod on disk. A spawn lifts only if its node
+    /// writes it back; the rest stand as authored.
+    File {
+        scenario: &'a str,
+        /// The one-scenario layout, whose designs stand bare until this save
+        /// moves them. Their spelling is the editor's, whatever the id says.
+        old_save: bool,
+    },
+}
+
+/// Read the scenario `id` of a mod back into a document.
 ///
-/// `None` when the file carries no scenario: a content file of nothing but
-/// ship prototypes is a legal mod and an empty document, and the two are worth
-/// telling apart at the call site.
-pub(crate) fn lift_content(items: &[Content]) -> Option<LiftedDocument> {
+/// `None` when the items hold no such scenario. Every item is offered because a
+/// scenario may spawn a design any file of the mod carries. `old_save` is
+/// [`LiftSource::File`]'s.
+pub(crate) fn lift_scenario<'a>(
+    items: impl Iterator<Item = &'a Content>,
+    id: &str,
+    old_save: bool,
+) -> Option<LiftedDocument> {
+    let items: Vec<&Content> = items.collect();
     let designs = FileDesigns {
         ships: items
             .iter()
@@ -287,10 +221,14 @@ pub(crate) fn lift_content(items: &[Content]) -> Option<LiftedDocument> {
             .collect(),
     };
     let scenario = items.iter().find_map(|item| match item {
-        Content::Scenario(scenario) => Some(scenario),
+        Content::Scenario(scenario) if scenario.id == id => Some(scenario),
         _ => None,
     })?;
-    let mut lifted = lift_objects(spawned_in_layout(scenario).cloned(), &designs);
+    let source = LiftSource::File {
+        scenario: id,
+        old_save,
+    };
+    let mut lifted = lift_objects(spawned_in_layout(scenario).cloned(), &designs, source);
     lifted.script = scenario
         .events
         .iter()
@@ -334,26 +272,44 @@ pub(crate) struct FileDesigns<'a> {
 /// is a hull too, and lifts as a ship node marked as a station. Everything
 /// else is an object, placed and lowered verbatim.
 ///
-/// The one hull that stays an object is one naming a design nothing here
-/// carries - a ship prototype, or a station from the shipped catalog: the
-/// editor would have to invent the sections it cannot read, and a design it
-/// cannot show is not one it should offer to edit.
+/// A hull stays an object when it names a design nothing here carries - a ship
+/// prototype, or a station from the shipped catalog: the editor would have to
+/// invent the sections it cannot read, and a design it cannot show is not one it
+/// should offer to edit.
+///
+/// A hull from a file stays an object too when a ship node could not write it
+/// back: a node holds no stock, no patches and no spawn id of its own, and the
+/// design it writes is the editor's. See [`writes_back`].
 pub(crate) fn lift_objects(
     objects: impl IntoIterator<Item = ScenarioObjectConfig>,
     designs: &FileDesigns,
+    source: LiftSource,
 ) -> LiftedDocument {
+    let objects: Vec<ScenarioObjectConfig> = objects.into_iter().collect();
     let mut lifted = LiftedDocument::default();
-    for object in objects {
-        match lift_ship(&object, designs) {
+    for object in &objects {
+        let ship = lift_ship(object, designs, source).filter(|ship| {
+            let taken = |other: &ScenarioObjectConfig| {
+                other.base.id == ship.id && other.base.id != object.base.id
+            };
+            !objects.iter().any(taken)
+                && !lifted
+                    .ships
+                    .iter()
+                    .any(|held: &LiftedShip| held.id == ship.id)
+        });
+        match ship {
             Some(ship) => lifted.ships.push(ship),
-            None => lifted.objects.push(object),
+            None => lifted.objects.push(object.clone()),
         }
     }
     lifted
 }
 
 /// Every object the range's LAYOUT handler puts on the board.
-fn spawned_in_layout(scenario: &ScenarioConfig) -> impl Iterator<Item = &ScenarioObjectConfig> {
+pub(crate) fn spawned_in_layout(
+    scenario: &ScenarioConfig,
+) -> impl Iterator<Item = &ScenarioObjectConfig> {
     scenario
         .events
         .iter()
@@ -374,7 +330,7 @@ fn spawned_in_layout(scenario: &ScenarioConfig) -> impl Iterator<Item = &Scenari
 /// its world back out of the same place it put it - and a handler that spawns
 /// reinforcements beside a story beat stays script, because it has filters or
 /// company.
-fn is_layout(event: &ScenarioEventConfig) -> bool {
+pub(crate) fn is_layout(event: &ScenarioEventConfig) -> bool {
     matches!(event.name, EventConfig::OnStart)
         && !event.once
         && event.filters.is_empty()
@@ -388,17 +344,109 @@ fn is_layout(event: &ScenarioEventConfig) -> bool {
 /// editor can show.
 ///
 /// The node keeps the spawn's OWN id: a picket is `picket_warden` because the
-/// sandbox's wake handler flips that id, and the design a save wrote is
-/// referenced by the id it was written under.
-fn lift_ship(object: &ScenarioObjectConfig, designs: &FileDesigns) -> Option<LiftedShip> {
-    let spawn = match &object.kind {
-        ScenarioObjectKind::Spaceship(spawn) => spawn,
-        ScenarioObjectKind::Station(station) => return lift_station(object, station, designs),
-        _ => return None,
+/// sandbox's wake handler flips that id. A design the mod carries names the
+/// node it was written for, which [`node_of_design`] reads back out of the
+/// scenario's namespace.
+fn lift_ship(
+    object: &ScenarioObjectConfig,
+    designs: &FileDesigns,
+    source: LiftSource,
+) -> Option<LiftedShip> {
+    let scenario = match source {
+        LiftSource::Seed => "",
+        LiftSource::File { scenario, .. } => scenario,
     };
+    let ship = match &object.kind {
+        ScenarioObjectKind::Spaceship(spawn) => lift_spaceship(object, spawn, designs, scenario),
+        ScenarioObjectKind::Station(spawn) => lift_station(object, spawn, designs, scenario),
+        _ => None,
+    }?;
+    writes_back(&ship, object, designs, source).then_some(ship)
+}
+
+/// Whether a node holding `ship` writes `object` back as it stands, and the
+/// design it names with it.
+///
+/// Asked of the lowering itself, so a field added to a spawn stays with the file
+/// until a node can hold it. A design's sounds are left out: the editor writes
+/// its own, and a build saved before one changed is still its build.
+fn writes_back(
+    ship: &LiftedShip,
+    object: &ScenarioObjectConfig,
+    designs: &FileDesigns,
+    source: LiftSource,
+) -> bool {
+    let LiftSource::File { scenario, old_save } = source else {
+        return true;
+    };
+    let lowered = ship.lowered();
+    let mut written = spawn_of(&lowered, HullForm::Prototype { scenario });
+    written.base.position = object.base.position;
+    let mut held = object.clone();
+    let spelled = design_id(scenario, &ship.id);
+    match &mut held.kind {
+        ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            design: ShipDesignSource::Prototype { id, .. },
+            ..
+        }) if old_save => *id = spelled.as_str().into(),
+        ScenarioObjectKind::Station(StationConfig {
+            design: StationDesignSource::Prototype(id),
+            ..
+        }) if old_save => *id = spelled.as_str().into(),
+        ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            design: ShipDesignSource::Inline(_),
+            ..
+        }) => return old_save,
+        _ => {}
+    }
+    if format!("{held:?}") != format!("{written:?}") {
+        return false;
+    }
+    old_save || design_writes_back(&lowered, object, designs)
+}
+
+/// Whether the design `object` names is the one [`document_content`] writes for
+/// `ship`. A bench edit makes it another: a lowering would take that edit back.
+fn design_writes_back(
+    ship: &LoweredShip,
+    object: &ScenarioObjectConfig,
+    designs: &FileDesigns,
+) -> bool {
+    match &object.kind {
+        ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            design: ShipDesignSource::Prototype { id, .. },
+            ..
+        }) => designs.ships.get(id).is_some_and(|held| {
+            let written = ShipDesign {
+                presentation: held.design.presentation.clone(),
+                ..ship_design(ship)
+            };
+            held.name == ship.id && format!("{:?}", held.design) == format!("{written:?}")
+        }),
+        ScenarioObjectKind::Station(StationConfig {
+            design: StationDesignSource::Prototype(id),
+            ..
+        }) => designs
+            .stations
+            .get(id)
+            .is_some_and(|held| is_stock_station(held, ship)),
+        _ => false,
+    }
+}
+
+/// The ship node a spaceship spawn stands for, when it can show the hull.
+fn lift_spaceship(
+    object: &ScenarioObjectConfig,
+    spawn: &SpaceshipConfig,
+    designs: &FileDesigns,
+    scenario: &str,
+) -> Option<LiftedShip> {
     let (id, design) = match &spawn.design {
-        // A design of this file's own, under the id it was written with.
-        ShipDesignSource::Prototype { id, .. } => (id.to_string(), &designs.ships.get(id)?.design),
+        // A design of this mod's own, under the id it was written with.
+        ShipDesignSource::Prototype { id, .. } => (
+            node_of_design(scenario, id.as_str()).to_string(),
+            &designs.ships.get(id)?.design,
+        ),
         // A design authored in place - every seeded ship of the stock range.
         ShipDesignSource::Inline(design) => (object.base.id.clone(), design),
     };
@@ -445,6 +493,7 @@ fn lift_station(
     object: &ScenarioObjectConfig,
     station: &StationConfig,
     designs: &FileDesigns,
+    scenario: &str,
 ) -> Option<LiftedShip> {
     let StationDesignSource::Prototype(id) = &station.design else {
         return None;
@@ -456,7 +505,7 @@ fn lift_station(
         ShipDriver::Ai
     };
     Some(LiftedShip {
-        id: design.id.to_string(),
+        id: node_of_design(scenario, design.id.as_str()).to_string(),
         name: object.base.name.clone(),
         driver,
         allegiance: Some(station.allegiance),
@@ -529,303 +578,60 @@ pub(crate) fn resume_ordinal<'a>(ids: impl IntoIterator<Item = &'a str>) -> u32 
         .unwrap_or_default()
 }
 
-/// Write the document into `slot`: the manifest, the content, and the index
-/// record that makes it an installed mod the game can enable.
-///
-/// Files first, index last - the order a failed write has to leave a readable
-/// state in. `Err` carries a line fit to show the builder.
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn write_save(slot: &SaveSlot, items: &[Content]) -> Result<(), String> {
-    use nova_assets::mod_cache::prelude::install_local;
-    use nova_modding::prelude::{serialize_content, serialize_manifest};
-
-    let manifest =
-        serialize_manifest(&save_manifest(slot)).map_err(|error| format!("manifest: {error}"))?;
-    let content = serialize_content(items).map_err(|error| format!("content: {error}"))?;
-    let (bundle, content_path) = (bundle_file(&slot.id), content_file(&slot.id));
-    install_local(
-        &slot.id,
-        env!("CARGO_PKG_VERSION"),
-        &bundle,
-        &[
-            (bundle.clone(), manifest.into_bytes()),
-            (content_path, content.into_bytes()),
-        ],
-    )
-    .map_err(|error| error.to_string())
-}
-
-/// Read one saved slot back, or say why there is nothing to read.
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn read_save(id: &str) -> Result<Vec<Content>, String> {
-    use nova_assets::mod_cache::prelude::read_mod_file;
-    use nova_modding::prelude::parse_content;
-
-    let bytes =
-        read_mod_file(id, &content_file(id)).ok_or_else(|| format!("'{id}' holds no content"))?;
-    parse_content(&bytes).map_err(|error| error.to_string())
-}
-
-/// Every slot the editor has written, by name.
-///
-/// Read off the installed-mods index and filtered to the editor's own prefix,
-/// so what a builder is offered is what they saved and never someone else's
-/// mod. A record whose manifest will not read is dropped rather than listed
-/// under its id: a row that cannot be opened is worse than a row that is not
-/// there.
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn saved_bundles() -> Vec<SaveSlot> {
-    use nova_assets::mod_cache::prelude::{read_index, read_mod_file};
-    use nova_modding::prelude::parse_manifest;
-
-    let mut slots: Vec<SaveSlot> = read_index()
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|record| record.id.starts_with(EDITOR_BUNDLE_PREFIX))
-        .filter_map(|record| {
-            let bytes = read_mod_file(&record.id, &record.bundle)?;
-            let manifest = parse_manifest(&bytes).ok()?;
-            Some(SaveSlot {
-                id: record.id,
-                name: manifest.meta.name,
-            })
-        })
-        .collect();
-    slots.sort_by(|a, b| a.name.cmp(&b.name).then_with(|| a.id.cmp(&b.id)));
-    slots
-}
-
-/// The web has no local mod cache to write into: its store is asynchronous and
-/// the editor's save is not. Refused with a line rather than silently doing
-/// nothing.
-#[cfg(target_arch = "wasm32")]
-pub(crate) fn write_save(_slot: &SaveSlot, _items: &[Content]) -> Result<(), String> {
-    Err("saving is not available on the web yet".to_string())
-}
-
-/// The same, read side.
-#[cfg(target_arch = "wasm32")]
-pub(crate) fn read_save(_id: &str) -> Result<Vec<Content>, String> {
-    Err("loading is not available on the web yet".to_string())
-}
-
-/// Nothing to list, for the same reason there is nothing to write. The file
-/// window says so where the rows would be.
-#[cfg(target_arch = "wasm32")]
-pub(crate) fn saved_bundles() -> Vec<SaveSlot> {
-    Vec::new()
-}
-
-/// What the document has been asked to do with its file.
-///
-/// A REQUEST rather than the work itself, for the reason the frame request is
-/// one: two callers ask (the File menu and the keyboard) and one worker
-/// answers, so the answer is written once and cannot drift between them.
-#[derive(Resource, Debug, Default, Clone, PartialEq, Eq)]
-pub(crate) enum FileRequest {
-    /// Nothing pending.
-    #[default]
-    None,
-    /// Write the document to the slot it already belongs to.
-    Save,
-    /// Write it to the slot the builder just named, and belong there from now
-    /// on.
-    SaveAs(SaveSlot),
-    /// Throw the document away and rebuild it from a slot.
-    Open(String),
-}
-
 /// Which file window the builder asked for, if any.
 ///
-/// A request rather than a spawn, for the reason [`FileRequest`] is one: three
-/// callers ask (two menu rows and the keyboard) and one builder answers.
-#[derive(Resource, Debug, Default, Clone, Copy, PartialEq, Eq)]
+/// A request rather than a spawn: several callers ask and one builder answers.
+#[derive(Resource, Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct FileWindowRequest(pub(crate) Option<FileWindowKind>);
 
 /// What a file window is being opened to do.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum FileWindowKind {
-    /// Name a slot and write the document into it.
-    SaveAs,
-    /// Pick a slot and replace the document with it.
-    Open,
+    /// Name a project that has no id yet, and write it.
+    NameMod,
+    /// Write a copy of the mod under a new name.
+    SaveCopy,
+    /// Say where a package went.
+    #[cfg_attr(
+        target_arch = "wasm32",
+        expect(
+            dead_code,
+            reason = "only Package reads this, and the web has no Package"
+        )
+    )]
+    Packaged(String),
+    /// Pick a file by path.
+    PickPath(PathPurposeType),
+    /// Choose what a new item of this kind starts from.
+    NewAsset(&'static str),
 }
 
 /// The save shortcut. The one the File menu has always advertised.
 const SAVE_KEY: KeyCode = KeyCode::KeyS;
 
-/// Save straight into the document's own slot, or ask for a name when it has
-/// none yet.
+/// File > Save. A write cues from [`save_project`], which knows how it went;
+/// the window it asks for instead is a plain press.
 ///
-/// The first save of a document is a Save As whatever asked for it, so the
-/// menu row and the shortcut cannot mean different things.
-fn save_or_ask(document: &DocumentSlot, request: &mut FileRequest, window: &mut FileWindowRequest) {
-    if document.0.is_some() {
-        *request = FileRequest::Save;
-    } else {
-        window.0 = Some(FileWindowKind::SaveAs);
-    }
+/// [`save_project`]: crate::project::verbs::save_project
+pub(crate) fn ask_to_save(_activate: On<Activate>, mut commands: Commands) {
+    commands.queue(|world: &mut World| {
+        save_or_ask(world);
+        if world.resource::<FileWindowRequest>().0.is_some() {
+            accept(world);
+        }
+    });
 }
 
-/// File > Save. A write cues from [`apply_file_request`], which knows how it
-/// went; the window it asks for instead is a plain press.
-pub(crate) fn ask_to_save(
-    _activate: On<Activate>,
-    document: Res<DocumentSlot>,
-    mut request: ResMut<FileRequest>,
-    mut window: ResMut<FileWindowRequest>,
-    mut cues: EditorCues,
-) {
-    save_or_ask(&document, &mut request, &mut window);
-    if window.0.is_some() {
-        cues.select();
-    }
-}
-
-/// File > Save As...
-pub(crate) fn ask_to_save_as(_activate: On<Activate>, mut window: ResMut<FileWindowRequest>) {
-    window.0 = Some(FileWindowKind::SaveAs);
-}
-
-/// File > Open.
-pub(crate) fn ask_to_open(_activate: On<Activate>, mut window: ResMut<FileWindowRequest>) {
-    window.0 = Some(FileWindowKind::Open);
+/// File > Save As Copy.
+pub(crate) fn ask_to_save_copy(_activate: On<Activate>, mut window: ResMut<FileWindowRequest>) {
+    window.0 = Some(FileWindowKind::SaveCopy);
 }
 
 /// Ctrl+S: the same request the menu row raises.
-pub(crate) fn save_key(
-    keys: Res<ButtonInput<KeyCode>>,
-    document: Res<DocumentSlot>,
-    mut request: ResMut<FileRequest>,
-    mut window: ResMut<FileWindowRequest>,
-) {
+pub(crate) fn save_key(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>) {
     let held = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
     if held && keys.just_pressed(SAVE_KEY) {
-        save_or_ask(&document, &mut request, &mut window);
-    }
-}
-
-/// Answer whatever was asked, and say what happened.
-///
-/// The whole document goes out every time. There is nothing to diff against
-/// and a partial save of a tree is not a document, so the file is rewritten
-/// from what is on screen.
-///
-/// A load MERGES NOTHING. A document half of one file and half of another is a
-/// thing nobody asked for, so the tree is torn down and founded again.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one worker reads every kind of node the document holds and writes it back"
-)]
-pub(crate) fn apply_file_request(
-    mut commands: Commands,
-    mut request: ResMut<FileRequest>,
-    mut document: ResMut<DocumentSlot>,
-    // Optional: a headless fixture drives this worker without the content
-    // pipeline behind it, and a save that cannot be published is still a save.
-    mut enabled: Option<ResMut<EnabledMods>>,
-    mut context: ResMut<EditContext>,
-    mut selected: ResMut<SelectedNode>,
-    mut says: EditorSays,
-    nodes: SectionNodes,
-    q_objects: ObjectNodes,
-    q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
-    script: ScriptNodes,
-    q_settings: Query<&ScenarioNode>,
-    roots: Query<Entity, With<ScenarioNode>>,
-    targeting: Option<Res<TargetingSettings>>,
-    catalogs: StationCatalogs,
-) {
-    let targeting = targeting.as_deref().cloned().unwrap_or_default();
-    let asked = std::mem::take(&mut *request);
-    // Save writes where the document already lives; Save As says where it is
-    // to live from now on. One write either way.
-    let target = match &asked {
-        FileRequest::Save => document.0.clone(),
-        FileRequest::SaveAs(slot) => Some(slot.clone()),
-        FileRequest::None | FileRequest::Open(_) => None,
-    };
-    match asked {
-        FileRequest::None => {}
-        FileRequest::Save | FileRequest::SaveAs(_) => {
-            let Some(slot) = target else {
-                says.refuse("nothing has named this document yet");
-                return;
-            };
-            // A station design the lint refuses is still written: the file
-            // is the builder's work, and the content lint reports it when the
-            // mod loads. Play is where a refused station is stopped.
-            let fleet = lower_fleet(&q_ships, &nodes);
-            let stations = catalogs
-                .designs(&fleet, HullForm::Prototype)
-                .into_iter()
-                .map(|(design, _)| design)
-                .collect();
-            let items = document_content(
-                &world_settings(&context, &q_settings),
-                &slot.id,
-                world_objects(&context, &q_objects),
-                &fleet,
-                stations,
-                world_script(&context, &script),
-                &targeting,
-            );
-            match write_save(&slot, &items) {
-                Ok(()) => {
-                    // ENABLED as well as installed. A save is the builder's own
-                    // document, not a stranger's mod: asking them to go and
-                    // switch it on in the Mods panel before their own range
-                    // appears in Scenarios is the friction the save was meant to
-                    // remove. Still theirs to turn off there.
-                    //
-                    // The range reaches the Scenarios list on the way OUT: the
-                    // content restart runs when the editor is left for the main
-                    // menu, which is the first moment the picker is reachable
-                    // anyway.
-                    if let Some(enabled) = enabled.as_mut() {
-                        enabled.0.insert(slot.id.clone());
-                    }
-                    info!("editor: saved the document as mod '{}'", slot.id);
-                    says.note(format!("saved as {}", slot.name));
-                    says.accept();
-                    document.0 = Some(slot);
-                }
-                Err(error) => {
-                    error!("editor: the save failed - {error}");
-                    says.refuse(format!("save failed: {error}"));
-                }
-            }
-        }
-        FileRequest::Open(id) => {
-            let lifted = match read_save(&id).map(|items| lift_content(&items)) {
-                Ok(Some(lifted)) => lifted,
-                Ok(None) => {
-                    says.refuse("that file holds no range");
-                    return;
-                }
-                Err(error) => {
-                    says.refuse(format!("nothing to open: {error}"));
-                    return;
-                }
-            };
-            let (ships, objects) = (lifted.ships.len(), lifted.objects.len());
-            // The opened document belongs to the slot it came out of, so the
-            // next plain Save goes back where it was read from. Its name is the
-            // range's own, which is the name the slot was written under.
-            document.0 = Some(SaveSlot {
-                id,
-                name: lifted.settings.name.clone(),
-            });
-            for root in &roots {
-                commands.entity(root).despawn();
-            }
-            selected.0 = None;
-            let scenario = found_empty_document(&mut commands, &mut context);
-            commands.queue(move |world: &mut World| fill_document(world, scenario, lifted));
-            info!("editor: opened the saved document - {ships} ship(s), {objects} object(s)");
-            says.note(format!("opened - {ships} ship(s), {objects} object(s)"));
-            says.accept();
-        }
+        commands.queue(save_or_ask);
     }
 }
 
@@ -834,7 +640,7 @@ pub(crate) fn apply_file_request(
 /// A deferred command rather than more of the system above: the scenario node
 /// it hangs everything on was spawned by that system's `Commands`, so the
 /// ordinal counters it has to write are not queryable until the queue flushes.
-fn fill_document(world: &mut World, scenario: Entity, document: LiftedDocument) {
+pub(crate) fn fill_document(world: &mut World, scenario: Entity, document: LiftedDocument) {
     // Taken out and put back: the section configs are read through it while
     // `world.commands()` holds a mutable borrow of the world.
     let sections = world.remove_resource::<GameSections>();
@@ -873,4 +679,4 @@ fn fill_document(world: &mut World, scenario: Entity, document: LiftedDocument) 
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

@@ -200,6 +200,7 @@ fn outcome_pause_probe_a(game_assets: &GameAssets, sections: &GameSections) -> S
     let events = vec![
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -226,6 +227,7 @@ fn outcome_pause_probe_a(game_assets: &GameAssets, sections: &GameSections) -> S
         },
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnDestroyed,
             once: false,
             filters: vec![EventFilterConfig::Entity(EntityFilterConfig {
@@ -265,6 +267,7 @@ fn outcome_pause_probe_a(game_assets: &GameAssets, sections: &GameSections) -> S
 fn outcome_pause_probe_b(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
     let events = vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],

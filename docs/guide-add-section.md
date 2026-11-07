@@ -17,7 +17,9 @@ author could supply. What IS data-extensible is the section CATALOG: a `SectionC
 (base stats + one `SectionKind` instance) is authored in RON and loaded at
 runtime (see the [Ship sections](sections.md) reference and
 [modding](https://alexjercan.github.io/nova-protocol/create/sections/)). New KINDS are code; new INSTANCES of an existing
-kind are data. This guide is about the former.
+kind are data. This guide is about the former. The editor's section bench
+builds instances: it copies a prototype or a plain hull and edits it, and it
+cannot add a kind.
 
 The closed enum is a feature: it means "did I wire the new kind into the ship
 computer / the editor / spawning?" is a compile error, not a silent gap.

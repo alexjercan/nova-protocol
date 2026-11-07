@@ -348,6 +348,7 @@ mod tests {
     fn on_update_filtered(filters: Vec<EventFilterConfig>) -> ScenarioEventConfig {
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnUpdate,
             filters,
             ..event_with(vec![])

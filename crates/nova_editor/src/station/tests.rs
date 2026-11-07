@@ -90,11 +90,18 @@ fn a_marked_hull_writes_the_sandbox_station_defaults_cut_to_its_hold() {
 
     assert_eq!(design.id.as_str(), "editor_sandbox_ship_2");
     assert_eq!(
-        station_design(&ship, HullForm::Prototype, &sections(), &items())
-            .id
-            .as_str(),
-        "ship_2",
-        "a save writes the design under the node's own id"
+        station_design(
+            &ship,
+            HullForm::Prototype {
+                scenario: "red.run"
+            },
+            &sections(),
+            &items()
+        )
+        .id
+        .as_str(),
+        "red.run.ship_2",
+        "a save writes the design under its scenario and the node's own id"
     );
     assert_eq!(design.name, "Outpost");
     assert_eq!(design.design.services, SERVICES.to_vec());

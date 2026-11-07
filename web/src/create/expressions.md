@@ -153,8 +153,8 @@ make the query unavailable. Expressions fail closed. Missing is not zero.
 ## The typed form (in the editor)
 
 The RON above is the authored form, and it is the one the file holds. In the
-in-game editor an expression filter is ONE ROW in the tree; selecting it opens
-the condition as a PAGE, a row per node: `Compare` at the top with `Left` and
+in-game editor an expression filter is ONE BLOCK on the canvas; its `...` chip
+opens the condition as a PAGE in a pop-up, a row per node: `Compare` at the top with `Left` and
 `Right` stepped in under it, each offering the operators its place allows. A
 leaf holds one value, typed in the short form below rather than as a nest of
 `Add(Term(Factor(...`. A leaf that names a variable can PICK one instead of
@@ -163,8 +163,7 @@ spelling it: the chip beside the box lists what the scenario declares.
 A `VariableSet` action opens the SAME page under its `Key`, headed `Value`
 instead of `Condition`: what it writes is an expression, so `Writes` sits where
 `Compare` does and takes the operators a value may have - `+ - * /` and a leaf,
-never a comparison. The tree row of that action reads as the assignment it
-makes, `beat = beat + 1`.
+never a comparison.
 
 | you type | the file holds |
 |---|---|

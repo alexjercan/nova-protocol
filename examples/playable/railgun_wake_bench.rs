@@ -571,6 +571,7 @@ fn bench_stage(game_assets: &GameAssets) -> ScenarioConfig {
         description: "The railgun slug's wake at three speeds, under every policy.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

@@ -15,11 +15,24 @@ event handlers; each pairs an event with filters (all must pass) and actions
 
 Three surfaces write that list: a RON file, a Rust builder under
 `nova_authoring`, and the editor's EVENTS mode, which lifts a handler into nodes
-you select and inspect - a condition included, drawn as a page of its own - and
-lowers them back on save (`crates/nova_editor/src/event.rs`). All three produce
-the same `ScenarioEventConfig`, so nothing below cares which one wrote it. The
-editor reads its TOOLTIPS off these configs too: a field's doc comment is what
-the panel says about it, through `bevy/reflect_documentation`.
+and lowers them back on save (`crates/nova_editor/src/event.rs`). All three
+produce the same `ScenarioEventConfig`, so nothing below cares which one wrote
+it. The editor reads its TOOLTIPS off these configs too: a field's doc comment
+is what the field's row says about it, through `bevy/reflect_documentation`.
+
+EVENTS draws those nodes as interlocking blocks, and the canvas is a view: it
+holds no second document (`crates/nova_editor/src/ui/canvas/`). A handler is a
+hat, an action a stack block, a sequence or cinematic a C-block whose steps are
+C-blocks of their own, a filter a hexagonal boolean, and a value a round
+reporter. The rules of what fits where live in `event/blocks.rs`: `refusal`
+answers every drop, and the palette, the slot lighting and the drop itself all
+read it. Only a handler stands alone, because a block outside a handler has no
+lowering. A handler's optional `position` is the one thing the canvas adds to
+the file; the runtime ignores it, and absence means auto-layout.
+
+A condition with an empty socket has no lowering either. It raises an error in
+Problems, which blocks Play, Save and Package until the author fills or removes
+it, because a save would otherwise drop the half-built block without a word.
 
 ## Scenario structure
 
@@ -504,9 +517,10 @@ because `Subtract(Term, Expression)` nests that way.
 
 The editor takes a condition APART along the same grammar: each operator is one
 document node with its two sides as children, and a leaf holds whatever fits one
-row of the text form. Those nodes are NOT part of the tree - the rail shows the
-filter and stops - and the panel draws the whole condition as a page instead,
-one row per node, each writing to its own entity. `Parens` is dropped on the way
+row of the text form. Those nodes are NOT part of the tree - the Hierarchy shows
+the filter and stops - and the canvas draws them as reporters in the filter's
+sockets, while the Inspector keeps the whole condition as a page, one row per
+node, each writing to its own entity. `Parens` is dropped on the way
 in - the nesting says what the brackets said - and put back on the way out
 wherever the position needs it, so a sum under a product lowers as `(a + b) * 2`.
 What a switched operator cannot hold it does not keep: an operand a value has no

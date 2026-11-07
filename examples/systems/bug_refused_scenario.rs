@@ -199,6 +199,7 @@ fn refused_probe_live(game_assets: &GameAssets, sections: &GameSections) -> Scen
 
     let events = vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],
@@ -260,6 +261,7 @@ fn refused_probe_live(game_assets: &GameAssets, sections: &GameSections) -> Scen
 fn refused_probe_broken(game_assets: &GameAssets) -> ScenarioConfig {
     let events = vec![ScenarioEventConfig {
         label: None,
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],

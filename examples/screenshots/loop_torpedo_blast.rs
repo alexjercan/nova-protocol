@@ -219,6 +219,7 @@ fn blast_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCon
         description: "A torpedo salvo carving a parked interceptor.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

@@ -261,6 +261,7 @@ fn station_void(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCo
         description: "Three waystations in a void: living, dead and Enemy.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

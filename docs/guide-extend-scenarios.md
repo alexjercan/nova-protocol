@@ -257,10 +257,10 @@ action names anything, and the docs.
 
    A leaf action needs nothing else from the tree. An action the editor holds
    as more than a leaf - because its steps are child NODES, or because its
-   panel shows a head rather than the whole payload - is an `ActionKind`
+   pop-up shows a head rather than the whole payload - is an `ActionKind`
    variant of its own, and owes arms in `action_config`, `action_config_mut`
    and `action_choice` beside it. `Sequence` and `Cinematic` are there because
-   their steps are children; `VariableSet` because its panel is a head. All
+   their steps are children; `VariableSet` because its pop-up is a head. All
    three matches are exhaustive.
 
 5. Lint it, if it names anything. An action that carries an id or a file
@@ -412,10 +412,10 @@ A RON file is one way to write a handler; the editor's EVENTS mode is the other,
 and it draws every row it shows by REFLECTION off the same config structs. So a
 config that is not `Reflect` is a construct the editor cannot show, and a string
 field with no [`Names`](scenario-system.md#the-vocabulary-and-who-documents-it)
-attribute is a blank box where the panel could have offered the ids the document
+attribute is a blank box where the block could have offered the ids the document
 actually spawns.
 
-AN `AssetRef<A>` FIELD PICKS ITS OWN FILE. The panel reads the sort off the
+AN `AssetRef<A>` FIELD PICKS ITS OWN FILE. The row reads the sort off the
 type, so a field typed `AssetRef<Image>` offers the images the installed bundles
 DECLARE in their `resources` lists, written as the `dep://<mod>/<file>` ref that
 resolves - and marks a `dep://` path no bundle ships. Do not add
@@ -424,7 +424,7 @@ field has no row at all.
 
 A FIELD'S DOC COMMENT IS ITS TOOLTIP. `nova_editor` builds against
 `bevy/reflect_documentation`, so the first paragraph of the `///` above a field
-- or above the variant a choice row stands on - is what the panel says when the
+- or above the variant a choice row stands on - is what the row says when the
 pointer rests on that row. Write it for the person filling the box in, not for
 the person calling the constructor: a field nobody documented is a row the
 editor cannot explain.

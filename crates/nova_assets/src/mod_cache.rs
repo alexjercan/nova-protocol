@@ -56,10 +56,14 @@ pub mod prelude {
         store_mod_files, ModsSourceDir,
     };
     #[cfg(not(target_arch = "wasm32"))]
-    pub use super::{install_local, read_mod_file, remove_mod, remove_mod_files, store_mod_files};
     pub use super::{
-        read_index, register_mods_source, remove_index_record, upsert_index_record, write_index,
-        IndexRead, InstalledModRecord, EDITOR_ID_PREFIX, MODS_SOURCE, MOD_CACHE_ROOT_ENV,
+        exports_dir, install_local, list_mod_files, mod_file_modified, read_mod_file, remove_mod,
+        remove_mod_files, replace_local, store_mod_files,
+    };
+    pub use super::{
+        is_safe_id, is_safe_rel_path, read_index, register_mods_source, remove_index_record,
+        upsert_index_record, write_index, IndexRead, InstalledModRecord, EDITOR_ID_PREFIX,
+        MODS_SOURCE, MOD_CACHE_ROOT_ENV,
     };
 }
 
@@ -238,7 +242,7 @@ fn has_only_normal_components(path: &Path) -> bool {
 /// data is downloaded input, so the cache boundary re-checks it instead of
 /// trusting the portal generator's own validation. Cfg-INDEPENDENT: both the
 /// native fs backend and the wasm IndexedDB backend are gated on this.
-pub(crate) fn is_safe_rel_path(s: &str) -> bool {
+pub fn is_safe_rel_path(s: &str) -> bool {
     !s.is_empty() && has_only_normal_components(Path::new(s))
 }
 
@@ -246,7 +250,7 @@ pub(crate) fn is_safe_rel_path(s: &str) -> bool {
 /// (and `\`) also keeps the wasm `<id>/<path>` IndexedDB keys UNAMBIGUOUS: id
 /// "a" + path "b/c" cannot collide with id "a/b" + path "c" because the latter
 /// id never passes.
-pub(crate) fn is_safe_id(id: &str) -> bool {
+pub fn is_safe_id(id: &str) -> bool {
     is_safe_rel_path(id) && !id.contains('/') && !id.contains('\\')
 }
 
@@ -322,6 +326,20 @@ pub fn install_local(
     backend::install_local(id, version, bundle, files)
 }
 
+/// Put `files` in the place of everything `id` holds, leaving the old mod as it
+/// stood if anything fails.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn replace_local(
+    id: &str,
+    version: &str,
+    bundle: &str,
+    files: &[(String, Vec<u8>)],
+) -> std::io::Result<()> {
+    validate_file_op(id, files.iter().map(|(p, _)| p.as_str())).map_err(invalid_input)?;
+    validate_file_op(id, [bundle]).map_err(invalid_input)?;
+    backend::replace_local(id, version, bundle, files)
+}
+
 /// Remove EVERY cached file of `id` (the whole `<data_root>/mods/<id>` tree,
 /// whatever it holds - a version's exact file list, plus any orphans an older
 /// install left behind). The uninstall flow's file half; a missing dir is fine.
@@ -329,6 +347,31 @@ pub fn install_local(
 pub fn remove_mod(id: &str) -> std::io::Result<()> {
     validate_file_op(id, std::iter::empty::<&str>()).map_err(invalid_input)?;
     backend::remove_mod(id)
+}
+
+/// `<data_root>/exports`, where the editor writes a packaged mod. `None` when
+/// no data root resolves.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn exports_dir() -> Option<std::path::PathBuf> {
+    backend::exports_dir()
+}
+
+/// Every file under `id`'s cache directory, as sorted paths relative to it. A
+/// missing directory or an unsafe id lists nothing.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn list_mod_files(id: &str) -> Vec<String> {
+    if !is_safe_id(id) {
+        return Vec::new();
+    }
+    backend::list_mod_files(id)
+}
+
+/// When one cached file last changed, or `None` if it is absent or the id or
+/// path is unsafe.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn mod_file_modified(id: &str, path: &str) -> Option<std::time::SystemTime> {
+    validate_file_op(id, [path]).ok()?;
+    backend::mod_file_modified(id, path)
 }
 
 /// Read one cached mod file's bytes, or `None` if absent/unreadable (or the
@@ -554,6 +597,11 @@ mod backend {
         data_root().map(|d| d.join("mods"))
     }
 
+    /// `<data_root>/exports`. See the crate-level wrapper.
+    pub fn exports_dir() -> Option<PathBuf> {
+        data_root().map(|d| d.join("exports"))
+    }
+
     /// The last-good portal catalog's store file (see the crate-level wrapper).
     /// The `.json` suffix is fixed here, as `NativeStorage::path` fixes `.ron`,
     /// so the on-disk name a player already has stays in one place.
@@ -613,9 +661,59 @@ mod backend {
         )
     }
 
+    /// [`replace_local_at`] under the data root.
+    pub fn replace_local(
+        id: &str,
+        version: &str,
+        bundle: &str,
+        files: &[(String, Vec<u8>)],
+    ) -> std::io::Result<()> {
+        replace_local_at(
+            &data_root().ok_or(no_data_dir())?,
+            id,
+            version,
+            bundle,
+            files,
+        )
+    }
+
     /// Remove the whole `<data_root>/mods/<id>` tree (uninstall's file half).
     pub fn remove_mod(id: &str) -> std::io::Result<()> {
         remove_mod_at(&data_root().ok_or(no_data_dir())?, id)
+    }
+
+    /// Every file under `<data_root>/mods/<id>`, sorted, relative to it.
+    pub fn list_mod_files(id: &str) -> Vec<String> {
+        fn walk(dir: &Path, above: &str, out: &mut Vec<String>) {
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                return;
+            };
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                let path = if above.is_empty() {
+                    name
+                } else {
+                    format!("{above}/{name}")
+                };
+                match entry.file_type() {
+                    Ok(kind) if kind.is_dir() => walk(&entry.path(), &path, out),
+                    Ok(kind) if kind.is_file() => out.push(path),
+                    _ => {}
+                }
+            }
+        }
+        let mut out = Vec::new();
+        if let Some(root) = data_root() {
+            walk(&root.join("mods").join(id), "", &mut out);
+        }
+        out.sort();
+        out
+    }
+
+    /// When `<data_root>/mods/<id>/<path>` last changed.
+    pub fn mod_file_modified(id: &str, path: &str) -> Option<std::time::SystemTime> {
+        let file = data_root()?.join("mods").join(id).join(path);
+        std::fs::metadata(file).ok()?.modified().ok()
     }
 
     fn no_data_dir() -> std::io::Error {
@@ -681,16 +779,18 @@ mod backend {
         if !is_safe_id(id) {
             return Err(bad_input("mod id", id));
         }
-        let mod_dir = root.join("mods").join(id);
+        store_into(&root.join("mods").join(id), files)
+    }
+
+    /// Write `files` under `dir`, each through
+    /// [`write_atomic`](crate::storage::write_atomic): a kill mid-way
+    /// leaves whole files, old or new, and never a cut one.
+    fn store_into(dir: &Path, files: &[(String, Vec<u8>)]) -> std::io::Result<()> {
         for (path, bytes) in files {
             if !is_safe_rel_path(path) {
                 return Err(bad_input("mod file path", path));
             }
-            let file = mod_dir.join(path);
-            if let Some(parent) = file.parent() {
-                std::fs::create_dir_all(parent)?;
-            }
-            std::fs::write(&file, bytes)?;
+            crate::storage::write_atomic(&dir.join(path), bytes)?;
         }
         Ok(())
     }
@@ -736,21 +836,33 @@ mod backend {
         }
         // Read the index BEFORE storing bytes: an install that cannot commit
         // its record must not leave files behind either.
-        let mut records = match read_index_at(root) {
-            IndexRead::Loaded(records) => records,
-            IndexRead::Absent => Vec::new(),
+        let mut records = records_to_write(root)?;
+        store_mod_files_at(root, id, files)?;
+        upsert(&mut records, id, version, bundle);
+        write_index_at(root, &records)
+    }
+
+    /// The index as a writer may build on it. An unreadable one is moved aside
+    /// and refused, never overwritten.
+    fn records_to_write(root: &Path) -> std::io::Result<Vec<InstalledModRecord>> {
+        match read_index_at(root) {
+            IndexRead::Loaded(records) => Ok(records),
+            IndexRead::Absent => Ok(Vec::new()),
             IndexRead::Corrupt(reason) => {
                 side_band_bad_index(root)?;
-                return Err(std::io::Error::new(
+                Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     format!(
                         "mod cache: the installed-mods index is unreadable ({reason}); moved to \
                          installed.mods.ron.bad rather than overwriting it"
                     ),
-                ));
+                ))
             }
-        };
-        store_mod_files_at(root, id, files)?;
+        }
+    }
+
+    /// Put `id`'s record in `records`, in place of one it already has.
+    fn upsert(records: &mut Vec<InstalledModRecord>, id: &str, version: &str, bundle: &str) {
         let record = InstalledModRecord {
             id: id.to_string(),
             version: version.to_string(),
@@ -760,7 +872,68 @@ mod backend {
             Some(existing) => *existing = record,
             None => records.push(record),
         }
-        write_index_at(root, &records)
+    }
+
+    /// Remove `dir` and what it holds. A missing one is fine.
+    fn clear_dir(dir: &Path) -> std::io::Result<()> {
+        match std::fs::remove_dir_all(dir) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
+            _ => Ok(()),
+        }
+    }
+
+    /// Put `files` in the place of everything `id` holds.
+    ///
+    /// The new files are written whole in a sibling directory and swapped in
+    /// with two renames, then the record lands. Any failure leaves the old mod
+    /// and its record as they stood. A kill between the renames leaves the old
+    /// mod under `.<id>.old`, and the next replace brings it back first.
+    pub fn replace_local_at(
+        root: &Path,
+        id: &str,
+        version: &str,
+        bundle: &str,
+        files: &[(String, Vec<u8>)],
+    ) -> std::io::Result<()> {
+        if !is_safe_id(id) {
+            return Err(bad_input("mod id", id));
+        }
+        if !is_safe_rel_path(bundle) {
+            return Err(bad_input("bundle path", bundle));
+        }
+        let mut records = records_to_write(root)?;
+        let mods = root.join("mods");
+        let live = mods.join(id);
+        let stage = mods.join(format!(".{id}.stage"));
+        let old = mods.join(format!(".{id}.old"));
+        if old.exists() && !live.exists() {
+            std::fs::rename(&old, &live)?;
+        }
+        clear_dir(&stage)?;
+        clear_dir(&old)?;
+        store_into(&stage, files).inspect_err(|_| {
+            let _ = clear_dir(&stage);
+        })?;
+        if live.exists() {
+            std::fs::rename(&live, &old).inspect_err(|_| {
+                let _ = clear_dir(&stage);
+            })?;
+        }
+        let put_back = || {
+            if old.exists() {
+                let _ = clear_dir(&live);
+                let _ = std::fs::rename(&old, &live);
+            }
+        };
+        std::fs::rename(&stage, &live).inspect_err(|_| {
+            put_back();
+            let _ = clear_dir(&stage);
+        })?;
+        upsert(&mut records, id, version, bundle);
+        write_index_at(root, &records).inspect_err(|_| put_back())?;
+        // The swap has landed: a directory left here costs disk and nothing else.
+        let _ = clear_dir(&old);
+        Ok(())
     }
 
     /// Remove the mod's whole cache directory - everything under
@@ -1126,7 +1299,7 @@ mod tests {
     use super::{
         backend::{
             install_local_at, read_index_at, read_mod_file_at, remove_mod_at, remove_mod_files_at,
-            store_mod_files_at, write_index_at,
+            replace_local_at, store_mod_files_at, write_index_at,
         },
         IndexRead, InstalledModRecord,
     };
@@ -1258,6 +1431,95 @@ mod tests {
         let records = read_index_at(root.path()).records_or_default();
         assert_eq!(records.len(), 1, "same id upserts, not appends");
         assert_eq!(records[0].version, "2.0.0", "the newer version wins");
+    }
+
+    /// A file replaced in place would be half written after a kill. A rename
+    /// leaves the old inode alone, and this hard link is how a test sees that.
+    #[test]
+    fn a_stored_file_is_replaced_in_one_step() {
+        let root = tempfile::tempdir().unwrap();
+        let files = vec![("pack.content.ron".to_string(), b"old".to_vec())];
+        store_mod_files_at(root.path(), "pack", &files).unwrap();
+        let file = root.path().join("mods/pack/pack.content.ron");
+        let twin = root.path().join("twin");
+        std::fs::hard_link(&file, &twin).unwrap();
+
+        let files = vec![("pack.content.ron".to_string(), b"new".to_vec())];
+        store_mod_files_at(root.path(), "pack", &files).unwrap();
+
+        assert_eq!(std::fs::read(&file).unwrap(), b"new");
+        assert_eq!(std::fs::read(&twin).unwrap(), b"old");
+    }
+
+    /// `a` and `a/b` cannot both be files, so this set fails half way through.
+    #[test]
+    fn a_replace_that_cannot_land_leaves_the_mod_and_its_record() {
+        let root = tempfile::tempdir().unwrap();
+        let held = vec![("pack.bundle.ron".to_string(), b"v1".to_vec())];
+        install_local_at(root.path(), "pack", "1.0.0", "pack.bundle.ron", &held).unwrap();
+        let broken = vec![
+            ("pack.bundle.ron".to_string(), b"v2".to_vec()),
+            ("a".to_string(), b"file".to_vec()),
+            ("a/b".to_string(), b"under a file".to_vec()),
+        ];
+
+        replace_local_at(root.path(), "pack", "2.0.0", "pack.bundle.ron", &broken).unwrap_err();
+
+        assert_eq!(
+            read_mod_file_at(root.path(), "pack", "pack.bundle.ron"),
+            Some(b"v1".to_vec())
+        );
+        assert_eq!(
+            read_index_at(root.path()).records_or_default()[0].version,
+            "1.0.0"
+        );
+        assert_eq!(
+            std::fs::read_dir(root.path().join("mods")).unwrap().count(),
+            1,
+            "the stage is gone"
+        );
+    }
+
+    /// A replace takes the whole folder: a file the new set does not hold goes.
+    #[test]
+    fn a_replace_drops_what_the_new_files_do_not_hold() {
+        let root = tempfile::tempdir().unwrap();
+        let held = vec![
+            ("pack.bundle.ron".to_string(), b"v1".to_vec()),
+            ("gone.glb".to_string(), b"old".to_vec()),
+        ];
+        install_local_at(root.path(), "pack", "1.0.0", "pack.bundle.ron", &held).unwrap();
+        let new = vec![("pack.bundle.ron".to_string(), b"v2".to_vec())];
+
+        replace_local_at(root.path(), "pack", "2.0.0", "pack.bundle.ron", &new).unwrap();
+
+        assert_eq!(read_mod_file_at(root.path(), "pack", "gone.glb"), None);
+        assert_eq!(
+            read_index_at(root.path()).records_or_default()[0].version,
+            "2.0.0"
+        );
+    }
+
+    /// A kill between the two renames leaves the mod under its `.old` name, and
+    /// a later replace must not take that for leftovers.
+    #[test]
+    fn a_replace_after_a_kill_mid_swap_brings_the_old_mod_back_first() {
+        let root = tempfile::tempdir().unwrap();
+        let held = vec![("pack.bundle.ron".to_string(), b"v1".to_vec())];
+        install_local_at(root.path(), "pack", "1.0.0", "pack.bundle.ron", &held).unwrap();
+        let mods = root.path().join("mods");
+        std::fs::rename(mods.join("pack"), mods.join(".pack.old")).unwrap();
+        let broken = vec![
+            ("a".to_string(), b"file".to_vec()),
+            ("a/b".to_string(), b"under a file".to_vec()),
+        ];
+
+        replace_local_at(root.path(), "pack", "2.0.0", "pack.bundle.ron", &broken).unwrap_err();
+
+        assert_eq!(
+            read_mod_file_at(root.path(), "pack", "pack.bundle.ron"),
+            Some(b"v1".to_vec())
+        );
     }
 
     /// F06 + F07, the two halves of one data loss, exercised end to end: a

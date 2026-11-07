@@ -91,6 +91,7 @@ fn orders(game_assets: &GameAssets) -> ScenarioConfig {
         description: "An AI interceptor on a helm order, a hostile across its route".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

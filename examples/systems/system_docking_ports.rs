@@ -207,6 +207,7 @@ fn open_the_section_gate(mut commands: Commands, game_assets: Res<GameAssets>) {
     );
     scenario.events.push(ScenarioEventConfig {
         label: Some("seed the docking tallies".to_string()),
+        position: None,
         name: EventConfig::OnStart,
         once: false,
         filters: vec![],
@@ -218,6 +219,7 @@ fn open_the_section_gate(mut commands: Commands, game_assets: Res<GameAssets>) {
     ] {
         scenario.events.push(ScenarioEventConfig {
             label: Some(format!("count {tally}")),
+            position: None,
             name: event,
             once: false,
             // Matched on the ACTING hull's type name rather than the two

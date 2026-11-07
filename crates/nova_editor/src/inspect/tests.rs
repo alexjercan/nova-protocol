@@ -1296,7 +1296,7 @@ fn the_inspector_falls_back_to_the_node_you_are_standing_in() {
         selected: Option<Entity>,
         path: Vec<Entity>,
     ) -> Option<InspectTarget> {
-        world.insert_resource(SelectedNode(selected));
+        world.insert_resource(SelectedNode::of(selected));
         world.insert_resource(EditContext { path });
         world
             .run_system_once(
@@ -1467,6 +1467,7 @@ fn a_handler_shows_its_trigger_as_a_choice() {
         label: None,
         trigger: EventConfig::OnDestroyed,
         once: true,
+        position: None,
     });
 
     let RowValue::Choice {
@@ -1830,6 +1831,7 @@ fn named_document() -> World {
                 label: None,
                 trigger: EventConfig::OnStart,
                 once: true,
+                position: None,
             },
             NodeId("event_1".to_string()),
             ChildOf(script),
@@ -2471,4 +2473,13 @@ fn a_well_target_row_switches_state_and_writes_its_id() {
         order.well,
         WellTargetType::Authored("planetoid".to_string())
     );
+}
+
+/// A hull that is not a ship node has no sections to open. The panel says why.
+#[test]
+fn a_hull_held_as_an_object_says_it_is_preserved_as_authored() {
+    let row = authored_hull_row(&ScenarioObjectKind::Spaceship(SpaceshipConfig::default()))
+        .expect("a hull leads with the row");
+
+    assert!(matches!(&row.value, RowValue::Fixed(text) if text == "preserved as authored"));
 }

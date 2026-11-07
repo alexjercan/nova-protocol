@@ -38,20 +38,96 @@ pub(crate) fn editor_gizmo_config() -> GizmoConfig {
     }
 }
 
-/// The editor's free-fly camera. The gallery parks it and draws its tiles
+/// The editor's viewport camera. The gallery parks it and draws its tiles
 /// through it, so it needs a handle that does not depend on there being
 /// exactly one [`Camera3d`] in the scene.
 #[derive(Component)]
 pub(crate) struct EditorCamera;
 
-/// The node the Scene tree has selected, or `None`.
+/// The nodes the builder has selected, the last one taken being the PRIMARY.
 ///
 /// SELECTION IS NOT CONTEXT. Selecting a node marks it in the tree so an
 /// inspector (and the Rebind action) has something to act on; the context is
 /// which CONTAINER the editor is inside. A section is selected, a ship is
 /// entered.
+///
+/// One answer per reader: what shows ONE node (the inspector, the plate, Rebind,
+/// a frame) reads [`Self::primary`], and what acts on them all (the gizmo, the
+/// marks, delete, duplicate) reads [`Self::iter`].
 #[derive(Resource, Default, Debug)]
-pub(crate) struct SelectedNode(pub(crate) Option<Entity>);
+pub(crate) struct SelectedNode {
+    /// In the order they were taken, primary last. A node is here once.
+    nodes: Vec<Entity>,
+}
+
+impl SelectedNode {
+    /// A selection of `node` alone, or of nothing.
+    #[cfg(test)]
+    pub(crate) fn of(node: Option<Entity>) -> Self {
+        Self {
+            nodes: node.into_iter().collect(),
+        }
+    }
+
+    /// The node a single-node reader shows.
+    pub(crate) fn primary(&self) -> Option<Entity> {
+        self.nodes.last().copied()
+    }
+
+    /// Select `node` alone, or nothing.
+    pub(crate) fn set(&mut self, node: Option<Entity>) {
+        self.nodes.clear();
+        self.nodes.extend(node);
+    }
+
+    /// Select exactly `nodes`, the last being the primary.
+    pub(crate) fn set_all(&mut self, nodes: impl IntoIterator<Item = Entity>) {
+        self.nodes.clear();
+        for node in nodes {
+            self.add(node);
+        }
+    }
+
+    /// Take `node` too, as the primary.
+    pub(crate) fn add(&mut self, node: Entity) {
+        self.nodes.retain(|held| *held != node);
+        self.nodes.push(node);
+    }
+
+    /// Put `node` down if it is held, or take it as the primary if it is not.
+    pub(crate) fn toggle(&mut self, node: Entity) {
+        if self.contains(node) {
+            self.nodes.retain(|held| *held != node);
+        } else {
+            self.nodes.push(node);
+        }
+    }
+
+    /// Keep only the nodes `keep` answers true for.
+    pub(crate) fn retain(&mut self, keep: impl FnMut(&Entity) -> bool) {
+        self.nodes.retain(keep);
+    }
+
+    /// Whether `node` is selected.
+    pub(crate) fn contains(&self, node: Entity) -> bool {
+        self.nodes.contains(&node)
+    }
+
+    /// The selected nodes, primary last.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = Entity> + '_ {
+        self.nodes.iter().copied()
+    }
+
+    /// How many nodes are selected.
+    pub(crate) fn len(&self) -> usize {
+        self.nodes.len()
+    }
+
+    /// Whether nothing is selected.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+}
 
 /// The node the pointer is resting on, wherever it rests.
 ///
@@ -74,7 +150,7 @@ pub(crate) struct HoveredNode(pub(crate) Option<Entity>);
 /// with its panels either side of it, and the panels are narrow because the
 /// placement raycast goes through the middle of the screen. Nothing is placed
 /// in [`RailTab::Events`], so that constraint does not exist there and the
-/// script gets the whole window instead - see `crate::ui::sync_editor_mode`.
+/// script gets the whole window instead - see `crate::ui::shell::sync_panels`.
 #[derive(Resource, Clone, Copy, Default, Debug, PartialEq, Eq)]
 pub(crate) enum RailTab {
     /// The world: the range, the ships on it and the objects around them.
@@ -100,11 +176,6 @@ pub(crate) struct EditorRail;
 #[derive(Component)]
 pub(crate) struct EditorFoot;
 
-/// The Inspector's header text, which says which panel this is: the inspector
-/// beside the stage, or the events editor that replaced it.
-#[derive(Component)]
-pub(crate) struct InspectorHeader;
-
 /// One tab of the rail's tree header, carrying the half it switches to.
 #[derive(Component, Clone, Copy)]
 pub(crate) struct RailTabButton(pub(crate) RailTab);
@@ -123,11 +194,6 @@ pub(crate) struct SceneRow(pub(crate) Entity);
 /// scenario node.
 #[derive(Component)]
 pub(crate) struct PlayButton;
-
-/// The top bar's breadcrumb: where in the document the editor is, as a path of
-/// pressable steps. Refilled by `crate::ui::sync_breadcrumb`.
-#[derive(Component)]
-pub(crate) struct ContextBreadcrumb;
 
 /// What the editor stage DRAWS on top of the document, toggled from the View
 /// menu.
@@ -244,17 +310,24 @@ pub(crate) struct PlacementStatus;
 
 /// What that line says.
 ///
-/// TWO slots, because two kinds of thing want it. The READOUT is the placement
-/// preview's, rewritten every frame while a part is in hand and gone the moment
-/// it is put down. What a VERB SAID - a save wrote, a load failed - has to
-/// outlast the frame it happened in, or the builder never sees it, so it holds
-/// the line for [`SAID_HOLD_SECS`] and the readout waits.
+/// THREE slots, because three kinds of thing want it. The READOUT is the
+/// placement preview's, rewritten every frame while a part is in hand and gone
+/// the moment it is put down. What a VERB SAID - a save wrote, a load failed -
+/// has to outlast the frame it happened in, or the builder never sees it, so it
+/// holds the line for [`SAID_HOLD_SECS`] and the readout waits. The CAMERA line
+/// is the fly speed, and it takes the line for as long as RMB is held: that is
+/// the moment the builder is reading it.
 #[derive(Resource, Default)]
 pub(crate) struct EditorStatus {
     /// The placement readout, or `None` when nothing is being placed.
     readout: Option<(String, UiColor)>,
+    /// The fly speed, or `None` when the camera is not flying.
+    camera: Option<String>,
     /// The last thing a verb said, and the moment it stops holding the line.
     said: Option<(String, UiColor, f64)>,
+    /// How many refusals have been said, so a press can tell whether the verb
+    /// it ran turned it down.
+    refusals: u64,
 }
 
 /// How long a verb holds the line before the readout gets it back.
@@ -266,9 +339,31 @@ impl EditorStatus {
         self.readout = line;
     }
 
+    /// What a verb is saying, while it holds the line.
+    pub(crate) fn said(&self) -> Option<(&str, UiColor)> {
+        self.said
+            .as_ref()
+            .map(|(message, tint, _)| (message.as_str(), *tint))
+    }
+
+    /// Write the camera's line, or clear it.
+    pub(crate) fn camera(&mut self, line: Option<String>) {
+        if self.camera != line {
+            self.camera = line;
+        }
+    }
+
     /// Say something that has to be read: it holds the line for a few seconds.
     pub(crate) fn say(&mut self, message: impl Into<String>, tint: UiColor, now: f64) {
+        if tint == UiColor::Danger {
+            self.refusals += 1;
+        }
         self.said = Some((message.into(), tint, now + SAID_HOLD_SECS));
+    }
+
+    /// How many refusals have been said.
+    pub(crate) fn refusals(&self) -> u64 {
+        self.refusals
     }
 
     /// Drop what a verb said once its hold is over.
@@ -288,9 +383,14 @@ impl EditorStatus {
 
     /// What the line shows right now.
     pub(crate) fn line(&self) -> Option<(&str, UiColor)> {
-        self.said
-            .as_ref()
-            .map(|(message, tint, _)| (message.as_str(), *tint))
+        self.camera
+            .as_deref()
+            .map(|line| (line, UiColor::Primary))
+            .or_else(|| {
+                self.said
+                    .as_ref()
+                    .map(|(message, tint, _)| (message.as_str(), *tint))
+            })
             .or_else(|| {
                 self.readout
                     .as_ref()
@@ -356,14 +456,6 @@ pub(crate) struct ShipReadout;
 /// turn rate down, and the one thing that would raise it.
 #[derive(Component)]
 pub(crate) struct ShipReadoutNote;
-
-/// One pressable step of the breadcrumb, carrying the node it goes to.
-#[derive(Component)]
-pub(crate) struct CrumbStep(pub(crate) Entity);
-
-/// The breadcrumb's selection chip, carrying the node it names.
-#[derive(Component)]
-pub(crate) struct CrumbSelection(pub(crate) Entity);
 
 /// The editor's key legend, bottom-left. Its text follows the armed tool, so
 /// the keys that do nothing in the current mode are not listed and the line

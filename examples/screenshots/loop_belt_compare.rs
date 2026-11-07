@@ -99,6 +99,7 @@ fn belt(game_assets: &GameAssets) -> ScenarioConfig {
         description: "A belt of four kinds either side of a flight line".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

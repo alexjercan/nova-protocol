@@ -175,7 +175,7 @@ pub struct ScenarioStartFailureReport {
 /// as `Campaign((id: "nova_protocol", name: "Nova Protocol", scenarios: ["a",
 /// "b"]))`. A member must be a player-launchable chapter: naming a
 /// `role: Backdrop` scenario is a lint Error.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CampaignConfig {
     /// The stable campaign key, e.g. `"nova_protocol"`.
@@ -556,6 +556,17 @@ pub struct ScenarioEventConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub label: Option<String>,
+    /// Where the handler stands on the editor's script canvas, in canvas
+    /// pixels.
+    ///
+    /// Editor layout and nothing else: the runtime never reads it. Absent means
+    /// the canvas lays the handler out itself, so a hand-written handler needs
+    /// no number and a file written before this existed parses unchanged.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub position: Option<Vec2>,
     /// The name of the event to listen for
     pub name: EventConfig,
     /// Retire this handler the first time its filters pass.
@@ -867,6 +878,30 @@ mod tests {
     use super::*;
     use crate::loader::fixtures::*;
 
+    /// A saved canvas position reads back, and a handler without one writes no
+    /// field, so the canvas still lays it out itself.
+    #[test]
+    fn a_handler_position_round_trips_through_authored_ron() {
+        let placed = ScenarioEventConfig {
+            label: None,
+            position: Some(Vec2::new(40.0, 60.0)),
+            name: EventConfig::OnStart,
+            once: false,
+            filters: vec![],
+            actions: vec![],
+        };
+        let written = ron::to_string(&placed).expect("the handler serializes");
+        let back: ScenarioEventConfig = ron::from_str(&written).expect("the handler parses");
+        assert_eq!(back.position, placed.position);
+
+        let unplaced = ScenarioEventConfig {
+            position: None,
+            ..placed
+        };
+        let written = ron::to_string(&unplaced).expect("the handler serializes");
+        assert!(!written.contains("position"), "{written}");
+    }
+
     /// `new(id, name, ..)` takes two adjacent `String`s, so a swap compiles.
     /// The slug guard is what makes it loud in debug builds.
     #[test]
@@ -976,6 +1011,7 @@ mod tests {
             description: "serde smoke".to_string(),
             events: vec![ScenarioEventConfig {
                 label: None,
+                position: None,
                 name: EventConfig::OnStart,
                 once: false,
                 filters: vec![],

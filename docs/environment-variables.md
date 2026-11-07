@@ -156,7 +156,7 @@ Owned by `nova_assets`. See `/create/publish-a-mod/` for the portal.
 
 | Variable | Gates | For |
 | --- | --- | --- |
-| `NOVA_MODDING_CACHE_ROOT` | moves the local mod cache off the platform data dir | tooling |
+| `NOVA_MODDING_CACHE_ROOT` | moves the local mod cache and the editor's `exports/` folder off the platform data dir | tooling |
 | `NOVA_MODDING_PORTAL_URL` | points a native build at another portal tree | tooling |
 | `NOVA_CONFIG_ROOT` | moves the settings store off the platform config dir | tooling |
 

@@ -157,6 +157,7 @@ fn approach(game_assets: &GameAssets) -> ScenarioConfig {
         description: "A ported tender and the spar it docks with".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

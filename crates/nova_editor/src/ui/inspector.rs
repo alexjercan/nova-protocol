@@ -12,6 +12,8 @@
 //! That is what lets a builder type into a field at all: a list rebuilt every
 //! frame would despawn the box under the caret.
 
+use std::collections::HashSet;
+
 use bevy::{
     ecs::{component::Mutable, relationship::RelatedSpawnerCommands, system::SystemParam},
     picking::hover::Hovered,
@@ -20,39 +22,50 @@ use bevy::{
     window::PrimaryWindow,
 };
 use nova_events::units::prelude::*;
+use nova_modding::prelude::Content;
 use nova_scenario::prelude::{Names, ScenarioObjectKind};
 use nova_ship::prelude::{GameSections, WellTargetType};
 use nova_ui::{
     prelude::{
-        panel, panel_header, scroll_bar, scroll_column, scroll_row, scroll_viewport,
-        segmented_container, segmented_container_wrapping, segmented_option, segmented_option_fit,
-        text_field, ButtonLabel, ButtonVariant, Selected, TextFieldError, TextFieldFocused,
-        TextFieldSpec, TextFieldSubmitted, TextFieldValue, ThemedButton, UiText,
+        button, panel, scroll_bar, scroll_column, scroll_row, scroll_viewport, segmented_container,
+        segmented_container_wrapping, segmented_option_compact, text_field, ButtonLabel,
+        ButtonSpec, ButtonVariant, Selected, TextFieldError, TextFieldFocused, TextFieldSpec,
+        TextFieldSubmitted, TextFieldValue, ThemedButton, UiText,
     },
     theme,
-    theme::{ActiveUiTheme, UiColor},
+    theme::{density, ActiveUiTheme, UiColor},
     widget::{
         checkbox, swatch, ButtonCueType, ThemedBorder, ThemedCheckbox, ThemedRadius, ThemedText,
     },
 };
 
 use crate::{
+    asset::{
+        item_name, mesh_pose_mut,
+        verbs::{add_socket, rename_open_asset},
+        AssetNode, AssetPartType, SocketNode,
+    },
     asset_index::prelude::{AssetIndex, AssetSort},
-    config::{EditorOverlays, EditorSays, InspectorHeader, RailTab, SelectedNode},
+    bundle::{FileWindowKind, FileWindowRequest},
+    config::{EditorOverlays, EditorSays, SceneRow, SelectedNode},
     event::{
         action_config_mut, expr_config_mut, filter_config_mut, retype_script_node, ActionNode,
         EventNode, ExpressionNode, FilterNode, GateNode, StepNode,
     },
     frame::CameraFraming,
     gizmo::GizmoAxis,
+    glyph::{OPEN, SHUT},
+    history::commit_edit,
     inspect::{
-        action_rows, axis_step, choose_field, curated_object_rows, curated_section_rows,
-        driver_label, edit_section, event_rows, filter_rows, gate_rows, inspected, nudge_field,
-        object_config_mut, object_rows, operand_path, operand_row, parse_colour, reset_field,
+        action_rows, asset_kind_mut, asset_rows, authored_hull_row, axis_step, choose_field,
+        content_reflect_mut, curated_object_rows, curated_section_rows, driver_label, edit_section,
+        event_rows, filter_rows, gate_rows, inspected, item_text, nudge_field, object_config_mut,
+        object_rows, operand_path, operand_row, parse_colour, part_rows, pretty, reset_field,
         rotation_degrees, rotation_from_degrees, scale_framed_drags, scenario_rows, script_name,
-        section_config_mut, section_rows, set_well_target, ship_rows, step_rows, toggle_field,
-        well_target_label, write_field, DocumentIds, DragRule, FieldRoot, InspectTarget,
-        InspectorRow, NodeKinds, Operand, PathStep, RowValue, ScriptNames, GRIP_GONE,
+        section_config_mut, section_rows, set_item_text, set_well_target, ship_rows, socket_rows,
+        step_rows, toggle_field, well_target_label, write_field, AssetPressType, DocumentIds,
+        DragRule, FieldRoot, InspectTarget, InspectorRow, MeshPose, NodeKinds, Operand, PathStep,
+        RowValue, ScriptNames, GRIP_GONE,
     },
     keybind::on_rebind_action,
     node::{
@@ -60,11 +73,17 @@ use crate::{
         ScenarioNode, SectionNode, SectionNodes, ShipDriver, ShipNode,
     },
     preview::body_is_drawn_from,
+    problems::Problems,
+    project::verbs::pressed,
     scenario::lower_ship,
     station::StationCatalogs,
     ui::{
+        files::PathPurposeType,
         layer,
-        window::{on_open_colour_window, on_open_pick_window, on_open_ref_window},
+        pick::{on_open_choice_list, on_open_ref_list},
+        rail::SceneRowHint,
+        shell::validity_tint,
+        window::on_open_colour_window,
     },
 };
 
@@ -73,13 +92,13 @@ use crate::{
 /// which is where the placement raycast goes.
 ///
 /// The events editor is not bound by that - it has no stage to keep clickable -
-/// and takes whatever the rail leaves instead. See `crate::ui::sync_editor_mode`.
+/// and takes whatever the rail leaves instead. See `crate::ui::shell::sync_panels`.
 pub(crate) const PANEL_W: f32 = 300.0;
 /// The name column. Fixed rather than proportional so the value boxes of every
 /// row line up, which is what makes a column of numbers readable. Wide enough
 /// for the longest name the curated rows carry (`Projectile Lifetime`), which
 /// is what the panel's own widening bought.
-const LABEL_W: f32 = 118.0;
+const LABEL_W: f32 = 92.0;
 
 /// The right-hand panel's root, hidden when there is nothing to inspect.
 #[derive(Component)]
@@ -88,6 +107,23 @@ pub(crate) struct InspectorPanel;
 /// The line under the header saying WHAT is being inspected.
 #[derive(Component)]
 pub(crate) struct InspectorTitle;
+
+/// The kind mark in front of the title: the mark the node's tree row wears.
+#[derive(Component)]
+pub(crate) struct InspectorGlyph;
+
+/// The word beside the title: what the Problems tab says about this node.
+#[derive(Component)]
+pub(crate) struct InspectorValidity;
+
+/// A group heading that folds, and the group path it folds.
+#[derive(Component)]
+pub(crate) struct InspectorFold(String);
+
+/// The group paths the builder folded. Keyed by path, not by node: a builder
+/// who shuts `Muzzle` on one turret wants it shut on the next. Nothing persists.
+#[derive(Resource, Default)]
+pub(crate) struct InspectorFolds(pub(crate) HashSet<String>);
 
 /// The node's ID, under the title.
 ///
@@ -114,12 +150,62 @@ pub(crate) struct InspectorSlot(usize);
 ///
 /// Compared by VALUE, so a floating window opened from a row can find the row
 /// it belongs to again after the panel has repainted.
-#[derive(Component, Clone, PartialEq)]
+#[derive(Component, Clone, Debug, PartialEq)]
 pub(crate) struct InspectorField {
-    node: Entity,
+    pub(crate) node: Entity,
     root: FieldRoot,
     path: Vec<PathStep>,
     optional: bool,
+}
+
+impl InspectorField {
+    /// What `row` of `node` writes to.
+    pub(crate) fn of_row(node: Entity, row: &InspectorRow) -> Self {
+        Self {
+            node: row.owner.unwrap_or(node),
+            root: row.root,
+            path: row.path.clone(),
+            optional: row.optional,
+        }
+    }
+
+    /// The typed expression inside the leaf `node`.
+    pub(crate) fn of_operand(node: Entity) -> Self {
+        Self {
+            node,
+            root: FieldRoot::Config,
+            path: operand_path(),
+            optional: false,
+        }
+    }
+
+    /// Whether the field may hold nothing.
+    pub(crate) fn is_optional(&self) -> bool {
+        self.optional
+    }
+
+    /// The undo step an edit of this field records, named as the row is.
+    pub(crate) fn edit_label(&self) -> String {
+        match self.root {
+            FieldRoot::Label => "Edit Name".to_string(),
+            FieldRoot::Pose => "Edit Position".to_string(),
+            FieldRoot::Rotation => "Edit Rotation".to_string(),
+            FieldRoot::Kind => "Edit Kind".to_string(),
+            FieldRoot::Station => "Edit Station".to_string(),
+            FieldRoot::AssetId => "Edit Id".to_string(),
+            FieldRoot::AssetText(kind) => kind.edit_label().to_string(),
+            FieldRoot::MeshPose => "Edit Mesh Transform".to_string(),
+            FieldRoot::AssetPress(_) => "Press".to_string(),
+            FieldRoot::SocketId => "Edit Socket Id".to_string(),
+            FieldRoot::Config | FieldRoot::Asset | FieldRoot::AssetKind | FieldRoot::Socket => {
+                let leaf = self.path.iter().rev().find_map(|step| match step {
+                    PathStep::Field(name) => Some(pretty(name)),
+                    _ => None,
+                });
+                format!("Edit {}", leaf.as_deref().unwrap_or("Field"))
+            }
+        }
+    }
 }
 
 /// The chip that opens the picker on a row that NAMES something, and what
@@ -130,8 +216,6 @@ pub(crate) struct InspectorField {
 /// for the ones that already exist.
 #[derive(Component, Clone)]
 pub(crate) struct InspectorRef {
-    /// The row's label, for the window's title.
-    pub(crate) label: String,
     /// What the field names, which decides what the picker lists.
     pub(crate) offers: Offers,
 }
@@ -151,7 +235,7 @@ pub(crate) enum Offers {
 
 impl Offers {
     /// What a row offers, or `None` for a row that names nothing.
-    fn of(row: &InspectorRow) -> Option<Self> {
+    pub(crate) fn of(row: &InspectorRow) -> Option<Self> {
         row.names
             .map(Offers::Named)
             .or_else(|| row.asset.map(Offers::File))
@@ -308,7 +392,7 @@ pub(crate) struct InspectorDrag {
 
 impl InspectorDrag {
     /// A grip that has not been dragged yet.
-    fn new(rule: DragRule) -> Self {
+    pub(crate) fn new(rule: DragRule) -> Self {
         Self {
             rule,
             residual: 0.0,
@@ -380,12 +464,6 @@ pub(crate) struct InspectorWellTarget(Option<WellTargetType>);
 pub(crate) struct Document<'w, 's> {
     catalog: Option<Res<'w, GameSections>>,
     context: Res<'w, EditContext>,
-    /// Which editor the screen is. The panel reads it to decide whether it may
-    /// go away when nothing is selected - see [`Document::is_events`].
-    ///
-    /// Optional like the catalog: the editor's plugin puts it in, and a fixture
-    /// that runs the panel without the rest of the editor is the Inspector.
-    tab: Option<Res<'w, RailTab>>,
     /// What the camera is framing, which is the scale every distance row is
     /// dragged at. Optional for the same reason the tab is.
     framing: Option<Res<'w, CameraFraming>>,
@@ -394,6 +472,7 @@ pub(crate) struct Document<'w, 's> {
     kinds: NodeKinds<'w, 's>,
     ids: Query<'w, 's, &'static NodeId>,
     children: Query<'w, 's, &'static Children>,
+    parents: Query<'w, 's, &'static ChildOf>,
     scenarios: Query<'w, 's, &'static ScenarioNode>,
     ships: Query<'w, 's, (&'static ShipNode, &'static Transform)>,
     sections: Query<'w, 's, &'static SectionNode>,
@@ -410,15 +489,37 @@ pub(crate) struct Document<'w, 's> {
     section_nodes: SectionNodes<'w, 's>,
     /// The catalogs that lint is run against.
     stations: StationCatalogs<'w>,
+    bench: BenchRead<'w, 's>,
+}
+
+/// What the panel reads of the bench.
+#[derive(SystemParam)]
+pub(crate) struct BenchRead<'w, 's> {
+    assets: Query<'w, 's, &'static AssetNode>,
+    parts: Query<'w, 's, (&'static AssetPartType, &'static ChildOf)>,
+    sockets: Query<'w, 's, (&'static NodeId, &'static SocketNode, &'static Transform)>,
+    problems: Option<Res<'w, Problems>>,
+}
+
+impl BenchRead<'_, '_> {
+    /// The rows of the collider or mesh handle `node`.
+    fn part_rows(&self, node: Entity) -> Option<Vec<InspectorRow>> {
+        let (part, owner) = self.parts.get(node).ok()?;
+        let root = owner.parent();
+        let asset = self.assets.get(root).ok()?;
+        // The lint's word, not a look at the disk: this runs every frame.
+        let fault = self.problems.as_deref().and_then(|problems| {
+            problems
+                .list
+                .iter()
+                .find(|problem| problem.node == Some(node))
+                .map(|problem| problem.message.clone())
+        });
+        Some(part_rows(*part, asset, root, fault))
+    }
 }
 
 impl Document<'_, '_> {
-    /// Whether the panel is the events editor rather than the stage's
-    /// Inspector.
-    pub(crate) fn is_events(&self) -> bool {
-        self.tab.as_deref().copied().is_some_and(RailTab::is_events)
-    }
-
     /// The operands under `node`, in authored order.
     fn operands_of(&self, node: Entity) -> Vec<Entity> {
         let Ok(children) = self.children.get(node) else {
@@ -457,10 +558,27 @@ impl Document<'_, '_> {
         }
     }
 
+    /// The filter or action holding the marked reporter: an operand is one
+    /// field of that block, and its page is where it is edited.
+    fn operand_owner(&self) -> Option<InspectTarget> {
+        let marked = self.selected.primary()?;
+        self.expressions.get(marked).ok()?;
+        self.parents.iter_ancestors(marked).find_map(|node| {
+            if self.filters.contains(node) {
+                Some(InspectTarget::Filter(node))
+            } else {
+                self.actions
+                    .contains(node)
+                    .then_some(InspectTarget::Action(node))
+            }
+        })
+    }
+
     /// The node the panel is on and the rows it wants, or `None` with nothing
     /// to inspect.
     pub(crate) fn inspection(&self) -> Option<(InspectTarget, Vec<InspectorRow>)> {
-        let target = inspected(&self.selected, &self.context, &self.kinds)?;
+        let target = inspected(&self.selected, &self.context, &self.kinds)
+            .or_else(|| self.operand_owner())?;
         let mut rows = match target {
             // The document root holds ships and objects rather than fields of
             // its own. It gets a panel anyway: one that vanished at the root
@@ -493,11 +611,15 @@ impl Document<'_, '_> {
             }
             InspectTarget::Object(object) => {
                 let (node, pose) = self.objects.get(object).ok()?;
-                if self.overlays.all_fields {
+                let rows = if self.overlays.all_fields {
                     object_rows(node, pose)
                 } else {
                     curated_object_rows(node, pose)
-                }
+                };
+                authored_hull_row(&node.kind)
+                    .into_iter()
+                    .chain(rows)
+                    .collect()
             }
             // The script's nodes are NEVER curated: a handler has four fields
             // between it and its children, and a curated action would hide the
@@ -522,6 +644,12 @@ impl Document<'_, '_> {
             }
             InspectTarget::Step(node) => step_rows(self.steps.get(node).ok()?),
             InspectTarget::Gate(node) => gate_rows(self.gates.get(node).ok()?),
+            InspectTarget::Asset(node) => asset_rows(&self.bench.assets.get(node).ok()?.0),
+            InspectTarget::AssetPart(node) => self.bench.part_rows(node)?,
+            InspectTarget::Socket(node) => {
+                let (id, socket, pose) = self.bench.sockets.get(node).ok()?;
+                socket_rows(&id.0, socket, pose)
+            }
         };
         let framing = self.framing.as_deref().copied().unwrap_or_default();
         scale_framed_drags(&mut rows, framing.distance);
@@ -592,6 +720,9 @@ impl Document<'_, '_> {
     /// name a node by, so it belongs where a builder can read it off the panel
     /// they are already looking at.
     fn id_of(&self, node: Entity) -> String {
+        if let Ok(asset) = self.bench.assets.get(node) {
+            return asset.0.id().to_string();
+        }
         self.ids
             .get(node)
             .map_or_else(|_| String::new(), |id| id.0.clone())
@@ -607,6 +738,11 @@ impl Document<'_, '_> {
     /// only because of how a scenario stores it, and the panel is the one place
     /// the reader is asked what they are looking at.
     fn title(&self, target: InspectTarget) -> String {
+        if let InspectTarget::Asset(node) = target {
+            if let Ok(asset) = self.bench.assets.get(node) {
+                return format!("{}  {}", asset.0.kind().to_uppercase(), item_name(&asset.0));
+            }
+        }
         let tag = match target {
             InspectTarget::Object(object)
                 if self.objects.get(object).is_ok_and(|(node, _)| {
@@ -637,12 +773,9 @@ pub(crate) fn inspector_panel() -> impl Bundle {
         Name::new("Editor Inspector"),
         InspectorPanel,
         Node {
-            width: px(PANEL_W),
-            // Pushed to the right edge by its own margin rather than by a
-            // spacer sibling: what lies between it and the rail is the 3D
-            // stage, and a spacer there would be one more thing to pick
-            // through.
-            margin: UiRect::left(Val::Auto),
+            // Its width is `ScriptMount`'s, which the mode decides.
+            width: percent(100),
+            height: percent(100),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Stretch,
             // Bounded, so the list inside it has something to scroll WITHIN.
@@ -650,53 +783,88 @@ pub(crate) fn inspector_panel() -> impl Bundle {
             // config ran off the bottom of the screen.
             min_height: px(0),
             max_height: percent(100),
-            padding: UiRect::all(px(10)),
+            padding: UiRect::all(px(density::PANEL_PAD)),
             border: UiRect::left(px(theme::BORDER_W)),
             overflow: Overflow::clip(),
             ..default()
         },
         panel(),
         children![
-            // The header says which panel this is, and the mode rewrites it:
-            // beside the stage it is the Inspector, and filling the screen it
-            // is the events editor.
-            (panel_header("Inspector"), InspectorHeader),
             (
-                Name::new("Inspector Title"),
-                InspectorTitle,
-                UiText,
-                Text::new(""),
-                // WRAPS, on any character. A node id is one word with
-                // underscores in it, so a word-boundary break never fires and
-                // `pdc_kinetic_turret_section_7` used to run off the panel
-                // edge and be cut - which loses the digit that says WHICH
-                // turret is on screen.
-                TextLayout {
-                    linebreak: LineBreak::AnyCharacter,
-                    ..default()
-                },
-                TextFont {
-                    font_size: FontSize::Px(11.0),
-                    ..default()
-                },
-                TextColor(Color::NONE),
-                ThemedText::new(UiColor::Accent),
+                Name::new("Inspector Head"),
                 Node {
                     width: percent(100),
-                    margin: UiRect::vertical(px(6)),
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::FlexStart,
+                    column_gap: px(density::GAP),
+                    margin: UiRect::bottom(px(density::GAP)),
                     ..default()
                 },
-                children![(
-                    Name::new("Inspector Id"),
-                    InspectorId,
-                    TextSpan::new(""),
-                    TextFont {
-                        font_size: FontSize::Px(10.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Label),
-                )],
+                children![
+                    (
+                        Name::new("Inspector Glyph"),
+                        InspectorGlyph,
+                        UiText,
+                        Text::new(""),
+                        TextFont {
+                            font_size: FontSize::Px(13.0),
+                            ..default()
+                        },
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Secondary),
+                    ),
+                    (
+                        Name::new("Inspector Title"),
+                        InspectorTitle,
+                        UiText,
+                        Text::new(""),
+                        // WRAPS, on any character. A node id is one word with
+                        // underscores in it, so a word-boundary break never
+                        // fires and `pdc_kinetic_turret_section_7` used to run
+                        // off the panel edge and be cut - which loses the digit
+                        // that says WHICH turret is on screen.
+                        TextLayout {
+                            linebreak: LineBreak::AnyCharacter,
+                            ..default()
+                        },
+                        TextFont {
+                            font_size: FontSize::Px(11.0),
+                            ..default()
+                        },
+                        TextColor(Color::NONE),
+                        ThemedText::new(UiColor::Accent),
+                        // Grows from a zero basis: a shrink-only text child of
+                        // a row lays out at zero size.
+                        Node {
+                            flex_grow: 1.0,
+                            flex_basis: px(0),
+                            min_width: px(0),
+                            ..default()
+                        },
+                        children![(
+                            Name::new("Inspector Id"),
+                            InspectorId,
+                            TextSpan::new(""),
+                            TextFont {
+                                font_size: FontSize::Px(10.0),
+                                ..default()
+                            },
+                            TextColor(Color::NONE),
+                            ThemedText::new(UiColor::Label),
+                        )],
+                    ),
+                    (
+                        Name::new("Inspector Validity"),
+                        InspectorValidity,
+                        UiText,
+                        Text::new(""),
+                        TextFont {
+                            font_size: FontSize::Px(10.0),
+                            ..default()
+                        },
+                        TextColor(Color::NONE),
+                    ),
+                ],
             ),
             // SCROLLS. A turret's joint tree is thirty rows deep, and a panel
             // that simply ran off the bottom of the screen put its muzzle's
@@ -711,11 +879,6 @@ pub(crate) fn inspector_panel() -> impl Bundle {
                         InspectorList,
                         Node {
                             align_items: AlignItems::Stretch,
-                            // A MEASURE, not the panel's width. In Events the
-                            // panel is most of a 1600px window, and a text box
-                            // stretched across all of it is a box a builder
-                            // reads a scenario id in the far left tenth of.
-                            max_width: px(MEASURE_W),
                             ..scroll_column()
                         },
                         scroll_viewport(),
@@ -733,8 +896,8 @@ fn row_shell() -> Node {
         width: percent(100),
         flex_direction: FlexDirection::Row,
         align_items: AlignItems::Center,
-        column_gap: px(6),
-        margin: UiRect::bottom(px(4)),
+        column_gap: px(density::GAP),
+        margin: UiRect::bottom(px(2)),
         ..default()
     }
 }
@@ -920,13 +1083,6 @@ fn indent(depth: usize) -> f32 {
     depth.min(4) as f32 * 7.0
 }
 
-/// The widest a column of rows is allowed to be, however wide the panel is.
-///
-/// The Inspector's own width is the measure the rows were drawn for; Events
-/// gives the panel the window, and rows that spent all of it put the name
-/// column and its value box at opposite ends of the screen.
-const MEASURE_W: f32 = 640.0;
-
 /// How far one level of an EXPRESSION steps in. Wider than a config's indent
 /// because the page IS the tree: these steps are the only thing drawing its
 /// shape, where a walked config already said where its rows sit in its
@@ -1021,11 +1177,7 @@ fn spawn_choice_options(
                         ButtonCueType::Owned,
                         observe(on_inspector_choice),
                     ));
-                    if wide {
-                        entity.insert(segmented_option_fit(option));
-                    } else {
-                        entity.insert(segmented_option(option));
-                    }
+                    entity.insert(segmented_option_compact(option));
                     if index == chosen {
                         entity.insert(Selected);
                     }
@@ -1067,8 +1219,6 @@ const SIDES: [&str; 2] = ["Left", "Right"];
 /// asked a second time could offer a kind the row would not.
 #[derive(Component, Clone)]
 pub(crate) struct InspectorPick {
-    /// The row's name, which is the window's title.
-    pub(crate) label: String,
     /// Every option, in the row's own order.
     pub(crate) options: Vec<String>,
     /// What each option MEANS, one per option and in the same order. The
@@ -1104,7 +1254,6 @@ fn spawn_pick_row(
             value.spawn((
                 Name::new(format!("Inspector Choice {}", row.label)),
                 InspectorPick {
-                    label: row.label.clone(),
                     options: options.to_vec(),
                     hints: hints.to_vec(),
                 },
@@ -1132,7 +1281,7 @@ fn spawn_pick_row(
                 BorderColor::all(Color::NONE),
                 ThemedBorder::alpha(UiColor::Primary, 0.25),
                 BackgroundColor(Color::NONE),
-                observe(on_open_pick_window),
+                observe(on_open_choice_list),
                 children![
                     (
                         Name::new(format!("Inspector Pick {}", row.label)),
@@ -1287,7 +1436,7 @@ fn spawn_operand_row(
                                         variant: option.clone(),
                                     },
                                     field.clone(),
-                                    segmented_option_fit(option),
+                                    segmented_option_compact(option),
                                     ButtonCueType::Owned,
                                     observe(on_inspector_choice),
                                 ));
@@ -1322,7 +1471,7 @@ fn spawn_operand_row(
                         Name::new(format!("Inspector Field {}", row.label)),
                         InspectorSlot(slot),
                         leaf.clone(),
-                        text_field(TextFieldSpec::new(text.to_string()).max_chars(64).dense()),
+                        text_field(TextFieldSpec::new(text.to_string()).max_chars(64).tool()),
                     ));
                 });
             // A VARIABLE is an identifier, not a value: the scenario declares
@@ -1334,14 +1483,13 @@ fn spawn_operand_row(
                 Name::new(format!("Inspector Ref {}", row.label)),
                 InspectorSlot(slot),
                 InspectorRef {
-                    label: row.label.clone(),
                     offers: Offers::Named(Names::Variable),
                 },
                 leaf,
                 Button,
                 Hovered::default(),
                 ref_chip(),
-                observe(on_open_ref_window),
+                observe(on_open_ref_list),
             ));
         });
         shell.spawn(unit_text(&row.label, row.unit, slot));
@@ -1400,7 +1548,7 @@ fn spawn_driver_row(
                             ship: node,
                             driver: option,
                         },
-                        segmented_option(label),
+                        segmented_option_compact(label),
                         ButtonCueType::Owned,
                         observe(on_inspector_driver),
                     ));
@@ -1485,7 +1633,7 @@ fn spawn_well_target_row(
                         InspectorSlot(slot),
                         InspectorWellTarget(option),
                         field.clone(),
-                        segmented_option(label),
+                        segmented_option_compact(label),
                         ButtonCueType::Owned,
                         observe(on_inspector_well_target),
                     ));
@@ -1528,22 +1676,19 @@ fn spawn_well_target_row(
                         Name::new(format!("Inspector Field {}", row.label)),
                         InspectorSlot(slot),
                         id_field.clone(),
-                        text_field(TextFieldSpec::new(id.clone()).max_chars(64).dense()),
+                        text_field(TextFieldSpec::new(id.clone()).max_chars(64).tool()),
                     ));
                 });
                 if let Some(offers) = Offers::of(row) {
                     line.spawn((
                         Name::new(format!("Inspector Ref {}", row.label)),
                         InspectorSlot(slot),
-                        InspectorRef {
-                            label: row.label.clone(),
-                            offers,
-                        },
+                        InspectorRef { offers },
                         id_field,
                         Button,
                         Hovered::default(),
                         ref_chip(),
-                        observe(on_open_ref_window),
+                        observe(on_open_ref_list),
                     ));
                 }
                 line.spawn(unit_text(&row.label, row.unit, slot));
@@ -1598,7 +1743,7 @@ fn unit_text(label: &str, unit: &'static str, slot: usize) -> impl Bundle {
         TextColor(Color::NONE),
         ThemedText::new(UiColor::Secondary),
         Node {
-            min_width: px(UNIT_W),
+            min_width: px(if unit.is_empty() { 0.0 } else { UNIT_W }),
             flex_shrink: 0.0,
             ..default()
         },
@@ -1701,6 +1846,7 @@ fn spawn_axes_row(
                         axis_field.clone(),
                         observe(on_inspector_drag_start),
                         observe(on_inspector_drag),
+                        observe(on_inspector_drag_end),
                     ));
                     line.spawn(Node {
                         flex_grow: 1.0,
@@ -1715,9 +1861,7 @@ fn spawn_axes_row(
                             InspectorAxis(index),
                             axis_field.clone(),
                             text_field(
-                                TextFieldSpec::new(axes[index].clone())
-                                    .max_chars(12)
-                                    .dense(),
+                                TextFieldSpec::new(axes[index].clone()).max_chars(12).tool(),
                             ),
                         ));
                     });
@@ -1726,11 +1870,44 @@ fn spawn_axes_row(
     });
 }
 
+/// The key of one level of a group path.
+fn fold_key(group: &[String], depth: usize) -> String {
+    group[..=depth].join("/")
+}
+
+/// A press on a group heading shuts or opens it.
+fn on_inspector_fold(
+    activate: On<Activate>,
+    headings: Query<&InspectorFold>,
+    mut folds: ResMut<InspectorFolds>,
+) {
+    let Ok(InspectorFold(key)) = headings.get(activate.entity) else {
+        return;
+    };
+    if !folds.0.remove(key) {
+        folds.0.insert(key.clone());
+    }
+}
+
 /// Fill the list with one widget per row.
 ///
 /// The widget names are stable - the driven walks find these by name and
 /// type into them.
-fn build_rows(list: &mut RelatedSpawnerCommands<ChildOf>, node: Entity, rows: &[InspectorRow]) {
+/// How long a typed value may run. A bench row holds refs and lists, which run
+/// past what a scenario's names do.
+fn typed_limit(root: FieldRoot) -> usize {
+    match root {
+        FieldRoot::Asset | FieldRoot::AssetKind | FieldRoot::AssetText(_) => 1024,
+        _ => 64,
+    }
+}
+
+fn build_rows(
+    list: &mut RelatedSpawnerCommands<ChildOf>,
+    node: Entity,
+    rows: &[InspectorRow],
+    folds: &InspectorFolds,
+) {
     let mut heading: Vec<String> = Vec::new();
     for (slot, row) in rows.iter().enumerate() {
         // The group as a TREE: only the levels this row does not share with
@@ -1744,12 +1921,23 @@ fn build_rows(list: &mut RelatedSpawnerCommands<ChildOf>, node: Entity, rows: &[
             .zip(&heading)
             .take_while(|(now, before)| now == before)
             .count();
-        for (depth, level) in row.group.iter().enumerate().skip(shared) {
+        // The first shut level hides what is under it, rows and deeper
+        // headings alike. A row still takes its slot number: the repaint pass
+        // reads rows by slot, and a slot with no widget is simply not painted.
+        let cut =
+            (0..row.group.len()).find(|depth| folds.0.contains(&fold_key(&row.group, *depth)));
+        let drawn = cut.map_or(row.group.len(), |cut| cut + 1);
+        for (depth, level) in row.group.iter().enumerate().take(drawn).skip(shared) {
+            let key = fold_key(&row.group, depth);
+            let caret = if folds.0.contains(&key) { SHUT } else { OPEN };
             list.spawn((
                 Name::new(format!("Inspector Group {level}")),
                 InspectorGroup,
+                InspectorFold(key),
+                Button,
+                observe(on_inspector_fold),
                 UiText,
-                Text::new(level.to_uppercase()),
+                Text::new(format!("{caret} {}", level.to_uppercase())),
                 TextLayout {
                     linebreak: LineBreak::NoWrap,
                     ..default()
@@ -1775,6 +1963,9 @@ fn build_rows(list: &mut RelatedSpawnerCommands<ChildOf>, node: Entity, rows: &[
             ));
         }
         row.group.clone_into(&mut heading);
+        if cut.is_some() {
+            continue;
+        }
         let field = InspectorField {
             // A PAGE names its own node per row - a condition is several
             // entities under one filter, and each row edits its own.
@@ -1860,6 +2051,7 @@ fn build_rows(list: &mut RelatedSpawnerCommands<ChildOf>, node: Entity, rows: &[
                     field.clone(),
                     observe(on_inspector_drag_start),
                     observe(on_inspector_drag),
+                    observe(on_inspector_drag_end),
                 ));
             }
             spawn_override_mark(shell, row, &field, slot);
@@ -1873,7 +2065,9 @@ fn build_rows(list: &mut RelatedSpawnerCommands<ChildOf>, node: Entity, rows: &[
                         // The placeholder is the OPTIONAL row's whole affordance:
                         // an empty box that says "none" is what tells a builder
                         // that emptying it is allowed.
-                        let mut spec = TextFieldSpec::new(text.clone()).max_chars(64).dense();
+                        let mut spec = TextFieldSpec::new(text.clone())
+                            .max_chars(typed_limit(row.root))
+                            .tool();
                         if row.optional {
                             spec = spec.placeholder("none");
                         }
@@ -1885,6 +2079,8 @@ fn build_rows(list: &mut RelatedSpawnerCommands<ChildOf>, node: Entity, rows: &[
                                 flex_grow: 1.0,
                                 flex_basis: px(0),
                                 min_width: px(0),
+                                // A ref is one long word, which wraps nowhere.
+                                overflow: Overflow::clip(),
                                 ..default()
                             })
                             .with_children(|box_slot| {
@@ -1903,15 +2099,12 @@ fn build_rows(list: &mut RelatedSpawnerCommands<ChildOf>, node: Entity, rows: &[
                             value.spawn((
                                 Name::new(format!("Inspector Ref {}", row.label)),
                                 InspectorSlot(slot),
-                                InspectorRef {
-                                    label: row.label.clone(),
-                                    offers,
-                                },
+                                InspectorRef { offers },
                                 field.clone(),
                                 Button,
                                 Hovered::default(),
                                 ref_chip(),
-                                observe(on_open_ref_window),
+                                observe(on_open_ref_list),
                             ));
                         }
                     }
@@ -1939,7 +2132,7 @@ fn build_rows(list: &mut RelatedSpawnerCommands<ChildOf>, node: Entity, rows: &[
                             Name::new(format!("Inspector Field {}", row.label)),
                             InspectorSlot(slot),
                             field.clone(),
-                            text_field(TextFieldSpec::new(text.clone()).max_chars(9).dense()),
+                            text_field(TextFieldSpec::new(text.clone()).max_chars(9).tool()),
                         ));
                     }
                     RowValue::Choice {
@@ -2010,6 +2203,15 @@ fn build_rows(list: &mut RelatedSpawnerCommands<ChildOf>, node: Entity, rows: &[
                             )],
                         ));
                     }
+                    RowValue::Press(word) => {
+                        value.spawn((
+                            Name::new(format!("Inspector Press {}", row.label)),
+                            field.clone(),
+                            button(ButtonSpec::new(word.clone()).ghost().dense()),
+                            ButtonCueType::Owned,
+                            observe(on_inspector_press),
+                        ));
+                    }
                     RowValue::Fixed(text) => {
                         value.spawn((
                             Name::new(format!("Inspector Readout {}", row.label)),
@@ -2030,11 +2232,10 @@ fn build_rows(list: &mut RelatedSpawnerCommands<ChildOf>, node: Entity, rows: &[
                         ));
                     }
                 });
-            // The unit stands OUTSIDE the value column, in a column of its
-            // own: a row whose unit is the empty string still reserves it, so
-            // every box, chip and checkbox down the panel ends at the same x.
+            // The unit stands OUTSIDE the value column. A row with no unit
+            // keeps it at zero width, so the box takes the panel's full width.
             // It is also where a refused edit says why (`paint_field_reasons`),
-            // which is the one thing allowed to widen it.
+            // so every row spawns it.
             shell.spawn(unit_text(&row.label, row.unit, slot));
         });
     }
@@ -2062,32 +2263,77 @@ pub(crate) struct ShownInspector {
     )>,
 }
 
-/// The events editor with nothing picked: the panel stays, and says so.
-///
-/// `Entity::PLACEHOLDER` as the remembered shape is what keeps this to one
-/// pass - it is a node no row can carry, so the next frame reads the state as
-/// unchanged and the list is not cleared again.
-fn empty_editor(
-    commands: &mut Commands,
-    lists: &Query<Entity, With<InspectorList>>,
-    titles: &mut Query<&mut Text, With<InspectorTitle>>,
-    node_ids: &mut Query<&mut TextSpan, With<InspectorId>>,
-    shown: &mut ShownInspector,
+/// The line the right column shows while nothing is selected.
+#[derive(Component)]
+pub(crate) struct InspectorEmpty;
+
+/// That line. It stands where the hidden panel stood, so the column never reads
+/// as a hole in the frame.
+pub(crate) fn inspector_empty() -> impl Bundle {
+    (
+        Name::new("Inspector Empty"),
+        InspectorEmpty,
+        UiText,
+        Text::new("Nothing selected.\nPick a row, or a body on the stage."),
+        TextFont {
+            font_size: FontSize::Px(11.0),
+            ..default()
+        },
+        TextColor(Color::NONE),
+        ThemedText::new(UiColor::Label),
+        Node {
+            display: Display::None,
+            margin: UiRect::all(px(10)),
+            ..default()
+        },
+    )
+}
+
+/// Write the Inspector's header row: the node's mark, its validity word, and
+/// the empty line when the panel is hidden.
+pub(crate) fn sync_inspector_head(
+    selected: Res<SelectedNode>,
+    theme: Res<ActiveUiTheme>,
+    problems: Res<Problems>,
+    hints: Query<(&SceneRow, &SceneRowHint)>,
+    mut glyphs: Query<&mut Text, (With<InspectorGlyph>, Without<InspectorValidity>)>,
+    mut words: Query<(&mut Text, &mut TextColor), With<InspectorValidity>>,
+    mut empties: Query<&mut Node, With<InspectorEmpty>>,
+    panels: Query<&Node, (With<InspectorPanel>, Without<InspectorEmpty>)>,
 ) {
-    let waiting = (Entity::PLACEHOLDER, Vec::new());
-    if shown.shape.as_ref() == Some(&waiting) {
-        return;
+    let node = selected.primary();
+    let lead = node
+        .and_then(|node| hints.iter().find(|(row, _)| row.0 == node))
+        .map_or("", |(_, hint)| hint.lead.as_str());
+    for mut text in &mut glyphs {
+        if text.0 != lead {
+            text.0 = lead.to_string();
+        }
     }
-    for mut text in titles {
-        text.0 = "pick a row in the script".to_string();
+    let (errors, warnings) = node.map_or((0, 0), |node| problems.counts_of(node));
+    let word = match (node, errors, warnings) {
+        (None, ..) => String::new(),
+        (_, 0, 0) => "OK".to_string(),
+        (_, 0, warnings) => format!("{warnings} WARN"),
+        (_, 1, _) => "1 ERROR".to_string(),
+        (_, errors, _) => format!("{errors} ERRORS"),
+    };
+    let tint = validity_tint(&theme, errors, warnings);
+    for (mut text, mut colour) in &mut words {
+        if text.0 != word {
+            text.0.clone_from(&word);
+        }
+        if colour.0 != tint {
+            colour.0 = tint;
+        }
     }
-    for mut span in node_ids {
-        span.0.clear();
+    let hidden = panels.iter().all(|panel| panel.display == Display::None);
+    let display = if hidden { Display::Flex } else { Display::None };
+    for mut empty in &mut empties {
+        if empty.display != display {
+            empty.display = display;
+        }
     }
-    if let Ok(list) = lists.single() {
-        commands.entity(list).despawn_related::<Children>();
-    }
-    shown.shape = Some(waiting);
 }
 
 /// Show the inspected node: rebuild the rows when WHICH rows exist changes,
@@ -2123,7 +2369,12 @@ pub(crate) fn sync_inspector(
     drivers: Query<(Entity, &InspectorSlot, &InspectorDriver, Has<Selected>)>,
     mut swatches: Query<(&InspectorSlot, &mut BackgroundColor), With<InspectorSwatch>>,
     choices: Query<(Entity, &InspectorSlot, &InspectorChoice, Has<Selected>)>,
+    folds: Res<InspectorFolds>,
 ) {
+    // A fold changes which widgets exist, not what any of them says.
+    if folds.is_changed() {
+        shown.shape = None;
+    }
     // A fresh list holds no rows whatever this `Local` remembers - it survives
     // the state round-trip that despawned the panel. The same trap
     // `sync_scene_list` documents.
@@ -2131,13 +2382,9 @@ pub(crate) fn sync_inspector(
         shown.shape = None;
     }
     let inspection = document.inspection();
-    // In Scene the panel is a detail view of a selection and goes away with it;
-    // in Events it is the editor the mode put on the screen, so it STAYS and
-    // says what it is waiting for. A screen that empties to the stage the
-    // moment a row is deselected would be the mode switching itself back.
-    let events = document.is_events();
+    // A detail view of a selection: it goes away with it.
     for mut node in &mut panels {
-        let display = if inspection.is_some() || events {
+        let display = if inspection.is_some() {
             Display::Flex
         } else {
             Display::None
@@ -2147,17 +2394,7 @@ pub(crate) fn sync_inspector(
         }
     }
     let Some((target, rows)) = inspection else {
-        if events {
-            empty_editor(
-                &mut commands,
-                &lists,
-                &mut titles,
-                &mut node_ids,
-                &mut shown,
-            );
-        } else {
-            shown.shape = None;
-        }
+        shown.shape = None;
         return;
     };
     let title = document.title(target);
@@ -2207,7 +2444,7 @@ pub(crate) fn sync_inspector(
     if shown.shape.as_ref() != Some(&shape) {
         commands.entity(list).despawn_related::<Children>();
         commands.entity(list).with_children(|list| {
-            build_rows(list, target.node(), &rows);
+            build_rows(list, target.node(), &rows, &folds);
         });
         shown.shape = Some(shape);
         // The widgets just queued do not exist yet, and the ones that do have
@@ -2450,6 +2687,9 @@ pub(crate) struct EditTargets<'w, 's> {
     expressions: Query<'w, 's, &'static mut ExpressionNode>,
     poses: Query<'w, 's, &'static mut Transform>,
     stale: MessageWriter<'w, ObjectBodyStale>,
+    assets: Query<'w, 's, &'static mut AssetNode>,
+    sockets: Query<'w, 's, &'static mut SocketNode>,
+    socket_ids: Query<'w, 's, (&'static mut NodeId, &'static ChildOf), With<SocketNode>>,
 }
 
 /// Run `edit` against a component's innards WITHOUT marking it changed, and
@@ -2531,8 +2771,85 @@ impl EditTargets<'_, '_> {
                 })
             }
             // Handled before the routing: a kind is swapped on the node, not
-            // written through a path. See [`on_inspector_choice`].
-            FieldRoot::Kind => Err("not a field".to_string()),
+            // written through a path. See [`on_inspector_choice`]. A rename and
+            // a press are verbs, for the same reason.
+            FieldRoot::Kind | FieldRoot::AssetId | FieldRoot::AssetPress(_) => {
+                Err("not a field".to_string())
+            }
+            FieldRoot::Asset => {
+                let mut asset = self.asset_of(field)?;
+                if_it_took(&mut asset, |asset| {
+                    let config = content_reflect_mut(&mut asset.0)
+                        .ok_or_else(|| "not authored here".to_string())?;
+                    edit(config, &field.path, field.optional)
+                })
+            }
+            FieldRoot::AssetKind => {
+                let mut asset = self.asset_of(field)?;
+                if_it_took(&mut asset, |asset| {
+                    let config =
+                        asset_kind_mut(&mut asset.0).ok_or_else(|| "not a section".to_string())?;
+                    edit(config, &field.path, field.optional)
+                })
+            }
+            FieldRoot::AssetText(kind) => {
+                let mut asset = self.asset_of(field)?;
+                if_it_took(&mut asset, |asset| {
+                    let mut text = item_text(&asset.0, kind);
+                    edit(&mut text, &field.path, field.optional)?;
+                    set_item_text(&mut asset.0, kind, &text)
+                })
+            }
+            FieldRoot::MeshPose => {
+                let mut asset = self.asset_of(field)?;
+                if_it_took(&mut asset, |asset| {
+                    let Content::Section(config) = &mut asset.0 else {
+                        return Err("not a section".to_string());
+                    };
+                    let held = mesh_pose_mut(&mut config.kind)
+                        .ok_or_else(|| "a turret holds a mesh per joint".to_string())?;
+                    let mut pose = MeshPose::of(*held);
+                    edit(&mut pose, &field.path, field.optional)?;
+                    *held = Some(pose.transform());
+                    Ok(())
+                })
+            }
+            FieldRoot::Socket => {
+                let mut socket = self
+                    .sockets
+                    .get_mut(field.node)
+                    .map_err(|_| GRIP_GONE.to_string())?;
+                if_it_took(&mut socket, |socket| {
+                    edit(socket.as_partial_reflect_mut(), &field.path, field.optional)
+                })
+            }
+            FieldRoot::SocketId => {
+                let (mut text, parent) = {
+                    let (id, owner) = self
+                        .socket_ids
+                        .get(field.node)
+                        .map_err(|_| GRIP_GONE.to_string())?;
+                    (id.0.clone(), owner.parent())
+                };
+                edit(&mut text, &field.path, field.optional)?;
+                let text = text.trim().to_string();
+                if text.is_empty() {
+                    return Err("a socket needs an id".to_string());
+                }
+                let clash = self
+                    .socket_ids
+                    .iter()
+                    .any(|(id, owner)| owner.parent() == parent && id.0 == text);
+                if clash {
+                    return Err(format!("{text} is taken on this section"));
+                }
+                let (mut id, _) = self
+                    .socket_ids
+                    .get_mut(field.node)
+                    .map_err(|_| GRIP_GONE.to_string())?;
+                id.0 = text;
+                Ok(())
+            }
             FieldRoot::Station => {
                 let mut ship = self
                     .ships
@@ -2595,6 +2912,13 @@ impl EditTargets<'_, '_> {
                 took
             }
         }
+    }
+
+    /// The bench item `field` writes to.
+    fn asset_of(&mut self, field: &InspectorField) -> Result<Mut<'_, AssetNode>, String> {
+        self.assets
+            .get_mut(field.node)
+            .map_err(|_| GRIP_GONE.to_string())
     }
 
     /// Put the value `field` points at back to the one it INHERITS.
@@ -2687,12 +3011,19 @@ pub(crate) fn apply_inspector_edits(
         let Ok(field) = fields.get(*entity) else {
             continue;
         };
+        // An id is a rename across the mod, which a verb does.
+        if field.root == FieldRoot::AssetId {
+            let typed = value.clone();
+            commands.queue(move |world: &mut World| rename_open_asset(world, &typed));
+            continue;
+        }
         let written = targets.edit(field, |root, path, optional| {
             write_field(root, path, optional, value)
         });
         match written {
             Ok(()) => {
                 commands.entity(*entity).remove::<TextFieldError>();
+                commit_edit(&mut commands, field.edit_label());
             }
             Err(reason) => {
                 commands.entity(*entity).insert(TextFieldError(reason));
@@ -2771,6 +3102,20 @@ pub(crate) fn on_inspector_drag(
     }
 }
 
+/// A scrub is one edit however far it travelled, so it commits on release.
+pub(crate) fn on_inspector_drag_end(
+    drag: On<Pointer<DragEnd>>,
+    mut commands: Commands,
+    grips: Query<&InspectorField, With<InspectorDrag>>,
+) {
+    if drag.button != PointerButton::Primary {
+        return;
+    }
+    if let Ok(field) = grips.get(drag.entity) {
+        commit_edit(&mut commands, field.edit_label());
+    }
+}
+
 /// Put the pointer back on the far side of the window when a scrub reaches an
 /// edge, and answer how far that moved it.
 ///
@@ -2805,6 +3150,7 @@ pub(crate) const STATION_UNFLOWN: &str = "a station is not flown - clear Station
 /// Flip a `bool` field.
 pub(crate) fn on_inspector_flag(
     activate: On<Activate>,
+    mut commands: Commands,
     boxes: Query<&InspectorField, With<InspectorFlag>>,
     mut targets: EditTargets,
     mut says: EditorSays,
@@ -2818,8 +3164,34 @@ pub(crate) fn on_inspector_flag(
             .ok_or_else(|| "not a flag".to_string())
     });
     match flipped {
-        Ok(()) => says.accept(),
+        Ok(()) => {
+            commit_edit(&mut commands, field.edit_label());
+            says.accept();
+        }
         Err(reason) => says.refuse(reason),
+    }
+}
+
+/// Do what a bench button says.
+pub(crate) fn on_inspector_press(
+    activate: On<Activate>,
+    mut commands: Commands,
+    fields: Query<&InspectorField>,
+    mut request: ResMut<FileWindowRequest>,
+    mut says: EditorSays,
+) {
+    let Ok(field) = fields.get(activate.entity) else {
+        return;
+    };
+    match field.root {
+        FieldRoot::AssetPress(AssetPressType::ImportMesh) => {
+            request.0 = Some(FileWindowKind::PickPath(PathPurposeType::ImportMesh));
+            says.accept();
+        }
+        FieldRoot::AssetPress(AssetPressType::AddSocket) => {
+            commands.queue(|world: &mut World| pressed(world, add_socket));
+        }
+        _ => {}
     }
 }
 
@@ -2830,6 +3202,7 @@ pub(crate) fn on_inspector_flag(
 /// overlay dropped - and it is said out loud rather than swallowed.
 pub(crate) fn on_inspector_reset(
     activate: On<Activate>,
+    mut commands: Commands,
     chips: Query<&InspectorField, With<InspectorReset>>,
     mut targets: EditTargets,
     mut says: EditorSays,
@@ -2838,7 +3211,10 @@ pub(crate) fn on_inspector_reset(
         return;
     };
     match targets.reset(field) {
-        Ok(()) => says.accept(),
+        Ok(()) => {
+            commit_edit(&mut commands, field.edit_label());
+            says.accept();
+        }
         Err(reason) => says.refuse(reason),
     }
 }
@@ -2884,12 +3260,16 @@ pub(crate) fn apply_choice(
     if field.root == FieldRoot::Kind {
         let (node, kind) = (field.node, variant.to_string());
         commands.queue(move |world: &mut World| retype_script_node(world, node, &kind));
+        commit_edit(commands, field.edit_label());
         says.accept();
         return;
     }
     let chosen = targets.edit(field, |root, path, _| choose_field(root, path, variant));
     match chosen {
-        Ok(()) => says.accept(),
+        Ok(()) => {
+            commit_edit(commands, field.edit_label());
+            says.accept();
+        }
         Err(reason) => says.refuse(reason),
     }
 }
@@ -2900,6 +3280,7 @@ pub(crate) fn apply_choice(
 /// otherwise clear the id the builder typed.
 pub(crate) fn on_inspector_well_target(
     activate: On<Activate>,
+    mut commands: Commands,
     options: Query<(&InspectorField, &InspectorWellTarget, Has<Selected>)>,
     mut targets: EditTargets,
     mut says: EditorSays,
@@ -2916,7 +3297,10 @@ pub(crate) fn on_inspector_well_target(
         set_well_target(root, path, optional, target)
     });
     match set {
-        Ok(()) => says.accept(),
+        Ok(()) => {
+            commit_edit(&mut commands, field.edit_label());
+            says.accept();
+        }
         Err(reason) => says.refuse(reason),
     }
 }
@@ -2929,6 +3313,7 @@ pub(crate) fn on_inspector_well_target(
 /// [`default_allegiance`].
 pub(crate) fn on_inspector_driver(
     activate: On<Activate>,
+    mut commands: Commands,
     options: Query<&InspectorDriver>,
     mut ships: Query<(Entity, &mut ShipNode, &NodeId)>,
     mut says: EditorSays,
@@ -2959,6 +3344,7 @@ pub(crate) fn on_inspector_driver(
     if ship.driver != option.driver {
         ship.driver = option.driver;
         ship.allegiance = default_allegiance(option.driver);
+        commit_edit(&mut commands, "Edit Driver");
     }
     says.accept();
 }

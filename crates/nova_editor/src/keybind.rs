@@ -17,6 +17,7 @@ use nova_ui::{
 
 use crate::{
     config::{EditorCamera, EditorSays, SelectedNode},
+    history::commit_edit,
     node::{EditContext, SectionNode},
     ExampleStates,
 };
@@ -187,10 +188,6 @@ pub(crate) fn sync_section_keybind_labels(
 /// ordering, as `screen_indicator` does).
 pub(crate) fn position_section_keybind_labels(
     rebind: Res<EditorRebind>,
-    // Keyed on the editor's camera MARKER, not on the free-fly controller: the
-    // gallery removes that controller while it parks the camera, and a `Single`
-    // that stops matching stops the system - which used to leave every chip
-    // frozen on screen, over the gallery, at the pose it last had.
     camera: Single<(&Camera, &GlobalTransform), With<EditorCamera>>,
     q_section: Query<(&GlobalTransform, &SectionNode)>,
     mut q_labels: Query<(
@@ -308,7 +305,7 @@ pub(crate) fn on_rebind_action(
     mut rebind: ResMut<EditorRebind>,
     mut mode: ResMut<InputMode>,
 ) {
-    let Some(section) = selected.0 else {
+    let Some(section) = selected.primary() else {
         return;
     };
     let Ok((node, owner)) = q_sections.get(section) else {
@@ -350,6 +347,7 @@ fn binding_conflict(bindings: Option<&InputBindings>, source: InputSource) -> Op
 /// preserved) on the section NODE - the one place the binds live, and what the
 /// scenario hand-off reads.
 pub(crate) fn apply_section_rebind(
+    mut commands: Commands,
     sources: InputSources,
     keys: Res<ButtonInput<KeyCode>>,
     bindings: Option<Res<InputBindings>>,
@@ -419,6 +417,7 @@ pub(crate) fn apply_section_rebind(
     let binds = captured_binds(&node.binds, new_binding);
     node.binds = binds;
     rebind.target = None;
+    commit_edit(&mut commands, "Rebind Section");
 }
 
 #[cfg(test)]
@@ -427,7 +426,7 @@ mod tests {
     use nova_scenario::prelude::SectionSource;
 
     use super::*;
-    use crate::node::ShipNode;
+    use crate::node::{EditorNode, NodeId, ScenarioNode, ShipNode};
 
     /// The ship these tests edit: spawned and ENTERED on first use, so a
     /// section from `section_node` hangs on the ship in the edit context. The
@@ -661,6 +660,49 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_rebind_is_one_step() {
+        let mut app = App::new();
+        let scenario = app
+            .world_mut()
+            .spawn((
+                EditorNode,
+                ScenarioNode::default(),
+                NodeId("scenario".into()),
+            ))
+            .id();
+        let ship = app
+            .world_mut()
+            .spawn((
+                EditorNode,
+                ShipNode::default(),
+                NodeId("ship_1".into()),
+                Transform::default(),
+                ChildOf(scenario),
+            ))
+            .id();
+        app.insert_resource(EditContext {
+            path: vec![scenario, ship],
+        });
+        let section = thruster(app.world_mut(), vec![InputSource::from(KeyCode::Space)]);
+        app.world_mut().entity_mut(section).insert((
+            EditorNode,
+            NodeId("thruster_1".to_string()),
+            Transform::default(),
+        ));
+        armed(app.world_mut(), section);
+        let mut input = ButtonInput::<KeyCode>::default();
+        input.press(KeyCode::KeyR);
+        app.insert_resource(input);
+        app.init_resource::<ButtonInput<MouseButton>>();
+
+        crate::history::tests::assert_one_step(&mut app, "Rebind Section", |app| {
+            app.world_mut()
+                .run_system_once(apply_section_rebind)
+                .expect("the rebind runs");
+        });
+    }
+
     /// F30: the chip is a root UI node drawn over the section it labels, so
     /// without an IGNORE override it eats the click meant for that section.
     #[test]
@@ -824,12 +866,16 @@ mod tests {
         assert_eq!(app.world().resource::<EditorRebind>().target, None);
 
         // A hull selected: not bindable, still nothing.
-        app.world_mut().resource_mut::<SelectedNode>().0 = Some(hull);
+        app.world_mut()
+            .resource_mut::<SelectedNode>()
+            .set(Some(hull));
         app.world_mut().trigger(Activate { entity: button });
         assert_eq!(app.world().resource::<EditorRebind>().target, None);
 
         // The turret selected: armed, and waiting out the arming click.
-        app.world_mut().resource_mut::<SelectedNode>().0 = Some(turret);
+        app.world_mut()
+            .resource_mut::<SelectedNode>()
+            .set(Some(turret));
         app.world_mut().trigger(Activate { entity: button });
         let rebind = app.world().resource::<EditorRebind>();
         assert_eq!(rebind.target, Some(turret));

@@ -13,7 +13,15 @@ use nova_gameplay::prelude::subtree_collider_aabb;
 use nova_ship::prelude::*;
 use nova_ui::prelude::{owns_or_enters, InputMode};
 
-use crate::{config::EditorCamera, node::EditContext, ui::layer, ExampleStates};
+use crate::{
+    asset::session::ProjectSections,
+    asset_index::AssetIndex,
+    config::{EditorCamera, RailTab},
+    node::EditContext,
+    project::ModProject,
+    ui::layer,
+    ExampleStates,
+};
 
 /// Opens and closes the gallery from the editor.
 ///
@@ -33,7 +41,7 @@ const STAGE_CLEARANCE: Meters = Meters(2_000.0);
 /// tiles at the same distance, so the two must agree.
 const STAGE_DISTANCE: f32 = 8.0;
 
-/// The editor's free-fly camera's place while the gallery is up, restored on
+/// The viewport camera's place while the gallery is up, restored on
 /// close.
 ///
 /// Stored on the camera rather than in a `Local` so it dies with the scene: a
@@ -84,6 +92,60 @@ pub(crate) fn gallery_host(camera: Entity) -> impl Bundle {
     )
 }
 
+/// The editor's listing of the catalog: every part may be placed, `holds` marks
+/// the open mod's own, and `owner_of` names the mod a part would add as a
+/// dependency.
+fn gallery_entries(
+    sections: &GameSections,
+    holds: impl Fn(&str) -> bool,
+    owner_of: impl Fn(&str) -> Option<String>,
+) -> Vec<GalleryEntry> {
+    sections
+        .iter()
+        .map(|section| {
+            let id = &section.base.id;
+            let owner = owner_of(id);
+            GalleryEntry {
+                id: id.clone(),
+                tile: owner.as_ref().map(|_| "UNDECLARED".to_string()),
+                note: owner.map_or_else(String::new, |owner| {
+                    format!("Placing it declares {owner} as a dependency")
+                }),
+                recipe: Vec::new(),
+                alternate: None,
+                placeable: true,
+                own: holds(id),
+            }
+        })
+        .collect()
+}
+
+/// Keep the host's listing on the catalog and the open mod.
+///
+/// Written while the gallery is closed too: a listing that landed on the
+/// opening frame would build every tile twice.
+pub(crate) fn sync_gallery_listing(
+    mut commands: Commands,
+    sections: Res<GameSections>,
+    own: Res<ProjectSections>,
+    project: Option<Res<ModProject>>,
+    index: AssetIndex,
+    hosts: Query<(Entity, Ref<GalleryHost>)>,
+) {
+    let moved =
+        sections.is_changed() || own.is_changed() || project.as_ref().is_some_and(Res::is_changed);
+    for (entity, host) in &hosts {
+        if moved || host.is_added() {
+            let entries = gallery_entries(
+                &sections,
+                |id| own.holds(id),
+                |id| index.undeclared_owner(id),
+            );
+            commands.entity(entity).insert(GalleryListing(entries));
+        }
+    }
+}
+
 /// Open or close the gallery. Runs whether or not it is up.
 pub(crate) fn toggle_gallery(keys: Res<ButtonInput<KeyCode>>, mut state: ResMut<GalleryState>) {
     if !keys.just_pressed(GALLERY_TOGGLE_KEY) {
@@ -104,9 +166,13 @@ pub(crate) fn toggle_gallery(keys: Res<ButtonInput<KeyCode>>, mut state: ResMut<
 /// Parts button lives in the ship's action group, and a part armed at the
 /// scenario node is put straight back down), so the toggle only OPENS inside
 /// a ship - while staying answerable wherever it is already open, so Tab can
-/// always close what Tab opened.
-fn gallery_reachable(context: Res<EditContext>, state: Res<GalleryState>) -> bool {
-    state.open || context.ship().is_some()
+/// always close what Tab opened. Events has no stage to place a part on.
+fn gallery_reachable(
+    context: Res<EditContext>,
+    rail: Res<RailTab>,
+    state: Res<GalleryState>,
+) -> bool {
+    state.open || (context.ship().is_some() && !rail.is_events())
 }
 
 /// Stand the stage clear of everything the document holds.
@@ -140,11 +206,8 @@ pub(crate) fn sync_gallery_stage(
 /// Park the camera on the gallery stage while the gallery is open, and put it
 /// back where the player left it on close.
 ///
-/// The free-fly rig is REMOVED rather than ignored: it writes the camera
-/// transform from its own input context, and gallery typing must not fly the
-/// camera. The pose is re-applied every frame for the same reason the
-/// scenario's cinematic camera does it - one stale input frame would drift the
-/// stage.
+/// [`crate::camera::drive_editor_camera`] stops while the gallery is up. The
+/// pose is re-applied every frame anyway, so nothing can drift the stage.
 pub(crate) fn park_camera_for_gallery(
     mut commands: Commands,
     state: Res<GalleryState>,
@@ -236,6 +299,7 @@ pub(crate) fn register(app: &mut App) {
             (sync_gallery_stage, park_camera_for_gallery)
                 .chain()
                 .before(PartsGallerySystems),
+            sync_gallery_listing.before(PartsGallerySystems),
             sync_editor_chrome.after(PartsGallerySystems),
         )
             .run_if(in_state(ExampleStates::Editor)),
@@ -249,6 +313,29 @@ mod tests {
 
     use super::*;
     use crate::node::{found_empty_document, EditorNode, NodeId};
+
+    /// A section the open mod holds is offered in the gallery, under Mod as
+    /// well as under All, and a catalog part stays out of Mod.
+    #[test]
+    fn a_project_section_is_offered_in_the_gallery() {
+        let catalog = GameSections(nova_authoring::generation::build_section_catalog());
+        let own_id = catalog
+            .iter()
+            .find(|section| !section.base.hide_in_editor)
+            .expect("the catalog lists a part")
+            .base
+            .id
+            .clone();
+        let listing = GalleryListing(gallery_entries(&catalog, |id| id == own_id, |_| None));
+
+        let own = browsable(&catalog, Some(&listing), GalleryCategory::Mod, "", false);
+        assert_eq!(own.len(), 1, "only the mod's section is under Mod");
+        assert_eq!(catalog.get(own[0]).unwrap().base.id, own_id);
+        assert!(
+            browsable(&catalog, Some(&listing), GalleryCategory::All, "", false).len() > 1,
+            "All still lists the whole catalog"
+        );
+    }
 
     /// A document holding one body whose top stands at `top_y` engine units,
     /// and the editor's gallery host.

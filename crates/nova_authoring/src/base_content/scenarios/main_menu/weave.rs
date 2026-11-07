@@ -155,6 +155,7 @@ pub(crate) fn menu_weave(
     let events = vec![
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -180,6 +181,7 @@ pub(crate) fn menu_weave(
         },
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {
@@ -192,6 +194,7 @@ pub(crate) fn menu_weave(
         // menu turns early.
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnDefeated,
             once: false,
             filters: vec![crate::scenario_helpers::entity(RUNNER_ID)],
@@ -202,6 +205,7 @@ pub(crate) fn menu_weave(
         },
         ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnTimerEnd,
             once: false,
             filters: vec![EventFilterConfig::Timer(TimerFilterConfig {

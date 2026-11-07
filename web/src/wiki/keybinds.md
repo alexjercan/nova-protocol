@@ -398,7 +398,7 @@ None of this is fixed: in the editor, click a section to bind it to any key or m
             </td>
         </tr>
         <tr>
-            <td>Back to editor (Sandbox only)</td>
+            <td>Back to editor (editor only)</td>
             <td><kbd>F1</kbd></td>
             <td>
                 <span
@@ -416,31 +416,87 @@ None of this is fixed: in the editor, click a section to bind it to any key or m
 The editor is mouse-first and has no gamepad bindings. Every key below is also
 a row on the top bar - **File**, **Edit**, **View**, **Add**, **Ship** - with
 the key printed beside it, so this table is a shortcut list and not a second
-interface. The bottom-left legend shows the gestures that apply to whatever you
-are holding right now; **View > Key Legend** hides it.
+interface. The legend on the bottom line shows the gestures that apply to
+whatever you are holding right now, and what <kbd>Esc</kbd> does next. Under a
+block's pop-up it shows only what works there. **View > Key Legend** hides it.
 
-The stage camera starts at a walking 60 m/s, which is the register a plate is
-inspected in, and a held direction ramps it to 32 times that over two seconds -
-the far end of an 8 km range is about four seconds away. Let go and it is back
-at walking pace at once. Double-click a ship and the camera frames the whole
-hull, however big it is; <kbd>F</kbd> does the same for whatever is selected,
-and at the scenario level it frames the whole document.
+### The panels
+
+The panels are fixed: nothing docks or drags. **View** hides the Hierarchy, the
+Inspector and the strip's body, and so do <kbd>Ctrl</kbd>+<kbd>1</kbd>,
+<kbd>Ctrl</kbd>+<kbd>2</kbd> and <kbd>Ctrl</kbd>+<kbd>3</kbd>.
+
+- **Top bar**: the menus, the Scene and Events tabs, the four tools, Axes, Snap,
+  Undo, Redo, Parts, Play and the camera speed. Each button does what its key
+  does. Snap inverts Ctrl: with it on, a handle snaps until you hold Ctrl.
+- **Hierarchy**, on the left in Scene: the tree of the document. A caret opens a
+  row, the filter box finds a row under any shut one, <kbd>Ctrl</kbd>+click and
+  <kbd>Shift</kbd>+click mark many, and right-click opens the row's menu: Rename,
+  Duplicate, Delete, Frame and what can be added under it.
+- **Inspector**, on the right in Scene: the selected node's fields. Its header
+  carries the kind, the name, the id and a validity word, and a group heading
+  folds. An open asset shows its form here.
+- **Events** fills the window above the strip with a block palette and a canvas.
+  It has no Hierarchy and no Inspector: fill a value on its block, and a block's
+  `...` chip opens a pop-up with every field. The four tools, Axes and Snap hide,
+  and <kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>X</kbd> do nothing.
+- **Strip**, along the bottom: **Assets** shows the mod's items as file tiles,
+  with a count per kind. A double click opens a tile, a right click holds its
+  verbs, **+** adds an item, and a hover shows the whole id. **Problems** is the
+  live lint of what Play would load; a row selects the node it names. **Ship**
+  appears inside a ship and holds the skin, the styles and Generate. **Log** keeps
+  what the status line said.
+
+The stage camera has no ramp: a held key is one speed for as long as it is held.
+It starts at a walking 60 m/s. The wheel, while you fly, steps that speed from
+5 m/s up to 3,460 m/s, and <kbd>Shift</kbd> is four times the dial while held.
+Double-click a ship and the camera frames the whole hull, however big it is;
+<kbd>F</kbd> does the same for whatever is selected, and at the scenario level it
+frames the whole document.
 
 Keys are verbs only while nothing else has the keyboard. With the parts gallery
 up, the arrow keys move its grid and <kbd>Esc</kbd> closes the gallery rather
 than backing out of the ship; with the caret in a text field, every key is a
 character; and while a rebind waits for a key, it takes all of them except
-<kbd>Esc</kbd>. <kbd>Ctrl</kbd>+<kbd>S</kbd> answers under all of that except a
-field and a pending rebind.
+<kbd>Esc</kbd>. A block's pop-up in the editor stops the verbs too, and
+<kbd>Ctrl</kbd>+<kbd>Z</kbd> closes it before it undoes.
+<kbd>Ctrl</kbd>+<kbd>S</kbd> answers under all of that except a field and a
+pending rebind.
 
 <table class="controls">
     <tr>
         <td>Fly the stage camera</td>
         <td>
-            <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>,
-            <kbd>Space</kbd> / <kbd>Shift</kbd> for up and down,
-            right-drag to look. Hold a direction and it builds speed
+            hold right mouse, then <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd>
+            <kbd>D</kbd>, <kbd>Q</kbd> / <kbd>E</kbd> for down and up,
+            <kbd>Shift</kbd> to sprint, wheel for speed
         </td>
+    </tr>
+    <tr>
+        <td>Orbit the pivot; pan; dolly</td>
+        <td>
+            middle drag or <kbd>Alt</kbd>+left drag;
+            <kbd>Shift</kbd>+middle drag; wheel or <kbd>Alt</kbd>+right drag
+        </td>
+    </tr>
+    <tr>
+        <td>Pick a tool: Select, Move, Turn, Scale</td>
+        <td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> &nbsp;(right mouse up)</td>
+    </tr>
+    <tr>
+        <td>Swap the handles between world and local axes</td>
+        <td><kbd>X</kbd></td>
+    </tr>
+    <tr>
+        <td>Undo; redo</td>
+        <td>
+            <kbd>Ctrl</kbd>+<kbd>Z</kbd>; <kbd>Ctrl</kbd>+<kbd>Y</kbd> or
+            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>
+        </td>
+    </tr>
+    <tr>
+        <td>Copy; paste; duplicate</td>
+        <td><kbd>Ctrl</kbd>+<kbd>C</kbd>; <kbd>Ctrl</kbd>+<kbd>V</kbd>; <kbd>Ctrl</kbd>+<kbd>D</kbd></td>
     </tr>
     <tr>
         <td>Select a node; enter the ship you selected</td>
@@ -463,7 +519,7 @@ field and a pending rebind.
         <td><kbd>Del</kbd> &nbsp;(or <b>Edit &gt; Delete</b>)</td>
     </tr>
     <tr>
-        <td>Save the document</td>
+        <td>Save the mod</td>
         <td><kbd>Ctrl</kbd>+<kbd>S</kbd> &nbsp;(or <b>File &gt; Save</b>)</td>
     </tr>
     <tr>
@@ -500,7 +556,7 @@ field and a pending rebind.
     </tr>
     <tr>
         <td>Pick up the part under the cursor</td>
-        <td><kbd>Q</kbd></td>
+        <td><kbd>P</kbd></td>
     </tr>
     <tr>
         <td>Bind a flight key to the selected part</td>
@@ -519,16 +575,17 @@ field and a pending rebind.
     </tr>
 </table>
 
-<kbd>Esc</kbd> takes one rung per press, in this order: an open top-bar menu,
-the search field, the gallery, a pending rebind, the part in hand, the ship you
-are inside, and finally the pause menu. <kbd>Bksp</kbd> is the shortcut past all
-of that - it leaves the ship from wherever you are, unless a text field has the
+<kbd>Esc</kbd> takes one rung per press, in this order: a block in hand, a row's
+menu, a block's pop-up, an open top-bar menu, the part in hand, the ship you are
+inside, and finally the pause menu. A text field with the caret, the gallery and
+a pending rebind hold the keyboard, so <kbd>Esc</kbd> goes to them first.
+<kbd>Bksp</kbd> is the shortcut past all of that - it leaves the ship from wherever you are, unless a text field has the
 caret, where it deletes a character instead.
 
 ### The build readout
 
-The left rail prints what the hull on the stage would fly like, repainted as you
-place. Five lines, values aligned:
+The Hierarchy prints what the hull on the stage would fly like under its tree,
+repainted as you place. Five lines, values aligned:
 
 | line | what it is |
 | --- | --- |
@@ -541,7 +598,7 @@ place. Five lines, values aligned:
 A hull with nothing on it reads `no parts yet` rather than `-` down the column,
 because nothing has failed - nothing has been built. The numbers are measured
 off the parts as they are POSED, through the same arithmetic the flown ship
-spawns with, so the rail and the hull cannot disagree; a design that mounts its
+spawns with, so the readout and the hull cannot disagree; a design that mounts its
 engine at half health is counted at half health here too.
 
 Under the block sits one line naming the limit that holds `Turn` down, and the
@@ -553,8 +610,8 @@ guessed. See [What sets how hard a ship turns](../sections/controller/).
 
 ### The inspector
 
-The right-hand panel shows the selected node's own fields, read off the thing
-itself rather than from a list the editor keeps - so a part that grows a setting
+The right-hand panel, and a block's pop-up in Events, show the selected node's
+own fields, read off the thing itself rather than from a list the editor keeps - so a part that grows a setting
 grows a row. It opens on the fields that matter for that kind; **View > All
 Fields** shows the rest. A field the editor cannot edit is still listed, greyed,
 rather than hidden.
@@ -574,7 +631,7 @@ is. A typed number below the floor is REFUSED, because typing `-3` into a radius
 is a mistake. A drag that runs out of screen wraps the pointer to the other
 side, so a 0.05-per-pixel field is still reachable on a narrow window.
 
-**Ship Skin**, in the left rail's **Ship Settings** block, dresses the build in
+**Ship Skin**, in the strip's **Ship** tab, dresses the build in
 the cladding the ship would fly with. Nothing places a plate: the skin is derived
 from the structure you have assembled, and it is re-derived as you build -
 including around the part you are still holding, so a hull is dragged about UNDER
@@ -593,7 +650,7 @@ station, and Open reads it back as a marked ship.
 
 ### Generate a hull
 
-**Generate**, in the same left-rail block, rolls a whole hull into the ship you
+**Generate**, in the same tab, rolls a whole hull into the ship you
 are inside. It is a ship verb: a hull is what one ship IS, so what the roll
 produces REPLACES the sections that ship is already holding. That is what makes
 a seed a dial you turn until you like the answer rather than a way to fill a

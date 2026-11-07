@@ -427,6 +427,7 @@ fn bench_row(
         description: "A fixed roster of building block ships for judging the skin".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

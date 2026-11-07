@@ -10,7 +10,7 @@ use bevy::{
 use nova_ui::{
     prelude::{panel, ThemedButton, UiText},
     theme,
-    theme::UiColor,
+    theme::{density, UiColor},
     widget::{
         checkbox, checkbox_glyph, ListRow, ThemedBorder, ThemedFill, ThemedRadius, ThemedText,
     },
@@ -19,8 +19,7 @@ use nova_wfc::prelude::WfcZone;
 
 use crate::{
     config::{
-        PartChoice, PartTick, PartZoneChip, RailTab, RailTabButton, SceneRow, SkinToggleCheckbox,
-        StyleChoice, StyleSwatch,
+        PartChoice, PartTick, PartZoneChip, SceneRow, SkinToggleCheckbox, StyleChoice, StyleSwatch,
     },
     ui::layer,
 };
@@ -38,9 +37,8 @@ pub(crate) fn skin_toggle_row(on: bool) -> impl Bundle {
         Hovered::default(),
         Node {
             width: percent(100),
-            min_height: px(30),
-            margin: UiRect::vertical(px(2)),
-            padding: UiRect::axes(px(10), px(6)),
+            min_height: px(density::CONTROL_H),
+            padding: UiRect::axes(px(density::PANEL_PAD), px(0)),
             border: UiRect::all(px(theme::BORDER_W)),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
@@ -58,7 +56,7 @@ pub(crate) fn skin_toggle_row(on: bool) -> impl Bundle {
                 UiText,
                 Text::new("Ship Skin"),
                 TextFont {
-                    font_size: FontSize::Px(13.0),
+                    font_size: FontSize::Px(density::TEXT),
                     ..default()
                 },
                 TextColor(Color::NONE),
@@ -93,7 +91,9 @@ pub(crate) fn style_row(id: &str, name: &str, colour: Color) -> impl Bundle {
         Button,
         Hovered::default(),
         Node {
-            width: percent(100),
+            flex_basis: percent(48),
+            flex_grow: 1.0,
+            min_width: px(0),
             min_height: px(22),
             margin: UiRect::bottom(px(2)),
             padding: UiRect::axes(px(6), px(2)),
@@ -282,173 +282,10 @@ pub(crate) fn next_zone(zone: Option<WfcZone>) -> Option<WfcZone> {
 /// padding, which is what keeps the list as short as it was without one.
 const STYLE_SWATCH: f32 = 12.0;
 
-/// A root row's left padding, matching the other rails rows' `10px`-ish inset.
-const INDENT_BASE: f32 = 8.0;
-/// What one level of nesting is worth. Wide enough to read as a step, narrow
-/// enough that a section (depth 2) still shows most of its id.
-const INDENT_STEP: f32 = 9.0;
-
 /// Row type size (px). One step under the panel type: the rail is a tree of
 /// minted ids in 150px, and every point of size is a character of id the row
 /// can show before it clips.
 const ROW_TEXT: f32 = 11.0;
-
-/// One tab of the tree header: the half of the document it switches to.
-///
-/// A `ListRow` like the rows under it, so the shared reconciler paints the
-/// active tab and its hover out of the same table the tree uses - the tab and
-/// the row it reveals then cannot disagree about what "marked" looks like.
-/// Wider than tall and side by side, which is what says these two are one
-/// choice rather than two more things in the column.
-pub(crate) fn rail_tab(tab: RailTab, label: &str) -> impl Bundle {
-    (
-        ListRow,
-        RailTabButton(tab),
-        Button,
-        Hovered::default(),
-        Node {
-            flex_grow: 1.0,
-            flex_basis: px(0),
-            min_width: px(0),
-            min_height: px(22),
-            padding: UiRect::axes(px(4), px(2)),
-            border: UiRect::all(px(theme::BORDER_W)),
-            align_items: AlignItems::Center,
-            justify_content: JustifyContent::Center,
-            overflow: Overflow::clip(),
-            ..default()
-        },
-        ThemedRadius::control(),
-        BorderColor::all(Color::NONE),
-        BackgroundColor(Color::NONE),
-        children![(
-            UiText,
-            Text::new(label.to_uppercase()),
-            TextLayout {
-                linebreak: LineBreak::NoWrap,
-                ..default()
-            },
-            TextFont {
-                font_size: FontSize::Px(11.0),
-                ..default()
-            },
-            TextColor(Color::NONE),
-            ThemedText::new(UiColor::Primary),
-        )],
-    )
-}
-
-/// The strip the two tabs sit in, in place of the block's header.
-pub(crate) fn rail_tab_strip() -> Node {
-    Node {
-        width: percent(100),
-        margin: UiRect::bottom(px(8)),
-        column_gap: px(4),
-        flex_direction: FlexDirection::Row,
-        align_items: AlignItems::Stretch,
-        ..default()
-    }
-}
-
-/// One row of the Scene tree: the scenario root, a ship, or a section of the
-/// entered ship.
-///
-/// The same `ListRow` shape the look rows use, so the shared reconciler paints
-/// the selection and the hover and this module owns no colour. `lead` is the
-/// glyph in front of the label - one muted text node instead of an icon asset,
-/// which is also what keeps the tree in the terminal look the rest of the
-/// screen wears.
-///
-/// `depth` is spent on the row's LEFT PADDING rather than on drawn connectors.
-/// Indentation is what the eye reads a tree by, and it costs no width in a
-/// 150px rail: `|- ` in front of every child ate 18px of the label on every
-/// row, and a minted id is exactly the thing that then ran out of room.
-pub(crate) fn scene_row(depth: usize, lead: &str, label: &str, trail: &str) -> impl Bundle {
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "tree depth is single digits, not a precision question"
-    )]
-    let indent = px(INDENT_BASE + INDENT_STEP * depth as f32);
-    // A minted id can outgrow the 150px rail. NoWrap + clip keeps every row
-    // one line tall - a wrapped lead column stacked its glyphs vertically and
-    // the tree stopped reading as a tree.
-    let one_line = TextLayout {
-        linebreak: LineBreak::NoWrap,
-        ..default()
-    };
-    let row_font = TextFont {
-        font_size: FontSize::Px(ROW_TEXT),
-        ..default()
-    };
-    (
-        ListRow,
-        Button,
-        Hovered::default(),
-        Node {
-            width: percent(100),
-            min_height: px(22),
-            margin: UiRect::bottom(px(2)),
-            padding: UiRect {
-                left: indent,
-                right: px(6),
-                top: px(2),
-                bottom: px(2),
-            },
-            border: UiRect::all(px(theme::BORDER_W)),
-            align_items: AlignItems::Center,
-            column_gap: px(6),
-            overflow: Overflow::clip(),
-            ..default()
-        },
-        ThemedRadius::control(),
-        BorderColor::all(Color::NONE),
-        BackgroundColor(Color::NONE),
-        children![
-            (
-                // `UiText`, like every span in the row: the marks are line art
-                // that only the shipped face has, and the engine's built-in
-                // font draws a missing glyph as an empty box.
-                UiText,
-                Text::new(lead.to_string()),
-                one_line,
-                row_font.clone(),
-                TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
-            ),
-            // The label is the half that may clip, so it sits in the shrinking
-            // column: `flex_basis` 0 plus `min_width` 0 is what lets a long id
-            // give its width back instead of pushing the trail out of the row.
-            (
-                Node {
-                    flex_grow: 1.0,
-                    flex_basis: px(0),
-                    min_width: px(0),
-                    overflow: Overflow::clip(),
-                    ..default()
-                },
-                children![(
-                    UiText,
-                    Text::new(label.to_string()),
-                    one_line,
-                    row_font.clone(),
-                    TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Primary),
-                )],
-            ),
-            // Which one this is. Fixed at the row's right edge, because it is
-            // the only thing telling a run of same-part rows apart.
-            (
-                UiText,
-                Text::new(trail.to_string()),
-                one_line,
-                row_font,
-                TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
-            ),
-            row_trash(),
-        ],
-    )
-}
 
 /// The row's own delete, revealed by hover or by selection.
 ///
@@ -456,7 +293,7 @@ pub(crate) fn scene_row(depth: usize, lead: &str, label: &str, trail: &str) -> i
 /// that already lists everything the document holds. Hidden until the row is
 /// under the pointer or marked, so a 150px rail is not fifteen delete buttons
 /// waiting to be misclicked.
-fn row_trash() -> impl Bundle {
+pub(crate) fn row_trash() -> impl Bundle {
     (
         SceneRowTrash,
         Button,
@@ -495,6 +332,10 @@ pub(crate) struct SceneRowHint {
     pub(crate) kind: String,
     /// The node's whole id.
     pub(crate) id: String,
+    /// Which way the row's caret points. `None` on a leaf.
+    pub(crate) open: Option<bool>,
+    /// The mark the row wears, which the Inspector header repeats.
+    pub(crate) lead: String,
 }
 
 /// The one hint panel, parked off-screen until a row is hovered.
@@ -629,6 +470,8 @@ mod tests {
             SceneRowHint {
                 kind: "BEACON".to_string(),
                 id: "beacon_home".to_string(),
+                open: None,
+                lead: String::new(),
             },
             Hovered(hovered),
             ComputedNode {

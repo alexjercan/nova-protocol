@@ -13,16 +13,27 @@ use nova_ship::prelude::{GalleryState, GameSections, HeldPart};
 use nova_ui::prelude::TextFieldFocused;
 
 use crate::{
-    config::{EditorStatus, HoveredNode, PlacementPreview, SelectedNode},
+    asset::{AssetPartType, SocketNode},
+    camera::{CameraGestureType, EditorRig},
+    config::{EditorStatus, HoveredNode, PlacementPreview, RailTab, SceneRow, SelectedNode},
+    event::ScriptNodes,
     frame::CameraFraming,
     gizmo::GizmoRig,
+    history::EditHistory,
     inspect::framed_step,
     node::{
-        context_nodes, inside_id, sections_of, EditContext, ObjectNodes, SectionNodes, ShipNodes,
+        context_nodes, inside_id, sections_of, EditContext, NodeId, ObjectNodes, SectionNodes,
+        ShipNodes,
     },
+    problems::Problems,
+    tool::{GizmoSpaceType, StageTool, StageToolType},
     ui::{
+        assets::AssetList,
+        browser::BrowserTabType,
+        canvas::{CanvasBoard, CanvasDrag, CanvasView},
         inspector::{Document, InspectorField},
         menu::OpenMenu,
+        shell::EditorPanels,
     },
     ExampleStates,
 };
@@ -93,6 +104,18 @@ pub struct EditorSection {
 pub struct EditorProbe {
     /// Which placement tool is armed.
     pub tool: EditorTool,
+    /// Whether Undo has a step to take.
+    pub can_undo: bool,
+    /// Whether Redo has a step to take.
+    pub can_redo: bool,
+    /// How many steps Undo can take.
+    pub history_depth: usize,
+    /// Whether the document differs from what is on disk.
+    pub dirty: bool,
+    /// The step Undo would take.
+    pub next_undo: Option<String>,
+    /// The step Redo would take.
+    pub next_redo: Option<String>,
     /// What a click would build right now.
     pub placement: EditorPlacement,
     /// Whether the parts gallery overlay is up.
@@ -131,6 +154,16 @@ pub struct EditorProbe {
     pub context_nodes: Vec<String>,
     /// The id of the node the Scene tree has marked, or `None`.
     pub selected_node: Option<String>,
+    /// Every selected node by id, the primary last.
+    pub selected_nodes: Vec<String>,
+    /// The tool the viewport holds.
+    pub stage_tool: StageToolType,
+    /// Which axes the handles use.
+    pub gizmo_space: GizmoSpaceType,
+    /// What the camera is doing.
+    pub camera_gesture: CameraGestureType,
+    /// The fly speed the dial is set to, in m/s.
+    pub fly_speed: f32,
     /// The id of the node the pointer is resting on, or `None`.
     ///
     /// One answer for both surfaces: the rail and the stage feed the same
@@ -199,6 +232,93 @@ pub struct EditorProbe {
     /// inside a ship, under an armed part, behind the gallery - so this is
     /// also the answer to "can I drag an axis right now".
     pub gizmo_node: Option<String>,
+    /// What the fixed panels show.
+    pub shell: ShellProbe,
+}
+
+/// The panels' outward state.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ShellProbe {
+    /// Whether the Hierarchy is shown.
+    pub hierarchy: bool,
+    /// Whether the Inspector is shown.
+    pub inspector: bool,
+    /// Whether the browser strip is open.
+    pub browser: bool,
+    /// The open browser tab's word.
+    pub browser_tab: String,
+    /// The Hierarchy tab's word: `Scene` or `Events`.
+    pub rail_tab: String,
+    /// How many blocks the script canvas draws.
+    pub blocks: usize,
+    /// What the canvas has in hand.
+    pub dragged: Option<String>,
+    /// How many blocks wear a fault mark.
+    pub block_faults: usize,
+    /// The id of the marked script node.
+    pub selected_block: Option<String>,
+    /// The script canvas's zoom, in percent of its authored size.
+    pub canvas_zoom: u32,
+    /// How many errors the Problems tab lists.
+    pub errors: usize,
+    /// How many warnings the Problems tab lists.
+    pub warnings: usize,
+    /// How many rows the tree shows.
+    pub tree_rows: usize,
+    /// How many rows the Assets tab shows.
+    pub asset_rows: usize,
+}
+
+/// Refresh [`EditorProbe::shell`], after [`sync_editor_probe`] wrote the rest.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one read per panel; the probe is the one place they meet"
+)]
+pub(crate) fn sync_shell_probe(
+    editor: Res<State<ExampleStates>>,
+    panels: Res<EditorPanels>,
+    tab: Res<BrowserTabType>,
+    rail: Res<RailTab>,
+    problems: Res<Problems>,
+    board: Res<CanvasBoard>,
+    drag: Res<CanvasDrag>,
+    selected: Res<SelectedNode>,
+    script: ScriptNodes,
+    rows: Query<(), With<SceneRow>>,
+    assets: Query<&Children, With<AssetList>>,
+    view: Res<CanvasView>,
+    mut probe: ResMut<EditorProbe>,
+) {
+    if *editor.get() != ExampleStates::Editor {
+        if probe.shell != ShellProbe::default() {
+            probe.shell = ShellProbe::default();
+        }
+        return;
+    }
+    let (errors, warnings) = problems.counts();
+    let shell = ShellProbe {
+        hierarchy: panels.hierarchy,
+        inspector: panels.inspector,
+        browser: panels.browser,
+        browser_tab: tab.label().to_string(),
+        rail_tab: if rail.is_events() { "Events" } else { "Scene" }.to_string(),
+        blocks: board.blocks,
+        dragged: drag.held_name(),
+        block_faults: board.faults.len(),
+        canvas_zoom: (view.zoom * 100.0).round() as u32,
+        selected_block: selected
+            .primary()
+            .filter(|node| script.holds(*node))
+            .and_then(|node| script.id(node))
+            .map(str::to_string),
+        errors,
+        warnings,
+        tree_rows: rows.iter().count(),
+        asset_rows: assets.iter().map(|rows| rows.len()).sum(),
+    };
+    if probe.shell != shell {
+        probe.shell = shell;
+    }
 }
 
 /// Refresh [`EditorProbe`] from the build state.
@@ -217,27 +337,34 @@ pub(crate) fn sync_editor_probe(
     marks: (Res<SelectedNode>, Res<HoveredNode>),
     // Tupled for the same reason as `chrome` below: Bevy caps a system at 16
     // params, and these two are one thing - what the chrome is saying.
-    readouts: (Res<EditorStatus>, Res<OpenMenu>),
+    readouts: (Res<EditorStatus>, Res<OpenMenu>, Res<EditHistory>),
     nodes: SectionNodes,
     q_ships: ShipNodes,
     q_objects: ObjectNodes,
     q_visibility: Query<&Visibility>,
-    // Tupled for the arity cap: both say where the stage stands, one node by
-    // node and one as the reach the panel scales its distance drags by.
-    stage: (Query<&Transform>, Res<CameraFraming>),
+    // Tupled for the arity cap: these say where the stage stands, node by node,
+    // as the reach the panel scales its distance drags by, and by the bench's
+    // nodes, which no context list holds.
+    stage: (
+        Query<&Transform>,
+        Res<CameraFraming>,
+        Query<&NodeId, Or<(With<SocketNode>, With<AssetPartType>)>>,
+    ),
     document: Document,
     // Tupled with the caret for the same reason as `feedback` above.
     chrome: (
         Query<(), (With<TextFieldFocused>, With<InspectorField>)>,
         Query<&Visibility, With<GizmoRig>>,
+        Res<StageTool>,
+        Query<&EditorRig>,
     ),
     mut probe: ResMut<EditorProbe>,
 ) {
-    let (poses, framing) = &stage;
+    let (poses, framing, bench_ids) = &stage;
     let (selected, hovered) = &marks;
-    let (status, open_menu) = &readouts;
-    let (caret, rig) = &chrome;
-    let wanted = if *editor.get() == ExampleStates::Editor {
+    let (status, open_menu, history) = &readouts;
+    let (caret, rig, tool, camera_rig) = &chrome;
+    let mut wanted = if *editor.get() == ExampleStates::Editor {
         let mut snapshot = snapshot(&choice, &preview, &gallery, sections.as_deref());
         let listed = context_nodes(&context, &q_ships, &q_objects, &nodes);
         snapshot.ship = edited_ship(&context, &nodes);
@@ -252,9 +379,26 @@ pub(crate) fn sync_editor_probe(
                     .iter()
                     .find(|listed| listed.entity == node)
                     .map(|listed| listed.id.0.clone())
+                    .or_else(|| bench_ids.get(node).ok().map(|id| id.0.clone()))
             })
         };
-        snapshot.selected_node = id_of(selected.0);
+        snapshot.can_undo = history.can_undo();
+        snapshot.can_redo = history.can_redo();
+        snapshot.history_depth = history.depth();
+        snapshot.dirty = history.dirty();
+        snapshot.next_undo = history.undo_label().map(str::to_string);
+        snapshot.next_redo = history.redo_label().map(str::to_string);
+        snapshot.selected_node = id_of(selected.primary());
+        snapshot.selected_nodes = selected
+            .iter()
+            .filter_map(|node| id_of(Some(node)))
+            .collect();
+        snapshot.stage_tool = tool.tool;
+        snapshot.gizmo_space = tool.space;
+        if let Some(camera_rig) = camera_rig.iter().next() {
+            snapshot.camera_gesture = camera_rig.gesture;
+            snapshot.fly_speed = camera_rig.fly_speed().get();
+        }
         snapshot.hovered_node = id_of(hovered.0);
         // The same rule `continue_to_simulation` enforces, reported rather than
         // re-derived from the button's paint - a driven run asserts what Play
@@ -319,6 +463,8 @@ pub(crate) fn sync_editor_probe(
     };
     // Compared rather than written: an identical snapshot rewritten every frame
     // would make this resource's change detection say nothing.
+    // The shell's half is `sync_shell_probe`'s.
+    wanted.shell.clone_from(&probe.shell);
     if *probe != wanted {
         *probe = wanted;
     }
@@ -387,11 +533,22 @@ fn snapshot(
             .flatten(),
         // Filled in by the caller, which has the document; this half of the
         // snapshot is a pure function of the tool and the gallery.
+        can_undo: false,
+        can_redo: false,
+        history_depth: 0,
+        dirty: false,
+        next_undo: None,
+        next_redo: None,
         ship: Vec::new(),
         inside: None,
         inside_origin: None,
         context_nodes: Vec::new(),
         selected_node: None,
+        selected_nodes: Vec::new(),
+        stage_tool: StageToolType::default(),
+        gizmo_space: GizmoSpaceType::default(),
+        camera_gesture: CameraGestureType::default(),
+        fly_speed: 0.0,
         hovered_node: None,
         can_play: false,
         visible_ships: Vec::new(),
@@ -403,6 +560,7 @@ fn snapshot(
         inspector: Vec::new(),
         overridden: Vec::new(),
         gizmo_node: None,
+        shell: ShellProbe::default(),
     }
 }
 
@@ -488,6 +646,8 @@ mod tests {
         world.init_resource::<EditorStatus>();
         world.init_resource::<EditorOverlays>();
         world.init_resource::<OpenMenu>();
+        world.init_resource::<EditHistory>();
+        world.init_resource::<StageTool>();
         world
             .run_system_once(sync_editor_probe)
             .expect("the probe sync runs");
@@ -584,7 +744,7 @@ mod tests {
             ))
             .id();
         world.resource_mut::<EditContext>().path = vec![Entity::PLACEHOLDER, ship];
-        world.resource_mut::<SelectedNode>().0 = Some(section);
+        world.resource_mut::<SelectedNode>().set(Some(section));
 
         let inherited = sync(&mut world);
         assert!(
@@ -681,7 +841,7 @@ mod tests {
                 ChildOf(scenario),
             ))
             .id();
-        world.resource_mut::<SelectedNode>().0 = Some(rock);
+        world.resource_mut::<SelectedNode>().set(Some(rock));
 
         let rows = sync(&mut world).inspector;
         assert_eq!(
@@ -830,7 +990,7 @@ mod tests {
             ))
             .id();
 
-        world.resource_mut::<SelectedNode>().0 = Some(ship);
+        world.resource_mut::<SelectedNode>().set(Some(ship));
         assert_eq!(sync(&mut world).selected_node, Some("ship_1".to_string()));
 
         // Inside the ship, the ship itself is not a row - so there is nothing
@@ -980,7 +1140,9 @@ mod tests {
         app.init_resource::<EditorStatus>();
         app.init_resource::<EditorOverlays>();
         app.init_resource::<OpenMenu>();
+        app.init_resource::<EditHistory>();
         app.init_resource::<EditorProbe>();
+        app.init_resource::<StageTool>();
         app.insert_resource(CameraFraming::on(Vec3::ZERO, RIG_EYE));
         app.add_systems(
             Update,

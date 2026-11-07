@@ -16,7 +16,7 @@ Under it sits a **field note** - one short fact taken from the handbook, with **
 - **Continue** - desktop build only, once a save stands: heads the menu, names the newest saved world and how long ago it was saved, and opens it as **Load** would.
 - **New Game** - opens the world setup in two steps. The first step takes a name for the world (desktop build only) and a seed (a fresh one each time, or type your own), with **Randomize**, **Next** and **Cancel**. Under the seed a 3D chart shows the seed's sectors round your starting station before the world exists: right-drag turns it, the wheel zooms. The second step lists the start roles: select one to see how it plays, its hull turning in 3D, its hull's card (name, length, sections, weapons, drives), its kit of credits and cargo, its milestone (the role's goal) and its story, then press **Create**, or **Back** to change the seed. The name opens on **New World**, or the next free **New World 2**, **New World 3**, ... when that world exists. **Create** puts you in the role's ship, docked at your **starting station** - the nearest station of a civilization that begins as your Ally - in an open world of sparse asteroid clusters, planetoids and [generated ships](../ships/#generated-ships), generated from the seed and streamed in around you as you fly. Press <kbd>Tab</kbd> for the [interface](../interface/): its **Jobs** tab lists the station's board and its **Station** tab what the station sells, while you sit there. A fresh world posts one objective, **Take a job**, with the interface key under it; the chip stays up until your first accepted job clears it, and nothing waits on it. A seed whose nearby civilizations keep no allied station is refused on the seed field, so pick another. The role's charter, one finite milestone and not an ending, stands in the Map's chart view as you play; see [the Map](../interface/#the-map). The same seed gives the same world on the same build. On the desktop build the world saves itself as you play, and the pause menu's Retry becomes **Load last save**; see [Saved worlds](#saved-worlds) below. The web build keeps no saved worlds.
 - **Load** - desktop build only: lists your saved world folders and resumes the one you pick, or shows why it cannot. Each row reads the world's name and start role, its play time, how long ago it was saved and how many objectives stand open. The details draw the save's chart in 3D, then its **FLEET** - the ship you fly, and the owned ships, escorts and owned stations when it has any - and its open objectives: each held job, then your start role's goal with its next unmet milestone only, not every milestone line. **Delete** removes the one you pick after you confirm.
-- **Sandbox** - opens the ship editor so you can build a ship and test-fly it in a practice scenario.
+- **Sandbox** - opens the Mod Hub. Create or open a mod, build ships and scenarios in it, and test-fly them.
 - **Lessons** - opens the training handbook. Its first row, **Basic Training**, starts the first-flight course. Under it is one screen per topic, with a demonstration, the actions it uses under your own bindings, a link into this manual, and often a focused range to fly. The handbook keeps track of what you have done: a lesson you open is marked **read**, and one is marked **done** only when you win a scenario that teaches it - finishing Basic Training or the topic's own practice range. Both are kept between sessions, in their own file beside your settings.
 - **Scenarios** - opens the complete scenario picker, every scenario your enabled mods ship included.
 - **Mods** - opens the installed-mod and online-catalog browser. A mod whose content will not load or fails its checks is switched off for you and named in one **MODS DISABLED** notice on the front door; its files stay installed, so you can update, remove or switch it back on from this screen.
@@ -146,7 +146,7 @@ You open on the Fleet gunnery range in an exterior shot of **Trainer Seven**, an
 
 (Tap <kbd>Ctrl</kbd> to clear a lock at any time.)
 
-## The sandbox
+## The free-flight range
 
 <figure class="figure">
     <!-- Capture: assets/wiki-sandbox-range.png -->
@@ -158,7 +158,7 @@ You open on the Fleet gunnery range in an exterior shot of **Trainer Seven**, an
     <figcaption class="figure__caption">The sandbox range: nothing to win, nothing to lose but the ship.</figcaption>
 </figure>
 
-**Sandbox** opens the ship editor. Build a hull, press **Play**, and you launch into a free-flight range with nothing to win and nothing to lose but the ship:
+**Sandbox** opens the Mod Hub. Press **New**, name a mod, keep the **Free-Flight Range** template and press **Create**. Build a hull, press **Play**, and you launch into a range with nothing to win and nothing to lose but the ship:
 
 - **Rock belts**: a shallow one off to starboard, and a deeper wall of bigger rocks straight ahead.
 - **Target hulks** off to port - inert bare-hull wrecks that never shoot back. Practice fire.

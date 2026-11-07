@@ -278,6 +278,7 @@ pub fn ambush_hollow(
         description: "A rock hollow, and the ambush waiting in it.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -358,6 +359,7 @@ pub fn ordnance_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Sce
         description: "The rock hollow with only the ordnance cast in it.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -487,6 +489,7 @@ pub fn torpedo_types_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -
         description: "The rock hollow with one boat of each torpedo in it.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -566,6 +569,7 @@ pub fn solo_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Scenari
         description: "The rock hollow with one ship in it.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -629,6 +633,7 @@ pub fn duel_hollow(
         description: "The rock hollow with one armed ship and one target in it.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -783,6 +788,7 @@ pub fn hunter_hollow(
         description: "The rock hollow with one hostile flying its engage maneuver.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],
@@ -930,6 +936,7 @@ pub fn flight_hollow(game_assets: &GameAssets, ships: &GameShipDesigns) -> Scena
         description: "The rock hollow with one ship flying in it.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

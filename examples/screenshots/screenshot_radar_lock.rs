@@ -140,6 +140,7 @@ fn nav_approach(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioCo
         description: "A corvette latching a nav beacon downrange.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

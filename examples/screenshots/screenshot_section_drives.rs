@@ -191,6 +191,7 @@ fn drive_bench(game_assets: &GameAssets, sections: &GameSections) -> ScenarioCon
         description: "The shipped drive family on one bench for the wiki shots.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

@@ -223,7 +223,11 @@ pub(crate) fn rebuild_gallery(
                     ThemedText::new(UiColor::Primary),
                 ));
 
-                for category in GalleryCategory::ROW {
+                let own = listing.is_some_and(|listing| listing.0.iter().any(|entry| entry.own));
+                for category in GalleryCategory::ROW
+                    .into_iter()
+                    .chain(own.then_some(GalleryCategory::Mod))
+                {
                     header
                         .spawn((Node {
                             width: px(if matches!(category, GalleryCategory::All) {
@@ -924,7 +928,8 @@ fn focus_body(
                         ));
                     }
                 });
-                if let Some(entry) = entry.filter(|entry| entry.placeable) {
+                if let Some(entry) = entry.filter(|entry| entry.placeable && !entry.note.is_empty())
+                {
                     card.spawn((
                         Name::new("Gallery Note"),
                         UiText,

@@ -13,10 +13,7 @@
 use nova_scenario::prelude::{ScenarioObjectKind, SpaceshipController};
 use nova_ship::prelude::{GalleryCategory, GameSections, SectionKind};
 
-use crate::{
-    event::ScriptAdd,
-    node::{ObjectChoice, ObjectNode, SectionNode, ShipDriver, ShipNode},
-};
+use crate::node::{ObjectChoice, ObjectNode, SectionNode, ShipDriver, ShipNode};
 
 /// The document root. TRIGRAM FOR HEAVEN - a stack of rules, which is what a
 /// scenario is.
@@ -62,7 +59,13 @@ pub(crate) fn section_mark(
     section: &SectionNode,
     catalog: Option<&GameSections>,
 ) -> (&'static str, &'static str) {
-    match section.resolve(catalog).map(|config| &config.kind) {
+    kind_mark(section.resolve(catalog).map(|config| &config.kind))
+}
+
+/// The mark and word of a section kind. `None` is a part the catalog does not
+/// resolve.
+pub(crate) fn kind_mark(kind: Option<&SectionKind>) -> (&'static str, &'static str) {
+    match kind {
         // WHITE RECTANGLE - a plate.
         Some(SectionKind::Hull(_)) => ("\u{25ad}", "HULL"),
         // SQUARE WITH ORTHOGONAL CROSSHATCH FILL - a board.
@@ -126,24 +129,34 @@ fn spaceship_mark(controller: &SpaceshipController) -> (&'static str, &'static s
     }
 }
 
-/// A handler in the script. DOWNWARDS ZIGZAG ARROW - something arrived and
-/// this is what caught it.
-pub(crate) const HANDLER: &str = "\u{21af}";
-/// A filter: the handler's way of declining. WHITE DOWN-POINTING TRIANGLE - a
-/// funnel, which is what a filter is.
-pub(crate) const FILTER: &str = "\u{25bd}";
-/// A boolean over other filters. WHITE DOWN-POINTING SMALL TRIANGLE - the
-/// funnel mark, one size down, because this row is funnels all the way in.
-pub(crate) const COMBINATOR: &str = "\u{25bf}";
-/// An action the handler runs. RIGHTWARDS ARROW - a thing that happens.
-pub(crate) const ACTION: &str = "\u{2192}";
-/// A sequence. RIGHTWARDS DOUBLE ARROW - the action mark, doubled: not one
-/// thing happening but a chain of them.
-pub(crate) const SEQUENCE: &str = "\u{21d2}";
-/// One beat of a sequence. BULLET.
-pub(crate) const STEP: &str = "\u{2022}";
-/// The event a step waits for. BOX DRAWINGS DOUBLE VERTICAL - a shut gate.
-pub(crate) const GATE: &str = "\u{2551}";
+/// The mark an asset tile wears for its kind, where it has no picture.
+pub(crate) fn asset_mark(kind: &str) -> &'static str {
+    match kind {
+        "scenario" => SCENARIO,
+        // BLACK RIGHT-POINTING TRIANGLE - a ship seen from above.
+        "ship" => "\u{25b6}",
+        // WHITE HEXAGON - a station's ring.
+        "station" => "\u{2b21}",
+        "section" => "\u{25ad}",
+        // DOUBLE VERTICAL LINE - chapters bound together.
+        "campaign" => "\u{2016}",
+        // BLACK DIAMOND - a swatch.
+        "style" => "\u{25c6}",
+        // SQUARE WITH ORTHOGONAL CROSSHATCH FILL - a page of lines.
+        "lesson" => "\u{25a6}",
+        // FISHEYE - a lens over the screen.
+        "ui theme" => "\u{25c9}",
+        // WHITE SQUARE CONTAINING BLACK SMALL SQUARE - a crate.
+        "item" => "\u{25a3}",
+        // BULLSEYE - where a career starts.
+        "start role" => "\u{25ce}",
+        // BLACK UP-POINTING TRIANGLE - a figure on a ledger.
+        "price table" => "\u{25b2}",
+        // POSITION INDICATOR - a trade route's mark.
+        "trade profile" => "\u{2316}",
+        _ => "\u{25a1}",
+    }
+}
 
 /// The mark the Add row that CREATES an object wears.
 ///
@@ -170,19 +183,6 @@ pub(crate) const OPEN: &str = "\u{25be}";
 /// the same caret, turned: press it and it points down.
 pub(crate) const SHUT: &str = "\u{25b8}";
 
-/// The mark an Add row of the script palette wears: the same glyph the node it
-/// makes will wear in the tree.
-pub(crate) fn script_mark(add: ScriptAdd) -> &'static str {
-    match add {
-        ScriptAdd::Handler => HANDLER,
-        ScriptAdd::Filter => FILTER,
-        ScriptAdd::Action => ACTION,
-        ScriptAdd::Sequence => SEQUENCE,
-        ScriptAdd::Step => STEP,
-        ScriptAdd::Gate => GATE,
-    }
-}
-
 /// The mark an Add row that opens the parts gallery wears: the section kind
 /// that category holds.
 pub(crate) fn category_mark(category: GalleryCategory) -> &'static str {
@@ -194,6 +194,7 @@ pub(crate) fn category_mark(category: GalleryCategory) -> &'static str {
         GalleryCategory::Weapons => "\u{2316}",
         GalleryCategory::Ordnance => "\u{25c6}",
         GalleryCategory::Docking => "\u{25ce}",
+        GalleryCategory::Mod => "\u{2605}",
     }
 }
 

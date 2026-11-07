@@ -202,6 +202,7 @@ fn planet_stage(game_assets: &GameAssets) -> ScenarioConfig {
         description: "Planet Types - seeded planet surfaces beside today's planetoid".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

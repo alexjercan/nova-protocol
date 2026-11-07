@@ -411,6 +411,7 @@ fn range(game_assets: &GameAssets, sections: &GameSections) -> ScenarioConfig {
         description: "A test range for radar line of sight.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

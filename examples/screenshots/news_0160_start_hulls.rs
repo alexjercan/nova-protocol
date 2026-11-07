@@ -205,6 +205,7 @@ fn load_grid(
         description: "Every start role's hull at one scale under one light.".to_string(),
         events: vec![ScenarioEventConfig {
             label: None,
+            position: None,
             name: EventConfig::OnStart,
             once: false,
             filters: vec![],

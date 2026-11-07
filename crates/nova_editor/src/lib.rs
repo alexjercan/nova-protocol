@@ -2,17 +2,22 @@
 //! hand it off to a scenario simulation.
 //!
 //! TWO MODES, on one screen: SCENE lays the range out on a stage with the
-//! Inspector docked beside it, and EVENTS gives the whole window to the script.
-//! The tabs above the rail switch between them (`ui::sync_editor_mode`), because
-//! the panel widths only exist to keep the stage's centre clickable - and there
-//! is no stage to click in the half of the document that is a script.
+//! Inspector beside it, and EVENTS gives the stage's room to the script. The
+//! tabs above the Hierarchy switch between them (`ui::shell::sync_panels`),
+//! because there is no stage to click in the half of the document that is a
+//! script.
 //!
 //! Structure:
 //! - `readout`   - what the hull under construction weighs, pushes and turns like
 //! - `node`      - the document: the node tree and the edit context
+//! - `history`   - undo and redo: labelled snapshots of the document, and the dirty mark
 //! - `inspect`   - the reflected fields of the inspected node, and their write-back
+//! - `camera`    - the viewport rig: fly, orbit, dolly, pan
 //! - `frame`     - putting the camera on a node, on demand
-//! - `gizmo`     - the handles that move and turn the selected node
+//! - `tool`      - which tool the viewport holds, and the snap steps
+//! - `gizmo`     - the handles that move, turn and size the selection
+//! - `selection` - a press on nothing, the selection box, select all
+//! - `clipboard` - duplicate, copy and paste
 //! - `glyph`     - one mark per kind, wherever a kind is drawn
 //! - `config`    - the placement state + screen furniture
 //! - `preview`   - the one place a section or object config becomes preview entities
@@ -36,7 +41,7 @@
 
 use bevy::{
     gizmos::GizmoPlugin,
-    input::mouse::MouseWheel,
+    input::mouse::{AccumulatedMouseMotion, MouseWheel},
     prelude::*,
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
@@ -44,12 +49,15 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::{gallery_open, GalleryState, HeldPart, PartsGallerySystems};
 use nova_ui::prelude::{
-    in_input_mode, in_input_mode_at_most, owns_or_enters, ClaimKeyboard, DoubleClick, InputMode,
-    InputModeSystems, TextFieldSystems,
+    close_popups, in_input_mode, in_input_mode_at_most, owns_or_enters, ClaimKeyboard, DoubleClick,
+    InputMode, InputModeSystems, PopupRoot, TextFieldSystems,
 };
 
+mod asset;
 mod asset_index;
 mod bundle;
+mod camera;
+mod clipboard;
 mod config;
 /// The editor's four cue voices: place, remove, rotate, deny.
 mod cues;
@@ -60,6 +68,7 @@ mod generate;
 mod gizmo;
 mod glyph;
 mod highlight;
+mod history;
 mod inspect;
 mod keybind;
 mod node;
@@ -67,27 +76,36 @@ mod palette;
 mod placement;
 mod preview;
 mod probe;
+mod problems;
+mod project;
 mod readout;
 mod scenario;
+mod selection;
 mod skin;
 mod snap;
 mod stage;
 mod station;
 mod template;
+mod tool;
 mod ui;
 
-use bundle::{apply_file_request, save_key, DocumentSlot, FileRequest, FileWindowRequest};
+use asset::{
+    session::{project_sections_moved, sync_project_sections, ProjectSections},
+    view::{draw_bench_sockets, sync_bench_view, sync_socket_views},
+};
+use bundle::{save_key, FileWindowRequest};
+pub use camera::CameraGestureType;
+use camera::{drive_editor_camera, sync_viewport_pointer};
+use clipboard::{clipboard_keys, EditorClipboard};
 use config::{
     editor_gizmo_config, EditorGizmos, EditorOverlays, EditorStatus, HoveredNode, PlacementPose,
     PlacementPreview, RailTab, SelectedNode,
 };
-use frame::{
-    apply_frame_request, frame_key, hold_camera_above_normal, sync_frame_item, CameraFraming,
-    FrameRequest,
-};
+use frame::{apply_frame_request, frame_key, sync_frame_item, CameraFraming, FrameRequest};
 use generate::{read_seed_field, HullSeed};
 use gizmo::sync_gizmo;
 use highlight::{paint_hovered_rows, sync_hovered_node};
+use history::{history_keys, EditHistory};
 use keybind::{
     apply_section_rebind, hide_section_keybind_labels, position_section_keybind_labels,
     sync_section_keybind_labels, EditorRebind,
@@ -100,37 +118,59 @@ use node::{
 use placement::{
     clear_placement_preview, cycle_placement_pose, delete_key, disarm_outside_ship,
     draw_link_points, draw_ship_heading, found_empty_ship, on_click_spaceship_section,
-    on_stage_drag, on_stage_drag_end, on_stage_drag_start, pick_section_under_pointer,
-    sync_placement_ghost, update_placement_preview, wheel_placement_pose, StageDrag,
+    on_stage_drag, on_stage_drag_end, on_stage_drag_start, on_stage_release,
+    pick_section_under_pointer, sync_placement_ghost, update_placement_preview,
+    wheel_placement_pose, StageDrag,
 };
-use probe::sync_editor_probe;
-pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool};
+use probe::{sync_editor_probe, sync_shell_probe};
+pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool, ShellProbe};
+use problems::{reset_problems, sync_problems, Problems};
+use project::{apply_pending_mods, PendingMods};
 use readout::sync_ship_readout;
 use scenario::setup_scenario;
+use selection::{
+    empty_space_press, select_all, setup_selection_frame, sync_selection_frame, EmptyPress,
+};
 use skin::sync_editor_skin;
 use stage::{draw_axis_rose, draw_node_marks, draw_object_volumes, draw_world_grid};
+use tool::{sync_scale_refusal, tool_keys, StageTool};
+pub use tool::{GizmoSpaceType, StageToolType};
 use ui::{
     a_ship_is_entered,
+    assets::{
+        apply_asset_rename, asset_tile_keys, sync_asset_controls, sync_asset_thumbs, sync_assets,
+        AssetKindFilter, AssetRenaming,
+    },
+    browser::{sync_browser, sync_log, sync_problem_rows, BrowserTabType, StatusLog},
     callout::sync_placement_callout,
-    files::{close_file_window, open_file_window, sync_save_name},
+    canvas::{BlockPopup, CanvasDrag},
+    files::{close_file_window, open_file_window, sync_path_window, sync_save_name},
+    hierarchy::{focus_pending_rename, on_tree_caret, PendingRename},
+    hub::{hub_keys, spawn_hub, sync_hub_form, sync_hub_rows, HubForm},
     inspector::{
         apply_inspector_edits, paint_field_reasons, paint_swatch_hover, sync_inspector,
-        sync_inspector_tooltip, sync_reference_faults,
+        sync_inspector_head, sync_inspector_tooltip, sync_reference_faults, InspectorFolds,
     },
     menu::{
         close_menu_on_item, close_menus, close_open_menu, sync_add_palette, sync_armed_menu,
-        sync_menu_delete, sync_menu_item_paint, sync_menus, sync_scenario_menu, sync_script_menu,
-        sync_ship_menu, sync_view_menu_marks, OpenMenu,
+        sync_history_menu, sync_menu_delete, sync_menu_item_paint, sync_menus, sync_scenario_menu,
+        sync_ship_menu, sync_unsaved_mark, sync_view_menu_marks, OpenMenu,
     },
+    pick::{pick_filter_escape, submit_pick_filter, sync_pick_popups},
     plate::sync_nameplates,
     rail::sync_scene_tooltip,
-    setup_editor_scene, sync_breadcrumb, sync_context_panels, sync_editor_mode, sync_hull_plan,
-    sync_key_legend, sync_part_ticks, sync_part_zones, sync_play_button, sync_rail_tabs,
-    sync_rebind_button, sync_row_trash, sync_scene_list, sync_skin_toggle, sync_status_line,
-    sync_style_list,
+    settings::{apply_settings_fields, sync_settings_window},
+    setup_editor_scene,
+    shell::{
+        panel_keys, sync_panels, sync_ship_step, sync_stage_overlay, sync_toolbar, EditorPanels,
+    },
+    sync_context_panels, sync_editor_title, sync_hull_plan, sync_key_legend, sync_part_ticks,
+    sync_part_zones, sync_play_button, sync_rail_tabs, sync_rebind_button, sync_row_trash,
+    sync_scene_list, sync_skin_toggle, sync_status_line, sync_style_list,
+    thumbnail::{drive_thumbnails, AssetThumbnails},
     window::{
-        close_confirm_window, on_colour_slider, on_destructive_item, sync_choice_windows,
-        sync_colour_windows, sync_ref_windows,
+        ask_about_stopped_leave, close_confirm_window, on_colour_release, on_colour_slider,
+        on_destructive_item, sync_colour_windows,
     },
 };
 
@@ -139,8 +179,8 @@ use ui::{
 /// snapshot into scope.
 pub mod prelude {
     pub use super::{
-        cues::EditorCueSystems, EditorPlacement, EditorProbe, EditorSection, EditorTool,
-        NovaEditorPlugin,
+        cues::EditorCueSystems, CameraGestureType, EditorOpensScratch, EditorPlacement,
+        EditorProbe, EditorSection, EditorTool, GizmoSpaceType, NovaEditorPlugin, StageToolType,
     };
 }
 
@@ -160,9 +200,18 @@ impl Plugin for NovaEditorPlugin {
 pub(crate) enum ExampleStates {
     #[default]
     Loading,
+    /// The Mod Hub: the mods on this machine, before any is open.
+    Hub,
     Editor,
     Scenario,
 }
+
+/// Enter the Sandbox straight into a mod with no id, past the Mod Hub.
+///
+/// A walk or a lesson inserts this to reach a document in one press. Nothing in
+/// the player path sets it, and with it absent the Sandbox opens the hub.
+#[derive(Resource, Debug, Default)]
+pub struct EditorOpensScratch;
 
 fn editor_plugin(app: &mut App) {
     app.init_state::<ExampleStates>();
@@ -186,12 +235,23 @@ fn editor_plugin(app: &mut App) {
     // The one line the editor speaks through - the placement readout and every
     // verb that has something to say both write it. See `EditorStatus`.
     app.init_resource::<EditorStatus>();
-    // Save and open: what the File menu and Ctrl+S ask for, and the one worker
-    // that answers. Editor-only, because a document only exists in there.
-    app.init_resource::<FileRequest>();
-    // Which slot the open document belongs to, and which window is being asked
-    // for. A fresh session has no slot, so its first save is a Save As.
-    app.init_resource::<DocumentSlot>();
+    app.init_resource::<EditHistory>();
+    // Outlives the session: it is applied on the way out of Playing.
+    app.init_resource::<PendingMods>();
+    app.init_resource::<HubForm>();
+    app.init_resource::<DoubleClick<String>>();
+    app.init_resource::<AssetKindFilter>();
+    app.init_resource::<AssetRenaming>();
+    app.init_resource::<AssetThumbnails>();
+    app.add_systems(
+        OnExit(ExampleStates::Editor),
+        |mut thumbnails: ResMut<AssetThumbnails>| thumbnails.stop(),
+    );
+    app.init_resource::<ProjectSections>();
+    // In every state: Play flies the mod's sections, and a merge on the way there
+    // writes a new catalog over them.
+    app.add_systems(Update, sync_project_sections.run_if(project_sections_moved));
+    app.init_resource::<UnsavedWork>();
     app.init_resource::<FileWindowRequest>();
     app.add_systems(
         Update,
@@ -204,11 +264,33 @@ fn editor_plugin(app: &mut App) {
             // word about it. Insert and Bind still take it: `S` is a letter
             // being typed, and the chord is one a rebind may capture.
             save_key.run_if(in_input_mode_at_most(InputMode::Browse)),
-            apply_file_request,
-            // After the request it answers, so a Ctrl+S on a document with no
-            // slot puts the name field up in the same frame it was pressed.
-            open_file_window,
-            sync_save_name,
+            // Under the same gate as the save.
+            history_keys.run_if(in_input_mode_at_most(InputMode::Browse)),
+        )
+            .chain()
+            .run_if(in_state(ExampleStates::Editor)),
+    );
+    // In the hub as well: Import Package asks through the path window.
+    app.add_systems(
+        Update,
+        (open_file_window, sync_save_name, sync_path_window)
+            .chain()
+            .run_if(in_state(ExampleStates::Editor).or_eager(in_state(ExampleStates::Hub))),
+    );
+    app.add_systems(
+        OnEnter(ExampleStates::Hub),
+        (teardown_document, spawn_hub).chain(),
+    );
+    app.add_systems(
+        Update,
+        (sync_hub_rows, sync_hub_form, hub_keys).run_if(in_state(ExampleStates::Hub)),
+    );
+    app.add_systems(
+        Update,
+        (
+            sync_editor_title,
+            apply_settings_fields,
+            sync_settings_window,
         )
             .chain()
             .run_if(in_state(ExampleStates::Editor)),
@@ -228,6 +310,10 @@ fn editor_plugin(app: &mut App) {
     app.init_resource::<OpenMenu>();
     app.add_observer(close_menu_on_item);
     app.add_systems(OnEnter(ExampleStates::Editor), close_menus);
+    // In every state: the ways out of a flown range and of the pause menu must
+    // see the unsaved work too, and the ask starts from any of them.
+    app.add_systems(Update, (sync_unsaved_mark, ask_about_stopped_leave).chain());
+    app.add_observer(on_colour_release);
     // Normally the gameplay plugin's; init'd here too so a menu-less rig (and
     // the tests below) still has one to write.
     app.init_resource::<EscapeOwner>();
@@ -258,6 +344,12 @@ fn editor_plugin(app: &mut App) {
             .run_if(in_input_mode(InputMode::Normal))
             .run_if(in_state(ExampleStates::Editor).and_then(in_state(PauseStates::Unpaused))),
     );
+    app.add_systems(
+        Update,
+        escape_block_popup
+            .run_if(in_input_mode(InputMode::Browse))
+            .run_if(in_state(ExampleStates::Editor).and_then(in_state(PauseStates::Unpaused))),
+    );
 
     // The editor is the Sandbox game. When the main menu fronts the app it hands
     // off to Playing with GameMode set: Sandbox enters the editor, NewGame goes
@@ -270,9 +362,12 @@ fn editor_plugin(app: &mut App) {
     app.add_systems(
         OnEnter(GameStates::Playing),
         (
-            |mode: Res<GameMode>, mut game_state: ResMut<NextState<ExampleStates>>| {
+            |mode: Res<GameMode>,
+             scratch: Option<Res<EditorOpensScratch>>,
+             mut game_state: ResMut<NextState<ExampleStates>>| {
                 game_state.set(match *mode {
-                    GameMode::Sandbox => ExampleStates::Editor,
+                    GameMode::Sandbox if scratch.is_some() => ExampleStates::Editor,
+                    GameMode::Sandbox => ExampleStates::Hub,
                     GameMode::NewGame => ExampleStates::Scenario,
                 });
             },
@@ -292,6 +387,7 @@ fn editor_plugin(app: &mut App) {
                 game_state.set(ExampleStates::Loading);
             },
             teardown_document,
+            apply_pending_mods,
         ),
     );
 
@@ -366,11 +462,48 @@ fn editor_plugin(app: &mut App) {
     // them would go stale silently and freeze the harness's read surface.
     if cfg!(feature = "debug") {
         app.init_resource::<EditorProbe>();
-        app.add_systems(PostUpdate, sync_editor_probe);
+        app.add_systems(PostUpdate, (sync_editor_probe, sync_shell_probe).chain());
     }
+
+    app.init_resource::<EditorPanels>()
+        .init_resource::<BrowserTabType>()
+        .init_resource::<Problems>()
+        .init_resource::<StatusLog>()
+        .init_resource::<InspectorFolds>()
+        .init_resource::<PendingRename>();
+    app.add_observer(on_tree_caret);
+    app.add_systems(OnEnter(ExampleStates::Editor), reset_problems);
+    app.add_systems(OnExit(ExampleStates::Editor), reset_problems);
+    // The shell's readouts. Each writes only on a change, and none of them
+    // feeds the tree or the Inspector, so they need no order among themselves.
+    app.add_systems(
+        Update,
+        (
+            sync_panels,
+            sync_toolbar,
+            sync_ship_step,
+            sync_stage_overlay,
+            sync_browser,
+            (apply_asset_rename, sync_assets, sync_asset_thumbs).chain(),
+            sync_asset_controls,
+            drive_thumbnails,
+            asset_tile_keys.run_if(in_input_mode(InputMode::Normal)),
+            (sync_problems, sync_problem_rows).chain(),
+            sync_log,
+            sync_inspector_head,
+            focus_pending_rename,
+        )
+            .run_if(in_state(ExampleStates::Editor)),
+    );
+    app.add_systems(
+        Update,
+        (sync_bench_view, sync_socket_views, draw_bench_sockets)
+            .run_if(in_state(ExampleStates::Editor)),
+    );
 
     // Button colours, selection highlight, and the component tooltip.
     ui::register(app);
+    ui::canvas::register(app);
     // The parts browser: its own state, overlay and 3D stage.
     gallery::register(app);
     // One click selects, two enter - shared by the Scene tree and the stage so
@@ -453,9 +586,9 @@ fn editor_plugin(app: &mut App) {
                 // off the rows.
                 (
                     sync_menu_delete,
+                    sync_history_menu,
                     sync_ship_menu,
                     sync_scenario_menu,
-                    sync_script_menu,
                     sync_add_palette,
                     sync_armed_menu,
                     sync_frame_item,
@@ -492,7 +625,6 @@ fn editor_plugin(app: &mut App) {
                 // Before the tree and the panel: both are laid out inside the
                 // widths this decides, and a rail that widens a frame after
                 // its rows are built shows one frame of the old crop.
-                sync_editor_mode,
                 sync_scene_list,
                 // After the rows: a hint is positioned from the row it
                 // describes, and a rebuilt list has no laid-out rows yet. The
@@ -512,8 +644,9 @@ fn editor_plugin(app: &mut App) {
                     sync_inspector,
                     (
                         sync_colour_windows,
-                        sync_ref_windows,
-                        sync_choice_windows,
+                        sync_pick_popups,
+                        submit_pick_filter,
+                        pick_filter_escape,
                         sync_reference_faults,
                     ),
                     paint_field_reasons,
@@ -521,7 +654,6 @@ fn editor_plugin(app: &mut App) {
                     .chain(),
                 paint_swatch_hover,
                 sync_context_panels,
-                sync_breadcrumb,
                 sync_rebind_button,
                 sync_play_button,
                 sync_status_line,
@@ -577,21 +709,46 @@ fn editor_plugin(app: &mut App) {
             ),
         )
             .chain()
-            // BEFORE the gallery's keyboard, which shares two keys with the
-            // build view: Q takes a part in both, and Esc backs out of both. The
-            // gallery answers first because it is on top, and running the build
-            // view ahead of it means these read the gallery-open state the
-            // gesture was AIMED at rather than the one it just changed - the
-            // frame Q closes the gallery is not also a frame the pipette fires
-            // on whatever the overlay was covering.
+            // BEFORE the gallery's keyboard, which shares keys with the build
+            // view: Esc backs out of both, and Q takes a tile there and picks a
+            // tool here. The gallery answers first because it is on top, and
+            // running the build view ahead of it means these read the
+            // gallery-open state the gesture was AIMED at rather than the one
+            // it just changed - the frame Q closes the gallery is not also a
+            // frame a build-view key fires on what the overlay was covering.
+            .before(PartsGallerySystems)
+            .run_if(in_state(ExampleStates::Editor).and_then(not(gallery_open))),
+    );
+    app.init_resource::<EmptyPress>();
+    app.init_resource::<EditorClipboard>();
+    app.add_observer(on_stage_release);
+    app.add_systems(OnEnter(ExampleStates::Editor), setup_selection_frame);
+    app.add_systems(
+        OnEnter(ExampleStates::Editor),
+        |mut tool: ResMut<StageTool>| *tool = StageTool::default(),
+    );
+    app.add_systems(
+        Update,
+        (
+            (tool_keys, select_all, clipboard_keys, panel_keys)
+                .run_if(in_input_mode(InputMode::Normal)),
+            sync_scale_refusal,
+            empty_space_press
+                .after(sync_viewport_pointer)
+                .run_if(resource_exists::<ButtonInput<MouseButton>>),
+            sync_selection_frame.after(empty_space_press),
+        )
+            .before(sync_gizmo)
             .before(PartsGallerySystems)
             .run_if(in_state(ExampleStates::Editor).and_then(not(gallery_open))),
     );
     // The wheel half of the pose control, split off so a headless rig with no
-    // input plugin (and so no wheel message queue) still runs the rest.
+    // input plugin (and so no wheel message queue) still runs the rest. After
+    // the pointer read, for the same reason the rig is.
     app.add_systems(
         Update,
         wheel_placement_pose
+            .after(sync_viewport_pointer)
             .before(update_placement_preview)
             // Normal is the whole guard. An open gallery is `Browse`, which is
             // not Normal, so a second hand-written test for it is the shape the
@@ -662,36 +819,42 @@ fn editor_plugin(app: &mut App) {
     // it is answered. See `ui::window::DestructiveVerb`.
     app.add_observer(on_destructive_item);
     app.add_observer(close_confirm_window);
-    // Save As and Open put their own window up, and any of its answers takes
-    // it down. See `ui::files`.
+    // The naming, path and result windows go up on request, and any of their
+    // answers takes them down. See `ui::files`.
     app.add_observer(close_file_window);
 
-    // The inspector: what a typed field does to the document, and the camera
-    // rig it borrows while the field has the keyboard. Ungated on the gallery
-    // because opening one drops the focus anyway (the click that opens it
-    // submits the field), and a hold that outlived its trigger would leave the
-    // camera dead.
+    // The inspector: what a typed field does to the document. Between the field
+    // and the panel's repaint, with a sync point on each edge: Enter drops the
+    // focus and reports the text in one frame, and the verdict is a COMMAND. A
+    // repaint that landed in the gap saw a field with neither focus nor error
+    // and painted the document value over the number the builder has to correct.
     app.add_systems(
         Update,
-        (
-            // Between the field and the panel's repaint, with a sync point on
-            // each edge: Enter drops the focus and reports the text in one
-            // frame, and the verdict is a COMMAND. A repaint that landed in
-            // the gap saw a field with neither focus nor error and painted the
-            // document value over the number the builder has to correct.
-            apply_inspector_edits
-                .after(nova_ui::prelude::TextFieldSystems)
-                .before(sync_inspector),
-            hold_camera_above_normal,
-        )
+        apply_inspector_edits
+            .after(nova_ui::prelude::TextFieldSystems)
+            .before(sync_inspector)
             .run_if(in_state(ExampleStates::Editor)),
     );
 
+    // The viewport camera. After the framing, because a gesture continues from
+    // the pose a frame request left; before the gizmo, which sizes itself from
+    // the eye. Ungated on the gallery and the pause so a gesture they interrupt
+    // can end and hand the cursor back: the rig checks them itself.
+    camera::register(app);
     app.add_systems(
         Update,
-        lock_on_left_click
-            .run_if(in_state(ExampleStates::Editor).and_then(in_state(PauseStates::Unpaused)))
-            .run_if(not(gallery_open)),
+        (
+            sync_viewport_pointer,
+            drive_editor_camera
+                .run_if(resource_exists::<ButtonInput<KeyCode>>)
+                .run_if(resource_exists::<ButtonInput<MouseButton>>)
+                .run_if(resource_exists::<AccumulatedMouseMotion>)
+                .run_if(resource_exists::<Messages<MouseWheel>>),
+        )
+            .chain()
+            .after(apply_frame_request)
+            .before(sync_gizmo)
+            .run_if(in_state(ExampleStates::Editor)),
     );
     app.add_systems(
         Update,
@@ -701,22 +864,23 @@ fn editor_plugin(app: &mut App) {
         switch_scene_editor
             .run_if(in_state(ExampleStates::Scenario).and_then(resource_equals(GameMode::Sandbox))),
     );
+    unload_on_the_way_to_the_editor(app);
 
     // The spaceship input/section system sets are deliberately NOT gated
     // here - nova_scenario's ScenarioLoaderPlugin gates them on
     // scenario-liveness. The editor's build-mode preview stays inert because the
     // Editor state never has a scenario loaded: initial entry loads nothing and
-    // F1 triggers UnloadScenario.
+    // the way back unloads it (`unload_on_the_way_to_the_editor`).
 }
 
 /// Say whether the editor answers Escape itself this frame (see
 /// [`EscapeOwner`]).
 ///
 /// It does while there is something to back OUT of: an inspector field has the
-/// keyboard, a menu is open, the parts gallery is up, a part is armed, a rebind
-/// is waiting for a key, or the editor is INSIDE a ship and can step back out to
-/// the scenario. With none of those the key falls through to the pause menu,
-/// which stays the sanctioned way out of the editor.
+/// keyboard, a block is in hand, a menu is open, the parts gallery is up, a part
+/// is armed, a rebind is waiting for a key, or the editor is INSIDE a ship and
+/// can step back out to the scenario. With none of those the key falls through
+/// to the pause menu, which stays the sanctioned way out of the editor.
 /// Written every frame, including the `false`: whoever claims the key also has
 /// to release it.
 fn declare_editor_escape_owner(
@@ -726,12 +890,18 @@ fn declare_editor_escape_owner(
     rebind: Res<EditorRebind>,
     context: Res<EditContext>,
     menu: Res<OpenMenu>,
+    drag: Res<CanvasDrag>,
     typing: Query<(), With<nova_ui::prelude::TextFieldFocused>>,
+    popups: Query<(), With<PopupRoot>>,
+    block_popup: Res<BlockPopup>,
     mut owner: ResMut<EscapeOwner>,
 ) {
     let owned = *editor.get() == ExampleStates::Editor
         && (!typing.is_empty()
+            || !popups.is_empty()
+            || block_popup.is_open()
             || menu.0.is_some()
+            || drag.busy()
             || gallery.open
             || rebind.target.is_some()
             || *choice != HeldPart(None)
@@ -747,9 +917,13 @@ fn declare_editor_escape_owner(
 /// the state that DEFINES the mode rather than latched on entry, so a mode
 /// that ends by having its state cleared - on a scene change, say - ends here
 /// too. The gallery claims its own mode (`nova_ship::gallery`).
+///
+/// A block's pop-up holds Browse, so every verb gated on Normal stops under it
+/// through this one claim: each acts on the document the pop-up is editing.
 fn declare_editor_keyboard_owner(
     editor: Res<State<ExampleStates>>,
     rebind: Res<EditorRebind>,
+    block_popup: Res<BlockPopup>,
     mut claims: MessageWriter<ClaimKeyboard>,
 ) {
     if *editor.get() != ExampleStates::Editor {
@@ -757,6 +931,9 @@ fn declare_editor_keyboard_owner(
     }
     if rebind.target.is_some() {
         claims.write(ClaimKeyboard(InputMode::Bind));
+    }
+    if block_popup.is_open() {
+        claims.write(ClaimKeyboard(InputMode::Browse));
     }
 }
 
@@ -777,23 +954,27 @@ fn backspace_steps_out(keys: Res<ButtonInput<KeyCode>>, mut context: ResMut<Edit
 /// Escape backs out one step: it closes an open menu, then puts the armed part
 /// down, and with nothing in hand it leaves the ship you are inside.
 ///
-/// ONE RUNG PER PRESS. The full ladder is: an open top-bar menu, then the
-/// gallery, then a pending rebind, then the armed part, then the edit context,
-/// then the pause menu. This system owns the middle of that ladder and nothing
+/// ONE RUNG PER PRESS. The full ladder is: a block in hand, a popup, a block's
+/// pop-up, an open top-bar menu, then the gallery, then a pending rebind, then the armed part,
+/// then the edit context, then the pause menu. This system owns the middle of that ladder and nothing
 /// else: the rungs above it belong to modes, and a mode holding the keyboard is
-/// a mode this never runs under.
+/// a mode this never runs under. A block's pop-up is such a mode: see
+/// [`escape_block_popup`].
 fn escape_backs_out(
+    mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
+    popups: Query<Entity, With<PopupRoot>>,
     mut menu: ResMut<OpenMenu>,
     mut choice: ResMut<HeldPart>,
     mut context: ResMut<EditContext>,
+    mut drag: ResMut<CanvasDrag>,
 ) {
-    if !keys.just_pressed(KeyCode::Escape) {
+    if !keys.just_pressed(KeyCode::Escape) || drag.cancel() {
         return;
     }
-    // The menu is drawn over everything else, so it is what the press is aimed
-    // at while it is open.
-    if close_open_menu(&mut menu) {
+    // A menu is drawn over everything else, so it is what the press is aimed
+    // at while it is open. A popup stands over the panels the same way.
+    if close_popups(&mut commands, &popups) || close_open_menu(&mut menu) {
         return;
     }
     if *choice != HeldPart(None) {
@@ -803,11 +984,26 @@ fn escape_backs_out(
     context.exit();
 }
 
+/// Esc under a block's pop-up: a list open on one of its rows goes first, then
+/// the pop-up takes back what it did.
+fn escape_block_popup(
+    mut commands: Commands,
+    keys: Res<ButtonInput<KeyCode>>,
+    popups: Query<Entity, With<PopupRoot>>,
+    mut block_popup: ResMut<BlockPopup>,
+) {
+    if keys.just_pressed(KeyCode::Escape)
+        && block_popup.is_open()
+        && !close_popups(&mut commands, &popups)
+    {
+        block_popup.cancel();
+    }
+}
+
 fn switch_scene_editor(
     keys: Res<ButtonInput<KeyCode>>,
     gamepads: Query<&Gamepad>,
     mut state: ResMut<NextState<ExampleStates>>,
-    mut commands: Commands,
 ) {
     // Off the `Gamepad` COMPONENT: bevy 0.19 registers no
     // `ButtonInput<GamepadButton>` resource, so the `Option<Res<..>>` this used
@@ -819,8 +1015,22 @@ fn switch_scene_editor(
     if keys.just_pressed(KeyCode::F1) || pad {
         debug!("switch_scene_editor: F1/L3 pressed, switching to Editor state.");
         state.set(ExampleStates::Editor);
-        commands.trigger(UnloadScenario);
     }
+}
+
+/// Unload the flown scenario on the way back to the editor.
+///
+/// On the transition and never from `Update`: an unload there applies between
+/// the commands of that frame, and any insert a gameplay system queued behind
+/// it panics on a despawned entity. F1 just after Play did exactly this.
+fn unload_on_the_way_to_the_editor(app: &mut App) {
+    app.add_systems(
+        OnTransition {
+            exited: ExampleStates::Scenario,
+            entered: ExampleStates::Editor,
+        },
+        |mut commands: Commands| commands.trigger(UnloadScenario),
+    );
 }
 
 /// Hide and lock the cursor for flight (owner decision): unconditional,
@@ -842,21 +1052,6 @@ fn setup_grab_cursor_editor(
     let mut primary_cursor_options = primary_cursor_options.into_inner();
     primary_cursor_options.grab_mode = CursorGrabMode::None;
     primary_cursor_options.visible = true;
-}
-
-fn lock_on_left_click(
-    primary_cursor_options: Single<&mut CursorOptions, With<PrimaryWindow>>,
-    mouse: Res<ButtonInput<MouseButton>>,
-) {
-    if mouse.just_pressed(MouseButton::Right) {
-        let mut primary_cursor_options = primary_cursor_options.into_inner();
-        primary_cursor_options.grab_mode = CursorGrabMode::Locked;
-        primary_cursor_options.visible = false;
-    } else if mouse.just_released(MouseButton::Right) {
-        let mut primary_cursor_options = primary_cursor_options.into_inner();
-        primary_cursor_options.grab_mode = CursorGrabMode::None;
-        primary_cursor_options.visible = true;
-    }
 }
 
 #[cfg(test)]
@@ -911,6 +1106,8 @@ mod tests {
             world.init_resource::<EditContext>();
             world.init_resource::<EscapeOwner>();
             world.init_resource::<OpenMenu>();
+            world.init_resource::<CanvasDrag>();
+            world.init_resource::<BlockPopup>();
 
             world
                 .run_system_once(declare_editor_escape_owner)
@@ -941,6 +1138,7 @@ mod tests {
                 target: rebinding.then_some(Entity::PLACEHOLDER),
                 awaiting_release: false,
             });
+            world.init_resource::<BlockPopup>();
             world.init_resource::<Messages<ClaimKeyboard>>();
 
             world
@@ -969,6 +1167,8 @@ mod tests {
         world.init_resource::<EditContext>();
         world.init_resource::<EscapeOwner>();
         world.init_resource::<OpenMenu>();
+        world.init_resource::<CanvasDrag>();
+        world.init_resource::<BlockPopup>();
 
         world
             .run_system_once(declare_editor_escape_owner)
@@ -1003,6 +1203,7 @@ mod tests {
         let mut keys = ButtonInput::<KeyCode>::default();
         keys.press(KeyCode::Escape);
         world.insert_resource(keys);
+        world.init_resource::<CanvasDrag>();
         world.insert_resource(HeldPart(Some("hull".to_string())));
         world.insert_resource(OpenMenu(Some(MenuId::File)));
         world.insert_resource(EditContext {
@@ -1054,6 +1255,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(StatesPlugin);
         app.init_state::<GameStates>();
+        app.init_state::<PauseStates>();
         app.init_resource::<GameMode>();
         // switch_scene_editor polls the keyboard while in the Scenario state.
         app.init_resource::<ButtonInput<KeyCode>>();
@@ -1230,9 +1432,9 @@ mod tests {
     /// The scenario-liveness gate (nova_scenario)
     /// keeps the editor's build-mode preview inert only if the Editor state
     /// never has a live scenario. This exercises the one route that enters
-    /// Editor FROM a live scenario - F1 - and asserts the same press
-    /// unloads it, with the editor firing no scenario load of its own
-    /// anywhere on the route.
+    /// Editor FROM a live scenario - F1 - and asserts the press queues the way
+    /// back and leaves the unload to the transition, with the editor firing no
+    /// scenario load of its own anywhere on the route.
     #[test]
     fn editor_state_never_keeps_a_scenario_live() {
         #[derive(Resource, Default)]
@@ -1275,8 +1477,8 @@ mod tests {
         );
         assert_eq!(
             app.world().resource::<Unloads>().0,
-            1,
-            "the same press must unload the scenario"
+            0,
+            "an unload inside Update races the commands of that frame"
         );
         assert_eq!(
             app.world().resource::<EditorScenarioLoads>().0,
@@ -1285,11 +1487,40 @@ mod tests {
         );
     }
 
+    /// The transition is what ends the flown scenario, and only the way back
+    /// to the editor is that transition.
+    #[test]
+    fn the_way_back_to_the_editor_unloads_the_scenario() {
+        #[derive(Resource, Default)]
+        struct Unloads(usize);
+
+        let mut app = App::new();
+        app.add_plugins(StatesPlugin);
+        app.init_state::<ExampleStates>();
+        unload_on_the_way_to_the_editor(&mut app);
+        app.init_resource::<Unloads>();
+        app.add_observer(|_: On<UnloadScenario>, mut unloads: ResMut<Unloads>| {
+            unloads.0 += 1;
+        });
+        app.world_mut()
+            .resource_mut::<NextState<ExampleStates>>()
+            .set(ExampleStates::Scenario);
+        app.update();
+        assert_eq!(app.world().resource::<Unloads>().0, 0);
+
+        app.world_mut()
+            .resource_mut::<NextState<ExampleStates>>()
+            .set(ExampleStates::Editor);
+        app.update();
+
+        assert_eq!(app.world().resource::<Unloads>().0, 1);
+    }
+
     /// Sandbox mode heads for the editor scene, exactly as before the menu. The
     /// full editor path (scene setup needs GameAssets) is covered end to end by
     /// the editor smoke run; this pins just the state routing.
     #[test]
-    fn sandbox_heads_to_editor_state() {
+    fn sandbox_heads_to_the_hub() {
         let mut app = app();
         app.insert_resource(GameMode::Sandbox);
         app.world_mut()
@@ -1308,7 +1539,7 @@ mod tests {
             NextState::Pending(s) => Some(s.clone()),
             _ => None,
         };
-        assert_eq!(queued, Some(ExampleStates::Editor));
+        assert_eq!(queued, Some(ExampleStates::Hub));
     }
 
     /// Flight hides and locks the cursor. Before the fix

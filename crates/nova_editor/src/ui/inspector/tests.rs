@@ -28,6 +28,7 @@ use crate::{
         ActionChoice, ActionChoiceExt, ActionKind, ActionNode, ExprChoice, ExprKind, FilterChoice,
         FilterKind, FilterNode,
     },
+    history::tests::{assert_one_step, depth, end_drag},
     node::{EditorNode, NextChildOrdinal, ScenarioNode},
 };
 
@@ -35,6 +36,7 @@ use crate::{
 /// node. The tests below hang things off it.
 fn inspector_app() -> App {
     let mut app = App::new();
+    app.init_resource::<InspectorFolds>();
     app.init_resource::<ActiveUiTheme>();
     app.init_resource::<SelectedNode>();
     // The panel reads the View menu's own toggles: CURATED unless All Fields
@@ -115,7 +117,9 @@ fn beacon(app: &mut App, scenario: Entity, id: &str) -> Entity {
 }
 
 fn select(app: &mut App, node: Entity) {
-    app.world_mut().resource_mut::<SelectedNode>().0 = Some(node);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(node));
     app.update();
 }
 
@@ -919,10 +923,9 @@ fn pressing_the_key_row_arms_the_rebind() {
 /// whole path over every handful of rows - "Root Children 1", then "Root
 /// Children 1 Muzzle" - which is the wall of words the split was meant to
 /// remove.
-#[test]
-fn a_nested_group_is_drawn_one_level_at_a_time() {
-    let mut app = inspector_app();
-    let scenario = document(&mut app);
+/// A turret section with a nested joint tree, selected with every field shown.
+fn nested_groups(app: &mut App) {
+    let scenario = document(app);
     let ship = app
         .world_mut()
         .spawn((
@@ -981,13 +984,20 @@ fn a_nested_group_is_drawn_one_level_at_a_time() {
     // The GROUP TREE is what this is about, and the curated view is written to
     // put a turret's joint tree away - so the panel is asked for every field.
     app.world_mut().resource_mut::<EditorOverlays>().all_fields = true;
-    select(&mut app, section);
+    select(app, section);
+}
+
+#[test]
+fn a_nested_group_is_drawn_one_level_at_a_time() {
+    let mut app = inspector_app();
+    nested_groups(&mut app);
 
     let headings: Vec<String> = app
         .world_mut()
         .query_filtered::<&Text, With<InspectorGroup>>()
         .iter(app.world())
-        .map(|text| text.0.clone())
+        // The heading leads with its fold caret.
+        .filter_map(|text| text.0.split_once(' ').map(|(_, level)| level.to_string()))
         .collect();
     assert!(
         headings.iter().any(|level| level == "MUZZLE"),
@@ -1947,4 +1957,174 @@ fn reset_chip_of(app: &mut App, label: &str) -> Option<Entity> {
         .iter(app.world())
         .find(|(_, name)| name.as_str() == wanted)
         .map(|(entity, _)| entity)
+}
+
+#[test]
+fn a_typed_field_is_one_step() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
+    select(&mut app, rock);
+
+    assert_one_step(&mut app, "Edit Radius", |app| {
+        submit(app, "Radius", "55");
+    });
+}
+
+/// The scrub writes every frame the pointer moves. The builder made one edit.
+#[test]
+fn a_scrub_is_one_step_on_release() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let rock = asteroid(&mut app, scenario, "asteroid_1", Meters(30.0));
+    select(&mut app, rock);
+
+    assert_one_step(&mut app, "Edit Radius", |app| {
+        scrub(app, "Radius", 20.0);
+        scrub(app, "Radius", 20.0);
+        assert_eq!(depth(app), 0, "a held scrub is no step yet");
+        let grip = grip_of(app, "Radius").expect("the grip stands");
+        end_drag(app, grip);
+    });
+}
+
+#[test]
+fn picking_a_driver_is_one_step() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let ship = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ShipNode::default(),
+            NodeId("ship_1".to_string()),
+            Transform::default(),
+            ChildOf(scenario),
+        ))
+        .id();
+    app.world_mut().resource_mut::<EditContext>().enter(ship);
+    app.update();
+
+    assert_one_step(&mut app, "Edit Driver", |app| {
+        let option = app
+            .world_mut()
+            .query::<(Entity, &InspectorDriver)>()
+            .iter(app.world())
+            .find(|(_, option)| option.driver == ShipDriver::Ai)
+            .map(|(entity, _)| entity)
+            .expect("an AI option");
+        app.world_mut().trigger(Activate { entity: option });
+    });
+}
+
+#[test]
+fn ticking_a_flag_is_one_step() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let ship = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ShipNode {
+                driver: ShipDriver::Ai,
+                ..default()
+            },
+            NodeId("ship_1".to_string()),
+            Transform::default(),
+            ChildOf(scenario),
+        ))
+        .id();
+    app.world_mut().resource_mut::<EditContext>().enter(ship);
+    app.update();
+
+    assert_one_step(&mut app, "Edit Station", |app| {
+        let toggle = app
+            .world_mut()
+            .query_filtered::<(Entity, &Name), With<InspectorFlag>>()
+            .iter(app.world())
+            .find(|(_, name)| name.as_str() == "Inspector Flag Station")
+            .map(|(entity, _)| entity)
+            .expect("a Station box");
+        app.world_mut().trigger(Activate { entity: toggle });
+    });
+}
+
+#[test]
+fn a_reset_chip_is_one_step() {
+    let mut app = inspector_app();
+    let scenario = document(&mut app);
+    let ship = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            ShipNode::default(),
+            NodeId("ship_1".to_string()),
+            Transform::default(),
+            ChildOf(scenario),
+        ))
+        .id();
+    app.world_mut()
+        .insert_resource(GameSections(vec![SectionConfig {
+            base: BaseSectionConfig {
+                id: "thruster".to_string(),
+                ..default()
+            },
+            kind: SectionKind::Thruster(ThrusterSectionConfig {
+                magnitude: 40.0,
+                ..default()
+            }),
+        }]));
+    let section = app
+        .world_mut()
+        .spawn((
+            EditorNode,
+            SectionNode {
+                source: SectionSource::prototype("thruster"),
+                binds: vec![],
+            },
+            NodeId("thruster_1".to_string()),
+            Transform::default(),
+            ChildOf(ship),
+        ))
+        .id();
+    app.world_mut().resource_mut::<EditContext>().enter(ship);
+    select(&mut app, section);
+    submit(&mut app, "Magnitude", "77");
+
+    assert_one_step(&mut app, "Edit Magnitude", |app| {
+        let chip = reset_chip_of(app, "Magnitude").expect("the tuned row is marked");
+        app.world_mut().trigger(Activate { entity: chip });
+    });
+}
+
+#[test]
+fn a_folded_group_hides_its_rows_and_keeps_its_heading() {
+    let mut app = inspector_app();
+    nested_groups(&mut app);
+    let shown = |app: &mut App| {
+        app.world_mut()
+            .query_filtered::<(), With<InspectorField>>()
+            .iter(app.world())
+            .count()
+    };
+    let open = shown(&mut app);
+    let heading = app
+        .world_mut()
+        .query_filtered::<Entity, With<InspectorFold>>()
+        .iter(app.world())
+        .next()
+        .expect("a rock's rows are grouped");
+
+    app.world_mut().trigger(Activate { entity: heading });
+    app.world_mut().flush();
+    app.update();
+    app.update();
+
+    assert!(shown(&mut app) < open, "the group's rows went");
+    let headings = app
+        .world_mut()
+        .query_filtered::<(), With<InspectorFold>>()
+        .iter(app.world())
+        .count();
+    assert!(headings > 0, "and its heading stayed to open it again");
 }

@@ -46,7 +46,7 @@ for responsibilities and the dependency graph.
 | `nova_assets` | `bevy_asset_loader` setup; loads glb/textures/shaders/sounds; owns the mod merge, safe mode (a broken optional mod is disabled, not fatal, except during a scenario) + prefs. |
 | `nova_modding` | Bundle/content/catalog asset loaders and the `Content` routing enum. |
 | `nova_mod_format` | Pure serde types for the mod formats (engine-free); re-exported by `nova_modding`. The static mod portal is built by `scripts/gen-portal.py`. |
-| `nova_editor` | The ship editor scene (`NovaEditorPlugin`), shown in `GameMode::Sandbox`. |
+| `nova_editor` | The Mod Editor (`NovaEditorPlugin`), shown in `GameMode::Sandbox`. |
 | `nova_menu` | Main menu + the ESC pause overlay; hands off to `Playing`. New Game opens the world seed modal first. |
 | `nova_training` | The training handbook's data: the `Lesson` content type, catalog ordering, field notes, progress, and the pure lesson validation both `content lint` and the runtime merge run. A leaf under `nova_modding`, `nova_assets` and `nova_menu`. |
 | `nova_input` | The bindings registry: the one table of named actions and the sources each holds, the shared rebind capture, and the by-name dispatch. A leaf under every rig and every rebind surface. |
@@ -87,7 +87,7 @@ The highest-value table. Verified paths; follow the linked page for depth.
 | Mod loading / merge | `crates/nova_assets/` + `crates/nova_modding/` | [Mod files](https://alexjercan.github.io/nova-protocol/create/mod-files/), [Publish a mod](https://alexjercan.github.io/nova-protocol/create/publish-a-mod/) |
 | A built-in scenario or section | `crates/nova_authoring/src/` (builders), then `content -- gen` | [Create your first scenario](https://alexjercan.github.io/nova-protocol/create/author-a-scenario/) |
 | A generated hull, or the plan it is drawn from | `crates/nova_wfc/` (`plan.rs` for the plan, `WfcPlan::standard_hull` for the shipped one) and each caller's own plan builder | [Concept index](concept-index.md), [Ship layout sense](ship-layout-sense.md) |
-| The ship editor | `crates/nova_editor/` | -- |
+| The Mod Editor | `crates/nova_editor/` | -- |
 | Shared UI theme / widgets | `crates/nova_ui/` | -- |
 | The web site / wiki | `web/` | [Building & running](development.md) |
 

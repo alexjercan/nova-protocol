@@ -6,20 +6,17 @@
 //! is. A click on a tree row, the F key, and View > Frame Selection all raise
 //! the same request, and one system serves it.
 //!
-//! A request rather than three systems that each move the camera, because the
-//! move is not a bare pose write - the free-fly rig has to be taken off and put
-//! back around it, and a second place that got that wrong would be a camera
-//! that snaps back a frame later.
+//! A request rather than three systems that each move the camera, because a
+//! node placed this frame has no bounds yet, and the request waits for them.
 
 use avian3d::prelude::{ColliderAabb, Sensor};
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::subtree_bounding_sphere;
-use nova_ship::prelude::{HeldPart, WASDCameraController};
-use nova_ui::prelude::InputMode;
+use nova_ship::prelude::HeldPart;
 
 use crate::{
-    config::{EditorCamera, SelectedNode},
+    config::{EditorCamera, RailTab, SelectedNode},
     node::{frame_stage, EditContext},
 };
 
@@ -51,9 +48,10 @@ pub(crate) struct FrameRequest {
 /// range. Both read this instead, so the gesture follows what is on screen.
 ///
 /// Written wherever the camera is PUT on something - context focus, F, Frame
-/// Selection, a view preset - and never while the builder flies. A free-fly
-/// camera has no target to measure against, and a drag scale that drifted with
-/// the camera would make the same pixel mean two distances inside one gesture.
+/// Selection, a view preset, the end of an orbit, a dolly or a pan - and never
+/// while the builder flies. A flying camera has no target to measure against.
+///
+/// [`crate::camera`] reads it as the pivot's distance when nothing is selected.
 #[derive(Resource, Debug, Clone, Copy, PartialEq)]
 pub(crate) struct CameraFraming {
     /// The point the camera was framed on.
@@ -146,12 +144,17 @@ pub(crate) fn frame_key(
     selection: Res<HeldPart>,
     selected: Res<SelectedNode>,
     context: Res<EditContext>,
+    rail: Res<RailTab>,
     mut request: ResMut<FrameRequest>,
 ) {
-    if *selection != HeldPart(None) || !keys.just_pressed(FRAME_KEY) {
+    // In Events the key is the canvas's: there is no stage to frame.
+    if rail.is_events() || *selection != HeldPart(None) || !keys.just_pressed(FRAME_KEY) {
         return;
     }
-    ask_for(&mut request, selected.0.or_else(|| context.current()));
+    ask_for(
+        &mut request,
+        selected.primary().or_else(|| context.current()),
+    );
 }
 
 /// View > Frame Selection: the same request the key raises.
@@ -161,7 +164,10 @@ pub(crate) fn on_frame_selection(
     context: Res<EditContext>,
     mut request: ResMut<FrameRequest>,
 ) {
-    ask_for(&mut request, selected.0.or_else(|| context.current()));
+    ask_for(
+        &mut request,
+        selected.primary().or_else(|| context.current()),
+    );
 }
 
 /// View > Front/Side/Top/Iso: the same target, from a named direction.
@@ -177,7 +183,7 @@ pub(crate) fn on_view_preset(
     };
     look_from(
         &mut request,
-        selected.0.or_else(|| context.current()),
+        selected.primary().or_else(|| context.current()),
         preset.0,
     );
 }
@@ -205,19 +211,13 @@ pub(crate) fn look_from(request: &mut FrameRequest, node: Option<Entity>, angle:
 /// section was founded on. A node with no colliders yet - one placed this
 /// frame - falls back to its origin rather than waiting, because a camera that
 /// moved a frame late is better than one that did not move at all.
-///
-/// The free-fly rig rewrites the camera transform every frame from private
-/// state, so it comes off and goes back on around the write; its setup re-reads
-/// the transform this leaves. The same move [`crate::node::sync_camera_focus`]
-/// and the gallery's parking both make.
 pub(crate) fn apply_frame_request(
-    mut commands: Commands,
     mut request: ResMut<FrameRequest>,
     mut framing: ResMut<CameraFraming>,
     q_children: Query<&Children>,
     q_bounds: Query<&ColliderAabb, Without<Sensor>>,
     q_poses: Query<&Transform, Without<EditorCamera>>,
-    camera: Option<Single<(Entity, &mut Transform), With<EditorCamera>>>,
+    camera: Option<Single<&mut Transform, With<EditorCamera>>>,
 ) {
     let Some(node) = request.node else {
         return;
@@ -236,13 +236,9 @@ pub(crate) fn apply_frame_request(
     let (centre, spread) = framed_extent(node, pose, &q_children, &q_bounds);
     let angle = request.angle;
     request.node = None;
-    let (entity, mut transform) = camera.into_inner();
+    let mut transform = camera.into_inner();
     *transform = view_stage(centre, spread, angle);
     *framing = CameraFraming::on(centre, transform.translation);
-    commands
-        .entity(entity)
-        .remove::<WASDCameraController>()
-        .insert(WASDCameraController);
 }
 
 /// The point and half-spread to frame `node` on: the bounding sphere of its
@@ -255,48 +251,6 @@ pub(crate) fn framed_extent(
     q_bounds: &Query<&ColliderAabb, Without<Sensor>>,
 ) -> (Vec3, f32) {
     subtree_bounding_sphere(node, q_children, q_bounds).unwrap_or((pose.translation, 0.0))
-}
-
-/// Marks the camera whose free-fly rig the mode hold took away, so putting it
-/// back is not a guess. The same shape the gallery parks with.
-#[derive(Component)]
-pub(crate) struct ModeHold;
-
-/// Take the free-fly rig off the camera whenever the keyboard is not in
-/// [`InputMode::Normal`], and give it back when it is.
-///
-/// The rig is `bevy_enhanced_input`'s and answers WASD wherever the keystrokes
-/// came from, so a run condition on the editor's own systems does not reach it.
-/// Typing "wasp" into a beacon label flew the camera four ways; binding `W` to
-/// a thruster - the most natural thruster binding there is - flew it forward
-/// for as long as the key was held, so the part the chip points at slid off
-/// screen mid-gesture.
-///
-/// Every mode above Normal, not a list of them: a mode holds the keyboard by
-/// definition, and a rig that answers keys is a keyboard consumer like any
-/// other. The marker says the hold is OURS, so the gallery's park - which stows
-/// the pose and the skybox for its own reasons - cannot be undone by this.
-pub(crate) fn hold_camera_above_normal(
-    mut commands: Commands,
-    mode: Res<InputMode>,
-    camera: Option<Single<(Entity, Has<WASDCameraController>, Has<ModeHold>), With<EditorCamera>>>,
-) {
-    let Some(camera) = camera else {
-        return;
-    };
-    let (entity, driving, held) = *camera;
-    let taken = *mode != InputMode::Normal;
-    if taken && driving {
-        commands
-            .entity(entity)
-            .insert(ModeHold)
-            .remove::<WASDCameraController>();
-    } else if !taken && held {
-        commands
-            .entity(entity)
-            .remove::<ModeHold>()
-            .insert(WASDCameraController);
-    }
 }
 
 /// The view over `target` from `angle`, at the reach the stage view uses - so
@@ -333,7 +287,7 @@ pub(crate) fn sync_frame_item(
     context: Res<EditContext>,
     items: Query<(Entity, Has<InteractionDisabled>), With<FrameSelectionItem>>,
 ) {
-    let disabled = selected.0.or_else(|| context.current()).is_none();
+    let disabled = selected.primary().or_else(|| context.current()).is_none();
     for (entity, marked) in &items {
         match (disabled, marked) {
             (true, false) => {
