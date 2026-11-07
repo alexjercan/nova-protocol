@@ -13,12 +13,13 @@ use nova_assets::prelude::{
     DownloadedMods, EnabledMods, FetchPortalCatalog, InstallJobs, InstallPortalMod, InstallStatus,
     PendingRemovals, PortalEntry, RemoteCatalog, RemoteCatalogState, UninstallPortalMod,
 };
+use nova_gameplay::prelude::{play_menu_deny, play_menu_select, SoundBank, UiSfx};
 use nova_ui::{
     theme,
     theme::UiColor,
     widget::{
-        button, themed_button, ButtonSpec, Selected, ThemedBorder, ThemedButton, ThemedFill,
-        ThemedRadius, ThemedText, UiText,
+        button, themed_button, ButtonCueType, ButtonSpec, Selected, ThemedBorder, ThemedButton,
+        ThemedFill, ThemedRadius, ThemedText, UiText,
     },
 };
 
@@ -182,6 +183,7 @@ pub(crate) fn on_portal_action(
     mut jobs: Option<ResMut<InstallJobs>>,
     mut updates: ResMut<UpdateRequested>,
     mut uninstall: ResMut<UninstallStep>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
     let Ok(action) = buttons.get(activate.entity) else {
@@ -190,6 +192,16 @@ pub(crate) fn on_portal_action(
     let catalog_ready = remote
         .as_ref()
         .is_some_and(|r| matches!(r.state, RemoteCatalogState::Ready(_)));
+    let refused = !catalog_ready
+        && matches!(
+            action.kind,
+            PortalActionKind::Install | PortalActionKind::Update
+        );
+    if refused {
+        play_menu_deny(&mut commands, bank.as_deref());
+    } else {
+        play_menu_select(&mut commands, bank.as_deref());
+    }
     match action.kind {
         PortalActionKind::Install => {
             if !catalog_ready {
@@ -482,6 +494,7 @@ fn spawn_portal_slot(
                 id: id.to_string(),
                 kind,
             },
+            ButtonCueType::Owned,
             observe(on_portal_action),
         ));
     });
@@ -505,6 +518,7 @@ pub(crate) fn spawn_uninstall_button(row: &mut ChildSpawnerCommands, id: &str, a
             children![(
                 Name::new("Mod Details Uninstall Cancel"),
                 button(ButtonSpec::new("Cancel")),
+                ButtonCueType::Back,
             )],
         ));
         spawn_portal_slot(

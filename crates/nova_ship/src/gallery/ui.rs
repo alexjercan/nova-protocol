@@ -17,7 +17,9 @@ use nova_ui::{
     prelude::{button, panel, ButtonSpec, UiText},
     theme,
     theme::{ActiveUiTheme, UiColor},
-    widget::{ThemedBorder, ThemedFill, ThemedImageTint, ThemedRadius, ThemedText, Tooltip},
+    widget::{
+        ButtonCueType, ThemedBorder, ThemedFill, ThemedImageTint, ThemedRadius, ThemedText, Tooltip,
+    },
 };
 
 use super::{
@@ -341,6 +343,7 @@ pub(crate) fn rebuild_gallery(
                         slot.spawn((
                             Name::new("Gallery Close Button"),
                             button(ButtonSpec::new("Close").key("Esc")),
+                            ButtonCueType::Back,
                             GalleryAction::Close,
                         ));
                     });
@@ -952,12 +955,15 @@ fn focus_body(
                     card.spawn((
                         Name::new("Gallery Alternate Button"),
                         button(ButtonSpec::new(label).primary()),
+                        // Its host answers the message, and can refuse.
+                        ButtonCueType::Owned,
                         GalleryAction::Alternate,
                     ));
                 }
                 card.spawn((
                     Name::new("Gallery Back Button"),
                     button(ButtonSpec::new("Back").ghost()),
+                    ButtonCueType::Back,
                     GalleryAction::Back,
                 ));
             });

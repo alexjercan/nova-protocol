@@ -56,7 +56,7 @@ use crate::{
         SETTINGS_PANEL_WIDTH_PCT,
     },
     training::{on_training, spawn_menu_aside, spawn_training_panel},
-    widgets::{back_button, button, MenuScreen, MenuSfxButton},
+    widgets::{back_button, button, MenuScreen},
 };
 
 /// The menu panel: title on top, buttons below, anchored bottom-right per the
@@ -246,7 +246,6 @@ pub(crate) fn setup_menu_ui(
                                             (
                                                 Name::new("Installed Tab"),
                                                 segmented_option_fit("Installed"),
-                                                MenuSfxButton,
                                                 ModsTab(ModsTabKind::Installed),
                                                 Selected,
                                                 observe(on_mods_tab),
@@ -254,7 +253,6 @@ pub(crate) fn setup_menu_ui(
                                             (
                                                 Name::new("Explore Online Tab"),
                                                 segmented_option_fit("Explore online"),
-                                                MenuSfxButton,
                                                 ModsTab(ModsTabKind::Explore),
                                                 observe(on_mods_tab),
                                             ),

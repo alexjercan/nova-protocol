@@ -1,9 +1,9 @@
-//! The editor's four voices: seating a part, lifting one out, turning the
-//! ghost a detent, and refusing a placement.
+//! The editor's voices: seating a part, lifting one out, turning the ghost a
+//! detent, refusing a gesture, and the click of a press that went through.
 //!
 //! One [`SystemParam`] rather than a bank lookup at each call site, because
-//! the four are a SET: they are placed a band under the menus (the editor is a
-//! workspace a builder sits in for an hour, not a screen they pass through),
+//! the first four are a SET: they are placed a band under the menus (the editor
+//! is a workspace a builder sits in for an hour, not a screen they pass through),
 //! and that only holds if their levels stay together. Every cue routes
 //! [`AudioRoute::Interface`] - the editor has no world to hear them in.
 
@@ -62,9 +62,14 @@ impl EditorCues<'_, '_> {
         self.play(UiSfx::EditorRotate, EDITOR_ROTATE_VOLUME);
     }
 
-    /// A placement the graph refused.
+    /// A gesture the editor refused.
     pub(crate) fn deny(&mut self) {
         self.play(UiSfx::EditorDeny, EDITOR_DENY_VOLUME);
+    }
+
+    /// A press that went through, on a button that could have been refused.
+    pub(crate) fn select(&mut self) {
+        self.play(UiSfx::MenuSelect, MENU_SELECT_VOLUME);
     }
 }
 

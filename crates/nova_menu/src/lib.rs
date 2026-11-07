@@ -52,7 +52,6 @@ pub mod prelude {
             allow_training_saves, load_training, save_training, PersistedTraining,
             TrainingProgressPlugin, TrainingStoreAccess,
         },
-        widgets::MenuCueSystems,
         NewGameScenario, NovaMenuPlugin, SurfaceCursorPlugin,
     };
 }
@@ -138,7 +137,7 @@ use training::{
     PendingLessonMedia, SelectedLessonId,
 };
 use training_store::TrainingProgressPlugin;
-use widgets::{on_menu_button_activate, play_menu_focus_cue, refresh_back_keys, MenuCueSystems};
+use widgets::refresh_back_keys;
 
 /// The cursor rule for the frozen surfaces every game app has: the TAB
 /// interface, the command modal and the debug window (`PauseStates::Debug`)
@@ -436,8 +435,6 @@ impl Plugin for NovaMenuPlugin {
                 .chain()
                 .run_if(in_state(GameStates::MainMenu)),
         );
-        app.add_observer(on_menu_button_activate);
-        app.add_systems(Update, play_menu_focus_cue.in_set(MenuCueSystems));
         app.add_systems(Update, refresh_back_keys);
         app.add_systems(
             OnEnter(GameStates::Playing),

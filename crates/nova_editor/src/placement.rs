@@ -272,7 +272,10 @@ pub(crate) fn create_blank_ship(
     // Entered, because a blank ship is not a ship yet: the founding click is
     // the next thing the builder does and it happens INSIDE.
     match spawn_ship_node(&mut commands, &mut ordinals, &context, driver) {
-        Some(ship) => context.enter(ship),
+        Some(ship) => {
+            context.enter(ship);
+            says.accept();
+        }
         None => says.refuse("there is no scenario to add a ship to"),
     }
 }
@@ -314,6 +317,7 @@ pub(crate) fn create_scenario_object(
         Transform::from_translation(at),
     );
     selected.0 = Some(object);
+    says.accept();
 }
 
 /// The point a placed object lands on, out in front of `camera`.
@@ -445,17 +449,25 @@ pub(crate) fn roll_armed_part(
 }
 
 /// Ship > Cycle the Socket: one step of what the F key and Ctrl+wheel take.
+///
+/// A part with one socket has nothing to cycle to, so the pose stands and
+/// [`crate::cues::play_placement_pose_cue`] stays quiet: the press clicks here.
 pub(crate) fn cycle_armed_socket(
     _activate: On<Activate>,
     selection: Res<HeldPart>,
     sections: Res<GameSections>,
     mut pose: ResMut<PlacementPose>,
+    mut cues: EditorCues,
 ) {
     let Some(sockets) = armed_socket_count(&selection, &sections) else {
         return;
     };
+    let before = *pose;
     if sockets > 0 {
         pose.step_source(sockets, false);
+    }
+    if *pose == before {
+        cues.select();
     }
 }
 
@@ -566,6 +578,7 @@ pub(crate) fn continue_to_simulation(
         return;
     }
     game_state.set(ExampleStates::Scenario);
+    says.accept();
 }
 
 /// The number of sockets the armed part carries, or `None` when nothing is
@@ -1030,14 +1043,12 @@ pub(crate) fn on_click_spaceship_section(
                             "{} already drives another mining section on this ship - hold a free key instead",
                             key.label()
                         ));
-                        cues.deny();
                         return;
                     }
                 }
             }
             let Some(binds) = held.binds_for(&config.kind, &taken) else {
                 says.refuse(MINING_KEYS_TAKEN);
-                cues.deny();
                 return;
             };
             spawn_section_node(
@@ -1152,7 +1163,7 @@ pub(crate) fn on_stage_drag_start(
     // now neither said why. A part's pose is its socket's; dragging one off the
     // mate would build a hull the runtime's integrity graph rejects.
     if context.ship().is_some() {
-        says.refuse("a part moves by being placed again, not by being dragged");
+        says.flag("a part moves by being placed again, not by being dragged");
         return;
     }
     let (Ok(transform), Some(camera)) = (q_staged.get(node), camera) else {

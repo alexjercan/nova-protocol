@@ -25,7 +25,7 @@ use nova_ui::{
     },
     theme,
     theme::UiColor,
-    widget::{ThemedBorder, ThemedRadius, ThemedText},
+    widget::{ButtonCueType, ThemedBorder, ThemedRadius, ThemedText},
 };
 
 use crate::{
@@ -455,6 +455,7 @@ fn spawn_confirm_window(
                                 Name::new("Confirm Keep Button"),
                                 ConfirmAnswer,
                                 themed_button("Keep editing"),
+                                ButtonCueType::Back,
                             ));
                         });
                     let Some(label) = verb.confirm() else {
@@ -676,6 +677,7 @@ fn spawn_choice_window(
                             variant: variant.clone(),
                         },
                         button(ButtonSpec::new(variant).block()),
+                        ButtonCueType::Owned,
                         observe(on_choice_option),
                     ));
                     let Some(hint) = hints.get(index).filter(|hint| !hint.is_empty()) else {
@@ -788,6 +790,7 @@ fn spawn_ref_window(
                     // The rail's own row: a list of ids is a list of things to
                     // pick, and it should read like the one on the left.
                     button(ButtonSpec::new(id).block()),
+                    ButtonCueType::Owned,
                     observe(on_ref_option),
                 ));
             }
@@ -820,6 +823,7 @@ pub(crate) fn on_ref_option(
         return;
     }
     commands.entity(option.window).despawn();
+    says.accept();
 }
 
 /// Close a picker whose row has gone: the panel is on another node, and the
@@ -915,6 +919,7 @@ pub(crate) fn window_frame(
                         ..default()
                     },
                     Button,
+                    ButtonCueType::Back,
                     Hovered::default(),
                     UiText,
                     Text::new("x"),
@@ -1150,7 +1155,7 @@ pub(crate) fn on_colour_slider(
         write_field(root, path, optional, &colour_text(colour))
     });
     if let Err(reason) = written {
-        says.refuse(reason);
+        says.flag(reason);
     }
 }
 

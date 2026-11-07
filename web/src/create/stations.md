@@ -513,14 +513,18 @@ docked at - the session's starting station, the nearest station of a
 civilization whose seeded stance is Ally, kept in the world save's `start`
 field - also wears `StarterBoardMarker` beside its board; it is the one board
 that posts the start role's starter jobs, and no other board ever carries the
-marker. Each board slot carries a posting number, the play-time stamp it was
-posted at and the offer it posted (`SlotPosting`, kept per station in the
-`JobPostings` session resource, saved with the world). A slot's offer is drawn
-once, when the slot posts, from the world seed, the station's generated id,
-the slot, the posting number, the cluster types of its sector, the start
-role's job mix, the board's standing offers and the field around the station,
-off its own `WyRand` seeded from FNV-64 of `(seed, "station_jobs", station id,
-slot, posting)`. The offer then stands as drawn until its slot renews: a
+marker. When a slot there posts and no standing offer stays open to the
+player's current hull, the slot posts one the hull can do: a procurement the
+hold takes, else a distress call for a docking section, else an escort for a
+weapon. A held slot, and a slot that does not renew, stays as it is. Each
+board slot carries a posting number, the play-time stamp it was posted at and
+the offer it posted (`SlotPosting`, kept per station in the `JobPostings`
+session resource, saved with the world). A slot's offer is drawn once, when
+the slot posts, from the world seed, the station's generated id, the slot, the
+posting number, the cluster types of its sector, the start role's job mix, the
+board's standing offers, the field around the station and, on the starting
+station's board, the player's hull, off its own `WyRand` seeded from FNV-64 of
+`(seed, "station_jobs", station id, slot, posting)`. The offer then stands as drawn until its slot renews: a
 looted wreck, a job held elsewhere, a thaw or a Load never changes it. A job's
 id is the posting station's id, its board slot and its posting number
 (`<station>#<slot>.<posting>`).

@@ -42,6 +42,41 @@ pub enum ButtonVariant {
     Ghost,
 }
 
+/// The cue a press of a button plays, for every `bevy::ui_widgets::Button`
+/// whether themed or not. Absent = [`ButtonCueType::Select`], so a new button
+/// clicks without opting in. `nova_gameplay`'s audio module plays it; this crate
+/// has no sound bank.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ButtonCueType {
+    /// A press that goes forward: the interface click.
+    #[default]
+    Select,
+    /// A press that pops the surface it sits on: the click inverted, so going
+    /// in and coming back out are audibly a direction.
+    Back,
+    /// The handler owns the cue, so the press itself plays nothing. For a press
+    /// whose sound depends on what it does, which the press cannot know when it
+    /// fires: a refusable action buzzes or clicks on its result, a surface
+    /// toggle plays its blip, and a selector answers a change.
+    ///
+    /// The handler cues every live press that acts; only a selector's press of
+    /// its current choice stays silent, because it changes nothing. This is not
+    /// a way to quiet a button: a control that cannot act takes
+    /// `InteractionDisabled`, and a mute the player set is a [`ButtonCueMute`].
+    /// Nor does it cover invalid authoring, which fails at lint and load.
+    Owned,
+}
+
+/// Whether the owner of a button has switched its central voice off: true plays
+/// neither the press cue nor the hover tick. The button still takes presses and
+/// still lights up.
+///
+/// For a control with a live mute setting of its own, which its owner writes
+/// here so the global voice obeys it: the NOVA OS chin controls follow the
+/// monitor's SND switch. Absent reads as false.
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ButtonCueMute(pub bool);
+
 /// Marks the primary label text span inside a themed button, so the paint code
 /// can recolour it (e.g. inverted glyphs on selection) without touching the
 /// key-chip or block-cursor spans.
@@ -191,6 +226,53 @@ pub(super) fn button_on_interaction<E: EntityEvent, C: Component>(
         &mut q_label,
         &mut q_cursor,
     );
+}
+
+/// The ring a press lights: wider and brighter than a hover's.
+const PRESS_RING_PX: f32 = 2.0;
+/// The ring a hover lights.
+const HOVER_RING_PX: f32 = 1.0;
+
+/// Ring a button no theme table paints: on any hover/press/disable change, put
+/// the hover or press outline on it, or take it off. `Outline` draws outside
+/// the node, so a pane's own fill and border, which often report selection,
+/// stay as they are. The removed component still reads present inside its own
+/// `Remove` observer, so its state is forced false there.
+pub(super) fn plain_button_on_interaction<E: EntityEvent, C: Component>(
+    event: On<E, C>,
+    theme: Res<ActiveUiTheme>,
+    mut commands: Commands,
+    q_button: Query<
+        (&Hovered, Has<InteractionDisabled>, Has<Pressed>),
+        (With<Button>, Without<ThemedButton>),
+    >,
+) {
+    let entity = event.event_target();
+    let Ok((hovered, disabled, pressed)) = q_button.get(entity) else {
+        return;
+    };
+    let removing = E::is::<Remove>();
+    let pressed = pressed && !(removing && C::is::<Pressed>());
+    let disabled = disabled && !(removing && C::is::<InteractionDisabled>());
+
+    let ring = match (disabled, pressed, hovered.get()) {
+        (true, _, _) | (false, false, false) => None,
+        (false, true, _) => Some((PRESS_RING_PX, UiColor::Primary)),
+        (false, false, true) => Some((HOVER_RING_PX, UiColor::Accent)),
+    };
+    // `try_`: the press that despawns a button lands in the same flush.
+    match ring {
+        Some((width, color)) => {
+            commands.entity(entity).try_insert(Outline::new(
+                px(width),
+                Val::ZERO,
+                theme.color(color),
+            ));
+        }
+        None => {
+            commands.entity(entity).try_remove::<Outline>();
+        }
+    }
 }
 
 /// Restyle LIVE themed buttons: on a theme change repaint every button;

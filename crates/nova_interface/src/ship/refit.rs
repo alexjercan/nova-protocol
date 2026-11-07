@@ -225,6 +225,7 @@ pub(crate) fn apply_ship_swap_commands(
         &mut ShipCredits,
         &mut ShipInventoryReports,
     )>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
 ) {
     if messages.is_empty() {
         return;
@@ -278,6 +279,7 @@ pub(crate) fn apply_ship_swap_commands(
                     swap_refusal_text(&items, &code, &offered.base.name, &refusal),
                     2.5,
                 ));
+                play_menu_deny(&mut commands, bank.as_deref());
                 continue;
             }
         };
@@ -322,6 +324,7 @@ pub(crate) fn apply_ship_swap_commands(
             ),
             2.5,
         ));
+        play_menu_select(&mut commands, bank.as_deref());
         swapped = true;
     }
 }
@@ -563,6 +566,7 @@ pub(crate) fn apply_ship_add_commands(
         &mut ShipCredits,
         &mut ShipInventoryReports,
     )>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
 ) {
     if messages.is_empty() {
         return;
@@ -634,6 +638,7 @@ pub(crate) fn apply_ship_add_commands(
                     add_refusal_text(&items, &code, &offered.base.name, &refusal),
                     2.5,
                 ));
+                play_menu_deny(&mut commands, bank.as_deref());
                 continue;
             }
         };
@@ -685,6 +690,7 @@ pub(crate) fn apply_ship_add_commands(
             ),
             2.5,
         ));
+        play_menu_select(&mut commands, bank.as_deref());
         added = true;
     }
 }

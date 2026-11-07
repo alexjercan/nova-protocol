@@ -11,6 +11,7 @@ use bevy::{
     prelude::*,
     ui_widgets::{observe, Button},
 };
+use nova_ui::widget::{ButtonCueMute, ButtonCueType};
 
 use super::{components::*, shell::*, style::*};
 
@@ -424,9 +425,16 @@ pub(crate) fn spawn_nova_os_chin(
                 );
                 spawn_nova_os_knob(controls, font.clone(), settings, NovaOsKnob::Scan, "SCAN");
                 spawn_nova_os_sound_button(controls, font.clone(), settings);
-                spawn_nova_os_power_button(controls, font.clone());
+                spawn_nova_os_power_button(controls, font.clone(), settings);
             });
         });
+}
+
+/// The central-voice mute of a chin control: the SND switch is the monitor's
+/// own, so it covers the hover tick the controls would otherwise take from the
+/// global button voice. [`sync_nova_os_monitor_controls`] follows a live flip.
+pub(crate) fn nova_os_chin_cue_mute(settings: &NovaOsMonitorSettings) -> ButtonCueMute {
+    ButtonCueMute(!settings.sound_enabled)
 }
 
 /// One rotary knob (BRIGHT or SCAN): a clickable dial that cycles its 4 detents
@@ -445,6 +453,9 @@ pub(crate) fn spawn_nova_os_knob(
         Name::new(format!("NovaOsKnob({caption})")),
         knob,
         Button,
+        // The monitor's own cues obey its SND switch.
+        ButtonCueType::Owned,
+        nova_os_chin_cue_mute(settings),
         Node {
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
@@ -532,6 +543,8 @@ pub(crate) fn spawn_nova_os_sound_button(
         Name::new("NovaOsSoundButton"),
         NovaOsSoundButtonMarker,
         Button,
+        ButtonCueType::Owned,
+        nova_os_chin_cue_mute(settings),
         nova_os_chin_button_node(),
         // The button chrome is static now; the bulb (below), not the border or
         // the label, carries the on/off state (owner playtest).
@@ -563,11 +576,18 @@ pub(crate) fn spawn_nova_os_sound_button(
 
 /// The PWR button + green power LED (PoC `#powerBtn`): pressing it drives the
 /// existing animated close, the diegetic twin of the `exit` command.
-pub(crate) fn spawn_nova_os_power_button(controls: &mut ChildSpawnerCommands, font: Handle<Font>) {
+pub(crate) fn spawn_nova_os_power_button(
+    controls: &mut ChildSpawnerCommands,
+    font: Handle<Font>,
+    settings: &NovaOsMonitorSettings,
+) {
     controls.spawn((
         Name::new("NovaOsPowerButton"),
         NovaOsPowerButtonMarker,
         Button,
+        // The shutdown sequence plays the power-down cue.
+        ButtonCueType::Owned,
+        nova_os_chin_cue_mute(settings),
         nova_os_chin_button_node(),
         BorderColor::all(NOVA_OS_BUTTON_BORDER),
         BackgroundColor(NOVA_OS_BUTTON_DEEP),

@@ -30,6 +30,10 @@ and takes effect live as you drag.
 Master multiplies the other three, so a track you have turned down stays down
 when you raise Master.
 
+Most buttons tick when the pointer reaches them and play a press sound, at the
+Interface level. Most refused presses buzz instead. A disabled button stays
+silent, and the NOVA OS monitor's controls follow its SND switch.
+
 ## Graphics quality
 
 The **Preset** row offers **Low / Medium / High**; the four lever rows under

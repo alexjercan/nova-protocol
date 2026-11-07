@@ -22,7 +22,7 @@ use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::*;
 use nova_ui::{
-    prelude::{badge, BadgeKind, ButtonSpec, Tooltip},
+    prelude::{badge, BadgeKind, ButtonCueType, ButtonSpec, Tooltip},
     theme::UiColor,
 };
 use nova_world_base::prelude::{enemy_neighbours, standing, CivilizationField};
@@ -549,6 +549,7 @@ pub(crate) fn update_map_stance_block(
                             let mut button = row.spawn((
                                 Name::new(format!("MapStancePayFine-{index}")),
                                 compact_button(ButtonSpec::new("Pay fine").fit().primary()),
+                                ButtonCueType::Owned,
                             ));
                             button.observe(on_pay_fine_button(*civilization));
                             if !enabled {

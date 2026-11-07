@@ -69,6 +69,7 @@
 use bevy::prelude::*;
 
 mod bus;
+mod button_cue;
 mod mixing;
 mod registry;
 mod sfx;
@@ -87,8 +88,9 @@ mod voice;
 /// defined here while the cues themselves fire from `nova_interface`.
 pub mod prelude {
     pub use super::{
-        sounds_loaded, AudioBus, AudioRoute, InterfaceVolume, MusicVolume, NovaAudioPlugin,
-        PlaySfx, SfxAudioMarker, SfxCommandsExt, SfxListenerMarker, SfxPlugin, SfxSource, SfxVoice,
+        play_menu_back, play_menu_deny, play_menu_select, sounds_loaded, AudioBus, AudioRoute,
+        ButtonCuePlugin, ButtonCueSystems, InterfaceVolume, MusicVolume, NovaAudioPlugin, PlaySfx,
+        SfxAudioMarker, SfxCommandsExt, SfxListenerMarker, SfxPlugin, SfxSource, SfxVoice,
         SoundBank, UiSfx, VoiceMix, WorldVolume, EDITOR_DENY_VOLUME, EDITOR_PLACE_VOLUME,
         EDITOR_REMOVE_VOLUME, EDITOR_ROTATE_VOLUME, MENU_BACK_VOLUME, MENU_FOCUS_VOLUME,
         MENU_SELECT_VOLUME, MINING_PULSE_VOLUME, MINING_REFUSAL_VOLUME, NOVA_OS_BACK_VOLUME,
@@ -101,6 +103,9 @@ pub mod prelude {
 
 pub use self::{
     bus::{bus_gain, AudioBus, AudioRoute, InterfaceVolume, Mixer, MusicVolume, WorldVolume},
+    button_cue::{
+        play_menu_back, play_menu_deny, play_menu_select, ButtonCuePlugin, ButtonCueSystems,
+    },
     mixing::{
         area_cell, body_middle, cue_body, cue_group, distance_attenuation, listener_position,
         CueGroup, CueThrottle, SfxListenerMarker, SfxThrottle, ThrottleKey, SFX_AREA_CELL,
@@ -133,16 +138,15 @@ pub enum UiSfx {
     ObjectiveNew,
     /// An objective was completed (non-positional).
     ObjectiveComplete,
-    /// A menu button was pressed (New Game / Sandbox / Settings / Exit and the
-    /// pause/mods buttons) - a crisp UI click. Fired from `nova_menu`'s global
-    /// `On<Activate>` observer.
+    /// A button was pressed - a crisp UI click, from any screen. Fired by
+    /// [`ButtonCuePlugin`]'s global `On<Activate>` observer.
     MenuSelect,
-    /// A menu button that POPS a panel was pressed - `menu_select` inverted, so
+    /// A button that POPS a panel was pressed - `menu_select` inverted, so
     /// going in and coming back out are audibly a direction rather than two
-    /// clicks. Fired from the same observer, scoped by the button's own marker.
+    /// clicks. Fired from the same observer, by the button's `ButtonCueType`.
     MenuBack,
-    /// Keyboard/pad focus moved onto a menu button. The most-fired cue in the
-    /// game, and deliberately the smallest.
+    /// The pointer arrived on a button. The most-fired cue in the game, and
+    /// deliberately the smallest.
     MenuFocus,
     /// A slider crossed a detent. The quietest cue the interface has.
     UiTick,
@@ -240,7 +244,7 @@ pub const MINING_PULSE_VOLUME: f32 = 0.18;
 /// from `nova_scenario`'s mining plugin, which owns `MiningPulse`.
 pub const MINING_REFUSAL_VOLUME: f32 = 0.18;
 
-/// Volume for the menu click cue, fired from `nova_menu`. Non-positional and
+/// Volume for the button click cue. Non-positional and
 /// in the informational-tick band, like the ship's own cue volumes over in
 /// `nova_ship`'s `ship_audio`.
 pub const MENU_SELECT_VOLUME: f32 = 0.28;
@@ -334,6 +338,9 @@ impl Plugin for NovaAudioPlugin {
         // One-shot cues (PlaySfx -> SfxVoice).
         if !app.is_plugin_added::<SfxPlugin>() {
             app.add_plugins(SfxPlugin);
+        }
+        if !app.is_plugin_added::<ButtonCuePlugin>() {
+            app.add_plugins(ButtonCuePlugin);
         }
 
         app.init_resource::<InterfaceVolume>();

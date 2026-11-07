@@ -160,14 +160,18 @@ fn a_pane_switch_keeps_the_card_title_row_and_tabs_and_replaces_only_the_body() 
     settle(&mut rig.app);
     assert_eq!(take_churn(&mut rig.app), NodeChurn::default());
 
-    // A click on the Ship tab: one click cue, the same card, a new body.
+    // A click on the Ship tab: the tick of the pointer arriving, one click cue,
+    // the same card, a new body.
     let ship = tab_centre(rig.app.world_mut(), InterfacePaneType::Ship);
     click_at(&mut rig, ship);
     assert_eq!(
         *rig.app.world().resource::<InterfacePaneType>(),
         InterfacePaneType::Ship
     );
-    assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
+    assert_eq!(
+        take_cues(&mut rig.app),
+        [UiSfx::MenuFocus, UiSfx::MenuSelect]
+    );
     let world = rig.app.world_mut();
     assert_eq!(card_ids(world), before);
     assert_eq!(
@@ -463,7 +467,7 @@ fn a_narrow_window_puts_the_footer_hints_under_the_legend_and_nothing_overlaps()
 }
 
 /// A click on the Ship pane's Catalogue button opens the parts gallery and
-/// plays one interface click, as Fit and Reset do.
+/// plays one interface click, as Fit and Reset do, after the pointer's tick.
 #[test]
 fn the_catalogue_button_opens_the_gallery_and_clicks_once() {
     #[derive(Resource, Default)]
@@ -493,10 +497,13 @@ fn the_catalogue_button_opens_the_gallery_and_clicks_once() {
         rig.app.world().resource::<GalleryState>().open,
         "the Catalogue button opens the gallery"
     );
-    assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
+    assert_eq!(
+        take_cues(&mut rig.app),
+        [UiSfx::MenuFocus, UiSfx::MenuSelect]
+    );
     assert_eq!(
         rig.app.world().resource::<HeardRoutes>().0,
-        [AudioRoute::Interface]
+        [AudioRoute::Interface, AudioRoute::Interface]
     );
 }
 

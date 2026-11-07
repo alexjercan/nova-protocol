@@ -29,9 +29,9 @@ use nova_ui::{
     screen::{drive_wheel_scroll, EllipsisText},
     theme::UiColor,
     widget::{
-        badge, slider_track, text_field, BadgeKind, ButtonSpec, TextFieldError, TextFieldFocused,
-        TextFieldSpec, TextFieldValue, ThemedBorder, ThemedFill, ThemedImageTint, ThemedRadius,
-        ThemedText, Tooltip,
+        badge, slider_track, text_field, BadgeKind, ButtonCueType, ButtonSpec, TextFieldError,
+        TextFieldFocused, TextFieldSpec, TextFieldValue, ThemedBorder, ThemedFill, ThemedImageTint,
+        ThemedRadius, ThemedText, Tooltip,
     },
 };
 
@@ -43,8 +43,8 @@ use super::{
 use crate::{
     icons::{icon_node, InterfaceIcons},
     pane::{
-        compact_button, control_row, divider, fixed_cell, play_menu_select, side_panel,
-        spawn_credit_figure, themed_label, ui_width, InterfacePaneType, SUMMARY_LINES,
+        compact_button, control_row, divider, fixed_cell, side_panel, spawn_credit_figure,
+        themed_label, ui_width, InterfacePaneType, SUMMARY_LINES,
     },
     terminal::NovaOsAppInput,
     viewer::cycle_index,
@@ -450,6 +450,8 @@ fn filter_chip(
     bar.spawn((
         Name::new(format!("InventoryFilter{label}")),
         Button,
+        // The current filter again changes nothing, so the handler cues.
+        ButtonCueType::Owned,
         InventoryFilterChip(chip),
         Node {
             height: px(26),
@@ -589,12 +591,14 @@ fn inventory_column(
                                     Name::new(INVENTORY_TAKE_ALL),
                                     InventoryTakeAllButton,
                                     compact_button(ButtonSpec::new("Take all").fit()),
+                                    ButtonCueType::Owned,
                                 ))
                                 .observe(on_take_all_button);
                                 take.spawn((
                                     Name::new("InventoryTakeCredits"),
                                     InventoryTakeCreditsButton,
                                     compact_button(ButtonSpec::new("Take credits").fit().ghost()),
+                                    ButtonCueType::Owned,
                                 ))
                                 .observe(on_take_credits_button);
                             });
@@ -1185,6 +1189,7 @@ fn draft_form(form: &mut ChildSpawnerCommands) {
             Name::new("InventoryDraftConfirm"),
             InventoryDraftConfirm,
             compact_button(ButtonSpec::new("Confirm").fit().primary()),
+            ButtonCueType::Owned,
         ))
         .observe(confirm_inventory_draft);
         // `update_inventory_trade_controls` shows the one of the open
@@ -1200,6 +1205,7 @@ fn draft_form(form: &mut ChildSpawnerCommands) {
                 Name::new(name),
                 InventoryTradeAllButton(trade),
                 compact_button(ButtonSpec::new(label).fit()),
+                ButtonCueType::Owned,
                 InteractionDisabled,
             ))
             .observe(on_trade_all_button);
@@ -1220,6 +1226,8 @@ fn action_chip(
         .spawn((
             Name::new(format!("InventoryDraft{}", action_chip_name(action))),
             Button,
+            // The current action again changes nothing, so the handler cues.
+            ButtonCueType::Owned,
             InventoryDraftActionChip(action),
             Node {
                 height: px(22),
@@ -1269,6 +1277,8 @@ fn inventory_row(
     list.spawn((
         Name::new(format!("InventoryRow{side:?}{item}")),
         Button,
+        // The selected row again changes nothing, so the handler cues.
+        ButtonCueType::Owned,
         InventoryRow { side, item },
         Node {
             height: px(ROW_PX),
@@ -2213,8 +2223,6 @@ fn slide_inventory_draft(
 fn fill_inventory_draft(
     _: On<Activate>,
     ships: InventoryShips,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
     mut runtime: ResMut<InventoryRuntime>,
 ) {
     let Some(draft) = runtime.draft.clone() else {
@@ -2224,7 +2232,6 @@ fn fill_inventory_draft(
         quantity: Some(ships.draft_stock(&draft)),
         ..draft
     });
-    play_menu_select(&mut commands, bank.as_deref());
 }
 
 /// Send the open draft to [`apply_inventory_action_commands`]. With none

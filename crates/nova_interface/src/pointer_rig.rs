@@ -30,7 +30,7 @@ use bevy::{
 };
 use nova_gameplay::{
     audio::UI_SFX_FILES,
-    prelude::{PlaySfx, SoundBank, UiSfx},
+    prelude::{ButtonCuePlugin, PlaySfx, SoundBank, UiSfx},
 };
 
 /// Agreement budget between the pointer's mapping and the shader's, in image
@@ -323,6 +323,7 @@ pub(super) fn hear_ui_cues(app: &mut App) {
     let bank = SoundBank::load(app.world().resource::<AssetServer>(), UI_SFX_FILES);
     app.insert_resource(bank);
     app.init_resource::<HeardCues>();
+    app.add_plugins(ButtonCuePlugin);
     app.add_observer(
         |sfx: On<PlaySfx>, bank: Res<SoundBank<UiSfx>>, mut heard: ResMut<HeardCues>| {
             let cue = UI_SFX_FILES

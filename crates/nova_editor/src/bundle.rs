@@ -53,10 +53,10 @@ use nova_scenario::prelude::{
     StationDesignPrototype, StationDesignSource,
 };
 use nova_ship::prelude::{GameSections, TargetingSettings};
-use nova_ui::theme::UiColor;
 
 use crate::{
-    config::{EditorStatus, SelectedNode},
+    config::{EditorSays, SelectedNode},
+    cues::EditorCues,
     event::ScriptNodes,
     node::{
         found_empty_document, insert_lifted_section, insert_object_node, insert_ship_node,
@@ -667,14 +667,19 @@ fn save_or_ask(document: &DocumentSlot, request: &mut FileRequest, window: &mut 
     }
 }
 
-/// File > Save.
+/// File > Save. A write cues from [`apply_file_request`], which knows how it
+/// went; the window it asks for instead is a plain press.
 pub(crate) fn ask_to_save(
     _activate: On<Activate>,
     document: Res<DocumentSlot>,
     mut request: ResMut<FileRequest>,
     mut window: ResMut<FileWindowRequest>,
+    mut cues: EditorCues,
 ) {
     save_or_ask(&document, &mut request, &mut window);
+    if window.0.is_some() {
+        cues.select();
+    }
 }
 
 /// File > Save As...
@@ -716,13 +721,12 @@ pub(crate) fn apply_file_request(
     mut commands: Commands,
     mut request: ResMut<FileRequest>,
     mut document: ResMut<DocumentSlot>,
-    time: Res<Time>,
     // Optional: a headless fixture drives this worker without the content
     // pipeline behind it, and a save that cannot be published is still a save.
     mut enabled: Option<ResMut<EnabledMods>>,
     mut context: ResMut<EditContext>,
     mut selected: ResMut<SelectedNode>,
-    mut status: ResMut<EditorStatus>,
+    mut says: EditorSays,
     nodes: SectionNodes,
     q_objects: ObjectNodes,
     q_ships: Query<(Entity, &NodeId, &ShipNode, &Transform)>,
@@ -734,7 +738,6 @@ pub(crate) fn apply_file_request(
 ) {
     let targeting = targeting.as_deref().cloned().unwrap_or_default();
     let asked = std::mem::take(&mut *request);
-    let now = time.elapsed_secs_f64();
     // Save writes where the document already lives; Save As says where it is
     // to live from now on. One write either way.
     let target = match &asked {
@@ -746,7 +749,7 @@ pub(crate) fn apply_file_request(
         FileRequest::None => {}
         FileRequest::Save | FileRequest::SaveAs(_) => {
             let Some(slot) = target else {
-                status.say("nothing has named this document yet", UiColor::Danger, now);
+                says.refuse("nothing has named this document yet");
                 return;
             };
             // A station design the lint refuses is still written: the file
@@ -783,12 +786,13 @@ pub(crate) fn apply_file_request(
                         enabled.0.insert(slot.id.clone());
                     }
                     info!("editor: saved the document as mod '{}'", slot.id);
-                    status.say(format!("saved as {}", slot.name), UiColor::Primary, now);
+                    says.note(format!("saved as {}", slot.name));
+                    says.accept();
                     document.0 = Some(slot);
                 }
                 Err(error) => {
                     error!("editor: the save failed - {error}");
-                    status.say(format!("save failed: {error}"), UiColor::Danger, now);
+                    says.refuse(format!("save failed: {error}"));
                 }
             }
         }
@@ -796,11 +800,11 @@ pub(crate) fn apply_file_request(
             let lifted = match read_save(&id).map(|items| lift_content(&items)) {
                 Ok(Some(lifted)) => lifted,
                 Ok(None) => {
-                    status.say("that file holds no range", UiColor::Danger, now);
+                    says.refuse("that file holds no range");
                     return;
                 }
                 Err(error) => {
-                    status.say(format!("nothing to open: {error}"), UiColor::Danger, now);
+                    says.refuse(format!("nothing to open: {error}"));
                     return;
                 }
             };
@@ -819,11 +823,8 @@ pub(crate) fn apply_file_request(
             let scenario = found_empty_document(&mut commands, &mut context);
             commands.queue(move |world: &mut World| fill_document(world, scenario, lifted));
             info!("editor: opened the saved document - {ships} ship(s), {objects} object(s)");
-            status.say(
-                format!("opened - {ships} ship(s), {objects} object(s)"),
-                UiColor::Primary,
-                now,
-            );
+            says.note(format!("opened - {ships} ship(s), {objects} object(s)"));
+            says.accept();
         }
     }
 }

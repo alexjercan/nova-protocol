@@ -20,7 +20,7 @@
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate, window::PrimaryWindow};
 use nova_gameplay::{
     prelude::{
-        cr_digits, play_time_text, AudioRoute, Chart, GameItems, ItemDesignId,
+        cr_digits, play_menu_select, play_time_text, AudioRoute, Chart, GameItems, ItemDesignId,
         PlayerSpaceshipMarker, SfxCommandsExt, ShipCredits, SoundBank, SpaceshipRootMarker, UiSfx,
         WorldClock, EDITOR_DENY_VOLUME, MENU_SELECT_VOLUME, UI_TOGGLE_VOLUME,
     },
@@ -46,8 +46,9 @@ use crate::{
     },
     ship::{
         on_ship_fit_button, on_ship_reset_button, on_ship_viewport_click, on_ship_viewport_enter,
-        on_ship_viewport_leave, on_ship_viewport_move, spawn_ship_panel, spawn_ship_rebind_prompt,
-        ShipCatalogueButton, ShipRuntime, ShipSplitMarker, ShipViewportMarker,
+        on_ship_viewport_leave, on_ship_viewport_move, spawn_ship_panel,
+        spawn_ship_rebind_click_guard, spawn_ship_rebind_prompt, ShipCatalogueButton, ShipRuntime,
+        ShipSplitMarker, ShipViewportMarker,
     },
     station::{station_body, StationDock},
     terminal::NovaOsCloseTransition,
@@ -276,23 +277,25 @@ pub(crate) fn spawn_interface_root(
     );
     match (shown, roots.first()) {
         (true, None) => {
-            commands.spawn((
-                InterfaceRootMarker,
-                Name::new("InterfaceRoot"),
-                Node {
-                    position_type: PositionType::Absolute,
-                    width: percent(100),
-                    height: percent(100),
-                    flex_direction: FlexDirection::Column,
-                    align_items: AlignItems::Center,
-                    padding: UiRect::all(px(16)),
-                    row_gap: px(12),
-                    ..default()
-                },
-                // Above the flight HUD, below the command modal. No fill: the
-                // card is the surface, and the frozen world shows around it.
-                GlobalZIndex(MENU_PANEL_Z),
-            ));
+            commands
+                .spawn((
+                    InterfaceRootMarker,
+                    Name::new("InterfaceRoot"),
+                    Node {
+                        position_type: PositionType::Absolute,
+                        width: percent(100),
+                        height: percent(100),
+                        flex_direction: FlexDirection::Column,
+                        align_items: AlignItems::Center,
+                        padding: UiRect::all(px(16)),
+                        row_gap: px(12),
+                        ..default()
+                    },
+                    // Above the flight HUD, below the command modal. No fill: the
+                    // card is the surface, and the frozen world shows around it.
+                    GlobalZIndex(MENU_PANEL_Z),
+                ))
+                .with_children(spawn_ship_rebind_click_guard);
         }
         (false, Some(&root)) => commands.entity(root).despawn(),
         _ => {}
@@ -646,6 +649,7 @@ fn spawn_interface_card(
                             let mut option = seg.spawn((
                                 segmented_option(label),
                                 ButtonValue(value),
+                                ButtonCueType::Owned,
                                 Name::new(format!("InterfaceTab{label}")),
                             ));
                             option.observe(on_interface_tab_click);
@@ -709,6 +713,8 @@ fn spawn_interface_card(
                             InterfaceCloseButton,
                             Name::new("InterfaceClose"),
                             button(ButtonSpec::new("Close").ghost().key("").fit()),
+                            // Closing plays the interface toggle's blip.
+                            ButtonCueType::Owned,
                         ))
                         .observe(on_interface_close_click);
                     });
@@ -751,17 +757,6 @@ fn on_interface_tab_click(
 ) {
     if q_tab.get(activate.entity) == Ok(false) {
         play_menu_select(&mut commands, bank.as_deref());
-    }
-}
-
-/// Play the interface's click, if the sound bank has loaded.
-pub(crate) fn play_menu_select(commands: &mut Commands, bank: Option<&SoundBank<UiSfx>>) {
-    if let Some(bank) = bank {
-        commands.play_sfx(
-            bank.get(UiSfx::MenuSelect),
-            AudioRoute::Interface,
-            MENU_SELECT_VOLUME,
-        );
     }
 }
 
@@ -1028,6 +1023,8 @@ pub(crate) fn compact_button(spec: ButtonSpec) -> impl Bundle {
 
 /// A compact primary button named `name`; `refusal` greys it with the
 /// reason as its tooltip. The caller observes `On<Activate>` on the result.
+/// Its action can be refused, so the action's result plays the cue, not the
+/// press.
 pub(crate) fn refusable_button<'a>(
     parent: &'a mut ChildSpawnerCommands,
     name: String,
@@ -1037,6 +1034,7 @@ pub(crate) fn refusable_button<'a>(
     let mut button = parent.spawn((
         Name::new(name),
         compact_button(ButtonSpec::new(label).fit().primary()),
+        ButtonCueType::Owned,
     ));
     if let Some(why) = refusal {
         button.insert((InteractionDisabled, Tooltip(why.to_string())));
@@ -1622,22 +1620,12 @@ fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
         |controls| {
             // First of the three: it shows only at a refit dock, and Fit and
             // Reset keep their places at the right edge with or without it.
-            // The gallery's own observer opens it and plays nothing, so the
-            // click is this button's.
-            controls
-                .spawn((
-                    ShipCatalogueButton,
-                    GalleryAction::Open,
-                    button(ButtonSpec::new("Catalogue").fit()),
-                    Name::new("ShipCatalogue"),
-                ))
-                .observe(
-                    |_activate: On<Activate>,
-                     bank: Option<Res<SoundBank<UiSfx>>>,
-                     mut commands: Commands| {
-                        play_menu_select(&mut commands, bank.as_deref());
-                    },
-                );
+            controls.spawn((
+                ShipCatalogueButton,
+                GalleryAction::Open,
+                button(ButtonSpec::new("Catalogue").fit()),
+                Name::new("ShipCatalogue"),
+            ));
             controls
                 .spawn((button(ButtonSpec::new("Fit").fit()), Name::new("ShipFit")))
                 .observe(on_ship_fit_button);

@@ -47,13 +47,15 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
     theme::UiColor,
-    widget::{ButtonSpec, ThemedBorder, ThemedFill, ThemedRadius, ThemedText, Tooltip},
+    widget::{
+        ButtonCueType, ButtonSpec, ThemedBorder, ThemedFill, ThemedRadius, ThemedText, Tooltip,
+    },
 };
 
 use super::{loot_text, take_loot, InventoryRuntime, InventoryShips};
 use crate::{
     icons::InterfaceIcons,
-    pane::{compact_button, play_menu_select, spawn_part_tile, themed_label},
+    pane::{compact_button, spawn_part_tile, themed_label},
     ship::design_section_code,
 };
 
@@ -482,6 +484,7 @@ pub(crate) fn spawn_strip_block(panel: &mut ChildSpawnerCommands) {
                         Name::new(INVENTORY_STRIP_BUTTON),
                         compact_button(ButtonSpec::new("Strip").fit().primary()),
                         Tooltip::default(),
+                        ButtonCueType::Owned,
                     ))
                     .observe(on_strip_button);
                     spawn_meter_row(row, "Total", StripBlockFill::Total, StripBlockField::Time);
@@ -796,14 +799,8 @@ pub(crate) fn update_strip_block(
 }
 
 /// Raise a [`HullStripCommand`] when the Strip button is clicked.
-fn on_strip_button(
-    _activate: On<Activate>,
-    mut strips: MessageWriter<HullStripCommand>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
-) {
+fn on_strip_button(_activate: On<Activate>, mut strips: MessageWriter<HullStripCommand>) {
     strips.write(HullStripCommand);
-    play_menu_select(&mut commands, bank.as_deref());
 }
 
 /// Apply [`HullStripCommand`]s by the [`plan_strip_press`] rule: take the
@@ -820,6 +817,7 @@ pub(crate) fn apply_hull_strip_commands(
     site: StripSite,
     mut ships: InventoryShips,
     q_player: Query<Has<HullStripJob>, With<PlayerSpaceshipMarker>>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
 ) {
     if messages.is_empty() {
         return;
@@ -841,6 +839,7 @@ pub(crate) fn apply_hull_strip_commands(
                 "strip: {}",
                 strip_refusal_text(&items, refusal, hull.as_ref())
             ));
+            play_menu_deny(&mut commands, bank.as_deref());
             return;
         }
     };
@@ -866,6 +865,7 @@ pub(crate) fn apply_hull_strip_commands(
         "{took}stripping the wreck: {}",
         duration_text(strip.duration_secs)
     ));
+    play_menu_select(&mut commands, bank.as_deref());
     commands
         .entity(player)
         .insert(HullStripJob::new(partner.entity, strip.duration_secs, loot));

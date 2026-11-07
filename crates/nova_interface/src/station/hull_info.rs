@@ -14,10 +14,13 @@
 
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
-use nova_ui::{theme::UiColor, widget::ButtonSpec};
+use nova_ui::{
+    theme::UiColor,
+    widget::{ButtonCueType, ButtonSpec},
+};
 
 use crate::{
-    pane::{compact_button, interface_shown, play_menu_select, themed_label, InterfacePaneType},
+    pane::{compact_button, interface_shown, themed_label, InterfacePaneType},
     ship::{ShipPanelMarker, ShipViewSubject},
     terminal::NovaOsCloseTransition,
 };
@@ -48,13 +51,10 @@ pub(crate) fn spawn_hull_info_button(
         move |_activate: On<Activate>,
               mut subject: ResMut<ShipViewSubject>,
               mut shown: ResMut<HullInfoLine>,
-              mut pane: ResMut<InterfacePaneType>,
-              bank: Option<Res<SoundBank<UiSfx>>>,
-              mut commands: Commands| {
+              mut pane: ResMut<InterfacePaneType>| {
             subject.0 = Some(hull);
             shown.0.clone_from(&line);
             *pane = InterfacePaneType::Ship;
-            play_menu_select(&mut commands, bank.as_deref());
         },
     );
 }
@@ -122,14 +122,11 @@ pub(crate) fn sync_hull_info_header(
                 .spawn((
                     Name::new(HULL_INFO_CLOSE),
                     compact_button(ButtonSpec::new("Close").fit()),
+                    ButtonCueType::Back,
                 ))
                 .observe(
-                    |_activate: On<Activate>,
-                     mut pane: ResMut<InterfacePaneType>,
-                     bank: Option<Res<SoundBank<UiSfx>>>,
-                     mut commands: Commands| {
+                    |_activate: On<Activate>, mut pane: ResMut<InterfacePaneType>| {
                         close_hull_info(&mut pane);
-                        play_menu_select(&mut commands, bank.as_deref());
                     },
                 );
         })

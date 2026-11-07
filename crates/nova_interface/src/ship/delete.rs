@@ -34,7 +34,6 @@ use super::{
     scene::ShipRuntime,
     sections::design_section_code,
 };
-use crate::pane::play_menu_select;
 
 /// A request to delete one live section of the player ship, raised by the
 /// `ship_delete` key or the panel's Delete button.
@@ -286,8 +285,6 @@ pub(crate) fn on_ship_delete_button(
     _activate: On<Activate>,
     runtime: Res<ShipRuntime>,
     mut deletes: MessageWriter<SectionDeleteCommand>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
 ) {
     let Some(target) = runtime.selected else {
         return;
@@ -296,7 +293,6 @@ pub(crate) fn on_ship_delete_button(
         return;
     }
     deletes.write(SectionDeleteCommand { target });
-    play_menu_select(&mut commands, bank.as_deref());
 }
 
 /// Cache [`plan_ship_delete`] for the selection, for the panel's Delete

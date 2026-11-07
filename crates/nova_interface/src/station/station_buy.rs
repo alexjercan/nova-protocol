@@ -29,8 +29,8 @@ use super::{card_actions, offer_cell, spawn_card_price, StationRuntime};
 use crate::{
     icons::InterfaceIcons,
     pane::{
-        compact_button, control_row, play_menu_select, refusable_button, themed_label,
-        ActionOutcomeType, InterfacePaneType,
+        compact_button, control_row, refusable_button, themed_label, ActionOutcomeType,
+        InterfacePaneType,
     },
 };
 
@@ -311,12 +311,14 @@ pub(crate) fn update_station_sale_block(
                                 slot.spawn((
                                     Name::new(STATION_BUY_CANCEL_BUTTON),
                                     compact_button(ButtonSpec::new("Cancel")),
+                                    ButtonCueType::Back,
                                 ));
                             });
                         actions
                             .spawn((
                                 Name::new(STATION_BUY_BUTTON),
                                 compact_button(ButtonSpec::new("Confirm").fit().danger()),
+                                ButtonCueType::Owned,
                             ))
                             .observe(on_station_buy_button);
                     } else {

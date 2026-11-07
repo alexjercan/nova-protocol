@@ -7,7 +7,7 @@ use bevy::{
     input::InputPlugin,
     state::app::StatesPlugin,
     ui::{ComputedNode, InteractionDisabled, UiGlobalTransform},
-    ui_widgets::Activate,
+    ui_widgets::{Activate, Button},
 };
 use nova_events::prelude::EntityId;
 use nova_gameplay::{prelude::*, test_support::test_items, PauseStates};
@@ -16,7 +16,8 @@ use nova_ship::prelude::*;
 use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
     widget::{
-        TextFieldError, TextFieldFocused, TextFieldValue, ThemedFill, ThemedImageTint, Tooltip,
+        ButtonCueType, TextFieldError, TextFieldFocused, TextFieldValue, ThemedFill,
+        ThemedImageTint, Tooltip,
     },
 };
 
@@ -1595,9 +1596,10 @@ fn panel_action_state_gates_repair() {
 #[test]
 fn panel_buttons_raise_section_repair_command() {
     // Each button's `Activate` observer routes a SectionRepairCommand for the
-    // selected section, or arms a rebind, and clicks once - but only when the
-    // panel marked that action enabled. A disabled or modal-blocked press stays
-    // silent. Pins every button entry point at its own boundary
+    // selected section, or arms a rebind, and the button clicks once - but only
+    // when the panel marked that action enabled, which it shows as
+    // `InteractionDisabled`. A disabled press stays silent. Pins every button
+    // entry point at its own boundary
     // (`pin-each-caller-not-just-shared-core`).
     // A world trigger leaves the observers' commands queued, so each cue check
     // flushes first; a silent check without the flush would pass vacuously.
@@ -1627,7 +1629,12 @@ fn panel_buttons_raise_section_repair_command() {
     ));
     let repair = app
         .world_mut()
-        .spawn(ShipPanelButton::Repair)
+        .spawn((
+            ShipPanelButton::Repair,
+            Button,
+            ButtonCueType::Owned,
+            InteractionDisabled,
+        ))
         .observe(on_ship_repair_button)
         .id();
     {
@@ -1653,6 +1660,9 @@ fn panel_buttons_raise_section_repair_command() {
     app.world_mut()
         .resource_mut::<ShipRuntime>()
         .panel_repair_enabled = true;
+    app.world_mut()
+        .entity_mut(repair)
+        .remove::<InteractionDisabled>();
     app.world_mut().trigger(Activate { entity: repair });
     app.update();
     assert_eq!(
@@ -1666,7 +1676,7 @@ fn panel_buttons_raise_section_repair_command() {
     // --- Rebind button on the turret, the caller that arms a capture. ---
     let rebind = app
         .world_mut()
-        .spawn(ShipPanelButton::Rebind)
+        .spawn((ShipPanelButton::Rebind, Button, InteractionDisabled))
         .observe(on_ship_rebind_button)
         .id();
     app.world_mut().resource_mut::<ShipRuntime>().selected = Some(turret);
@@ -1686,6 +1696,9 @@ fn panel_buttons_raise_section_repair_command() {
     app.world_mut()
         .resource_mut::<ShipRuntime>()
         .panel_rebind_enabled = true;
+    app.world_mut()
+        .entity_mut(rebind)
+        .remove::<InteractionDisabled>();
     app.world_mut().trigger(Activate { entity: rebind });
     assert_eq!(
         app.world().resource::<ShipRuntime>().rebinding,

@@ -195,6 +195,7 @@ impl Plugin for ShipPanePlugin {
                     project_ship_blips,
                     label_the_selected_section,
                     update_ship_panel,
+                    sync_ship_rebind_click_guard,
                     update_ship_held_block,
                     update_ship_rebuild_list.run_if(ship_view_editable),
                 )

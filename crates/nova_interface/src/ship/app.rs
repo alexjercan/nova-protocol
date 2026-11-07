@@ -8,20 +8,24 @@ use bevy::{
     input::mouse::MouseWheel,
     picking::hover::Hovered,
     prelude::{
-        default, BackgroundColor, ChildOf, ChildSpawnerCommands, Color, ComputedNode, Display,
-        Entity, FlexDirection, FlexWrap, Has, Justify, JustifyContent, LineBreak, MessageReader,
-        Name, Node, Overflow, Pickable, PositionType, Query, ResMut, ScrollPosition, TextLayout,
-        UiRect, Val, With, ZIndex,
+        default, BackgroundColor, ChildOf, ChildSpawnerCommands, Color, Commands, Component,
+        ComputedNode, DetectChangesMut, Display, Entity, FlexDirection, FlexWrap, Has, Justify,
+        JustifyContent, LineBreak, MessageReader, Name, Node, Overflow, Pickable, PositionType,
+        Query, Res, ResMut, ScrollPosition, TextLayout, UiRect, Val, Visibility, With, ZIndex,
     },
-    ui_widgets::{Slider, SliderPrecision, SliderRange, SliderStep, SliderValue, TrackClick},
+    ui::Pressed,
+    ui_widgets::{
+        Button, Slider, SliderPrecision, SliderRange, SliderStep, SliderValue, TrackClick,
+    },
 };
+use nova_command::prelude::TerminalRowKind;
 use nova_gameplay::prelude::*;
 use nova_ui::{
     screen::drive_wheel_scroll,
     theme::UiColor,
     widget::{
-        button, slider_track, text_field, ButtonSpec, TextFieldSpec, ThemedFill, ThemedRadius,
-        Tooltip,
+        button, slider_track, text_field, ButtonCueType, ButtonSpec, TextFieldSpec, ThemedFill,
+        ThemedRadius, Tooltip,
     },
 };
 
@@ -307,6 +311,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                                     Name::new("ShipRepair"),
                                     ShipPanelButton::Repair,
                                     compact_button(ButtonSpec::new("Repair").fit().primary()),
+                                    ButtonCueType::Owned,
                                 ))
                                 .observe(on_ship_repair_button);
                             });
@@ -350,6 +355,67 @@ pub(crate) fn spawn_ship_rebind_prompt(view: &mut ChildSpawnerCommands) {
     });
 }
 
+/// The invisible cover over the whole interface while a section rebind owns the
+/// mouse. Bevy picking sends a click to the panel whatever `apply_ship_rebind`
+/// reads off `ButtonInput`, so without it the click that binds Left Mouse would
+/// also fire the Delete button, tab or blip under the pointer on its release.
+#[derive(Component, Debug)]
+pub(crate) struct ShipRebindClickGuard;
+
+/// Spawn the [`ShipRebindClickGuard`] under the interface root, above the card.
+/// It takes no hover, so a blocked click has no target at all.
+pub(crate) fn spawn_ship_rebind_click_guard(root: &mut ChildSpawnerCommands) {
+    root.spawn((
+        ShipRebindClickGuard,
+        Name::new("ShipRebindClickGuard"),
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(0.0),
+            left: Val::Px(0.0),
+            right: Val::Px(0.0),
+            bottom: Val::Px(0.0),
+            ..default()
+        },
+        Visibility::Hidden,
+        Pickable {
+            should_block_lower: true,
+            is_hoverable: false,
+        },
+        ZIndex(1),
+    ));
+}
+
+/// Show the [`ShipRebindClickGuard`] for as long as [`ShipRuntime::rebind_armed`]
+/// holds. That covers the release of the captured click: `rebind_swallow` holds
+/// until every button is up, and picking reads that release first.
+///
+/// A press already down when a key arms the capture needs more than the guard.
+/// Bevy aims a click at the previous frame's hover, so the release one frame
+/// later still reaches that button, and a later release reaches nothing and
+/// leaves the button pressed. Taking [`Pressed`] off answers both: a click on a
+/// button without it does not activate.
+pub(crate) fn sync_ship_rebind_click_guard(
+    runtime: Res<ShipRuntime>,
+    mut commands: Commands,
+    mut q_guard: Query<&mut Visibility, With<ShipRebindClickGuard>>,
+    q_pressed: Query<Entity, (With<Button>, With<Pressed>)>,
+) {
+    let armed = runtime.rebind_armed();
+    let shown = if armed {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
+    for mut visibility in &mut q_guard {
+        visibility.set_if_neq(shown);
+    }
+    if armed {
+        for button in &q_pressed {
+            commands.entity(button).remove::<Pressed>();
+        }
+    }
+}
+
 /// Apply in-app [`SectionRepairCommand`] messages (the `P` action key and the
 /// panel button) to player-ship sections, and flash the result on the panel
 /// note line. A target that is not a live section of the player ship is
@@ -367,6 +433,8 @@ pub(crate) fn apply_ship_section_commands(
     >,
     q_view: Query<(&ChildOf, &SectionCode, Has<IntegrityDisabledMarker>), With<SectionMarker>>,
     mut q_health: Query<&mut Health>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
     let Ok((player, inventory, mut reports)) = q_player.single_mut() else {
         messages.clear();
@@ -388,6 +456,10 @@ pub(crate) fn apply_ship_section_commands(
             &mut inventory,
             &mut reports,
         );
+        match row.kind {
+            TerminalRowKind::Error => play_menu_deny(&mut commands, bank.as_deref()),
+            _ => play_menu_select(&mut commands, bank.as_deref()),
+        }
         runtime.note = Some((row.text, 2.5));
     }
 }

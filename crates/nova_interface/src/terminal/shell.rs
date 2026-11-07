@@ -6,12 +6,16 @@
 
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_command::prelude::*;
-use nova_gameplay::{cheats::prelude::RunCheats, PauseStates};
+use nova_gameplay::{
+    cheats::prelude::RunCheats,
+    prelude::{SoundBank, UiSfx, NOVA_OS_TICK_VOLUME},
+    PauseStates,
+};
 use nova_hud::prelude::HudInterfaceExempt;
 use nova_input::prelude::InputBindings;
-use nova_ui::{font::UiFont, screen::clamp_stored_scroll, theme};
+use nova_ui::{font::UiFont, screen::clamp_stored_scroll, theme, widget::ButtonCueMute};
 
-use super::{casing::*, components::*, content::*, style::*};
+use super::{casing::*, components::*, content::*, sound::play_nova_os_cue, style::*};
 
 /// BRIGHT knob click: advance the brightness detent (the dial pointer and the
 /// CRT `brightness` uniform follow via [`sync_nova_os_monitor_controls`] /
@@ -19,16 +23,22 @@ use super::{casing::*, components::*, content::*, style::*};
 pub(crate) fn on_nova_os_bright_knob(
     _activate: On<Activate>,
     mut settings: ResMut<NovaOsMonitorSettings>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
     settings.cycle(NovaOsKnob::Bright);
+    play_chin_tick(&mut commands, bank.as_deref(), &settings);
 }
 
 /// SCAN knob click: advance the scanline detent.
 pub(crate) fn on_nova_os_scan_knob(
     _activate: On<Activate>,
     mut settings: ResMut<NovaOsMonitorSettings>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
     settings.cycle(NovaOsKnob::Scan);
+    play_chin_tick(&mut commands, bank.as_deref(), &settings);
 }
 
 /// SND button click: toggle the monitor speaker flag (default ON). The NOVA OS
@@ -37,8 +47,28 @@ pub(crate) fn on_nova_os_scan_knob(
 pub(crate) fn on_nova_os_sound_button(
     _activate: On<Activate>,
     mut settings: ResMut<NovaOsMonitorSettings>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
     settings.sound_enabled = !settings.sound_enabled;
+    play_chin_tick(&mut commands, bank.as_deref(), &settings);
+}
+
+/// The tick of a chin control, under the monitor's SND switch.
+fn play_chin_tick(
+    commands: &mut Commands,
+    bank: Option<&SoundBank<UiSfx>>,
+    settings: &NovaOsMonitorSettings,
+) {
+    if let Some(bank) = bank {
+        play_nova_os_cue(
+            commands,
+            bank,
+            settings,
+            UiSfx::NovaOsTick,
+            NOVA_OS_TICK_VOLUME,
+        );
+    }
 }
 
 /// PWR button click: drive the existing animated close, the diegetic twin of the
@@ -51,8 +81,9 @@ pub(crate) fn on_nova_os_power_button(
 }
 
 /// Reconcile the chin controls' look with [`NovaOsMonitorSettings`] after a knob
-/// turn or SND toggle: rotate each dial pointer to its detent angle, and light /
-/// dim the SND bulb. Spawn-time state is set directly in
+/// turn or SND toggle: rotate each dial pointer to its detent angle, light / dim
+/// the SND bulb, and carry the switch to every chin control's
+/// [`ButtonCueMute`]. Spawn-time state is set directly in
 /// [`spawn_nova_os_knob`]/[`spawn_nova_os_sound_button`]; this handles live
 /// changes (gated on `resource_changed`, which also harmlessly re-applies the
 /// current state on the init frame). The SND label no longer swaps text: the
@@ -61,6 +92,14 @@ pub(crate) fn sync_nova_os_monitor_controls(
     settings: Res<NovaOsMonitorSettings>,
     mut q_dials: Query<(&NovaOsKnob, &mut UiTransform), With<NovaOsKnobDialMarker>>,
     mut q_sound_indicator: Query<&mut BackgroundColor, With<NovaOsSoundIndicatorMarker>>,
+    mut q_chin_mute: Query<
+        &mut ButtonCueMute,
+        Or<(
+            With<NovaOsKnob>,
+            With<NovaOsSoundButtonMarker>,
+            With<NovaOsPowerButtonMarker>,
+        )>,
+    >,
 ) {
     for (knob, mut transform) in &mut q_dials {
         transform.rotation = Rot2::degrees(settings.dial_angle(*knob));
@@ -68,6 +107,9 @@ pub(crate) fn sync_nova_os_monitor_controls(
     let bulb = nova_os_bulb_color(settings.sound_enabled);
     for mut color in &mut q_sound_indicator {
         color.0 = bulb;
+    }
+    for mut mute in &mut q_chin_mute {
+        *mute = nova_os_chin_cue_mute(&settings);
     }
 }
 

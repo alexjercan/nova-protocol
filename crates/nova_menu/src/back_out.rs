@@ -17,7 +17,7 @@ use crate::{
     mods::{close_mods, ModsPanel},
     portal::UninstallStep,
     settings::{PendingRebind, ResetBindingsStep},
-    widgets::{close_screen, play_back_cue, MenuScreen, BACK_PAD_BUTTON},
+    widgets::{close_screen, MenuScreen, BACK_PAD_BUTTON},
     world_setup::{back_out_of_new_game, StepNodes, WorldSetupOverlay},
 };
 
@@ -86,11 +86,11 @@ pub(crate) fn back_out_of_the_menu_screen(
         return;
     }
     if confirms.cancel() {
-        play_back_cue(&mut commands, bank.as_deref());
+        play_menu_back(&mut commands, bank.as_deref());
         return;
     }
     if back_out_of_new_game(&mut commands, &overlays, &mut nodes) {
-        play_back_cue(&mut commands, bank.as_deref());
+        play_menu_back(&mut commands, bank.as_deref());
         return;
     }
     for (mut visibility, is_mods) in &mut screens {
@@ -102,7 +102,7 @@ pub(crate) fn back_out_of_the_menu_screen(
         } else {
             close_screen(&mut visibility);
         }
-        play_back_cue(&mut commands, bank.as_deref());
+        play_menu_back(&mut commands, bank.as_deref());
         return;
     }
 }

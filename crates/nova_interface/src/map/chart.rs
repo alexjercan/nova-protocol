@@ -56,7 +56,7 @@ use super::{app::*, contacts::*, tiles::ChartTileTextures, *};
 use crate::{
     icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
     inventory::category_color,
-    pane::{control_row, divider, legend_entry, play_menu_select, themed_label, InterfacePaneType},
+    pane::{control_row, divider, legend_entry, themed_label, InterfacePaneType},
     terminal::NovaOsAppInput,
     viewer::unlit,
 };
@@ -835,14 +835,12 @@ pub(crate) fn focus_chart_mark(
 
 /// Select `mark` in the chart view and focus the view on its cell, or clear
 /// the selection when `mark` is the selected one, so the panel returns to
-/// the overview and the view stays put. Either way one click.
+/// the overview and the view stays put.
 fn toggle_chart_mark(
     runtime: &mut MapRuntime,
     orbit: Option<Mut<MapOrbit>>,
     jobs: &Jobs,
     mark: &MapChartMarkType,
-    bank: Option<&SoundBank<UiSfx>>,
-    commands: &mut Commands,
 ) {
     if runtime.chart_selected.as_ref() == Some(mark) {
         runtime.chart_selected = None;
@@ -855,7 +853,6 @@ fn toggle_chart_mark(
             focus_chart_mark(&mut orbit, jobs, mark, player_cell);
         }
     }
-    play_menu_select(commands, bank);
 }
 
 /// Toggle a chart mark's selection when its label is activated.
@@ -865,8 +862,6 @@ pub(crate) fn on_map_chart_label_click(
     mut runtime: ResMut<MapRuntime>,
     jobs: Res<Jobs>,
     mut q_camera: Query<&mut MapOrbit, With<MapCameraMarker>>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
 ) {
     let Ok(MapChartLabel {
         mark: Some(mark), ..
@@ -874,14 +869,7 @@ pub(crate) fn on_map_chart_label_click(
     else {
         return;
     };
-    toggle_chart_mark(
-        &mut runtime,
-        q_camera.single_mut().ok(),
-        &jobs,
-        mark,
-        bank.as_deref(),
-        &mut commands,
-    );
+    toggle_chart_mark(&mut runtime, q_camera.single_mut().ok(), &jobs, mark);
 }
 
 /// Toggle a find's selection when its discovery log row, FINDS row or held
@@ -892,20 +880,11 @@ fn on_map_chart_log_row_click(
     mut runtime: ResMut<MapRuntime>,
     jobs: Res<Jobs>,
     mut q_camera: Query<&mut MapOrbit, With<MapCameraMarker>>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
 ) {
     let Ok(MapChartLogRow(mark)) = q_row.get(activate.entity) else {
         return;
     };
-    toggle_chart_mark(
-        &mut runtime,
-        q_camera.single_mut().ok(),
-        &jobs,
-        mark,
-        bank.as_deref(),
-        &mut commands,
-    );
+    toggle_chart_mark(&mut runtime, q_camera.single_mut().ok(), &jobs, mark);
 }
 
 /// A section heading of a chart panel block.

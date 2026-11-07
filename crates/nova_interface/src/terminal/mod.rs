@@ -204,8 +204,10 @@ impl Plugin for CommandsPlugin {
                 sync_nova_os_monitor_controls.run_if(resource_changed::<NovaOsMonitorSettings>),
                 drive_nova_os_power_led,
                 // NOVA OS sound: the power-down sweep on a
-                // requested close and the live bed volume / SND mute.
-                play_nova_os_power_down,
+                // requested close and the live bed volume / SND mute. Before
+                // the slide: a frame longer than the slide finishes the close
+                // and clears the flag, and the rising edge goes unheard.
+                play_nova_os_power_down.before(drive_nova_os_slide),
                 apply_nova_os_bed_volume,
             )
                 .run_if(in_state(PauseStates::Commands))

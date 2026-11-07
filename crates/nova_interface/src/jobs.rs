@@ -8,7 +8,8 @@
 //! icon | title | reward | time-left meter with its minutes | Accept. Every
 //! offer asks something of the hull ([`plan_job_hull_fit`]): the starting
 //! station's board ([`StarterBoardMarker`]) leaves out what the
-//! hull cannot do, every other board lists it with a greyed Accept and the
+//! hull cannot do, and says so when nothing else is left to list; every
+//! other board lists it with a greyed Accept and the
 //! reason in a tooltip, as it does for an offer whose target is gone. Under
 //! it, docked or not, "Your jobs" lists every held job as kind icon | title
 //! | `have / need` meter | hand-in | Hand in | `X`. The hand-in column reads
@@ -56,7 +57,6 @@
 //! offer, or what a hand-in moves.
 
 use bevy::{
-    ecs::system::SystemParam,
     picking::hover::Hovered,
     prelude::*,
     ui::InteractionDisabled,
@@ -64,23 +64,22 @@ use bevy::{
 };
 use nova_events::prelude::{
     CommandsGameEventExt, CreditChangeCauseType, GeneratedBodyId, JobAcceptedEventInfo, Meters,
-    Meters3, OnJobAcceptedEvent, SectorCoord,
+    OnJobAcceptedEvent, SectorCoord,
 };
 use nova_gameplay::prelude::*;
-use nova_ship::prelude::DockingSectionMarker;
 use nova_ui::{
     prelude::*,
     theme::UiColor,
     widget::{ThemedBorder, ThemedText},
 };
-use nova_world_base::prelude::record_merit;
+use nova_world_base::prelude::{record_merit, PlayerHull};
 
 use crate::{
     icons::{icon_node, ChartIconType, InterfaceIcons, JobIconType},
     map::{job_cell, MapChartMarkType, MapRuntime},
     pane::{
-        compact_button, control_row, divider, notice_line, play_menu_select, refusable_button,
-        side_panel, spawn_credit_figure, themed_label, view_split, ActionNotice, ActionOutcomeType,
+        compact_button, control_row, divider, notice_line, refusable_button, side_panel,
+        spawn_credit_figure, themed_label, view_split, ActionNotice, ActionOutcomeType,
         InterfacePaneType,
     },
     ship::StationSite,
@@ -300,68 +299,6 @@ fn target_standing(job: &Job, q_targets: &JobTargets) -> bool {
     }
 }
 
-/// The player's hull as the board's gate reads it: its live sections, its
-/// hold and where it stands.
-#[derive(SystemParam)]
-pub(crate) struct PlayerHull<'w, 's> {
-    player: Query<
-        'w,
-        's,
-        (
-            Entity,
-            &'static GlobalTransform,
-            Option<&'static ShipInventory>,
-        ),
-        (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
-    >,
-    sections: Query<
-        'w,
-        's,
-        (
-            &'static ChildOf,
-            Has<DockingSectionMarker>,
-            Has<TurretSectionMarker>,
-            Has<TorpedoSectionMarker>,
-            Has<RailgunSectionMarker>,
-        ),
-        (With<SectionMarker>, Without<SectionInactiveMarker>),
-    >,
-}
-
-impl PlayerHull<'_, '_> {
-    /// What the hull can do: its hold's capacity and whether a live docking
-    /// section and a live weapon section stand on it. A scene with no player
-    /// ship fits nothing.
-    pub(crate) fn fit(&self) -> JobHullFit {
-        let Ok((player, _, hold)) = self.player.single() else {
-            return JobHullFit::default();
-        };
-        let mut fit = JobHullFit {
-            hold_capacity_g: hold.map_or(0, ShipInventory::capacity_g),
-            has_clamp: false,
-            has_weapon: false,
-        };
-        for (&ChildOf(root), clamp, turret, bay, railgun) in &self.sections {
-            if root != player {
-                continue;
-            }
-            fit.has_clamp |= clamp;
-            fit.has_weapon |= turret || bay || railgun;
-        }
-        fit
-    }
-
-    /// The cell the player ship stands in, on a streamed world of cell
-    /// `edge`.
-    pub(crate) fn cell(&self, edge: Option<Meters>) -> Option<SectorCoord> {
-        let (_, transform, _) = self.player.single().ok()?;
-        Some(SectorCoord::containing(
-            Meters3::from_engine(transform.translation()),
-            edge?,
-        ))
-    }
-}
-
 /// The docked station the lists and the handler plan against: the player,
 /// the station entity and its id, while it is a living station offering
 /// Jobs.
@@ -561,6 +498,8 @@ struct HeldRow {
 struct BoardView {
     station: String,
     rows: Vec<PostedRow>,
+    /// `rows` is empty and the hull gate left an offer out of it.
+    hidden: bool,
 }
 
 /// The selected job as the inspector reads it.
@@ -671,7 +610,7 @@ fn update_jobs_pane(
     let player = partner
         .as_ref()
         .map(|(player, _, _)| *player)
-        .or_else(|| hull.player.single().ok().map(|(player, _, _)| player));
+        .or_else(|| hull.entity());
     let hold = player.and_then(|player| q_holds.get(player).ok());
     let own_cr = player.and_then(|player| q_credits.get(player).ok().map(|credits| credits.0));
     let hand_in_partner = partner.as_ref().and_then(|(_, station, station_id)| {
@@ -740,7 +679,8 @@ fn update_jobs_pane(
 
     let board = partner.as_ref().and_then(|(_, station, station_id)| {
         let (board, starter) = q_boards.get(*station).ok()?;
-        let rows = board
+        let mut hidden = false;
+        let rows: Vec<PostedRow> = board
             .0
             .iter()
             .filter(|job| {
@@ -751,7 +691,7 @@ fn update_jobs_pane(
                 if remaining <= 0.0 {
                     return None;
                 }
-                let refusal = board_listing(
+                let Some(refusal) = board_listing(
                     starter,
                     plan_job_hull_fit(job, &items, fit),
                     plan_job_accept(
@@ -761,7 +701,10 @@ fn update_jobs_pane(
                         false,
                         target_standing(job, &q_targets),
                     ),
-                )?;
+                ) else {
+                    hidden = true;
+                    return None;
+                };
                 let confirming = runtime.confirm_refresh.as_ref() == Some(&job.id);
                 let refresh_refusal = confirming.then(|| offer_refresh_refusal(job)).flatten();
                 Some(PostedRow {
@@ -779,6 +722,7 @@ fn update_jobs_pane(
             .collect();
         Some(BoardView {
             station: station_name(&chart, station_id),
+            hidden: hidden && rows.is_empty(),
             rows,
         })
     });
@@ -1209,6 +1153,8 @@ fn spawn_row<'a>(
         list_row(),
         Button,
         Hovered::default(),
+        // The selected row again changes nothing, so the handler cues.
+        ButtonCueType::Owned,
     ));
     row.insert(Node {
         width: percent(100),
@@ -1283,7 +1229,12 @@ fn drop_step_button(
         Pickable::IGNORE,
     ))
     .with_children(|column| {
-        let mut button = column.spawn((Name::new(name), compact_button(spec), button));
+        let mut button = column.spawn((
+            Name::new(name),
+            compact_button(spec),
+            ButtonCueType::Owned,
+            button,
+        ));
         button.observe(on_job_drop_button);
         if let Some(why) = refusal {
             button.insert((InteractionDisabled, Tooltip(why.to_string())));
@@ -1314,7 +1265,12 @@ fn refresh_step_button(
         Pickable::IGNORE,
     ))
     .with_children(|column| {
-        let mut button = column.spawn((Name::new(name), compact_button(spec), button));
+        let mut button = column.spawn((
+            Name::new(name),
+            compact_button(spec),
+            ButtonCueType::Owned,
+            button,
+        ));
         button.observe(on_job_refresh_button);
         if let Some(why) = refusal {
             button.insert((InteractionDisabled, Tooltip(why.to_string())));
@@ -1357,7 +1313,12 @@ fn board_panel(
             );
             scroll_rows(panel, JobsScrollType::Board, offset, |panel| {
                 if board.rows.is_empty() {
-                    empty_line(panel, "No jobs posted here.");
+                    let empty = if board.hidden {
+                        "No suitable jobs here."
+                    } else {
+                        "No jobs posted here."
+                    };
+                    empty_line(panel, empty);
                 }
                 for (index, row) in board.rows.iter().enumerate() {
                     spawn_row(
@@ -1494,6 +1455,7 @@ fn board_panel(
                                     id: row.id.clone(),
                                 },
                                 Tooltip("Delete offer".to_string()),
+                                ButtonCueType::Owned,
                             ));
                             ask.observe(on_job_refresh_button);
                             ask.with_children(|b| {
@@ -1689,6 +1651,7 @@ fn held_panel(
                                 compact_button(ButtonSpec::new("").fit().ghost()),
                                 drop_button(JobAskStepType::Ask),
                                 Tooltip("Drop job".to_string()),
+                                ButtonCueType::Owned,
                             ));
                             ask.observe(on_job_drop_button);
                             ask.with_children(|b| {
@@ -1918,8 +1881,6 @@ fn on_show_on_map(
     q_button: Query<&JobShowOnMap>,
     mut map: ResMut<MapRuntime>,
     mut pane: ResMut<InterfacePaneType>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
 ) {
     let Ok(JobShowOnMap(mark)) = q_button.get(activate.entity) else {
         return;
@@ -1927,7 +1888,6 @@ fn on_show_on_map(
     map.chart_show = Some(mark.clone());
     map.chart_requested = true;
     *pane = InterfacePaneType::Map;
-    play_menu_select(&mut commands, bank.as_deref());
 }
 
 /// Tick the Jobs notice: count its dwell down on the real clock, play the

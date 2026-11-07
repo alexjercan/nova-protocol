@@ -21,7 +21,7 @@ use nova_ui::{
     },
     theme,
     theme::{ActiveUiTheme, UiColor},
-    widget::{ThemedBorder, ThemedText},
+    widget::{ButtonCueType, ThemedBorder, ThemedText},
 };
 
 use crate::{
@@ -249,6 +249,7 @@ fn spawn_file_window(
                     // The rail's own row, like every other list the editor
                     // offers to pick from.
                     button(ButtonSpec::new(slot.name.clone()).block()),
+                    ButtonCueType::Owned,
                 ));
                 row.observe(on_bundle_row);
                 // A row IS the answer when it opens one. In Save As it is a
@@ -320,6 +321,7 @@ fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: FileWindowKi
                         Name::new("File Cancel Button"),
                         FileAnswer,
                         themed_button("Cancel"),
+                        ButtonCueType::Back,
                     ));
                 });
             if kind != FileWindowKind::SaveAs {
@@ -336,6 +338,7 @@ fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: FileWindowKi
                         SaveConfirmButton,
                         FileAnswer,
                         themed_button("Save"),
+                        ButtonCueType::Owned,
                         observe(on_save),
                     ));
                 });
@@ -434,6 +437,7 @@ pub(crate) fn on_bundle_row(
     windows: Query<&FileWindow>,
     mut fields: Query<&mut TextFieldValue, With<SaveNameField>>,
     mut request: ResMut<FileRequest>,
+    mut says: EditorSays,
 ) {
     let Ok(row) = rows.get(activate.entity) else {
         return;
@@ -446,6 +450,7 @@ pub(crate) fn on_bundle_row(
             for mut value in &mut fields {
                 value.0.clone_from(&row.0.name);
             }
+            says.accept();
         }
         FileWindowKind::Open => *request = FileRequest::Open(row.0.id.clone()),
     }

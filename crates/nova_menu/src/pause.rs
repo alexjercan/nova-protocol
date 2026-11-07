@@ -41,7 +41,7 @@ use crate::{
         SettingsActiveTab, SettingsTabBody, SETTINGS_PANEL_H, SETTINGS_PANEL_MAX_H_PCT,
         SETTINGS_PANEL_MAX_W, SETTINGS_PANEL_WIDTH_PCT,
     },
-    widgets::{back_button, button, button_variant, close_screen, play_back_cue, BACK_PAD_BUTTON},
+    widgets::{back_button, button, button_variant, close_screen, BACK_PAD_BUTTON},
 };
 
 /// ESC (or the gamepad Start button) toggles the pause overlay. Plain
@@ -107,7 +107,7 @@ pub(crate) fn toggle_pause(
                     }
                     _ => close_screen(&mut panel),
                 }
-                play_back_cue(&mut commands, bank.as_deref());
+                play_menu_back(&mut commands, bank.as_deref());
                 return;
             }
         }

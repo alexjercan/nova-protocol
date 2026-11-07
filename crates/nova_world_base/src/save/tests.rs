@@ -1981,6 +1981,7 @@ fn a_saved_posting_record_resumes_with_its_offers_and_a_held_job_outlives_its_sl
             JobMixType::Trade,
             &JobField::default(),
             standing,
+            None,
         )
     };
     let offers = draw(0, &[0, 1, 2], &[]);
@@ -2116,6 +2117,7 @@ fn a_dropped_job_id_is_saved_and_load_restores_it() {
             JobMixType::Trade,
             &JobField::default(),
             standing,
+            None,
         )
     };
     let offers = draw(0, &[0, 1, 2], &[]);

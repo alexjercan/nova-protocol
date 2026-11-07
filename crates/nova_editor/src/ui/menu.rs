@@ -85,7 +85,8 @@ pub(crate) struct MenuItem;
 ///
 /// A click anywhere off the menu closes it, and this is what "anywhere" is: an
 /// invisible node that blocks the pointer, so the click that dismisses the
-/// menu does not also land on the stage behind it and move something.
+/// menu does not also land on the stage behind it and move something. A
+/// surface and not a `Button`: it takes no click cue and no hover tick.
 #[derive(Component)]
 pub(crate) struct MenuScrim;
 
@@ -327,7 +328,7 @@ pub(crate) fn close_menu_on_item(
 }
 
 /// A click on the scrim - anywhere off the menu - closes it.
-pub(crate) fn on_menu_scrim(_activate: On<Activate>, mut open: ResMut<OpenMenu>) {
+pub(crate) fn on_menu_scrim(_click: On<Pointer<Click>>, mut open: ResMut<OpenMenu>) {
     open.0 = None;
 }
 
@@ -386,8 +387,6 @@ pub(crate) fn menu_scrim() -> impl Bundle {
     (
         Name::new("Menu Scrim"),
         MenuScrim,
-        Button,
-        Hovered::default(),
         GlobalZIndex(layer::SCRIM_Z),
         Node {
             display: Display::None,

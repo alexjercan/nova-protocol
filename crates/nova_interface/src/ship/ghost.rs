@@ -50,7 +50,7 @@ use super::{
 };
 use crate::{
     icons::SectionIconType,
-    pane::{play_menu_select, themed_label, InterfacePaneType},
+    pane::{themed_label, InterfacePaneType},
 };
 
 /// What a click on the view would add, solved under the pointer. Read by
@@ -154,7 +154,9 @@ pub(crate) fn on_ship_viewport_click(
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {
-    if click.button != PointerButton::Primary {
+    // The release of a press that was down when a key armed the capture: Bevy
+    // aims it at the view, which the guard covers one frame too late to stop.
+    if click.button != PointerButton::Primary || runtime.rebind_armed() {
         return;
     }
     if held.0.is_some() {
@@ -179,9 +181,10 @@ pub(crate) fn on_ship_viewport_click(
 }
 
 /// Commit the solved placement on a click with a part in hand: a valid one
-/// raises its [`SectionAddCommand`], a refused one shows its refusal on the
-/// note line, and no placement changes nothing. A click on the view and a
-/// click on a section badge, which stops the click there, both commit here.
+/// raises its [`SectionAddCommand`], whose apply plays the cue, a refused one
+/// shows its refusal on the note line and buzzes, and no placement changes
+/// nothing. A click on the view and a click on a section badge, which stops
+/// the click there, both commit here.
 pub(crate) fn commit_placement(
     preview: &ShipPlacementPreview,
     runtime: &mut ShipRuntime,
@@ -200,9 +203,11 @@ pub(crate) fn commit_placement(
                 prototype: placement.prototype.clone(),
                 mount: placement.mount,
             });
-            play_menu_select(commands, bank);
         }
-        Err(refusal) => runtime.note = Some((refusal.clone(), 2.5)),
+        Err(refusal) => {
+            runtime.note = Some((refusal.clone(), 2.5));
+            play_menu_deny(commands, bank);
+        }
     }
 }
 

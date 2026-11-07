@@ -389,8 +389,7 @@ pub(crate) fn spawn_menu_aside(commands: &mut Commands, note: Option<&FieldNote>
                             (
                                 Name::new("Training Prompt Dismiss"),
                                 nova_ui::widget::button(ButtonSpec::new("Not now").ghost().fit()),
-                                crate::widgets::MenuSfxBack,
-                                crate::widgets::MenuSfxButton,
+                                nova_ui::widget::ButtonCueType::Back,
                                 observe(on_first_pilot_dismiss),
                             ),
                         ],
@@ -464,15 +463,13 @@ fn spawn_field_note_card(commands: &mut Commands, aside: Entity, note: &FieldNot
                             Name::new("Menu Field Note Lesson Button"),
                             MenuFieldNoteLesson { id: lesson.clone() },
                             nova_ui::widget::button(ButtonSpec::new("Open lesson").ghost().fit()),
-                            crate::widgets::MenuSfxButton,
                             observe(on_open_note_lesson),
                         ));
                     }
                     actions.spawn((
                         Name::new("Menu Field Note Dismiss"),
                         nova_ui::widget::button(ButtonSpec::new("Don't show again").ghost().fit()),
-                        crate::widgets::MenuSfxBack,
-                        crate::widgets::MenuSfxButton,
+                        nova_ui::widget::ButtonCueType::Back,
                         observe(on_dismiss_field_notes),
                     ));
                 });
@@ -1369,7 +1366,6 @@ fn spawn_lesson_actions(box_: &mut ChildSpawnerCommands, lesson: &Lesson) {
             actions.spawn((
                 Name::new("Lesson Practice Button"),
                 nova_ui::widget::button(ButtonSpec::new(PRACTICE_LABEL).primary().fit()),
-                crate::widgets::MenuSfxButton,
                 LessonPractice {
                     scenario: scenario.clone(),
                 },

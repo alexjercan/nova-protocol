@@ -10,13 +10,14 @@ use nova_assets::prelude::{
     DownloadedMods, EnabledMods, FetchPortalCatalog, InstallJobs, ModCatalog, ModInfo, ModMeta,
     PortalEntry, ReloadContent, RemoteCatalog, RemoteCatalogState,
 };
+use nova_gameplay::prelude::{play_menu_deny, play_menu_select, SoundBank, UiSfx};
 use nova_mod_format::BASE_MOD_ID;
 use nova_ui::{
     theme,
     theme::UiColor,
     widget::{
-        badge, checkbox, list_row, separator, themed_button, BadgeKind, Selected, ThemedBorder,
-        ThemedCheckbox, ThemedFill, ThemedRadius, ThemedText, UiText,
+        badge, checkbox, list_row, separator, themed_button, BadgeKind, ButtonCueType, Selected,
+        ThemedBorder, ThemedCheckbox, ThemedFill, ThemedRadius, ThemedText, UiText,
     },
 };
 
@@ -27,7 +28,7 @@ use crate::{
         spawn_uninstall_button, spawn_uninstall_prompt, uninstall_prompt, UninstallStep,
         UpdateRequested,
     },
-    widgets::{close_screen, MenuSfxButton},
+    widgets::close_screen,
 };
 
 /// Marker for the Mods panel root, toggled by the Mods button.
@@ -181,8 +182,8 @@ pub(crate) fn spawn_mod_row(
                 badge(BadgeKind::Mute, BASE_MOD_ID),
             ));
         } else {
-            // The shared `checkbox` widget; still a `Button` + `MenuSfxButton` so
-            // it clicks + sounds. Its click does not propagate to the row
+            // The shared `checkbox` widget, a `Button` so it clicks and sounds.
+            // Its click does not propagate to the row
             // (ui_widgets Button stops it), so toggling never re-selects; the
             // mods-list refresh re-renders it for the new state.
             row.spawn((
@@ -193,9 +194,9 @@ pub(crate) fn spawn_mod_row(
                     base: m.base,
                 },
                 checkbox(enabled),
-                MenuSfxButton,
                 Button,
                 Hovered::default(),
+                ButtonCueType::Owned,
                 observe(on_mod_toggle),
             ));
         }
@@ -709,6 +710,7 @@ pub(crate) fn refresh_mod_details(
                                             id: m.id.clone(),
                                             base: m.base,
                                         },
+                                        ButtonCueType::Owned,
                                         observe(on_mod_toggle),
                                     ));
                                 });
@@ -812,6 +814,8 @@ pub(crate) fn on_mod_toggle(
     toggles: Query<&ModToggle>,
     catalog: Option<Res<ModCatalog>>,
     mut enabled: ResMut<EnabledMods>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
     let Ok(toggle) = toggles.get(activate.entity) else {
         return;
@@ -838,6 +842,7 @@ pub(crate) fn on_mod_toggle(
                 toggle.id,
                 blockers.join(", ")
             );
+            play_menu_deny(&mut commands, bank.as_deref());
             return;
         }
         enabled.0.remove(&toggle.id);
@@ -851,6 +856,7 @@ pub(crate) fn on_mod_toggle(
                 // unknown, so enabling would load an unresolvable mod.
                 warn!("cannot enable mod '{}': {e}", toggle.id);
                 enabled.0.remove(&toggle.id);
+                play_menu_deny(&mut commands, bank.as_deref());
                 return;
             }
         };
@@ -869,6 +875,7 @@ pub(crate) fn on_mod_toggle(
             enabled.0.insert(dep);
         }
     }
+    play_menu_select(&mut commands, bank.as_deref());
 }
 
 /// Keep each row's enable checkbox in sync with [`EnabledMods`] (after a click,

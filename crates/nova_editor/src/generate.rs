@@ -234,6 +234,7 @@ pub(crate) fn generate_ship(
     resume_ordinals(&mut ordinals, ship, ordinal);
     selected.0 = Some(ship);
     says.note(format!("seed {} built a hull of {parts} parts", seed.0));
+    says.accept();
 }
 
 /// What an unauthored part joins the draw at.

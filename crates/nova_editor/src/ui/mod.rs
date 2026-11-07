@@ -40,8 +40,8 @@ use nova_ui::{
     theme,
     theme::{ActiveUiTheme, UiColor},
     widget::{
-        checkbox_glyph, ListRow, Selected, ThemedBorder, ThemedCheckbox, ThemedFill, ThemedRadius,
-        ThemedText,
+        checkbox_glyph, ButtonCueType, ListRow, Selected, ThemedBorder, ThemedCheckbox, ThemedFill,
+        ThemedRadius, ThemedText,
     },
 };
 use nova_wfc::prelude::{WfcPlan, WfcZone};
@@ -124,6 +124,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
             items.spawn((
                 Name::new("Save Item"),
                 menu_item_row("Save", MenuLead::None, MenuTail::Key("Ctrl+S")),
+                ButtonCueType::Owned,
                 observe(ask_to_save),
             ));
             items.spawn((
@@ -156,6 +157,8 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                 Name::new("Delete Item"),
                 MenuDeleteItem,
                 menu_item_row("Delete", MenuLead::None, MenuTail::Key("Del")),
+                // A delete plays the editor's own removal cue.
+                ButtonCueType::Owned,
                 observe(delete_selected_node),
             ));
         }
@@ -244,6 +247,8 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                     MenuLead::None,
                     MenuTail::Key("R"),
                 ),
+                // A pose step plays the editor's own detent cue.
+                ButtonCueType::Owned,
                 observe(roll_armed_part),
             ));
             items.spawn((
@@ -254,6 +259,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                     MenuLead::None,
                     MenuTail::Key("F"),
                 ),
+                ButtonCueType::Owned,
                 observe(cycle_armed_socket),
             ));
             items.spawn((
@@ -299,6 +305,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                         // document becomes the player's and the tree fills its
                         // mark in.
                         menu_item_row("New Ship", MenuLead::Glyph(SHIP_AI), MenuTail::None),
+                        ButtonCueType::Owned,
                         observe(create_blank_ship),
                     ));
                     world.spawn(separator());
@@ -312,6 +319,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                                 MenuLead::Glyph(choice_mark(choice)),
                                 MenuTail::None,
                             ),
+                            ButtonCueType::Owned,
                             observe(create_scenario_object),
                         ));
                     }
@@ -621,6 +629,7 @@ pub(crate) fn setup_editor_scene(
                         Name::new("Play Button"),
                         PlayButton,
                         themed_button("Play"),
+                        ButtonCueType::Owned,
                         observe(continue_to_simulation),
                     ));
                 });
@@ -960,6 +969,7 @@ pub(crate) fn setup_editor_scene(
                                             Name::new("Generate Button"),
                                             GenerateButton,
                                             themed_button("Generate"),
+                                            ButtonCueType::Owned,
                                             observe(generate_ship),
                                         ));
                                         // What the ticks add up to. The

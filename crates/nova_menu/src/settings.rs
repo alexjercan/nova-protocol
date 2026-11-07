@@ -24,13 +24,13 @@ use nova_ui::{
     theme::{GameUiThemes, SelectedUiTheme, UiColor, UiThemeDiagnostic},
     widget::{
         panel_header, segmented_container, segmented_container_wrapping, segmented_option,
-        segmented_option_compact, segmented_option_fit, separator, slider_track, ButtonSpec,
-        ButtonValue, Selected, ThemedImageTint, ThemedText, UiText,
+        segmented_option_compact, segmented_option_fit, separator, slider_track, ButtonCueType,
+        ButtonSpec, ButtonValue, Selected, ThemedImageTint, ThemedText, UiText,
     },
 };
 use serde::{Deserialize, Serialize};
 
-use crate::widgets::{button_slot, close_screen, MenuSfxButton, MAIN_SLOT_W};
+use crate::widgets::{button_slot, close_screen, MAIN_SLOT_W};
 
 /// How wide the Settings panel grows, as a percentage of the window.
 ///
@@ -1057,10 +1057,9 @@ fn setting_label(name: String, text: &str) -> impl Bundle {
     )
 }
 
-/// One option of a settings row: a segmented option that clicks like the
-/// menu's other buttons.
+/// One option of a settings row.
 fn option(label: &str) -> impl Bundle {
-    (segmented_option(label), MenuSfxButton)
+    segmented_option(label)
 }
 
 /// One settings row: its label down the left column, then `options` inside
@@ -1136,10 +1135,14 @@ fn build_graphics_tab(
             }
         }
         // Not a choice: a budget becomes Custom by moving a lever below, so
-        // this option only shows that the row is off every tier.
+        // off Custom this option cannot be pressed. On Custom it stays live,
+        // because disabled paint outranks Selected and would unlight the only
+        // mark that the row is off every tier; a press there is a re-press.
         let mut custom = row.spawn((Name::new("Graphics Custom"), segmented_option("Custom")));
         if preset.is_none() {
             custom.insert(Selected);
+        } else {
+            custom.insert(InteractionDisabled);
         }
     });
     let switch = |lever: fn(bool) -> GraphicsField| {
@@ -1239,7 +1242,6 @@ fn build_interface_tab(
                 let mut button = row.spawn((
                     Name::new(format!("UI Theme {id}")),
                     segmented_option_fit(name),
-                    MenuSfxButton,
                     ButtonValue(SelectedUiTheme(id.to_string())),
                 ));
                 if id == selected.0 {
@@ -1320,7 +1322,6 @@ fn build_controls_header(
                 let mut button = bar.spawn((
                     Name::new(format!("Controls Group: {group}")),
                     segmented_option_compact(group),
-                    MenuSfxButton,
                     ControlsGroupTab(group),
                     observe(on_controls_group_tab),
                 ));
@@ -1460,7 +1461,7 @@ fn build_controls_tab(
                 slot.spawn((
                     Name::new("Reset Bindings Cancel"),
                     segmented_option("Cancel"),
-                    MenuSfxButton,
+                    ButtonCueType::Back,
                 ));
             });
         // The height and type size of the slot button beside it.

@@ -35,8 +35,9 @@
 //! Accept and Hand in. Both happen docked only ([`plan_job_accept`],
 //! [`plan_job_hand_in`]). Every job asks something of the hull
 //! ([`plan_job_hull_fit`]): the starting station's board
-//! ([`StarterBoardMarker`]) lists only the jobs the current hull can do, every
-//! other board lists them all and refuses the accept with the reason.
+//! ([`StarterBoardMarker`]) lists only the jobs the current hull can do, and a
+//! renewal there keeps one such offer open while a slot renews; every other
+//! board lists them all and refuses the accept with the reason.
 //!
 //! Five kinds ([`JobType`]). A procurement is done at the hand-in, by the
 //! goods in the hold. A located kind is done in the world: the open world
@@ -1041,6 +1042,7 @@ impl JobBoard {
 /// The board of the station the player started docked at: the one board
 /// whose list hides every job the current hull cannot do
 /// ([`plan_job_hull_fit`]), so the first jobs are ones the start can finish.
+/// Its draw also assures the hull one offer ([`station_job_offers`]).
 /// Put beside the [`JobBoard`] by the open world from the session's starting
 /// station id, and never on another board.
 #[derive(Component, Debug, Default)]
@@ -1455,11 +1457,22 @@ fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
 /// afresh. A catalog with no item of the wanted categories draws from every
 /// item. A reward past a credit balance saturates.
 ///
+/// `assured` is the hull one of these offers must fit, `None` when no such
+/// hull is asked for. When none of the drawn offers fits it, the first id's
+/// offer turns into the first kind the hull can do, on that slot's own draws
+/// ([`fitted_posting`]); the other offers stand as drawn. A hull with no such
+/// kind keeps the draw. Only that offer may repeat an asked item or leave
+/// the wanted categories, when nothing else fits the hold.
+///
 /// # Panics
 ///
 /// When `ids` is empty, spans stations, repeats a slot or names one past
 /// the board, and when the catalog is empty: a board always has an item to
 /// ask for.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one pure draw: the seed, the slots, the cell, the catalog, the mix, the field, the standing offers and the assured hull"
+)]
 pub fn station_job_offers(
     seed: u32,
     ids: &[JobId],
@@ -1468,6 +1481,7 @@ pub fn station_job_offers(
     mix: JobMixType,
     field: &JobField,
     standing: &[Job],
+    assured: Option<JobHullFit>,
 ) -> Vec<Job> {
     let station = &ids
         .first()
@@ -1523,25 +1537,12 @@ pub fn station_job_offers(
         .iter()
         .filter(|hull| !standing_bodies.contains(&&hull.id))
         .collect();
-    let reward = |base: u64, fee: u32| u32::try_from(base + u64::from(fee)).unwrap_or(u32::MAX);
-    ids.iter()
+    let mut offers: Vec<Job> = ids
+        .iter()
         .map(|id| {
             let id = id.clone();
-            let (slot, posting) = id.slot_posting().expect("checked above: a slot id");
-            let key = Fnv64::new()
-                .write(&seed.to_le_bytes())
-                .write(b"station_jobs")
-                .write(station.to_string().as_bytes())
-                .write(&slot.to_le_bytes())
-                .write(&posting.to_le_bytes())
-                .finish();
-            let mut rng = WyRand::from_seed(key.to_le_bytes());
-            // A fixed number of draws per slot, whatever the kind decides.
-            let mut kind = mix.draw(&mut rng);
-            let fee = rng.random_range(1..=FEE_STEPS) * FEE_STEP_CR;
-            let pick = rng.random_range(0..u32::MAX);
-            let count: u32 = rng.random_range(PROCURE_COUNT.0..=PROCURE_COUNT.1);
-            let cargo_cr: u32 = rng.random_range(ESCORT_CARGO_CR.0..=ESCORT_CARGO_CR.1);
+            let draw = SlotDraw::of(seed, &id, mix);
+            let mut kind = draw.kind;
             if kind == JobKindType::Recover && wrecks.is_empty()
                 || kind == JobKindType::Neutralize && hostiles.is_empty()
             {
@@ -1549,29 +1550,22 @@ pub fn station_job_offers(
             }
             let (kind, reward_cr) = match kind {
                 JobKindType::Procure => {
-                    let at = pick as usize % pool.len();
+                    let at = draw.pick as usize % pool.len();
                     let item = if pool.len() > 1 {
                         pool.swap_remove(at)
                     } else {
                         pool[at]
                     };
-                    let goods = items.design(item).reference_price().buy_cr(count) * 3 / 2;
-                    (
-                        JobType::Procure {
-                            item: item.clone(),
-                            count,
-                        },
-                        reward(goods, fee),
-                    )
+                    procurement(item, draw.count, draw.fee, items)
                 }
                 JobKindType::Recover => {
-                    let wreck = wrecks.swap_remove(pick as usize % wrecks.len());
+                    let wreck = wrecks.swap_remove(draw.pick as usize % wrecks.len());
                     let stacks: Vec<&(ItemDesignId, u32)> = wreck
                         .stacks
                         .iter()
                         .filter(|(_, count)| *count > 0)
                         .collect();
-                    let (item, count) = stacks[(pick / 7) as usize % stacks.len()].clone();
+                    let (item, count) = stacks[(draw.pick / 7) as usize % stacks.len()].clone();
                     let goods = items.design(&item).reference_price().buy_cr(count) * 2;
                     (
                         JobType::Recover {
@@ -1580,30 +1574,19 @@ pub fn station_job_offers(
                             item,
                             count,
                         },
-                        reward(goods, fee),
+                        job_reward(goods, draw.fee),
                     )
                 }
-                JobKindType::Escort => (
-                    JobType::Escort {
-                        hauler: id.spawned_body("hauler", 0),
-                        cargo_cr,
-                    },
-                    reward(u64::from(cargo_cr / 2), fee),
-                ),
-                JobKindType::Distress => (
-                    JobType::Distress {
-                        caller: id.spawned_body("caller", 0),
-                    },
-                    reward(u64::from(DISTRESS_BASE_CR), fee * 2),
-                ),
+                JobKindType::Escort => escort_posting(&id, draw.cargo_cr, draw.fee),
+                JobKindType::Distress => distress_posting(&id, draw.fee),
                 JobKindType::Neutralize => {
-                    let hull = hostiles.swap_remove(pick as usize % hostiles.len());
+                    let hull = hostiles.swap_remove(draw.pick as usize % hostiles.len());
                     (
                         JobType::Neutralize {
                             hull: hull.id.clone(),
                             hull_name: hull.name.clone(),
                         },
-                        reward(u64::from(NEUTRALIZE_BASE_CR), fee * 2),
+                        job_reward(u64::from(NEUTRALIZE_BASE_CR), draw.fee * 2),
                     )
                 }
             };
@@ -1614,7 +1597,131 @@ pub fn station_job_offers(
                 reward_cr,
             }
         })
-        .collect()
+        .collect();
+    if let Some(fit) = assured {
+        let fitted = offers
+            .iter()
+            .any(|offer| plan_job_hull_fit(offer, items, fit).is_ok());
+        if !fitted {
+            let draw = SlotDraw::of(seed, &offers[0].id, mix);
+            if let Some((kind, reward_cr)) = fitted_posting(&offers[0].id, draw, &pool, items, fit)
+            {
+                offers[0].kind = kind;
+                offers[0].reward_cr = reward_cr;
+            }
+        }
+    }
+    offers
+}
+
+/// One slot's draws: a fixed number off the slot's own `WyRand`, whatever
+/// the kind decides, so the same slot reads the same numbers every time.
+#[derive(Clone, Copy, Debug)]
+struct SlotDraw {
+    kind: JobKindType,
+    fee: u32,
+    pick: u32,
+    count: u32,
+    cargo_cr: u32,
+}
+
+impl SlotDraw {
+    /// The draws of the slot job `id` on a world of `seed` under `mix`.
+    fn of(seed: u32, id: &JobId, mix: JobMixType) -> Self {
+        let (slot, posting) = id.slot_posting().expect("checked by the caller: a slot id");
+        let key = Fnv64::new()
+            .write(&seed.to_le_bytes())
+            .write(b"station_jobs")
+            .write(id.station.to_string().as_bytes())
+            .write(&slot.to_le_bytes())
+            .write(&posting.to_le_bytes())
+            .finish();
+        let mut rng = WyRand::from_seed(key.to_le_bytes());
+        Self {
+            kind: mix.draw(&mut rng),
+            fee: rng.random_range(1..=FEE_STEPS) * FEE_STEP_CR,
+            pick: rng.random_range(0..u32::MAX),
+            count: rng.random_range(PROCURE_COUNT.0..=PROCURE_COUNT.1),
+            cargo_cr: rng.random_range(ESCORT_CARGO_CR.0..=ESCORT_CARGO_CR.1),
+        }
+    }
+}
+
+/// `base` credits plus `fee`, saturating at a credit balance.
+fn job_reward(base: u64, fee: u32) -> u32 {
+    u32::try_from(base + u64::from(fee)).unwrap_or(u32::MAX)
+}
+
+/// A procurement of `count` units of `item`, and its reward.
+fn procurement(item: &ItemDesignId, count: u32, fee: u32, items: &GameItems) -> (JobType, u32) {
+    let goods = items.design(item).reference_price().buy_cr(count) * 3 / 2;
+    (
+        JobType::Procure {
+            item: item.clone(),
+            count,
+        },
+        job_reward(goods, fee),
+    )
+}
+
+/// The escort `id` posts with `cargo_cr` aboard its hauler, and its reward.
+fn escort_posting(id: &JobId, cargo_cr: u32, fee: u32) -> (JobType, u32) {
+    (
+        JobType::Escort {
+            hauler: id.spawned_body("hauler", 0),
+            cargo_cr,
+        },
+        job_reward(u64::from(cargo_cr / 2), fee),
+    )
+}
+
+/// The distress call `id` posts, and its reward.
+fn distress_posting(id: &JobId, fee: u32) -> (JobType, u32) {
+    (
+        JobType::Distress {
+            caller: id.spawned_body("caller", 0),
+        },
+        job_reward(u64::from(DISTRESS_BASE_CR), fee * 2),
+    )
+}
+
+/// The first kind a hull of `fit` can do on the slot `id`, from `draw`, and
+/// its reward: a procurement while the hold takes the least stack of an item
+/// of `pool`, else of any catalog item, of the drawn count or the most under
+/// it the hold takes; else a distress call for a clamp; else an escort for a
+/// weapon. A recovery and a neutralize need a field body, so they stay with
+/// the draw. `None` for a hull that fits none of them.
+fn fitted_posting(
+    id: &JobId,
+    draw: SlotDraw,
+    pool: &[&ItemDesignId],
+    items: &GameItems,
+    fit: JobHullFit,
+) -> Option<(JobType, u32)> {
+    let hold = u64::from(fit.hold_capacity_g);
+    let stowed = |item: &ItemDesignId| items.design(item).stack_mass_g(PROCURE_COUNT.0) <= hold;
+    let mut stowable: Vec<&ItemDesignId> =
+        pool.iter().copied().filter(|item| stowed(item)).collect();
+    if stowable.is_empty() {
+        stowable = items
+            .iter()
+            .map(|design| &design.id)
+            .filter(|item| stowed(item))
+            .collect();
+    }
+    if !stowable.is_empty() {
+        let item = stowable[draw.pick as usize % stowable.len()];
+        let count = (PROCURE_COUNT.0..=draw.count)
+            .rev()
+            .find(|count| items.design(item).stack_mass_g(*count) <= hold)
+            .expect("the stowable items hold their least stack");
+        return Some(procurement(item, count, draw.fee, items));
+    }
+    if fit.has_clamp {
+        return Some(distress_posting(id, draw.fee));
+    }
+    fit.has_weapon
+        .then(|| escort_posting(id, draw.cargo_cr, draw.fee))
 }
 
 /// Why an accept changes nothing, in check order.
@@ -2049,7 +2156,16 @@ mod tests {
         mix: JobMixType,
         field: &JobField,
     ) -> Vec<Job> {
-        station_job_offers(seed, &first_ids(station), clusters, items, mix, field, &[])
+        station_job_offers(
+            seed,
+            &first_ids(station),
+            clusters,
+            items,
+            mix,
+            field,
+            &[],
+            None,
+        )
     }
 
     /// The boards of many seeds for one mix, flattened.
@@ -2501,6 +2617,7 @@ mod tests {
             JobMixType::Combat,
             &field,
             &before[1..],
+            None,
         );
         postings.post(drawn, 10.0);
         assert!(
@@ -2739,6 +2856,7 @@ mod tests {
             JobMixType::Combat,
             &field,
             &standing,
+            None,
         );
         assert_eq!(drawn.len(), 1);
         assert_eq!(drawn[0].id, renewed);
@@ -2822,6 +2940,7 @@ mod tests {
             JobMixType::Combat,
             &field,
             &before[1..],
+            None,
         );
         postings.post(drawn, 10.0);
         assert!(
@@ -2897,6 +3016,7 @@ mod tests {
             JobMixType::Salvage,
             &gone,
             &standing,
+            None,
         );
         postings.post(drawn, 30.0);
         for job in &standing {
@@ -2928,6 +3048,7 @@ mod tests {
             JobMixType::Salvage,
             &gone,
             &standing,
+            None,
         );
         assert_ne!(drawn[0].located_body(), Some(&wreck));
         postings.post(drawn, 120.0);

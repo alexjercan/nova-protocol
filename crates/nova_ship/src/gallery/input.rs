@@ -9,6 +9,7 @@
 //! when the browse keys change.
 
 use bevy::{input::keyboard::KeyboardInput, picking::hover::Hovered, prelude::*};
+use nova_gameplay::prelude::{play_menu_back, play_menu_select, SoundBank, UiSfx};
 
 use super::{
     catalog, ui::GalleryCell, GalleryHost, GalleryLayout, GalleryListing, GalleryState, HeldPart,
@@ -33,6 +34,8 @@ pub fn gallery_keyboard(
     hovered: Query<(&GalleryCell, &Hovered)>,
     mut state: ResMut<GalleryState>,
     mut held: ResMut<HeldPart>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
+    mut commands: Commands,
 ) {
     if !state.open {
         // Drain, so a keypress made before the gallery opened is not replayed
@@ -149,6 +152,13 @@ pub fn gallery_keyboard(
             );
             next.step(0, listed.len());
         }
+    }
+
+    // The keys speak with the voices of the buttons they stand in for.
+    if keys.just_pressed(KeyCode::Escape) {
+        play_menu_back(&mut commands, bank.as_deref());
+    } else if (next.focused && !state.focused) || !next.open {
+        play_menu_select(&mut commands, bank.as_deref());
     }
 
     if *state != next {

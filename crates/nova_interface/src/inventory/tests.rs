@@ -256,7 +256,13 @@ fn panel_of(world: &mut World, side: InventorySideType) -> (f32, f32, bool) {
 /// The pane body in the pointer rig with a player carrying 12 hull plates,
 /// the cue capture and the churn counter.
 fn inventory_rig() -> (PanePointerRig, Entity) {
+    inventory_rig_with(|_| {})
+}
+
+/// [`inventory_rig`], with `before` run on the app before the pane spawns.
+fn inventory_rig_with(before: impl FnOnce(&mut App)) -> (PanePointerRig, Entity) {
     let mut rig = pane_pointer_rig();
+    before(&mut rig.app);
     rig.app.add_plugins(StatesPlugin);
     rig.app.insert_state(PauseStates::Interface);
     rig.app.insert_resource(InterfacePaneType::Inventory);
@@ -363,9 +369,11 @@ fn an_overflowing_row_name_ends_in_an_ellipsis_and_shows_whole_once_its_cell_wid
         )
     };
     for scale in [2.0, 0.8] {
-        let (mut rig, player) = inventory_rig();
-        // The shared fitter lives in `NovaUiPlugin`.
-        rig.app.add_plugins(nova_ui::NovaUiPlugin);
+        // The shared fitter lives in `NovaUiPlugin`, which goes in before any
+        // button, as in the game: it adds a required component to `Button`.
+        let (mut rig, player) = inventory_rig_with(|app| {
+            app.add_plugins(nova_ui::NovaUiPlugin);
+        });
         rig.app.init_resource::<NameWrites>();
         rig.app.add_systems(
             Last,
@@ -2522,7 +2530,10 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
     click_at(&mut rig, all);
     assert_eq!(draft_quantity(&rig.app), Some(8));
     assert_eq!(total_weight(rig.app.world_mut()).as_deref(), Some("80 kg"));
-    assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
+    assert_eq!(
+        take_cues(&mut rig.app),
+        [UiSfx::MenuFocus, UiSfx::MenuSelect]
+    );
     let world = rig.app.world_mut();
     assert_eq!(world.get::<TextFieldValue>(field).unwrap().0, "8");
     assert!(world.get::<TextFieldError>(field).is_none());
@@ -2554,7 +2565,10 @@ fn a_selected_row_opens_a_one_unit_draft_that_every_quantity_control_sets() {
     );
     assert_eq!(rig.app.world().resource::<InventoryRuntime>().draft, None);
     assert_eq!(note(&rig.app).as_deref(), Some("TOOK x8 Hull plate"));
-    assert_eq!(take_cues(&mut rig.app), [UiSfx::MenuSelect]);
+    assert_eq!(
+        take_cues(&mut rig.app),
+        [UiSfx::MenuFocus, UiSfx::MenuSelect]
+    );
 
     // A source of one hides the slider; the field and All still set it.
     rig.app.world_mut().entity_mut(player).insert(hold(1));

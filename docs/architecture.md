@@ -118,7 +118,16 @@ for any crate is its `Cargo.toml`. Two edges people guess wrong:
 - **`nova_ui` is not menu-only.** Every crate that renders UI draws on it -
   `nova_gameplay` (which adds `NovaUiPlugin` render-gated), `nova_hud` (the
   chip language and screen-indicator styling), `nova_interface`, `nova_menu`,
-  `nova_editor` and `nova_assets`.
+  `nova_editor` and `nova_assets`. A `bevy::ui_widgets::Button` is heard and
+  lit with no opt-in: `nova_ui` requires `Hovered` on it and draws a hover and
+  press ring on a plain one, and `nova_gameplay::audio::ButtonCuePlugin` plays
+  the press cue and hover tick. `ButtonCueType` lives in `nova_ui` because that
+  crate cannot reach the sound bank: absent means Select, `Back` is the back
+  voice, and `Owned` marks a button whose handler or outcome plays the cue on
+  every press that acts, with `play_menu_deny` or `EditorSays::refuse` for a
+  refusal. A selector stays silent on a press of its current choice.
+  `ButtonCueMute` is an owner's live mute over that central voice: the NOVA OS
+  chin controls write the monitor's SND switch to it.
 - **`nova_scenario` reaches up into `nova_ship` and `nova_hud`.** It spawns
   ships and drives HUD-facing surfaces (comms dwell limits, target-inset render
   targets), so it sits beside them, not below them.

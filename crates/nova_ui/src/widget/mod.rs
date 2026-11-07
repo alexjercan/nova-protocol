@@ -32,10 +32,10 @@ pub mod prelude {
         list_row_colors, menu_button, panel, panel_head, panel_header, panel_node, panel_radius,
         segmented, segmented_container, segmented_container_wrapping, segmented_option,
         segmented_option_compact, segmented_option_fit, separator, slider_meter_color,
-        slider_track, swatch, text_field, themed_button, toggle, BadgeKind, ButtonLabel,
-        ButtonSpec, ButtonValue, ButtonVariant, DoubleClick, KeyChip, KeyChipLabel, ListRow,
-        PanelHeadTag, PanelHeadTitle, SegmentedSkin, Selected, SliderBlock, SliderFill,
-        SliderTrack, TextField, TextFieldError, TextFieldFocused, TextFieldSpec,
+        slider_track, swatch, text_field, themed_button, toggle, BadgeKind, ButtonCueMute,
+        ButtonCueType, ButtonLabel, ButtonSpec, ButtonValue, ButtonVariant, DoubleClick, KeyChip,
+        KeyChipLabel, ListRow, PanelHeadTag, PanelHeadTitle, SegmentedSkin, Selected, SliderBlock,
+        SliderFill, SliderTrack, TextField, TextFieldError, TextFieldFocused, TextFieldSpec,
         TextFieldSubmitted, TextFieldSystems, TextFieldValue, ThemedBadge, ThemedBorder,
         ThemedButton, ThemedCheckbox, ThemedFill, ThemedImageTint, ThemedPanel, ThemedPanelHead,
         ThemedRadius, ThemedSeparator, ThemedSwatch, ThemedText, ThemedTextShadow, ThemedToggle,
@@ -74,7 +74,10 @@ pub use text_field::*;
 pub use tooltip::*;
 
 use self::{
-    button::{button_on_interaction, reconcile_button_themes, reconcile_key_chips},
+    button::{
+        button_on_interaction, plain_button_on_interaction, reconcile_button_themes,
+        reconcile_key_chips,
+    },
     chrome::{
         reconcile_badges, reconcile_checkboxes, reconcile_separators, reconcile_swatches,
         reconcile_themed_images, reconcile_themed_nodes, reconcile_themed_text,
@@ -109,13 +112,22 @@ pub(crate) fn build(app: &mut App) {
     app.add_message::<KeyboardInput>();
     app.add_message::<TextFieldSubmitted>();
 
+    // Hover is a fact of every button, not a choice of the spawn site: a
+    // button built without it took no hover paint and no hover cue.
+    app.register_required_components::<bevy::ui_widgets::Button, Hovered>();
+
     app.add_observer(button_on_interaction::<Add, Pressed>)
         .add_observer(button_on_interaction::<Remove, Pressed>)
         .add_observer(button_on_interaction::<Add, InteractionDisabled>)
         .add_observer(button_on_interaction::<Remove, InteractionDisabled>)
         .add_observer(button_on_interaction::<Insert, Hovered>)
         .add_observer(button_on_interaction::<Add, Selected>)
-        .add_observer(button_on_interaction::<Remove, Selected>);
+        .add_observer(button_on_interaction::<Remove, Selected>)
+        .add_observer(plain_button_on_interaction::<Add, Pressed>)
+        .add_observer(plain_button_on_interaction::<Remove, Pressed>)
+        .add_observer(plain_button_on_interaction::<Add, InteractionDisabled>)
+        .add_observer(plain_button_on_interaction::<Remove, InteractionDisabled>)
+        .add_observer(plain_button_on_interaction::<Insert, Hovered>);
 
     // Bevy's own commit of a dragged slider onto its `SliderValue`. It belongs
     // beside the track that SHOWS that value: every caller of `slider_track`

@@ -39,9 +39,9 @@ use nova_ui::{
     theme,
     theme::UiColor,
     widget::{
-        list_row, panel, panel_head, separator, text_field, ButtonVariant, PanelHeadTag,
-        PanelHeadTitle, Selected, TextFieldError, TextFieldSpec, TextFieldValue, ThemedBorder,
-        ThemedRadius, ThemedText, Tooltip, UiText,
+        list_row, panel, panel_head, separator, text_field, ButtonCueType, ButtonVariant,
+        PanelHeadTag, PanelHeadTitle, Selected, TextFieldError, TextFieldSpec, TextFieldValue,
+        ThemedBorder, ThemedRadius, ThemedText, Tooltip, UiText,
     },
 };
 #[cfg(not(target_arch = "wasm32"))]
@@ -55,8 +55,8 @@ use crate::{
     preview::{preview_node, MenuChartPreview, MenuHullPreview},
     scenarios::NewGameScenario,
     widgets::{
-        actions_row, back_button, button, button_slot, button_variant, detail_row, MenuSfxBack,
-        MenuSfxButton, MAIN_SLOT_W, SIDE_SLOT_W,
+        actions_row, back_button, button, button_slot, button_variant, detail_row, MAIN_SLOT_W,
+        SIDE_SLOT_W,
     },
 };
 
@@ -486,15 +486,12 @@ fn spawn_role_step(
                 .with_children(|list| {
                     list.spawn(label("Start Role Label", "Start role"));
                     for (id, name, icon) in rows {
-                        // `MenuSfxButton` gives the row the menu click and
-                        // hover cues, as the Mods checkbox row has them.
                         let mut row = list.spawn((
                             Name::new(format!("Start Role Button: {id}")),
                             StartRoleButton(id.clone()),
                             list_row(),
                             Button,
                             Hovered::default(),
-                            MenuSfxButton,
                             observe(on_start_role_select),
                         ));
                         if selected.as_ref() == Some(&id) {
@@ -551,7 +548,7 @@ fn spawn_role_step(
                     .with_child((
                         Name::new("Cancel Role Step Button"),
                         button("Cancel"),
-                        MenuSfxBack,
+                        ButtonCueType::Back,
                         observe(on_cancel_new_game),
                     ));
                 actions
@@ -560,6 +557,7 @@ fn spawn_role_step(
                         let mut create = slot.spawn((
                             Name::new("Create World Button"),
                             button_variant("Create", ButtonVariant::Primary, None),
+                            ButtonCueType::Owned,
                             observe(on_create_world),
                         ));
                         if selected.is_none() {
@@ -1147,12 +1145,15 @@ pub(crate) fn on_create_world(
     mut mode: ResMut<GameMode>,
     mut state: ResMut<NextState<GameStates>>,
     mut pick: ResMut<NewGameScenario>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
 ) {
     let (seed_entity, seed_field) = *field;
     let Some(seed) = parse_world_seed(&seed_field.0) else {
+        play_menu_deny(&mut commands, bank.as_deref());
         return;
     };
     let Some(role) = selection.0.clone() else {
+        play_menu_deny(&mut commands, bank.as_deref());
         return;
     };
     // The seed's starting station, before anything is created for it: a
@@ -1163,6 +1164,7 @@ pub(crate) fn on_create_world(
             commands.entity(seed_entity).insert(TextFieldError(refusal));
             #[cfg(not(target_arch = "wasm32"))]
             show_step(&mut nodes, WorldSetupStepType::World);
+            play_menu_deny(&mut commands, bank.as_deref());
             return;
         }
     };
@@ -1178,6 +1180,7 @@ pub(crate) fn on_create_world(
             Err(refusal) => {
                 commands.entity(name_entity).insert(TextFieldError(refusal));
                 show_step(&mut nodes, WorldSetupStepType::World);
+                play_menu_deny(&mut commands, bank.as_deref());
                 return;
             }
         };
@@ -1196,6 +1199,7 @@ pub(crate) fn on_create_world(
     for overlay in &overlays {
         commands.entity(overlay).despawn();
     }
+    play_menu_select(&mut commands, bank.as_deref());
 }
 
 /// Close the modal and nothing else.

@@ -18,10 +18,13 @@ use bevy::{ecs::system::SystemParam, prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{CreditChangeCauseType, EntityId};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::{theme::UiColor, widget::ButtonSpec};
+use nova_ui::{
+    theme::UiColor,
+    widget::{ButtonCueType, ButtonSpec},
+};
 
 use super::{scene::ShipRuntime, sections::design_section_code};
-use crate::pane::{compact_button, play_menu_select, themed_label};
+use crate::pane::{compact_button, themed_label};
 
 /// A request to rebuild one lost section of the player ship, raised by a
 /// lost-list Rebuild button.
@@ -509,6 +512,7 @@ pub(crate) fn update_ship_rebuild_list(
                     cell.spawn((
                         Name::new(format!("ShipRebuild-{}", row.code)),
                         compact_button(ButtonSpec::new("Rebuild").fit().primary()),
+                        ButtonCueType::Owned,
                     ))
                     .observe(on_ship_rebuild_button(row.section.clone()));
                 });
@@ -521,17 +525,11 @@ pub(crate) fn update_ship_rebuild_list(
 /// Rebuild button is clicked.
 fn on_ship_rebuild_button(
     section: String,
-) -> impl FnMut(
-    On<Activate>,
-    MessageWriter<SectionRebuildCommand>,
-    Option<Res<SoundBank<UiSfx>>>,
-    Commands,
-) {
-    move |_activate, mut rebuilds, bank, mut commands| {
+) -> impl FnMut(On<Activate>, MessageWriter<SectionRebuildCommand>) {
+    move |_activate, mut rebuilds| {
         rebuilds.write(SectionRebuildCommand {
             section: section.clone(),
         });
-        play_menu_select(&mut commands, bank.as_deref());
     }
 }
 
@@ -551,6 +549,7 @@ pub(crate) fn apply_ship_rebuild_commands(
         &mut ShipCredits,
         &mut ShipInventoryReports,
     )>,
+    bank: Option<Res<SoundBank<UiSfx>>>,
 ) {
     if messages.is_empty() {
         return;
@@ -588,6 +587,7 @@ pub(crate) fn apply_ship_rebuild_commands(
             Ok(rebuild) => rebuild,
             Err(refusal) => {
                 runtime.note = Some((rebuild_refusal_text(&items, &code, &refusal), 2.5));
+                play_menu_deny(&mut commands, bank.as_deref());
                 continue;
             }
         };
@@ -624,6 +624,7 @@ pub(crate) fn apply_ship_rebuild_commands(
             format!("rebuilt {code}: {}", rebuild_price_text(&rebuild)),
             2.5,
         ));
+        play_menu_select(&mut commands, bank.as_deref());
         rebuilt = true;
     }
 }

@@ -38,8 +38,8 @@ use nova_ui::{
     theme,
     theme::UiColor,
     widget::{
-        badge, list_row, separator, themed_button, BadgeKind, ButtonSpec, ButtonVariant, Selected,
-        ThemedBorder, ThemedRadius, ThemedText, UiText,
+        badge, list_row, separator, themed_button, BadgeKind, ButtonCueType, ButtonSpec,
+        ButtonVariant, Selected, ThemedBorder, ThemedRadius, ThemedText, UiText,
     },
 };
 use nova_world_base::prelude::{
@@ -1421,6 +1421,7 @@ pub(crate) fn refresh_load_details(
                             slot.spawn((
                                 Name::new("Load World Delete Cancel Button"),
                                 themed_button("Cancel"),
+                                ButtonCueType::Back,
                                 observe(on_delete_world_cancel),
                             ));
                         });

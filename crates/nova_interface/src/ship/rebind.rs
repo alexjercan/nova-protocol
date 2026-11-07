@@ -106,9 +106,9 @@ pub(crate) fn apply_ship_rebind(
         return;
     };
     let ship = parent.parent();
-    // The pointer's own button, and a source flying the ship already spends:
-    // `RebindSurface::ShipPanel` is where this panel's two refusals stand
-    // against the editor's deliberate warn-instead-of-refuse.
+    // A source flying the ship already spends: `RebindSurface::ShipPanel` is
+    // where this panel's refusal stands against the editor's deliberate
+    // warn-instead-of-refuse.
     let held_by = reserved_conflict(&bindings, source);
     let verdict = rebind_verdict(RebindSurface::ShipPanel, source, held_by);
     if let RebindVerdict::Refuse(line) = verdict {
@@ -272,16 +272,11 @@ mod tests {
         assert!(world.resource::<ShipRuntime>().rebinding.is_none());
     }
 
-    /// This panel is driven entirely by clicks, so an armed capture that took
-    /// the pointer would bind the section to the next blip a player clicked -
-    /// and Left Mouse is the button every shipped turret already fires on.
+    /// Left Mouse is the button every shipped turret fires on, so a section
+    /// moved off it must be able to come back. It replaces the desk half only.
     #[test]
-    fn the_pointers_own_button_is_never_captured() {
+    fn a_fresh_left_mouse_press_binds_the_section() {
         let (mut world, target) = rebind_world();
-        {
-            let mut runtime = world.resource_mut::<ShipRuntime>();
-            runtime.rebinding = Some(target);
-        }
         world
             .resource_mut::<ButtonInput<MouseButton>>()
             .press(MouseButton::Left);
@@ -291,14 +286,14 @@ mod tests {
         assert_eq!(
             world.get::<SpaceshipTurretInputBinding>(target).unwrap().0,
             vec![
-                InputSource::Keyboard(KeyCode::KeyF),
+                InputSource::Mouse(MouseButton::Left),
                 InputSource::Gamepad(GamepadButton::RightTrigger2)
             ],
-            "the section keeps what it had"
+            "the click takes the desk half and the pad half stays"
         );
         assert!(
-            world.resource::<ShipRuntime>().rebinding.is_some(),
-            "and the capture stays armed for a real press"
+            world.resource::<ShipRuntime>().rebinding.is_none(),
+            "and the capture closes"
         );
     }
 

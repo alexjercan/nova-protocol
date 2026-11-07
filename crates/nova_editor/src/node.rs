@@ -1478,7 +1478,7 @@ pub(crate) fn report_duplicate_ids(
         return;
     }
     if let Some(id) = &clash {
-        says.refuse(format!("two nodes are both called '{id}' - rename one"));
+        says.flag(format!("two nodes are both called '{id}' - rename one"));
     }
     *said = clash;
 }

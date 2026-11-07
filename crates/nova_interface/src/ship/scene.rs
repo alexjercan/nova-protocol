@@ -27,8 +27,8 @@ use nova_ship::prelude::{
 use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
     widget::{
-        Selected, TextFieldError, TextFieldFocused, TextFieldValue, ThemedBorder, ThemedFill,
-        ThemedImageTint, ThemedText, Tooltip,
+        ButtonCueType, Selected, TextFieldError, TextFieldFocused, TextFieldValue, ThemedBorder,
+        ThemedFill, ThemedImageTint, ThemedText, Tooltip,
     },
 };
 
@@ -41,7 +41,7 @@ use super::{
 };
 use crate::{
     icons::{icon_node, InterfaceIcons, SectionIconType},
-    pane::{interface_shown, play_menu_select, spawn_part_tile, themed_label, InterfacePaneType},
+    pane::{interface_shown, spawn_part_tile, themed_label, InterfacePaneType},
     terminal::{NovaOsAppInput, NovaOsCloseTransition},
     viewer::{cycle_index, orbit_eye, solid, unlit, zoom_radius, OrbitGesture},
 };
@@ -1154,6 +1154,8 @@ pub(crate) fn spawn_ship_blip(
                 section: view.entity,
             },
             Button,
+            // A press selects, or commits a held part, and each cues itself.
+            ButtonCueType::Owned,
             Node {
                 position_type: PositionType::Absolute,
                 width: Val::Px(SHIP_BLIP_PX),
@@ -1276,15 +1278,13 @@ pub(crate) fn on_ship_blip_click(
 }
 
 /// Frame the whole ship when Fit is clicked: ease the centre home and set the
-/// radius that fits every section, keeping the current angles. Clicks once.
+/// radius that fits every section, keeping the current angles.
 pub(crate) fn on_ship_fit_button(
     _activate: On<Activate>,
     pause: Res<State<PauseStates>>,
     runtime: Res<ShipRuntime>,
     sections: ShipSections,
     mut q_camera: Query<&mut ShipOrbit, With<ShipCameraMarker>>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
 ) {
     if *pause.get() != PauseStates::Interface {
         return;
@@ -1296,19 +1296,16 @@ pub(crate) fn on_ship_fit_button(
     orbit.radius = radius;
     orbit.center_target = orbit.center_home;
     orbit.centered_on = runtime.selected;
-    play_menu_select(&mut commands, bank.as_deref());
 }
 
 /// Restore the default view when Reset is clicked, the same reframe as the
-/// `viewer_reframe` key. Clicks once.
+/// `viewer_reframe` key.
 pub(crate) fn on_ship_reset_button(
     _activate: On<Activate>,
     pause: Res<State<PauseStates>>,
     runtime: Res<ShipRuntime>,
     sections: ShipSections,
     mut q_camera: Query<&mut ShipOrbit, With<ShipCameraMarker>>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
 ) {
     if *pause.get() != PauseStates::Interface {
         return;
@@ -1316,7 +1313,6 @@ pub(crate) fn on_ship_reset_button(
     if let Ok(mut orbit) = q_camera.single_mut() {
         let (_, radius) = ship_framing(&sections.collect());
         reset_ship_orbit(&mut orbit, radius, runtime.selected);
-        play_menu_select(&mut commands, bank.as_deref());
     }
 }
 
@@ -1334,15 +1330,12 @@ fn reset_ship_orbit(orbit: &mut ShipOrbit, radius: f32, selected: Option<Entity>
 }
 
 /// Raise a Repair on the selected section when the panel button is clicked, unless
-/// the panel marked repair disabled for it. Same seam as the `P` key. Clicks
-/// once when it raises the command.
+/// the panel marked repair disabled for it. Same seam as the `P` key.
 pub(crate) fn on_ship_repair_button(
     _activate: On<Activate>,
     pause: Res<State<PauseStates>>,
     runtime: Res<ShipRuntime>,
     mut section_commands: MessageWriter<SectionRepairCommand>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
 ) {
     if *pause.get() != PauseStates::Interface
         || !runtime.panel_repair_enabled
@@ -1355,7 +1348,6 @@ pub(crate) fn on_ship_repair_button(
             target,
             requested_plates,
         });
-        play_menu_select(&mut commands, bank.as_deref());
     }
 }
 
@@ -1413,14 +1405,11 @@ pub(crate) fn on_ship_repair_slider(
 }
 
 /// Arm a rebind capture on the selected section when the panel button is
-/// clicked, unless the panel marked rebind disabled for it. Clicks once when
-/// it arms.
+/// clicked, unless the panel marked rebind disabled for it.
 pub(crate) fn on_ship_rebind_button(
     _activate: On<Activate>,
     pause: Res<State<PauseStates>>,
     mut runtime: ResMut<ShipRuntime>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
 ) {
     if *pause.get() != PauseStates::Interface || !runtime.panel_rebind_enabled {
         return;
@@ -1428,9 +1417,6 @@ pub(crate) fn on_ship_rebind_button(
     runtime.rebinding = runtime.selected;
     runtime.rebind_awaiting_release = runtime.rebinding.is_some();
     runtime.note = None;
-    if runtime.rebinding.is_some() {
-        play_menu_select(&mut commands, bank.as_deref());
-    }
 }
 
 /// Refresh the section panel from the current selection: title, family icon,

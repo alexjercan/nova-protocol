@@ -31,7 +31,9 @@ use nova_ui::{
     },
     theme,
     theme::{ActiveUiTheme, UiColor},
-    widget::{checkbox, swatch, ThemedBorder, ThemedCheckbox, ThemedRadius, ThemedText},
+    widget::{
+        checkbox, swatch, ButtonCueType, ThemedBorder, ThemedCheckbox, ThemedRadius, ThemedText,
+    },
 };
 
 use crate::{
@@ -257,6 +259,7 @@ fn spawn_override_mark(
         Button,
         Hovered::default(),
         reset_chip(),
+        ButtonCueType::Owned,
         observe(on_inspector_reset),
     ));
 }
@@ -1015,6 +1018,7 @@ fn spawn_choice_options(
                             variant: option.clone(),
                         },
                         field.clone(),
+                        ButtonCueType::Owned,
                         observe(on_inspector_choice),
                     ));
                     if wide {
@@ -1284,6 +1288,7 @@ fn spawn_operand_row(
                                     },
                                     field.clone(),
                                     segmented_option_fit(option),
+                                    ButtonCueType::Owned,
                                     observe(on_inspector_choice),
                                 ));
                                 if index == chosen {
@@ -1396,6 +1401,7 @@ fn spawn_driver_row(
                             driver: option,
                         },
                         segmented_option(label),
+                        ButtonCueType::Owned,
                         observe(on_inspector_driver),
                     ));
                     if option == driver {
@@ -1480,6 +1486,7 @@ fn spawn_well_target_row(
                         InspectorWellTarget(option),
                         field.clone(),
                         segmented_option(label),
+                        ButtonCueType::Owned,
                         observe(on_inspector_well_target),
                     ));
                     if label == chosen {
@@ -1949,6 +1956,7 @@ fn build_rows(list: &mut RelatedSpawnerCommands<ChildOf>, node: Entity, rows: &[
                             Button,
                             Hovered::default(),
                             checkbox(*on),
+                            ButtonCueType::Owned,
                             observe(on_inspector_flag),
                         ));
                     }
@@ -2752,7 +2760,7 @@ pub(crate) fn on_inspector_drag(
         nudge_field(root, path, optional, rule, steps)
     });
     if let Err(reason) = moved {
-        says.refuse(reason);
+        says.flag(reason);
         return;
     }
     // A box left in the refused state is held out of the repaint, so the number
@@ -2809,8 +2817,9 @@ pub(crate) fn on_inspector_flag(
             .map(|_| ())
             .ok_or_else(|| "not a flag".to_string())
     });
-    if let Err(reason) = flipped {
-        says.refuse(reason);
+    match flipped {
+        Ok(()) => says.accept(),
+        Err(reason) => says.refuse(reason),
     }
 }
 
@@ -2828,8 +2837,9 @@ pub(crate) fn on_inspector_reset(
     let Ok(field) = chips.get(activate.entity) else {
         return;
     };
-    if let Err(reason) = targets.reset(field) {
-        says.refuse(reason);
+    match targets.reset(field) {
+        Ok(()) => says.accept(),
+        Err(reason) => says.refuse(reason),
     }
 }
 
@@ -2874,11 +2884,13 @@ pub(crate) fn apply_choice(
     if field.root == FieldRoot::Kind {
         let (node, kind) = (field.node, variant.to_string());
         commands.queue(move |world: &mut World| retype_script_node(world, node, &kind));
+        says.accept();
         return;
     }
     let chosen = targets.edit(field, |root, path, _| choose_field(root, path, variant));
-    if let Err(reason) = chosen {
-        says.refuse(reason);
+    match chosen {
+        Ok(()) => says.accept(),
+        Err(reason) => says.refuse(reason),
     }
 }
 
@@ -2896,14 +2908,16 @@ pub(crate) fn on_inspector_well_target(
         return;
     };
     if chosen {
+        says.accept();
         return;
     }
     let target = option.0.clone();
     let set = targets.edit(field, |root, path, optional| {
         set_well_target(root, path, optional, target)
     });
-    if let Err(reason) = set {
-        says.refuse(reason);
+    match set {
+        Ok(()) => says.accept(),
+        Err(reason) => says.refuse(reason),
     }
 }
 
@@ -2946,6 +2960,7 @@ pub(crate) fn on_inspector_driver(
         ship.driver = option.driver;
         ship.allegiance = default_allegiance(option.driver);
     }
+    says.accept();
 }
 
 #[cfg(test)]

@@ -204,15 +204,17 @@ impl RebindSurface {
     /// rebinding a section of the ship they are flying is not making that
     /// choice knowingly, so the Ship pane still refuses.
     ///
-    /// The POINTER is reserved on the two surfaces driven by clicks: an armed
-    /// capture there would eat the next click a player made anywhere, and a
-    /// game whose main drive is Left Mouse cannot be un-bound, because the row
-    /// that would fix it needs a click. The editor waits the arming click out
-    /// and then takes a FRESH Left Mouse press on purpose, and the console is
-    /// typed - neither has a click to lose.
+    /// The POINTER is reserved on Settings: an armed capture there would eat
+    /// the next click a player made anywhere, and a game whose main drive is
+    /// Left Mouse cannot be un-bound, because the row that would fix it needs a
+    /// click. The Ship pane and the editor wait the arming click out and then
+    /// take a FRESH Left Mouse press on purpose: shipped turrets fire on it, so
+    /// a section moved off it must be able to come back, and the Ship pane's
+    /// click guard keeps that press from the panel under it. The console is
+    /// typed, so it has no click to lose.
     pub fn policy(self) -> RebindPolicy {
         match self {
-            Self::Settings | Self::ShipPanel => RebindPolicy {
+            Self::Settings => RebindPolicy {
                 pointer: PointerRule::Reserved,
                 conflict: ConflictRule::Refuse,
             },
@@ -220,7 +222,7 @@ impl RebindSurface {
                 pointer: PointerRule::Bindable,
                 conflict: ConflictRule::Warn,
             },
-            Self::Console => RebindPolicy {
+            Self::ShipPanel | Self::Console => RebindPolicy {
                 pointer: PointerRule::Bindable,
                 conflict: ConflictRule::Refuse,
             },
@@ -1245,10 +1247,10 @@ mod tests {
         );
     }
 
-    /// Left Mouse is the pointer on the surfaces a player drives with clicks,
-    /// and an input like any other where there is no click to lose.
+    /// Left Mouse is the pointer on a surface that reserves it, and an input
+    /// like any other on a surface that takes it.
     #[test]
-    fn only_the_click_driven_surfaces_reserve_the_pointer() {
+    fn a_surface_refuses_left_mouse_only_when_it_reserves_the_pointer() {
         let click = InputSource::Mouse(MouseButton::Left);
         for surface in RebindSurface::ALL {
             let verdict = rebind_verdict(surface, click, None);
@@ -1256,12 +1258,12 @@ mod tests {
                 PointerRule::Reserved => assert_eq!(
                     verdict,
                     RebindVerdict::Refuse("Left Mouse stays the pointer".to_string()),
-                    "{surface:?} is driven by clicks and must keep the pointer"
+                    "{surface:?} reserves the pointer"
                 ),
                 PointerRule::Bindable => assert_eq!(
                     verdict,
                     RebindVerdict::Bind(None),
-                    "{surface:?} has no click to lose"
+                    "{surface:?} takes the pointer's button"
                 ),
             }
         }

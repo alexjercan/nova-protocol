@@ -11,6 +11,8 @@ use nova_ship::prelude::MountPose;
 use nova_ui::theme::UiColor;
 use nova_wfc::prelude::WfcZone;
 
+use crate::cues::EditorCues;
+
 /// The group every immediate-mode line in the editor draws in.
 ///
 /// One group for the whole editor, so [`EDITOR_LINE_WIDTH`] settles the weight
@@ -302,19 +304,38 @@ impl EditorStatus {
 /// One `SystemParam` rather than two, because a refusal that has to reach for
 /// `Time` as well as [`EditorStatus`] is a refusal that gets written as a
 /// `warn!` instead. Every verb in the editor that can say no takes this.
+///
+/// It holds the cues too, so a refusal and its buzz are one call: a button that
+/// can be refused is [`ButtonCueType::Owned`], and its handler ends on exactly
+/// one of [`Self::refuse`] and [`Self::accept`].
+///
+/// [`ButtonCueType::Owned`]: nova_ui::widget::ButtonCueType::Owned
 #[derive(SystemParam)]
-pub(crate) struct EditorSays<'w> {
+pub(crate) struct EditorSays<'w, 's> {
     status: ResMut<'w, EditorStatus>,
     time: Res<'w, Time>,
+    cues: EditorCues<'w, 's>,
 }
 
-impl EditorSays<'_> {
-    /// Say no, in red. The message is the REASON, phrased as the way out where
-    /// there is one - a builder who is told what to do next does not have to
-    /// work out what just happened.
+impl EditorSays<'_, '_> {
+    /// Say no, in red, with the buzz. The message is the REASON, phrased as the
+    /// way out where there is one - a builder who is told what to do next does
+    /// not have to work out what just happened.
     pub(crate) fn refuse(&mut self, message: impl Into<String>) {
+        self.flag(message);
+        self.cues.deny();
+    }
+
+    /// Say no, in red, without the buzz: for a drag that repeats every frame it
+    /// is held, and a watcher that no press asked.
+    pub(crate) fn flag(&mut self, message: impl Into<String>) {
         let now = self.time.elapsed_secs_f64();
         self.status.say(message, UiColor::Danger, now);
+    }
+
+    /// The click of a press that went through.
+    pub(crate) fn accept(&mut self) {
+        self.cues.select();
     }
 
     /// Say what happened, in phosphor. For a thing the editor did FOR you and

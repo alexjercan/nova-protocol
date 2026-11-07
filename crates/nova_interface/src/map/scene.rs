@@ -19,13 +19,13 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
     theme::{ActiveUiTheme, UiColor},
-    widget::{ThemedBorder, ThemedFill, ThemedImageTint, ThemedText},
+    widget::{ButtonCueType, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText},
 };
 
 use super::{app::*, contacts::*, *};
 use crate::{
     icons::{icon_node, BodyIconType, InterfaceIcons},
-    pane::{interface_shown, legend_entry, play_menu_select, themed_label, InterfacePaneType},
+    pane::{interface_shown, legend_entry, themed_label, InterfacePaneType},
     terminal::{NovaOsAppInput, NovaOsCloseTransition},
     // The viewer the Map and Ship panes are two framings of.
     viewer::{cycle_index, orbit_eye, unlit, zoom_radius, OrbitGesture},
@@ -1033,6 +1033,8 @@ pub(crate) fn spawn_blip(
                 code: contact.code.clone(),
             },
             Button,
+            // The selected blip again changes nothing, so the handler cues.
+            ButtonCueType::Owned,
             Node {
                 position_type: PositionType::Absolute,
                 width: Val::Px(MAP_BLIP_PX),
@@ -1433,15 +1435,12 @@ pub(crate) fn reframe_map(orbit: &mut MapOrbit, contacts: &MapContacts, runtime:
 }
 
 /// Reframe the map, or drop the chart selection and return to the chart's
-/// overview while it shows, when the Reframe button is activated, with one
-/// click.
+/// overview while it shows, when the Reframe button is activated.
 pub(crate) fn on_map_reframe_button(
     _activate: On<Activate>,
     contacts: MapContacts,
     mut runtime: ResMut<MapRuntime>,
     mut q_camera: Query<&mut MapOrbit, With<MapCameraMarker>>,
-    bank: Option<Res<SoundBank<UiSfx>>>,
-    mut commands: Commands,
 ) {
     if let Ok(mut orbit) = q_camera.single_mut() {
         if runtime.chart {
@@ -1453,7 +1452,6 @@ pub(crate) fn on_map_reframe_button(
         } else {
             reframe_map(&mut orbit, &contacts, &mut runtime);
         }
-        play_menu_select(&mut commands, bank.as_deref());
     }
 }
 

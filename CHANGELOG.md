@@ -43,6 +43,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Interface & HUD
 
+- Ship pane Rebind now takes Left Mouse. The click that arms it is not captured, and the click that binds reaches no button, tab or blip under it.
 - The lock readout now moves to the free side of the reticle to stay on screen and clear of the target inset, and the inset caption sits on a darker slab clear of its corner brackets.
 - At an interface scale other than 100%, the lock bracket and the target and objective markers now sit on their targets. They drew away from them, or off the screen, before.
 - The lock readout now shows TTI, the seconds until your soonest lit torpedo reaches the locked hull. The line hides while no torpedo of yours is closing on the lock.
@@ -73,6 +74,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - The cockpit now ticks from 8 s out, faster as it closes, while your soonest torpedo runs in on your combat lock.
 - A hull your torpedo blast defeats now confirms with a cockpit stinger and, with camera shake on, a camera jolt at any range.
 - Each batch a reload lands in a torpedo bay now plays a rack clunk. A railgun with a magazine above one round now plays its reload sound per batch, not once when full.
+- Buttons in the panes, catalogue and editor now tick on hover, light under the pointer and click on a press. Most refused presses buzz, in the menus too. Disabled buttons stay silent.
 
 ### Internals & Tooling
 
@@ -81,6 +83,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Fixes
 
+- When a slot on your starting station's board renews, the board keeps one job your hull can do, so an unarmed start no longer runs out. A board of only hidden jobs now says so.
 - A GOTO or ORBIT cue now moves aside while a HUD notice would cover it, and returns when the notice ends.
 - **(breaking)** An escort for hire keeps its place and motion beside its station, in flat space or a well, after a Load or a sector stream, instead of moving to the other side after a hire.
 - **(breaking)** A ship that streams back in or loads with a world keeps its RCS magazine instead of a free full one; an idle one refills for the time away. Older world saves are refused.

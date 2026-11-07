@@ -22,14 +22,14 @@ use super::support::{
 use crate::{
     menu_ui::{on_sandbox, resolve_new_game_scenario, NewGameStartFault},
     scenarios::NewGameScenario,
-    widgets::{button, on_menu_button_activate},
+    widgets::button,
 };
 
 #[test]
 fn a_menu_button_activation_clicks_and_a_bare_activation_does_not() {
     let mut app = cue_app();
-    app.add_observer(on_menu_button_activate);
-    // A real menu button (carries MenuSfxButton via `button()`) and a bare
+    app.add_plugins(ButtonCuePlugin);
+    // A real menu button and a bare
     // entity that merely gets Activate'd.
     let menu_button = app.world_mut().spawn(button("New Game")).id();
     let bare = app.world_mut().spawn_empty().id();
@@ -40,7 +40,7 @@ fn a_menu_button_activation_clicks_and_a_bare_activation_does_not() {
     assert_eq!(
         app.world().resource::<PlayedCues>().0,
         0,
-        "a non-MenuSfxButton activation is silent"
+        "an activation on no button is silent"
     );
 
     app.world_mut().trigger(Activate {
@@ -232,7 +232,7 @@ fn a_back_button_pops_with_the_back_voice_and_an_ordinary_button_clicks() {
     use crate::widgets::back_button;
 
     let mut app = cue_app();
-    app.add_observer(on_menu_button_activate);
+    app.add_plugins(ButtonCuePlugin);
     let settings = app.world_mut().spawn(button("Settings")).id();
     let back = app.world_mut().spawn(back_button("Back")).id();
     app.update();
@@ -252,17 +252,25 @@ fn a_back_button_pops_with_the_back_voice_and_an_ordinary_button_clicks() {
 
 #[test]
 fn focus_ticks_when_the_cursor_arrives_and_stays_quiet_when_it_leaves() {
-    use bevy::picking::hover::Hovered;
-
-    use crate::widgets::play_menu_focus_cue;
+    use bevy::picking::{
+        hover::Hovered,
+        pointer::{PointerLocation, PointerPress},
+    };
 
     let mut app = cue_app();
-    app.add_systems(Update, play_menu_focus_cue);
+    app.add_plugins(ButtonCuePlugin);
     let entity = app.world_mut().spawn(button("Scenarios")).id();
+    let pointer = app
+        .world_mut()
+        .spawn((PointerLocation::default(), PointerPress::default()))
+        .id();
     app.update();
     let _ = take_cues(&mut app);
 
     app.world_mut().entity_mut(entity).insert(Hovered(true));
+    app.world_mut()
+        .entity_mut(pointer)
+        .insert(PointerLocation::default());
     app.update();
     assert_eq!(
         take_cues(&mut app),
@@ -273,26 +281,40 @@ fn focus_ticks_when_the_cursor_arrives_and_stays_quiet_when_it_leaves() {
     // The falling edge is silent: a sweep across a column of buttons must fire
     // once per button, not twice.
     app.world_mut().entity_mut(entity).insert(Hovered(false));
+    app.world_mut()
+        .entity_mut(pointer)
+        .insert(PointerLocation::default());
     app.update();
     assert!(take_cues(&mut app).is_empty(), "leaving a button is silent");
 }
 
 #[test]
 fn a_disabled_button_does_not_tick_under_the_cursor() {
-    use bevy::{picking::hover::Hovered, ui::InteractionDisabled};
-
-    use crate::widgets::play_menu_focus_cue;
+    use bevy::{
+        picking::{
+            hover::Hovered,
+            pointer::{PointerLocation, PointerPress},
+        },
+        ui::InteractionDisabled,
+    };
 
     let mut app = cue_app();
-    app.add_systems(Update, play_menu_focus_cue);
+    app.add_plugins(ButtonCuePlugin);
     let entity = app
         .world_mut()
         .spawn((button("Continue"), InteractionDisabled))
+        .id();
+    let pointer = app
+        .world_mut()
+        .spawn((PointerLocation::default(), PointerPress::default()))
         .id();
     app.update();
     let _ = take_cues(&mut app);
 
     app.world_mut().entity_mut(entity).insert(Hovered(true));
+    app.world_mut()
+        .entity_mut(pointer)
+        .insert(PointerLocation::default());
     app.update();
     // A tick means "you are on something you can press". On a greyed button
     // that would be a lie, and the paint already tells the truth.
