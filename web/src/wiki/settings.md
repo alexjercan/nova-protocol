@@ -35,7 +35,9 @@ when you raise Master.
 The **Preset** row offers **Low / Medium / High**; the four lever rows under
 it are what a preset sets. Move any lever on its own and the preset row reads
 **Custom**; land the levers back on a tier's values and it reads that tier
-again. Every row applies live.
+again. Every row applies live. A preset also sets the torpedo trail: 1.5 s of
+path on High, 0.75 s on Medium, none on Low. With Custom levers the trail
+follows **Particles**: 0.75 s on, none off.
 
 | Row | Choices | What it moves |
 | --- | --- | --- |

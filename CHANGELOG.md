@@ -36,12 +36,23 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** `Item` content now requires `price_lot`, the item count one `ask_cr`/`bid_cr` prices: 100 for a PDC round, 1 for other base items. An item without it fails lint, then load.
 - New `TradeProfile` content gives generated ship roles weighted buy/sell lists, with quantity and per-unit price limit, and Procure jobs for their station visits.
 - New `SetTradeProfile` action gives a generated AI trader a trade profile or clears it. An unknown profile or a non-AI target fails lint.
+- New optional sounds: torpedo bay `ignition_sound`, `dud_sound`, `intercept_sound` and `reload_sound`; ship presentation `torpedo_closing_sound` and `kill_confirm_sound`.
 
 ### Interface & HUD
 
 - The lock readout now moves to the free side of the reticle to stay on screen and clear of the target inset, and the inset caption sits on a darker slab clear of its corner brackets.
 - At an interface scale other than 100%, the lock bracket and the target and objective markers now sit on their targets. They drew away from them, or off the screen, before.
 - The lock readout now shows TTI, the seconds until your soonest lit torpedo reaches the locked hull. The line hides while no torpedo of yours is closing on the lock.
+
+### Audio & Visuals
+
+- A torpedo launch now throws a cold light from the bay, and the drive lights with its own ignition sound and a short flare.
+- A lit torpedo now leaves a faint cold trail: 1.5 s of path on High, 0.75 s on Medium, none on Low. A Custom mix follows Particles: 0.75 s on, none off.
+- A torpedo that dies unfired now says how: a grey puff and dull clank on contact, a small pop and crack when shot down. Neither plays the warhead sound. Low keeps the sounds.
+- A warhead blast now opens with a faint shell that expands to its blast radius.
+- The cockpit now ticks from 8 s out, faster as it closes, while your soonest torpedo runs in on your combat lock.
+- A hull your torpedo blast defeats now confirms with a cockpit stinger and, with camera shake on, a camera jolt at any range.
+- Each batch a reload lands in a torpedo bay now plays a rack clunk. A railgun with a magazine above one round now plays its reload sound per batch, not once when full.
 
 ### Internals & Tooling
 
@@ -51,6 +62,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - **(breaking)** An escort for hire keeps its place and motion beside its station, in flat space or a well, after a Load or a sector stream, instead of moving to the other side after a hire.
 - **(breaking)** A ship that streams back in or loads with a world keeps its RCS magazine instead of a free full one; an idle one refills for the time away. Older world saves are refused.
+- A torpedo warhead's `detonation_sound` now plays at the blast. A real detonation never played it.
+- Destroyed thrusters, on ships and shot-down torpedoes, no longer leave a glowing exhaust cone on their wreck.
 
 ## [0.16.0] - 2026-10-28
 

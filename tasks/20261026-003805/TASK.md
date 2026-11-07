@@ -1,6 +1,6 @@
 # Make existing torpedo engagements more engaging without free ammunition
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
 - TAGS: v0.17.0
 
@@ -26,8 +26,10 @@
   - D7: new optional authored sounds: bay `ignition_sound`, `dud_sound`, `intercept_sound`, `reload_sound`; ship presentation `torpedo_closing_sound`, `kill_confirm_sound`. Not a format break.
   - D8: permanent tests limited to: unit `classify_torpedo_death`, `torpedo_time_to_impact`, `closing_tick_interval`, `ignition_flare_scale`, `shell_scale`; ECS contact vs damage kill event, kill stinger once (not PDC or hostile kills), reload landed per batch, no trail on Low. F1 test `a_detached_thruster_wreck_draws_no_exhaust` already landed.
   - D9: O4 lands last, as its own commit, after the owner commits the uncommitted `torpedo_target.rs` edits.
+- Owner decision (2026-11-06): commit the `torpedo_target.rs` prerequisite with its dependencies, then O4 separately. D8 did not list an O4 HUD test; the owner approved two beside it: `tti_line` asserts in `readout_lines_use_the_shared_unit_policy` and the ECS test `the_time_to_impact_line_shows_only_while_a_torpedo_eta_exists`.
 - Owner decision (2026-11-05): sound picks are the agent picks from `sounds/SOURCES.md`, all CC0: `torpedo_ignite_a` (gracenew, Freesound 857959), `torpedo_dud_a` (Kenney impactMetal_000), `torpedo_intercept_a` (ReadeOnly, Freesound 186958), `torpedo_rack_b` (Pol, Freesound 385936). Changed 2026-11-05 after a listen: the rack clunk is `torpedo_rack_a` (JPolito, jp_circuitbox_locked01, Freesound 391724, CC0), levelled to the RMS of the quieted B clip (`e938fa2c9`), then quieted again after a listen to the peak of the quieted B clip (-9 dBFS). Owner verdict 2026-11-05: overall it looks and sounds good. The closing tone and kill stinger are generated with `scripts/gen-ui-sfx.py`.
 ## Delivery state
+History, in order. "Not heard or seen live", "Pending" and "Remaining" state the time of that line; `Final state` below replaces them.
 - F1 landed: `018cdb96c` (thruster wrecks draw no exhaust). Changelog line pending (CHANGELOG.md holds uncommitted owner edits): "Destroyed thrusters, on ships and shot-down torpedoes, no longer leave a glowing exhaust cone on their wreck."
 - Slice 1 landed: `da3131660` (sounds), `5c05db64a` (death sorting, quiet torpedo deaths, kill credit, dud/intercept cues, kill stinger), `f368aac43` (content gen). Not heard or seen live yet; U14 not bench-tested. Pending changelog lines: dud puff + clank and intercept pop + crack, no warhead boom on either; cockpit kill stinger; modding fields `dud_sound`, `intercept_sound`, `kill_confirm_sound`.
 - Found in slice 1: a real detonation plays no `detonation_sound` (`torpedo_detonate_system` despawns with no destroy edge; FIXME at `torpedo_section/mod.rs:224`). Shipped bug; fixed in slice 2 by playing the cue from the detonation.
@@ -37,8 +39,17 @@
 - Fixes landed: `2ac35e035`. Detonation sound now in the blast spawn bundle; permanent test `a_fuzed_torpedo_voices_its_warhead_as_the_blast_lands` failed before, passes after; live at frame 988. Dud 0.24 -> 0.32, intercept 0.26 -> 0.34 (shared rolloff: same reach as explosion needs 0.40, so a dud cannot match it and stay below the warhead); dud heard live at 2.6 km. Shell: back faces only, colour fade, peak (0.05, 0.06, 0.08); target and fireball visible, still a flat disc with a hard edge (no fresnel in unlit StandardMaterial). Thawed lit torpedoes get `TorpedoTrailEmitter` (not verified live). Evidence `evidence/juice-fix/REPORT.md`. Outcomes unchanged.
 - Owner listen (2026-11-05): all cues sound good except the rack clunk, too loud. `0c64c17c3` re-levels `torpedo_rack.wav` -6 dB (RMS -16.47 -> -22.47 dBFS; railgun reload clip RMS -21.10, unchanged).
 - Bench leak: the juice-after Low run (empty profile dir) wrote the owner's real `~/.config/nova-protocol/settings.ron` at 18:04:40: graphics Low, particles off, transient lights 0, shake off. Prior values not logged; owner to restore.
-- Remaining: O4 (blocked on owner committing `torpedo_target.rs`), changelog (owner-dirty CHANGELOG.md).
+- Remaining on 2026-11-05: O4 (blocked on owner committing `torpedo_target.rs`), changelog (owner-dirty CHANGELOG.md).
 - Order: slice 1 (O7, O8, O6a with seams S1-S3), slice 2 (O1, O2, O9 with S4), slice 3 (O3, O5, O6b, O6c with S5), then O4, then docs. Design: `DESIGN.md`.
+## Final state (2026-11-07)
+- All approved options landed: F1, O1-O3, O5, O6a-c, O7-O9 (commits above), O4 below. Launch, dumb-fire, fuze, damage and ammo rules are unchanged. Owner verdict 2026-11-05 stands: overall it looks and sounds good, after the rack clunk re-level.
+- Prerequisite `951dccb58`: lock readout placement (`fit_lock_readout`, `fit_box`, `TargetInsetKeepOut`), `UiProjection`, inset caption. Curated from the dirty tree: three `nova_hud` files plus its `hud.md` and changelog hunks. Isolated export: `nova_hud` 310 passed.
+- O4 `84274901c`: `TorpedoTargetReadoutLine::TimeToImpact`, `tti_line`, read from `PlayerTorpedoEta`, so it is the torpedo's ETA and not the ship's `DST`/`CLS`. No estimate takes the line out of the column. No chevrons, arrows or markers. Isolated export: `nova_hud` 311 passed, `nova_ship --lib time_to_impact` 2 passed.
+- Changelog and docs: all torpedo entries are in `CHANGELOG.md` under `[Unreleased]`; settings.md carries the trail rule, hud.md, torpedo-bay.md and combat-weapons.md carry TTI. Creator fields were already in `web/src/create/sections.md` and `ships.md`.
+- Proof `evidence/o4/REPORT.md`, matched seed 7, Lance bay, clean export builds, before (951dccb58) and after (O4): rounds, hold, fuze 2.64u, kills and ammo match; health 275.7499 vs 275.7516 (rerun noise); every cue frame and count match, 18 closing ticks. TTI absent cold (f471), 52.1 s at ignition (f472), 6.7 s at f600, 0.2 s at f987, gone at the blast (f988), no 0.0. Low: TTI present, same sounds, no trail. Owner `settings.ron` hash unchanged by these runs.
+- Review: independent review of both commits found no code defect. Two low notes, kept as named limits below.
+- Limits: TTI is a straight-line estimate, so it reads high while the drive accelerates (52.1 s for an 8.6 s flight) and is within 0.2 s from f600. It measures to the target anchor, not the skin (U7), so it does not reach 0 at the fuze. `UiProjection`'s doc says every indicator converts through it, but `flight_status.rs` still projects directly until the uncommitted flight chip work lands. Not verified live: intercept, thaw trail, a shot-down torpedo clearing TTI, a lock swap, TTI at other UI scales. Sound was judged by the owner's listen on 2026-11-05 and by voice logs after that; no agent listened. U14 (a contact torpedo bouncing) stays unverified.
+- Bench leak of 2026-11-05: the fix for later runs is explicit sandbox `HOME`, `XDG_*` and `NOVA_CONFIG_ROOT`. The cause in the bench env was not isolated, and restoring the owner's values stays with the owner.
 ## Decisions needed
 - None open. Preserve existing dumb-fire launch and weapon mechanics.
 ## Delivery

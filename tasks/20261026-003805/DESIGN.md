@@ -1,8 +1,8 @@
 # Torpedo juice O1-O9: implementation design
 
-Read-only design, 2026-11-05, at master 018cdb96c (F1 landed separately). Nothing below is
-implemented. Owner approval of the options is in TASK.md; this file holds the interface design
-that still needs approval. Rendered summary: JUICE-OPTIONS.html, section "Implementation design".
+Design of 2026-11-05, at master 018cdb96c (F1 landed separately). The owner approved it as D1-D9
+and it is delivered; TASK.md holds the decisions, deviations and final state. Rendered summary:
+JUICE-OPTIONS.html, section "Implementation design".
 
 Only three live paths deal damage: rounds (`nova_gameplay/src/rounds.rs:962,1120`), contact
 (`integrity/core.rs:257-330`), blasts (`damage.rs:362-389`). Classifying by source is complete.
