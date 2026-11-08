@@ -173,11 +173,18 @@ pub(crate) struct SpaceButton;
 #[derive(Component)]
 pub(crate) struct SnapButton;
 
-/// The bar's stage tools: the tool buttons, the axes, Snap and Parts. Events
-/// and Form have no stage, so [`sync_panels`] hides them there. Hidden, not
-/// taken out of the layout, so nothing beside them moves on a tab change.
+/// The bar's stage tools: the tool buttons, the axes and Snap. Events and
+/// Form have no stage, and in the Ship view a part mates where it goes, so
+/// [`sync_panels`] hides them there. Hidden, not taken out of the layout, so
+/// nothing beside them moves on a tab change.
 #[derive(Component)]
 pub(crate) struct StageTools;
+
+/// The bar's Parts button and the rule before it. They show wherever a stage
+/// shows, the Ship view included, and hide with the stage in Events and Form.
+/// The Parts verb itself hides the button outside a ship.
+#[derive(Component)]
+pub(crate) struct PartsTools;
 
 /// What a top bar button says with room, and with little.
 #[derive(Component, Clone, Copy)]
@@ -448,10 +455,10 @@ fn spawn_tool_group(group: &mut RelatedSpawnerCommands<ChildOf>) {
         worded_button("Redo", ">", "Redo (Ctrl+Y)"),
         observe(redo_item),
     ));
-    group.spawn((StageTools, bar_rule()));
+    group.spawn((PartsTools, bar_rule()));
     group.spawn((
         Name::new("Parts Button"),
-        StageTools,
+        PartsTools,
         MenuVerbType::Parts,
         VerbHint("Section catalog (Tab)"),
         GalleryAction::Open,
@@ -746,7 +753,8 @@ pub(crate) fn sync_panels(
     mut rails: Query<&mut Node, (With<EditorRail>, Without<ScriptMount>, Without<EditorStage>)>,
     mut mounts: Query<&mut Node, (With<ScriptMount>, Without<EditorStage>)>,
     mut stages: Query<&mut Node, With<EditorStage>>,
-    mut stage_tools: Query<&mut Visibility, With<StageTools>>,
+    mut stage_tools: Query<&mut Visibility, (With<StageTools>, Without<PartsTools>)>,
+    mut parts_tools: Query<&mut Visibility, (With<PartsTools>, Without<StageTools>)>,
     mut areas: Query<
         &mut Node,
         (
@@ -871,6 +879,16 @@ pub(crate) fn sync_panels(
     for mut visibility in &mut stage_tools {
         if *visibility != tools {
             *visibility = tools;
+        }
+    }
+    let parts = if events || form {
+        Visibility::Hidden
+    } else {
+        Visibility::Inherited
+    };
+    for mut visibility in &mut parts_tools {
+        if *visibility != parts {
+            *visibility = parts;
         }
     }
 }
@@ -1168,8 +1186,10 @@ mod tests {
         assert_eq!(display(mount), Display::Flex);
     }
 
-    /// The stage tools have nothing to act on in Events. They hide without
-    /// leaving the layout, so Undo and Play hold their place across the tabs.
+    /// The stage tools have nothing to act on in Events, and a part mates
+    /// where it goes in a ship, so they hide there. They hide without leaving
+    /// the layout, so Undo and Play hold their place across the tabs. Parts
+    /// hides with the stage in Events and shows in a ship, where it acts.
     #[test]
     fn events_hides_the_stage_tools_and_keeps_their_place() {
         let (mut app, ..) = panel_app();
@@ -1177,30 +1197,35 @@ mod tests {
             .world_mut()
             .spawn((StageTools, Node::default(), Visibility::default()))
             .id();
-        let seen = |app: &App| {
+        let parts = app
+            .world_mut()
+            .spawn((PartsTools, Node::default(), Visibility::default()))
+            .id();
+        let seen = |app: &App, entity| {
             let world = app.world();
-            let visibility = *world.get::<Visibility>(tools).expect("a visibility");
+            let visibility = *world.get::<Visibility>(entity).expect("a visibility");
             (
                 visibility,
-                world.get::<Node>(tools).expect("a node").display,
+                world.get::<Node>(entity).expect("a node").display,
             )
         };
+        let hidden = (Visibility::Hidden, Display::Flex);
+        let shown = (Visibility::Inherited, Display::Flex);
 
         *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Events;
         app.update();
-        assert_eq!(seen(&app), (Visibility::Hidden, Display::Flex));
+        assert_eq!(seen(&app, tools), hidden);
+        assert_eq!(seen(&app, parts), hidden);
 
         *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Scene;
         app.update();
-        assert_eq!(seen(&app), (Visibility::Inherited, Display::Flex));
+        assert_eq!(seen(&app, tools), shown);
+        assert_eq!(seen(&app, parts), shown);
 
         *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Ship;
         app.update();
-        assert_eq!(
-            seen(&app),
-            (Visibility::Hidden, Display::Flex),
-            "nor in a ship"
-        );
+        assert_eq!(seen(&app, tools), hidden, "no handle tools in a ship");
+        assert_eq!(seen(&app, parts), shown, "Parts shows in a ship");
     }
 
     /// `ViewportPointer::over_ui` is true for any `Node` that takes the hit, and

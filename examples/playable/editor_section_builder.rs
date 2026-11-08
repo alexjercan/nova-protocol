@@ -770,16 +770,10 @@ mod smoke {
         .diagnose(readout)
         .deadline(BEAT_SECS)
         .add()
-        // The Ship editor has no stage tools: its Ship menu opens the parts.
-        .click_named(
-            "section: open the Ship menu",
-            "Ship Menu Button",
-            ui_node_present("Parts Item"),
-            BEAT_SECS,
-        )
+        // The Ship editor hides the handle tools but keeps the bar's Parts.
         .click_named(
             "section: open the gallery",
-            "Parts Item",
+            "Parts Button",
             editor_gallery_open(),
             BEAT_SECS,
         )
