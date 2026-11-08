@@ -185,6 +185,35 @@ mod smoke {
         Arc::new(move |world: &World| texts(world).iter().any(|text| text.contains(needle)))
     }
 
+    /// Advance once the kind column's `heading` row counts `count` items.
+    fn kind_counts(heading: &'static str, count: usize) -> Arc<Predicate> {
+        Arc::new(move |world: &World| {
+            let wanted = format!("Asset Kind {heading}");
+            let count = count.to_string();
+            let Some(mut rows) = world.try_query::<(Entity, &Name)>() else {
+                return false;
+            };
+            let Some(row) = rows
+                .iter(world)
+                .find(|(_, name)| name.as_str() == wanted)
+                .map(|(row, _)| row)
+            else {
+                return false;
+            };
+            let mut stack = vec![row];
+            while let Some(at) = stack.pop() {
+                let entity = world.entity(at);
+                if entity.get::<Text>().is_some_and(|text| text.0 == count) {
+                    return true;
+                }
+                if let Some(children) = entity.get::<Children>() {
+                    stack.extend(children.iter());
+                }
+            }
+            false
+        })
+    }
+
     /// Advance once a save reports itself and the unsaved mark is gone.
     fn saved_and_clean() -> Arc<Predicate> {
         Arc::new(|world: &World| {
@@ -360,7 +389,7 @@ mod smoke {
             .click_named(
                 "mod project: show the mod's contents",
                 "Browser Tab Assets",
-                reads("Scenarios 1"),
+                kind_counts("Scenarios", 1),
                 BEAT_SECS,
             )
             .click_named(
@@ -372,7 +401,7 @@ mod smoke {
             .click_named(
                 "mod project: add a blank scenario",
                 "Asset Add Scenarios",
-                reads("Scenarios 2"),
+                kind_counts("Scenarios", 2),
                 BEAT_SECS,
             );
         let script = shot(script, ASSETS_SHOT);
@@ -476,7 +505,7 @@ mod smoke {
         .click_named(
             "mod project: the reopened mod holds both",
             "Browser Tab Assets",
-            reads("Scenarios 2"),
+            kind_counts("Scenarios", 2),
             BEAT_SECS,
         );
         let script = package_walk(script);

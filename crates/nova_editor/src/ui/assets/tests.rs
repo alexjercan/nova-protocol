@@ -11,7 +11,8 @@ fn entry(kind: &'static str, label: &str) -> AssetEntry {
         kind,
         label: label.to_string(),
         full: label.to_string(),
-        printed: String::new(),
+        name: String::new(),
+        note: String::new(),
         waits: "",
         id: None,
         parts: Vec::new(),
@@ -61,17 +62,25 @@ fn a_scenario_ship_shelves_under_its_scenario() {
     assert_eq!(labels, ["red_run__courier"]);
 }
 
-/// An id is one word to the text layout, so a tile breaks it itself: at a word
-/// end, never inside `saved_range.hulk_0` as `saved_range.hu / lk_0` did.
+/// A tile is a name line over a muted kind line. A long name ends in an
+/// ellipsis on its one line; the hover hint keeps it whole.
 #[test]
-fn a_long_name_breaks_at_a_word_end_and_ends_in_an_ellipsis() {
-    assert_eq!(wrapped_name("hulk_0"), "hulk_0");
-    assert_eq!(wrapped_name("picket_sentinel"), "picket_\nsentinel");
+fn a_tile_prints_its_name_over_its_kind() {
+    let mut entries = vec![
+        entry("section", "picket_sentinel"),
+        entry("ui theme", "The Long Way Home Again"),
+    ];
+
+    name_tiles(&mut entries, "red-run");
+
     assert_eq!(
-        wrapped_name("The Long Way Home Again And Back"),
-        "The Long Way\nHome Again ..."
+        (entries[0].name.as_str(), entries[0].note.as_str()),
+        ("picket_sentinel", "SECTION")
     );
-    assert_eq!(wrapped_name("unbrokenlongidentifier"), "unbrokenlon...");
+    assert_eq!(
+        (entries[1].name.as_str(), entries[1].note.as_str()),
+        ("The Long Way ...", "UI THEME")
+    );
 }
 
 /// A design drops its scenario on the tile and keeps it in the hover hint.
@@ -83,7 +92,8 @@ fn a_design_tile_prints_its_node_and_keeps_the_whole_id() {
 
     name_tiles(&mut entries, "red-run");
 
-    assert_eq!(entries[0].printed, "hulk_0");
+    assert_eq!(entries[0].name, "hulk_0");
+    assert_eq!(entries[0].note, "SHIP");
     assert_eq!(entries[0].full, "saved_range.hulk_0");
 }
 
@@ -105,10 +115,19 @@ fn tiles_with_one_short_name_print_what_tells_them_apart() {
 
     name_tiles(&mut entries, "red-run");
 
-    assert_eq!(entries[0].printed, "hulk_0\narena");
-    assert_eq!(entries[1].printed, "hulk_0\narena_copy");
-    assert_eq!(entries[2].printed, "hulk_0\n...scenario_id");
-    assert_eq!(entries[3].printed, "hulk_0\n...nario_id #2");
+    let printed: Vec<(&str, &str)> = entries
+        .iter()
+        .map(|entry| (entry.name.as_str(), entry.note.as_str()))
+        .collect();
+    assert_eq!(
+        printed,
+        [
+            ("hulk_0", "arena"),
+            ("hulk_0", "arena_copy"),
+            ("hulk_0", "...g_scenario_id"),
+            ("hulk_0", "...cenario_id #2"),
+        ]
+    );
 }
 
 /// Names that part only past the cut read alike, so they part on the id's end.
@@ -121,8 +140,9 @@ fn names_that_read_alike_once_cut_print_the_end_of_their_id() {
 
     name_tiles(&mut entries, "red-run");
 
-    assert_eq!(entries[0].printed, "picket_sent...\n...l_alpha_one");
-    assert_eq!(entries[1].printed, "picket_sent...\n...l_alpha_two");
+    assert_eq!(entries[0].name, "picket_sentin...");
+    assert_eq!(entries[0].note, "...nel_alpha_one");
+    assert_eq!(entries[1].note, "...nel_alpha_two");
 }
 
 /// A short name is what a tile prints, and the filter still finds the rest.

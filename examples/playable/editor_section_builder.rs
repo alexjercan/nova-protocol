@@ -227,6 +227,35 @@ mod smoke {
         Arc::new(move |world: &World| texts(world).iter().any(|text| text.contains(needle)))
     }
 
+    /// Advance once the kind column's `heading` row counts `count` items.
+    fn kind_counts(heading: &'static str, count: usize) -> Arc<Predicate> {
+        Arc::new(move |world: &World| {
+            let wanted = format!("Asset Kind {heading}");
+            let count = count.to_string();
+            let Some(mut rows) = world.try_query::<(Entity, &Name)>() else {
+                return false;
+            };
+            let Some(row) = rows
+                .iter(world)
+                .find(|(_, name)| name.as_str() == wanted)
+                .map(|(row, _)| row)
+            else {
+                return false;
+            };
+            let mut stack = vec![row];
+            while let Some(at) = stack.pop() {
+                let entity = world.entity(at);
+                if entity.get::<Text>().is_some_and(|text| text.0 == count) {
+                    return true;
+                }
+                if let Some(children) = entity.get::<Children>() {
+                    stack.extend(children.iter());
+                }
+            }
+            false
+        })
+    }
+
     /// Advance once `check` holds of the probe.
     fn editor(check: impl Fn(&EditorProbe) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
         Arc::new(move |world: &World| world.get_resource::<EditorProbe>().is_some_and(&check))
@@ -453,7 +482,7 @@ mod smoke {
             .click_named(
                 "section: show the mod's contents",
                 "Browser Tab Assets",
-                reads("Scenarios 1"),
+                kind_counts("Scenarios", 1),
                 BEAT_SECS,
             )
             .click_named(
@@ -465,7 +494,7 @@ mod smoke {
             .click_named(
                 "section: add a scenario",
                 "Asset Add Scenarios",
-                reads("Scenarios 2"),
+                kind_counts("Scenarios", 2),
                 BEAT_SECS,
             )
             .click_named(
@@ -991,14 +1020,22 @@ mod smoke {
         .click_named(
             "section: the reopened mod holds the section",
             "Browser Tab Assets",
-            reads("Sections 1"),
+            kind_counts("Sections", 1),
             BEAT_SECS,
         );
         let script = file_row(
             script,
-            "package",
+            "open the Package window",
             "Package Item",
-            reads("spar-works-0.1.0.zip"),
+            Arc::new(|world: &World| {
+                ui_node_present("Package Modal")(world) && reads("spar-works-0.1.0.zip")(world)
+            }),
+        )
+        .click_named(
+            "section: package",
+            "Package Button",
+            ui_node_present("Package Done Path"),
+            BEAT_SECS,
         )
         .step("section: the archive is on disk")
         .on_enter(|_world: &mut World| {
@@ -1011,8 +1048,8 @@ mod smoke {
         .add()
         .click_named(
             "section: close the result",
-            "File Cancel Button",
-            Arc::new(|world: &World| !ui_node_present("File Window")(world)),
+            "Package Close",
+            Arc::new(|world: &World| !ui_node_present("Package Modal")(world)),
             BEAT_SECS,
         )
         .click_named(

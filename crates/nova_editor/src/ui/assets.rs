@@ -4,15 +4,15 @@
 //! [`super::asset_files`]'s. A tile opens on a double click, and its
 //! right-click menu holds the verbs.
 //!
-//! A tile prints a short name and its hover hint holds the whole id. Tiles of
-//! one kind that would print alike say on their second line what tells them
-//! apart: see [`name_tiles`].
+//! A tile prints a short name over a muted kind line, and its hover hint holds
+//! the whole id. Tiles of one kind that would print alike say on their muted
+//! line what tells them apart instead: see [`name_tiles`]. The kind column's
+//! rows are the Hierarchy's [`tree_row`]s.
 
 use std::collections::HashMap;
 
 use bevy::{
     ecs::relationship::RelatedSpawnerCommands,
-    picking::hover::Hovered,
     prelude::*,
     ui::{InteractionDisabled, UiScale},
     ui_widgets::{observe, Activate, Button},
@@ -63,11 +63,12 @@ use crate::{
     ExampleStates,
 };
 
-/// A tile's width.
-const TILE_W: f32 = 84.0;
+/// A tile's width: [`LINE_CHARS`] of [`density::TEXT_SMALL`] text and the
+/// tile's padding.
+const TILE_W: f32 = 96.0;
 
-/// A tile's height: the picture and two lines of name.
-const TILE_H: f32 = 90.0;
+/// A tile's height: the picture, the name line and the kind line.
+const TILE_H: f32 = 92.0;
 
 /// A tile's picture.
 const THUMB_W: f32 = 54.0;
@@ -78,11 +79,12 @@ const OPEN_DOT: f32 = 7.0;
 /// The glyph standing in for a picture.
 const GLYPH_TEXT: f32 = 26.0;
 
-/// The width of the kind column.
-const KIND_W: f32 = 120.0;
+/// The width of the kind column: a scenario shelf one step in, its mark, a
+/// dozen characters of its name and its count.
+const KIND_W: f32 = 150.0;
 
-/// The characters one line of a tile's name holds. The UI font is monospace.
-const LINE_CHARS: usize = 14;
+/// The characters one line of a tile holds. The UI font is monospace.
+const LINE_CHARS: usize = 16;
 
 /// The mark on a file the package leaves out. DOTTED CIRCLE - a place the
 /// package holds nothing.
@@ -97,8 +99,11 @@ pub(crate) struct AssetEntry {
     pub(crate) label: String,
     /// The whole id or path, for the tile's hover hint.
     pub(crate) full: String,
-    /// The lines the tile prints. See [`name_tiles`].
-    printed: String,
+    /// The name line the tile prints. See [`name_tiles`].
+    name: String,
+    /// The muted line under the name: the kind, or what tells the tile from
+    /// one that prints the same name. See [`name_tiles`].
+    note: String,
     /// Why it does not open, on a tile that does not.
     pub(crate) waits: &'static str,
     /// The item, on a tile that holds verbs.
@@ -151,28 +156,6 @@ fn cut_start(text: &str, chars: usize) -> String {
     format!("...{kept}")
 }
 
-/// `label` on at most two lines. A line breaks only after a word: an id is words
-/// joined by `_`, `-`, `.` or `/`, which the text layout does not break at.
-fn wrapped_name(label: &str) -> String {
-    let chars: Vec<char> = label.chars().collect();
-    if chars.len() <= LINE_CHARS {
-        return label.to_string();
-    }
-    let word_end = (1..=LINE_CHARS)
-        .rev()
-        .find(|at| matches!(chars[at - 1], ' ' | '_' | '-' | '.' | '/'));
-    let Some(at) = word_end else {
-        return cut_end(label, LINE_CHARS);
-    };
-    let first: String = chars[..at].iter().collect();
-    let rest: String = chars[at..].iter().collect();
-    format!(
-        "{}\n{}",
-        first.trim_end(),
-        cut_end(rest.trim_start(), LINE_CHARS)
-    )
-}
-
 /// What tells `entry` from a tile that would print alike: its id without the
 /// name, so the scenario of a design or the folder of a file, or else its id.
 fn qualifier(entry: &AssetEntry, namespace: &str) -> String {
@@ -186,32 +169,35 @@ fn qualifier(entry: &AssetEntry, namespace: &str) -> String {
 
 /// Write what every tile prints, and keep tiles of one kind different.
 ///
-/// Two scenarios of a mod can hold the same node, so a short name alone repeats.
-/// A tile that would print like another keeps its name to one line and takes its
-/// [`qualifier`] as the second. Ids that still read alike once cut are numbered.
-/// The kind's glyph tells apart tiles of two kinds.
+/// A tile prints its short name, cut to one line, over its kind. Two scenarios
+/// of a mod can hold the same node, so a short name alone repeats: a tile that
+/// would print like another takes its [`qualifier`] as the muted line instead
+/// of the kind, which its glyph and tint already say. Ids that still read
+/// alike once cut are numbered.
 fn name_tiles(entries: &mut [AssetEntry], namespace: &str) {
     let mut printing: HashMap<(&'static str, String), usize> = HashMap::new();
     for entry in entries.iter_mut() {
-        entry.printed = wrapped_name(&entry.label);
+        entry.name = cut_end(&entry.label, LINE_CHARS);
+        entry.note = cut_end(&entry.kind.to_uppercase(), LINE_CHARS);
         *printing
-            .entry((entry.kind, entry.printed.clone()))
+            .entry((entry.kind, entry.name.clone()))
             .or_default() += 1;
     }
-    let mut seen: HashMap<(&'static str, String), usize> = HashMap::new();
+    let mut seen: HashMap<(&'static str, String, String), usize> = HashMap::new();
     for entry in entries.iter_mut() {
-        if printing[&(entry.kind, entry.printed.clone())] < 2 {
+        if printing[&(entry.kind, entry.name.clone())] < 2 {
             continue;
         }
-        let name = cut_end(&entry.label, LINE_CHARS);
         let scope = qualifier(entry, namespace);
-        entry.printed = format!("{name}\n{}", cut_start(&scope, LINE_CHARS));
-        let count = seen.entry((entry.kind, entry.printed.clone())).or_default();
+        entry.note = cut_start(&scope, LINE_CHARS);
+        let count = seen
+            .entry((entry.kind, entry.name.clone(), entry.note.clone()))
+            .or_default();
         *count += 1;
         if *count > 1 {
             let mark = format!(" #{count}");
             let room = LINE_CHARS - mark.len();
-            entry.printed = format!("{name}\n{}{mark}", cut_start(&scope, room));
+            entry.note = format!("{}{mark}", cut_start(&scope, room));
         }
     }
 }
@@ -267,7 +253,8 @@ pub(crate) fn asset_entries(
             kind: row.kind,
             label: short_name(item, &project.namespace),
             full: item.id().to_string(),
-            printed: String::new(),
+            name: String::new(),
+            note: String::new(),
             waits: row.waits,
             id: row.opens.then(|| OpenAsset {
                 kind: row.kind,
@@ -293,7 +280,8 @@ pub(crate) fn asset_entries(
                 .unwrap_or(&file.path)
                 .to_string(),
             full: file.path.clone(),
-            printed: String::new(),
+            name: String::new(),
+            note: String::new(),
             waits: "",
             id: None,
             parts,
@@ -1095,7 +1083,8 @@ pub(crate) fn sync_assets(
     *shown = Some(wanted);
 }
 
-/// One row of the kind column, `depth` steps in.
+/// One row of the kind column, `depth` steps in: a Hierarchy row, with the
+/// kind's mark in front and the count where a node's child count stands.
 fn spawn_kind_row(
     list: &mut RelatedSpawnerCommands<ChildOf>,
     shelf: AssetShelfType,
@@ -1104,47 +1093,34 @@ fn spawn_kind_row(
     depth: usize,
     chosen: bool,
 ) {
-    let indent = density::PANEL_PAD + depth as f32 * density::ROW_H * 0.6;
+    let lead = match &shelf {
+        AssetShelfType::All => String::new(),
+        AssetShelfType::Kind(kind) => asset_mark(kind).to_string(),
+        AssetShelfType::Scenario(_) => asset_mark(SCENARIO_KIND).to_string(),
+    };
+    let spec = TreeRowSpec {
+        depth,
+        lead,
+        label: heading.to_string(),
+        count: count.to_string(),
+        ..default()
+    };
     let mut row = list.spawn((
         Name::new(format!("Asset Kind {heading}")),
         AssetKindRow(shelf),
-        ListRow,
-        Button,
-        Hovered::default(),
-        Node {
-            width: percent(100),
-            height: px(density::ROW_H),
-            flex_shrink: 0.0,
-            align_items: AlignItems::Center,
-            padding: UiRect {
-                left: px(indent),
-                right: px(density::PANEL_PAD),
-                ..default()
-            },
-            border: UiRect::all(px(theme::BORDER_W)),
-            overflow: Overflow::clip(),
-            ..default()
-        },
-        ThemedRadius::control(),
-        BorderColor::all(Color::NONE),
-        BackgroundColor(Color::NONE),
+        tree_row(&spec),
         observe(on_asset_kind),
-        children![pane_text(
-            &format!("{heading} {count}"),
-            density::TEXT,
-            UiColor::Primary
-        )],
     ));
     if chosen {
         row.insert(Selected);
     }
 }
 
-/// The name under a tile, already cut to its lines.
-fn tile_name(printed: &str) -> impl Bundle {
+/// One line under a tile's picture, already cut to the tile.
+fn tile_line(line: &str, colour: UiColor) -> impl Bundle {
     (
         UiText,
-        Text::new(printed),
+        Text::new(line),
         TextLayout {
             linebreak: LineBreak::NoWrap,
             justify: Justify::Center,
@@ -1154,13 +1130,8 @@ fn tile_name(printed: &str) -> impl Bundle {
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Primary),
+        ThemedText::new(colour),
         Pickable::IGNORE,
-        Node {
-            max_height: px(density::TEXT_SMALL * 2.6),
-            overflow: Overflow::clip(),
-            ..default()
-        },
     )
 }
 
@@ -1331,7 +1302,14 @@ fn spawn_tile(
                 ));
             }
             None => {
-                tile.spawn(tile_name(&entry.printed));
+                tile.spawn((
+                    Name::new("Asset Tile Name"),
+                    tile_line(&entry.name, UiColor::Primary),
+                ));
+                tile.spawn((
+                    Name::new("Asset Tile Kind"),
+                    tile_line(&entry.note, UiColor::Label),
+                ));
             }
         }
     });
