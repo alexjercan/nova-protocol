@@ -83,6 +83,27 @@ S6. Better labels in the Assets browser. Today it feels different from the
     rest of the UI.
 S7. A right click in the Assets viewer can add a new asset, as `+` does.
 S8. The top Add relates to this: it can add an asset too.
+S9. Every asset opens on its own. A double click on a ship, a design or an
+    ad-hoc scenario ship, opens the Ship editor alone: no scenario around it.
+    Esc goes back to the scenario you came from. The same rule for every kind.
+S10. File > Package opens a modal with the packager's real settings first,
+    and after a package it shows the path with Copy Path and Open Folder.
+S11. Mod Settings shows dependencies as a list, and the last row is a
+    dropdown of installed mods.
+S12. The `+` in Assets opens a proper popup. A follow-up choice, such as the
+    section kind, is a centred modal, not a loose list in a corner.
+S13. No text box for complex data. Section Build > Parts is a list with an
+    add dropdown. Audit every field of every form and give each a fitting
+    widget; a text box stays only for real free text.
+S14. An ad-hoc ship shows in Assets under its scenario and opens the same
+    independent way as a design.
+S15. The `x` close and remove buttons look bad in the phosphor theme. Make
+    one shared icon button for every close, remove and delete.
+S16. The Ship editor has its own input, not the scenario's. The wheel cycles
+    the part's turn and Q picks Select. The Ship view has no use for move and
+    turn tools, so drop them, keep the scenario camera, and fix the turn key.
+S17. A placed Events block flickers to the top left corner while it is
+    dragged.
 
 ## Decisions
 
@@ -98,6 +119,13 @@ Approved by the owner:
 - The main menu barely changes. The button stays "Sandbox".
 - Creating a mod is simple, as a Unity project is.
 - Old things may be removed in the migration.
+- S16, the Ship view input. Approved through the owner's request; the
+  coordinator chose the keys. The Ship view has no stage tools: Q/W/E/R,
+  World/Local and Snap hide. The camera works as in the scenario: MMB or
+  Alt+LMB orbits, Shift+MMB pans, F frames, and the wheel always dollies,
+  with or without a part in hand. Q is the pipette. R turns the part in hand
+  one step and Shift+R turns it back; the wheel no longer turns it. If the
+  in-game build view uses other turn keys, the Ship view matches them.
 
 Agent assumptions, not confirmed by the owner:
 
