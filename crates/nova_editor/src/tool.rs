@@ -126,7 +126,8 @@ pub(crate) fn snapped(value: f32, step: f32) -> f32 {
 /// Gated on `InputMode::Normal` where it is scheduled, so a typed letter never
 /// reaches it. A chord is its own verb, and a part in hand keeps R for its
 /// roll. In Events the bar shows no tools, so a press there must not change
-/// what the Scene tab comes back to.
+/// what the Scene tab comes back to. The Ship editor has no tools: parts mate,
+/// so it selects, and Q, R and F are its part keys.
 pub(crate) fn tool_keys(
     keys: Res<ButtonInput<KeyCode>>,
     held: Res<HeldPart>,
@@ -134,6 +135,10 @@ pub(crate) fn tool_keys(
     mut tool: ResMut<StageTool>,
     mut says: EditorSays,
 ) {
+    if *rail == EditorViewType::Ship {
+        pick_tool(&mut tool, StageToolType::Select);
+        return;
+    }
     if rail.is_events() || *held != HeldPart(None) || snapping(Some(&keys)) || alt_held(Some(&keys))
     {
         return;

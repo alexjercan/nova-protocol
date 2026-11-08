@@ -427,10 +427,10 @@ Inspector and the strip's body, and so do <kbd>Ctrl</kbd>+<kbd>1</kbd>,
 <kbd>Ctrl</kbd>+<kbd>2</kbd> and <kbd>Ctrl</kbd>+<kbd>3</kbd>.
 
 - **Top bar**: the menus, the view switch, the four tools, Axes, Snap, Undo,
-  Redo and Play; inside a ship also Parts and Leave Ship. Each button does what
-  its key does. Snap inverts Ctrl: with it on, a handle snaps until you hold
-  Ctrl. A menu shows only the verbs of the open document, and the Ship menu
-  shows only inside a ship. A verb that fits but cannot run now is grey, and its
+  Redo and Play; in the Ship editor Parts and **Back to {name}** instead of the
+  tools, Axes and Snap. Each button does what its key does. Snap inverts Ctrl:
+  with it on, a handle snaps until you hold Ctrl. A menu shows only the verbs of
+  the open document, and the Ship menu shows only in the Ship editor. A verb that fits but cannot run now is grey, and its
   hover says why.
 - **View switch**: the views of the open document only. A scenario has Scene
   and Events, a ship has Ship, a section has Section, and every other kind has
@@ -456,19 +456,29 @@ Inspector and the strip's body, and so do <kbd>Ctrl</kbd>+<kbd>1</kbd>,
   its folder as tiles, sorted by kind, with a count per kind. A double click or
   <kbd>Enter</kbd> opens a tile in its view, views an image or a mesh, or plays a
   sound. A right click holds its verbs, **+** adds a blank item, and a hover
-  shows the whole id. A file the package leaves out wears a dotted mark. **Problems** is the
+  shows the whole id. Drag a ship design onto the stage, or right click it and
+choose **Place in Scenario**, to place it in the open scenario. A ship a
+scenario made is listed under that scenario. A file the package leaves out wears a dotted mark. **Problems** is the
   live lint of what Play would load; a row selects the node it names. **Ship**
-  appears inside a ship and holds the skin, the styles and Generate. **Log** keeps
+  appears in the Ship editor and holds the skin, the styles and Generate. **Log** keeps
   what the status line said and what the game warned of, with Clear, a level
   filter and a text filter. Drag the strip's top edge to resize it.
 
-The stage camera has no fly keys: the letters are the tools. Hold right mouse to
-look about, and orbit, pan and dolly to move. A right click without a drag opens
-the stage menu: the Add verbs of the view, Paste, and Frame and Delete on a node. Double-click a ship and the camera frames the whole hull, however big it is.
-Inside, the ship stands square on the origin: its position and rotation belong
-to the scenario, and only show there.
+The stage camera has no fly keys: in a scenario the letters are the tools. Hold
+right mouse to look about, and orbit, pan and dolly to move. The wheel always
+dollies. A right click without a drag opens the stage menu: the Add verbs of the
+view, Paste, and Frame and Delete on a node.
 <kbd>F</kbd> frames whatever is selected, and at the scenario level it
 frames the whole document.
+
+Every ship opens in the Ship editor, alone and square on the origin: double
+click it in the Hierarchy or on its tile, or select it and press
+<kbd>Enter</kbd>. Its position and rotation belong to the scenario, and only show
+there. A placed design opens the design. <kbd>Esc</kbd> or **Back to {name}** on
+the bar returns to the document you came from, with its camera, selection and
+view. The Ship editor has no stage tools: parts mate where they go, so
+<kbd>Q</kbd>, <kbd>R</kbd> and <kbd>F</kbd> are part keys there, as in the
+game's Ship pane.
 
 Keys are verbs only while nothing else has the keyboard. With the parts gallery
 up, the arrow keys move its grid and <kbd>Esc</kbd> closes the gallery rather
@@ -492,11 +502,11 @@ pending rebind.
         </td>
     </tr>
     <tr>
-        <td>Pick a tool: Select, Move, Turn, Scale</td>
+        <td>Pick a tool: Select, Move, Turn, Scale (scenario only)</td>
         <td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd></td>
     </tr>
     <tr>
-        <td>Swap the handles between world and local axes</td>
+        <td>Swap the handles between world and local axes (scenario only)</td>
         <td><kbd>X</kbd></td>
     </tr>
     <tr>
@@ -511,8 +521,8 @@ pending rebind.
         <td><kbd>Ctrl</kbd>+<kbd>C</kbd>; <kbd>Ctrl</kbd>+<kbd>V</kbd>; <kbd>Ctrl</kbd>+<kbd>D</kbd></td>
     </tr>
     <tr>
-        <td>Select a node; enter the ship you selected</td>
-        <td>left click; double click</td>
+        <td>Select a node; open the ship in the Ship editor</td>
+        <td>left click; double click or <kbd>Enter</kbd></td>
     </tr>
     <tr>
         <td>Slide a ship or object on the ground plane (scenario node only)</td>
@@ -535,7 +545,7 @@ pending rebind.
         <td><kbd>Ctrl</kbd>+<kbd>S</kbd> &nbsp;(or <b>File &gt; Save</b>)</td>
     </tr>
     <tr>
-        <td>Open or close the parts gallery (inside a ship)</td>
+        <td>Open or close the parts gallery (Ship editor)</td>
         <td><kbd>Tab</kbd> &nbsp;(or <b>Ship &gt; Parts...</b>)</td>
     </tr>
     <tr>
@@ -559,16 +569,16 @@ pending rebind.
         <td>left click on the ship</td>
     </tr>
     <tr>
-        <td>Roll it about the mating axis</td>
-        <td>wheel &nbsp;or&nbsp; <kbd>R</kbd></td>
+        <td>Roll it about the mating axis; roll it back</td>
+        <td><kbd>R</kbd>; <kbd>Shift</kbd>+<kbd>R</kbd></td>
     </tr>
     <tr>
-        <td>Cycle which of its sockets mates</td>
-        <td><kbd>Ctrl</kbd>+wheel &nbsp;or&nbsp; <kbd>F</kbd></td>
+        <td>Cycle which of its sockets mates; step back</td>
+        <td><kbd>F</kbd>; <kbd>Shift</kbd>+<kbd>F</kbd></td>
     </tr>
     <tr>
-        <td>Pick up the part under the cursor</td>
-        <td><kbd>P</kbd></td>
+        <td>Pick up the part under the cursor (Ship editor)</td>
+        <td><kbd>Q</kbd></td>
     </tr>
     <tr>
         <td>Bind a flight key to the selected part</td>
@@ -578,8 +588,8 @@ pending rebind.
         </td>
     </tr>
     <tr>
-        <td>Leave the ship you are inside</td>
-        <td><kbd>Bksp</kbd></td>
+        <td>Go back to the document you came from</td>
+        <td><kbd>Bksp</kbd> &nbsp;(or <b>Back to {name}</b> on the bar)</td>
     </tr>
     <tr>
         <td>Open the marked asset tile in its view; view or play a file</td>
@@ -597,10 +607,10 @@ pending rebind.
 
 <kbd>Esc</kbd> takes one rung per press, in this order: a block in hand, a row's
 menu, a block's pop-up, an open top-bar menu, an open colour picker (its pick is
-taken back), the part in hand, the ship you are inside, and finally the pause
-menu. A text field with the caret, the gallery and
+taken back), the part in hand, Back to the document you came from, and finally
+the pause menu. A text field with the caret, the gallery and
 a pending rebind hold the keyboard, so <kbd>Esc</kbd> goes to them first.
-<kbd>Bksp</kbd> is the shortcut past all of that - it leaves the ship from wherever you are, unless a text field has the
+<kbd>Bksp</kbd> is the shortcut past all of that - it goes Back from wherever you are, unless a text field has the
 caret, where it deletes a character instead.
 
 ### The build readout
@@ -698,8 +708,8 @@ Three controls and a list:
 The order is collapse, lint, then place. A roll that fails - or a hull the
 game's own content lint would reject - writes one line to the status bar and
 leaves the document exactly as it was, so the ship on the stage is never left
-holding something that will not save. Generate outside a ship, or with nothing
-ticked, and you get the same treatment: `go inside a ship to generate a hull
+holding something that will not save. Generate outside the Ship editor, or with
+nothing ticked, and you get the same treatment: `open a ship to generate a hull
 into it`, `tick at least one section for the collapse to draw`.
 
 The ship's current **Ship Skin** and style go INTO the collapse, so rolling the

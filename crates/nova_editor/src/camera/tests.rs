@@ -5,6 +5,7 @@ use bevy::{
     picking::pointer::Location,
     window::WindowRef,
 };
+use nova_ship::prelude::HeldPart;
 
 use super::*;
 
@@ -167,8 +168,10 @@ fn a_dolly_closes_on_the_pivot_and_never_passes_it() {
     assert!(eye.z > 0.0, "the eye stays on its own side");
 }
 
+/// The owner's report: the wheel turned the part in hand in the Ship editor.
+/// It dollies there as in a scenario; R and F turn the part.
 #[test]
-fn the_wheel_with_no_gesture_dollies_and_a_held_part_keeps_it() {
+fn the_wheel_with_no_gesture_dollies_even_with_a_part_in_hand() {
     let (mut app, eye) = rig_app();
     let start = Transform::from_xyz(0.0, 0.0, 30.0);
     *app.world_mut().get_mut::<Transform>(eye).expect("a pose") = start;
@@ -181,7 +184,11 @@ fn the_wheel_with_no_gesture_dollies_and_a_held_part_keeps_it() {
     app.world_mut().resource_mut::<HeldPart>().0 = Some("hull".to_string().into());
     wheel(&mut app, 1.0);
     step(&mut app);
-    assert_eq!(pose(&app, eye), closer, "the part in hand owns the wheel");
+    assert_ne!(
+        pose(&app, eye),
+        closer,
+        "a part in hand leaves the wheel alone"
+    );
 }
 
 #[test]

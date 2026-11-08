@@ -388,7 +388,7 @@ fn generate_outside_a_ship_says_where_to_stand() {
 
     assert!(hull_of(&mut app, ship).is_empty(), "nothing was laid");
     assert!(
-        status_line(&app).contains("inside a ship"),
+        status_line(&app).contains("open a ship"),
         "the refusal says where the verb lives: {:?}",
         status_line(&app)
     );

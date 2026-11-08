@@ -298,7 +298,7 @@ pub(crate) fn verb_state(verb: MenuVerbType, context: &MenuContext) -> VerbState
         | Verb::Frame => Hidden,
         Verb::Parts if document == Doc::Ship => Live,
         Verb::PosePart if document == Doc::Ship => {
-            live_if(context.holding, "pick a part up first: Parts... or P")
+            live_if(context.holding, "pick a part up first: Parts... or Q")
         }
         Verb::Rebind if document == Doc::Ship => live_if(
             context.bindable,

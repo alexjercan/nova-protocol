@@ -28,7 +28,7 @@ use bevy::{
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{subtree_bounding_sphere, PauseStates};
 use nova_input::prelude::{MousePath, MouseSensitivity};
-use nova_ship::prelude::{GalleryState, HeldPart};
+use nova_ship::prelude::GalleryState;
 use nova_ui::prelude::InputMode;
 
 use crate::{
@@ -214,11 +214,10 @@ impl RigGate<'_> {
     }
 }
 
-/// What the rig turns about, and the wheel's other owner.
+/// What the rig turns about.
 #[derive(SystemParam)]
 pub(crate) struct RigAim<'w, 's> {
     selected: Res<'w, SelectedNode>,
-    held: Res<'w, HeldPart>,
     framing: ResMut<'w, CameraFraming>,
     q_children: Query<'w, 's, &'static Children>,
     q_bounds: Query<'w, 's, &'static ColliderAabb, Without<Sensor>>,
@@ -376,8 +375,8 @@ pub(crate) fn drive_editor_camera(
             wanted.translation += step;
             rig.pivot += step;
         }
-        // With a part in hand the wheel is the part's: it rolls the ghost.
-        CameraGestureType::Idle if free && notches != 0 && aim.held.0.is_none() => {
+        // The wheel always dollies: R and F turn a part in hand.
+        CameraGestureType::Idle if free && notches != 0 => {
             let pivot = aim.pivot(&pose);
             wanted.translation = dollied(wanted.translation, pivot, notches as f32);
             aim.record(pivot, wanted.translation);

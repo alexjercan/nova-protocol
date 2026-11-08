@@ -11,7 +11,6 @@
 
 use bevy::{
     ecs::system::{RunSystemOnce, SystemParam},
-    input::mouse::MouseWheel,
     picking::pointer::PointerInteraction,
     prelude::*,
     ui_widgets::Activate,
@@ -23,10 +22,9 @@ use nova_ui::{prelude::DoubleClick, theme::UiColor};
 
 use crate::{
     asset::{on_bench, AssetNode, SocketNode},
-    camera::ViewportPointer,
     config::{
-        EditorGizmos, EditorOverlays, EditorSays, EditorStatus, Placement, PlacementPose,
-        PlacementPreview, SectionGhost, SectionPreviewMarker, SelectedNode,
+        EditorGizmos, EditorOverlays, EditorSays, EditorStatus, EditorViewType, Placement,
+        PlacementPose, PlacementPreview, SectionGhost, SectionPreviewMarker, SelectedNode,
     },
     cues::EditorCues,
     event::{ActionNode, EventNode, FilterNode, GateNode, StepNode},
@@ -54,13 +52,16 @@ use crate::{
     ExampleStates,
 };
 
-/// Rolls the ghost a quarter turn about the mating axis.
+/// Rolls the ghost a quarter turn about the mating axis; Shift rolls it back.
+/// The in-game Ship pane's Roll Part key.
 const PLACEMENT_ROLL_KEY: KeyCode = KeyCode::KeyR;
-/// Cycles which socket of the armed part does the mating.
+/// Cycles which socket of the armed part does the mating; Shift steps back.
+/// The in-game Ship pane's Cycle Part Socket key.
 const PLACEMENT_SOCKET_KEY: KeyCode = KeyCode::KeyF;
 /// Arms whatever section is under the pointer, Factorio-pipette style; over
-/// nothing it puts the part in hand away. Not Q: that is the Select tool.
-const PLACEMENT_PICK_KEY: KeyCode = KeyCode::KeyP;
+/// nothing it puts the part in hand away. The in-game Ship pane's Pick Part
+/// key. The Ship editor has no stage tools, so Q is free there.
+const PLACEMENT_PICK_KEY: KeyCode = KeyCode::KeyQ;
 
 /// The catalog section for `id`, or `None` (logged) when a mod overlay dropped
 /// or renamed it. Every catalog lookup in the editor goes through this: an
@@ -529,10 +530,10 @@ fn delete_selection(
     cues.remove();
 }
 
-/// Ship > Roll the Part: one step of the same roll the R key and the wheel take.
+/// Ship > Roll the Part: one step of the same roll the R key takes.
 ///
-/// A menu row for a pose verb rather than only a key, because R, F and the
-/// wheel were named in one legend a builder can switch off. Inert with nothing
+/// A menu row for a pose verb rather than only a key, because R and F were
+/// named in one legend a builder can switch off. Inert with nothing
 /// in hand, which is also when `crate::ui::menu_context::verb_state` greys it.
 pub(crate) fn roll_armed_part(
     _activate: On<Activate>,
@@ -546,7 +547,7 @@ pub(crate) fn roll_armed_part(
     pose.step_roll(false);
 }
 
-/// Ship > Cycle the Socket: one step of what the F key and Ctrl+wheel take.
+/// Ship > Cycle the Socket: one step of what the F key takes.
 ///
 /// A part with one socket has nothing to cycle to, so the pose stands and
 /// [`crate::cues::play_placement_pose_cue`] stays quiet: the press clicks here.
@@ -723,10 +724,9 @@ fn armed_socket_count(selection: &HeldPart, sections: &GameSections) -> Option<u
 /// design decision, not a geometry one. Inert unless a part is armed, so the
 /// keys stay free for the select/rebind tool.
 ///
-/// The keys step FORWARD only; the wheel (see [`wheel_placement_pose`]) is the
-/// reversible half of the same control, because overshooting the socket you
-/// wanted on a six-socket part should cost one gesture back, not five more
-/// forward.
+/// Shift steps BACK, because overshooting the socket you wanted on a six-socket
+/// part should cost one press back, not five more forward. The wheel is the
+/// camera's dolly, as it is in a scenario.
 pub(crate) fn cycle_placement_pose(
     keys: Res<ButtonInput<KeyCode>>,
     selection: Res<HeldPart>,
@@ -736,49 +736,12 @@ pub(crate) fn cycle_placement_pose(
     let Some(sockets) = armed_socket_count(&selection, &sections) else {
         return;
     };
+    let back = keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
     if keys.just_pressed(PLACEMENT_ROLL_KEY) {
-        pose.step_roll(false);
+        pose.step_roll(back);
     }
     if keys.just_pressed(PLACEMENT_SOCKET_KEY) && sockets > 0 {
-        pose.step_source(sockets, false);
-    }
-}
-
-/// Roll the ghost with the wheel, and cycle its socket with Ctrl+wheel - the
-/// reversible half of [`cycle_placement_pose`].
-///
-/// The wheel is the one gesture that reads as "turn this a bit either way". It
-/// is a panel's while the pointer is over one, so that never reaches the part.
-/// CTRL and not Shift: Shift is the pan modifier.
-pub(crate) fn wheel_placement_pose(
-    mut wheel: MessageReader<MouseWheel>,
-    keys: Res<ButtonInput<KeyCode>>,
-    pointer: Res<ViewportPointer>,
-    selection: Res<HeldPart>,
-    sections: Res<GameSections>,
-    mut pose: ResMut<PlacementPose>,
-) {
-    let Some(sockets) = armed_socket_count(&selection, &sections).filter(|_| !pointer.over_ui)
-    else {
-        // Drained, so a scroll made before a part was armed is not replayed
-        // into the pose on the frame it arms.
-        wheel.clear();
-        return;
-    };
-    let socket_modifier = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
-
-    for event in wheel.read() {
-        // Line and pixel units both arrive here; only the SIGN is a gesture.
-        let back = match event.y.partial_cmp(&0.0) {
-            Some(std::cmp::Ordering::Greater) => false,
-            Some(std::cmp::Ordering::Less) => true,
-            _ => continue,
-        };
-        if socket_modifier {
-            pose.step_source(sockets, back);
-        } else {
-            pose.step_roll(back);
-        }
+        pose.step_source(sockets, back);
     }
 }
 
@@ -795,9 +758,11 @@ pub(crate) fn pick_section_under_pointer(
     q_pointer: Query<&PointerInteraction>,
     q_views: Query<&ChildOf, With<NodeView>>,
     q_nodes: Query<&SectionNode>,
+    rail: Res<EditorViewType>,
     mut selection: ResMut<HeldPart>,
 ) {
-    if !keys.just_pressed(PLACEMENT_PICK_KEY) {
+    // The Ship editor's key: in a scenario Q is the Select tool.
+    if *rail != EditorViewType::Ship || !keys.just_pressed(PLACEMENT_PICK_KEY) {
         return;
     }
     let picked = HeldPart(
@@ -1935,6 +1900,53 @@ mod tests {
         // No pose yet (a headless rig's first frame) reads as the origin.
         let hit = Vec3::new(0.5, 0.1, 0.0);
         assert_eq!(ship_local_hit(None, hit), hit);
+    }
+
+    /// The owner's report: the wheel turned the part in hand. R turns it now,
+    /// as in the game's Ship pane, and Shift+R turns it back.
+    #[test]
+    fn r_rolls_the_part_in_hand_and_shift_r_rolls_it_back() {
+        let mut world = World::new();
+        world.insert_resource(GameSections(vec![hull_config("hull")]));
+        world.insert_resource(HeldPart(Some("hull".to_string().into())));
+        world.init_resource::<PlacementPose>();
+        let press = |world: &mut World, keys: &[KeyCode]| {
+            let mut input = ButtonInput::<KeyCode>::default();
+            for key in keys {
+                input.press(*key);
+            }
+            world.insert_resource(input);
+            world.run_system_once(cycle_placement_pose).unwrap();
+            world.resource::<PlacementPose>().roll
+        };
+
+        assert_eq!(press(&mut world, &[KeyCode::KeyR]), 1);
+        assert_eq!(press(&mut world, &[KeyCode::KeyR]), 2);
+        assert_eq!(press(&mut world, &[KeyCode::ShiftLeft, KeyCode::KeyR]), 1);
+    }
+
+    /// Q is the Ship editor's pipette; in a scenario Q is the Select tool, so
+    /// the part in hand stays as it was.
+    #[test]
+    fn q_picks_a_part_only_in_the_ship_editor() {
+        let mut world = World::new();
+        world.insert_resource(HeldPart(Some("hull".to_string().into())));
+        world.insert_resource(EditorViewType::Scene);
+        let mut input = ButtonInput::<KeyCode>::default();
+        input.press(KeyCode::KeyQ);
+        world.insert_resource(input);
+        world.run_system_once(pick_section_under_pointer).unwrap();
+        assert!(
+            world.resource::<HeldPart>().0.is_some(),
+            "Q in Scene keeps the part"
+        );
+
+        world.insert_resource(EditorViewType::Ship);
+        world.run_system_once(pick_section_under_pointer).unwrap();
+        assert!(
+            world.resource::<HeldPart>().0.is_none(),
+            "Q over nothing in the Ship editor puts the part away"
+        );
     }
 
     /// With no part armed the click is a select, and founding stays out of it.

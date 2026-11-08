@@ -443,13 +443,13 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
             ));
             items.spawn((MenuSeparator, separator()));
             // The pose verbs. They live only in a legend View can switch off,
-            // and R/F/wheel are named nowhere else in the editor - so they get
+            // and R and F are named nowhere else in the editor - so they get
             // rows, greyed until there is a part in hand for them to turn.
             items.spawn((
                 Name::new("Roll The Part Item"),
                 MenuVerbType::PosePart,
                 menu_item_row(
-                    "Roll the Part (or wheel)",
+                    "Roll the Part (Shift+R back)",
                     MenuLead::None,
                     MenuTail::Key("R"),
                 ),
@@ -461,7 +461,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                 Name::new("Cycle The Socket Item"),
                 MenuVerbType::PosePart,
                 menu_item_row(
-                    "Cycle the Socket (or Ctrl+wheel)",
+                    "Cycle the Socket (Shift+F back)",
                     MenuLead::None,
                     MenuTail::Key("F"),
                 ),
@@ -2355,7 +2355,7 @@ pub(crate) fn sync_key_legend(
                 "SHIP",
                 vec![
                     ("LMB", "select"),
-                    ("P", "pick a part"),
+                    ("Q", "pick a part"),
                     ("MMB", "orbit"),
                     ("Wheel", "dolly"),
                 ],
@@ -2364,9 +2364,11 @@ pub(crate) fn sync_key_legend(
                 "PART IN HAND",
                 vec![
                     ("LMB", "place it"),
-                    ("P", "pick a part"),
-                    ("Wheel", "roll it"),
+                    ("R", "roll it"),
+                    ("F", "socket"),
+                    ("Q", "pick a part"),
                     ("MMB", "orbit"),
+                    ("Wheel", "dolly"),
                 ],
             ),
         }
@@ -3822,7 +3824,7 @@ mod tests {
         enter_ship(app.world_mut(), true);
         app.update();
         assert!(
-            shown_hints(&mut app).iter().any(|(key, _)| key == "P"),
+            shown_hints(&mut app).iter().any(|(key, _)| key == "Q"),
             "the ship legend offers the pipette key to begin with"
         );
 

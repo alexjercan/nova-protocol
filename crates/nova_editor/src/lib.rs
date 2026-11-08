@@ -123,8 +123,7 @@ use placement::{
     clear_placement_preview, cycle_placement_pose, delete_key, disarm_outside_ship,
     draw_link_points, draw_ship_heading, found_empty_ship, on_click_spaceship_section,
     on_stage_drag, on_stage_drag_end, on_stage_drag_start, on_stage_release,
-    pick_section_under_pointer, sync_placement_ghost, update_placement_preview,
-    wheel_placement_pose, StageDrag,
+    pick_section_under_pointer, sync_placement_ghost, update_placement_preview, StageDrag,
 };
 use probe::{sync_editor_probe, sync_shell_probe};
 pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool, ShellProbe};
@@ -781,21 +780,6 @@ fn editor_plugin(app: &mut App) {
             .before(PartsGallerySystems)
             .run_if(in_state(ExampleStates::Editor).and_then(not(gallery_open))),
     );
-    // The wheel half of the pose control, split off so a headless rig with no
-    // input plugin (and so no wheel message queue) still runs the rest. After
-    // the pointer read, for the same reason the rig is.
-    app.add_systems(
-        Update,
-        wheel_placement_pose
-            .after(sync_viewport_pointer)
-            .before(update_placement_preview)
-            // Normal is the whole guard. An open gallery is `Browse`, which is
-            // not Normal, so a second hand-written test for it is the shape the
-            // arbiter exists to delete.
-            .run_if(in_input_mode(InputMode::Normal))
-            .run_if(resource_exists::<Messages<MouseWheel>>)
-            .run_if(in_state(ExampleStates::Editor)),
-    );
     // AFTER every writer of the pose, so one frame that rolls and cycles at
     // once is still one detent. Unguarded by input mode: the two menu rows
     // turn the part from `Browse` too, and the tick belongs to the pose
@@ -805,7 +789,6 @@ fn editor_plugin(app: &mut App) {
         Update,
         cues::EditorCueSystems
             .after(cycle_placement_pose)
-            .after(wheel_placement_pose)
             .run_if(in_state(ExampleStates::Editor)),
     );
     app.add_systems(

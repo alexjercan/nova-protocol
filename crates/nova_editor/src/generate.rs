@@ -142,7 +142,7 @@ pub(crate) fn generate_ship(
     mut says: EditorSays,
 ) {
     let Some(ship) = context.ship() else {
-        says.refuse("go inside a ship to generate a hull into it");
+        says.refuse("open a ship to generate a hull into it");
         return;
     };
     let (Some(sections), Some(items)) = (sections.as_deref(), items.as_deref()) else {

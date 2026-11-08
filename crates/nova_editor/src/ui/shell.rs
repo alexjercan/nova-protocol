@@ -826,7 +826,8 @@ pub(crate) fn sync_panels(
             node.display = display;
         }
     }
-    let tools = if events || form {
+    // The Ship editor has no stage tools: a part mates where it goes.
+    let tools = if events || form || *tab == EditorViewType::Ship {
         Visibility::Hidden
     } else {
         Visibility::Inherited
@@ -1156,6 +1157,14 @@ mod tests {
         *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Scene;
         app.update();
         assert_eq!(seen(&app), (Visibility::Inherited, Display::Flex));
+
+        *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Ship;
+        app.update();
+        assert_eq!(
+            seen(&app),
+            (Visibility::Hidden, Display::Flex),
+            "nor in a ship"
+        );
     }
 
     /// `ViewportPointer::over_ui` is true for any `Node` that takes the hit, and
