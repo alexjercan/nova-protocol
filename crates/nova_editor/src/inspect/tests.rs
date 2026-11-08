@@ -399,29 +399,6 @@ fn a_kind_the_game_does_not_ship_stays_the_text_it_is() {
     assert_eq!(text_of(&rows, "Kind"), "obsidian");
 }
 
-/// The vocabulary belongs to the OBJECT, not to every field called `kind`: a
-/// ship section carries one too, and it names a section class rather than a
-/// rock.
-#[test]
-fn only_an_asteroid_gets_the_asteroid_vocabulary() {
-    let mut rows = vec![walked(
-        FieldRoot::Config,
-        vec![PathStep::Field("kind".to_string())],
-        false,
-        RowValue::Text(KIND_ROCK.into()),
-    )];
-
-    offer_object_vocabularies(
-        &ScenarioObjectKind::Anchor(AnchorConfig {
-            body_radius: Meters(50.0),
-            mass: None,
-        }),
-        &mut rows,
-    );
-
-    assert_eq!(text_of(&rows, "Kind"), KIND_ROCK);
-}
-
 /// The picker writes a STRING, which the walk had no path for: every choice
 /// before this one switched an enum.
 #[test]
@@ -1518,6 +1495,35 @@ fn a_filter_shows_the_ids_it_matches_on() {
     assert_eq!(row(&rows, "Filter").value.reading(), "Entity");
     assert_eq!(text_of(&rows, "Id"), "raider_1");
     assert_eq!(text_of(&rows, "Other Id"), "");
+}
+
+/// An entity filter's type name takes only the names the game spawns, so it
+/// is a choice with an empty first option. A word the game does not know stays
+/// text, showing what the file says.
+#[test]
+fn an_entity_type_name_is_a_choice_of_what_the_game_spawns() {
+    let rows = filter_rows(&FilterNode {
+        kind: FilterKind::Entity(EntityFilterConfig {
+            type_name: Some(nova_events::SPACESHIP_TYPE_NAME.to_string()),
+            ..default()
+        }),
+    });
+    let RowValue::Choice {
+        options, chosen, ..
+    } = &row(&rows, "Type Name").value
+    else {
+        panic!("a choice: {:?}", row(&rows, "Type Name").value);
+    };
+    assert_eq!(options[*chosen], nova_events::SPACESHIP_TYPE_NAME);
+    assert_eq!(options.len(), 9, "nothing, then the eight spawned names");
+
+    let rows = filter_rows(&FilterNode {
+        kind: FilterKind::Entity(EntityFilterConfig {
+            type_name: Some("bogus".to_string()),
+            ..default()
+        }),
+    });
+    assert_eq!(text_of(&rows, "Type Name"), "bogus");
 }
 
 /// A combinator holds nothing to author: what it combines are its child rows

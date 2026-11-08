@@ -25,8 +25,13 @@ use bevy::{
         NamedField, ReflectMut, ReflectRef, TypeInfo, Typed,
     },
 };
-use nova_events::units::prelude::*;
+use nova_events::{
+    units::prelude::*, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
+    DERELICT_STATION_TYPE_NAME, LIGHT_TYPE_NAME, LIVING_STATION_TYPE_NAME, PLANET_TYPE_NAME,
+    SPACESHIP_TYPE_NAME,
+};
 use nova_gameplay::prelude::AssetRef;
+use nova_hud::prelude::DOCK_VERBS;
 use nova_input::prelude::source_label;
 use nova_scenario::prelude::{
     object_reference_resolves, Names, ScenarioObjectKind, SectionSource, VariableConditionNode,
@@ -512,6 +517,10 @@ pub(crate) struct InspectorRow {
     /// Read off the type rather than the name: `AssetRef<Image>` wants an image
     /// whether the field is called `texture`, `icon` or `cubemap`.
     pub(crate) asset: Option<AssetSort>,
+    /// What CONTENT this row's id names, where the field's type or its owner
+    /// says so: a ship design, an item. Offered from what the open mod sees,
+    /// and drawn as a picker with no text box.
+    pub(crate) catalog: Option<CatalogType>,
     /// Which node the row WRITES TO, where that is not the node the panel is
     /// on. `None` for every row of a config, which is the node's own.
     ///
@@ -638,6 +647,7 @@ fn kind_row(
         hint: String::new(),
         names: None,
         asset: None,
+        catalog: None,
         owner: None,
         depth: 0,
         overridden: false,
@@ -660,6 +670,7 @@ fn fixed(root: FieldRoot, label: &str, text: impl Into<String>) -> InspectorRow 
         hint: String::new(),
         names: None,
         asset: None,
+        catalog: None,
         owner: None,
         depth: 0,
         overridden: false,
@@ -695,6 +706,7 @@ fn walked(root: FieldRoot, path: Vec<PathStep>, optional: bool, value: RowValue)
         hint: String::new(),
         names: None,
         asset: None,
+        catalog: None,
         owner: None,
         depth: 0,
         overridden: false,
@@ -1173,7 +1185,16 @@ fn declare_by_owner(owner: Option<&TypeInfo>, path: &[PathStep], rows: &mut [Ins
     let (Some(owner), Some(PathStep::Field(name))) = (owner, path.last()) else {
         return;
     };
-    let Some(spec) = owned_spec(owner.type_path(), name) else {
+    let owner = short_type(owner.type_path());
+    for row in rows.iter_mut().filter(|row| row.path == path) {
+        if let Some(catalog) = CatalogType::of_field(owner, name) {
+            row.catalog = Some(catalog);
+        }
+        if let Some(words) = vocabulary_of_field(owner, name) {
+            offer_vocabulary(row, &words);
+        }
+    }
+    let Some(spec) = owned_spec(owner, name) else {
         return;
     };
     for row in rows.iter_mut().filter(|row| row.path == path) {
@@ -1185,6 +1206,135 @@ fn declare_by_owner(owner: Option<&TypeInfo>, path: &[PathStep], rows: &mut [Ins
         row.nudge = spec.step;
         row.framed = false;
     }
+}
+
+/// A kind of authored content an id field names. Offered from what the open
+/// mod sees - its own content, then every pack it can see - and judged
+/// against the same set, which is the set the content lint checks the id
+/// against at load.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CatalogType {
+    /// A ship design: a start role's hull, a spawned ship.
+    Ship,
+    /// An item: a trade line, a procurement job.
+    Item,
+    /// A trade profile a station deals by.
+    TradeProfile,
+    /// A UI theme another one inherits from.
+    UiTheme,
+}
+
+impl CatalogType {
+    /// The id types that name content, by their short type name.
+    const TYPED: [(&'static str, Self); 3] = [
+        ("ShipDesignId", Self::Ship),
+        ("ItemDesignId", Self::Item),
+        ("TradeProfileDesignId", Self::TradeProfile),
+    ];
+
+    /// The plain `String` fields that name content, by owner and field.
+    const OWNED: [(&'static str, &'static str, Self); 1] =
+        [("UiThemeConfig", "inherit", Self::UiTheme)];
+
+    /// The catalog an id of the type at `type_path` names.
+    fn of_type(type_path: &str) -> Option<Self> {
+        let short = short_type(type_path);
+        Self::TYPED
+            .iter()
+            .find(|(held, _)| *held == short)
+            .map(|(_, catalog)| *catalog)
+    }
+
+    /// The catalog the field `name` of `owner` names.
+    fn of_field(owner: &str, name: &str) -> Option<Self> {
+        Self::OWNED
+            .iter()
+            .find(|(held, field, _)| *held == owner && *field == name)
+            .map(|(_, _, catalog)| *catalog)
+    }
+
+    /// The content kind it lists, as `Content::kind` spells it.
+    pub(crate) fn kind(self) -> &'static str {
+        match self {
+            Self::Ship => "ship",
+            Self::Item => "item",
+            Self::TradeProfile => "trade profile",
+            Self::UiTheme => "ui theme",
+        }
+    }
+}
+
+/// Every `EntityTypeName` the game spawns, with what wears it. A filter on any
+/// other name never matches.
+const ENTITY_TYPES: [(&str, &str); 8] = [
+    (ANCHOR_TYPE_NAME, "An authored anchor."),
+    (ASTEROID_TYPE_NAME, "An asteroid."),
+    (BEACON_TYPE_NAME, "A beacon."),
+    (LIGHT_TYPE_NAME, "A light."),
+    (PLANET_TYPE_NAME, "A planet."),
+    (SPACESHIP_TYPE_NAME, "A ship. Never a station."),
+    (
+        LIVING_STATION_TYPE_NAME,
+        "A station that offers services and defends itself.",
+    ),
+    (
+        DERELICT_STATION_TYPE_NAME,
+        "A dead station: spawned derelict, or one that lost its last turret.",
+    ),
+];
+
+/// The closed set of words the field `name` of `owner` takes, with what each
+/// one means, or `None` for a field that takes any text.
+fn vocabulary_of_field(owner: &str, name: &str) -> Option<Vec<(&'static str, &'static str)>> {
+    match (owner, name) {
+        ("EntityFilterConfig", "type_name" | "other_type_name") => Some(ENTITY_TYPES.to_vec()),
+        ("HintEmphasisSetActionConfig" | "HintEmphasisClearActionConfig", "verb") => {
+            Some(DOCK_VERBS.iter().map(|verb| (*verb, "")).collect())
+        }
+        _ => None,
+    }
+}
+
+/// The closed set of words an id of the type at `type_path` takes.
+fn vocabulary_of_type(type_path: &str) -> Option<Vec<(&'static str, &'static str)>> {
+    (short_type(type_path) == "AsteroidKindId").then(|| ASTEROID_KIND_SUMMARIES.to_vec())
+}
+
+/// Turn a text row holding one of `words` into a choice of them.
+///
+/// A choice rather than a text box because nobody guesses `carbon` or
+/// `living_station` from an empty box, and it is the only control that
+/// cannot author a word the game does not know. An optional row gets
+/// [`NOTHING`] first, which writes the field empty.
+///
+/// A word the game does not know stays a TEXT row, showing exactly what the
+/// file says. Snapping it to the first option would hide a document the lint
+/// refuses behind a control that looks like it works.
+fn offer_vocabulary(row: &mut InspectorRow, words: &[(&'static str, &'static str)]) {
+    let RowValue::Text(held) = &row.value else {
+        return;
+    };
+    let none = row.optional.then_some((NOTHING, "Leave this field empty."));
+    let offered: Vec<(&str, &str)> = none.into_iter().chain(words.iter().copied()).collect();
+    let wanted = if held.is_empty() && row.optional {
+        NOTHING
+    } else {
+        held.as_str()
+    };
+    let Some(chosen) = offered.iter().position(|(word, _)| *word == wanted) else {
+        return;
+    };
+    row.value = RowValue::Choice {
+        options: offered
+            .iter()
+            .map(|(word, _)| (*word).to_string())
+            .collect(),
+        hints: offered
+            .iter()
+            .map(|(_, hint)| (*hint).to_string())
+            .collect(),
+        chosen,
+    };
 }
 
 /// What the field at `path` inside `root` takes: its owning type's
@@ -1260,6 +1410,24 @@ fn declare_by_type(type_path: &str, rows: &mut [InspectorRow]) {
     }
 }
 
+/// Give the text rows an id newtype walked into what the TYPE names: the
+/// content catalog a `ShipDesignId` picks from, the kinds an `AsteroidKindId`
+/// chooses between. Read off the type rather than the field name, so a hull
+/// is a ship picker on a start role and on a spawn alike.
+fn name_by_type(type_path: &str, rows: &mut [InspectorRow]) {
+    for row in rows {
+        if !matches!(row.value, RowValue::Text(_)) {
+            continue;
+        }
+        if let Some(catalog) = CatalogType::of_type(type_path) {
+            row.catalog = Some(catalog);
+        }
+        if let Some(words) = vocabulary_of_type(type_path) {
+            offer_vocabulary(row, &words);
+        }
+    }
+}
+
 /// Whether the leaf holds ONE number, and so gets the control a number gets.
 ///
 /// A `Quat` and a `Vec3` read as numbers and are not: one is three degrees in a
@@ -1297,8 +1465,15 @@ fn as_number(value: &dyn PartialReflect) -> Option<f64> {
 /// panel already has a control for: a scalar in a box, a vector in three, and
 /// the text of a typed content id such as `AsteroidKindId` in one field.
 fn quantity_leaf(type_path: &str) -> bool {
-    matches!(type_path, "f32" | "glam::Vec3" | "alloc::string::String")
+    matches!(
+        type_path,
+        "f32" | "glam::Vec3" | "alloc::string::String" | SHARED_TEXT
+    )
 }
+
+/// The type path of a shared id string, the `Arc<str>` an `ItemDesignId`
+/// holds so its many copies cost no allocation.
+const SHARED_TEXT: &str = "bevy_platform::sync::Arc<str>";
 
 /// The value inside a quantity or id newtype - the `f32` a [`Meters`] holds,
 /// the `Vec3` a [`Meters3`] holds, the `String` an `AsteroidKindId` holds - or
@@ -1529,6 +1704,7 @@ fn walk(
         walk(inner, root, path, out);
         if let Some(info) = value.get_represented_type_info() {
             declare_by_type(info.type_path(), &mut out[first..]);
+            name_by_type(info.type_path(), &mut out[first..]);
         }
         return;
     }
@@ -1720,6 +1896,7 @@ fn walk_option(
         row.asset = leaf_path.and_then(asset_sort);
         if let Some(quantity) = payload.filter(|info| quantity_field(info).is_some()) {
             declare_by_type(quantity.type_path(), core::slice::from_mut(&mut row));
+            name_by_type(quantity.type_path(), core::slice::from_mut(&mut row));
         }
         out.push(row);
         return;
@@ -1817,6 +1994,7 @@ fn leaf_type(type_path: &str) -> bool {
             | "u64"
             | "usize"
             | "alloc::string::String"
+            | SHARED_TEXT
             | "bevy_color::color::Color"
             | "bevy_color::linear_rgba::LinearRgba"
             | "bevy_color::srgba::Srgba"
@@ -1905,6 +2083,9 @@ fn leaf_text(value: &dyn PartialReflect) -> Option<String> {
     integer!(i32, i64, u8, u16, u32, u64, usize);
     if let Some(text) = value.try_downcast_ref::<String>() {
         return Some(text.clone());
+    }
+    if let Some(text) = value.try_downcast_ref::<bevy::platform::sync::Arc<str>>() {
+        return Some(text.to_string());
     }
     if let Some(expression) = value.try_downcast_ref::<VariableExpressionNode>() {
         return Some(expression.to_string());
@@ -2029,6 +2210,7 @@ fn parse_leaf(type_path: &str, text: &str) -> Result<Box<dyn PartialReflect>, St
         "u64" => number!(u64),
         "usize" => number!(usize),
         "alloc::string::String" => Ok(Box::new(text.to_string())),
+        SHARED_TEXT => Ok(Box::new(bevy::platform::sync::Arc::<str>::from(text))),
         "bevy_color::color::Color" => Srgba::hex(text)
             .map(|srgba| Box::new(Color::from(srgba)) as Box<dyn PartialReflect>)
             .map_err(|_| "not a #rrggbb colour".to_string()),
@@ -2772,6 +2954,7 @@ fn spawn_rows(ship: &ShipNode) -> Vec<InspectorRow> {
             hint: "Who flies this ship: you, a bot, or nobody.".to_string(),
             names: None,
             asset: None,
+            catalog: None,
             owner: None,
             depth: 0,
             overridden: false,
@@ -2868,6 +3051,7 @@ pub(crate) fn section_rows(
             hint: "The key that fires this section. Click it, then press one.".to_string(),
             names: None,
             asset: None,
+            catalog: None,
             owner: None,
             depth: 0,
             overridden: false,
@@ -2928,54 +3112,9 @@ pub(crate) fn object_rows(object: &ObjectNode, pose: &Transform) -> Vec<Inspecto
     let mut rows = vec![name_row(object.name.clone())];
     if let Some(config) = object_config(&object.kind) {
         walk(config, FieldRoot::Config, Vec::new(), &mut rows);
-        offer_object_vocabularies(&object.kind, &mut rows);
     }
     rows.extend(pose_rows(pose));
     rows
-}
-
-/// Turn the text rows whose values the editor KNOWS into pick lists.
-///
-/// Keyed on the object's kind rather than declared in [`DECLARED`], because a
-/// vocabulary belongs to the OBJECT and that table matches by field name at any
-/// depth: a ship section carries a `kind` too, and it names a section class
-/// rather than a rock.
-///
-/// A picker rather than a text box because the ids are the answer to "what is
-/// this made of" and nobody guesses `carbon` from an empty box. It is also the
-/// only control that cannot author a kind the game does not ship.
-fn offer_object_vocabularies(kind: &ScenarioObjectKind, rows: &mut [InspectorRow]) {
-    let ScenarioObjectKind::Asteroid(_) = kind else {
-        return;
-    };
-    for row in rows {
-        if leaf_name(&row.path) != Some(KIND.name) {
-            continue;
-        }
-        let RowValue::Text(held) = &row.value else {
-            continue;
-        };
-        // An id the game does not ship stays a TEXT row, showing exactly what
-        // the file says. Snapping it to the first option would hide a document
-        // the lint refuses behind a control that looks like it works.
-        let Some(chosen) = ASTEROID_KIND_SUMMARIES
-            .iter()
-            .position(|(id, _)| id == held)
-        else {
-            continue;
-        };
-        row.value = RowValue::Choice {
-            options: ASTEROID_KIND_SUMMARIES
-                .iter()
-                .map(|(id, _)| (*id).to_string())
-                .collect(),
-            hints: ASTEROID_KIND_SUMMARIES
-                .iter()
-                .map(|(_, summary)| (*summary).to_string())
-                .collect(),
-            chosen,
-        };
-    }
 }
 
 /// The rows a handler shows: what it listens for, and whether it retires.
@@ -3156,6 +3295,7 @@ pub(crate) fn operand_row(
         hint: role.hint().to_string(),
         names: None,
         asset: None,
+        catalog: None,
         owner: Some(owner),
         depth,
         overridden: false,
@@ -3348,6 +3488,7 @@ fn name_row(name: String) -> InspectorRow {
         hint: "What this node is called on the board and in the tree.".to_string(),
         names: None,
         asset: None,
+        catalog: None,
         owner: None,
         depth: 0,
         overridden: false,
@@ -3467,6 +3608,7 @@ fn axes_row(
         hint: String::new(),
         names: None,
         asset: None,
+        catalog: None,
         owner: None,
         depth: 0,
         overridden: false,

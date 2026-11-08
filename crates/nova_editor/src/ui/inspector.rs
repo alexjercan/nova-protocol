@@ -64,9 +64,9 @@ use crate::{
         part_rows, pretty, reset_field, rotation_degrees, rotation_from_degrees,
         scale_framed_drags, scenario_rows, script_name, section_config_mut, section_rows,
         set_item_text, set_well_target, ship_rows, socket_rows, step_rows, toggle_field,
-        well_target_label, write_field, AssetPressType, DocumentIds, DragRule, FieldRoot,
-        InspectTarget, InspectorRow, MeshPose, NodeKinds, Operand, PaletteEntry, PathStep,
-        RowValue, ScriptNames, GRIP_GONE,
+        well_target_label, write_field, AssetPressType, CatalogType, DocumentIds, DragRule,
+        FieldRoot, InspectTarget, InspectorRow, MeshPose, NodeKinds, Operand, PaletteEntry,
+        PathStep, RowValue, ScriptNames, GRIP_GONE,
     },
     keybind::on_rebind_action,
     node::{
@@ -81,7 +81,7 @@ use crate::{
     ui::{
         files::PathPurposeType,
         layer,
-        list_field::spawn_list_row,
+        list_field::{content_ids, spawn_list_row},
         pick::{on_open_choice_list, on_open_ref_list},
         picker::on_open_colour_window,
         rail::SceneRowHint,
@@ -243,6 +243,8 @@ pub(crate) enum Offers {
     Named(Names),
     /// A file an installed bundle ships.
     File(AssetSort),
+    /// Authored content the mod sees: a ship design, an item.
+    Content(CatalogType),
 }
 
 impl Offers {
@@ -251,6 +253,7 @@ impl Offers {
         row.names
             .map(Offers::Named)
             .or_else(|| row.asset.map(Offers::File))
+            .or_else(|| row.catalog.map(Offers::Content))
     }
 }
 
@@ -2779,6 +2782,7 @@ pub(crate) fn sync_reference_faults(
     mut commands: Commands,
     ids: DocumentIds,
     files: AssetIndex,
+    project: Option<Res<ModProject>>,
     refs: Query<(&InspectorSlot, &InspectorRef)>,
     boxes: Query<(&InspectorSlot, &TextFieldValue)>,
     units: Query<(Entity, &InspectorSlot, Has<InspectorFault>), With<InspectorUnit>>,
@@ -2805,6 +2809,10 @@ pub(crate) fn sync_reference_faults(
                     // A rig with nothing installed knows no file, and would
                     // otherwise mark every path on the panel wrong.
                     Offers::File(_) => !files.is_empty() && !files.resolves(text),
+                    Offers::Content(catalog) => project.as_deref().is_some_and(|project| {
+                        !text.is_empty()
+                            && !content_ids(catalog.kind(), project, &files).contains(text)
+                    }),
                 })
             })
             .unwrap_or(false);

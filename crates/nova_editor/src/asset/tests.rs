@@ -1334,6 +1334,25 @@ fn an_item_bid_above_its_ask_is_a_fault() {
     assert_eq!(form_fault(&item), Some(format!("bid over ask {ask}")));
 }
 
+/// A start role's hull names a ship design, so it is a ship picker, not a
+/// bare text box: the panel offers the designs the mod sees.
+#[test]
+fn a_start_role_hull_picks_from_the_ship_designs() {
+    let role = shipped("start role");
+    let rows = asset_rows(&role, &Default::default());
+    let hull = rows
+        .iter()
+        .find(|row| row.label == "Hull")
+        .expect("a hull row");
+    assert_eq!(hull.catalog, Some(crate::inspect::CatalogType::Ship));
+    assert_eq!(
+        crate::ui::inspector::Offers::of(hull),
+        Some(crate::ui::inspector::Offers::Content(
+            crate::inspect::CatalogType::Ship
+        ))
+    );
+}
+
 /// A goal kind is a choice, and switching it keeps the count: every kind
 /// carries one number, so nothing is invented.
 #[test]

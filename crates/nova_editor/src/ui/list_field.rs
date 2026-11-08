@@ -141,6 +141,26 @@ fn list_choices(kind: AssetListType, project: &ModProject, index: &AssetIndex) -
     choices
 }
 
+/// The ids of content `kind` the open mod sees: its own, then every pack it can
+/// see, sorted. The set a content id field is offered from and judged against.
+pub(crate) fn content_ids(kind: &str, project: &ModProject, index: &AssetIndex) -> Vec<String> {
+    let mut ids: Vec<String> = project
+        .data
+        .items()
+        .filter(|item| item.kind() == kind)
+        .map(|item| item.id().to_string())
+        .collect();
+    for pack in index.visible_packs(&project.data.meta.dependencies) {
+        for item in pack.items.iter().filter(|item| item.kind() == kind) {
+            if !ids.iter().any(|held| held == item.id()) {
+                ids.push(item.id().to_string());
+            }
+        }
+    }
+    ids.sort();
+    ids
+}
+
 /// Fill each list row's dropdown when it appears or the project moves: the
 /// ids the mod sees that the list does not hold yet.
 pub(crate) fn fill_list_choices(

@@ -26,11 +26,13 @@ use crate::{
     config::EditorSays,
     history::commit_edit,
     inspect::{clipped, write_field, DocumentIds},
+    project::ModProject,
     ui::{
         inspector::{
             apply_choice, EditTargets, InspectorField, InspectorPick, InspectorRef, Offers,
         },
         layer,
+        list_field::content_ids,
     },
     ExampleStates,
 };
@@ -117,6 +119,7 @@ pub(crate) fn on_open_ref_list(
     )>,
     ids: DocumentIds,
     files: AssetIndex,
+    project: Option<Res<ModProject>>,
     roots: Query<Entity, With<PopupRoot>>,
     scale: Option<Res<UiScale>>,
 ) {
@@ -131,6 +134,13 @@ pub(crate) fn on_open_ref_list(
         Offers::File(sort) => (
             files.offers(sort),
             format!("no installed mod ships {}", sort.holds()),
+        ),
+        Offers::Content(catalog) => (
+            project
+                .as_deref()
+                .map(|project| content_ids(catalog.kind(), project, &files))
+                .unwrap_or_default(),
+            format!("the mod sees no {}: add one first", catalog.kind()),
         ),
     };
     let clear = field.is_optional().then(|| PickRow {

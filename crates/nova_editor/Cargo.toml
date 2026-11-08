@@ -27,6 +27,7 @@ nova_mod_format = { path = "../nova_mod_format" }
 nova_training = { path = "../nova_training" }
 nova_ship = { path = "../nova_ship" }
 nova_scenario = { path = "../nova_scenario" }
+nova_hud = { path = "../nova_hud" }
 # The Generate verb: a seed and the merged catalog in, a hull out. The editor
 # owns the seed and the refusal; the collapse itself belongs to that crate.
 nova_wfc = { path = "../nova_wfc" }

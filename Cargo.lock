@@ -4756,6 +4756,7 @@ dependencies = [
  "nova_authoring",
  "nova_events",
  "nova_gameplay",
+ "nova_hud",
  "nova_input",
  "nova_mod_format",
  "nova_modding",
