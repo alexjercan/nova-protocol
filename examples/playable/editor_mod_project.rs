@@ -6,17 +6,21 @@
 //! Try: type a name and press Create. In the Assets tab press + for a second
 //! scenario, and open either with a double click. File > Mod Settings edits the
 //! manifest and the Dependencies list. Ctrl+S saves, Ctrl+Z walks back through
-//! project steps and scenario edits alike. File > Package writes a zip, and the
-//! hub's Import reads one back through the path window. Play flies the
+//! project steps and scenario edits alike. File > Package opens a window with
+//! the version, its bumps, the output folder, the check and the files, and
+//! writes a zip; the hub's Import reads one back through the path window. The
+//! Log tab's rows copy out: click, Shift+click, Ctrl+A, then Copy or Ctrl+C. Play flies the
 //! open scenario, and the mod is in the Scenarios list after Back to Main Menu.
 //!
 //! The panel reads the project's undo depth, unsaved mark and the status line.
 //!
 //! With `NOVA_AUTOPILOT=1` a smoke walk does all of that through real buttons:
-//! new mod, two scenarios, a dependency, save, reopen through the hub, package,
-//! import over itself, play, and the mod in the Scenarios list. `NOVA_CAPTURE=1`
-//! shoots the hub, the New window, the settings window, the Assets tab and the
-//! package result.
+//! new mod, two scenarios, a dependency, save, reopen through the hub, a
+//! refused package (a declared file gone from disk), undo, a bump undone in one
+//! step, package, Copy Path, copy out of the Log, import over itself, play, and
+//! the mod in the Scenarios list. `NOVA_CAPTURE=1` shoots the hub, the New
+//! window, the settings window, the Assets tab, the Package window, the package
+//! result and the copied Log rows.
 //! Unset, no walk and no deadline run.
 
 use bevy::prelude::*;
@@ -118,9 +122,9 @@ fn read_the_project(world: &mut World) {
 mod smoke {
     use std::sync::Arc;
 
-    use nova_assets::mod_cache::prelude::{exports_dir, read_index};
+    use nova_assets::mod_cache::prelude::{exports_dir, mod_file_path, read_index};
     use nova_protocol::nova_debug::harness::{shoot, AutopilotPlugin, Predicate};
-    use nova_ui::prelude::TextFieldValue;
+    use nova_ui::prelude::{Selected, TextFieldValue};
 
     use super::*;
 
@@ -142,8 +146,17 @@ mod smoke {
     const DEPS_SHOT: &str = "editor-mod-deps.png";
     const REFUSED_SHOT: &str = "editor-mod-deps-refused.png";
     const ASSETS_SHOT: &str = "editor-mod-assets.png";
-    const PACKAGE_SHOT: &str = "editor-mod-package.png";
+    const REFUSED_PACKAGE_SHOT: &str = "s10-package-refused.png";
+    const PACKAGE_SHOT: &str = "s10-package-modal.png";
+    const DONE_SHOT: &str = "s10-package-done.png";
+    const COPY_SHOT: &str = "s5-copy.png";
     const SAVE: &[KeyCode] = &[KeyCode::ControlLeft, KeyCode::KeyS];
+    const UNDO: &[KeyCode] = &[KeyCode::ControlLeft, KeyCode::KeyZ];
+    /// A file the walk imports and then takes off disk, so the check finds a
+    /// declared file missing.
+    const IMPORTED: &str = "walk_notes.txt";
+    /// A file the walk drops in the mod's folder undeclared: not packaged.
+    const LOOSE: &str = "loose_notes.txt";
 
     /// The status line, for a stalled beat to print.
     fn readout(world: &World) -> String {
@@ -189,6 +202,82 @@ mod smoke {
             .find(|(named, _)| named.as_str() == name)
             .unwrap_or_else(|| panic!("{name} stands"));
         field.0 = value.to_string();
+    }
+
+    /// Advance once the status line says something that starts with one of
+    /// `starts`.
+    fn status_starts(starts: &'static [&'static str]) -> Arc<Predicate> {
+        Arc::new(move |world: &World| {
+            world
+                .get_resource::<EditorProbe>()
+                .is_some_and(|probe| starts.iter().any(|start| probe.status.starts_with(start)))
+        })
+    }
+
+    /// The status line now.
+    fn status(world: &World) -> String {
+        world
+            .get_resource::<EditorProbe>()
+            .map_or_else(String::new, |probe| probe.status.clone())
+    }
+
+    /// How many undo steps the history holds.
+    fn depth(world: &World) -> usize {
+        world
+            .get_resource::<EditorProbe>()
+            .map_or(0, |probe| probe.history_depth)
+    }
+
+    /// The names of the Log rows marked for copying, sorted.
+    fn marked_log_rows(world: &World) -> Vec<String> {
+        let mut rows: Vec<String> = world
+            .try_query_filtered::<&Name, With<Selected>>()
+            .map_or_else(Vec::new, |mut rows| {
+                rows.iter(world)
+                    .filter(|name| name.as_str().starts_with("Log Row "))
+                    .map(|name| name.to_string())
+                    .collect()
+            });
+        rows.sort();
+        rows
+    }
+
+    /// How many Log rows stand.
+    fn log_rows(world: &World) -> usize {
+        world.try_query::<&Name>().map_or(0, |mut names| {
+            names
+                .iter(world)
+                .filter(|name| name.as_str().starts_with("Log Row "))
+                .count()
+        })
+    }
+
+    /// Hold `keys` down, wait for `landed`, and let them go.
+    fn chord(
+        script: AutopilotPlugin<GameStates>,
+        label: &str,
+        keys: &'static [KeyCode],
+        landed: Arc<Predicate>,
+    ) -> AutopilotPlugin<GameStates> {
+        script
+            .step(format!("mod project: {label}"))
+            .on_enter(move |world: &mut World| {
+                for key in keys {
+                    press_key(*key)(world);
+                }
+            })
+            .until(landed)
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add()
+            .step(format!("mod project: let go after {label}"))
+            .on_enter(move |world: &mut World| {
+                for key in keys {
+                    release_key(*key)(world);
+                }
+            })
+            .until(frames(2))
+            .add()
     }
 
     /// The zip Package wrote, by the only name it can have here.
@@ -390,28 +479,8 @@ mod smoke {
             reads("Scenarios 2"),
             BEAT_SECS,
         );
-        let script = file_row(
-            script,
-            "package",
-            "Package Item",
-            reads("red-run-0.1.0.zip"),
-        );
-        let script = shot(script, PACKAGE_SHOT)
-            .step("mod project: the archive is on disk")
-            .on_enter(|_world: &mut World| {
-                let path = package_path();
-                let size = std::fs::metadata(&path)
-                    .unwrap_or_else(|error| panic!("{path}: {error}"))
-                    .len();
-                info!("mod project: packaged {path}, {size} bytes");
-            })
-            .add()
-            .click_named(
-                "mod project: close the result",
-                "File Cancel Button",
-                Arc::new(|world: &World| !ui_node_present("File Window")(world)),
-                BEAT_SECS,
-            );
+        let script = package_walk(script);
+        let script = copy_walk(script);
         let script = file_row(
             script,
             "back to the hub to import",
@@ -482,6 +551,306 @@ mod smoke {
         .on_enter(|_world: &mut World| {
             info!("mod project: the Scenarios list holds the mod's range");
         })
+        .add()
+    }
+
+    /// S10: File > Package opens its window. A declared file gone from disk
+    /// blocks it; undo clears that; a bump is one undo step; then it packages
+    /// and Copy Path runs.
+    fn package_walk(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        let script = script
+            .step("mod project: put a file to import beside the profile, one loose in the mod")
+            .on_enter(|_world: &mut World| {
+                let outside = exports_dir()
+                    .expect("the data dir resolves")
+                    .with_file_name(IMPORTED);
+                std::fs::create_dir_all(outside.parent().expect("a parent"))
+                    .expect("the data dir writes");
+                std::fs::write(&outside, b"notes").expect("the import source writes");
+                let loose = mod_file_path(MOD_ID, LOOSE).expect("the mod's folder resolves");
+                std::fs::write(&loose, b"loose").expect("the loose file writes");
+            })
+            .until(frames(2))
+            .add()
+            .click_named(
+                "mod project: open the + menu to import",
+                "Asset Add Button",
+                ui_node_present("Asset Add Import File"),
+                BEAT_SECS,
+            )
+            .click_named(
+                "mod project: Import File",
+                "Asset Add Import File",
+                ui_node_present("Path Field"),
+                BEAT_SECS,
+            )
+            .step("mod project: type the file's path")
+            .on_enter(|world: &mut World| {
+                let outside = exports_dir()
+                    .expect("the data dir resolves")
+                    .with_file_name(IMPORTED);
+                fill(world, "Path Field", &outside.to_string_lossy());
+            })
+            .until(frames(3))
+            .add()
+            .click_named(
+                "mod project: import it",
+                "File Save Button",
+                frames(3),
+                BEAT_SECS,
+            )
+            .step("mod project: the file is in the mod's folder")
+            .until(Arc::new(|_world: &World| {
+                mod_file_path(MOD_ID, IMPORTED).is_some_and(|held| held.exists())
+            }))
+            .diagnose(|world: &World| {
+                let field = world
+                    .try_query::<(&Name, &TextFieldValue)>()
+                    .and_then(|mut fields| {
+                        fields
+                            .iter(world)
+                            .find(|(name, _)| name.as_str() == "Path Field")
+                            .map(|(_, value)| value.0.clone())
+                    });
+                format!(
+                    "{}, path field {field:?}, held at {:?}",
+                    readout(world),
+                    mod_file_path(MOD_ID, IMPORTED)
+                )
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("mod project: take the imported file off disk")
+            .on_enter(|world: &mut World| {
+                info!("mod project: imported, status {:?}", status(world));
+                let held = mod_file_path(MOD_ID, IMPORTED).expect("the mod's folder resolves");
+                std::fs::remove_file(&held).unwrap_or_else(|error| panic!("{held:?}: {error}"));
+            })
+            .until(frames(2))
+            .add();
+        let script = file_row(
+            script,
+            "open the Package window",
+            "Package Item",
+            Arc::new(|world: &World| {
+                ui_node_present("Package Modal")(world)
+                    && reads("blocked: 1 error")(world)
+                    && reads("resource walk_notes.txt is missing")(world)
+                    && ui_node_present("Package File Row loose_notes.txt")(world)
+            }),
+        );
+        let script = script
+            .click_named(
+                "mod project: Package refuses the missing file",
+                "Package Button",
+                Arc::new(|world: &World| {
+                    reads("package refused: resource walk_notes.txt is missing")(world)
+                        && !ui_node_present("Package Done Path")(world)
+                }),
+                BEAT_SECS,
+            )
+            .step("mod project: PASS the refusal")
+            .on_enter(|world: &mut World| {
+                info!(
+                    "mod project: PASS package refused in the window, status {:?}",
+                    status(world)
+                );
+            })
+            .until(frames(2))
+            .add();
+        let script = shot(script, REFUSED_PACKAGE_SHOT);
+        let script = chord(
+            script,
+            "Ctrl+Z takes the import back under the window",
+            UNDO,
+            Arc::new(|world: &World| reads("passes: 0 errors")(world)),
+        )
+        .step("mod project: note the depth before a bump")
+        .on_enter(|world: &mut World| {
+            let held = depth(world);
+            world.insert_resource(DepthBeforeBump(held));
+        })
+        .until(frames(2))
+        .add()
+        .click_named(
+            "mod project: bump the patch",
+            "Package Bump Patch",
+            Arc::new(|world: &World| {
+                reads("red-run-0.1.1.zip")(world)
+                    && world
+                        .get_resource::<DepthBeforeBump>()
+                        .is_some_and(|before| depth(world) == before.0 + 1)
+            }),
+            BEAT_SECS,
+        );
+        let script = chord(
+            script,
+            "Ctrl+Z takes the bump back in one step",
+            UNDO,
+            Arc::new(|world: &World| {
+                reads("red-run-0.1.0.zip")(world)
+                    && world
+                        .get_resource::<DepthBeforeBump>()
+                        .is_some_and(|before| depth(world) == before.0)
+            }),
+        )
+        .step("mod project: PASS the bump")
+        .on_enter(|_world: &mut World| {
+            info!("mod project: PASS a bump is one undo step");
+        })
+        .until(frames(2))
+        .add();
+        let script = shot(script, PACKAGE_SHOT).click_named(
+            "mod project: package",
+            "Package Button",
+            Arc::new(|world: &World| {
+                ui_node_present("Package Done Path")(world) && reads("red-run-0.1.0.zip")(world)
+            }),
+            BEAT_SECS,
+        );
+        let script = script
+            .step("mod project: the archive is on disk at the size the window says")
+            .on_enter(|world: &mut World| {
+                let path = package_path();
+                let size = std::fs::metadata(&path)
+                    .unwrap_or_else(|error| panic!("{path}: {error}"))
+                    .len();
+                assert!(
+                    texts(world).iter().any(|text| text == &path),
+                    "the window shows {path}"
+                );
+                info!("mod project: PASS packaged {path}, {size} bytes");
+            })
+            .until(frames(2))
+            .add()
+            .click_named(
+                "mod project: Copy Path",
+                "Package Copy Path",
+                status_starts(&["Copied ", "copy refused:"]),
+                BEAT_SECS,
+            )
+            .step("mod project: PASS Copy Path")
+            .on_enter(|world: &mut World| {
+                info!("mod project: PASS Copy Path said {:?}", status(world));
+            })
+            .until(frames(2))
+            .add();
+        let script = shot(script, DONE_SHOT);
+        chord(
+            script,
+            "Esc closes the Package window",
+            &[KeyCode::Escape],
+            Arc::new(|world: &World| !ui_node_present("Package Modal")(world)),
+        )
+    }
+
+    /// The history depth before the bump.
+    #[derive(Resource)]
+    struct DepthBeforeBump(usize);
+
+    /// S5: mark Log rows with a click and a Shift+click, copy them, copy one
+    /// line from its menu, then Ctrl+A and Ctrl+C over the list.
+    fn copy_walk(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        let script = script
+            .click_named(
+                "mod project: open the Log",
+                "Browser Tab Log",
+                ui_node_present("Log Row 3"),
+                BEAT_SECS,
+            )
+            .click_named(
+                "mod project: mark a Log row",
+                "Log Row 3",
+                Arc::new(|world: &World| marked_log_rows(world) == ["Log Row 3"]),
+                BEAT_SECS,
+            )
+            .step("mod project: hold Shift")
+            .on_enter(press_key(KeyCode::ShiftLeft))
+            .until(frames(2))
+            .add()
+            .click_named(
+                "mod project: Shift+click marks the range",
+                "Log Row 1",
+                Arc::new(|world: &World| {
+                    marked_log_rows(world) == ["Log Row 1", "Log Row 2", "Log Row 3"]
+                }),
+                BEAT_SECS,
+            )
+            .step("mod project: let Shift go")
+            .on_enter(release_key(KeyCode::ShiftLeft))
+            .until(frames(2))
+            .add()
+            .click_named(
+                "mod project: Copy the marked rows",
+                "Copy Rows Button",
+                status_starts(&["Copied 3 lines", "copy refused:"]),
+                BEAT_SECS,
+            )
+            .step("mod project: PASS copy of the marked rows")
+            .on_enter(|world: &mut World| {
+                info!("mod project: PASS Copy said {:?}", status(world));
+            })
+            .until(frames(2))
+            .add();
+        let script = shot(script, COPY_SHOT)
+            .step("mod project: point at a Log row")
+            .on_enter(|world: &mut World| {
+                let at = ui_node_centre(world, "Log Row 2").expect("the row is on screen");
+                move_cursor(at)(world);
+            })
+            .until(frames(3))
+            .add()
+            .step("mod project: press right on it")
+            .on_enter(press_mouse(MouseButton::Right))
+            .until(frames(2))
+            .add()
+            .step("mod project: release right on it")
+            .on_enter(release_mouse(MouseButton::Right))
+            .until(ui_node_present("Copy Line Row"))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add()
+            .click_named(
+                "mod project: Copy line",
+                "Copy Line Row",
+                status_starts(&["Copied 1 line", "copy refused:"]),
+                BEAT_SECS,
+            )
+            .step("mod project: point at the list for the keys")
+            .on_enter(|world: &mut World| {
+                let at = ui_node_centre(world, "Log Row 0").expect("the row is on screen");
+                move_cursor(at)(world);
+            })
+            .until(frames(3))
+            .add();
+        let script = chord(
+            script,
+            "Ctrl+A marks every Log row",
+            &[KeyCode::ControlLeft, KeyCode::KeyA],
+            Arc::new(|world: &World| {
+                let rows = log_rows(world);
+                rows > 3 && marked_log_rows(world).len() == rows
+            }),
+        );
+        chord(
+            script,
+            "Ctrl+C copies them",
+            &[KeyCode::ControlLeft, KeyCode::KeyC],
+            Arc::new(|world: &World| {
+                let status = status(world);
+                status.starts_with("copy refused:")
+                    || status == format!("Copied {} lines", marked_log_rows(world).len())
+            }),
+        )
+        .step("mod project: PASS Ctrl+A and Ctrl+C")
+        .on_enter(|world: &mut World| {
+            info!(
+                "mod project: PASS Ctrl+C said {:?} with {} rows marked",
+                status(world),
+                marked_log_rows(world).len()
+            );
+        })
+        .until(frames(2))
         .add()
     }
 
