@@ -244,7 +244,11 @@ pub(super) fn plain_button_on_interaction<E: EntityEvent, C: Component>(
     mut commands: Commands,
     q_button: Query<
         (&Hovered, Has<InteractionDisabled>, Has<Pressed>),
-        (With<Button>, Without<ThemedButton>),
+        (
+            With<Button>,
+            Without<ThemedButton>,
+            Without<super::IconButtonType>,
+        ),
     >,
 ) {
     let entity = event.event_target();
