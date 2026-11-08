@@ -7,13 +7,13 @@ publish = false
 description = "Scenario loader and logic for the Nova Protocol game"
 
 [dependencies]
-avian3d = { version = "0.7" }
-bevy = { version = "0.19.0" }
-bevy_enhanced_input = { version = "0.26.0" }
-bevy_hanabi = { version = "0.19.0", default-features = false, features = ["2d", "3d"] }
+avian3d = { version = "0.8.0" }
+bevy = { version = "0.20.1" }
+bevy_enhanced_input = { version = "0.27.2" }
+bevy_hanabi = { version = "0.20.0", default-features = false, features = ["2d", "3d"] }
 rand = { version = "0.10.2" }
 noise = { version = "0.9" }
-bevy_rand = { version = "0.15.0", default-features = false, features = ["chacha20", "wyrand"] }
+bevy_rand = { version = "0.16.0", default-features = false, features = ["chacha20", "wyrand"] }
 nova_events = { path = "../nova_events" }
 nova_input = { path = "../nova_input" }
 nova_gameplay = { path = "../nova_gameplay" }
@@ -22,7 +22,7 @@ nova_hud = { path = "../nova_hud" }
 serde = { version = "1", features = ["derive"], optional = true }
 
 [target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
-bevy_rand = { version = "0.15.0", features = ["wasm_js"] }
+bevy_rand = { version = "0.16.0", features = ["wasm_js"] }
 
 [dev-dependencies]
 ron = { version = "0.12" }

@@ -710,7 +710,7 @@ pub(crate) fn asset_tile_keys(
 
 /// A right press on a tile: its verbs. A tile with none says why.
 fn on_asset_tile_menu(
-    click: On<Pointer<Click>>,
+    click: On<PointerClick>,
     mut commands: Commands,
     tiles: Query<(&AssetTile, Option<&AssetFileTile>)>,
     entries: Query<&AssetWaits>,
@@ -734,7 +734,7 @@ fn on_asset_tile_menu(
         .map_or("", |waits| waits.0);
     let root = spawn_popup(
         &mut commands,
-        click.pointer_location.position,
+        click.pointer.position,
         layer::MENU_Z,
         |menu| {
             if let Some(file) = &file {
@@ -783,7 +783,7 @@ fn on_asset_tile_menu(
 /// the framing distance along the pointer's ray. A drop on a panel does
 /// nothing.
 fn on_asset_tile_drop(
-    drop: On<Pointer<DragEnd>>,
+    drop: On<PointerDragEnd>,
     mut commands: Commands,
     tiles: Query<&AssetTile>,
     pointer: Res<ViewportPointer>,
@@ -798,9 +798,7 @@ fn on_asset_tile_drop(
     };
     let at = camera.and_then(|camera| {
         let (camera, pose) = *camera;
-        let ray = camera
-            .viewport_to_world(pose, drop.pointer_location.position)
-            .ok()?;
+        let ray = camera.viewport_to_world(pose, drop.pointer.position).ok()?;
         Some(ray.origin + *ray.direction * framing.distance.to_engine())
     });
     let id = id.clone();

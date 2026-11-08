@@ -94,7 +94,7 @@ impl Plugin for AnchorPlugin {
 /// authors `mu = 0` - a well that frames (radius, SOI = radius) but never
 /// pulls.
 fn insert_anchor_well(
-    add: On<Add, AnchorMarker>,
+    add: On<Add<AnchorMarker>>,
     mut commands: Commands,
     settings: Res<GravitySettings>,
     q_anchor: Query<(&AnchorBodyRadius, &AnchorMass), With<AnchorMarker>>,

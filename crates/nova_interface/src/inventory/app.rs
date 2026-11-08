@@ -701,6 +701,7 @@ pub(crate) fn fit_inventory_columns(
         let drawn = |side| {
             q_panel
                 .iter_many(panels)
+                .matched()
                 .any(|(panel, node)| panel.0 == side && node.display != Display::None)
         };
         let partner = drawn(InventorySideType::Partner);
@@ -724,7 +725,7 @@ pub(crate) fn fit_inventory_columns(
         if row.grid_template_rows != rows {
             row.grid_template_rows = rows;
         }
-        let mut panels = q_panel.iter_many_mut(panels);
+        let mut panels = q_panel.iter_many_mut(panels).matched();
         while let Some((panel, mut node)) = panels.fetch_next() {
             let (column, row) = match panel.0 {
                 InventorySideType::Own if stacked => (1, GridPlacement::start_span(1, 2)),
@@ -2188,7 +2189,7 @@ fn set_draft_quantity(
 /// Step the open draft's quantity by one per wheel event over the quantity
 /// row, between one and what the source ship carries.
 fn wheel_inventory_draft(
-    scroll: On<Pointer<Scroll>>,
+    scroll: On<PointerScroll>,
     ships: InventoryShips,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,

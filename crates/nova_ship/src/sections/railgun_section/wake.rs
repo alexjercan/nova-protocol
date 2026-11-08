@@ -395,7 +395,7 @@ pub(super) fn follow_railgun_wakes(
 /// closing segment and switches it off itself, so the ground the slug covered
 /// is paid for before the emitter stops spawning.
 pub(super) fn close_railgun_wakes(
-    remove: On<Remove, RailgunSlugProjectileMarker>,
+    remove: On<Remove<RailgunSlugProjectileMarker>>,
     mut commands: Commands,
     q_slug: Query<&Transform, With<RailgunSlugProjectileMarker>>,
     mut q_emitter: Query<
@@ -628,7 +628,7 @@ fn build_haze_effect() -> EffectAsset {
     let color = hot.mix(cold, age) * gain(&writer, &props) * fade;
     let update_color = SetAttributeModifier::new(Attribute::HDR_COLOR, color.expr());
 
-    let mask = soft_dot_modifier(&writer);
+    let mask = soft_dot_modifier();
     let mut module = writer.finish();
     declare_soft_dot_slot(&mut module);
 
@@ -707,7 +707,7 @@ fn build_filament_effect() -> EffectAsset {
     let color = violet * gain(&writer, &props) * flicker * fade;
     let update_color = SetAttributeModifier::new(Attribute::HDR_COLOR, color.expr());
 
-    let mask = soft_dot_modifier(&writer);
+    let mask = soft_dot_modifier();
     let mut module = writer.finish();
     declare_soft_dot_slot(&mut module);
 

@@ -140,7 +140,7 @@ pub(super) fn close_popup_on_row(
 
 /// Close the popup on a press outside its panel, with any mouse button.
 pub(super) fn close_popup_on_press(
-    press: On<Pointer<Press>>,
+    press: On<PointerPress>,
     mut commands: Commands,
     roots: Query<Entity, With<PopupRoot>>,
 ) {

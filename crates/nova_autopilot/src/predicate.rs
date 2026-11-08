@@ -415,10 +415,10 @@ fn pointer_reports(world: &World, position: Vec2) -> bool {
 /// one: an app whose picking backend never came up must stall its beat, not sail
 /// through it.
 fn mouse_holds_primary(world: &World, held: bool) -> bool {
-    use bevy::picking::pointer::{PointerId, PointerPress};
+    use bevy::picking::pointer::{PointerId, PointerPressState};
 
     world
-        .try_query::<(&PointerId, &PointerPress)>()
+        .try_query::<(&PointerId, &PointerPressState)>()
         .is_some_and(|mut query| {
             query
                 .iter(world)
@@ -733,12 +733,12 @@ mod tests {
     ///
     /// Both are false with no pointer at all, so a run whose picking backend
     /// never came up stalls its beat instead of sailing through it. The PRESSED
-    /// branch cannot be staged here (`PointerPress`'s fields are private and it
+    /// branch cannot be staged here (`PointerPressState`'s fields are private and it
     /// has no constructor - only `bevy_picking`'s own systems set one), and is
     /// proved by the driven editor range, where every press beat holds on it.
     #[test]
     fn the_pointer_acks_read_the_picking_pointer() {
-        use bevy::picking::pointer::{PointerId, PointerPress};
+        use bevy::picking::pointer::{PointerId, PointerPressState};
 
         let mut world = World::new();
         assert!(
@@ -746,7 +746,7 @@ mod tests {
             "no picking pointer is not an ack of anything"
         );
 
-        world.spawn((PointerId::Mouse, PointerPress::default()));
+        world.spawn((PointerId::Mouse, PointerPressState::default()));
         assert!(
             !pointer_pressed()(&world),
             "a pointer holding no button is not a press"
@@ -760,11 +760,11 @@ mod tests {
     /// release beat through while the mouse press was still unprocessed.
     #[test]
     fn another_pointer_does_not_answer_for_the_mouse() {
-        use bevy::picking::pointer::{PointerId, PointerPress};
+        use bevy::picking::pointer::{PointerId, PointerPressState};
 
         let mut world = World::new();
         // A forwarded pointer, parked and released, and NO mouse at all.
-        world.spawn((PointerId::Touch(1), PointerPress::default()));
+        world.spawn((PointerId::Touch(1), PointerPressState::default()));
         assert!(
             !pointer_released()(&world),
             "a foreign pointer's released state is not the mouse's ack"
@@ -772,7 +772,7 @@ mod tests {
         assert!(!pointer_pressed()(&world));
 
         // The mouse arrives; now there is an ack to read, and it is its own.
-        world.spawn((PointerId::Mouse, PointerPress::default()));
+        world.spawn((PointerId::Mouse, PointerPressState::default()));
         assert!(pointer_released()(&world));
         assert!(!pointer_pressed()(&world));
     }

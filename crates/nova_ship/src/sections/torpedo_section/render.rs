@@ -14,7 +14,7 @@ use super::*;
 use crate::sections::nose_cone_mesh;
 
 pub(super) fn insert_torpedo_section_render(
-    add: On<Add, TorpedoSectionBodyMarker>,
+    add: On<Add<TorpedoSectionBodyMarker>>,
     mut commands: Commands,
     placeholder: Res<PlaceholderArt>,
     asset_server: Res<AssetServer>,
@@ -68,7 +68,7 @@ pub(super) fn insert_torpedo_section_render(
 }
 
 pub(super) fn insert_torpedo_render(
-    add: On<Add, TorpedoProjectileMarker>,
+    add: On<Add<TorpedoProjectileMarker>>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     q_projectile: Query<&TorpedoProjectileRenderMesh, With<TorpedoProjectileMarker>>,
@@ -167,7 +167,7 @@ impl DefaultTorpedoRender {
 }
 
 pub(super) fn insert_torpedo_controller_render(
-    add: On<Add, TorpedoControllerMarker>,
+    add: On<Add<TorpedoControllerMarker>>,
     mut commands: Commands,
     mut default_render: ResMut<DefaultTorpedoRender>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -338,7 +338,7 @@ fn build_default_blast_effect() -> EffectAsset {
     // Round, not rectangular. On a velocity-oriented quad the circular mask
     // reads as a tapered streak rather than as a lozenge with corners, which
     // is what a fragment leaving a fireball should look like close up.
-    let mask = soft_dot_modifier(&writer);
+    let mask = soft_dot_modifier();
     let mut module = writer.finish();
     declare_soft_dot_slot(&mut module);
 
@@ -455,7 +455,7 @@ fn build_default_blast_core_effect() -> EffectAsset {
     // The core is where an untextured quad is most obviously a box: it is the
     // biggest, brightest, closest-to-camera thing in the frame. Without the
     // mask a detonation reads as a glowing square whatever the gradient does.
-    let mask = soft_dot_modifier(&writer);
+    let mask = soft_dot_modifier();
     let mut module = writer.finish();
     declare_soft_dot_slot(&mut module);
 
@@ -502,7 +502,7 @@ const BLAST_LIGHT_RANGE: f32 = 140.0;
 const BLAST_LIGHT_SECS: f32 = 0.42;
 
 pub(super) fn insert_particle_effect(
-    add: On<Add, NovaBlast>,
+    add: On<Add<NovaBlast>>,
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
     mut images: ResMut<Assets<Image>>,
@@ -885,7 +885,7 @@ impl DefaultLaunchPuffEffect {
 /// config supplies a `launch_effect` we use it; otherwise we build a default
 /// cold white-blue propellant flash sprayed forward along the launch tube.
 pub(super) fn insert_torpedo_spawner_effect(
-    add: On<Add, TorpedoSectionSpawnerMarker>,
+    add: On<Add<TorpedoSectionSpawnerMarker>>,
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
     mut default_puff: ResMut<DefaultLaunchPuffEffect>,

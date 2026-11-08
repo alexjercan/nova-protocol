@@ -175,7 +175,7 @@ impl Plugin for HullShellPlugin {
 /// A shell starts dark. The widget bundle asks for a visible sphere; this takes
 /// it straight back out, so no frame can carry a shell at a radius its hull has
 /// not published yet.
-fn hide_shell_until_measured(add: On<Add, HullShellPending>, mut q_shell: Query<&mut Visibility>) {
+fn hide_shell_until_measured(add: On<Add<HullShellPending>>, mut q_shell: Query<&mut Visibility>) {
     if let Ok(mut visibility) = q_shell.get_mut(add.entity) {
         visibility.set_if_neq(Visibility::Hidden);
     }

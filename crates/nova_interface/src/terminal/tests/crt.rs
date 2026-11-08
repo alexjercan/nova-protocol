@@ -295,7 +295,7 @@ fn nova_os_pointer_mapping_matches_the_crt_shader_across_the_screen() {
 /// reference above transcribes.
 #[test]
 fn nova_os_crt_shader_takes_its_warp_and_overscan_from_the_uniform() {
-    let source = std::fs::read_to_string("../../assets/shaders/nova_os_crt.wgsl")
+    let source = std::fs::read_to_string("../../assets/shaders/nova_os_crt.wesl")
         .expect("the CRT shader source is readable from the crate dir");
 
     assert!(

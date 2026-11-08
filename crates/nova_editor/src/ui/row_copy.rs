@@ -209,7 +209,7 @@ fn shift_held(keys: Option<&ButtonInput<KeyCode>>) -> bool {
 /// A left click marks the row, with Shift the range to it. A right click
 /// offers Copy line.
 fn on_copy_row_click(
-    click: On<Pointer<Click>>,
+    click: On<PointerClick>,
     mut commands: Commands,
     rows: Query<&CopyRowKey>,
     keys: Option<Res<ButtonInput<KeyCode>>>,
@@ -232,7 +232,7 @@ fn on_copy_row_click(
             close_popups(&mut commands, &roots);
             let root = spawn_popup(
                 &mut commands,
-                click.pointer_location.position,
+                click.pointer.position,
                 layer::MENU_Z,
                 |menu| {
                     menu.spawn((

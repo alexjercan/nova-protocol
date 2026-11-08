@@ -7,7 +7,7 @@ publish = false
 description = "The Command shell's dispatcher: the executor behind the CRT prompt and the process channel"
 
 [dependencies]
-bevy = { version = "0.19.0" }
+bevy = { version = "0.20.1" }
 nova_events = { path = "../nova_events" }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_input = { path = "../nova_input" }

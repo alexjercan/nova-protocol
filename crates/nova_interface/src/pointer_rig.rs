@@ -38,7 +38,7 @@ use nova_gameplay::{
 /// clicked at, and far below the 12 px blips this bug lost.
 pub(super) const CRT_MAP_BUDGET_PX: f32 = 0.5;
 
-/// Independent transcription of `assets/shaders/nova_os_crt.wgsl`'s sample-UV
+/// Independent transcription of `assets/shaders/nova_os_crt.wesl`'s sample-UV
 /// chain: the power-collapse remap, then `barrel()`, then the overscan pull. It
 /// answers "which image texel does the CRT DISPLAY under this point on the
 /// glass?", which is what the forwarded pointer has to agree with.

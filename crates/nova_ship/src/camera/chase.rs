@@ -190,7 +190,7 @@ impl Plugin for ChaseCameraPlugin {
 /// time, so a driver that seeds the anchor in the same flush keeps it whatever
 /// order the observers ran in. A genuine re-add still initializes, because
 /// [`destroy_chase_camera`] removes both on removal.
-fn initialize_chase_camera(insert: On<Insert, ChaseCamera>, mut commands: Commands) {
+fn initialize_chase_camera(insert: On<Insert<ChaseCamera>>, mut commands: Commands) {
     let entity = insert.entity;
     trace!("initialize_chase_camera: entity {:?}", entity);
 
@@ -203,7 +203,7 @@ fn initialize_chase_camera(insert: On<Insert, ChaseCamera>, mut commands: Comman
 }
 
 /// Removes related internal components when the chase camera is removed.
-fn destroy_chase_camera(remove: On<Remove, ChaseCamera>, mut commands: Commands) {
+fn destroy_chase_camera(remove: On<Remove<ChaseCamera>>, mut commands: Commands) {
     let entity = remove.entity;
     trace!("destroy_chase_camera: entity {:?}", entity);
 

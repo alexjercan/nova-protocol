@@ -848,7 +848,7 @@ fn spawn_chart_label(
 /// place in the node is the camera's viewport pixel, the ray from it meets
 /// the floor plane, and the floor is cells.
 fn on_chart_click(
-    click: On<Pointer<bevy::picking::events::Click>>,
+    click: On<bevy::picking::events::PointerClick>,
     scenes: Query<(&ChartScene, &SceneTarget, &ComputedNode)>,
     cameras: Query<(&Camera, &GlobalTransform)>,
     mut chart: ResMut<ChartState>,
@@ -890,7 +890,7 @@ fn on_chart_click(
 /// Despawn the camera and the scene a viewport node owned when the node
 /// goes.
 pub fn on_scene_target_removed(
-    removed: On<Remove, SceneTarget>,
+    removed: On<Remove<SceneTarget>>,
     targets: Query<&SceneTarget>,
     mut commands: Commands,
 ) {

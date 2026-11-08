@@ -69,7 +69,7 @@ impl Plugin for PointRotationPlugin {
 }
 
 fn initialize_point_rotation_system(
-    insert: On<Insert, PointRotation>,
+    insert: On<Insert<PointRotation>>,
     mut commands: Commands,
     q_point: Query<&PointRotation, With<PointRotation>>,
 ) {

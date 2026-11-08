@@ -91,7 +91,7 @@ impl Plugin for PDControllerPlugin {
     }
 }
 
-fn setup_pd_controller_system(add: On<Add, PDController>, mut commands: Commands) {
+fn setup_pd_controller_system(add: On<Add<PDController>>, mut commands: Commands) {
     let entity = add.entity;
     trace!("setup_pd_controller_system: entity {:?}", entity);
 

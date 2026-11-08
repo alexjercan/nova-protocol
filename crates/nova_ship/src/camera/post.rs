@@ -53,7 +53,7 @@ impl Plugin for PostProcessingDefaultPlugin {
 }
 
 fn setup_post_processing_camera(
-    insert: On<Insert, PostProcessingCamera>,
+    insert: On<Insert<PostProcessingCamera>>,
     mut commands: Commands,
     q_camera: Query<&PostProcessingCamera, With<Camera3d>>,
 ) {

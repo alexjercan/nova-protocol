@@ -9,7 +9,7 @@ use avian3d::prelude::*;
 use bevy::{camera::RenderTarget, prelude::*, winit::WinitPlugin};
 use bevy_inspector_egui::{
     bevy_egui,
-    bevy_egui::{EguiContext, EguiMultipassSchedule, EguiPlugin, PrimaryEguiContext},
+    bevy_egui::{EguiContext, EguiPlugin, EguiSchedule, PrimaryEguiContext},
     DefaultInspectorConfigPlugin,
 };
 
@@ -74,7 +74,7 @@ fn add_egui(app: &mut App) {
 ///
 /// Scope: this plugin owns primary-context placement (auto-creation is
 /// disabled); a consumer-placed `PrimaryEguiContext` on a non-camera entity
-/// is outside the contract and would duplicate the multipass schedule.
+/// is outside the contract and would duplicate the egui schedule.
 /// "Window" here means any non-`Image` target (`TextureView` included), and
 /// "first" is query order, not spawn order - sufficient for the
 /// single-window debug tooling this serves.
@@ -96,13 +96,13 @@ fn keep_inspector_on_window_camera(
         if renders_to_image(target) {
             if has_context {
                 // Shed the WHOLE egui cluster, not just the marker.
-                // `PrimaryEguiContext` requires `EguiContext` (no cascade on
-                // removal) and its on_insert hook adds
-                // `EguiMultipassSchedule`; leaving either behind means two
-                // entities run the same egui schedule and bevy_egui panics.
+                // `PrimaryEguiContext` requires `EguiContext` and
+                // `EguiSchedule` (no cascade on removal); leaving either
+                // behind means two entities run the same egui schedule and
+                // bevy_egui panics.
                 commands
                     .entity(entity)
-                    .remove::<(PrimaryEguiContext, EguiContext, EguiMultipassSchedule)>();
+                    .remove::<(PrimaryEguiContext, EguiContext, EguiSchedule)>();
             }
         } else {
             first_window_camera.get_or_insert(entity);
@@ -223,21 +223,16 @@ mod tests {
 
 #[cfg(test)]
 mod rehome_hazard_tests {
-    use bevy_inspector_egui::bevy_egui::EnableMultipassForPrimaryContext;
-
     use super::*;
 
-    /// The multipass composition hazard: `PrimaryEguiContext`'s on_insert hook adds
-    /// `EguiMultipassSchedule(EguiPrimaryContextPass)` whenever
-    /// `EnableMultipassForPrimaryContext` exists (it does under
-    /// `EguiPlugin::default()`), and removing the marker alone leaves the
-    /// demoted camera with the schedule (and the required `EguiContext`) -
-    /// two entities then run the same egui schedule and bevy_egui panics.
-    /// The resource arms the REAL component hook without the full plugin.
+    /// The schedule composition hazard: `PrimaryEguiContext` requires
+    /// `EguiSchedule(EguiPrimaryContextPass)` and `EguiContext`, and removing
+    /// the marker alone leaves the demoted camera with both - two entities
+    /// then run the same egui schedule and bevy_egui panics. The required
+    /// components arm the REAL cluster without the full plugin.
     #[test]
     fn a_demoted_holder_sheds_the_whole_egui_cluster() {
         let mut app = App::new();
-        app.insert_resource(EnableMultipassForPrimaryContext);
         app.add_systems(Update, keep_inspector_on_window_camera);
 
         let first = app.world_mut().spawn(Camera::default()).id();
@@ -245,8 +240,8 @@ mod rehome_hazard_tests {
         app.update();
         app.update();
         assert!(
-            app.world().get::<EguiMultipassSchedule>(first).is_some(),
-            "the hook must arm the holder's multipass schedule (rig guard)"
+            app.world().get::<EguiSchedule>(first).is_some(),
+            "the marker must bring the holder's egui schedule (rig guard)"
         );
 
         app.world_mut()
@@ -260,8 +255,8 @@ mod rehome_hazard_tests {
             "the window camera took the context"
         );
         assert!(
-            app.world().get::<EguiMultipassSchedule>(first).is_none(),
-            "the demoted camera must shed EguiMultipassSchedule, or two \
+            app.world().get::<EguiSchedule>(first).is_none(),
+            "the demoted camera must shed EguiSchedule, or two \
              entities run the same egui schedule and bevy_egui panics"
         );
         assert!(
@@ -269,10 +264,10 @@ mod rehome_hazard_tests {
             "the demoted camera must shed the required EguiContext too"
         );
         let schedules = {
-            let mut q = app.world_mut().query::<&EguiMultipassSchedule>();
+            let mut q = app.world_mut().query::<&EguiSchedule>();
             q.iter(app.world()).count()
         };
-        assert_eq!(schedules, 1, "exactly one multipass schedule holder");
+        assert_eq!(schedules, 1, "exactly one egui schedule holder");
     }
 }
 

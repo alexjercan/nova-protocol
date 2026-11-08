@@ -3,7 +3,7 @@
 > New to the codebase? Start with the [Project tour](project-tour.md) for a
 > faster orientation, then come back here for the detail.
 
-Nova Protocol is a 3D space shooter built on **Bevy 0.19** with **avian3d** physics.
+Nova Protocol is a 3D space shooter built on **Bevy 0.20** with **avian3d** physics.
 It is a Cargo workspace: the root `nova-protocol` crate is a thin shell and all the
 real code lives under `crates/`.
 
@@ -285,7 +285,9 @@ every item off a `Single` root, so a second root would silence the new items
 rather than draw a second bar.
 
 `NovaGameplayPlugin` pulls in avian3d `PhysicsPlugins` (zero gravity, projectile
-collision hooks), `bevy_rand`, `bevy_hanabi` particles (on wasm via the WebGPU
+collision hooks) and `ContactModelPlugin` (speculative contacts on every body,
+no swept CCD, no contact recycling; ram damage is tuned on that model),
+`bevy_rand`, `bevy_hanabi` particles (on wasm via the WebGPU
 backend), `NovaUiPlugin` (render-gated), the transform/lifetime/mesh rigs, and
 the shared gameplay sub-plugins: integrity, damage, gravity, relations, audio,
 juice, settings. The ship stack (input, sections, flight, camera, physics) is
@@ -624,7 +626,7 @@ adding an event/observer over coupling two systems.
 ## Assets
 
 `assets/` is **runtime-only** - everything the game actually loads: `shaders/`
-(`.wgsl`), `icons/`, `sounds/` (UI chrome: menu clicks + objective chimes),
+(WESL, `.wesl`), `icons/`, `sounds/` (UI chrome: menu clicks + objective chimes),
 and the `base/`/`mods/` data (`.ron`). The base game's own art and world audio
 live UNDER `assets/base/` (exported `gltf/` models `.glb`, `textures/`,
 `sounds/` `.wav` world cues, `banner.png`), referenced by base content with

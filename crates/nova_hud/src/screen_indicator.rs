@@ -1094,7 +1094,7 @@ mod tests {
     fn test_camera() -> (Transform, Camera) {
         let camera = Camera {
             computed: ComputedCameraValues {
-                clip_from_view: Mat4::perspective_infinite_reverse_rh(
+                clip_from_view: bevy::math::proj::perspective_infinite_reverse(
                     FRAC_PI_2,
                     800.0 / 600.0,
                     0.1,

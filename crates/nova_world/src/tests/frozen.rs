@@ -2212,7 +2212,7 @@ fn parked_hull_app() -> App {
     app.add_plugins(ParkedHullsPlugin);
     app.init_resource::<ConnectionsAdded>();
     app.add_observer(
-        |_: On<Add, DockingConnection>, mut added: ResMut<ConnectionsAdded>| {
+        |_: On<Add<DockingConnection>>, mut added: ResMut<ConnectionsAdded>| {
             added.0 += 1;
         },
     );

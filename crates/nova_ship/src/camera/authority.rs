@@ -98,14 +98,14 @@ impl Plugin for CameraAuthorityPlugin {
 /// shake. This module owns the gate for the same reason it owns the write
 /// order: `nova_gameplay::shake` names no driver, and only the authority layer
 /// knows which rig currently is one.
-fn suppress_shake_while_wasd_drives(insert: On<Insert, WASDCamera>, mut commands: Commands) {
+fn suppress_shake_while_wasd_drives(insert: On<Insert<WASDCamera>>, mut commands: Commands) {
     commands.entity(insert.entity).insert(CameraShakeSuppressed);
 }
 
 /// Hand the camera back to the shake when the WASD rig stops driving. Trauma
 /// kept accruing and decaying while suppressed, so the handoff resumes from
 /// live state instead of replaying a freeze-frame.
-fn release_shake_when_wasd_stops(remove: On<Remove, WASDCamera>, mut commands: Commands) {
+fn release_shake_when_wasd_stops(remove: On<Remove<WASDCamera>>, mut commands: Commands) {
     // try_remove: the WASDCamera removal may be part of the camera's own
     // despawn, and a plain remove would panic on the dead entity.
     commands

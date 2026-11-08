@@ -9,7 +9,7 @@
 //!   so the widget's own state tracks the drag.
 //! - `position_thumbs` moves the thumb whenever `SliderValue` (or the range) changes - gated on
 //!   `Changed`, so it tracks drags, not just the initial insert. (The earlier version keyed the
-//!   thumb off `On<Insert, SliderValue>`, which never fired for the widget's in-place value
+//!   thumb off `On<Insert<SliderValue>>`, which never fired for the widget's in-place value
 //!   edits, so the thumb sat still while the value moved.)
 //!
 //! It knows nothing about turrets or any particular value, so it can be lifted into a shared
@@ -40,7 +40,7 @@ pub struct SliderWidgetPlugin;
 impl Plugin for SliderWidgetPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(echo_value_into_slider);
-        app.add_observer(highlight_hovered_thumb::<Insert, Hovered>);
+        app.add_observer(highlight_hovered_thumb::<Insert<Hovered>>);
         app.add_systems(Update, position_thumbs);
     }
 }
@@ -145,8 +145,8 @@ fn position_thumbs(
 }
 
 /// Lighten the thumb while its slider is hovered.
-fn highlight_hovered_thumb<E: EntityEvent, C: Component>(
-    event: On<E, C>,
+fn highlight_hovered_thumb<P: EventPattern<Event: EntityEvent>>(
+    event: On<P>,
     q_slider: Query<(Entity, &Hovered), With<SliderWidget>>,
     children: Query<&Children>,
     mut q_thumb: Query<&mut BackgroundColor, With<SliderWidgetThumb>>,

@@ -650,7 +650,7 @@ fn shown_on(
     reason = "a grab reads the rig, the camera and the whole selection once"
 )]
 pub(crate) fn on_gizmo_grab(
-    drag: On<Pointer<DragStart>>,
+    drag: On<PointerDragStart>,
     handles: Query<&GizmoHandle>,
     camera: Option<Single<(&Camera, &GlobalTransform), With<EditorCamera>>>,
     rig: Option<
@@ -686,7 +686,7 @@ pub(crate) fn on_gizmo_grab(
         return;
     };
     let (camera, camera_pose) = *camera;
-    let Some(ray) = pointer_ray(camera, camera_pose, drag.pointer_location.position) else {
+    let Some(ray) = pointer_ray(camera, camera_pose, drag.pointer.position) else {
         return;
     };
     let axis = handle.axis_in(target.basis);
@@ -729,7 +729,7 @@ pub(crate) fn on_gizmo_grab(
 /// Apply the gesture: the poses it started from, plus how far the pointer has
 /// carried the handle since.
 pub(crate) fn on_gizmo_drag(
-    drag: On<Pointer<Drag>>,
+    drag: On<PointerDrag>,
     camera: Option<Single<(&Camera, &GlobalTransform), With<EditorCamera>>>,
     keys: Option<Res<ButtonInput<KeyCode>>>,
     tool: Res<StageTool>,
@@ -754,7 +754,7 @@ pub(crate) fn on_gizmo_drag(
         return;
     };
     let (camera, camera_pose) = *camera;
-    let Some(ray) = pointer_ray(camera, camera_pose, drag.pointer_location.position) else {
+    let Some(ray) = pointer_ray(camera, camera_pose, drag.pointer.position) else {
         return;
     };
     let snap = state.on_grid || snap_active(&tool, keys.as_deref());
@@ -871,7 +871,7 @@ fn shortest_way(step: f32) -> f32 {
 /// Let go - of the button that grabbed, for the reason
 /// [`crate::placement::on_stage_drag_end`] gives.
 pub(crate) fn on_gizmo_release(
-    drag: On<Pointer<DragEnd>>,
+    drag: On<PointerDragEnd>,
     mut commands: Commands,
     mut state: ResMut<GizmoDrag>,
     mut stale: MessageWriter<ObjectBodyStale>,

@@ -271,7 +271,7 @@ impl Plugin for AllegianceMarkerHudPlugin {
 /// `Allegiance` lands (see the module docs: it is not present yet here). The
 /// player's marker is removed by `despawn_player_allegiance_markers` once its
 /// `PlayerSpaceshipMarker` lands.
-fn setup_allegiance_marker(add: On<Add, SpaceshipRootMarker>, mut commands: Commands) {
+fn setup_allegiance_marker(add: On<Add<SpaceshipRootMarker>>, mut commands: Commands) {
     let ship = add.entity;
     trace!("setup_allegiance_marker: ship {:?}", ship);
     commands.spawn(allegiance_marker_hud(ship, NEUTRAL_GREY));
@@ -280,7 +280,7 @@ fn setup_allegiance_marker(add: On<Add, SpaceshipRootMarker>, mut commands: Comm
 /// The marker layer dies with its ship (death despawns the ship, scenario
 /// unload - any removal path).
 fn remove_allegiance_marker(
-    remove: On<Remove, SpaceshipRootMarker>,
+    remove: On<Remove<SpaceshipRootMarker>>,
     mut commands: Commands,
     q_layers: Query<(Entity, &AllegianceMarkerTargetEntity), With<AllegianceMarkerHudMarker>>,
 ) {

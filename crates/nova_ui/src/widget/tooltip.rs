@@ -38,7 +38,7 @@ const TOOLTIP_GAP: f32 = 4.0;
 const TOOLTIP_W: f32 = 240.0;
 
 /// Give a new [`Tooltip`] node its hidden panel.
-pub(super) fn spawn_tooltip_panel(add: On<Add, Tooltip>, mut commands: Commands) {
+pub(super) fn spawn_tooltip_panel(add: On<Add<Tooltip>>, mut commands: Commands) {
     commands.entity(add.entity).with_child((
         Name::new("Tooltip"),
         TooltipPanel,

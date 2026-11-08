@@ -6,7 +6,7 @@
 //! - damage applied to a target -> a small camera-shake kick + a spark burst
 //!   (`On<HealthApplyDamage>`);
 //! - a section/asteroid destroyed or a torpedo detonating -> a big camera-shake
-//!   kick + a bigger burst (`On<Add, IntegrityDestroyMarker>`);
+//!   kick + a bigger burst (`On<Add<IntegrityDestroyMarker>>`);
 //! - the player's torpedo getting the kill -> the camera held at a trauma
 //!   floor, unattenuated (`On<PlayerKillConfirmed>`).
 //!
@@ -527,7 +527,7 @@ fn on_damage_juice(
     reason = "one observer: the settings, the clock, where the death was, what came apart, the listener and the throttle"
 )]
 fn on_destroy_juice(
-    add: On<Add, IntegrityDestroyMarker>,
+    add: On<Add<IntegrityDestroyMarker>>,
     settings: Res<JuiceSettings>,
     time: Res<Time>,
     q_transform: Query<&GlobalTransform>,
@@ -869,7 +869,7 @@ mod tests {
         let sink = spawn_shake_sink(&mut app);
         let target = spawn_at(&mut app, Vec3::ZERO);
 
-        // Inserting the destroy marker fires the `On<Add, IntegrityDestroyMarker>`
+        // Inserting the destroy marker fires the `On<Add<IntegrityDestroyMarker>>`
         // observer.
         app.world_mut()
             .entity_mut(target)

@@ -53,6 +53,7 @@ pub fn unfinished_integrity_physics_app_with(physics: impl PluginGroup) -> App {
         bevy::mesh::MeshPlugin,
     ));
     app.add_plugins(physics);
+    app.add_plugins(crate::contact_model::ContactModelPlugin);
     // NovaIntegrityPlugin brings the health store with it.
     app.add_plugins(NovaIntegrityPlugin);
     app.insert_resource(Gravity(Vec3::ZERO));

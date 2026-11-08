@@ -12,7 +12,7 @@
 use bevy::{
     picking::{
         hover::Hovered,
-        pointer::{PointerLocation, PointerPress},
+        pointer::{PointerLocation, PointerPressState},
     },
     prelude::*,
     ui::InteractionDisabled,
@@ -134,7 +134,7 @@ fn play_button_focus_cue(
         (&Hovered, Has<InteractionDisabled>, Option<&ButtonCueMute>),
         (With<Button>, Changed<Hovered>),
     >,
-    q_pointer: Query<(Ref<PointerLocation>, &PointerPress)>,
+    q_pointer: Query<(Ref<PointerLocation>, &PointerPressState)>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,
 ) {

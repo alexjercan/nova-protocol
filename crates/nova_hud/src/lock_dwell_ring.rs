@@ -3,7 +3,7 @@
 //! charges (mechanic in input/targeting/radar.rs), and vanishes the
 //! instant the lock snaps (the `LockOn` SFX is the audible half of the same
 //! beat). nova's first [`UiMaterial`]: a trivial WGSL fragment
-//! (`assets/shaders/lock_dwell_ring.wgsl`) driven by a `progress` uniform.
+//! (`assets/shaders/lock_dwell_ring.wesl`) driven by a `progress` uniform.
 //!
 //! A thin consumer of the [`screen_indicator`](mod@super::screen_indicator)
 //! widget: one ring node whose anchor is driven to
@@ -95,7 +95,7 @@ impl Default for LockDwellRingMaterial {
 
 impl UiMaterial for LockDwellRingMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/lock_dwell_ring.wgsl".into()
+        "shaders/lock_dwell_ring.wesl".into()
     }
 }
 

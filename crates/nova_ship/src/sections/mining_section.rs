@@ -268,7 +268,7 @@ fn drive_mining_emitters(
 
 /// Spawn an emitter's scene.
 fn insert_mining_section_render(
-    add: On<Add, MiningSectionMarker>,
+    add: On<Add<MiningSectionMarker>>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     q_emitters: Query<(&MiningSectionRenderMesh, &SectionRenderMeshTransform)>,

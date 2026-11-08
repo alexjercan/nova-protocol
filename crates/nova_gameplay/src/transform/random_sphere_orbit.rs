@@ -70,7 +70,7 @@ impl Plugin for SphereRandomOrbitPlugin {
 
 /// Initialize orbit state and next target angles
 fn initialize_random_sphere_orbit_system(
-    insert: On<Insert, RandomSphereOrbit>,
+    insert: On<Insert<RandomSphereOrbit>>,
     mut commands: Commands,
     q_orbit: Query<&RandomSphereOrbit, With<RandomSphereOrbit>>,
 ) {

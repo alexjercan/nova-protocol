@@ -540,7 +540,7 @@ fn loaded_event_flags_downloaded_mods_changed() {
     );
 
     // A stable uuid handle stands in for the mods:// loaded bundle; distinct
-    // from both `Handle::default()` (DEFAULT_UUID) and `AssetId::invalid()`.
+    // from `Handle::default()` (DEFAULT_UUID) and from the unrelated id below.
     let bundle: Handle<BundleAsset> =
         bevy::asset::uuid_handle!("7b0e2ae2-6f4f-4c11-a327-40a336a4a3bc");
     app.world_mut()
@@ -562,7 +562,7 @@ fn loaded_event_flags_downloaded_mods_changed() {
     // An unrelated bundle's load event must NOT flag the downloaded set.
     app.world_mut()
         .write_message(AssetEvent::<BundleAsset>::LoadedWithDependencies {
-            id: AssetId::invalid(),
+            id: bevy::asset::uuid_handle!("0b1d6c55-2f0e-4d0f-9a51-5e6d1c7a9e42").id(),
         });
     app.update();
     assert_eq!(

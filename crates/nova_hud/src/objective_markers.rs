@@ -185,7 +185,7 @@ impl Plugin for ObjectiveMarkersHudPlugin {
 }
 
 /// Every marked entity grows its chip the moment the tag lands.
-fn setup_objective_marker_chip(add: On<Add, ObjectiveMarkerTarget>, mut commands: Commands) {
+fn setup_objective_marker_chip(add: On<Add<ObjectiveMarkerTarget>>, mut commands: Commands) {
     let target = add.entity;
     trace!("setup_objective_marker_chip: target {:?}", target);
     commands.spawn(objective_marker_chip_hud(target));

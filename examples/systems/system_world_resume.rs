@@ -2531,7 +2531,7 @@ fn run_load() -> bevy::app::AppExit {
         let post_resume_inserts = std::sync::Arc::clone(&post_resume_inserts);
         let player_snapshot = std::sync::Arc::clone(&player_snapshot);
         app.add_observer(
-            move |insert: On<Insert, TempEntityState>,
+            move |insert: On<Insert<TempEntityState>>,
                   progress: Option<Res<WorldResumeProgress>>,
                   bodies: Query<(
                 &TempEntityState,

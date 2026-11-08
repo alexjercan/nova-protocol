@@ -68,13 +68,11 @@
 //! kept connection with [`restore_docking_connection`].
 
 use avian3d::{
-    collision::contact_types::ContactId,
-    data_structures::pair_key::PairKey,
-    dynamics::solver::{
-        constraint_graph::ConstraintGraph,
-        islands::{BodyIslandNode, PhysicsIslands, WakeIslands},
-        joint_graph::JointGraph,
+    collision::{
+        contact_types::ContactId,
+        narrow_phase::{ContactStatusChange, ContactStatusChangeQueue},
     },
+    data_structures::pair_key::PairKey,
     prelude::*,
 };
 use bevy::{ecs::entity_disabling::Disabled, prelude::*};
@@ -255,12 +253,12 @@ pub struct DockedStation {
 /// may still overlap. A skin plate or greeble that reached past a port face
 /// would otherwise start a contact the step after the undock and shove both
 /// hulls apart. [`end_undock_separations`] despawns it once no collider of
-/// one hull overlaps the other, which gives the pair its collisions back.
-/// [`on_separated_body_removed`] despawns it as either hull's body leaves.
+/// one hull overlaps the other, which gives the pair its collisions back,
+/// and once either hull has left.
 ///
-/// The joint is what filters the pair: avian 0.7 filters a pair only through
-/// a joint in its joint graph, and `JointDisabled` takes a joint out of the
-/// graph. Its distance limits never bind, so it applies no impulse.
+/// The joint is what filters the pair: avian3d 0.8 filters a pair only
+/// through a joint in its joint graph, and `JointDisabled` takes a joint out of
+/// the graph. Its distance limits never bind, so it applies no impulse.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub struct UndockSeparation {
@@ -319,7 +317,7 @@ pub struct DockingReleaseRequest {
 /// instead drive both origins and both bases together and yank the ships into
 /// each other.
 ///
-/// The frames are LOCAL, computed here. avian3d 0.7 converts a global basis
+/// The frames are LOCAL, computed here. avian3d 0.8 converts a global basis
 /// (`FixedJoint::with_basis`) as `basis * rot.inverse()` where its solver
 /// needs `rot.inverse() * basis`, so a global frame holds the capture pose
 /// only when the two hull rotations commute. A belly-up hull against a yawed
@@ -559,7 +557,7 @@ pub fn restore_docking_connection(
         (ship, command.unwrap_or(rotations[end].0))
     });
     let [frame1, mut frame2] = frames;
-    // TODO: avian 0.7's fixed-angle constraint takes its error from
+    // TODO: avian 0.8's fixed-angle constraint takes its error from
     // `(rot1 * basis1) * (rot2 * basis2)^-1` without folding a negative `w`,
     // so on that cover every correction pushes the wrong way and the dock
     // spins itself apart. A Load can flip one hull's cover: avian rebuilds
@@ -568,7 +566,7 @@ pub fn restore_docking_connection(
     // the basis keeps the saved rotation. Delete when avian folds the cover
     // in `FixedAngleConstraintShared::prepare`.
     let [JointBasis::Local(basis1), JointBasis::Local(basis2)] =
-        JointBasis::compute_local(frame1.basis, frame2.basis, &rotations[0], &rotations[1])
+        JointBasis::compute_local(frame1.basis, frame2.basis, rotations[0].0, rotations[1].0)
     else {
         unreachable!("JointBasis::compute_local returns local bases");
     };
@@ -593,29 +591,21 @@ pub fn restore_docking_connection(
 }
 
 /// Drop every contact between two bodies that are about to be joined with
-/// [`JointCollisionDisabled`], unlinking each one from its simulation island
-/// first.
+/// [`JointCollisionDisabled`], and queue each touching one for the solver to
+/// unlink from its constraint graph and island.
 ///
-/// TODO(avian#1076): avian3d 0.7's `on_disable_joint_collision` removes the
-/// pair's contacts from the contact and constraint graphs but not from their
-/// island. A dock captured while the hulls touch then leaves the island
-/// pointing at a dead `ContactId`; the next contact that joins the island
-/// reuses that id and avian panics with "Head contact .. has no island". It
-/// also removes the pair key built from the BODY indices, where the narrow
-/// phase keys by COLLIDER, so the broad phase would never recreate the pair
-/// after undock. Delete this function and its call when avian unlinks the
-/// island itself.
+/// TODO(avian#1076): avian3d 0.8's `on_disable_joint_collision` removes the
+/// pair key built from the BODY indices, where the narrow phase keys by
+/// COLLIDER, so the broad phase would never recreate the pair after undock.
+/// It also sends no `CollisionEnd` and leaves `CollidingEntities` stale.
+/// Delete this function and its call when avian keys the removal by collider.
 fn drop_pair_contacts(
     In((body1, body2)): In<(Entity, Entity)>,
     q_colliders: Query<&RigidBodyColliders>,
-    joint_graph: Res<JointGraph>,
     mut contact_graph: ResMut<ContactGraph>,
-    mut constraint_graph: ResMut<ConstraintGraph>,
-    mut islands: Option<ResMut<PhysicsIslands>>,
-    mut body_islands: Query<&mut BodyIslandNode, Or<(With<Disabled>, Without<Disabled>)>>,
-    mut colliding: Query<&mut CollidingEntities, Or<(With<Disabled>, Without<Disabled>)>>,
+    mut status_changes: ResMut<ContactStatusChangeQueue>,
+    mut colliding: Query<&mut CollidingEntities, Allow<Disabled>>,
     mut collision_ended: MessageWriter<CollisionEnd>,
-    mut commands: Commands,
 ) {
     let Ok(colliders) = q_colliders.get(body1) else {
         return;
@@ -627,20 +617,15 @@ fn drop_pair_contacts(
         .map(|edge| edge.id)
         .collect();
 
-    let mut to_wake = Vec::new();
     for contact_id in contacts {
         let Some(edge) = contact_graph.get_edge_mut_by_id(contact_id) else {
             continue;
         };
         let (collider1, collider2) = (edge.collider1, edge.collider2);
         let (edge_body1, edge_body2) = (edge.body1, edge.body2);
-        let manifolds = edge.constraint_handles.len();
-        let linked = edge.island.is_some();
-        let touching = edge.is_touching();
-        let events = edge.events_enabled();
 
-        if touching {
-            if events {
+        if edge.is_touching() {
+            if edge.events_enabled() {
                 collision_ended.write(CollisionEnd {
                     collider1,
                     collider2,
@@ -653,32 +638,22 @@ fn drop_pair_contacts(
                     entities.remove(&other);
                 }
             }
-        }
-        for _ in 0..manifolds {
-            constraint_graph.pop_manifold(&mut contact_graph.edges, contact_id, body1, body2);
-        }
-        if let (true, Some(islands)) = (linked, islands.as_deref_mut()) {
-            let island = islands.remove_contact(
-                contact_id,
-                &mut body_islands,
-                &mut contact_graph.edges,
-                &joint_graph,
-            );
-            if island.is_sleeping() {
-                to_wake.push(island.id());
+            if let (Some(body1), Some(body2)) = (edge_body1, edge_body2) {
+                status_changes.push(ContactStatusChange::StoppedGeneratingConstraints {
+                    contact_id,
+                    body1,
+                    body2,
+                });
             }
         }
         let pair_key = PairKey::new(collider1.index_u32(), collider2.index_u32());
         contact_graph.remove_edge_by_id(&pair_key, contact_id);
     }
-    if !to_wake.is_empty() {
-        commands.queue(WakeIslands(to_wake));
-    }
 }
 
 /// Take the docked record and the assembly off a station whose last
 /// connection has just gone.
-pub(super) fn on_station_docks_emptied(removed: On<Remove, StationDocks>, mut commands: Commands) {
+pub(super) fn on_station_docks_emptied(removed: On<Remove<StationDocks>>, mut commands: Commands) {
     commands
         .entity(removed.entity)
         .try_remove::<(DockedStation, super::DockedAssembly)>();
@@ -691,7 +666,7 @@ pub(super) fn on_station_docks_emptied(removed: On<Remove, StationDocks>, mut co
 /// paths end in [`release_connection`], so a ship that dies whole (every
 /// section removed at once) releases exactly once either way.
 pub(super) fn on_docking_port_removed_release(
-    removed: On<Remove, DockingSectionMarker>,
+    removed: On<Remove<DockingSectionMarker>>,
     mut commands: Commands,
     q_docked: Query<&DockedPort>,
     q_connections: Query<(&DockingConnection, Option<&StationDock>)>,
@@ -761,35 +736,14 @@ pub(super) fn end_undock_separations(
         // `INVALID` is empty: a hull with no solid collider meets nothing.
         let merged = q_aabbs
             .iter_many(merged.iter())
+            .matched()
             .fold(ColliderAabb::INVALID, |merged, aabb| merged.merged(*aabb));
         let overlapping = q_aabbs
             .iter_many(other.iter())
+            .matched()
             .any(|aabb| aabb.intersects(&merged));
         if !overlapping {
             debug!("end_undock_separations: {first:?}/{second:?} separated, collisions restored");
-            commands.entity(entity).try_despawn();
-        }
-    }
-}
-
-/// Despawn every [`UndockSeparation`] that names a body as the body leaves.
-///
-/// avian 0.7 frees an island when its last body leaves without unlinking the
-/// island's joints. A separation joint that outlives its hulls then keeps a
-/// dead island id, and once a new body takes that island slot, despawning the
-/// joint panics in `PhysicsIslands::remove_joint`. A world teardown or a load
-/// does exactly that while [`end_undock_separations`] waits for the fixed
-/// clock. The despawn queued here runs in the same command flush as the body
-/// removal, before any new body can take the slot.
-pub(super) fn on_separated_body_removed(
-    removed: On<Remove, RigidBody>,
-    mut commands: Commands,
-    q_separations: Query<(Entity, &UndockSeparation)>,
-) {
-    let body = removed.entity;
-    for (entity, separation) in &q_separations {
-        if separation.first_ship == body || separation.second_ship == body {
-            debug!("on_separated_body_removed: {body:?} left, its separation {entity:?} ends");
             commands.entity(entity).try_despawn();
         }
     }
@@ -875,7 +829,7 @@ pub(super) fn on_docking_helm_request(
 /// opens with ([`helm_on_capture`]), as if its hull had docked at it dead: the
 /// player's connection is the player's, every other one is neutral.
 pub(super) fn on_station_derelict_release_helm(
-    added: On<Add, DerelictShipMarker>,
+    added: On<Add<DerelictShipMarker>>,
     q_station: Query<&StationDocks, With<StationMarker>>,
     q_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut q_connections: Query<&mut DockingConnection>,

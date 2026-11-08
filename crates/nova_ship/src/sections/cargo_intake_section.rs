@@ -706,7 +706,7 @@ fn run_cargo_intakes(
 
 /// Spawn an intake's scene.
 fn insert_cargo_intake_section_render(
-    add: On<Add, CargoIntakeSectionMarker>,
+    add: On<Add<CargoIntakeSectionMarker>>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     q_intakes: Query<(&CargoIntakeSectionRenderMesh, &SectionRenderMeshTransform)>,
@@ -728,7 +728,7 @@ fn insert_cargo_intake_section_render(
 }
 
 fn despawn_destroyed_canister(
-    add: On<Add, HealthZeroMarker>,
+    add: On<Add<HealthZeroMarker>>,
     mut commands: Commands,
     canisters: Query<(), With<CargoCanister>>,
 ) {
@@ -739,7 +739,7 @@ fn despawn_destroyed_canister(
 
 /// Spawn a canister's scene.
 fn insert_cargo_canister_render(
-    add: On<Add, CargoCanister>,
+    add: On<Add<CargoCanister>>,
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     q_canisters: Query<&CargoCanisterRenderMesh>,

@@ -1,7 +1,7 @@
 //! system_headless_drag: `nova_channel` headless parity - drag a slider by wire.
 //!
 //! The claim this range proves:
-//! "Drag a slider, scrub a numeric grip - `Pointer<Drag>` observers on the
+//! "Drag a slider, scrub a numeric grip - `PointerDrag` observers on the
 //! widget; the pointer lane fires them". The one slider in the settings UI is
 //! the master volume (`"Volume Slider Track"`, Audio tab); the drive is the
 //! full human shape - hover, press, two cursor legs to the right, release -
@@ -13,7 +13,7 @@
 //!   - the track is `TrackClick::Snap`, so the arming press ALREADY sets the
 //!     value to the pointer's position; the baseline is recorded after the
 //!     press so the verdict measures the drag, not the snap;
-//!   - `Pointer<*>` auto-propagates, so a press on the track's visual children
+//!   - Pointer events auto-propagate, so a press on the track's visual children
 //!     resolves to the slider entity - aiming at the track centre is safe.
 //!
 //! The range then walks to CONTROLS -> MOUSE and drags a second track, the one

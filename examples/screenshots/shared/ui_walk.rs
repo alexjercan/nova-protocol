@@ -327,7 +327,7 @@ pub trait Gestures: Sized {
     fn click(self, label: &str, name: &str) -> Self;
 
     /// Place a section on the ship: aim at the `face` face of the section
-    /// mounted at `on`, press, release. The editor acts on `Pointer<Press>`, so
+    /// mounted at `on`, press, release. The editor acts on `PointerPress`, so
     /// the press does the work and the release only lets go.
     ///
     /// The aim holds until the EDITOR has solved a placement there, and the

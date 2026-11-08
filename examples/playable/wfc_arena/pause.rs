@@ -4,6 +4,7 @@ use bevy::{
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use nova_ui::{
+    prelude::window_root,
     theme,
     theme::UiColor,
     widget::{prelude::*, ThemedText},
@@ -104,11 +105,9 @@ fn spawn_pause(mut commands: Commands) {
                 is_hoverable: false,
             },
             Node {
-                width: percent(100),
-                height: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                ..default()
+                ..window_root()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.72)),
             GlobalZIndex(20),

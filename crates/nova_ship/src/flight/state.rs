@@ -659,7 +659,7 @@ pub struct ManeuverTelemetry {
 /// guard only proves liveness at observer time - the queued remove lands after
 /// the despawn completes in the same flush and warns "Entity despawned". The
 /// fallible variant makes end-of-leg cleanup and teardown commute.
-pub(super) fn remove_maneuver_telemetry(remove: On<Remove, Autopilot>, mut commands: Commands) {
+pub(super) fn remove_maneuver_telemetry(remove: On<Remove<Autopilot>>, mut commands: Commands) {
     if let Ok(mut ship) = commands.get_entity(remove.entity) {
         ship.try_remove::<(ManeuverTelemetry, FlightPrediction, FlightPredictionRun)>();
     }

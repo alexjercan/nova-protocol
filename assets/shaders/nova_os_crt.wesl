@@ -6,7 +6,7 @@
 // edge vignette, analog grain, rounded-corner mask) plus the power-on/off raster
 // collapse. Derivative-free and fixed-tap so it stays safe/cheap on WebGL2.
 
-#import bevy_ui::ui_vertex_output::UiVertexOutput
+import bevy_ui_render::ui_vertex_output::UiVertexOutput;
 
 struct NovaOsCrtMaterial {
     // Straight phosphor tint. `a` scales the film strength.

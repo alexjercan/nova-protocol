@@ -402,7 +402,7 @@ fn sample_the_torpedo(
 /// put more explosives in the sky, and the claim is about the warhead.
 #[cfg(feature = "debug")]
 fn record_delivery(
-    blast: On<Add, NovaBlast>,
+    blast: On<Add<NovaBlast>>,
     q_blast: Query<(&Transform, &NovaBlast)>,
     q_anchor: Query<(
         &Transform,

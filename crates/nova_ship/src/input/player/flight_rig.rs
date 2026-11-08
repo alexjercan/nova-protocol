@@ -94,7 +94,7 @@ pub(super) struct RcsModifierInput;
 pub(super) struct RcsAimInput;
 
 pub(super) fn on_player_added_spawn_flight_input(
-    add: On<Add, PlayerSpaceshipMarker>,
+    add: On<Add<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     q_existing: Query<(), With<FlightInputMarker>>,
     bindings: Res<InputBindings>,
@@ -129,8 +129,8 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
     (
         Name::new("Input: Flight"),
         FlightInputMarker,
-        actions!(
-            FlightInputMarker[
+        related!(
+            Actions<FlightInputMarker>[
                 (
                     Name::new("Input: Flight Burn"),
                     Action::<FlightBurnInput>::new(),
@@ -331,10 +331,12 @@ pub(crate) fn flight_input_rig(bindings: &InputBindings) -> impl Bundle {
                             // never reaches it. Only the Y half is inverted -
                             // a stick reads +up, and the observer wants the
                             // mouse's +down.
-                            Axial {
-                                x: Binding::from(GamepadAxis::LeftStickX),
-                                y: (Binding::from(GamepadAxis::LeftStickY), Negate::all()),
-                            },
+                            Spawn(Binding::from(GamepadAxis::LeftStickX)),
+                            Spawn((
+                                Binding::from(GamepadAxis::LeftStickY),
+                                SwizzleAxis::YXZ,
+                                Negate::all(),
+                            )),
                         ),
                     ),
                 ),
@@ -383,7 +385,7 @@ pub(super) fn rebuild_flight_input_on_rebind(
 }
 
 pub(super) fn on_player_removed_despawn_flight_input(
-    remove: On<Remove, PlayerSpaceshipMarker>,
+    remove: On<Remove<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     q_rig: Query<Entity, With<FlightInputMarker>>,
 ) {
@@ -1942,7 +1944,7 @@ mod tests {
         // Undock spawns an `UndockSeparation` with `JointCollisionDisabled`,
         // whose avian `on_add` hook reads `JointGraph`. Physics is not in
         // this app, so the resource is inserted here.
-        app.init_resource::<avian3d::dynamics::solver::joint_graph::JointGraph>();
+        app.init_resource::<avian3d::dynamics::joints::joint_graph::JointGraph>();
         app.add_message::<MatchRefusal>();
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_flight_burn_input)

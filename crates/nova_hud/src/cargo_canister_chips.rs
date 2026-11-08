@@ -146,7 +146,7 @@ fn cargo_canister_chip_hud(canister: Entity) -> impl Bundle {
 }
 
 /// Every canister grows its chip the moment it spawns.
-fn setup_cargo_canister_chip(add: On<Add, CargoCanister>, mut commands: Commands) {
+fn setup_cargo_canister_chip(add: On<Add<CargoCanister>>, mut commands: Commands) {
     commands.spawn(cargo_canister_chip_hud(add.entity));
 }
 

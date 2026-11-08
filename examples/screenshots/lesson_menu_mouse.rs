@@ -144,7 +144,7 @@ const REACH: f32 = 0.5;
 /// Cells of sweep the recorder is handed BEFORE it opens, to pay for the lag
 /// between the pointer moving and the page showing it.
 ///
-/// A cursor written in `Update` is turned into a `Pointer<Drag>` by
+/// A cursor written in `Update` is turned into a `PointerDrag` by
 /// `bevy_picking` against the FOLLOWING frame's hit map, and the value the
 /// widget's own `slider_self_update` commits for it reaches the track and the
 /// readout after that - so a FRAME shows where the pointer was two cells ago,

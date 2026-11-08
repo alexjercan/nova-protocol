@@ -160,7 +160,7 @@ pub(crate) fn spawn_file_rows(
 /// A right press on the grid's bare floor: New Asset, and Import File where
 /// the build writes a folder.
 pub(crate) fn on_asset_grid_menu(
-    click: On<Pointer<Click>>,
+    click: On<PointerClick>,
     mut commands: Commands,
     roots: Query<Entity, With<PopupRoot>>,
     facts: MenuFacts,
@@ -190,12 +190,7 @@ pub(crate) fn on_asset_grid_menu(
         VerbState::Live => items.push(import_file_item()),
     }
     close_popups(&mut commands, &roots);
-    let root = spawn_cascade(
-        &mut commands,
-        click.pointer_location.position,
-        layer::MENU_Z,
-        items,
-    );
+    let root = spawn_cascade(&mut commands, click.pointer.position, layer::MENU_Z, items);
     commands
         .entity(root)
         .insert(DespawnOnExit(ExampleStates::Editor));

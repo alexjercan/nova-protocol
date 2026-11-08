@@ -211,7 +211,7 @@ fn main() -> bevy::app::AppExit {
         // reports did that frame ask for" has an answer only at the frame the
         // voices were born.
         app.add_observer(
-            |add: On<Add, SfxVoice>,
+            |add: On<Add<SfxVoice>>,
              asset_server: Res<AssetServer>,
              q_voice: Query<&SfxVoice>,
              mut log: ResMut<VoiceLog>| {

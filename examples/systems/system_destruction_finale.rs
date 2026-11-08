@@ -164,7 +164,7 @@ fn tally_carved_chunks(q_new: Query<(), Added<CarvedChunkMarker>>, mut probe: Re
 /// followed it.
 #[cfg(feature = "debug")]
 fn tally_detached_pieces(
-    add: On<Add, DetachedPieceMarker>,
+    add: On<Add<DetachedPieceMarker>>,
     q_piece: Query<&DetachedPieceMarker>,
     mut probe: ResMut<FinaleProbe>,
 ) {
@@ -191,7 +191,7 @@ struct PendingDeaths(Vec<(Entity, u32)>);
 /// matched against the wreckage that follows it.
 #[cfg(feature = "debug")]
 fn watch_body_deaths(
-    add: On<Add, IntegrityDestroyMarker>,
+    add: On<Add<IntegrityDestroyMarker>>,
     q_dying: Query<(), (With<ExplodableEntity>, Without<IntegrityRoot>)>,
     frames: Res<bevy::diagnostic::FrameCount>,
     mut pending: ResMut<PendingDeaths>,

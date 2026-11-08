@@ -7,7 +7,7 @@
 //! the facing ends, so a gap in these tests is a gap in engine units and the
 //! authored `capture_distance` (10 m, one cell) is the number under test.
 
-use avian3d::{dynamics::solver::solver_body::SolverBody, prelude::*};
+use avian3d::prelude::*;
 use bevy::ecs::system::RunSystemOnce;
 use nova_events::prelude::EntityId;
 use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
@@ -842,17 +842,17 @@ fn an_undock_separation_ends_with_its_hulls() {
     assert_eq!(separations(&mut app), 1, "the touching pair stays apart");
 
     // A world teardown: both hulls leave in one pass, and the next world's
-    // first body takes the island slot they freed before the docking pass
-    // runs. avian gives a new body its `SolverBody` on its next step; it is
-    // inserted here so the slot is taken first. A separation joint still
-    // alive then unlinks itself from that new island and avian panics.
+    // first body joins an island before the docking pass runs. avian gives a
+    // new body its `BodyIslandNode` on its next step; it is inserted here so
+    // it is there first. The separation joint must then end without a panic
+    // in `PhysicsIslands::remove_joint`.
     for ship in [first, second] {
         app.world_mut().despawn(ship);
     }
     let next = spawn_hull(&mut app, Vec3::X * 20.0, Quat::IDENTITY);
     app.world_mut()
         .entity_mut(next)
-        .insert(SolverBody::default());
+        .insert(avian3d::dynamics::solver::islands::BodyIslandNode::default());
     settle(&mut app);
 
     assert_eq!(
@@ -2143,6 +2143,7 @@ fn losing_the_station_port_while_docked_releases_the_dock() {
 fn island_linked_contact(app: &App, first: Entity, second: Entity) -> bool {
     let world = app.world();
     let graph = world.resource::<ContactGraph>();
+    let islands = world.resource::<avian3d::dynamics::solver::islands::PhysicsIslands>();
     let colliders = |body: Entity| {
         world
             .get::<RigidBodyColliders>(body)
@@ -2153,9 +2154,9 @@ fn island_linked_contact(app: &App, first: Entity, second: Entity) -> bool {
     let others = colliders(second);
     colliders(first).into_iter().any(|a| {
         others.iter().any(|&b| {
-            graph
-                .get(a, b)
-                .is_some_and(|(edge, pair)| pair.is_touching() && edge.island.is_some())
+            graph.get(a, b).is_some_and(|(edge, pair)| {
+                pair.is_touching() && islands.contact_node(edge.id).is_some()
+            })
         })
     })
 }

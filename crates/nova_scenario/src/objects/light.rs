@@ -230,7 +230,7 @@ impl Plugin for LightPlugin {
 /// authored.
 ///
 /// A SCHEDULED system, ordered before bevy's cascade build, rather than the
-/// `On<Add, LightMarker>` observer this used to be. An observer's insert is a
+/// `On<Add<LightMarker>>` observer this used to be. An observer's insert is a
 /// command, and where in the frame that command lands is wherever the
 /// scenario's spawn queue happens to drain: in `first_shift_map` it landed
 /// inside `PostUpdate` PAST `build_directional_light_cascades` but ahead of the

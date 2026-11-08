@@ -125,7 +125,7 @@ impl Plugin for BeaconChipsHudPlugin {
 /// Every beacon grows its chip the moment it spawns - already yielded if
 /// the beacon is somehow marked first (see [`beacon_chip_hud`]).
 fn setup_beacon_chip(
-    add: On<Add, BeaconMarker>,
+    add: On<Add<BeaconMarker>>,
     q_marked: Query<(), With<ObjectiveMarkerTarget>>,
     mut commands: Commands,
 ) {
@@ -169,7 +169,7 @@ fn set_beacon_chip_anchor(
 
 /// A marker landing on a beacon hands the chip slot to the gold marker.
 fn suppress_marked_beacon_chip(
-    add: On<Add, ObjectiveMarkerTarget>,
+    add: On<Add<ObjectiveMarkerTarget>>,
     q_beacon: Query<(), With<BeaconMarker>>,
     q_chips: Query<&AnchoredChipTarget, With<BeaconChipHudMarker>>,
     mut q_anchors: Query<(&mut ScreenIndicatorAnchor, &ChildOf), With<AnchoredChipNodeMarker>>,
@@ -183,7 +183,7 @@ fn suppress_marked_beacon_chip(
 /// Detaching the marker (explicitly or by despawn - in which case the chip
 /// is dying too and the write is moot) revives the beacon chip.
 fn restore_unmarked_beacon_chip(
-    remove: On<Remove, ObjectiveMarkerTarget>,
+    remove: On<Remove<ObjectiveMarkerTarget>>,
     q_beacon: Query<(), With<BeaconMarker>>,
     q_chips: Query<&AnchoredChipTarget, With<BeaconChipHudMarker>>,
     mut q_anchors: Query<(&mut ScreenIndicatorAnchor, &ChildOf), With<AnchoredChipNodeMarker>>,

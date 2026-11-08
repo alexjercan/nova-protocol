@@ -186,7 +186,7 @@ pub fn enemy_neighbours(
 /// escort. A hull thawed already neutralized carries no attacker and
 /// records nothing.
 pub(crate) fn record_offence(
-    add: On<Add, NeutralizedMarker>,
+    add: On<Add<NeutralizedMarker>>,
     hulls: Query<(Option<&Name>, &TraderMarket, Option<&LastAttacker>)>,
     player: Query<(), Or<(With<PlayerSpaceshipMarker>, With<PlayerFleetMarker>)>>,
     clock: Res<WorldClock>,

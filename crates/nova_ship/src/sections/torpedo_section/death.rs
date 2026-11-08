@@ -178,7 +178,7 @@ fn shell_fade_step(age: f32) -> usize {
 /// Particle-gated: the shell is part of the blast's look, and the Low tier
 /// draws no blast.
 pub(super) fn on_torpedo_blast_shell(
-    add: On<Add, NovaBlast>,
+    add: On<Add<NovaBlast>>,
     budget: Option<Res<GraphicsBudget>>,
     assets: Res<TorpedoBlastShellAssets>,
     q_blast: Query<(&Transform, &NovaBlast), With<TorpedoSectionPartOf>>,
@@ -270,7 +270,7 @@ fn build_dud_puff_effect() -> EffectAsset {
     let velocity = random_direction(&writer) * speed;
     let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
 
-    let mask = soft_dot_modifier(&writer);
+    let mask = soft_dot_modifier();
     let mut module = writer.finish();
     declare_soft_dot_slot(&mut module);
 
@@ -324,7 +324,7 @@ fn build_intercept_pop_effect() -> EffectAsset {
     let velocity = random_direction(&writer) * speed;
     let init_vel = SetAttributeModifier::new(Attribute::VELOCITY, velocity.expr());
 
-    let mask = soft_dot_modifier(&writer);
+    let mask = soft_dot_modifier();
     let mut module = writer.finish();
     declare_soft_dot_slot(&mut module);
 

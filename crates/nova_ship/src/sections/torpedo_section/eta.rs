@@ -130,7 +130,7 @@ pub(super) fn update_player_torpedo_eta(
 /// last estimate standing, and the tone would keep ticking for a torpedo that
 /// no longer exists.
 pub(super) fn clear_player_torpedo_eta(
-    remove: On<Remove, TorpedoProjectileMarker>,
+    remove: On<Remove<TorpedoProjectileMarker>>,
     mut eta: ResMut<PlayerTorpedoEta>,
 ) {
     if eta.0.is_some_and(|eta| eta.torpedo == remove.entity) {

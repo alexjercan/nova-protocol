@@ -134,7 +134,7 @@ pub(crate) fn on_more_chip(
                 ..default()
             },
         ))
-        .observe(|_press: On<Pointer<Press>>, mut popup: ResMut<BlockPopup>| popup.keep());
+        .observe(|_press: On<PointerPress>, mut popup: ResMut<BlockPopup>| popup.keep());
 }
 
 /// End the pop-up a press or a key asked to leave, and one whose block went.

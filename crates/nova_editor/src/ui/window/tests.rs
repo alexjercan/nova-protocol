@@ -185,28 +185,28 @@ fn press_in(app: &mut App, area: &str, at: Vec2) -> Entity {
         .query_filtered::<Entity, With<Window>>()
         .single(app.world())
         .expect("one window");
-    app.world_mut().trigger(Pointer::new(
-        PointerId::Mouse,
-        Location {
-            target: NormalizedRenderTarget::Window(
-                WindowRef::Entity(screen)
-                    .normalize(None)
-                    .expect("a named window normalizes"),
-            ),
-            position: Vec2::ZERO,
-        },
-        Press {
-            button: PointerButton::Primary,
-            hit: HitData::new(
-                Entity::PLACEHOLDER,
-                0.0,
-                Some((at - Vec2::splat(0.5)).extend(0.0)),
-                None,
-            ),
-            count: 1,
-        },
-        area,
-    ));
+    app.world_mut().trigger(PointerPress {
+        entity: area,
+        pointer: Pointer::new(
+            PointerId::Mouse,
+            Location {
+                target: NormalizedRenderTarget::Window(
+                    WindowRef::Entity(screen)
+                        .normalize(None)
+                        .expect("a named window normalizes"),
+                ),
+                position: Vec2::ZERO,
+            },
+        ),
+        button: PointerButton::Primary,
+        hit: HitData::new(
+            Entity::PLACEHOLDER,
+            0.0,
+            Some((at - Vec2::splat(0.5)).extend(0.0)),
+            None,
+        ),
+        count: 1,
+    });
     app.update();
     area
 }
@@ -224,19 +224,19 @@ fn drag_the_bar(app: &mut App, delta: Vec2) {
             .normalize(None)
             .expect("a named window normalizes"),
     );
-    app.world_mut().trigger(Pointer::new(
-        PointerId::Mouse,
-        Location {
-            target,
-            position: Vec2::ZERO,
-        },
-        Drag {
-            button: PointerButton::Primary,
-            distance: delta,
-            delta,
-        },
-        bar,
-    ));
+    app.world_mut().trigger(PointerDrag {
+        entity: bar,
+        pointer: Pointer::new(
+            PointerId::Mouse,
+            Location {
+                target,
+                position: Vec2::ZERO,
+            },
+        ),
+        button: PointerButton::Primary,
+        distance: delta,
+        delta,
+    });
     app.update();
 }
 
@@ -601,22 +601,22 @@ fn release_on(app: &mut App, target: Entity) {
         .query_filtered::<Entity, With<Window>>()
         .single(app.world())
         .expect("one window");
-    app.world_mut().trigger(Pointer::new(
-        PointerId::Mouse,
-        Location {
-            target: NormalizedRenderTarget::Window(
-                WindowRef::Entity(screen)
-                    .normalize(None)
-                    .expect("a named window normalizes"),
-            ),
-            position: Vec2::ZERO,
-        },
-        Release {
-            button: PointerButton::Primary,
-            hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
-        },
-        target,
-    ));
+    app.world_mut().trigger(PointerRelease {
+        entity: target,
+        pointer: Pointer::new(
+            PointerId::Mouse,
+            Location {
+                target: NormalizedRenderTarget::Window(
+                    WindowRef::Entity(screen)
+                        .normalize(None)
+                        .expect("a named window normalizes"),
+                ),
+                position: Vec2::ZERO,
+            },
+        ),
+        button: PointerButton::Primary,
+        hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+    });
     app.update();
 }
 

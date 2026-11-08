@@ -390,7 +390,7 @@ fn setup_stage(
 /// Hand the station its hulls for sale as the world's spawn does, so it
 /// parks and docks one at each port but one once its sections are live.
 fn offer_the_tenders(
-    add: On<Add, StationMarker>,
+    add: On<Add<StationMarker>>,
     offers: Res<TenderOffers>,
     mut commands: Commands,
 ) {

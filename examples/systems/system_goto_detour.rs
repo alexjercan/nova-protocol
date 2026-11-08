@@ -450,14 +450,14 @@ impl Default for Detour {
 /// The lane's hull root, tracked as the scenario spawns it. An observer, not
 /// a poll: see `system_flight_legs`' own note on why.
 #[cfg(feature = "debug")]
-fn note_the_hull(add: On<Add, PlayerSpaceshipMarker>, mut detour: ResMut<Detour>) {
+fn note_the_hull(add: On<Add<PlayerSpaceshipMarker>>, mut detour: ResMut<Detour>) {
     detour.hull = Some(add.entity);
 }
 
 /// Record the production completion seam reporting the GOTO leg complete.
 #[cfg(feature = "debug")]
 fn note_a_completion(
-    add: On<Add, PlayerAutopilotCompleted>,
+    add: On<Add<PlayerAutopilotCompleted>>,
     q_completed: Query<&PlayerAutopilotCompleted>,
     mut detour: ResMut<Detour>,
 ) {

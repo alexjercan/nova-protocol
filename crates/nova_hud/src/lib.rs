@@ -576,11 +576,11 @@ fn resolve_chain(
 /// nothing but its bundle at spawn time.
 ///
 /// Widgets whose bundle reads a resource (a sprite handle, a material) keep
-/// their own `On<Add, ..>` observer and pair it with
+/// their own `On<Add<..>>` observer and pair it with
 /// [`despawn_player_hud`] directly; only the spawn half differs.
 fn add_player_hud<M: Component, B: Bundle>(app: &mut App, tier: HudTier, build: fn() -> B) {
     app.add_observer(
-        move |add: On<Add, PlayerSpaceshipMarker>,
+        move |add: On<Add<PlayerSpaceshipMarker>>,
               mut commands: Commands,
               q_spaceship: Query<
             Entity,
@@ -602,7 +602,7 @@ fn add_player_hud<M: Component, B: Bundle>(app: &mut App, tier: HudTier, build: 
 /// cannot use this - it must despawn only the nodes aimed at the ship that left,
 /// or a second player ship's HUD goes with the first one's.
 fn despawn_player_hud<M: Component>(
-    remove: On<Remove, PlayerSpaceshipMarker>,
+    remove: On<Remove<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     q_hud: Query<Entity, With<M>>,
 ) {
@@ -619,7 +619,7 @@ fn despawn_player_hud<M: Component>(
     );
 }
 
-/// The guard every `On<Add, PlayerSpaceshipMarker>` HUD setup shares: the marker
+/// The guard every `On<Add<PlayerSpaceshipMarker>>` HUD setup shares: the marker
 /// alone does not prove the entity is a ship ROOT, and a HUD built against a
 /// non-root would target the wrong transform. Logs and returns false when it is
 /// not.
@@ -635,7 +635,7 @@ fn is_player_ship_root(
 }
 
 fn add_screen_indicator_camera(
-    add: On<Add, nova_ship::camera::SpaceshipCameraController>,
+    add: On<Add<nova_ship::camera::SpaceshipCameraController>>,
     mut commands: Commands,
 ) {
     trace!("add_screen_indicator_camera: entity {:?}", add.entity);
@@ -646,7 +646,7 @@ fn add_screen_indicator_camera(
 /// the WASD camera after the player ship dies), so indicators hide instead of
 /// projecting through a free camera.
 fn remove_screen_indicator_camera(
-    remove: On<Remove, nova_ship::camera::SpaceshipCameraController>,
+    remove: On<Remove<nova_ship::camera::SpaceshipCameraController>>,
     mut commands: Commands,
 ) {
     trace!("remove_screen_indicator_camera: entity {:?}", remove.entity);
@@ -659,7 +659,7 @@ fn remove_screen_indicator_camera(
 }
 
 fn setup_hud_velocity(
-    add: On<Add, PlayerSpaceshipMarker>,
+    add: On<Add<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
@@ -707,7 +707,7 @@ fn setup_hud_velocity(
 }
 
 fn remove_hud_velocity(
-    remove: On<Remove, PlayerSpaceshipMarker>,
+    remove: On<Remove<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     q_hud: Query<(Entity, &VelocityHudTargetEntity), With<VelocityHudMarker>>,
 ) {
@@ -722,7 +722,7 @@ fn remove_hud_velocity(
 }
 
 fn setup_hud_flight_status(
-    add: On<Add, PlayerSpaceshipMarker>,
+    add: On<Add<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
     q_existing_dock: Query<(), With<KeybindDockMarker>>,
@@ -769,7 +769,7 @@ fn setup_hud_flight_status(
 /// nodes it spawns (dock, cues, instruments, orbit ring, spokes, ribbon, gate)
 /// carry no back-pointer and tear down through `despawn_player_hud` instead.
 fn remove_hud_flight_status(
-    remove: On<Remove, PlayerSpaceshipMarker>,
+    remove: On<Remove<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     q_hud: Query<(Entity, &FlightStatusHudTargetEntity), With<FlightStatusHudMarker>>,
 ) {
@@ -784,7 +784,7 @@ fn remove_hud_flight_status(
 }
 
 fn setup_hud_lock_dwell_ring(
-    add: On<Add, PlayerSpaceshipMarker>,
+    add: On<Add<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
     mut materials: ResMut<Assets<LockDwellRingMaterial>>,
@@ -801,7 +801,7 @@ fn setup_hud_lock_dwell_ring(
 }
 
 fn setup_hud_lock_crosshairs(
-    add: On<Add, PlayerSpaceshipMarker>,
+    add: On<Add<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
     assets: Res<NovaHudAssets>,
@@ -824,7 +824,7 @@ fn setup_hud_lock_crosshairs(
 /// The inset camera itself spawns/despawns with the lock the inset shows
 /// (`target_inset::drive_inset_camera`), not with the player.
 fn setup_hud_target_inset(
-    add: On<Add, PlayerSpaceshipMarker>,
+    add: On<Add<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
     mut images: ResMut<Assets<Image>>,
@@ -849,7 +849,7 @@ fn setup_hud_target_inset(
 }
 
 fn remove_hud_target_inset(
-    remove: On<Remove, PlayerSpaceshipMarker>,
+    remove: On<Remove<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     q_panel: Query<Entity, With<TargetInsetHudMarker>>,
     q_camera: Query<Entity, With<TargetInsetCameraMarker>>,
@@ -873,7 +873,7 @@ fn remove_hud_target_inset(
 }
 
 fn setup_hud_torpedo_target(
-    add: On<Add, PlayerSpaceshipMarker>,
+    add: On<Add<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
     assets: Res<NovaHudAssets>,

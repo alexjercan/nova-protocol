@@ -167,7 +167,7 @@ impl Plugin for WorldWatchPlugin {
         app.add_systems(Update, mark_observed.in_set(NovaWorldSystems::Observe));
         app.add_systems(Last, watch_world);
         app.add_observer(
-            |_: On<Add, TurretBulletProjectileMarker>, mut watch: ResMut<WorldWatch>| {
+            |_: On<Add<TurretBulletProjectileMarker>>, mut watch: ResMut<WorldWatch>| {
                 watch.rounds += 1;
             },
         );

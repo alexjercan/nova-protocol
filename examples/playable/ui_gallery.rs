@@ -461,12 +461,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .spawn((
             GalleryRoot,
             Node {
-                width: percent(100),
-                height: percent(100),
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::axes(px(20), px(12)),
                 row_gap: px(10),
-                ..default()
+                ..window_root()
             },
             BackgroundColor(Color::NONE),
             ThemedFill::new(UiColor::Void),

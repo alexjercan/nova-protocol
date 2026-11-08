@@ -14,6 +14,25 @@ const LIST_PANE_PERCENT: f32 = 40.0;
 /// modal, so a screen dims what it covers the same in both places.
 const OVERLAY_SCRIM_ALPHA: f32 = 0.6;
 
+/// The node of an in-flow UI root that fills its window. Spread it into the
+/// root's [`Node`]: `Node { flex_direction: ..., ..window_root() }`.
+///
+/// bevy_ui 0.20 lays each root out in an implicit grid cell, and taffy 0.14
+/// sizes that cell's track from the root's content. A root with only
+/// `height: percent(100)` then grows to the height of its content: a list
+/// longer than the window, even one inside a scroll pane, pushes the whole
+/// screen past the window edge. The zero minimum sizes keep the content out
+/// of the track size, so the root is the size of the window.
+pub fn window_root() -> Node {
+    Node {
+        width: percent(100),
+        height: percent(100),
+        min_width: px(0),
+        min_height: px(0),
+        ..default()
+    }
+}
+
 /// The full-screen overlay a menu screen spawns above the menu card: centered,
 /// a dimmed scrim that takes every pick aimed at what it covers, and stacked
 /// explicitly. It spawns hidden; a hidden node takes no pick.
@@ -33,11 +52,9 @@ pub fn overlay_root() -> impl Bundle {
             is_hoverable: false,
         },
         Node {
-            width: percent(100),
-            height: percent(100),
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
-            ..default()
+            ..window_root()
         },
         BackgroundColor(Color::BLACK.with_alpha(OVERLAY_SCRIM_ALPHA)),
         GlobalZIndex(MENU_PANEL_Z),

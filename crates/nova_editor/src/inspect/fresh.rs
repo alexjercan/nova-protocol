@@ -203,7 +203,10 @@ fn seeded(info: &'static TypeInfo) -> Option<Box<dyn PartialReflect>> {
             seed.get_represented_type_info()
                 .is_some_and(|held| held.type_id() == info.type_id())
         })
-        .map(|seed| seed.to_dynamic())
+        .map(|seed| {
+            seed.to_dynamic()
+                .expect("a palette seed is plain reflected data")
+        })
 }
 
 /// Every [`seeded`] start, built once: a walk asks on every frame the panel
@@ -216,7 +219,11 @@ fn seeds() -> &'static [Box<dyn PartialReflect>] {
             let stock = choice.stock().kind;
             if let ReflectRef::Enum(kind) = stock.reflect_ref() {
                 if let Some(payload) = kind.field_at(0) {
-                    seeds.push(payload.to_dynamic());
+                    seeds.push(
+                        payload
+                            .to_dynamic()
+                            .expect("a stock payload is plain reflected data"),
+                    );
                 }
             }
         }

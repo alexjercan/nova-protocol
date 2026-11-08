@@ -136,10 +136,10 @@ pub(crate) fn spawn_nova_os_moulding_seam(parent: &mut ChildSpawnerCommands) {
             right: Val::Px(5.0),
             border: UiRect::all(Val::Px(1.0)),
             border_radius: BorderRadius {
-                top_left: Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX - 4.0),
-                top_right: Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX - 4.0),
-                bottom_left: Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX - 4.0),
-                bottom_right: Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX - 4.0),
+                top_left: Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX - 4.0).into(),
+                top_right: Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX - 4.0).into(),
+                bottom_left: Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX - 4.0).into(),
+                bottom_right: Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX - 4.0).into(),
             },
             ..default()
         },

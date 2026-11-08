@@ -93,7 +93,7 @@ pub(super) fn on_damage_stamp_torpedo_credit(
 /// Confirm the player's kill when a credited hull is defeated: destroyed or
 /// neutralized, the one edge [`DefeatedMarker`] marks.
 pub(super) fn on_defeated_confirm_player_kill(
-    add: On<Add, DefeatedMarker>,
+    add: On<Add<DefeatedMarker>>,
     time: Res<Time<Virtual>>,
     mut q_credit: Query<(&mut TorpedoBlastCredit, &GlobalTransform)>,
     q_player: Query<(), With<PlayerSpaceshipMarker>>,
@@ -114,7 +114,7 @@ pub(super) fn on_defeated_confirm_player_kill(
 /// despawn of the same root, so a hull destroyed outright can lose it. A hull
 /// already defeated (a neutralized wreck finished off) is not a second kill.
 pub(super) fn on_destroyed_confirm_player_kill(
-    add: On<Add, IntegrityDestroyMarker>,
+    add: On<Add<IntegrityDestroyMarker>>,
     time: Res<Time<Virtual>>,
     q_ship: Query<(), (With<SpaceshipRootMarker>, Without<DefeatedMarker>)>,
     mut q_credit: Query<(&mut TorpedoBlastCredit, &GlobalTransform)>,

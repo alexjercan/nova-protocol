@@ -35,19 +35,19 @@ pub(super) fn hint_world() -> World {
     world.insert_resource(InputBindings::from_actions(flight_bindings()));
     world.spawn((
         Action::<AutopilotStopInput>::new(),
-        bindings![KeyCode::KeyX, GamepadButton::East],
+        related!(Bindings[Binding::from(KeyCode::KeyX), Binding::from(GamepadButton::East)]),
     ));
     world.spawn((
         Action::<AutopilotGotoInput>::new(),
-        bindings![KeyCode::KeyG, GamepadButton::North],
+        related!(Bindings[Binding::from(KeyCode::KeyG), Binding::from(GamepadButton::North)]),
     ));
     world.spawn((
         Action::<AutopilotOrbitInput>::new(),
-        bindings![KeyCode::KeyO, GamepadButton::South],
+        related!(Bindings[Binding::from(KeyCode::KeyO), Binding::from(GamepadButton::South)]),
     ));
     world.spawn((
         Action::<AutopilotOffInput>::new(),
-        bindings![KeyCode::KeyZ, GamepadButton::West],
+        related!(Bindings[Binding::from(KeyCode::KeyZ), Binding::from(GamepadButton::West)]),
     ));
     world
 }

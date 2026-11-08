@@ -6,7 +6,7 @@ use bevy::{
         keyboard::{Key, KeyboardInput},
         ButtonState,
     },
-    picking::{events::Press, hover::Hovered, pointer::PointerButton, prelude::Pointer},
+    picking::{hover::Hovered, pointer::PointerButton},
     prelude::*,
     ui_widgets::Button,
 };
@@ -265,7 +265,7 @@ fn caret_for_pointer(
 }
 
 pub(super) fn text_field_on_pointer(
-    press: On<Pointer<Press>>,
+    press: On<PointerPress>,
     mut commands: Commands,
     q_parent: Query<&ChildOf>,
     q_fields: Query<
@@ -318,7 +318,7 @@ pub(super) fn text_field_on_pointer(
         &value.0,
         node,
         transform,
-        press.pointer_location.position.x,
+        press.pointer.position.x,
         config.tool,
     );
     commands.entity(entity).insert(TextFieldFocused {

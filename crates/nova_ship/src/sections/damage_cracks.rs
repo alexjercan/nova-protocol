@@ -135,7 +135,7 @@ impl SectionCracksMaterialExt {
 
 impl MaterialExtension for SectionCracksMaterialExt {
     fn fragment_shader() -> ShaderRef {
-        "shaders/section_cracks.wgsl".into()
+        "shaders/section_cracks.wesl".into()
     }
 }
 

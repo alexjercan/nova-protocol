@@ -755,7 +755,7 @@ fn count_shots(_: On<RailgunFired>, mut probe: ResMut<LanceProbe>) {
 /// Latch the frame the block crossed the threshold.
 #[cfg(feature = "debug")]
 fn note_collapse(
-    add: On<Add, StructuralCollapseMarker>,
+    add: On<Add<StructuralCollapseMarker>>,
     q_id: Query<&EntityId>,
     mut probe: ResMut<LanceProbe>,
 ) {

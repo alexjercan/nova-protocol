@@ -9,7 +9,7 @@ description = "Offline content authoring and validation for Nova Protocol"
 [dependencies]
 # Only bevy's math/reflect-level types reach this crate (Vec3, the config
 # derives): the authoring toolchain never builds an App.
-bevy = { version = "0.19.0" }
+bevy = { version = "0.20.1" }
 # The builders serialize the code-built configs to RON; the walk parses bundle
 # manifests and content files back. serde carries balance_acks.ron's derive.
 ron = { version = "0.12" }
@@ -45,8 +45,8 @@ nova_world_base = { path = "../nova_world_base" }
 # The two scenario walk-through tests drive real content through the scenario
 # runtime and read its emitted events, so they build a real App with physics
 # and the seeded RNG the scenario systems expect.
-avian3d = { version = "0.7" }
-bevy_rand = { version = "0.15.0", default-features = false, features = [
+avian3d = { version = "0.8.0" }
+bevy_rand = { version = "0.16.0", default-features = false, features = [
     "wyrand",
 ] }
 # The beat walks fire events by hand, so they need `test_support` to run the rig

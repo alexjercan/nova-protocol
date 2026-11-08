@@ -155,7 +155,7 @@ struct DestructionTally {
 
 /// Count a destroyed node for the frame summary.
 fn tally_a_destroyed_node(
-    add: On<Add, IntegrityDestroyMarker>,
+    add: On<Add<IntegrityDestroyMarker>>,
     mut tally: ResMut<DestructionTally>,
     q_destroyed: Query<Option<&EntityTypeName>, With<IntegrityDestroyMarker>>,
 ) {
@@ -216,7 +216,7 @@ fn report_destruction_tally(mut tally: ResMut<DestructionTally>) {
 /// Opt a health-bearing collider into collision events, so impacts against it
 /// are reported at all.
 fn on_collider_of_spawn_insert_collision_events(
-    add: On<Add, ColliderOf>,
+    add: On<Add<ColliderOf>>,
     mut commands: Commands,
     q_collider: Query<Entity, (With<ColliderOf>, With<Health>)>,
 ) {
@@ -369,7 +369,7 @@ pub fn impact_damage(impulse: f32, energy: f32, absorbed_energy: f32) -> f32 {
 /// canister, is left to its owner: its owner may despawn it in the same flush,
 /// and a queued insert would then panic.
 fn on_health_depleted_insert_disabled(
-    add: On<Add, HealthZeroMarker>,
+    add: On<Add<HealthZeroMarker>>,
     mut commands: Commands,
     q_nodes: Query<(), Or<(With<ConnectedTo>, With<IntegrityRoot>, With<SectionMarker>)>>,
 ) {
@@ -383,7 +383,7 @@ fn on_health_depleted_insert_disabled(
 
 /// Destroy a node that is disabled while ALREADY a leaf.
 fn destroy_a_disabled_leaf(
-    add: On<Add, IntegrityDisabledMarker>,
+    add: On<Add<IntegrityDisabledMarker>>,
     mut commands: Commands,
     q_disabled: Query<(), (With<IntegrityDisabledMarker>, With<IntegrityLeafMarker>)>,
 ) {
@@ -398,7 +398,7 @@ fn destroy_a_disabled_leaf(
 /// Destroy an already-disabled node that has just BECOME a leaf - the chain
 /// reaction.
 fn destroy_a_disabled_node_that_became_a_leaf(
-    add: On<Add, IntegrityLeafMarker>,
+    add: On<Add<IntegrityLeafMarker>>,
     mut commands: Commands,
     q_destroyed: Query<(), (With<IntegrityDisabledMarker>, With<IntegrityLeafMarker>)>,
 ) {
@@ -416,7 +416,7 @@ fn destroy_a_disabled_node_that_became_a_leaf(
 /// Destroy a disabled [`IntegrityRoot`] outright: the whole structure dies with
 /// its root, leaf or not.
 fn destroy_the_structure_of_a_disabled_root(
-    add: On<Add, IntegrityDisabledMarker>,
+    add: On<Add<IntegrityDisabledMarker>>,
     mut commands: Commands,
     q_destroyed: Query<(), (With<IntegrityDisabledMarker>, With<IntegrityRoot>)>,
 ) {
@@ -437,7 +437,7 @@ fn destroy_the_structure_of_a_disabled_root(
 /// sound. A neighbour destroyed in the same frame is skipped, which is harmless:
 /// it is going away anyway.
 fn prune_a_destroyed_node_from_its_neighbours(
-    add: On<Add, IntegrityDestroyMarker>,
+    add: On<Add<IntegrityDestroyMarker>>,
     q_destroyed: Query<&ConnectedTo, With<IntegrityDestroyMarker>>,
     mut q_neighbors: Query<&mut ConnectedTo, Without<IntegrityDestroyMarker>>,
 ) {

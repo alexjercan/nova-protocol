@@ -182,7 +182,7 @@ fn on_damage(
 /// half; the destruction behaviour is the other half - add
 /// [`ConnectedTo`](super::components::ConnectedTo), mark the body
 /// [`IntegrityRoot`](super::components::IntegrityRoot), and react to
-/// `On<Add, IntegrityDestroyMarker>`.
+/// `On<Add<IntegrityDestroyMarker>>`.
 pub fn destructible_body(health: f32, density: f32) -> impl Bundle {
     (
         Health::new(health),

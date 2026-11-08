@@ -809,7 +809,7 @@ mod tests {
                 .unwrap()
                 .border_radius
                 .top_left,
-            px(hardware().toggle().radius),
+            CornerRadius::from(px(hardware().toggle().radius)),
             "the toggle took the hardware pill corner"
         );
     }

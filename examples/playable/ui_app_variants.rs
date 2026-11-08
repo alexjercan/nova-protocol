@@ -2524,7 +2524,7 @@ fn pan_map(
 /// selection, but here selection is a click on a blip, and a drag that starts
 /// on a blip belongs to the blip. Picking reports logical pixels, the
 /// interface physical ones, so the rates match at a scale factor of 1.
-fn orbit_drag<C: Component>(drag: On<Pointer<Drag>>, mut orbit: Query<&mut SketchOrbit, With<C>>) {
+fn orbit_drag<C: Component>(drag: On<PointerDrag>, mut orbit: Query<&mut SketchOrbit, With<C>>) {
     if drag.original_event_target() != drag.entity {
         return;
     }
@@ -2543,7 +2543,7 @@ fn orbit_drag<C: Component>(drag: On<Pointer<Drag>>, mut orbit: Query<&mut Sketc
 /// Zoom the map by the wheel, out to what the live scene needs, as the
 /// interface does.
 fn zoom_map(
-    scroll: On<Pointer<Scroll>>,
+    scroll: On<PointerScroll>,
     contacts: MapContacts,
     mut orbit: Query<&mut SketchOrbit, With<MapCamera>>,
 ) {
@@ -2555,7 +2555,7 @@ fn zoom_map(
 }
 
 /// Zoom the ship by the wheel, within the interface reach of a hull.
-fn zoom_ship(scroll: On<Pointer<Scroll>>, mut orbit: Query<&mut SketchOrbit, With<ShipCamera>>) {
+fn zoom_ship(scroll: On<PointerScroll>, mut orbit: Query<&mut SketchOrbit, With<ShipCamera>>) {
     let Ok(mut orbit) = orbit.single_mut() else {
         return;
     };
@@ -4460,7 +4460,7 @@ fn mark_cargo_rows(
     reason = "the row, the state the deal reads and the cue it plays"
 )]
 fn inspect_row(
-    click: On<Pointer<Click>>,
+    click: On<PointerClick>,
     rows: Query<&CargoRow>,
     fixture: Res<SketchFixture>,
     context: Res<SketchContext>,
@@ -4848,7 +4848,7 @@ fn draft_stock(fixture: &SketchFixture, open: DealDraft) -> u32 {
 /// Step the open confirmation's quantity by one per wheel event over the
 /// quantity row, between one and what the source store holds.
 fn wheel_draft(
-    scroll: On<Pointer<Scroll>>,
+    scroll: On<PointerScroll>,
     fixture: Res<SketchFixture>,
     bank: Option<Res<SoundBank<UiSfx>>>,
     mut commands: Commands,

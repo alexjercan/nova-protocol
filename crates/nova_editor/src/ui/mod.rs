@@ -55,8 +55,9 @@ use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{
         button, key_chip, panel, scroll_bar, scroll_column, scroll_row, scroll_viewport, separator,
-        tab, tab_strip, text_field, tree_row, ButtonSpec, DoubleClick, IconButtonArmed,
-        IconButtonType, InputMode, TextFieldSpec, TextFieldValue, Tooltip, TreeRowSpec, UiText,
+        tab, tab_strip, text_field, tree_row, window_root, ButtonSpec, DoubleClick,
+        IconButtonArmed, IconButtonType, InputMode, TextFieldSpec, TextFieldValue, Tooltip,
+        TreeRowSpec, UiText,
     },
     theme,
     theme::{density, ActiveUiTheme, UiColor},
@@ -634,11 +635,9 @@ pub(crate) fn setup_editor_scene(
                 is_hoverable: false,
             },
             Node {
-                width: percent(100),
-                height: percent(100),
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Stretch,
-                ..default()
+                ..window_root()
             },
         ))
         .with_children(|root| {

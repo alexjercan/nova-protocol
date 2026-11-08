@@ -69,7 +69,7 @@ impl Plugin for SphereOrbitPlugin {
 
 /// Initialize orbit state and next target angles
 fn initialize_sphere_orbit_system(
-    insert: On<Insert, SphereOrbit>,
+    insert: On<Insert<SphereOrbit>>,
     mut commands: Commands,
     q_orbit: Query<&SphereOrbit, With<SphereOrbit>>,
 ) {

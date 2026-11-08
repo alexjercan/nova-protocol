@@ -31,7 +31,7 @@ use nova_scenario::prelude::{
     ScenarioStartFailure, ScenarioStartFailureReport, UnloadScenario,
 };
 use nova_ui::{
-    prelude::PAUSE_Z,
+    prelude::{window_root, PAUSE_Z},
     theme,
     theme::UiColor,
     widget::{panel, ButtonVariant, ThemedRadius, ThemedText, UiText},
@@ -81,7 +81,7 @@ pub(crate) fn begin_leave(
         LeaveTarget::Menu | LeaveTarget::Exit => {}
         LeaveTarget::Retry => session.stop_saving(),
     }
-    pause.set_if_neq(PauseStates::Paused);
+    pause.set_if_different(PauseStates::Paused);
     commands.insert_resource(PendingLeave { target });
 }
 
@@ -251,11 +251,9 @@ pub(crate) fn sync_leave_overlay(
                 is_hoverable: false,
             },
             Node {
-                width: percent(100),
-                height: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                ..default()
+                ..window_root()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
             GlobalZIndex(PAUSE_Z),

@@ -120,21 +120,21 @@ pub(crate) fn history_app() -> App {
 
 /// Let go of a drag on `target`, the way the picking layer reports it.
 pub(crate) fn end_drag(app: &mut App, target: Entity) {
-    app.world_mut().trigger(Pointer::new(
-        PointerId::Mouse,
-        Location {
-            target: NormalizedRenderTarget::Image(ImageRenderTarget {
-                handle: Handle::default(),
-                scale_factor: 1.0,
-            }),
-            position: Vec2::ZERO,
-        },
-        DragEnd {
-            button: PointerButton::Primary,
-            distance: Vec2::ZERO,
-        },
-        target,
-    ));
+    app.world_mut().trigger(PointerDragEnd {
+        entity: target,
+        pointer: Pointer::new(
+            PointerId::Mouse,
+            Location {
+                target: NormalizedRenderTarget::Image(ImageRenderTarget {
+                    handle: Handle::default(),
+                    scale_factor: 1.0,
+                }),
+                position: Vec2::ZERO,
+            },
+        ),
+        button: PointerButton::Primary,
+        distance: Vec2::ZERO,
+    });
     app.update();
 }
 

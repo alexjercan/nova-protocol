@@ -474,7 +474,7 @@ fn sync_velocity_palette(
 }
 
 fn insert_velocity_hud_indicator_system(
-    add: On<Add, VelocityHudMarker>,
+    add: On<Add<VelocityHudMarker>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut direction_materials: ResMut<
@@ -542,16 +542,16 @@ impl DirectionMagnitudeMaterial {
 
 impl MaterialExtension for DirectionMagnitudeMaterial {
     fn vertex_shader() -> ShaderRef {
-        "shaders/directional_magnitude.wgsl".into()
+        "shaders/directional_magnitude.wesl".into()
     }
 
     fn fragment_shader() -> ShaderRef {
-        "shaders/directional_magnitude.wgsl".into()
+        "shaders/directional_magnitude.wesl".into()
     }
 }
 
 fn insert_velocity_hud_sphere_system(
-    add: On<Add, VelocityHudMarker>,
+    add: On<Add<VelocityHudMarker>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut direction_materials: ResMut<
@@ -639,7 +639,7 @@ impl DirectionSphereMaterial {
 
 impl MaterialExtension for DirectionSphereMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/directional_sphere.wgsl".into()
+        "shaders/directional_sphere.wesl".into()
     }
 }
 

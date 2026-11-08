@@ -228,7 +228,7 @@ pub fn anchored_chip_chevron<B: Bundle + Clone>(
 /// the layers aimed at the entity that left come down, so a sibling chip of the
 /// same family survives.
 pub fn despawn_anchored_chips<Tag: Component, Layer: Component>(
-    remove: On<Remove, Tag>,
+    remove: On<Remove<Tag>>,
     mut commands: Commands,
     q_chips: Query<(Entity, &AnchoredChipTarget), With<Layer>>,
 ) {

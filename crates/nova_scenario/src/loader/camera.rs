@@ -269,7 +269,7 @@ pub(super) fn enforce_scripted_camera_pose(
 /// spelled `remove::<ScriptedCameraPose>()` wherever a script hands the camera
 /// back, so the pair is kept honest here rather than at each of those.
 pub(super) fn drop_scripted_camera_transform(
-    remove: On<Remove, ScriptedCameraPose>,
+    remove: On<Remove<ScriptedCameraPose>>,
     mut commands: Commands,
     q_anchor: Query<(), With<ScriptedCameraAnchor>>,
 ) {
@@ -282,7 +282,7 @@ pub(super) fn drop_scripted_camera_transform(
 
 /// The same release for an anchored pose.
 pub(super) fn drop_scripted_camera_anchor(
-    remove: On<Remove, ScriptedCameraAnchor>,
+    remove: On<Remove<ScriptedCameraAnchor>>,
     mut commands: Commands,
     q_pose: Query<(), With<ScriptedCameraPose>>,
 ) {

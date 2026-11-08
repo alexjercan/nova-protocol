@@ -235,7 +235,7 @@ The monitor is a physical one - a NOVACRT 9000, per its brand plate - and its ch
 <summary>Show explanation</summary>
 
 <!-- CRT composite + pointer forwarding: crates/nova_interface/src/terminal/crt.rs.
-     Shader physics: assets/shaders/nova_os_crt.wgsl (hum bar, mains flicker,
+     Shader physics: assets/shaders/nova_os_crt.wesl (hum bar, mains flicker,
      retrace beam, power collapse, degauss). Casing detail: terminal/casing.rs.
      Sounds: terminal/sound.rs, crates/nova_gameplay/src/audio/mod.rs. -->
 

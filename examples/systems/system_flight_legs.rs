@@ -588,7 +588,7 @@ struct Lane {
 /// respawn land in ONE flush, so there is no frame in which a poll could see
 /// the lane empty and know the replacement had begun.
 #[cfg(feature = "debug")]
-fn note_the_hull(add: On<Add, PlayerSpaceshipMarker>, mut legs: ResMut<Legs>) {
+fn note_the_hull(add: On<Add<PlayerSpaceshipMarker>>, mut legs: ResMut<Legs>) {
     legs.ship = Some(add.entity);
 }
 
@@ -600,7 +600,7 @@ fn note_the_hull(add: On<Add, PlayerSpaceshipMarker>, mut legs: ResMut<Legs>) {
 /// scenario layer for the one frame it exists.
 #[cfg(feature = "debug")]
 fn note_a_completion(
-    add: On<Add, PlayerAutopilotCompleted>,
+    add: On<Add<PlayerAutopilotCompleted>>,
     q_completed: Query<&PlayerAutopilotCompleted>,
     mut legs: ResMut<Legs>,
 ) {

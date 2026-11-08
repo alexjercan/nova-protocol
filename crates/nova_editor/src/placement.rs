@@ -1028,7 +1028,7 @@ fn pick(selected: &mut SelectedNode, stage: &mut StageDrag, node: Entity, toggle
 
 /// A press on a group member that never became a drag was a click on that node.
 pub(crate) fn on_stage_release(
-    release: On<Pointer<Release>>,
+    release: On<PointerRelease>,
     mut stage: ResMut<StageDrag>,
     mut selected: ResMut<SelectedNode>,
 ) {
@@ -1053,7 +1053,7 @@ pub(crate) fn on_stage_release(
     reason = "one click routes to select, place or delete"
 )]
 pub(crate) fn on_click_spaceship_section(
-    click: On<Pointer<Press>>,
+    click: On<PointerPress>,
     mut commands: Commands,
     mut cues: EditorCues,
     context: Res<EditContext>,
@@ -1276,7 +1276,7 @@ fn staged_node_of_view(
 /// belongs to the build tools, and mating is the rule in there - free-dragging
 /// parts would build hulls the runtime's integrity graph rejects.
 pub(crate) fn on_stage_drag_start(
-    drag: On<Pointer<DragStart>>,
+    drag: On<PointerDragStart>,
     context: Res<EditContext>,
     selection: Res<HeldPart>,
     keys: Option<Res<ButtonInput<KeyCode>>>,
@@ -1313,7 +1313,7 @@ pub(crate) fn on_stage_drag_start(
     let Some(grab) = pointer_ground_hit(
         camera,
         camera_pose,
-        drag.pointer_location.position,
+        drag.pointer.position,
         transform.translation.y,
     ) else {
         return;
@@ -1339,7 +1339,7 @@ pub(crate) fn on_stage_drag_start(
 /// The plane height is the node's own, so the drag never changes altitude:
 /// position on the stage is a layout choice, the Y axis is not.
 pub(crate) fn on_stage_drag(
-    drag: On<Pointer<Drag>>,
+    drag: On<PointerDrag>,
     camera: Option<Single<(&Camera, &GlobalTransform), With<crate::config::EditorCamera>>>,
     keys: Option<Res<ButtonInput<KeyCode>>>,
     tool: Res<StageTool>,
@@ -1359,7 +1359,7 @@ pub(crate) fn on_stage_drag(
     let Some(hit) = pointer_ground_hit(
         camera,
         camera_pose,
-        drag.pointer_location.position,
+        drag.pointer.position,
         transform.translation.y,
     ) else {
         return;
@@ -1383,7 +1383,7 @@ pub(crate) fn on_stage_drag(
 /// Let go - of the button that grabbed. Any-button matching here let an RMB
 /// camera-orbit release drop an LMB drag mid-gesture.
 pub(crate) fn on_stage_drag_end(
-    drag: On<Pointer<DragEnd>>,
+    drag: On<PointerDragEnd>,
     mut commands: Commands,
     mut state: ResMut<StageDrag>,
 ) {
@@ -2104,19 +2104,19 @@ mod tests {
                 .expect("a named window normalizes"),
         );
         let press = |app: &mut App| {
-            app.world_mut().trigger(Pointer::new(
-                PointerId::Mouse,
-                Location {
-                    target: target.clone(),
-                    position: Vec2::ZERO,
-                },
-                Press {
-                    button: PointerButton::Primary,
-                    hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
-                    count: 1,
-                },
-                view,
-            ));
+            app.world_mut().trigger(PointerPress {
+                entity: view,
+                pointer: Pointer::new(
+                    PointerId::Mouse,
+                    Location {
+                        target: target.clone(),
+                        position: Vec2::ZERO,
+                    },
+                ),
+                button: PointerButton::Primary,
+                hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+                count: 1,
+            });
             app.update();
         };
 
@@ -2204,22 +2204,22 @@ mod tests {
         app.world_mut().resource_mut::<EditContext>().enter(ship);
 
         let window = app.world_mut().spawn(Window::default()).id();
-        app.world_mut().trigger(Pointer::new(
-            PointerId::Mouse,
-            Location {
-                target: NormalizedRenderTarget::Window(
-                    WindowRef::Entity(window)
-                        .normalize(None)
-                        .expect("a window target"),
-                ),
-                position: Vec2::ZERO,
-            },
-            DragStart {
-                button: PointerButton::Primary,
-                hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
-            },
-            view,
-        ));
+        app.world_mut().trigger(PointerDragStart {
+            entity: view,
+            pointer: Pointer::new(
+                PointerId::Mouse,
+                Location {
+                    target: NormalizedRenderTarget::Window(
+                        WindowRef::Entity(window)
+                            .normalize(None)
+                            .expect("a window target"),
+                    ),
+                    position: Vec2::ZERO,
+                },
+            ),
+            button: PointerButton::Primary,
+            hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+        });
         app.update();
 
         assert_eq!(
@@ -2537,19 +2537,19 @@ mod tests {
                 .normalize(None)
                 .expect("a named window normalizes"),
         );
-        app.world_mut().trigger(Pointer::new(
-            PointerId::Mouse,
-            Location {
-                target,
-                position: Vec2::ZERO,
-            },
-            Press {
-                button: PointerButton::Primary,
-                hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
-                count: 1,
-            },
-            view,
-        ));
+        app.world_mut().trigger(PointerPress {
+            entity: view,
+            pointer: Pointer::new(
+                PointerId::Mouse,
+                Location {
+                    target,
+                    position: Vec2::ZERO,
+                },
+            ),
+            button: PointerButton::Primary,
+            hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+            count: 1,
+        });
         app.update();
 
         let sections_on_ship = app

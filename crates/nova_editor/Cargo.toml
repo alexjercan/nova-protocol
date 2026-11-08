@@ -7,7 +7,7 @@ publish = false
 description = "Spaceship editor scene for the Nova Protocol game"
 
 [dependencies]
-avian3d = { version = "0.7" }
+avian3d = { version = "0.8.0" }
 # `reflect_documentation` carries every reflected field's and variant's own
 # doc comment into the type registry. The inspector reads them as its
 # tooltips, so the panel explains a field from the same sentence the config
@@ -17,8 +17,8 @@ avian3d = { version = "0.7" }
 # `system_clipboard` puts Copy in the Log and Problems tabs and Copy Path on the
 # OS clipboard. Without it bevy's `Clipboard` is a buffer inside the process,
 # and a copy would say it worked while nothing left the game.
-bevy = { version = "0.19.0", features = ["reflect_documentation", "system_clipboard"] }
-bevy_enhanced_input = { version = "0.26.0" }
+bevy = { version = "0.20.1", features = ["reflect_documentation", "system_clipboard"] }
+bevy_enhanced_input = { version = "0.27.2" }
 rand = { version = "0.10.2" }
 nova_input = { path = "../nova_input" }
 nova_assets = { path = "../nova_assets" }

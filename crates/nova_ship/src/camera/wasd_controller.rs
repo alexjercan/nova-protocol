@@ -86,7 +86,7 @@ impl Plugin for WASDCameraControllerPlugin {
 /// framing, the gallery's park and a scripted scenario pose make. A camera that
 /// carries none gets the stock profile and keeps it from then on.
 fn setup_wasd_camera(
-    insert: On<Insert, WASDCameraController>,
+    insert: On<Insert<WASDCameraController>>,
     mut commands: Commands,
     q_profile: Query<&WASDCameraProfile>,
 ) {
@@ -101,14 +101,27 @@ fn setup_wasd_camera(
         profile.0,
         WASDCameraLookEnabled(false),
         WASDCameraInputMarker,
-        actions!(
-            WASDCameraInputMarker[
+        related!(
+            Actions<WASDCameraInputMarker>[
                 (
                     Name::new("Input: WASD Camera Move"),
                     Action::<WASDCameraInputMove>::new(),
                     Bindings::spawn((
-                        Cardinal::wasd_keys().with(Scale::splat(1.0)),
-                        Axial::left_stick().with(Scale::splat(1.0)),
+                        Spawn((Binding::from(KeyCode::KeyD), Scale::splat(1.0))),
+                        Spawn((Binding::from(KeyCode::KeyA), Negate::all(), Scale::splat(1.0))),
+                        Spawn((Binding::from(KeyCode::KeyW), SwizzleAxis::YXZ, Scale::splat(1.0))),
+                        Spawn((
+                            Binding::from(KeyCode::KeyS),
+                            Negate::all(),
+                            SwizzleAxis::YXZ,
+                            Scale::splat(1.0),
+                        )),
+                        Spawn((Binding::from(GamepadAxis::LeftStickX), Scale::splat(1.0))),
+                        Spawn((
+                            Binding::from(GamepadAxis::LeftStickY),
+                            SwizzleAxis::YXZ,
+                            Scale::splat(1.0),
+                        )),
                     )),
                 ),
                 (
@@ -120,22 +133,30 @@ fn setup_wasd_camera(
                             mouse_sensitivity(MousePath::FreeCamera),
                             Negate::none(),
                         )),
-                        Axial::right_stick().with((Scale::splat(1.0), Negate::none())),
+                        Spawn((
+                            Binding::from(GamepadAxis::RightStickX),
+                            Scale::splat(1.0),
+                            Negate::none(),
+                        )),
+                        Spawn((
+                            Binding::from(GamepadAxis::RightStickY),
+                            SwizzleAxis::YXZ,
+                            Scale::splat(1.0),
+                            Negate::none(),
+                        )),
                     )),
                 ),
                 (
                     Name::new("Input: WASD Camera Enable Look"),
                     Action::<WASDCameraInputEnableLook>::new(),
-                    bindings![MouseButton::Right],
+                    related!(Bindings[Binding::from(MouseButton::Right)]),
                 ),
                 (
                     Name::new("Input: WASD Camera Vertical"),
                     Action::<WASDCameraInputVertical>::new(),
                     Bindings::spawn((
-                        Bidirectional::<Binding, Binding> {
-                            positive: KeyCode::Space.into(),
-                            negative: KeyCode::ShiftLeft.into(),
-                        },
+                        Spawn(Binding::from(KeyCode::Space)),
+                        Spawn((Binding::from(KeyCode::ShiftLeft), Negate::all())),
                     )),
                 ),
             ]
@@ -149,7 +170,7 @@ fn setup_wasd_camera(
 /// [`WASDCameraProfile`] deliberately SURVIVES: it is the settings, and the rig
 /// coming off is not the camera changing its mind about them.
 fn destroy_wasd_camera(
-    remove: On<Remove, WASDCameraController>,
+    remove: On<Remove<WASDCameraController>>,
     mut commands: Commands,
     q_camera: Query<&WASDCamera>,
 ) {

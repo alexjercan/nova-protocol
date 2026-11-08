@@ -123,7 +123,7 @@ fn main() -> bevy::app::AppExit {
         // when this round left?" has an answer is the frame the round was
         // born.
         app.add_observer(
-            |_: On<Add, TurretBulletProjectileMarker>,
+            |_: On<Add<TurretBulletProjectileMarker>>,
              mut outcome: ResMut<RangeOutcome>,
              mut stow_log: ResMut<StowLog>,
              q_stow: Query<&TurretStow, With<TurretSectionMarker>>| {
@@ -425,7 +425,7 @@ fn turret_range(game_assets: &GameAssets, sections: &GameSections, id: &str) -> 
 /// still a range TARGET, which is what invariant 2 observes - see
 /// [`RangeBackstopMarker`].
 fn tag_gate(
-    add: On<Add, (AsteroidMarker, PlanetMarker)>,
+    add: On<Add<(AsteroidMarker, PlanetMarker)>>,
     mut commands: Commands,
     q_id: Query<&EntityId>,
 ) {

@@ -242,7 +242,7 @@ impl DockCorridors<'_, '_> {
             .flat_map(|(collider, pose)| {
                 // The shape's own box, so a cuboid section is measured
                 // exactly; avian has already scaled the shape.
-                let local = collider.aabb(Vec3::ZERO, Quat::IDENTITY);
+                let local = collider.aabb(Vec3::ZERO, Quat::IDENTITY, 0.0);
                 let (min, max) = (local.min, local.max);
                 (0..8).map(move |corner: u8| {
                     let point = Vec3::new(
@@ -250,7 +250,7 @@ impl DockCorridors<'_, '_> {
                         if corner & 2 == 0 { min.y } else { max.y },
                         if corner & 4 == 0 { min.z } else { max.z },
                     );
-                    position + rotation * (pose.translation + pose.rotation.0 * point)
+                    position + rotation * (pose.translation + pose.rotation * point)
                 })
             });
         PortEnvelope::measure(

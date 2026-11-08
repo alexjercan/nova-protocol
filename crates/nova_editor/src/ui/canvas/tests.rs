@@ -518,22 +518,22 @@ fn a_press_inside_a_text_field_does_not_start_a_block_drag() {
         .spawn((ChildOf(block), text_field(TextFieldSpec::new("10"))))
         .id();
 
-    app.world_mut().trigger(Pointer::new(
-        PointerId::Mouse,
-        Location {
-            target: NormalizedRenderTarget::Image(ImageRenderTarget {
-                handle: Handle::default(),
-                scale_factor: 1.0,
-            }),
-            position: Vec2::ZERO,
-        },
-        Press {
-            button: PointerButton::Primary,
-            hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
-            count: 1,
-        },
-        field,
-    ));
+    app.world_mut().trigger(PointerPress {
+        entity: field,
+        pointer: Pointer::new(
+            PointerId::Mouse,
+            Location {
+                target: NormalizedRenderTarget::Image(ImageRenderTarget {
+                    handle: Handle::default(),
+                    scale_factor: 1.0,
+                }),
+                position: Vec2::ZERO,
+            },
+        ),
+        button: PointerButton::Primary,
+        hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+        count: 1,
+    });
     app.update();
 
     assert!(!app.world().resource::<CanvasDrag>().busy());

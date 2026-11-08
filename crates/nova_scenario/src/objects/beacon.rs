@@ -152,7 +152,7 @@ impl Plugin for BeaconPlugin {
 /// sensor sphere + [`ScenarioAreaMarker`], so the area plugin wires the
 /// collision events and `OnEnter` fires under the beacon's id.
 fn insert_beacon_area(
-    add: On<Add, BeaconMarker>,
+    add: On<Add<BeaconMarker>>,
     mut commands: Commands,
     q_beacon: Query<&BeaconAreaRadius, With<BeaconMarker>>,
 ) {
@@ -173,7 +173,7 @@ fn insert_beacon_area(
 /// carrying the blink driver. A child (not the root) so the trigger
 /// collider on the root keeps its own radius.
 fn insert_beacon_render(
-    add: On<Add, BeaconMarker>,
+    add: On<Add<BeaconMarker>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,

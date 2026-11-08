@@ -408,7 +408,7 @@ fn alpha_gradient(colour: Color) -> BackgroundGradient {
 }
 
 /// A press picks where it lands.
-fn on_pick_press(press: On<Pointer<Press>>, mut commands: Commands) {
+fn on_pick_press(press: On<PointerPress>, mut commands: Commands) {
     if press.button != PointerButton::Primary {
         return;
     }
@@ -423,7 +423,7 @@ fn on_pick_press(press: On<Pointer<Press>>, mut commands: Commands) {
 /// A drag picks where the pointer is, inside the area or not: a pick held past
 /// the edge stays on the edge.
 fn on_pick_drag(
-    drag: On<Pointer<Drag>>,
+    drag: On<PointerDrag>,
     mut commands: Commands,
     areas: Query<(&ComputedNode, &UiGlobalTransform)>,
 ) {
@@ -437,14 +437,14 @@ fn on_pick_drag(
     if size.x <= 0.0 || size.y <= 0.0 {
         return;
     }
-    let physical = drag.pointer_location.position / node.inverse_scale_factor;
+    let physical = drag.pointer.position / node.inverse_scale_factor;
     let at = transform.inverse().transform_point2(physical) / size + Vec2::splat(0.5);
     let area = drag.entity;
     commands.queue(move |world: &mut World| pick_at(world, area, at));
 }
 
 /// A drag's end settles it.
-fn on_pick_drag_end(end: On<Pointer<DragEnd>>, mut commands: Commands, areas: Query<&PickArea>) {
+fn on_pick_drag_end(end: On<PointerDragEnd>, mut commands: Commands, areas: Query<&PickArea>) {
     if let Ok(area) = areas.get(end.entity) {
         let window = area.window;
         commands.queue(move |world: &mut World| settle(world, window));
@@ -452,7 +452,7 @@ fn on_pick_drag_end(end: On<Pointer<DragEnd>>, mut commands: Commands, areas: Qu
 }
 
 /// A press that never dragged settles on its release.
-fn on_pick_release(release: On<Pointer<Release>>, mut commands: Commands, areas: Query<&PickArea>) {
+fn on_pick_release(release: On<PointerRelease>, mut commands: Commands, areas: Query<&PickArea>) {
     if let Ok(area) = areas.get(release.entity) {
         let window = area.window;
         commands.queue(move |world: &mut World| settle(world, window));
@@ -504,7 +504,7 @@ fn settle_field(world: &mut World, label: String, since: Option<u64>) {
 /// A picker that closes - by its button, by its swatch, by the row going -
 /// settles what it picked.
 pub(crate) fn settle_on_close(
-    remove: On<Remove, ColourWindow>,
+    remove: On<Remove<ColourWindow>>,
     mut commands: Commands,
     windows: Query<&ColourWindow>,
 ) {

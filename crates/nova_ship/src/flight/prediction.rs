@@ -5,7 +5,7 @@
 //! one fixed tick at a time: [`autopilot_step`], then [`step_flight_body`],
 //! which applies the RCS push, the PD torque, the dominant-well pull and the
 //! thruster impulses the live systems apply, and integrates them the way avian
-//! 0.7 does. A GOTO target flies with it as a [`BallisticTarget`]: as avian
+//! 0.8 does. A GOTO target flies with it as a [`BallisticTarget`]: as avian
 //! moves and turns a body with no input. The predicted centre of mass
 //! therefore matches the flown one for as long as the world the run froze at
 //! its seed holds. Each live tick checks the target against the same coast and
@@ -397,7 +397,7 @@ pub(super) fn step_flight_body(
         Rotation(body.rotation).mul_vec3(body.local_center_of_mass) + body.position;
 }
 
-/// avian 0.7's `pre_process_velocity_increments` with no damping, gravity
+/// avian 0.8's `pre_process_velocity_increments` with no damping, gravity
 /// scale or locked axes, `integrate_velocities` and `integrate_positions` for
 /// each of `substeps` (count, substep duration), then
 /// `writeback_solver_bodies`. The increments are accelerations; `avian_gravity`
@@ -412,12 +412,11 @@ fn integrate_avian_substeps(
     (substep_count, substep): (u32, Duration),
     avian_gravity: Vec3,
 ) {
-    let substep_secs_f64 = substep.as_secs_f64() as f32;
     let substep_secs = substep.as_secs_f32();
-    let damping = 1.0 / (1.0 + substep_secs_f64 * 0.0);
+    let damping = 1.0 / (1.0 + substep_secs * 0.0);
     linear_increment += avian_gravity * 1.0;
-    linear_increment *= substep_secs_f64;
-    angular_increment *= substep_secs_f64;
+    linear_increment *= substep_secs;
+    angular_increment *= substep_secs;
     let gyroscopic = !angular_inertia.inverse().is_isotropic(1e-6);
     let start = Rotation(*rotation);
     let mut delta_position = Vec3::ZERO;
@@ -433,7 +432,7 @@ fn integrate_avian_substeps(
                     angular_velocity,
                     delta_rotation.0 * start.0,
                     angular_inertia,
-                    substep_secs_f64,
+                    substep_secs,
                 );
             }
         }
@@ -444,7 +443,7 @@ fn integrate_avian_substeps(
     let old_world_com = start * local_center_of_mass;
     let end = (delta_rotation * start).fast_renormalize();
     let new_world_com = end * local_center_of_mass;
-    *position += delta_position + old_world_com - new_world_com;
+    *position += delta_position + (old_world_com - new_world_com);
     *rotation = end.0;
 }
 

@@ -149,7 +149,7 @@ impl Plugin for DamageEffectsPlugin {
 ///
 /// [`DamageSparks`]: super::damage_sparks::DamageSparks
 fn fit_damage_effects(
-    add: On<Add, SectionMarker>,
+    add: On<Add<SectionMarker>>,
     mut commands: Commands,
     q_effects: Query<&DamageEffects>,
 ) {

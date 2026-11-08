@@ -504,7 +504,7 @@ fn on_browser_tab(
 
 /// Drag the strip's top edge. Up makes the strip taller.
 fn on_browser_resize(
-    mut drag: On<Pointer<Drag>>,
+    mut drag: On<PointerDrag>,
     mut panels: ResMut<EditorPanels>,
     screen: Option<Single<&Window>>,
 ) {

@@ -384,7 +384,7 @@ mod walk {
     /// station's: the spawn reads its root `Transform`, which the scenario
     /// object carries from the first command.
     fn record_the_spawn(
-        add: On<Add, PlayerFleetMarker>,
+        add: On<Add<PlayerFleetMarker>>,
         mut watch: ResMut<HireWatch>,
         q_root: Query<&Transform>,
         q_player: Query<&Transform, With<PlayerSpaceshipMarker>>,

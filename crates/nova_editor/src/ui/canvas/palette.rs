@@ -199,10 +199,10 @@ fn entry_picture(entry: &mut ChildSpawnerCommands, item: BlockItemType) {
             entry
                 .spawn((
                     line(BorderRadius {
-                        top_left: px(ENTRY_HAT_RADIUS),
-                        top_right: px(ENTRY_HAT_RADIUS),
-                        bottom_left: px(2),
-                        bottom_right: px(2),
+                        top_left: px(ENTRY_HAT_RADIUS).into(),
+                        top_right: px(ENTRY_HAT_RADIUS).into(),
+                        bottom_left: px(2).into(),
+                        bottom_right: px(2).into(),
                     }),
                     BackgroundColor(colour),
                     Pickable::IGNORE,

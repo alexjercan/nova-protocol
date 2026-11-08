@@ -235,7 +235,7 @@ impl FromWorld for DefaultProjectileRender {
 }
 
 pub(super) fn insert_projectile_render(
-    add: On<Add, TurretBulletProjectileMarker>,
+    add: On<Add<TurretBulletProjectileMarker>>,
     mut commands: Commands,
     default_render: Res<DefaultProjectileRender>,
     asset_server: Res<AssetServer>,
@@ -292,7 +292,7 @@ pub(super) fn insert_projectile_render(
 /// is dropped in favor of one default; shipped turrets author GLB meshes so the
 /// visible game is unchanged.
 pub(super) fn insert_turret_joint_render(
-    add: On<Add, TurretJointMarker>,
+    add: On<Add<TurretJointMarker>>,
     mut commands: Commands,
     placeholder: Res<PlaceholderArt>,
     asset_server: Res<AssetServer>,
@@ -621,7 +621,7 @@ fn build_default_muzzle_effect() -> EffectAsset {
     // Round, not rectangular. A PDC is fought at ranges where the camera can
     // sit a couple of meters off the barrel, and a square is the one shape a
     // ball of burning gas is not.
-    let mask = soft_dot_modifier(&writer);
+    let mask = soft_dot_modifier();
     let mut module = writer.finish();
     declare_soft_dot_slot(&mut module);
 
@@ -661,7 +661,7 @@ impl DefaultMuzzleEffect {
 }
 
 pub(super) fn insert_turret_barrel_muzzle_effect(
-    add: On<Add, TurretSectionBarrelMuzzleMarker>,
+    add: On<Add<TurretSectionBarrelMuzzleMarker>>,
     mut commands: Commands,
     mut effects: ResMut<Assets<EffectAsset>>,
     mut default_muzzle: ResMut<DefaultMuzzleEffect>,

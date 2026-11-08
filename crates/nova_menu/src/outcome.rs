@@ -10,7 +10,7 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::{InputBindings, InputDeviceType};
 use nova_scenario::prelude::*;
 use nova_ui::{
-    prelude::REPORT_Z,
+    prelude::{window_root, REPORT_Z},
     theme,
     theme::UiColor,
     widget::{panel, ButtonVariant, KeyChipLabel, ThemedRadius, ThemedText},
@@ -133,11 +133,9 @@ pub(crate) fn sync_outcome_overlay(
                 is_hoverable: false,
             },
             Node {
-                width: percent(100),
-                height: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                ..default()
+                ..window_root()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
             // Below the pause overlay as a defensive ordering, though the two no
@@ -355,11 +353,9 @@ pub(crate) fn sync_start_failure_overlay(
                 is_hoverable: false,
             },
             Node {
-                width: percent(100),
-                height: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                ..default()
+                ..window_root()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
             // Same layer as the outcome overlay (which a refusal clears).
@@ -519,7 +515,7 @@ pub(crate) fn sync_outcome_pause(
 /// pause overlay's freed cursor. Grabs unconditionally now, debug builds included; the
 /// F11 inspector reclaims it via nova_debug's `sync_inspector_cursor`.
 pub(crate) fn regrab_cursor_on_player_spawn(
-    _add: On<Add, PlayerSpaceshipMarker>,
+    _add: On<Add<PlayerSpaceshipMarker>>,
     game_state: Res<State<GameStates>>,
     pause: Res<State<PauseStates>>,
     outcome: Option<Res<CurrentOutcome>>,

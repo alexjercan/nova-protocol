@@ -61,7 +61,7 @@ fn torpedo_fire_interval(fire_rate: f32) -> Option<f32> {
 /// The section's [`HealthZeroedBy`] decides how the torpedo died - see
 /// [`classify_torpedo_death`].
 pub(super) fn on_torpedo_body_destroyed(
-    add: On<Add, HealthZeroMarker>,
+    add: On<Add<HealthZeroMarker>>,
     q_section: Query<(&ChildOf, &HealthZeroedBy)>,
     q_torpedo: Query<Entity, With<TorpedoProjectileMarker>>,
     q_source: Query<(Has<ColliderOf>, Has<ProjectileDamage>, Has<NovaBlast>)>,
@@ -155,7 +155,7 @@ pub(super) fn despawn_shot_down_torpedoes(
 /// requires [`TorpedoSectionSpawnerEntity`], so it simply never fires. The
 /// content lint reports the same value as an Error before it ever loads.
 pub(super) fn insert_torpedo_section(
-    add: On<Add, TorpedoSectionMarker>,
+    add: On<Add<TorpedoSectionMarker>>,
     mut commands: Commands,
     q_section: Query<&TorpedoSectionConfigHelper, With<TorpedoSectionMarker>>,
 ) {

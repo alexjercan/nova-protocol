@@ -111,7 +111,7 @@ impl Plugin for SkyboxPlugin {
 /// inserted after its cubemap has loaded - `nova_scenario`'s `PendingSkyboxSwap`
 /// applier exists for exactly that reason.
 fn setup_skybox_camera(
-    insert: On<Insert, SkyboxConfig>,
+    insert: On<Insert<SkyboxConfig>>,
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     q_config: Query<&SkyboxConfig, With<Camera>>,

@@ -179,7 +179,7 @@ impl Plugin for SpaceshipTargetingPlugin {
 }
 
 /// Give every player ship root its targeting state the moment it is marked.
-fn insert_targeting_state(add: On<Add, PlayerSpaceshipMarker>, mut commands: Commands) {
+fn insert_targeting_state(add: On<Add<PlayerSpaceshipMarker>>, mut commands: Commands) {
     if let Ok(mut ship) = commands.get_entity(add.entity) {
         ship.insert(targeting_state());
     }

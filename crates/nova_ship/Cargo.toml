@@ -7,14 +7,14 @@ publish = false
 description = "The ship and how it is flown: sections, flight, input, camera rigs and the ship's soundtrack"
 
 [dependencies]
-avian3d = { version = "0.7" }
-bevy = { version = "0.19.0" }
-bevy_enhanced_input = { version = "0.26.0" }
-bevy_hanabi = { version = "0.19.0", default-features = false, features = ["2d", "3d"] }
+avian3d = { version = "0.8.0" }
+bevy = { version = "0.20.1" }
+bevy_enhanced_input = { version = "0.27.2" }
+bevy_hanabi = { version = "0.20.0", default-features = false, features = ["2d", "3d"] }
 # The muzzle spread on a fired round draws from the shared GlobalRng entity
 # (EntropyPlugin is registered by nova_gameplay's plugin in production), so a
 # replayed run scatters its rounds identically.
-bevy_rand = { version = "0.15.0", default-features = false, features = ["wyrand"] }
+bevy_rand = { version = "0.16.0", default-features = false, features = ["wyrand"] }
 rand = { version = "0.10.2" }
 serde = { version = "1", features = ["derive"], optional = true }
 # The interpolation crate behind avian's TransformInterpolation. Direct dep
@@ -22,7 +22,7 @@ serde = { version = "1", features = ["derive"], optional = true }
 # the states), which the turret spawn seeds so a bullet's first rendered frame
 # sits on the render clock. Version must stay in lockstep with the one avian3d
 # resolves.
-bevy_transform_interpolation = { version = "0.5.0" }
+bevy_transform_interpolation = { version = "0.6.0" }
 nova_events = { path = "../nova_events" }
 nova_gameplay = { path = "../nova_gameplay" }
 # The bindings registry the flight and camera rigs are built from.
@@ -33,7 +33,7 @@ nova_input = { path = "../nova_input" }
 nova_ui = { path = "../nova_ui" }
 
 [target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
-bevy_rand = { version = "0.15.0", features = ["wasm_js"] }
+bevy_rand = { version = "0.16.0", features = ["wasm_js"] }
 
 [dev-dependencies]
 # RON round-trip test for the section configs' serde impls (behind the

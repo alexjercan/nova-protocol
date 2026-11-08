@@ -405,7 +405,7 @@ impl Plugin for ShipIntegrityPlugin {
 /// Directly depleted sections die regardless of graph degree. Healthy sections
 /// disabled by structural collapse retain the leaf-first peel.
 fn on_section_disable(
-    add: On<Add, IntegrityDisabledMarker>,
+    add: On<Add<IntegrityDisabledMarker>>,
     mut commands: Commands,
     q_section: Query<
         (Has<HealthZeroMarker>, Has<IntegrityLeafMarker>),
@@ -446,7 +446,7 @@ fn on_section_disable(
 ///   203 ms collapse frame. One snapshot per root leaves 3.1 ms for the same
 ///   3800 depletions.
 fn queue_depleted_section_sever(
-    add: On<Add, HealthZeroMarker>,
+    add: On<Add<HealthZeroMarker>>,
     mut pending: ResMut<PendingSeverRoots>,
     q_section: Query<(&ChildOf, &ColliderTransform, &ColliderMassProperties), With<SectionMarker>>,
     q_root: Query<(&Position, &Rotation, &LinearVelocity, &AngularVelocity)>,
@@ -1401,17 +1401,17 @@ mod tests {
         app.update();
         assert!(collapsing(&app, root));
 
-        // A detector for genuinely new inserts: `On<Add, T>` fires only for a
+        // A detector for genuinely new inserts: `On<Add<T>>` fires only for a
         // component that was not there, so any count above zero from here is a
         // re-mark.
         #[derive(Resource, Default)]
         struct Remarks(usize);
         app.init_resource::<Remarks>();
         app.add_observer(
-            |_: On<Add, IntegrityDisabledMarker>, mut remarks: ResMut<Remarks>| remarks.0 += 1,
+            |_: On<Add<IntegrityDisabledMarker>>, mut remarks: ResMut<Remarks>| remarks.0 += 1,
         );
         app.add_observer(
-            |_: On<Add, StructuralCollapseMarker>, mut remarks: ResMut<Remarks>| remarks.0 += 1,
+            |_: On<Add<StructuralCollapseMarker>>, mut remarks: ResMut<Remarks>| remarks.0 += 1,
         );
 
         for _ in 0..5 {
@@ -1946,7 +1946,7 @@ mod physics_tests {
         app.add_plugins(EntropyPlugin::<WyRand>::default());
         app.init_resource::<CollapsedRoots>();
         app.add_observer(
-            |add: On<Add, StructuralCollapseMarker>, mut collapsed: ResMut<CollapsedRoots>| {
+            |add: On<Add<StructuralCollapseMarker>>, mut collapsed: ResMut<CollapsedRoots>| {
                 collapsed.0.push(add.entity);
             },
         );
@@ -3241,7 +3241,7 @@ mod ghost_ship_tests {
             fired.0.push(event.name());
         });
         app.add_observer(
-            |add: On<Add, IntegrityDestroyMarker>, mut destroyed: ResMut<Destroyed>| {
+            |add: On<Add<IntegrityDestroyMarker>>, mut destroyed: ResMut<Destroyed>| {
                 destroyed.0.push(add.entity);
             },
         );

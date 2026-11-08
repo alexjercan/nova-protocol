@@ -177,10 +177,10 @@ pub(crate) fn ensure_nova_os_spawned(
                 flex_direction: FlexDirection::Column,
                 // Injection-moulded shell: larger top radius, tighter bottom.
                 border_radius: BorderRadius {
-                    top_left: Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX),
-                    top_right: Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX),
-                    bottom_left: Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX),
-                    bottom_right: Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX),
+                    top_left: Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX).into(),
+                    top_right: Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX).into(),
+                    bottom_left: Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX).into(),
+                    bottom_right: Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX).into(),
                 },
                 ..default()
             },
@@ -665,7 +665,7 @@ pub(crate) fn spawn_nova_os_footer(parent: &mut ChildSpawnerCommands, font: Hand
 /// Forget the ship-scoped flight log when the player ship goes away. The modal
 /// itself and its command session stay: they are app-global.
 pub(crate) fn reset_nova_os_for_new_ship(
-    _remove: On<Remove, PlayerSpaceshipMarker>,
+    _remove: On<Remove<PlayerSpaceshipMarker>>,
     mut log: ResMut<NovaOsFlightLog>,
 ) {
     log.clear();

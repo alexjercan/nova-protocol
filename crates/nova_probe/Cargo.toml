@@ -19,8 +19,8 @@ debug = ["nova_gameplay/debug"]
 [dependencies]
 # The invariant checks read avian's LinearVelocity directly (same pinned
 # version the whole workspace resolves).
-avian3d = { version = "0.7" }
-bevy = { version = "0.19.0" }
+avian3d = { version = "0.8.0" }
+bevy = { version = "0.20.1" }
 # The completion protocol the capture collector negotiates its exit through -
 # named directly, not reached through nova_gameplay: the direction is
 # probe -> autopilot, never the reverse.

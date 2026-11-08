@@ -7,7 +7,7 @@ use bevy::{
     log::tracing_subscriber::{self, util::SubscriberInitExt},
     picking::{
         backend::HitData,
-        events::{Pointer, Press},
+        events::{Pointer, PointerPress},
         pointer::{Location, PointerButton, PointerId},
     },
     prelude::*,
@@ -49,19 +49,19 @@ pub(super) fn press(app: &mut App, entity: Entity, window: Entity) {
             .normalize(None)
             .expect("a named window normalizes"),
     );
-    app.world_mut().trigger(Pointer::new(
-        PointerId::Mouse,
-        Location {
-            target,
-            position: Vec2::ZERO,
-        },
-        Press {
-            button: PointerButton::Primary,
-            hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
-            count: 1,
-        },
+    app.world_mut().trigger(PointerPress {
         entity,
-    ));
+        pointer: Pointer::new(
+            PointerId::Mouse,
+            Location {
+                target,
+                position: Vec2::ZERO,
+            },
+        ),
+        button: PointerButton::Primary,
+        hit: HitData::new(Entity::PLACEHOLDER, 0.0, None, None),
+        count: 1,
+    });
     app.world_mut().flush();
 }
 

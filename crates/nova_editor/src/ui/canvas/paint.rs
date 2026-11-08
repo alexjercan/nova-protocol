@@ -555,10 +555,10 @@ pub(crate) fn paint_stacked(
                             min_height: px(30),
                             border: UiRect::bottom(px(EDGE_H)),
                             border_radius: BorderRadius {
-                                top_left: px(top),
-                                top_right: px(top),
-                                bottom_left: px(corner),
-                                bottom_right: px(corner),
+                                top_left: px(top).into(),
+                                top_right: px(top).into(),
+                                bottom_left: px(corner).into(),
+                                bottom_right: px(corner).into(),
                             },
                             ..line()
                         },
@@ -617,10 +617,10 @@ pub(crate) fn paint_stacked(
                     Node {
                         height: px(FOOT_H),
                         border_radius: BorderRadius {
-                            bottom_left: px(RADIUS),
-                            bottom_right: px(RADIUS),
-                            top_right: px(RADIUS),
-                            top_left: px(0.0),
+                            bottom_left: px(RADIUS).into(),
+                            bottom_right: px(RADIUS).into(),
+                            top_right: px(RADIUS).into(),
+                            top_left: px(0.0).into(),
                         },
                         ..default()
                     },

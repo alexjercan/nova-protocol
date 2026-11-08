@@ -16,7 +16,7 @@
 //! the load, which the fixed joint holds within a millimetre on every pair
 //! measured, up to a partner 20 times the driver's mass.
 
-use avian3d::{math::SymmetricMatrix, prelude::*};
+use avian3d::{math::SymmetricTensor, prelude::*};
 use bevy::{ecs::entity::EntityHashSet, prelude::*};
 use nova_gameplay::prelude::*;
 
@@ -59,7 +59,7 @@ pub(crate) type AssemblyRoot = (Entity, f32, Vec3, Vec3, Mat3, f32);
 
 /// Measure an assembly from its roots, with the inertia in WORLD space.
 ///
-/// The parallel axis term is written out: avian 0.7's `shifted_tensor` adds
+/// The parallel axis term is written out: avian 0.8's `shifted_tensor` adds
 /// the outer product instead of subtracting it.
 ///
 /// Every quantity is checked, and the first bad one is the error, naming the
@@ -98,7 +98,7 @@ pub(crate) fn measure_docked_assembly(roots: &[AssemblyRoot]) -> Result<DockedAs
             + (Mat3::from_diagonal(Vec3::splat(offset.length_squared())) - outer) * root_mass;
         reach = reach.max(offset.length() + radius);
     }
-    let inertia = ComputedAngularInertia::from_tensor(SymmetricMatrix::from_mat3_unchecked(tensor));
+    let inertia = ComputedAngularInertia::from_tensor(SymmetricTensor::from_mat3_unchecked(tensor));
     let (principal, _) = inertia.principal_angular_inertia_with_local_frame();
     if !(principal.is_finite() && principal.min_element() > 0.0) {
         return Err(format!(

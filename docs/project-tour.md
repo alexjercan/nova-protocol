@@ -14,7 +14,7 @@
 This page only orients you: the crate map and where to change X. For exact
 symbols per concept, use the [Concept index](concept-index.md).
 
-Nova Protocol is a 3D space game built on **Bevy 0.19** with **avian3d** physics.
+Nova Protocol is a 3D space game built on **Bevy 0.20** with **avian3d** physics.
 You build ships out of modular sections (hull, controller, thruster, turret,
 torpedo bay), fly them with real Newtonian thrust and a diegetic `GOTO`/`ORBIT`/
 `STOP` autopilot, work inverse-square gravity wells, and fight with deliberate

@@ -9,7 +9,7 @@ use super::*;
 /// bay: a lance authored `ammunition: Unlimited` never reloads, which
 /// is what a bare headless rig wants.
 pub(super) fn insert_railgun_section(
-    add: On<Add, RailgunSectionMarker>,
+    add: On<Add<RailgunSectionMarker>>,
     mut commands: Commands,
     q_section: Query<&RailgunSectionConfigHelper, With<RailgunSectionMarker>>,
 ) {
@@ -155,9 +155,9 @@ pub(super) fn charge_and_fire_railgun(
             *charge = RailgunCharge::Ready;
             continue;
         };
-        let position = forces.position().0;
-        let rotation = *forces.rotation();
-        let bore_rotation = rotation.0 * section_local_rot;
+        let position = forces.position();
+        let rotation = forces.rotation();
+        let bore_rotation = rotation * section_local_rot;
         let muzzle_position = position
             + rotation.mul_vec3(section_local_pos + section_local_rot * config.muzzle_offset);
         // -Z in the section's frame IS the ship's line of fire: a lance cannot

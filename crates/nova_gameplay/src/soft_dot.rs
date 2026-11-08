@@ -29,7 +29,7 @@ use bevy::{
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
-use bevy_hanabi::{ExprWriter, ImageSampleMapping, Module, ParticleTextureModifier};
+use bevy_hanabi::{ImageSampleMapping, Module, ParticleTextureModifier, SlotDimension};
 
 /// `SoftDot`, `soft_dot_image` and the two calls that bind the mask into an
 /// effect graph.
@@ -126,26 +126,24 @@ impl SoftDot {
 
 /// The render modifier that draws a particle through the mask.
 ///
-/// Pairs with [`declare_soft_dot_slot`] on the same graph: this asks for slot
-/// 0 and that call defines slot 0, and the two are separate only because
-/// hanabi takes the modifier off the [`ExprWriter`] and the slot off the
-/// [`Module`] the writer becomes. Every effect nova builds binds exactly one
-/// texture, so slot 0 is the mask by construction.
+/// Pairs with [`declare_soft_dot_slot`] on the same graph: this samples slot
+/// 0 and that call defines slot 0 as a 2D texture. Every effect nova builds
+/// binds exactly one texture, so slot 0 is the mask by construction.
 ///
 /// `ModulateOpacityFromR` is the whole point - see the module docs. The
 /// particle keeps the colour its own gradient gave it and gains only a round
 /// edge.
 #[must_use]
-pub fn soft_dot_modifier(writer: &ExprWriter) -> ParticleTextureModifier {
+pub const fn soft_dot_modifier() -> ParticleTextureModifier {
     ParticleTextureModifier {
-        texture_slot: writer.lit(0u32).expr(),
+        texture_slot: 0,
         sample_mapping: ImageSampleMapping::ModulateOpacityFromR,
     }
 }
 
 /// Define the slot [`soft_dot_modifier`] samples, on the finished module.
 pub fn declare_soft_dot_slot(module: &mut Module) {
-    module.add_texture_slot(SOFT_DOT_SLOT);
+    module.add_texture_slot(SOFT_DOT_SLOT, SlotDimension::D2);
 }
 
 #[cfg(test)]

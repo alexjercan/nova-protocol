@@ -100,7 +100,7 @@ pub struct SpaceshipRotationInputActiveMarker;
 /// the zoom, opens the Normal rig at the saved steer, and starts the
 /// [`CameraResumeBlend`] that shows the saved pose first.
 pub(super) fn insert_camera_controller(
-    add: On<Add, SpaceshipCameraController>,
+    add: On<Add<SpaceshipCameraController>>,
     mut commands: Commands,
     q_camera: Query<Entity, With<SpaceshipCameraController>>,
     mode: Res<SpaceshipCameraControlMode>,
@@ -159,7 +159,7 @@ pub(super) fn insert_camera_controller(
 }
 
 pub(super) fn insert_camera_freelook(
-    add: On<Add, SpaceshipCameraController>,
+    add: On<Add<SpaceshipCameraController>>,
     mut commands: Commands,
     q_camera: Query<Entity, (With<ChaseCamera>, With<SpaceshipCameraController>)>,
 ) {
@@ -184,7 +184,7 @@ pub(super) fn insert_camera_freelook(
 }
 
 pub(super) fn insert_camera_turret(
-    add: On<Add, SpaceshipCameraController>,
+    add: On<Add<SpaceshipCameraController>>,
     mut commands: Commands,
     q_camera: Query<Entity, (With<ChaseCamera>, With<SpaceshipCameraController>)>,
 ) {
@@ -209,7 +209,7 @@ pub(super) fn insert_camera_turret(
 }
 
 pub(super) fn insert_player_input(
-    add: On<Add, SpaceshipCameraController>,
+    add: On<Add<SpaceshipCameraController>>,
     mut commands: Commands,
     q_camera: Query<Entity, (With<ChaseCamera>, With<SpaceshipCameraController>)>,
     bindings: Res<InputBindings>,
@@ -238,8 +238,8 @@ fn player_input_rig(bindings: &InputBindings) -> impl Bundle {
     (
         Name::new("Player Input Controller"),
         PlayerInputMarker,
-        actions!(
-            PlayerInputMarker[
+        related!(
+            Actions<PlayerInputMarker>[
                 (
                     Name::new("Input: Camera Rotate"),
                     Action::<CameraInputRotate>::new(),
@@ -253,7 +253,17 @@ fn player_input_rig(bindings: &InputBindings) -> impl Bundle {
                                 mouse_sensitivity(MousePath::Look),
                                 Negate::all(),
                             )),
-                            Axial::right_stick().with((Scale::splat(2.0), Negate::none())),
+                            Spawn((
+                                Binding::from(GamepadAxis::RightStickX),
+                                Scale::splat(2.0),
+                                Negate::none(),
+                            )),
+                            Spawn((
+                                Binding::from(GamepadAxis::RightStickY),
+                                SwizzleAxis::YXZ,
+                                Scale::splat(2.0),
+                                Negate::none(),
+                            )),
                         ),
                     ),
                 ),
@@ -295,7 +305,7 @@ pub(super) fn rebuild_player_input_on_rebind(
 }
 
 pub(super) fn destroy_camera_controller(
-    remove: On<Remove, SpaceshipCameraController>,
+    remove: On<Remove<SpaceshipCameraController>>,
     mut commands: Commands,
     q_camera: Query<&Children, With<ChaseCamera>>,
 ) {

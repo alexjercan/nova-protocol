@@ -475,7 +475,7 @@ impl PlanetSurfaceMaterialExt {
 
 impl MaterialExtension for PlanetSurfaceMaterialExt {
     fn fragment_shader() -> ShaderRef {
-        "shaders/planet_surface.wgsl".into()
+        "shaders/planet_surface.wesl".into()
     }
 }
 

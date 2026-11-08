@@ -1,7 +1,7 @@
 //! A driven click survives a foreign pointer event landing mid-gesture.
 //!
 //! The regression this pins: `bevy_picking` dispatches
-//! `Pointer<Click>` from the PREVIOUS frame's hover map, so a real cursor event
+//! `PointerClick` from the PREVIOUS frame's hover map, so a real cursor event
 //! between a press beat and its release beat takes the hover off the widget and
 //! the click is never emitted - a button acting on `Activate` simply never
 //! fires, with no warning and no error. On a shared display that made the

@@ -4326,7 +4326,7 @@ trait EditorGestures {
     ///
     /// `aimed` is what says the pointer is where the beat meant it to be: a
     /// solved placement while a part is armed, the pointer being over a section
-    /// otherwise. The editor acts on `Pointer<Press>`, so the press is what does
+    /// otherwise. The editor acts on `PointerPress`, so the press is what does
     /// the work and the release only lets go.
     fn click_the_ship(self, label: &str, aimed: Wait, landed: Wait) -> Self;
 

@@ -190,7 +190,7 @@ pub fn planet_scenario_object_prepared(entity: &mut EntityCommands, prepared: Pr
 /// raises a well, at any radius: there is no size threshold and no default
 /// mass to fall back to.
 fn insert_planet_gravity_well(
-    add: On<Add, BodyRadius>,
+    add: On<Add<BodyRadius>>,
     mut commands: Commands,
     settings: Res<GravitySettings>,
     q_planet: Query<(&BodyRadius, &PlanetMass), With<PlanetMarker>>,
@@ -208,7 +208,7 @@ fn insert_planet_gravity_well(
 
 /// Turn the parked [`PlanetRenderBody`] into live mesh and material handles.
 fn insert_planet_render(
-    add: On<Add, PlanetRenderBody>,
+    add: On<Add<PlanetRenderBody>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<PlanetSurfaceMaterial>>,

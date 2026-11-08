@@ -1068,8 +1068,7 @@ fn view_ships(stage: &Stage, view: ViewType) -> Vec<(String, ShipDesign, f32)> {
 /// command flush, after its `ChildOf` and the root's `EntityId`.
 fn disable_wreck_systems(
     add: On<
-        Add,
-        (
+        Add<(
             ThrusterSectionMarker,
             ControllerSectionMarker,
             TurretSectionMarker,
@@ -1077,7 +1076,7 @@ fn disable_wreck_systems(
             RailgunSectionMarker,
             MiningSectionMarker,
             CargoIntakeSectionMarker,
-        ),
+        )>,
     >,
     mut commands: Commands,
     stage: Res<Stage>,

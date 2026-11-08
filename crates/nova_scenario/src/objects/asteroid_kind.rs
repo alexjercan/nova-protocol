@@ -9,7 +9,7 @@
 //!
 //! A KIND is the fix and the seam. One open id says what a body is made of;
 //! [`AsteroidKindLook`] is the shading that id resolves to, and
-//! `asteroid_surface.wgsl` spends it. The id is
+//! `asteroid_surface.wesl` spends it. The id is
 //! [`AsteroidConfig::kind`](super::asteroid::AsteroidConfig::kind), authored
 //! per rock. It drives the surface, and it is where an ore yield attaches
 //! next - one id, one authored field.

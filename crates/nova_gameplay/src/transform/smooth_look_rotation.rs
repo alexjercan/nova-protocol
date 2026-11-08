@@ -92,7 +92,7 @@ impl Plugin for SmoothLookRotationPlugin {
 }
 
 fn initialize_smooth_look_system(
-    insert: On<Insert, SmoothLookRotation>,
+    insert: On<Insert<SmoothLookRotation>>,
     q_look: Query<&SmoothLookRotation>,
     mut commands: Commands,
 ) {

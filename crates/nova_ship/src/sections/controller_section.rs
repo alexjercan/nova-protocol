@@ -503,7 +503,7 @@ pub(crate) fn sync_controller_section_forces(
 }
 
 fn insert_controller_section_target(
-    add: On<Add, ControllerSectionMarker>,
+    add: On<Add<ControllerSectionMarker>>,
     mut commands: Commands,
     // Only real (live) controllers carry a `PDController`; a render-only preview controller
     // (`preview_controller_section`) does not, so it gets no target and stays inert.
@@ -575,7 +575,7 @@ fn sync_controller_section_target(
 pub struct ControllerSectionRenderMarker;
 
 fn insert_controller_section_render(
-    add: On<Add, ControllerSectionMarker>,
+    add: On<Add<ControllerSectionMarker>>,
     mut commands: Commands,
     placeholder: Res<PlaceholderArt>,
     asset_server: Res<AssetServer>,

@@ -488,7 +488,7 @@ fn station_ai() -> SpaceshipController {
 /// carries [`DerelictShipMarker`] before its neutralized marker and is left
 /// alone.
 pub(crate) fn on_station_neutralized_turn_derelict(
-    add: On<Add, NeutralizedMarker>,
+    add: On<Add<NeutralizedMarker>>,
     mut commands: Commands,
     q_station: Query<Option<&Children>, (With<StationMarker>, Without<DerelictShipMarker>)>,
     q_section: Query<&SectionBuildConfig, (With<SectionMarker>, Without<SectionInactiveMarker>)>,

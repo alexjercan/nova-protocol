@@ -32,7 +32,7 @@ use crate::prelude::*;
 /// inserts the frozen brake state before the marker, and
 /// `try_insert_if_new` keeps it.
 pub(super) fn on_neutralized_engage_brake(
-    add: On<Add, NeutralizedMarker>,
+    add: On<Add<NeutralizedMarker>>,
     mut commands: Commands,
     q_root: Query<
         (),

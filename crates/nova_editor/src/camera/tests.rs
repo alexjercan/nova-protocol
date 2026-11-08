@@ -2,7 +2,7 @@ use bevy::{
     camera::NormalizedRenderTarget,
     ecs::system::RunSystemOnce,
     input::{mouse::MouseScrollUnit, touch::TouchPhase},
-    picking::pointer::Location,
+    picking::pointer::{Location, PointerMap},
     window::WindowRef,
 };
 use nova_ship::prelude::HeldPart;
@@ -334,6 +334,8 @@ fn a_frame_request_pose_survives_the_next_frame() {
 fn only_the_mouse_says_where_the_pointer_is() {
     let mut world = World::new();
     world.init_resource::<ViewportPointer>();
+    // Inserting a `PointerId` registers it in this map.
+    world.init_resource::<PointerMap>();
     let screen = world.spawn(Window::default()).id();
     let target = NormalizedRenderTarget::Window(
         WindowRef::Entity(screen)

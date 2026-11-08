@@ -108,7 +108,7 @@ impl Default for NovaOsCrtMaterial {
 
 impl UiMaterial for NovaOsCrtMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/nova_os_crt.wgsl".into()
+        "shaders/nova_os_crt.wesl".into()
     }
 }
 // Render-to-texture CRT pipeline.
@@ -325,7 +325,7 @@ pub(crate) fn forward_nova_os_pointer(
 /// under screen-local uv `uv` - the mapping the forwarded pointer must follow to
 /// land on the thing the player is actually looking at.
 ///
-/// This is a mirror of the sample-UV chain in `assets/shaders/nova_os_crt.wgsl`'s
+/// This is a mirror of the sample-UV chain in `assets/shaders/nova_os_crt.wesl`'s
 /// fragment: the power-collapse remap, then `barrel()`, then the overscan pull
 /// back toward centre. Both `warp` and `overscan` are uniforms filled from
 /// [`NOVA_OS_CRT_WARP`] / [`NOVA_OS_CRT_OVERSCAN`], so there is ONE definition of

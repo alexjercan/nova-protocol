@@ -282,7 +282,7 @@ pub(super) struct AwaitingSink(Duration);
 
 /// Give the listener camera its ears the moment it is marked, so nothing has to
 /// remember to spawn a [`SpatialListener`] beside the marker.
-pub(super) fn on_add_listener(add: On<Add, SfxListenerMarker>, mut commands: Commands) {
+pub(super) fn on_add_listener(add: On<Add<SfxListenerMarker>>, mut commands: Commands) {
     commands.entity(add.entity).insert(listener_ears());
 }
 

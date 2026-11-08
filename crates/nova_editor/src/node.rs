@@ -1640,8 +1640,11 @@ mod tests {
             Transform::default(),
             TestHalf(half),
             Collider::cuboid(half.x * 2.0, half.y * 2.0, half.z * 2.0),
-            Collider::cuboid(half.x * 2.0, half.y * 2.0, half.z * 2.0)
-                .aabb(Vec3::ZERO, Quat::IDENTITY),
+            Collider::cuboid(half.x * 2.0, half.y * 2.0, half.z * 2.0).aabb(
+                Vec3::ZERO,
+                Quat::IDENTITY,
+                0.0,
+            ),
         ));
         ship
     }
@@ -1658,7 +1661,7 @@ mod tests {
                             .get(owner.parent())
                             .map_or(Vec3::ZERO, |pose| pose.translation);
                         *bounds = Collider::cuboid(half.0.x * 2.0, half.0.y * 2.0, half.0.z * 2.0)
-                            .aabb(at, Quat::IDENTITY);
+                            .aabb(at, Quat::IDENTITY, 0.0);
                     }
                 },
             )

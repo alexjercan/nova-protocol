@@ -655,3 +655,83 @@ mod float {
         );
     }
 }
+
+/// A 1920x1080 window with a root built on [`window_root`] that holds a 3000
+/// px list in a scroll pane. Under bevy_ui 0.20 a root with only
+/// `percent(100)` sizes grew to 3036 px here and pushed the editor's canvas
+/// below the window.
+#[test]
+fn a_window_root_stays_the_window_size_over_a_list_taller_than_the_window() {
+    use bevy::{
+        asset::AssetPlugin,
+        camera::{ComputedCameraValues, RenderTargetInfo},
+        image::TextureAtlasLayout,
+        text::TextPlugin,
+        ui::UiPlugin,
+    };
+
+    let mut app = App::new();
+    app.add_plugins((
+        MinimalPlugins,
+        AssetPlugin::default(),
+        TransformPlugin,
+        bevy::a11y::AccessibilityPlugin,
+        bevy::input::InputPlugin,
+        bevy::picking::PickingPlugin,
+        bevy::picking::InteractionPlugin,
+        TextPlugin,
+        UiPlugin,
+    ));
+    app.init_asset::<Image>().init_asset::<TextureAtlasLayout>();
+    app.world_mut().spawn((
+        Camera2d,
+        Camera {
+            computed: ComputedCameraValues {
+                target_info: Some(RenderTargetInfo {
+                    physical_size: UVec2::new(1920, 1080),
+                    scale_factor: 1.0,
+                }),
+                ..default()
+            },
+            ..default()
+        },
+    ));
+    let list = app
+        .world_mut()
+        .spawn(Node {
+            height: px(3000),
+            flex_shrink: 0.0,
+            ..default()
+        })
+        .id();
+    let pane = app.world_mut().spawn(scroll_column()).add_child(list).id();
+    let row = app.world_mut().spawn(scroll_row()).add_child(pane).id();
+    let bar = app
+        .world_mut()
+        .spawn(Node {
+            height: px(36),
+            flex_shrink: 0.0,
+            ..default()
+        })
+        .id();
+    let root = app
+        .world_mut()
+        .spawn(Node {
+            flex_direction: FlexDirection::Column,
+            ..window_root()
+        })
+        .add_children(&[bar, row])
+        .id();
+
+    for _ in 0..4 {
+        app.update();
+    }
+
+    let size = |entity: Entity| app.world().get::<ComputedNode>(entity).unwrap().size();
+    assert_eq!(size(root), Vec2::new(1920.0, 1080.0));
+    assert_eq!(
+        size(pane).y,
+        1080.0 - 36.0,
+        "the list scrolls inside the window"
+    );
+}

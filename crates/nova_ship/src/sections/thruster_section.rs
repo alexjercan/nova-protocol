@@ -609,8 +609,8 @@ pub(crate) fn thruster_impulse_system(
         // `GlobalTransform` and the child collider's avian pose are at least
         // one tick stale - at speed that trails the hull by `v * dt` and a
         // COM-centered engine torques the ship it must not touch.
-        let position = force.position().0;
-        let rotation = *force.rotation();
+        let position = force.position();
+        let rotation = Rotation(force.rotation());
         let Some(thrust_direction) = engine_direction(&rotation, transform) else {
             continue;
         };
@@ -733,7 +733,7 @@ fn find_thruster_section(
 pub struct ThrusterSectionRenderMarker;
 
 fn insert_thruster_section_render(
-    add: On<Add, ThrusterSectionMarker>,
+    add: On<Add<ThrusterSectionMarker>>,
     mut commands: Commands,
     placeholder: Res<PlaceholderArt>,
     asset_server: Res<AssetServer>,
@@ -817,7 +817,7 @@ fn insert_thruster_section_render(
 }
 
 fn insert_thruster_shader(
-    add: On<Add, ThrusterExhaustConfig>,
+    add: On<Add<ThrusterExhaustConfig>>,
     mut commands: Commands,
     q_config: Query<&ThrusterExhaustConfig>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -945,11 +945,11 @@ impl ThrusterExhaustMaterial {
 
 impl MaterialExtension for ThrusterExhaustMaterial {
     fn vertex_shader() -> ShaderRef {
-        "shaders/thruster_exhaust.wgsl".into()
+        "shaders/thruster_exhaust.wesl".into()
     }
 
     fn fragment_shader() -> ShaderRef {
-        "shaders/thruster_exhaust.wgsl".into()
+        "shaders/thruster_exhaust.wesl".into()
     }
 }
 

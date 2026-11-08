@@ -215,7 +215,7 @@ fn escape_clearance(
 /// section's gltf children go with it; `try_despawn` because a sibling reaction
 /// can have taken the entity already.
 fn despawn_destroyed_that_does_not_detach(
-    add: On<Add, IntegrityDestroyMarker>,
+    add: On<Add<IntegrityDestroyMarker>>,
     mut commands: Commands,
     q_destroyed: Query<(Has<ExplodableEntity>, Has<IntegrityRoot>), With<IntegrityDestroyMarker>>,
 ) {
@@ -236,7 +236,7 @@ fn despawn_destroyed_that_does_not_detach(
 }
 
 fn on_add_explodable_entity(
-    add: On<Add, ExplodableEntity>,
+    add: On<Add<ExplodableEntity>>,
     mut commands: Commands,
     q_explode: Query<&ChildOf, With<ExplodableEntity>>,
 ) {
@@ -257,7 +257,7 @@ fn on_add_explodable_entity(
 }
 
 fn on_destroyed_entity(
-    add: On<Add, IntegrityDestroyMarker>,
+    add: On<Add<IntegrityDestroyMarker>>,
     mut commands: Commands,
     q_info: Query<
         (
@@ -341,7 +341,7 @@ fn on_destroyed_entity(
 /// per process, leaves no debris, and still takes the dead body and its
 /// collider off the ship.
 fn detach_destroyed_body(
-    add: On<Add, IntegrityDestroyMarker>,
+    add: On<Add<IntegrityDestroyMarker>>,
     mut commands: Commands,
     q_dying: Query<
         (
@@ -407,7 +407,7 @@ fn detach_destroyed_body(
     // halves of its escape: a section deep in a capital is thrown harder and
     // stays a ghost longer, in the one proportion that still lands it outside
     // as its grace runs out.
-    let aabb = collider.aabb(Vec3::ZERO, Quat::IDENTITY);
+    let aabb = collider.aabb(Vec3::ZERO, Quat::IDENTITY, 0.0);
     let clearance = escape_clearance(
         entity,
         transform.translation,
@@ -1075,7 +1075,7 @@ mod tests {
         let piece = *wreckage(&mut app).first().expect("the section detached");
 
         let reach = Collider::cuboid(1.0, 1.0, 1.0)
-            .aabb(Vec3::ZERO, Quat::IDENTITY)
+            .aabb(Vec3::ZERO, Quat::IDENTITY, 0.0)
             .max
             .length();
         let expected = super::super::chunk::CHUNK_GRACE_SECS

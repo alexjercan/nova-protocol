@@ -1413,7 +1413,7 @@ pub(crate) fn fit_pane_footer(
         if *node != target {
             *node = target;
         }
-        let mut zones = q_zone.iter_many_mut(zones);
+        let mut zones = q_zone.iter_many_mut(zones).matched();
         while let Some((zone, mut node)) = zones.fetch_next() {
             let target = footer_zone_node(*zone, narrow);
             if *node != target {

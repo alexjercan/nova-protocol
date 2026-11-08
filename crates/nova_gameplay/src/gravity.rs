@@ -125,7 +125,7 @@ pub struct GravityAffected;
 
 /// The well that currently owns this entity (strongest pull, with
 /// hysteresis). Present only while inside at least one SOI; the force system
-/// maintains it, and an `On<Remove, GravityWell>` observer strips it the
+/// maintains it, and an `On<Remove<GravityWell>>` observer strips it the
 /// moment the owned well dies, so consumers never see a dangling entity for
 /// longer than the current flush (still: handle a failed `Query::get`
 /// gracefully). The HUD and the ORBIT verb read this to know *whose* orbit
@@ -236,14 +236,14 @@ impl Plugin for NovaGravityPlugin {
 /// require it, so this one observer covers every controller kind, including
 /// `controller: None`. A dedicated AI-only arm would be redundant: the
 /// marker every piloted and unpiloted ship root already carries is enough.
-fn insert_gravity_affected_on_ship_root(add: On<Add, SpaceshipRootMarker>, mut commands: Commands) {
+fn insert_gravity_affected_on_ship_root(add: On<Add<SpaceshipRootMarker>>, mut commands: Commands) {
     commands.entity(add.entity).try_insert(GravityAffected);
 }
 
 /// Torpedoes opt in too: PN guidance is closed-loop on line-of-sight rate,
 /// so it self-corrects through wells.
 fn insert_gravity_affected_on_torpedo(
-    add: On<Add, TorpedoProjectileMarker>,
+    add: On<Add<TorpedoProjectileMarker>>,
     mut commands: Commands,
 ) {
     commands.entity(add.entity).try_insert(GravityAffected);
@@ -253,7 +253,7 @@ fn insert_gravity_affected_on_torpedo(
 /// [`DominantWell`] handles immediately instead of leaving consumers (HUD,
 /// ORBIT verb) a dangling entity until the force system's next tick.
 fn remove_dominant_well_on_well_removed(
-    remove: On<Remove, GravityWell>,
+    remove: On<Remove<GravityWell>>,
     mut commands: Commands,
     q_dominant: Query<(Entity, &DominantWell)>,
 ) {

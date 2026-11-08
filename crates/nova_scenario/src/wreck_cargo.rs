@@ -60,7 +60,7 @@ struct CollapseSalvage(HashMap<Entity, BTreeMap<ItemDesignId, u32>>);
     reason = "the dying body's pose, owner, recipe, hold and storage"
 )]
 fn drop_wreck_cargo(
-    add: On<Add, IntegrityDestroyMarker>,
+    add: On<Add<IntegrityDestroyMarker>>,
     mut commands: Commands,
     mut salvage: ResMut<CollapseSalvage>,
     q_dying: Query<(

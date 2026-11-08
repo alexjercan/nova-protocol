@@ -7,7 +7,7 @@ publish = false
 description = "Events for the Nova Protocol game"
 
 [dependencies]
-bevy = { version = "0.19.0" }
+bevy = { version = "0.20.1" }
 serde = { version = "1.0.228" }
 # `engine::GameEventInfo` types its payload as `Option<serde_json::Value>`.
 serde_json = { version = "1" }

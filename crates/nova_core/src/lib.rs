@@ -215,7 +215,7 @@ impl AppBuilder {
     ///
     /// Rendering is one switch, not two, because the halves cannot be taken
     /// apart: `bevy_hanabi` panics outright without a render sub-app
-    /// (`bevy_hanabi-0.19.0/src/plugin.rs:361`), so dropping the device forces
+    /// (`bevy_hanabi-0.20.0/src/plugin.rs:331`), so dropping the device forces
     /// dropping the plugins that need it.
     ///
     /// Nothing in here ends the run. There is no window to close and no input,
@@ -296,24 +296,6 @@ impl AppBuilder {
             // and return, because bevy's fallback runner is `run_once`.
             app.add_plugins(plugins.disable::<bevy::winit::WinitPlugin>());
             app.add_plugins(bevy::app::ScheduleRunnerPlugin::default());
-            // Works around a bevy 0.19 hole, not a choice of ours.
-            // `ExtractComponentPlugin::build` adds `SyncComponentPlugin`
-            // unconditionally (bevy_render-0.19.1/src/extract_component.rs:85),
-            // and its `on_remove` hook does an unguarded
-            // `world.resource_mut::<PendingSyncEntity>()` (sync_component.rs:55)
-            // - but the resource ships with `ExtractPlugin`, which a backendless
-            // `RenderPlugin` never adds. So despawning any extracted component
-            // (the loading screen's UI nodes, first thing after asset load)
-            // panics. `SyncWorldPlugin` supplies the resource on its own.
-            //
-            // Its queue is then never drained, because draining is
-            // `entity_sync_system` inside the render sub-app's extract. That
-            // leaks one ~24-byte record per synced spawn and per synced
-            // component removal - 2.4 MB across 100k of them, linear in run
-            // length. Acceptable for probe-length runs, NOT for an indefinite
-            // soak. Adding `ExtractPlugin` would drain it, and would also
-            // rebuild the mirror render world this flag exists to avoid.
-            app.add_plugins(bevy::render::sync_world::SyncWorldPlugin);
         }
 
         app.configure_sets(
@@ -836,7 +818,7 @@ fn render_plugin(assembly: Assembly) -> RenderPlugin {
     if assembly == Assembly::Headless {
         // No backend means `RenderPlugin` never asks wgpu for an adapter, so it
         // builds no device and no render sub-app at all - no extract, no
-        // prepare, no queue (bevy_render-0.19.1/src/lib.rs:359). Everything
+        // prepare, no queue (bevy_render-0.20.1/src/settings.rs:270). Everything
         // below it in `DefaultPlugins` still loads and guards on the sub-app
         // being absent, so the main schedule is untouched.
         wgpu.backends = None;

@@ -67,7 +67,7 @@ impl Plugin for DirectionalSphereOrbitPlugin {
 
 /// Initialize orbit state and next target angles
 fn initialize_sphere_orbit_system(
-    insert: On<Insert, DirectionalSphereOrbit>,
+    insert: On<Insert<DirectionalSphereOrbit>>,
     mut commands: Commands,
     q_orbit: Query<&DirectionalSphereOrbit>,
 ) {

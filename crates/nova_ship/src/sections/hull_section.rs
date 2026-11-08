@@ -86,7 +86,7 @@ impl Plugin for HullSectionPlugin {
 }
 
 fn insert_hull_section_render(
-    add: On<Add, HullSectionMarker>,
+    add: On<Add<HullSectionMarker>>,
     mut commands: Commands,
     placeholder: Res<PlaceholderArt>,
     asset_server: Res<AssetServer>,

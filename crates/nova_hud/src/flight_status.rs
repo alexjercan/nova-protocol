@@ -1077,7 +1077,7 @@ mod tests {
             Transform::IDENTITY,
             Camera {
                 computed: ComputedCameraValues {
-                    clip_from_view: Mat4::perspective_infinite_reverse_rh(
+                    clip_from_view: bevy::math::proj::perspective_infinite_reverse(
                         FRAC_PI_2,
                         RIG_WIDTH / RIG_HEIGHT,
                         0.1,
@@ -1230,7 +1230,7 @@ mod tests {
             Transform::IDENTITY,
             Camera {
                 computed: ComputedCameraValues {
-                    clip_from_view: Mat4::perspective_infinite_reverse_rh(
+                    clip_from_view: bevy::math::proj::perspective_infinite_reverse(
                         FRAC_PI_2,
                         window.x as f32 / window.y as f32,
                         0.1,

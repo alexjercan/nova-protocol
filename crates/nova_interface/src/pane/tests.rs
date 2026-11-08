@@ -778,7 +778,7 @@ fn a_tab_click_lands_while_the_ship_panel_is_scrolled_under_the_head() {
                 height: px(4000),
                 ..default()
             },
-            Button,
+            bevy::ui_widgets::Button,
             ChildOf(row),
         ))
         .id();

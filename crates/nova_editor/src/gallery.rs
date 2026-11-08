@@ -409,7 +409,7 @@ mod tests {
             .id();
         app.world_mut().spawn((
             ChildOf(body),
-            Collider::sphere(1.0).aabb(Vec3::Y * (top_y - 1.0), Quat::IDENTITY),
+            Collider::sphere(1.0).aabb(Vec3::Y * (top_y - 1.0), Quat::IDENTITY, 0.0),
         ));
         app
     }

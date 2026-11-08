@@ -190,13 +190,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .spawn((
             ZooRoot,
             Node {
-                width: percent(100),
-                height: percent(100),
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
                 padding: UiRect::all(px(24)),
                 row_gap: px(18),
-                ..default()
+                ..window_root()
             },
             BackgroundColor(Color::NONE),
             ThemedFill::new(UiColor::Void),
@@ -868,7 +866,7 @@ fn zoo_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
             let Some(centre) = ui_node_centre(world, SLIDER) else {
                 panic!("the slider must be laid out before it can be dragged");
             };
-            // A drag is a sequence of moves, not a teleport: `Pointer<Drag>`
+            // A drag is a sequence of moves, not a teleport: `PointerDrag`
             // reports the distance from the press, and one leg is enough to
             // move the value while staying inside the track.
             move_cursor(centre + Vec2::new(SLIDER_DRAG_PX * 0.5, 0.0))(world);

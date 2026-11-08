@@ -253,7 +253,7 @@ mod walk {
                 watch.events.push((name.to_string(), data));
             });
             app.add_observer(
-                |add: On<Add, StationMarker>,
+                |add: On<Add<StationMarker>>,
                  time: Res<Time<Virtual>>,
                  mut watch: ResMut<RoundTripWatch>| {
                     watch.added_at.insert(add.entity, time.elapsed_secs());

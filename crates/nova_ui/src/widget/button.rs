@@ -171,12 +171,12 @@ fn apply_paint(
 
 /// The button colour observer: on any hover/press/disable/select change,
 /// look up + apply the button's paint in the active theme. Generic over the
-/// event `E` and component `C` so one body handles Add/Remove/Insert of
+/// lifecycle pattern `P` so one body handles Add/Remove/Insert of
 /// `Pressed`, `InteractionDisabled`, `Hovered` and `Selected`; the removed
 /// component still reads present inside its own `Remove` observer, so its state
 /// is forced false there.
-pub(super) fn button_on_interaction<E: EntityEvent, C: Component>(
-    event: On<E, C>,
+pub(super) fn button_on_interaction<P: EventPattern<Event: EntityEvent>>(
+    event: On<P>,
     theme: Res<ActiveUiTheme>,
     mut commands: Commands,
     mut q_button: Query<
@@ -206,10 +206,9 @@ pub(super) fn button_on_interaction<E: EntityEvent, C: Component>(
         return;
     }
 
-    let removing = E::is::<Remove>();
-    let pressed = pressed && !(removing && C::is::<Pressed>());
-    let disabled = disabled && !(removing && C::is::<InteractionDisabled>());
-    let selected = selected && !(removing && C::is::<Selected>());
+    let pressed = pressed && !P::is::<Remove<Pressed>>();
+    let disabled = disabled && !P::is::<Remove<InteractionDisabled>>();
+    let selected = selected && !P::is::<Remove<Selected>>();
     let variant = variant.copied().unwrap_or_default();
 
     let state = ButtonState::resolve(disabled, pressed, selected, hovered.get());
@@ -238,8 +237,8 @@ const HOVER_RING_PX: f32 = 1.0;
 /// the node, so a pane's own fill and border, which often report selection,
 /// stay as they are. The removed component still reads present inside its own
 /// `Remove` observer, so its state is forced false there.
-pub(super) fn plain_button_on_interaction<E: EntityEvent, C: Component>(
-    event: On<E, C>,
+pub(super) fn plain_button_on_interaction<P: EventPattern<Event: EntityEvent>>(
+    event: On<P>,
     theme: Res<ActiveUiTheme>,
     mut commands: Commands,
     q_button: Query<
@@ -255,9 +254,8 @@ pub(super) fn plain_button_on_interaction<E: EntityEvent, C: Component>(
     let Ok((hovered, disabled, pressed)) = q_button.get(entity) else {
         return;
     };
-    let removing = E::is::<Remove>();
-    let pressed = pressed && !(removing && C::is::<Pressed>());
-    let disabled = disabled && !(removing && C::is::<InteractionDisabled>());
+    let pressed = pressed && !P::is::<Remove<Pressed>>();
+    let disabled = disabled && !P::is::<Remove<InteractionDisabled>>();
 
     let ring = match (disabled, pressed, hovered.get()) {
         (true, _, _) | (false, false, false) => None,

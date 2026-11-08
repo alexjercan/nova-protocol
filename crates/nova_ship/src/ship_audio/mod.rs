@@ -4,16 +4,16 @@
 //! The one-shots are fired from existing seams via observers, so no gameplay
 //! system has to know about audio:
 //! - a section/asteroid destroyed -> `Explosion`
-//!   (`On<Add, IntegrityDestroyMarker>`);
+//!   (`On<Add<IntegrityDestroyMarker>>`);
 //! - damage applied to a target -> `Impact` (`On<HealthApplyDamage>`);
 //! - a turret round spawned -> the firing turret's authored `fire_sound`
-//!   (`On<Add, TurretBulletProjectileMarker>`, authored-or-silent);
+//!   (`On<Add<TurretBulletProjectileMarker>>`, authored-or-silent);
 //! - a torpedo spawned -> the bay's authored `launch_sound`
 //!   (`On<TorpedoLaunched>`, authored-or-silent);
 //! - a torpedo's drive lighting -> the bay's authored `ignition_sound`
 //!   (`On<TorpedoIgnited>`);
 //! - a torpedo's warhead bursting -> the bay's authored `detonation_sound`
-//!   (`On<Add, NovaBlast>` on a torpedo blast);
+//!   (`On<Add<NovaBlast>>` on a torpedo blast);
 //! - a reload batch landing -> the section's authored reload sound, the
 //!   lance's breech or the bay's rack (`On<SectionReloadLanded>`);
 //! - a lance discharging -> the railgun's authored `fire_sound` (`On<RailgunFired>`);

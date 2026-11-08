@@ -132,7 +132,7 @@ const SLUG_TRACER_MAX_LENGTH: f32 = 40.0;
 /// lance gets every thirteen seconds is drawn as a handful of disconnected
 /// darts and the player never sees the line it made.
 pub(super) fn insert_railgun_slug_render(
-    add: On<Add, RailgunSlugProjectileMarker>,
+    add: On<Add<RailgunSlugProjectileMarker>>,
     mut commands: Commands,
     art: Res<RailgunSlugArt>,
     budget: Option<Res<GraphicsBudget>>,
@@ -168,7 +168,7 @@ pub(super) fn insert_railgun_slug_render(
 /// Spawn the lance's body: the authored scene, or the placeholder block a
 /// section with no art wears.
 pub(super) fn insert_railgun_section_render(
-    add: On<Add, RailgunSectionMarker>,
+    add: On<Add<RailgunSectionMarker>>,
     mut commands: Commands,
     placeholder: Res<PlaceholderArt>,
     asset_server: Res<AssetServer>,

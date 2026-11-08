@@ -126,12 +126,12 @@ fn nova_os_monitor_has_physical_casing_details() {
         .clone();
     assert_eq!(
         monitor.border_radius.top_left,
-        Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX),
+        CornerRadius::from(Val::Px(NOVA_OS_CASE_RADIUS_TOP_PX)),
         "casing has the larger top corner radius"
     );
     assert_eq!(
         monitor.border_radius.bottom_left,
-        Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX),
+        CornerRadius::from(Val::Px(NOVA_OS_CASE_RADIUS_BOTTOM_PX)),
         "casing has the tighter bottom corner radius"
     );
     let bezel = app
@@ -142,7 +142,7 @@ fn nova_os_monitor_has_physical_casing_details() {
         .clone();
     assert_eq!(
         bezel.border_radius.top_left,
-        Val::Px(NOVA_OS_BEZEL_RADIUS_PX)
+        CornerRadius::from(Val::Px(NOVA_OS_BEZEL_RADIUS_PX))
     );
     let screen = app
         .world_mut()
@@ -152,7 +152,7 @@ fn nova_os_monitor_has_physical_casing_details() {
         .clone();
     assert_eq!(
         screen.border_radius.top_left,
-        Val::Px(NOVA_OS_SCREEN_RADIUS_PX)
+        CornerRadius::from(Val::Px(NOVA_OS_SCREEN_RADIUS_PX))
     );
 
     // The screen edge is a dark recess line, NOT the old flat bright-phosphor

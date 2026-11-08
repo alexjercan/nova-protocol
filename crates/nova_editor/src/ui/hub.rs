@@ -721,7 +721,7 @@ fn on_new(
 
 /// A press on the dim around the modal puts it away.
 fn on_modal_scrim(
-    press: On<Pointer<Press>>,
+    press: On<PointerPress>,
     mut commands: Commands,
     modals: Query<Entity, With<HubNewModal>>,
 ) {
@@ -868,7 +868,7 @@ fn on_hub_row(
 
 /// Right click on a row: Open, Duplicate and Delete at the pointer.
 fn on_hub_row_menu(
-    click: On<Pointer<Click>>,
+    click: On<PointerClick>,
     mut commands: Commands,
     rows: Query<&HubRow>,
     roots: Query<Entity, With<PopupRoot>>,
@@ -886,7 +886,7 @@ fn on_hub_row_menu(
     close_popups(&mut commands, &roots);
     let popup = spawn_popup(
         &mut commands,
-        click.pointer_location.position,
+        click.pointer.position,
         layer::MENU_Z,
         |menu| {
             if !row.broken {

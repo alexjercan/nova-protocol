@@ -34,7 +34,7 @@ use nova_training::prelude::{
 };
 use nova_ui::{
     font::UiFont,
-    prelude::{FATAL_Z, LOADING_Z},
+    prelude::{window_root, FATAL_Z, LOADING_Z},
 };
 #[cfg(not(target_arch = "wasm32"))]
 use nova_world_base::prelude::WorldResumeProgress;
@@ -193,13 +193,11 @@ fn loading_text(text: &str, size: f32, color: Color, font: &Handle<Font>) -> imp
 fn loading_panel(mark: &str, font: Handle<Font>, note: Option<&FieldNote>) -> impl Bundle {
     (
         Node {
-            width: Val::Percent(100.0),
-            height: Val::Percent(100.0),
             flex_direction: FlexDirection::Column,
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
             row_gap: Val::Px(18.0),
-            ..default()
+            ..window_root()
         },
         BackgroundColor(LOADING_BACKDROP),
         children![

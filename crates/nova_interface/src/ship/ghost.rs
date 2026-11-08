@@ -26,9 +26,9 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 use bevy::{
     camera::visibility::RenderLayers,
-    math::bounding::{Aabb3d, RayCast3d},
-    picking::events::{Click, Enter, Leave, Move, Pointer},
+    picking::events::{PointerClick, PointerEnter, PointerLeave, PointerMove},
     prelude::*,
+    shape::{Aabb3d, RayCast3d},
 };
 use nova_gameplay::{prelude::*, PauseStates};
 use nova_input::prelude::{InputBindings, InputSources};
@@ -125,17 +125,17 @@ pub(crate) struct GhostFitCache {
 }
 
 /// Keep the pointer's place while it is over the view or a badge on it.
-pub(crate) fn on_ship_viewport_enter(enter: On<Pointer<Enter>>, mut runtime: ResMut<ShipRuntime>) {
-    runtime.pointer = Some(enter.pointer_location.position);
+pub(crate) fn on_ship_viewport_enter(enter: On<PointerEnter>, mut runtime: ResMut<ShipRuntime>) {
+    runtime.pointer = Some(enter.pointer.position);
 }
 
 /// Follow the pointer while it moves over the view or a badge on it.
-pub(crate) fn on_ship_viewport_move(moved: On<Pointer<Move>>, mut runtime: ResMut<ShipRuntime>) {
-    runtime.pointer = Some(moved.pointer_location.position);
+pub(crate) fn on_ship_viewport_move(moved: On<PointerMove>, mut runtime: ResMut<ShipRuntime>) {
+    runtime.pointer = Some(moved.pointer.position);
 }
 
 /// Forget the pointer when it leaves the view.
-pub(crate) fn on_ship_viewport_leave(_leave: On<Pointer<Leave>>, mut runtime: ResMut<ShipRuntime>) {
+pub(crate) fn on_ship_viewport_leave(_leave: On<PointerLeave>, mut runtime: ResMut<ShipRuntime>) {
     runtime.pointer = None;
 }
 
@@ -146,7 +146,7 @@ pub(crate) fn on_ship_viewport_leave(_leave: On<Pointer<Leave>>, mut runtime: Re
 /// small block does not swallow it. With none, a badge click is the badge's
 /// own selection, and only a click on the bare view picks a block.
 pub(crate) fn on_ship_viewport_click(
-    click: On<Pointer<Click>>,
+    click: On<PointerClick>,
     preview: Res<ShipPlacementPreview>,
     held: Res<HeldPart>,
     mut runtime: ResMut<ShipRuntime>,

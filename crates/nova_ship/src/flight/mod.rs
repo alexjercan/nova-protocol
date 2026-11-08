@@ -256,7 +256,7 @@ impl Plugin for NovaFlightPlugin {
 
 /// Give the player's ship its manual flight input. Only intent-carrying ships
 /// are driven by this layer; AI ships keep writing the raw seams directly.
-pub(super) fn insert_flight_control(add: On<Add, PlayerSpaceshipMarker>, mut commands: Commands) {
+pub(super) fn insert_flight_control(add: On<Add<PlayerSpaceshipMarker>>, mut commands: Commands) {
     let entity = add.entity;
     trace!("insert_flight_control: entity {:?}", entity);
 

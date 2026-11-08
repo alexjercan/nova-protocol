@@ -53,7 +53,7 @@ pub(super) fn handback_anchor_rot(from: Quat, to: Quat, elapsed: f32) -> Quat {
 /// are smooth precisely because they re-seed from the CURRENT output;
 /// this is the one re-seed that cannot, so the camera bridges it).
 pub(super) fn on_autopilot_disengaged(
-    remove: On<Remove, Autopilot>,
+    remove: On<Remove<Autopilot>>,
     mut commands: Commands,
     q_ship: Query<&Rotation, With<PlayerSpaceshipMarker>>,
     q_rig: Query<

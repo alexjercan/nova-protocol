@@ -124,7 +124,7 @@ fn goto_publishes_telemetry_and_disengaging_clears_it() {
 }
 
 /// The playtest warn: scenario teardown despawns a ship with an engaged
-/// autopilot, `On<Remove, Autopilot>` fires mid-flush, and the remove it queues
+/// autopilot, `On<Remove<Autopilot>>` fires mid-flush, and the remove it queues
 /// lands after the despawn in the same queue - "Encountered an error in command
 /// ... Entity despawned". The test drives that exact path (a QUEUED despawn; a
 /// direct `World::despawn` does not reproduce it - the entity is already gone

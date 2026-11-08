@@ -206,8 +206,8 @@ mod tests {
         spawn_flight_rig(&mut app);
         app.world_mut().spawn((
             CombatContextMarker,
-            actions!(
-                CombatContextMarker[(Action::<CombatInput>::new(), bindings![MouseButton::Right])]
+            related!(
+                Actions<CombatContextMarker>[(Action::<CombatInput>::new(), related!(Bindings[Binding::from(MouseButton::Right)]))]
             ),
         ));
         app.update();

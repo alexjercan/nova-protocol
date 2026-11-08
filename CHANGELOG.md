@@ -97,6 +97,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Internals & Tooling
 
+- The game now runs on Bevy 0.20, avian3d 0.8 and bevy_hanabi 0.20. Its built-in shaders moved from WGSL to WESL (`assets/shaders/*.wesl`).
 - `probe scenario` now opens its frame-time window once the scenario is built instead of refusing every capture at the loader's clock hold.
 - New `NOVA_CAPTURE_SIZE` and `NOVA_CAPTURE_UI_SCALE` set a scripted run's window size and interface scale, and harness clicks now land at any interface scale. New `screenshot_key_hints` example.
 

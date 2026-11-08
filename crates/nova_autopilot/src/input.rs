@@ -43,7 +43,7 @@
 //! OS-level warp [`Window::set_cursor_position`] itself performs - lands in the
 //! same stream the synthesized one does. One of those between a press beat and
 //! its release beat CANCELS the click silently: `bevy_picking` dispatches
-//! `Pointer<Click>` from the PREVIOUS frame's hover map, so a pointer that
+//! `PointerClick` from the PREVIOUS frame's hover map, so a pointer that
 //! moved off the widget in between produces a release and no click, and a
 //! button that acts on `Activate` never fires.
 //!

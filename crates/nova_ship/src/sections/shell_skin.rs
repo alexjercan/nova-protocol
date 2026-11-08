@@ -1440,7 +1440,7 @@ impl SkinAssets {
 /// root and one level under the editor's preview root, and neither is the
 /// plate's business to know about.
 fn dress_skin_plate(
-    add: On<Add, ShipSkinMarker>,
+    add: On<Add<ShipSkinMarker>>,
     mut commands: Commands,
     q_plate: Query<&ShipSkinMarker>,
     q_child_of: Query<&ChildOf>,

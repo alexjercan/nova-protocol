@@ -57,11 +57,11 @@ use avian3d::prelude::{
 };
 use bevy::{
     light::NotShadowCaster,
-    math::bounding::{Aabb3d, RayCast3d},
     pbr::{Material, MaterialPlugin},
     prelude::*,
     render::render_resource::AsBindGroup,
     shader::ShaderRef,
+    shape::{Aabb3d, RayCast3d},
 };
 use bevy_hanabi::prelude::*;
 use nova_events::prelude::{
@@ -369,7 +369,7 @@ struct MiningBeamLaser {
 #[derive(Component, Clone, Copy, Debug)]
 struct MiningBeamSparks;
 
-/// The drawn beam's look: an unlit, additive tube (`mining_beam.wgsl`). One
+/// The drawn beam's look: an unlit, additive tube (`mining_beam.wesl`). One
 /// per beam, since its length and flare are the beam's own.
 #[derive(Asset, TypePath, AsBindGroup, Clone, Debug)]
 struct MiningBeamMaterial {
@@ -392,7 +392,7 @@ struct MiningBeamMaterial {
 
 impl Material for MiningBeamMaterial {
     fn fragment_shader() -> ShaderRef {
-        "shaders/mining_beam.wgsl".into()
+        "shaders/mining_beam.wesl".into()
     }
 
     fn alpha_mode(&self) -> bevy::prelude::AlphaMode {
@@ -594,7 +594,7 @@ fn aim_beam(
             // its points many times over, its box at the same pose once, and
             // the box holds the whole collider: a ray that misses the box
             // within reach misses the rock.
-            let bound = rock_collider.aabb(rock_position, rock_rotation);
+            let bound = rock_collider.aabb(rock_position, rock_rotation, 0.0);
             ray.aabb_intersection_at(&Aabb3d {
                 min: bound.min.into(),
                 max: bound.max.into(),
@@ -753,7 +753,7 @@ struct MiningBeamNodes {
 /// Give every new live emitter its drawn beam, hidden, and its idle spark
 /// emitter. An app with no particle effects gets the beam alone.
 fn insert_mining_beam_laser(
-    add: On<Add, MiningEmitter>,
+    add: On<Add<MiningEmitter>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<MiningBeamMaterial>>,
@@ -822,7 +822,7 @@ fn insert_mining_beam_laser(
 /// after `detach_destroyed_body`: whichever runs first, the beam is gone by
 /// the time anything freezes the piece.
 fn despawn_mining_beam_on_destroy(
-    add: On<Add, IntegrityDestroyMarker>,
+    add: On<Add<IntegrityDestroyMarker>>,
     mut commands: Commands,
     q_nodes: Query<&MiningBeamNodes>,
 ) {

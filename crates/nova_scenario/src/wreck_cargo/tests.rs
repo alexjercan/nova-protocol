@@ -42,7 +42,7 @@ fn wreck_app() -> App {
     app.insert_resource(test_items());
     app.init_resource::<Drops>();
     app.add_observer(
-        |add: On<Add, MinedOreDrop>,
+        |add: On<Add<MinedOreDrop>>,
          q_drops: Query<(&MinedCanisterQueue, &GlobalTransform, Option<&ChildOf>)>,
          mut drops: ResMut<Drops>| {
             let (queue, frame, child_of) = q_drops.get(add.entity).expect("a drop has its queue");

@@ -11,7 +11,7 @@ use bevy::{
         hierarchy::ChildOf,
         system::{RunSystemOnce, SystemParam},
     },
-    picking::{events::Pointer, Pickable},
+    picking::Pickable,
     prelude::*,
     ui::UiGlobalTransform,
 };
@@ -168,7 +168,7 @@ pub(crate) fn rect_of(node: &ComputedNode, transform: &UiGlobalTransform) -> Rec
 
 /// The first press on a block or a palette entry becomes the candidate.
 pub(crate) fn on_canvas_press(
-    press: On<Pointer<Press>>,
+    press: On<PointerPress>,
     keys: Res<ButtonInput<KeyCode>>,
     blocks: Query<&CanvasBlock>,
     entries: Query<&PaletteEntry>,
@@ -186,7 +186,7 @@ pub(crate) fn on_canvas_press(
     {
         return;
     }
-    let at = press.pointer_location.position;
+    let at = press.pointer.position;
     drag.pressed_at = Some(at);
     drag.candidate = None;
     let target = press.entity;

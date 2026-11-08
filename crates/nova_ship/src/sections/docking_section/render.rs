@@ -14,7 +14,7 @@ use crate::prelude::*;
 
 /// Spawn a docking port's body.
 pub(super) fn insert_docking_section_render(
-    add: On<Add, DockingSectionMarker>,
+    add: On<Add<DockingSectionMarker>>,
     mut commands: Commands,
     placeholder: Res<PlaceholderArt>,
     asset_server: Res<AssetServer>,

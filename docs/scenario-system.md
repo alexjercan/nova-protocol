@@ -1069,6 +1069,6 @@ the miner as `other_id`, because the pulse is already a scenario-crate system.
   `ASTEROID_KINDS` -
   `crates/nova_scenario/src/objects/asteroid_kind.rs`; the surface they drive:
   `AsteroidSurfaceMaterial` - `crates/nova_scenario/src/objects/`
-  `asteroid_surface.rs` and `assets/shaders/asteroid_surface.wgsl`.
+  `asteroid_surface.rs` and `assets/shaders/asteroid_surface.wesl`.
 - API detail: `cargo doc --open -p nova_scenario` (event engine:
   `-p nova_events`).

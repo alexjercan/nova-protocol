@@ -104,7 +104,7 @@ fn spawn_turret_joint(
 }
 
 pub(super) fn insert_turret_section(
-    add: On<Add, TurretSectionMarker>,
+    add: On<Add<TurretSectionMarker>>,
     mut commands: Commands,
     q_config: Query<&TurretSectionConfigHelper, With<TurretSectionMarker>>,
 ) {

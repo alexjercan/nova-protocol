@@ -756,7 +756,7 @@ fn record_corridor_bites(
 /// the grace window ticks down from the next frame, and the piece has left by
 /// the time a query would see it.
 fn record_piece_escapes(
-    add: On<Add, DetachedPieceMarker>,
+    add: On<Add<DetachedPieceMarker>>,
     q_piece: Query<(&Transform, &LinearVelocity, &ChunkGrace)>,
     q_hull: Query<(
         &GlobalTransform,
@@ -788,7 +788,7 @@ fn record_piece_escapes(
 /// An observer, because the budget spends its queue in [`Last`]: a sampler in
 /// `Update` reads the frame before the one that lit them.
 fn record_pyres(
-    add: On<Add, PyreEffectMarker>,
+    add: On<Add<PyreEffectMarker>>,
     q_pyre: Query<&Transform, With<PyreEffectMarker>>,
     mut probe: ResMut<CollapseProbe>,
 ) {

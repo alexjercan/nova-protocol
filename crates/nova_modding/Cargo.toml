@@ -7,7 +7,7 @@ publish = false
 description = "RON scenario/mod format and asset loader for the Nova Protocol game"
 
 [dependencies]
-bevy = { version = "0.19.0" }
+bevy = { version = "0.20.1" }
 # The pure serde format types (manifests, catalog declarations, portal wire
 # schema) - engine-free so the portal generator shares them without bevy.
 nova_mod_format = { path = "../nova_mod_format" }

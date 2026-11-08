@@ -64,7 +64,7 @@ fn nearest<'a, C: Component>(
     reason = "one observer: the bank, the clock, where the death was, what came apart, its voice, its route and the throttle"
 )]
 pub(super) fn on_destroyed_play_explosion(
-    add: On<Add, IntegrityDestroyMarker>,
+    add: On<Add<IntegrityDestroyMarker>>,
     asset_server: Res<AssetServer>,
     time: Res<Time>,
     q_transform: Query<&GlobalTransform>,
@@ -165,7 +165,7 @@ pub(super) fn on_reload_landed_play_sfx(
 /// AUTHORED-OR-SILENT on the hull's own [`ShipCollapseSound`]: a ship that
 /// names none still comes apart, to the sound of its sections.
 pub(super) fn on_collapse_play_hull_loss(
-    add: On<Add, StructuralCollapseMarker>,
+    add: On<Add<StructuralCollapseMarker>>,
     asset_server: Res<AssetServer>,
     q_transform: Query<&GlobalTransform>,
     q_sound: Query<&ShipCollapseSound>,
@@ -413,7 +413,7 @@ pub(super) fn on_torpedo_ignited_play_sfx(
     reason = "one observer: the bank, the clock, the throttle, the blast's voice and its route"
 )]
 pub(super) fn on_torpedo_blast_play_detonation(
-    add: On<Add, NovaBlast>,
+    add: On<Add<NovaBlast>>,
     asset_server: Res<AssetServer>,
     time: Res<Time>,
     mut throttle: ResMut<SfxThrottle>,

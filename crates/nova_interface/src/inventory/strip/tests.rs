@@ -31,7 +31,7 @@ fn strip_app() -> App {
     // The docking release spawns an `UndockSeparation` with
     // `JointCollisionDisabled`, whose avian `on_add` hook reads `JointGraph`.
     // Physics is not in this app, so the resource is inserted here.
-    app.init_resource::<avian3d::dynamics::solver::joint_graph::JointGraph>();
+    app.init_resource::<avian3d::dynamics::joints::joint_graph::JointGraph>();
     app.add_observer(
         |request: On<SectionStripRequest>,
          mut order: ResMut<TakenOrder>,

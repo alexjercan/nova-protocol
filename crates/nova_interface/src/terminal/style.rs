@@ -151,7 +151,7 @@ pub(crate) const NOVA_OS_CARET_BLINK_HZ: f32 = 1.25;
 /// deliberately faint so the overlay never films the text underneath: the tint
 /// is a whisper of green, the vignette darkens only the outer edges, and the
 /// centre glow is a low bulge that reads as volume rather than a wash (see
-/// `assets/shaders/nova_os_crt.wgsl`).
+/// `assets/shaders/nova_os_crt.wesl`).
 pub(crate) const NOVA_OS_CRT_TINT: LinearRgba = LinearRgba::new(0.212, 1.0, 0.475, 0.03);
 pub(crate) const NOVA_OS_CRT_SCANLINE_STRENGTH: f32 = 0.06;
 pub(crate) const NOVA_OS_CRT_VIGNETTE_STRENGTH: f32 = 0.55;

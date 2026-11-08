@@ -232,7 +232,7 @@ const TENDERS: usize = 3;
 
 /// Hand the station its hulls for sale as the world's spawn does, so it
 /// parks and docks a tender at each port but one once its sections are live.
-fn offer_the_tenders(add: On<Add, StationMarker>, mut commands: Commands) {
+fn offer_the_tenders(add: On<Add<StationMarker>>, mut commands: Commands) {
     let tenders = (1..=TENDERS)
         .map(|n| {
             PendingParkedHull::Offer(Box::new(StationHullOffer {

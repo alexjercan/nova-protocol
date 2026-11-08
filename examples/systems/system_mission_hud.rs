@@ -25,7 +25,7 @@
 //!   while every other mission surface stands.
 //!
 //! The scene: one player ship at the origin facing -Z (the objective stack is
-//! grown by an `On<Add, PlayerSpaceshipMarker>` observer and the marker chips
+//! grown by an `On<Add<PlayerSpaceshipMarker>>` observer and the marker chips
 //! measure their range from the player, so a mission HUD with no player is a
 //! blank one), a rock 600 m dead ahead and a second rock far off the port bow
 //! where it cannot project onto the frame.

@@ -257,7 +257,7 @@ impl Plugin for WASDCameraPlugin {
 
 /// Initialize the WASD camera input, target, and state components.
 fn initialize_wasd_camera(
-    insert: On<Insert, WASDCamera>,
+    insert: On<Insert<WASDCamera>>,
     mut commands: Commands,
     q_transform: Query<&Transform, With<WASDCamera>>,
 ) {
@@ -299,7 +299,7 @@ fn initialize_wasd_camera(
 /// as long as it lived, and every surface that poses the camera by hand takes
 /// the rig off.
 fn destroy_wasd_camera(
-    remove: On<Remove, WASDCamera>,
+    remove: On<Remove<WASDCamera>>,
     mut commands: Commands,
     q_drive: Query<&WASDCameraDrive>,
     mut q_projection: Query<&mut Projection>,

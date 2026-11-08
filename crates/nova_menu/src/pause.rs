@@ -21,7 +21,7 @@ use nova_interface::prelude::{NovaOsCloseTransition, ShipRuntime};
 use nova_scenario::prelude::*;
 use nova_ui::{
     input_mode::prelude::InputMode,
-    prelude::{PAUSE_SETTINGS_Z, PAUSE_Z},
+    prelude::{window_root, PAUSE_SETTINGS_Z, PAUSE_Z},
     screen::{footer_back_slot, scroll_bar, scroll_column, scroll_viewport},
     theme,
     theme::UiColor,
@@ -449,7 +449,7 @@ pub(crate) fn reconcile_pause_overlay(
     q_owned: Query<Entity, Or<(With<PauseOverlay>, With<PauseSettingsPanel>)>>,
 ) {
     let pausing = match next_pause.as_ref() {
-        NextState::Pending(pending) | NextState::PendingIfNeq(pending) => *pending,
+        NextState::Pending(pending) | NextState::PendingIfDifferent(pending) => *pending,
         NextState::Unchanged => *pause.get(),
     };
     // The outcome frame and the refusal report enter the same `Paused` to
@@ -497,11 +497,9 @@ pub(crate) fn reconcile_pause_overlay(
                 is_hoverable: false,
             },
             Node {
-                width: percent(100),
-                height: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                ..default()
+                ..window_root()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
             // Above the HUD chrome.
@@ -582,11 +580,9 @@ pub(crate) fn reconcile_pause_overlay(
                 is_hoverable: false,
             },
             Node {
-                width: percent(100),
-                height: percent(100),
                 align_items: AlignItems::Center,
                 justify_content: JustifyContent::Center,
-                ..default()
+                ..window_root()
             },
             BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.6)),
             GlobalZIndex(PAUSE_SETTINGS_Z),

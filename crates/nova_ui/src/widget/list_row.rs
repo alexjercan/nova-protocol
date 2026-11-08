@@ -62,8 +62,8 @@ fn paint_list_row(
 
 /// Repaint one [`ListRow`] on a hover/selection change (the removed component
 /// still reads present in its own `Remove` observer, so it is forced false).
-pub(super) fn list_row_on_interaction<E: EntityEvent, C: Component>(
-    event: On<E, C>,
+pub(super) fn list_row_on_interaction<P: EventPattern<Event: EntityEvent>>(
+    event: On<P>,
     theme: Res<ActiveUiTheme>,
     mut q: Query<
         (
@@ -77,7 +77,7 @@ pub(super) fn list_row_on_interaction<E: EntityEvent, C: Component>(
     >,
 ) {
     if let Ok((hovered, selected, mut node, mut bg, mut border)) = q.get_mut(event.event_target()) {
-        let selected = selected && !(E::is::<Remove>() && C::is::<Selected>());
+        let selected = selected && !P::is::<Remove<Selected>>();
         paint_list_row(
             &theme,
             RowState::resolve(selected, hovered.get()),

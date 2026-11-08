@@ -500,7 +500,7 @@ fn sync_objective_chips(
 ///
 /// It is one command, and a SILENCED one, on purpose. `remove_objective_stack`
 /// can despawn this same stack in the same frame - a ship destroy or a scenario
-/// unload fires `On<Remove, PlayerSpaceshipMarker>`, and no ordering edge forces
+/// unload fires `On<Remove<PlayerSpaceshipMarker>>`, and no ordering edge forces
 /// a flush between that observer and this rebuild - so neither half may act on
 /// an already-dead entity. Splitting it as `despawn_related()` plus
 /// `with_children(..)` does NOT achieve that: `despawn_related` queues through
@@ -737,7 +737,7 @@ fn breathe_objective_chips(
 
 /// Spawn the stack with the player ship, like the other HUD widgets.
 pub(super) fn setup_objective_stack(
-    add: On<Add, PlayerSpaceshipMarker>,
+    add: On<Add<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     q_spaceship: Query<Entity, (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>)>,
 ) {
@@ -750,7 +750,7 @@ pub(super) fn setup_objective_stack(
 /// Despawn the stack with the player ship, and reset the notifications so a
 /// respawned HUD does not inherit the last ship's unread chips.
 pub(super) fn remove_objective_stack(
-    _remove: On<Remove, PlayerSpaceshipMarker>,
+    _remove: On<Remove<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     mut notifications: ResMut<ObjectiveNotifications>,
     q_stack: Query<Entity, With<ObjectiveStackHudMarker>>,
@@ -1233,7 +1233,7 @@ mod tests {
     /// The stack rebuild must be ONE silenced command, so a stack despawned in
     /// the same frame - after `sync_objective_chips` queued its rebuild, before
     /// that rebuild applies - no-ops instead of panicking.
-    /// `remove_objective_stack`, the `On<Remove, PlayerSpaceshipMarker>`
+    /// `remove_objective_stack`, the `On<Remove<PlayerSpaceshipMarker>>`
     /// observer, is that despawner in production: no ordering edge covers every
     /// ship-destroy and scenario-unload path, so which of the two lands first is
     /// a system-index accident. A `despawn_related()` plus `with_children(..)`

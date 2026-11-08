@@ -816,7 +816,7 @@ fn mesh_max_vertex_radius(mesh: &Mesh) -> f32 {
 }
 
 fn insert_asteroid_render(
-    add: On<Add, AsteroidRenderMesh>,
+    add: On<Add<AsteroidRenderMesh>>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<AsteroidSurfaceMaterial>>,

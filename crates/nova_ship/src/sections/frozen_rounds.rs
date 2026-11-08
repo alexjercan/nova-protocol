@@ -188,6 +188,9 @@ mod tests {
         app.add_message::<RadarRetargeted>();
         app.add_message::<LockClearedToast>();
         app.add_message::<RadarDenied>();
+        // `play_torpedo_closing_tone` reads the ETA that the torpedo section
+        // plugin owns, which this test does not add.
+        app.init_resource::<crate::sections::torpedo_section::PlayerTorpedoEta>();
         app.add_plugins(ShipAudioPlugin);
 
         app.init_resource::<PlaySfxCount>();

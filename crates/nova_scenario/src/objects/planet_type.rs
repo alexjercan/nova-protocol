@@ -13,7 +13,7 @@
 //! is no cross-fade between a plain and an upland, and no coastline gradient.
 //! The edges are broken up in the shader by warping the elevation the
 //! threshold reads, which is one multiply rather than a second palette lookup -
-//! see `assets/shaders/planet_surface.wgsl`. Blending is the next round's
+//! see `assets/shaders/planet_surface.wesl`. Blending is the next round's
 //! problem, not this one's.
 
 use bevy::prelude::*;

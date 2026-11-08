@@ -3333,7 +3333,7 @@ pub(crate) fn apply_inspector_edits(
 /// out, both belong to that drag. Either one carried into this drag moves the
 /// number before the pointer has.
 pub(crate) fn on_inspector_drag_start(
-    drag: On<Pointer<DragStart>>,
+    drag: On<PointerDragStart>,
     mut grips: Query<&mut InspectorDrag>,
 ) {
     let Ok(mut grip) = grips.get_mut(drag.entity) else {
@@ -3357,7 +3357,7 @@ pub(crate) fn on_inspector_drag_start(
 /// A refusal is SAID rather than written onto a box: the grip is the row's
 /// name, and a name has nowhere to wear an error.
 pub(crate) fn on_inspector_drag(
-    drag: On<Pointer<Drag>>,
+    drag: On<PointerDrag>,
     mut commands: Commands,
     mut grips: Query<(&InspectorField, &mut InspectorDrag)>,
     mut windows: Query<&mut Window, With<PrimaryWindow>>,
@@ -3374,7 +3374,7 @@ pub(crate) fn on_inspector_drag(
     let travel = grip.residual + drag.delta.x - grip.warped;
     grip.residual = travel.fract();
     grip.warped = match windows.single_mut() {
-        Ok(mut window) => wrapped(&mut window, drag.pointer_location.position, drag.delta.x),
+        Ok(mut window) => wrapped(&mut window, drag.pointer.position, drag.delta.x),
         Err(_) => 0.0,
     };
     let steps = f64::from(travel.trunc());
@@ -3399,7 +3399,7 @@ pub(crate) fn on_inspector_drag(
 
 /// A scrub is one edit however far it travelled, so it commits on release.
 pub(crate) fn on_inspector_drag_end(
-    drag: On<Pointer<DragEnd>>,
+    drag: On<PointerDragEnd>,
     mut commands: Commands,
     grips: Query<&InspectorField, With<InspectorDrag>>,
 ) {

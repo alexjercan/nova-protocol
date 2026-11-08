@@ -4,8 +4,7 @@
 //! The applier's deferred install is already unit-tested in `actions.rs`
 //! (`skybox_swap_waits_for_load_then_installs`), but that rig uses a synthetic
 //! `Image::default` and stops at the `SkyboxConfig` insert. It never reaches
-//! the LAST bridge: nova_gameplay's `SkyboxPlugin` runs an `On<Insert,
-//! SkyboxConfig>` observer that reads the loaded image, reinterprets the
+//! the LAST bridge: nova_gameplay's `SkyboxPlugin` runs an `On<Insert<//! SkyboxConfig>>` observer that reads the loaded image, reinterprets the
 //! stacked cubemap, and attaches a bevy `Skybox` to the camera. This test
 //! drives the whole chain on the real `textures/cubemap_alt.png` file:
 //!

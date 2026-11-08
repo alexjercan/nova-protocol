@@ -7,7 +7,7 @@ publish = false
 description = "The player training handbook: lesson catalog, progress, and the field notes the menu and loading screens show"
 
 [dependencies]
-bevy = { version = "0.19.0" }
+bevy = { version = "0.20.1" }
 # `AssetRef<Image>` - a lesson's media is authored as a path and resolves to a
 # live handle at draw time, exactly like a scenario's thumbnail. `serde` is what
 # puts the derives on it, and on the config types this crate's own lesson format

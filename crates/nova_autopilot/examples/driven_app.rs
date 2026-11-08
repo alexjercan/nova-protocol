@@ -180,10 +180,10 @@ fn spawn_scene(
         .observe(on_button_pressed);
 }
 
-/// The game side of the pointer loop: a real `Pointer<Press>` from the real
+/// The game side of the pointer loop: a real `PointerPress` from the real
 /// `bevy_ui` picking backend, over the node the script aimed at. Nothing here
 /// knows about the autopilot.
-fn on_button_pressed(_press: On<Pointer<Press>>, mut button: ResMut<Button>) {
+fn on_button_pressed(_press: On<PointerPress>, mut button: ResMut<Button>) {
     if !button.pressed {
         button.pressed = true;
         info!("driven_app: the pointer pressed the button");

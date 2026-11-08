@@ -7,8 +7,8 @@ publish = false
 description = "The player's heads-up display: the diegetic instruments and overlays drawn for the player ship"
 
 [dependencies]
-avian3d = { version = "0.7" }
-bevy = { version = "0.19.0" }
+avian3d = { version = "0.8.0" }
+bevy = { version = "0.20.1" }
 nova_input = { path = "../nova_input" }
 # The quantity types every readout here formats: a HUD reads a world-space
 # distance off avian and crosses to meters once, at the point it is read.

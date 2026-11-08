@@ -1424,22 +1424,22 @@ fn scrub(app: &mut App, label: &str, pixels: f32) {
 fn scrub_from(app: &mut App, label: &str, at: Vec2, pixels: f32) {
     let grip = grip_of(app, label).unwrap_or_else(|| panic!("no grip {label:?}"));
     let delta = Vec2::new(pixels, 0.0);
-    app.world_mut().trigger(Pointer::new(
-        PointerId::Mouse,
-        Location {
-            target: NormalizedRenderTarget::Image(bevy::camera::ImageRenderTarget {
-                handle: Handle::default(),
-                scale_factor: 1.0,
-            }),
-            position: at,
-        },
-        Drag {
-            button: PointerButton::Primary,
-            distance: delta,
-            delta,
-        },
-        grip,
-    ));
+    app.world_mut().trigger(PointerDrag {
+        entity: grip,
+        pointer: Pointer::new(
+            PointerId::Mouse,
+            Location {
+                target: NormalizedRenderTarget::Image(bevy::camera::ImageRenderTarget {
+                    handle: Handle::default(),
+                    scale_factor: 1.0,
+                }),
+                position: at,
+            },
+        ),
+        button: PointerButton::Primary,
+        distance: delta,
+        delta,
+    });
     app.update();
 }
 

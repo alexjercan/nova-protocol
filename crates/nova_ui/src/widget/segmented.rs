@@ -160,7 +160,7 @@ mod tests {
         };
         assert_eq!(
             radius(&app),
-            px(phosphor().segmented().radius),
+            CornerRadius::from(px(phosphor().segmented().radius)),
             "phosphor recess"
         );
 
@@ -173,7 +173,7 @@ mod tests {
         );
         assert_eq!(
             radius(&app),
-            px(hardware().segmented().radius),
+            CornerRadius::from(px(hardware().segmented().radius)),
             "and took the hardware corner radius"
         );
     }

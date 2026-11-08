@@ -576,7 +576,7 @@ fn clear_the_status_bar(
 
 /// Insert [`InsetZoomable`] on any entity that gains the kind marker `T`, so
 /// the inset may scope it. Idempotent (inserting a second time is a no-op).
-fn mark_inset_zoomable<T: Component>(add: On<Add, T>, mut commands: Commands) {
+fn mark_inset_zoomable<T: Component>(add: On<Add<T>>, mut commands: Commands) {
     if let Ok(mut entity) = commands.get_entity(add.entity) {
         entity.insert(InsetZoomable);
     }
@@ -586,7 +586,7 @@ fn mark_inset_zoomable<T: Component>(add: On<Add, T>, mut commands: Commands) {
 /// scenario event lacks the entity needed to correlate the seam with the held
 /// lock, and generic despawn can also mean cleanup.
 fn confirm_locked_target_destroyed(
-    add: On<Add, IntegrityDestroyMarker>,
+    add: On<Add<IntegrityDestroyMarker>>,
     mut commands: Commands,
     q_player: Query<&CombatLock, With<PlayerSpaceshipMarker>>,
     q_panel: Query<(Entity, &TargetInsetLastFramed), With<TargetInsetHudMarker>>,

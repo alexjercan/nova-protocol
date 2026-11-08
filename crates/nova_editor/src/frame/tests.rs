@@ -53,7 +53,7 @@ fn rock(app: &mut App, at: Vec3, radius: f32) -> Entity {
     app.world_mut().spawn((
         NodeView,
         ChildOf(node),
-        Collider::sphere(radius).aabb(at, Quat::IDENTITY),
+        Collider::sphere(radius).aabb(at, Quat::IDENTITY, 0.0),
         Transform::from_translation(at),
     ));
     node
@@ -245,7 +245,7 @@ fn a_ships_bounds_are_its_sections_and_not_its_origin() {
         app.world_mut().spawn((
             NodeView,
             ChildOf(ship),
-            hull.aabb(offset, Quat::IDENTITY),
+            hull.aabb(offset, Quat::IDENTITY, 0.0),
             Transform::from_translation(offset),
         ));
     }
@@ -268,7 +268,7 @@ fn a_sensor_volume_is_not_part_of_a_nodes_size() {
         NodeView,
         ChildOf(node),
         Sensor,
-        Collider::sphere(60.0).aabb(Vec3::ZERO, Quat::IDENTITY),
+        Collider::sphere(60.0).aabb(Vec3::ZERO, Quat::IDENTITY, 0.0),
     ));
 
     let bounds = bounds_of(&mut app, node).expect("the body has bounds");

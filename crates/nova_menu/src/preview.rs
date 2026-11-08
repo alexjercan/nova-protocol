@@ -451,7 +451,7 @@ pub(crate) fn project_menu_chart_labels(
         let ready = camera.physical_target_size() == Some(computed.size().round().as_uvec2());
         let to_logical = computed.inverse_scale_factor();
         let size = computed.size() * to_logical;
-        let mut labels = q_labels.iter_many_mut(children);
+        let mut labels = q_labels.iter_many_mut(children).matched();
         while let Some((label, mut node, mut visibility)) = labels.fetch_next() {
             let projected = ready
                 .then(|| camera.world_to_viewport(cam_gt, label.anchor).ok())

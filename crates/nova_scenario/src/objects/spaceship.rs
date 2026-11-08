@@ -1095,7 +1095,7 @@ fn keep_lost_bindings<'a>(
 /// save keeps and a rebuild restores. A section its ship's design no longer
 /// holds (a Ship pane delete took it out first) keeps no binding.
 fn remember_lost_section_binding(
-    remove: On<Remove, SectionMarker>,
+    remove: On<Remove<SectionMarker>>,
     q_section: Query<(&ChildOf, &EntityId, SectionBindingQuery)>,
     mut q_controller: Query<(&mut SpaceshipController, Option<&ShipDesignSections>)>,
 ) {
@@ -1748,7 +1748,7 @@ pub(crate) fn hull_components(design: &ResolvedShipDesign) -> impl Bundle {
 }
 
 fn insert_spaceship_sections(
-    add: On<Add, SpaceshipRootMarker>,
+    add: On<Add<SpaceshipRootMarker>>,
     mut commands: Commands,
     game_sections: Res<GameSections>,
     game_designs: Res<GameShipDesigns>,

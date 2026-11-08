@@ -360,7 +360,7 @@ fn show_contents(contents: Option<&Contents>) -> String {
 }
 
 fn note_a_canister_born(
-    add: On<Add, CargoCanister>,
+    add: On<Add<CargoCanister>>,
     q_canisters: Query<&CargoCanister>,
     mut log: ResMut<IntakeLog>,
 ) {
@@ -370,7 +370,7 @@ fn note_a_canister_born(
 }
 
 fn note_a_canister_gone(
-    remove: On<Remove, CargoCanister>,
+    remove: On<Remove<CargoCanister>>,
     q_canisters: Query<&CargoCanister>,
     mut log: ResMut<IntakeLog>,
 ) {

@@ -254,7 +254,7 @@ fn a_back_button_pops_with_the_back_voice_and_an_ordinary_button_clicks() {
 fn focus_ticks_when_the_cursor_arrives_and_stays_quiet_when_it_leaves() {
     use bevy::picking::{
         hover::Hovered,
-        pointer::{PointerLocation, PointerPress},
+        pointer::{PointerLocation, PointerPressState},
     };
 
     let mut app = cue_app();
@@ -262,7 +262,7 @@ fn focus_ticks_when_the_cursor_arrives_and_stays_quiet_when_it_leaves() {
     let entity = app.world_mut().spawn(button("Scenarios")).id();
     let pointer = app
         .world_mut()
-        .spawn((PointerLocation::default(), PointerPress::default()))
+        .spawn((PointerLocation::default(), PointerPressState::default()))
         .id();
     app.update();
     let _ = take_cues(&mut app);
@@ -293,7 +293,7 @@ fn a_disabled_button_does_not_tick_under_the_cursor() {
     use bevy::{
         picking::{
             hover::Hovered,
-            pointer::{PointerLocation, PointerPress},
+            pointer::{PointerLocation, PointerPressState},
         },
         ui::InteractionDisabled,
     };
@@ -306,7 +306,7 @@ fn a_disabled_button_does_not_tick_under_the_cursor() {
         .id();
     let pointer = app
         .world_mut()
-        .spawn((PointerLocation::default(), PointerPress::default()))
+        .spawn((PointerLocation::default(), PointerPressState::default()))
         .id();
     app.update();
     let _ = take_cues(&mut app);

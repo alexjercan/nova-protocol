@@ -362,7 +362,7 @@ pub(super) fn rcs_burn_system(
             ship,
             first..partners.len(),
             command,
-            *force.rotation(),
+            Rotation(force.rotation()),
             accel,
         ));
     }

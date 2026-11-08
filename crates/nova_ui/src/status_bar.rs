@@ -189,7 +189,7 @@ fn update_status_bar_item_ui(
 }
 
 fn insert_status_bar_item(
-    add: On<Add, StatusBarItemMarker>,
+    add: On<Add<StatusBarItemMarker>>,
     mut commands: Commands,
     q_item: Query<
         (

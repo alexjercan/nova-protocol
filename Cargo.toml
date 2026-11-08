@@ -1606,11 +1606,11 @@ nova_probe = { path = "crates/nova_probe", optional = true }
 nova_channel = { path = "crates/nova_channel", optional = true }
 
 [dev-dependencies]
-avian3d = { version = "0.7" }
-bevy = { version = "0.19.0" }
+avian3d = { version = "0.8.0" }
+bevy = { version = "0.20.1" }
 # The headless replay spike draws one sample from the global entropy to prove
 # `NOVA_SEED` reaches the stream the game plays from.
-bevy_rand = { version = "0.15.0", default-features = false, features = ["wyrand"] }
+bevy_rand = { version = "0.16.0", default-features = false, features = ["wyrand"] }
 # The stress ranges and the baseline use the frame-time capture harness, and the
 # autopilot examples push run-timeline markers - both live in nova_probe (the
 # in-game half of the run-harness, not shipped with the game binary; the host
@@ -1659,7 +1659,7 @@ noise = { version = "0.9" }
 # scenario engine's scatter uses - same crate, same version, same rolls.
 rand = { version = "0.10.2" }
 serde_json = { version = "1" }
-bevy_enhanced_input = { version = "0.26.0" }
+bevy_enhanced_input = { version = "0.27.2" }
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

@@ -592,11 +592,11 @@ mod tests {
         let original_plate_aabb = world
             .get::<Collider>(plate_entity)
             .expect("a plate carries a collider")
-            .aabb(Vec3::ZERO, Quat::IDENTITY);
+            .aabb(Vec3::ZERO, Quat::IDENTITY, 0.0);
         let original_decor_aabb = world
             .get::<Collider>(decor_entity)
             .expect("a decoration carries a collider")
-            .aabb(Vec3::ZERO, Quat::IDENTITY);
+            .aabb(Vec3::ZERO, Quat::IDENTITY, 0.0);
 
         let frozen = freeze_fixtures(&world, section).expect("a settled plate and decor freeze");
         let written = ron::to_string(&frozen).expect("a frozen fixture serializes");
@@ -635,14 +635,14 @@ mod tests {
         let thawed_plate_aabb = world
             .get::<Collider>(thawed_plate)
             .expect("the thawed plate carries a collider")
-            .aabb(Vec3::ZERO, Quat::IDENTITY);
+            .aabb(Vec3::ZERO, Quat::IDENTITY, 0.0);
         assert_eq!(thawed_plate_aabb.min, original_plate_aabb.min);
         assert_eq!(thawed_plate_aabb.max, original_plate_aabb.max);
 
         let thawed_decor_aabb = world
             .get::<Collider>(thawed_decor)
             .expect("the thawed decoration carries a collider")
-            .aabb(Vec3::ZERO, Quat::IDENTITY);
+            .aabb(Vec3::ZERO, Quat::IDENTITY, 0.0);
         assert_eq!(thawed_decor_aabb.min, original_decor_aabb.min);
         assert_eq!(thawed_decor_aabb.max, original_decor_aabb.max);
     }

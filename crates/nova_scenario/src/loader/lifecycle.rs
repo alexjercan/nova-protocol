@@ -481,7 +481,7 @@ pub(super) fn on_load_scenario(
     // camera deliberately never carries it.
     //
     // The skybox goes on DEFERRED (PendingSkyboxSwap, the SetSkybox action's
-    // applier): the skybox setup observer is an `On<Insert, SkyboxConfig>`, so
+    // applier): the skybox setup observer is an `On<Insert<SkyboxConfig>>`, so
     // it reads the image out of `Assets<Image>` once, at insert time, and
     // gives up with a logged error on a not-yet-loaded handle - it is never
     // re-run for that camera, which would leave the scenario skyless for its
@@ -516,8 +516,8 @@ pub(super) fn on_load_scenario(
         ScenarioScopedMarker,
         Name::new(format!("Scenario Input Context: {}", scenario.name)),
         ScenarioInputMarker,
-        actions!(
-            ScenarioInputMarker[(
+        related!(
+            Actions<ScenarioInputMarker>[(
                 Name::new("Input: Next Scenario"),
                 Action::<NextScenarioInput>::new(),
                 bindings.bundle("scenario_advance")
@@ -674,7 +674,7 @@ pub(crate) fn register_scenario_scoping(app: &mut App) {
 }
 
 pub(super) fn on_add_entity_with<T: Component>(
-    add: On<Add, T>,
+    add: On<Add<T>>,
     mut commands: Commands,
     current_scenario: Res<CurrentScenario>,
 ) {
@@ -741,8 +741,8 @@ pub(crate) fn rebuild_scenario_input_on_rebind(
             ScenarioScopedMarker,
             name.clone(),
             ScenarioInputMarker,
-            actions!(
-                ScenarioInputMarker[(
+            related!(
+                Actions<ScenarioInputMarker>[(
                     Name::new("Input: Next Scenario"),
                     Action::<NextScenarioInput>::new(),
                     bindings.bundle("scenario_advance")
@@ -825,7 +825,7 @@ pub(super) fn on_next_input(
 pub struct ScenarioCameraMarker;
 
 pub(super) fn on_player_spaceship_spawned(
-    add: On<Add, PlayerSpaceshipMarker>,
+    add: On<Add<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     camera: Single<Entity, With<ScenarioCameraMarker>>,
 ) {
@@ -840,7 +840,7 @@ pub(super) fn on_player_spaceship_spawned(
 }
 
 pub(super) fn on_player_spaceship_destroyed(
-    _remove: On<Remove, PlayerSpaceshipMarker>,
+    _remove: On<Remove<PlayerSpaceshipMarker>>,
     mut commands: Commands,
     camera: Single<Entity, With<SpaceshipCameraController>>,
 ) {
@@ -1548,8 +1548,8 @@ mod tests {
         app.world_mut().spawn((
             Name::new("Scenario Input Context: test"),
             ScenarioInputMarker,
-            actions!(
-                ScenarioInputMarker[(
+            related!(
+                Actions<ScenarioInputMarker>[(
                     Name::new("Input: Next Scenario"),
                     Action::<NextScenarioInput>::new(),
                     shipped.bundle("scenario_advance")

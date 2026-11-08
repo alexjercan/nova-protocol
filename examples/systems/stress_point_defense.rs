@@ -890,13 +890,13 @@ fn track_trigger_duty(
 /// marker lives for one schedule pass before the reaper removes the torpedo, so
 /// a per-frame count would miss most of them.
 #[cfg(feature = "debug")]
-fn count_intercepts(_shot_down: On<Add, TorpedoShotDownMarker>, mut peaks: ResMut<Peaks>) {
+fn count_intercepts(_shot_down: On<Add<TorpedoShotDownMarker>>, mut peaks: ResMut<Peaks>) {
     peaks.intercepts += 1;
 }
 
 /// Tally every round the battery spends, at the frame it is spawned.
 #[cfg(feature = "debug")]
-fn count_rounds_fired(_fired: On<Add, TurretBulletProjectileMarker>, mut peaks: ResMut<Peaks>) {
+fn count_rounds_fired(_fired: On<Add<TurretBulletProjectileMarker>>, mut peaks: ResMut<Peaks>) {
     peaks.fired += 1;
 }
 

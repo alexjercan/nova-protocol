@@ -325,7 +325,7 @@ pub(crate) fn close_menu_on_item(
 }
 
 /// A click on the scrim - anywhere off the menu - closes it.
-pub(crate) fn on_menu_scrim(_click: On<Pointer<Click>>, mut open: ResMut<OpenMenu>) {
+pub(crate) fn on_menu_scrim(_click: On<PointerClick>, mut open: ResMut<OpenMenu>) {
     open.0 = None;
 }
 

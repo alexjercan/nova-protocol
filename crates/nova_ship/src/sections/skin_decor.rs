@@ -331,7 +331,7 @@ fn decor_collider(size: Vec3) -> Collider {
 /// fixture stands in, so a child would carry an identity transform and cost an
 /// entity per piece over a hull that has hundreds.
 pub(crate) fn dress_skin_decor(
-    add: On<Add, ShipDecorMarker>,
+    add: On<Add<ShipDecorMarker>>,
     mut commands: Commands,
     q_decor: Query<&ShipDecorMarker>,
     asset_server: Res<AssetServer>,

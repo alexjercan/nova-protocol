@@ -106,7 +106,7 @@ fn driven_app_logs_its_step_names_and_a_stalled_step_aborts() {
 
 /// The pointer half of the input contract, against the real thing: `click_at`
 /// puts the cursor over a `bevy_ui` node in a live `DefaultPlugins` app and the
-/// PICKING BACKEND delivers a `Pointer<Press>` to that node.
+/// PICKING BACKEND delivers a `PointerPress` to that node.
 ///
 /// The unit tests in `src/input.rs` only prove the three pieces of state a
 /// click writes (window `cursor_position`, a `CursorMoved` message, a fresh

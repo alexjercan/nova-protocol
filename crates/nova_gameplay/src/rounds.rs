@@ -642,7 +642,7 @@ impl SweepWorld<'_, '_> {
         let (position, rotation) = self.body_pose.get(of.body).ok()?;
         Some((
             position.0 + rotation.0 * local.translation,
-            rotation.0 * local.rotation.0,
+            rotation.0 * local.rotation,
         ))
     }
 

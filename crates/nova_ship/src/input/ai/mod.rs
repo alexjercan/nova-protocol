@@ -335,7 +335,7 @@ pub struct AINonCombatant;
 /// its allegiance, its colliders and its health, so it still counts for
 /// `OnNeutralized`, still shows on the HUD, and can still be shot to pieces.
 fn on_neutralized_stand_down(
-    add: On<Add, NeutralizedMarker>,
+    add: On<Add<NeutralizedMarker>>,
     mut commands: Commands,
     q_ai: Query<(), With<AISpaceshipMarker>>,
 ) {
@@ -378,7 +378,7 @@ mod tests {
     }
 
     /// [`AISpaceshipMarker`] requires [`SpaceshipRootMarker`], so `gravity`'s
-    /// `On<Add, SpaceshipRootMarker>` observer covers AI ships too. This
+    /// `On<Add<SpaceshipRootMarker>>` observer covers AI ships too. This
     /// proves that required-component chain delivers the opt-in through the
     /// real plugin.
     #[test]

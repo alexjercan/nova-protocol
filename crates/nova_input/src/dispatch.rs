@@ -536,8 +536,8 @@ mod tests {
 
         app.world_mut().spawn((
             PadContext,
-            actions!(
-                PadContext[(
+            related!(
+                Actions<PadContext>[(
                     Action::<PadFire>::new(),
                     Hold::new(HOLD_SECS),
                     source_bindings([InputSource::Gamepad(GamepadButton::South)]),

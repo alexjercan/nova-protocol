@@ -8,7 +8,7 @@ use std::{
 
 use avian3d::{
     collider_tree::ColliderTrees,
-    dynamics::solver::joint_graph::JointGraph,
+    dynamics::joints::joint_graph::JointGraph,
     prelude::{
         FixedJoint, JointAnchor, JointBasis, JointFrame, LinearVelocity, Position, RigidBody,
         Rotation,

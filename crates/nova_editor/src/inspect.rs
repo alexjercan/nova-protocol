@@ -2700,12 +2700,12 @@ fn switched(held: &dyn PartialReflect, variant: &str) -> Result<Box<dyn PartialR
         return Err(format!("{variant} is not one of the options"));
     };
     if held.variant_name() == variant {
-        return Ok(held.to_dynamic());
+        return dynamic(held);
     }
     let carried: Vec<Box<dyn PartialReflect>> = held
         .iter_fields()
-        .map(|field| field.value().to_dynamic())
-        .collect();
+        .map(|field| dynamic(field.value()))
+        .collect::<Result<_, _>>()?;
     let same_shape = switchable_variants_of(variants).is_some();
     let shape = match wanted {
         VariantInfo::Unit(_) => DynamicVariant::Unit,
@@ -2713,7 +2713,10 @@ fn switched(held: &dyn PartialReflect, variant: &str) -> Result<Box<dyn PartialR
             let mut built = DynamicStruct::default();
             for (index, field) in fields.iter().enumerate() {
                 let kept = if same_shape {
-                    carried.get(index).map(|value| value.to_dynamic())
+                    carried
+                        .get(index)
+                        .map(|value| dynamic(value.as_ref()))
+                        .transpose()?
                 } else {
                     held.field(field.name())
                         .filter(|value| {
@@ -2721,7 +2724,8 @@ fn switched(held: &dyn PartialReflect, variant: &str) -> Result<Box<dyn PartialR
                                 .get_represented_type_info()
                                 .is_some_and(|held| held.type_path() == field.type_path())
                         })
-                        .map(PartialReflect::to_dynamic)
+                        .map(dynamic)
+                        .transpose()?
                 };
                 let value = match kept {
                     Some(value) => value,
@@ -2740,7 +2744,7 @@ fn switched(held: &dyn PartialReflect, variant: &str) -> Result<Box<dyn PartialR
                         .is_some_and(|held| held.type_path() == field.type_path())
                 });
                 let value = match kept {
-                    Some(value) => value.to_dynamic(),
+                    Some(value) => dynamic(value.as_ref())?,
                     None => fresh_field(info, field.type_info(), field.type_path())?,
                 };
                 built.insert_boxed(value);
@@ -2751,6 +2755,16 @@ fn switched(held: &dyn PartialReflect, variant: &str) -> Result<Box<dyn PartialR
     let mut built = DynamicEnum::new(variant, shape);
     built.set_represented_type(Some(info));
     Ok(Box::new(built))
+}
+
+/// A dynamic copy of `value`, or the reason reflection cannot copy it.
+fn dynamic(value: &dyn PartialReflect) -> Result<Box<dyn PartialReflect>, String> {
+    value.to_dynamic().map_err(|error| {
+        format!(
+            "cannot copy {}: {error}",
+            short_type(value.reflect_type_path())
+        )
+    })
 }
 
 /// A fresh value for one field of a variant being switched to.
@@ -2777,7 +2791,7 @@ fn optional_choice(
         NOTHING => None,
         fresh::SET => match held.reflect_ref() {
             // Already set: a second press keeps what is authored.
-            ReflectRef::Enum(chosen) if chosen.field_len() > 0 => return Ok(held.to_dynamic()),
+            ReflectRef::Enum(chosen) if chosen.field_len() > 0 => return dynamic(held),
             _ => Some(fresh::fresh(payload)?),
         },
         name => {
@@ -3110,9 +3124,9 @@ pub(crate) fn reset_field(
         let prototype = node
             .resolve(catalog)
             .ok_or_else(|| "no catalog entry".to_string())?;
-        peek(section_config(&prototype.kind), path)
-            .ok_or_else(|| "nothing to inherit".to_string())?
-            .to_dynamic()
+        let prototype_field = peek(section_config(&prototype.kind), path)
+            .ok_or_else(|| "nothing to inherit".to_string())?;
+        dynamic(prototype_field)?
     };
     edit_section(node, catalog, |config| {
         let target = resolve(section_config_mut(&mut config.kind), path)

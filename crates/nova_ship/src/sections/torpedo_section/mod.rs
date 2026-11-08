@@ -875,7 +875,7 @@ pub struct TorpedoColdLaunch {
 ///
 /// Triggered by the gameplay half so the render half can answer it without
 /// gameplay deciding what ignition looks like - the split [`LightFlash`]
-/// already uses. An `On<Remove, TorpedoColdLaunch>` observer would be the
+/// already uses. An `On<Remove<TorpedoColdLaunch>>` observer would be the
 /// shorter route and the wrong one: bevy fires `Remove` on despawn too, so a
 /// torpedo reaped mid-ejection would flash as though it had ignited.
 #[derive(Event, Clone, Copy, Debug)]

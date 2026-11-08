@@ -657,7 +657,7 @@ pub(crate) fn fill_document(world: &mut World, scenario: Entity, document: Lifte
 
     let scenario_ordinal = resume_ordinal(ids.iter().map(String::as_str));
     let mut query = world.query::<&mut NextChildOrdinal>();
-    let mut ordinals = query.query_mut(world);
+    let mut ordinals = query.query_mut(&mut *world);
     resume_ordinals(&mut ordinals, scenario, scenario_ordinal);
     for (node, ordinal) in ship_ordinals {
         resume_ordinals(&mut ordinals, node, ordinal);

@@ -91,7 +91,7 @@ impl Plugin for ScenarioAreaPlugin {
 /// fires no `OnExit` for ITSELF. The only `OnExitEvent` is on the 1 -> 0
 /// transition in [`on_collision_end_event`]. What this restores is the NEXT
 /// body's ability to reach zero at all.
-fn forget_body_occupancy(despawn: On<Despawn, EntityId>, mut occupancy: ResMut<AreaOccupancy>) {
+fn forget_body_occupancy(despawn: On<Despawn<EntityId>>, mut occupancy: ResMut<AreaOccupancy>) {
     occupancy
         .0
         .retain(|(area, other), _| *area != despawn.entity && *other != despawn.entity);
@@ -114,7 +114,7 @@ fn forget_body_occupancy(despawn: On<Despawn, EntityId>, mut occupancy: ResMut<A
 ///
 /// Global, but it declines on an empty table first: a scenario with no areas
 /// pays one resource read per collider despawn.
-fn forget_collider_occupancy(despawn: On<Despawn, Collider>, mut occupancy: ResMut<AreaOccupancy>) {
+fn forget_collider_occupancy(despawn: On<Despawn<Collider>>, mut occupancy: ResMut<AreaOccupancy>) {
     if occupancy.0.is_empty() {
         return;
     }
@@ -144,7 +144,7 @@ fn forget_collider_occupancy(despawn: On<Despawn, Collider>, mut occupancy: ResM
 /// Global, and it declines on an empty table first, so a scenario with no areas
 /// pays one resource read per collider spawned.
 fn rekey_severed_occupancy(
-    insert: On<Insert, ColliderOf>,
+    insert: On<Insert<ColliderOf>>,
     mut occupancy: ResMut<AreaOccupancy>,
     q_collider_of: Query<&ColliderOf>,
 ) {
@@ -186,7 +186,7 @@ fn rekey_severed_occupancy(
 /// event once per side that has [`CollisionEventsEnabled`], with that side as
 /// the target, so an observer bound to the area only ever sees the arm where
 /// the area IS `collider1`.
-fn wire_area_collisions(add: On<Add, ScenarioAreaMarker>, mut commands: Commands) {
+fn wire_area_collisions(add: On<Add<ScenarioAreaMarker>>, mut commands: Commands) {
     let entity = add.entity;
     trace!("wire_area_collisions: entity {:?}", entity);
 

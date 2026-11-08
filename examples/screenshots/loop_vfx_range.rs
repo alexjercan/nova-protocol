@@ -219,12 +219,12 @@ fn custom_plugin(app: &mut App) {
 }
 
 /// Under [`BARE_SLUG_ENV`]: take the wake off a slug the frame it is given.
-fn strip_wake(add: On<Add, RailgunWakeEmitter>, mut commands: Commands) {
+fn strip_wake(add: On<Add<RailgunWakeEmitter>>, mut commands: Commands) {
     commands.entity(add.entity).despawn();
 }
 
 /// Under [`BARE_SLUG_ENV`]: take the light off a slug the frame it is given.
-fn strip_slug_light(add: On<Add, RailgunSlugLight>, mut commands: Commands) {
+fn strip_slug_light(add: On<Add<RailgunSlugLight>>, mut commands: Commands) {
     commands.entity(add.entity).despawn();
 }
 

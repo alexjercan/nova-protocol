@@ -114,7 +114,7 @@ pub(crate) struct RowVerbs {
     reason = "a Bevy observer; each query is one legality rule of the menu"
 )]
 pub(crate) fn on_scene_row_menu(
-    click: On<Pointer<Click>>,
+    click: On<PointerClick>,
     mut commands: Commands,
     rows: Query<&SceneRow>,
     context: Res<EditContext>,
@@ -158,7 +158,7 @@ pub(crate) fn on_scene_row_menu(
     close_popups(&mut commands, &roots);
     let popup = spawn_cascade(
         &mut commands,
-        click.pointer_location.position,
+        click.pointer.position,
         layer::MENU_Z,
         row_items(&verbs, &facts.designs()),
     );

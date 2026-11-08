@@ -457,15 +457,15 @@ mod tests {
         // derivation reads REAL TriggerStates driven by device input.
         app.world_mut().spawn((
             PlayerInputMarker,
-            actions!(
-                PlayerInputMarker[
+            related!(
+                Actions<PlayerInputMarker>[
                     (
                         Action::<FreeLookInput>::new(),
-                        bindings![KeyCode::AltLeft, GamepadButton::LeftTrigger]
+                        related!(Bindings[Binding::from(KeyCode::AltLeft), Binding::from(GamepadButton::LeftTrigger)])
                     ),
                     (
                         Action::<CombatInput>::new(),
-                        bindings![MouseButton::Right, GamepadButton::LeftTrigger2]
+                        related!(Bindings[Binding::from(MouseButton::Right), Binding::from(GamepadButton::LeftTrigger2)])
                     ),
                 ]
             ),
@@ -715,7 +715,7 @@ mod tests {
         // The camera rotate action, bound to mouse motion like production.
         app.world_mut().spawn((
             PlayerInputMarker,
-            actions!(PlayerInputMarker[
+            related!(Actions<PlayerInputMarker>[
                 (
                     Action::<CameraInputRotate>::new(),
                     Bindings::spawn(Spawn((Binding::mouse_motion(), Scale::splat(1.0)))),
@@ -769,7 +769,7 @@ mod tests {
         app.update();
         app.world_mut().spawn((
             PlayerInputMarker,
-            actions!(PlayerInputMarker[
+            related!(Actions<PlayerInputMarker>[
                 (
                     Action::<CameraInputRotate>::new(),
                     Bindings::spawn(Spawn((Binding::mouse_motion(), Scale::splat(0.01)))),

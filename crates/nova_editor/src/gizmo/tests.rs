@@ -190,7 +190,7 @@ fn ship(app: &mut App, at: Vec3) -> Entity {
     app.world_mut().spawn((
         NodeView,
         ChildOf(node),
-        Collider::cuboid(4.0, 2.0, 8.0).aabb(at, Quat::IDENTITY),
+        Collider::cuboid(4.0, 2.0, 8.0).aabb(at, Quat::IDENTITY, 0.0),
     ));
     node
 }
@@ -335,7 +335,7 @@ fn rock(app: &mut App, at: Vec3, body: Collider) -> Entity {
         ))
         .id();
     app.world_mut()
-        .spawn((NodeView, ChildOf(node), body.aabb(at, Quat::IDENTITY)));
+        .spawn((NodeView, ChildOf(node), body.aabb(at, Quat::IDENTITY, 0.0)));
     node
 }
 
@@ -350,7 +350,7 @@ fn regrow(app: &mut App, at: Vec3, body: Collider) {
     };
     app.world_mut()
         .entity_mut(view)
-        .insert(body.aabb(at, Quat::IDENTITY));
+        .insert(body.aabb(at, Quat::IDENTITY, 0.0));
 }
 
 #[test]
@@ -367,8 +367,8 @@ fn turning_a_node_does_not_resize_its_rig() {
     // again as wide. Sizing the rig off that every frame is what made the
     // handles swell under their own turn ring.
     let turn = Quat::from_rotation_y(std::f32::consts::FRAC_PI_4);
-    let square_on = Collider::cuboid(4.0, 2.0, 8.0).aabb(Vec3::ZERO, Quat::IDENTITY);
-    let turned = Collider::cuboid(4.0, 2.0, 8.0).aabb(Vec3::ZERO, turn);
+    let square_on = Collider::cuboid(4.0, 2.0, 8.0).aabb(Vec3::ZERO, Quat::IDENTITY, 0.0);
+    let turned = Collider::cuboid(4.0, 2.0, 8.0).aabb(Vec3::ZERO, turn, 0.0);
     assert!(
         turned.size().length() > square_on.size().length() * 1.1,
         "the fixture has to actually grow, or this proves nothing"

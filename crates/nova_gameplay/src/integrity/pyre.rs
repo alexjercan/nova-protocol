@@ -537,7 +537,7 @@ fn build_pyre_core(core: PyreCore, name: &str) -> EffectAsset {
     // Round, not rectangular. These are the biggest quads in the frame while
     // they burn, and without the mask a death reads as a cluster of glowing
     // squares whatever the gradient does.
-    let mask = soft_dot_modifier(&writer);
+    let mask = soft_dot_modifier();
     let mut module = writer.finish();
     declare_soft_dot_slot(&mut module);
 
@@ -620,7 +620,7 @@ fn build_pyre_ejecta(ejecta: PyreEjecta, name: &str) -> EffectAsset {
 
     // On a velocity-oriented quad the circular mask reads as a tapered streak
     // rather than as a lozenge with corners.
-    let mask = soft_dot_modifier(&writer);
+    let mask = soft_dot_modifier();
     let mut module = writer.finish();
     declare_soft_dot_slot(&mut module);
 
@@ -821,7 +821,7 @@ fn cool_the_warm_pyres(mut commands: Commands, warm: Query<(Entity, Ref<PyreWarm
     reason = "one observer assembling a hanabi instance: the graph store, the mask, the frame budget, the tier gate and the queries that place it and say what it is made of"
 )]
 fn light_the_pyre(
-    add: On<Add, IntegrityDestroyMarker>,
+    add: On<Add<IntegrityDestroyMarker>>,
     mut commands: Commands,
     effects: Option<ResMut<Assets<EffectAsset>>>,
     images: Option<ResMut<Assets<Image>>>,

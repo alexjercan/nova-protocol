@@ -28,7 +28,7 @@
 //! noise field evaluated in the same local space, plus a per-seed rotation and
 //! offset of the sampling frame. See
 //! [`asteroid_kind`](super::asteroid_kind) for what a kind is and
-//! `assets/shaders/asteroid_surface.wgsl` for what the shader spends.
+//! `assets/shaders/asteroid_surface.wesl` for what the shader spends.
 //!
 //! # The silhouette: a rock is not a sphere with growths on it
 //!
@@ -95,7 +95,7 @@ pub type AsteroidSurfaceMaterial = ExtendedMaterial<StandardMaterial, AsteroidSu
 /// gone - the layout can no longer be broken by adding a knob.
 ///
 /// Field order here IS the WGSL struct's field order in
-/// `assets/shaders/asteroid_surface.wgsl`. Keep them in step.
+/// `assets/shaders/asteroid_surface.wesl`. Keep them in step.
 #[derive(ShaderType, Debug, Clone)]
 pub struct AsteroidSurfaceUniform {
     /// The dark end of the kind's palette.
@@ -216,7 +216,7 @@ impl AsteroidSurfaceMaterialExt {
 
 impl MaterialExtension for AsteroidSurfaceMaterialExt {
     fn fragment_shader() -> ShaderRef {
-        "shaders/asteroid_surface.wgsl".into()
+        "shaders/asteroid_surface.wesl".into()
     }
 }
 

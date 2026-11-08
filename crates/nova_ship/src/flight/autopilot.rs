@@ -2982,7 +2982,7 @@ fn match_target_step(
 /// hull, which parks the saturated PD in its degenerate zone where it
 /// sustains a perpetual roll instead of damping the leftover spin.
 pub(super) fn on_autopilot_removed_cool_engines(
-    remove: On<Remove, Autopilot>,
+    remove: On<Remove<Autopilot>>,
     q_ship: Query<&Rotation, With<SpaceshipRootMarker>>,
     mut q_thruster: Query<(&mut ThrusterSectionInput, &ChildOf), With<ThrusterSectionMarker>>,
     mut q_rotation_input: Query<

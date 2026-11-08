@@ -277,7 +277,7 @@ pub fn chunk_collider(mesh: &Mesh) -> Option<Collider> {
     let (centre, half) = mesh_bounds(mesh)?;
 
     if half.min_element() > CHUNK_MIN_THICKNESS {
-        if let Some(hull) = hull_points(mesh).and_then(Collider::convex_hull) {
+        if let Some(hull) = hull_points(mesh).and_then(|points| Collider::convex_hull(&points)) {
             if hull.mass_properties(1.0).mass > 0.0 {
                 return Some(hull);
             }

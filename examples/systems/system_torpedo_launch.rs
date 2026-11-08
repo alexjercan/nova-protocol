@@ -130,11 +130,11 @@ fn main() -> bevy::app::AppExit {
         app.init_resource::<RangeGizmos>();
         app.init_resource::<TransientsAtSwitch>();
         app.add_observer(
-            |_: On<Add, TorpedoProjectileMarker>, mut outcome: ResMut<RangeOutcome>| {
+            |_: On<Add<TorpedoProjectileMarker>>, mut outcome: ResMut<RangeOutcome>| {
                 outcome.fired = true;
             },
         );
-        app.add_observer(|_: On<Add, NovaBlast>, mut outcome: ResMut<RangeOutcome>| {
+        app.add_observer(|_: On<Add<NovaBlast>>, mut outcome: ResMut<RangeOutcome>| {
             outcome.detonated = true;
         });
         app.add_observer(
@@ -572,7 +572,7 @@ fn crossing_range(game_assets: &GameAssets, sections: &GameSections) -> Scenario
 }
 
 /// Tag each spawned asteroid as a gate, and single out the two driven ones.
-fn tag_gate(add: On<Add, AsteroidMarker>, mut commands: Commands, q_id: Query<&EntityId>) {
+fn tag_gate(add: On<Add<AsteroidMarker>>, mut commands: Commands, q_id: Query<&EntityId>) {
     let entity = add.entity;
     commands.entity(entity).insert(RangeGateMarker);
 
@@ -911,7 +911,7 @@ fn draw_guidance_gizmos(
     }
 }
 
-fn log_torpedo_fired(add: On<Add, TorpedoProjectileMarker>, q_arming: Query<&TorpedoArming>) {
+fn log_torpedo_fired(add: On<Add<TorpedoProjectileMarker>>, q_arming: Query<&TorpedoArming>) {
     // The clearance rides on the line because it is what decides whether a
     // short shot is a shot at all: a warhead may not arm inside the hull it
     // left plus its own blast, so a gate nearer than this figure is a gate
@@ -942,7 +942,7 @@ fn log_torpedo_armed(
     }
 }
 
-fn log_torpedo_detonated(add: On<Add, NovaBlast>) {
+fn log_torpedo_detonated(add: On<Add<NovaBlast>>) {
     info!("range: torpedo detonated ({:?})", add.entity);
 }
 

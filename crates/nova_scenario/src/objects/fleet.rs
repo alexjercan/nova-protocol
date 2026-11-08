@@ -255,7 +255,7 @@ fn make_hired_escort(world: &mut World, hire: EscortHireRequest) {
 /// ([`OwnedShipMarker`]) and the streaming layer gives the wreck to
 /// the cell it drifts in, and the save keeps it there.
 fn release_neutralized_escort(
-    neutralized: On<Add, NeutralizedMarker>,
+    neutralized: On<Add<NeutralizedMarker>>,
     mut commands: Commands,
     q_escort: Query<&EntityId, With<PlayerFleetMarker>>,
 ) {

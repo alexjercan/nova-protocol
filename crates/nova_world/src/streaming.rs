@@ -464,7 +464,7 @@ fn dead_station_name(name: &str) -> Option<String> {
 /// station spawned or thawed dead already carries that name. An authored
 /// scenario station has no [`GeneratedBodyId`] and keeps its author's name.
 pub(crate) fn rename_dead_generated_station(
-    add: On<Add, DerelictShipMarker>,
+    add: On<Add<DerelictShipMarker>>,
     mut q_station: Query<&mut Name, (With<StationMarker>, With<GeneratedBodyId>)>,
 ) {
     let Ok(mut name) = q_station.get_mut(add.entity) else {

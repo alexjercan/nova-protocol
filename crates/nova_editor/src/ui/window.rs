@@ -543,7 +543,7 @@ pub(crate) fn window_frame(
 
 /// Drag a window by its bar, and keep enough of it on screen to drag back.
 pub(crate) fn on_window_drag(
-    drag: On<Pointer<Drag>>,
+    drag: On<PointerDrag>,
     bars: Query<&WindowTitleBar>,
     mut windows: Query<&mut Node, With<EditorWindow>>,
     screen: Option<Single<&Window>>,

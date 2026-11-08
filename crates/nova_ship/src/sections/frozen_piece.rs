@@ -266,7 +266,7 @@ pub struct DetachedPieceSource {
 /// piece's own shape consistent with a live one) or when the named source no
 /// longer exists (same reason, covering `Entity::PLACEHOLDER`).
 pub(crate) fn stamp_detached_piece_source(
-    add: On<Add, DetachedPieceMarker>,
+    add: On<Add<DetachedPieceMarker>>,
     q_marker: Query<&DetachedPieceMarker>,
     q_stamped: Query<&DetachedPieceSource>,
     q_collider: Query<&SectionCollider>,
@@ -1608,8 +1608,7 @@ mod tests {
         state.apply(app.world_mut());
 
         // The intermediate state right after the thaw's own commands land,
-        // before any `app.update()`. `dress_skin_decor` is an `On<Add,
-        // ShipDecorMarker>` observer, not a scheduled system, so it already
+        // before any `app.update()`. `dress_skin_decor` is an `On<Add<// ShipDecorMarker>>` observer, not a scheduled system, so it already
         // fired within this same command flush: a thawed decor carries both
         // `ShipDecorMarker` and the `WorldAssetRoot` the observer derived
         // from it, resolving to the same authored path. A thawed plate, by

@@ -125,7 +125,7 @@ impl Plugin for TempEntityPlugin {
 /// already on the entity is kept: [`resumed_lifetime`] inserts the two
 /// together, with the saved time already spent.
 fn on_insert_temp_entity(
-    insert: On<Insert, TempEntity>,
+    insert: On<Insert<TempEntity>>,
     mut commands: Commands,
     q_temp: Query<(&TempEntity, Has<TempEntityState>)>,
 ) {
@@ -198,7 +198,7 @@ impl Plugin for DespawnEntityPlugin {
 /// try_despawn, for the same race `update_temp_entities` names above: the mark
 /// is data-driven, so a scenario script can raise it on the same frame the
 /// entity dies of something else, and the loser of that flush warns.
-fn on_insert_despawn_entity(insert: On<Insert, DespawnEntity>, mut commands: Commands) {
+fn on_insert_despawn_entity(insert: On<Insert<DespawnEntity>>, mut commands: Commands) {
     let entity = insert.entity;
     trace!("on_insert_despawn_entity: entity {:?}", entity);
 
@@ -237,7 +237,7 @@ mod tests {
         // it is pinned here so the test is about the losing reaper rather
         // than about which one loses.
         app.add_observer(
-            |insert: On<Insert, DespawnEntity>, mut commands: Commands| {
+            |insert: On<Insert<DespawnEntity>>, mut commands: Commands| {
                 commands.entity(insert.entity).try_despawn();
             },
         );

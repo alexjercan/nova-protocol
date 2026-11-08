@@ -9,10 +9,10 @@ description = "Deterministic sector generation and streaming for the Nova Protoc
 [dependencies]
 # `LinearVelocity` and `AngularVelocity`: a frozen body keeps the motion it
 # left the window with.
-avian3d = { version = "0.7.0" }
+avian3d = { version = "0.8.0" }
 # Components, resources, system sets and `AsyncComputeTaskPool`. This crate
 # owns systems, so it builds a plugin; `nova_world_base` adds it for the game.
-bevy = { version = "0.19.0" }
+bevy = { version = "0.20.1" }
 # `Meters` and `Meters3`: every world quantity here is authored in meters and
 # converted at the engine edge.
 nova_events = { path = "../nova_events" }

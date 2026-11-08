@@ -46,7 +46,7 @@ pub(super) struct ThrusterInput;
 /// (`manual_burn_system`), so the throttle it last spooled is let go here and
 /// the key alone drives it from now on.
 pub(super) fn on_thruster_input_binding(
-    add: On<Insert, SpaceshipThrusterInputBinding>,
+    add: On<Insert<SpaceshipThrusterInputBinding>>,
     mut commands: Commands,
     q_binding: Query<&SpaceshipThrusterInputBinding>,
     q_actions: Query<&Actions<ThrusterInputMarker>>,
@@ -73,8 +73,8 @@ pub(super) fn on_thruster_input_binding(
     }
     commands.entity(entity).insert((
         ThrusterInputMarker,
-        actions!(
-            ThrusterInputMarker[(
+        related!(
+            Actions<ThrusterInputMarker>[(
                 Name::new("Input: Thruster"),
                 Action::<ThrusterInput>::new(),
                 ActionSettings {
@@ -92,7 +92,7 @@ pub(super) fn on_thruster_input_binding(
 /// flight computer's allocation to spool. Also runs as the section leaves
 /// the world, where the `try_` commands find nothing left to do.
 pub(super) fn on_thruster_input_binding_removed(
-    remove: On<Remove, SpaceshipThrusterInputBinding>,
+    remove: On<Remove<SpaceshipThrusterInputBinding>>,
     mut commands: Commands,
     mut q_input: Query<(
         Option<&mut ThrusterSectionInput>,
@@ -181,7 +181,7 @@ pub(super) struct TurretInputMarker;
 pub(super) struct TurretInput;
 
 pub(super) fn on_turret_input_binding(
-    add: On<Insert, SpaceshipTurretInputBinding>,
+    add: On<Insert<SpaceshipTurretInputBinding>>,
     mut commands: Commands,
     q_binding: Query<&SpaceshipTurretInputBinding>,
     q_actions: Query<&Actions<TurretInputMarker>>,
@@ -200,8 +200,8 @@ pub(super) fn on_turret_input_binding(
 
     commands.entity(entity).insert((
         TurretInputMarker,
-        actions!(
-            TurretInputMarker[(
+        related!(
+            Actions<TurretInputMarker>[(
                 Name::new("Input: Turret"),
                 Action::<TurretInput>::new(),
                 ActionSettings {
@@ -278,7 +278,7 @@ pub(super) struct TorpedoInputMarker;
 pub(super) struct TorpedoInput;
 
 pub(super) fn on_torpedo_input_binding(
-    add: On<Insert, SpaceshipTorpedoInputBinding>,
+    add: On<Insert<SpaceshipTorpedoInputBinding>>,
     mut commands: Commands,
     q_binding: Query<&SpaceshipTorpedoInputBinding>,
     q_actions: Query<&Actions<TorpedoInputMarker>>,
@@ -297,8 +297,8 @@ pub(super) fn on_torpedo_input_binding(
 
     commands.entity(entity).insert((
         TorpedoInputMarker,
-        actions!(
-            TorpedoInputMarker[(
+        related!(
+            Actions<TorpedoInputMarker>[(
                 Name::new("Input: Torpedo"),
                 Action::<TorpedoInput>::new(),
                 ActionSettings {
@@ -375,7 +375,7 @@ pub(super) struct RailgunInputMarker;
 pub(super) struct RailgunInput;
 
 pub(super) fn on_railgun_input_binding(
-    add: On<Insert, SpaceshipRailgunInputBinding>,
+    add: On<Insert<SpaceshipRailgunInputBinding>>,
     mut commands: Commands,
     q_binding: Query<&SpaceshipRailgunInputBinding>,
     q_actions: Query<&Actions<RailgunInputMarker>>,
@@ -394,8 +394,8 @@ pub(super) fn on_railgun_input_binding(
 
     commands.entity(entity).insert((
         RailgunInputMarker,
-        actions!(
-            RailgunInputMarker[(
+        related!(
+            Actions<RailgunInputMarker>[(
                 Name::new("Input: Railgun"),
                 Action::<RailgunInput>::new(),
                 ActionSettings {
@@ -480,7 +480,7 @@ pub(super) struct MiningInputMarker;
 pub(super) struct MiningSectionInput;
 
 pub(super) fn on_mining_input_binding(
-    add: On<Insert, SpaceshipMiningInputBinding>,
+    add: On<Insert<SpaceshipMiningInputBinding>>,
     mut commands: Commands,
     mut q_binding: Query<(&SpaceshipMiningInputBinding, Option<&mut MiningSectionHeld>)>,
     q_actions: Query<&Actions<MiningInputMarker>>,
@@ -504,8 +504,8 @@ pub(super) fn on_mining_input_binding(
 
     commands.entity(entity).insert((
         MiningInputMarker,
-        actions!(
-            MiningInputMarker[(
+        related!(
+            Actions<MiningInputMarker>[(
                 Name::new("Input: Mining"),
                 Action::<MiningSectionInput>::new(),
                 ActionSettings {
@@ -563,7 +563,11 @@ mod tests {
     #[test]
     fn replacing_a_section_binding_rebuilds_one_live_action_tree() {
         let mut app = App::new();
-        app.add_plugins((MinimalPlugins, EnhancedInputPlugin));
+        app.add_plugins((
+            MinimalPlugins,
+            bevy::input::InputPlugin,
+            EnhancedInputPlugin,
+        ));
         app.add_input_context::<TurretInputMarker>();
         app.add_observer(on_turret_input_binding);
         app.finish();
