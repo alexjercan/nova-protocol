@@ -5,6 +5,7 @@ use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_assets::{mod_cache, prelude::ModQuarantine};
 use nova_gameplay::prelude::{BuildRecipe, ItemDesignId};
 use nova_modding::prelude::{parse_content, serialize_content, Content};
+use nova_scenario::prelude::RoleGoalType;
 use nova_ship::prelude::{
     GameSections, LinkPoint, LinkPointSkinType, SectionCollider, SectionConfig, SectionKind,
     ThrusterSectionConfig,
@@ -26,9 +27,10 @@ use crate::{
         tests::{assert_one_step_of, depth, first_with, undo},
     },
     inspect::{
-        asset_kind_mut, asset_rows, content_reflect_mut, edited_entries, item_text, list_entries,
-        set_item_text, set_list_entries, write_field, AssetListType, AssetTextType, FieldRoot,
-        ListEditType, ListEntry, RowValue,
+        asset_kind_mut, asset_rows, choose_field, content_reflect_mut, edited_entries, form_fault,
+        item_text, list_entries, nudge_field, set_item_text, set_list_entries, write_field,
+        AssetListType, AssetTextType, DragRule, FieldRoot, Limit, ListEditType, ListEntry,
+        PathStep, RowValue,
     },
     node::{
         spawn_section_node, teardown_document, EditContext, NextChildOrdinal, NodeId, ShipNode,
@@ -1197,4 +1199,166 @@ fn a_file_in_use_is_not_deleted_and_the_refusal_names_the_user() {
         .unwrap_or_default();
     assert!(line.contains(&section), "{line}");
     assert!(mod_cache::prelude::read_mod_file("editor_used_file", "dock_flush.glb").is_some());
+}
+
+/// `text` typed into the form field at `path` of `item`.
+fn typed(item: &mut Content, path: &[&str], text: &str) -> Result<(), String> {
+    let path: Vec<PathStep> = path
+        .iter()
+        .map(|step| match step.parse::<usize>() {
+            Ok(index) => PathStep::Item(index),
+            Err(_) => PathStep::Field((*step).to_string()),
+        })
+        .collect();
+    let config = content_reflect_mut(item).expect("a form");
+    write_field(config, &path, false, text)
+}
+
+/// A form number outside the range its content lint holds it to is refused
+/// with the rule, and one inside it is taken. Open and closed ends both.
+#[test]
+fn a_form_number_outside_its_lint_range_is_refused_with_the_rule() {
+    let mut section = shipped("section");
+    let yields = ["build", "strip_yield"];
+    assert_eq!(
+        typed(&mut section, &yields, "0"),
+        Err("above 0".to_string())
+    );
+    assert_eq!(
+        typed(&mut section, &yields, "1.5"),
+        Err("max 1".to_string())
+    );
+    assert_eq!(typed(&mut section, &yields, "1"), Ok(()));
+    assert_eq!(
+        typed(&mut section, &["advancement"], "1.2"),
+        Err("max 1".to_string())
+    );
+    assert_eq!(
+        typed(&mut section, &["draw_weight"], "0"),
+        Err("above 0".to_string())
+    );
+    assert_eq!(
+        typed(&mut section, &["build", "credits"], "0"),
+        Err("min 1".to_string())
+    );
+
+    let mut item = shipped("item");
+    assert_eq!(typed(&mut item, &["mass_g"], "0"), Err("min 1".to_string()));
+    assert_eq!(
+        typed(&mut item, &["mass_g"], "1000001"),
+        Err("max 1000000".to_string())
+    );
+    assert_eq!(
+        typed(&mut item, &["price_lot"], "0"),
+        Err("min 1".to_string())
+    );
+
+    let mut profile = shipped("trade profile");
+    let Content::TradeProfile(design) = &profile else {
+        unreachable!("a trade profile");
+    };
+    assert!(!design.trades.is_empty(), "the shipped profile trades");
+    let quantity = ["trades", "0", "quantity"];
+    assert_eq!(
+        typed(&mut profile, &quantity, "1001"),
+        Err("max 1000".to_string())
+    );
+    assert_eq!(typed(&mut profile, &quantity, "1000"), Ok(()));
+}
+
+/// A form row wears the unit its owning type declares, and a `credits` on a
+/// start kit is not held to a build recipe's floor: the name alone decides
+/// nothing.
+#[test]
+fn a_form_number_wears_what_its_owning_type_declares() {
+    let rows = asset_rows(&shipped("item"), &Default::default());
+    let mass = rows
+        .iter()
+        .find(|row| row.label == "Mass G")
+        .expect("a row");
+    assert_eq!(
+        (mass.unit, mass.limit),
+        ("g", Limit::Between(1.0, 1_000_000.0))
+    );
+
+    let mut role = shipped("start role");
+    let rows = asset_rows(&role, &Default::default());
+    let credits = rows
+        .iter()
+        .find(|row| row.label == "Credits")
+        .expect("a row");
+    assert_eq!((credits.unit, credits.limit), ("cr", Limit::AtLeast(0.0)));
+    assert_eq!(typed(&mut role, &["kit", "credits"], "0"), Ok(()));
+}
+
+/// A scrub walks into the end of its range and stops there; an open end stops
+/// one step short of the value it refuses.
+#[test]
+fn a_form_scrub_stops_at_the_ends_of_its_range() {
+    let mut section = shipped("section");
+    let path = [
+        PathStep::Field("build".to_string()),
+        PathStep::Field("strip_yield".to_string()),
+    ];
+    let rule = DragRule {
+        step: 0.05,
+        limit: Limit::Above(0.0, 1.0),
+    };
+    let read = |item: &Content| match item {
+        Content::Section(config) => config.base.build.strip_yield,
+        _ => unreachable!("a section"),
+    };
+    let config = content_reflect_mut(&mut section).expect("a form");
+    nudge_field(config, &path, false, rule, 100.0).expect("it moves");
+    assert_eq!(read(&section), 1.0);
+    let config = content_reflect_mut(&mut section).expect("a form");
+    nudge_field(config, &path, false, rule, -100.0).expect("it moves");
+    assert!((read(&section) - 0.05).abs() < 1e-6, "{}", read(&section));
+}
+
+/// An item whose bid would pass its ask breaks the one rule between two of
+/// its fields.
+#[test]
+fn an_item_bid_above_its_ask_is_a_fault() {
+    let mut item = shipped("item");
+    let Content::Item(design) = &mut item else {
+        unreachable!("an item");
+    };
+    design.bid_cr = design.ask_cr;
+    assert_eq!(form_fault(&item), None);
+    let Content::Item(design) = &mut item else {
+        unreachable!("an item");
+    };
+    design.bid_cr = design.ask_cr + 1;
+    let ask = design.ask_cr;
+    assert_eq!(form_fault(&item), Some(format!("bid over ask {ask}")));
+}
+
+/// A goal kind is a choice, and switching it keeps the count: every kind
+/// carries one number, so nothing is invented.
+#[test]
+fn a_goal_switched_to_another_kind_keeps_its_count() {
+    let mut role = shipped("start role");
+    let rows = asset_rows(&role, &Default::default());
+    let kind = rows
+        .iter()
+        .find(|row| row.group.last().is_some_and(|group| group == "Goal") && row.label == "Kind")
+        .expect("a goal kind row");
+    let RowValue::Choice { options, .. } = &kind.value else {
+        panic!("the goal kind is a choice: {:?}", kind.value);
+    };
+    assert!(options.iter().any(|option| option == "KillList"));
+    let Content::StartRole(held) = &mut role else {
+        unreachable!("a start role");
+    };
+    held.goal.kind = RoleGoalType::Patrols { jobs: 6 };
+
+    let path = kind.path.clone();
+    let config = content_reflect_mut(&mut role).expect("a form");
+    choose_field(config, &path, "KillList").expect("it switches");
+
+    let Content::StartRole(held) = &role else {
+        unreachable!("a start role");
+    };
+    assert_eq!(held.goal.kind, RoleGoalType::KillList { hulls: 6 });
 }

@@ -228,6 +228,19 @@ pub(crate) fn content_reflect_mut(item: &mut Content) -> Option<&mut dyn Partial
     })
 }
 
+/// What one field of `item` breaks against another, in the words the unit
+/// slot shows, or `None` when its fields agree. The cross-field rule of
+/// `item_faults`: a lot never bids above its ask, or buying and selling back
+/// would gain credits.
+pub(crate) fn form_fault(item: &Content) -> Option<String> {
+    match item {
+        Content::Item(design) if design.bid_cr > design.ask_cr => {
+            Some(format!("bid over ask {}", design.ask_cr))
+        }
+        _ => None,
+    }
+}
+
 /// A section's kind payload, for writing.
 pub(crate) fn asset_kind_mut(item: &mut Content) -> Option<&mut dyn PartialReflect> {
     match item {

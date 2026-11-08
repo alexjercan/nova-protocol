@@ -19,6 +19,7 @@ use bevy::{
     prelude::*,
     reflect::{
         enums::{DynamicEnum, DynamicVariant, VariantInfo},
+        structs::DynamicStruct,
         tuple::DynamicTuple,
         tuple_struct::DynamicTupleStruct,
         NamedField, ReflectMut, ReflectRef, TypeInfo, Typed,
@@ -37,9 +38,9 @@ use nova_ship::prelude::{
 };
 
 pub(crate) use self::asset::{
-    asset_kind_mut, asset_rows, content_reflect_mut, edited_entries, inherited_palette, item_text,
-    list_entries, part_rows, set_item_text, set_list_entries, socket_rows, AssetListType,
-    AssetPressType, AssetTextType, ListEditType, ListEntry, MeshPose,
+    asset_kind_mut, asset_rows, content_reflect_mut, edited_entries, form_fault, inherited_palette,
+    item_text, list_entries, part_rows, set_item_text, set_list_entries, socket_rows,
+    AssetListType, AssetPressType, AssetTextType, ListEditType, ListEntry, MeshPose,
 };
 use crate::{
     asset::{AssetNode, AssetPartType, SocketNode},
@@ -730,6 +731,49 @@ pub(crate) enum Limit {
     /// No less than this. Negative mass and a negative radius are not values,
     /// they are typos.
     AtLeast(f32),
+    /// No less than the first and no more than the second: an advancement is
+    /// a share of the way up the tech ladder.
+    Between(f32, f32),
+    /// Above the first and never equal to it, and no more than the second,
+    /// which is infinite where nothing caps the field: a strip that returns
+    /// nothing, and a draw weight of zero, are refused by the lint.
+    Above(f32, f32),
+}
+
+impl Limit {
+    /// Refuse `number` where this limit does not take it, in the words the
+    /// unit slot shows: the rule, in a few characters.
+    pub(crate) fn check(self, number: f64) -> Result<(), String> {
+        let (low, high, open) = match self {
+            Self::Free => return Ok(()),
+            Self::AtLeast(low) => (low, f32::INFINITY, false),
+            Self::Between(low, high) => (low, high, false),
+            Self::Above(low, high) => (low, high, true),
+        };
+        let (low, high) = (f64::from(low), f64::from(high));
+        if open && number <= low {
+            return Err(format!("above {}", number_text(low)));
+        }
+        if number < low {
+            return Err(format!("min {}", number_text(low)));
+        }
+        if number > high {
+            return Err(format!("max {}", number_text(high)));
+        }
+        Ok(())
+    }
+
+    /// `number` moved back inside this limit, for a drag that walked into one
+    /// of its ends. An open end stops one `step` short of the value it refuses.
+    fn clamp(self, number: f64, step: f64) -> f64 {
+        let (low, high) = match self {
+            Self::Free => return number,
+            Self::AtLeast(low) => (f64::from(low), f64::INFINITY),
+            Self::Between(low, high) => (f64::from(low), f64::from(high)),
+            Self::Above(low, high) => (f64::from(low) + step, f64::from(high)),
+        };
+        number.clamp(low, high.max(low))
+    }
 }
 
 /// Everything the editor knows about one authored field, declared ONCE.
@@ -1027,6 +1071,136 @@ const DECLARED: &[&[FieldSpec]] = &[
     UNPICKED,
 ];
 
+/// A content form's numbers, declared by the TYPE that owns each field rather
+/// than by its name at any depth: `credits` is a build cost on a recipe and a
+/// purse on a start kit, and `count` is a job's size here and something else
+/// in a scenario.
+///
+/// Each limit is the one the owning crate's content lint enforces, and no
+/// more: `lint_section_recipe`, the open world's part snapshot, `item_faults`,
+/// `trade_profile_faults` and `lint_start_role`. A field the lint does not
+/// limit gets its unit and nothing else.
+const OWNED: &[(&str, FieldSpec)] = &[
+    ("BuildRecipe", whole("credits", "cr", 1.0)),
+    (
+        "BuildRecipe",
+        FieldSpec {
+            name: "strip_yield",
+            unit: "",
+            limit: Limit::Above(0.0, 1.0),
+            step: 0.05,
+        },
+    ),
+    (
+        "BaseSectionConfig",
+        FieldSpec {
+            name: "advancement",
+            unit: "",
+            limit: Limit::Between(0.0, 1.0),
+            step: 0.05,
+        },
+    ),
+    (
+        "BaseSectionConfig",
+        FieldSpec {
+            name: "draw_weight",
+            unit: "",
+            limit: Limit::Above(0.0, f32::INFINITY),
+            step: 0.05,
+        },
+    ),
+    (
+        "ItemDesign",
+        FieldSpec {
+            name: "mass_g",
+            unit: "g",
+            // One canister holds any one item: `CARGO_CANISTER_MAX_MASS_G`.
+            limit: Limit::Between(1.0, 1_000_000.0),
+            step: 1.0,
+        },
+    ),
+    ("ItemDesign", whole("price_lot", "items", 1.0)),
+    ("ItemDesign", whole("ask_cr", "cr", 0.0)),
+    ("ItemDesign", whole("bid_cr", "cr", 0.0)),
+    ("StartKit", whole("credits", "cr", 0.0)),
+    ("TradeProfileRoleWeight", whole("weight", "", 1.0)),
+    (
+        "TradeIntent",
+        FieldSpec {
+            name: "quantity",
+            unit: "items",
+            // `TRADE_INTENT_QUANTITY_MAX`.
+            limit: Limit::Between(1.0, 1_000.0),
+            step: 1.0,
+        },
+    ),
+    ("TradeIntent", whole("limit_cr", "cr", 1.0)),
+    ("VisitJobType", whole("count", "items", 1.0)),
+    ("VisitJobType", whole("reward_cr", "cr", 1.0)),
+    ("RoleGoalType", whole("jobs", "jobs", 1.0)),
+    ("RoleGoalType", whole("stations", "stations", 1.0)),
+    ("RoleGoalType", whole("hulls", "hulls", 1.0)),
+];
+
+/// A whole number of `unit` that is never under `floor`.
+const fn whole(name: &'static str, unit: &'static str, floor: f32) -> FieldSpec {
+    FieldSpec {
+        name,
+        unit,
+        limit: Limit::AtLeast(floor),
+        step: WHOLE_STEP,
+    }
+}
+
+/// The last segment of a type path: `nova_gameplay::market::PriceTable` ->
+/// `PriceTable`.
+fn short_type(type_path: &str) -> &str {
+    type_path.rsplit("::").next().unwrap_or(type_path)
+}
+
+/// What the type `owner` declares about its own field `name`, if anything.
+fn owned_spec(owner: &str, name: &str) -> Option<FieldSpec> {
+    let owner = short_type(owner);
+    OWNED
+        .iter()
+        .find(|(held, spec)| *held == owner && spec.is_named(name))
+        .map(|(_, spec)| *spec)
+}
+
+/// Give the rows a field just walked into what its OWNING type declares about
+/// it. Only the field's own row: a struct under it is another owner's.
+fn declare_by_owner(owner: Option<&TypeInfo>, path: &[PathStep], rows: &mut [InspectorRow]) {
+    let (Some(owner), Some(PathStep::Field(name))) = (owner, path.last()) else {
+        return;
+    };
+    let Some(spec) = owned_spec(owner.type_path(), name) else {
+        return;
+    };
+    for row in rows.iter_mut().filter(|row| row.path == path) {
+        if !matches!(row.value, RowValue::Number(_)) {
+            continue;
+        }
+        row.unit = spec.unit;
+        row.limit = spec.limit;
+        row.nudge = spec.step;
+        row.framed = false;
+    }
+}
+
+/// What the field at `path` inside `root` takes: its owning type's
+/// declaration, else its name's, else anything finite.
+fn limit_at(root: &dyn PartialReflect, path: &[PathStep]) -> Limit {
+    let owned = match path.split_last() {
+        Some((PathStep::Field(name), parent)) => peek(root, parent)
+            .and_then(PartialReflect::get_represented_type_info)
+            .and_then(|owner| owned_spec(owner.type_path(), name)),
+        _ => None,
+    };
+    owned
+        .or_else(|| field_spec(path))
+        .map_or(Limit::Free, |spec| spec.limit)
+}
+
 /// The field name a path ends at, ignoring the list indices and tuple slots it
 /// passes through.
 fn leaf_name(path: &[PathStep]) -> Option<&str> {
@@ -1197,26 +1371,20 @@ fn quantity_unit(type_path: &str) -> Option<&'static str> {
     }
 }
 
-/// Refuse a number under its field's floor, in the words the box will show.
+/// Refuse a number `limit` does not take, in the words the box will show.
 ///
 /// Checked HERE rather than at the spawn, where a negative radius is found out
 /// at run time. The builder who typed it is the one who can fix it, and by then
 /// they are flying the range.
 ///
-/// The reason is the RULE, in three characters, because it is shown where the
+/// The reason is the RULE, in a few characters, because it is shown where the
 /// unit stands: a sentence there would squeeze the box holding the number it
 /// is about down to four characters.
-fn check_floor(path: &[PathStep], value: &dyn PartialReflect) -> Result<(), String> {
-    let Some(Limit::AtLeast(floor)) = field_spec(path).map(|spec| spec.limit) else {
-        return Ok(());
-    };
-    let Some(number) = as_number(value) else {
-        return Ok(());
-    };
-    if number >= f64::from(floor) {
-        return Ok(());
+fn check_limit(limit: Limit, value: &dyn PartialReflect) -> Result<(), String> {
+    match number_at(value) {
+        Some(held) => limit.check(held.value),
+        None => Ok(()),
     }
-    Err(format!("min {}", number_text(f64::from(floor))))
 }
 
 /// Refuse a number that is not FINITE.
@@ -1415,12 +1583,9 @@ fn walk(
                     .copied();
                 let hint = hint_of(declared.and_then(NamedField::docs));
                 let first = out.len();
-                walk(
-                    field,
-                    root,
-                    step(&path, PathStep::Field(name.to_string())),
-                    out,
-                );
+                let at = step(&path, PathStep::Field(name.to_string()));
+                walk(field, root, at.clone(), out);
+                declare_by_owner(value.get_represented_type_info(), &at, &mut out[first..]);
                 for row in &mut out[first..] {
                     row.names = names;
                     // The INNERMOST doc wins: a struct's own field said what
@@ -1461,11 +1626,12 @@ fn walk(
                 _ => None,
             };
             let variant = hint_of(variant.and_then(VariantInfo::docs));
-            // A variant that carries FIELDS is a readout, not a choice:
-            // switching to one would mean inventing every field of it that
-            // nobody has authored. An enum whose variants are all bare names
-            // has nothing to invent, so it is offered as a choice.
-            let value = match unit_variants(value) {
+            // A variant that carries FIELDS of its own shape is a readout, not
+            // a choice: switching to one would mean inventing every field of
+            // it that nobody has authored. An enum whose variants are all bare
+            // names, or all carry the same fields, has nothing to invent, so
+            // it is offered as a choice.
+            let reading = match switchable_variants(value) {
                 Some(offered) => {
                     let name = chosen.variant_name();
                     RowValue::Choice {
@@ -1479,7 +1645,7 @@ fn walk(
                 }
                 None => RowValue::Fixed(chosen.variant_name().to_string()),
             };
-            out.push(walked(root, path.clone(), false, value).saying(variant));
+            out.push(walked(root, path.clone(), false, reading).saying(variant));
             for index in 0..chosen.field_len() {
                 let Some(field) = chosen.field_at(index) else {
                     continue;
@@ -1488,7 +1654,9 @@ fn walk(
                     Some(name) => step(&path, PathStep::Field(name.to_string())),
                     None => step(&path, PathStep::Slot(index)),
                 };
-                walk(field, root, inner, out);
+                let first = out.len();
+                walk(field, root, inner.clone(), out);
+                declare_by_owner(value.get_represented_type_info(), &inner, &mut out[first..]);
             }
         }
         ReflectRef::Map(entries) => {
@@ -1574,20 +1742,28 @@ fn walk_option(
     walk(inner, root, step(&path, PathStep::Slot(0)), out);
 }
 
-/// Every variant name of `value`, but ONLY when the enum is a plain set of
-/// names.
+/// Every variant name of `value`, but ONLY when a switch between them invents
+/// nothing: the enum is a plain set of names, or every variant carries the
+/// same field types in the same order, which a switch carries across.
 ///
-/// `None` the moment one variant carries a field, which is what keeps the
-/// choice honest: a dropdown that could switch to `Prototype(String)` would
-/// have to invent the string.
-fn unit_variants(value: &dyn PartialReflect) -> Option<Vec<(String, String)>> {
+/// `None` the moment one variant's shape differs, which is what keeps the
+/// choice honest: a dropdown that could switch to `Prototype(String)` from a
+/// bare name would have to invent the string.
+fn switchable_variants(value: &dyn PartialReflect) -> Option<Vec<(String, String)>> {
     let TypeInfo::Enum(info) = value.get_represented_type_info()? else {
         return None;
     };
+    let shape = |variant: &VariantInfo| -> Vec<&'static str> {
+        match variant {
+            VariantInfo::Unit(_) => Vec::new(),
+            VariantInfo::Struct(fields) => fields.iter().map(|field| field.type_path()).collect(),
+            VariantInfo::Tuple(fields) => fields.iter().map(|field| field.type_path()).collect(),
+        }
+    };
+    let first = shape(info.variant_at(0)?);
     info.iter()
-        .map(|variant| match variant {
-            VariantInfo::Unit(unit) => Some((unit.name().to_string(), hint_of(unit.docs()))),
-            _ => None,
+        .map(|variant| {
+            (shape(variant) == first).then(|| (variant.name().to_string(), hint_of(variant.docs())))
         })
         .collect()
 }
@@ -1973,6 +2149,7 @@ pub(crate) fn write_field(
     optional: bool,
     text: &str,
 ) -> Result<(), String> {
+    let limit = limit_at(root, path);
     let target = resolve(root, path).ok_or_else(|| "gone".to_string())?;
     if optional {
         let payload = option_payload(target).ok_or_else(|| "not optional".to_string())?;
@@ -1981,7 +2158,7 @@ pub(crate) fn write_field(
         } else {
             let value = parse_value(payload, text)?;
             check_finite(value.as_ref())?;
-            check_floor(path, value.as_ref())?;
+            check_limit(limit, value.as_ref())?;
             let mut fields = DynamicTuple::default();
             fields.insert_boxed(value);
             DynamicEnum::new("Some", DynamicVariant::Tuple(fields))
@@ -1997,7 +2174,7 @@ pub(crate) fn write_field(
         .to_string();
     let value = parse_leaf(&type_path, text)?;
     check_finite(value.as_ref())?;
-    check_floor(path, value.as_ref())?;
+    check_limit(limit, value.as_ref())?;
     target
         .try_apply(value.as_ref())
         .map_err(|error| format!("refused: {error}"))
@@ -2005,9 +2182,11 @@ pub(crate) fn write_field(
 
 /// Switch the enum at `path` to its `variant`.
 ///
-/// Unit variants only, which is the same rule that decides whether the row is
-/// a choice at all: there is nothing to carry across, so the whole switch is
-/// one `try_apply` of a bare name.
+/// The same rule that decides whether the row is a choice at all
+/// ([`switchable_variants`]): a bare name carries nothing across, and a
+/// variant of the same shape takes the held values in order - a goal of six
+/// hulls switched to jobs asks for six jobs. The whole switch is one
+/// `try_apply`.
 pub(crate) fn choose_field(
     root: &mut dyn PartialReflect,
     path: &[PathStep],
@@ -2023,10 +2202,35 @@ pub(crate) fn choose_field(
             .try_apply(&variant.to_string())
             .map_err(|error| format!("refused: {error}"));
     }
-    let ReflectMut::Enum(_) = target.reflect_mut() else {
+    let Some(TypeInfo::Enum(info)) = target.get_represented_type_info() else {
         return Err("not a choice".to_string());
     };
-    let wanted = DynamicEnum::new(variant, DynamicVariant::Unit);
+    let ReflectRef::Enum(held) = target.reflect_ref() else {
+        return Err("not a choice".to_string());
+    };
+    let carried: Vec<Box<dyn PartialReflect>> = held
+        .iter_fields()
+        .map(|field| field.value().to_dynamic())
+        .collect();
+    let shape = match info.variant(variant) {
+        Some(VariantInfo::Unit(_)) => DynamicVariant::Unit,
+        Some(VariantInfo::Struct(fields)) => {
+            let mut wanted = DynamicStruct::default();
+            for (field, value) in fields.iter().zip(carried) {
+                wanted.insert_boxed(field.name(), value);
+            }
+            DynamicVariant::Struct(wanted)
+        }
+        Some(VariantInfo::Tuple(_)) => {
+            let mut wanted = DynamicTuple::default();
+            for value in carried {
+                wanted.insert_boxed(value);
+            }
+            DynamicVariant::Tuple(wanted)
+        }
+        None => return Err(format!("{variant} is not one of the options")),
+    };
+    let wanted = DynamicEnum::new(variant, shape);
     target
         .try_apply(&wanted)
         .map_err(|error| format!("refused: {error}"))
@@ -2161,20 +2365,13 @@ pub(crate) fn nudge_field(
         let target = resolve(root, path).ok_or_else(|| GRIP_GONE.to_string())?;
         number_at(target).ok_or_else(|| GRIP_EMPTY.to_string())?
     };
-    let floors = [
-        held.floor,
-        match rule.limit {
-            Limit::AtLeast(floor) => Some(f64::from(floor)),
-            Limit::Free => None,
-        },
-    ];
-    let floor = floors.into_iter().flatten().reduce(f64::max);
     let mut moved = snapped(
         held.value + steps * f64::from(rule.step),
         rule.step,
         held.whole,
     );
-    if let Some(floor) = floor {
+    moved = rule.limit.clamp(moved, f64::from(rule.step));
+    if let Some(floor) = held.floor {
         moved = moved.max(floor);
     }
     if moved == held.value {

@@ -59,13 +59,14 @@ use crate::{
     inspect::{
         action_rows, asset_kind_mut, asset_rows, authored_hull_row, axis_step, choose_field,
         content_reflect_mut, curated_object_rows, curated_section_rows, driver_label, edit_section,
-        event_rows, filter_rows, gate_rows, inherited_palette, inspected, item_text, nudge_field,
-        object_config_mut, object_rows, operand_path, operand_row, parse_colour, part_rows, pretty,
-        reset_field, rotation_degrees, rotation_from_degrees, scale_framed_drags, scenario_rows,
-        script_name, section_config_mut, section_rows, set_item_text, set_well_target, ship_rows,
-        socket_rows, step_rows, toggle_field, well_target_label, write_field, AssetPressType,
-        DocumentIds, DragRule, FieldRoot, InspectTarget, InspectorRow, MeshPose, NodeKinds,
-        Operand, PaletteEntry, PathStep, RowValue, ScriptNames, GRIP_GONE,
+        event_rows, filter_rows, form_fault, gate_rows, inherited_palette, inspected, item_text,
+        nudge_field, object_config_mut, object_rows, operand_path, operand_row, parse_colour,
+        part_rows, pretty, reset_field, rotation_degrees, rotation_from_degrees,
+        scale_framed_drags, scenario_rows, script_name, section_config_mut, section_rows,
+        set_item_text, set_well_target, ship_rows, socket_rows, step_rows, toggle_field,
+        well_target_label, write_field, AssetPressType, DocumentIds, DragRule, FieldRoot,
+        InspectTarget, InspectorRow, MeshPose, NodeKinds, Operand, PaletteEntry, PathStep,
+        RowValue, ScriptNames, GRIP_GONE,
     },
     keybind::on_rebind_action,
     node::{
@@ -2964,9 +2965,18 @@ impl EditTargets<'_, '_> {
             FieldRoot::Asset => {
                 let mut asset = self.asset_of(field)?;
                 if_it_took(&mut asset, |asset| {
+                    let before = asset.0.clone();
                     let config = content_reflect_mut(&mut asset.0)
                         .ok_or_else(|| "not authored here".to_string())?;
-                    edit(config, &field.path, field.optional)
+                    edit(config, &field.path, field.optional)?;
+                    // One field against another: the edit is taken back whole.
+                    match form_fault(&asset.0) {
+                        Some(fault) => {
+                            asset.0 = before;
+                            Err(fault)
+                        }
+                        None => Ok(()),
+                    }
                 })
             }
             FieldRoot::AssetKind => {
@@ -3207,6 +3217,7 @@ pub(crate) fn apply_inspector_edits(
     mut submitted: MessageReader<TextFieldSubmitted>,
     fields: Query<&InspectorField>,
     mut targets: EditTargets,
+    mut says: EditorSays,
 ) {
     for TextFieldSubmitted { entity, value } in submitted.read() {
         let Ok(field) = fields.get(*entity) else {
@@ -3227,6 +3238,11 @@ pub(crate) fn apply_inspector_edits(
                 commit_edit(&mut commands, field.edit_label());
             }
             Err(reason) => {
+                // On the status line as well as beside the box: the box can
+                // sit in a pop-up the next press closes.
+                let label = field.edit_label();
+                let named = label.strip_prefix("Edit ").unwrap_or(&label);
+                says.refuse(format!("{named} refused: {reason}"));
                 commands.entity(*entity).insert(TextFieldError(reason));
             }
         }
