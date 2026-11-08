@@ -381,7 +381,7 @@ impl DragStage<'_, '_> {
             }
         }
         let grab = self.grab_of(candidate.source, at);
-        self.spawn_ghost(candidate.source, &run);
+        self.spawn_ghost(candidate.source, &run, at, grab);
         self.set_run_shown(&run, false);
         self.drag.held = Some(Held {
             source: candidate.source,
@@ -428,7 +428,10 @@ impl DragStage<'_, '_> {
             .unwrap_or_default()
     }
 
-    fn spawn_ghost(&mut self, source: DragSourceType, run: &[Entity]) {
+    /// Spawn the ghost already under the pointer. Spawned with an `Auto`
+    /// corner, layout put it at the window's top left for its first frame.
+    fn spawn_ghost(&mut self, source: DragSourceType, run: &[Entity], at: Vec2, grab: Vec2) {
+        let (left, top, scale) = ghost_place(at, grab, self.view.zoom);
         let views: Vec<BlockView> = match source {
             DragSourceType::Palette(item) => vec![BlockView::preview(item)],
             DragSourceType::Block(_) => {
@@ -445,7 +448,7 @@ impl DragStage<'_, '_> {
                 CanvasGhost,
                 GlobalZIndex(GHOST_Z),
                 Pickable::IGNORE,
-                UiTransform::default(),
+                UiTransform { scale, ..default() },
                 Outline {
                     width: px(2),
                     offset: px(2),
@@ -453,6 +456,8 @@ impl DragStage<'_, '_> {
                 },
                 Node {
                     position_type: PositionType::Absolute,
+                    left,
+                    top,
                     flex_direction: FlexDirection::Column,
                     align_items: AlignItems::FlexStart,
                     ..default()
@@ -566,6 +571,13 @@ impl DragStage<'_, '_> {
         self.commands
             .queue(move |world: &mut World| land(world, source, landing, &frozen));
     }
+}
+
+/// The ghost's left, top and scale for the pointer at `at`: `grab` away from
+/// it, at the canvas's zoom.
+fn ghost_place(at: Vec2, grab: Vec2, zoom: f32) -> (Val, Val, Vec2) {
+    let corner = at + grab * zoom;
+    (px(corner.x), px(corner.y), Vec2::splat(zoom))
 }
 
 /// `at`, or the nearer of the spots down and right of it where a block of `size`
@@ -701,12 +713,11 @@ pub(crate) fn drive_canvas_drag(mut stage: DragStage) {
             return;
         }
         held.aim = stage.aim(at, held.aim);
-        let zoom = stage.view.zoom;
-        let top_left = at + held.grab * zoom;
+        let (left, top, scale) = ghost_place(at, held.grab, stage.view.zoom);
         for (_, mut node, mut transform) in &mut stage.ghosts {
-            node.left = px(top_left.x);
-            node.top = px(top_left.y);
-            transform.scale = Vec2::splat(zoom);
+            node.left = left;
+            node.top = top;
+            transform.scale = scale;
         }
         stage.drag.held = Some(held);
         return;

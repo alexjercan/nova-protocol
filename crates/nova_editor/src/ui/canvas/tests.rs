@@ -408,6 +408,54 @@ fn a_cancelled_drag_puts_the_block_back() {
     assert_eq!(depth(&app), 0);
 }
 
+/// S17: a ghost spawned with an `Auto` corner stood at the window's top left
+/// for its first frame, so every lifted block flickered there.
+#[test]
+fn a_lifted_block_spawns_its_ghost_under_the_pointer() {
+    let mut app = keyed_app(&[]);
+    app.insert_resource(CanvasView {
+        pan: Vec2::ZERO,
+        zoom: 1.5,
+    });
+    app.init_resource::<CanvasBoard>();
+    let mut buttons = ButtonInput::<MouseButton>::default();
+    buttons.press(MouseButton::Left);
+    app.insert_resource(buttons);
+    let at = Vec2::new(300.0, 200.0);
+    app.insert_resource(ViewportPointer {
+        at: Some(at),
+        ..default()
+    });
+    let item = super::palette::palette_items()[0];
+    app.world_mut().resource_mut::<CanvasDrag>().candidate = Some(Candidate {
+        source: DragSourceType::Palette(item),
+        at: at - Vec2::new(10.0, 0.0),
+        draggable: true,
+    });
+
+    app.world_mut()
+        .run_system_once(drive_canvas_drag)
+        .expect("the drag runs");
+
+    let held = app
+        .world()
+        .resource::<CanvasDrag>()
+        .held
+        .clone()
+        .expect("the press became a drag");
+    let corner = at + held.grab * 1.5;
+    let mut ghosts = app
+        .world_mut()
+        .query_filtered::<(&Node, &UiTransform), With<CanvasGhost>>();
+    let (node, transform) = ghosts.single(app.world()).expect("one ghost");
+    assert_eq!(
+        (node.left, node.top),
+        (px(corner.x), px(corner.y)),
+        "under the pointer from its first frame"
+    );
+    assert_eq!(transform.scale, Vec2::splat(1.5), "at the canvas zoom");
+}
+
 /// The canvas rig: one handler drawn on a world, in Events.
 fn drawn_canvas() -> (App, Entity) {
     let mut app = keyed_app(&[]);
