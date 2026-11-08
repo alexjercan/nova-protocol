@@ -160,6 +160,7 @@ impl From<HudReadoutFormatConfig> for HudReadoutFormat {
 pub struct HudReadoutActionConfig {
     /// The readout's stable id: shows/updates/clears this one slot, and lets a
     /// scenario run several readouts side by side.
+    #[reflect(@Names::HudSlot)]
     pub slot: String,
     /// The scenario variable whose value the readout shows (e.g.
     /// `"scenario_elapsed"`). Read live off the event world every frame.

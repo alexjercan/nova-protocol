@@ -1934,6 +1934,7 @@ pub struct RefillAmmoActionConfig {
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
     )]
+    #[reflect(@Names::Section)]
     pub section: Option<String>,
 }
 

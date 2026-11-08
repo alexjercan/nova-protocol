@@ -26,9 +26,9 @@ use bevy::{
     },
 };
 use nova_events::{
-    units::prelude::*, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
-    DERELICT_STATION_TYPE_NAME, LIGHT_TYPE_NAME, LIVING_STATION_TYPE_NAME, PLANET_TYPE_NAME,
-    SPACESHIP_TYPE_NAME,
+    prelude::GeneratedBodyId, units::prelude::*, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME,
+    BEACON_TYPE_NAME, DERELICT_STATION_TYPE_NAME, LIGHT_TYPE_NAME, LIVING_STATION_TYPE_NAME,
+    PLANET_TYPE_NAME, SPACESHIP_TYPE_NAME,
 };
 use nova_gameplay::prelude::AssetRef;
 use nova_hud::prelude::DOCK_VERBS;
@@ -61,8 +61,8 @@ use crate::{
         FilterChoice, FilterNode, GateNode, ScriptNodes, StepNode,
     },
     node::{
-        objects_of, EditContext, EditorNode, ObjectNode, ObjectNodes, ScenarioNode, SectionNode,
-        ShipDriver, ShipNode, ShipNodes,
+        objects_of, EditContext, EditorNode, NodeId, ObjectNode, ObjectNodes, ScenarioNode,
+        SectionNode, ShipDriver, ShipNode, ShipNodes,
     },
     scenario::PLAYER_ID,
     station::short_fault,
@@ -2557,6 +2557,44 @@ fn peek<'a>(root: &'a dyn PartialReflect, path: &[PathStep]) -> Option<&'a dyn P
     }
 }
 
+/// The rule an id the field MINTS is held to: the text a later reference has
+/// to spell, so the box refuses what the content lint would call a fault.
+fn check_minted(root: &dyn PartialReflect, path: &[PathStep], text: &str) -> Result<(), String> {
+    let Some((PathStep::Field(name), parent)) = path.split_last() else {
+        return Ok(());
+    };
+    let Some(owner) = peek(root, parent).and_then(PartialReflect::get_represented_type_info) else {
+        return Ok(());
+    };
+    let names = match owner {
+        TypeInfo::Struct(info) => info
+            .field(name)
+            .and_then(NamedField::get_attribute::<Names>)
+            .copied(),
+        _ => None,
+    };
+    let empty = text.trim().is_empty();
+    match (names, short_type(owner.type_path()), name.as_str()) {
+        (Some(Names::NewObject), ..) if empty => Err("an object needs an id".to_string()),
+        (Some(Names::NewObject), ..) if text.contains('/') => {
+            Err("'/' is reserved for minted ids".to_string())
+        }
+        (Some(Names::NewObject), ..) if text.parse::<GeneratedBodyId>().is_ok() => {
+            Err("that spells a generated body id, which only the world generator mints".to_string())
+        }
+        (Some(Names::HudSlot), ..) if empty => {
+            Err("a readout needs a slot to update or clear it".to_string())
+        }
+        (_, "ScatterObjectsConfig", "id_prefix") if empty => {
+            Err("a scatter needs an id prefix for its copies".to_string())
+        }
+        (_, "SequenceHead", "key") if empty => {
+            Err("a sequence needs a key to file its cursor under".to_string())
+        }
+        _ => Ok(()),
+    }
+}
+
 /// Write `text` into the value `path` names, or say why it cannot go there.
 ///
 /// The whole edit is one `try_apply`, so a config either takes the new value or
@@ -2575,6 +2613,9 @@ pub(crate) fn write_field(
             .copied()
             .ok_or_else(|| "not a number".to_string())?;
         return write_turn(root, &turn, axis, degrees);
+    }
+    if !(optional && text.trim().is_empty()) {
+        check_minted(root, path, text)?;
     }
     let limit = limit_at(root, path);
     let target = resolve(root, path).ok_or_else(|| "gone".to_string())?;
@@ -3687,12 +3728,37 @@ pub(crate) struct DocumentNames {
     objectives: Vec<String>,
     scenarios: Vec<String>,
     cinematics: Vec<String>,
+    hud_slots: Vec<String>,
+    /// Each ship's section ids, under the id the ship lowers as.
+    sections: Vec<(String, Vec<String>)>,
 }
 
 impl DocumentNames {
     /// What a field of this kind could name, in id order and without repeats.
     pub(crate) fn offers(&self, names: Names) -> Vec<String> {
+        self.offers_in(names, None)
+    }
+
+    /// [`Self::offers`] for a field SCOPED to the ship `ship` names: a section
+    /// id means something only inside the hull the config names beside it.
+    /// A section field with no ship named yet is offered nothing.
+    pub(crate) fn offers_in(&self, names: Names, ship: Option<&str>) -> Vec<String> {
         let mut offered = match names {
+            Names::Section => ship
+                .and_then(|ship| self.sections.iter().find(|(held, _)| held == ship))
+                .map(|(_, sections)| sections.clone())
+                .unwrap_or_default(),
+            Names::HudSlot => self.hud_slots.clone(),
+            other => self.document_wide(other),
+        };
+        offered.sort_unstable();
+        offered.dedup();
+        offered
+    }
+
+    /// The ids of a document-wide kind of name.
+    fn document_wide(&self, names: Names) -> Vec<String> {
+        match names {
             // A DECLARATION is not offered the ids that already exist: an id
             // is unique, and picking a taken one would be picking a collision.
             Names::NewObject => Vec::new(),
@@ -3703,13 +3769,9 @@ impl DocumentNames {
             Names::Scenario => self.scenarios.clone(),
             Names::Cinematic => self.cinematics.clone(),
             // Nothing to offer: an order key is minted where the order is
-            // installed, and a section id lives inside the hull the config
-            // names beside it, which this document-wide list cannot see.
-            Names::Order | Names::Section => Vec::new(),
-        };
-        offered.sort_unstable();
-        offered.dedup();
-        offered
+            // installed. A section and a slot are answered by `offers_in`.
+            Names::Order | Names::Section | Names::HudSlot => Vec::new(),
+        }
     }
 
     /// Whether `text` names something this document holds.
@@ -3730,6 +3792,39 @@ impl DocumentNames {
         }
         object_reference_resolves(text, &self.objects, &self.prefixes)
     }
+
+    /// [`Self::resolves`] for a field scoped to the ship `ship` names. A
+    /// section of a ship the editor holds must be one of its sections; a ship
+    /// the script spawns is the content lint's to judge, against its design.
+    pub(crate) fn resolves_in(&self, names: Names, text: &str, ship: Option<&str>) -> bool {
+        if names != Names::Section {
+            return self.resolves(names, text);
+        }
+        let held = ship.and_then(|ship| self.sections.iter().find(|(held, _)| held == ship));
+        match held {
+            Some((_, sections)) if !text.is_empty() => sections.iter().any(|held| held == text),
+            _ => true,
+        }
+    }
+}
+
+/// The ship a section field at `path` of `config` is scoped to: the text of
+/// the first object reference among the field's siblings. `None` while that
+/// reference is empty, or where the field has no sibling naming a ship.
+pub(crate) fn section_scope(config: &dyn PartialReflect, path: &[PathStep]) -> Option<String> {
+    let (_, parent) = path.split_last()?;
+    let owner = peek(config, parent)?;
+    let (ReflectRef::Struct(fields), Some(TypeInfo::Struct(info))) =
+        (owner.reflect_ref(), owner.get_represented_type_info())
+    else {
+        return None;
+    };
+    (0..fields.field_len()).find_map(|index| {
+        let declared = info.field_at(index)?;
+        (declared.get_attribute::<Names>() == Some(&Names::Object)).then_some(())?;
+        let text = fields.field_at(index)?.try_downcast_ref::<String>()?;
+        (!text.is_empty()).then(|| text.clone())
+    })
 }
 
 /// The document, read for the names it holds.
@@ -3741,6 +3836,7 @@ pub(crate) struct DocumentIds<'w, 's> {
     context: Res<'w, EditContext>,
     objects: ObjectNodes<'w, 's>,
     ships: ShipNodes<'w, 's>,
+    sections: Query<'w, 's, (&'static ChildOf, &'static NodeId), With<SectionNode>>,
     script: ScriptNodes<'w, 's>,
 }
 
@@ -3759,6 +3855,8 @@ impl DocumentIds<'_, '_> {
             objectives: ids.objectives,
             scenarios: ids.scenarios,
             cinematics: ids.cinematics,
+            hud_slots: ids.hud_slots,
+            sections: Vec::new(),
         };
         names.objects.extend(
             objects_of(scenario, &self.objects)
@@ -3767,15 +3865,21 @@ impl DocumentIds<'_, '_> {
         );
         // A ship lowers under its NODE id, except the flown one, which lowers
         // under the id the range gives the player's hull however it was named.
-        names
-            .objects
-            .extend(self.ships.iter().map(|(_, _, id, ship)| {
-                if ship.driver == ShipDriver::Player {
-                    PLAYER_ID.to_string()
-                } else {
-                    id.0.clone()
-                }
-            }));
+        for (entity, _, id, ship) in &self.ships {
+            let lowered = if ship.driver == ShipDriver::Player {
+                PLAYER_ID.to_string()
+            } else {
+                id.0.clone()
+            };
+            let sections = self
+                .sections
+                .iter()
+                .filter(|(child_of, _)| child_of.parent() == entity)
+                .map(|(_, section)| section.0.clone())
+                .collect();
+            names.objects.push(lowered.clone());
+            names.sections.push((lowered, sections));
+        }
         names
     }
 }

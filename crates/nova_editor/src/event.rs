@@ -1665,6 +1665,8 @@ pub(crate) struct NamedIds {
     /// Cinematic keys, declared by a `Cinematic` head and referenced by the
     /// filter that catches its ending.
     pub(crate) cinematics: Vec<String>,
+    /// HUD readout slots, minted by the first readout that names one.
+    pub(crate) hud_slots: Vec<String>,
 }
 
 /// What one handler names.
@@ -1726,6 +1728,7 @@ fn collect(config: &dyn PartialReflect, ids: &mut NamedIds) {
             Names::Objective => ids.objectives.push(text),
             Names::Scenario => ids.scenarios.push(text),
             Names::Cinematic => ids.cinematics.push(text),
+            Names::HudSlot => ids.hud_slots.push(text),
             // An order key and a section id are not document-wide names: the
             // key is minted by the helm action that installs the order, and
             // the section id only means anything inside the ship named beside

@@ -11,6 +11,7 @@ use bevy::{
     ui::{UiGlobalTransform, UiScale},
     ui_widgets::{observe, Activate},
 };
+use nova_scenario::names::prelude::Names;
 use nova_ui::{
     prelude::{
         close_popups, popup_row, scroll_bar, scroll_column, scroll_row, scroll_viewport,
@@ -24,8 +25,9 @@ use nova_ui::{
 use crate::{
     asset_index::prelude::AssetIndex,
     config::EditorSays,
+    event::{action_config, ActionNode},
     history::commit_edit,
-    inspect::{clipped, write_field, DocumentIds},
+    inspect::{clipped, section_scope, write_field, DocumentIds},
     project::ModProject,
     ui::{
         inspector::{
@@ -118,6 +120,7 @@ pub(crate) fn on_open_ref_list(
         &UiGlobalTransform,
     )>,
     ids: DocumentIds,
+    actions: Query<&ActionNode>,
     files: AssetIndex,
     project: Option<Res<ModProject>>,
     roots: Query<Entity, With<PopupRoot>>,
@@ -130,6 +133,23 @@ pub(crate) fn on_open_ref_list(
     // What the list is, and what its being empty MEANS: a document with no
     // rocks on it yet is a different answer from a game shipping no sounds.
     let (offered, empty) = match chip.offers {
+        // A section id means something only inside the ship the same action
+        // names, so the list is that ship's sections.
+        Offers::Named(Names::Section) => {
+            let ship = actions
+                .get(field.node)
+                .ok()
+                .and_then(|action| action_config(&action.kind))
+                .and_then(|config| section_scope(config, field.path()));
+            let empty = match &ship {
+                Some(ship) => format!("the editor holds no sections of {ship}"),
+                None => "name the ship first".to_string(),
+            };
+            (
+                ids.names().offers_in(Names::Section, ship.as_deref()),
+                empty,
+            )
+        }
         Offers::Named(named) => (ids.names().offers(named), "nothing to name yet".to_string()),
         Offers::File(sort) => (
             files.offers(sort),

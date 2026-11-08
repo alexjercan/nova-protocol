@@ -35,7 +35,8 @@ use nova_ui::{
     theme,
     theme::{density, ActiveUiTheme, GameUiThemes, UiColor},
     widget::{
-        checkbox, swatch, ButtonCueType, ThemedBorder, ThemedCheckbox, ThemedRadius, ThemedText,
+        checkbox, icon_button, swatch, ButtonCueType, IconButtonType, ThemedBorder, ThemedCheckbox,
+        ThemedRadius, ThemedText, CLOSE_GLYPH,
     },
 };
 
@@ -49,8 +50,8 @@ use crate::{
     bundle::{FileWindowKind, FileWindowRequest},
     config::{EditorOverlays, EditorSays, SceneRow, SelectedNode},
     event::{
-        action_config_mut, expr_config_mut, filter_config_mut, retype_script_node, ActionNode,
-        EventNode, ExpressionNode, FilterNode, GateNode, StepNode,
+        action_config, action_config_mut, expr_config_mut, filter_config_mut, retype_script_node,
+        ActionNode, EventNode, ExpressionNode, FilterNode, GateNode, StepNode,
     },
     frame::CameraFraming,
     gizmo::GizmoAxis,
@@ -63,10 +64,10 @@ use crate::{
         item_text, nudge_field, object_config_mut, object_rows, operand_path, operand_row,
         parse_colour, part_rows, pretty, remove_item, reset_field, rotation_degrees,
         rotation_from_degrees, scale_framed_drags, scenario_rows, script_name, section_config_mut,
-        section_rows, set_item_text, set_well_target, ship_rows, socket_rows, step_rows,
-        toggle_field, well_target_label, write_field, AssetPressType, CatalogType, DocumentIds,
-        DragRule, FieldRoot, InspectTarget, InspectorRow, MeshPose, NodeKinds, Operand,
-        PaletteEntry, PathStep, RowValue, ScriptNames, ADD, GRIP_GONE, ROTATION_UNIT,
+        section_rows, section_scope, set_item_text, set_well_target, ship_rows, socket_rows,
+        step_rows, toggle_field, well_target_label, write_field, AssetPressType, CatalogType,
+        DocumentIds, DragRule, FieldRoot, InspectTarget, InspectorRow, MeshPose, NodeKinds,
+        Operand, PaletteEntry, PathStep, RowValue, ScriptNames, ADD, GRIP_GONE, ROTATION_UNIT,
     },
     keybind::on_rebind_action,
     node::{
@@ -179,6 +180,11 @@ impl InspectorField {
             path: operand_path(),
             optional: false,
         }
+    }
+
+    /// Where in its root the field sits.
+    pub(crate) fn path(&self) -> &[PathStep] {
+        &self.path
     }
 
     /// Whether the field may hold nothing.
@@ -2391,8 +2397,11 @@ fn build_rows(
                             Name::new(format!("Inspector Remove {}", row.label)),
                             InspectorRemove,
                             field.clone(),
-                            button(ButtonSpec::new(REMOVE_WORD).ghost().dense()),
-                            ButtonCueType::Owned,
+                            icon_button(
+                                IconButtonType::Delete,
+                                CLOSE_GLYPH,
+                                format!("Remove {}", row.label),
+                            ),
                             observe(on_inspector_remove),
                         ));
                     }
@@ -2834,9 +2843,10 @@ pub(crate) fn paint_field_reasons(
 pub(crate) fn sync_reference_faults(
     mut commands: Commands,
     ids: DocumentIds,
+    actions: Query<&ActionNode>,
     files: AssetIndex,
     project: Option<Res<ModProject>>,
-    refs: Query<(&InspectorSlot, &InspectorRef)>,
+    refs: Query<(&InspectorSlot, &InspectorRef, Option<&InspectorField>)>,
     boxes: Query<(&InspectorSlot, &TextFieldValue)>,
     units: Query<(Entity, &InspectorSlot, Has<InspectorFault>), With<InspectorUnit>>,
 ) {
@@ -2854,10 +2864,17 @@ pub(crate) fn sync_reference_faults(
     for (entity, slot, faulted) in &units {
         let wrong = refs
             .iter()
-            .find(|(row, _)| row.0 == slot.0)
-            .and_then(|(_, chip)| {
+            .find(|(row, ..)| row.0 == slot.0)
+            .and_then(|(_, chip, field)| {
                 let text = &boxes.iter().find(|(row, _)| row.0 == slot.0)?.1 .0;
                 Some(match chip.offers {
+                    Offers::Named(Names::Section) => {
+                        let ship = field.and_then(|field| {
+                            let action = actions.get(field.node).ok()?;
+                            section_scope(action_config(&action.kind)?, field.path())
+                        });
+                        !names.resolves_in(Names::Section, text, ship.as_deref())
+                    }
                     Offers::Named(named) => !names.resolves(named, text),
                     // A rig with nothing installed knows no file, and would
                     // otherwise mark every path on the panel wrong.
@@ -3501,9 +3518,6 @@ pub(crate) fn on_inspector_reset(
 fn one_marked(count: usize, chosen: usize) -> Vec<bool> {
     (0..count).map(|index| index == chosen).collect()
 }
-
-/// The word on the button that drops an entry of a walked list.
-const REMOVE_WORD: &str = "Remove";
 
 /// The button that drops one entry of a walked list.
 #[derive(Component)]

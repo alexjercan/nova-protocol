@@ -78,6 +78,9 @@ pub enum Names {
     /// One section of a ship, by its authored section id. Scoped to the ship
     /// the same config names, unlike every other variant here.
     Section,
+    /// A HUD readout slot, by its key. Minted by the first `HudReadout` that
+    /// names it and named again by the ones that update or clear it.
+    HudSlot,
 }
 
 /// One authored string a config holds, and what the author said it names.

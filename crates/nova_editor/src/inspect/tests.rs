@@ -22,9 +22,9 @@ use nova_ship::prelude::{
 use super::*;
 use crate::{
     event::{
-        action_config_mut, expr_config_mut, filter_config_mut, ActionChoice, ActionChoiceExt,
-        ActionKind, ActionNode, EventNode, ExprChoice, ExpressionNode, FilterChoice, FilterKind,
-        FilterNode, ScriptNode, SequenceHead, StepNode,
+        action_config, action_config_mut, expr_config_mut, filter_config_mut, ActionChoice,
+        ActionChoiceExt, ActionKind, ActionNode, EventNode, ExprChoice, ExpressionNode,
+        FilterChoice, FilterKind, FilterNode, ScriptNode, SequenceHead, StepNode,
     },
     node::{
         EditorNode, NextChildOrdinal, NodeId, ObjectChoice, ObjectNode, ScenarioNode, SectionNode,
@@ -2839,4 +2839,141 @@ fn every_list_control_of_every_form_and_block_lands() {
             }
         }
     }
+}
+
+/// The node of the document whose id is `id`.
+fn node_named(world: &mut World, id: &str) -> Entity {
+    let mut nodes = world.query::<(Entity, &NodeId)>();
+    nodes
+        .iter(world)
+        .find(|(_, held)| held.0 == id)
+        .map(|(entity, _)| entity)
+        .expect("the document holds the node")
+}
+
+/// A refill names one section of the ship the same action names, so its
+/// picker offers that ship's sections, nothing before a ship is named, and
+/// marks a section the ship does not have.
+#[test]
+fn a_refill_section_offers_the_sections_of_the_ship_it_names() {
+    let mut world = named_document();
+    let raider = node_named(&mut world, "raider_1");
+    for id in ["gun_b", "gun_a"] {
+        world.spawn((
+            EditorNode,
+            thruster_node(1.0),
+            NodeId(id.to_string()),
+            Transform::default(),
+            ChildOf(raider),
+        ));
+    }
+    let names = document_names(&mut world);
+    let mut refill = stock_action(ActionChoice::RefillAmmo);
+    let section = row(&action_rows(&refill), "Section").clone();
+    assert_eq!(section.names, Some(Names::Section));
+    let config = action_config(&refill.kind).expect("a config");
+    assert_eq!(
+        section_scope(config, &section.path),
+        None,
+        "no ship named yet"
+    );
+    assert!(names.offers_in(Names::Section, None).is_empty());
+
+    let id = row(&action_rows(&refill), "Id").path.clone();
+    let config = action_config_mut(&mut refill.kind).expect("a config");
+    write_field(config, &id, false, "raider_1").expect("the ship is named");
+    let ship = section_scope(
+        action_config(&refill.kind).expect("a config"),
+        &section.path,
+    );
+
+    assert_eq!(ship.as_deref(), Some("raider_1"));
+    assert_eq!(
+        names.offers_in(Names::Section, ship.as_deref()),
+        ["gun_a", "gun_b"]
+    );
+    assert!(names.resolves_in(Names::Section, "gun_a", ship.as_deref()));
+    assert!(
+        !names.resolves_in(Names::Section, "engine", ship.as_deref()),
+        "a section the ship lacks is marked"
+    );
+}
+
+/// A readout slot is minted by the first readout that names it, so the picker
+/// offers the slots already in use and an empty slot is refused.
+#[test]
+fn a_hud_slot_offers_the_slots_readouts_already_name() {
+    let mut world = named_document();
+    let handler = node_named(&mut world, "event_1");
+    let mut readout = stock_action(ActionChoice::HudReadout);
+    let slot = row(&action_rows(&readout), "Slot").clone();
+    assert_eq!(slot.names, Some(Names::HudSlot));
+    let config = action_config_mut(&mut readout.kind).expect("a config");
+    write_field(config, &slot.path, false, "timer").expect("a slot is minted");
+    assert_eq!(
+        write_field(config, &slot.path, false, " "),
+        Err("a readout needs a slot to update or clear it".to_string())
+    );
+    world.spawn((
+        EditorNode,
+        readout,
+        NodeId("readout_1".to_string()),
+        ChildOf(handler),
+    ));
+
+    assert_eq!(document_names(&mut world).offers(Names::HudSlot), ["timer"]);
+}
+
+/// A spawned object's id is minted text held to the content lint's rule: not
+/// empty, no '/', and not a spelling only the world generator mints.
+#[test]
+fn a_minted_object_id_refuses_nothing_a_slash_and_a_body_id() {
+    let mut spawn = stock_action(ActionChoice::SpawnScenarioObject);
+    let id = row(&action_rows(&spawn), "Id").path.clone();
+    let config = action_config_mut(&mut spawn.kind).expect("a config");
+    let body = nova_events::prelude::GeneratedBodyId::new(
+        nova_events::prelude::SectorCoord::ORIGIN,
+        "rock",
+        3,
+    )
+    .to_string();
+
+    for (text, refused) in [
+        ("", "an object needs an id"),
+        ("rock/7", "'/' is reserved for minted ids"),
+        (
+            body.as_str(),
+            "that spells a generated body id, which only the world generator mints",
+        ),
+    ] {
+        assert_eq!(
+            write_field(config, &id, false, text),
+            Err(refused.to_string()),
+            "{text:?}"
+        );
+    }
+    write_field(config, &id, false, "rock_7").expect("a plain id is minted");
+}
+
+/// A scatter's prefix and a sequence's key are minted text too: an empty one
+/// is refused, because nothing could name what it mints.
+#[test]
+fn an_empty_scatter_prefix_or_sequence_key_is_refused() {
+    let mut scatter = stock_action(ActionChoice::ScatterObjects);
+    let prefix = row(&action_rows(&scatter), "Id Prefix").path.clone();
+    let config = action_config_mut(&mut scatter.kind).expect("a config");
+    assert_eq!(
+        write_field(config, &prefix, false, ""),
+        Err("a scatter needs an id prefix for its copies".to_string())
+    );
+    write_field(config, &prefix, false, "rock_").expect("a prefix is minted");
+
+    let mut sequence = stock_action(ActionChoice::Sequence);
+    let key = row(&action_rows(&sequence), "Key").path.clone();
+    let config = action_config_mut(&mut sequence.kind).expect("a config");
+    assert_eq!(
+        write_field(config, &key, false, ""),
+        Err("a sequence needs a key to file its cursor under".to_string())
+    );
+    write_field(config, &key, false, "intro").expect("a key is minted");
 }
