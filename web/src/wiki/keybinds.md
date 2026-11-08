@@ -464,7 +464,9 @@ scenario made is listed under that scenario. A file the package leaves out wears
   live lint of what Play would load; a row selects the node it names. **Ship**
   appears in the Ship editor and holds the skin, the styles and Generate. **Log** keeps
   what the status line said and what the game warned of, with Clear, a level
-  filter and a text filter. Drag the strip's top edge to resize it.
+  filter and a text filter. In the Log and Problems a click marks a row,
+  <kbd>Shift</kbd>+click a range, and **Copy** copies the marked rows as text, or
+  every shown row when none is marked. Drag the strip's top edge to resize it.
 
 The stage camera has no fly keys: in a scenario the letters are the tools. Hold
 right mouse to look about, and orbit, pan and dolly to move. The wheel always
@@ -530,6 +532,10 @@ pending rebind.
     <tr>
         <td>Copy; paste; duplicate</td>
         <td><kbd>Ctrl</kbd>+<kbd>C</kbd>; <kbd>Ctrl</kbd>+<kbd>V</kbd>; <kbd>Ctrl</kbd>+<kbd>D</kbd></td>
+    </tr>
+    <tr>
+        <td>Over the Log or Problems: mark every shown row; copy the marked rows as text</td>
+        <td><kbd>Ctrl</kbd>+<kbd>A</kbd>; <kbd>Ctrl</kbd>+<kbd>C</kbd></td>
     </tr>
     <tr>
         <td>Select a node; open the ship in the Ship editor</td>

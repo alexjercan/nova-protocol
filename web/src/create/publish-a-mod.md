@@ -11,8 +11,11 @@ For content authoring, use [Create your first scenario](../author-a-scenario/),
 ## Package from the editor
 
 A mod built in the editor does not need the manual steps in section 1.
-**File > Package** checks the mod and writes `<id>-<version>.zip` under the
-`exports/` folder in the game's data directory. The window names the full path.
+**File > Package** opens a window with the version, the output folder, the
+file name, the check and the files. A bump button steps the version first.
+**Package** writes `<id>-<version>.zip` under the `exports/` folder in the
+game's data directory. The window then names the full path and the size, with
+Copy Path and Open Folder.
 The `editor_` prefix goes: the mod `editor_red-run` at version `0.1.0` writes
 `red-run-0.1.0.zip`, and its dependencies on other editor mods change the same
 way.
@@ -21,7 +24,8 @@ The zip holds the folder that section 1 describes, with the files at its root.
 Extract it to `webmods/<id>/` and go on at section 2. You can also send it as it
 is: **Import** on the Mod Hub installs it.
 
-An error stops Package, and the Problems tab lists every finding. A dependency
+An error stops Package. The window gives the count and the first errors, and
+the Problems tab lists every finding. A dependency
 that is not installed blocks Package, but it does not block Save.
 Import refuses a zip with an entry that leaves the folder, an absolute entry, or
 no manifest. It asks first when the mod id is installed already. Package and
