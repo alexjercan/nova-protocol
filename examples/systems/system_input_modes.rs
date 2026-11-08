@@ -50,7 +50,7 @@ use nova_ui::prelude::InputMode;
 
 #[cfg(feature = "debug")]
 use crate::{
-    editor_stage::{ADD_MENU, EMPTY_SPACE},
+    editor_stage::{ADD_MENU, ADD_SHIP, EMPTY_SPACE, NEW_SHIP},
     editor_walk::{inside_a_ship, the_ship_is_up},
     section_aim::a_section_on_screen,
 };
@@ -86,10 +86,14 @@ fn main() -> bevy::app::AppExit {
 #[cfg(feature = "debug")]
 const SETTLE_FRAMES: u32 = 8;
 
-/// The palette row the walk adds its object from. A beacon carries a Name
+/// The Add menu row the walk adds its object from. A beacon carries a Name
 /// field, which is the text field the Insert beats need.
 #[cfg(feature = "debug")]
 const OBJECT_ITEM: &str = "Add Beacon";
+
+/// The Add menu group that holds the beacon.
+#[cfg(feature = "debug")]
+const ADD_MARKERS: &str = "Add Menu Markers";
 
 /// The object's Name field, in the inspector that opens on it.
 #[cfg(feature = "debug")]
@@ -187,11 +191,17 @@ fn mode_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .until(the_mode_is(InputMode::Normal))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        // INSERT. The palette lives in the Add menu, which spawns its rows when
-        // it opens, so the menu drops first.
+        // INSERT. The beacon lives in the Add menu's Markers group, which
+        // spawns its rows when it opens, so the menu and the group open first.
         .click_named(
             "modes: drop the Add menu",
             ADD_MENU,
+            ui_node_present(ADD_MARKERS),
+            BEAT_DEADLINE_SECS,
+        )
+        .click_named(
+            "modes: open Add > Markers",
+            ADD_MARKERS,
             ui_node_present(OBJECT_ITEM),
             BEAT_DEADLINE_SECS,
         )
@@ -272,12 +282,18 @@ fn mode_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStat
         .click_named(
             "modes: drop the Add menu again",
             ADD_MENU,
-            ui_node_present("Add Ship Button"),
+            ui_node_present(ADD_SHIP),
             BEAT_DEADLINE_SECS,
         )
         .click_named(
-            "modes: click Add Ship",
-            "Add Ship Button",
+            "modes: open Add > Ship",
+            ADD_SHIP,
+            ui_node_present(NEW_SHIP),
+            BEAT_DEADLINE_SECS,
+        )
+        .click_named(
+            "modes: click Add > Ship > New Ship",
+            NEW_SHIP,
             inside_a_ship(),
             BEAT_DEADLINE_SECS,
         )

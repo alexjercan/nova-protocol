@@ -633,7 +633,8 @@ fn generate_script() -> AutopilotPlugin<GameStates> {
         // not exist until its menu is open. Add Ship enters the blank ship,
         // and the Generate block is shown only inside one.
         .click("open the Add menu", "Add Menu Button")
-        .click("create the ship", "Add Ship Button")
+        .click("open Add > Ship", "Add Menu Ship")
+        .click("create the ship", "Add New Ship")
         .step("the blank ship is entered")
         .until(the_editor_is_inside_a_ship())
         .deadline(STEP_DEADLINE_SECS)

@@ -5,7 +5,9 @@
 //!
 //! Try: the top bar's tool buttons against `Q` `W` `E` `R`, Axes against `X`,
 //! Snap against a held Ctrl. In the Hierarchy, press a caret, type in the filter,
-//! Ctrl+click and Shift+click rows, and right-click a row for its menu. In the
+//! Ctrl+click and Shift+click rows, and right-click a row for its menu. Over
+//! the stage, Shift+A opens the Add menu: the arrows walk it, typing searches
+//! it, Enter adds. In the
 //! strip under the stage, read Assets, and press a row
 //! of Problems to reach the node it names. `Ctrl+1` `Ctrl+2` `Ctrl+3` hide the
 //! Hierarchy, the Inspector and the strip's body. A group heading in the
@@ -18,7 +20,8 @@
 //! buttons and asserts the probe after each. `--width` and `--height` set the
 //! walk's window. `NOVA_CAPTURE=1` shoots `editor-shell-scene.png`, `-filter.png`,
 //! `-menu.png`, `-assets.png`, `-tile-hint.png`, `-tile-clash.png`,
-//! `-problems.png`, `-ship.png`, `-events.png` and `-popup.png`.
+//! `-problems.png`, `-add-menu.png`, `-add-search.png`, `-ship.png`,
+//! `-events.png` and `-popup.png`.
 //! Unset, no walk and no deadline run.
 
 use bevy::{prelude::*, window::PrimaryWindow};
@@ -147,6 +150,13 @@ mod smoke {
     const SHOT_SECS: f32 = 120.0;
     const ADD_MENU: &str = "Add Menu Button";
     const ADD_ASTEROID: &str = "Add Asteroid";
+    const ADD_OBJECTS: &str = "Add Menu Objects";
+    const ADD_SHIP: &str = "Add Menu Ship";
+    const CASCADE: &str = "Cascade Menu";
+    const SHIFT_A: &[KeyCode] = &[KeyCode::ShiftLeft, KeyCode::KeyA];
+    const DOWN: &[KeyCode] = &[KeyCode::ArrowDown];
+    const RIGHT: &[KeyCode] = &[KeyCode::ArrowRight];
+    const ENTER: &[KeyCode] = &[KeyCode::Enter];
     const FILTER: &str = "Hierarchy Filter";
     const GRIP: &str = "Browser Resize Handle";
     const UNDO: &[KeyCode] = &[KeyCode::ControlLeft, KeyCode::KeyZ];
@@ -235,6 +245,123 @@ mod smoke {
             .until(shot_written(name))
             .deadline(SHOT_SECS)
             .add()
+    }
+
+    /// Whether the menu row `name` carries the highlight.
+    fn marked(name: &'static str) -> Arc<Predicate> {
+        Arc::new(move |world: &World| {
+            world
+                .try_query_filtered::<&Name, With<nova_ui::prelude::Selected>>()
+                .is_some_and(|mut rows| rows.iter(world).any(|row| row.as_str() == name))
+        })
+    }
+
+    /// The Add menu by its key and its keys: Shift+A over the stage opens it at
+    /// the pointer, Down, Down and Right enter Objects, Down and Enter add a
+    /// planet; a second Shift+A and a typed search find the beacon under
+    /// Markers, and Enter adds it. Each add is one step, and Ctrl+Z takes both
+    /// back.
+    fn add_menu_keys(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        let script = script
+            .step("editor shell: point at the stage")
+            .on_enter(|world: &mut World| {
+                let Ok(window) = world
+                    .query_filtered::<&Window, With<PrimaryWindow>>()
+                    .single(world)
+                else {
+                    return;
+                };
+                let at = Vec2::new(window.width() * 0.5, window.height() * 0.4);
+                let depth = probe(world).history_depth;
+                world.resource_mut::<Walk>().depth = depth;
+                move_cursor(at)(world);
+            })
+            .until(frames(4))
+            .add();
+        let script = chord(
+            script,
+            "Shift+A opens the Add menu at the pointer",
+            SHIFT_A,
+            ui_node_present(ADD_OBJECTS),
+        );
+        let script = chord(script, "Down marks Ship", DOWN, marked(ADD_SHIP));
+        let script = chord(script, "Down marks Objects", DOWN, marked(ADD_OBJECTS));
+        let script = chord(
+            script,
+            "Right enters Objects on its first row",
+            RIGHT,
+            marked(ADD_ASTEROID),
+        );
+        let script = chord(script, "Down marks Planet", DOWN, marked("Add Planet"));
+        let script = shot(script, "editor-shell-add-menu.png");
+        let script = chord(
+            script,
+            "Enter adds the planet and closes the menu",
+            ENTER,
+            Arc::new(|world: &World| {
+                world.resource::<EditorProbe>().next_undo.as_deref() == Some("Add Planet")
+                    && !ui_node_present(CASCADE)(world)
+            }),
+        );
+        let script = chord(
+            script,
+            "Shift+A opens it again",
+            SHIFT_A,
+            ui_node_present(ADD_OBJECTS),
+        );
+        let script = script
+            .step("editor shell: the search holds the caret, not the A")
+            .until(Arc::new(|world: &World| {
+                world
+                    .try_query_filtered::<(&Name, &nova_ui::prelude::TextFieldValue), With<nova_ui::prelude::TextFieldFocused>>()
+                    .is_some_and(|mut fields| {
+                        fields
+                            .iter(world)
+                            .any(|(name, value)| name.as_str() == "Cascade Search" && value.0.is_empty())
+                    })
+            }))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add()
+            .step("editor shell: search for the beacon")
+            .on_enter(type_text("beac"))
+            .until(marked("Add Beacon"))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add();
+        let script = shot(script, "editor-shell-add-search.png");
+        let script = chord(
+            script,
+            "Enter adds the beacon it found",
+            ENTER,
+            Arc::new(|world: &World| {
+                world.resource::<EditorProbe>().next_undo.as_deref() == Some("Add Beacon")
+                    && !ui_node_present(CASCADE)(world)
+            }),
+        );
+        let script = script
+            .step("editor shell: each add was one step")
+            .on_enter(|world: &mut World| {
+                let depth = world.resource::<Walk>().depth;
+                assert_eq!(probe(world).history_depth, depth + 2);
+            })
+            .add();
+        let script = chord(
+            script,
+            "Ctrl+Z takes the beacon back",
+            UNDO,
+            Arc::new(|world: &World| {
+                world.resource::<EditorProbe>().history_depth == world.resource::<Walk>().depth + 1
+            }),
+        );
+        chord(
+            script,
+            "Ctrl+Z takes the planet back",
+            UNDO,
+            Arc::new(|world: &World| {
+                world.resource::<EditorProbe>().history_depth == world.resource::<Walk>().depth
+            }),
+        )
     }
 
     /// The Log tab: what reaches it, and what its controls do.
@@ -404,6 +531,12 @@ mod smoke {
             .click_named(
                 "editor shell: open the Add menu",
                 ADD_MENU,
+                ui_node_present(ADD_OBJECTS),
+                BEAT_SECS,
+            )
+            .click_named(
+                "editor shell: open Add > Objects",
+                ADD_OBJECTS,
                 ui_node_present(ADD_ASTEROID),
                 BEAT_SECS,
             )
@@ -645,16 +778,23 @@ mod smoke {
             editor(|probe| probe.shell.inspector),
         );
 
+        let script = add_menu_keys(script);
         let script = script
             .click_named(
                 "editor shell: open the Add menu for a ship",
                 ADD_MENU,
-                ui_node_present("Add Ship Button"),
+                ui_node_present(ADD_SHIP),
+                BEAT_SECS,
+            )
+            .click_named(
+                "editor shell: open Add > Ship",
+                ADD_SHIP,
+                ui_node_present("Add New Ship"),
                 BEAT_SECS,
             )
             .click_named(
                 "editor shell: add a ship, which enters it",
-                "Add Ship Button",
+                "Add New Ship",
                 ui_node_present("Browser Tab Ship"),
                 BEAT_SECS,
             )
@@ -683,9 +823,11 @@ mod smoke {
             .diagnose(readout)
             .deadline(BEAT_SECS)
             .add()
+            // A ship is its own document: its tree holds only the ship, and
+            // the bar's Back returns to the scenario it was opened over.
             .click_named(
                 "editor shell: back out to the scenario",
-                "Scene Row scenario",
+                "Back Button",
                 editor(|probe| probe.inside.is_none()),
                 BEAT_SECS,
             )

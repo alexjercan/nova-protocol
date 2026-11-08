@@ -64,7 +64,7 @@ use nova_protocol::prelude::*;
 // Shared with the other editor walks: one point that is clear of all three
 // panels, so a range cannot drift onto a literal that lands on the Inspector.
 #[cfg(feature = "debug")]
-use crate::editor_stage::{ADD_MENU, EMPTY_SPACE};
+use crate::editor_stage::{ADD_MENU, ADD_SHIP, EMPTY_SPACE, NEW_SHIP};
 
 #[derive(Parser)]
 #[command(name = "system_ship_editor")]
@@ -214,6 +214,14 @@ const HULL_PROTOTYPE: &str = "reinforced_hull_section";
 /// ship is also the regression check for the editor-preview controller fix.
 #[cfg(feature = "debug")]
 const CONTROLLER_PROTOTYPE: &str = "basic_controller_section";
+
+/// The Add menu's group of scenario objects.
+#[cfg(feature = "debug")]
+const ADD_OBJECTS: &str = "Add Menu Objects";
+
+/// The Add menu's group of part categories, inside a ship.
+#[cfg(feature = "debug")]
+const ADD_PARTS: &str = "Add Menu Parts";
 
 /// The top bar's File menu: the verbs that touch the saved file.
 #[cfg(feature = "debug")]
@@ -401,7 +409,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: the root took the sky {picked}");
         })
         .add()
-        .click_a_menu_item("editor: click Add > New Ship", ADD_MENU, "Add Ship Button")
+        .click_an_add_item("editor: click Add > New Ship", ADD_SHIP, NEW_SHIP)
         .step("editor: the blank ship is up and entered")
         .until(inside_a_ship_of(0))
         .deadline(BEAT_DEADLINE_SECS)
@@ -1121,24 +1129,30 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         })
         .add()
         // Add means "one more node HERE", and here changes. Inside a ship the
-        // world palette is hidden - it used to answer Asteroid by putting a
-        // rock in a world the stage had stopped showing - and the same menu
-        // offers the ship's parts instead.
+        // scenario's groups are gone - Objects used to answer Asteroid by
+        // putting a rock in a world the stage had stopped showing - and the
+        // same menu offers the ship's parts instead.
         .click_a_widget("editor: drop the Add menu inside a ship", ADD_MENU)
         .step("editor: Add offers parts, not rocks, inside a ship")
+        .until(ui_node_present(ADD_PARTS))
+        .deadline(BEAT_DEADLINE_SECS)
         .on_enter(|world: &mut World| {
             assert!(
-                widget_is_hidden(world, "Add Asteroid"),
-                "the world palette must be hidden inside a ship"
+                !ui_node_present(ADD_OBJECTS)(world),
+                "the scenario's objects must be gone inside a ship"
             );
             assert!(
-                widget_is_hidden(world, "Add Ship Button"),
+                !ui_node_present(ADD_SHIP)(world),
                 "Add > New Ship inside a ship used to move the builder to a \
                  different ship without saying so"
             );
+        })
+        .add()
+        .step("editor: the parts group is live")
+        .on_enter(|world: &mut World| {
             assert!(
-                !widget_is_disabled(world, "Add Structure Item"),
-                "and the parts palette must be live in the same menu"
+                !widget_is_disabled(world, ADD_PARTS),
+                "and the parts must be live in the same menu"
             );
             nova_probe::probe_marker(
                 world,
@@ -1148,10 +1162,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: inside a ship, Add offers parts and hides the world");
         })
         .add()
-        // The menu is already down from the beat above, so this clicks the ROW
-        // rather than reopening the menu - a second press on the bar button
-        // would close it.
-        .click_a_widget("editor: browse Add > Structure", "Add Structure Item")
+        // The menu is already down from the beat above, so this opens the
+        // group rather than reopening the menu - a second press on the bar
+        // button would close it.
+        .click_a_widget("editor: open Add > Parts", ADD_PARTS)
+        .click_a_widget("editor: browse Add > Parts > Structure", "Add Structure Item")
         .step("editor: the gallery opened narrowed to one kind")
         .on_enter(|world: &mut World| {
             // The grid shows one PAGE, so a count says nothing about the
@@ -1254,16 +1269,12 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // Add > New Ship is a scenario-context action, so the run steps out
         // through the tree's root row first - the same door a builder uses.
-        .click_a_widget("editor: leave to add a second ship", "Scene Row scenario")
+        .click_a_widget("editor: leave to add a second ship", "Back Button")
         .step("editor: back at the scenario node to add a ship")
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .click_a_menu_item(
-            "editor: click Add > New Ship again",
-            ADD_MENU,
-            "Add Ship Button",
-        )
+        .click_an_add_item("editor: click Add > New Ship again", ADD_SHIP, NEW_SHIP)
         .step("editor: the second ship is up and entered")
         .until(inside_a_ship_of(0))
         .deadline(BEAT_DEADLINE_SECS)
@@ -1341,7 +1352,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         })
         .add()
         // Out through the tree's root row.
-        .click_a_widget("editor: leave the second ship", "Scene Row scenario")
+        .click_a_widget("editor: leave the second ship", "Back Button")
         .step("editor: the scenario node holds both ships")
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
@@ -1390,7 +1401,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // The world is a document too, not just the ships in it. The Add menu
         // places a rock in front of the camera, the tree lists it beside the
         // ships, and Delete takes it back off.
-        .click_a_menu_item("editor: place an asteroid", ADD_MENU, "Add Asteroid")
+        .click_an_add_item("editor: place an asteroid", ADD_OBJECTS, "Add Asteroid")
         .step("editor: the placed rock is a marked node in the tree")
         .until(an_object_was_placed("asteroid"))
         .deadline(BEAT_DEADLINE_SECS)
@@ -1661,7 +1672,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // A COLOUR is the one value in a config nobody can author by reading
         // it, so it gets a window of its own. The beacon is the shipped object
         // that has one.
-        .click_a_menu_item("editor: place a beacon", ADD_MENU, "Add Beacon")
+        .click_an_add_item("editor: place a beacon", "Add Menu Markers", "Add Beacon")
         .step("editor: the beacon is the marked node")
         .until(an_object_was_placed("beacon"))
         .deadline(BEAT_DEADLINE_SECS)
@@ -2359,7 +2370,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // Play only from the scenario node, so the run steps back out to press
         // it. The button is greyed inside a ship and the observer refuses too.
-        .click_a_widget("editor: leave for the hand-off", "Scene Row scenario")
+        .click_a_widget("editor: leave for the hand-off", "Back Button")
         .step("editor: Play is reachable")
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
@@ -2423,7 +2434,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: inside picket_warden - {sections:?}, driven by {driver}, {side}");
         })
         .add()
-        .click_a_widget("editor: back out to the range", "Scene Row scenario")
+        .click_a_widget("editor: back out to the range", "Back Button")
         .step("editor: back at the scenario node")
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
@@ -2547,9 +2558,9 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // The ordinal is the editor's own counter, and a fresh document starts
         // it at zero - so a rock placed now colliding with a loaded id is the
         // whole failure this beat is here to catch.
-        .click_a_menu_item(
+        .click_an_add_item(
             "editor: place a rock after the load",
-            ADD_MENU,
+            ADD_OBJECTS,
             "Add Asteroid",
         )
         .step("editor: the id minted after a load clears the loaded ones")
@@ -2658,11 +2669,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // Generate is a SHIP verb: what it rolls IS the hull, so the run adds
         // a ship and goes inside before pressing it.
-        .click_a_menu_item(
-            "editor: add a ship to generate into",
-            ADD_MENU,
-            "Add Ship Button",
-        )
+        .click_an_add_item("editor: add a ship to generate into", ADD_SHIP, NEW_SHIP)
         .step("editor: the ship to generate into is up and entered")
         .until(inside_a_ship_of(0))
         .deadline(BEAT_DEADLINE_SECS)
@@ -2995,18 +3002,6 @@ fn visible_names_with_prefix(world: &mut World, prefix: &str) -> Vec<String> {
         .filter(|(name, visibility)| visibility.get() && name.as_str().starts_with(prefix))
         .map(|(name, _)| name.as_str()[prefix.len()..].to_string())
         .collect()
-}
-
-/// Whether a named widget is hidden. The menus hide a verb that cannot apply
-/// here, and grey one that fits but cannot run yet. Panics when there is none.
-#[cfg(feature = "debug")]
-fn widget_is_hidden(world: &mut World, name: &str) -> bool {
-    let exists = world
-        .query::<&Name>()
-        .iter(world)
-        .any(|node_name| node_name.as_str() == name);
-    assert!(exists, "the editor must have a widget named `{name}`");
-    ui_node_rect(world, name).is_none()
 }
 
 /// Whether the widget called `name` is greyed. Panics when there is none.
@@ -4198,6 +4193,9 @@ trait EditorGestures {
     /// menu would pass over a menu that never drops.
     fn click_a_menu_item(self, label: &str, menu: &str, item: &str) -> Self;
 
+    /// Open the Add menu, open its `group` submenu, and click `item` in it.
+    fn click_an_add_item(self, label: &str, group: &str, item: &str) -> Self;
+
     /// Press and release the pointer where it already is, then hold until
     /// `landed` - what the click was supposed to change.
     fn press_and_release(self, label: &str, landed: Wait) -> Self;
@@ -4229,6 +4227,12 @@ trait EditorGestures {
 impl EditorGestures for nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
     fn click_a_menu_item(self, label: &str, menu: &str, item: &str) -> Self {
         self.click_a_widget(&format!("{label}: open the menu"), menu)
+            .click_a_widget(label, item)
+    }
+
+    fn click_an_add_item(self, label: &str, group: &str, item: &str) -> Self {
+        self.click_a_widget(&format!("{label}: open the Add menu"), ADD_MENU)
+            .click_a_widget(&format!("{label}: open the group"), group)
             .click_a_widget(label, item)
     }
 

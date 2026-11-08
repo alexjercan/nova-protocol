@@ -114,8 +114,9 @@ mod smoke {
     const BEAT_SECS: f32 = 60.0;
     /// Seconds a frame capture gets.
     const SHOT_SECS: f32 = 120.0;
-    /// The top bar's menu that holds the object rows.
+    /// The top bar's Add menu, and its group that holds the rock.
     const ADD_MENU: &str = "Add Menu Button";
+    const ADD_OBJECTS: &str = "Add Menu Objects";
     const ADD_ASTEROID: &str = "Add Asteroid";
     const EDIT_MENU: &str = "Edit Menu Button";
     const FILE_MENU: &str = "File Menu Button";
@@ -213,6 +214,27 @@ mod smoke {
             .click_named(&format!("editor undo: {label}"), row, landed, BEAT_SECS)
     }
 
+    /// Add > Objects > Asteroid, through the menu's submenu.
+    fn add_rock(
+        script: AutopilotPlugin<GameStates>,
+        label: &str,
+        landed: Arc<Predicate>,
+    ) -> AutopilotPlugin<GameStates> {
+        menu_row(
+            script,
+            label,
+            ADD_MENU,
+            ADD_OBJECTS,
+            ui_node_present(ADD_ASTEROID),
+        )
+        .click_named(
+            &format!("editor undo: {label}: the rock"),
+            ADD_ASTEROID,
+            landed,
+            BEAT_SECS,
+        )
+    }
+
     /// Advance once the confirm window stands with this title.
     fn question_titled(title: &'static str) -> Arc<Predicate> {
         Arc::new(move |world: &World| {
@@ -260,11 +282,9 @@ mod smoke {
             })
             .add();
 
-        let script = menu_row(
+        let script = add_rock(
             script,
             "add a rock",
-            ADD_MENU,
-            ADD_ASTEROID,
             editor(1, |probe| probe.history_depth == 1 && probe.dirty),
         );
         let script = chord(
@@ -312,11 +332,9 @@ mod smoke {
             editor(1, |probe| probe.history_depth == 1),
         );
         // The selection the Add left is the second rock, so Del takes that one.
-        let script = menu_row(
+        let script = add_rock(
             script,
             "add a second rock",
-            ADD_MENU,
-            ADD_ASTEROID,
             editor(2, |probe| probe.history_depth == 2),
         );
         let script = chord(

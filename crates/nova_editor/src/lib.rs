@@ -146,6 +146,7 @@ use tool::{sync_scale_refusal, tool_keys, StageTool};
 pub use tool::{GizmoSpaceType, StageToolType};
 use ui::{
     a_ship_is_entered,
+    add_menu::add_menu_key,
     asset_files::fit_viewed_images,
     assets::{
         apply_asset_rename, asset_tile_keys, sync_asset_controls, sync_asset_thumbs, sync_assets,
@@ -171,6 +172,7 @@ use ui::{
     picker::{revert_picker, settle_on_close, sync_colour_windows, ColourWindow},
     plate::sync_nameplates,
     rail::sync_scene_tooltip,
+    section_kind::{section_kind_keys, sync_section_kind_tiles, SectionKindModal},
     settings::{apply_settings_fields, sync_settings_window},
     setup_editor_scene,
     shell::{
@@ -759,6 +761,15 @@ fn editor_plugin(app: &mut App) {
     app.add_observer(on_stage_release);
     app.add_systems(OnEnter(ExampleStates::Editor), setup_selection_frame);
     app.add_systems(
+        Update,
+        (
+            section_kind_keys.run_if(in_input_mode(InputMode::Browse)),
+            sync_section_kind_tiles,
+        )
+            .chain()
+            .run_if(in_state(ExampleStates::Editor)),
+    );
+    app.add_systems(
         OnEnter(ExampleStates::Editor),
         |mut tool: ResMut<StageTool>| *tool = StageTool::default(),
     );
@@ -775,6 +786,9 @@ fn editor_plugin(app: &mut App) {
             stage_context_menu
                 .after(sync_viewport_pointer)
                 .run_if(resource_exists::<ButtonInput<MouseButton>>),
+            add_menu_key
+                .after(sync_viewport_pointer)
+                .run_if(in_input_mode(InputMode::Normal)),
         )
             .before(sync_gizmo)
             .before(PartsGallerySystems)
@@ -941,10 +955,12 @@ fn declare_editor_escape_owner(
 ///
 /// A block's pop-up holds Browse, so every verb gated on Normal stops under it
 /// through this one claim: each acts on the document the pop-up is editing.
+/// The New Section modal holds Browse for its arrows and Enter.
 fn declare_editor_keyboard_owner(
     editor: Res<State<ExampleStates>>,
     rebind: Res<EditorRebind>,
     block_popup: Res<BlockPopup>,
+    section_kind: Query<(), With<SectionKindModal>>,
     mut claims: MessageWriter<ClaimKeyboard>,
 ) {
     if *editor.get() != ExampleStates::Editor {
@@ -953,7 +969,7 @@ fn declare_editor_keyboard_owner(
     if rebind.target.is_some() {
         claims.write(ClaimKeyboard(InputMode::Bind));
     }
-    if block_popup.is_open() {
+    if block_popup.is_open() || !section_kind.is_empty() {
         claims.write(ClaimKeyboard(InputMode::Browse));
     }
 }

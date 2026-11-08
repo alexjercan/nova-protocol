@@ -44,7 +44,7 @@ use clap::Parser;
 use nova_protocol::prelude::*;
 
 #[cfg(feature = "debug")]
-use crate::editor_stage::{ADD_MENU, EMPTY_SPACE};
+use crate::editor_stage::{ADD_MENU, ADD_SHIP, EMPTY_SPACE, NEW_SHIP};
 
 #[derive(Parser)]
 #[command(name = "system_sandbox_station")]
@@ -184,7 +184,8 @@ fn station_script() -> Script {
         .add()
         // The flown ship: a controller and a port on its stern (+Z) face.
         .click("sandbox station: open the Add menu", ADD_MENU)
-        .click("sandbox station: add the flown ship", "Add Ship Button")
+        .click("sandbox station: open Add > Ship", ADD_SHIP)
+        .click("sandbox station: add the flown ship", NEW_SHIP)
         .step("sandbox station: inside the blank flown ship")
         .until(inside_with(0))
         .deadline(BEAT_DEADLINE_SECS)
@@ -211,7 +212,8 @@ fn station_script() -> Script {
         .leave("sandbox station: leave the flown ship")
         // The hull to mark: a controller and a thruster, no port yet.
         .click("sandbox station: open the Add menu again", ADD_MENU)
-        .click("sandbox station: add the hull to mark", "Add Ship Button")
+        .click("sandbox station: open Add > Ship again", ADD_SHIP)
+        .click("sandbox station: add the hull to mark", NEW_SHIP)
         .step("sandbox station: inside the blank second ship")
         .until(inside_with(0))
         .deadline(BEAT_DEADLINE_SECS)
@@ -621,7 +623,7 @@ impl SandboxGestures for Script {
     }
 
     fn leave(self, label: &str) -> Self {
-        self.click(label, "Scene Row scenario")
+        self.click(label, "Back Button")
             .step(format!("{label}: at the scenario node"))
             .until(at_the_scenario_node())
             .deadline(BEAT_DEADLINE_SECS)
@@ -640,10 +642,13 @@ impl SandboxGestures for Script {
 /// The viewport aim for a world point, logical pixels.
 #[cfg(feature = "debug")]
 fn aim_at_world(world: &mut World, point: Vec3) -> Option<Vec2> {
+    // The active one: an asset's thumbnail camera is a Camera3d too, and it
+    // stands idle at a 112 px viewport between renders.
     let camera_entity = world
-        .query_filtered::<Entity, With<Camera3d>>()
+        .query_filtered::<(Entity, &Camera), With<Camera3d>>()
         .iter(world)
-        .next()?;
+        .find(|(_, camera)| camera.is_active)
+        .map(|(entity, _)| entity)?;
     let camera = world.get::<Camera>(camera_entity)?.clone();
     let camera_transform = *world.get::<GlobalTransform>(camera_entity)?;
     camera

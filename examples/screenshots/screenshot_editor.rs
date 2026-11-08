@@ -255,7 +255,8 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // Through the top bar, because that is where Add lives now: the row
         // does not exist until its menu is open.
         .click("open the Add menu", "Add Menu Button")
-        .click("create the ship", "Add Ship Button")
+        .click("open Add > Ship", "Add Menu Ship")
+        .click("create the ship", "Add New Ship")
         .step("the blank ship is entered")
         .until(the_editor_is_inside_a_ship())
         .deadline(STEP_DEADLINE_SECS)
@@ -421,7 +422,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // Play compiles the document from the scenario node, so the walk
         // steps out of the ship through the tree's root row first: one click
         // on a row you are inside is the way back out.
-        .click("leave the ship for the hand-off", "Scene Row scenario")
+        .click("leave the ship for the hand-off", "Back Button")
         // The script half of the document, authored the way a builder does it:
         // blocks off the palette, and the ship named through the picker rather
         // than typed. The walk asserts the picked id landed, because a chip

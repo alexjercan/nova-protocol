@@ -9,9 +9,10 @@ use nova_ship::prelude::GalleryState;
 use nova_ui::prelude::*;
 
 use super::{
+    add_menu::{world_items, AddFacts, DesignRow},
     inspector::InspectorField,
     layer,
-    menu_context::{verb_state, MenuFacts, MenuVerbType},
+    menu_context::{verb_state, MenuVerbType},
     rail::SceneRowHint,
     SceneRow, WantedRow,
 };
@@ -20,10 +21,8 @@ use crate::{
     config::SelectedNode,
     event::Expanded,
     frame::on_frame_selection,
-    node::{EditContext, ObjectChoice, ObjectNode, ScenarioNode, SectionNode, ShipNode},
-    placement::{
-        create_blank_ship, create_scenario_object, deletable, delete_selected_node, DeletableNode,
-    },
+    node::{EditContext, ObjectNode, ScenarioNode, SectionNode, ShipNode},
+    placement::{deletable, delete_selected_node, DeletableNode},
     project::ship::open_ship_node,
     ExampleStates,
 };
@@ -99,7 +98,7 @@ pub(crate) struct RowVerbs {
     pub(crate) delete: bool,
     /// The node stands somewhere the camera can go.
     pub(crate) frame: bool,
-    /// New Ship and the object rows: the node is the scenario root.
+    /// The Add menu's scenario groups: the node is the scenario root.
     pub(crate) add_world: bool,
     /// Add Part: the node is a ship.
     pub(crate) add_part: bool,
@@ -120,7 +119,7 @@ pub(crate) fn on_scene_row_menu(
     rows: Query<&SceneRow>,
     context: Res<EditContext>,
     mut selected: ResMut<SelectedNode>,
-    facts: MenuFacts,
+    facts: AddFacts,
     deletes: Query<(), DeletableNode>,
     kinds: Query<(
         Has<ScenarioNode>,
@@ -157,11 +156,11 @@ pub(crate) fn on_scene_row_menu(
         add_part: ship && offered(MenuVerbType::EnterShipParts),
     };
     close_popups(&mut commands, &roots);
-    let popup = spawn_popup(
+    let popup = spawn_cascade(
         &mut commands,
         click.pointer_location.position,
         layer::MENU_Z,
-        |menu| spawn_row_verbs(menu, &verbs),
+        row_items(&verbs, &facts.designs()),
     );
     commands
         .entity(popup)
@@ -169,61 +168,54 @@ pub(crate) fn on_scene_row_menu(
 }
 
 /// The rows of a context menu, each one an existing verb that acts on the
-/// selection. Only legal rows are listed.
-fn spawn_row_verbs(
-    menu: &mut bevy::ecs::relationship::RelatedSpawnerCommands<ChildOf>,
-    verbs: &RowVerbs,
-) {
+/// selection. Only legal rows are listed. The scenario root also holds the
+/// Add menu's scenario groups, with `designs` under Ship.
+fn row_items(verbs: &RowVerbs, designs: &[DesignRow]) -> Vec<CascadeItem> {
+    let mut items = Vec::new();
     if verbs.rename {
-        menu.spawn((
-            Name::new("Row Rename"),
-            popup_row("Rename", ""),
-            observe(rename_selection),
-        ));
+        items.push(CascadeItem::leaf("Row Rename", "Rename").on_row(|row| {
+            row.insert(observe(rename_selection));
+        }));
     }
     if verbs.duplicate {
-        menu.spawn((
-            Name::new("Row Duplicate"),
-            popup_row("Duplicate", "Ctrl+D"),
-            observe(duplicate_item),
-        ));
+        items.push(
+            CascadeItem::leaf("Row Duplicate", "Duplicate")
+                .hint("Ctrl+D")
+                .on_row(|row| {
+                    row.insert(observe(duplicate_item));
+                }),
+        );
     }
     if verbs.delete {
-        menu.spawn((
-            Name::new("Row Delete"),
-            popup_row("Delete", "Del"),
-            observe(delete_selected_node),
-        ));
+        items.push(
+            CascadeItem::leaf("Row Delete", "Delete")
+                .hint("Del")
+                .on_row(|row| {
+                    row.insert(observe(delete_selected_node));
+                }),
+        );
     }
     if verbs.frame {
-        menu.spawn((
-            Name::new("Row Frame"),
-            popup_row("Frame", "F"),
-            observe(on_frame_selection),
-        ));
+        items.push(
+            CascadeItem::leaf("Row Frame", "Frame")
+                .hint("F")
+                .on_row(|row| {
+                    row.insert(observe(on_frame_selection));
+                }),
+        );
     }
     if verbs.add_part {
-        menu.spawn((
-            Name::new("Row Add Part"),
-            popup_row("Add Part", ""),
-            observe(add_part_to_row),
-        ));
+        items.push(CascadeItem::leaf("Row Add Part", "Add Part").on_row(|row| {
+            row.insert(observe(add_part_to_row));
+        }));
     }
     if verbs.add_world {
-        menu.spawn((
-            Name::new("Row Add Ship"),
-            popup_row("Add Ship", ""),
-            observe(create_blank_ship),
-        ));
-        for choice in ObjectChoice::ALL {
-            menu.spawn((
-                Name::new(format!("Row Add {}", choice.label())),
-                popup_row(&format!("Add {}", choice.label()), ""),
-                choice,
-                observe(create_scenario_object),
-            ));
+        if !items.is_empty() {
+            items.push(CascadeItem::separator());
         }
+        items.extend(world_items(designs, None));
     }
+    items
 }
 
 /// Rename: put the caret in the Inspector's name field.
@@ -282,7 +274,7 @@ const RENAME_FIELD: &str = "Inspector Field Name";
 mod tests {
     use bevy::{prelude::*, ui_widgets::Activate};
 
-    use super::{filtered_rows, row_range, spawn_row_verbs, RowVerbs};
+    use super::{filtered_rows, row_items, row_range, RowVerbs};
     use crate::{
         clipboard::EditorClipboard,
         config::SelectedNode,
@@ -334,25 +326,23 @@ mod tests {
             .set(Some(rock));
         let before = depth(&app);
 
-        let mut menu = None;
         let verbs = RowVerbs {
             duplicate: true,
             ..default()
         };
-        app.world_mut()
-            .commands()
-            .spawn_empty()
-            .with_children(|list| {
-                spawn_row_verbs(list, &verbs);
-            });
+        let items = row_items(&verbs, &[]);
+        let duplicate = items
+            .iter()
+            .find(|item| item.name == "Row Duplicate")
+            .and_then(|item| item.row.clone())
+            .expect("the row is listed");
+        let entity = {
+            let mut commands = app.world_mut().commands();
+            let mut row = commands.spawn_empty();
+            duplicate(&mut row);
+            row.id()
+        };
         app.world_mut().flush();
-        let mut rows = app.world_mut().query::<(Entity, &Name)>();
-        for (entity, name) in rows.iter(app.world()) {
-            if name.as_str() == "Row Duplicate" {
-                menu = Some(entity);
-            }
-        }
-        let entity = menu.expect("the row is listed");
         app.world_mut().trigger(Activate { entity });
         app.world_mut().flush();
         app.update();

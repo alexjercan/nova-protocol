@@ -86,6 +86,7 @@ fn planet_editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin
         // The palette row is named for the choice's own label, so this is the
         // same click a creator makes.
         .click("open the Add menu", "Add Menu Button")
+        .click("open Add > Objects", "Add Menu Objects")
         .click("place a planet", "Add Planet")
         .step("let the placed world mesh and settle")
         .until(frames(SETTLE_FRAMES))

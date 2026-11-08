@@ -1,4 +1,4 @@
-//! The two literals every editor walk aims at.
+//! The literals every editor walk aims at.
 //!
 //! Four ranges drive the editor, and each carried its own copy of these. The
 //! copies drifted: the soak's founding click was `(760, 640)` against the
@@ -8,8 +8,14 @@
 
 use bevy::prelude::*;
 
-/// The top-bar menu carrying Add Ship and the object rows.
+/// The top-bar Add menu: a cascading menu of groups.
 pub const ADD_MENU: &str = "Add Menu Button";
+
+/// The Add menu's Ship group: New Ship, then the mod's designs.
+pub const ADD_SHIP: &str = "Add Menu Ship";
+
+/// Add > Ship > New Ship.
+pub const NEW_SHIP: &str = "Add New Ship";
 
 /// A viewport point (logical px) with nothing under it on the 1024x768 window
 /// the app opens - where the founding click lands, and where a beat points to

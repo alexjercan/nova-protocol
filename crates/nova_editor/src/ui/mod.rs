@@ -9,6 +9,7 @@
 //! `inspector` on the right answers "what is THIS one". Parts are picked in the
 //! `gallery`.
 
+pub(crate) mod add_menu;
 pub(crate) mod asset_files;
 pub(crate) mod assets;
 pub(crate) mod browser;
@@ -26,6 +27,7 @@ pub(crate) mod pick;
 pub(crate) mod picker;
 pub(crate) mod plate;
 pub(crate) mod rail;
+pub(crate) mod section_kind;
 pub(crate) mod settings;
 pub(crate) mod shell;
 pub(crate) mod stage_menu;
@@ -73,19 +75,16 @@ use crate::{
     frame::{ask_for, on_frame_selection, on_view_preset, FrameRequest, ViewAngle, ViewPresetItem},
     gallery::{gallery_host, EditorChrome},
     generate::{bow_gun, main_engine, Drawn, HullSeed},
-    glyph::{
-        category_mark, choice_mark, object_mark, section_mark, ship_mark, OPEN, SCENARIO, SHIP_AI,
-        SHUT,
-    },
+    glyph::{object_mark, section_mark, ship_mark, OPEN, SCENARIO, SHUT},
     history::{commit_edit, delete_node, redo_item, undo_item},
     keybind::{on_rebind_action, EditorRebind},
     node::{
-        id_order, objects_of, sections_of, split_ordinal, EditContext, NodeId, ObjectChoice,
-        ObjectNode, ObjectNodes, ScenarioNode, SectionNode, SectionNodes, ShipNode, ShipNodes,
+        id_order, objects_of, sections_of, split_ordinal, EditContext, NodeId, ObjectNode,
+        ObjectNodes, ScenarioNode, SectionNode, SectionNodes, ShipNode, ShipNodes,
     },
     placement::{
-        create_blank_ship, create_scenario_object, cycle_armed_socket, deletable,
-        delete_selected_node, put_armed_part_down, roll_armed_part, DeletableNode,
+        cycle_armed_socket, deletable, delete_selected_node, put_armed_part_down, roll_armed_part,
+        DeletableNode,
     },
     project::{
         package::on_package_item,
@@ -97,17 +96,18 @@ use crate::{
     selection::{select_all_item, toggling},
     tool::StageTool,
     ui::{
+        add_menu::on_add_menu_button,
         browser::{spawn_browser, ShipPaneData},
         callout::placement_callout,
         hierarchy::{filtered_rows, on_scene_row_menu, row_range, HierarchyFilter},
         inspector::{inspector_empty, inspector_panel, inspector_tooltip},
         menu::{
             menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim, menu_z, on_menu_button,
-            on_menu_scrim, palette_block, toggle_all_fields, toggle_handle_space, toggle_ids,
-            toggle_key_legend, toggle_link_points, toggle_object_volumes, toggle_world_grid,
-            MenuDropdown, MenuHistoryItem, MenuId, MenuLead, MenuTail, OpenMenu, ViewToggle,
+            on_menu_scrim, toggle_all_fields, toggle_handle_space, toggle_ids, toggle_key_legend,
+            toggle_link_points, toggle_object_volumes, toggle_world_grid, MenuDropdown,
+            MenuHistoryItem, MenuId, MenuLead, MenuTail, OpenMenu, ViewToggle,
         },
-        menu_context::{spawn_section_palette, MenuSeparator, MenuVerbType},
+        menu_context::{MenuSeparator, MenuVerbType},
         plate::plate_layer,
         rail::{next_zone, row_trash, scene_tooltip, zone_label, SceneRowHint, SceneRowTrash},
         settings::on_mod_settings_item,
@@ -177,12 +177,17 @@ pub(super) fn spawn_menu_bar(left: &mut RelatedSpawnerCommands<ChildOf>) {
                     menu_bar_slot(),
                 ))
                 .with_children(|slot| {
-                    slot.spawn((
+                    let mut bar_button = slot.spawn((
                         Name::new(format!("{} Menu Button", menu.label())),
                         menu,
                         button(ButtonSpec::new(menu.label()).dense().ghost()),
-                        observe(on_menu_button),
                     ));
+                    if menu == MenuId::Add {
+                        // A cascading menu under the button, not a dropdown.
+                        bar_button.insert(observe(on_add_menu_button));
+                        return;
+                    }
+                    bar_button.insert(observe(on_menu_button));
                     slot.spawn((
                         Name::new(format!("{} Menu", menu.label())),
                         MenuDropdown,
@@ -482,87 +487,8 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                 observe(on_rebind_action),
             ));
         }
-        MenuId::Add => {
-            // Add means "one more thing in THIS document", so each document
-            // has its own block and `menu_context` shows only the open one's:
-            // the scenario's world, its script, a ship's parts, a section's
-            // mesh, collider and sockets. A form adds nothing, and the menu
-            // hides.
-            items
-                .spawn((
-                    Name::new("Add World Palette"),
-                    MenuVerbType::AddWorld,
-                    palette_block(),
-                ))
-                .with_children(|world| {
-                    world.spawn((
-                        Name::new("Add Ship Button"),
-                        // The OUTLINE ship: the row adds a design beside the
-                        // one already there. The first ship of an empty
-                        // document becomes the player's and the tree fills its
-                        // mark in.
-                        menu_item_row("New Ship", MenuLead::Glyph(SHIP_AI), MenuTail::None),
-                        ButtonCueType::Owned,
-                        observe(create_blank_ship),
-                    ));
-                    world.spawn((MenuSeparator, separator()));
-                    for choice in ObjectChoice::ALL {
-                        world.spawn((
-                            Name::new(format!("Add {}", choice.label())),
-                            choice,
-                            menu_item_row(
-                                choice.label(),
-                                MenuLead::Glyph(choice_mark(choice)),
-                                MenuTail::None,
-                            ),
-                            ButtonCueType::Owned,
-                            observe(create_scenario_object),
-                        ));
-                    }
-                });
-            items
-                .spawn((
-                    Name::new("Add Part Palette"),
-                    MenuVerbType::AddPart,
-                    palette_block(),
-                ))
-                .with_children(|parts| {
-                    for category in GalleryCategory::ROW {
-                        if category == GalleryCategory::All {
-                            continue;
-                        }
-                        parts.spawn((
-                            Name::new(format!("Add {} Item", category.label())),
-                            GalleryAction::Browse(category),
-                            menu_item_row(
-                                &format!("{}...", category.label()),
-                                MenuLead::Glyph(category_mark(category)),
-                                MenuTail::None,
-                            ),
-                        ));
-                    }
-                });
-            items
-                .spawn((
-                    Name::new("Add Script Palette"),
-                    MenuVerbType::AddScript,
-                    palette_block(),
-                ))
-                .with_children(|script| {
-                    // Blocks are added by dragging them out of the palette;
-                    // this row says where a builder used to the menu should go.
-                    script.spawn((
-                        Name::new("Add Script Hint"),
-                        InteractionDisabled,
-                        menu_item_row(
-                            "Drag blocks from the palette",
-                            MenuLead::Glyph(""),
-                            MenuTail::Word(""),
-                        ),
-                    ));
-                });
-            spawn_section_palette(items);
-        }
+        // Add is a cascading menu of its own: see `add_menu`.
+        MenuId::Add => {}
     }
 }
 

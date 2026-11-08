@@ -58,11 +58,13 @@ fn main() -> bevy::app::AppExit {
     app.run()
 }
 
-/// The top-bar menu carrying the object palette.
+/// The top-bar Add menu, and its group that holds the rock.
 #[cfg(feature = "debug")]
 const ADD_MENU: &str = "Add Menu Button";
+#[cfg(feature = "debug")]
+const ADD_OBJECTS: &str = "Add Menu Objects";
 
-/// The palette row the walk adds its object from. A rock, because its config
+/// The Add menu row the walk adds its object from. A rock, because its config
 /// carries a plain number, an optional number and a whole number at once.
 #[cfg(feature = "debug")]
 const OBJECT_ITEM: &str = "Add Asteroid";
@@ -238,11 +240,17 @@ fn field_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .until(state_is(GameStates::Playing))
         .deadline(90.0)
         .add()
-        // The palette lives in the Add menu, which spawns its rows when it
-        // opens, so the menu drops first.
+        // The rock lives in the Add menu's Objects group, which spawns its
+        // rows when it opens, so the menu and the group open first.
         .click_named(
             "fields: drop the Add menu",
             ADD_MENU,
+            ui_node_present(ADD_OBJECTS),
+            BEAT_DEADLINE_SECS,
+        )
+        .click_named(
+            "fields: open Add > Objects",
+            ADD_OBJECTS,
             ui_node_present(OBJECT_ITEM),
             BEAT_DEADLINE_SECS,
         )

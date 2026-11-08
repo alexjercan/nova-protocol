@@ -7,7 +7,7 @@
 //! scenario opens on Scene | Events, a ship opens inside its scenario on the
 //! Ship view, a section on the Section view, and any other kind on its form.
 //! The view switch shows only the open document's views, and the Add menu only
-//! its verbs. Press + > UI Themes for a blank theme, then press a palette
+//! its verbs, then New Asset. Press + > UI Theme for a blank theme, then press a palette
 //! swatch: drag in the square and the hue strip, type a hex, Esc to take it
 //! back. Each picker session is one undo step.
 //!
@@ -225,8 +225,8 @@ mod smoke {
             .add()
     }
 
-    /// Open the Add menu and read it: every `shown` row stands, every `hidden`
-    /// row exists and is not drawn. Shoot it, and put it away.
+    /// Open the Add menu and read it: every `shown` row stands and no `hidden`
+    /// row does. Shoot it, and put it away.
     fn read_the_add_menu(
         script: AutopilotPlugin<GameStates>,
         width: u32,
@@ -356,8 +356,14 @@ mod smoke {
             script,
             width,
             "scenario",
-            &["Add Asteroid", "Add Ship Button"],
-            &["Add Structure Item", "Add Socket Item", "Add Mesh Item"],
+            &[
+                "Add Menu Ship",
+                "Add Menu Objects",
+                "Add Menu Lights",
+                "Add Menu Markers",
+                "Add Menu Asset",
+            ],
+            &["Add Menu Parts", "Add Socket Item", "Add Mesh Item"],
         );
         let script = script
             .step("views: the Ship menu is the ship's")
@@ -379,8 +385,8 @@ mod smoke {
             script,
             width,
             "ship",
-            &["Add Structure Item"],
-            &["Add Asteroid", "Add Ship Button", "Add Socket Item"],
+            &["Add Menu Parts", "Add Menu Asset"],
+            &["Add Menu Objects", "Add Menu Ship", "Add Socket Item"],
         );
         let script = script
             .step("views: the Ship menu stands inside a ship")
@@ -400,8 +406,14 @@ mod smoke {
                 BEAT_SECS,
             )
             .click_named(
-                "views: a blank hull",
+                "views: pick Hull",
                 "Section Kind Hull",
+                pointer_released(),
+                BEAT_SECS,
+            )
+            .click_named(
+                "views: a blank hull",
+                "Section Kind Create",
                 ui_node_present(format!("Scene Row {SECTION}")),
                 BEAT_SECS,
             )
@@ -436,9 +448,10 @@ mod smoke {
             &[
                 "Add Socket Item",
                 "Add Mesh Item",
-                "Add Cuboid Collider Item",
+                "Add Menu Collider",
+                "Add Menu Asset",
             ],
-            &["Add Asteroid", "Add Ship Button", "Add Structure Item"],
+            &["Add Menu Objects", "Add Menu Ship", "Add Menu Parts"],
         );
         let script = script
             .click_named(
@@ -467,16 +480,17 @@ mod smoke {
         pick_a_colour(script, width)
     }
 
-    /// The theme has no Add menu; its palette is a grid, and a swatch opens a
-    /// picker whose session is one undo step that Undo and Redo walk.
+    /// The theme's Add menu holds only New Asset; its palette is a grid, and a
+    /// swatch opens a picker whose session is one undo step that Undo and Redo
+    /// walk.
     fn pick_a_colour(
         script: AutopilotPlugin<GameStates>,
         width: u32,
     ) -> AutopilotPlugin<GameStates> {
         let script = script
-            .step("views: a form has no Add menu")
+            .step("views: a form has Add for a new asset, and no Ship menu")
             .until(Arc::new(|world: &World| {
-                !ui_node_present(ADD_MENU)(world) && !ui_node_present(SHIP_MENU)(world)
+                ui_node_present(ADD_MENU)(world) && !ui_node_present(SHIP_MENU)(world)
             }))
             .deadline(BEAT_SECS)
             .add()

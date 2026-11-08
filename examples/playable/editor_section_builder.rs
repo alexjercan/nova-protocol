@@ -18,8 +18,9 @@
 //! new mod, two scenarios, a blank section filled in, a socket added and moved
 //! and a real glb imported,
 //! placed on a ship, saved, reopened through the hub, packaged and flown, with the
-//! section read off the flown ship. `NOVA_CAPTURE=1` shoots the bench, the form,
-//! the imported mesh, the placed part and the flight. Unset, no walk and no
+//! section read off the flown ship. The section's kind is picked in its modal by
+//! the arrows and Enter. `NOVA_CAPTURE=1` shoots the bench, the + menu, the kind
+//! modal, the form, the imported mesh, the placed part and the flight. Unset, no walk and no
 //! deadline run.
 
 use bevy::prelude::*;
@@ -169,6 +170,8 @@ mod smoke {
     const GALLERY_SHOT: &str = "section-gallery.png";
     const FORM_SHOT: &str = "section-form.png";
     const BLANK_SHOT: &str = "section-blank.png";
+    const PLUS_SHOT: &str = "section-plus.png";
+    const KIND_SHOT: &str = "section-kind.png";
     const MESH_SHOT: &str = "section-mesh.png";
     const PLACED_SHOT: &str = "section-placed.png";
     const FLOWN_SHOT: &str = "section-flown.png";
@@ -264,10 +267,13 @@ mod smoke {
 
     /// Where a world point falls in the window.
     fn aim_at(world: &mut World, point: Vec3) -> Option<Vec2> {
+        // The active one: an asset's thumbnail camera is a Camera3d too, and
+        // it stands idle at a 112 px viewport between renders.
         let eye = world
-            .query_filtered::<Entity, With<Camera3d>>()
+            .query_filtered::<(Entity, &Camera), With<Camera3d>>()
             .iter(world)
-            .next()?;
+            .find(|(_, camera)| camera.is_active)
+            .map(|(eye, _)| eye)?;
         let camera = world.get::<Camera>(eye)?.clone();
         let pose = *world.get::<GlobalTransform>(eye)?;
         camera
@@ -354,6 +360,15 @@ mod smoke {
     /// The frames [`seek_a_face`] has seen.
     #[derive(Resource, Default)]
     pub(super) struct SeekClock(u32);
+
+    /// Whether the row or tile `name` carries the highlight.
+    fn marked(name: &'static str) -> Arc<Predicate> {
+        Arc::new(move |world: &World| {
+            world
+                .try_query_filtered::<&Name, With<nova_ui::prelude::Selected>>()
+                .is_some_and(|mut rows| rows.iter(world).any(|row| row.as_str() == name))
+        })
+    }
 
     /// Shoot `shot`.
     fn shot(
@@ -457,19 +472,47 @@ mod smoke {
                 "Asset Add Button",
                 ui_node_present("Asset Add Sections"),
                 BEAT_SECS,
-            )
+            );
+        let script = shot(script, PLUS_SHOT)
             .click_named(
                 "section: add a section",
                 "Asset Add Sections",
                 ui_node_present("Section Kind Hull"),
                 BEAT_SECS,
             )
-            .click_named(
-                "section: a hull",
-                "Section Kind Hull",
-                ui_node_present(format!("Scene Row {SECTION}")),
-                BEAT_SECS,
-            )
+            .step("section: the modal opens on Hull")
+            .until(marked("Section Kind Hull"))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("section: Right marks Thruster")
+            .on_enter(press_key(KeyCode::ArrowRight))
+            .until(marked("Section Kind Thruster"))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("section: let Right go")
+            .on_enter(release_key(KeyCode::ArrowRight))
+            .until(frames(2))
+            .add();
+        let script = shot(script, KIND_SHOT)
+            .step("section: Left marks Hull again")
+            .on_enter(press_key(KeyCode::ArrowLeft))
+            .until(marked("Section Kind Hull"))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("section: let Left go")
+            .on_enter(release_key(KeyCode::ArrowLeft))
+            .until(frames(2))
+            .add()
+            .step("section: Enter makes a hull")
+            .on_enter(press_key(KeyCode::Enter))
+            .until(ui_node_present(format!("Scene Row {SECTION}")))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add()
+            .step("section: let Enter go")
+            .on_enter(release_key(KeyCode::Enter))
+            .until(frames(2))
+            .add()
             .step("section: the blank names what it still needs")
             .until(editor(|probe| probe.shell.errors > 0))
             .diagnose(readout)
@@ -727,9 +770,16 @@ mod smoke {
         .diagnose(readout)
         .deadline(BEAT_SECS)
         .add()
+        // The Ship editor has no stage tools: its Ship menu opens the parts.
+        .click_named(
+            "section: open the Ship menu",
+            "Ship Menu Button",
+            ui_node_present("Parts Item"),
+            BEAT_SECS,
+        )
         .click_named(
             "section: open the gallery",
-            "Parts Button",
+            "Parts Item",
             editor_gallery_open(),
             BEAT_SECS,
         )

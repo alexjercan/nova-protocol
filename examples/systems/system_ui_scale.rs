@@ -62,7 +62,7 @@ use nova_protocol::prelude::*;
 
 #[cfg(feature = "debug")]
 use crate::{
-    editor_stage::{ADD_MENU, EMPTY_SPACE},
+    editor_stage::{ADD_MENU, ADD_SHIP, EMPTY_SPACE, NEW_SHIP},
     editor_walk::{inside_a_ship, the_ship_is_up},
     section_aim::a_section_on_screen,
 };
@@ -144,10 +144,13 @@ struct ChipOffsets {
 /// The viewport, in the logical pixels a `Node` is placed in.
 #[cfg(feature = "debug")]
 fn viewport(world: &mut World) -> Vec2 {
+    // The active one: an asset's thumbnail camera is a Camera3d too, and it
+    // stands idle at a 112 px viewport between renders.
     let camera_entity = world
-        .query_filtered::<Entity, With<Camera3d>>()
+        .query_filtered::<(Entity, &Camera), With<Camera3d>>()
         .iter(world)
-        .next()
+        .find(|(_, camera)| camera.is_active)
+        .map(|(entity, _)| entity)
         .expect("the editor's 3D camera is up");
     world
         .get::<Camera>(camera_entity)
@@ -451,11 +454,21 @@ fn scale_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         .add()
         .step("scale: release the Add menu")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(ui_node_present("Add Ship Button"))
+        .until(ui_node_present(ADD_SHIP))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("scale: open Add > Ship")
+        .on_enter(click_named(ADD_SHIP))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("scale: release Add > Ship")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(ui_node_present(NEW_SHIP))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("scale: click Add Ship")
-        .on_enter(click_named("Add Ship Button"))
+        .on_enter(click_named(NEW_SHIP))
         .until(pointer_pressed())
         .deadline(BEAT_DEADLINE_SECS)
         .add()

@@ -18,7 +18,7 @@ use nova_gameplay::prelude::{AudioRoute, PlaySfx};
 use nova_ui::{prelude::*, theme::UiColor};
 
 use super::{
-    assets::{AssetRenaming, RenameTarget},
+    assets::{import_file_item, new_asset_items, AssetRenaming, RenameTarget},
     browser::pane_text,
     files::PathPurposeType,
     layer,
@@ -157,7 +157,8 @@ pub(crate) fn spawn_file_rows(
     }
 }
 
-/// A right press on the grid's bare floor: Import File.
+/// A right press on the grid's bare floor: New Asset, and Import File where
+/// the build writes a folder.
 pub(crate) fn on_asset_grid_menu(
     click: On<Pointer<Click>>,
     mut commands: Commands,
@@ -177,22 +178,23 @@ pub(crate) fn on_asset_grid_menu(
             on_disk: true,
         },
     );
-    if verb_state(row, &facts.context(&selected)) == VerbState::Hidden {
-        return;
+    let mut items = vec![CascadeItem::submenu(
+        "Asset Menu New Asset",
+        "New Asset",
+        new_asset_items(),
+    )];
+    // No Paste: the clipboard holds nodes and blocks, never a whole asset.
+    match verb_state(row, &facts.context(&selected)) {
+        VerbState::Hidden => {}
+        VerbState::Greyed(reason) => items.push(import_file_item().greyed(reason)),
+        VerbState::Live => items.push(import_file_item()),
     }
     close_popups(&mut commands, &roots);
-    let root = spawn_popup(
+    let root = spawn_cascade(
         &mut commands,
         click.pointer_location.position,
         layer::MENU_Z,
-        |menu| {
-            menu.spawn((
-                Name::new("Asset Menu Import File..."),
-                row,
-                popup_row("Import File...", ""),
-                observe(on_import_file),
-            ));
-        },
+        items,
     );
     commands
         .entity(root)

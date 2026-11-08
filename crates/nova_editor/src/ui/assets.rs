@@ -14,7 +14,7 @@ use bevy::{
     ecs::relationship::RelatedSpawnerCommands,
     picking::hover::Hovered,
     prelude::*,
-    ui::InteractionDisabled,
+    ui::{InteractionDisabled, UiScale},
     ui_widgets::{observe, Activate, Button},
 };
 use nova_modding::prelude::Content;
@@ -25,6 +25,7 @@ use nova_ui::{
 };
 
 use super::{
+    add_menu::below,
     asset_files::{
         file_asset_path, fit, mesh_parts, on_asset_grid_menu, on_import_file, spawn_file_rows,
         view_file, AssetFileTile, AssetImage,
@@ -32,12 +33,12 @@ use super::{
     browser::{pane_text, BrowserTabType},
     layer,
     menu_context::{verb_state, MenuFacts, MenuVerbType, VerbState},
+    section_kind::open_section_kind_modal,
     shell::EditorPanels,
     thumbnail::{design_parts, thumbnail_key, AssetThumbnails, ThumbnailParts},
 };
 use crate::{
     asset::{
-        blank::{section_kinds, spaced},
         files::{
             file_kind, loads_as_image, mod_files, rename_file, ModFile, ModFolder, FILE_KINDS,
             MESH_KIND,
@@ -119,7 +120,7 @@ fn short_id<'a>(id: &'a str, namespace: &str) -> &'a str {
 /// The name a tile prints for `item`. A design id is `<scenario>.<node>`, and
 /// the node is the name: the scenario would fill the line and repeat on every
 /// tile. A scenario has a name of its own.
-fn short_name(item: &Content, namespace: &str) -> String {
+pub(crate) fn short_name(item: &Content, namespace: &str) -> String {
     let id = short_id(item.id(), namespace);
     match item {
         Content::Scenario(scenario) => scenario.name.clone(),
@@ -546,42 +547,84 @@ pub(crate) fn spawn_asset_body(pane: &mut RelatedSpawnerCommands<ChildOf>) {
     });
 }
 
-/// `+`: what the mod can add, one row a kind. Each row makes a blank item and
-/// opens it; nothing starts from another item. A section asks its kind first.
+/// The New Asset tree: a row a kind of the mod. Each row makes a blank item
+/// and opens it; nothing starts from another item. A section asks its kind
+/// first, in a modal. A kind made elsewhere is greyed with the reason.
+///
+/// The `+`, the Add menu's Asset group and the right-click on empty Assets
+/// space all hold it.
+pub(crate) fn new_asset_items() -> Vec<CascadeItem> {
+    KINDS
+        .iter()
+        .map(|row| {
+            let kind = row.kind;
+            let name = format!("Asset Add {}", row.heading);
+            if !row.add {
+                CascadeItem::leaf(name, kind_label(kind))
+                    .lead(asset_mark(kind))
+                    .greyed(row.waits)
+            } else if kind == "section" {
+                CascadeItem::leaf(name, format!("{}...", kind_label(kind)))
+                    .lead(asset_mark(kind))
+                    .on_row(|row| {
+                        row.insert(observe(on_asset_add_section));
+                    })
+            } else {
+                CascadeItem::leaf(name, kind_label(kind))
+                    .lead(asset_mark(kind))
+                    .on_row(move |row| {
+                        row.insert((AssetAddRow(kind), observe(on_asset_add_row)));
+                    })
+            }
+        })
+        .collect()
+}
+
+/// A kind as a row names it: `ui theme` is `UI Theme`.
+fn kind_label(kind: &str) -> String {
+    kind.split(' ')
+        .map(|word| match word {
+            "ui" => "UI".to_string(),
+            word => {
+                let mut letters = word.chars();
+                letters.next().map_or_else(String::new, |first| {
+                    first.to_uppercase().chain(letters).collect()
+                })
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Import File, as a row of a menu over the Assets tab.
+pub(crate) fn import_file_item() -> CascadeItem {
+    CascadeItem::leaf("Asset Add Import File", "Import File...")
+        .hint("a file for the folder")
+        .on_row(|row| {
+            row.insert(observe(on_import_file));
+        })
+}
+
+/// `+`: the New Asset tree under the button, then Import File where the build
+/// writes a folder.
 fn on_asset_add(
     activate: On<Activate>,
     mut commands: Commands,
-    buttons: Query<&UiGlobalTransform>,
+    scale: Option<Res<UiScale>>,
+    buttons: Query<(&ComputedNode, &UiGlobalTransform)>,
     roots: Query<Entity, With<PopupRoot>>,
 ) {
-    let at = buttons
-        .get(activate.entity)
-        .map_or(Vec2::ZERO, |transform| transform.translation);
+    let Ok((computed, at)) = buttons.get(activate.entity) else {
+        return;
+    };
+    let at = below(computed, at, scale.map_or(1.0, |scale| scale.0));
+    let mut items = new_asset_items();
+    if store::CAN_SAVE {
+        items.push(CascadeItem::separator());
+        items.push(import_file_item());
+    }
     close_popups(&mut commands, &roots);
-    let root = spawn_popup(&mut commands, at, layer::MENU_Z, |menu| {
-        for row in KINDS {
-            let mut spawned = menu.spawn((
-                Name::new(format!("Asset Add {}", row.heading)),
-                popup_row(row.heading, row.waits),
-            ));
-            if !row.add {
-                spawned.insert(InteractionDisabled);
-            } else if row.kind == "section" {
-                // Not a row that closes the popup: it opens the next one.
-                spawned.remove::<PopupRow>();
-                spawned.insert(observe(on_asset_add_section));
-            } else {
-                spawned.insert((AssetAddRow(row.kind), observe(on_asset_add_row)));
-            }
-        }
-        if store::CAN_SAVE {
-            menu.spawn((
-                Name::new("Asset Add Import File"),
-                popup_row("Import File...", "a file for the folder"),
-                observe(on_import_file),
-            ));
-        }
-    });
+    let root = spawn_cascade(&mut commands, at, layer::MENU_Z, items);
     commands
         .entity(root)
         .insert(DespawnOnExit(ExampleStates::Editor));
@@ -603,49 +646,9 @@ fn on_asset_add_row(activate: On<Activate>, mut commands: Commands, rows: Query<
     });
 }
 
-/// One row of the section kind list: the kind a new section is.
-#[derive(Component, Clone, Copy)]
-struct SectionKindRow(&'static str);
-
-/// Add > Sections: which kind. A section's kind is code, so this is the one
-/// question a new section asks; every field after it starts blank.
-fn on_asset_add_section(
-    activate: On<Activate>,
-    mut commands: Commands,
-    rows: Query<&UiGlobalTransform>,
-    roots: Query<Entity, With<PopupRoot>>,
-) {
-    let at = rows
-        .get(activate.entity)
-        .map_or(Vec2::ZERO, |transform| transform.translation);
-    close_popups(&mut commands, &roots);
-    let root = spawn_popup(&mut commands, at, layer::MENU_Z, |menu| {
-        for kind in section_kinds() {
-            menu.spawn((
-                Name::new(format!("Section Kind {kind}")),
-                popup_row(&spaced(kind), ""),
-                SectionKindRow(kind),
-                observe(on_section_kind_row),
-            ));
-        }
-    });
-    commands
-        .entity(root)
-        .insert(DespawnOnExit(ExampleStates::Editor));
-}
-
-/// A section kind row: a blank section of that kind, open.
-fn on_section_kind_row(
-    activate: On<Activate>,
-    mut commands: Commands,
-    rows: Query<&SectionKindRow>,
-) {
-    let Ok(SectionKindRow(kind)) = rows.get(activate.entity).copied() else {
-        return;
-    };
-    commands.queue(move |world: &mut World| {
-        pressed(world, |world| add_asset(world, "section", Some(kind)));
-    });
+/// New Asset > Section: the modal that asks its kind.
+fn on_asset_add_section(_activate: On<Activate>, mut commands: Commands) {
+    open_section_kind_modal(&mut commands);
 }
 
 /// A press on a tile marks it, and a second one opens it.

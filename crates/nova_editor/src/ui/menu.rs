@@ -121,9 +121,7 @@ pub(crate) fn menu_dropdown_node() -> Node {
 
 /// What a row's right-hand column carries.
 ///
-/// One column, three things it could be, and they have to be told apart. A KEY
-/// is drawn as the chip every other surface in the game draws a key as; a WORD
-/// is the row's own availability, in the muted tone a label wears.
+/// A KEY is drawn as the chip every other surface in the game draws a key as.
 ///
 /// A toggle's state is NOT here: it sits in the lead column, drawn with the
 /// checkbox's own glyph (see [`MenuLead::Toggle`]).
@@ -134,23 +132,16 @@ pub(crate) enum MenuTail<'a> {
     None,
     /// The key that runs this row.
     Key(&'a str),
-    /// A word about whether the row can be pressed at all.
-    Word(&'a str),
 }
 
-/// What a row's LEAD column carries.
-///
-/// The menus were the one surface in the editor with no marks on them, which
-/// left the Add rows naming kinds the tree draws icons for and the toggles
-/// spelling their state in a column that also held keys.
+/// What a row's LEAD column carries: a toggle's state, in its own column, so
+/// it never shares one with the keys.
 #[derive(Clone, Copy, Debug, Default)]
-pub(crate) enum MenuLead<'a> {
+pub(crate) enum MenuLead {
     /// Nothing in the column - which the column keeps anyway, so every label in
     /// a menu starts at the same x.
     #[default]
     None,
-    /// The kind mark [`crate::glyph`] draws for the same thing elsewhere.
-    Glyph(&'a str),
     /// A checkbox, ticked from the row's own state by the pass that owns it.
     Toggle,
 }
@@ -237,7 +228,6 @@ pub(crate) fn menu_item_row(label: &str, lead: MenuLead, tail: MenuTail) -> impl
 fn menu_item_lead(lead: MenuLead) -> impl Bundle {
     let glyph = match lead {
         MenuLead::None => "",
-        MenuLead::Glyph(glyph) => glyph,
         // Ticked by `sync_view_menu_marks` from the state the row toggles.
         MenuLead::Toggle => checkbox_glyph(false),
     };
@@ -271,13 +261,13 @@ fn menu_item_tail(tail: MenuTail) -> impl Bundle {
         Node::default(),
         Children::spawn(SpawnWith(
             move |parent: &mut RelatedSpawner<ChildOf>| match &tail {
-                OwnedTail::Key(key) => {
+                Some(key) => {
                     parent.spawn((MenuKeyChip, key_chip(key, TAIL_FONT + 2.0)));
                 }
-                OwnedTail::Word(word) => {
+                None => {
                     parent.spawn((
                         UiText,
-                        Text::new(word.clone()),
+                        Text::new(String::new()),
                         TextFont {
                             font_size: FontSize::Px(TAIL_FONT),
                             ..default()
@@ -290,18 +280,12 @@ fn menu_item_tail(tail: MenuTail) -> impl Bundle {
     )
 }
 
-/// [`MenuTail`] with the string it borrowed, so the spawn closure can own it.
-enum OwnedTail {
-    Key(String),
-    Word(String),
-}
-
 impl MenuTail<'_> {
-    fn owned(self) -> OwnedTail {
+    /// The key it names, owned, so the spawn closure can hold it.
+    fn owned(self) -> Option<String> {
         match self {
-            MenuTail::Key(key) => OwnedTail::Key(key.to_string()),
-            MenuTail::Word(word) => OwnedTail::Word(word.to_string()),
-            MenuTail::None => OwnedTail::Word(String::new()),
+            MenuTail::Key(key) => Some(key.to_string()),
+            MenuTail::None => None,
         }
     }
 }
@@ -678,17 +662,6 @@ pub(crate) fn sync_unsaved_mark(
         if mark.display != display {
             mark.display = display;
         }
-    }
-}
-
-/// A block of menu rows that shows or hides whole, its separators included,
-/// which a per-row rule could not.
-pub(crate) fn palette_block() -> Node {
-    Node {
-        width: percent(100),
-        flex_direction: FlexDirection::Column,
-        align_items: AlignItems::Stretch,
-        ..default()
     }
 }
 

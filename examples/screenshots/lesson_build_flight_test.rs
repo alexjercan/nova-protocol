@@ -200,7 +200,8 @@ fn flight_test_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<G
         .deadline(STEP_DEADLINE_SECS)
         .add()
         .click("open the Add menu", "Add Menu Button")
-        .click("create the ship", "Add Ship Button")
+        .click("open Add > Ship", "Add Menu Ship")
+        .click("create the ship", "Add New Ship")
         .step("the blank ship is entered")
         .until(the_editor_is_inside_a_ship())
         .deadline(STEP_DEADLINE_SECS)
@@ -240,7 +241,7 @@ fn flight_test_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<G
         // Play flies the whole SCENARIO, so the editor refuses it from inside
         // a ship: the walk steps back out to the scenario row first, the way
         // `screenshot_editor` does.
-        .click("leave the ship", "Scene Row scenario")
+        .click("leave the ship", "Back Button")
         .step("Play is reachable")
         .until(the_editor_can_play())
         .deadline(STEP_DEADLINE_SECS)

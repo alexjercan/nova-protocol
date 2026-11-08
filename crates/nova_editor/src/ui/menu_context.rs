@@ -7,12 +7,7 @@
 //! (Hierarchy, stage, canvas, Assets tiles) ask it, so no menu holds a rule of
 //! its own.
 
-use bevy::{
-    ecs::system::SystemParam,
-    prelude::*,
-    ui::InteractionDisabled,
-    ui_widgets::{observe, Activate},
-};
+use bevy::{ecs::system::SystemParam, prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_modding::prelude::Content;
 use nova_ship::prelude::{GameSections, HeldPart};
 use nova_ui::prelude::Tooltip;
@@ -20,10 +15,7 @@ use nova_ui::prelude::Tooltip;
 use super::{
     asset_files::{FileFacts, FileVerbType},
     assets::AssetVerbType,
-    menu::{
-        menu_item_row, palette_block, MenuDropdown, MenuId, MenuItemLabel, MenuLead, MenuTail,
-        OpenMenu,
-    },
+    menu::{MenuDropdown, MenuId, MenuItemLabel, OpenMenu},
 };
 use crate::{
     asset::{
@@ -43,8 +35,9 @@ use crate::{
 /// The collider shapes a section can author, in the order Add lists them.
 pub(crate) const COLLIDER_SHAPES: [&str; 4] = ["Cuboid", "Sphere", "Capsule", "Cylinder"];
 
-/// One verb a menu offers. A row or a block of rows carries it, and
-/// [`sync_menu_verbs`] shows, greys or hides it by [`verb_state`].
+/// One verb a menu offers. A bar menu's row carries it, and
+/// [`sync_menu_verbs`] shows, greys or hides it by [`verb_state`]. The Add
+/// menu and the right-click menus read [`verb_state`] when they open.
 #[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
 #[require(Tooltip)]
 pub(crate) enum MenuVerbType {
@@ -80,7 +73,7 @@ pub(crate) enum MenuVerbType {
     PosePart,
     /// Ship > Rebind Key.
     Rebind,
-    /// Add: New Ship and the scenario objects.
+    /// Add in a scenario's stage: its ships, objects, lights and markers.
     AddWorld,
     /// Add in Events: the script palette's hint.
     AddScript,
@@ -260,7 +253,6 @@ pub(crate) fn verb_state(verb: MenuVerbType, context: &MenuContext) -> VerbState
     let stage = matches!(context.view, View::Scene | View::Ship | View::Section);
     let document = context.document;
     match verb {
-        Verb::Menu(MenuId::Add) if document == Doc::Form => Hidden,
         Verb::Menu(MenuId::Ship) if document != Doc::Ship => Hidden,
         Verb::Menu(_) => Live,
         Verb::Copy | Verb::Duplicate => match document {
@@ -439,9 +431,8 @@ pub(crate) fn sync_menu_verbs(
         if tooltip.0 != reason {
             tooltip.0 = reason.to_string();
         }
-        // A bar menu and a block of rows are never pressed themselves; their
-        // rows are.
-        if matches!(verb, MenuVerbType::Menu(_)) || is_block(*verb) {
+        // A bar menu is never pressed itself; its rows are.
+        if matches!(verb, MenuVerbType::Menu(_)) {
             if let MenuVerbType::Menu(menu) = verb {
                 if state == VerbState::Hidden && open.0 == Some(*menu) {
                     open.0 = None;
@@ -469,17 +460,6 @@ pub(crate) fn sync_menu_verbs(
             }
         }
     }
-}
-
-/// Whether `verb` marks a block of rows rather than one row.
-fn is_block(verb: MenuVerbType) -> bool {
-    matches!(
-        verb,
-        MenuVerbType::AddWorld
-            | MenuVerbType::AddScript
-            | MenuVerbType::AddPart
-            | MenuVerbType::AddSectionPart
-    )
 }
 
 /// A separator in a menu, which [`tidy_menu_separators`] hides when no shown
@@ -530,44 +510,6 @@ pub(crate) fn tidy_menu_separators(
     }
 }
 
-/// The Add menu's block for an open section: its mesh, its collider and a
-/// socket. The labels are written by [`sync_menu_verbs`].
-pub(crate) fn spawn_section_palette(
-    items: &mut bevy::ecs::relationship::RelatedSpawnerCommands<ChildOf>,
-) {
-    let row = |label: &str| menu_item_row(label, MenuLead::None, MenuTail::None);
-    items
-        .spawn((
-            Name::new("Add Section Palette"),
-            MenuVerbType::AddSectionPart,
-            palette_block(),
-        ))
-        .with_children(|section| {
-            section.spawn((
-                Name::new("Add Mesh Item"),
-                MenuVerbType::AddMesh,
-                row("Mesh..."),
-                observe(on_add_mesh),
-            ));
-            section.spawn((MenuSeparator, nova_ui::prelude::separator()));
-            for shape in COLLIDER_SHAPES {
-                section.spawn((
-                    Name::new(format!("Add {shape} Collider Item")),
-                    MenuVerbType::AddCollider(shape),
-                    row(&format!("{shape} Collider")),
-                    observe(on_add_collider),
-                ));
-            }
-            section.spawn((MenuSeparator, nova_ui::prelude::separator()));
-            section.spawn((
-                Name::new("Add Socket Item"),
-                MenuVerbType::AddSocket,
-                row("Socket"),
-                observe(on_add_socket),
-            ));
-        });
-}
-
 /// Add > Mesh: the window that picks the `.glb` to import.
 pub(crate) fn on_add_mesh(_activate: On<Activate>, mut request: ResMut<FileWindowRequest>) {
     request.0 = Some(crate::bundle::FileWindowKind::PickPath(
@@ -575,13 +517,17 @@ pub(crate) fn on_add_mesh(_activate: On<Activate>, mut request: ResMut<FileWindo
     ));
 }
 
-/// Add > a collider shape: the section's collider becomes it, one step.
+/// The collider shape an Add row sets, one of [`COLLIDER_SHAPES`].
+#[derive(Component, Clone, Copy, Debug)]
+pub(crate) struct ColliderShape(pub(crate) &'static str);
+
+/// Add > Collider > a shape: the section's collider becomes it, one step.
 pub(crate) fn on_add_collider(
     activate: On<Activate>,
     mut commands: Commands,
-    verbs: Query<&MenuVerbType>,
+    rows: Query<&ColliderShape>,
 ) {
-    let Ok(MenuVerbType::AddCollider(shape)) = verbs.get(activate.entity).copied() else {
+    let Ok(ColliderShape(shape)) = rows.get(activate.entity).copied() else {
         return;
     };
     commands.queue(move |world: &mut World| pressed(world, |world| set_collider(world, shape)));
@@ -593,7 +539,7 @@ pub(crate) fn on_add_socket(_activate: On<Activate>, mut commands: Commands) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use bevy::ecs::system::RunSystemOnce;
     use nova_scenario::prelude::SectionSource;
     use nova_ship::prelude::{BaseSectionConfig, SectionConfig, SectionKind, TurretSectionConfig};
@@ -601,7 +547,8 @@ mod tests {
     use super::*;
     use crate::node::ShipNode;
 
-    fn context(document: DocumentType, view: EditorViewType) -> MenuContext {
+    /// A context of `document` in `view`, with nothing selected.
+    pub(crate) fn context(document: DocumentType, view: EditorViewType) -> MenuContext {
         MenuContext {
             document,
             view,
@@ -620,8 +567,8 @@ mod tests {
     }
 
     /// Add holds only what the open document takes: a scenario's world or its
-    /// script, a ship's parts, a section's own parts, and nothing for a form,
-    /// whose Add menu hides. The Ship menu shows only in a ship.
+    /// script, a ship's parts, a section's own parts. A form adds only a new
+    /// asset, which every document offers. The Ship menu shows only in a ship.
     #[test]
     fn each_document_offers_only_its_own_add_verbs() {
         use DocumentType as Doc;
@@ -661,7 +608,7 @@ mod tests {
                 View::Section,
                 vec![Verb::AddSectionPart, Verb::Menu(MenuId::Add)],
             ),
-            (Doc::Form, View::Form, vec![]),
+            (Doc::Form, View::Form, vec![Verb::Menu(MenuId::Add)]),
         ] {
             let at = context(document, view);
             for verb in verbs {

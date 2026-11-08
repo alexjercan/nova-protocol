@@ -57,7 +57,7 @@ use nova_protocol::prelude::*;
 
 #[cfg(feature = "debug")]
 use crate::{
-    editor_stage::{ADD_MENU, EMPTY_SPACE},
+    editor_stage::{ADD_MENU, ADD_SHIP, EMPTY_SPACE, NEW_SHIP},
     editor_walk::{inside_a_ship, the_ship_is_up},
 };
 
@@ -160,9 +160,10 @@ fn sandbox_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .until(ui_node_present(ADD_MENU))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        // Add Ship lives IN the Add menu (`ui/mod.rs`), which spawns its items
-        // when it opens, so the walk drops the menu before it can click the
-        // row. A beat that waited on the row itself waited forever.
+        // New Ship lives IN the Add menu's Ship group (`ui/add_menu.rs`),
+        // which spawns its rows when it opens, so the walk drops the menu and
+        // opens the group before it can click the row. A beat that waited on
+        // the row itself waited forever.
         .step("soak: drop the Add menu")
         .on_enter(click_named(ADD_MENU))
         .until(pointer_pressed())
@@ -170,11 +171,21 @@ fn sandbox_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameS
         .add()
         .step("soak: release the Add menu")
         .on_enter(release_mouse(MouseButton::Left))
-        .until(ui_node_present("Add Ship Button"))
+        .until(ui_node_present(ADD_SHIP))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("soak: open Add > Ship")
+        .on_enter(click_named(ADD_SHIP))
+        .until(pointer_pressed())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("soak: release Add > Ship")
+        .on_enter(release_mouse(MouseButton::Left))
+        .until(ui_node_present(NEW_SHIP))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("soak: click Add Ship")
-        .on_enter(click_named("Add Ship Button"))
+        .on_enter(click_named(NEW_SHIP))
         .until(pointer_pressed())
         .deadline(BEAT_DEADLINE_SECS)
         .add()

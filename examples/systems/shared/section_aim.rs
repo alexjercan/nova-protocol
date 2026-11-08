@@ -17,10 +17,13 @@ pub fn a_section_on_screen(world: &mut World) -> Option<Vec2> {
         .filter(|(_, visible)| visible.get())
         .map(|(pose, _)| pose.translation())
         .next()?;
+    // The active one: an asset's thumbnail camera is a Camera3d too, and it
+    // stands idle at a 112 px viewport between renders.
     let camera_entity = world
-        .query_filtered::<Entity, With<Camera3d>>()
+        .query_filtered::<(Entity, &Camera), With<Camera3d>>()
         .iter(world)
-        .next()?;
+        .find(|(_, camera)| camera.is_active)
+        .map(|(entity, _)| entity)?;
     let camera = world.get::<Camera>(camera_entity)?;
     let camera_pose = world.get::<GlobalTransform>(camera_entity)?;
     camera.world_to_viewport(camera_pose, at).ok()

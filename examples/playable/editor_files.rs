@@ -402,6 +402,32 @@ mod smoke {
         script: AutopilotPlugin<GameStates>,
         width: u32,
     ) -> AutopilotPlugin<GameStates> {
+        let script = right_click(
+            script,
+            "the empty Assets space",
+            |world| ui_node_rect(world, "Asset Grid").map(|rect| rect.max - Vec2::new(16.0, 12.0)),
+            "Asset Menu New Asset",
+        )
+        .click_named(
+            "files: open New Asset in the Assets menu",
+            "Asset Menu New Asset",
+            ui_node_present("Asset Add Scenarios"),
+            BEAT_SECS,
+        )
+        .step("files: Import File stands beside New Asset, and no Paste")
+        .until(Arc::new(|world: &World| {
+            ui_node_present("Asset Add Import File")(world)
+                && !ui_node_present("Asset Menu Paste")(world)
+        }))
+        .diagnose(readout)
+        .deadline(BEAT_SECS)
+        .add();
+        let script = pass(
+            script,
+            "a right click on empty Assets space offers New Asset and Import File",
+        );
+        let script = shot(script, width, "assets-menu");
+        let script = escape(script, "Asset Menu New Asset");
         let script = script
             .click_named(
                 "files: open the + menu for a scenario",
@@ -479,14 +505,14 @@ mod smoke {
                     .find_map(|entity| entity.get::<Window>().map(|window| window.size()))?;
                 Some(Vec2::new(window.x * 0.5, window.y * 0.35))
             },
-            "Stage Add Ship",
+            "Add Menu Ship",
         );
         let script = pass(
             script,
             "a right click on the stage offers the scenario's Add verbs",
         );
         let script = shot(script, width, "stage-menu");
-        escape(script, "Stage Add Ship")
+        escape(script, "Add Menu Ship")
     }
 
     /// Import the three files through + > Import File...

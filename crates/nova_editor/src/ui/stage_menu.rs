@@ -1,37 +1,31 @@
-//! The stage's right-click menu: the Add verbs of the view, Paste, and Frame
-//! and Delete on the node under the pointer.
+//! The stage's right-click menu: the Add menu's tree, Paste, and Frame and
+//! Delete on the node under the pointer.
 //!
 //! The right button also turns the camera, so a press is a click only while the
 //! pointer and the mouse stay within [`CLICK_SLOP`] of where it went down (see
-//! [`RightPress`]). Every row carries
-//! its [`MenuVerbType`], so [`verb_state`] decides it as it decides the bar
-//! menus' rows. An object added from here lands at the clicked point, at the
+//! [`RightPress`]). [`verb_state`] decides every row as it decides the bar
+//! menus' rows. A thing added from here lands at the clicked point, at the
 //! framing distance along the pointer's ray.
 
 use bevy::{
     input::mouse::AccumulatedMouseMotion,
     picking::pointer::{PointerId, PointerInteraction},
     prelude::*,
-    ui_widgets::{observe, Activate},
+    ui_widgets::observe,
 };
-use nova_ship::prelude::GalleryState;
 use nova_ui::prelude::*;
 
 use super::{
-    layer,
-    menu_context::{
-        on_add_collider, on_add_mesh, on_add_socket, verb_label, verb_state, MenuFacts,
-        MenuVerbType, VerbState, COLLIDER_SHAPES,
-    },
+    add_menu::{add_items, open_add_menu, point_under, AddFacts},
+    menu_context::{verb_state, MenuContext, MenuVerbType, VerbState},
 };
 use crate::{
     camera::ViewportPointer,
     clipboard::paste_item,
     config::{EditorCamera, EditorViewType, SelectedNode},
     frame::{on_frame_selection, CameraFraming},
-    node::{node_of_view, EditContext, NodeView, ObjectChoice, SectionNode},
-    placement::{create_blank_ship, create_scenario_object, delete_selected_node},
-    ExampleStates,
+    node::{node_of_view, EditContext, NodeView, SectionNode},
+    placement::delete_selected_node,
 };
 
 /// How far a right press may wander, in pixels, and still open the menu.
@@ -109,7 +103,7 @@ pub(crate) fn stage_context_menu(
         Query<&ChildOf, With<NodeView>>,
         Query<&ChildOf, With<SectionNode>>,
     ),
-    facts: MenuFacts,
+    facts: AddFacts,
     mut selected: ResMut<SelectedNode>,
     mut press: ResMut<StageRightPress>,
     roots: Query<Entity, With<PopupRoot>>,
@@ -142,117 +136,52 @@ pub(crate) fn stage_context_menu(
         selected.set(Some(node));
     }
     let menu = facts.context(&selected);
-    let point = camera
-        .and_then(|camera| {
-            let (camera, pose) = *camera;
-            camera.viewport_to_world(pose, at).ok()
-        })
-        .map(|ray| ray.origin + *ray.direction * framing.distance.to_engine());
-    close_popups(&mut commands, &roots);
-    let popup = spawn_popup(&mut commands, at, layer::MENU_Z, |rows| {
-        spawn_stage_rows(rows, &menu, point, node.is_some());
-    });
-    commands
-        .entity(popup)
-        .insert(DespawnOnExit(ExampleStates::Editor));
+    let point = point_under(camera.as_deref(), &framing, at);
+    let mut items = add_items(&menu, &facts.designs(), point);
+    let verbs = node_items(&menu, node.is_some());
+    if !verbs.is_empty() {
+        items.push(CascadeItem::separator());
+        items.extend(verbs);
+    }
+    open_add_menu(&mut commands, &roots, at, items);
 }
 
-/// The rows of the stage menu that `menu` does not hide.
-fn spawn_stage_rows(
-    rows: &mut bevy::ecs::relationship::RelatedSpawnerCommands<ChildOf>,
-    menu: &super::menu_context::MenuContext,
-    point: Option<Vec3>,
-    on_node: bool,
-) {
+/// The stage menu's rows after the Add tree: Paste, and Frame and Delete on
+/// the node under the pointer. Only the rows `menu` does not hide.
+fn node_items(menu: &MenuContext, on_node: bool) -> Vec<CascadeItem> {
     let shown = |verb| verb_state(verb, menu) != VerbState::Hidden;
-    let label = |verb, fallback: String| verb_label(verb, menu).unwrap_or(fallback);
-    if shown(MenuVerbType::AddWorld) {
-        rows.spawn((
-            Name::new("Stage Add Ship"),
-            MenuVerbType::AddWorld,
-            popup_row("Add Ship", ""),
-            observe(create_blank_ship),
-        ));
-        for choice in ObjectChoice::ALL {
-            let mut row = rows.spawn((
-                Name::new(format!("Stage Add {}", choice.label())),
-                MenuVerbType::AddWorld,
-                popup_row(&format!("Add {}", choice.label()), ""),
-                choice,
-                observe(create_scenario_object),
-            ));
-            if let Some(point) = point {
-                row.insert(PlaceAt(point));
-            }
-        }
-    }
-    if shown(MenuVerbType::AddPart) {
-        rows.spawn((
-            Name::new("Stage Add Part"),
-            MenuVerbType::AddPart,
-            popup_row("Add Part...", ""),
-            observe(open_parts),
-        ));
-    }
-    if shown(MenuVerbType::AddMesh) {
-        rows.spawn((
-            Name::new("Stage Add Mesh"),
-            MenuVerbType::AddMesh,
-            popup_row(&label(MenuVerbType::AddMesh, "Mesh...".into()), ""),
-            observe(on_add_mesh),
-        ));
-    }
-    for shape in COLLIDER_SHAPES {
-        let verb = MenuVerbType::AddCollider(shape);
-        if shown(verb) {
-            rows.spawn((
-                Name::new(format!("Stage Add {shape} Collider")),
-                verb,
-                popup_row(&label(verb, format!("{shape} Collider")), ""),
-                observe(on_add_collider),
-            ));
-        }
-    }
-    if shown(MenuVerbType::AddSocket) {
-        rows.spawn((
-            Name::new("Stage Add Socket"),
-            MenuVerbType::AddSocket,
-            popup_row("Add Socket", ""),
-            observe(on_add_socket),
-        ));
-    }
+    let mut items = Vec::new();
     if shown(MenuVerbType::Paste) {
-        rows.spawn((
-            Name::new("Stage Paste"),
-            MenuVerbType::Paste,
-            popup_row("Paste", "Ctrl+V"),
-            observe(paste_item),
-        ));
+        items.push(
+            CascadeItem::leaf("Stage Paste", "Paste")
+                .hint("Ctrl+V")
+                .on_row(|row| {
+                    row.insert(observe(paste_item));
+                }),
+        );
     }
     if !on_node {
-        return;
+        return items;
     }
     if shown(MenuVerbType::Frame) {
-        rows.spawn((
-            Name::new("Stage Frame"),
-            MenuVerbType::Frame,
-            popup_row("Frame", "F"),
-            observe(on_frame_selection),
-        ));
+        items.push(
+            CascadeItem::leaf("Stage Frame", "Frame")
+                .hint("F")
+                .on_row(|row| {
+                    row.insert(observe(on_frame_selection));
+                }),
+        );
     }
     if shown(MenuVerbType::Delete) {
-        rows.spawn((
-            Name::new("Stage Delete"),
-            MenuVerbType::Delete,
-            popup_row("Delete", "Del"),
-            observe(delete_selected_node),
-        ));
+        items.push(
+            CascadeItem::leaf("Stage Delete", "Delete")
+                .hint("Del")
+                .on_row(|row| {
+                    row.insert(observe(delete_selected_node));
+                }),
+        );
     }
-}
-
-/// Add Part: the parts gallery, for the ship the editor is in.
-fn open_parts(_activate: On<Activate>, mut gallery: ResMut<GalleryState>) {
-    *gallery = gallery.opened();
+    items
 }
 
 #[cfg(test)]

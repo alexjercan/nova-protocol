@@ -114,6 +114,7 @@ mod smoke {
     const SHOT_SECS: f32 = 120.0;
     const ADD_MENU: &str = "Add Menu Button";
     const ADD_ASTEROID: &str = "Add Asteroid";
+    const ADD_OBJECTS: &str = "Add Menu Objects";
     const CAMERA: &str = "Editor Camera";
     const DRAG_HANDLE: &str = "Gizmo Move Grab Y";
     const MOVE_SHOT: &str = "editor-viewport-move.png";
@@ -422,6 +423,12 @@ mod smoke {
             .click_named(
                 "editor viewport: open the Add menu",
                 ADD_MENU,
+                ui_node_present(ADD_OBJECTS),
+                BEAT_SECS,
+            )
+            .click_named(
+                "editor viewport: open Add > Objects",
+                ADD_OBJECTS,
                 ui_node_present(ADD_ASTEROID),
                 BEAT_SECS,
             )
