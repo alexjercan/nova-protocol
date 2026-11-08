@@ -34,6 +34,10 @@
 mod editor_stage;
 
 #[cfg(feature = "debug")]
+#[path = "shared/minted_row.rs"]
+mod minted_row;
+
+#[cfg(feature = "debug")]
 use std::sync::Arc;
 
 #[cfg(feature = "debug")]
@@ -45,6 +49,8 @@ use nova_protocol::prelude::*;
 
 #[cfg(feature = "debug")]
 use crate::editor_stage::{ADD_MENU, ADD_SHIP, EMPTY_SPACE, NEW_SHIP};
+#[cfg(feature = "debug")]
+use crate::minted_row::RowGestures;
 
 #[derive(Parser)]
 #[command(name = "system_sandbox_station")]
@@ -81,10 +87,6 @@ type Wait = Arc<nova_protocol::nova_debug::harness::Predicate>;
 /// scene load rather than a gesture, and a software renderer is slow at both.
 #[cfg(feature = "debug")]
 const LOAD_DEADLINE_SECS: f32 = 120.0;
-
-/// The node id the second Add Ship mints: the ship the walk marks.
-#[cfg(feature = "debug")]
-const STATION_NODE: &str = "ship_2";
 
 /// The centre of a unit section's +Z face, in ship space, a hair inside it so
 /// the aim lands on the face and not on its edge. The stage camera stands
@@ -156,10 +158,20 @@ const TURNED_RAD: f32 = 0.1;
 #[cfg(feature = "debug")]
 const REST_RAD_PER_SEC: f32 = 0.01;
 
+/// The node id of the ship the walk marks.
+#[cfg(feature = "debug")]
+fn station_node(world: &World) -> String {
+    world.resource::<StationEpoch>().node.clone()
+}
+
 /// What the walk remembers between beats.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct StationEpoch {
+    /// The node id the second Add Ship minted: the ship the walk marks. Read
+    /// from the world, because a reload resumes the id counter past every
+    /// ordinal the document holds.
+    node: String,
     /// The station root, its pose when first read, engine units.
     station: Option<Entity>,
     spawn_position: Vec3,
@@ -218,14 +230,14 @@ fn station_script() -> Script {
         .until(inside_with(0))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .step("sandbox station: the second ship is the one the walk marks")
+        .step("sandbox station: stamp the ship the walk marks")
         .on_enter(|world: &mut World| {
-            let probe = world.resource::<EditorProbe>();
-            assert_eq!(
-                probe.inside.as_deref(),
-                Some(STATION_NODE),
-                "the second Add Ship mints the node the walk marks"
-            );
+            let node = world
+                .resource::<EditorProbe>()
+                .inside
+                .clone()
+                .expect("the second Add Ship opened the ship it minted");
+            world.resource_mut::<StationEpoch>().node = node;
         })
         .add()
         .arm(
@@ -312,9 +324,9 @@ fn station_script() -> Script {
         .deadline(SHOT_DEADLINE_SECS)
         .add()
         // Back in: the thruster comes off, and the port goes on in its place.
-        .double_click_named(
+        .double_click_row(
             "sandbox station: enter the hull through the tree",
-            &format!("Scene Row {STATION_NODE}"),
+            station_node,
             BEAT_DEADLINE_SECS,
         )
         .step("sandbox station: inside the hull again")
@@ -631,7 +643,7 @@ impl SandboxGestures for Script {
     }
 
     fn select_the_hull(self, label: &str) -> Self {
-        self.click(label, &format!("Scene Row {STATION_NODE}"))
+        self.click_row(label, station_node, pointer_released(), BEAT_DEADLINE_SECS)
             .step(format!("{label}: the inspector is on it"))
             .until(the_hull_is_inspected())
             .deadline(BEAT_DEADLINE_SECS)
@@ -720,7 +732,7 @@ fn at_the_scenario_node() -> Wait {
 fn the_hull_is_inspected() -> Wait {
     Arc::new(|world: &World| {
         let probe = world.resource::<EditorProbe>();
-        probe.selected_node.as_deref() == Some(STATION_NODE)
+        probe.selected_node.as_deref() == Some(station_node(world).as_str())
             && probe.inspector.iter().any(|(row, _)| row == "Station")
     })
 }
@@ -777,7 +789,7 @@ fn station_root(world: &World) -> Option<Entity> {
     let mut stations = world.try_query_filtered::<(Entity, &EntityId), With<StationMarker>>()?;
     stations
         .iter(world)
-        .find(|(_, id)| id.0 == STATION_NODE)
+        .find(|(_, id)| id.0 == station_node(world))
         .map(|(entity, _)| entity)
 }
 
@@ -863,7 +875,8 @@ fn assert_spawned_as_station(world: &mut World) {
     );
     let elapsed = world.resource::<Time>().elapsed_secs();
     info!(
-        "sandbox station: {STATION_NODE} spawned as a station at {position}, services {services:?}"
+        "sandbox station: {} spawned as a station at {position}, services {services:?}",
+        station_node(world)
     );
     nova_probe::probe_marker(
         world,
