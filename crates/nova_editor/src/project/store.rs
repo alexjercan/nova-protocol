@@ -264,7 +264,7 @@ mod native {
     use nova_assets::{
         mod_cache::prelude::{
             install_local, list_mod_files, mod_file_modified, read_index, read_mod_file,
-            remove_index_record, remove_mod, store_mod_files,
+            remove_index_record, remove_mod, remove_mod_files, store_mod_files,
         },
         persist,
     };
@@ -388,6 +388,17 @@ mod native {
         list_mod_files(id)
     }
 
+    /// Remove the file `file` from mod `id`'s folder.
+    pub(crate) fn remove_mod_file(id: &str, file: &str) -> Result<(), String> {
+        remove_mod_files(id, &[file.to_string()]).map_err(|error| error.to_string())
+    }
+
+    /// Where the file `file` of mod `id` stands on disk.
+    pub(crate) fn mod_file_path(id: &str, file: &str) -> Option<String> {
+        nova_assets::mod_cache::prelude::mod_file_path(id, file)
+            .map(|path| path.display().to_string())
+    }
+
     /// What every installed mod declares, by id.
     pub(crate) fn installed_deps() -> Vec<(String, Vec<String>)> {
         read_index()
@@ -494,6 +505,14 @@ mod web {
 
     pub(crate) fn delete_mod(_id: &str) -> Result<(), String> {
         Err(REFUSED.to_string())
+    }
+
+    pub(crate) fn remove_mod_file(_id: &str, _file: &str) -> Result<(), String> {
+        Err(REFUSED.to_string())
+    }
+
+    pub(crate) fn mod_file_path(_id: &str, _file: &str) -> Option<String> {
+        None
     }
 
     pub(crate) fn files_of(_id: &str) -> Vec<String> {

@@ -3980,6 +3980,7 @@ mod tests {
                     build: fixture_recipe(),
                     advancement: 0.0,
                     draw_weight: 1.0,
+                    health: 1.0,
                     ..default()
                 },
                 kind: nova_ship::prelude::SectionKind::Mining(

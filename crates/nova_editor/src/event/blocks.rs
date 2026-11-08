@@ -63,6 +63,87 @@ pub(crate) enum BlockShapeType {
     Reporter,
 }
 
+/// What a block does in a script: its palette group and its colour, in the
+/// order a script is built.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum BlockRoleType {
+    /// A handler: the hat a script starts with.
+    Event,
+    /// A filter that gates a handler or a wait.
+    Condition,
+    /// A block that does something.
+    Action,
+    /// A block that holds beats, and the beats and waits inside it.
+    Flow,
+    /// A value, a comparison, and the logic that joins conditions.
+    Value,
+}
+
+impl BlockRoleType {
+    /// Every group, in build order.
+    pub(crate) const ALL: [BlockRoleType; 5] = [
+        BlockRoleType::Event,
+        BlockRoleType::Condition,
+        BlockRoleType::Action,
+        BlockRoleType::Flow,
+        BlockRoleType::Value,
+    ];
+
+    /// The group's heading.
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            BlockRoleType::Event => "Events",
+            BlockRoleType::Condition => "Conditions",
+            BlockRoleType::Action => "Actions",
+            BlockRoleType::Flow => "Flow",
+            BlockRoleType::Value => "Values and logic",
+        }
+    }
+
+    /// The group's name on the palette's rail.
+    pub(crate) fn short(self) -> &'static str {
+        match self {
+            BlockRoleType::Event => "Events",
+            BlockRoleType::Condition => "Conditions",
+            BlockRoleType::Action => "Actions",
+            BlockRoleType::Flow => "Flow",
+            BlockRoleType::Value => "Values",
+        }
+    }
+
+    /// The few words after the heading: what the group is for.
+    pub(crate) fn note(self) -> &'static str {
+        match self {
+            BlockRoleType::Event => "start a script",
+            BlockRoleType::Condition => "only if",
+            BlockRoleType::Action => "do",
+            BlockRoleType::Flow => "steps and waits",
+            BlockRoleType::Value => "fill a socket",
+        }
+    }
+
+    /// The group an action is in: a block that holds beats is flow.
+    pub(crate) fn of_action(action: ActionChoice) -> Self {
+        match action {
+            ActionChoice::Sequence | ActionChoice::Cinematic => BlockRoleType::Flow,
+            _ => BlockRoleType::Action,
+        }
+    }
+
+    /// The group a filter is in: a comparison and the joins are logic.
+    pub(crate) fn of_filter(filter: FilterChoice) -> Self {
+        match filter {
+            FilterChoice::Expression | FilterChoice::Not | FilterChoice::And | FilterChoice::Or => {
+                BlockRoleType::Value
+            }
+            FilterChoice::Entity
+            | FilterChoice::Timer
+            | FilterChoice::ShipOrder
+            | FilterChoice::Cinematic => BlockRoleType::Condition,
+        }
+    }
+}
+
 /// One entry of the palette: a block that does not exist yet.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum BlockItemType {
@@ -111,15 +192,46 @@ impl BlockItemType {
         }
     }
 
-    /// The palette group it is filed under.
-    pub(crate) fn category(self) -> BlockCategoryType {
+    /// The palette group it is filed under, which is also its colour.
+    pub(crate) fn role(self) -> BlockRoleType {
         match self {
-            BlockItemType::Hat(trigger) => trigger.category(),
-            BlockItemType::Action(action) => action.category(),
-            BlockItemType::Filter(filter) => filter.category(),
-            BlockItemType::Expr(expr) => expr.category(),
-            BlockItemType::Variable | BlockItemType::Query => BlockCategoryType::Data,
-            BlockItemType::Step | BlockItemType::Gate => BlockCategoryType::Flow,
+            BlockItemType::Hat(_) => BlockRoleType::Event,
+            BlockItemType::Action(action) => BlockRoleType::of_action(action),
+            BlockItemType::Filter(filter) => BlockRoleType::of_filter(filter),
+            BlockItemType::Expr(_) | BlockItemType::Variable | BlockItemType::Query => {
+                BlockRoleType::Value
+            }
+            BlockItemType::Step | BlockItemType::Gate => BlockRoleType::Flow,
+        }
+    }
+
+    /// The subject a handler or an action is about, which orders a group and
+    /// which the palette filter also matches. `None` for the rest, which a
+    /// subject would not sort.
+    pub(crate) fn subject(self) -> Option<BlockCategoryType> {
+        match self {
+            BlockItemType::Hat(trigger) => Some(trigger.category()),
+            BlockItemType::Action(action) => Some(action.category()),
+            _ => None,
+        }
+    }
+
+    /// One line on where the block goes, for the palette's hover.
+    pub(crate) fn placement(self) -> &'static str {
+        match self.shape() {
+            BlockShapeType::Hat => "Drop it on the canvas: it starts a script.",
+            BlockShapeType::Stack => match self {
+                BlockItemType::Action(ActionChoice::Sequence | ActionChoice::Cinematic) => {
+                    "Snap it under a handler or a step. Steps go inside it."
+                }
+                _ => "Snap it under a handler, or inside a step.",
+            },
+            BlockShapeType::Step => "Snap it inside a Sequence or a Cinematic.",
+            BlockShapeType::Gate => "Snap it on a step's head: the step waits for it.",
+            BlockShapeType::Boolean | BlockShapeType::Comparison => {
+                "Snap it on a handler's only if line, or in a condition socket."
+            }
+            BlockShapeType::Reporter => "Drop it on a value socket.",
         }
     }
 
@@ -261,7 +373,7 @@ pub(crate) fn refusal(
 ) -> Option<String> {
     let wrong = match slot {
         BlockSlotType::Canvas(_) => (shape != BlockShapeType::Hat)
-            .then_some("only a handler stands alone: drop this in one"),
+            .then_some("only an Events block stands alone: drop this on a lit slot"),
         BlockSlotType::Action { .. } => {
             (shape != BlockShapeType::Stack).then_some("only an action fits in a stack")
         }

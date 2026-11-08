@@ -333,20 +333,6 @@ impl FilterChoice {
         }
     }
 
-    /// The palette group this filter is filed under.
-    pub(crate) fn category(self) -> BlockCategoryType {
-        match self {
-            FilterChoice::Entity
-            | FilterChoice::Expression
-            | FilterChoice::Timer
-            | FilterChoice::ShipOrder
-            | FilterChoice::Cinematic
-            | FilterChoice::Not
-            | FilterChoice::And
-            | FilterChoice::Or => BlockCategoryType::Logic,
-        }
-    }
-
     /// How many child filters this kind takes. Zero for a leaf.
     pub(crate) fn operands(self) -> usize {
         match self {
@@ -445,21 +431,6 @@ impl ExprChoice {
             ExprChoice::Multiply => "multiply",
             ExprChoice::Divide => "divide",
             ExprChoice::Value => "value",
-        }
-    }
-
-    /// The palette group this kind is filed under: a comparison gates, the
-    /// rest compute.
-    pub(crate) fn category(self) -> BlockCategoryType {
-        match self {
-            ExprChoice::Equal | ExprChoice::LessThan | ExprChoice::GreaterThan => {
-                BlockCategoryType::Logic
-            }
-            ExprChoice::Add
-            | ExprChoice::Subtract
-            | ExprChoice::Multiply
-            | ExprChoice::Divide
-            | ExprChoice::Value => BlockCategoryType::Data,
         }
     }
 

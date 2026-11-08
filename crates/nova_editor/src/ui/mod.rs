@@ -9,6 +9,7 @@
 //! `inspector` on the right answers "what is THIS one". Parts are picked in the
 //! `gallery`.
 
+pub(crate) mod asset_files;
 pub(crate) mod assets;
 pub(crate) mod browser;
 pub(crate) mod callout;
@@ -18,12 +19,16 @@ pub(crate) mod hierarchy;
 pub(crate) mod hub;
 pub(crate) mod inspector;
 pub(crate) mod layer;
+pub(crate) mod log;
 pub(crate) mod menu;
+pub(crate) mod menu_context;
 pub(crate) mod pick;
+pub(crate) mod picker;
 pub(crate) mod plate;
 pub(crate) mod rail;
 pub(crate) mod settings;
 pub(crate) mod shell;
+pub(crate) mod stage_menu;
 pub(crate) mod thumbnail;
 pub(crate) mod window;
 
@@ -59,15 +64,13 @@ use crate::{
     clipboard::{copy_item, duplicate_item, paste_item},
     config::{
         EditorCamera, EditorKeyLegend, EditorOverlays, EditorRail, EditorSays, EditorStatus,
-        HullPlanLine, PartChoice, PartList, PartTick, PartZoneChip, PlacementStatus, PlayButton,
-        RailTab, RailTabButton, RebindButton, SceneList, SceneRow, SelectedNode, ShipReadout,
+        EditorViewType, HullPlanLine, PartChoice, PartList, PartTick, PartZoneChip,
+        PlacementStatus, PlayButton, SceneList, SceneRow, SelectedNode, ShipReadout,
         ShipReadoutNote, ShipSettings, SkinToggleCheckbox, StyleChoice, StyleList, StyleSwatch,
+        ViewTabButton,
     },
     event::{Expanded, ScriptNodes},
-    frame::{
-        ask_for, on_frame_selection, on_view_preset, FrameRequest, FrameSelectionItem, ViewAngle,
-        ViewPresetItem,
-    },
+    frame::{ask_for, on_frame_selection, on_view_preset, FrameRequest, ViewAngle, ViewPresetItem},
     gallery::{gallery_host, EditorChrome},
     generate::{bow_gun, main_engine, Drawn, HullSeed},
     glyph::{
@@ -84,7 +87,11 @@ use crate::{
         create_blank_ship, create_scenario_object, cycle_armed_socket, deletable,
         delete_selected_node, put_armed_part_down, roll_armed_part, DeletableNode,
     },
-    project::{package::on_package_item, ModProject},
+    project::{
+        package::on_package_item,
+        verbs::{add_scenario, pressed},
+        DocumentType, ModProject,
+    },
     selection::{select_all_item, toggling},
     tool::StageTool,
     ui::{
@@ -96,9 +103,9 @@ use crate::{
             menu_bar_slot, menu_dropdown_node, menu_item_row, menu_scrim, menu_z, on_menu_button,
             on_menu_scrim, palette_block, toggle_all_fields, toggle_handle_space, toggle_ids,
             toggle_key_legend, toggle_link_points, toggle_object_volumes, toggle_world_grid,
-            AddPalette, ArmedMenuItem, MenuDeleteItem, MenuDropdown, MenuHistoryItem, MenuId,
-            MenuLead, MenuTail, OpenMenu, ScenarioMenuItem, ShipMenuItem, ViewToggle,
+            MenuDropdown, MenuHistoryItem, MenuId, MenuLead, MenuTail, OpenMenu, ViewToggle,
         },
+        menu_context::{spawn_section_palette, MenuSeparator, MenuVerbType},
         plate::plate_layer,
         rail::{next_zone, row_trash, scene_tooltip, zone_label, SceneRowHint, SceneRowTrash},
         settings::on_mod_settings_item,
@@ -164,6 +171,7 @@ pub(super) fn spawn_menu_bar(left: &mut RelatedSpawnerCommands<ChildOf>) {
             menus
                 .spawn((
                     Name::new(format!("{} Menu Slot", menu.label())),
+                    MenuVerbType::Menu(menu),
                     menu_bar_slot(),
                 ))
                 .with_children(|slot| {
@@ -187,24 +195,31 @@ pub(super) fn spawn_menu_bar(left: &mut RelatedSpawnerCommands<ChildOf>) {
     });
 }
 
-/// The Scene and Events switch.
+/// The view switch: a tab per view of the open document. Every view has its
+/// tab here, and [`sync_view_tabs`] shows only those of the open document.
 pub(super) fn spawn_view_tabs(bar: &mut RelatedSpawnerCommands<ChildOf>) {
-    bar.spawn((Name::new("Rail Tabs"), tab_strip()))
+    bar.spawn((Name::new("View Tabs"), tab_strip()))
         .with_children(|strip| {
-            for (rail, label) in RAIL_TABS {
+            for view in EditorViewType::ALL {
                 let mut entity = strip.spawn((
-                    Name::new(format!("Rail Tab {label}")),
-                    tab(label, false),
-                    RailTabButton(rail),
+                    Name::new(format!("View Tab {}", view.label())),
+                    tab(view.label(), false),
+                    ViewTabButton(view),
                     ButtonCueType::Owned,
-                    observe(on_rail_tab),
+                    observe(on_view_tab),
                 ));
                 // The mark is the state the row reconciler paints from.
-                if rail == RailTab::default() {
+                if view == EditorViewType::default() {
                     entity.insert(Selected);
                 }
             }
         });
+}
+
+/// File > New Scenario: a blank scenario joins the mod and opens. It loses
+/// nothing, so it asks nothing; undo takes it back.
+fn on_new_scenario_item(_activate: On<Activate>, mut commands: Commands) {
+    commands.queue(|world: &mut World| pressed(world, add_scenario));
 }
 
 /// Fill one dropdown.
@@ -212,9 +227,9 @@ pub(super) fn spawn_view_tabs(bar: &mut RelatedSpawnerCommands<ChildOf>) {
 /// The whole menu bar in one place, so what the editor can do reads as a list
 /// rather than as four `with_children` blocks buried in the bar's layout.
 ///
-/// GREYED, NOT ABSENT, for the items that are not built: Undo and Redo are
-/// nobody's. A menu that only lists what already works cannot say what the
-/// editor is going to be.
+/// Which rows show, grey or hide is not decided here: each row carries its
+/// verb, and `menu_context::verb_state` decides it from the open document and
+/// view.
 fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
     match menu {
         MenuId::File => {
@@ -231,11 +246,12 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                 DestructiveVerb::Hub,
                 menu_item_row("Open Mod", MenuLead::None, MenuTail::None),
             ));
-            items.spawn(separator());
+            items.spawn((MenuSeparator, separator()));
             items.spawn((
                 Name::new("New Scenario Item"),
-                DestructiveVerb::NewScenario,
                 menu_item_row("New Scenario", MenuLead::None, MenuTail::None),
+                ButtonCueType::Owned,
+                observe(on_new_scenario_item),
             ));
             items.spawn((
                 Name::new("Save Item"),
@@ -248,7 +264,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                 menu_item_row("Save As Copy", MenuLead::None, MenuTail::None),
                 observe(ask_to_save_copy),
             ));
-            items.spawn(separator());
+            items.spawn((MenuSeparator, separator()));
             items.spawn((
                 Name::new("Mod Settings Item"),
                 menu_item_row("Mod Settings", MenuLead::None, MenuTail::None),
@@ -260,7 +276,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                 ButtonCueType::Owned,
                 observe(on_package_item),
             ));
-            items.spawn(separator());
+            items.spawn((MenuSeparator, separator()));
             items.spawn((
                 Name::new("Back To Main Menu Item"),
                 DestructiveVerb::MainMenu,
@@ -282,36 +298,40 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                 InteractionDisabled,
                 observe(redo_item),
             ));
-            items.spawn(separator());
+            items.spawn((MenuSeparator, separator()));
             items.spawn((
                 Name::new("Copy Item"),
+                MenuVerbType::Copy,
                 menu_item_row("Copy", MenuLead::None, MenuTail::Key("Ctrl+C")),
                 ButtonCueType::Owned,
                 observe(copy_item),
             ));
             items.spawn((
                 Name::new("Paste Item"),
+                MenuVerbType::Paste,
                 menu_item_row("Paste", MenuLead::None, MenuTail::Key("Ctrl+V")),
                 ButtonCueType::Owned,
                 observe(paste_item),
             ));
             items.spawn((
                 Name::new("Duplicate Item"),
+                MenuVerbType::Duplicate,
                 menu_item_row("Duplicate", MenuLead::None, MenuTail::Key("Ctrl+D")),
                 ButtonCueType::Owned,
                 observe(duplicate_item),
             ));
             items.spawn((
                 Name::new("Delete Item"),
-                MenuDeleteItem,
+                MenuVerbType::Delete,
                 menu_item_row("Delete", MenuLead::None, MenuTail::Key("Del")),
                 // A delete plays the editor's own removal cue.
                 ButtonCueType::Owned,
                 observe(delete_selected_node),
             ));
-            items.spawn(separator());
+            items.spawn((MenuSeparator, separator()));
             items.spawn((
                 Name::new("Select All Item"),
+                MenuVerbType::SelectAll,
                 menu_item_row("Select All", MenuLead::None, MenuTail::Key("Ctrl+A")),
                 observe(select_all_item),
             ));
@@ -333,33 +353,38 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                     _ => row.insert(observe(shell::toggle_browser)),
                 };
             }
-            items.spawn(separator());
+            items.spawn((MenuSeparator, separator()));
             items.spawn((
                 Name::new("Handle Axes Item"),
+                MenuVerbType::HandleAxes,
                 menu_item_row("Local Axes", MenuLead::Toggle, MenuTail::Key("X")),
                 ViewToggle::LocalAxes,
                 observe(toggle_handle_space),
             ));
             items.spawn((
                 Name::new("Key Legend Item"),
+                MenuVerbType::KeyLegend,
                 ViewToggle::KeyLegend,
                 menu_item_row("Key Legend", MenuLead::Toggle, MenuTail::None),
                 observe(toggle_key_legend),
             ));
             items.spawn((
                 Name::new("Link Points Item"),
+                MenuVerbType::LinkPoints,
                 ViewToggle::LinkPoints,
                 menu_item_row("Link Points", MenuLead::Toggle, MenuTail::None),
                 observe(toggle_link_points),
             ));
             items.spawn((
                 Name::new("World Grid Item"),
+                MenuVerbType::WorldGrid,
                 ViewToggle::WorldGrid,
                 menu_item_row("World Grid", MenuLead::Toggle, MenuTail::None),
                 observe(toggle_world_grid),
             ));
             items.spawn((
                 Name::new("Object Volumes Item"),
+                MenuVerbType::ObjectVolumes,
                 ViewToggle::ObjectVolumes,
                 menu_item_row("Object Volumes", MenuLead::Toggle, MenuTail::None),
                 observe(toggle_object_volumes),
@@ -378,14 +403,15 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
             // wiring one up is the one job where the names are in the way.
             items.spawn((
                 Name::new("Ids Item"),
+                MenuVerbType::Ids,
                 ViewToggle::Ids,
                 menu_item_row("Ids", MenuLead::Toggle, MenuTail::None),
                 observe(toggle_ids),
             ));
-            items.spawn(separator());
+            items.spawn((MenuSeparator, separator()));
             items.spawn((
                 Name::new("Frame Selection Item"),
-                FrameSelectionItem,
+                MenuVerbType::Frame,
                 menu_item_row("Frame Selection", MenuLead::None, MenuTail::Key("F")),
                 observe(on_frame_selection),
             ));
@@ -396,7 +422,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
             for angle in ViewAngle::PRESETS {
                 items.spawn((
                     Name::new(format!("{} View Item", angle.label())),
-                    FrameSelectionItem,
+                    MenuVerbType::Frame,
                     ViewPresetItem(angle),
                     menu_item_row(angle.label(), MenuLead::None, MenuTail::None),
                     observe(on_view_preset),
@@ -404,21 +430,22 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
             }
         }
         MenuId::Ship => {
-            // These three verbs belong to the ship you are inside, not to the
-            // screen, so they hang under the one menu that says so.
+            // These verbs belong to the ship you are inside, not to the
+            // screen, so they hang under the one menu that says so, and the
+            // menu shows only in a ship.
             items.spawn((
                 Name::new("Parts Item"),
-                ShipMenuItem,
+                MenuVerbType::Parts,
                 GalleryAction::Open,
                 menu_item_row("Parts...", MenuLead::None, MenuTail::Key("Tab")),
             ));
-            items.spawn(separator());
+            items.spawn((MenuSeparator, separator()));
             // The pose verbs. They live only in a legend View can switch off,
             // and R/F/wheel are named nowhere else in the editor - so they get
             // rows, greyed until there is a part in hand for them to turn.
             items.spawn((
                 Name::new("Roll The Part Item"),
-                ArmedMenuItem,
+                MenuVerbType::PosePart,
                 menu_item_row(
                     "Roll the Part (or wheel)",
                     MenuLead::None,
@@ -430,7 +457,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
             ));
             items.spawn((
                 Name::new("Cycle The Socket Item"),
-                ArmedMenuItem,
+                MenuVerbType::PosePart,
                 menu_item_row(
                     "Cycle the Socket (or Ctrl+wheel)",
                     MenuLead::None,
@@ -441,42 +468,33 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
             ));
             items.spawn((
                 Name::new("Put The Part Down Item"),
-                ArmedMenuItem,
+                MenuVerbType::PosePart,
                 menu_item_row("Put the Part Down", MenuLead::None, MenuTail::Key("Esc")),
                 observe(put_armed_part_down),
             ));
-            items.spawn(separator());
+            items.spawn((MenuSeparator, separator()));
             items.spawn((
                 Name::new("Rebind Key Item"),
-                RebindButton,
+                MenuVerbType::Rebind,
                 menu_item_row("Rebind Key...", MenuLead::None, MenuTail::None),
                 observe(on_rebind_action),
             ));
         }
         MenuId::Add => {
-            // A ship and a rock are both "one more node under the scenario",
-            // so they are one menu: the rail used to answer Add Ship on the
-            // top bar and Add Object in a block halfway down the left, which
-            // made two names for one question.
-            //
-            // Add means "one more node HERE", and here changes. The MODE is
-            // most of what it changes: SCENE builds the board and EVENTS builds
-            // the script, so the menu shows one palette and hides the other
-            // rather than listing both with half of them dead. Within a
-            // palette the rows still GREY - the world block is greyed inside a
-            // ship, and a script row greys until the marked node can take what
-            // it makes - because that part is about where the caret is, which
-            // is a thing a builder can move without changing mode.
+            // Add means "one more thing in THIS document", so each document
+            // has its own block and `menu_context` shows only the open one's:
+            // the scenario's world, its script, a ship's parts, a section's
+            // mesh, collider and sockets. A form adds nothing, and the menu
+            // hides.
             items
                 .spawn((
                     Name::new("Add World Palette"),
-                    AddPalette::World,
+                    MenuVerbType::AddWorld,
                     palette_block(),
                 ))
                 .with_children(|world| {
                     world.spawn((
                         Name::new("Add Ship Button"),
-                        ScenarioMenuItem,
                         // The OUTLINE ship: the row adds a design beside the
                         // one already there. The first ship of an empty
                         // document becomes the player's and the tree fills its
@@ -485,12 +503,11 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                         ButtonCueType::Owned,
                         observe(create_blank_ship),
                     ));
-                    world.spawn(separator());
+                    world.spawn((MenuSeparator, separator()));
                     for choice in ObjectChoice::ALL {
                         world.spawn((
                             Name::new(format!("Add {}", choice.label())),
                             choice,
-                            ScenarioMenuItem,
                             menu_item_row(
                                 choice.label(),
                                 MenuLead::Glyph(choice_mark(choice)),
@@ -500,14 +517,20 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                             observe(create_scenario_object),
                         ));
                     }
-                    world.spawn(separator());
+                });
+            items
+                .spawn((
+                    Name::new("Add Part Palette"),
+                    MenuVerbType::AddPart,
+                    palette_block(),
+                ))
+                .with_children(|parts| {
                     for category in GalleryCategory::ROW {
                         if category == GalleryCategory::All {
                             continue;
                         }
-                        world.spawn((
+                        parts.spawn((
                             Name::new(format!("Add {} Item", category.label())),
-                            ShipMenuItem,
                             GalleryAction::Browse(category),
                             menu_item_row(
                                 &format!("{}...", category.label()),
@@ -520,7 +543,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
             items
                 .spawn((
                     Name::new("Add Script Palette"),
-                    AddPalette::Script,
+                    MenuVerbType::AddScript,
                     palette_block(),
                 ))
                 .with_children(|script| {
@@ -536,6 +559,7 @@ fn build_menu(items: &mut RelatedSpawnerCommands<ChildOf>, menu: MenuId) {
                         ),
                     ));
                 });
+            spawn_section_palette(items);
         }
     }
 }
@@ -1226,49 +1250,55 @@ fn section_name(section: &SectionNode, catalog: Option<&GameSections>) -> Option
     (!name.is_empty()).then(|| name.to_string())
 }
 
-/// The tabs the tree header offers, in the order they are drawn.
-const RAIL_TABS: [(RailTab, &str); 2] = [(RailTab::Scene, "Scene"), (RailTab::Events, "Events")];
-
-/// Switch the tree to the half the pressed tab stands for.
+/// Show the view the pressed tab stands for.
 ///
-/// The SELECTION goes with it: a node marked on one tab is not in the other's
+/// The SELECTION goes with it: a node marked in one view is not in the other's
 /// list, and a mark the tree cannot draw is one the Inspector would still be
 /// reporting from a panel nothing on screen points at.
-pub(crate) fn on_rail_tab(
+pub(crate) fn on_view_tab(
     activate: On<Activate>,
-    tabs: Query<&RailTabButton>,
-    mut tab: ResMut<RailTab>,
+    tabs: Query<&ViewTabButton>,
+    mut view: ResMut<EditorViewType>,
     mut selected: ResMut<SelectedNode>,
-    benches: Query<(), With<AssetNode>>,
     mut says: EditorSays,
 ) {
-    let Ok(RailTabButton(pressed)) = tabs.get(activate.entity) else {
+    let Ok(ViewTabButton(pressed)) = tabs.get(activate.entity) else {
         return;
     };
-    if *tab == *pressed {
+    if *view == *pressed {
         return;
     }
-    if *pressed == RailTab::Events && !benches.is_empty() {
-        says.refuse("open a scenario to edit its events");
-        return;
-    }
-    *tab = *pressed;
+    *view = *pressed;
     selected.set(None);
     says.accept();
 }
 
-/// Mark the tab whose half the tree is showing.
+/// Show the tabs of the open document's views, and mark the one on screen.
 ///
 /// Compared before writing rather than gated on a change, for the same reason
 /// as [`sync_style_list`]: the tabs are spawned on entering the editor, which
-/// need not be a frame the tab changed on.
-pub(crate) fn sync_rail_tabs(
+/// need not be a frame the view changed on.
+pub(crate) fn sync_view_tabs(
     mut commands: Commands,
-    tab: Res<RailTab>,
-    tabs: Query<(Entity, &RailTabButton, Has<Selected>)>,
+    view: Res<EditorViewType>,
+    project: Option<Res<ModProject>>,
+    context: Res<EditContext>,
+    mut tabs: Query<(Entity, &ViewTabButton, &mut Node, Has<Selected>)>,
 ) {
-    for (entity, RailTabButton(this), marked) in &tabs {
-        match (*this == *tab, marked) {
+    let open = project
+        .as_ref()
+        .and_then(|project| project.data.open.as_ref());
+    let views = DocumentType::of(open, context.ship().is_some()).views();
+    for (entity, ViewTabButton(this), mut node, marked) in &mut tabs {
+        let display = if views.contains(this) {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != display {
+            node.display = display;
+        }
+        match (*this == *view, marked) {
             (true, false) => {
                 commands.entity(entity).insert(Selected);
             }
@@ -1932,9 +1962,8 @@ pub(crate) fn sync_play_button(
 ///
 /// Hidden rather than disabled, unlike Play: a greyed skin toggle at the
 /// scenario node would say "this exists here and is refused", and it does not
-/// exist there - a skin is a thing a SHIP has. The ship's VERBS answer the same
-/// question in the Ship menu, where greyed rows say what entering a ship would
-/// unlock (see `crate::ui::menu::sync_ship_menu`).
+/// exist there - a skin is a thing a SHIP has. The Ship menu follows the same
+/// rule (see `crate::ui::menu_context`).
 ///
 /// Generate obeys the same rule for the same reason: what it rolls IS a hull,
 /// and a hull is what a ship is made of.
@@ -1950,35 +1979,6 @@ pub(crate) fn sync_context_panels(
     for mut node in &mut panels {
         if node.display != shown {
             node.display = shown;
-        }
-    }
-}
-
-/// Grey the Rebind action unless the selection can take a binding: a bindable
-/// section of the edited ship. The same guards `on_rebind_action` enforces,
-/// painted, so the button never invites a press that does nothing.
-pub(crate) fn sync_rebind_button(
-    mut commands: Commands,
-    catalog: Option<Res<GameSections>>,
-    context: Res<EditContext>,
-    selected: Res<SelectedNode>,
-    q_sections: Query<(&SectionNode, &ChildOf)>,
-    buttons: Query<(Entity, Has<InteractionDisabled>), With<RebindButton>>,
-) {
-    let armable = selected.primary().is_some_and(|node| {
-        q_sections.get(node).is_ok_and(|(section, owner)| {
-            context.ship() == Some(owner.parent()) && section.bindable(catalog.as_deref())
-        })
-    });
-    for (entity, marked) in &buttons {
-        match (armable, marked) {
-            (false, false) => {
-                commands.entity(entity).insert(InteractionDisabled);
-            }
-            (true, true) => {
-                commands.entity(entity).remove::<InteractionDisabled>();
-            }
-            _ => {}
         }
     }
 }
@@ -2312,7 +2312,7 @@ pub(crate) fn sync_key_legend(
     rebind: Res<EditorRebind>,
     open_menu: Res<OpenMenu>,
     tool: Res<StageTool>,
-    rail: Res<RailTab>,
+    rail: Res<EditorViewType>,
     keyboard: Res<InputMode>,
     block_popup: Res<canvas::BlockPopup>,
     legend: Query<(&mut Node, &Children, &ComputedNode), With<EditorKeyLegend>>,
@@ -2343,6 +2343,15 @@ pub(crate) fn sync_key_legend(
         ("REBINDING", vec![("any key", "bind it")])
     } else if rail.is_events() {
         events_line(*keyboard, popup)
+    } else if *rail == EditorViewType::Form {
+        (
+            "FORM",
+            vec![
+                ("LMB", "edit a field"),
+                ("Enter", "keep it"),
+                ("Ctrl+Z", "undo"),
+            ],
+        )
     } else {
         match (&*selection, inside) {
             (HeldPart(None), false) => (
@@ -2352,7 +2361,6 @@ pub(crate) fn sync_key_legend(
                     ("LMB x2", "enter"),
                     ("drag", "move it"),
                     ("QWER", tool),
-                    ("RMB+WASD", "fly"),
                     ("MMB", "orbit"),
                     ("Wheel", "dolly"),
                 ],
@@ -2367,7 +2375,6 @@ pub(crate) fn sync_key_legend(
                     // without the rail - see `backspace_steps_out`.
                     ("Bksp", "leave"),
                     ("P", "pick a part"),
-                    ("RMB+WASD", "fly"),
                     ("MMB", "orbit"),
                     ("Wheel", "dolly"),
                 ],
@@ -2378,7 +2385,6 @@ pub(crate) fn sync_key_legend(
                     ("LMB", "place it"),
                     ("P", "pick a part"),
                     ("Wheel", "roll it"),
-                    ("RMB+WASD", "fly"),
                     ("MMB", "orbit"),
                 ],
             ),
@@ -2511,7 +2517,7 @@ mod tests {
         app.init_resource::<ActiveUiTheme>();
         app.init_resource::<SelectedNode>();
         app.init_resource::<EditorOverlays>();
-        app.init_resource::<RailTab>();
+        app.init_resource::<EditorViewType>();
         app.init_resource::<DoubleClick<Entity>>();
         app.init_resource::<FrameRequest>();
         // No `TimePlugin`: the clock is driven by hand below, so a "click" and
@@ -2836,7 +2842,7 @@ mod tests {
     fn switching_tabs_drops_a_selection_the_other_half_cannot_show() {
         let mut app = scene_app();
         app.init_resource::<EditorStatus>().init_resource::<Time>();
-        app.add_systems(Update, sync_rail_tabs);
+        app.add_systems(Update, sync_view_tabs);
         let scenario = document(&mut app);
         let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
         script(
@@ -2847,9 +2853,10 @@ mod tests {
         let tab = app
             .world_mut()
             .spawn((
-                RailTabButton(RailTab::Events),
-                Name::new("Rail Tab Events"),
-                observe(on_rail_tab),
+                ViewTabButton(EditorViewType::Events),
+                Name::new("View Tab Events"),
+                Node::default(),
+                observe(on_view_tab),
             ))
             .id();
         app.update();
@@ -2860,7 +2867,10 @@ mod tests {
         app.world_mut().trigger(Activate { entity: tab });
         app.update();
 
-        assert_eq!(*app.world().resource::<RailTab>(), RailTab::Events);
+        assert_eq!(
+            *app.world().resource::<EditorViewType>(),
+            EditorViewType::Events
+        );
         assert_eq!(app.world().resource::<SelectedNode>().primary(), None);
         assert!(
             app.world().get::<Selected>(tab).is_some(),
@@ -3500,56 +3510,6 @@ mod tests {
         assert_eq!(display(&world, settings), Display::Flex);
     }
 
-    /// Rebind is greyed until the selection can actually take a binding - the
-    /// same guards the action enforces, painted.
-    #[test]
-    fn rebind_is_greyed_until_a_bindable_section_is_selected() {
-        use bevy::ecs::system::RunSystemOnce;
-        use nova_ship::prelude::{SectionConfig, SectionKind, TurretSectionConfig};
-
-        let section = |kind: SectionKind| SectionNode {
-            source: SectionSource::Inline(SectionConfig {
-                base: BaseSectionConfig {
-                    id: "part".to_string(),
-                    name: "part".to_string(),
-                    ..default()
-                },
-                kind,
-            }),
-            binds: vec![],
-        };
-
-        let mut world = World::new();
-        world.init_resource::<SelectedNode>();
-        let ship = world.spawn(ShipNode::default()).id();
-        world.insert_resource(EditContext {
-            path: vec![Entity::PLACEHOLDER, ship],
-        });
-        let hull = world
-            .spawn((section(SectionKind::Hull(default())), ChildOf(ship)))
-            .id();
-        let turret = world
-            .spawn((
-                section(SectionKind::Turret(TurretSectionConfig::default())),
-                ChildOf(ship),
-            ))
-            .id();
-        let button = world.spawn(RebindButton).id();
-
-        let disabled = |world: &World| world.entity(button).contains::<InteractionDisabled>();
-
-        world.run_system_once(sync_rebind_button).unwrap();
-        assert!(disabled(&world), "nothing selected, nothing to rebind");
-
-        world.resource_mut::<SelectedNode>().set(Some(hull));
-        world.run_system_once(sync_rebind_button).unwrap();
-        assert!(disabled(&world), "a hull takes no binding");
-
-        world.resource_mut::<SelectedNode>().set(Some(turret));
-        world.run_system_once(sync_rebind_button).unwrap();
-        assert!(!disabled(&world), "a turret of the edited ship can rebind");
-    }
-
     fn style(id: &str) -> ShipStyleConfig {
         ShipStyleConfig {
             id: id.to_string(),
@@ -3956,7 +3916,7 @@ mod tests {
             ("LMB x2", "enter"),
             ("drag", "move it"),
             ("QWER", "tool: move"),
-            ("RMB+WASD", "fly"),
+            ("MMB", "orbit"),
         ];
         let escape = ("Esc", "pause");
         let budget = |room: f32| {
@@ -3979,7 +3939,7 @@ mod tests {
         app.init_resource::<EditorOverlays>();
         app.init_resource::<EditorRebind>();
         app.init_resource::<OpenMenu>();
-        app.init_resource::<RailTab>();
+        app.init_resource::<EditorViewType>();
         app.init_resource::<StageTool>();
         app.init_resource::<InputMode>();
         app.init_resource::<canvas::BlockPopup>();

@@ -20,7 +20,9 @@
 use avian3d::prelude::{Collider, ColliderAabb, Sensor};
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{subtree_local_collider_aabb, Allegiance, AssetRef};
+use nova_gameplay::prelude::{
+    subtree_bounding_sphere, subtree_local_collider_aabb, Allegiance, AssetRef,
+};
 use nova_input::prelude::InputSource;
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::*;
@@ -31,7 +33,7 @@ use crate::{
     bundle::{insert_lifted_ship, lift_objects, FileDesigns, LiftSource},
     config::{EditorCamera, EditorSays, SelectedNode},
     event::lift,
-    frame::{framed_extent, CameraFraming},
+    frame::CameraFraming,
     history::forget_history,
     preview::{insert_preview_object, PreviewArt},
     project::{verbs::open_project_document, ModProject},
@@ -732,6 +734,52 @@ pub(crate) fn sync_ship_focus(
     }
 }
 
+/// The scenario root's pose as it stood before this frame's
+/// [`sync_stage_frame`].
+///
+/// Collider bounds only move with the physics step, so on the frame the stage
+/// turns they still stand in this pose.
+#[derive(Resource, Debug, Default, Clone, Copy)]
+pub(crate) struct StageFrame {
+    bounds_stood_in: Transform,
+}
+
+/// The pose that undoes `pose`. A node's pose carries no scale.
+fn undone(pose: &Transform) -> Transform {
+    let rotation = pose.rotation.inverse();
+    Transform::from_translation(rotation * -pose.translation).with_rotation(rotation)
+}
+
+/// Stand the entered ship on the world origin, square to the axes.
+///
+/// A ship's pose only means something in the scenario, so the viewer shows it
+/// at identity. The ship's `Transform` is document data and stays as it is: the
+/// scenario root takes the inverse instead, which puts the hull, its sockets,
+/// the picking and the camera in the ship's own frame. The root's pose is
+/// nobody's data: no file holds it, and [`crate::history`] does not see it.
+///
+/// AFTER `reflow_auto_ships`, the other writer of a ship's pose.
+pub(crate) fn sync_stage_frame(
+    context: Res<EditContext>,
+    mut poses: Query<&mut Transform, Without<EditorCamera>>,
+    mut frame: ResMut<StageFrame>,
+) {
+    let Some(scenario) = context.scenario() else {
+        return;
+    };
+    let wanted = context
+        .ship()
+        .and_then(|ship| poses.get(ship).ok())
+        .map_or(Transform::IDENTITY, undone);
+    let Ok(mut root) = poses.get_mut(scenario) else {
+        return;
+    };
+    frame.bounds_stood_in = *root;
+    if *root != wanted {
+        *root = wanted;
+    }
+}
+
 /// Snap the stage camera to the edit context: entering a ship frames that
 /// ship, and the scenario node frames everything the document holds.
 ///
@@ -753,6 +801,7 @@ pub(crate) fn sync_camera_focus(
     q_bounds: Query<&ColliderAabb, Without<Sensor>>,
     q_poses: Query<&Transform, Without<EditorCamera>>,
     camera: Option<Single<&mut Transform, With<EditorCamera>>>,
+    frame: Res<StageFrame>,
     mut shown: Local<Option<Vec<Entity>>>,
 ) {
     if fresh.is_empty() && shown.as_ref() == Some(&context.path) {
@@ -770,8 +819,19 @@ pub(crate) fn sync_camera_focus(
     let Some(camera) = camera else {
         return;
     };
+    let stage = context
+        .scenario()
+        .and_then(|scenario| q_poses.get(scenario).ok())
+        .copied()
+        .unwrap_or_default();
     let mut transform = camera.into_inner();
-    let (centre, spread) = framed_extent(node, pose, &q_children, &q_bounds);
+    let (centre, spread) = subtree_bounding_sphere(node, &q_children, &q_bounds).map_or(
+        (stage.transform_point(pose.translation), 0.0),
+        |(centre, spread)| {
+            let left = undone(&frame.bounds_stood_in).transform_point(centre);
+            (stage.transform_point(left), spread)
+        },
+    );
     *shown = Some(context.path.clone());
     *transform = frame_stage(centre, spread);
     *framing = CameraFraming::on(centre, transform.translation);
@@ -1524,6 +1584,7 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<EditContext>();
         app.init_resource::<CameraFraming>();
+        app.init_resource::<StageFrame>();
         app.world_mut()
             .run_system_once(found_empty_document_here)
             .expect("the document is founded");

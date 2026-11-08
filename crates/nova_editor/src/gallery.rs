@@ -16,7 +16,7 @@ use nova_ui::prelude::{owns_or_enters, InputMode};
 use crate::{
     asset::session::ProjectSections,
     asset_index::AssetIndex,
-    config::{EditorCamera, RailTab},
+    config::{EditorCamera, EditorViewType},
     node::EditContext,
     project::ModProject,
     ui::layer,
@@ -169,7 +169,7 @@ pub(crate) fn toggle_gallery(keys: Res<ButtonInput<KeyCode>>, mut state: ResMut<
 /// always close what Tab opened. Events has no stage to place a part on.
 fn gallery_reachable(
     context: Res<EditContext>,
-    rail: Res<RailTab>,
+    rail: Res<EditorViewType>,
     state: Res<GalleryState>,
 ) -> bool {
     state.open || (context.ship().is_some() && !rail.is_events())

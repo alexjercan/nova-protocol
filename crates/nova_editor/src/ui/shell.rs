@@ -2,14 +2,15 @@
 //! between them, and the foot under the browser strip.
 //!
 //! ```text
-//! Editor Top Bar    menus, Scene/Events, tools, Parts | Play | speed, title
+//! Editor Top Bar    menus, Scene/Events, tools, Parts | Play | title
 //! Editor Content    Editor Rail | Editor Stage | Script Mount
 //! Editor Browser    tabs and the pane of the open tab
-//! Editor Foot       status, selection count, speed, key hints
+//! Editor Foot       status, selection count, key hints
 //! ```
 //!
-//! Nothing here docks or drags. A panel is shown or hidden and that is all:
-//! [`EditorPanels`] holds which, and [`sync_panels`] applies it.
+//! Nothing here docks. A panel is shown or hidden, and the strip's top edge
+//! drags its height. [`EditorPanels`] holds both; [`sync_panels`] shows the
+//! panels and `browser::sync_browser` sizes the strip.
 
 use bevy::{
     ecs::relationship::RelatedSpawnerCommands,
@@ -28,17 +29,29 @@ use super::{
     layer,
 };
 use crate::{
-    camera::EditorRig,
-    config::{EditorFoot, EditorRail, PlayButton, RailTab, SelectedNode},
+    config::{EditorFoot, EditorRail, EditorViewType, PlayButton, SelectedNode},
     history::{redo_item, undo_item},
     node::{EditContext, ShipNode},
     placement::continue_to_simulation,
     tool::{pick_tool, swap_handle_space, GizmoSpaceType, StageTool, StageToolType},
-    ui::menu::{MenuHistoryItem, ShipMenuItem, UnsavedMark},
+    ui::{
+        menu::{MenuHistoryItem, UnsavedMark},
+        menu_context::{MenuVerbType, VerbHint},
+    },
 };
 
-/// The height of the open browser strip. Fixed: nothing resizes a panel.
-pub(crate) const BROWSER_H: f32 = 140.0;
+/// The open browser strip's opening height, as a share of the window: 220 px
+/// at 1080, 147 at 720.
+const BROWSER_SHARE: f32 = 220.0 / 1080.0;
+
+/// The shortest open strip: its tabs and three rows.
+const BROWSER_MIN_H: f32 = 100.0;
+
+/// The tallest open strip, as a share of the window. The stage keeps the rest.
+const BROWSER_MAX_SHARE: f32 = 0.6;
+
+/// How much of the window a folded strip takes: its tab row.
+const BROWSER_FOLDED_H: f32 = 32.0;
 
 /// The height of the foot row.
 pub(crate) const FOOT_H: f32 = 22.0;
@@ -58,7 +71,7 @@ const PASS_THROUGH: Pickable = Pickable {
 };
 
 /// Which panels are open. Lives for the session; nothing is persisted.
-#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Resource, Clone, Copy, Debug, PartialEq)]
 pub(crate) struct EditorPanels {
     /// The left panel.
     pub(crate) hierarchy: bool,
@@ -67,6 +80,9 @@ pub(crate) struct EditorPanels {
     pub(crate) inspector: bool,
     /// The body of the browser strip. Its tab row always stays.
     pub(crate) browser: bool,
+    /// The open strip's height as a share of the window, so it keeps its
+    /// proportion when the window changes.
+    browser_share: f32,
 }
 
 impl Default for EditorPanels {
@@ -75,7 +91,36 @@ impl Default for EditorPanels {
             hierarchy: true,
             inspector: true,
             browser: true,
+            browser_share: BROWSER_SHARE,
         }
+    }
+}
+
+/// `height`, inside the strip's limits. On a window too short for both, the
+/// floor wins: a strip with no rows is no strip.
+fn held_browser_height(height: f32, window_h: f32) -> f32 {
+    height.min(window_h * BROWSER_MAX_SHARE).max(BROWSER_MIN_H)
+}
+
+impl EditorPanels {
+    /// How tall the open strip stands in a window `window_h` tall.
+    pub(crate) fn browser_height(&self, window_h: f32) -> f32 {
+        held_browser_height(self.browser_share * window_h, window_h)
+    }
+
+    /// How much of the window's height the strip takes, open or folded.
+    pub(crate) fn browser_taken(&self, window_h: f32) -> f32 {
+        if self.browser {
+            self.browser_height(window_h)
+        } else {
+            BROWSER_FOLDED_H
+        }
+    }
+
+    /// Move the strip's top edge down by `pull` pixels.
+    pub(crate) fn resize_browser(&mut self, pull: f32, window_h: f32) {
+        let height = self.browser_height(window_h) - pull;
+        self.browser_share = held_browser_height(height, window_h) / window_h;
     }
 }
 
@@ -92,6 +137,10 @@ pub(crate) struct ScriptDetail;
 
 /// The Inspector's width beside the canvas: the page is laid out for it.
 pub(crate) const DETAIL_W: f32 = INSPECTOR_W;
+
+/// The form's column width in the Form view: a field row reads at it, and the
+/// row does not stretch across a wide window.
+pub(crate) const FORM_W: f32 = 640.0;
 
 /// The one bar along the top of the editor.
 #[derive(Component)]
@@ -117,15 +166,11 @@ pub(crate) struct SpaceButton;
 #[derive(Component)]
 pub(crate) struct SnapButton;
 
-/// The bar's stage tools: the tool buttons, the axes, Snap, Parts and the speed
-/// dial. Events has no stage, so [`sync_panels`] hides them there. Hidden, not
+/// The bar's stage tools: the tool buttons, the axes, Snap and Parts. Events
+/// and Form have no stage, so [`sync_panels`] hides them there. Hidden, not
 /// taken out of the layout, so nothing beside them moves on a tab change.
 #[derive(Component)]
 pub(crate) struct StageTools;
-
-/// The toolbar readout of the fly speed.
-#[derive(Component)]
-pub(crate) struct SpeedReadout;
 
 /// What a top bar button says with room, and with little.
 #[derive(Component, Clone, Copy)]
@@ -139,17 +184,9 @@ pub(crate) struct BarWord {
 #[derive(Component)]
 pub(crate) struct ShipStepButton;
 
-/// A toolbar button that turns the speed dial by this many notches.
-#[derive(Component, Clone, Copy)]
-pub(crate) struct SpeedStep(pub(crate) i32);
-
 /// The foot's count of marked nodes.
 #[derive(Component)]
 pub(crate) struct FootSelection;
-
-/// The foot's copy of the fly speed.
-#[derive(Component)]
-pub(crate) struct FootSpeed;
 
 /// One line of chrome text, on a single line.
 fn line(text: &str, size: f32, colour: UiColor) -> impl Bundle {
@@ -280,29 +317,6 @@ pub(crate) fn spawn_top_bar(root: &mut RelatedSpawnerCommands<ChildOf>) {
             },
         ))
         .with_children(|right| {
-            right.spawn((
-                Name::new("Speed Down Button"),
-                StageTools,
-                SpeedStep(-1),
-                Tooltip("Slower camera".to_string()),
-                bar_button("-"),
-                observe(on_speed_step),
-            ));
-            right.spawn((
-                Name::new("Speed Readout"),
-                StageTools,
-                SpeedReadout,
-                line("", density::TEXT, UiColor::Primary),
-            ));
-            right.spawn((
-                Name::new("Speed Up Button"),
-                StageTools,
-                SpeedStep(1),
-                Tooltip("Faster camera".to_string()),
-                bar_button("+"),
-                observe(on_speed_step),
-            ));
-            right.spawn((StageTools, bar_rule()));
             // A wrapper carries the clip. `Overflow::clip` bounds a node's
             // children, and a text node draws its own glyphs.
             right
@@ -400,9 +414,9 @@ fn spawn_tool_group(group: &mut RelatedSpawnerCommands<ChildOf>) {
     group.spawn((
         Name::new("Parts Button"),
         StageTools,
-        ShipMenuItem,
+        MenuVerbType::Parts,
+        VerbHint("Section catalog (Tab)"),
         GalleryAction::Open,
-        Tooltip("Section catalog (Tab)".to_string()),
         bar_button("Parts"),
     ));
     group.spawn((
@@ -483,7 +497,7 @@ pub(crate) fn script_detail() -> impl Bundle {
     )
 }
 
-/// The foot: the status line, the count, the speed, then the key hints.
+/// The foot: the status line, the count, then the key hints.
 pub(crate) fn spawn_foot(root: &mut RelatedSpawnerCommands<ChildOf>, legend: impl Bundle) {
     root.spawn((
         Name::new("Editor Foot"),
@@ -524,12 +538,6 @@ pub(crate) fn spawn_foot(root: &mut RelatedSpawnerCommands<ChildOf>, legend: imp
             Name::new("Foot Selection"),
             FootSelection,
             line("", 11.0, UiColor::Secondary),
-        ));
-        foot.spawn((
-            Name::new("Foot Speed"),
-            FootSpeed,
-            StageTools,
-            line("", 11.0, UiColor::Label),
         ));
         foot.spawn(legend);
     });
@@ -615,20 +623,6 @@ pub(crate) fn sync_ship_step(
     }
 }
 
-/// A toolbar press on the speed dial.
-fn on_speed_step(
-    activate: On<Activate>,
-    steps: Query<&SpeedStep>,
-    mut rigs: Query<&mut EditorRig>,
-) {
-    let Ok(SpeedStep(notches)) = steps.get(activate.entity) else {
-        return;
-    };
-    for mut rig in &mut rigs {
-        rig.turn_dial(*notches);
-    }
-}
-
 /// Show the panels [`EditorPanels`] and the rail tab ask for.
 ///
 /// Compared before writing rather than gated on `is_changed`: the panels are
@@ -636,7 +630,7 @@ fn on_speed_step(
 pub(crate) fn sync_panels(
     mut commands: Commands,
     panels: Res<EditorPanels>,
-    tab: Res<RailTab>,
+    tab: Res<EditorViewType>,
     popup: Res<BlockPopup>,
     mut rails: Query<&mut Node, (With<EditorRail>, Without<ScriptMount>, Without<EditorStage>)>,
     mut mounts: Query<&mut Node, (With<ScriptMount>, Without<EditorStage>)>,
@@ -663,9 +657,12 @@ pub(crate) fn sync_panels(
     >,
 ) {
     let events = tab.is_events();
+    // A form has no stage: its fields take the row, at a width a line of them
+    // reads at, and the tree of its one item would say nothing.
+    let form = *tab == EditorViewType::Form;
     let shown = |on: bool| if on { Display::Flex } else { Display::None };
     for mut node in &mut rails {
-        let display = shown(panels.hierarchy && !events);
+        let display = shown(panels.hierarchy && !events && !form);
         if node.display != display {
             node.display = display;
         }
@@ -679,7 +676,11 @@ pub(crate) fn sync_panels(
     // In Events this column is a block's pop-up, floating over the canvas. The
     // pop-up's system places it; this says only what kind of node it is.
     let floating = events && popup.is_open();
-    let detail_display = shown(if events { floating } else { panels.inspector });
+    let detail_display = shown(if events {
+        floating
+    } else {
+        panels.inspector || form
+    });
     for (entity, mut node) in &mut details {
         if node.display != detail_display {
             node.display = detail_display;
@@ -690,9 +691,19 @@ pub(crate) fn sync_panels(
                 POPUP_W,
                 UiRect::all(px(theme::BORDER_W)),
             )
+        } else if form {
+            (
+                PositionType::Relative,
+                FORM_W,
+                UiRect::horizontal(px(theme::BORDER_W)),
+            )
         } else {
             (PositionType::Relative, DETAIL_W, UiRect::ZERO)
         };
+        if node.position_type == position && !floating && node.width != px(width) {
+            node.width = px(width);
+            node.border = border;
+        }
         if node.position_type != position {
             node.position_type = position;
             node.width = px(width);
@@ -709,13 +720,21 @@ pub(crate) fn sync_panels(
     }
     // Events has no stage to keep clear: the mount takes the row, and the
     // stage's own labels sit below the chrome rung so nothing has to hide them.
-    let (mount_width, mount_grow) = if events {
+    let (mount_width, mount_grow) = if events || form {
         (Val::Auto, 1.0)
     } else {
         (px(INSPECTOR_W), 0.0)
     };
+    let justify = if form {
+        JustifyContent::Center
+    } else {
+        JustifyContent::FlexStart
+    };
     for mut node in &mut mounts {
-        let display = shown(panels.inspector || events);
+        let display = shown(panels.inspector || events || form);
+        if node.justify_content != justify {
+            node.justify_content = justify;
+        }
         if node.display != display {
             node.display = display;
         }
@@ -727,12 +746,12 @@ pub(crate) fn sync_panels(
         }
     }
     for mut node in &mut stages {
-        let display = shown(!events);
+        let display = shown(!events && !form);
         if node.display != display {
             node.display = display;
         }
     }
-    let tools = if events {
+    let tools = if events || form {
         Visibility::Hidden
     } else {
         Visibility::Inherited
@@ -748,20 +767,12 @@ pub(crate) fn sync_panels(
 pub(crate) fn sync_toolbar(
     mut commands: Commands,
     tool: Res<StageTool>,
-    rigs: Query<&EditorRig>,
     tools: Query<(Entity, &ToolButton, Has<Selected>)>,
     snaps: Query<(Entity, Has<Selected>), With<SnapButton>>,
     spaces: Query<&Children, With<SpaceButton>>,
     words: Query<(&BarWord, &Children)>,
     bars: Query<&ComputedNode, With<EditorTopBar>>,
     mut labels: Query<&mut Text, With<ButtonLabel>>,
-    mut speeds: Query<
-        &mut Text,
-        (
-            Or<(With<SpeedReadout>, With<FootSpeed>)>,
-            Without<ButtonLabel>,
-        ),
-    >,
 ) {
     for (entity, button, marked) in &tools {
         match (button.0 == tool.tool, marked) {
@@ -812,15 +823,6 @@ pub(crate) fn sync_toolbar(
                     text.0 = wanted.to_string();
                 }
             }
-        }
-    }
-    let Some(rig) = rigs.iter().next() else {
-        return;
-    };
-    let speed = format!("{:.0} m/s", rig.fly_speed().get());
-    for mut text in &mut speeds {
-        if text.0 != speed {
-            text.0.clone_from(&speed);
         }
     }
 }
@@ -939,7 +941,7 @@ mod tests {
         let mut app = App::new();
         app.init_resource::<ButtonInput<MouseButton>>()
             .init_resource::<StageTool>()
-            .init_resource::<RailTab>()
+            .init_resource::<EditorViewType>()
             .init_resource::<EditorStatus>()
             .init_resource::<Time>()
             .insert_resource(HeldPart(None));
@@ -1000,7 +1002,7 @@ mod tests {
     /// The rail, the mount and the stage under `sync_panels`.
     fn panel_app() -> (App, Entity, Entity, Entity) {
         let mut app = App::new();
-        app.init_resource::<RailTab>()
+        app.init_resource::<EditorViewType>()
             .init_resource::<EditorPanels>()
             .init_resource::<BlockPopup>()
             .add_systems(Update, sync_panels);
@@ -1015,7 +1017,7 @@ mod tests {
     #[test]
     fn the_events_tab_gives_the_mount_the_stage() {
         let (mut app, _, mount, stage) = panel_app();
-        *app.world_mut().resource_mut::<RailTab>() = RailTab::Events;
+        *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Events;
         app.update();
 
         let node = |entity| app.world().get::<Node>(entity).expect("a node");
@@ -1028,9 +1030,9 @@ mod tests {
     #[test]
     fn the_scene_tab_hands_the_stage_back() {
         let (mut app, _, mount, stage) = panel_app();
-        *app.world_mut().resource_mut::<RailTab>() = RailTab::Events;
+        *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Events;
         app.update();
-        *app.world_mut().resource_mut::<RailTab>() = RailTab::Scene;
+        *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Scene;
         app.update();
 
         let node = |entity| app.world().get::<Node>(entity).expect("a node");
@@ -1045,7 +1047,7 @@ mod tests {
     fn events_shows_no_hierarchy_or_inspector() {
         let (mut app, rail, mount, _) = panel_app();
         let detail = app.world_mut().spawn((ScriptDetail, Node::default())).id();
-        *app.world_mut().resource_mut::<RailTab>() = RailTab::Events;
+        *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Events;
         app.update();
 
         let display = |entity| app.world().get::<Node>(entity).expect("a node").display;
@@ -1072,11 +1074,11 @@ mod tests {
             )
         };
 
-        *app.world_mut().resource_mut::<RailTab>() = RailTab::Events;
+        *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Events;
         app.update();
         assert_eq!(seen(&app), (Visibility::Hidden, Display::Flex));
 
-        *app.world_mut().resource_mut::<RailTab>() = RailTab::Scene;
+        *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Scene;
         app.update();
         assert_eq!(seen(&app), (Visibility::Inherited, Display::Flex));
     }
@@ -1113,5 +1115,24 @@ mod tests {
         assert!(!crate::tool::snap_active(&tool, Some(&keys)));
         keys.release(KeyCode::ControlLeft);
         assert!(crate::tool::snap_active(&tool, Some(&keys)));
+    }
+
+    #[test]
+    fn the_strip_opens_in_proportion_to_the_window() {
+        let panels = EditorPanels::default();
+
+        assert_eq!(panels.browser_height(1080.0).round(), 220.0);
+        assert_eq!(panels.browser_height(720.0).round(), 147.0);
+    }
+
+    #[test]
+    fn a_resize_stops_at_the_limits() {
+        let mut panels = EditorPanels::default();
+
+        panels.resize_browser(-5000.0, 720.0);
+        assert_eq!(panels.browser_height(720.0).round(), 432.0);
+
+        panels.resize_browser(5000.0, 720.0);
+        assert_eq!(panels.browser_height(720.0).round(), 100.0);
     }
 }

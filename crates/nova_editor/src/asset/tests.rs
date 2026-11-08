@@ -3,20 +3,24 @@
 
 use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_assets::{mod_cache, prelude::ModQuarantine};
-use nova_gameplay::prelude::ItemDesignId;
+use nova_gameplay::prelude::{BuildRecipe, ItemDesignId};
 use nova_modding::prelude::{parse_content, serialize_content, Content};
 use nova_ship::prelude::{
-    GameSections, SectionCollider, SectionConfig, SectionKind, ThrusterSectionConfig,
+    GameSections, LinkPoint, LinkPointSkinType, SectionCollider, SectionConfig, SectionKind,
+    ThrusterSectionConfig,
 };
 
 use super::{
+    blank::blank_section,
     lowered_item, mesh_fault, mesh_of, section_of,
     verbs::{
-        add_asset, add_socket, delete_asset, duplicate_asset, glb_fault, import_mesh, rename_asset,
+        add_and_open, add_asset, add_socket, delete_asset, duplicate_asset, glb_fault, import_mesh,
+        rename_asset,
     },
     AssetNode, AssetPartType, SocketNode,
 };
 use crate::{
+    asset_index::AssetIndex,
     history::{
         commit_edit_now,
         tests::{assert_one_step_of, depth, first_with, undo},
@@ -42,10 +46,69 @@ use crate::{
 /// A real model, as an import would find it on disk.
 const HULL_GLB: &str = "../../assets/base/gltf/dock_flush.glb";
 
-/// Open a new mod `id` holding a plain hull on the bench, and say its id.
+/// The six faces of a cell and the socket id each takes on the test hull.
+const FACES: [(Vec3, &str); 6] = [
+    (Vec3::X, "positive_x"),
+    (Vec3::NEG_X, "negative_x"),
+    (Vec3::Y, "positive_y"),
+    (Vec3::NEG_Y, "negative_y"),
+    (Vec3::Z, "positive_z"),
+    (Vec3::NEG_Z, "negative_z"),
+];
+
+/// A one-cell hull that lints clean: a socket on each face, and the recipe of
+/// the first hull the project can see.
+fn test_hull(app: &mut App) -> Content {
+    let build = app
+        .world_mut()
+        .run_system_once(|index: AssetIndex, project: Res<ModProject>| {
+            index
+                .visible_packs(&project.data.meta.dependencies)
+                .iter()
+                .flat_map(|pack| pack.items.iter())
+                .find_map(|item| match item {
+                    Content::Section(config) if matches!(config.kind, SectionKind::Hull(_)) => {
+                        Some(config.base.build.clone())
+                    }
+                    _ => None,
+                })
+        })
+        .expect("the index reads")
+        .unwrap_or(BuildRecipe {
+            credits: 1,
+            strip_yield: 0.5,
+            ..default()
+        });
+    let mut config = blank_section("Hull").expect("a hull has a blank");
+    let namespace = app
+        .world()
+        .resource::<ModProject>()
+        .namespace
+        .replace('-', "_");
+    config.base.id = format!("{namespace}__plain_hull");
+    config.base.name = "Plain Hull".to_string();
+    config.base.health = 100.0;
+    config.base.build = build;
+    config.base.advancement = 0.1;
+    config.base.draw_weight = 1.0;
+    config.base.collider = Some(SectionCollider::Cuboid { size: Vec3::ONE });
+    config.base.link_points = FACES
+        .iter()
+        .map(|(normal, id)| LinkPoint {
+            id: (*id).to_string(),
+            position: *normal * 0.5,
+            normal: *normal,
+            skin: LinkPointSkinType::Clad,
+        })
+        .collect();
+    Content::Section(Box::new(config))
+}
+
+/// Open a new mod `id` holding the test hull on the bench, and say its id.
 fn section_mod(app: &mut App, id: &str) -> String {
     new_mod(app, id);
-    add_asset(app.world_mut(), "section", None);
+    let hull = test_hull(app);
+    add_and_open(app.world_mut(), "Add Section".to_string(), hull);
     app.update();
     data(app).open.clone().expect("the section is open").id
 }
@@ -485,6 +548,37 @@ fn an_error_in_a_section_stops_save() {
     assert_ne!(held.map(|config| config.base.health), Some(-5.0));
 }
 
+/// `+ Add` makes a blank of the asked kind and opens it, as one step. A blank
+/// copies nothing, so what the format refuses in it is a fault until filled.
+#[test]
+fn a_new_section_is_a_blank_of_its_kind_and_waits_to_be_filled() {
+    let _disk = disk();
+    let mut app = project_app();
+    load_bundle(&mut app, "base", &[]);
+    new_mod(&mut app, "editor_blank");
+    let before = depth(&app);
+
+    add_asset(app.world_mut(), "section", Some("Thruster"));
+    app.update();
+
+    assert_eq!(depth(&app), before + 1, "the add is one step");
+    let open = data(&app).open.clone().expect("the new section is open");
+    assert_eq!(open.kind, "section");
+    let config = section(&app);
+    assert_eq!(config.base.id, open.id);
+    assert_eq!(config.base.name, "New Thruster");
+    assert!(config.base.link_points.is_empty(), "no socket is copied in");
+    let SectionKind::Thruster(thruster) = &config.kind else {
+        panic!("the kind asked for: {:?}", config.kind);
+    };
+    assert_eq!(thruster.magnitude, 0.0);
+    let faults = asset_faults(app.world_mut());
+    assert!(
+        faults.iter().any(|fault| fault.contains("draw_weight")),
+        "a zero the format refuses is a fault: {faults:?}"
+    );
+}
+
 /// A thruster that fires through a face holding a socket is a generator fault,
 /// raised while it is edited and not at the first world that loads it.
 #[test]
@@ -590,7 +684,7 @@ fn each_form_kind_round_trips_equal() {
         if !opens.is_some_and(|row| row.opens) {
             continue;
         }
-        let rows = asset_rows(&item);
+        let rows = asset_rows(&item, &Default::default());
         assert!(!rows.is_empty(), "{} has a form", item.kind());
         let mut held = item.clone();
         for row in rows {
@@ -801,7 +895,7 @@ fn a_new_item_takes_no_id_another_kind_holds() {
         project.edit().add_item(item_named(&taken), &file);
     }
 
-    add_asset(app.world_mut(), "section", None);
+    add_asset(app.world_mut(), "section", Some("Hull"));
     app.update();
 
     let minted = data(&app).open.clone().expect("the section is open").id;
@@ -845,4 +939,100 @@ fn a_rename_refuses_an_id_another_kind_holds() {
     app.update();
 
     assert!(data(&app).item("section", &id).is_some());
+}
+
+/// The files the Assets tab lists, read from the store as the tab reads them.
+fn listed_files(app: &App, id: &str) -> Vec<super::files::ModFile> {
+    let project = app.world().resource::<ModProject>();
+    super::files::mod_files(project, &crate::project::store::files_of(id))
+}
+
+/// The Assets tab lists the folder as the packager sees it: a file the
+/// manifest does not declare is marked out of the package, a declared file the
+/// folder lacks is marked missing, and the manifest and content files are not
+/// files of the tab.
+#[test]
+fn the_file_list_marks_what_the_package_leaves_out() {
+    let _disk = disk();
+    let mut app = project_app();
+    section_mod(&mut app, "editor_files");
+    save_project(app.world_mut());
+    import_mesh(app.world_mut(), HULL_GLB);
+    app.update();
+    crate::project::store::write_mod_file("editor_files", "notes.txt", b"notes".to_vec())
+        .expect("the stray file writes");
+    app.world_mut()
+        .resource_mut::<ModProject>()
+        .edit()
+        .resources
+        .push("gone.png".to_string());
+
+    let listed: Vec<(String, &str, bool, bool)> = listed_files(&app, "editor_files")
+        .into_iter()
+        .map(|file| {
+            let kind = super::files::file_kind(&file.path);
+            (file.path, kind, file.packaged, file.on_disk)
+        })
+        .collect();
+
+    assert_eq!(
+        listed,
+        vec![
+            ("gone.png".to_string(), "image", true, false),
+            ("dock_flush.glb".to_string(), "mesh", true, true),
+            ("notes.txt".to_string(), "file", false, true),
+        ]
+    );
+}
+
+/// Import File copies the file and declares it as one step. The undo takes
+/// the declaration back, and the copy stays in the folder, marked.
+#[test]
+fn an_imported_file_is_declared_as_one_step() {
+    let _disk = disk();
+    let mut app = project_app();
+    section_mod(&mut app, "editor_import_file");
+    save_project(app.world_mut());
+    let sound = tempfile::tempdir().expect("a scratch dir");
+    let path = sound.path().join("Engine Hum.ogg");
+    std::fs::write(&path, b"OggS").expect("the scratch file writes");
+    let read = |app: &mut App| format!("{:?}", data(app).resources);
+
+    assert_one_step_of(&mut app, "Import File", read, |app| {
+        super::files::import_file(app.world_mut(), &path.display().to_string());
+    });
+
+    assert_eq!(data(&app).resources, vec!["engine_hum.ogg".to_string()]);
+    undo(&mut app);
+    let listed = listed_files(&app, "editor_import_file");
+    assert_eq!(listed.len(), 1);
+    assert!(listed[0].on_disk && !listed[0].packaged, "{listed:?}");
+}
+
+/// A file the content names is not deleted, and the refusal names the item
+/// that uses it.
+#[test]
+fn a_file_in_use_is_not_deleted_and_the_refusal_names_the_user() {
+    let _disk = disk();
+    let mut app = project_app();
+    app.init_resource::<super::files::ModFolder>();
+    let section = section_mod(&mut app, "editor_used_file");
+    save_project(app.world_mut());
+    import_mesh(app.world_mut(), HULL_GLB);
+    app.update();
+    let steps = depth(&app);
+
+    super::files::delete_file(app.world_mut(), "dock_flush.glb");
+    app.update();
+
+    assert_eq!(depth(&app), steps, "nothing changed");
+    assert_eq!(data(&app).resources, vec!["dock_flush.glb".to_string()]);
+    let line = app
+        .world()
+        .resource::<crate::config::EditorStatus>()
+        .line()
+        .map(|(line, _)| line.to_string())
+        .unwrap_or_default();
+    assert!(line.contains(&section), "{line}");
+    assert!(mod_cache::prelude::read_mod_file("editor_used_file", "dock_flush.glb").is_some());
 }

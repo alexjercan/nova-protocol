@@ -579,11 +579,7 @@ impl SandboxGestures for Script {
         let mut script = self
             .step(format!("{label}: aim"))
             .on_enter(move |world: &mut World| {
-                let origin = world
-                    .resource::<EditorProbe>()
-                    .inside_origin
-                    .unwrap_or(Vec3::ZERO);
-                let at = aim_at_world(world, origin + socket).expect("that face is on screen");
+                let at = aim_at_world(world, socket).expect("that face is on screen");
                 move_cursor(at)(world);
             })
             .until(editor_placement_solved())
@@ -682,12 +678,8 @@ fn thruster_of(world: &World) -> Option<&EditorSection> {
 /// stage camera sees.
 #[cfg(feature = "debug")]
 fn thruster_aim(world: &mut World) -> Option<Vec2> {
-    let origin = world
-        .resource::<EditorProbe>()
-        .inside_origin
-        .unwrap_or(Vec3::ZERO);
     let centre = thruster_of(world)?.position;
-    aim_at_world(world, origin + centre + STERN_FACE)
+    aim_at_world(world, centre + STERN_FACE)
 }
 
 /// Advance once the click marked the thruster.

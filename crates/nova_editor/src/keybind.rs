@@ -183,7 +183,7 @@ pub(crate) fn sync_section_keybind_labels(
 ///
 /// Runs in `Update`, so it reads the previous frame's `GlobalTransform` - a
 /// one-frame lag that is invisible for a near-static editor scene (only the
-/// WASD camera moves). If labels ever need to track fast motion exactly, move
+/// camera moves). If labels ever need to track fast motion exactly, move
 /// this to `PostUpdate` after transform propagation (and mind bevy_ui layout
 /// ordering, as `screen_indicator` does).
 pub(crate) fn position_section_keybind_labels(

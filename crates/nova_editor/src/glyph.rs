@@ -154,6 +154,14 @@ pub(crate) fn asset_mark(kind: &str) -> &'static str {
         "price table" => "\u{25b2}",
         // POSITION INDICATOR - a trade route's mark.
         "trade profile" => "\u{2316}",
+        // SQUARE WITH UPPER RIGHT TO LOWER LEFT FILL - a shaded picture.
+        "image" => "\u{25a8}",
+        // WHITE DIAMOND CONTAINING BLACK SMALL DIAMOND - a solid seen whole.
+        "mesh" => "\u{25c8}",
+        // EIGHTH NOTE - a sound.
+        "audio" => "\u{266a}",
+        // IDENTICAL TO - lines of text.
+        "file" => "\u{2261}",
         _ => "\u{25a1}",
     }
 }

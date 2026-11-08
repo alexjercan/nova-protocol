@@ -3,8 +3,9 @@
 //! A form is the config walked by reflection, the same walk a scenario's nodes
 //! get. What reflection cannot reach is written here by hand, as text with a
 //! rule: a section's mesh and its destroy sound are `#[reflect(ignore)]`, a
-//! build recipe's parts are a map, and a theme's palette and a campaign's
-//! member list are shapes the walk draws read-only.
+//! build recipe's parts are a map, and a campaign's member list is a shape the
+//! walk draws read-only. A theme's palette is a map too, drawn as a grid of
+//! swatches ([`RowValue::Palette`]).
 
 use std::collections::BTreeMap;
 
@@ -12,11 +13,12 @@ use bevy::{prelude::*, reflect::PartialReflect};
 use nova_modding::prelude::Content;
 use nova_scenario::prelude::Names;
 use nova_ship::prelude::{RenderMeshTransform, SectionCollider, SectionConfig};
+use nova_ui::theme::UiThemeConfig;
 
 use super::{
     fixed, name_row, pose_rows, rotation_degrees, rotation_from_degrees, section_config,
-    section_config_mut, walk, AssetSort, FieldRoot, InspectorRow, Limit, PathStep, RowValue,
-    TURN_STEP,
+    section_config_mut, walk, AssetSort, FieldRoot, InspectorRow, Limit, PaletteEntry, PathStep,
+    RowValue, TURN_STEP,
 };
 use crate::{
     asset::{
@@ -45,8 +47,6 @@ pub(crate) enum AssetTextType {
     DestroySound,
     /// A build recipe's parts, as `Item=2, Other=1`.
     Parts,
-    /// A theme's palette, as `name=#rrggbb, other=#rrggbb`.
-    Palette,
     /// A campaign's member scenarios, in play order, comma separated.
     Scenarios,
     /// Which shape a section's collider is.
@@ -60,7 +60,6 @@ impl AssetTextType {
             Self::Mesh => "Edit Mesh",
             Self::DestroySound => "Edit Destroy Sound",
             Self::Parts => "Edit Parts",
-            Self::Palette => "Edit Palette",
             Self::Scenarios => "Edit Scenarios",
             Self::ColliderShape => "Edit Collider Shape",
         }
@@ -254,12 +253,6 @@ pub(crate) fn item_text(item: &Content, kind: AssetTextType) -> String {
         (Content::Section(config), AssetTextType::ColliderShape) => {
             shape_word(config.base.collider).to_string()
         }
-        (Content::UiTheme(theme), AssetTextType::Palette) => theme
-            .palette
-            .iter()
-            .map(|(name, colour)| format!("{name}={colour}"))
-            .collect::<Vec<_>>()
-            .join(", "),
         (Content::Campaign(campaign), AssetTextType::Scenarios) => campaign.scenarios.join(", "),
         _ => String::new(),
     }
@@ -293,13 +286,6 @@ pub(crate) fn set_item_text(
             config.base.collider = reshaped(config.base.collider, text)?;
             Ok(())
         }
-        (Content::UiTheme(theme), AssetTextType::Palette) => {
-            theme.palette = pairs(text)?
-                .into_iter()
-                .map(|(name, colour)| (name.to_string(), colour.to_string()))
-                .collect();
-            Ok(())
-        }
         (Content::Campaign(campaign), AssetTextType::Scenarios) => {
             campaign.scenarios = text
                 .split(',')
@@ -328,7 +314,7 @@ fn mass_row(config: &SectionConfig) -> InspectorRow {
 fn section_rows(config: &SectionConfig, rows: &mut Vec<InspectorRow>) {
     rows.push(
         fixed(FieldRoot::Asset, "Kind", kind_mark(Some(&config.kind)).1)
-            .saying("Section kinds are code. Start from another prototype for another kind."),
+            .saying("Section kinds are code. Add > Sections asks for the kind of a new section."),
     );
     let mut base = Vec::new();
     walk(&config.base, FieldRoot::Asset, Vec::new(), &mut base);
@@ -391,7 +377,7 @@ fn kept_row(label: &str, text: String) -> InspectorRow {
 }
 
 /// The rows of a form kind.
-fn form_rows(item: &Content, rows: &mut Vec<InspectorRow>) {
+fn form_rows(item: &Content, inherited: &BTreeMap<String, String>, rows: &mut Vec<InspectorRow>) {
     let Some(config) = content_reflect(item) else {
         return;
     };
@@ -404,14 +390,7 @@ fn form_rows(item: &Content, rows: &mut Vec<InspectorRow>) {
         Content::UiTheme(theme) => {
             walked.retain(|row| !is_under(row, "palette"));
             rows.extend(walked);
-            rows.push(
-                text_row(
-                    AssetTextType::Palette,
-                    "Palette",
-                    item_text(item, AssetTextType::Palette),
-                )
-                .saying("Named colours, as name=#rrggbb, other=#rrggbb."),
-            );
+            rows.push(palette_row(theme, inherited));
             let roles = if theme.roles == Default::default() {
                 "none"
             } else {
@@ -445,8 +424,75 @@ fn form_rows(item: &Content, rows: &mut Vec<InspectorRow>) {
     }
 }
 
-/// The rows of the bench's root: the item itself.
-pub(crate) fn asset_rows(item: &Content) -> Vec<InspectorRow> {
+/// The palette `theme` takes from the themes it inherits: each ancestor's
+/// colours, the nearer over the farther. `lookup` finds a theme by id. A
+/// missing or repeated ancestor ends the walk; the lint names both faults.
+pub(crate) fn inherited_palette<'a>(
+    theme: &UiThemeConfig,
+    lookup: impl Fn(&str) -> Option<&'a UiThemeConfig>,
+) -> BTreeMap<String, String> {
+    let mut chain: Vec<&UiThemeConfig> = Vec::new();
+    let mut next = theme.inherit.as_deref();
+    while let Some(id) = next {
+        let Some(parent) = lookup(id) else {
+            break;
+        };
+        if parent.id == theme.id || chain.iter().any(|seen| seen.id == parent.id) {
+            break;
+        }
+        chain.push(parent);
+        next = parent.inherit.as_deref();
+    }
+    let mut palette = BTreeMap::new();
+    for ancestor in chain.iter().rev() {
+        palette.extend(ancestor.palette.clone());
+    }
+    palette
+}
+
+/// A theme's palette as one grid row: its own colours, and the ones it takes
+/// from `inherited`, the palette of the theme it inherits.
+fn palette_row(theme: &UiThemeConfig, inherited: &BTreeMap<String, String>) -> InspectorRow {
+    let mut entries: BTreeMap<&str, PaletteEntry> = inherited
+        .iter()
+        .map(|(name, hex)| {
+            let entry = PaletteEntry {
+                name: name.clone(),
+                hex: hex.clone(),
+                inherited: true,
+            };
+            (name.as_str(), entry)
+        })
+        .collect();
+    for (name, hex) in &theme.palette {
+        entries.insert(
+            name.as_str(),
+            PaletteEntry {
+                name: name.clone(),
+                hex: hex.clone(),
+                inherited: false,
+            },
+        );
+    }
+    let hint = match &theme.inherit {
+        Some(parent) => format!(
+            "Named colours. Press one to pick it. A dim name is {parent}'s until it is picked here."
+        ),
+        None => "Named colours. Press one to pick it.".to_string(),
+    };
+    InspectorRow {
+        value: RowValue::Palette(entries.into_values().collect()),
+        ..fixed(FieldRoot::PaletteColour, "Palette", "")
+    }
+    .saying(hint)
+}
+
+/// The rows of the bench's root: the item itself. `inherited` is the palette
+/// a UI theme takes from the themes it inherits, and empty for anything else.
+pub(crate) fn asset_rows(
+    item: &Content,
+    inherited: &BTreeMap<String, String>,
+) -> Vec<InspectorRow> {
     let mut rows = match item {
         Content::PriceTable(_) => vec![fixed(FieldRoot::Asset, "Id", item.id())
             .saying("A mod states one price table, and it replaces the base table whole.")],
@@ -454,7 +500,7 @@ pub(crate) fn asset_rows(item: &Content) -> Vec<InspectorRow> {
     };
     match item {
         Content::Section(config) => section_rows(config, &mut rows),
-        other => form_rows(other, &mut rows),
+        other => form_rows(other, inherited, &mut rows),
     }
     rows
 }

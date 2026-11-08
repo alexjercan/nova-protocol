@@ -12,15 +12,15 @@ use nova_ui::prelude::{take_keyboard_now, InputMode, TextFieldError};
 use super::{drag::rect_of, CanvasDrag, CHIP_TRAVEL};
 use crate::{
     camera::ViewportPointer,
-    config::{RailTab, SelectedNode},
+    config::{EditorViewType, SelectedNode},
     event::ScriptNodes,
     history::{cancel_edits_since, fold_edits_since, EditHistory},
     project::verbs::refuse,
     ui::{
         inspector::{InspectorField, InspectorList},
         layer,
+        picker::ColourWindow,
         shell::{ScriptDetail, ScriptMount},
-        window::ColourWindow,
     },
     ExampleStates,
 };
@@ -141,7 +141,7 @@ pub(crate) fn on_more_chip(
 pub(crate) fn settle_block_popup(
     mut commands: Commands,
     mut popup: ResMut<BlockPopup>,
-    rail: Res<RailTab>,
+    rail: Res<EditorViewType>,
     script: ScriptNodes,
     refused: Query<(), (With<InspectorField>, With<TextFieldError>)>,
 ) {

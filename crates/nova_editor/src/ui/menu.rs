@@ -27,7 +27,7 @@ use nova_ui::{
 
 use super::shell::EditorPanels;
 use crate::{
-    config::{EditorOverlays, EditorSays, SelectedNode},
+    config::{EditorOverlays, EditorSays},
     history::EditHistory,
     tool::{swap_handle_space, GizmoSpaceType, StageTool},
     ui::layer,
@@ -47,9 +47,8 @@ pub(crate) enum MenuId {
     View,
     /// Everything that puts a new node in the document.
     Add,
-    /// The verbs of the ship you are inside: arm a part, arm the delete tool,
-    /// rebind a key. Greyed out at the scenario node, where there is no ship
-    /// for any of them to act on.
+    /// The verbs of the ship you are inside: arm a part, pose it, rebind a
+    /// key. Shown only in a ship, where they have something to act on.
     Ship,
 }
 
@@ -161,6 +160,10 @@ pub(crate) enum MenuLead<'a> {
 #[derive(Component)]
 pub(crate) struct MenuLeadMark;
 
+/// The tail column of a row, so the paint pass can find it.
+#[derive(Component)]
+pub(crate) struct MenuTailMark;
+
 /// The chip half of a row's tail, so the paint pass can find it.
 #[derive(Component)]
 pub(crate) struct MenuKeyChip;
@@ -171,9 +174,10 @@ const TAIL_FONT: f32 = 11.0;
 /// One item row: the same `ListRow` shape the rail's rows wear, so the shared
 /// reconciler paints the hover and this module owns no colour.
 ///
-/// Every row has exactly three children - the lead, the label and the tail - so
-/// [`sync_menu_item_paint`] and [`sync_view_menu_marks`] can reach any of them
-/// by position rather than by search.
+/// Every row has a lead, a label and a tail, each with its own marker, so
+/// [`sync_menu_item_paint`] and [`sync_view_menu_marks`] find them by marker. A
+/// row may hold other children: a [`MenuVerbType`](super::menu_context::MenuVerbType)
+/// row's `Tooltip` spawns its panel as the FIRST child.
 pub(crate) fn menu_item_row(label: &str, lead: MenuLead, tail: MenuTail) -> impl Bundle {
     (
         ListRow,
@@ -205,6 +209,13 @@ pub(crate) fn menu_item_row(label: &str, lead: MenuLead, tail: MenuTail) -> impl
                     ..default()
                 },
                 TextColor(Color::NONE),
+                // One line. A wrappable label let the dropdown's auto height
+                // be measured at a narrower width: a long Undo name left an
+                // empty row's height under the last row.
+                TextLayout {
+                    linebreak: LineBreak::NoWrap,
+                    ..default()
+                },
                 // GROWS, which is what right-aligns the tail: three children in
                 // a row cannot be spaced apart without pushing the label to the
                 // middle of the menu.
@@ -251,12 +262,12 @@ fn menu_item_lead(lead: MenuLead) -> impl Bundle {
 
 /// The row's right-hand column.
 ///
-/// Always spawned, even when there is nothing to say: the paint pass and the
-/// toggle marks both reach the tail as the row's second child, and a row that
-/// sometimes has one child would make that a search.
+/// Always spawned, even when there is nothing to say, so every row has the
+/// same columns.
 fn menu_item_tail(tail: MenuTail) -> impl Bundle {
     let tail = tail.owned();
     (
+        MenuTailMark,
         Node::default(),
         Children::spawn(SpawnWith(
             move |parent: &mut RelatedSpawner<ChildOf>| match &tail {
@@ -460,6 +471,7 @@ pub(crate) fn sync_view_menu_marks(
     panels: Res<EditorPanels>,
     tool: Res<StageTool>,
     marks: Query<(&ViewToggle, &Children)>,
+    leads: Query<(), With<MenuLeadMark>>,
     mut texts: Query<&mut Text>,
 ) {
     for (toggle, children) in &marks {
@@ -475,7 +487,7 @@ pub(crate) fn sync_view_menu_marks(
             ViewToggle::Browser => panels.browser,
             ViewToggle::LocalAxes => tool.space == GizmoSpaceType::Local,
         };
-        let Some(lead) = children.iter().next() else {
+        let Some(lead) = children.iter().find(|child| leads.contains(*child)) else {
             continue;
         };
         let Ok(mut text) = texts.get_mut(lead) else {
@@ -519,7 +531,7 @@ pub(crate) enum ViewToggle {
 /// only paint path - one writer for one component, and a theme flip reaches an
 /// open menu. Painted by a system rather than baked in at spawn because
 /// Edit > Delete greys and ungreys with the selection (see
-/// [`sync_menu_delete`]) - and a row that only says "disabled" in its border
+/// `crate::ui::menu_context`) - and a row that only says "disabled" in its border
 /// is a row a builder keeps pressing.
 const ITEM_LABEL: UiColor = UiColor::Primary;
 /// The right-hand column: the shortcut, or a toggle's on/off mark.
@@ -536,6 +548,7 @@ const DISABLED_ALPHA: f32 = 0.35;
 pub(crate) fn sync_menu_item_paint(
     theme: Res<ActiveUiTheme>,
     items: Query<(Has<InteractionDisabled>, &Children), With<MenuItem>>,
+    parts: Query<(Has<MenuLeadMark>, Has<MenuItemLabel>, Has<MenuTailMark>)>,
     tails: Query<&Children>,
     chips: Query<Has<MenuKeyChip>>,
     mut texts: Query<&mut TextColor>,
@@ -545,14 +558,17 @@ pub(crate) fn sync_menu_item_paint(
     let item_mark = theme.color(ITEM_MARK);
     let chip_ink = theme.color(UiColor::Accent);
     for (disabled, children) in &items {
-        let mut children = children.iter();
-        if let Some(lead) = children.next() {
-            paint_text(&mut texts, lead, item_mark, disabled);
+        for &part in children {
+            match parts.get(part) {
+                Ok((true, _, _)) => paint_text(&mut texts, part, item_mark, disabled),
+                Ok((_, true, _)) => paint_text(&mut texts, part, item_label, disabled),
+                _ => {}
+            }
         }
-        if let Some(label) = children.next() {
-            paint_text(&mut texts, label, item_label, disabled);
-        }
-        let Some(tail) = children.next() else {
+        let Some(tail) = children
+            .iter()
+            .find(|&child| parts.get(child).is_ok_and(|(_, _, tail)| tail))
+        else {
             continue;
         };
         let Some(&tail) = tails.get(tail).ok().and_then(|kids| kids.first()) else {
@@ -591,34 +607,6 @@ fn alpha_if(colour: Color, disabled: bool) -> Color {
         colour.with_alpha(colour.alpha() * DISABLED_ALPHA)
     } else {
         colour
-    }
-}
-
-/// Grey Edit > Delete unless the selection is something that can be deleted.
-///
-/// A PART counts. The row used to grey the moment a section was selected and
-/// say nothing about where the verb had gone - it had gone to a brush in
-/// another menu, under another name.
-pub(crate) fn sync_menu_delete(
-    mut commands: Commands,
-    selected: Res<SelectedNode>,
-    context: Res<crate::node::EditContext>,
-    nodes: Query<(), crate::placement::DeletableNode>,
-    items: Query<(Entity, Has<InteractionDisabled>), With<MenuDeleteItem>>,
-) {
-    let armable = selected
-        .iter()
-        .any(|node| crate::placement::deletable(node, &context, &nodes));
-    for (entity, marked) in &items {
-        match (armable, marked) {
-            (false, false) => {
-                commands.entity(entity).insert(InteractionDisabled);
-            }
-            (true, true) => {
-                commands.entity(entity).remove::<InteractionDisabled>();
-            }
-            _ => {}
-        }
     }
 }
 
@@ -693,144 +681,14 @@ pub(crate) fn sync_unsaved_mark(
     }
 }
 
-/// Edit > Delete's row, so [`sync_menu_delete`] can find it.
-#[derive(Component)]
-pub(crate) struct MenuDeleteItem;
-
-/// A row of the Ship menu that needs a ship to act on, so [`sync_ship_menu`]
-/// can grey it at the scenario node.
-///
-/// Rebind is NOT one of these: it needs a bindable section as well, and
-/// `crate::ui::sync_rebind_button` already paints that stricter rule.
-#[derive(Component)]
-pub(crate) struct ShipMenuItem;
-
-/// Grey the Ship menu's rows at the scenario node and in Events.
-///
-/// Greyed rather than absent, the same as File > Save: the menu says what the
-/// editor can do INSIDE a ship even while you are standing outside one, which
-/// is also how a builder finds out that entering a ship is what unlocks it.
-pub(crate) fn sync_ship_menu(
-    mut commands: Commands,
-    context: Res<crate::node::EditContext>,
-    rail: Res<crate::config::RailTab>,
-    items: Query<(Entity, Has<InteractionDisabled>), With<ShipMenuItem>>,
-) {
-    let inside = context.ship().is_some() && !rail.is_events();
-    for (entity, marked) in &items {
-        match (inside, marked) {
-            (false, false) => {
-                commands.entity(entity).insert(InteractionDisabled);
-            }
-            (true, true) => {
-                commands.entity(entity).remove::<InteractionDisabled>();
-            }
-            _ => {}
-        }
-    }
-}
-
-/// An Add menu row that acts on the SCENARIO - a ship, a rock, a beacon - so
-/// [`sync_scenario_menu`] can grey it while the editor stands inside a ship.
-#[derive(Component)]
-pub(crate) struct ScenarioMenuItem;
-
-/// Grey the world palette while the editor is inside a ship.
-///
-/// The exact mirror of [`sync_ship_menu`], and for the same reason: Add used to
-/// answer "Asteroid" inside a ship by putting a rock under the scenario, then
-/// marking it - handing back a selection the stage had hidden, the tree did not
-/// list, and the handles would not touch. Add > Ship was worse: it built a ship
-/// and silently moved you into it.
-pub(crate) fn sync_scenario_menu(
-    mut commands: Commands,
-    context: Res<crate::node::EditContext>,
-    items: Query<(Entity, Has<InteractionDisabled>), With<ScenarioMenuItem>>,
-    benches: Query<(), With<crate::asset::AssetNode>>,
-) {
-    let inside = context.ship().is_some() || !benches.is_empty();
-    for (entity, marked) in &items {
-        match (inside, marked) {
-            (true, false) => {
-                commands.entity(entity).insert(InteractionDisabled);
-            }
-            (false, true) => {
-                commands.entity(entity).remove::<InteractionDisabled>();
-            }
-            _ => {}
-        }
-    }
-}
-
-/// Which half of the Add menu a block holds.
-///
-/// Add means "one more node HERE", and the MODE is most of what here means: in
-/// SCENE the document takes ships and rocks, in EVENTS it takes handlers and
-/// their parts. The two halves used to be one list where half the rows were
-/// greyed, which asked a builder to read past six dead rows to find the one
-/// their mode could press.
-#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum AddPalette {
-    /// What SCENE can put on the board.
-    World,
-    /// What EVENTS can put in the script.
-    Script,
-}
-
-/// The block of rows one palette holds, so a mode can hide the other whole -
-/// its separators included, which a per-row marker could not.
+/// A block of menu rows that shows or hides whole, its separators included,
+/// which a per-row rule could not.
 pub(crate) fn palette_block() -> Node {
     Node {
         width: percent(100),
         flex_direction: FlexDirection::Column,
         align_items: AlignItems::Stretch,
         ..default()
-    }
-}
-
-/// Show the palette the mode can use, and hide the other.
-pub(crate) fn sync_add_palette(
-    tab: Res<crate::config::RailTab>,
-    mut blocks: Query<(&AddPalette, &mut Node)>,
-) {
-    let events = tab.is_events();
-    for (palette, mut node) in &mut blocks {
-        let wanted = if (*palette == AddPalette::Script) == events {
-            Display::Flex
-        } else {
-            Display::None
-        };
-        if node.display != wanted {
-            node.display = wanted;
-        }
-    }
-}
-
-/// A Ship menu row that needs a part IN HAND, not just a ship - the pose verbs.
-#[derive(Component)]
-pub(crate) struct ArmedMenuItem;
-
-/// Grey the pose verbs unless there is a part in hand for them to turn.
-///
-/// A stricter rule than [`sync_ship_menu`]'s, and its own system rather than a
-/// branch inside it: these rows are live only in the one state R, F and the
-/// wheel do anything in, so the menu is also where that state is reported.
-pub(crate) fn sync_armed_menu(
-    mut commands: Commands,
-    choice: Res<nova_ship::prelude::HeldPart>,
-    items: Query<(Entity, Has<InteractionDisabled>), With<ArmedMenuItem>>,
-) {
-    let armed = matches!(*choice, nova_ship::prelude::HeldPart(Some(_)));
-    for (entity, marked) in &items {
-        match (armed, marked) {
-            (false, false) => {
-                commands.entity(entity).insert(InteractionDisabled);
-            }
-            (true, true) => {
-                commands.entity(entity).remove::<InteractionDisabled>();
-            }
-            _ => {}
-        }
     }
 }
 
@@ -876,30 +734,6 @@ mod tests {
 
     fn display(world: &World, entity: Entity) -> Display {
         world.get::<Node>(entity).expect("a node").display
-    }
-
-    /// Add shows the palette the MODE can use and hides the other. A menu
-    /// listing six dead script rows in Scene asks a builder to read past them
-    /// to find the row their mode can press.
-    #[test]
-    fn add_shows_only_the_palette_the_mode_can_use() {
-        let mut world = World::new();
-        world.insert_resource(crate::config::RailTab::Scene);
-        let scene_half = world.spawn((AddPalette::World, palette_block())).id();
-        let events_half = world.spawn((AddPalette::Script, palette_block())).id();
-
-        world
-            .run_system_once(sync_add_palette)
-            .expect("the sync runs");
-        assert_eq!(display(&world, scene_half), Display::Flex);
-        assert_eq!(display(&world, events_half), Display::None);
-
-        *world.resource_mut::<crate::config::RailTab>() = crate::config::RailTab::Events;
-        world
-            .run_system_once(sync_add_palette)
-            .expect("the sync runs");
-        assert_eq!(display(&world, scene_half), Display::None);
-        assert_eq!(display(&world, events_half), Display::Flex);
     }
 
     /// One menu hangs open at a time, and the scrim goes up with it: a bar
@@ -1010,92 +844,44 @@ mod tests {
     }
 
     /// What a row's LEAD says, read the way the sync writes it: the mark is the
-    /// row's first child.
+    /// row's [`MenuLeadMark`] child.
     fn toggle_mark(world: &World, row: Entity) -> String {
-        let lead = world.get::<Children>(row).expect("the row has children")[0];
+        let lead = world
+            .get::<Children>(row)
+            .expect("the row has children")
+            .iter()
+            .find(|child| world.get::<MenuLeadMark>(*child).is_some())
+            .expect("the row has a lead");
         world.get::<Text>(lead).expect("the mark").0.clone()
     }
 
-    /// The Ship menu's rows need a ship. At the scenario node they are greyed
-    /// rather than gone: the menu is where a builder reads what entering a
-    /// ship would unlock.
+    /// A row whose first child is not its lead still has its label painted. A
+    /// verb row's `Tooltip` spawns its panel as the first child, and the Add >
+    /// Section rows drew with no label when the paint read children by place.
     #[test]
-    fn the_ship_rows_are_greyed_outside_a_ship() {
-        use crate::node::{ScenarioNode, ShipNode};
-
+    fn a_row_with_a_tooltip_panel_first_still_paints_its_label() {
         let mut world = World::new();
-        world.init_resource::<crate::node::EditContext>();
-        world.init_resource::<crate::config::RailTab>();
-        let scenario = world.spawn(ScenarioNode::default()).id();
-        let ship = world.spawn(ShipNode::default()).id();
-        world.resource_mut::<crate::node::EditContext>().path = vec![scenario];
-        let row = world.spawn(ShipMenuItem).id();
+        world.init_resource::<ActiveUiTheme>();
+        let row = world
+            .spawn(menu_item_row("Socket", MenuLead::None, MenuTail::None))
+            .id();
+        let panel = world.spawn(Node::default()).id();
+        world.entity_mut(row).insert_children(0, &[panel]);
 
         world
-            .run_system_once(sync_ship_menu)
-            .expect("the sync runs");
-        assert!(world.entity(row).contains::<InteractionDisabled>());
+            .run_system_once(sync_menu_item_paint)
+            .expect("the paint runs");
 
-        world.resource_mut::<crate::node::EditContext>().enter(ship);
-        world
-            .run_system_once(sync_ship_menu)
-            .expect("the sync runs");
-        assert!(!world.entity(row).contains::<InteractionDisabled>());
-    }
-
-    /// And the mirror: the world palette needs the scenario node. Inside a
-    /// ship, Add > Asteroid used to build a rock out in a world the stage was
-    /// no longer showing and then mark it.
-    #[test]
-    fn the_world_palette_is_greyed_inside_a_ship() {
-        use crate::node::{ScenarioNode, ShipNode};
-
-        let mut world = World::new();
-        world.init_resource::<crate::node::EditContext>();
-        let scenario = world.spawn(ScenarioNode::default()).id();
-        let ship = world.spawn(ShipNode::default()).id();
-        world.resource_mut::<crate::node::EditContext>().path = vec![scenario];
-        let row = world.spawn(ScenarioMenuItem).id();
-
-        world
-            .run_system_once(sync_scenario_menu)
-            .expect("the sync runs");
-        assert!(
-            !world.entity(row).contains::<InteractionDisabled>(),
-            "at the scenario node the world palette is what Add is for"
+        let label = world
+            .get::<Children>(row)
+            .expect("the row has children")
+            .iter()
+            .find(|child| world.get::<MenuItemLabel>(*child).is_some())
+            .expect("the row has a label");
+        let wanted = world.resource::<ActiveUiTheme>().color(ITEM_LABEL);
+        assert_eq!(
+            world.get::<TextColor>(label).map(|colour| colour.0),
+            Some(wanted)
         );
-
-        world.resource_mut::<crate::node::EditContext>().enter(ship);
-        world
-            .run_system_once(sync_scenario_menu)
-            .expect("the sync runs");
-        assert!(world.entity(row).contains::<InteractionDisabled>());
-    }
-
-    /// Edit > Delete arms on a handler the same way it arms on a rock: the
-    /// script is nodes, and the one gesture that removes a node removes those
-    /// too.
-    #[test]
-    fn delete_arms_on_a_script_node() {
-        use crate::{
-            config::SelectedNode,
-            event::EventNode,
-            node::{EditContext, ScenarioNode},
-        };
-
-        let mut world = World::new();
-        world.init_resource::<EditContext>();
-        world.init_resource::<SelectedNode>();
-        let scenario = world.spawn(ScenarioNode::default()).id();
-        world.resource_mut::<EditContext>().path = vec![scenario];
-        let handler = world.spawn(EventNode::default()).id();
-        world.resource_mut::<SelectedNode>().set(Some(handler));
-        let row = world.spawn(MenuDeleteItem).id();
-
-        world
-            .run_system_once(sync_menu_delete)
-            .expect("the sync runs");
-
-        assert!(!world.entity(row).contains::<InteractionDisabled>());
     }
 }

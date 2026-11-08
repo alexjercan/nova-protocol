@@ -41,7 +41,7 @@ use self::{
     ids::{namespace_of, scenario_id},
     store::{bundle_file, content_file, new_meta},
 };
-use crate::{bundle::is_layout, template::ScenarioTemplate};
+use crate::{bundle::is_layout, config::EditorViewType, template::ScenarioTemplate};
 
 /// What [`Content::kind`] says for a scenario.
 pub(crate) const SCENARIO_KIND: &str = "scenario";
@@ -58,15 +58,15 @@ pub(crate) struct KindRow {
     pub(crate) opens: bool,
     /// Whether the Add menu can make one.
     pub(crate) add: bool,
-    /// What a disabled row says instead.
+    /// Why it does not open, or why the Add menu cannot make one.
     pub(crate) waits: &'static str,
 }
 
 /// Every content kind, in Assets tab order.
 pub(crate) const KINDS: [KindRow; 12] = [
     KindRow::opens("scenario", "Scenarios"),
-    KindRow::waits("ship", "Ships", "edit in its scenario"),
-    KindRow::waits("station", "Stations", "edit in its scenario"),
+    KindRow::placed("ship", "Ships"),
+    KindRow::placed("station", "Stations"),
     KindRow::opens("section", "Sections"),
     KindRow::opens("campaign", "Campaigns"),
     KindRow::opens("style", "Styles"),
@@ -87,6 +87,18 @@ impl KindRow {
             opens: true,
             add: true,
             waits: "",
+        }
+    }
+
+    /// A design a scenario places: it opens inside its scenario, and a new one
+    /// is placed there, not added here.
+    const fn placed(kind: &'static str, heading: &'static str) -> Self {
+        Self {
+            kind,
+            heading,
+            opens: true,
+            add: false,
+            waits: "placed in a scenario: Add > New Ship there",
         }
     }
 
@@ -135,6 +147,88 @@ pub(crate) struct ProjectData {
     /// The asset open in the document. `None` in a mod that holds no scenario
     /// and has opened nothing else.
     pub(crate) open: Option<OpenAsset>,
+}
+
+/// What kind of document is open, which decides its views and its menus.
+///
+/// Derived, never stored: from the open asset ([`ProjectData::open`]) and
+/// whether a ship of the open scenario is entered ([`EditContext::ship`]).
+/// Opening a ship tile opens its scenario and enters the ship.
+///
+/// [`EditContext::ship`]: crate::node::EditContext::ship
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum DocumentType {
+    /// A scenario: its world and its script.
+    Scenario,
+    /// One ship of the open scenario, entered.
+    Ship,
+    /// A section on the bench.
+    Section,
+    /// Any other item on the bench: a campaign, a style, a UI theme, an item,
+    /// a start role, a price table or a trade profile.
+    Form,
+}
+
+impl DocumentType {
+    /// The document `open` stands for, with a ship entered or not. With
+    /// nothing open the document is a scenario: the editor founds one.
+    pub(crate) fn of(open: Option<&OpenAsset>, inside_ship: bool) -> Self {
+        match open.map(|open| open.kind) {
+            None | Some(SCENARIO_KIND) if inside_ship => Self::Ship,
+            None | Some(SCENARIO_KIND) => Self::Scenario,
+            Some("section") => Self::Section,
+            Some(_) => Self::Form,
+        }
+    }
+
+    /// The document open in `world` now.
+    pub(crate) fn open_in(world: &World) -> Self {
+        let open = world
+            .get_resource::<ModProject>()
+            .and_then(|project| project.data.open.as_ref());
+        let inside = world
+            .get_resource::<crate::node::EditContext>()
+            .is_some_and(|context| context.ship().is_some());
+        Self::of(open, inside)
+    }
+
+    /// Its views, the first the one it opens on.
+    pub(crate) fn views(self) -> &'static [EditorViewType] {
+        match self {
+            Self::Scenario => &[EditorViewType::Scene, EditorViewType::Events],
+            Self::Ship => &[EditorViewType::Ship],
+            Self::Section => &[EditorViewType::Section],
+            Self::Form => &[EditorViewType::Form],
+        }
+    }
+}
+
+/// Keep the view one the open document has: entering a ship shows the Ship
+/// view, leaving it the Scene, and opening an item its own view. Not a step
+/// and not an edit, so the unsaved mark never moves for it.
+pub(crate) fn conform_view(
+    project: Option<Res<ModProject>>,
+    context: Res<crate::node::EditContext>,
+    mut view: ResMut<EditorViewType>,
+) {
+    let open = project
+        .as_ref()
+        .and_then(|project| project.data.open.as_ref());
+    let views = DocumentType::of(open, context.ship().is_some()).views();
+    if !views.contains(&*view) {
+        *view = views[0];
+    }
+}
+
+/// [`conform_view`] for a verb that holds the world, so the view is right the
+/// moment the verb returns.
+pub(crate) fn conform_view_now(world: &mut World) {
+    let views = DocumentType::open_in(world).views();
+    if let Some(mut view) = world.get_resource_mut::<EditorViewType>() {
+        if !views.contains(&*view) {
+            *view = views[0];
+        }
+    }
 }
 
 /// Which item of the mod stands in the document, by kind and id.

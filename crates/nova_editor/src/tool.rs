@@ -1,9 +1,8 @@
 //! Which tool the viewport is holding: select, move, turn or scale.
 //!
-//! Q, W, E and R, as in every other editor. The same letters fly the camera
-//! with RMB held and roll a part in hand, so each has one owner at a time: the
-//! rig while RMB is down, the placement keys while a part is armed, and this
-//! otherwise. Events has no stage, so there the letters do nothing.
+//! Q, W, E and R, as in every other editor. R also rolls a part in hand, so
+//! the placement keys own the letters while a part is armed, and this owns
+//! them otherwise. Events has no stage, so there the letters do nothing.
 //!
 //! SCALE IS NOT A TRANSFORM. Nova sections mate, they do not stretch, and a
 //! scaled hull would put every socket somewhere the solver did not leave it, so
@@ -17,7 +16,7 @@ use nova_scenario::prelude::{LightConfig, ScenarioObjectKind};
 use nova_ship::prelude::HeldPart;
 
 use crate::{
-    config::{EditorSays, RailTab, SelectedNode},
+    config::{EditorSays, EditorViewType, SelectedNode},
     node::{ObjectNode, ShipNode},
     placement::alt_held,
 };
@@ -125,23 +124,17 @@ pub(crate) fn snapped(value: f32, step: f32) -> f32 {
 /// Q, W, E and R pick a tool, and X swaps the handles' axes.
 ///
 /// Gated on `InputMode::Normal` where it is scheduled, so a typed letter never
-/// reaches it. A chord is its own verb, RMB gives these letters to the rig, and
-/// a part in hand keeps R for its roll. In Events the bar shows no tools, so a
-/// press there must not change what the Scene tab comes back to.
+/// reaches it. A chord is its own verb, and a part in hand keeps R for its
+/// roll. In Events the bar shows no tools, so a press there must not change
+/// what the Scene tab comes back to.
 pub(crate) fn tool_keys(
     keys: Res<ButtonInput<KeyCode>>,
-    mouse: Option<Res<ButtonInput<MouseButton>>>,
     held: Res<HeldPart>,
-    rail: Res<RailTab>,
+    rail: Res<EditorViewType>,
     mut tool: ResMut<StageTool>,
     mut says: EditorSays,
 ) {
-    let flying = mouse.is_some_and(|mouse| mouse.pressed(MouseButton::Right));
-    if rail.is_events()
-        || flying
-        || *held != HeldPart(None)
-        || snapping(Some(&keys))
-        || alt_held(Some(&keys))
+    if rail.is_events() || *held != HeldPart(None) || snapping(Some(&keys)) || alt_held(Some(&keys))
     {
         return;
     }

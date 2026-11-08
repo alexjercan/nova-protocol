@@ -326,6 +326,65 @@ mod smoke {
             .add()
     }
 
+    /// Open a chip's list and press outside it: the list goes, and its filter
+    /// field goes with it.
+    fn dismiss_list(
+        script: AutopilotPlugin<GameStates>,
+        chip: impl Fn(&Built) -> String + Send + Sync + 'static,
+    ) -> AutopilotPlugin<GameStates> {
+        script
+            .step("editor blocks: point at the chip again")
+            .on_enter(move |world: &mut World| {
+                let name = chip(&built(world));
+                hover_named(name)(world);
+            })
+            .until(frames(3))
+            .add()
+            .step("editor blocks: press the chip again")
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(frames(3))
+            .add()
+            .step("editor blocks: its list opens")
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(ui_node_present("Pick Filter"))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add()
+            .step("editor blocks: point away from the list")
+            .on_enter(|world: &mut World| {
+                let window = world
+                    .query::<&Window>()
+                    .iter(world)
+                    .next()
+                    .expect("the window stands");
+                let away = Vec2::new(window.width() - 30.0, window.height() - 60.0);
+                move_cursor(away)(world);
+            })
+            .until(frames(3))
+            .add()
+            .step("editor blocks: a press outside closes the list")
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(Arc::new(|world: &World| {
+                !ui_node_present("Pick Filter")(world)
+            }))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add()
+            .step("editor blocks: let the press go")
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(frames(3))
+            .add()
+            .step("editor blocks: the press touched nothing stale")
+            .on_enter(|world: &mut World| {
+                let lines = &probe(world).shell.log_lines;
+                assert!(
+                    !lines.iter().any(|line| line.contains("despawned")),
+                    "{lines:?}"
+                );
+            })
+            .add()
+    }
+
     /// What the last drop left selected.
     fn selected(world: &World) -> String {
         probe(world)
@@ -389,12 +448,12 @@ mod smoke {
             script,
             "editor blocks: open the mod",
             OPEN,
-            ui_node_present("Rail Tab Events"),
+            ui_node_present("View Tab Events"),
             BOOT_SECS,
         );
         let mut script = script.click_named(
             "editor blocks: take the Events tab",
-            "Rail Tab Events",
+            "View Tab Events",
             editor(|probe| probe.shell.rail_tab == "Events" && probe.shell.blocks > 0),
             BEAT_SECS,
         );
@@ -470,6 +529,9 @@ mod smoke {
             0,
             FIRED,
         );
+        script = dismiss_list(script, |notes| {
+            format!("Chip {}/{} 1", notes.hat, notes.set)
+        });
         script = type_in(
             script,
             "the value",

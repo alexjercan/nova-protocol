@@ -11,8 +11,9 @@ use nova_scenario::prelude::*;
 
 use crate::{
     event::{
-        action_choice, is_literal, ActionKind, BlockItemType, BlockShapeType, BlockSlotType,
-        ExprChoice, ExprKind, FilterKind, ScriptNodes, ValueOperand,
+        action_choice, filter_choice, is_literal, ActionChoice, ActionKind, BlockItemType,
+        BlockRoleType, BlockShapeType, BlockSlotType, ExprChoice, ExprKind, FilterKind,
+        ScriptNodes, ValueOperand,
     },
     inspect::{
         action_rows, event_rows, filter_rows, gate_rows, operand_row, step_rows, variant_hint,
@@ -191,16 +192,30 @@ impl BlockView {
 
     /// The block a palette entry shows and a drag out of it carries.
     pub(crate) fn preview(item: BlockItemType) -> Self {
+        // A C-block holds beats: it shows its open mouth, as on the canvas.
+        let holds_beats = matches!(
+            item,
+            BlockItemType::Step
+                | BlockItemType::Action(ActionChoice::Sequence | ActionChoice::Cinematic)
+        );
         let outline = match item.shape() {
             BlockShapeType::Hat => OutlineType::Hat,
-            BlockShapeType::Stack => OutlineType::Stack,
-            BlockShapeType::Step => OutlineType::Stack,
-            BlockShapeType::Gate => OutlineType::Stack,
+            _ if holds_beats => OutlineType::Chain,
+            BlockShapeType::Stack | BlockShapeType::Step | BlockShapeType::Gate => {
+                OutlineType::Stack
+            }
             BlockShapeType::Boolean | BlockShapeType::Comparison => OutlineType::Boolean,
             BlockShapeType::Reporter => OutlineType::Reporter,
         };
-        let mut view = Self::new(None, item.label(), outline, block_colour(item.category()));
+        let mut view = Self::new(None, item.label(), outline, block_colour(item.role()));
         view.head.push(PieceType::Word(item.label()));
+        if matches!(outline, OutlineType::Hat | OutlineType::Chain) {
+            view.stack = Some(StackView {
+                parent: Entity::PLACEHOLDER,
+                steps: holds_beats && item != BlockItemType::Step,
+                blocks: Vec::new(),
+            });
+        }
         view
     }
 
@@ -432,7 +447,7 @@ impl ViewBuilder<'_, '_, '_> {
             Some(node),
             path.clone(),
             OutlineType::Hat,
-            block_colour(event.trigger.category()),
+            block_colour(BlockRoleType::Event),
         );
         view.head.push(PieceType::Word("when".to_string()));
         let rows = event_rows(event);
@@ -485,7 +500,7 @@ impl ViewBuilder<'_, '_, '_> {
         let action = self.script.action(node)?;
         let path = format!("{above}/{}", self.id(node));
         let choice = action_choice(&action.kind);
-        let colour = block_colour(choice.category());
+        let colour = block_colour(BlockRoleType::of_action(choice));
         let rows = action_rows(action);
         // The first row is the kind, which the block's own word already says.
         let fields = rows.get(1..).unwrap_or_default();
@@ -602,7 +617,7 @@ impl ViewBuilder<'_, '_, '_> {
         let filter = self.script.filter(node)?;
         let path = format!("{above}/{}", self.id(node));
         let colour = block_lifted(
-            block_colour(BlockCategoryType::Logic),
+            block_colour(BlockRoleType::of_filter(filter_choice(&filter.kind))),
             0.12 * depth.min(3) as f32,
         );
         let mut view = BlockView::new(Some(node), path.clone(), OutlineType::Boolean, colour);
@@ -643,7 +658,7 @@ impl ViewBuilder<'_, '_, '_> {
             }
             _ => {
                 let rows = filter_rows(filter);
-                let word = crate::event::filter_choice(&filter.kind).label();
+                let word = filter_choice(&filter.kind).label();
                 view.head.push(PieceType::Word(word.to_string()));
                 view.head
                     .extend(chips_of(node, rows.get(1..).unwrap_or_default(), true));
@@ -714,7 +729,7 @@ impl ViewBuilder<'_, '_, '_> {
             };
         }
         let colour = block_lifted(
-            block_colour(BlockCategoryType::Data),
+            block_colour(BlockRoleType::Value),
             0.12 * depth.min(3) as f32,
         );
         let mut view = BlockView::new(Some(node), path.clone(), OutlineType::Reporter, colour);
@@ -772,10 +787,10 @@ impl ViewBuilder<'_, '_, '_> {
             return self.action(node, "");
         }
         if self.script.step(node).is_some() {
-            return self.step(node, "", block_colour(BlockCategoryType::Flow));
+            return self.step(node, "", block_colour(BlockRoleType::Flow));
         }
         if self.script.gate(node).is_some() {
-            return self.gate(node, "", block_colour(BlockCategoryType::Flow));
+            return self.gate(node, "", block_colour(BlockRoleType::Flow));
         }
         if self.script.filter(node).is_some() {
             return self.filter(node, "", 0);

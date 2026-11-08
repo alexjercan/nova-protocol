@@ -241,11 +241,19 @@ const SKY_LIST: &str = "Pick Body";
 #[cfg(feature = "debug")]
 const OTHER_SKY: &str = "Ref Option dep://base/textures/cubemap_alt.png";
 
+/// The first ship's entity name.
+#[cfg(feature = "debug")]
+const FIRST_SHIP_NODE: &str = "Ship Node ship_1";
+
 /// What a beat measured, so a later beat can say whether the gesture changed
 /// anything.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct EditorWalk {
+    /// The undo steps before the walk entered the turned ship.
+    steps_before_entering: usize,
+    /// The turned ship's pose before the walk entered it.
+    pose_before_entering: Transform,
     /// The hull section the run places, resolved from the catalog once the
     /// component cards are up.
     hull: String,
@@ -1113,18 +1121,18 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         })
         .add()
         // Add means "one more node HERE", and here changes. Inside a ship the
-        // world palette is greyed - it used to answer Asteroid by putting a
+        // world palette is hidden - it used to answer Asteroid by putting a
         // rock in a world the stage had stopped showing - and the same menu
         // offers the ship's parts instead.
         .click_a_widget("editor: drop the Add menu inside a ship", ADD_MENU)
         .step("editor: Add offers parts, not rocks, inside a ship")
         .on_enter(|world: &mut World| {
             assert!(
-                widget_is_disabled(world, "Add Asteroid"),
-                "the world palette must be greyed inside a ship"
+                widget_is_hidden(world, "Add Asteroid"),
+                "the world palette must be hidden inside a ship"
             );
             assert!(
-                widget_is_disabled(world, "Add Ship Button"),
+                widget_is_hidden(world, "Add Ship Button"),
                 "Add > New Ship inside a ship used to move the builder to a \
                  different ship without saying so"
             );
@@ -1137,7 +1145,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "outcome: Add obeys the context",
                 serde_json::json!({}),
             );
-            info!("editor: inside a ship, Add offers parts and greys the world");
+            info!("editor: inside a ship, Add offers parts and hides the world");
         })
         .add()
         // The menu is already down from the beat above, so this clicks the ROW
@@ -1707,13 +1715,10 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(pointer_released())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        // And it EDITS. A click on the middle of a channel's track snaps that
-        // channel to half, which the row behind the window reads back as new
-        // hex - the window and the row are one edit made two ways.
-        .click_a_widget(
-            "editor: pull the green channel down",
-            "Colour Window Slider G",
-        )
+        // And it EDITS. A click in the middle of the square picks half the
+        // saturation at half the value, which the row behind the window reads
+        // back as new hex - the window and the row are one edit made two ways.
+        .click_a_widget("editor: pick in the middle of the square", "Colour Window Square")
         .step("editor: the beacon's colour changed under the picker")
         .until(the_colour_row_changed())
         .deadline(BEAT_DEADLINE_SECS)
@@ -1997,12 +2002,70 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(shot_written("editor-stage.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
+        // Turn the ship before going in: the viewer must not show the turn.
+        .click_a_widget(
+            "editor: reach for the ship's yaw",
+            "Inspector Field Rotation Y",
+        )
+        .step("editor: the yaw box has the caret")
+        .until(editor_field_focused())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: turn the ship")
+        .on_enter(|world: &mut World| {
+            press_edit_key(Key::End)(world);
+            for _ in 0..12 {
+                press_edit_key(Key::Backspace)(world);
+            }
+            type_text("35")(world);
+            press_edit_key(Key::Enter)(world);
+        })
+        .until(the_ship_turned())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: note the undo steps and the pose")
+        .on_enter(|world: &mut World| {
+            let steps = world.resource::<EditorProbe>().history_depth;
+            let pose = first_ship_pose(world);
+            let mut walk = world.resource_mut::<EditorWalk>();
+            walk.steps_before_entering = steps;
+            walk.pose_before_entering = pose;
+        })
+        .add()
         // And back in - two clicks on the ship's tree row, because entering is
         // the gesture that hides the rest of the document.
         .double_click_a_widget("editor: enter through the tree", "Scene Row ship_1")
         .step("editor: back inside the first ship")
         .until(back_inside_the_stamped_ship())
         .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: settle inside the turned ship")
+        .until(frames(4))
+        .add()
+        .step("editor: the turned ship stands at identity in the viewer")
+        .on_enter(|world: &mut World| {
+            let shown = world
+                .query::<(&GlobalTransform, &Name)>()
+                .iter(world)
+                .find(|(_, name)| name.as_str() == FIRST_SHIP_NODE)
+                .map(|(pose, _)| pose.compute_transform())
+                .expect("the ship stands");
+            assert!(
+                shown.translation.length() < 0.01
+                    && shown.rotation.angle_between(Quat::IDENTITY) < 0.001,
+                "inside, a ship has no pose of its own: {shown:?}"
+            );
+            let pose = first_ship_pose(world);
+            let walk = world.resource::<EditorWalk>();
+            assert_eq!(pose, walk.pose_before_entering);
+            assert_eq!(
+                world.resource::<EditorProbe>().history_depth,
+                walk.steps_before_entering
+            );
+            shoot(world, "editor-inside-turned.png");
+        })
+        .until(shot_written("editor-inside-turned.png"))
+        .deadline(SHOT_DEADLINE_SECS)
         .add()
         // Entering ISOLATES: the tree holds the way out, this ship and its
         // parts, and not one row of the range standing around it - a click on
@@ -2405,38 +2468,33 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: the second save went straight to its file");
         })
         .add()
-        // Moved off on purpose: New Scenario opens an empty scenario of the
-        // same mod, which has no `ship_2` in it, so a `ship_2` after the Open
-        // can only have come out of the project.
-        // Neither of these two verbs acts on the row: New clears the history,
-        // so the row asks and the window's own button is what goes through
-        // with it. The first press proves the ASK - the ship is still there
-        // while the question is up.
-        .click_a_menu_item("editor: start over", MENU_FILE, "New Scenario Item")
-        .step("editor: the question is up and nothing is gone yet")
-        .on_enter(|world: &mut World| {
-            assert!(
-                ui_node_rect(world, "Confirm Window").is_some(),
-                "New Scenario asks which template before it runs"
-            );
-            let nodes = world.resource::<EditorProbe>().context_nodes.clone();
-            assert!(
-                nodes.iter().any(|node| node == "ship_2"),
-                "and the document must still be standing while it asks; the \
-                 stage held {nodes:?}"
-            );
-            nova_probe::probe_marker(
-                world,
-                "outcome: a destructive verb asks first",
-                serde_json::json!({}),
-            );
-            info!("editor: New Scenario asked before leaving the document");
-        })
-        .add()
-        .click_a_widget("editor: found the new one empty", EMPTY_TEMPLATE_ROW)
+        // Moved off on purpose: New Scenario opens a blank scenario beside
+        // the saved one, which has no `ship_2` in it, so a `ship_2` after the
+        // Open can only have come out of the project. It is a step like any
+        // other, so it asks nothing and the saved scenario stays in the mod.
+        .click_a_menu_item("editor: add a blank scenario", MENU_FILE, "New Scenario Item")
         .step("editor: the built scenario is closed")
         .until(no_object_named("ship_2"))
         .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the blank scenario is open beside the saved one")
+        .on_enter(|world: &mut World| {
+            assert!(
+                ui_node_rect(world, "Confirm Window").is_none(),
+                "adding a scenario is a step, not a question"
+            );
+            let nodes = world.resource::<EditorProbe>().context_nodes.clone();
+            assert!(
+                nodes.is_empty(),
+                "a new scenario is blank: no ship, no object, and the stage held {nodes:?}"
+            );
+            nova_probe::probe_marker(
+                world,
+                "outcome: New Scenario opens a blank scenario beside the open one",
+                serde_json::json!({}),
+            );
+            info!("editor: New Scenario opened a blank beside the saved range");
+        })
         .add()
         .click_a_widget("editor: show the mod's contents", "Browser Tab Assets")
         .click_a_widget("editor: mark the scenario that was built", SAVED_RANGE_TILE)
@@ -2580,12 +2638,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             info!("editor: the flown ship came up in {plates} plates");
         })
         .add()
-        // A SECOND document, founded on the OTHER template and saved under a
-        // name of its own. Everything above walks the stock range in the one
-        // file the first save named; this proves the two halves that only a
-        // second document can show - that a template other than the default
-        // founds a whole scenario, and that naming a second range writes a
-        // second bundle instead of replacing the first.
+        // A SECOND document, blank, saved under a name of its own. Everything
+        // above walks the stock range in the one file the first save named;
+        // this proves that a generator runs on a scenario it did not found,
+        // and that naming a second range writes a second bundle instead of
+        // replacing the first.
         .step("editor: leave the flight for the editor")
         .on_enter(press_key(KeyCode::F1))
         .until(ui_node_present("File Menu Button"))
@@ -2595,27 +2652,12 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .on_enter(release_key(KeyCode::F1))
         .add()
         .click_a_menu_item("editor: new scenario again", MENU_FILE, "New Scenario Item")
-        .click_a_widget("editor: found it on the arena", "Template Duelling Arena")
-        .step("editor: the arena founded a whole scenario")
+        .step("editor: the second scenario is open")
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
-        .step("editor: the arena brought its own objects")
-        .on_enter(|world: &mut World| {
-            let nodes = world.resource::<EditorProbe>().context_nodes.clone();
-            for wanted in ["arena_key", "arena_rim", "arena_fill", "arena_planetoid"] {
-                assert!(
-                    nodes.iter().any(|node| node == wanted),
-                    "the arena template owes the document `{wanted}`, and gave {nodes:?}"
-                );
-            }
-            info!("editor: the arena template founded {} node(s)", nodes.len());
-        })
-        .add()
         // Generate is a SHIP verb: what it rolls IS the hull, so the run adds
-        // a ship and goes inside before pressing it. The generator running on
-        // a document it did not found is the point of the beat - a template is
-        // a starting scenario, not a mode.
+        // a ship and goes inside before pressing it.
         .click_a_menu_item(
             "editor: add a ship to generate into",
             ADD_MENU,
@@ -2703,7 +2745,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         })
         .add()
         .click_a_menu_item("editor: save a copy", MENU_FILE, "Save As Copy Item")
-        .step("editor: the name window is up for the arena")
+        .step("editor: the name window is up for the second scenario")
         .until(a_file_window_is_up())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
@@ -2955,9 +2997,19 @@ fn visible_names_with_prefix(world: &mut World, prefix: &str) -> Vec<String> {
         .collect()
 }
 
-/// Whether a named widget is currently greyed out. The menus say what the
-/// editor CAN do here by greying what it cannot, so a beat asserting context
-/// reads the same component the paint does.
+/// Whether a named widget is hidden. The menus hide a verb that cannot apply
+/// here, and grey one that fits but cannot run yet. Panics when there is none.
+#[cfg(feature = "debug")]
+fn widget_is_hidden(world: &mut World, name: &str) -> bool {
+    let exists = world
+        .query::<&Name>()
+        .iter(world)
+        .any(|node_name| node_name.as_str() == name);
+    assert!(exists, "the editor must have a widget named `{name}`");
+    ui_node_rect(world, name).is_none()
+}
+
+/// Whether the widget called `name` is greyed. Panics when there is none.
 #[cfg(feature = "debug")]
 fn widget_is_disabled(world: &mut World, name: &str) -> bool {
     world
@@ -3201,6 +3253,32 @@ fn first_ship_position(world: &World) -> Vec3 {
         .find(|(id, _)| id == "ship_1")
         .map(|(_, at)| *at)
         .expect("ship_1 is listed at the scenario node")
+}
+
+/// The first ship's document pose.
+#[cfg(feature = "debug")]
+fn first_ship_pose(world: &mut World) -> Transform {
+    *world
+        .query::<(&Transform, &Name)>()
+        .iter(world)
+        .find(|(_, name)| name.as_str() == FIRST_SHIP_NODE)
+        .expect("the ship stands")
+        .0
+}
+
+/// Advance once the first ship carries a turn.
+#[cfg(feature = "debug")]
+fn the_ship_turned() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        world
+            .try_query::<(&Transform, &Name)>()
+            .is_some_and(|mut ships| {
+                ships.iter(world).any(|(pose, name)| {
+                    name.as_str() == FIRST_SHIP_NODE
+                        && pose.rotation.angle_between(Quat::IDENTITY) > 0.1
+                })
+            })
+    })
 }
 
 /// Advance once the first ship stands away from the drag stamp - the
@@ -3633,10 +3711,6 @@ fn inspector_labels(world: &World) -> Vec<String> {
 /// The tile that range is offered on in the Assets grid.
 #[cfg(feature = "debug")]
 const SAVED_RANGE_TILE: &str = "Asset Tile Saved Range";
-
-/// The template that holds no `ship_2`.
-#[cfg(feature = "debug")]
-const EMPTY_TEMPLATE_ROW: &str = "Template Empty Scenario";
 
 /// What the Scene rows READ as, in draw order - the label column only.
 #[cfg(feature = "debug")]
@@ -4203,14 +4277,9 @@ impl EditorGestures for nova_protocol::nova_debug::harness::AutopilotPlugin<Game
     fn place_on_the_face(self, label: &str, socket: Vec3) -> Self {
         self.step(format!("{label}: aim"))
             .on_enter(move |world: &mut World| {
-                // SHIP space, as the trait says: a ship stands wherever the
-                // stage's automatic row put it, and a literal world point would
-                // aim at whatever else is standing there.
-                let origin = world
-                    .resource::<EditorProbe>()
-                    .inside_origin
-                    .unwrap_or(Vec3::ZERO);
-                let at = aim_at_world(world, origin + socket).expect("that face is on screen");
+                // SHIP space, as the trait says: the entered ship stands on
+                // the origin, so its frame is the world's.
+                let at = aim_at_world(world, socket).expect("that face is on screen");
                 move_cursor(at)(world);
                 stamp_sections(world);
             })

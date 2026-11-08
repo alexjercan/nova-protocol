@@ -1,0 +1,26 @@
+trace an orbit` begins
+trace orbit frame 1 eye [-92.25, 942.77, 1558.34] node_px [960.0, 542.2] rig_px [960.0, 542.2] gap_px 0.00 rose_px [1543.98, 758.02] handles 12 arm 263.26
+trace orbit frame 2 eye [-117.18, 951.76, 1552.50] node_px [960.0, 542.2] rig_px [960.0, 542.2] gap_px 0.00 rose_px [1543.97, 758.02] handles 12 arm 263.26
+trace orbit frame 3 eye [-141.96, 960.73, 1546.28] node_px [960.0, 542.2] rig_px [960.0, 542.2] gap_px 0.00 rose_px [1544.01, 757.95] handles 12 arm 263.26
+trace orbit frame 4 eye [-166.57, 969.68, 1539.67] node_px [960.0, 542.2] rig_px [960.0, 542.2] gap_px 0.00 rose_px [1543.97, 757.93] handles 12 arm 263.26
+trace orbit frame 5 eye [-191.02, 978.60, 1532.68] node_px [960.0, 542.2] rig_px [960.0, 542.2] gap_px 0.00 rose_px [1544.02, 758.03] handles 12 arm 263.26
+trace orbit frame 6 eye [-215.30, 987.49, 1525.31] node_px [960.0, 542.2] rig_px [960.0, 542.2] gap_px 0.00 rose_px [1543.97, 757.98] handles 12 arm 263.26
+trace orbit frame 7 eye [-239.41, 996.36, 1517.56] node_px [960.0, 542.2] rig_px [960.0, 542.2] gap_px 0.00 rose_px [1543.94, 757.96] handles 12 arm 263.26
+trace orbit frame 8 eye [-263.32, 1005.21, 1509.45] node_px [960.0, 542.2] rig_px [960.0, 542.2] gap_px 0.00 rose_px [1543.97, 758.02] handles 12 arm 263.26
+trace orbit frame 9 eye [-287.05, 1014.03, 1500.96] node_px [960.0, 542.2] rig_px [960.0, 542.2] gap_px 0.00 rose_px [1543.99, 758.06] handles 12 arm 263.26
+trace orbit frame 10 eye [-310.58, 1022.83, 1492.11] node_px [960.0, 542.2] rig_px [960.0, 542.2] gap_px 0.00 rose_px [1544.03, 758.07] handles 12 arm 263.26
+trace orbit frame 11 eye [-333.90, 1031.60, 1482.90] node_px [960.0, 542.2] rig_px [960.0, 542.2] gap_px 0.00 rose_px [1543.96, 758.02] handles 12 arm 263.26
+trace orbit frame 12 eye [-357.02, 1040.35, 1473.34] node_px [960.0, 542.2] rig_px [960.0, 542.2] gap_px 0.00 rose_px [1544.02, 757.95] handles 12 arm 263.26
+trace a handle drag` begins
+trace drag frame 1 eye [-379.92, 1049.07, 1463.42] node_px [960.0, 542.2] rig_px [960.0, 542.2] gap_px 0.00 rose_px [1544.02, 758.03] handles 12 arm 263.26
+trace drag frame 2 eye [-379.92, 1049.07, 1463.42] node_px [960.0, 536.1] rig_px [960.0, 536.1] gap_px 0.00 rose_px [1544.02, 758.03] handles 12 arm 262.52
+trace drag frame 3 eye [-379.92, 1049.07, 1463.42] node_px [960.0, 529.7] rig_px [960.0, 529.7] gap_px 0.00 rose_px [1544.02, 758.03] handles 12 arm 261.78
+trace drag frame 4 eye [-379.92, 1049.07, 1463.42] node_px [960.0, 523.4] rig_px [960.0, 523.4] gap_px 0.00 rose_px [1544.02, 758.03] handles 12 arm 261.04
+trace drag frame 5 eye [-379.92, 1049.07, 1463.42] node_px [960.0, 517.0] rig_px [960.0, 517.0] gap_px 0.00 rose_px [1544.02, 758.03] handles 12 arm 260.32
+trace drag frame 6 eye [-379.92, 1049.07, 1463.42] node_px [960.0, 510.6] rig_px [960.0, 510.6] gap_px 0.00 rose_px [1544.02, 758.03] handles 12 arm 259.60
+trace drag frame 7 eye [-379.92, 1049.07, 1463.42] node_px [960.0, 504.3] rig_px [960.0, 504.3] gap_px 0.00 rose_px [1544.02, 758.03] handles 12 arm 258.89
+trace drag frame 8 eye [-379.92, 1049.07, 1463.42] node_px [960.0, 497.9] rig_px [960.0, 497.9] gap_px 0.00 rose_px [1544.02, 758.03] handles 12 arm 258.20
+trace drag frame 9 eye [-379.92, 1049.07, 1463.42] node_px [960.0, 491.5] rig_px [960.0, 491.5] gap_px 0.00 rose_px [1544.02, 758.03] handles 12 arm 257.52
+trace drag frame 10 eye [-379.92, 1049.07, 1463.42] node_px [960.0, 485.2] rig_px [960.0, 485.2] gap_px 0.00 rose_px [1544.02, 758.03] handles 12 arm 256.84
+trace drag frame 11 eye [-379.92, 1049.07, 1463.42] node_px [960.0, 478.8] rig_px [960.0, 478.8] gap_px 0.00 rose_px [1544.02, 758.03] handles 12 arm 256.18
+trace drag frame 12 eye [-379.92, 1049.07, 1463.42] node_px [960.0, 472.5] rig_px [960.0, 472.5] gap_px 0.00 rose_px [1544.02, 758.03] handles 12 arm 255.52

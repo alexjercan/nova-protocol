@@ -131,7 +131,13 @@ impl NodeParts {
     /// A pose that differs from the remembered row point means the ship has
     /// left the row. The reflow drops the marker a frame later; a commit in
     /// the same frame as the edit must not record the old answer.
+    ///
+    /// The scenario root's pose is always identity here: it is the stage's
+    /// (see [`crate::node::sync_stage_frame`]), and no step may write it.
     fn settled(mut self) -> Self {
+        if self.scenario.is_some() {
+            self.transform = self.transform.map(|_| Transform::IDENTITY);
+        }
         if let (Some(auto), Some(pose)) = (self.auto_layout, self.transform) {
             if pose.translation != auto.0 {
                 self.auto_layout = None;

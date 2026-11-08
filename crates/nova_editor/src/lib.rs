@@ -1,18 +1,19 @@
 //! The spaceship editor: a scene where you build a ship out of sections and then
 //! hand it off to a scenario simulation.
 //!
-//! TWO MODES, on one screen: SCENE lays the range out on a stage with the
-//! Inspector beside it, and EVENTS gives the stage's room to the script. The
-//! tabs above the Hierarchy switch between them (`ui::shell::sync_panels`),
-//! because there is no stage to click in the half of the document that is a
-//! script.
+//! ONE DOCUMENT, ITS OWN VIEWS: the open asset is a scenario, a ship entered
+//! in one, a section or a form (`project::DocumentType`), and each has its own
+//! views (`config::EditorViewType`). A scenario's SCENE lays the range out on a
+//! stage with the Inspector beside it, and its EVENTS gives the stage's room to
+//! the script (`ui::shell::sync_panels`). The top bar's view switch shows only
+//! the views of the open document.
 //!
 //! Structure:
 //! - `readout`   - what the hull under construction weighs, pushes and turns like
 //! - `node`      - the document: the node tree and the edit context
 //! - `history`   - undo and redo: labelled snapshots of the document, and the dirty mark
 //! - `inspect`   - the reflected fields of the inspected node, and their write-back
-//! - `camera`    - the viewport rig: fly, orbit, dolly, pan
+//! - `camera`    - the viewport rig: look, orbit, dolly, pan
 //! - `frame`     - putting the camera on a node, on demand
 //! - `tool`      - which tool the viewport holds, and the snap steps
 //! - `gizmo`     - the handles that move, turn and size the selection
@@ -43,6 +44,7 @@ use bevy::{
     gizmos::GizmoPlugin,
     input::mouse::{AccumulatedMouseMotion, MouseWheel},
     prelude::*,
+    transform::TransformSystems,
     window::{CursorGrabMode, CursorOptions, PrimaryWindow},
 };
 use nova_gameplay::prelude::*;
@@ -71,6 +73,7 @@ mod highlight;
 mod history;
 mod inspect;
 mod keybind;
+mod log_feed;
 mod node;
 mod palette;
 mod placement;
@@ -98,10 +101,10 @@ pub use camera::CameraGestureType;
 use camera::{drive_editor_camera, sync_viewport_pointer};
 use clipboard::{clipboard_keys, EditorClipboard};
 use config::{
-    editor_gizmo_config, EditorGizmos, EditorOverlays, EditorStatus, HoveredNode, PlacementPose,
-    PlacementPreview, RailTab, SelectedNode,
+    editor_gizmo_config, EditorGizmos, EditorOverlays, EditorStatus, EditorViewType, HoveredNode,
+    PlacementPose, PlacementPreview, SelectedNode,
 };
-use frame::{apply_frame_request, frame_key, sync_frame_item, CameraFraming, FrameRequest};
+use frame::{apply_frame_request, frame_key, CameraFraming, FrameRequest};
 use generate::{read_seed_field, HullSeed};
 use gizmo::sync_gizmo;
 use highlight::{paint_hovered_rows, sync_hovered_node};
@@ -110,10 +113,11 @@ use keybind::{
     apply_section_rebind, hide_section_keybind_labels, position_section_keybind_labels,
     sync_section_keybind_labels, EditorRebind,
 };
+pub use log_feed::{editor_log_layer, EditorLogFeed};
 use node::{
     drop_edited_views, ensure_document, ids_or_parents_moved, rebuild_node_views,
     reflow_auto_ships, report_duplicate_ids, sync_camera_focus, sync_object_views, sync_ship_focus,
-    teardown_document, EditContext, ObjectBodyStale,
+    sync_stage_frame, teardown_document, EditContext, ObjectBodyStale, StageFrame,
 };
 use placement::{
     clear_placement_preview, cycle_placement_pose, delete_key, disarm_outside_ship,
@@ -125,23 +129,25 @@ use placement::{
 use probe::{sync_editor_probe, sync_shell_probe};
 pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool, ShellProbe};
 use problems::{reset_problems, sync_problems, Problems};
-use project::{apply_pending_mods, PendingMods};
+use project::{apply_pending_mods, conform_view, PendingMods};
 use readout::sync_ship_readout;
 use scenario::setup_scenario;
 use selection::{
     empty_space_press, select_all, setup_selection_frame, sync_selection_frame, EmptyPress,
 };
 use skin::sync_editor_skin;
+pub use stage::AxisRoseOrigin;
 use stage::{draw_axis_rose, draw_node_marks, draw_object_volumes, draw_world_grid};
 use tool::{sync_scale_refusal, tool_keys, StageTool};
 pub use tool::{GizmoSpaceType, StageToolType};
 use ui::{
     a_ship_is_entered,
+    asset_files::fit_viewed_images,
     assets::{
         apply_asset_rename, asset_tile_keys, sync_asset_controls, sync_asset_thumbs, sync_assets,
         AssetKindFilter, AssetRenaming,
     },
-    browser::{sync_browser, sync_log, sync_problem_rows, BrowserTabType, StatusLog},
+    browser::{sync_browser, sync_problem_rows, BrowserTabType},
     callout::sync_placement_callout,
     canvas::{BlockPopup, CanvasDrag},
     files::{close_file_window, open_file_window, sync_path_window, sync_save_name},
@@ -151,12 +157,14 @@ use ui::{
         apply_inspector_edits, paint_field_reasons, paint_swatch_hover, sync_inspector,
         sync_inspector_head, sync_inspector_tooltip, sync_reference_faults, InspectorFolds,
     },
+    log::{sync_log, sync_log_controls, StatusLog},
     menu::{
-        close_menu_on_item, close_menus, close_open_menu, sync_add_palette, sync_armed_menu,
-        sync_history_menu, sync_menu_delete, sync_menu_item_paint, sync_menus, sync_scenario_menu,
-        sync_ship_menu, sync_unsaved_mark, sync_view_menu_marks, OpenMenu,
+        close_menu_on_item, close_menus, close_open_menu, sync_history_menu, sync_menu_item_paint,
+        sync_menus, sync_unsaved_mark, sync_view_menu_marks, OpenMenu,
     },
+    menu_context::{sync_menu_verbs, tidy_menu_separators},
     pick::{pick_filter_escape, submit_pick_filter, sync_pick_popups},
+    picker::{revert_picker, settle_on_close, sync_colour_windows, ColourWindow},
     plate::sync_nameplates,
     rail::sync_scene_tooltip,
     settings::{apply_settings_fields, sync_settings_window},
@@ -164,14 +172,12 @@ use ui::{
     shell::{
         panel_keys, sync_panels, sync_ship_step, sync_stage_overlay, sync_toolbar, EditorPanels,
     },
+    stage_menu::{stage_context_menu, StageRightPress},
     sync_context_panels, sync_editor_title, sync_hull_plan, sync_key_legend, sync_part_ticks,
-    sync_part_zones, sync_play_button, sync_rail_tabs, sync_rebind_button, sync_row_trash,
-    sync_scene_list, sync_skin_toggle, sync_status_line, sync_style_list,
+    sync_part_zones, sync_play_button, sync_row_trash, sync_scene_list, sync_skin_toggle,
+    sync_status_line, sync_style_list, sync_view_tabs,
     thumbnail::{drive_thumbnails, AssetThumbnails},
-    window::{
-        ask_about_stopped_leave, close_confirm_window, on_colour_release, on_colour_slider,
-        on_destructive_item, sync_colour_windows,
-    },
+    window::{ask_about_stopped_leave, close_confirm_window, on_destructive_item},
 };
 
 /// Glob-import surface: `use nova_editor::prelude::*` brings [`NovaEditorPlugin`],
@@ -179,10 +185,20 @@ use ui::{
 /// snapshot into scope.
 pub mod prelude {
     pub use super::{
-        cues::EditorCueSystems, CameraGestureType, EditorOpensScratch, EditorPlacement,
-        EditorProbe, EditorSection, EditorTool, GizmoSpaceType, NovaEditorPlugin, StageToolType,
+        cues::EditorCueSystems, AxisRoseOrigin, CameraGestureType, EditorOpensScratch,
+        EditorOverlaySystems, EditorPlacement, EditorProbe, EditorSection, EditorTool,
+        GizmoSpaceType, NovaEditorPlugin, StageToolType,
     };
 }
+
+/// The stage's immediate overlays: the grid, the marks, the link points and the
+/// axis rose.
+///
+/// `PostUpdate`, after [`TransformSystems::Propagate`]. A line drawn from a
+/// `GlobalTransform` in `Update` uses last frame's pose and renders through this
+/// frame's camera, which threw the rose off the screen on every moving frame.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct EditorOverlaySystems;
 
 /// The spaceship editor plugin.
 ///
@@ -228,7 +244,9 @@ fn editor_plugin(app: &mut App) {
     app.init_resource::<HoveredNode>();
     app.init_resource::<EditorRebind>();
     app.init_resource::<EditorOverlays>();
-    app.init_resource::<RailTab>();
+    app.init_resource::<AxisRoseOrigin>();
+    app.init_resource::<StageFrame>();
+    app.init_resource::<EditorViewType>();
     // Random on init, so the first Generate of a session is a ship nobody
     // else has rather than everyone's seed zero.
     app.init_resource::<HullSeed>();
@@ -242,6 +260,7 @@ fn editor_plugin(app: &mut App) {
     app.init_resource::<DoubleClick<String>>();
     app.init_resource::<AssetKindFilter>();
     app.init_resource::<AssetRenaming>();
+    app.init_resource::<asset::files::ModFolder>();
     app.init_resource::<AssetThumbnails>();
     app.add_systems(
         OnExit(ExampleStates::Editor),
@@ -313,7 +332,7 @@ fn editor_plugin(app: &mut App) {
     // In every state: the ways out of a flown range and of the pause menu must
     // see the unsaved work too, and the ask starts from any of them.
     app.add_systems(Update, (sync_unsaved_mark, ask_about_stopped_leave).chain());
-    app.add_observer(on_colour_release);
+    app.add_observer(settle_on_close);
     // Normally the gameplay plugin's; init'd here too so a menu-less rig (and
     // the tests below) still has one to write.
     app.init_resource::<EscapeOwner>();
@@ -485,11 +504,12 @@ fn editor_plugin(app: &mut App) {
             sync_stage_overlay,
             sync_browser,
             (apply_asset_rename, sync_assets, sync_asset_thumbs).chain(),
+            fit_viewed_images,
             sync_asset_controls,
             drive_thumbnails,
             asset_tile_keys.run_if(in_input_mode(InputMode::Normal)),
             (sync_problems, sync_problem_rows).chain(),
-            sync_log,
+            (sync_log, sync_log_controls).chain(),
             sync_inspector_head,
             focus_pending_rename,
         )
@@ -498,6 +518,16 @@ fn editor_plugin(app: &mut App) {
     app.add_systems(
         Update,
         (sync_bench_view, sync_socket_views, draw_bench_sockets)
+            .run_if(in_state(ExampleStates::Editor)),
+    );
+    // Ahead of everything that reads the view: the panels, the tabs and the
+    // menus all show the view of the document that is open THIS frame.
+    app.add_systems(
+        Update,
+        conform_view
+            .before(sync_panels)
+            .before(sync_view_tabs)
+            .before(sync_menus)
             .run_if(in_state(ExampleStates::Editor)),
     );
 
@@ -584,16 +614,7 @@ fn editor_plugin(app: &mut App) {
                 sync_view_menu_marks,
                 // The greying passes, then the paint that reads their verdict
                 // off the rows.
-                (
-                    sync_menu_delete,
-                    sync_history_menu,
-                    sync_ship_menu,
-                    sync_scenario_menu,
-                    sync_add_palette,
-                    sync_armed_menu,
-                    sync_frame_item,
-                )
-                    .chain(),
+                (sync_history_menu, sync_menu_verbs, tidy_menu_separators).chain(),
                 sync_menu_item_paint,
             )
                 .chain(),
@@ -621,7 +642,7 @@ fn editor_plugin(app: &mut App) {
             // together with the rest of the rail's readouts. An inner group
             // only because a flat tuple would pass Bevy's arity limit.
             (
-                sync_rail_tabs,
+                sync_view_tabs,
                 // Before the tree and the panel: both are laid out inside the
                 // widths this decides, and a rail that widens a frame after
                 // its rows are built shows one frame of the old crop.
@@ -654,7 +675,6 @@ fn editor_plugin(app: &mut App) {
                     .chain(),
                 paint_swatch_hover,
                 sync_context_panels,
-                sync_rebind_button,
                 sync_play_button,
                 sync_status_line,
                 sync_ship_focus,
@@ -662,6 +682,7 @@ fn editor_plugin(app: &mut App) {
                 // minted ship stands, and a frame taken before it had moved
                 // would look at the pose the ship is about to leave.
                 reflow_auto_ships,
+                sync_stage_frame,
                 sync_camera_focus,
                 // AFTER the context's own framing: both write the camera, and
                 // a gesture that named a node beats the context having
@@ -697,16 +718,6 @@ fn editor_plugin(app: &mut App) {
             // as structure, so it has to be derived from the same solve the
             // ghost on screen is showing.
             sync_editor_skin,
-            draw_link_points,
-            draw_ship_heading,
-            // The stage's four overlays, as one group: they only draw, and
-            // the outer tuple is at Bevy's arity.
-            (
-                draw_world_grid,
-                draw_object_volumes,
-                draw_node_marks,
-                draw_axis_rose,
-            ),
         )
             .chain()
             // BEFORE the gallery's keyboard, which shares keys with the build
@@ -719,7 +730,26 @@ fn editor_plugin(app: &mut App) {
             .before(PartsGallerySystems)
             .run_if(in_state(ExampleStates::Editor).and_then(not(gallery_open))),
     );
+    app.configure_sets(
+        PostUpdate,
+        EditorOverlaySystems
+            .after(TransformSystems::Propagate)
+            .run_if(in_state(ExampleStates::Editor).and_then(not(gallery_open))),
+    );
+    app.add_systems(
+        PostUpdate,
+        (
+            draw_link_points,
+            draw_ship_heading,
+            draw_world_grid,
+            draw_object_volumes,
+            draw_node_marks,
+            draw_axis_rose,
+        )
+            .in_set(EditorOverlaySystems),
+    );
     app.init_resource::<EmptyPress>();
+    app.init_resource::<StageRightPress>();
     app.init_resource::<EditorClipboard>();
     app.add_observer(on_stage_release);
     app.add_systems(OnEnter(ExampleStates::Editor), setup_selection_frame);
@@ -737,6 +767,9 @@ fn editor_plugin(app: &mut App) {
                 .after(sync_viewport_pointer)
                 .run_if(resource_exists::<ButtonInput<MouseButton>>),
             sync_selection_frame.after(empty_space_press),
+            stage_context_menu
+                .after(sync_viewport_pointer)
+                .run_if(resource_exists::<ButtonInput<MouseButton>>),
         )
             .before(sync_gizmo)
             .before(PartsGallerySystems)
@@ -814,7 +847,6 @@ fn editor_plugin(app: &mut App) {
     // Floating windows. The picker's observer reads the dragged value out of
     // the event rather than off the slider, so it does not care whether
     // nova_ui's `slider_self_update` has committed it yet.
-    app.add_observer(on_colour_slider);
     // The question goes up before the verb runs, and comes down whichever way
     // it is answered. See `ui::window::DestructiveVerb`.
     app.add_observer(on_destructive_item);
@@ -951,12 +983,14 @@ fn backspace_steps_out(keys: Res<ButtonInput<KeyCode>>, mut context: ResMut<Edit
     }
 }
 
-/// Escape backs out one step: it closes an open menu, then puts the armed part
-/// down, and with nothing in hand it leaves the ship you are inside.
+/// Escape backs out one step: it closes an open menu, then takes back an open
+/// colour picker, then puts the armed part down, and with nothing in hand it
+/// leaves the ship you are inside.
 ///
 /// ONE RUNG PER PRESS. The full ladder is: a block in hand, a popup, a block's
-/// pop-up, an open top-bar menu, then the gallery, then a pending rebind, then the armed part,
-/// then the edit context, then the pause menu. This system owns the middle of that ladder and nothing
+/// pop-up, an open top-bar menu, then the gallery, then a pending rebind, then
+/// a colour picker, then the armed part, then the edit context, then the pause
+/// menu. This system owns the middle of that ladder and nothing
 /// else: the rungs above it belong to modes, and a mode holding the keyboard is
 /// a mode this never runs under. A block's pop-up is such a mode: see
 /// [`escape_block_popup`].
@@ -968,6 +1002,7 @@ fn escape_backs_out(
     mut choice: ResMut<HeldPart>,
     mut context: ResMut<EditContext>,
     mut drag: ResMut<CanvasDrag>,
+    pickers: Query<Entity, With<ColourWindow>>,
 ) {
     if !keys.just_pressed(KeyCode::Escape) || drag.cancel() {
         return;
@@ -975,6 +1010,11 @@ fn escape_backs_out(
     // A menu is drawn over everything else, so it is what the press is aimed
     // at while it is open. A popup stands over the panels the same way.
     if close_popups(&mut commands, &popups) || close_open_menu(&mut menu) {
+        return;
+    }
+    // An open colour picker takes its colour back and closes.
+    if let Some(picker) = pickers.iter().next() {
+        commands.queue(move |world: &mut World| revert_picker(world, picker));
         return;
     }
     if *choice != HeldPart(None) {

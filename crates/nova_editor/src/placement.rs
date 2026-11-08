@@ -44,7 +44,7 @@ use crate::{
     snap::{self, PlacedSection},
     station::{short_fault, StationCatalogs},
     tool::{snap_active, snapped, StageTool, MOVE_SNAP},
-    ui::canvas::CanvasDrag,
+    ui::{canvas::CanvasDrag, stage_menu::PlaceAt},
     ExampleStates,
 };
 
@@ -53,21 +53,8 @@ const PLACEMENT_ROLL_KEY: KeyCode = KeyCode::KeyR;
 /// Cycles which socket of the armed part does the mating.
 const PLACEMENT_SOCKET_KEY: KeyCode = KeyCode::KeyF;
 /// Arms whatever section is under the pointer, Factorio-pipette style; over
-/// nothing it puts the part in hand away. Not Q: that is the fly rig's descent
-/// and the Select tool.
+/// nothing it puts the part in hand away. Not Q: that is the Select tool.
 const PLACEMENT_PICK_KEY: KeyCode = KeyCode::KeyP;
-
-/// Keys the viewport camera drives (`crate::camera`). Placement never captures
-/// them: a key the builder held to fly is not a key they meant to bind.
-const EDITOR_CAMERA_KEYS: [KeyCode; 7] = [
-    KeyCode::KeyW,
-    KeyCode::KeyA,
-    KeyCode::KeyS,
-    KeyCode::KeyD,
-    KeyCode::KeyQ,
-    KeyCode::KeyE,
-    KeyCode::ShiftLeft,
-];
 
 /// The catalog section for `id`, or `None` (logged) when a mod overlay dropped
 /// or renamed it. Every catalog lookup in the editor goes through this: an
@@ -81,18 +68,14 @@ fn required_section<'a>(sections: &'a GameSections, id: &str) -> Option<&'a Sect
 }
 
 /// The button to bind to a section placed this frame: the lowest button *just*
-/// pressed and not `reserved`. `just_pressed` rather than `pressed` so a held
-/// camera key cannot be captured, and lowest rather than first because
-/// `ButtonInput` iterates a `HashSet` - W+D would otherwise bind either one.
-fn capture_binding<T>(input: &ButtonInput<T>, reserved: &[T]) -> Option<T>
+/// pressed. `just_pressed` rather than `pressed` so a held modifier cannot be
+/// captured, and lowest rather than first because `ButtonInput` iterates a
+/// `HashSet` - W+D would otherwise bind either one.
+fn capture_binding<T>(input: &ButtonInput<T>) -> Option<T>
 where
     T: Copy + Ord + core::hash::Hash + Send + Sync + 'static,
 {
-    input
-        .get_just_pressed()
-        .copied()
-        .filter(|button| !reserved.contains(button))
-        .min()
+    input.get_just_pressed().copied().min()
 }
 
 /// The bindings a freshly placed section gets: the button the player pressed as
@@ -113,9 +96,7 @@ fn placement_binds(
 ) -> Vec<InputSource> {
     let mut binds = Vec::new();
     if let Some(keyboard) = keyboard {
-        binds.push(
-            capture_binding(keyboard, &EDITOR_CAMERA_KEYS).map_or(default_key, InputSource::from),
-        );
+        binds.push(capture_binding(keyboard).map_or(default_key, InputSource::from));
     }
     if let Some(default_pad) = default_pad {
         binds.push(pad_held.map_or(default_pad, InputSource::from));
@@ -163,12 +144,11 @@ impl HeldBind<'_, '_> {
         )
     }
 
-    /// The keyboard key a click would bind, filtered exactly as
-    /// [`placement_binds`] filters it: a camera key held alongside the click
-    /// never counts as "held". `None` with no keyboard resource or nothing
+    /// The keyboard key a click would bind, picked exactly as
+    /// [`placement_binds`] picks it. `None` with no keyboard resource or nothing
     /// just pressed.
     fn captured_key(&self) -> Option<InputSource> {
-        capture_binding(self.keyboard.as_deref()?, &EDITOR_CAMERA_KEYS).map(InputSource::from)
+        capture_binding(self.keyboard.as_deref()?).map(InputSource::from)
     }
 
     /// Whether Alt is down, which makes LMB the camera's orbit.
@@ -331,6 +311,7 @@ pub(crate) fn create_scenario_object(
     mut selected: ResMut<SelectedNode>,
     mut says: EditorSays,
     benches: Query<(), With<AssetNode>>,
+    (stage, places): (Query<&GlobalTransform>, Query<&PlaceAt>),
 ) {
     let Ok(choice) = choices.get(activate.entity) else {
         return;
@@ -343,10 +324,20 @@ pub(crate) fn create_scenario_object(
         says.refuse("there is no scenario to add an object to");
         return;
     };
-    let at = camera
-        .iter()
-        .next()
-        .map_or(Vec3::ZERO, |camera| in_front_of(camera, &framing));
+    // The stage menu's rows carry the clicked point; the bar menu's do not.
+    let at = places.get(activate.entity).map_or_else(
+        |_| {
+            camera
+                .iter()
+                .next()
+                .map_or(Vec3::ZERO, |camera| in_front_of(camera, &framing))
+        },
+        |place| place.0,
+    );
+    // The scenario root moves under an entered ship, and the object is its child.
+    let at = stage
+        .get(scenario)
+        .map_or(at, |root| root.affine().inverse().transform_point3(at));
     let object = spawn_object_node(
         &mut commands,
         &mut ordinals,
@@ -481,7 +472,7 @@ fn delete_selection(
 ///
 /// A menu row for a pose verb rather than only a key, because R, F and the
 /// wheel were named in one legend a builder can switch off. Inert with nothing
-/// in hand, which is also when [`crate::ui::menu::sync_armed_menu`] greys it.
+/// in hand, which is also when `crate::ui::menu_context::verb_state` greys it.
 pub(crate) fn roll_armed_part(
     _activate: On<Activate>,
     selection: Res<HeldPart>,
@@ -696,21 +687,17 @@ pub(crate) fn cycle_placement_pose(
 /// reversible half of [`cycle_placement_pose`].
 ///
 /// The wheel is the one gesture that reads as "turn this a bit either way". It
-/// is the camera's dial while RMB is held, and a panel's while the pointer is
-/// over one, so neither reaches the part. CTRL and not Shift: Shift is the fly
-/// rig's sprint.
+/// is a panel's while the pointer is over one, so that never reaches the part.
+/// CTRL and not Shift: Shift is the pan modifier.
 pub(crate) fn wheel_placement_pose(
     mut wheel: MessageReader<MouseWheel>,
     keys: Res<ButtonInput<KeyCode>>,
-    mouse: Option<Res<ButtonInput<MouseButton>>>,
     pointer: Res<ViewportPointer>,
     selection: Res<HeldPart>,
     sections: Res<GameSections>,
     mut pose: ResMut<PlacementPose>,
 ) {
-    let flying = mouse.is_some_and(|mouse| mouse.pressed(MouseButton::Right));
-    let Some(sockets) =
-        armed_socket_count(&selection, &sections).filter(|_| !flying && !pointer.over_ui)
+    let Some(sockets) = armed_socket_count(&selection, &sections).filter(|_| !pointer.over_ui)
     else {
         // Drained, so a scroll made before a part was armed is not replayed
         // into the pose on the frame it arms.
@@ -1888,46 +1875,25 @@ mod tests {
         assert_eq!(world.query::<&SectionNode>().iter(&world).count(), 0);
     }
 
-    /// F29: a held camera key must not become the new section's binding, and a
-    /// tie must resolve the same way every run.
+    /// F29: a held key must not become the new section's binding, and a tie
+    /// must resolve the same way every run.
     #[test]
-    fn capture_skips_held_and_reserved_keys() {
-        let mut input = ButtonInput::<KeyCode>::default();
-        input.press(KeyCode::KeyW);
-        assert_eq!(
-            capture_binding(&input, &EDITOR_CAMERA_KEYS),
-            None,
-            "a camera key is never captured"
-        );
-
-        // A held (not just-pressed) key is not captured either: clearing the
+    fn capture_takes_the_lowest_key_pressed_this_frame() {
+        // A held (not just-pressed) key is not captured: clearing the
         // just-pressed set is what a second frame of holding does.
         let mut input = ButtonInput::<KeyCode>::default();
         input.press(KeyCode::KeyR);
         input.clear();
-        assert_eq!(
-            capture_binding(&input, &[]),
-            None,
-            "held keys are not captured"
-        );
+        assert_eq!(capture_binding(&input), None, "held keys are not captured");
 
-        // W+R: W is reserved, so R wins - deterministically.
-        let mut input = ButtonInput::<KeyCode>::default();
-        input.press(KeyCode::KeyW);
-        input.press(KeyCode::KeyR);
-        assert_eq!(
-            capture_binding(&input, &EDITOR_CAMERA_KEYS),
-            Some(KeyCode::KeyR)
-        );
-
-        // Two free keys: the lowest, every time.
+        // Two keys: the lowest, every time.
         let mut input = ButtonInput::<KeyCode>::default();
         input.press(KeyCode::KeyR);
         input.press(KeyCode::KeyT);
-        let first = capture_binding(&input, &EDITOR_CAMERA_KEYS);
+        let first = capture_binding(&input);
         assert!(first.is_some());
         for _ in 0..16 {
-            assert_eq!(capture_binding(&input, &EDITOR_CAMERA_KEYS), first);
+            assert_eq!(capture_binding(&input), first);
         }
     }
 
@@ -2521,28 +2487,6 @@ mod tests {
                         && !line.contains(MINING_KEYS_TAKEN)
                 }),
             "the refusal names the held key, not the generic exhaustion message"
-        );
-    }
-
-    /// F29: placing a turret while a camera key is held falls back to the
-    /// kind's default instead of binding that key.
-    #[test]
-    fn placement_falls_back_to_the_default_when_only_camera_keys_are_held() {
-        let mut keyboard = ButtonInput::<KeyCode>::default();
-        keyboard.press(KeyCode::KeyW);
-        let binds = default_binds_for(
-            &SectionKind::Turret(TurretSectionConfig::default()),
-            Some(&keyboard),
-            None,
-            &[],
-        );
-        assert_eq!(
-            binds,
-            Some(vec![
-                InputSource::from(MouseButton::Left),
-                InputSource::from(GamepadButton::RightTrigger2)
-            ]),
-            "W drives the camera, so the turret keeps its defaults on both devices"
         );
     }
 

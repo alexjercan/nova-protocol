@@ -4,18 +4,19 @@
 //! Hub, so nothing here reaches your real mods.
 //!
 //! Try: name a mod and press Create. In the Assets tab press + > Sections and
-//! start from a Plain Hull or a loaded prototype. The Viewport shows the section
-//! alone, the Hierarchy its Collider, Mesh and sockets, and the Inspector their
-//! fields. Click a socket, press W and drag a handle: each move is one undo step.
-//! Add Socket adds one, Del removes it. On the Mesh row, pick a file or press
-//! Import .glb. Then open a scenario, enter a ship and arm the section from the
-//! gallery's Mod category. Save, Package and Play refuse while Problems shows an
-//! Error.
+//! pick a kind. The new section is blank, and Problems names the fields it
+//! still needs. The Viewport shows the section alone, the Hierarchy its parts
+//! and sockets, and the Inspector their fields. Add > Socket adds a socket.
+//! Click it, press W and drag a handle: each move is one undo step. Del removes
+//! it. Add > Mesh... imports a .glb. Then open a scenario, enter a ship and arm
+//! the section from the gallery's Mod category. Save, Package and Play refuse
+//! while Problems shows an Error.
 //!
 //! The panel reads the project's undo depth, unsaved mark and the status line.
 //!
 //! With `NOVA_AUTOPILOT=1` a smoke walk does the whole path through real buttons:
-//! new mod, two scenarios, a section with a socket moved and a real glb imported,
+//! new mod, two scenarios, a blank section filled in, a socket added and moved
+//! and a real glb imported,
 //! placed on a ship, saved, reopened through the hub, packaged and flown, with the
 //! section read off the flown ship. `NOVA_CAPTURE=1` shoots the bench, the form,
 //! the imported mesh, the placed part and the flight. Unset, no walk and no
@@ -45,7 +46,7 @@ fn parse_size(text: &str) -> Result<(f32, f32), String> {
     Ok((number(width)?, number(height)?))
 }
 
-const INTRO: &str = "Name a mod and press Create. Assets > + > Sections starts a section.";
+const INTRO: &str = "Name a mod and press Create. Assets > + > Sections adds a blank section.";
 
 fn main() -> bevy::app::AppExit {
     let cli = Cli::parse();
@@ -145,8 +146,17 @@ mod smoke {
     /// Seconds the flight scene and a content restart get.
     const PLAY_SECS: f32 = 300.0;
     const MOD_NAME: &str = "Spar Works";
-    const SECTION: &str = "spar_works__plain_hull";
-    const SOCKET: &str = "positive_x";
+    const SECTION: &str = "spar_works__new_hull";
+    const SOCKET: &str = "socket_1";
+    /// What the blank needs before Save takes it: the fields whose least value
+    /// the lint refuses, and a health so the part survives its flight.
+    const FILLED: &[(&str, &str)] = &[
+        ("Health", "100"),
+        ("Draw Weight", "1"),
+        ("Credits", "40"),
+        ("Strip Yield", "0.5"),
+    ];
+    const ADD_MENU: &str = "Add Menu Button";
     const SHIP: &str = "picket_warden";
     const FILE_MENU: &str = "File Menu Button";
     const SAVE: &[KeyCode] = &[KeyCode::ControlLeft, KeyCode::KeyS];
@@ -158,6 +168,7 @@ mod smoke {
     const BENCH_SHOT: &str = "section-bench.png";
     const GALLERY_SHOT: &str = "section-gallery.png";
     const FORM_SHOT: &str = "section-form.png";
+    const BLANK_SHOT: &str = "section-blank.png";
     const MESH_SHOT: &str = "section-mesh.png";
     const PLACED_SHOT: &str = "section-placed.png";
     const FLOWN_SHOT: &str = "section-flown.png";
@@ -399,7 +410,7 @@ mod smoke {
 
     /// The mod, two scenarios and the section on its bench.
     fn build_the_mod(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
-        script
+        let script = script
             .step("section: the hub is up")
             .until(ui_node_present("Hub New Button"))
             .diagnose(readout)
@@ -438,12 +449,6 @@ mod smoke {
             .click_named(
                 "section: add a scenario",
                 "Asset Add Scenarios",
-                ui_node_present("Template Duelling Arena"),
-                BEAT_SECS,
-            )
-            .click_named(
-                "section: pick the arena",
-                "Template Duelling Arena",
                 reads("Scenarios 2"),
                 BEAT_SECS,
             )
@@ -456,24 +461,43 @@ mod smoke {
             .click_named(
                 "section: add a section",
                 "Asset Add Sections",
-                ui_node_present("Offer Row Plain Hull"),
+                ui_node_present("Section Kind Hull"),
                 BEAT_SECS,
             )
             .click_named(
-                "section: start from a plain hull",
-                "Offer Row Plain Hull",
-                ui_node_present("Scene Row collider"),
+                "section: a hull",
+                "Section Kind Hull",
+                ui_node_present(format!("Scene Row {SECTION}")),
                 BEAT_SECS,
             )
-            .step("section: the bench holds six sockets")
-            .until(Arc::new(|world: &World| {
-                ui_node_present("Scene Row mesh")(world)
-                    && ui_node_present("Scene Row positive_x")(world)
-                    && ui_node_present("Scene Row negative_z")(world)
-            }))
+            .step("section: the blank names what it still needs")
+            .until(editor(|probe| probe.shell.errors > 0))
             .diagnose(readout)
             .deadline(BEAT_SECS)
             .add()
+            .step("section: read the blank")
+            .on_enter(|world: &mut World| {
+                let probe = world.resource::<EditorProbe>();
+                info!(
+                    "section: PASS a blank hull opens with {} errors, sockets {:?}",
+                    probe.shell.errors, probe.context_nodes
+                );
+            })
+            .add();
+        let script = shot(script, BLANK_SHOT);
+        script
+            .click_named(
+                "section: open the Add menu",
+                ADD_MENU,
+                ui_node_present("Add Socket Item"),
+                BEAT_SECS,
+            )
+            .click_named(
+                "section: add a socket",
+                "Add Socket Item",
+                ui_node_present(format!("Scene Row {SOCKET}")),
+                BEAT_SECS,
+            )
     }
 
     /// Move a socket with the gizmo and read that it was one step.
@@ -554,7 +578,40 @@ mod smoke {
             .add()
     }
 
-    /// Type a long Description, then import a real glb onto the Mesh row.
+    /// Type `value` into the Inspector row `label`, as a builder would.
+    fn type_into(
+        script: AutopilotPlugin<GameStates>,
+        label: &'static str,
+        value: &'static str,
+    ) -> AutopilotPlugin<GameStates> {
+        script
+            .click_named(
+                &format!("section: reach for {label}"),
+                &format!("Inspector Field {label}"),
+                editor_field_focused(),
+                BEAT_SECS,
+            )
+            .step(format!("section: type {label}"))
+            .on_enter(move |world: &mut World| {
+                press_edit_key(Key::End)(world);
+                for _ in 0..12 {
+                    press_edit_key(Key::Backspace)(world);
+                }
+                type_text(value)(world);
+                press_edit_key(Key::Enter)(world);
+            })
+            .until(editor(move |probe| {
+                probe.inspector.iter().any(|(row, held)| {
+                    row == label && held.parse::<f32>().ok() == value.parse::<f32>().ok()
+                })
+            }))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add()
+    }
+
+    /// Type a long Description and the fields the blank needs, then import a
+    /// real glb through Add > Mesh.
     fn fill_the_form(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
         let script = script
             .step("section: put the tool down")
@@ -600,16 +657,26 @@ mod smoke {
             .diagnose(readout)
             .deadline(BEAT_SECS)
             .add();
+        let mut script = script;
+        for &(label, value) in FILLED {
+            script = type_into(script, label, value);
+        }
+        let script = script
+            .step("section: the filled section has no error left")
+            .until(editor(|probe| probe.shell.errors == 0))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add();
         let script = shot(script, FORM_SHOT)
             .click_named(
-                "section: select the mesh",
-                "Scene Row mesh",
-                ui_node_present("Inspector Press Import"),
+                "section: open the Add menu for a mesh",
+                ADD_MENU,
+                ui_node_present("Add Mesh Item"),
                 BEAT_SECS,
             )
             .click_named(
-                "section: Import .glb",
-                "Inspector Press Import",
+                "section: Add > Mesh...",
+                "Add Mesh Item",
                 ui_node_present("Path Field"),
                 BEAT_SECS,
             )
@@ -623,6 +690,12 @@ mod smoke {
             .click_named(
                 "section: read the model",
                 "File Save Button",
+                Arc::new(|world: &World| !ui_node_present("File Window")(world)),
+                BEAT_SECS,
+            )
+            .click_named(
+                "section: select the mesh",
+                "Scene Row mesh",
                 editor(|probe| {
                     probe
                         .inspector

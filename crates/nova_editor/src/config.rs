@@ -139,31 +139,63 @@ impl SelectedNode {
 #[derive(Resource, Default, Debug)]
 pub(crate) struct HoveredNode(pub(crate) Option<Entity>);
 
-/// Which half of the document the rail's tree is showing - and, with it, WHICH
-/// EDITOR the screen is.
+/// The view of the open document the screen shows: WHICH EDITOR the screen is.
 ///
-/// One tree and two tabs rather than two stacked trees: a range holds twenty
-/// objects and a script holds as many handlers, and a 150px rail cannot show
-/// both at once without the half you came for being off the bottom edge.
+/// Each document kind has its own views ([`DocumentType::views`]), and the top
+/// bar's view switch shows only those. A scenario has two: the stage and the
+/// script. One tree and two tabs rather than two stacked trees: a range holds
+/// twenty objects and a script holds as many handlers, and a 150px rail cannot
+/// show both at once.
 ///
-/// The tab is a MODE, not a filter on a list. [`RailTab::Scene`] is the stage
-/// with its panels either side of it, and the panels are narrow because the
-/// placement raycast goes through the middle of the screen. Nothing is placed
-/// in [`RailTab::Events`], so that constraint does not exist there and the
-/// script gets the whole window instead - see `crate::ui::shell::sync_panels`.
+/// The view is a MODE, not a filter on a list. Every view but
+/// [`EditorViewType::Events`] is the stage with its panels either side of it,
+/// narrow because the placement raycast goes through the middle of the screen.
+/// Nothing is placed in Events, so the script gets the whole window instead -
+/// see `crate::ui::shell::sync_panels`.
+///
+/// Changing the view is never an undo step and never marks the mod unsaved.
+///
+/// [`DocumentType::views`]: crate::project::DocumentType::views
 #[derive(Resource, Clone, Copy, Default, Debug, PartialEq, Eq)]
-pub(crate) enum RailTab {
-    /// The world: the range, the ships on it and the objects around them.
+pub(crate) enum EditorViewType {
+    /// A scenario's world: the range, the ships on it and the objects around
+    /// them.
     #[default]
     Scene,
-    /// The script: the handlers, their filters and what they do.
+    /// A scenario's script: the handlers, their filters and what they do.
     Events,
+    /// One ship of a scenario, entered: its sections on the stage.
+    Ship,
+    /// One section on the bench: its collider, mesh and sockets.
+    Section,
+    /// Any other item on the bench, edited as fields.
+    Form,
 }
 
-impl RailTab {
+impl EditorViewType {
+    /// Every view, in the order the switch draws them.
+    pub(crate) const ALL: [Self; 5] = [
+        Self::Scene,
+        Self::Events,
+        Self::Ship,
+        Self::Section,
+        Self::Form,
+    ];
+
     /// Whether the screen is the events editor rather than the stage.
     pub(crate) fn is_events(self) -> bool {
-        self == RailTab::Events
+        self == Self::Events
+    }
+
+    /// What its tab reads.
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Scene => "Scene",
+            Self::Events => "Events",
+            Self::Ship => "Ship",
+            Self::Section => "Section",
+            Self::Form => "Form",
+        }
     }
 }
 
@@ -176,9 +208,9 @@ pub(crate) struct EditorRail;
 #[derive(Component)]
 pub(crate) struct EditorFoot;
 
-/// One tab of the rail's tree header, carrying the half it switches to.
+/// One tab of the top bar's view switch, carrying the view it shows.
 #[derive(Component, Clone, Copy)]
-pub(crate) struct RailTabButton(pub(crate) RailTab);
+pub(crate) struct ViewTabButton(pub(crate) EditorViewType);
 
 /// The Scene block's row container, emptied and refilled by
 /// `crate::ui::sync_scene_list`.
@@ -249,11 +281,6 @@ impl Default for EditorOverlays {
 #[derive(Component)]
 pub(crate) struct ShipSettings;
 
-/// The Rebind row (Ship > Rebind Key), greyed unless the selection is a
-/// bindable section of the edited ship.
-#[derive(Component)]
-pub(crate) struct RebindButton;
-
 /// The ghost part that previews where a placed section will land.
 #[derive(Component)]
 pub(crate) struct SectionPreviewMarker;
@@ -310,19 +337,15 @@ pub(crate) struct PlacementStatus;
 
 /// What that line says.
 ///
-/// THREE slots, because three kinds of thing want it. The READOUT is the
+/// TWO slots, because two kinds of thing want it. The READOUT is the
 /// placement preview's, rewritten every frame while a part is in hand and gone
 /// the moment it is put down. What a VERB SAID - a save wrote, a load failed -
 /// has to outlast the frame it happened in, or the builder never sees it, so it
-/// holds the line for [`SAID_HOLD_SECS`] and the readout waits. The CAMERA line
-/// is the fly speed, and it takes the line for as long as RMB is held: that is
-/// the moment the builder is reading it.
+/// holds the line for [`SAID_HOLD_SECS`] and the readout waits.
 #[derive(Resource, Default)]
 pub(crate) struct EditorStatus {
     /// The placement readout, or `None` when nothing is being placed.
     readout: Option<(String, UiColor)>,
-    /// The fly speed, or `None` when the camera is not flying.
-    camera: Option<String>,
     /// The last thing a verb said, and the moment it stops holding the line.
     said: Option<(String, UiColor, f64)>,
     /// How many refusals have been said, so a press can tell whether the verb
@@ -344,13 +367,6 @@ impl EditorStatus {
         self.said
             .as_ref()
             .map(|(message, tint, _)| (message.as_str(), *tint))
-    }
-
-    /// Write the camera's line, or clear it.
-    pub(crate) fn camera(&mut self, line: Option<String>) {
-        if self.camera != line {
-            self.camera = line;
-        }
     }
 
     /// Say something that has to be read: it holds the line for a few seconds.
@@ -383,14 +399,9 @@ impl EditorStatus {
 
     /// What the line shows right now.
     pub(crate) fn line(&self) -> Option<(&str, UiColor)> {
-        self.camera
-            .as_deref()
-            .map(|line| (line, UiColor::Primary))
-            .or_else(|| {
-                self.said
-                    .as_ref()
-                    .map(|(message, tint, _)| (message.as_str(), *tint))
-            })
+        self.said
+            .as_ref()
+            .map(|(message, tint, _)| (message.as_str(), *tint))
             .or_else(|| {
                 self.readout
                     .as_ref()

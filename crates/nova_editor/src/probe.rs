@@ -15,7 +15,7 @@ use nova_ui::prelude::TextFieldFocused;
 use crate::{
     asset::{AssetPartType, SocketNode},
     camera::{CameraGestureType, EditorRig},
-    config::{EditorStatus, HoveredNode, PlacementPreview, RailTab, SceneRow, SelectedNode},
+    config::{EditorStatus, EditorViewType, HoveredNode, PlacementPreview, SceneRow, SelectedNode},
     event::ScriptNodes,
     frame::CameraFraming,
     gizmo::GizmoRig,
@@ -32,6 +32,7 @@ use crate::{
         browser::BrowserTabType,
         canvas::{CanvasBoard, CanvasDrag, CanvasView},
         inspector::{Document, InspectorField},
+        log::StatusLog,
         menu::OpenMenu,
         shell::EditorPanels,
     },
@@ -139,13 +140,6 @@ pub struct EditorProbe {
     /// to, and the only way a driven run can tell "entered ship_2" from "still
     /// looking at ship_1 from outside".
     pub inside: Option<String>,
-    /// Where that node stands in the WORLD, or `None` at the scenario node.
-    ///
-    /// Inside a ship every pose the probe reports is ship-LOCAL, and the ship
-    /// itself stands wherever the stage's layout put it. This is what turns one
-    /// into the other, so a driven run can aim a pointer at a face of a ship
-    /// that is not standing on the origin.
-    pub inside_origin: Option<Vec3>,
     /// The node ids the current context CONTAINS: at the scenario node its
     /// ships in id order and then the world's objects in id order, inside a
     /// ship that ship's sections. The Scene tree draws more than this (the root
@@ -162,8 +156,6 @@ pub struct EditorProbe {
     pub gizmo_space: GizmoSpaceType,
     /// What the camera is doing.
     pub camera_gesture: CameraGestureType,
-    /// The fly speed the dial is set to, in m/s.
-    pub fly_speed: f32,
     /// The id of the node the pointer is resting on, or `None`.
     ///
     /// One answer for both surfaces: the rail and the stage feed the same
@@ -267,6 +259,10 @@ pub struct ShellProbe {
     pub tree_rows: usize,
     /// How many rows the Assets tab shows.
     pub asset_rows: usize,
+    /// Every line the Log tab holds, oldest first.
+    pub log_lines: Vec<String>,
+    /// How many of them its filters show.
+    pub log_shown: usize,
 }
 
 /// Refresh [`EditorProbe::shell`], after [`sync_editor_probe`] wrote the rest.
@@ -278,7 +274,7 @@ pub(crate) fn sync_shell_probe(
     editor: Res<State<ExampleStates>>,
     panels: Res<EditorPanels>,
     tab: Res<BrowserTabType>,
-    rail: Res<RailTab>,
+    rail: Res<EditorViewType>,
     problems: Res<Problems>,
     board: Res<CanvasBoard>,
     drag: Res<CanvasDrag>,
@@ -287,6 +283,7 @@ pub(crate) fn sync_shell_probe(
     rows: Query<(), With<SceneRow>>,
     assets: Query<&Children, With<AssetList>>,
     view: Res<CanvasView>,
+    log: Res<StatusLog>,
     mut probe: ResMut<EditorProbe>,
 ) {
     if *editor.get() != ExampleStates::Editor {
@@ -315,6 +312,8 @@ pub(crate) fn sync_shell_probe(
         warnings,
         tree_rows: rows.iter().count(),
         asset_rows: assets.iter().map(|rows| rows.len()).sum(),
+        log_lines: log.texts(),
+        log_shown: log.shown_count(),
     };
     if probe.shell != shell {
         probe.shell = shell;
@@ -369,10 +368,6 @@ pub(crate) fn sync_editor_probe(
         let listed = context_nodes(&context, &q_ships, &q_objects, &nodes);
         snapshot.ship = edited_ship(&context, &nodes);
         snapshot.inside = inside_id(&context, &q_ships).map(|id| id.0.clone());
-        snapshot.inside_origin = context
-            .ship()
-            .and_then(|ship| poses.get(ship).ok())
-            .map(|pose| pose.translation);
         let id_of = |node: Option<Entity>| {
             node.and_then(|node| {
                 listed
@@ -397,7 +392,6 @@ pub(crate) fn sync_editor_probe(
         snapshot.gizmo_space = tool.space;
         if let Some(camera_rig) = camera_rig.iter().next() {
             snapshot.camera_gesture = camera_rig.gesture;
-            snapshot.fly_speed = camera_rig.fly_speed().get();
         }
         snapshot.hovered_node = id_of(hovered.0);
         // The same rule `continue_to_simulation` enforces, reported rather than
@@ -541,14 +535,12 @@ fn snapshot(
         next_redo: None,
         ship: Vec::new(),
         inside: None,
-        inside_origin: None,
         context_nodes: Vec::new(),
         selected_node: None,
         selected_nodes: Vec::new(),
         stage_tool: StageToolType::default(),
         gizmo_space: GizmoSpaceType::default(),
         camera_gesture: CameraGestureType::default(),
-        fly_speed: 0.0,
         hovered_node: None,
         can_play: false,
         visible_ships: Vec::new(),

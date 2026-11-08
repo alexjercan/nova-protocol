@@ -2128,3 +2128,58 @@ fn a_folded_group_hides_its_rows_and_keeps_its_heading() {
         .count();
     assert!(headings > 0, "and its heading stayed to open it again");
 }
+
+/// A pick on a colour the theme inherits writes the theme's OWN entry, and a
+/// colour with an alpha is refused: a palette is six-digit `#rrggbb`.
+#[test]
+fn a_palette_pick_overrides_its_entry_and_refuses_an_alpha() {
+    let mut app = inspector_app();
+    let theme = app
+        .world_mut()
+        .spawn(AssetNode(Content::UiTheme(Box::new(
+            nova_ui::theme::UiThemeConfig {
+                id: "t/derived".to_string(),
+                name: "Derived".to_string(),
+                inherit: Some(nova_ui::theme::PHOSPHOR_THEME_ID.to_string()),
+                palette: BTreeMap::from([("primary".to_string(), "#102030".to_string())]),
+                metrics: None,
+                roles: default(),
+            },
+        ))))
+        .id();
+    let field = |name: &str| InspectorField {
+        node: theme,
+        root: FieldRoot::PaletteColour,
+        path: vec![PathStep::Field(name.to_string())],
+        optional: false,
+    };
+    let write = |app: &mut App, field: InspectorField, text: &'static str| {
+        app.world_mut()
+            .run_system_once(move |mut targets: EditTargets| {
+                targets.edit(&field, |root, path, optional| {
+                    write_field(root, path, optional, text)
+                })
+            })
+            .expect("the write runs")
+    };
+    let palette = |app: &App| match &app.world().get::<AssetNode>(theme).expect("a theme").0 {
+        Content::UiTheme(theme) => theme.palette.clone(),
+        other => panic!("not a theme: {other:?}"),
+    };
+
+    write(&mut app, field("accent"), "#A0B0C0").expect("a six-digit colour takes");
+    assert_eq!(
+        palette(&app).get("accent").map(String::as_str),
+        Some("#a0b0c0"),
+        "the inherited colour is the theme's own now"
+    );
+
+    let refused = write(&mut app, field("primary"), "#11223344");
+    assert!(refused.is_err(), "an alpha is refused");
+    assert_eq!(
+        palette(&app).get("primary").map(String::as_str),
+        Some("#102030"),
+        "and the colour it held stays"
+    );
+    assert_eq!(field("primary").edit_label(), "Edit Colour primary");
+}

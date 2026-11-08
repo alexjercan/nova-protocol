@@ -7,9 +7,8 @@ use crate::{config::EditorStatus, node::ObjectChoice};
 fn tool_app() -> App {
     let mut app = App::new();
     app.init_resource::<ButtonInput<KeyCode>>()
-        .init_resource::<ButtonInput<MouseButton>>()
         .init_resource::<StageTool>()
-        .init_resource::<RailTab>()
+        .init_resource::<EditorViewType>()
         .init_resource::<EditorStatus>()
         .init_resource::<Time>()
         .init_resource::<SelectedNode>()
@@ -51,7 +50,7 @@ fn q_w_e_and_r_pick_the_tools() {
 #[test]
 fn tool_keys_do_nothing_in_events() {
     let mut app = tool_app();
-    *app.world_mut().resource_mut::<RailTab>() = RailTab::Events;
+    *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Events;
     let before = *app.world().resource::<StageTool>();
 
     for key in [
@@ -64,18 +63,6 @@ fn tool_keys_do_nothing_in_events() {
         tap(&mut app, &[key]);
         assert_eq!(*app.world().resource::<StageTool>(), before, "{key:?}");
     }
-}
-
-#[test]
-fn tool_keys_are_ignored_with_rmb_held() {
-    let mut app = tool_app();
-    app.world_mut()
-        .resource_mut::<ButtonInput<MouseButton>>()
-        .press(MouseButton::Right);
-
-    tap(&mut app, &[KeyCode::KeyE]);
-
-    assert_eq!(tool(&app), StageToolType::Move);
 }
 
 #[test]

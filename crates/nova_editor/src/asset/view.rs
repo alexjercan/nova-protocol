@@ -5,7 +5,7 @@ use nova_assets::mod_refs::prelude::rewrite_refs;
 use nova_modding::prelude::Content;
 use nova_ship::prelude::{draw_socket, SectionCollider, SectionConfig, SectionKind};
 
-use super::{mesh_fault, mesh_is_optional, set_mesh, AssetNode, SocketNode};
+use super::{mesh_fault, unstage_mesh, AssetNode, SocketNode};
 use crate::{
     asset_index::AssetIndex,
     config::{EditorCamera, EditorGizmos, EditorOverlays, SelectedNode},
@@ -43,22 +43,23 @@ fn staged(
     index: &AssetIndex,
     project: Option<&ModProject>,
 ) -> SectionConfig {
-    let mut held = config.clone();
+    let held = config.clone();
     let mesh = super::mesh_of(&held.kind);
     let missing = !index.resolves(&mesh)
         || project.is_some_and(|project| {
             let own = project.id.as_deref().unwrap_or_default();
             mesh_fault(own, &project.data, &mesh).is_some()
         });
-    if missing && mesh_is_optional(&held.kind) {
-        // Only the empty ref is written, and an optional field takes that.
-        let _ = set_mesh(&mut held.kind, "");
-    }
     let item = Content::Section(Box::new(held));
-    match index.scoped(|scope| rewrite_refs(&item, scope)) {
+    let mut staged = match index.scoped(|scope| rewrite_refs(&item, scope)) {
         Content::Section(config) => *config,
         _ => unreachable!("a rewrite keeps the content's kind"),
+    };
+    if missing {
+        // After the rewrite: a ref with no path does not serialize.
+        unstage_mesh(&mut staged.kind);
     }
+    staged
 }
 
 /// Keep the section's body on the document root.

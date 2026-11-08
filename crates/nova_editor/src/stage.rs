@@ -32,7 +32,7 @@ use crate::{
     palette,
     ui::{
         inspector::PANEL_W as INSPECTOR_W,
-        shell::{BROWSER_H, FOOT_H},
+        shell::{EditorPanels, FOOT_H},
     },
 };
 
@@ -82,7 +82,7 @@ const PLUMB: Color = palette::AIMED;
 
 /// A trigger volume - the sphere a beacon or a crate fires `OnEnter` from. One
 /// colour for all of them, because what they have in common is the thing worth
-/// seeing: fly in here and the scenario hears about it.
+/// seeing: a ship enters it and the scenario hears about it.
 const TRIGGER: Color = palette::TRIGGER;
 
 /// How much of the distance to the camera a sun's arrow spans, and the disc its
@@ -118,6 +118,14 @@ const ROSE_INSET: Vec2 = Vec2::new(76.0, 80.0);
 /// which end is POSITIVE, on a rose with no room for letters.
 const ROSE_TIP: f32 = 0.16;
 
+/// Where the axis rose stands in the world, as last drawn.
+///
+/// It stands [`ROSE_DEPTH`] in front of the eye, so a camera pose one frame old
+/// puts it off the screen. A driven run reads this to prove it holds its corner
+/// while the camera moves, which a single frame cannot show.
+#[derive(Resource, Debug, Default, Clone, Copy, PartialEq)]
+pub struct AxisRoseOrigin(pub Option<Vec3>);
+
 /// Draw the axis rose in the viewport's bottom-right corner.
 ///
 /// Always on, and in both contexts. Inside a ship the grid is off by design -
@@ -131,6 +139,8 @@ const ROSE_TIP: f32 = 0.16;
 /// handle that drags along X are the same red.
 pub(crate) fn draw_axis_rose(
     camera: Option<Single<(&Camera, &GlobalTransform), With<EditorCamera>>>,
+    panels: Res<EditorPanels>,
+    mut drawn: ResMut<AxisRoseOrigin>,
     mut gizmos: Gizmos<EditorGizmos>,
 ) {
     let Some(camera) = camera else {
@@ -142,12 +152,13 @@ pub(crate) fn draw_axis_rose(
     };
     let corner = Vec2::new(
         viewport.x - INSPECTOR_W - ROSE_INSET.x,
-        viewport.y - BROWSER_H - FOOT_H - ROSE_INSET.y,
+        viewport.y - panels.browser_taken(viewport.y) - FOOT_H - ROSE_INSET.y,
     );
     let Ok(ray) = camera.viewport_to_world(pose, corner) else {
         return;
     };
     let origin = ray.get_point(ROSE_DEPTH);
+    drawn.0 = Some(origin);
     let arm = ROSE_DEPTH * ROSE_ARM;
     // The dots face the eye, so an axis pointing at the camera reads as a ring
     // rather than as a missing arm.
@@ -312,7 +323,7 @@ pub(crate) fn draw_node_marks(
 /// sphere a crate is collected inside, the sphere a beacon fires from, the
 /// distance a lamp reaches, the direction a sun shines. Those are authored
 /// numbers with real consequences for the scenario, and until now the only way
-/// to see one was to fly the range and find out.
+/// to see one was to play the range and find out.
 ///
 /// A light draws in its OWN colour, so a warm key and a cold rim are told apart
 /// without selecting either; a trigger draws in one colour for all kinds,

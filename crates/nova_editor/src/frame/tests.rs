@@ -17,7 +17,7 @@ fn frame_app() -> App {
     app.init_resource::<CameraFraming>();
     app.init_resource::<SelectedNode>();
     app.init_resource::<EditContext>();
-    app.init_resource::<RailTab>();
+    app.init_resource::<EditorViewType>();
     app.insert_resource(HeldPart(None));
     app
 }
@@ -230,33 +230,6 @@ fn the_key_stays_out_of_the_way_of_an_armed_part() {
         app.world().resource::<FrameRequest>().node,
         None,
         "F cycles the armed part's socket; it must not also move the camera"
-    );
-}
-
-#[test]
-fn the_menu_row_greys_only_when_there_is_nothing_to_frame() {
-    let mut app = frame_app();
-    let row = app.world_mut().spawn(FrameSelectionItem).id();
-
-    // An empty context and no selection: the document does not exist yet.
-    app.world_mut()
-        .run_system_once(sync_frame_item)
-        .expect("the system runs");
-    assert!(app.world().entity(row).contains::<InteractionDisabled>());
-
-    let scenario = app
-        .world_mut()
-        .spawn((EditorNode, Transform::default()))
-        .id();
-    app.world_mut().insert_resource(EditContext {
-        path: vec![scenario],
-    });
-    app.world_mut()
-        .run_system_once(sync_frame_item)
-        .expect("the system runs");
-    assert!(
-        !app.world().entity(row).contains::<InteractionDisabled>(),
-        "standing somewhere is always something to frame"
     );
 }
 

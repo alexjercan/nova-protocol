@@ -391,7 +391,7 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
 }
 
 /// The generated-part tier every section authors: `advancement` finite in
-/// `[0, 1]` and `draw_weight` finite and positive. The open world's part
+/// `[0, 1]`, and `health` and `draw_weight` finite and positive. The open world's part
 /// snapshot refuses the same values at arming (`ShipPartFault::InvalidStat`).
 fn check_part_tier(config: &SectionConfig, source: &str, issues: &mut Vec<LintIssue>) {
     let id = config.base.id.as_str();
@@ -402,6 +402,14 @@ fn check_part_tier(config: &SectionConfig, source: &str, issues: &mut Vec<LintIs
             format!(
                 "section '{id}': advancement must be a finite number in [0, 1], got {advancement}"
             ),
+        ));
+    }
+    // Zero health spawns a part already destroyed.
+    let health = config.base.health;
+    if !(health.is_finite() && health > 0.0) {
+        issues.push(LintIssue::error(
+            source,
+            format!("section '{id}': health must be a finite positive number, got {health}"),
         ));
     }
     let draw_weight = config.base.draw_weight;
@@ -656,6 +664,15 @@ fn check_cargo_intake_config(
             None
         }
     };
+    for field in unnamed_files([
+        ("render_mesh", intake.render_mesh.path()),
+        ("canister_mesh", intake.canister_mesh.path()),
+        ("door_sound", intake.door_sound.path()),
+        ("eject_sound", intake.eject_sound.path()),
+        ("take_sound", intake.take_sound.path()),
+    ]) {
+        error(format!("cargo intake {field} names no file"));
+    }
     let detection_range = intake.detection_range;
     if detection_range <= Meters::ZERO || !detection_range.is_finite() {
         error(format!(
@@ -721,6 +738,17 @@ fn check_cargo_intake_config(
     }
 }
 
+/// The fields of `refs` whose path is empty. The editor's blank section holds
+/// an empty path until a file is picked, and a load of it finds no file. A ref
+/// built in code from a handle has no path and is not checked.
+fn unnamed_files<'a>(
+    refs: impl IntoIterator<Item = (&'a str, Option<&'a str>)>,
+) -> impl Iterator<Item = &'a str> {
+    refs.into_iter()
+        .filter(|(_, path)| path.is_some_and(|path| path.trim().is_empty()))
+        .map(|(field, _)| field)
+}
+
 /// A mining section needs finite, positive stats, a Cuboid collider whose -Z
 /// face is the emitter, and both stow tracks, or its doors and tip never move.
 fn check_mining_config(
@@ -738,6 +766,15 @@ fn check_mining_config(
     };
     if let Err(fault) = mining.validate() {
         error(fault.to_string());
+    }
+    for field in unnamed_files([
+        ("render_mesh", mining.render_mesh.path()),
+        ("pulse_sound", mining.pulse_sound.path()),
+        ("refusal_sound", mining.refusal_sound.path()),
+        ("door_open_sound", mining.door_open_sound.path()),
+        ("door_close_sound", mining.door_close_sound.path()),
+    ]) {
+        error(format!("mining section {field} names no file"));
     }
     if !matches!(config.base.collider, Some(SectionCollider::Cuboid { .. })) {
         error(format!(
@@ -1146,36 +1183,44 @@ mod tests {
     use crate::lint::fixtures::*;
 
     /// Every section authors its generated-part tier: an advancement outside
-    /// `[0, 1]` or a non-positive draw weight is an error, and the common
-    /// `0.0` / `1.0` pair passes.
+    /// `[0, 1]`, a non-positive draw weight or a non-positive health is an
+    /// error, and the common `0.0` / `1.0` / `1.0` set passes.
     #[test]
     fn a_section_tier_outside_its_range_is_an_error() {
         use nova_ship::prelude::{
             BaseSectionConfig, HullSectionConfig, SectionConfig, SectionKind,
         };
 
-        let tiered = |advancement: f32, draw_weight: f32| SectionConfig {
+        let tiered = |advancement: f32, draw_weight: f32, health: f32| SectionConfig {
             base: BaseSectionConfig {
                 id: "plate".to_string(),
                 advancement,
                 draw_weight,
+                health,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
         };
-        assert!(errors(&lint_section_config(&tiered(0.0, 1.0), "plate")).is_empty());
-        assert!(errors(&lint_section_config(&tiered(1.0, 0.1), "plate")).is_empty());
-        for (advancement, draw_weight, needle) in [
-            (1.5, 1.0, "advancement"),
-            (-0.1, 1.0, "advancement"),
-            (f32::NAN, 1.0, "advancement"),
-            (0.0, 0.0, "draw_weight"),
-            (0.0, -1.0, "draw_weight"),
-            (0.0, f32::INFINITY, "draw_weight"),
+        assert!(errors(&lint_section_config(&tiered(0.0, 1.0, 1.0), "plate")).is_empty());
+        assert!(errors(&lint_section_config(&tiered(1.0, 0.1, 0.5), "plate")).is_empty());
+        for (advancement, draw_weight, health, needle) in [
+            (1.5, 1.0, 1.0, "advancement"),
+            (-0.1, 1.0, 1.0, "advancement"),
+            (f32::NAN, 1.0, 1.0, "advancement"),
+            (0.0, 0.0, 1.0, "draw_weight"),
+            (0.0, -1.0, 1.0, "draw_weight"),
+            (0.0, f32::INFINITY, 1.0, "draw_weight"),
+            (0.0, 1.0, 0.0, "health"),
+            (0.0, 1.0, -5.0, "health"),
+            (0.0, 1.0, f32::NAN, "health"),
         ] {
-            let issues = lint_section_config(&tiered(advancement, draw_weight), "plate");
+            let issues = lint_section_config(&tiered(advancement, draw_weight, health), "plate");
             let errs = errors(&issues);
-            assert_eq!(errs.len(), 1, "{advancement} / {draw_weight}: {issues:?}");
+            assert_eq!(
+                errs.len(),
+                1,
+                "{advancement} / {draw_weight} / {health}: {issues:?}"
+            );
             assert!(errs[0].message.contains(needle), "{issues:?}");
         }
     }
@@ -1381,6 +1426,7 @@ mod tests {
                 id: "bay".to_string(),
                 advancement: 0.0,
                 draw_weight: 1.0,
+                health: 1.0,
                 ..default()
             },
             kind: SectionKind::Torpedo(TorpedoSectionConfig {
@@ -1507,6 +1553,7 @@ mod tests {
                 id: "computer".to_string(),
                 advancement: 0.0,
                 draw_weight: 1.0,
+                health: 1.0,
                 ..default()
             },
             kind: SectionKind::Controller(ControllerSectionConfig {
@@ -1571,6 +1618,7 @@ mod tests {
                 ],
                 advancement: 0.0,
                 draw_weight: 1.0,
+                health: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
@@ -1594,6 +1642,7 @@ mod tests {
                 id: "empty".to_string(),
                 advancement: 0.0,
                 draw_weight: 1.0,
+                health: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
@@ -1767,6 +1816,7 @@ mod tests {
                         link_points: nova_ship::prelude::unit_cube_link_points(),
                         advancement: 0.0,
                         draw_weight: 1.0,
+                        health: 1.0,
                         ..Default::default()
                     },
                     kind: SectionKind::Hull(HullSectionConfig {
@@ -1957,6 +2007,7 @@ mod tests {
                 }],
                 advancement: 0.0,
                 draw_weight: 1.0,
+                health: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
@@ -2040,6 +2091,7 @@ mod tests {
                 }],
                 advancement: 0.0,
                 draw_weight: 1.0,
+                health: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
@@ -2052,6 +2104,7 @@ mod tests {
                 collider: box_collider,
                 advancement: 0.0,
                 draw_weight: 1.0,
+                health: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
@@ -2140,6 +2193,7 @@ mod tests {
                 id: "t".to_string(),
                 advancement: 0.0,
                 draw_weight: 1.0,
+                health: 1.0,
                 ..Default::default()
             },
             kind: SectionKind::Turret(TurretSectionConfig {
@@ -2267,6 +2321,7 @@ mod tests {
                 }),
                 advancement: 0.0,
                 draw_weight: 1.0,
+                health: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),
@@ -2282,7 +2337,8 @@ mod tests {
     }
 
     #[test]
-    fn cargo_intake_lint_rejects_bad_volumes_a_bad_eject_speed_and_a_missing_door_track() {
+    fn cargo_intake_lint_rejects_bad_volumes_a_bad_eject_speed_a_missing_door_track_and_an_empty_file(
+    ) {
         use nova_ship::prelude::{BaseSectionConfig, SectionAnimation, SectionAnimationMotion};
 
         let door = SectionAnimation {
@@ -2316,6 +2372,7 @@ mod tests {
                 animations,
                 advancement: 0.0,
                 draw_weight: 1.0,
+                health: 1.0,
                 ..default()
             },
             kind: SectionKind::CargoIntake(intake),
@@ -2370,6 +2427,12 @@ mod tests {
             intake.eject_speed = MetersPerSecond(bad);
             refused(lint(cuboid, vec![door.clone()], intake), "eject_speed");
         }
+        let mut unnamed = good.clone();
+        unnamed.take_sound = String::new().into();
+        refused(
+            lint(cuboid, vec![door.clone()], unnamed),
+            "take_sound names no file",
+        );
         let mut deep = good.clone();
         deep.capture_gap = Meters(40.0);
         refused(
@@ -2400,6 +2463,7 @@ mod tests {
                 },
                 advancement: 0.0,
                 draw_weight: 1.0,
+                health: 1.0,
                 ..default()
             },
             kind: SectionKind::Hull(HullSectionConfig::default()),

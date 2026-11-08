@@ -15,6 +15,7 @@ fn entry(kind: &'static str, label: &str) -> AssetEntry {
         waits: "",
         id: None,
         parts: Vec::new(),
+        file: None,
     }
 }
 
@@ -24,7 +25,7 @@ fn a_kind_and_a_filter_both_narrow_the_grid() {
     let entries = vec![
         entry("scenario", "Red Run"),
         entry("section", "red_plate"),
-        entry("resource", "sounds/boom.ogg"),
+        entry("audio", "sounds/boom.ogg"),
     ];
 
     assert_eq!(filtered_entries(&entries, None, "").len(), 3);
@@ -157,6 +158,9 @@ fn rename_opens_on_the_tile_and_writes_nothing_yet() {
     press_verb(&mut app, AssetVerbType::Rename, asset.clone());
     app.update();
 
-    assert_eq!(app.world().resource::<AssetRenaming>().0, Some(asset));
+    assert_eq!(
+        app.world().resource::<AssetRenaming>().0,
+        Some(RenameTarget::Item(asset))
+    );
     assert_eq!(crate::history::tests::depth(&app), 0);
 }

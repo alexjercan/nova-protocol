@@ -170,6 +170,16 @@ name = "editor_section_builder"
 path = "examples/playable/editor_section_builder.rs"
 required-features = ["debug"]
 
+[[example]]
+name = "editor_views"
+path = "examples/playable/editor_views.rs"
+required-features = ["debug"]
+
+[[example]]
+name = "editor_files"
+path = "examples/playable/editor_files.rs"
+required-features = ["debug"]
+
 # The Sandbox editor with its undo history on the diagnostics panel. Nothing
 # ends it; under NOVA_AUTOPILOT a smoke walk undoes, redoes, saves and leaves
 # through the real keys and menu rows.

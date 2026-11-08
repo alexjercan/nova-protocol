@@ -273,7 +273,7 @@ pub(crate) struct ChipText;
 
 /// The two pointed ends of a boolean: squares turned on their corners, half
 /// out of the node. They ride the node, so the pointer's pick is the node's.
-fn paint_points(list: &mut List, height: f32, colour: Color) {
+pub(crate) fn paint_points(list: &mut List, height: f32, colour: Color) {
     let side = height * std::f32::consts::FRAC_1_SQRT_2;
     for left in [true, false] {
         let mut node = Node {

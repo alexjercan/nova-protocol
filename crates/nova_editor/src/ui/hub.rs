@@ -915,7 +915,7 @@ fn on_hub_verb(
 
 /// Import Package.
 fn on_import(_activate: On<Activate>, mut window: ResMut<FileWindowRequest>) {
-    window.0 = Some(FileWindowKind::PickPath(PathPurposeType::ImportPackage));
+    window.0 = Some(FileWindowKind::PickPath(PathPurposeType::Package));
 }
 
 /// Back: the main menu.

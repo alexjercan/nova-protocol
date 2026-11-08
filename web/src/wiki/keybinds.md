@@ -426,32 +426,48 @@ The panels are fixed: nothing docks or drags. **View** hides the Hierarchy, the
 Inspector and the strip's body, and so do <kbd>Ctrl</kbd>+<kbd>1</kbd>,
 <kbd>Ctrl</kbd>+<kbd>2</kbd> and <kbd>Ctrl</kbd>+<kbd>3</kbd>.
 
-- **Top bar**: the menus, the Scene and Events tabs, the four tools, Axes, Snap,
-  Undo, Redo, Parts, Play and the camera speed. Each button does what its key
-  does. Snap inverts Ctrl: with it on, a handle snaps until you hold Ctrl.
+- **Top bar**: the menus, the view switch, the four tools, Axes, Snap, Undo,
+  Redo and Play; inside a ship also Parts and Leave Ship. Each button does what
+  its key does. Snap inverts Ctrl: with it on, a handle snaps until you hold
+  Ctrl. A menu shows only the verbs of the open document, and the Ship menu
+  shows only inside a ship. A verb that fits but cannot run now is grey, and its
+  hover says why.
+- **View switch**: the views of the open document only. A scenario has Scene
+  and Events, a ship has Ship, a section has Section, and every other kind has
+  Form. A view change adds no undo step.
 - **Hierarchy**, on the left in Scene: the tree of the document. A caret opens a
   row, the filter box finds a row under any shut one, <kbd>Ctrl</kbd>+click and
   <kbd>Shift</kbd>+click mark many, and right-click opens the row's menu: Rename,
   Duplicate, Delete, Frame and what can be added under it.
 - **Inspector**, on the right in Scene: the selected node's fields. Its header
   carries the kind, the name, the id and a validity word, and a group heading
-  folds. An open asset shows its form here.
+  folds. In Form view the open asset's form takes the main area instead, and
+  the stage and its tools hide. A UI theme's palette is a grid of named
+  swatches; press one for the colour picker.
 - **Events** fills the window above the strip with a block palette and a canvas.
-  It has no Hierarchy and no Inspector: fill a value on its block, and a block's
-  `...` chip opens a pop-up with every field. The four tools, Axes and Snap hide,
+  The palette groups the blocks in build order: Events (the hats a script
+  starts with), Conditions, Actions, Flow, and Values and logic. Only an Events
+  block stands alone on the canvas. A right click on the canvas holds Paste,
+  Clean Up (the scripts in one column, one undo step), and Duplicate and Delete
+  on a block. It has no Hierarchy and no Inspector: fill a value on its block,
+  and a block's `...` chip opens a pop-up with every field. The four tools, Axes and Snap hide,
   and <kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>X</kbd> do nothing.
-- **Strip**, along the bottom: **Assets** shows the mod's items as file tiles,
-  with a count per kind. A double click opens a tile, a right click holds its
-  verbs, **+** adds an item, and a hover shows the whole id. **Problems** is the
+- **Strip**, along the bottom: **Assets** shows the mod's items and the files in
+  its folder as tiles, sorted by kind, with a count per kind. A double click or
+  <kbd>Enter</kbd> opens a tile in its view, views an image or a mesh, or plays a
+  sound. A right click holds its verbs, **+** adds a blank item, and a hover
+  shows the whole id. A file the package leaves out wears a dotted mark. **Problems** is the
   live lint of what Play would load; a row selects the node it names. **Ship**
   appears inside a ship and holds the skin, the styles and Generate. **Log** keeps
-  what the status line said.
+  what the status line said and what the game warned of, with Clear, a level
+  filter and a text filter. Drag the strip's top edge to resize it.
 
-The stage camera has no ramp: a held key is one speed for as long as it is held.
-It starts at a walking 60 m/s. The wheel, while you fly, steps that speed from
-5 m/s up to 3,460 m/s, and <kbd>Shift</kbd> is four times the dial while held.
-Double-click a ship and the camera frames the whole hull, however big it is;
-<kbd>F</kbd> does the same for whatever is selected, and at the scenario level it
+The stage camera has no fly keys: the letters are the tools. Hold right mouse to
+look about, and orbit, pan and dolly to move. A right click without a drag opens
+the stage menu: the Add verbs of the view, Paste, and Frame and Delete on a node. Double-click a ship and the camera frames the whole hull, however big it is.
+Inside, the ship stands square on the origin: its position and rotation belong
+to the scenario, and only show there.
+<kbd>F</kbd> frames whatever is selected, and at the scenario level it
 frames the whole document.
 
 Keys are verbs only while nothing else has the keyboard. With the parts gallery
@@ -465,12 +481,8 @@ pending rebind.
 
 <table class="controls">
     <tr>
-        <td>Fly the stage camera</td>
-        <td>
-            hold right mouse, then <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd>
-            <kbd>D</kbd>, <kbd>Q</kbd> / <kbd>E</kbd> for down and up,
-            <kbd>Shift</kbd> to sprint, wheel for speed
-        </td>
+        <td>Look about</td>
+        <td>hold right mouse and move the mouse</td>
     </tr>
     <tr>
         <td>Orbit the pivot; pan; dolly</td>
@@ -481,7 +493,7 @@ pending rebind.
     </tr>
     <tr>
         <td>Pick a tool: Select, Move, Turn, Scale</td>
-        <td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> &nbsp;(right mouse up)</td>
+        <td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd></td>
     </tr>
     <tr>
         <td>Swap the handles between world and local axes</td>
@@ -570,14 +582,23 @@ pending rebind.
         <td><kbd>Bksp</kbd></td>
     </tr>
     <tr>
+        <td>Open the marked asset tile in its view; view or play a file</td>
+        <td>double click &nbsp;or&nbsp; <kbd>Enter</kbd></td>
+    </tr>
+    <tr>
+        <td>The menu of the stage, the canvas or a tile</td>
+        <td>right click without a drag</td>
+    </tr>
+    <tr>
         <td>Back out one rung</td>
         <td><kbd>Esc</kbd></td>
     </tr>
 </table>
 
 <kbd>Esc</kbd> takes one rung per press, in this order: a block in hand, a row's
-menu, a block's pop-up, an open top-bar menu, the part in hand, the ship you are
-inside, and finally the pause menu. A text field with the caret, the gallery and
+menu, a block's pop-up, an open top-bar menu, an open colour picker (its pick is
+taken back), the part in hand, the ship you are inside, and finally the pause
+menu. A text field with the caret, the gallery and
 a pending rebind hold the keyboard, so <kbd>Esc</kbd> goes to them first.
 <kbd>Bksp</kbd> is the shortcut past all of that - it leaves the ship from wherever you are, unless a text field has the
 caret, where it deletes a character instead.

@@ -14,11 +14,12 @@
 //! from `nova_ui::theme` - the restyle changed nothing in the viewport.
 //!
 //! The script canvas's block colours live here for the same reason: a block's
-//! colour is what category it is, and a theme that moved one would change what
+//! colour is what role it plays, and a theme that moved one would change what
 //! a builder has learned to look for.
 
 use bevy::prelude::*;
-use nova_scenario::prelude::BlockCategoryType;
+
+use crate::event::BlockRoleType;
 
 /// A solve that will land, a free socket, an axis that reads as "up".
 pub(crate) const GO: Color = Color::srgb_u8(0x36, 0xff, 0x79);
@@ -40,18 +41,15 @@ pub(crate) const NO: Color = Color::srgb_u8(0xff, 0x4e, 0x42);
 /// A trigger volume, and the Z axis.
 pub(crate) const TRIGGER: Color = Color::srgb_u8(0x36, 0xa3, 0xff);
 
-/// What a block of `category` is painted with. White text reads on every one.
-pub(crate) fn block_colour(category: BlockCategoryType) -> Color {
-    match category {
-        BlockCategoryType::Flow => Color::srgb_u8(0xb0, 0x78, 0x12),
-        BlockCategoryType::Mission => Color::srgb_u8(0x2f, 0x6f, 0xc9),
-        BlockCategoryType::World => Color::srgb_u8(0x27, 0x8a, 0x5b),
-        BlockCategoryType::Camera => Color::srgb_u8(0x7c, 0x52, 0xc4),
-        BlockCategoryType::Ships => Color::srgb_u8(0x17, 0x85, 0x9c),
-        BlockCategoryType::Combat => Color::srgb_u8(0xc2, 0x40, 0x52),
-        BlockCategoryType::Trade => Color::srgb_u8(0xb4, 0x5a, 0x2e),
-        BlockCategoryType::Logic => Color::srgb_u8(0x4e, 0x8c, 0x28),
-        BlockCategoryType::Data => Color::srgb_u8(0xb0, 0x3f, 0x8e),
+/// What a block of `role` is painted with, on the canvas and on its palette
+/// heading alike. White text reads on every one.
+pub(crate) fn block_colour(role: BlockRoleType) -> Color {
+    match role {
+        BlockRoleType::Event => Color::srgb_u8(0xb0, 0x78, 0x12),
+        BlockRoleType::Condition => Color::srgb_u8(0x17, 0x85, 0x9c),
+        BlockRoleType::Action => Color::srgb_u8(0x2f, 0x6f, 0xc9),
+        BlockRoleType::Flow => Color::srgb_u8(0xb4, 0x4e, 0x2e),
+        BlockRoleType::Value => Color::srgb_u8(0x4e, 0x8c, 0x28),
     }
 }
 

@@ -3,20 +3,14 @@ use bevy::{
     ecs::system::RunSystemOnce,
     input::{mouse::MouseScrollUnit, touch::TouchPhase},
     picking::pointer::Location,
-    time::TimeUpdateStrategy,
     window::WindowRef,
 };
 
 use super::*;
 
-const FRAME: f32 = 0.1;
-
 fn rig_app() -> (App, Entity) {
     let mut app = App::new();
     app.add_plugins(MinimalPlugins);
-    app.insert_resource(TimeUpdateStrategy::ManualDuration(
-        std::time::Duration::from_secs_f32(FRAME),
-    ));
     app.init_resource::<ButtonInput<KeyCode>>()
         .init_resource::<ButtonInput<MouseButton>>()
         .init_resource::<AccumulatedMouseMotion>()
@@ -25,14 +19,12 @@ fn rig_app() -> (App, Entity) {
         .init_resource::<SelectedNode>()
         .init_resource::<HeldPart>()
         .init_resource::<CameraFraming>()
-        .init_resource::<EditorStatus>()
         .add_message::<MouseWheel>()
         .add_systems(Update, drive_editor_camera);
     let eye = app
         .world_mut()
         .spawn((EditorCamera, EditorRig::default(), Transform::default()))
         .id();
-    // ManualDuration's first update is a delta of zero.
     app.update();
     (app, eye)
 }
@@ -92,125 +84,36 @@ fn mouse_travel(app: &mut App, delta: Vec2) {
 }
 
 #[test]
-fn a_held_key_moves_at_constant_speed_across_frames() {
+fn rmb_turns_the_view_and_the_letter_keys_never_move_the_eye() {
     let (mut app, eye) = rig_app();
-    press_mouse(&mut app, MouseButton::Right);
-    press_key(&mut app, KeyCode::KeyW);
+    let start = Transform::from_xyz(4.0, 2.0, 30.0);
+    *app.world_mut().get_mut::<Transform>(eye).expect("a pose") = start;
 
-    let mut last = pose(&app, eye).translation;
-    let expected = FLY_SPEED.to_engine() * FRAME;
-    for frame in 0..30 {
-        step(&mut app);
-        let now = pose(&app, eye).translation;
-        let moved = now.distance(last);
-        assert!(
-            (moved - expected).abs() < 1e-3,
-            "frame {frame} moved {moved}, not {expected}: no ramp"
-        );
-        last = now;
+    press_mouse(&mut app, MouseButton::Right);
+    for key in [
+        KeyCode::KeyW,
+        KeyCode::KeyA,
+        KeyCode::KeyS,
+        KeyCode::KeyD,
+        KeyCode::KeyQ,
+        KeyCode::KeyE,
+        KeyCode::ShiftLeft,
+    ] {
+        press_key(&mut app, key);
     }
-}
-
-#[test]
-fn a_diagonal_is_no_faster_than_one_key() {
-    let (mut app, eye) = rig_app();
-    press_mouse(&mut app, MouseButton::Right);
-    press_key(&mut app, KeyCode::KeyW);
-    press_key(&mut app, KeyCode::KeyD);
-    let before = pose(&app, eye).translation;
-
-    step(&mut app);
-
-    let moved = pose(&app, eye).translation.distance(before);
-    assert!((moved - FLY_SPEED.to_engine() * FRAME).abs() < 1e-3);
-}
-
-#[test]
-fn the_fly_keys_do_nothing_without_rmb() {
-    let (mut app, eye) = rig_app();
-    press_key(&mut app, KeyCode::KeyW);
-    let before = pose(&app, eye);
-
-    step(&mut app);
-
-    assert_eq!(pose(&app, eye), before);
-}
-
-#[test]
-fn shift_is_a_fixed_multiple_of_the_dial() {
-    let (mut app, eye) = rig_app();
-    press_mouse(&mut app, MouseButton::Right);
-    press_key(&mut app, KeyCode::KeyW);
-    press_key(&mut app, KeyCode::ShiftLeft);
-    let before = pose(&app, eye).translation;
-
-    step(&mut app);
-
-    let moved = pose(&app, eye).translation.distance(before);
-    assert!((moved - FLY_SPEED.to_engine() * SPRINT * FRAME).abs() < 1e-3);
-}
-
-#[test]
-fn the_wheel_steps_the_dial_only_while_rmb_is_held() {
-    let (mut app, eye) = rig_app();
-    press_mouse(&mut app, MouseButton::Right);
-    step(&mut app);
-
+    mouse_travel(&mut app, Vec2::new(30.0, 10.0));
     wheel(&mut app, 1.0);
-    step(&mut app);
-    let one = rig(&app, eye).fly_speed().get();
-    assert!((one - FLY_SPEED.get() * DIAL_STEP).abs() < 1e-3);
+    for _ in 0..5 {
+        app.update();
+    }
 
-    wheel(&mut app, 1.0);
-    step(&mut app);
-    let two = rig(&app, eye).fly_speed().get();
-    assert!((two - FLY_SPEED.get() * DIAL_STEP * DIAL_STEP).abs() < 1e-3);
-
-    wheel(&mut app, -1.0);
-    wheel(&mut app, -1.0);
-    step(&mut app);
-    assert!((rig(&app, eye).fly_speed().get() - FLY_SPEED.get()).abs() < 1e-3);
-
-    release_mouse(&mut app, MouseButton::Right);
-    step(&mut app);
-    wheel(&mut app, 1.0);
-    step(&mut app);
-    assert!(
-        (rig(&app, eye).fly_speed().get() - FLY_SPEED.get()).abs() < 1e-3,
-        "with RMB up the wheel dollies, it does not touch the dial"
+    assert_eq!(rig(&app, eye).gesture, CameraGestureType::Look);
+    let looked = pose(&app, eye);
+    assert_eq!(
+        looked.translation, start.translation,
+        "nothing flies the eye"
     );
-}
-
-#[test]
-fn the_dial_stops_at_each_end() {
-    let mut rig = EditorRig::default();
-    rig.turn_dial(1_000);
-    let fastest = rig.fly_speed();
-    rig.turn_dial(1);
-    assert_eq!(rig.fly_speed(), fastest);
-
-    rig.turn_dial(-10_000);
-    let slowest = rig.fly_speed();
-    rig.turn_dial(-1);
-    assert_eq!(rig.fly_speed(), slowest);
-    assert!(slowest.get() > 0.0);
-}
-
-#[test]
-fn the_status_line_shows_the_fly_speed_while_flying() {
-    let (mut app, _) = rig_app();
-    press_mouse(&mut app, MouseButton::Right);
-    step(&mut app);
-    let line = app
-        .world()
-        .resource::<EditorStatus>()
-        .line()
-        .map(|(line, _)| line.to_string());
-    assert_eq!(line.as_deref(), Some("FLY 60 m/s"));
-
-    release_mouse(&mut app, MouseButton::Right);
-    step(&mut app);
-    assert!(app.world().resource::<EditorStatus>().line().is_none());
+    assert_ne!(looked.rotation, start.rotation, "the view turned");
 }
 
 #[test]
@@ -288,7 +191,6 @@ fn no_gesture_starts_over_a_panel() {
     let before = pose(&app, eye);
 
     press_mouse(&mut app, MouseButton::Right);
-    press_key(&mut app, KeyCode::KeyW);
     mouse_travel(&mut app, Vec2::new(30.0, 0.0));
     wheel(&mut app, 1.0);
     step(&mut app);
@@ -315,22 +217,22 @@ fn a_mode_above_normal_ends_the_gesture() {
         app.insert_resource(InputMode::Normal);
         press_mouse(&mut app, MouseButton::Right);
         step(&mut app);
-        assert_eq!(rig(&app, eye).gesture, CameraGestureType::Fly);
+        assert_eq!(rig(&app, eye).gesture, CameraGestureType::Look);
 
         *app.world_mut().resource_mut::<InputMode>() = mode;
-        press_key(&mut app, KeyCode::KeyW);
+        mouse_travel(&mut app, Vec2::new(30.0, 0.0));
         let before = pose(&app, eye);
         step(&mut app);
 
         assert_eq!(rig(&app, eye).gesture, CameraGestureType::Idle, "{mode:?}");
-        assert_eq!(pose(&app, eye), before, "{mode:?} has the keys");
+        assert_eq!(pose(&app, eye), before, "{mode:?} has the mouse");
     }
 }
 
 #[test]
 fn each_button_starts_its_own_gesture() {
     let cases: [(&[KeyCode], MouseButton, CameraGestureType); 5] = [
-        (&[], MouseButton::Right, CameraGestureType::Fly),
+        (&[], MouseButton::Right, CameraGestureType::Look),
         (
             &[KeyCode::AltLeft],
             MouseButton::Right,

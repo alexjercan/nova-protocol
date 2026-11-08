@@ -9,6 +9,7 @@
 //! did, which keeps a chip alive under a scrub. See [`BlockView::same_shape`].
 
 mod drag;
+pub(crate) mod menu;
 mod paint;
 mod palette;
 mod popup;
@@ -21,7 +22,7 @@ use std::collections::HashMap;
 use bevy::{
     ecs::{hierarchy::ChildOf, lifecycle::RemovedComponents},
     input::mouse::{MouseScrollUnit, MouseWheel},
-    picking::hover::Hovered,
+    picking::{hover::Hovered, Pickable},
     prelude::*,
     ui::UiGlobalTransform,
     ui_widgets::Activate,
@@ -33,22 +34,24 @@ use drag::{
 };
 use nova_ui::prelude::*;
 use paint::{paint_stacked, ChipText, Paint};
-use palette::{spawn_block_palette, sync_palette_filter};
+use palette::{
+    spawn_block_palette, sync_palette_filter, sync_palette_rail, PaletteFolds, PaletteRailPick,
+};
 pub(crate) use popup::{close_block_popup, BlockPopup, PopupLeaveType, POPUP_W};
 use popup::{on_more_chip, place_block_popup, settle_block_popup, MoreChip};
 use view::{BlockView, ViewBuilder};
 
 use crate::{
     camera::ViewportPointer,
-    config::{EditorSays, RailTab, SelectedNode},
+    config::{EditorSays, EditorViewType, SelectedNode},
     event::{
-        delete_block, expr_choice, ActionNode, EventNode, ExpressionNode, FilterNode, GateNode,
-        ScriptNodes, StepNode,
+        delete_block, expr_choice, ActionNode, BlockShapeType, EventNode, ExpressionNode,
+        FilterNode, GateNode, ScriptNodes, StepNode,
     },
     frame::FRAME_KEY,
     history::commit_edit,
     node::{EditContext, NodeId},
-    palette::{BLOCK_FAULT, BLOCK_GROUND, BLOCK_MARKED},
+    palette::{BLOCK_FAULT, BLOCK_GROUND, BLOCK_MARKED, BLOCK_TEXT_DIM},
     problems::Problems,
     ui::inspector::{apply_inspector_edits, InspectorField},
     ExampleStates,
@@ -128,6 +131,19 @@ pub(crate) struct CanvasBoard {
     pub(crate) frame: Option<Entity>,
 }
 
+/// The line over the canvas: how to start a script on an empty one, and why
+/// the block in hand will not stand where it is.
+#[derive(Component)]
+pub(crate) struct CanvasHint;
+
+/// What an empty scenario's canvas says.
+pub(crate) const EMPTY_CANVAS_HINT: &str = "Drag an Events block here to start a script";
+
+/// What the canvas says while a block that cannot stand alone is over bare
+/// canvas.
+pub(crate) const LOOSE_BLOCK_HINT: &str =
+    "Only an Events block stands alone: drop this on a lit slot";
+
 /// The inline editor a text chip opens.
 #[derive(Component)]
 pub(crate) struct ChipInput;
@@ -168,6 +184,30 @@ pub(crate) fn spawn_canvas_area(mount: &mut ChildSpawnerCommands) {
                 Hovered::default(),
             ))
             .with_children(|viewport| {
+                viewport.spawn((
+                    Name::new("Canvas Hint"),
+                    CanvasHint,
+                    Pickable::IGNORE,
+                    ZIndex(1),
+                    Node {
+                        display: Display::None,
+                        position_type: PositionType::Absolute,
+                        top: px(10),
+                        width: percent(100),
+                        justify_content: JustifyContent::Center,
+                        ..default()
+                    },
+                    children![(
+                        UiText,
+                        Text::new(""),
+                        TextFont {
+                            font_size: FontSize::Px(12.0),
+                            ..default()
+                        },
+                        TextColor(BLOCK_TEXT_DIM),
+                        Pickable::IGNORE,
+                    )],
+                ));
                 viewport.spawn((
                     Name::new("Canvas World"),
                     CanvasWorld,
@@ -216,7 +256,7 @@ type ScriptMoved = Or<(
 )]
 fn sync_canvas(
     mut commands: Commands,
-    rail: Res<RailTab>,
+    rail: Res<EditorViewType>,
     context: Res<EditContext>,
     problems: Res<Problems>,
     drag: Res<CanvasDrag>,
@@ -348,7 +388,7 @@ fn repaint(
 
 /// Put each handler where it stands, flowing the ones with no stored position.
 fn layout_canvas(
-    rail: Res<RailTab>,
+    rail: Res<EditorViewType>,
     context: Res<EditContext>,
     script: ScriptNodes,
     mut board: ResMut<CanvasBoard>,
@@ -398,6 +438,73 @@ fn layout_canvas(
     }
 }
 
+/// What the canvas hint says, if anything: the loose-block warning while one is
+/// in hand over bare canvas, else the start line while there is no script.
+pub(crate) fn canvas_hint_text(
+    held: Option<(BlockShapeType, bool)>,
+    over_canvas: bool,
+    has_script: bool,
+) -> Option<&'static str> {
+    match held {
+        Some((shape, aimed)) => {
+            (shape != BlockShapeType::Hat && over_canvas && !aimed).then_some(LOOSE_BLOCK_HINT)
+        }
+        None => (!has_script).then_some(EMPTY_CANVAS_HINT),
+    }
+}
+
+/// Show the canvas hint, and ring the ghost red while it would be refused.
+fn sync_canvas_hint(
+    rail: Res<EditorViewType>,
+    board: Res<CanvasBoard>,
+    drag: Res<CanvasDrag>,
+    pointer: Res<ViewportPointer>,
+    viewports: Query<(&ComputedNode, &UiGlobalTransform), With<CanvasViewport>>,
+    mut hints: Query<(&mut Node, &Children), With<CanvasHint>>,
+    mut texts: Query<&mut Text>,
+    mut ghosts: Query<&mut Outline, With<drag::CanvasGhost>>,
+) {
+    if !rail.is_events() {
+        return;
+    }
+    let over_canvas = match (pointer.at, viewports.single()) {
+        (Some(at), Ok((computed, transform))) => rect_of(computed, transform).contains(at),
+        _ => false,
+    };
+    let held = drag
+        .held
+        .as_ref()
+        .map(|held| (held.shape, held.aim.is_some()));
+    let said = canvas_hint_text(held, over_canvas, !board.roots.is_empty());
+    let refused = said == Some(LOOSE_BLOCK_HINT);
+    for mut outline in &mut ghosts {
+        let colour = if refused { BLOCK_FAULT } else { Color::NONE };
+        if outline.color != colour {
+            outline.color = colour;
+        }
+    }
+    for (mut node, children) in &mut hints {
+        let display = if said.is_some() {
+            Display::Flex
+        } else {
+            Display::None
+        };
+        if node.display != display {
+            node.display = display;
+        }
+        let Some(said) = said else {
+            continue;
+        };
+        for child in children {
+            if let Ok(mut text) = texts.get_mut(*child) {
+                if text.0 != said {
+                    text.0 = said.to_string();
+                }
+            }
+        }
+    }
+}
+
 /// Mark what is selected and what is at fault.
 fn paint_canvas_marks(
     selected: Res<SelectedNode>,
@@ -423,7 +530,7 @@ fn paint_canvas_marks(
     reason = "three devices and the node they move"
 )]
 fn drive_canvas_view(
-    rail: Res<RailTab>,
+    rail: Res<EditorViewType>,
     pointer: Res<ViewportPointer>,
     buttons: Res<ButtonInput<MouseButton>>,
     keys: Res<ButtonInput<KeyCode>>,
@@ -489,7 +596,7 @@ fn drive_canvas_view(
 /// F: bring the selected block, or else every handler, into view.
 fn canvas_frame_key(
     keys: Res<ButtonInput<KeyCode>>,
-    rail: Res<RailTab>,
+    rail: Res<EditorViewType>,
     selected: Res<SelectedNode>,
     mut view: ResMut<CanvasView>,
     viewports: Query<(&ComputedNode, &UiGlobalTransform), With<CanvasViewport>>,
@@ -541,7 +648,7 @@ fn frame_on(view: &mut CanvasView, window: Rect, target: Rect) {
 /// Frame the block a Problems row named. Waits for the canvas: the row may have
 /// switched to Events this frame, so the block has no place yet.
 fn serve_canvas_frame(
-    rail: Res<RailTab>,
+    rail: Res<EditorViewType>,
     mut board: ResMut<CanvasBoard>,
     mut view: ResMut<CanvasView>,
     viewports: Query<(&ComputedNode, &UiGlobalTransform), With<CanvasViewport>>,
@@ -663,13 +770,20 @@ pub(crate) fn register(app: &mut App) {
         .init_resource::<CanvasBoard>()
         .init_resource::<CanvasDrag>()
         .init_resource::<BlockPopup>()
+        .init_resource::<PaletteFolds>()
+        .init_resource::<PaletteRailPick>()
+        .init_resource::<menu::CanvasRightPress>()
         .add_observer(on_canvas_press)
         .add_systems(
             OnEnter(ExampleStates::Editor),
             |mut board: ResMut<CanvasBoard>,
              mut drag: ResMut<CanvasDrag>,
-             mut popup: ResMut<BlockPopup>| {
+             mut popup: ResMut<BlockPopup>,
+             mut folds: ResMut<PaletteFolds>,
+             mut pick: ResMut<PaletteRailPick>| {
                 *board = CanvasBoard::default();
+                folds.0.clear();
+                pick.0 = None;
                 *drag = CanvasDrag::default();
                 *popup = BlockPopup::default();
             },
@@ -681,12 +795,15 @@ pub(crate) fn register(app: &mut App) {
                 layout_canvas,
                 drive_canvas_drag,
                 paint_canvas_slots,
+                sync_canvas_hint,
                 paint_canvas_marks,
                 drive_canvas_view,
+                menu::canvas_context_menu,
                 canvas_frame_key.run_if(in_input_mode(InputMode::Normal)),
                 delete_reporter_key.run_if(in_input_mode(InputMode::Normal)),
                 serve_canvas_frame,
                 sync_palette_filter,
+                sync_palette_rail,
                 retire_chip_inputs.after(apply_inspector_edits),
                 settle_block_popup.after(apply_inspector_edits),
                 place_block_popup,

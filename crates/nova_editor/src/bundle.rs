@@ -602,8 +602,6 @@ pub(crate) enum FileWindowKind {
     Packaged(String),
     /// Pick a file by path.
     PickPath(PathPurposeType),
-    /// Choose what a new item of this kind starts from.
-    NewAsset(&'static str),
 }
 
 /// The save shortcut. The one the File menu has always advertised.

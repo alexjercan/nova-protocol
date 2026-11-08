@@ -427,7 +427,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // than typed. The walk asserts the picked id landed, because a chip
         // that opens a list and writes nothing is the failure this whole path
         // is built to make impossible.
-        .click("show the events half of the tree", "Rail Tab Events")
+        .click("show the events half of the tree", "View Tab Events")
         .filter_palette("On Enter")
         .drag_block(
             "add a handler",

@@ -1,7 +1,8 @@
-//! The Assets tab: the mod's items as a grid of tiles, like files in a project
-//! window. Sections and ships carry a rendered picture and every other kind a
-//! glyph. A tile opens on a double click, and its right-click menu holds the
-//! verbs.
+//! The Assets tab: the mod's items and the files in its folder as one grid of
+//! tiles, like a project window, sorted by kind. Sections and ships carry a
+//! rendered picture and every other kind a glyph; the file tiles are
+//! [`super::asset_files`]'s. A tile opens on a double click, and its
+//! right-click menu holds the verbs.
 //!
 //! A tile prints a short name and its hover hint holds the whole id. Tiles of
 //! one kind that would print alike say on their second line what tells them
@@ -24,21 +25,34 @@ use nova_ui::{
 };
 
 use super::{
+    asset_files::{
+        file_asset_path, fit, mesh_parts, on_asset_grid_menu, on_import_file, spawn_file_rows,
+        view_file, AssetFileTile, AssetImage,
+    },
     browser::{pane_text, BrowserTabType},
     layer,
+    menu_context::{verb_state, MenuFacts, MenuVerbType, VerbState},
     shell::EditorPanels,
     thumbnail::{design_parts, thumbnail_key, AssetThumbnails, ThumbnailParts},
-    window::DestructiveVerb,
 };
 use crate::{
-    asset::verbs::{delete_asset, duplicate_asset, rename_asset},
-    bundle::{FileWindowKind, FileWindowRequest},
-    config::EditorSays,
+    asset::{
+        blank::{section_kinds, spaced},
+        files::{
+            file_kind, loads_as_image, mod_files, rename_file, ModFile, ModFolder, FILE_KINDS,
+            MESH_KIND,
+        },
+        verbs::{add_asset, delete_asset, duplicate_asset, rename_asset},
+    },
+    config::{EditorSays, SelectedNode},
     glyph::asset_mark,
     history::EditHistory,
     problems::Problems,
     project::{
-        verbs::{delete_scenario, duplicate_scenario, open_asset, pressed, rename_scenario},
+        store,
+        verbs::{
+            add_scenario, delete_scenario, duplicate_scenario, open_asset, pressed, rename_scenario,
+        },
         ModProject, OpenAsset, KINDS, SCENARIO_KIND,
     },
     ExampleStates,
@@ -53,6 +67,9 @@ const TILE_H: f32 = 90.0;
 /// A tile's picture.
 const THUMB_W: f32 = 54.0;
 
+/// The dot in a tile's corner that marks the item open in the editor.
+const OPEN_DOT: f32 = 7.0;
+
 /// The glyph standing in for a picture.
 const GLYPH_TEXT: f32 = 26.0;
 
@@ -62,13 +79,14 @@ const KIND_W: f32 = 120.0;
 /// The characters one line of a tile's name holds. The UI font is monospace.
 const LINE_CHARS: usize = 14;
 
-/// The kind a declared file lists under.
-const RESOURCE_KIND: &str = "resource";
+/// The mark on a file the package leaves out. DOTTED CIRCLE - a place the
+/// package holds nothing.
+const UNPACKAGED_MARK: &str = "\u{25cc}";
 
 /// One tile of the Assets tab.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct AssetEntry {
-    /// The row of [`KINDS`] it lists under, or [`RESOURCE_KIND`].
+    /// The row of [`KINDS`] or of [`FILE_KINDS`] it lists under.
     pub(crate) kind: &'static str,
     /// The short name: what a rename starts from, and what a filter reads.
     pub(crate) label: String,
@@ -82,6 +100,8 @@ pub(crate) struct AssetEntry {
     pub(crate) id: Option<OpenAsset>,
     /// What its picture shows. Empty for a kind that keeps its glyph.
     parts: ThumbnailParts,
+    /// The file, on a file tile.
+    pub(crate) file: Option<ModFile>,
 }
 
 /// `id` without the mod's prefix, which every id of the mod repeats.
@@ -189,19 +209,26 @@ fn name_tiles(entries: &mut [AssetEntry], namespace: &str) {
     }
 }
 
-/// Everything the mod holds, in [`KINDS`] order, then its declared files.
+/// Everything the mod holds, in [`KINDS`] order, then the files of its folder
+/// (`on_disk`) and the files it declares, in [`FILE_KINDS`] order.
 pub(crate) fn asset_entries(
     project: &ModProject,
     catalog: Option<&GameSections>,
+    on_disk: &[String],
 ) -> Vec<AssetEntry> {
     let data = &project.data;
     let mut entries = Vec::new();
     for row in KINDS {
         for item in data.items().filter(|item| item.kind() == row.kind) {
             let parts = match (item, catalog) {
-                (Content::Section(section), _) => {
-                    vec![((**section).clone(), Transform::default())]
-                }
+                // The catalog's copy has its `self://` refs resolved by
+                // `sync_project_sections`; the document's would reach the asset
+                // server as an unknown source. Until the catalog holds it, the
+                // tile has no picture.
+                (Content::Section(section), Some(catalog)) => catalog
+                    .get_section(&section.base.id)
+                    .map(|resolved| vec![(resolved.clone(), Transform::default())])
+                    .unwrap_or_default(),
                 (Content::Ship(ship), Some(catalog)) => design_parts(&ship.design, catalog),
                 _ => Vec::new(),
             };
@@ -216,17 +243,31 @@ pub(crate) fn asset_entries(
                     id: item.id().to_string(),
                 }),
                 parts,
+                file: None,
             });
         }
     }
-    entries.extend(data.resources.iter().map(|file| AssetEntry {
-        kind: RESOURCE_KIND,
-        label: file.rsplit('/').next().unwrap_or(file).to_string(),
-        full: file.clone(),
-        printed: String::new(),
-        waits: "a file the mod declares",
-        id: None,
-        parts: Vec::new(),
+    entries.extend(mod_files(project, on_disk).into_iter().map(|file| {
+        let kind = file_kind(&file.path);
+        let parts = match &project.id {
+            Some(id) if kind == MESH_KIND && file.on_disk => mesh_parts(id, &file.path),
+            _ => Vec::new(),
+        };
+        AssetEntry {
+            kind,
+            label: file
+                .path
+                .rsplit('/')
+                .next()
+                .unwrap_or(&file.path)
+                .to_string(),
+            full: file.path.clone(),
+            printed: String::new(),
+            waits: "",
+            id: None,
+            parts,
+            file: Some(file),
+        }
     }));
     name_tiles(&mut entries, &project.namespace);
     entries
@@ -263,8 +304,10 @@ fn is_faulted(asset: &OpenAsset, open: Option<&OpenAsset>, problems: &Problems) 
 fn heading_of(kind: &str) -> &'static str {
     KINDS
         .iter()
-        .find(|row| row.kind == kind)
-        .map_or("Resources", |row| row.heading)
+        .map(|row| (row.kind, row.heading))
+        .chain(FILE_KINDS)
+        .find(|(held, _)| *held == kind)
+        .map_or("Files", |(_, heading)| heading)
 }
 
 /// A kind's colour, the one thing that tells two glyph tiles apart at a glance.
@@ -272,7 +315,7 @@ fn kind_tint(kind: &str) -> UiColor {
     match kind {
         SCENARIO_KIND | "campaign" => UiColor::Accent,
         "section" | "ship" | "station" => UiColor::Primary,
-        RESOURCE_KIND => UiColor::Label,
+        _ if FILE_KINDS.iter().any(|(held, _)| *held == kind) => UiColor::Label,
         _ => UiColor::Secondary,
     }
 }
@@ -301,9 +344,18 @@ struct AssetKindRow(Option<&'static str>);
 #[derive(Resource, Default, PartialEq, Eq)]
 pub(crate) struct AssetKindFilter(Option<&'static str>);
 
-/// The item whose name is being typed on its tile.
+/// What a rename on a tile renames.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum RenameTarget {
+    /// An item of the mod.
+    Item(OpenAsset),
+    /// A file in its folder, by path.
+    File(String),
+}
+
+/// The tile whose name is being typed on it.
 #[derive(Resource, Default)]
-pub(crate) struct AssetRenaming(Option<OpenAsset>);
+pub(crate) struct AssetRenaming(pub(crate) Option<RenameTarget>);
 
 /// A tile, and the item it holds when it holds one.
 #[derive(Component, Clone)]
@@ -320,8 +372,8 @@ pub(crate) struct AssetGlyph;
 /// The field that renames a tile.
 #[derive(Component)]
 pub(crate) struct AssetRenameField {
-    /// The item.
-    asset: OpenAsset,
+    /// What the rename renames.
+    target: RenameTarget,
     /// The text the box opened on. A rename that leaves it there changes
     /// nothing, even where the stored id or name reads otherwise.
     seed: String,
@@ -419,6 +471,7 @@ pub(crate) fn spawn_asset_body(pane: &mut RelatedSpawnerCommands<ChildOf>) {
             scroll.spawn((
                 Name::new("Asset Grid"),
                 AssetList,
+                observe(on_asset_grid_menu),
                 Node {
                     flex_direction: FlexDirection::Row,
                     flex_wrap: FlexWrap::Wrap,
@@ -435,7 +488,8 @@ pub(crate) fn spawn_asset_body(pane: &mut RelatedSpawnerCommands<ChildOf>) {
     });
 }
 
-/// The `+`: a menu of what can start, the ones that wait greyed.
+/// `+`: what the mod can add, one row a kind. Each row makes a blank item and
+/// opens it; nothing starts from another item. A section asks its kind first.
 fn on_asset_add(
     activate: On<Activate>,
     mut commands: Commands,
@@ -452,13 +506,22 @@ fn on_asset_add(
                 Name::new(format!("Asset Add {}", row.heading)),
                 popup_row(row.heading, row.waits),
             ));
-            if row.kind == SCENARIO_KIND {
-                spawned.insert(DestructiveVerb::NewScenario);
-            } else if row.add {
-                spawned.insert((AssetAddRow(row.kind), observe(on_asset_add_row)));
-            } else {
+            if !row.add {
                 spawned.insert(InteractionDisabled);
+            } else if row.kind == "section" {
+                // Not a row that closes the popup: it opens the next one.
+                spawned.remove::<PopupRow>();
+                spawned.insert(observe(on_asset_add_section));
+            } else {
+                spawned.insert((AssetAddRow(row.kind), observe(on_asset_add_row)));
             }
+        }
+        if store::CAN_SAVE {
+            menu.spawn((
+                Name::new("Asset Add Import File"),
+                popup_row("Import File...", "a file for the folder"),
+                observe(on_import_file),
+            ));
         }
     });
     commands
@@ -466,15 +529,65 @@ fn on_asset_add(
         .insert(DespawnOnExit(ExampleStates::Editor));
 }
 
-/// An Add row: a new item starts from what the chooser offers.
-fn on_asset_add_row(
+/// An Add row: a blank item of its kind, open.
+fn on_asset_add_row(activate: On<Activate>, mut commands: Commands, rows: Query<&AssetAddRow>) {
+    let Ok(AssetAddRow(kind)) = rows.get(activate.entity).copied() else {
+        return;
+    };
+    commands.queue(move |world: &mut World| {
+        pressed(world, |world| {
+            if kind == SCENARIO_KIND {
+                add_scenario(world);
+            } else {
+                add_asset(world, kind, None);
+            }
+        });
+    });
+}
+
+/// One row of the section kind list: the kind a new section is.
+#[derive(Component, Clone, Copy)]
+struct SectionKindRow(&'static str);
+
+/// Add > Sections: which kind. A section's kind is code, so this is the one
+/// question a new section asks; every field after it starts blank.
+fn on_asset_add_section(
     activate: On<Activate>,
-    rows: Query<&AssetAddRow>,
-    mut window: ResMut<FileWindowRequest>,
+    mut commands: Commands,
+    rows: Query<&UiGlobalTransform>,
+    roots: Query<Entity, With<PopupRoot>>,
 ) {
-    if let Ok(row) = rows.get(activate.entity) {
-        window.0 = Some(FileWindowKind::NewAsset(row.0));
-    }
+    let at = rows
+        .get(activate.entity)
+        .map_or(Vec2::ZERO, |transform| transform.translation);
+    close_popups(&mut commands, &roots);
+    let root = spawn_popup(&mut commands, at, layer::MENU_Z, |menu| {
+        for kind in section_kinds() {
+            menu.spawn((
+                Name::new(format!("Section Kind {kind}")),
+                popup_row(&spaced(kind), ""),
+                SectionKindRow(kind),
+                observe(on_section_kind_row),
+            ));
+        }
+    });
+    commands
+        .entity(root)
+        .insert(DespawnOnExit(ExampleStates::Editor));
+}
+
+/// A section kind row: a blank section of that kind, open.
+fn on_section_kind_row(
+    activate: On<Activate>,
+    mut commands: Commands,
+    rows: Query<&SectionKindRow>,
+) {
+    let Ok(SectionKindRow(kind)) = rows.get(activate.entity).copied() else {
+        return;
+    };
+    commands.queue(move |world: &mut World| {
+        pressed(world, |world| add_asset(world, "section", Some(kind)));
+    });
 }
 
 /// A press on a tile marks it, and a second one opens it.
@@ -482,6 +595,7 @@ fn on_asset_tile(
     activate: On<Activate>,
     mut commands: Commands,
     tiles: Query<(Entity, &AssetTile, Has<Selected>)>,
+    files: Query<&AssetFileTile>,
     time: Res<Time<Real>>,
     mouse: Res<ButtonInput<MouseButton>>,
     mut last: ResMut<DoubleClick<Entity>>,
@@ -499,11 +613,21 @@ fn on_asset_tile(
             commands.entity(entity).remove::<Selected>();
         }
     }
+    let opened = last.press(activate.entity, time.elapsed_secs());
+    if let Ok(AssetFileTile(file)) = files.get(activate.entity) {
+        let file = file.clone();
+        if opened {
+            commands.queue(move |world: &mut World| view_file(world, &file));
+        } else {
+            says.accept();
+        }
+        return;
+    }
     let Ok((_, AssetTile(Some(asset)), _)) = tiles.get(activate.entity) else {
         says.accept();
         return;
     };
-    if last.press(activate.entity, time.elapsed_secs()) {
+    if opened {
         let asset = asset.clone();
         commands.queue(move |world: &mut World| {
             pressed(world, |world| open_asset(world, asset.kind, &asset.id));
@@ -519,12 +643,17 @@ pub(crate) fn asset_tile_keys(
     keys: Res<ButtonInput<KeyCode>>,
     open: Res<BrowserTabType>,
     panels: Res<EditorPanels>,
-    tiles: Query<&AssetTile, With<Selected>>,
+    tiles: Query<(&AssetTile, Option<&AssetFileTile>), With<Selected>>,
 ) {
     if !keys.just_pressed(KeyCode::Enter) || *open != BrowserTabType::Assets || !panels.browser {
         return;
     }
-    if let Some(AssetTile(Some(asset))) = tiles.iter().next() {
+    if let Some((_, Some(AssetFileTile(file)))) = tiles.iter().next() {
+        let file = file.clone();
+        commands.queue(move |world: &mut World| view_file(world, &file));
+        return;
+    }
+    if let Some((AssetTile(Some(asset)), _)) = tiles.iter().next() {
         let asset = asset.clone();
         commands.queue(move |world: &mut World| open_asset(world, asset.kind, &asset.id));
     }
@@ -534,16 +663,20 @@ pub(crate) fn asset_tile_keys(
 fn on_asset_tile_menu(
     click: On<Pointer<Click>>,
     mut commands: Commands,
-    tiles: Query<&AssetTile>,
+    tiles: Query<(&AssetTile, Option<&AssetFileTile>)>,
     entries: Query<&AssetWaits>,
     roots: Query<Entity, With<PopupRoot>>,
+    facts: MenuFacts,
+    selected: Res<SelectedNode>,
 ) {
     if click.button != PointerButton::Secondary {
         return;
     }
-    let Ok(AssetTile(asset)) = tiles.get(click.event_target()) else {
+    let Ok((AssetTile(asset), file)) = tiles.get(click.event_target()) else {
         return;
     };
+    let file = file.map(|tile| tile.0.clone());
+    let context = facts.context(&selected);
     close_popups(&mut commands, &roots);
     let asset = asset.clone();
     let waits = entries
@@ -554,6 +687,10 @@ fn on_asset_tile_menu(
         click.pointer_location.position,
         layer::MENU_Z,
         |menu| {
+            if let Some(file) = &file {
+                spawn_file_rows(menu, file, &context);
+                return;
+            }
             let Some(asset) = asset else {
                 menu.spawn((
                     Name::new("Asset Menu Waits"),
@@ -562,20 +699,19 @@ fn on_asset_tile_menu(
                 ));
                 return;
             };
-            // A price table is one per mod: it has no id to change, and no
-            // second to copy into.
-            let single = asset.kind == "price table";
             for (word, hint, verb) in [
                 ("Open", "Enter", AssetVerbType::Open),
                 ("Rename", "", AssetVerbType::Rename),
                 ("Duplicate", "", AssetVerbType::Duplicate),
                 ("Delete", "", AssetVerbType::Delete),
             ] {
-                if single && matches!(verb, AssetVerbType::Rename | AssetVerbType::Duplicate) {
+                let tile = MenuVerbType::Tile(verb, asset.kind);
+                if verb_state(tile, &context) == VerbState::Hidden {
                     continue;
                 }
                 menu.spawn((
                     Name::new(format!("Asset Menu {word}")),
+                    tile,
                     AssetVerb(verb, asset.clone()),
                     popup_row(word, hint),
                     ButtonCueType::Owned,
@@ -609,7 +745,7 @@ pub(crate) fn on_asset_verb(
             });
         }
         AssetVerbType::Rename => {
-            renaming.0 = Some(asset.clone());
+            renaming.0 = Some(RenameTarget::Item(asset.clone()));
             says.accept();
         }
         AssetVerbType::Duplicate if scenario => {
@@ -658,20 +794,21 @@ pub(crate) fn apply_asset_rename(
     mut renaming: ResMut<AssetRenaming>,
 ) {
     for TextFieldSubmitted { entity, value } in submitted.read() {
-        let Ok(AssetRenameField { asset, seed }) = fields.get(*entity) else {
+        let Ok(AssetRenameField { target, seed }) = fields.get(*entity) else {
             continue;
         };
-        let OpenAsset { kind, id } = asset.clone();
         let typed = value.trim().to_string();
-        if !typed.is_empty() && typed != seed.trim() {
-            commands.queue(move |world: &mut World| {
-                if kind == SCENARIO_KIND {
-                    rename_scenario(world, &id, &typed);
-                } else {
-                    rename_asset(world, kind, &id, &typed);
-                }
-            });
+        if typed.is_empty() || typed == seed.trim() {
+            continue;
         }
+        let target = target.clone();
+        commands.queue(move |world: &mut World| match target {
+            RenameTarget::Item(OpenAsset { kind, id }) if kind == SCENARIO_KIND => {
+                rename_scenario(world, &id, &typed);
+            }
+            RenameTarget::Item(OpenAsset { kind, id }) => rename_asset(world, kind, &id, &typed),
+            RenameTarget::File(file) => rename_file(world, &file, &typed),
+        });
     }
     if renaming.0.is_some() && !fields.is_empty() && focused.is_empty() {
         renaming.0 = None;
@@ -685,8 +822,10 @@ pub(crate) struct ShownAssets {
     filter: String,
     kind: Option<&'static str>,
     open: Option<OpenAsset>,
-    renaming: Option<OpenAsset>,
+    renaming: Option<RenameTarget>,
     faulted: Vec<OpenAsset>,
+    /// The folder's reading: a file verb that writes only the folder moves it.
+    folder: u64,
 }
 
 /// Why a tile holds no verbs, read by its right-click menu.
@@ -704,6 +843,7 @@ pub(crate) fn sync_assets(
     kind: Res<AssetKindFilter>,
     renaming: Res<AssetRenaming>,
     mut thumbnails: ResMut<AssetThumbnails>,
+    (folder, server): (Res<ModFolder>, Res<AssetServer>),
     filters: Query<&TextFieldValue, With<AssetFilter>>,
     lists: Query<Entity, With<AssetList>>,
     kinds: Query<Entity, With<AssetKindList>>,
@@ -716,7 +856,8 @@ pub(crate) fn sync_assets(
     }
     // Read before the tab check: a change seen only on a skipped frame is lost.
     let moved = project.as_ref().is_some_and(Res::is_changed)
-        || catalog.as_ref().is_some_and(Res::is_changed);
+        || catalog.as_ref().is_some_and(Res::is_changed)
+        || folder.is_changed();
     if moved {
         *built = None;
     }
@@ -728,7 +869,16 @@ pub(crate) fn sync_assets(
     };
     let revision = history.revision();
     if built.as_ref().is_none_or(|(held, _)| *held != revision) {
-        *built = Some((revision, asset_entries(&project, catalog.as_deref())));
+        // The folder is read here, once a rebuild, never a frame.
+        let on_disk = project
+            .id
+            .as_deref()
+            .map(store::files_of)
+            .unwrap_or_default();
+        *built = Some((
+            revision,
+            asset_entries(&project, catalog.as_deref(), &on_disk),
+        ));
     }
     let Some((_, entries)) = built.as_ref() else {
         return;
@@ -749,6 +899,7 @@ pub(crate) fn sync_assets(
             .collect(),
         open: open_item,
         renaming: renaming.0.clone(),
+        folder: folder.0,
     };
     if shown.as_ref() == Some(&wanted) {
         return;
@@ -783,7 +934,7 @@ pub(crate) fn sync_assets(
             list.spawn((
                 Name::new("Asset Grid Empty"),
                 pane_text(
-                    "nothing here: + adds an item",
+                    "nothing here: + adds an item, a right click imports a file",
                     density::TEXT,
                     UiColor::Label,
                 ),
@@ -800,10 +951,16 @@ pub(crate) fn sync_assets(
                 .as_ref()
                 .is_some_and(|id| wanted.faulted.contains(id));
             let held_open = entry.id.is_some() && entry.id == wanted.open;
+            let image = entry
+                .file
+                .as_ref()
+                .zip(project.id.as_deref())
+                .filter(|(file, _)| file.on_disk && loads_as_image(&file.path))
+                .map(|(file, id)| server.load(file_asset_path(id, &file.path)));
             spawn_tile(
                 list,
                 entry,
-                key,
+                (key, image),
                 faulted,
                 held_open,
                 wanted.renaming.as_ref(),
@@ -880,18 +1037,34 @@ fn tile_name(printed: &str) -> impl Bundle {
 fn spawn_tile(
     list: &mut RelatedSpawnerCommands<ChildOf>,
     entry: &AssetEntry,
-    picture: Option<u64>,
+    (picture, image): (Option<u64>, Option<Handle<Image>>),
     faulted: bool,
     held_open: bool,
-    renaming: Option<&OpenAsset>,
+    renaming: Option<&RenameTarget>,
 ) {
-    let typing = entry.id.is_some() && entry.id.as_ref() == renaming;
+    let target = match (&entry.id, &entry.file) {
+        (Some(asset), _) => Some(RenameTarget::Item(asset.clone())),
+        (None, Some(file)) => Some(RenameTarget::File(file.path.clone())),
+        (None, None) => None,
+    };
+    let typing = target.is_some() && target.as_ref() == renaming;
+    let hint = match &entry.file {
+        Some(file) if !file.on_disk => format!("{} (declared, but not in the folder)", entry.full),
+        Some(file) if !file.packaged => {
+            format!(
+                "{} (not in the package: Include in Package adds it)",
+                entry.full
+            )
+        }
+        _ if held_open => format!("{} (open)", entry.full),
+        _ => entry.full.clone(),
+    };
     let mut tile = list.spawn((
         Name::new(format!("Asset Tile {}", entry.label)),
         AssetTile(entry.id.clone()),
         AssetWaits(entry.waits),
         ListRow,
-        Tooltip(entry.full.clone()),
+        Tooltip(hint),
         Node {
             width: px(TILE_W),
             height: px(TILE_H),
@@ -917,6 +1090,9 @@ fn spawn_tile(
             observe(on_asset_tile_menu),
         ));
     }
+    if let Some(file) = &entry.file {
+        tile.insert(AssetFileTile(file.clone()));
+    }
     tile.with_children(|tile| {
         tile.spawn((
             Name::new("Asset Tile Face"),
@@ -939,53 +1115,83 @@ fn spawn_tile(
                 pane_text(asset_mark(entry.kind), GLYPH_TEXT, kind_tint(entry.kind)),
                 Pickable::IGNORE,
             ));
+            let slot = Node {
+                position_type: PositionType::Absolute,
+                width: percent(100),
+                height: percent(100),
+                display: Display::None,
+                ..default()
+            };
             if let Some(key) = picture {
                 face.spawn((
                     Name::new("Asset Tile Picture"),
                     AssetThumb(key),
-                    Node {
-                        position_type: PositionType::Absolute,
-                        width: percent(100),
-                        height: percent(100),
-                        display: Display::None,
-                        ..default()
-                    },
+                    slot.clone(),
                     Pickable::IGNORE,
                 ));
             }
-            if faulted {
+            if let Some(image) = image {
                 face.spawn((
-                    Name::new("Asset Tile Fault"),
-                    pane_text("!", density::TEXT, UiColor::Danger),
-                    Node {
-                        position_type: PositionType::Absolute,
-                        top: px(0),
-                        right: px(0),
-                        ..default()
-                    },
-                    Pickable::IGNORE,
-                ));
-            }
-            if held_open {
-                face.spawn((
-                    Name::new("Asset Tile Open"),
-                    pane_text("open", density::TEXT_SMALL, UiColor::Accent),
-                    Node {
-                        position_type: PositionType::Absolute,
-                        bottom: px(0),
-                        left: px(0),
-                        ..default()
-                    },
+                    Name::new("Asset Tile Picture"),
+                    AssetImage(image),
+                    slot,
                     Pickable::IGNORE,
                 ));
             }
         });
-        match entry.id.as_ref().filter(|_| typing) {
-            Some(asset) => {
+        // The marks stand in the tile's top corners, beside the picture and
+        // never on it.
+        let missing = entry.file.as_ref().is_some_and(|file| !file.on_disk);
+        let unpackaged = entry.file.as_ref().is_some_and(|file| !file.packaged);
+        if unpackaged {
+            tile.spawn((
+                Name::new("Asset Tile Unpackaged"),
+                pane_text(UNPACKAGED_MARK, density::TEXT, UiColor::Label),
+                Node {
+                    position_type: PositionType::Absolute,
+                    top: px(1),
+                    right: px(4),
+                    ..default()
+                },
+                Pickable::IGNORE,
+            ));
+        }
+        if faulted || missing {
+            tile.spawn((
+                Name::new("Asset Tile Fault"),
+                pane_text("!", density::TEXT, UiColor::Danger),
+                Node {
+                    position_type: PositionType::Absolute,
+                    top: px(1),
+                    right: px(4),
+                    ..default()
+                },
+                Pickable::IGNORE,
+            ));
+        }
+        if held_open {
+            tile.spawn((
+                Name::new("Asset Tile Open"),
+                Node {
+                    position_type: PositionType::Absolute,
+                    top: px(5),
+                    left: px(5),
+                    width: px(OPEN_DOT),
+                    height: px(OPEN_DOT),
+                    border_radius: BorderRadius::all(px(OPEN_DOT / 2.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::NONE),
+                ThemedFill::new(UiColor::Accent),
+                Pickable::IGNORE,
+            ));
+        }
+        match target.filter(|_| typing) {
+            Some(target) => {
                 tile.spawn((
                     Name::new("Asset Rename"),
                     AssetRenameField {
-                        asset: asset.clone(),
+                        target,
                         seed: entry.label.clone(),
                     },
                     TextFieldFocused::at_end(&entry.label),
@@ -1001,20 +1207,41 @@ fn spawn_tile(
 
 /// Hang each picture on its tile once it is taken. A tile whose picture never
 /// comes keeps its glyph.
+///
+/// An image file is its own picture, sized to keep its shape.
 pub(crate) fn sync_asset_thumbs(
     mut commands: Commands,
     thumbnails: Res<AssetThumbnails>,
-    mut slots: Query<(Entity, &AssetThumb, &mut Node, &ChildOf), Without<ImageNode>>,
+    images: Res<Assets<Image>>,
+    mut slots: Query<
+        (
+            Entity,
+            Option<&AssetThumb>,
+            Option<&AssetImage>,
+            &mut Node,
+            &ChildOf,
+        ),
+        (Without<ImageNode>, Or<(With<AssetThumb>, With<AssetImage>)>),
+    >,
     faces: Query<&Children>,
     glyphs: Query<(), With<AssetGlyph>>,
 ) {
-    for (entity, thumb, mut node, parent) in &mut slots {
-        let Some(picture) = thumbnails.picture(thumb.0) else {
+    for (entity, thumb, image, mut node, parent) in &mut slots {
+        let picture = match (thumb, image) {
+            (Some(thumb), _) => thumbnails.picture(thumb.0).cloned(),
+            (None, Some(AssetImage(handle))) => images.get(handle).map(|image| {
+                let size = fit(image.size_f32(), Vec2::splat(THUMB_W));
+                node.width = px(size.x);
+                node.height = px(size.y);
+                node.position_type = PositionType::Relative;
+                handle.clone()
+            }),
+            (None, None) => None,
+        };
+        let Some(picture) = picture else {
             continue;
         };
-        commands
-            .entity(entity)
-            .insert(ImageNode::new(picture.clone()));
+        commands.entity(entity).insert(ImageNode::new(picture));
         node.display = Display::Flex;
         let Ok(held) = faces.get(parent.parent()) else {
             continue;

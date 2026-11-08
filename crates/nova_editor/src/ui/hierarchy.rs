@@ -8,7 +8,13 @@ use bevy::{
 use nova_ship::prelude::GalleryState;
 use nova_ui::prelude::*;
 
-use super::{inspector::InspectorField, layer, rail::SceneRowHint, SceneRow, WantedRow};
+use super::{
+    inspector::InspectorField,
+    layer,
+    menu_context::{verb_state, MenuFacts, MenuVerbType},
+    rail::SceneRowHint,
+    SceneRow, WantedRow,
+};
 use crate::{
     clipboard::duplicate_item,
     config::SelectedNode,
@@ -113,6 +119,7 @@ pub(crate) fn on_scene_row_menu(
     rows: Query<&SceneRow>,
     context: Res<EditContext>,
     mut selected: ResMut<SelectedNode>,
+    facts: MenuFacts,
     deletes: Query<(), DeletableNode>,
     kinds: Query<(
         Has<ScenarioNode>,
@@ -135,13 +142,18 @@ pub(crate) fn on_scene_row_menu(
     let Ok((root, ship, object, section)) = kinds.get(node) else {
         return;
     };
+    // The row's kind says which verbs fit the node; the menu context says
+    // which of those the open document and view offer, the same rule the bar
+    // menus show.
+    let menu = facts.context(&selected);
+    let offered = |verb| verb_state(verb, &menu).is_live();
     let verbs = RowVerbs {
         rename: ship || object,
-        duplicate: ship || object,
+        duplicate: (ship || object) && offered(MenuVerbType::Duplicate),
         delete: deletable(node, &context, &deletes),
-        frame: root || ship || object || section,
-        add_world: root && context.ship().is_none(),
-        add_part: ship,
+        frame: (root || ship || object || section) && offered(MenuVerbType::Frame),
+        add_world: root && offered(MenuVerbType::AddWorld),
+        add_part: ship && offered(MenuVerbType::EnterShipParts),
     };
     close_popups(&mut commands, &roots);
     let popup = spawn_popup(

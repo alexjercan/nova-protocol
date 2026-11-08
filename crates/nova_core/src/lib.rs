@@ -864,6 +864,7 @@ fn log_plugin(assembly: Assembly) -> LogPlugin {
     LogPlugin {
         level: Level::INFO,
         filter: log_filter_str(assembly),
+        custom_layer: nova_editor::editor_log_layer,
         ..default()
     }
 }

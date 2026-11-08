@@ -1,11 +1,9 @@
 //! The browser strip under the stage: Assets, Problems, Ship and Log.
 //!
-//! One fixed-height strip with a tab row. Each pane is built once and shown by
-//! [`sync_browser`]. Problems and Log rebuild only when their signature moves
-//! and their tab is open. Assets are the grid in `assets`; sections are browsed
-//! in the parts gallery.
-
-use std::collections::VecDeque;
+//! One strip with a tab row, sized by [`EditorPanels`]. Each pane is built once
+//! and shown by [`sync_browser`]. Problems rebuild when their findings move. The
+//! Log tab is `log`. Assets are the grid in `assets`; sections are browsed in the
+//! parts gallery.
 
 use bevy::{
     ecs::relationship::RelatedSpawnerCommands,
@@ -20,21 +18,20 @@ use nova_ui::{
 
 use super::{
     assets::{spawn_asset_body, spawn_asset_controls},
-    layer, on_part_choice, on_skin_toggle, on_style_choice,
+    layer,
+    log::{spawn_log_controls, LogList},
+    on_part_choice, on_skin_toggle, on_style_choice,
     rail::{part_row, skin_toggle_row, style_row},
-    shell::{EditorPanels, BROWSER_H},
+    shell::EditorPanels,
     PartList, StyleList,
 };
 use crate::{
-    config::{EditorStatus, HullPlanLine, RailTab, SelectedNode},
+    config::{EditorViewType, HullPlanLine, SelectedNode},
     generate::{generate_ship, reroll_seed, GenerateButton, HullSeedField, UNAUTHORED_WEIGHT},
     node::{EditContext, NodeId, ObjectNode, SectionNode, ShipNode},
     problems::{Problem, ProblemSeverityType, Problems},
     ui::canvas::CanvasBoard,
 };
-
-/// How many status lines the Log tab remembers.
-const LOG_LINES: usize = 200;
 
 /// Which tab of the browser strip is open.
 #[derive(Resource, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -46,7 +43,7 @@ pub enum BrowserTabType {
     Problems,
     /// The settings of the entered ship. Listed only inside a ship.
     Ship,
-    /// What the status line has said.
+    /// What the status line has said, and what the log warned of.
     Log,
 }
 
@@ -81,6 +78,10 @@ pub(crate) struct BrowserBody;
 #[derive(Component)]
 pub(crate) struct EditorBrowser;
 
+/// The grip on the strip's top edge.
+#[derive(Component)]
+pub(crate) struct BrowserResizeHandle;
+
 /// The button that folds the strip.
 #[derive(Component)]
 pub(crate) struct BrowserFold;
@@ -89,36 +90,12 @@ pub(crate) struct BrowserFold;
 #[derive(Component)]
 pub(crate) struct ProblemList;
 
-/// The list the Log pane fills.
-#[derive(Component)]
-pub(crate) struct LogList;
+/// How tall the grip on the strip's top edge stands.
+const RESIZE_GRIP_H: f32 = 4.0;
 
 /// The node a browser row selects.
 #[derive(Component, Clone, Copy)]
 pub(crate) struct RowTarget(pub(crate) Entity);
-
-/// What the status line has said, oldest first.
-#[derive(Resource, Default)]
-pub(crate) struct StatusLog {
-    lines: VecDeque<(String, UiColor)>,
-    last: String,
-    revision: u64,
-}
-
-impl StatusLog {
-    /// Remember a line once, however many frames it holds the status line.
-    fn record(&mut self, line: &str, tint: UiColor) {
-        if self.last == line {
-            return;
-        }
-        line.clone_into(&mut self.last);
-        self.lines.push_back((line.to_string(), tint));
-        if self.lines.len() > LOG_LINES {
-            self.lines.pop_front();
-        }
-        self.revision += 1;
-    }
-}
 
 /// One line of pane text.
 pub(super) fn pane_text(text: &str, size: f32, colour: UiColor) -> impl Bundle {
@@ -407,11 +384,14 @@ pub(crate) fn spawn_browser(root: &mut RelatedSpawnerCommands<ChildOf>, ship: &S
         GlobalZIndex(layer::CHROME_Z),
         Node {
             width: percent(100),
-            height: px(BROWSER_H),
+            height: Val::Auto,
             flex_shrink: 0.0,
             flex_direction: FlexDirection::Column,
             row_gap: px(density::GAP),
-            padding: UiRect::axes(px(density::PANEL_PAD), px(2)),
+            padding: UiRect {
+                bottom: px(2),
+                ..UiRect::horizontal(px(density::PANEL_PAD))
+            },
             border: UiRect::top(px(theme::BORDER_W)),
             overflow: Overflow::clip(),
             ..default()
@@ -419,6 +399,19 @@ pub(crate) fn spawn_browser(root: &mut RelatedSpawnerCommands<ChildOf>, ship: &S
         panel(),
     ))
     .with_children(|strip| {
+        strip.spawn((
+            Name::new("Browser Resize Handle"),
+            BrowserResizeHandle,
+            Node {
+                width: percent(100),
+                height: px(RESIZE_GRIP_H),
+                flex_shrink: 0.0,
+                ..default()
+            },
+            BackgroundColor(Color::NONE),
+            ThemedFill::alpha(UiColor::Primary, 0.16),
+            observe(on_browser_resize),
+        ));
         strip
             .spawn((
                 Name::new("Browser Tabs"),
@@ -453,6 +446,7 @@ pub(crate) fn spawn_browser(root: &mut RelatedSpawnerCommands<ChildOf>, ship: &S
                 ))
                 .with_children(|tools| {
                     spawn_asset_controls(tools);
+                    spawn_log_controls(tools);
                     tools.spawn((
                         Name::new("Browser Fold"),
                         BrowserFold,
@@ -503,6 +497,21 @@ fn on_browser_tab(
     }
 }
 
+/// Drag the strip's top edge. Up makes the strip taller.
+fn on_browser_resize(
+    mut drag: On<Pointer<Drag>>,
+    mut panels: ResMut<EditorPanels>,
+    screen: Option<Single<&Window>>,
+) {
+    drag.propagate(false);
+    if drag.button != PointerButton::Primary {
+        return;
+    }
+    if let Some(screen) = screen {
+        panels.resize_browser(drag.delta.y, screen.height());
+    }
+}
+
 /// Fold or unfold the strip.
 fn on_browser_fold(_activate: On<Activate>, mut panels: ResMut<EditorPanels>) {
     panels.browser = !panels.browser;
@@ -515,11 +524,13 @@ pub(crate) fn sync_browser(
     panels: Res<EditorPanels>,
     context: Res<EditContext>,
     problems: Res<Problems>,
+    screen: Option<Single<&Window>>,
     mut strips: Query<
         &mut Node,
         (
             With<EditorBrowser>,
             Without<BrowserBody>,
+            Without<BrowserResizeHandle>,
             Without<BrowserPane>,
             Without<BrowserTabButton>,
         ),
@@ -527,7 +538,7 @@ pub(crate) fn sync_browser(
     mut bodies: Query<
         &mut Node,
         (
-            With<BrowserBody>,
+            Or<(With<BrowserBody>, With<BrowserResizeHandle>)>,
             Without<BrowserPane>,
             Without<BrowserTabButton>,
         ),
@@ -548,10 +559,9 @@ pub(crate) fn sync_browser(
     if !inside && *open == BrowserTabType::Ship {
         *open = BrowserTabType::Assets;
     }
-    let height = if panels.browser {
-        px(BROWSER_H)
-    } else {
-        Val::Auto
+    let height = match (&screen, panels.browser) {
+        (Some(screen), true) => px(panels.browser_height(screen.height())),
+        _ => Val::Auto,
     };
     for mut node in &mut strips {
         if node.height != height {
@@ -641,16 +651,6 @@ pub(crate) fn sync_problem_rows(
     };
     commands.entity(list).despawn_related::<Children>();
     commands.entity(list).with_children(|list| {
-        if problems.list.is_empty() {
-            list.spawn((
-                Name::new("Problems Clear"),
-                pane_text(
-                    "no problems: the document lints clean",
-                    12.0,
-                    UiColor::Nominal,
-                ),
-            ));
-        }
         for (index, problem) in problems.list.iter().enumerate() {
             let (mark, tint) = problem_paint(problem);
             let id = problem
@@ -688,7 +688,7 @@ pub(crate) fn on_target_row(
     objects: Query<(), With<ObjectNode>>,
     named: Query<(), With<NodeId>>,
     mut context: ResMut<EditContext>,
-    mut tab: ResMut<RailTab>,
+    mut tab: ResMut<EditorViewType>,
     mut selected: ResMut<SelectedNode>,
     mut board: ResMut<CanvasBoard>,
 ) {
@@ -709,52 +709,19 @@ pub(crate) fn on_target_row(
             }
             context.enter(ship);
         }
-        *tab = RailTab::Scene;
+        *tab = EditorViewType::Scene;
     } else if ships.contains(node) || objects.contains(node) {
         if let Some(scenario) = context.scenario() {
             context.leave_to(scenario);
         }
-        *tab = RailTab::Scene;
-    } else if context.scenario() != Some(node) {
-        *tab = RailTab::Events;
+        *tab = EditorViewType::Scene;
+    } else if let Some(scenario) = context.scenario().filter(|scenario| *scenario != node) {
+        // The script is a view of the scenario, not of a ship inside it.
+        context.leave_to(scenario);
+        *tab = EditorViewType::Events;
         board.frame = Some(node);
     }
     selected.set(Some(node));
-}
-
-/// Remember what the status line says, and draw it on the Log tab.
-pub(crate) fn sync_log(
-    mut commands: Commands,
-    status: Res<EditorStatus>,
-    open: Res<BrowserTabType>,
-    mut log: ResMut<StatusLog>,
-    lists: Query<Entity, With<LogList>>,
-    fresh: Query<(), Added<LogList>>,
-    mut shown: Local<Option<u64>>,
-) {
-    if !fresh.is_empty() {
-        *shown = None;
-    }
-    if let Some((line, tint)) = status.said() {
-        log.record(line, tint);
-    }
-    if *open != BrowserTabType::Log || *shown == Some(log.revision) {
-        return;
-    }
-    let Ok(list) = lists.single() else {
-        return;
-    };
-    commands.entity(list).despawn_related::<Children>();
-    commands.entity(list).with_children(|list| {
-        // Newest first: the line the builder came here for is at the top.
-        for (index, (line, tint)) in log.lines.iter().rev().enumerate() {
-            list.spawn((
-                Name::new(format!("Log Row {index}")),
-                pane_text(line, 12.0, *tint),
-            ));
-        }
-    });
-    *shown = Some(log.revision);
 }
 
 #[cfg(test)]
@@ -766,7 +733,7 @@ mod tests {
 
     use super::{on_target_row, sync_problem_rows, ProblemList, RowTarget};
     use crate::{
-        config::{RailTab, SelectedNode},
+        config::{EditorViewType, SelectedNode},
         history::tests::{first_with, history_app},
         node::{EditContext, SectionNode, ShipNode},
         problems::{Problem, ProblemSeverityType, Problems},
@@ -786,7 +753,7 @@ mod tests {
     #[test]
     fn a_problem_row_on_a_section_goes_into_its_ship_and_selects_it() {
         let mut app = history_app();
-        app.init_resource::<RailTab>();
+        app.init_resource::<EditorViewType>();
         app.init_resource::<CanvasBoard>();
         let section = first_with::<SectionNode>(&mut app);
         let ship = app
@@ -809,7 +776,7 @@ mod tests {
     #[test]
     fn a_row_on_a_dead_node_selects_nothing() {
         let mut app = history_app();
-        app.init_resource::<RailTab>();
+        app.init_resource::<EditorViewType>();
         app.init_resource::<CanvasBoard>();
         let gone = app.world_mut().spawn_empty().id();
         app.world_mut().despawn(gone);
@@ -817,7 +784,10 @@ mod tests {
         press_row_of(&mut app, gone);
 
         assert_eq!(app.world().resource::<SelectedNode>().primary(), None);
-        assert_eq!(*app.world().resource::<RailTab>(), RailTab::default());
+        assert_eq!(
+            *app.world().resource::<EditorViewType>(),
+            EditorViewType::default()
+        );
     }
 
     /// A finding that names no node goes nowhere, so it must not read as a

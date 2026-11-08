@@ -20,6 +20,8 @@
 //! the only truth, so a socket keeps the normal it was read with until a turn
 //! moves it, and an untouched section lowers equal to what was lifted.
 
+pub(crate) mod blank;
+pub(crate) mod files;
 pub(crate) mod session;
 pub(crate) mod verbs;
 pub(crate) mod view;
@@ -272,14 +274,6 @@ pub(crate) fn has_mesh(kind: &SectionKind) -> bool {
     !matches!(kind, SectionKind::Turret(_))
 }
 
-/// Whether `kind` can stand with no mesh ref.
-pub(crate) fn mesh_is_optional(kind: &SectionKind) -> bool {
-    !matches!(
-        kind,
-        SectionKind::CargoIntake(_) | SectionKind::Mining(_) | SectionKind::Turret(_)
-    )
-}
-
 /// The ref in `kind`'s mesh field, or the empty string.
 pub(crate) fn mesh_of(kind: &SectionKind) -> String {
     let mut kind = kind.clone();
@@ -306,6 +300,27 @@ pub(crate) fn set_mesh(kind: &mut SectionKind, text: &str) -> Result<(), String>
             Ok(())
         }
         None => Err("a turret holds a mesh per joint".to_string()),
+    }
+}
+
+/// Empty `kind`'s mesh field for a new section. A kind with no built-in mesh
+/// holds the empty ref, which the content lint refuses until a mesh is picked.
+pub(crate) fn blank_mesh(kind: &mut SectionKind) {
+    match mesh_slot(kind) {
+        Some(MeshSlot::Optional(slot)) => *slot = None,
+        Some(MeshSlot::Required(slot)) => *slot = AssetRef::Path(String::new()),
+        None => {}
+    }
+}
+
+/// Take `kind`'s mesh off the stage: a kind with a built-in mesh draws that,
+/// and a kind with none draws no mesh. The handle loads no file, so a mesh the
+/// mod cannot give logs no load error while the Problems tab says why.
+pub(crate) fn unstage_mesh(kind: &mut SectionKind) {
+    match mesh_slot(kind) {
+        Some(MeshSlot::Optional(slot)) => *slot = None,
+        Some(MeshSlot::Required(slot)) => *slot = AssetRef::Handle(Handle::default()),
+        None => {}
     }
 }
 

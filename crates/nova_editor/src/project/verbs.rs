@@ -19,11 +19,12 @@ use nova_ship::prelude::{GameSections, TargetingSettings};
 use nova_ui::theme::UiColor;
 
 use super::{
-    ids::namespace_of,
+    conform_view_now,
+    ids::{namespace_of, node_of_design},
     mint_scenario_id,
     package::asset_faults,
     store::{self, bundle_file, renamed_copy, write_project},
-    ModProject, OpenAsset, PendingMods,
+    ModProject, OpenAsset, PendingMods, SCENARIO_KIND,
 };
 use crate::{
     asset::{frame_bench, lift_item, lowered_item, session::sync_project_sections},
@@ -32,7 +33,7 @@ use crate::{
         document_content, fill_document, lift_scenario, spawned_in_layout, FileWindowKind,
         FileWindowRequest,
     },
-    config::{EditorOverlays, EditorStatus, RailTab, SelectedNode},
+    config::{EditorOverlays, EditorStatus, EditorViewType, SelectedNode},
     cues::EditorCues,
     event::{reveal, ScriptNodes},
     history::{
@@ -246,8 +247,12 @@ pub(crate) fn refused_by_gaps(world: &mut World, verb: &str) -> bool {
         return false;
     };
     reveal(world, node);
-    if let Some(mut tab) = world.get_resource_mut::<RailTab>() {
-        *tab = RailTab::Events;
+    // The script is a view of the scenario, not of a ship inside it.
+    if let Some(mut context) = world.get_resource_mut::<EditContext>() {
+        context.exit_all();
+    }
+    if let Some(mut view) = world.get_resource_mut::<EditorViewType>() {
+        *view = EditorViewType::Events;
     }
     world.resource_mut::<SelectedNode>().set(Some(node));
     let line = match gaps.len() {
@@ -313,11 +318,8 @@ fn rebuild_document(world: &mut World, open: Option<&OpenAsset>) {
     if let Some(item) = bench {
         lift_item(world, scenario, &item);
         frame_bench(world, scenario);
-        // A bench has no script for the Events tab to show.
-        if let Some(mut tab) = world.get_resource_mut::<RailTab>() {
-            *tab = RailTab::Scene;
-        }
     }
+    conform_view_now(world);
 }
 
 /// Whether an Error the content rules raise stops `verb`. A mod holding one
@@ -443,6 +445,10 @@ pub(crate) fn project_step(
 /// Open the item of `kind` and `id`. Never a step, and never loses an edit: the
 /// document is lowered first.
 pub(crate) fn open_asset(world: &mut World, kind: &'static str, id: &str) {
+    if matches!(kind, "ship" | "station") {
+        open_design(world, id);
+        return;
+    }
     let Some(project) = world.get_resource::<ModProject>() else {
         return;
     };
@@ -477,12 +483,60 @@ pub(crate) fn open_asset(world: &mut World, kind: &'static str, id: &str) {
     note(world, format!("opened {name}"));
 }
 
-/// File > New Scenario, and the Assets tab's Add: a new scenario from
-/// `template`, open.
-pub(crate) fn add_scenario(world: &mut World, template: ScenarioTemplate) {
+/// Open a ship or station design: the scenario that places it, with the ship
+/// entered. A design id is `<scenario>.<node>`, written by that scenario, and
+/// the ship is edited where it stands. Never a step, as [`open_asset`].
+fn open_design(world: &mut World, id: &str) {
+    let Some(project) = world.get_resource::<ModProject>() else {
+        return;
+    };
+    let owner = project
+        .data
+        .scenarios()
+        .filter(|scenario| {
+            id.strip_prefix(scenario.id.as_str())
+                .is_some_and(|rest| rest.starts_with('.'))
+        })
+        .max_by_key(|scenario| scenario.id.len())
+        .map(|scenario| scenario.id.clone());
+    let Some(scenario) = owner else {
+        refuse(
+            world,
+            format!("{id} stands in no scenario of this mod, so there is no ship to enter"),
+        );
+        return;
+    };
+    let node = node_of_design(&scenario, id).to_string();
+    open_asset(world, SCENARIO_KIND, &scenario);
+    let opened = world.resource::<ModProject>().data.open.as_ref()
+        == Some(&OpenAsset::scenario(scenario.clone()));
+    if !opened {
+        return;
+    }
+    let ship = world
+        .query::<(Entity, &NodeId, &ShipNode)>()
+        .iter(world)
+        .find(|(_, held, _)| held.0 == node)
+        .map(|(ship, _, _)| ship);
+    let Some(ship) = ship else {
+        refuse(world, format!("{scenario} has no {node} to enter"));
+        return;
+    };
+    let mut context = world.resource_mut::<EditContext>();
+    context.exit_all();
+    context.enter(ship);
+    world.resource_mut::<SelectedNode>().set(None);
+    conform_view_now(world);
+    note(world, format!("entered {node}"));
+}
+
+/// File > New Scenario, and the Assets tab's Add: a blank scenario, open. It
+/// holds no object, no light and no script: a scenario starts from scratch.
+pub(crate) fn add_scenario(world: &mut World) {
     if !world.contains_resource::<ModProject>() {
         return;
     }
+    let template = ScenarioTemplate::Empty;
     project_step(world, "Add Scenario", |world| {
         let project = world.resource::<ModProject>();
         let id = mint_scenario_id(project, template.settings().name.as_str());

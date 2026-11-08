@@ -280,7 +280,9 @@ pub(super) fn text_field_on_pointer(
     q_focused: Query<(Entity, &TextFieldValue), With<TextFieldFocused>>,
     mut submitted: MessageWriter<TextFieldSubmitted>,
 ) {
-    if press.button != PointerButton::Primary {
+    // A press bubbles to every ancestor and then the window. Above the field
+    // this walk finds no field, and would blur the one just pressed.
+    if press.button != PointerButton::Primary || press.entity != press.original_event_target() {
         return;
     }
     let mut target = Some(press.entity);
@@ -295,7 +297,10 @@ pub(super) fn text_field_on_pointer(
 
     for (entity, value) in &q_focused {
         if Some(entity) != field {
-            commands.entity(entity).remove::<TextFieldFocused>();
+            // `try_`: press observers have no fixed order, and a press outside
+            // a popup closes the popup that holds this field. If that despawn
+            // lands first the field is gone and nothing stays focused.
+            commands.entity(entity).try_remove::<TextFieldFocused>();
             submitted.write(TextFieldSubmitted {
                 entity,
                 value: value.0.clone(),
@@ -341,7 +346,10 @@ pub(super) fn one_field_holds_the_focus(
     };
     for (entity, value) in &focused {
         if entity != keeps {
-            commands.entity(entity).remove::<TextFieldFocused>();
+            // `try_`: press observers have no fixed order, and a press outside
+            // a popup closes the popup that holds this field. If that despawn
+            // lands first the field is gone and nothing stays focused.
+            commands.entity(entity).try_remove::<TextFieldFocused>();
             submitted.write(TextFieldSubmitted {
                 entity,
                 value: value.0.clone(),
@@ -515,7 +523,61 @@ pub(super) fn paint_text_fields(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{theme::PHOSPHOR_THEME_ID, widget::fixtures::themed_app};
+    use crate::{
+        theme::PHOSPHOR_THEME_ID,
+        widget::fixtures::{self, spawn_window, themed_app},
+    };
+
+    #[test]
+    fn a_press_inside_the_focused_field_keeps_it_focused() {
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
+        app.update();
+        let window = spawn_window(&mut app);
+        let panel = app.world_mut().spawn(Node::default()).id();
+        let field = app
+            .world_mut()
+            .spawn((
+                text_field(TextFieldSpec::new("kept")),
+                TextFieldFocused::at_end("kept"),
+                ChildOf(panel),
+            ))
+            .id();
+
+        fixtures::press(&mut app, field, window);
+
+        assert!(app.world().get::<TextFieldFocused>(field).is_some());
+        assert!(app
+            .world()
+            .resource::<Messages<TextFieldSubmitted>>()
+            .is_empty());
+    }
+
+    #[test]
+    fn a_press_elsewhere_submits_the_focused_field_once() {
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
+        app.update();
+        let window = spawn_window(&mut app);
+        let panel = app.world_mut().spawn(Node::default()).id();
+        let elsewhere = app
+            .world_mut()
+            .spawn((Node::default(), ChildOf(panel)))
+            .id();
+        let field = app
+            .world_mut()
+            .spawn((
+                text_field(TextFieldSpec::new("kept")),
+                TextFieldFocused::at_end("kept"),
+            ))
+            .id();
+
+        fixtures::press(&mut app, elsewhere, window);
+
+        assert!(app.world().get::<TextFieldFocused>(field).is_none());
+        assert_eq!(
+            app.world().resource::<Messages<TextFieldSubmitted>>().len(),
+            1
+        );
+    }
 
     fn press(app: &mut App, key_code: KeyCode, logical_key: Key) {
         app.world_mut().write_message(KeyboardInput {

@@ -8,7 +8,7 @@ use nova_ship::prelude::HeldPart;
 
 use crate::{
     camera::ViewportPointer,
-    config::{EditorCamera, RailTab, SelectedNode},
+    config::{EditorCamera, EditorViewType, SelectedNode},
     event::EventNode,
     keybind::EditorRebind,
     node::{EditContext, ObjectNode, SectionNode, ShipNode},
@@ -161,7 +161,7 @@ pub(crate) fn empty_space_press(
 pub(crate) fn select_all(
     keys: Res<ButtonInput<KeyCode>>,
     context: Res<EditContext>,
-    tab: Res<RailTab>,
+    tab: Res<EditorViewType>,
     held: Res<HeldPart>,
     q_children: Query<&Children>,
     q_selectable: Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,
@@ -185,7 +185,7 @@ pub(crate) fn select_all(
 pub(crate) fn select_all_item(
     _activate: On<Activate>,
     context: Res<EditContext>,
-    tab: Res<RailTab>,
+    tab: Res<EditorViewType>,
     q_children: Query<&Children>,
     q_selectable: Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,
     q_events: Query<Entity, With<EventNode>>,
@@ -203,7 +203,7 @@ pub(crate) fn select_all_item(
 
 /// Mark every handler on the script tab, or everything at the current level.
 fn mark_all(
-    tab: &RailTab,
+    tab: &EditorViewType,
     context: &EditContext,
     q_children: &Query<&Children>,
     q_selectable: &Query<(), Or<(With<ShipNode>, With<ObjectNode>, With<SectionNode>)>>,

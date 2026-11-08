@@ -42,6 +42,32 @@ Owner review of the shell and blocks, 2026-11-07:
 - Do not change the main menu much. The editor stays called "Sandbox" or "Editor".
 - Creating a mod is simpler, like creating a project in Unity.
 
+### Owner review 2 (after the land at 3a47e9390)
+
+R1. Fix the WARN spam in the log: `despawn` and `remove::<TextFieldFocused>` on
+    entities already despawned, after a press.
+R2. Events: sort and group the blocks. Only event handlers such as OnStart can
+    be placed first, and today that is not clear. Make it obvious what can be
+    placed where, and how to build a script.
+R3. The Log tab is more useful: clear, and similar tools.
+R4. Problems shows problems only, and no "no problems: ..." line.
+R5. The bottom panel can be larger.
+R6. Assets is more useful: it also shows images and the other files of the mod.
+R7. "edit in its scenario" does nothing. Assets are edited as a scenario is:
+    double click an asset to go into edit mode for it. A scenario opens in the
+    scenario editor, a ship in the ship editor.
+R8. A ship opened from a rotated scenario node is rotated in the ship viewer.
+    In the ship viewer the transform is identity. Only the scenario has one.
+R9. The xyz axis gizmo in the scenario editor is not stable: it flickers on move.
+R10. WASD does not work in the editor any more. Remove what it needs.
+R11. "Scene | Events" is the scenario view. The ship editor and the section
+    editor get their own views. A new section shows in the Assets panel.
+R12. Editing a UI Theme palette is simpler, with a color picker.
+R13. No "Start from". A new asset, for example a campaign, starts from scratch.
+R14. Rework the top menus and context menus. They detect what you edit and offer
+    only what fits: a section can add a mesh and a collider, a section offers no
+    asteroids, a scenario offers no sections.
+
 ## Decisions
 
 Approved by the owner:
@@ -62,6 +88,8 @@ Agent assumptions, not confirmed by the owner:
 - "Old catalog" means the Tab gallery.
 - The Inspector stays in Scene and in asset forms.
 - Old `editor_*` saves keep opening.
+- A new UI theme inherits from `base/phosphor`. The Inherit row in its form
+  can change the parent. Slice 13 chose this; the owner has not confirmed it.
 
 ## Agent findings
 
@@ -735,6 +763,353 @@ Limits:
 - Project and section walks log an avian `no mass or inertia` warning. Its source
   was not traced.
 
+### Slice 11 notes
+
+Owner review 2: R1, R3, R4, R5, R8, R9 and R10. Commits: `c47ad0ecc` (R1),
+`e868c9e5e` (R3, R4, R5, R9), `c2c682853` (R8), `b924c9173` (R10 alone, so it
+reverts cleanly). Frames and traces are in `frames/slice11/`.
+
+| # | Item | Status | Proof |
+| --- | --- | --- | --- |
+| R1 | WARN on despawn and `remove::<TextFieldFocused>` | DONE | Root: `text_field_on_pointer` and `close_popup_on_press` are global `Pointer<Press>` observers. A press bubbles through each parent and then the window, so they ran once per level. Both now act only when `press.entity == press.original_event_target()`. Red: with the fix taken out, 3 `nova_ui` press tests failed with the real WARN. Green: `a_press_outside_a_popup_closes_it_and_its_focused_field_without_a_warning`, `a_press_elsewhere_submits_the_focused_field_once`. `editor_blocks` opens a chip list, presses outside it and asserts no `despawned` line in the Log |
+| R3 | Log tab tools | DONE | Clear, All/Warnings/Errors, text filter, line count. Fed by the status lines (`EditorStatus::said`) and by every tracing WARN and ERROR through `editor_log_layer`, a `LogPlugin.custom_layer` in `nova_core`. INFO stays in the terminal. Newest line on top. `editor_shell` logs a warn and an error, filters by level and text, clears, then sees a new line arrive. 4 `ui/log.rs` tests and `warnings_and_errors_reach_the_feed_and_info_does_not` |
+| R4 | Empty Problems says nothing | DONE | The "no problems" row and its Clear row are gone; the tab shows no count at zero. No walk read that text. Frames `1920-shell-problems.png`, `1280-shell-problems.png` |
+| R5 | Taller strip, drag handle | DONE | 220/1080 of the window height: 220 px at 1080, 147 px at 720. A 4 px handle on the top edge drags it between 100 px and 60 percent of the window. Ctrl+3 and Fold still fold it. `the_strip_opens_in_proportion_to_the_window`, `a_resize_stops_at_the_limits`; `editor_shell` pulls the edge 80 px and asserts the growth within 2 px (`*-shell-strip-tall.png`) |
+| R8 | Ship viewer shows the scenario transform | DONE | Inside a ship the scenario root takes the inverse of the ship's pose, so the ship stands at identity. The ship's `Transform` stays document data; `settled()` keeps the root pose out of history. Red: `entering_a_turned_ship_stands_it_at_identity_and_is_no_edit` failed without `sync_stage_frame` (ship shown at (40, -12, 7), turned). Green: that test and `a_step_undone_inside_a_ship_leaves_the_stage_where_it_stands` prove no undo step or dirty mark on enter or leave, and the pose back unchanged. `system_ship_editor` turns a moved ship by its Yaw field, enters it, asserts identity and the same step count (`r8-inside-turned-after.png`). The Inspector hides the entered ship's pose rows; the probe's `inside_origin` is gone |
+| R9 | Gizmo flicker | DONE | Per-frame trace in `editor_viewport` (`r9-trace-before.txt`, `r9-trace-after.txt`, 1920x1080). The move handle was stable before: rig to node gap 0.00 px on all 24 frames. The corner axis rose was not: at rest (1544, 838), on orbit frames 2 to 12 about (17396, 7144), off the screen. Cause: `draw_axis_rose` ran in `Update` on last frame's camera pose. Fix: the overlays move to `EditorOverlaySystems` in `PostUpdate` after `TransformSystems::Propagate`. After: the rose holds (1544.0, 758.0) within 0.1 px on all 24 orbit and drag frames, and the walk asserts drift under 1 px. It sits at y 758 now because the strip is taller |
+| R10 | Remove WASD fly | DONE | One commit. Gone: WASD/Q/E fly, Shift sprint, `FLY_SPEED` and the wheel dial, the top bar speed buttons and readout, `Foot Speed`, the status line camera slot, `EditorProbe::fly_speed`, the `RMB+WASD fly` legend hint, `EDITOR_CAMERA_KEYS` (and its two tests), the RMB gate on the tool keys and on the ghost wheel. RMB is now `CameraGestureType::Look`: it turns the view about the eye. Orbit, dolly, pan and F never read the fly speed. New test `rmb_turns_the_view_and_the_letter_keys_never_move_the_eye`; `editor_viewport` holds RMB, presses E and swings the mouse, asserts the eye did not move and E took the Turn tool, then W takes Move back. Frames `r10-*-shell-scene-after.png` |
+
+Also:
+
+- `ui/shell.rs` module doc said nothing drags; it names the strip edge now.
+- Changelog: the panels entry names the resizable strip and the Log filters;
+  the camera entry says RMB looks and WASD no longer flies; the "Ctrl stops the
+  free-fly camera" entry goes, as there is no fly left. R1, R8 and R9 are bugs
+  in unreleased work and get no entry.
+
+Proof on the final tree (`b924c9173` plus the doc fix): `nova_editor --lib`
+719 pass, `nova_ui --lib` 105 pass, `cargo check --all-targets --features
+debug` with no warnings, `cargo fmt --all --check` clean. Walks EXIT 0 with no
+panic and no `despawned` line: `editor_viewport`, `editor_shell` at 1920 and
+1280, `editor_blocks` at 1920, `editor_undo`, `system_ship_editor`. Every run
+had its own XDG and modding cache; the owner's profile folders did not change.
+
+Limits:
+
+- R1: the walk check never ran red. The red run was the unit tests with the fix
+  taken out.
+- R1: the field's unfocus keeps `try_remove`. Press observers have no fixed
+  order, so a press outside a popup can close the popup that holds the field
+  first. That race is valid at runtime.
+- R3: a line logged before `nova_core` installs the layer is not in the Log.
+  Unit test apps do not install it.
+- R8: no walk places a part inside the turned ship. Grid, handles and sockets
+  are right by construction: the entered ship's frame is the world frame. The
+  walk does not leave the ship and compare; the unit test does.
+- R9: lavapipe only, one camera path. Node marks read `ColliderAabb`, which
+  moves with the physics step, and name plates read the camera in `Update`;
+  neither was measured. If the owner saw a flicker other than the rose, it is
+  not proven gone.
+- Commits B and C were cut from one tree by hunk; only the final tree was
+  built and walked.
+- The lane once ran read-only `git` in the main checkout before it read the
+  lane rules. It changed nothing.
+
+### Slice 12 notes
+
+Owner review 2: R7, R11, R12, R13 and R14. R2 and R6 are slice 13. Commits:
+`f5a1d1f33` (R13), `a65e09eb3` (R7, R11), `f487df515` (R14), `5bd701c6e`
+(R12), and commit E (two menu paint fixes, the walk, docs, these notes). Frames
+are in `frames/slice12/`.
+
+The document and view model. The open document is a `DocumentType`:
+`Scenario`, `Ship` (a ship entered in its scenario), `Section` or `Form` (every
+other kind). Each document has its views, `EditorViewType`: Scene and Events for
+a scenario, Ship, Section and Form for the rest. `EditorViewType` replaces
+`RailTab`. The view switch shows only the open document's tabs, and one system
+keeps the view one the document has. A view change is not a document edit: it
+makes no undo step and no dirty mark.
+
+```
+tile double click / Enter -> open_asset(kind, id)
+  scenario -> DocumentType::Scenario -> Scene | Events
+  ship     -> its scenario, entered  -> Ship   (Leave Ship -> Scene)
+  section  -> DocumentType::Section  -> Section
+  other    -> DocumentType::Form     -> Form
+every menu row / block -> MenuVerbType -> verb_state(verb, MenuContext)
+  -> Live | Greyed(reason on hover) | Hidden
+```
+
+| # | Item | Status | Proof |
+| --- | --- | --- | --- |
+| R7 | Double click opens each kind in its own view | DONE | `open_asset` per kind; Enter does the same on the marked tile. A ship tile opens its scenario with the ship entered. `editor_views` double clicks the scenario, `picket_warden`, the section and the theme tiles and asserts the view tabs each time (`views: PASS the scenario opens on ["Scene", "Events"]`, ship `["Ship"]`, section `["Section"]`, theme `["Form"]`) at 1920 and 1280. `editor_shell` leaves a ship to the scenario before Events |
+| R11 | One view set per document; a new section shows as a tile | DONE | Same walk: the switch shows only the open document's tabs. The blank `new_hull` tile is in Assets (`views-*-blank.png`). `a_ship_tile_opens_its_scenario_with_the_ship_entered` asserts the ship is entered, opening is not a step, and nothing is marked dirty. No unit test switches views and counts steps |
+| R12 | Palette grid and one colour picker | DONE | The palette is a grid of named swatches; a dim name is inherited. The picker: SV square, hue strip, hex field, alpha strip only where the format has alpha (palette: none, asserted in the walk). Live write with no step; release or close folds the session into one step; Esc reverts and leaves nothing to undo or redo. The four-slider window is deleted. Tests: `a_press_in_the_picker_writes_the_colour_into_the_document`, `the_picker_follows_a_colour_typed_into_the_row`, `a_picker_session_is_one_step`, `escape_takes_the_picked_colour_back`, `a_palette_pick_overrides_its_entry_and_refuses_an_alpha`. Walk: pick in the square, close, `next_undo == "Edit Colour primary"`, depth +1, Edit > Undo returns the palette, Edit > Redo restores it (`views: PASS Undo returned the colour and Redo restored it`) |
+| R13 | No Start From; Add makes a blank | DONE | `asset/blank.rs` builds the least value of every reflected field. The Start From chooser, its offer rows and the plain hull are gone. Add > Sections asks for the kind once. The blank hull opens with 5 errors in Problems, and Save, Play and Package wait (`views: PASS a blank hull opens with 5 errors`; `editor_section_builder` fills it and flies `spar_works__new_hull`). Duplicate stays on the tile menu. `every_addable_kind_has_a_blank_a_file_can_hold` |
+| R14 | Menus from one context | DONE | `menu_context::verb_state` decides every bar row and the Hierarchy right-click menu. Add holds only the document's verbs; Mesh and Collider read Add until set, then Replace; the Ship menu shows only in a ship. No content-format change. Tests: `each_document_offers_only_its_own_add_verbs`, `a_section_part_reads_add_until_it_is_set_then_replace`, `a_greyed_verb_says_why_until_it_can_run`. Walk asserts each Add menu: scenario shows Asteroid and New Ship and hides Structure, Socket, Mesh; ship shows Structure and hides Asteroid, New Ship, Socket; section shows Socket, Mesh, Cuboid Collider and hides Asteroid, New Ship, Structure; a form has no Add and no Ship menu |
+
+R14 menu audit (before at `8378bc9df`, after at commit E):
+
+| Menu / row | Before | After |
+| --- | --- | --- |
+| Add menu, form open | shown | hidden |
+| Ship menu | always shown, rows greyed outside a ship (`sync_ship_menu`) | hidden outside a ship |
+| Add > world (New Ship, Anchor, Asteroid, Planet, Beacon, Light) | greyed inside a ship (`sync_scenario_menu`) | Scene view only; hidden elsewhere |
+| Add > script | one of two palettes by mode (`sync_add_palette`) | Events view only, greyed: blocks are dragged out of the palette |
+| Add > parts (Structure... to Docking...) | by mode | Ship view only |
+| Add > section (Mesh, 4 colliders, Socket) | did not exist | Section only. Mesh... / Replace Mesh...; `<Shape> Collider` / Replace Collider with `<Shape>`; the held shape greyed; a turret's per-joint mesh greyed with the reason |
+| Edit > Copy, Duplicate | greyed by selection | scenario: greyed until a selection; ship: greyed with the reason; section, form: hidden |
+| Edit > Paste | greyed by clipboard | scenario: greyed until a copy; ship: greyed with the reason; section, form: hidden |
+| Edit > Delete | greyed by selection (`sync_menu_delete`) | form: hidden; section: greyed until a socket is selected; scenario, ship: greyed until something deletable is selected |
+| Edit > Select All | always | scenario, ship only |
+| Edit > Undo, Redo | `sync_history_menu` | unchanged |
+| View > Handle Axes, Key Legend, World Grid, Frame | always | stage views only (Scene, Ship, Section); Frame greyed with nothing to frame |
+| View > Link Points | always | Ship, Section |
+| View > Object Volumes | always | Scene |
+| View > Ids | always | Scene, Events, Ship |
+| Ship > Pose rows | greyed with no part in hand (`sync_armed_menu`) | same rule, in `verb_state` |
+| Ship > Rebind | `sync_rebind_button` | same rule, in `verb_state` |
+| Toolbar Parts | greyed outside a ship (`ShipMenuItem`) | Ship document only |
+| Hierarchy right-click | own flags per node | the same nodes, each verb also asked of `verb_state` |
+| Separators | always | hidden when they would rule off nothing |
+
+R13 blank per kind: scenario: empty, added at once (no template window).
+Section: asks for the kind; Mining and Cargo Intake are greyed (their blank holds
+sound or mesh refs the form cannot set). Campaign, style, item, start role, price
+table, trade profile: least value of every field. UI theme: derives from the
+first root theme in sight, because a root theme must declare roles the form
+cannot write. Ship and station: no Add (placed in a scenario). Lesson: waits
+(kept as written).
+
+Commit E also fixes two menu bugs found in the walk frames:
+
+- Add > Section rows drew with no label (`before-blank-labels-section-add-1920.png`).
+  Cause: `MenuVerbType` requires `Tooltip`, whose `On<Add>` observer spawns the
+  panel as the row's FIRST child, and `sync_menu_item_paint` read lead, label and
+  tail by position. The label stayed `Color::NONE`. The Edit rows carry
+  `MenuVerbType` too. Fix: a `MenuTailMark`, and the paint pass and
+  `sync_view_menu_marks` find each part by marker. Test:
+  `a_row_with_a_tooltip_panel_first_still_paints_its_label`.
+- The Edit menu kept an empty band about one row tall under Redo
+  (`before-edit-menu-gap-1920.png`). Measured: dropdown 92 px for 66 px of
+  rows, padding and border; still 92 with every hidden row despawned; 66 with a
+  400 px `min_width`. Cause: the wrappable label let taffy measure the
+  auto-height absolute dropdown at a narrower width. A long Undo name ("Undo Edit
+  Colour primary") showed it. Fix: menu labels do not wrap. The walk asserts the
+  Edit menu ends under 10 px below its last shown row.
+
+`catalog_drift` failed on `systems_ranges_assert_their_invariant_roster`, and it
+fails on `3a47e9390` too: that land removed the `a saved range is switched on for
+the way out` and `a named save writes a bundle of its own` beats from
+`system_ship_editor` but kept their roster slugs. Commit E drops the two slugs
+(632 to 630 invariants) and swaps `a destructive verb asks first` for `New
+Scenario opens a blank scenario beside the open one`.
+
+Docs: `web/src/create/mod-editor.md` (top bar, view switch, palette and picker,
+tiles open in their view, blank Add, Enter, Esc) and `web/src/wiki/keybinds.md`
+(top bar, view switch, palette, Enter row, Esc ladder). Changelog: three entries
+(views and menus; blank Add; palette picker). The two menu bugs are in
+unreleased work and get no entry. New playable example `editor_views` with a
+README row.
+
+Proof on the final tree: `nova_editor --lib` 723 pass, `catalog_drift` pass,
+`cargo check --all-targets --features debug` clean, `cargo fmt --all --check`
+clean. Walks EXIT 0 with no panic: `editor_views` at 1920 and 1280 (10 PASS
+lines each), `editor_undo`, `editor_shell`, `editor_mod_project`,
+`editor_section_builder`, `editor_blocks`, `system_ship_editor`. Every run had
+its own XDG and modding cache; the owner's profile folders did not change.
+
+Limits:
+
+- The lint accepts a blank section's health of 0; only draw weight, credits,
+  strip yield and advancement are refused.
+- A UI theme blank derives from the first root theme. Which theme a new one
+  should start from is an open decision for the owner.
+- Mining and Cargo Intake sections cannot be added until the form can set their
+  sound and mesh refs.
+- The Form view keeps the empty stage, grid and gizmo behind the form
+  (`views-*-theme.png`).
+- The W tool shows active in the blank and Form frames; not checked against
+  `8378bc9df`.
+- On the new section and theme tiles the `open` mark sits under the thumbnail
+  (`views-1920-section-add.png`).
+- The stage and the block canvas have no right-click menu; tile menus are by
+  kind, not by `verb_state`.
+- `bevy_asset` "Asset Source self does not exist" is in the walk logs; it is in
+  the slice 9 logs too.
+- The walk drives the picker by one press in the square. A drag, the hue strip
+  and the hex field are proven by unit tests only.
+- The menu label fixes were proven at 1920 and 1280 in `editor_views`; the other
+  walks ran on the same tree but do not shoot menus.
+
+### Slice 13 notes
+
+Owner review 2: R2 and R6, and the slice 12 leftovers. Commits: `7236336f7`
+(health and empty file refs in lint), `dde58bb3d` (Mining and Cargo Intake
+refs in the form), `c345ffaf9` (R2 palette), `79a5b05c7` (stage and canvas
+menus), `9222da972` (Form view), `ce1dbaa4a` (R6 files), `ec64bb250`
+(changelog), `232339a2d` (docs), then the final-proof fixes, the
+`editor_files` walk and these notes. Frames are in `frames/slice13/`.
+
+```
+Assets grid = items (by kind) + mod_files(project, folder listing)
+  folder file   -> ModFile { packaged: is_declared, on_disk: true }
+  declared only -> ModFile { packaged: true,        on_disk: false } (fault mark)
+  tile menu     -> MenuVerbType::File(verb, FileFacts) -> verb_state
+  Import File   -> write_mod_file (disk, no undo) + project_step "Import File"
+  Delete        -> in use: refused, users named
+                   resource: project_step "Remove File", stays in the folder
+                   undeclared: removed from the folder, no undo
+right press -> RightPress { from, travel } -> release under CLICK_SLOP -> menu
+```
+
+| # | Item | Status | Proof |
+| --- | --- | --- | --- |
+| R2 | Events palette by role; what goes where | DONE | The palette lists Events, Conditions, Actions, Flow, Values and logic in build order. Each group has a folding heading in its canvas colour and a line that says what the group does ("Events start a script"). Each entry is drawn in its own shape: a hat, a stack, a condition, a value. A hover says where the block goes. A drag lights every legal slot. A block that is not a hat over bare canvas rings red, and the canvas says why. An empty canvas says "Drag an Events block here to start a script". Tests: `the_palette_lists_its_groups_in_build_order_with_only_hats_first`, `the_canvas_says_how_to_start_and_why_a_loose_block_will_not_stand`. Walk `editor_files`: `files: PASS the palette lists Events above Actions`, `PASS a loose block over bare canvas says why it is refused`, `PASS a loose drop is refused and makes no step`, `PASS the empty canvas says to start with an Events block`. Frames `files-*-palette.png`, `files-*-drag.png` (lit slots), `files-*-loose.png`, `files-*-empty-canvas.png` |
+| R6 | Assets shows the mod's files | DONE | Folder files stand beside the items in one grid, sorted by kind: Images, Meshes, Audio, Files, each with a filter row. An image tile shows the image, a mesh tile its rendered picture, a sound or other file a glyph. A file the package leaves out wears a dotted mark; a declared file missing from the folder wears the fault mark. Right click: Play or View, Reveal Path, Rename, Include in Package, Delete, Import File... (desktop only; `verb_state` hides Rename and Import on the web). Delete and Rename refuse a file that content uses and name the users. Double click views an image or a mesh in a pop-up and plays a sound. Tests: `the_file_list_marks_what_the_package_leaves_out`, `an_imported_file_is_declared_as_one_step`, `a_file_in_use_is_not_deleted_and_the_refusal_names_the_user`. Walk: three imports through + > Import File... and the path window (`PASS three files land as tiles, each one undo step`), Delete on the sound (`PASS a deleted declared file stays in the folder, marked`), double click on the image (`PASS a double click views the image large`) and on the sound (`PASS a double click plays the sound`). Frames `files-*-assets.png`, `files-*-file-menu.png`, `files-*-image-viewer.png` |
+
+Leftovers from slice 12:
+
+| Leftover | Status | Proof |
+| --- | --- | --- |
+| Form view takes the main area | DONE | In Form the form stands in the main area at a readable width; the stage, the rail and the stage tools hide. Walk: `PASS the form takes the main area and the stage tools hide`; `files-*-form.png` |
+| The open mark stays off the tile art | DONE | A dot in the tile's top left corner (`files-*-form.png`, the `new_ui_theme` tile) |
+| Mining and Cargo Intake refs in the form; the kinds can be added | DONE | Their sound and mesh refs reflect, so the form shows them with the asset picker. Add > Sections offers every kind. `every_addable_kind_has_a_blank_a_file_can_hold` covers both blanks. No walk adds one |
+| Right-click menus for the stage, the canvas and the tiles, by `verb_state` | DONE | Stage: the view's Add verbs, Paste, and Frame and Delete on a node; an object added from it lands at the clicked point. Canvas: Paste, Clean Up, and Duplicate and Delete on a block. Tiles: every row asks `verb_state`. `clean_up_stands_the_scripts_in_one_column_as_one_step`; walk `PASS a right click on the stage offers the scenario's Add verbs`, `PASS a right click on the canvas offers Clean Up`, `PASS Clean Up is one undo step`. Frames `files-*-stage-menu.png`, `files-*-canvas-menu.png`, `files-*-cleaned-up.png` |
+| Lint refuses health 0 | DONE | `check_part_tier` refuses health that is not finite and positive, with the field named. `a_section_tier_outside_its_range_is_an_error` now covers 0, -5 and NaN health. `content lint` passes on base content |
+| UI theme parent default under Decisions | DONE | "A new UI theme inherits from `base/phosphor`" is in Decisions as an agent assumption the owner has not confirmed |
+| The W tool in Section view | CHECKED | W is right there: in Section view the move handles act on the selected socket. In Form view the tools now hide |
+
+Bug found in the final walks: a right-button look opened the stage menu on
+release. Look locks the cursor, so the pointer came up where it went down and
+the slop test passed. `editor_viewport` stalled at `hold MMB` behind the open
+menu (`runs/final-editor_viewport`, before). Fix: `RightPress` also counts the
+mouse's own travel while the button is held, for the stage and the canvas.
+Tests: `a_look_with_the_cursor_locked_is_not_a_click`,
+`a_right_press_that_stays_put_is_a_click`,
+`a_right_drag_or_a_press_off_the_target_is_not_a_click`. Before: the walk
+stopped with `stalled after 60.0s` at `hold MMB`. After: `editor_viewport`
+exits 0 with `cycle complete, no panic`.
+
+Other faults the final proof found and fixed:
+
+- `editor_section_builder` logged `Asset Source 'self' does not exist` three
+  times (seen since slice 9). A section tile's picture read the raw section,
+  whose refs still say `self://`. The tile now reads the catalog's resolved copy
+  (`GameSections::get_section`). After: 0 ERROR lines.
+- The CI wasm clippy refused `PathPurposeType`'s variant names (all ended in
+  `Import`) and an `#[expect(clippy::too_many_arguments)]` the lint never met.
+  The variants are now `Package`, `Mesh` and `File`; the expect is gone.
+- `editor_files` at 1280 stalled on the loose-drop beat: the bare point it chose
+  sat on a script. The beat now drags over the blank scenario's empty canvas and
+  also proves the drop adds nothing.
+
+Changelog, checked against v0.16.0:
+
+- R8 (a turned ship in the ship view) and R9 (the axis rose flicker) are in
+  v0.16.0, so each gets a Fixes entry.
+- R1: the despawn half of the WARN comes from the popup widget, which v0.16.0
+  does not have, so it gets no entry. The text-field half was in v0.16.0; it
+  gets no entry either, as nobody saw it there. This is a judgement, not
+  proven.
+- New entries: right-click menus; palette grouped by role; folder files in
+  Assets; a **(breaking)** Modding entry for health 0 and empty file refs.
+  Every entry is 200 characters or less.
+
+Docs: `web/src/create/mod-editor.md` (stage and canvas right click, Clean Up,
+Form view, palette groups, Assets files, marks and verbs) and
+`web/src/wiki/keybinds.md` (right click and double click rows). `mdbook build`
+and `npm run ci` pass. New playable example `editor_files` with a README row.
+
+Proof (all sandboxed: `XDG_DATA_HOME`, `XDG_CONFIG_HOME` and
+`NOVA_MODDING_CACHE_ROOT` in a fresh temp dir; `~/.local/share/nova-protocol`
+and `~/.config/nova-protocol` unchanged by a stat before and after every run):
+
+| Check | Result |
+| --- | --- |
+| `nova_editor --lib` | 732 pass (733 after the palette pass) |
+| `nova_ui --lib` | 105 pass |
+| `nova_menu --lib` | 232 pass |
+| `nova_authoring --lib` | 116 pass |
+| `nova_scenario --lib` | 543 pass |
+| `nova_ship --lib gallery` | 24 pass |
+| `nova_probe_cli --test catalog_drift` | 2 pass |
+| `cargo check --all-targets --features debug` | rc 0 |
+| CI wasm clippy (`ci/wasm-clippy`, `-D warnings`) | rc 0 |
+| `content lint` | 0 errors, 0 warnings, 17 scenarios audited |
+| `content gen` | rc 0, no diff under `assets/` |
+| `cargo fmt --all --check` | clean |
+
+Walks (Xvfb, lavapipe, `NOVA_AUTOPILOT`, a capture dir per run): `editor_undo`,
+`editor_viewport`, `editor_shell`, `editor_mod_project`, `editor_blocks`,
+`editor_section_builder`, `editor_views`, `system_ship_editor`,
+`system_ui_scale`, `screenshot_editor` (capture on), `lesson_build_sections`,
+`lesson_build_geometry`, `lesson_build_generate`, `lesson_build_flight_test`,
+`lesson_build_rail`, and `editor_files` at 1920 and 1280. Each exits 0 with
+`cycle complete, no panic`. No log has a panic or a `despawned` WARN. The only
+ERROR line is `editor_shell`'s own one for the Log tab. PASS lines:
+`editor_files` 12 at each size, `editor_views` 10, `editor_section_builder` 2,
+`editor_undo` 1; the other walks prove by their step predicates. The
+`PathPurposeType` rename came after that batch; it changes no behaviour, and
+`editor_files`, which drives Import File through it, ran again after it.
+
+Frames in `frames/slice13/`, 1920 and 1280, all read: `files-*-palette`,
+`-drag` (lit slots), `-loose`, `-empty-canvas`, `-stage-menu`,
+`-canvas-menu`, `-cleaned-up`, `-file-menu`, `-assets`, `-image-viewer`,
+`-form`.
+
+Palette pass (coordinator review of `files-1920-empty-canvas.png`): the Events
+group alone filled the palette with about 20 tall hats, and the other groups sat
+below the fold. Now:
+
+- A rail at the palette's left edge holds one dot and short name per group
+  (Events, Conditions, Actions, Flow, Values) in the group colour. A click
+  scrolls the list to that group's heading. The rail marks the group in view:
+  the group the rail scrolled to until the list moves, else the last heading at
+  or above the list's top. `group_in_view` is pure;
+  `the_rail_marks_the_group_at_the_top_or_the_one_it_scrolled_to` covers it.
+- Each entry is one 20 px line in its block's shape, drawn by the palette and
+  not by the canvas paint: a hat's round top and tab, a stack piece's notch and
+  tab, a C-block's mouth and foot, a condition's points, a value's round ends.
+  A heading still folds its group, and a filter still shows the matches from
+  every group. The canvas paint is unchanged; only `paint_points` became
+  `pub(crate)`.
+- The palette is 240 px wide, up from 200, for the rail. A heading shows the
+  short name, so "Values fill a socket" stays on one line.
+
+Proof (sandboxed, owner dirs unchanged): `nova_editor --lib` 733 pass;
+`cargo check --all-targets --features debug` rc 0; `cargo fmt --all --check`
+clean. `editor_files` at 1920 and 1280 exits 0 with 13 PASS lines each, the
+new one `a rail click brings the Values group into view`; `editor_blocks` at
+1920 and 1280x720 exits 0 with `cycle complete, no panic`. No panic, ERROR or
+`despawned` line in the four logs. Every Events frame in `frames/slice13/`
+was shot again, and `files-*-rail.png` is new. Read: at 1080 the five rail dots
+stand at the top, Events fills the list, and one rail click puts Values in view
+(`files-1920-rail.png`); at 720 the same holds (`files-1280-rail.png`). The
+drag frames show the filtered list with Actions marked and the slots lit.
+
+Limits:
+
+- The disk half of Import, Rename and an undeclared Delete is not undone; the
+  status line says so. Undo puts back only the declaration.
+- Rename refuses a file that content uses instead of rewriting the refs.
+- The mesh viewer shows the 112 px thumbnail, scaled up. An image smaller than
+  the viewer shows at its own size, in the viewer's top left.
+- jpeg, mp3 and flac list under their kind but this build does not load them;
+  View and Play refuse them with the reason.
+- A ship added from the stage menu keeps its slot placement; only objects land
+  at the clicked point. A socket uses its default placement.
+- The unpackaged mark is a faint dotted ring (`files-1920-assets.png`); it
+  reads at 1920 and is small at 1280.
+- Rename, Include in Package and Reveal Path have no unit test or walk.
+  Rename shares the in-use check that Delete's test proves.
+- No walk adds a Mining or Cargo Intake section or picks its refs.
+- The hover hint of a palette entry is proven in code and by eye in no frame.
+- At 1280 the kind filter list shows Audio only after a scroll, and in
+  `files-1280-form.png` a tile's hover label covers the asset filter field.
+- A refusal stays on the status line after a view change
+  (`files-*-stage-menu.png` still shows the loose-drop line).
+
 ## Verification
 
 - Undo: every verb in the write-site list undoes and redoes to an equal
@@ -752,5 +1127,6 @@ Limits:
 | A new mod with two scenarios and one custom section is created, saved, reopened, packaged, and played without leaving the editor flow | `editor_section_builder` at `50379a13b`, 1920 and 1280: real buttons from the hub, reopen through the hub, a package written under `exports/`, and `section: PASS flown spar_works__plain_hull` | MET by a driven walk; not played by hand |
 | Every document edit is undoable | Write-site verbs by unit test (`assert_one_step` and the verb tests in `nova_editor`, 717 pass); `editor_undo`; pop-up commits by `a_click_away_commits_a_block_popup_as_one_step`. No machine census of write sites exists | MET for the write-site list |
 | No "no undo" text remains | The "There is no undo" warnings are gone. Two confirms still say "undo cannot bring it back": Delete mod and Import over a mod (`ui/window.rs`). Both remove files on disk, not a document edit, and the line is true | MET for document edits; the owner decides if those two confirms count |
-| Each slice has a hand-playable example row | `examples/playable/README.md`: `editor_undo`, `editor_viewport`, `editor_shell`, `editor_mod_project`, `editor_blocks`, `editor_section_builder`, for slices 1 to 6. Slices 7 to 10 add no feature | MET |
+| Each slice has a hand-playable example row | `examples/playable/README.md`: `editor_undo`, `editor_viewport`, `editor_shell`, `editor_mod_project`, `editor_blocks`, `editor_section_builder`, for slices 1 to 6. Slices 7 to 10 add no feature; slices 12 and 13 add `editor_views` and `editor_files` | MET |
 | Invalidated docs are updated | `web/src/create/mod-editor.md`, `web/src/wiki/keybinds.md`; each claim the review doubted is checked or rewritten; `mdbook build` and `npm run ci` pass | MET; the foot legend under a pop-up is true now and `keybinds.md` says so |
+| Owner review 2, R1 to R14 | Slice 11 notes: R1, R3, R4, R5, R8, R9, R10. Slice 12 notes: R7, R11, R12, R13, R14. Slice 13 notes: R2 (`editor_files` palette, drag, loose and empty-canvas PASS lines and frames) and R6 (import, delete, view and play PASS lines; `files-*-assets.png`). Each row has its tests, walk lines and frames | MET by unit tests and driven walks; not yet reviewed by the owner |

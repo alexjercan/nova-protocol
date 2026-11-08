@@ -104,16 +104,12 @@ pub struct CargoIntakeSectionConfig {
     )]
     pub render_mesh_transform: Option<RenderMeshTransform>,
     /// The scene of each canister this intake drops.
-    #[reflect(ignore)]
     pub canister_mesh: AssetRef<WorldAsset>,
     /// The door servo, played on both edges of its travel.
-    #[reflect(ignore)]
     pub door_sound: AssetRef<AudioSource>,
     /// Played as a canister leaves the door.
-    #[reflect(ignore)]
     pub eject_sound: AssetRef<AudioSource>,
     /// Played as a canister is taken into the hold.
-    #[reflect(ignore)]
     pub take_sound: AssetRef<AudioSource>,
     /// How far from the face centre a canister in front of the face that fits
     /// the hold opens the door.

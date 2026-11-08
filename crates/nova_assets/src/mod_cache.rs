@@ -57,8 +57,8 @@ pub mod prelude {
     };
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::{
-        exports_dir, install_local, list_mod_files, mod_file_modified, read_mod_file, remove_mod,
-        remove_mod_files, replace_local, store_mod_files,
+        exports_dir, install_local, list_mod_files, mod_file_modified, mod_file_path,
+        read_mod_file, remove_mod, remove_mod_files, replace_local, store_mod_files,
     };
     pub use super::{
         is_safe_id, is_safe_rel_path, read_index, register_mods_source, remove_index_record,
@@ -354,6 +354,16 @@ pub fn remove_mod(id: &str) -> std::io::Result<()> {
 #[cfg(not(target_arch = "wasm32"))]
 pub fn exports_dir() -> Option<std::path::PathBuf> {
     backend::exports_dir()
+}
+
+/// Where one cached file of `id` stands on disk, or `None` if the id or path
+/// is unsafe or no data root resolves. The file need not exist.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn mod_file_path(id: &str, path: &str) -> Option<std::path::PathBuf> {
+    if !is_safe_id(id) || !is_safe_rel_path(path) {
+        return None;
+    }
+    backend::mods_root().map(|root| root.join(id).join(path))
 }
 
 /// Every file under `id`'s cache directory, as sorted paths relative to it. A

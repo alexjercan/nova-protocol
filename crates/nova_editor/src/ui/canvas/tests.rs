@@ -14,23 +14,25 @@ use nova_scenario::prelude::EventConfig;
 use nova_ui::prelude::*;
 
 use super::{
-    delete_reporter_key,
+    canvas_hint_text, delete_reporter_key,
     drag::{
         clear_of, drive_canvas_drag, land, on_canvas_press, Candidate, CanvasBlock, CanvasGhost,
         DragSourceType, Held, Landing,
     },
+    menu::{clean_up, column},
     popup::{on_more_chip, settle_block_popup, MoreChip},
     sync_canvas,
     view::{BlockView, ChipType, ChipView, OutlineType, PieceType, ViewBuilder},
-    BlockPopup, CanvasBoard, CanvasDrag, CanvasView, CanvasWorld, ChipInput,
+    BlockPopup, CanvasBoard, CanvasDrag, CanvasView, CanvasWorld, ChipInput, EMPTY_CANVAS_HINT,
+    LOOSE_BLOCK_HINT,
 };
 use crate::{
     camera::ViewportPointer,
     clipboard::{clipboard_keys, EditorClipboard},
-    config::{RailTab, SelectedNode},
+    config::{EditorViewType, SelectedNode},
     event::{
-        place_new, BlockItemType, BlockShapeType, BlockSlotType, EventNode, ExprChoice,
-        ExpressionNode, ScriptNodes,
+        place_new, BlockItemType, BlockRoleType, BlockShapeType, BlockSlotType, EventNode,
+        ExprChoice, ExpressionNode, ScriptNodes,
     },
     history::{
         history_keys,
@@ -411,7 +413,7 @@ fn drawn_canvas() -> (App, Entity) {
     let mut app = keyed_app(&[]);
     app.init_resource::<CanvasBoard>();
     app.init_resource::<Problems>();
-    app.insert_resource(RailTab::Events);
+    app.insert_resource(EditorViewType::Events);
     app.add_systems(Update, sync_canvas);
     app.world_mut().spawn(CanvasWorld);
     app.update();
@@ -495,7 +497,7 @@ fn popup_app() -> (App, Entity) {
     app.init_resource::<BlockPopup>();
     app.init_resource::<ViewportPointer>();
     app.init_resource::<InputMode>();
-    app.insert_resource(RailTab::Events);
+    app.insert_resource(EditorViewType::Events);
     app.add_systems(Update, settle_block_popup);
     let hat = first_with::<EventNode>(&mut app);
     baseline(&mut app);
@@ -711,4 +713,134 @@ fn esc_says_so_when_the_history_lost_the_popups_start() {
     let status = app.world().resource::<crate::config::EditorStatus>();
     let (line, _) = status.said().expect("the status line speaks");
     assert!(line.contains("stayed"), "{line}");
+}
+
+#[test]
+fn the_palette_lists_its_groups_in_build_order_with_only_hats_first() {
+    let items = super::palette::palette_items();
+    let roles: Vec<BlockRoleType> = items.iter().map(|item| item.role()).collect();
+    let mut order = roles.clone();
+    order.dedup();
+    assert_eq!(order, BlockRoleType::ALL.to_vec(), "one run per group");
+    let mut app = history_app();
+    let shapes: Vec<BlockShapeType> = items.iter().map(|item| item.shape()).collect();
+    let alone: Vec<bool> = app
+        .world_mut()
+        .run_system_once(move |script: ScriptNodes| {
+            shapes
+                .iter()
+                .map(|shape| {
+                    crate::event::refusal(&script, *shape, None, BlockSlotType::Canvas(Vec2::ZERO))
+                        .is_none()
+                })
+                .collect::<Vec<bool>>()
+        })
+        .expect("the script reads");
+    for (item, alone) in items.iter().zip(alone) {
+        let hat = item.shape() == BlockShapeType::Hat;
+        assert_eq!(
+            hat,
+            item.role() == BlockRoleType::Event,
+            "{} is a hat exactly when it is filed under Events",
+            item.label()
+        );
+        assert_eq!(alone, hat, "{} stands alone only as a hat", item.label());
+    }
+}
+
+#[test]
+fn the_rail_marks_the_group_at_the_top_or_the_one_it_scrolled_to() {
+    use BlockRoleType::{Action, Condition, Event, Flow, Value};
+
+    use super::palette::group_in_view;
+    let top = [
+        (Event, 0.0),
+        (Condition, 500.0),
+        (Action, 600.0),
+        (Flow, 900.0),
+        (Value, 1000.0),
+    ];
+    assert_eq!(group_in_view(&top, None), Some(Event));
+    let scrolled = [
+        (Event, -520.0),
+        (Condition, -20.0),
+        (Action, 80.0),
+        (Flow, 380.0),
+        (Value, 480.0),
+    ];
+    assert_eq!(
+        group_in_view(&scrolled, None),
+        Some(Condition),
+        "the heading above the top owns the view"
+    );
+    assert_eq!(
+        group_in_view(&scrolled, Some(Value)),
+        Some(Value),
+        "a group the list cannot scroll to the top stays marked after its rail click"
+    );
+    assert_eq!(
+        group_in_view(&scrolled[..4], Some(Value)),
+        Some(Condition),
+        "a pick the filter hides is not marked"
+    );
+    assert_eq!(group_in_view(&[], None), None);
+}
+
+#[test]
+fn the_canvas_says_how_to_start_and_why_a_loose_block_will_not_stand() {
+    assert_eq!(
+        canvas_hint_text(None, false, false),
+        Some(EMPTY_CANVAS_HINT),
+        "an empty scenario says how to start"
+    );
+    assert_eq!(
+        canvas_hint_text(None, true, true),
+        None,
+        "a script hides it"
+    );
+    assert_eq!(
+        canvas_hint_text(Some((BlockShapeType::Stack, false)), true, true),
+        Some(LOOSE_BLOCK_HINT),
+        "an action over bare canvas says it will not stand"
+    );
+    assert_eq!(
+        canvas_hint_text(Some((BlockShapeType::Stack, true)), true, true),
+        None,
+        "an action over a lit slot says nothing"
+    );
+    assert_eq!(
+        canvas_hint_text(Some((BlockShapeType::Hat, false)), true, false),
+        None,
+        "a hat over bare canvas will stand"
+    );
+}
+
+/// Clean Up stands every script in one column, in script order, as one undo
+/// step.
+#[test]
+fn clean_up_stands_the_scripts_in_one_column_as_one_step() {
+    assert_eq!(
+        column(&[10.0, 20.0, 5.0]),
+        vec![
+            Vec2::new(24.0, 24.0),
+            Vec2::new(24.0, 62.0),
+            Vec2::new(24.0, 110.0)
+        ],
+        "each script stands one gap under the last"
+    );
+    let mut app = history_app();
+    app.init_resource::<CanvasBoard>()
+        .init_resource::<CanvasView>();
+    assert_one_step(&mut app, "Clean Up", |app| clean_up(app.world_mut()));
+    let world = app.world_mut();
+    let placed: Vec<Vec2> = world
+        .query::<&EventNode>()
+        .iter(world)
+        .filter_map(|event| event.position)
+        .collect();
+    assert!(!placed.is_empty(), "the fixture has a script");
+    assert!(
+        placed.iter().all(|at| at.x == placed[0].x),
+        "one column: {placed:?}"
+    );
 }

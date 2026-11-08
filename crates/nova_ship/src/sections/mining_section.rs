@@ -49,16 +49,12 @@ pub struct MiningSectionConfig {
     )]
     pub render_mesh_transform: Option<RenderMeshTransform>,
     /// Played at the beam's hit on every pulse that passes its checks.
-    #[reflect(ignore)]
     pub pulse_sound: AssetRef<AudioSource>,
     /// Played at the emitter face on every refused pulse.
-    #[reflect(ignore)]
     pub refusal_sound: AssetRef<AudioSource>,
     /// Played at the section when the doors start to part.
-    #[reflect(ignore)]
     pub door_open_sound: AssetRef<AudioSource>,
     /// Played at the section when the doors start to shut.
-    #[reflect(ignore)]
     pub door_close_sound: AssetRef<AudioSource>,
     /// How far the beam reaches from the emitter face along its local -Z.
     pub reach: Meters,

@@ -148,6 +148,7 @@ mod smoke {
     const ADD_MENU: &str = "Add Menu Button";
     const ADD_ASTEROID: &str = "Add Asteroid";
     const FILTER: &str = "Hierarchy Filter";
+    const GRIP: &str = "Browser Resize Handle";
     const UNDO: &[KeyCode] = &[KeyCode::ControlLeft, KeyCode::KeyZ];
     const FOLD_HIERARCHY: &[KeyCode] = &[KeyCode::ControlLeft, KeyCode::Digit1];
     const FOLD_INSPECTOR: &[KeyCode] = &[KeyCode::ControlLeft, KeyCode::Digit2];
@@ -158,6 +159,8 @@ mod smoke {
     struct Walk {
         rock: String,
         rows: usize,
+        log_lines: usize,
+        strip: f32,
         depth: usize,
         play_at: Vec2,
     }
@@ -231,6 +234,150 @@ mod smoke {
             .on_enter(move |world: &mut World| shoot(world, name))
             .until(shot_written(name))
             .deadline(SHOT_SECS)
+            .add()
+    }
+
+    /// The Log tab: what reaches it, and what its controls do.
+    fn log_tab(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        let script = script
+            .click_named(
+                "editor shell: open Log",
+                "Browser Tab Log",
+                ui_node_present("Log Clear"),
+                BEAT_SECS,
+            )
+            .step("editor shell: the log warns and errs")
+            .on_enter(|world: &mut World| {
+                let held = probe(world).shell.log_lines.len();
+                world.resource_mut::<Walk>().log_lines = held;
+                warn!("a warning for the Log tab");
+                error!("an error for the Log tab");
+            })
+            .until(Arc::new(|world: &World| {
+                probe(world).shell.log_lines.len() == world.resource::<Walk>().log_lines + 2
+            }))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add();
+        let script = shot(script, "editor-shell-log.png");
+        let script = script
+            .click_named(
+                "editor shell: show errors alone",
+                "Log Level Errors",
+                editor(|probe| {
+                    probe.shell.log_shown >= 1
+                        && probe.shell.log_shown < probe.shell.log_lines.len()
+                }),
+                BEAT_SECS,
+            )
+            .click_named(
+                "editor shell: show every level",
+                "Log Level All",
+                editor(|probe| probe.shell.log_shown == probe.shell.log_lines.len()),
+                BEAT_SECS,
+            )
+            .click_named(
+                "editor shell: focus the log filter",
+                "Log Filter",
+                frames(3),
+                BEAT_SECS,
+            )
+            .step("editor shell: type a log filter")
+            .on_enter(type_text("a warning"))
+            .until(editor(|probe| probe.shell.log_shown == 1))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add();
+        let script = shot(script, "editor-shell-log-filter.png");
+        script
+            .step("editor shell: wipe the log filter")
+            .on_enter(|world: &mut World| {
+                for _ in 0.."a warning".len() {
+                    press_edit_key(Key::Backspace)(world);
+                }
+            })
+            .until(editor(|probe| {
+                probe.shell.log_shown == probe.shell.log_lines.len()
+            }))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add()
+            .click_named(
+                "editor shell: clear the log",
+                "Log Clear",
+                editor(|probe| probe.shell.log_lines.is_empty()),
+                BEAT_SECS,
+            )
+            .step("editor shell: a line after Clear still arrives")
+            .on_enter(|_: &mut World| warn!("a warning after Clear"))
+            .until(editor(|probe| probe.shell.log_lines.len() == 1))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add()
+    }
+
+    /// How tall the strip stands.
+    fn strip_height(world: &mut World) -> f32 {
+        world
+            .query::<(&Name, &ComputedNode)>()
+            .iter(world)
+            .find(|(name, _)| name.as_str() == "Editor Browser")
+            .map(|(_, node)| node.size().y * node.inverse_scale_factor())
+            .expect("the strip stands")
+    }
+
+    /// Pull the strip's top edge up, then back down.
+    fn resize_strip(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        let script = script
+            .step("editor shell: point at the strip's top edge")
+            .on_enter(|world: &mut World| {
+                world.resource_mut::<Walk>().strip = strip_height(world);
+                hover_named(GRIP)(world);
+            })
+            .until(frames(3))
+            .add()
+            .step("editor shell: take the edge")
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(frames(3))
+            .add()
+            .step("editor shell: pull the edge up")
+            .on_enter(|world: &mut World| {
+                let at = ui_node_centre(world, GRIP).expect("the grip stands");
+                move_cursor(at - Vec2::new(0.0, 80.0))(world);
+            })
+            .until(frames(4))
+            .add()
+            .step("editor shell: let the edge go")
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(frames(3))
+            .add()
+            .step("editor shell: the strip grew by the pull")
+            .on_enter(|world: &mut World| {
+                let (was, now) = (world.resource::<Walk>().strip, strip_height(world));
+                info!("editor shell: the strip stood {was} and stands {now}");
+                assert!((now - was - 80.0).abs() < 2.0, "{was} -> {now}");
+            })
+            .add();
+        let script = shot(script, "editor-shell-strip-tall.png");
+        script
+            .step("editor shell: point at the edge again")
+            .on_enter(hover_named(GRIP))
+            .until(frames(3))
+            .add()
+            .step("editor shell: take the edge again")
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(frames(3))
+            .add()
+            .step("editor shell: push the edge down")
+            .on_enter(|world: &mut World| {
+                let at = ui_node_centre(world, GRIP).expect("the grip stands");
+                move_cursor(at + Vec2::new(0.0, 80.0))(world);
+            })
+            .until(frames(4))
+            .add()
+            .step("editor shell: let it go")
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(frames(3))
             .add()
     }
 
@@ -458,6 +605,8 @@ mod smoke {
             BEAT_SECS,
         );
         let script = shot(script, "editor-shell-problems.png");
+        let script = log_tab(script);
+        let script = resize_strip(script);
 
         let script = chord(
             script,
@@ -524,9 +673,25 @@ mod smoke {
             })
             .until(frames(1))
             .add()
+            // Events is a view of the SCENARIO: inside a ship the view
+            // switch offers the ship's own view only.
+            .step("editor shell: the ship offers no Events view")
+            .until(Arc::new(|world: &World| {
+                ui_node_present("View Tab Ship")(world)
+                    && !ui_node_present("View Tab Events")(world)
+            }))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add()
+            .click_named(
+                "editor shell: back out to the scenario",
+                "Scene Row scenario",
+                editor(|probe| probe.inside.is_none()),
+                BEAT_SECS,
+            )
             .click_named(
                 "editor shell: take the Events tab",
-                "Rail Tab Events",
+                "View Tab Events",
                 editor(|probe| probe.shell.rail_tab == "Events"),
                 BEAT_SECS,
             );

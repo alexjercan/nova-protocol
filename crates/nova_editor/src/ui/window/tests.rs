@@ -1,5 +1,5 @@
-//! The picker as a LIVE WINDOW: what opening it does, what dragging one of its
-//! channels does to the document, and what happens to it when the row it
+//! The pickers as LIVE WINDOWS: what opening one does, what a pick in it does
+//! to the document and its history, and what happens to it when the row it
 //! belongs to goes away.
 
 use bevy::{
@@ -16,13 +16,16 @@ use nova_events::units::prelude::*;
 use nova_scenario::prelude::{
     AsteroidConfig, BeaconConfig, EntityFilterConfig, ScenarioObjectKind, KIND_ROCK,
 };
-use nova_ui::{prelude::TextFieldSubmitted, theme::ActiveUiTheme};
+use nova_ui::{
+    prelude::{TextFieldSubmitted, TextFieldValue},
+    theme::ActiveUiTheme,
+};
 
 use super::*;
 use crate::{
     config::SelectedNode,
     event::{ActionChoice, ActionChoiceExt, ActionNode, FilterKind, FilterNode},
-    history::tests::{assert_one_step, assert_one_step_of, depth},
+    history::tests::{assert_one_step, assert_one_step_of, baseline, depth},
     node::{
         EditContext, EditorNode, NextChildOrdinal, NodeId, ObjectBodyStale, ObjectNode,
         ScenarioNode,
@@ -32,6 +35,7 @@ use crate::{
             apply_inspector_edits, inspector_panel, sync_inspector, InspectorField, InspectorPanel,
         },
         pick::{sync_pick_popups, PickOption, PickPopup},
+        picker::{revert_picker, settle_on_close, sync_colour_windows, ColourWindow, PickHex},
     },
 };
 
@@ -65,8 +69,7 @@ fn window_app() -> App {
         Update,
         (sync_inspector, sync_colour_windows, sync_pick_popups).chain(),
     );
-    app.add_observer(on_colour_slider);
-    app.add_observer(on_colour_release);
+    app.add_observer(settle_on_close);
     app
 }
 
@@ -173,15 +176,39 @@ fn beacon_colour(app: &App, beacon: Entity) -> Srgba {
     }
 }
 
-/// Drag one channel, the way the slider's own drag reports it.
-fn drag_channel(app: &mut App, channel: &str, to: f32) {
-    let slider = named(app, &format!("Colour Window Slider {channel}")).expect("a channel slider");
-    app.world_mut().trigger(ValueChange::<f32> {
-        source: slider,
-        value: to,
-        is_final: true,
-    });
+/// Press in one of the picker's areas at `at`, 0 to 1 across and down, the way
+/// the picking layer reports a press on it.
+fn press_in(app: &mut App, area: &str, at: Vec2) -> Entity {
+    let area = named(app, &format!("Colour Window {area}")).expect("a pick area");
+    let screen = app
+        .world_mut()
+        .query_filtered::<Entity, With<Window>>()
+        .single(app.world())
+        .expect("one window");
+    app.world_mut().trigger(Pointer::new(
+        PointerId::Mouse,
+        Location {
+            target: NormalizedRenderTarget::Window(
+                WindowRef::Entity(screen)
+                    .normalize(None)
+                    .expect("a named window normalizes"),
+            ),
+            position: Vec2::ZERO,
+        },
+        Press {
+            button: PointerButton::Primary,
+            hit: HitData::new(
+                Entity::PLACEHOLDER,
+                0.0,
+                Some((at - Vec2::splat(0.5)).extend(0.0)),
+                None,
+            ),
+            count: 1,
+        },
+        area,
+    ));
     app.update();
+    area
 }
 
 /// Drag the window by its bar.
@@ -251,29 +278,31 @@ fn clicking_a_colour_swatch_opens_a_picker_on_that_field() {
 }
 
 /// The point of the whole window: a colour nobody can author by reading it is
-/// authored by dragging.
+/// authored by pointing at it.
 #[test]
-fn dragging_a_channel_writes_the_colour_into_the_document() {
+fn a_press_in_the_picker_writes_the_colour_into_the_document() {
     let mut app = window_app();
     let (_, beacon) = document(&mut app);
     select(&mut app, beacon);
     open_the_picker(&mut app);
 
-    drag_channel(&mut app, "R", 0.5);
-
-    let colour = beacon_colour(&app, beacon);
+    press_in(&mut app, "Square", Vec2::new(1.0, 0.0));
+    let red = beacon_colour(&app, beacon);
     assert!(
-        (colour.red - 0.5).abs() < 2.0 / 255.0,
-        "the red channel followed the slider (got {colour:?})"
+        red.red > 0.99 && red.green < 0.01 && red.blue < 0.01,
+        "the top-right of the square is the whole hue, red from white (got {red:?})"
     );
+
+    press_in(&mut app, "Hue", Vec2::new(2.0 / 3.0, 0.5));
+    let blue = beacon_colour(&app, beacon);
     assert!(
-        colour.green > 0.99 && colour.blue > 0.99,
-        "and the other channels were left alone (got {colour:?})"
+        blue.blue > 0.99 && blue.red < 0.01 && blue.green < 0.01,
+        "two thirds along the hue strip is blue (got {blue:?})"
     );
 }
 
 /// The document is the source, not the picker: a colour retyped as hex in the
-/// row moves the sliders under it.
+/// row moves the picker's hex box and its preview.
 #[test]
 fn the_picker_follows_a_colour_typed_into_the_row() {
     let mut app = window_app();
@@ -293,20 +322,19 @@ fn the_picker_follows_a_colour_typed_into_the_row() {
 
     let hex = app
         .world_mut()
-        .query::<(&ColourReadout, &Text)>()
+        .query_filtered::<&TextFieldValue, With<PickHex>>()
         .iter(app.world())
-        .map(|(_, text)| text.0.clone())
+        .map(|value| value.0.clone())
         .next()
-        .expect("the picker reads its colour back");
+        .expect("the picker has a hex box");
     assert_eq!(hex, "#0000ff");
-    let blue = app
-        .world_mut()
-        .query::<(&ColourSlider, &SliderValue)>()
-        .iter(app.world())
-        .find(|(slider, _)| slider.channel == ColourChannel::Blue)
-        .map(|(_, value)| value.0)
-        .expect("a blue channel");
-    assert!(blue > 0.99, "the blue slider went to the top (got {blue})");
+    let preview = named(&mut app, "Colour Window Preview").expect("a preview");
+    let shown = app
+        .world()
+        .get::<BackgroundColor>(preview)
+        .expect("the preview is painted")
+        .0;
+    assert_eq!(Srgba::from(shown).to_hex(), "#0000FF");
 }
 
 #[test]
@@ -395,7 +423,10 @@ fn a_destructive_verb_asks_before_it_runs() {
         .run_system_once(crate::node::ensure_document)
         .expect("the document is founded");
     let document = app.world().resource::<EditContext>().scenario();
-    let row = app.world_mut().spawn(DestructiveVerb::NewScenario).id();
+    let row = app
+        .world_mut()
+        .spawn(DestructiveVerb::DeleteMod("confirm_probe".to_string()))
+        .id();
 
     app.world_mut().trigger(Activate { entity: row });
     app.update();
@@ -422,56 +453,9 @@ fn a_destructive_verb_asks_before_it_runs() {
         "and Keep editing kept it"
     );
 
-    app.world_mut().trigger(Activate { entity: row });
-    app.update();
-    // New Scenario has no single answer: the TEMPLATES are the answers, one
-    // button each, and pressing one both picks the world and goes through.
-    let template =
-        named(&mut app, "Template Duelling Arena").expect("the templates are on the window");
-    app.world_mut().trigger(Activate { entity: template });
-    app.update();
     assert!(
-        named(&mut app, "Confirm Window").is_none(),
-        "and this answer takes it down too"
-    );
-    let now = app.world().resource::<EditContext>().scenario();
-    assert!(
-        now.is_some() && now != document,
-        "the verb ran: the new scenario is the open one"
-    );
-    assert_eq!(
-        app.world()
-            .resource::<crate::project::ModProject>()
-            .data
-            .scenarios()
-            .count(),
-        2,
-        "and the first is still in the mod"
-    );
-    assert_eq!(
-        app.world()
-            .get::<crate::node::ScenarioNode>(now.expect("a document stands"))
-            .expect("the new root is a scenario node")
-            .name,
-        crate::template::ScenarioTemplate::Arena.settings().name,
-        "and it founded the world the row named"
-    );
-}
-
-/// The picker is right-anchored off the Inspector, and at a narrow window that
-/// put it on the rail.
-#[test]
-fn a_fresh_window_stands_clear_of_the_rail() {
-    assert_eq!(
-        fresh_window_left(1024.0),
-        412.0,
-        "at the stock width it hangs off the Inspector's left edge"
-    );
-    assert!(
-        fresh_window_left(760.0) >= crate::ui::RAIL_W,
-        "at 760 there is no place that clears both panels, and the rail is the \
-         one it must not cover: {}",
-        fresh_window_left(760.0)
+        named(&mut app, "Confirm Discard Button").is_none(),
+        "and the verb's own button went with it"
     );
 }
 
@@ -636,48 +620,58 @@ fn release_on(app: &mut App, target: Entity) {
     app.update();
 }
 
-/// A slider held down writes every frame, and only its end is an edit.
-fn hold_channel(app: &mut App, channel: &str, to: f32) -> Entity {
-    let slider = named(app, &format!("Colour Window Slider {channel}")).expect("a channel slider");
-    app.world_mut().trigger(ValueChange::<f32> {
-        source: slider,
-        value: to,
-        is_final: false,
+/// A picker session is one step however many picks and releases it holds: a
+/// press writes at once and is no step, a release makes the step, and the
+/// steps since the picker opened fold into one. A second release, the drag's
+/// own, adds nothing.
+#[test]
+fn a_picker_session_is_one_step() {
+    let mut app = window_app();
+    let (_, beacon) = document(&mut app);
+    select(&mut app, beacon);
+
+    assert_one_step(&mut app, "Edit Color", |app| {
+        open_the_picker(app);
+        let square = press_in(app, "Square", Vec2::new(0.8, 0.2));
+        assert_eq!(depth(app), 0, "a held pick is no step yet");
+        release_on(app, square);
+        release_on(app, square);
+        let hue = press_in(app, "Hue", Vec2::new(0.4, 0.5));
+        release_on(app, hue);
+        open_the_picker(app);
+        assert!(picker(app).is_none(), "the swatch put the picker away");
     });
+}
+
+/// Esc takes back everything the picker did, the released picks and the one
+/// still held, and closes it. Nothing is left to undo or redo.
+#[test]
+fn escape_takes_the_picked_colour_back() {
+    let mut app = window_app();
+    let (_, beacon) = document(&mut app);
+    select(&mut app, beacon);
+    baseline(&mut app);
+    open_the_picker(&mut app);
+    let square = press_in(&mut app, "Square", Vec2::new(1.0, 0.0));
+    release_on(&mut app, square);
+    press_in(&mut app, "Hue", Vec2::new(0.5, 0.5));
+    assert_eq!(depth(&app), 1);
+
+    let window = picker(&mut app).expect("the picker is open");
+    revert_picker(app.world_mut(), window);
     app.update();
-    slider
-}
 
-#[test]
-fn a_colour_drag_is_one_step_at_its_end() {
-    let mut app = window_app();
-    let (_, beacon) = document(&mut app);
-    select(&mut app, beacon);
-    open_the_picker(&mut app);
-
-    assert_one_step(&mut app, "Edit Color", |app| {
-        hold_channel(app, "R", 0.2);
-        hold_channel(app, "R", 0.4);
-        assert_eq!(depth(app), 0, "a held slider is no step yet");
-        drag_channel(app, "R", 0.5);
-    });
-}
-
-/// A press on the track moves the channel with no drag, so the slider never
-/// says `is_final`. The release ends that gesture, and the drag's own release
-/// must not make it a second step.
-#[test]
-fn a_click_on_a_colour_track_is_one_step_on_release() {
-    let mut app = window_app();
-    let (_, beacon) = document(&mut app);
-    select(&mut app, beacon);
-    open_the_picker(&mut app);
-
-    assert_one_step(&mut app, "Edit Color", |app| {
-        let slider = hold_channel(app, "R", 0.3);
-        release_on(app, slider);
-        release_on(app, slider);
-    });
+    assert!(picker(&mut app).is_none(), "Esc closed the picker");
+    let colour = beacon_colour(&app, beacon);
+    assert!(
+        colour.red > 0.99 && colour.green > 0.99 && colour.blue > 0.99,
+        "the beacon is white again (got {colour:?})"
+    );
+    assert_eq!(depth(&app), 0, "and no step stands for it");
+    assert!(
+        !app.world().resource::<EditHistory>().can_redo(),
+        "nor one to redo"
+    );
 }
 
 #[test]

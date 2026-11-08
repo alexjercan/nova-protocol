@@ -35,15 +35,13 @@ pub enum BlockCategoryType {
     Combat,
     /// Cargo, credits, yards and what they report.
     Trade,
-    /// Conditions: what gates a handler or a beat.
-    Logic,
     /// Scenario variables, values and authoring aids.
     Data,
 }
 
 impl BlockCategoryType {
     /// Every group, in the order a palette lists them.
-    pub const ALL: [BlockCategoryType; 9] = [
+    pub const ALL: [BlockCategoryType; 8] = [
         BlockCategoryType::Flow,
         BlockCategoryType::Mission,
         BlockCategoryType::World,
@@ -51,7 +49,6 @@ impl BlockCategoryType {
         BlockCategoryType::Ships,
         BlockCategoryType::Combat,
         BlockCategoryType::Trade,
-        BlockCategoryType::Logic,
         BlockCategoryType::Data,
     ];
 
@@ -65,7 +62,6 @@ impl BlockCategoryType {
             BlockCategoryType::Ships => "Ships",
             BlockCategoryType::Combat => "Combat",
             BlockCategoryType::Trade => "Trade",
-            BlockCategoryType::Logic => "Logic",
             BlockCategoryType::Data => "Data",
         }
     }

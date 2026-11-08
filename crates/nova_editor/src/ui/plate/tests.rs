@@ -162,7 +162,7 @@ fn the_plates_come_off_inside_a_ship() {
 }
 
 /// The builder's camera buttons and wheel answer on the stage, and a name plate
-/// stands on the stage. A pickable label read as UI, so RMB there did not fly.
+/// stands on the stage. A pickable label read as UI, so RMB there did not look.
 #[test]
 fn a_plate_and_its_label_let_the_pointer_through() {
     let mut world = World::new();

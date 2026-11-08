@@ -6,18 +6,19 @@ use std::sync::Arc;
 
 use bevy::prelude::*;
 use nova_assets::mod_refs::prelude::{map_string_leaves, names_string, SELF_SCHEME};
-use nova_gameplay::prelude::{BuildRecipe, ItemDesignId};
+use nova_gameplay::prelude::ItemDesignId;
 use nova_modding::prelude::Content;
-use nova_ship::prelude::{
-    BaseSectionConfig, HullSectionConfig, LinkPoint, LinkPointSkinType, SectionCollider,
-    SectionConfig, SectionKind,
-};
+use nova_ship::prelude::{LinkPoint, LinkPointSkinType};
 
-use super::{set_mesh, spawn_socket, AssetNode, SocketNode};
+use super::{
+    blank::{blank_item, spaced},
+    set_mesh, spawn_socket, AssetNode, SocketNode,
+};
 use crate::{
     asset_index::AssetIndex,
     config::SelectedNode,
     history::commit_edit_now,
+    inspect::{set_item_text, AssetTextType},
     node::{EditContext, NodeId},
     project::{
         ids::{scenario_id, slug},
@@ -39,127 +40,12 @@ const FACES: [Vec3; 6] = [
     Vec3::NEG_Z,
 ];
 
-/// The id each face's socket takes on a plain hull.
-const FACE_IDS: [&str; 6] = [
-    "positive_x",
-    "negative_x",
-    "positive_y",
-    "negative_y",
-    "positive_z",
-    "negative_z",
-];
-
 /// The word a builder reads for `kind`, capitalised.
 fn word(kind: &str) -> String {
     let mut letters = kind.chars();
     letters.next().map_or_else(String::new, |first| {
         first.to_uppercase().chain(letters).collect()
     })
-}
-
-/// A prototype a new item can start from, as the chooser lists it.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) struct AssetOffer {
-    /// What the row reads.
-    pub(crate) label: String,
-    /// The pack that ships it.
-    pub(crate) pack: String,
-    /// Its id.
-    pub(crate) id: String,
-}
-
-/// Every prototype of `kind` the project can see, base first.
-pub(crate) fn offers_of(index: &AssetIndex, project: &ModProject, kind: &str) -> Vec<AssetOffer> {
-    index
-        .visible_packs(&project.data.meta.dependencies)
-        .iter()
-        .flat_map(|pack| {
-            pack.items
-                .iter()
-                .filter(|item| item.kind() == kind)
-                .map(|item| AssetOffer {
-                    label: match item {
-                        Content::Section(config) => config.base.name.clone(),
-                        other => other.id().to_string(),
-                    },
-                    pack: pack.id.to_string(),
-                    id: item.id().to_string(),
-                })
-        })
-        .collect()
-}
-
-/// The item of `kind` and `id` as a mod of its own would write it: a `self://`
-/// ref of the pack that ships it reads `dep://<pack>/` from here. The merged
-/// catalog is no source for this, because the merge has resolved its refs to
-/// paths that a saved mod may not hold.
-fn authored_item(
-    In((kind, id)): In<(String, String)>,
-    index: AssetIndex,
-    project: Res<ModProject>,
-) -> Option<Content> {
-    let packs = index.visible_packs(&project.data.meta.dependencies);
-    packs.iter().rev().find_map(|pack| {
-        let item = pack
-            .items
-            .iter()
-            .find(|item| item.kind() == kind && item.id() == id)?;
-        let scheme = format!("dep://{}/", pack.id);
-        let respell = |leaf: &str| {
-            leaf.strip_prefix(SELF_SCHEME)
-                .map(|file| format!("{scheme}{file}"))
-        };
-        map_string_leaves(item, &respell).ok()
-    })
-}
-
-/// The build recipe a plain hull starts with: the first hull the project can
-/// see, so a new section lints clean against whatever items that pack ships.
-/// With no hull in sight, the least recipe the lint takes.
-fn plain_recipe(In(()): In<()>, index: AssetIndex, project: Res<ModProject>) -> BuildRecipe {
-    index
-        .visible_packs(&project.data.meta.dependencies)
-        .iter()
-        .flat_map(|pack| pack.items.iter())
-        .find_map(|item| match item {
-            Content::Section(config) if matches!(config.kind, SectionKind::Hull(_)) => {
-                Some(config.base.build.clone())
-            }
-            _ => None,
-        })
-        .unwrap_or(BuildRecipe {
-            credits: 1,
-            strip_yield: 0.5,
-            ..default()
-        })
-}
-
-/// A one-cell hull with a socket on each face and the game's default mesh.
-fn plain_hull(id: String, build: BuildRecipe) -> SectionConfig {
-    SectionConfig {
-        base: BaseSectionConfig {
-            id,
-            name: "Plain Hull".to_string(),
-            description: "A one-cell hull section.".to_string(),
-            health: 100.0,
-            build,
-            advancement: 0.1,
-            draw_weight: 1.0,
-            collider: Some(SectionCollider::Cuboid { size: Vec3::ONE }),
-            link_points: FACES
-                .iter()
-                .zip(FACE_IDS)
-                .map(|(normal, id)| LinkPoint {
-                    id: id.to_string(),
-                    position: *normal * 0.5,
-                    normal: *normal,
-                    skin: LinkPointSkinType::Clad,
-                })
-                .collect(),
-            ..default()
-        },
-        kind: SectionKind::Hull(HullSectionConfig::default()),
-    }
 }
 
 /// `item` under `id`, and nothing else about it changed.
@@ -188,7 +74,7 @@ fn mint_id(project: &ModProject, stem: &str) -> String {
 }
 
 /// Add `item` to the mod and open it, as one step.
-fn add_and_open(world: &mut World, label: String, item: Content) {
+pub(crate) fn add_and_open(world: &mut World, label: String, item: Content) {
     project_step(world, label, move |world| {
         let mut project = world.resource_mut::<ModProject>();
         let file = project.default_file();
@@ -205,9 +91,53 @@ fn add_and_open(world: &mut World, label: String, item: Content) {
     });
 }
 
-/// `+ Add`: a new item of `kind` from the prototype `from`. A section may also
-/// start as a plain hull, with `from` empty.
-pub(crate) fn add_asset(world: &mut World, kind: &'static str, from: Option<String>) {
+/// `item` under the name `name`, for the kinds that carry one.
+fn with_name(item: &mut Content, name: &str) {
+    let held = match item {
+        Content::Section(config) => &mut config.base.name,
+        Content::Campaign(config) => &mut config.name,
+        Content::Style(config) => &mut config.name,
+        Content::UiTheme(config) => &mut config.name,
+        Content::Item(design) => &mut design.name,
+        Content::StartRole(role) => &mut role.name,
+        _ => return,
+    };
+    *held = name.to_string();
+}
+
+/// What a new item of `kind` is called: `New UI Theme`, or for a section
+/// of kind `CargoIntake`, `New Cargo Intake`.
+fn new_name(kind: &str, section: Option<&str>) -> String {
+    let words: Vec<String> = match section {
+        Some(section) => vec![spaced(section)],
+        None => kind
+            .split(' ')
+            .map(|part| match part {
+                "ui" => "UI".to_string(),
+                other => word(other),
+            })
+            .collect(),
+    };
+    format!("New {}", words.join(" "))
+}
+
+/// The first root theme the mod can see, base first: what a new theme derives
+/// from. A root theme must declare every role, and the form cannot write roles,
+/// so a blank root theme is one no builder could finish.
+fn root_theme(In(()): In<()>, index: AssetIndex, project: Res<ModProject>) -> Option<String> {
+    index
+        .visible_packs(&project.data.meta.dependencies)
+        .iter()
+        .flat_map(|pack| pack.items.iter())
+        .find_map(|item| match item {
+            Content::UiTheme(theme) if theme.inherit.is_none() => Some(theme.id.clone()),
+            _ => None,
+        })
+}
+
+/// `+ Add`: a blank item of `kind`, open. A section is of the kind `section`
+/// names; see [`blank_item`] for what a blank holds.
+pub(crate) fn add_asset(world: &mut World, kind: &'static str, section: Option<&str>) {
     let Some(project) = world.get_resource::<ModProject>() else {
         return;
     };
@@ -215,39 +145,20 @@ pub(crate) fn add_asset(world: &mut World, kind: &'static str, from: Option<Stri
         refuse(world, "a mod may state one price table");
         return;
     }
-    let source = match &from {
-        Some(id) => world
-            .run_system_cached_with(authored_item, (kind.to_string(), id.clone()))
-            .ok()
-            .flatten(),
-        None => None,
-    };
-    let item = match (source, from) {
-        (Some(item), _) => item,
-        (None, Some(from)) => {
-            refuse(world, format!("{from} is not a {kind} this mod can see"));
-            return;
-        }
-        (None, None) if kind == "section" => {
-            let build = world
-                .run_system_cached_with(plain_recipe, ())
-                .unwrap_or_default();
-            Content::Section(Box::new(plain_hull("plain_hull".to_string(), build)))
-        }
-        (None, None) => {
-            refuse(world, format!("a new {kind} starts from a prototype"));
+    let mut item = match blank_item(kind, section) {
+        Ok(item) => item,
+        Err(fault) => {
+            refuse(world, fault);
             return;
         }
     };
-    let mut item = item;
-    let stem = item
-        .id()
-        .rsplit("__")
-        .next()
-        .unwrap_or_default()
-        .to_string();
-    let id = mint_id(world.resource::<ModProject>(), &stem);
+    let name = new_name(kind, section);
+    if let Content::UiTheme(theme) = &mut item {
+        theme.inherit = world.run_system_cached_with(root_theme, ()).ok().flatten();
+    }
+    let id = mint_id(world.resource::<ModProject>(), &name);
     with_id(&mut item, &id);
+    with_name(&mut item, &name);
     add_and_open(world, format!("Add {}", word(kind)), item);
 }
 
@@ -381,7 +292,7 @@ fn renamed_items(
 }
 
 /// Three of `lines`, and how many more.
-fn shown(lines: &[String]) -> String {
+pub(crate) fn shown(lines: &[String]) -> String {
     let first = lines.iter().take(3).cloned().collect::<Vec<_>>().join(", ");
     match lines.len() {
         0..=3 => first,
@@ -468,6 +379,36 @@ pub(crate) fn add_socket(world: &mut World) {
     commit_edit_now(world, "Add Socket");
 }
 
+/// Make the open section's collider a `shape`, about as big as the one it
+/// replaces, as one step: Add for a section with none, Replace for one with
+/// one. A section holds at most one collider.
+pub(crate) fn set_collider(world: &mut World, shape: &str) {
+    let Some(root) = world.resource::<EditContext>().scenario() else {
+        return;
+    };
+    let mut held = match world.get::<AssetNode>(root) {
+        Some(node @ AssetNode(Content::Section(_))) => node.clone(),
+        _ => {
+            refuse(world, "open a section to set its collider");
+            return;
+        }
+    };
+    let had = matches!(&held.0, Content::Section(config) if config.base.collider.is_some());
+    if let Err(fault) = set_item_text(&mut held.0, AssetTextType::ColliderShape, shape) {
+        refuse(world, fault);
+        return;
+    }
+    world.entity_mut(root).insert(held);
+    commit_edit_now(
+        world,
+        if had {
+            "Replace Collider"
+        } else {
+            "Add Collider"
+        },
+    );
+}
+
 /// What is wrong with `bytes` as a binary glTF, or nothing.
 pub(crate) fn glb_fault(bytes: &[u8]) -> Option<&'static str> {
     let word = |at: usize| {
@@ -488,11 +429,13 @@ pub(crate) fn glb_fault(bytes: &[u8]) -> Option<&'static str> {
     None
 }
 
-/// The file name a mesh from `path` takes in the mod: free among `resources`,
-/// and not one `differs` says holds other bytes. A saved manifest may name a file
-/// the resources have forgotten, and a write to it is outside any undo.
-fn resource_name(
+/// The file name the file at `path` takes in the mod, ending in `.extension`
+/// (nothing when it is empty): free among `resources`, and not one `differs`
+/// says holds other bytes. A saved manifest may name a file the resources have
+/// forgotten, and a write to it is outside any undo.
+pub(crate) fn resource_name(
     path: &str,
+    extension: &str,
     resources: &[String],
     differs: impl Fn(&str) -> bool,
 ) -> Option<String> {
@@ -501,10 +444,11 @@ fn resource_name(
     if stem.is_empty() {
         return None;
     }
+    let dot = if extension.is_empty() { "" } else { "." };
     (0..)
         .map(|at| match at {
-            0 => format!("{stem}.glb"),
-            at => format!("{stem}_{at}.glb"),
+            0 => format!("{stem}{dot}{extension}"),
+            at => format!("{stem}_{at}{dot}{extension}"),
         })
         .find(|file| !resources.contains(file) && !differs(file))
 }
@@ -546,7 +490,7 @@ pub(crate) fn import_mesh(world: &mut World, path: &str) {
     }
     let resources = world.resource::<ModProject>().data.resources.clone();
     let differs = |file: &str| store::mod_file(&own, file).is_some_and(|held| held != bytes);
-    let Some(file) = resource_name(path, &resources, differs) else {
+    let Some(file) = resource_name(path, "glb", &resources, differs) else {
         refuse(world, format!("{path} has no usable file name"));
         return;
     };

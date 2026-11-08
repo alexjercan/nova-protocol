@@ -14,7 +14,10 @@ use super::*;
 use crate::{
     config::{EditorStatus, SceneRow, StyleChoice},
     frame::CameraFraming,
-    node::{ensure_document, reflow_auto_ships, ObjectBodyStale, ObjectChoice},
+    node::{
+        ensure_document, reflow_auto_ships, sync_stage_frame, ObjectBodyStale, ObjectChoice,
+        StageFrame,
+    },
     placement::{
         create_blank_ship, create_scenario_object, delete_selected_node, on_stage_drag_end,
         StageDrag,
@@ -465,6 +468,87 @@ fn a_new_edit_clears_the_redo_stack() {
     add_ship(&mut app);
 
     assert!(!app.world().resource::<EditHistory>().can_redo());
+}
+
+#[test]
+fn entering_a_turned_ship_stands_it_at_identity_and_is_no_edit() {
+    let mut app = history_app();
+    app.init_resource::<StageFrame>();
+    app.add_systems(Update, sync_stage_frame.after(reflow_auto_ships));
+    add_ship(&mut app);
+    let ship = first_with::<ShipNode>(&mut app);
+    let context = app.world().resource::<EditContext>();
+    let root = context.scenario().expect("a document");
+    let pose = Transform::from_xyz(40.0, -12.0, 7.0).with_rotation(Quat::from_euler(
+        EulerRot::YXZ,
+        1.1,
+        0.4,
+        -0.7,
+    ));
+    *app.world_mut()
+        .get_mut::<Transform>(ship)
+        .expect("a ship has a pose") = pose;
+    commit_edit_now(app.world_mut(), "Move");
+    with_history(app.world_mut(), EditHistory::saved_now);
+    let (steps, document) = (depth(&app), lowered(&mut app));
+    let stage = |app: &App| *app.world().get::<Transform>(root).expect("a root pose");
+    let shown = |app: &App| {
+        let ship = *app.world().get::<Transform>(ship).expect("a ship pose");
+        stage(app).compute_affine() * ship.compute_affine()
+    };
+
+    app.world_mut().resource_mut::<EditContext>().enter(ship);
+    app.update();
+
+    assert!(
+        shown(&app).abs_diff_eq(bevy::math::Affine3A::IDENTITY, 1e-4),
+        "inside, the ship stands at identity: {:?}",
+        shown(&app)
+    );
+    assert_eq!(app.world().get::<Transform>(ship), Some(&pose));
+    commit_edit_now(app.world_mut(), "Nothing");
+    assert_eq!(depth(&app), steps, "entering is no step");
+    assert!(!app.world().resource::<EditHistory>().dirty());
+    assert_eq!(
+        lowered(&mut app),
+        document,
+        "and a save inside writes the pose"
+    );
+
+    app.world_mut().resource_mut::<EditContext>().exit();
+    app.update();
+
+    assert_eq!(stage(&app), Transform::IDENTITY);
+    assert_eq!(app.world().get::<Transform>(ship), Some(&pose));
+    commit_edit_now(app.world_mut(), "Nothing");
+    assert_eq!(depth(&app), steps, "leaving is no step");
+    assert!(!app.world().resource::<EditHistory>().dirty());
+}
+
+#[test]
+fn a_step_undone_inside_a_ship_leaves_the_stage_where_it_stands() {
+    let mut app = history_app();
+    app.init_resource::<StageFrame>();
+    app.add_systems(Update, sync_stage_frame.after(reflow_auto_ships));
+    add_ship(&mut app);
+    let ship = first_with::<ShipNode>(&mut app);
+    let root = app
+        .world()
+        .resource::<EditContext>()
+        .scenario()
+        .expect("a document");
+    *app.world_mut()
+        .get_mut::<Transform>(ship)
+        .expect("a ship has a pose") = Transform::from_xyz(40.0, 0.0, 0.0);
+    commit_edit_now(app.world_mut(), "Move");
+    app.world_mut().resource_mut::<EditContext>().enter(ship);
+    app.update();
+    let stood = *app.world().get::<Transform>(root).expect("a root pose");
+
+    place_part(&mut app, ship);
+    undo(&mut app);
+
+    assert_eq!(app.world().get::<Transform>(root), Some(&stood));
 }
 
 #[test]

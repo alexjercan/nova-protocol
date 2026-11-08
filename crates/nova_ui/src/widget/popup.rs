@@ -144,7 +144,10 @@ pub(super) fn close_popup_on_press(
     mut commands: Commands,
     roots: Query<Entity, With<PopupRoot>>,
 ) {
-    if roots.contains(press.original_event_target()) {
+    // The root's press bubbles to the window, and this observer hears it there
+    // too: only the level the press started on closes the popup.
+    let target = press.original_event_target();
+    if press.entity == target && roots.contains(target) {
         close_popups(&mut commands, &roots);
     }
 }
@@ -177,7 +180,40 @@ mod tests {
     use bevy::{prelude::*, ui_widgets::Activate};
 
     use super::{popup_row, spawn_popup, PopupRoot, PopupRow};
-    use crate::widget::fixtures::themed_app;
+    use crate::widget::{
+        fixtures::{press, spawn_window, themed_app, CapturedLog},
+        text_field::{text_field, TextFieldFocused, TextFieldSpec, TextFieldSubmitted},
+    };
+
+    #[test]
+    fn a_press_outside_a_popup_closes_it_and_its_focused_field_without_a_warning() {
+        let log = CapturedLog::default();
+        let _guard = log.capture();
+        let mut app = themed_app(crate::theme::config::PHOSPHOR_THEME_ID);
+        app.update();
+        let window = spawn_window(&mut app);
+        let world = app.world_mut();
+        let mut queue = bevy::ecs::world::CommandQueue::default();
+        let mut commands = Commands::new(&mut queue, world);
+        let root = spawn_popup(&mut commands, Vec2::ZERO, 1, |rows| {
+            rows.spawn((
+                text_field(TextFieldSpec::new("")),
+                TextFieldFocused::at_end(""),
+            ));
+        });
+        queue.apply(world);
+
+        press(&mut app, root, window);
+
+        assert!(app.world().get_entity(root).is_err(), "the popup closed");
+        let said = log.contents();
+        assert!(!said.contains("despawned"), "{said}");
+        assert_eq!(
+            app.world().resource::<Messages<TextFieldSubmitted>>().len(),
+            1,
+            "the field left once"
+        );
+    }
 
     #[test]
     fn pressing_a_popup_row_closes_the_popup() {

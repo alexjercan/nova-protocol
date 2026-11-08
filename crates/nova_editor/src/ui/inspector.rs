@@ -12,7 +12,7 @@
 //! That is what lets a builder type into a field at all: a list rebuilt every
 //! frame would despawn the box under the caret.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 use bevy::{
     ecs::{component::Mutable, relationship::RelatedSpawnerCommands, system::SystemParam},
@@ -33,7 +33,7 @@ use nova_ui::{
         TextFieldSubmitted, TextFieldValue, ThemedButton, UiText,
     },
     theme,
-    theme::{density, ActiveUiTheme, UiColor},
+    theme::{density, ActiveUiTheme, GameUiThemes, UiColor},
     widget::{
         checkbox, swatch, ButtonCueType, ThemedBorder, ThemedCheckbox, ThemedRadius, ThemedText,
     },
@@ -59,13 +59,13 @@ use crate::{
     inspect::{
         action_rows, asset_kind_mut, asset_rows, authored_hull_row, axis_step, choose_field,
         content_reflect_mut, curated_object_rows, curated_section_rows, driver_label, edit_section,
-        event_rows, filter_rows, gate_rows, inspected, item_text, nudge_field, object_config_mut,
-        object_rows, operand_path, operand_row, parse_colour, part_rows, pretty, reset_field,
-        rotation_degrees, rotation_from_degrees, scale_framed_drags, scenario_rows, script_name,
-        section_config_mut, section_rows, set_item_text, set_well_target, ship_rows, socket_rows,
-        step_rows, toggle_field, well_target_label, write_field, AssetPressType, DocumentIds,
-        DragRule, FieldRoot, InspectTarget, InspectorRow, MeshPose, NodeKinds, Operand, PathStep,
-        RowValue, ScriptNames, GRIP_GONE,
+        event_rows, filter_rows, gate_rows, inherited_palette, inspected, item_text, nudge_field,
+        object_config_mut, object_rows, operand_path, operand_row, parse_colour, part_rows, pretty,
+        reset_field, rotation_degrees, rotation_from_degrees, scale_framed_drags, scenario_rows,
+        script_name, section_config_mut, section_rows, set_item_text, set_well_target, ship_rows,
+        socket_rows, step_rows, toggle_field, well_target_label, write_field, AssetPressType,
+        DocumentIds, DragRule, FieldRoot, InspectTarget, InspectorRow, MeshPose, NodeKinds,
+        Operand, PaletteEntry, PathStep, RowValue, ScriptNames, GRIP_GONE,
     },
     keybind::on_rebind_action,
     node::{
@@ -74,16 +74,16 @@ use crate::{
     },
     preview::body_is_drawn_from,
     problems::Problems,
-    project::verbs::pressed,
+    project::{verbs::pressed, ModProject},
     scenario::lower_ship,
     station::StationCatalogs,
     ui::{
         files::PathPurposeType,
         layer,
         pick::{on_open_choice_list, on_open_ref_list},
+        picker::on_open_colour_window,
         rail::SceneRowHint,
         shell::validity_tint,
-        window::on_open_colour_window,
     },
 };
 
@@ -184,6 +184,14 @@ impl InspectorField {
         self.optional
     }
 
+    /// The palette colour a [`FieldRoot::PaletteColour`] field names.
+    fn palette_name(&self) -> &str {
+        match self.path.first() {
+            Some(PathStep::Field(name)) => name,
+            _ => "",
+        }
+    }
+
     /// The undo step an edit of this field records, named as the row is.
     pub(crate) fn edit_label(&self) -> String {
         match self.root {
@@ -197,6 +205,7 @@ impl InspectorField {
             FieldRoot::MeshPose => "Edit Mesh Transform".to_string(),
             FieldRoot::AssetPress(_) => "Press".to_string(),
             FieldRoot::SocketId => "Edit Socket Id".to_string(),
+            FieldRoot::PaletteColour => format!("Edit Colour {}", self.palette_name()),
             FieldRoot::Config | FieldRoot::Asset | FieldRoot::AssetKind | FieldRoot::Socket => {
                 let leaf = self.path.iter().rev().find_map(|step| match step {
                     PathStep::Field(name) => Some(pretty(name)),
@@ -446,6 +455,9 @@ pub(crate) struct InspectorGroup;
 #[derive(Component)]
 pub(crate) struct InspectorSwatch {
     pub(crate) label: String,
+    /// Whether the field's format holds an alpha, so its picker has a strip
+    /// for one.
+    pub(crate) alpha: bool,
 }
 
 /// One option of a unit-enum row: the variant this segment selects.
@@ -499,9 +511,32 @@ pub(crate) struct BenchRead<'w, 's> {
     parts: Query<'w, 's, (&'static AssetPartType, &'static ChildOf)>,
     sockets: Query<'w, 's, (&'static NodeId, &'static SocketNode, &'static Transform)>,
     problems: Option<Res<'w, Problems>>,
+    /// The mod's own themes, which a theme it holds may inherit first.
+    project: Option<Res<'w, ModProject>>,
+    /// The game's themes, which a theme inherits when the mod has no theme of
+    /// that id.
+    themes: Option<Res<'w, GameUiThemes>>,
 }
 
 impl BenchRead<'_, '_> {
+    /// The rows of the item on the bench.
+    fn item_rows(&self, node: Entity) -> Option<Vec<InspectorRow>> {
+        let item = &self.assets.get(node).ok()?.0;
+        let inherited = match item {
+            Content::UiTheme(theme) => inherited_palette(theme, |id| {
+                let own = self.project.as_deref().and_then(|project| {
+                    match project.data.item("ui theme", id)? {
+                        Content::UiTheme(theme) => Some(theme.as_ref()),
+                        _ => None,
+                    }
+                });
+                own.or_else(|| self.themes.as_deref()?.get(id))
+            }),
+            _ => BTreeMap::new(),
+        };
+        Some(asset_rows(item, &inherited))
+    }
+
     /// The rows of the collider or mesh handle `node`.
     fn part_rows(&self, node: Entity) -> Option<Vec<InspectorRow>> {
         let (part, owner) = self.parts.get(node).ok()?;
@@ -595,7 +630,8 @@ impl Document<'_, '_> {
                 } else {
                     Vec::new()
                 };
-                ship_rows(node, pose, &faults)
+                let posed = (self.context.ship() != Some(ship)).then_some(pose);
+                ship_rows(node, posed, &faults)
             }
             // CURATED unless the View menu says otherwise: a turret's whole
             // config is a joint tree nobody authors from a scenario, and the
@@ -644,7 +680,7 @@ impl Document<'_, '_> {
             }
             InspectTarget::Step(node) => step_rows(self.steps.get(node).ok()?),
             InspectTarget::Gate(node) => gate_rows(self.gates.get(node).ok()?),
-            InspectTarget::Asset(node) => asset_rows(&self.bench.assets.get(node).ok()?.0),
+            InspectTarget::Asset(node) => self.bench.item_rows(node)?,
             InspectTarget::AssetPart(node) => self.bench.part_rows(node)?,
             InspectTarget::Socket(node) => {
                 let (id, socket, pose) = self.bench.sockets.get(node).ok()?;
@@ -1755,6 +1791,100 @@ fn unit_text(label: &str, unit: &'static str, slot: usize) -> impl Bundle {
 /// Stacked rather than three boxes across, because the panel is 240px wide: a
 /// third of its value column is four characters, and a position of `-1234.567`
 /// would be read four characters at a time.
+/// A palette: one tile per colour, a swatch and its name, two to a line. A
+/// swatch opens the picker on that colour. An inherited colour's name is dim
+/// until the theme picks its own.
+fn spawn_palette_row(
+    list: &mut RelatedSpawnerCommands<ChildOf>,
+    row: &InspectorRow,
+    node: Entity,
+    slot: usize,
+    entries: &[PaletteEntry],
+    step: f32,
+) {
+    list.spawn((
+        Name::new(format!("Inspector Row {}", row.label)),
+        row_hint(row),
+        Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::left(px(step)),
+            margin: UiRect::bottom(px(6)),
+            row_gap: px(3),
+            ..default()
+        },
+    ))
+    .with_children(|block| {
+        block.spawn(row_label(row, step));
+        block
+            .spawn((
+                Name::new("Inspector Palette"),
+                Node {
+                    width: percent(100),
+                    flex_direction: FlexDirection::Row,
+                    flex_wrap: FlexWrap::Wrap,
+                    row_gap: px(2),
+                    ..default()
+                },
+            ))
+            .with_children(|grid| {
+                for entry in entries {
+                    let field = InspectorField {
+                        node,
+                        root: FieldRoot::PaletteColour,
+                        path: vec![PathStep::Field(entry.name.clone())],
+                        optional: false,
+                    };
+                    grid.spawn((
+                        Name::new(format!("Inspector Palette {}", entry.name)),
+                        Node {
+                            width: percent(50),
+                            height: px(24),
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            column_gap: px(6),
+                            overflow: Overflow::clip(),
+                            ..default()
+                        },
+                    ))
+                    .with_children(|tile| {
+                        tile.spawn((
+                            Name::new(format!("Inspector Swatch {}", entry.name)),
+                            InspectorSlot(slot),
+                            InspectorSwatch {
+                                label: entry.name.clone(),
+                                alpha: false,
+                            },
+                            field,
+                            Button,
+                            Hovered::default(),
+                            swatch(parse_colour(&entry.hex)),
+                            observe(on_open_colour_window),
+                        ));
+                        tile.spawn((
+                            UiText,
+                            Text::new(entry.name.clone()),
+                            TextLayout {
+                                linebreak: LineBreak::NoWrap,
+                                ..default()
+                            },
+                            TextFont {
+                                font_size: FontSize::Px(11.0),
+                                ..default()
+                            },
+                            TextColor(Color::NONE),
+                            ThemedText::new(if entry.inherited {
+                                UiColor::Label
+                            } else {
+                                UiColor::Body
+                            }),
+                        ));
+                    });
+                }
+            });
+    });
+}
+
 fn spawn_axes_row(
     list: &mut RelatedSpawnerCommands<ChildOf>,
     row: &InspectorRow,
@@ -2009,6 +2139,10 @@ fn build_rows(
             spawn_driver_row(list, row, node, slot, *driver, step);
             continue;
         }
+        if let RowValue::Palette(entries) = &row.value {
+            spawn_palette_row(list, row, node, slot, entries, step);
+            continue;
+        }
         if let RowValue::WellTarget(target) = &row.value {
             spawn_well_target_row(list, row, &field, slot, target.as_ref(), step);
             continue;
@@ -2121,6 +2255,7 @@ fn build_rows(
                             InspectorSlot(slot),
                             InspectorSwatch {
                                 label: row.label.clone(),
+                                alpha: true,
                             },
                             field.clone(),
                             Button,
@@ -2160,7 +2295,8 @@ fn build_rows(
                     RowValue::Axes(_)
                     | RowValue::Driver(_)
                     | RowValue::Operand { .. }
-                    | RowValue::WellTarget(_) => {}
+                    | RowValue::WellTarget(_)
+                    | RowValue::Palette(_) => {}
                     RowValue::Key(binding) => {
                         // The ROW is the button. A binding named on one surface
                         // and armed from another - the top bar's Rebind - left
@@ -2258,7 +2394,7 @@ pub(crate) struct ShownInspector {
             Option<Entity>,
             usize,
             bool,
-            Option<&'static str>,
+            Option<String>,
         )>,
     )>,
 }
@@ -2367,7 +2503,10 @@ pub(crate) fn sync_inspector(
     >,
     mut flags: Query<(&InspectorSlot, &mut ThemedCheckbox), With<InspectorFlag>>,
     drivers: Query<(Entity, &InspectorSlot, &InspectorDriver, Has<Selected>)>,
-    mut swatches: Query<(&InspectorSlot, &mut BackgroundColor), With<InspectorSwatch>>,
+    mut swatches: Query<
+        (&InspectorSlot, &InspectorField, &mut BackgroundColor),
+        With<InspectorSwatch>,
+    >,
     choices: Query<(Entity, &InspectorSlot, &InspectorChoice, Has<Selected>)>,
     folds: Res<InspectorFolds>,
 ) {
@@ -2423,7 +2562,8 @@ pub(crate) fn sync_inspector(
         // repaint into the widgets of the tree it used to be. So is whether
         // the row is OVERRIDDEN: the reset chip is a widget, and a reset that
         // only repainted values would leave it standing over an inherited
-        // field. So is a well target's STATE: only `Authored` has an id box.
+        // field. So is a well target's STATE: only `Authored` has an id box. So
+        // is a palette's set of names.
         rows.iter()
             .map(|row| {
                 (
@@ -2434,7 +2574,18 @@ pub(crate) fn sync_inspector(
                     row.depth,
                     row.overridden,
                     match &row.value {
-                        RowValue::WellTarget(target) => Some(well_target_label(target.as_ref())),
+                        RowValue::WellTarget(target) => {
+                            Some(well_target_label(target.as_ref()).to_string())
+                        }
+                        // The swatches are widgets, one per name, and a dim
+                        // name is an inherited one.
+                        RowValue::Palette(entries) => Some(
+                            entries
+                                .iter()
+                                .map(|entry| format!("{}:{}", entry.name, entry.inherited))
+                                .collect::<Vec<_>>()
+                                .join(","),
+                        ),
                         _ => None,
                     },
                 )
@@ -2485,9 +2636,19 @@ pub(crate) fn sync_inspector(
             value.0.clone_from(text);
         }
     }
-    for (slot, mut block) in &mut swatches {
-        let Some(RowValue::Colour(text)) = rows.get(slot.0).map(|row| &row.value) else {
-            continue;
+    for (slot, field, mut block) in &mut swatches {
+        let text = match rows.get(slot.0).map(|row| &row.value) {
+            Some(RowValue::Colour(text)) => text,
+            Some(RowValue::Palette(entries)) => {
+                let Some(entry) = entries
+                    .iter()
+                    .find(|entry| entry.name == field.palette_name())
+                else {
+                    continue;
+                };
+                &entry.hex
+            }
+            _ => continue,
         };
         let wanted = parse_colour(text).unwrap_or(Color::NONE);
         if block.0 != wanted {
@@ -2710,6 +2871,19 @@ fn if_it_took<T: Component<Mutability = Mutable>, R>(
     took
 }
 
+/// `text` as a palette holds a colour, `#rrggbb`, or why it cannot be one: a
+/// theme's palette has no alpha.
+fn palette_hex(text: &str) -> Result<String, String> {
+    let text = text.trim();
+    let digits = text.strip_prefix('#').unwrap_or(text);
+    if digits.len() != 6 || !digits.chars().all(|digit| digit.is_ascii_hexdigit()) {
+        return Err(format!(
+            "{text} is not #rrggbb: a palette colour has no alpha"
+        ));
+    }
+    Ok(format!("#{}", digits.to_ascii_lowercase()))
+}
+
 impl EditTargets<'_, '_> {
     /// Hand `edit` the value `field` points at.
     ///
@@ -2849,6 +3023,22 @@ impl EditTargets<'_, '_> {
                     .map_err(|_| GRIP_GONE.to_string())?;
                 id.0 = text;
                 Ok(())
+            }
+            FieldRoot::PaletteColour => {
+                let name = field.palette_name().to_string();
+                let mut asset = self.asset_of(field)?;
+                if_it_took(&mut asset, |asset| {
+                    let Content::UiTheme(theme) = &mut asset.0 else {
+                        return Err("not a UI theme".to_string());
+                    };
+                    let mut text = theme.palette.get(&name).cloned().unwrap_or_default();
+                    edit(&mut text, &[], false)?;
+                    let text = palette_hex(&text)?;
+                    // A colour the theme took from its parent becomes its own
+                    // here: the palette is a map, and the override is an entry.
+                    theme.palette.insert(name, text);
+                    Ok(())
+                })
             }
             FieldRoot::Station => {
                 let mut ship = self
@@ -3185,7 +3375,7 @@ pub(crate) fn on_inspector_press(
     };
     match field.root {
         FieldRoot::AssetPress(AssetPressType::ImportMesh) => {
-            request.0 = Some(FileWindowKind::PickPath(PathPurposeType::ImportMesh));
+            request.0 = Some(FileWindowKind::PickPath(PathPurposeType::Mesh));
             says.accept();
         }
         FieldRoot::AssetPress(AssetPressType::AddSocket) => {

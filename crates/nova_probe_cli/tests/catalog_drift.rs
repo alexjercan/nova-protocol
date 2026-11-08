@@ -537,14 +537,12 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
             "the range's sky is picked from what the bundles ship",
             "a seeded hull is entered and inspected as a ship",
             "a named document saves without asking again",
-            "a saved range is switched on for the way out",
-            "a destructive verb asks first",
+            "New Scenario opens a blank scenario beside the open one",
             "the document survives a save and an open",
             "ids minted after a load do not collide",
             "the flown ship re-derives the graph",
             "the flown ship wears the skin",
             "a generated hull comes out bound",
-            "a named save writes a bundle of its own",
         ],
     ),
     (
@@ -1260,7 +1258,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 632;
+const SYSTEMS_INVARIANTS: usize = 630;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

@@ -41,6 +41,7 @@ use super::{
 };
 use crate::{
     bundle::FileWindowRequest,
+    config::EditorViewType,
     event::{place_new, BlockItemType, BlockSlotType, EventNode, FilterChoice, FilterNode},
     history::{
         commit_edit_now,
@@ -342,7 +343,7 @@ fn switching_asset_keeps_edits() {
     let first = open_id(&app);
     edit_name(&mut app, "Edited First");
 
-    add_scenario(app.world_mut(), ScenarioTemplate::Empty);
+    add_scenario(app.world_mut());
     app.update();
     let second = open_id(&app);
     assert_ne!(first, second);
@@ -365,7 +366,7 @@ fn switching_asset_keeps_edits() {
 fn undo_after_a_switch_returns_to_the_asset_of_the_step() {
     let mut app = project_app();
     let first = open_id(&app);
-    add_scenario(app.world_mut(), ScenarioTemplate::Empty);
+    add_scenario(app.world_mut());
     app.update();
     let second = open_id(&app);
     open_asset(app.world_mut(), SCENARIO_KIND, &first);
@@ -381,6 +382,43 @@ fn undo_after_a_switch_returns_to_the_asset_of_the_step() {
 
     assert_eq!(open_id(&app), first, "the step's asset is open again");
     assert_ne!(document_name(&app), "Edited First");
+}
+
+/// A ship tile opens the scenario that places the ship, with the ship entered
+/// and the Ship view up. Like any open, it is not a step and marks nothing.
+#[test]
+fn a_ship_tile_opens_its_scenario_with_the_ship_entered() {
+    let mut app = project_app();
+    app.init_resource::<EditorViewType>();
+    let range = open_id(&app);
+    lower_open_document(app.world_mut());
+    let design = data(&app)
+        .items()
+        .find(|item| item.kind() == "ship")
+        .map(|item| item.id().to_string())
+        .expect("the range places a ship");
+    add_scenario(app.world_mut());
+    app.update();
+    let steps = depth(&app);
+    let dirty = is_dirty(&app);
+
+    open_asset(app.world_mut(), "ship", &design);
+    app.update();
+
+    assert_eq!(open_id(&app), range, "its scenario is open");
+    let ship = app
+        .world()
+        .resource::<EditContext>()
+        .ship()
+        .expect("a ship is entered");
+    let node = app.world().get::<NodeId>(ship).expect("it has an id");
+    assert_eq!(design, format!("{range}.{}", node.0));
+    assert_eq!(
+        *app.world().resource::<EditorViewType>(),
+        EditorViewType::Ship
+    );
+    assert_eq!(depth(&app), steps, "opening is not a step");
+    assert_eq!(is_dirty(&app), dirty, "and marks nothing");
 }
 
 fn is_dirty(app: &App) -> bool {
@@ -431,7 +469,7 @@ fn naming_a_scratch_mod_clears_the_unsaved_mark() {
 fn delete_scenario_then_undo_restores_it_equal() {
     let mut app = project_app();
     let first = open_id(&app);
-    add_scenario(app.world_mut(), ScenarioTemplate::Empty);
+    add_scenario(app.world_mut());
     app.update();
     lower_open_document(app.world_mut());
     let before = written(&data(&app));
@@ -871,7 +909,7 @@ fn a_package_zip_extracted_merges_through_register_bundles() {
     let _disk = disk();
     let mut app = project_app();
     new_mod(&mut app, "editor_red_run");
-    add_scenario(app.world_mut(), ScenarioTemplate::Range);
+    add_scenario(app.world_mut());
     app.update();
     lower_open_document(app.world_mut());
     let held = data(&app);
@@ -1057,7 +1095,7 @@ fn a_project_step_stops_on_an_unfinished_block() {
     app.update();
     let held = data(&app).scenarios().count();
 
-    add_scenario(app.world_mut(), ScenarioTemplate::Range);
+    add_scenario(app.world_mut());
     app.update();
 
     assert_eq!(data(&app).scenarios().count(), held, "the step did not run");

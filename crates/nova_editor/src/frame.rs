@@ -10,13 +10,13 @@
 //! node placed this frame has no bounds yet, and the request waits for them.
 
 use avian3d::prelude::{ColliderAabb, Sensor};
-use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
+use bevy::{prelude::*, ui_widgets::Activate};
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::subtree_bounding_sphere;
 use nova_ship::prelude::HeldPart;
 
 use crate::{
-    config::{EditorCamera, RailTab, SelectedNode},
+    config::{EditorCamera, EditorViewType, SelectedNode},
     node::{frame_stage, EditContext},
 };
 
@@ -49,7 +49,8 @@ pub(crate) struct FrameRequest {
 ///
 /// Written wherever the camera is PUT on something - context focus, F, Frame
 /// Selection, a view preset, the end of an orbit, a dolly or a pan - and never
-/// while the builder flies. A flying camera has no target to measure against.
+/// while the builder looks about. A turn in place has no target to measure
+/// against.
 ///
 /// [`crate::camera`] reads it as the pivot's distance when nothing is selected.
 #[derive(Resource, Debug, Clone, Copy, PartialEq)]
@@ -144,7 +145,7 @@ pub(crate) fn frame_key(
     selection: Res<HeldPart>,
     selected: Res<SelectedNode>,
     context: Res<EditContext>,
-    rail: Res<RailTab>,
+    rail: Res<EditorViewType>,
     mut request: ResMut<FrameRequest>,
 ) {
     // In Events the key is the canvas's: there is no stage to frame.
@@ -197,7 +198,7 @@ pub(crate) fn ask_for(request: &mut FrameRequest, node: Option<Entity>) {
 /// The same, from a named direction.
 pub(crate) fn look_from(request: &mut FrameRequest, node: Option<Entity>, angle: ViewAngle) {
     // The ANGLE is half of the request: a second Front on the same node is a
-    // builder asking to be put back on the axis after flying off it.
+    // builder asking to be put back on the axis after moving off it.
     if node.is_some() && (request.node != node || request.angle != angle) {
         request.node = node;
         request.angle = angle;
@@ -218,6 +219,7 @@ pub(crate) fn apply_frame_request(
     q_bounds: Query<&ColliderAabb, Without<Sensor>>,
     q_poses: Query<&Transform, Without<EditorCamera>>,
     camera: Option<Single<&mut Transform, With<EditorCamera>>>,
+    context: Res<EditContext>,
 ) {
     let Some(node) = request.node else {
         return;
@@ -233,24 +235,19 @@ pub(crate) fn apply_frame_request(
     let Some(camera) = camera else {
         return;
     };
-    let (centre, spread) = framed_extent(node, pose, &q_children, &q_bounds);
+    // The entered ship stands on the origin, whatever its pose says.
+    let origin = if context.ship() == Some(node) {
+        Vec3::ZERO
+    } else {
+        pose.translation
+    };
+    let (centre, spread) =
+        subtree_bounding_sphere(node, &q_children, &q_bounds).unwrap_or((origin, 0.0));
     let angle = request.angle;
     request.node = None;
     let mut transform = camera.into_inner();
     *transform = view_stage(centre, spread, angle);
     *framing = CameraFraming::on(centre, transform.translation);
-}
-
-/// The point and half-spread to frame `node` on: the bounding sphere of its
-/// subtree's merged collider box, or its own origin with no spread when
-/// nothing under it carries a collider yet.
-pub(crate) fn framed_extent(
-    node: Entity,
-    pose: &Transform,
-    q_children: &Query<&Children>,
-    q_bounds: &Query<&ColliderAabb, Without<Sensor>>,
-) -> (Vec3, f32) {
-    subtree_bounding_sphere(node, q_children, q_bounds).unwrap_or((pose.translation, 0.0))
 }
 
 /// The view over `target` from `angle`, at the reach the stage view uses - so
@@ -266,40 +263,9 @@ pub(crate) fn view_stage(target: Vec3, spread: f32, angle: ViewAngle) -> Transfo
     }
 }
 
-/// The View menu's rows that need something to look at: Frame Selection and the
-/// four presets, greyed together by [`sync_frame_item`].
-#[derive(Component)]
-pub(crate) struct FrameSelectionItem;
-
 /// One preset row, carrying the direction it looks from.
 #[derive(Component)]
 pub(crate) struct ViewPresetItem(pub(crate) ViewAngle);
-
-/// Grey View > Frame Selection when there is nothing to frame.
-///
-/// There almost always is - the context node is the fallback - so this reads
-/// as enabled for the whole session and greys only before the document exists.
-/// Painted rather than assumed, because the item shipped greyed and a row that
-/// silently became live would say nothing about when it did.
-pub(crate) fn sync_frame_item(
-    mut commands: Commands,
-    selected: Res<SelectedNode>,
-    context: Res<EditContext>,
-    items: Query<(Entity, Has<InteractionDisabled>), With<FrameSelectionItem>>,
-) {
-    let disabled = selected.primary().or_else(|| context.current()).is_none();
-    for (entity, marked) in &items {
-        match (disabled, marked) {
-            (true, false) => {
-                commands.entity(entity).insert(InteractionDisabled);
-            }
-            (false, true) => {
-                commands.entity(entity).remove::<InteractionDisabled>();
-            }
-            _ => {}
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests;

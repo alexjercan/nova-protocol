@@ -25,8 +25,7 @@ use nova_ui::{
 };
 
 use crate::{
-    asset::verbs::{add_asset, import_mesh, offers_of, AssetOffer},
-    asset_index::AssetIndex,
+    asset::{files::import_file, verbs::import_mesh},
     bundle::{FileWindowKind, FileWindowRequest},
     project::{
         ids::{is_taken, project_id, publish_id, NameProblem},
@@ -52,33 +51,38 @@ const PATH_CHARS: usize = 512;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PathPurposeType {
     /// A mod package to import.
-    ImportPackage,
+    Package,
     /// A model for the open section.
-    ImportMesh,
+    Mesh,
+    /// Any file, for the mod's folder.
+    File,
 }
 
 impl PathPurposeType {
     /// The window's title.
     fn title(self) -> &'static str {
         match self {
-            Self::ImportPackage => "Import Package",
-            Self::ImportMesh => "Import Mesh",
+            Self::Package => "Import Package",
+            Self::Mesh => "Import Mesh",
+            Self::File => "Import File",
         }
     }
 
-    /// The file extension it lists.
+    /// The file extension it lists. Empty lists every file.
     fn extension(self) -> &'static str {
         match self {
-            Self::ImportPackage => "zip",
-            Self::ImportMesh => "glb",
+            Self::Package => "zip",
+            Self::Mesh => "glb",
+            Self::File => "",
         }
     }
 
     /// Use the picked file.
     fn run(self, world: &mut World, path: &str) {
         match self {
-            Self::ImportPackage => import_package(world, path),
-            Self::ImportMesh => import_mesh(world, path),
+            Self::Package => import_package(world, path),
+            Self::Mesh => import_mesh(world, path),
+            Self::File => import_file(world, path),
         }
     }
 }
@@ -126,13 +130,6 @@ pub(crate) struct PathList(Option<PathBuf>);
 #[derive(Component, Clone)]
 pub(crate) struct PathRow(PathBuf);
 
-/// One row of the chooser: the kind it adds, and the prototype it copies.
-#[derive(Component, Clone)]
-pub(crate) struct AssetOfferRow {
-    kind: &'static str,
-    from: Option<String>,
-}
-
 /// The id `typed` makes, against `known`, as the line to show, its colour, and
 /// whether it can be used. The hub's New Mod form says the same.
 pub(crate) fn id_line(typed: &str, known: &[String]) -> (String, UiColor, bool) {
@@ -168,9 +165,7 @@ fn offered_name(kind: &FileWindowKind, project: Option<&ModProject>) -> String {
     match kind {
         FileWindowKind::NameMod => project.data.meta.name.clone(),
         FileWindowKind::SaveCopy => format!("{} Copy", project.data.meta.name),
-        FileWindowKind::Packaged(_) | FileWindowKind::PickPath(_) | FileWindowKind::NewAsset(_) => {
-            String::new()
-        }
+        FileWindowKind::Packaged(_) | FileWindowKind::PickPath(_) => String::new(),
     }
 }
 
@@ -185,7 +180,6 @@ pub(crate) fn open_file_window(
     // Optional: a headless rig stands the layer up without the parts browser
     // behind it.
     gallery: Option<ResMut<GalleryState>>,
-    index: AssetIndex,
 ) {
     let mut gallery = gallery;
     let Some(kind) = asked.0.take() else {
@@ -208,13 +202,9 @@ pub(crate) fn open_file_window(
     let size = screen.map_or(Vec2::new(1024.0, 768.0), |screen| screen.size());
     let at = Vec2::new(((size.x - WINDOW_W) * 0.5).max(8.0), TOP_MARGIN);
     let name = offered_name(&kind, project.as_deref());
-    let offers = match (&kind, project.as_deref()) {
-        (FileWindowKind::NewAsset(wanted), Some(project)) => offers_of(&index, project, wanted),
-        _ => Vec::new(),
-    };
     commands
         .entity(*layer)
-        .with_children(|layer| spawn_file_window(layer, kind, &name, at, &offers));
+        .with_children(|layer| spawn_file_window(layer, kind, &name, at));
 }
 
 /// Small text under a field or above a list.
@@ -238,14 +228,12 @@ fn spawn_file_window(
     kind: FileWindowKind,
     name: &str,
     at: Vec2,
-    offers: &[AssetOffer],
 ) {
     let title = match &kind {
         FileWindowKind::NameMod => "Name This Mod",
         FileWindowKind::SaveCopy => "Save As Copy",
         FileWindowKind::Packaged(_) => "Packaged",
         FileWindowKind::PickPath(purpose) => purpose.title(),
-        FileWindowKind::NewAsset(_) => "Start From",
     };
     let shown = kind.clone();
     let window = window_frame(
@@ -263,7 +251,6 @@ fn spawn_file_window(
                 ));
                 body.spawn(small_line("Package Path", path, UiColor::Primary));
             }
-            FileWindowKind::NewAsset(wanted) => spawn_offers(body, wanted, offers),
             FileWindowKind::PickPath(_) => {
                 body.spawn(small_line("Path Label", "Path", UiColor::Label));
                 body.spawn((
@@ -317,49 +304,6 @@ fn spawn_file_window(
         .with_children(|frame| spawn_answers(frame, &kind));
 }
 
-/// The chooser's rows: a plain hull for a section, then what the mod can see.
-fn spawn_offers(
-    body: &mut RelatedSpawnerCommands<ChildOf>,
-    kind: &'static str,
-    offers: &[AssetOffer],
-) {
-    let row = |label: String, from: Option<String>| {
-        (
-            Name::new(format!("Offer Row {label}")),
-            AssetOfferRow { kind, from },
-            FileAnswer,
-            button(ButtonSpec::new(label).dense().block()),
-            ButtonCueType::Owned,
-            observe(on_asset_offer),
-        )
-    };
-    if kind == "section" {
-        body.spawn(row("Plain Hull".to_string(), None));
-    } else if offers.is_empty() {
-        body.spawn(small_line(
-            "Offer Empty",
-            "No loaded mod holds one to start from.",
-            UiColor::Label,
-        ));
-    }
-    for offer in offers {
-        body.spawn(row(
-            format!("{} ({})", offer.label, offer.pack),
-            Some(offer.id.clone()),
-        ));
-    }
-}
-
-/// A chooser row: make the item.
-fn on_asset_offer(activate: On<Activate>, mut commands: Commands, rows: Query<&AssetOfferRow>) {
-    let Ok(row) = rows.get(activate.entity).cloned() else {
-        return;
-    };
-    commands.queue(move |world: &mut World| {
-        pressed(world, |world| add_asset(world, row.kind, row.from));
-    });
-}
-
 /// Where a path window opens: the exports folder when it exists, because that
 /// is where a package made here lands.
 fn start_folder() -> PathBuf {
@@ -376,7 +320,7 @@ fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: &FileWindowK
         FileWindowKind::NameMod => Some("Save"),
         FileWindowKind::SaveCopy => Some("Save Copy"),
         FileWindowKind::PickPath(_) => Some("Pick"),
-        FileWindowKind::Packaged(_) | FileWindowKind::NewAsset(_) => None,
+        FileWindowKind::Packaged(_) => None,
     };
     let keep = if go.is_some() { "Cancel" } else { "Close" };
     frame
@@ -474,7 +418,8 @@ pub(crate) fn sync_save_name(
     }
 }
 
-/// The folders and matching files of `dir`, folders first.
+/// The folders and matching files of `dir`, folders first. An empty
+/// `extension` matches every file.
 fn folder_rows(dir: &Path, extension: &str) -> Vec<PathBuf> {
     let Ok(entries) = std::fs::read_dir(dir) else {
         return vec![];
@@ -483,6 +428,7 @@ fn folder_rows(dir: &Path, extension: &str) -> Vec<PathBuf> {
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
         .filter(|path| {
             path.is_dir()
+                || extension.is_empty()
                 || path
                     .extension()
                     .is_some_and(|found| found.eq_ignore_ascii_case(extension))
@@ -587,7 +533,7 @@ pub(crate) fn on_save(
         FileWindowKind::NameMod => name_project(world, &typed),
         FileWindowKind::SaveCopy => save_copy(world, &typed),
         FileWindowKind::PickPath(purpose) => pressed(world, |world| purpose.run(world, &typed)),
-        FileWindowKind::Packaged(_) | FileWindowKind::NewAsset(_) => {}
+        FileWindowKind::Packaged(_) => {}
     });
 }
 

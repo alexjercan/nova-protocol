@@ -37,8 +37,8 @@ use nova_ship::prelude::{
 };
 
 pub(crate) use self::asset::{
-    asset_kind_mut, asset_rows, content_reflect_mut, item_text, part_rows, set_item_text,
-    socket_rows, AssetPressType, AssetTextType, MeshPose,
+    asset_kind_mut, asset_rows, content_reflect_mut, inherited_palette, item_text, part_rows,
+    set_item_text, socket_rows, AssetPressType, AssetTextType, MeshPose,
 };
 use crate::{
     asset::{AssetNode, AssetPartType, SocketNode},
@@ -247,6 +247,11 @@ pub(crate) enum FieldRoot {
     AssetPress(AssetPressType),
     /// A socket's id: the node's [`NodeId`](crate::node::NodeId).
     SocketId,
+    /// One colour of a UI theme's palette, named by the path's one
+    /// [`PathStep::Field`]. Its own root because the palette is a map, which
+    /// the walk has no step for, and because a colour the theme inherits is
+    /// written as a new entry rather than through a path that exists.
+    PaletteColour,
     /// The socket's own fields.
     Socket,
 }
@@ -346,6 +351,22 @@ pub(crate) enum RowValue {
     Key(String),
     /// A button, reading this. Its [`FieldRoot::AssetPress`] says what it does.
     Press(String),
+    /// A UI theme's palette: one named swatch per colour, its own and the ones
+    /// it inherits, as a grid. Each swatch writes through
+    /// [`FieldRoot::PaletteColour`].
+    Palette(Vec<PaletteEntry>),
+}
+
+/// One colour of a palette row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct PaletteEntry {
+    /// The variable's name.
+    pub(crate) name: String,
+    /// Its colour, as `#rrggbb`.
+    pub(crate) hex: String,
+    /// Whether the theme takes it from the theme it inherits rather than
+    /// declaring it.
+    pub(crate) inherited: bool,
 }
 
 impl RowValue {
@@ -380,6 +401,15 @@ impl RowValue {
             Self::Driver(driver) => driver_label(*driver).to_string(),
             Self::WellTarget(Some(WellTargetType::Authored(id))) => format!("Authored({id:?})"),
             Self::WellTarget(target) => well_target_label(target.as_ref()).to_string(),
+            // The palette as it reads in a file, an inherited colour marked.
+            Self::Palette(entries) => entries
+                .iter()
+                .map(|entry| {
+                    let mark = if entry.inherited { "^" } else { "" };
+                    format!("{}={}{mark}", entry.name, entry.hex)
+                })
+                .collect::<Vec<_>>()
+                .join(", "),
         }
     }
 }
@@ -2470,7 +2500,8 @@ pub(crate) const IMPLIED_ALLEGIANCE: &str = "default";
 pub(crate) const STATION_READY: &str = "ready";
 
 /// The rows a ship shows: who flies it, which side it is on, whether it is a
-/// station, and where it sits.
+/// station, and where it sits. `pose` is `None` inside the ship, where it stands
+/// at identity and has no pose to edit.
 ///
 /// Allegiance is READ here, not set: it is what makes a picket dormant and a
 /// hulk inert, so a builder has to be able to see it - but the only way to
@@ -2483,7 +2514,7 @@ pub(crate) const STATION_READY: &str = "ready";
 /// with every fault in its hint. An unmarked ship shows no check.
 pub(crate) fn ship_rows(
     ship: &ShipNode,
-    pose: &Transform,
+    pose: Option<&Transform>,
     station_faults: &[String],
 ) -> Vec<InspectorRow> {
     let mut rows = vec![
@@ -2539,7 +2570,7 @@ pub(crate) fn ship_rows(
         };
         rows.push(check);
     }
-    rows.extend(pose_rows(pose));
+    rows.extend(pose.into_iter().flat_map(pose_rows));
     rows
 }
 

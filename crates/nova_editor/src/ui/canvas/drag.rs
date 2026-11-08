@@ -446,6 +446,11 @@ impl DragStage<'_, '_> {
                 GlobalZIndex(GHOST_Z),
                 Pickable::IGNORE,
                 UiTransform::default(),
+                Outline {
+                    width: px(2),
+                    offset: px(2),
+                    color: Color::NONE,
+                },
                 Node {
                     position_type: PositionType::Absolute,
                     flex_direction: FlexDirection::Column,

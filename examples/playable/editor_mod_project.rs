@@ -279,14 +279,8 @@ mod smoke {
                 BEAT_SECS,
             )
             .click_named(
-                "mod project: add a scenario",
+                "mod project: add a blank scenario",
                 "Asset Add Scenarios",
-                ui_node_present("Template Duelling Arena"),
-                BEAT_SECS,
-            )
-            .click_named(
-                "mod project: pick the arena",
-                "Template Duelling Arena",
                 reads("Scenarios 2"),
                 BEAT_SECS,
             );
