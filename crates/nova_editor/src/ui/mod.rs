@@ -1810,20 +1810,28 @@ pub(crate) fn on_scene_row(
 /// the node: they both write [`EditorStatus`], and this is the only thing that
 /// touches the text. It also holds the clock: a verb's message is dropped here
 /// once its hold is over, so every other reader sees the line as it reads.
+///
+/// A message longer than its row ends in `...` before the selection readout
+/// beside it, rather than running up to it cut mid-word.
 pub(crate) fn sync_status_line(
     time: Res<Time>,
     theme: Res<ActiveUiTheme>,
     mut status: ResMut<EditorStatus>,
-    lines: Query<(&mut Text, &mut TextColor, &mut Visibility), With<PlacementStatus>>,
+    lines: Query<(&mut Text, &mut TextColor, &mut Visibility, &ChildOf), With<PlacementStatus>>,
+    rows: Query<&ComputedNode>,
 ) {
     status.expire(time.elapsed_secs_f64());
     let line = status.line();
-    for (mut text, mut colour, mut visibility) in lines {
+    for (mut text, mut colour, mut visibility, row) in lines {
         match line {
             Some((message, tint)) => {
                 let tint = theme.color(tint);
-                if text.0 != message {
-                    text.0 = message.to_string();
+                let width = rows
+                    .get(row.parent())
+                    .map_or(0.0, |row| row.size().x * row.inverse_scale_factor());
+                let fitted = fit_status(message, width);
+                if text.0 != fitted {
+                    text.0 = fitted;
                 }
                 if colour.0 != tint {
                     colour.0 = tint;
@@ -1839,6 +1847,21 @@ pub(crate) fn sync_status_line(
             }
         }
     }
+}
+
+/// The advance of one character of the 12px status line, in logical px. The
+/// UI face is monospace at half an em.
+const STATUS_ADVANCE: f32 = 6.0;
+
+/// `message` cut to what `width` logical px of status line hold, its end given
+/// up for `...`. A row not laid out yet (`width` 0) takes the whole message.
+pub(crate) fn fit_status(message: &str, width: f32) -> String {
+    let room = (width / STATUS_ADVANCE).floor() as usize;
+    if width <= 0.0 || message.chars().count() <= room {
+        return message.to_string();
+    }
+    let kept: String = message.chars().take(room.saturating_sub(3)).collect();
+    format!("{kept}...")
 }
 
 /// Disable Play in a ship's document.
@@ -4063,5 +4086,17 @@ mod tests {
             app.world().get::<Node>(chip).expect("the chip").display,
             Display::None
         );
+    }
+
+    /// A long status line, such as the path a package was copied to, ends in
+    /// `...` inside its row rather than running into the selection readout.
+    #[test]
+    fn a_long_status_line_ends_in_an_ellipsis_inside_its_row() {
+        let path = "Copied /tmp/runs/e-pkg-1920/cache/exports/red-run-0.1.0.zip";
+        assert_eq!(fit_status(path, 1000.0), path);
+        assert_eq!(fit_status(path, 0.0), path, "a row not laid out yet");
+        let fitted = fit_status(path, 120.0);
+        assert_eq!(fitted, "Copied /tmp/runs/...");
+        assert!(fitted.chars().count() as f32 * STATUS_ADVANCE <= 120.0);
     }
 }
