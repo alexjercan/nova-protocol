@@ -18,7 +18,7 @@
 use bevy::{
     prelude::*,
     reflect::{
-        enums::{DynamicEnum, DynamicVariant, VariantInfo},
+        enums::{DynamicEnum, DynamicVariant, EnumInfo, VariantInfo},
         structs::DynamicStruct,
         tuple::DynamicTuple,
         tuple_struct::DynamicTupleStruct,
@@ -65,6 +65,7 @@ use crate::{
 };
 
 mod asset;
+mod fresh;
 
 /// The document nodes the inspector can be pointed at, so one `get` answers
 /// which kind of panel to draw.
@@ -304,9 +305,11 @@ pub(crate) enum RowValue {
     Flag(bool),
     /// One of a fixed set of names, and which is chosen.
     ///
-    /// Only ever built for an enum whose variants ALL carry no fields. A
-    /// variant with fields cannot be offered as a choice: switching to it would
-    /// mean inventing values nobody authored. See the enum arm of [`walk`].
+    /// An enum offers every variant a switch can start: one of the held shape
+    /// carries its values across, and one of another shape starts from a
+    /// fresh value whose empty ids the content lint names. An optional field
+    /// offers `none` beside what it can hold. See the enum arm of [`walk`] and
+    /// [`walk_option`].
     Choice {
         /// Every variant, in declaration order.
         options: Vec<String>,
@@ -1763,7 +1766,12 @@ fn walk(
                 walk(field, root, at.clone(), out);
                 declare_by_owner(value.get_represented_type_info(), &at, &mut out[first..]);
                 for row in &mut out[first..] {
-                    row.names = names;
+                    // The INNERMOST declaration wins, like the doc below: a
+                    // spawn's `base` says nothing of names, and its `id` says
+                    // it mints one.
+                    if row.names.is_none() {
+                        row.names = names;
+                    }
                     // The INNERMOST doc wins: a struct's own field said what
                     // this one number is, where the field that holds the whole
                     // struct could only say what the struct is.
@@ -1779,6 +1787,29 @@ fn walk(
                     continue;
                 };
                 walk(field, root, step(&path, PathStep::Slot(index)), out);
+            }
+        }
+        ReflectRef::Tuple(fields) => {
+            // A tuple's slots have no names to read, so the owner's table
+            // names them: a scatter's `(kind, weight)` pair is two rows called
+            // Kind and Weight under the entry, not two rows both called by
+            // the entry's own name.
+            let named = slot_names(&path);
+            let group = segments(&path);
+            for index in 0..fields.field_len() {
+                let Some(field) = fields.field(index) else {
+                    continue;
+                };
+                let at = step(&path, PathStep::Slot(index));
+                let first = out.len();
+                walk(field, root, at.clone(), out);
+                let label = named
+                    .and_then(|named| named.get(index))
+                    .map_or_else(|| (index + 1).to_string(), ToString::to_string);
+                for row in out[first..].iter_mut().filter(|row| row.path == at) {
+                    row.group.clone_from(&group);
+                    row.label.clone_from(&label);
+                }
             }
         }
         ReflectRef::List(items) => {
@@ -1801,13 +1832,21 @@ fn walk(
                 Some(TypeInfo::Enum(info)) => info.variant(chosen.variant_name()),
                 _ => None,
             };
+            // What the VARIANT declares its payload names: a camera that looks
+            // at `Object(id)` offers the objects.
+            let names = variant
+                .and_then(VariantInfo::get_attribute::<Names>)
+                .copied();
             let variant = hint_of(variant.and_then(VariantInfo::docs));
-            // A variant that carries FIELDS of its own shape is a readout, not
-            // a choice: switching to one would mean inventing every field of
-            // it that nobody has authored. An enum whose variants are all bare
-            // names, or all carry the same fields, has nothing to invent, so
-            // it is offered as a choice.
-            let reading = match switchable_variants(value) {
+            // Every variant is offered that a switch can START: one of the
+            // same shape carries the held values across, and one of another
+            // shape starts from a fresh value (see [`fresh`]) whose empty ids
+            // the content lint names. A variant whose fields cannot be built
+            // is left out. The config's own ROOT is not switched here: that is
+            // the node's kind, which the palette places.
+            let offered = switchable_variants(value)
+                .or_else(|| (!path.is_empty()).then(|| fresh_variants(value)).flatten());
+            let reading = match offered {
                 Some(offered) => {
                     let name = chosen.variant_name();
                     RowValue::Choice {
@@ -1833,6 +1872,11 @@ fn walk(
                 let first = out.len();
                 walk(field, root, inner.clone(), out);
                 declare_by_owner(value.get_represented_type_info(), &inner, &mut out[first..]);
+                for row in &mut out[first..] {
+                    if row.names.is_none() {
+                        row.names = names;
+                    }
+                }
             }
         }
         ReflectRef::Map(entries) => {
@@ -1901,22 +1945,53 @@ fn walk_option(
         out.push(row);
         return;
     }
-    if !present {
-        out.push(walked(
-            root,
-            path,
-            true,
-            RowValue::Fixed(NOTHING.to_string()),
-        ));
+    let held = match value.reflect_ref() {
+        ReflectRef::Enum(chosen) => chosen.field_at(0),
+        _ => None,
+    };
+    let Some(offered) = payload.and_then(option_choices) else {
+        // A payload nothing can start: the field is shown, not switched.
+        match held {
+            Some(inner) => walk(inner, root, step(&path, PathStep::Slot(0)), out),
+            None => out.push(walked(
+                root,
+                path,
+                true,
+                RowValue::Fixed(NOTHING.to_string()),
+            )),
+        }
+        return;
+    };
+    // A set of NAMES is the whole value in one choice; anything else is
+    // `none` or `set`, with what it holds walked under it.
+    let names = offered.get(1).is_some_and(|(name, _)| name != fresh::SET);
+    let chosen = match (held, names) {
+        (None, _) => 0,
+        (Some(inner), true) => match inner.reflect_ref() {
+            ReflectRef::Enum(variant) => offered
+                .iter()
+                .position(|(name, _)| name == variant.variant_name())
+                .unwrap_or(0),
+            _ => 0,
+        },
+        (Some(_), false) => 1,
+    };
+    out.push(walked(
+        root,
+        path.clone(),
+        true,
+        RowValue::Choice {
+            options: offered.iter().map(|(name, _)| name.clone()).collect(),
+            hints: offered.into_iter().map(|(_, hint)| hint).collect(),
+            chosen,
+        },
+    ));
+    if names || !present {
         return;
     }
-    let ReflectRef::Enum(chosen) = value.reflect_ref() else {
-        return;
-    };
-    let Some(inner) = chosen.field_at(0) else {
-        return;
-    };
-    walk(inner, root, step(&path, PathStep::Slot(0)), out);
+    if let Some(inner) = held {
+        walk(inner, root, step(&path, PathStep::Slot(0)), out);
+    }
 }
 
 /// Every variant name of `value`, but ONLY when a switch between them invents
@@ -1930,6 +2005,11 @@ fn switchable_variants(value: &dyn PartialReflect) -> Option<Vec<(String, String
     let TypeInfo::Enum(info) = value.get_represented_type_info()? else {
         return None;
     };
+    switchable_variants_of(info)
+}
+
+/// [`switchable_variants`] of the enum type `info`.
+fn switchable_variants_of(info: &EnumInfo) -> Option<Vec<(String, String)>> {
     let shape = |variant: &VariantInfo| -> Vec<&'static str> {
         match variant {
             VariantInfo::Unit(_) => Vec::new(),
@@ -1943,6 +2023,81 @@ fn switchable_variants(value: &dyn PartialReflect) -> Option<Vec<(String, String
             (shape(variant) == first).then(|| (variant.name().to_string(), hint_of(variant.docs())))
         })
         .collect()
+}
+
+/// Every variant of `value` a switch can START, each with what it means.
+///
+/// The held variant always, and every other one whose fields [`fresh`] can
+/// build. `None` where fewer than two are left, which leaves nothing to
+/// choose between.
+fn fresh_variants(value: &dyn PartialReflect) -> Option<Vec<(String, String)>> {
+    let info = value.get_represented_type_info()?;
+    let TypeInfo::Enum(variants) = info else {
+        return None;
+    };
+    let ReflectRef::Enum(held) = value.reflect_ref() else {
+        return None;
+    };
+    let offered: Vec<(String, String)> = variants
+        .iter()
+        .filter(|variant| variant.name() == held.variant_name() || fresh::buildable(info, variant))
+        .map(|variant| (variant.name().to_string(), hint_of(variant.docs())))
+        .collect();
+    (offered.len() > 1).then_some(offered)
+}
+
+/// What the slots of the tuple at `path` are called, named by the field that
+/// holds it. A tuple has no field names to read, and a slot without one is
+/// labelled by its place.
+const SLOT_NAMES: &[(&str, &[&str])] = &[
+    ("asteroid_kinds", &["Kind", "Weight"]),
+    ("asteroid_radius", &["Min", "Max"]),
+    ("motion", &["Velocity", "Spin"]),
+];
+
+/// The [`SLOT_NAMES`] entry for the tuple at `path`.
+fn slot_names(path: &[PathStep]) -> Option<&'static [&'static str]> {
+    let field = path.iter().rev().find_map(|step| match step {
+        PathStep::Field(name) => Some(name.as_str()),
+        _ => None,
+    })?;
+    SLOT_NAMES
+        .iter()
+        .find(|(name, _)| *name == field)
+        .map(|(_, named)| *named)
+}
+
+/// The choice an optional field that is not one box offers: nothing, or one
+/// thing.
+///
+/// An optional set of NAMES offers each name beside `none`, so a ship order
+/// kind is one control. Anything else offers `none` and [`fresh::SET`], and a
+/// set one walks its fields under the choice. `None` where the payload cannot
+/// be built fresh, which leaves the field a readout.
+fn option_choices(payload: &'static TypeInfo) -> Option<Vec<(String, String)>> {
+    let mut offered = vec![(
+        NOTHING.to_string(),
+        "Not set: the game's own default applies.".to_string(),
+    )];
+    if let TypeInfo::Enum(variants) = payload {
+        if variants
+            .iter()
+            .all(|variant| matches!(variant, VariantInfo::Unit(_)))
+        {
+            offered.extend(
+                variants
+                    .iter()
+                    .map(|variant| (variant.name().to_string(), hint_of(variant.docs()))),
+            );
+            return Some(offered);
+        }
+    }
+    fresh::fresh(payload).ok()?;
+    offered.push((
+        fresh::SET.to_string(),
+        "Set: author the fields below.".to_string(),
+    ));
+    Some(offered)
 }
 
 /// `path` with one more step on the end.
@@ -2365,10 +2520,11 @@ pub(crate) fn write_field(
 /// Switch the enum at `path` to its `variant`.
 ///
 /// The same rule that decides whether the row is a choice at all
-/// ([`switchable_variants`]): a bare name carries nothing across, and a
-/// variant of the same shape takes the held values in order - a goal of six
-/// hulls switched to jobs asks for six jobs. The whole switch is one
-/// `try_apply`.
+/// ([`switchable_variants`], [`fresh_variants`], [`option_choices`]). A
+/// variant of the held shape takes the held values in order - a goal of six
+/// hulls switched to jobs asks for six jobs. A variant of another shape keeps
+/// every field the two share by name and type, and starts the rest fresh. The
+/// whole switch is one `try_apply`.
 pub(crate) fn choose_field(
     root: &mut dyn PartialReflect,
     path: &[PathStep],
@@ -2384,38 +2540,130 @@ pub(crate) fn choose_field(
             .try_apply(&variant.to_string())
             .map_err(|error| format!("refused: {error}"));
     }
-    let Some(TypeInfo::Enum(info)) = target.get_represented_type_info() else {
+    if is_option(target) {
+        let wanted = optional_choice(target, variant)?;
+        return target
+            .try_apply(wanted.as_ref())
+            .map_err(|error| format!("refused: {error}"));
+    }
+    let wanted = switched(target, variant)?;
+    target
+        .try_apply(wanted.as_ref())
+        .map_err(|error| format!("refused: {error}"))
+}
+
+/// The enum `held` switched to `variant`, as the value to apply.
+fn switched(held: &dyn PartialReflect, variant: &str) -> Result<Box<dyn PartialReflect>, String> {
+    let Some(info @ TypeInfo::Enum(variants)) = held.get_represented_type_info() else {
         return Err("not a choice".to_string());
     };
-    let ReflectRef::Enum(held) = target.reflect_ref() else {
+    let ReflectRef::Enum(held) = held.reflect_ref() else {
         return Err("not a choice".to_string());
     };
+    let Some(wanted) = variants.variant(variant) else {
+        return Err(format!("{variant} is not one of the options"));
+    };
+    if held.variant_name() == variant {
+        return Ok(held.to_dynamic());
+    }
     let carried: Vec<Box<dyn PartialReflect>> = held
         .iter_fields()
         .map(|field| field.value().to_dynamic())
         .collect();
-    let shape = match info.variant(variant) {
-        Some(VariantInfo::Unit(_)) => DynamicVariant::Unit,
-        Some(VariantInfo::Struct(fields)) => {
-            let mut wanted = DynamicStruct::default();
-            for (field, value) in fields.iter().zip(carried) {
-                wanted.insert_boxed(field.name(), value);
+    let same_shape = switchable_variants_of(variants).is_some();
+    let shape = match wanted {
+        VariantInfo::Unit(_) => DynamicVariant::Unit,
+        VariantInfo::Struct(fields) => {
+            let mut built = DynamicStruct::default();
+            for (index, field) in fields.iter().enumerate() {
+                let kept = if same_shape {
+                    carried.get(index).map(|value| value.to_dynamic())
+                } else {
+                    held.field(field.name())
+                        .filter(|value| {
+                            value
+                                .get_represented_type_info()
+                                .is_some_and(|held| held.type_path() == field.type_path())
+                        })
+                        .map(PartialReflect::to_dynamic)
+                };
+                let value = match kept {
+                    Some(value) => value,
+                    None => fresh_field(info, field.type_info(), field.type_path())?,
+                };
+                built.insert_boxed(field.name(), value);
             }
-            DynamicVariant::Struct(wanted)
+            DynamicVariant::Struct(built)
         }
-        Some(VariantInfo::Tuple(_)) => {
-            let mut wanted = DynamicTuple::default();
-            for value in carried {
-                wanted.insert_boxed(value);
+        VariantInfo::Tuple(fields) => {
+            let mut built = DynamicTuple::default();
+            for (index, field) in fields.iter().enumerate() {
+                let kept = carried.get(index).filter(|value| {
+                    value
+                        .get_represented_type_info()
+                        .is_some_and(|held| held.type_path() == field.type_path())
+                });
+                let value = match kept {
+                    Some(value) => value.to_dynamic(),
+                    None => fresh_field(info, field.type_info(), field.type_path())?,
+                };
+                built.insert_boxed(value);
             }
-            DynamicVariant::Tuple(wanted)
+            DynamicVariant::Tuple(built)
         }
-        None => return Err(format!("{variant} is not one of the options")),
     };
-    let wanted = DynamicEnum::new(variant, shape);
-    target
-        .try_apply(&wanted)
-        .map_err(|error| format!("refused: {error}"))
+    let mut built = DynamicEnum::new(variant, shape);
+    built.set_represented_type(Some(info));
+    Ok(Box::new(built))
+}
+
+/// A fresh value for one field of a variant being switched to.
+fn fresh_field(
+    owner: &'static TypeInfo,
+    info: Option<&'static TypeInfo>,
+    type_path: &str,
+) -> Result<Box<dyn PartialReflect>, String> {
+    let info = info.ok_or_else(|| format!("{type_path} has no shape"))?;
+    fresh::fresh(info).map_err(|reason| format!("{}: {reason}", short_type(owner.type_path())))
+}
+
+/// The optional `held` set to the option `variant` names: [`NOTHING`], one of
+/// its payload's names, or [`fresh::SET`].
+fn optional_choice(
+    held: &dyn PartialReflect,
+    variant: &str,
+) -> Result<Box<dyn PartialReflect>, String> {
+    let payload = option_payload(held).ok_or_else(|| "not optional".to_string())?;
+    let info = held
+        .get_represented_type_info()
+        .ok_or_else(|| "not optional".to_string())?;
+    let inner = match variant {
+        NOTHING => None,
+        fresh::SET => match held.reflect_ref() {
+            // Already set: a second press keeps what is authored.
+            ReflectRef::Enum(chosen) if chosen.field_len() > 0 => return Ok(held.to_dynamic()),
+            _ => Some(fresh::fresh(payload)?),
+        },
+        name => {
+            let TypeInfo::Enum(variants) = payload else {
+                return Err(format!("{name} is not one of the options"));
+            };
+            let wanted = variants
+                .variant(name)
+                .ok_or_else(|| format!("{name} is not one of the options"))?;
+            Some(fresh::fresh_variant(payload, wanted, 0)?)
+        }
+    };
+    let mut built = match inner {
+        None => DynamicEnum::new("None", DynamicVariant::Unit),
+        Some(inner) => {
+            let mut fields = DynamicTuple::default();
+            fields.insert_boxed(inner);
+            DynamicEnum::new("Some", DynamicVariant::Tuple(fields))
+        }
+    };
+    built.set_represented_type(Some(info));
+    Ok(Box::new(built))
 }
 
 /// Put `target` into the well-target field at `path`.

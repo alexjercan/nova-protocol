@@ -22,13 +22,13 @@ use nova_ship::prelude::{
 use super::*;
 use crate::{
     event::{
-        action_config_mut, expr_config_mut, ActionChoice, ActionChoiceExt, ActionKind, ActionNode,
-        EventNode, ExprChoice, ExpressionNode, FilterChoice, FilterKind, FilterNode, ScriptNode,
-        SequenceHead, StepNode,
+        action_config_mut, expr_config_mut, filter_config_mut, ActionChoice, ActionChoiceExt,
+        ActionKind, ActionNode, EventNode, ExprChoice, ExpressionNode, FilterChoice, FilterKind,
+        FilterNode, ScriptNode, SequenceHead, StepNode,
     },
     node::{
-        EditorNode, NextChildOrdinal, NodeId, ObjectNode, ScenarioNode, SectionNode, ShipDriver,
-        ShipNode,
+        EditorNode, NextChildOrdinal, NodeId, ObjectChoice, ObjectNode, ScenarioNode, SectionNode,
+        ShipDriver, ShipNode,
     },
 };
 
@@ -537,10 +537,10 @@ fn choosing_a_name_switches_the_variant() {
     assert_eq!(options[*chosen], "Rect");
 }
 
-/// A variant that CARRIES something stays a readout: switching to it would
-/// mean inventing every field of it.
+/// A node's OWN kind is not switched from its rows: an object's kind config
+/// is the node's kind, and the palette is what places one.
 #[test]
-fn a_variant_with_fields_is_not_offered_as_a_choice() {
+fn a_nodes_own_kind_variant_is_a_readout() {
     let object = ObjectNode {
         name: "sun".to_string(),
         kind: ScenarioObjectKind::Light(LightConfig::Directional {
@@ -2488,4 +2488,141 @@ fn a_hull_held_as_an_object_says_it_is_preserved_as_authored() {
         .expect("a hull leads with the row");
 
     assert!(matches!(&row.value, RowValue::Fixed(text) if text == "preserved as authored"));
+}
+
+/// A stock action of `choice`, as the palette drops it.
+fn stock_action(choice: ActionChoice) -> ActionNode {
+    ActionNode {
+        kind: choice.stock(),
+    }
+}
+
+/// Switch the field the row `label` of `node` edits to `option`.
+fn choose_on(node: &mut ActionNode, label: &str, option: &str) -> Result<(), String> {
+    let path = row(&action_rows(node), label).path.clone();
+    let config = action_config_mut(&mut node.kind).expect("the action has a config");
+    choose_field(config, &path, option)
+}
+
+/// A scatter region switched to a ring is a ring: its own fields start fresh
+/// and the box corners are gone.
+#[test]
+fn a_scatter_region_switches_shape_and_starts_the_new_shape_fresh() {
+    let mut node = stock_action(ActionChoice::ScatterObjects);
+    let rows = action_rows(&node);
+    let RowValue::Choice { options, .. } = &row(&rows, "Region").value else {
+        panic!("the region is a choice: {:?}", row(&rows, "Region").value);
+    };
+    assert_eq!(options, &["Box", "Ring"]);
+
+    choose_on(&mut node, "Region", "Ring").expect("a ring starts fresh");
+
+    let rows = action_rows(&node);
+    assert_eq!(row(&rows, "Region").value.reading(), "Ring");
+    assert_eq!(row(&rows, "Outer").value, RowValue::Number("0".to_string()));
+    assert!(rows.iter().all(|row| row.label != "Min"), "the box is gone");
+}
+
+/// A spawn switched to a beacon spawns the beacon the palette places, not a
+/// beacon of radius zero.
+#[test]
+fn a_spawned_object_switched_to_a_beacon_takes_the_palette_beacon() {
+    let mut node = stock_action(ActionChoice::SpawnScenarioObject);
+
+    choose_on(&mut node, "Kind", "Beacon").expect("a beacon has a stock");
+
+    let config = action_config(&node.kind).expect("a config");
+    let held = peek(
+        config,
+        &[PathStep::Field("kind".to_string()), PathStep::Slot(0)],
+    )
+    .expect("the beacon");
+    let ScenarioObjectKind::Beacon(stock) = ObjectChoice::Beacon.stock().kind else {
+        panic!("the palette beacon is a beacon");
+    };
+    assert_eq!(held.reflect_partial_eq(&stock), Some(true));
+}
+
+/// An optional struct is `none` or `set`. Set, its fields are rows under it;
+/// back to `none`, they are gone.
+#[test]
+fn an_optional_blend_is_set_fresh_and_cleared_to_none() {
+    let mut node = stock_action(ActionChoice::SetCamera);
+    assert_eq!(row(&action_rows(&node), "Blend").value.reading(), NOTHING);
+
+    choose_on(&mut node, "Blend", "set").expect("a blend starts fresh");
+    let rows = action_rows(&node);
+    assert_eq!(row(&rows, "Blend").value.reading(), "set");
+    assert!(rows.iter().any(|row| row.label == "Seconds"));
+
+    choose_on(&mut node, "Blend", NOTHING).expect("a blend clears");
+    let rows = action_rows(&node);
+    assert_eq!(row(&rows, "Blend").value.reading(), NOTHING);
+    assert!(rows.iter().all(|row| row.label != "Seconds"));
+}
+
+/// An optional set of names is ONE choice: nothing, or each name.
+#[test]
+fn an_optional_order_kind_is_one_choice_of_none_and_each_name() {
+    let mut node = FilterNode {
+        kind: FilterChoice::ShipOrder.stock(),
+    };
+    let path = row(&filter_rows(&node), "Kind").path.clone();
+    let config = filter_config_mut(&mut node.kind).expect("a config");
+
+    choose_field(config, &path, "Dock").expect("a name");
+    let rows = filter_rows(&node);
+    assert_eq!(row(&rows, "Kind").value.reading(), "Dock");
+
+    let config = filter_config_mut(&mut node.kind).expect("a config");
+    choose_field(config, &path, NOTHING).expect("nothing");
+    assert_eq!(row(&filter_rows(&node), "Kind").value.reading(), NOTHING);
+
+    let config = filter_config_mut(&mut node.kind).expect("a config");
+    assert!(choose_field(config, &path, "Warp").is_err());
+}
+
+/// A camera switched to look at an object offers the objects, because the
+/// variant declares what its id names.
+#[test]
+fn a_camera_looking_at_an_object_offers_the_objects() {
+    let mut node = stock_action(ActionChoice::SetCameraAnchor);
+
+    choose_on(&mut node, "Look At", "Object").expect("an object id starts empty");
+
+    let rows = action_rows(&node);
+    let id = rows
+        .iter()
+        .find(|row| row.label == "Look At" && matches!(row.value, RowValue::Text(_)))
+        .expect("the object id row");
+    assert_eq!(id.names, Some(Names::Object));
+}
+
+/// A spawn's id is one it MINTS: the struct holding it names nothing, and
+/// must not wipe what the id field declares.
+#[test]
+fn a_spawn_id_keeps_the_names_its_own_field_declares() {
+    let rows = action_rows(&stock_action(ActionChoice::SpawnScenarioObject));
+    let id = rows
+        .iter()
+        .find(|row| row.label == "Id")
+        .expect("the base id row");
+
+    assert_eq!(id.names, Some(Names::NewObject));
+}
+
+/// A scatter's mix entry reads as its two parts, each in its own control.
+#[test]
+fn a_scatter_mix_entry_reads_as_kind_and_weight() {
+    let rows = action_rows(&stock_action(ActionChoice::ScatterObjects));
+
+    let kind = rows
+        .iter()
+        .find(|row| row.label == "Kind" && row.group == ["Asteroid Kinds 1"])
+        .expect("the mix entry's kind row");
+    assert!(matches!(kind.value, RowValue::Choice { .. }));
+    assert_eq!(
+        row(&rows, "Weight").value,
+        RowValue::Number("1".to_string())
+    );
 }
