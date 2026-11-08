@@ -11,7 +11,7 @@
 use std::collections::BTreeMap;
 
 use bevy::{prelude::*, reflect::PartialReflect};
-use nova_gameplay::prelude::{ItemDesignId, ShipInventoryStock};
+use nova_gameplay::prelude::{ItemCategoryType, ItemDesignId, ShipInventoryStock};
 use nova_modding::prelude::Content;
 use nova_ship::prelude::{RenderMeshTransform, SectionCollider, SectionConfig};
 use nova_ui::theme::UiThemeConfig;
@@ -87,6 +87,15 @@ impl AssetListType {
         matches!(self, Self::Parts | Self::Stock)
     }
 
+    /// Whether `item` may stand on a row: a build recipe takes only items of
+    /// the Parts category, which is what the recipe lint holds it to.
+    pub(crate) fn takes(self, item: &Content) -> bool {
+        match (self, item) {
+            (Self::Parts, Content::Item(design)) => design.category == ItemCategoryType::Parts,
+            _ => item.kind() == self.names_kind(),
+        }
+    }
+
     /// The content kind a row names.
     pub(crate) fn names_kind(self) -> &'static str {
         match self {
@@ -98,7 +107,8 @@ impl AssetListType {
     /// A row's content kind with its article, for a refusal.
     pub(crate) fn noun(self) -> &'static str {
         match self {
-            Self::Parts | Self::Stock => "an item",
+            Self::Parts => "a Parts item",
+            Self::Stock => "an item",
             Self::Scenarios => "a scenario",
         }
     }

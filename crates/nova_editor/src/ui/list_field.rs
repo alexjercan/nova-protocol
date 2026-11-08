@@ -113,10 +113,9 @@ pub(super) fn spawn_list_row(
     });
 }
 
-/// Every id of `kind` the mod sees, with its name and where it comes from:
-/// the mod's own content, then each visible pack's.
+/// Every id `kind` takes that the mod sees, with its name and where it comes
+/// from: the mod's own content, then each visible pack's.
 fn list_choices(kind: AssetListType, project: &ModProject, index: &AssetIndex) -> Vec<ListChoice> {
-    let wanted = kind.names_kind();
     let named = |item: &Content, from: &str| {
         let name = match item {
             Content::Item(design) => design.name.clone(),
@@ -128,11 +127,11 @@ fn list_choices(kind: AssetListType, project: &ModProject, index: &AssetIndex) -
     let mut choices: Vec<ListChoice> = project
         .data
         .items()
-        .filter(|item| item.kind() == wanted)
+        .filter(|item| kind.takes(item))
         .map(|item| named(item, "this mod"))
         .collect();
     for pack in index.visible_packs(&project.data.meta.dependencies) {
-        for item in pack.items.iter().filter(|item| item.kind() == wanted) {
+        for item in pack.items.iter().filter(|item| kind.takes(item)) {
             if !choices.iter().any(|held| held.id == item.id()) {
                 choices.push(named(item, pack.id));
             }
@@ -147,14 +146,14 @@ fn list_choices(kind: AssetListType, project: &ModProject, index: &AssetIndex) -
 pub(crate) fn fill_list_choices(
     project: Option<Res<ModProject>>,
     index: AssetIndex,
-    fresh: Query<(), Added<InspectorList>>,
     mut lists: Query<(&mut InspectorList, &mut ListEditor)>,
     assets: Query<&AssetNode>,
 ) {
     let Some(project) = project else {
         return;
     };
-    if fresh.is_empty() && !project.is_changed() {
+    let fresh = lists.iter_mut().any(|(list, _)| list.is_added());
+    if !fresh && !project.is_changed() {
         return;
     }
     for (mut list, mut editor) in &mut lists {
@@ -169,12 +168,9 @@ pub(crate) fn fill_list_choices(
             .filter(|choice| !listed.iter().any(|entry| entry.id == choice.id))
             .collect();
         editor.empty_reason = if list.known.is_empty() {
-            format!(
-                "the mod sees no {} - add one or a dependency",
-                list.kind.names_kind()
-            )
+            "the mod sees none: add one, or a dependency that has one".to_string()
         } else {
-            format!("every {} the mod sees is listed", list.kind.names_kind())
+            "everything the mod sees is listed".to_string()
         };
     }
 }

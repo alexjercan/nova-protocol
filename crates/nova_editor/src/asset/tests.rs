@@ -805,7 +805,7 @@ fn the_parts_list_adds_removes_and_refuses() {
     );
     assert_eq!(
         refused(ListEditType::Add("gold".into())),
-        Err("gold is not an item this mod sees".to_string())
+        Err("gold is not a Parts item this mod sees".to_string())
     );
     assert_eq!(
         refused(ListEditType::Count(0, "0".into())),
