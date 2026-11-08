@@ -160,6 +160,21 @@ Agent assumptions, not confirmed by the owner:
   to step back. The editor keys are constants; the editor has no rebind rows
   for them. Slice 14 chose this.
 
+- S15: one nova_ui `icon_button` for every close, remove and delete x.
+  `Dismiss` loses no data (a window close, an entry taken off a list, which
+  undoes); `Delete` deletes data and is the only type lit in the danger
+  colour. The x of a marked row is armed: lit at rest, because the muted
+  glyph did not show on the selected fill. Slice 14 chose this.
+- S5: Ctrl+A and Ctrl+C act on the Log or Problems list only while the
+  pointer is over it; elsewhere they keep their document meaning. Copy is
+  desktop only through bevy `system_clipboard` (arboard, already in the
+  lock); the web build refuses with a reason. Slice 14 chose this.
+- S13: Greeble Rules and UI theme Roles stay readouts. Both types are
+  `#[reflect(ignore)]` and not Reflect, so the row walk cannot reach them.
+  Ids the author mints (Base Id, Scatter Id Prefix, Sequence Key, fixture
+  ids) stay text with the content lint's rule; ids that name something are
+  pickers. Slice 14 chose this.
+
 ## Agent findings
 
 All line numbers are from `51397ef7a`. Read before building on them.
@@ -1179,6 +1194,138 @@ Limits:
 - A refusal stays on the status line after a view change
   (`files-*-stage-menu.png` still shows the loose-drop line).
 
+### Slice 14 notes
+
+Owner review 3, S1 to S17, on master from `0f864d840` to the commit that
+adds these notes. Frames are in `frames/slice14/`; each one was read.
+
+| Item | Status | Commits | Evidence |
+| --- | --- | --- | --- |
+| S1 despawned `Selected` WARN | DONE | `0f864d840` | 0 `despawned` lines in every final walk |
+| S2/S8 Blender-style Add menu | DONE | `b9b4435c4`, `b513f40fb`, `3ce8ff9ad`, `de74aa221` | nova_ui `cascade` tests; `editor_shell` Add and Shift+A beats; `add-menu-*`, `add-search-*` |
+| S3 place a ship design | DONE | `d90c9faff`, `3ce8ff9ad` | `a_placed_design_stays_a_reference_to_the_design`; drag, Place in Scenario, Add > Ship > design |
+| S4 rail filters the palette | DONE | `461b50b3f` | `a_rail_click_shows_one_group_and_a_second_click_shows_all`, `the_palette_shows_what_the_group_and_the_filter_both_allow`; `editor_blocks` "the Events group shows 45 of 120 blocks"; `s4-rail-filter-*` |
+| S5 copy out of Log and Problems | DONE | `f74bee0b8`, `2b51d5f60`, `4a1066b1a` | 7 `ui::row_copy` tests, `a_copied_problem_line_carries_its_node_path`; `editor_mod_project` `PASS Copy said "Copied 3 lines"`, `PASS Ctrl+C said "Copied 16 lines"`; `s5-copy-*` |
+| S6 asset labels | DONE | `4cc274e17`, `067d96900` | `a_tile_prints_its_name_over_its_kind`; `s6-assets-before-*`, `s6-assets-after-*` |
+| S7 right click on empty Assets | DONE | `3ce8ff9ad` | `assets-empty-menu-1920.png` |
+| S9 every ship opens alone | DONE | `243513ff3`, `3fad29d39`, `3dac6b273`, `639fd37ab` | `editor_shell` Back and Open Ship beats; `system_ship_editor`; `back-button-*` |
+| S10 Package window | DONE | `f74bee0b8`, `2b51d5f60` | `a_bump_steps_one_part_and_zeroes_the_parts_after_it` and 4 more; `editor_mod_project` `PASS packaged ... red-run-0.1.0.zip, 3266 bytes`, `PASS a bump is one undo step`, the refusal PASS; `s10-package-*` |
+| S11 dependencies as rows | DONE | `151ad27eb`, `e917feaf7` | list editor tests; `editor_mod_project` dependency beats; `deps-*` |
+| S12 `+` popup and centred follow-up | DONE | `3ce8ff9ad` | `assets-plus-*`, `section-kind-*` |
+| S13 no text box for complex data | DONE | `ab155411b`, `e7b8cf91c`, `c53f7d77e`, `7e5e47d48`, `bcc27a8b4`, `ee2b27f12`, `66852fca3`, `2ae845621`, `f6b0059c6`, `2808f8d72` | the audit table below; `every_list_control_of_every_form_and_block_lands` and the per-list add, remove and refusal tests; `s13-*`, `parts-*` |
+| S14 ad-hoc ship under its scenario | DONE | `243513ff3` | `a_scenario_ship_shelves_under_its_scenario` |
+| S15 shared icon button | DONE | `c9ebd8b04`, `d515cbf1a`, `575931f29` | `an_icon_button_rests_muted_and_lights_primary_on_hover_and_focus`, `only_a_delete_icon_button_lights_in_the_danger_colour`, `an_armed_delete_shows_danger_at_rest_without_the_hover_fill`; glyph U+2715 is in `SGr-IosevkaTerm-Medium.ttf` (`fc-query` charset); `s15-x-*`, `s15-row-*`, `s15-list-x-after-*` |
+| S16 Ship editor input | DONE | `7388e6b8c`, `fd9422d80` | `r_rolls_the_part_in_hand_and_shift_r_rolls_it_back`, `q_picks_a_part_only_in_the_ship_editor`, `the_wheel_with_no_gesture_dollies_even_with_a_part_in_hand`; `system_ship_editor`; `ship-parts-on-bar-*` |
+| S17 dragged block flicker | DONE | `812b98fb3` | see below; `a_lifted_block_spawns_its_ghost_under_the_pointer`; `s17-drag-before-1920.png`, `s17-drag-after-1920.png` |
+
+Other fixes: a long status line ends in "..." before the selection readout
+(`d10cd9960`, `status-ellipsis-after-*`). The section walk presses the new
+Package window's button.
+
+S17 root cause: `spawn_ghost` spawned the drag ghost with `left` and `top`
+at `Auto`, so layout put it at the window's (0,0) for one frame. It now uses
+`ghost_place(at, grab, zoom)` on spawn, as the per-frame update does. A
+per-frame trace in `editor_blocks` gave:
+
+| | Ghost frames | First frame at (0,0) |
+| --- | --- | --- |
+| Before | 13 drags | 13 of 13 (frame 92 palette On Start, 116 placed hat, 143 Variable Set) |
+| After | 115 frames | 0; the placed hat's first frame is at (284,62) |
+
+Palette drags had the same fault and the same fix. No slot highlight came
+near (0,0) before or after. The trace was not committed.
+
+S13 audit (re-audited from a dump of every row of every form kind and every
+block pop-up; 99 text rows remain, all free text or minted ids with a rule):
+
+| Form | Field | Content type | Widget before | Widget after (commit) | Status |
+|---|---|---|---|---|---|
+| Mod Settings | Dependencies, Screenshots, Icon | lists / optional path | list editors, select | unchanged (earlier slice) | kept: already fitting |
+| Mod Settings | Name, Description, Author | free text | text | text | kept: free text |
+| Mod Settings | Version | version id | text + rule | text + rule | kept: a typed version with its rule |
+| section | Build > Parts | map item -> count | list editor | unchanged | kept: already fitting |
+| section | Damage Effects | list of distinct enums | one choice per entry | one toggle per effect: Cracks, Sparks, Plume (B) | DONE |
+| section | Animations | list of structs | rows per entry, no add/remove | x per entry + Add (B) | DONE (found in re-audit) |
+| section | Name, Description | free text | text | text | kept: free text |
+| section | Id | asset id | text | text with rename rule | kept: minted asset id, renamed by the rename path |
+| section | Kind, Mass | fixed by design | readout | readout | kept: kind is chosen at creation; mass is computed |
+| section | numbers, Hide In Editor, Destroy Sound | numbers / bool / file | number, toggle, file picker | unchanged | kept |
+| item | Name, About | free text | text | text | kept |
+| item | Category, numbers | enum / numbers | choice, numbers | unchanged | kept |
+| start role | Hull, Icon, Jobs, Credits, Goal Kind, Stock | refs / enums / numbers | pickers, choices | unchanged | kept |
+| start role | Name, About, Lore, Goal > Title | free text | text | text | kept: free text |
+| trade profile | Trades, Jobs, Generated | lists of structs / variants | rows per entry, no add/remove | x per entry + Add; Jobs offers one + per job variant (B) | DONE (found in re-audit) |
+| trade profile | Item, numbers | item id / numbers | item picker, numbers | unchanged | kept |
+| price table | Clusters, Roles | lists of structs | rows per struct | x per entry + Add; a new rule takes the first free cluster/role and category; refused "every cluster already has an entry" when none is left (B) | DONE |
+| price table | Cluster, Role, Category, Ask, Bid | enums / numbers | choice, number | unchanged | kept |
+| price table | Id | fixed id | readout | readout | kept: one table per mod, its id is fixed |
+| style | Fixtures | list of structs | rows per struct | x per entry + Add; a new fixture gets a minted id `fixture_N` (B) | DONE |
+| style | Fixtures N > Model | mesh path (reflect-ignored) | missing | file picker of meshes; empty refused "a fixture needs a model" (B) | DONE |
+| style | Fixtures N > Id | minted id | text | text | kept: minted text, made distinct on add |
+| style | Greeble Rules | WFC rule set | readout | readout | kept: GreebleRules is `#[reflect(ignore)]` and not Reflect; a rule set with symmetric connects, no row model fits it |
+| ui theme | Roles | 16 nested optional role structs | readout | readout | kept: UiRoles is `#[reflect(ignore)]` and not Reflect |
+| ui theme | Inherit, palette | theme id / colours | picker, swatches | unchanged | kept |
+| block pop-up | HUD Readout > Slot | minted slot key | text | picker of the slots the script uses (new Names::HudSlot); empty refused (D) | DONE |
+| block pop-up | Refill Ammo > Section | section id of the named ship | text | picker of the named ship's sections; unknown marked; "name the ship first" when no ship (D) | DONE |
+| block pop-up | Railgun / Torpedo Fire > Section | same | text, no offers | same scoped picker (D) | DONE (found in re-audit) |
+| block pop-up | Spawn / Scatter Base Id | minted object id | text | text with the lint rule: empty, '/' and generated body ids refused (D); the reference picker of A offers nothing on purpose (a taken id is a collision) | DONE |
+| block pop-up | Scatter Id Prefix | minted prefix | text | text, empty refused (D) | DONE |
+| block pop-up | Sequence Key | minted key | text | text, empty refused (D) | DONE |
+| block pop-up | Rotation (Quat) | rotation | text | three degree boxes, yaw/pitch/roll, one write per box (C) | DONE |
+| block pop-up | Timer Start Seconds | expression | text | text | kept: a VariableExpressionNode operand (number, variable or arithmetic); its parser refuses bad syntax on the status line |
+| block pop-up | Asteroid Kinds | list of (kind, weight) | readout | Kind choice + Weight number per entry, x + Add (A, B) | DONE |
+| block pop-up | Scatter Region | enum with data | readout | Box/Ring choice, fields fresh on switch (A) | DONE |
+| block pop-up | Camera Blend | optional struct | readout | none/set choice, fields when set (A) | DONE |
+| block pop-up | Look At | enum with data | readout | choice, object id picker (A) | DONE |
+| block pop-up | AI Leash | optional struct | readout | none/set choice (A) | DONE |
+| block pop-up | Ship Order Kind | optional enum | readout | one choice of none + each kind (A) | DONE |
+| block pop-up | Spawn Object Kind | enum with data | readout | 7-way choice, palette stock payload (A) | DONE |
+| block pop-up | Patrol Ship > Waypoints | list of points | rows, no add/remove | x per entry + Add (B) | DONE (found in re-audit) |
+| block pop-up | Hint Emphasis Verb, Hint Clear Verb | closed words | choice; unknown stays text | unchanged | kept |
+| block pop-up | Screenshot Path | file path the action writes | text | text | kept: an output path, nothing to pick from |
+| block pop-up | Labels, Messages, Speaker, Text, Names, Title/Location/Date/Note, event Label | free text | text | text | kept: free text |
+| any | object's own kind on a root path | enum | readout | readout | kept: the palette places node kinds; switching a placed node's kind is a delete + place |
+
+Final proof on `575931f29`:
+
+- `cargo test -p nova_editor --lib`: 788 passed. `cargo test -p nova_ui
+  --lib`: 119 passed. `cargo test -p nova_scenario --lib name`: 28 passed.
+  Every run sandboxed: owner dirs unchanged.
+- `cargo check --all-targets --features debug` and `cargo fmt --all --check`:
+  clean. The CI wasm clippy job: exit 0 after the `copy_out` wasm branch
+  (`f74bee0b8`); later commits add no cfg-gated code.
+- Content lint (sandboxed): 0 errors, 0 warnings, 0 findings. No content RON
+  changed.
+- Walks, each EXIT 0 with 0 panic and 0 `despawned` lines, owner dirs
+  unchanged: `editor_undo`, `editor_shell`, `editor_blocks`,
+  `editor_mod_project` (12 PASS), `editor_section_builder` (3 PASS) at
+  1920x1080 and 1280x720; `system_ship_editor` at 1024x768. The only ERROR
+  is the line `editor_shell` logs on purpose for the Log tab.
+- `npm run ci` in `web/` and `mdbook build`: pass.
+
+Limits:
+
+- `system_ship_editor` opens a 1024x768 window, so S9 and S16 have no walk
+  at 1920 or 1280.
+- New Mod Up and Down and Add submenu hover are not walked.
+- `s15-x-after-*` was taken before the list x moved to the icon button;
+  `s15-list-x-after-*` shows it after.
+- The icon button focus ring shows only when `InputFocus` names it; the
+  editor has no Tab navigation. A row delete's 22 px target is clipped to
+  the 20 px row. No modal has an x; they use Cancel and Close.
+- Open Folder is not pressed in a walk. The copied text is not read back
+  from the clipboard; the walks judge the status line. On Xvfb, arboard
+  logs one WARN at exit (no clipboard manager).
+- No walk drives a price table or style form, or the Stock and Scenarios
+  lists; their add and remove have unit tests only.
+- An unknown Refill Ammo section is marked only for a ship the editor holds.
+- `references_to` counts an overriding base id as a dependency use, so
+  "example" cannot be removed from the template mod.
+- Two 1920 walks first failed because a foreign X server held :99 and closed;
+  they passed on a private display.
+- The rail rows now carry a theme border and look boxier than the old dots.
+  The owner has not seen the new widgets.
+
 ## Verification
 
 - Undo: every verb in the write-site list undoes and redoes to an equal
@@ -1199,4 +1346,4 @@ Limits:
 | Each slice has a hand-playable example row | `examples/playable/README.md`: `editor_undo`, `editor_viewport`, `editor_shell`, `editor_mod_project`, `editor_blocks`, `editor_section_builder`, for slices 1 to 6. Slices 7 to 10 add no feature; slices 12 and 13 add `editor_views` and `editor_files` | MET |
 | Invalidated docs are updated | `web/src/create/mod-editor.md`, `web/src/wiki/keybinds.md`; each claim the review doubted is checked or rewritten; `mdbook build` and `npm run ci` pass | MET; the foot legend under a pop-up is true now and `keybinds.md` says so |
 | Owner review 2, R1 to R14 | Slice 11 notes: R1, R3, R4, R5, R8, R9, R10. Slice 12 notes: R7, R11, R12, R13, R14. Slice 13 notes: R2 (`editor_files` palette, drag, loose and empty-canvas PASS lines and frames) and R6 (import, delete, view and play PASS lines; `files-*-assets.png`). Each row has its tests, walk lines and frames | MET by unit tests and driven walks; not yet reviewed by the owner |
-| Owner review 3, S1 to S8 | See the Slice 14 notes | NOT MET |
+| Owner review 3, S1 to S17 | Slice 14 notes: a status, commits and evidence per item, the S13 audit table, the S17 before and after numbers, and the final proof on `575931f29` | MET by unit tests and driven walks; not yet reviewed by the owner |
