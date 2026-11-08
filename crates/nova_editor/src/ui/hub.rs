@@ -650,7 +650,8 @@ pub(crate) fn sync_hub_form(
 }
 
 /// The hub's keys. Enter creates from the modal, or opens the marked row; Esc
-/// shuts the modal or a row menu.
+/// shuts the modal or a row menu. In the modal Up and Down step the template:
+/// Left and Right are the name field's caret.
 #[expect(
     clippy::too_many_arguments,
     reason = "a Bevy system; each query is one surface the keys answer to"
@@ -663,7 +664,7 @@ pub(crate) fn hub_keys(
     names: Query<&TextFieldValue, With<HubNameField>>,
     popups: Query<Entity, With<PopupRoot>>,
     windows: Query<(), With<crate::ui::window::EditorWindow>>,
-    form: Res<HubForm>,
+    mut form: ResMut<HubForm>,
 ) {
     if !popups.is_empty() {
         if keys.just_pressed(KeyCode::Escape) {
@@ -675,6 +676,23 @@ pub(crate) fn hub_keys(
         return;
     }
     if let Ok(modal) = modals.single() {
+        let step = |template| {
+            let at = ScenarioTemplate::ALL
+                .iter()
+                .position(|choice| *choice == template)
+                .unwrap_or_default();
+            if keys.just_pressed(KeyCode::ArrowUp) {
+                ScenarioTemplate::ALL[at.saturating_sub(1)]
+            } else if keys.just_pressed(KeyCode::ArrowDown) {
+                ScenarioTemplate::ALL[(at + 1).min(ScenarioTemplate::ALL.len() - 1)]
+            } else {
+                template
+            }
+        };
+        let template = step(form.template);
+        if template != form.template {
+            form.template = template;
+        }
         if keys.just_pressed(KeyCode::Escape) {
             commands.entity(modal).despawn();
         } else if keys.just_pressed(KeyCode::Enter)
