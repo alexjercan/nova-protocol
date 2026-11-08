@@ -591,15 +591,6 @@ pub(crate) enum FileWindowKind {
     NameMod,
     /// Write a copy of the mod under a new name.
     SaveCopy,
-    /// Say where a package went.
-    #[cfg_attr(
-        target_arch = "wasm32",
-        expect(
-            dead_code,
-            reason = "only Package reads this, and the web has no Package"
-        )
-    )]
-    Packaged(String),
     /// Pick a file by path.
     PickPath(PathPurposeType),
 }

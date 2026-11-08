@@ -24,10 +24,14 @@ pub(crate) mod list_field;
 pub(crate) mod log;
 pub(crate) mod menu;
 pub(crate) mod menu_context;
+// The Package window. The web has no store to package from.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) mod package;
 pub(crate) mod pick;
 pub(crate) mod picker;
 pub(crate) mod plate;
 pub(crate) mod rail;
+pub(crate) mod row_copy;
 pub(crate) mod section_kind;
 pub(crate) mod settings;
 pub(crate) mod shell;

@@ -8,6 +8,10 @@
 //! new. Only the top of each copy mints a fresh id. A script block lands beside
 //! the block that is marked, through the same slots a drag uses, so a paste the
 //! marked block cannot take is refused the way a drop is.
+//!
+//! Text goes out to the desktop through [`copy_lines`]: the Log and Problems
+//! rows and a package's path. That is bevy's `Clipboard`, the OS clipboard on
+//! desktop. A target with none refuses on the status line with the reason.
 
 use avian3d::prelude::{ColliderAabb, Sensor};
 use bevy::{ecs::system::RunSystemOnce, prelude::*, ui_widgets::Activate};
@@ -19,7 +23,7 @@ use crate::{
     event::{paste_block, shape_of, slot_after, BlockShapeType, ScriptNodes},
     history::{commit_edit_now, revert_to_last_commit, NodeCopy},
     node::{EditContext, NodeId, ObjectNode, ShipNode},
-    project::verbs::pressed,
+    project::verbs::{note, pressed, refuse as refuse_line},
     tool::{snapping, MOVE_SNAP},
     ui::canvas::CanvasDrag,
 };
@@ -295,6 +299,46 @@ pub(crate) fn copy_item(_activate: On<Activate>, mut commands: Commands) {
 /// Edit > Paste.
 pub(crate) fn paste_item(_activate: On<Activate>, mut commands: Commands) {
     commands.queue(|world: &mut World| pressed(world, paste_clipboard));
+}
+
+/// Put `text` on the desktop clipboard, or say why it did not go.
+///
+/// A rig with no clipboard plugin has no resource; a desktop session with no
+/// clipboard to reach comes back from bevy as the reason.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn copy_out(world: &mut World, text: String) -> Result<(), String> {
+    let mut clipboard = world
+        .get_resource_mut::<bevy::clipboard::Clipboard>()
+        .ok_or_else(|| "this build has no clipboard".to_string())?;
+    clipboard.set_text(text).map_err(|fault| fault.to_string())
+}
+
+/// The web build does not copy out. The browser grants its clipboard to a page
+/// late or never, and a copy must not say it worked before it knows.
+#[cfg(target_arch = "wasm32")]
+pub(crate) fn copy_out(_world: &mut World, _text: String) -> Result<(), String> {
+    Err("the web build cannot reach the desktop clipboard".to_string())
+}
+
+/// What the status line says after `count` lines went out.
+pub(crate) fn copied_line(count: usize) -> String {
+    match count {
+        1 => "Copied 1 line".to_string(),
+        count => format!("Copied {count} lines"),
+    }
+}
+
+/// Copy `lines` out, one to a line, and say how many went or why none did.
+pub(crate) fn copy_lines(world: &mut World, lines: Vec<String>) {
+    if lines.is_empty() {
+        refuse_line(world, "nothing to copy: the list is empty");
+        return;
+    }
+    let count = lines.len();
+    match copy_out(world, lines.join("\n")) {
+        Ok(()) => note(world, copied_line(count)),
+        Err(reason) => refuse_line(world, format!("copy refused: {reason}")),
+    }
 }
 
 /// A stem for a copy's id: the id with its ordinal off, so a copy of `rock_3`

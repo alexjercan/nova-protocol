@@ -45,6 +45,72 @@ use crate::{
 /// The folder a bare path into the base game starts with.
 const BASE_FOLDER: &str = "base/";
 
+/// Which part of a version a bump steps.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum VersionBumpType {
+    /// The last number: a fix.
+    Patch,
+    /// The middle number: something added.
+    Minor,
+    /// The first number: something that breaks.
+    Major,
+}
+
+impl VersionBumpType {
+    /// Every bump, in the order the Package window offers them.
+    pub(crate) const ALL: [Self; 3] = [Self::Patch, Self::Minor, Self::Major];
+
+    /// The button's word.
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::Patch => "Patch",
+            Self::Minor => "Minor",
+            Self::Major => "Major",
+        }
+    }
+}
+
+/// `version` one `bump` on, as `major.minor.patch`: the stepped number goes up
+/// and the ones after it go to 0. A missing part reads as 0, so `1` bumps to
+/// `1.0.1`. `None` when a part is not a number: the version rule allows
+/// letters, and a bump does not guess what `beta` steps to.
+pub(crate) fn bumped(version: &str, bump: VersionBumpType) -> Option<String> {
+    let parts: Vec<&str> = version.trim().split('.').collect();
+    if parts.len() > 3 {
+        return None;
+    }
+    let mut numbers = [0u64; 3];
+    for (slot, part) in numbers.iter_mut().zip(&parts) {
+        if part.is_empty() || !part.chars().all(|digit| digit.is_ascii_digit()) {
+            return None;
+        }
+        *slot = part.parse().ok()?;
+    }
+    let [major, minor, patch] = numbers;
+    let [major, minor, patch] = match bump {
+        VersionBumpType::Patch => [major, minor, patch.checked_add(1)?],
+        VersionBumpType::Minor => [major, minor.checked_add(1)?, 0],
+        VersionBumpType::Major => [major.checked_add(1)?, 0, 0],
+    };
+    Some(format!("{major}.{minor}.{patch}"))
+}
+
+/// The archive's file name for mod `id` at `version`: the published id and the
+/// version, so two versions sit side by side in one folder.
+pub(crate) fn package_name(id: &str, version: &str) -> String {
+    format!("{}-{}.zip", publish_id(id), version.trim())
+}
+
+/// A size as a reader says it: bytes, then KB and MB at one decimal.
+pub(crate) fn shown_size(bytes: u64) -> String {
+    const KB: f64 = 1024.0;
+    match bytes {
+        0..1024 => format!("{bytes} B"),
+        1024..1_048_576 => format!("{:.1} KB", bytes as f64 / KB),
+        _ => format!("{:.1} MB", bytes as f64 / (KB * KB)),
+    }
+}
+
 /// A finding that names no node.
 fn finding(severity: ProblemSeverityType, message: impl Into<String>) -> Problem {
     Problem {
@@ -506,9 +572,9 @@ pub(crate) use native::*;
 #[cfg(target_arch = "wasm32")]
 pub(crate) use web::*;
 
-/// File > Package.
+/// File > Package: the Package window, or a refusal that says why not.
 pub(crate) fn on_package_item(_activate: On<Activate>, mut commands: Commands) {
-    commands.queue(|world: &mut World| super::verbs::pressed(world, package_project));
+    commands.queue(|world: &mut World| super::verbs::pressed(world, ask_to_package));
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -535,17 +601,21 @@ mod native {
         super::{
             ids::{is_taken, local_id, project_id},
             store::{self, bundle_file, file_bytes, is_declared, manifest_of},
-            verbs::{lower_open_document, note, refuse, refused_by_asset_faults, refused_by_gaps},
+            verbs::{lower_open_document, note, refuse},
             ModProject, PendingMods,
         },
         *,
     };
     use crate::{
+        asset::files::mod_files,
         bundle::{FileWindowKind, FileWindowRequest},
+        event::ScriptNodes,
+        node::EditContext,
         problems::Problems,
         ui::{
             browser::BrowserTabType,
             hub::HubForm,
+            package::open_package_modal,
             window::{ConfirmAsk, DestructiveVerb},
         },
     };
@@ -841,11 +911,9 @@ mod native {
         }
     }
 
-    /// Where `id` at `version` packages to.
-    fn package_path(id: &str, version: &str) -> Result<PathBuf, String> {
-        exports_dir()
-            .map(|dir| dir.join(format!("{}-{version}.zip", publish_id(id))))
-            .ok_or_else(|| "this machine has no data folder".to_string())
+    /// The folder every package lands in.
+    fn package_folder() -> Result<PathBuf, String> {
+        exports_dir().ok_or_else(|| "this machine has no data folder".to_string())
     }
 
     /// The files mod `id` holds that its manifest names beyond the content.
@@ -875,54 +943,189 @@ mod native {
         std::fs::rename(&partial, path).map_err(show)
     }
 
-    /// File > Package: check the mod, and write the archive if nothing blocks.
-    pub(crate) fn package_project(world: &mut World) {
-        if refused_by_gaps(world, "Package") {
-            return;
-        }
+    /// One file of the mod as the Package window lists it.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub(crate) struct PlannedFile {
+        /// The path inside the mod and the archive.
+        pub(crate) path: String,
+        /// Its size, for a file the package holds.
+        pub(crate) size: Option<u64>,
+    }
+
+    /// What Package would do now: the window's settings and the check.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub(crate) struct PackagePlan {
+        /// The manifest's version.
+        pub(crate) version: String,
+        /// The folder the archive lands in, or why there is none.
+        pub(crate) folder: Result<PathBuf, String>,
+        /// The archive's file name.
+        pub(crate) file_name: String,
+        /// What the package holds, then the mod's files it leaves out.
+        pub(crate) files: Vec<PlannedFile>,
+        /// What blocks the package, worst first.
+        pub(crate) errors: Vec<String>,
+        /// How many warnings the check found. They do not block.
+        pub(crate) warnings: usize,
+    }
+
+    /// A written package.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub(crate) struct PackageDone {
+        /// Where the archive is.
+        pub(crate) path: PathBuf,
+        /// Its size on disk.
+        pub(crate) size: u64,
+    }
+
+    /// What the open scenario's Events blocks leave unfilled, as errors.
+    fn gap_faults(world: &mut World) -> Vec<String> {
+        let Some(scenario) = world
+            .get_resource::<EditContext>()
+            .and_then(EditContext::scenario)
+        else {
+            return vec![];
+        };
+        world
+            .run_system_once(move |script: ScriptNodes| script.gaps(scenario))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, reason)| format!("events: {reason}"))
+            .collect()
+    }
+
+    /// Check the open mod as Package would and say what it would write. The
+    /// findings go to the Problems tab as well. `Err` when the mod has no id.
+    pub(crate) fn plan_package(world: &mut World) -> Result<PackagePlan, String> {
         lower_open_document(world);
-        if refused_by_asset_faults(world, "Package") {
-            return;
-        }
         let Some(project) = world.get_resource::<ModProject>() else {
-            return;
+            return Err("no mod is open".to_string());
         };
         let Some(id) = project.id.clone() else {
+            return Err("name the mod before packaging it".to_string());
+        };
+        let data = Arc::clone(&project.data);
+        let on_disk = store::files_of(&id);
+        let left_out: Vec<PlannedFile> = mod_files(project, &on_disk)
+            .into_iter()
+            .filter(|file| file.on_disk && !file.packaged)
+            .map(|file| PlannedFile {
+                path: file.path,
+                size: None,
+            })
+            .collect();
+        let mut errors = gap_faults(world);
+        errors.extend(asset_faults(world));
+        let found = project_findings(world);
+        let warnings = found
+            .iter()
+            .filter(|problem| problem.severity == ProblemSeverityType::Warning)
+            .count();
+        errors.extend(
+            found
+                .iter()
+                .filter(|problem| problem.severity == ProblemSeverityType::Error)
+                .map(|problem| problem.message.clone()),
+        );
+        world.resource_mut::<Problems>().set_project(found);
+        let mut files =
+            match other_files(&id, &data).and_then(|other| package_files(&id, &data, other)) {
+                Ok(files) => files
+                    .into_iter()
+                    .map(|(path, bytes)| PlannedFile {
+                        path,
+                        size: Some(bytes.len() as u64),
+                    })
+                    .collect(),
+                Err(fault) => {
+                    errors.push(format!("the files cannot be read: {fault}"));
+                    vec![]
+                }
+            };
+        files.extend(left_out);
+        let version = data.meta.version.trim().to_string();
+        Ok(PackagePlan {
+            folder: package_folder(),
+            file_name: package_name(&id, &version),
+            version,
+            files,
+            errors,
+            warnings,
+        })
+    }
+
+    /// File > Package: the window, once the mod has an id to package under.
+    pub(crate) fn ask_to_package(world: &mut World) {
+        if world
+            .get_resource::<ModProject>()
+            .is_some_and(|project| project.id.is_none())
+        {
             refuse(world, "name the mod before packaging it");
             world.resource_mut::<FileWindowRequest>().0 = Some(FileWindowKind::NameMod);
             return;
-        };
-        let data = Arc::clone(&project.data);
-        let found = project_findings(world);
-        let blocked = found
-            .iter()
-            .filter(|problem| problem.severity == ProblemSeverityType::Error)
-            .count();
-        world.resource_mut::<Problems>().set_project(found);
-        if blocked > 0 {
-            if let Some(mut tab) = world.get_resource_mut::<BrowserTabType>() {
-                *tab = BrowserTabType::Problems;
-            }
-            refuse(world, format!("package refused: {blocked} problems to fix"));
-            return;
         }
-        let written = other_files(&id, &data)
-            .and_then(|other| package_files(&id, &data, other))
-            .and_then(|files| zip_bytes(&files))
-            .and_then(|bytes| {
-                let path = package_path(&id, data.meta.version.trim())?;
-                write_archive(&path, &bytes)?;
-                Ok(path)
-            });
-        match written {
-            Ok(path) => {
-                let shown = path.display().to_string();
-                info!("editor: packaged mod '{id}' to {shown}");
+        open_package_modal(world);
+    }
+
+    /// The window's Package: check the mod again and write the archive if
+    /// nothing blocks. The refusal or the fault is the `Err`, and the status
+    /// line says it too.
+    pub(crate) fn package_project(world: &mut World) -> Result<PackageDone, String> {
+        let written = plan_package(world).and_then(|plan| {
+            if let Some(first) = plan.errors.first() {
+                if let Some(mut tab) = world.get_resource_mut::<BrowserTabType>() {
+                    *tab = BrowserTabType::Problems;
+                }
+                return Err(match plan.errors.len() {
+                    1 => format!("package refused: {first}"),
+                    count => format!("package refused: {count} errors, first: {first}"),
+                });
+            }
+            let id = world
+                .resource::<ModProject>()
+                .id
+                .clone()
+                .ok_or_else(|| "name the mod before packaging it".to_string())?;
+            let data = Arc::clone(&world.resource::<ModProject>().data);
+            let bytes = other_files(&id, &data)
+                .and_then(|other| package_files(&id, &data, other))
+                .and_then(|files| zip_bytes(&files))?;
+            let path = plan.folder?.join(&plan.file_name);
+            write_archive(&path, &bytes)?;
+            Ok(PackageDone {
+                size: bytes.len() as u64,
+                path,
+            })
+        });
+        match &written {
+            Ok(done) => {
+                let shown = done.path.display().to_string();
+                info!("editor: packaged to {shown}, {} bytes", done.size);
                 note(world, format!("packaged {shown}"));
-                world.resource_mut::<FileWindowRequest>().0 = Some(FileWindowKind::Packaged(shown));
             }
-            Err(error) => refuse(world, format!("package failed: {error}")),
+            Err(reason) => refuse(world, reason.clone()),
         }
+        written
+    }
+
+    /// Show `folder` in the desktop's file manager. The opener runs on its own;
+    /// a thread waits on it so it leaves no zombie behind.
+    pub(crate) fn open_folder(folder: &Path) -> Result<(), String> {
+        #[cfg(target_os = "windows")]
+        const OPENER: Option<&str> = Some("explorer");
+        #[cfg(target_os = "macos")]
+        const OPENER: Option<&str> = Some("open");
+        #[cfg(all(unix, not(target_os = "macos")))]
+        const OPENER: Option<&str> = Some("xdg-open");
+        #[cfg(not(any(unix, target_os = "windows")))]
+        const OPENER: Option<&str> = None;
+        let opener = OPENER.ok_or_else(|| "this system has no file manager to open".to_string())?;
+        let mut child = std::process::Command::new(opener)
+            .arg(folder)
+            .spawn()
+            .map_err(|fault| format!("{opener} did not start: {fault}"))?;
+        std::thread::spawn(move || child.wait());
+        Ok(())
     }
 }
 
@@ -931,7 +1134,7 @@ mod native {
 mod web {
     use super::{super::verbs::refuse, *};
 
-    pub(crate) fn package_project(world: &mut World) {
+    pub(crate) fn ask_to_package(world: &mut World) {
         refuse(world, "packaging is not available on the web yet");
     }
 

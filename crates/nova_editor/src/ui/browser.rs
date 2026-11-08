@@ -3,7 +3,7 @@
 //! One strip with a tab row, sized by [`EditorPanels`]. Each pane is built once
 //! and shown by [`sync_browser`]. Problems rebuild when their findings move. The
 //! Log tab is `log`. Assets are the grid in `assets`; sections are browsed in the
-//! parts gallery.
+//! parts gallery. Log and Problems rows copy out through `row_copy`.
 
 use bevy::{
     ecs::relationship::RelatedSpawnerCommands,
@@ -22,13 +22,14 @@ use super::{
     log::{spawn_log_controls, LogList},
     on_part_choice, on_skin_toggle, on_style_choice,
     rail::{part_row, skin_toggle_row, style_row},
+    row_copy::{copy_row, spawn_copy_control, CopyListType, CopyRows, ShownRow},
     shell::EditorPanels,
     PartList, StyleList,
 };
 use crate::{
     config::{EditorViewType, HullPlanLine, SelectedNode},
     generate::{generate_ship, reroll_seed, GenerateButton, HullSeedField, UNAUTHORED_WEIGHT},
-    node::{EditContext, NodeId, ObjectNode, SectionNode, ShipNode},
+    node::{EditContext, NodeId, ObjectNode, ScenarioNode, SectionNode, ShipNode},
     problems::{Problem, ProblemSeverityType, Problems},
     project::ship::open_ship_node,
     ui::canvas::CanvasBoard,
@@ -69,7 +70,7 @@ pub(crate) struct BrowserTabButton(BrowserTabType);
 
 /// A pane of the strip, shown while its tab is open.
 #[derive(Component, Clone, Copy)]
-pub(crate) struct BrowserPane(BrowserTabType);
+pub(crate) struct BrowserPane(pub(crate) BrowserTabType);
 
 /// The body of the strip, under the tabs.
 #[derive(Component)]
@@ -448,6 +449,7 @@ pub(crate) fn spawn_browser(root: &mut RelatedSpawnerCommands<ChildOf>, ship: &S
                 .with_children(|tools| {
                     spawn_asset_controls(tools);
                     spawn_log_controls(tools);
+                    spawn_copy_control(tools);
                     tools.spawn((
                         Name::new("Browser Fold"),
                         BrowserFold,
@@ -473,14 +475,16 @@ pub(crate) fn spawn_browser(root: &mut RelatedSpawnerCommands<ChildOf>, ship: &S
                     .with_children(|pane| {
                         spawn_asset_body(pane);
                     });
-                body.spawn(pane(BrowserTabType::Problems))
+                // Hovered: the copy keys act on the list under the pointer.
+                body.spawn((pane(BrowserTabType::Problems), Hovered::default()))
                     .with_children(|pane| {
                         spawn_scroll_list(pane, "Problem List", ProblemList, |_| {});
                     });
                 spawn_ship_pane(body, ship);
-                body.spawn(pane(BrowserTabType::Log)).with_children(|pane| {
-                    spawn_scroll_list(pane, "Log List", LogList, |_| {});
-                });
+                body.spawn((pane(BrowserTabType::Log), Hovered::default()))
+                    .with_children(|pane| {
+                        spawn_scroll_list(pane, "Log List", LogList, |_| {});
+                    });
             });
     });
 }
@@ -632,13 +636,46 @@ fn problem_paint(problem: &Problem) -> (&'static str, UiColor) {
     }
 }
 
+/// Where a finding stands: the ids from the scenario down to its node, as
+/// `ship_1/hull_2`. Empty for a finding that names no node.
+fn node_path(
+    node: Entity,
+    ids: &Query<&NodeId>,
+    parents: &Query<&ChildOf>,
+    roots: &Query<(), With<ScenarioNode>>,
+) -> String {
+    let mut path: Vec<&str> = std::iter::once(node)
+        .chain(parents.iter_ancestors(node))
+        .take_while(|step| !roots.contains(*step))
+        .filter_map(|step| ids.get(step).ok().map(|id| id.0.as_str()))
+        .collect();
+    path.reverse();
+    path.join("/")
+}
+
+/// A finding as one line of plain text, with where it stands.
+pub(crate) fn problem_text(problem: &Problem, location: &str) -> String {
+    let severity = match problem.severity {
+        ProblemSeverityType::Error => "error",
+        ProblemSeverityType::Warning => "warning",
+    };
+    if location.is_empty() {
+        format!("{severity}: {}", problem.message)
+    } else {
+        format!("{severity}: {} (at {location})", problem.message)
+    }
+}
+
 /// Rebuild the Problems rows when the findings change.
 pub(crate) fn sync_problem_rows(
     mut commands: Commands,
     problems: Res<Problems>,
     ids: Query<&NodeId>,
+    parents: Query<&ChildOf>,
+    roots: Query<(), With<ScenarioNode>>,
     lists: Query<Entity, With<ProblemList>>,
     fresh: Query<(), Added<ProblemList>>,
+    mut copy: ResMut<CopyRows>,
     mut shown: Local<Option<Vec<Problem>>>,
 ) {
     if !fresh.is_empty() {
@@ -650,40 +687,56 @@ pub(crate) fn sync_problem_rows(
     let Ok(list) = lists.single() else {
         return;
     };
+    let mut rows = Vec::with_capacity(problems.list.len());
     commands.entity(list).despawn_related::<Children>();
     commands.entity(list).with_children(|list| {
         for (index, problem) in problems.list.iter().enumerate() {
             let (mark, tint) = problem_paint(problem);
-            let id = problem
+            let location = problem
                 .node
-                .and_then(|node| ids.get(node).ok())
-                .map_or("", |id| id.0.as_str());
+                .map_or_else(String::new, |node| node_path(node, &ids, &parents, &roots));
+            let key = index as u64;
+            rows.push(ShownRow {
+                key,
+                text: problem_text(problem, &location),
+            });
             let name = Name::new(format!("Problem Row {index}"));
+            let copy = copy_row(CopyListType::Problems, key);
             match problem.node {
                 Some(node) => {
                     list.spawn((
                         name,
-                        browser_row(mark, &problem.message, id, tint),
+                        browser_row(mark, &problem.message, &location, tint),
                         RowTarget(node),
                         observe(on_target_row),
+                        copy,
                     ));
                 }
                 None => {
-                    list.spawn((name, browser_line(mark, &problem.message, id, tint)));
+                    list.spawn((
+                        name,
+                        ListRow,
+                        Hovered::default(),
+                        browser_line(mark, &problem.message, &location, tint),
+                        copy,
+                    ));
                 }
             }
         }
     });
+    // A row's key is its place in the findings, which a new lint reorders.
+    copy.set_rows(CopyListType::Problems, rows, false);
     *shown = Some(problems.list.clone());
 }
 
 /// Select the node a browser row names, going where the editor has to stand to
 /// show it: the owning ship's own document for a section of another ship, the
 /// Events tab with the block framed for a script node, and the Scene for
-/// anything else.
+/// anything else. A Shift press only widens the rows marked for copying.
 pub(crate) fn on_target_row(
     activate: On<Activate>,
     mut commands: Commands,
+    keys: Option<Res<ButtonInput<KeyCode>>>,
     rows: Query<&RowTarget>,
     owners: Query<&ChildOf>,
     ships: Query<(), With<ShipNode>>,
@@ -698,6 +751,9 @@ pub(crate) fn on_target_row(
     let Ok(RowTarget(node)) = rows.get(activate.entity) else {
         return;
     };
+    if keys.is_some_and(|keys| keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight])) {
+        return;
+    }
     let node = *node;
     if !named.contains(node) {
         return;
@@ -735,7 +791,10 @@ mod tests {
         history::tests::{first_with, history_app},
         node::{EditContext, NodeId, SectionNode, ShipNode},
         problems::{Problem, ProblemSeverityType, Problems},
-        ui::canvas::CanvasBoard,
+        ui::{
+            canvas::CanvasBoard,
+            row_copy::{CopyListType, CopyRows},
+        },
     };
 
     /// Press a row that names `node`, from wherever the editor stands.
@@ -812,6 +871,7 @@ mod tests {
         let mut problems = Problems::default();
         problems.list = vec![finding(None), finding(Some(target))];
         app.world_mut().insert_resource(problems);
+        app.init_resource::<CopyRows>();
         app.world_mut().spawn(ProblemList);
 
         app.world_mut()
@@ -828,5 +888,51 @@ mod tests {
             .collect();
         assert_eq!(rows.len(), 2);
         assert_eq!(rows.iter().filter(|button| **button).count(), 1);
+    }
+
+    /// A copied finding says where it stands: the ids from its ship down to
+    /// the part, as its row shows them.
+    #[test]
+    fn a_copied_problem_line_carries_its_node_path() {
+        let mut app = history_app();
+        let section = first_with::<SectionNode>(&mut app);
+        let ship = app
+            .world()
+            .get::<ChildOf>(section)
+            .expect("a section hangs off its ship")
+            .parent();
+        let id = |node: Entity| app.world().get::<NodeId>(node).cloned().expect("an id");
+        let path = format!("{}/{}", id(ship).0, id(section).0);
+        let mut problems = Problems::default();
+        problems.list = vec![
+            Problem {
+                severity: ProblemSeverityType::Error,
+                message: "no thrust".to_string(),
+                node: Some(section),
+            },
+            Problem {
+                severity: ProblemSeverityType::Warning,
+                message: "the mod holds no content".to_string(),
+                node: None,
+            },
+        ];
+        app.world_mut().insert_resource(problems);
+        app.init_resource::<CopyRows>();
+        app.world_mut().spawn(ProblemList);
+
+        app.world_mut()
+            .run_system_cached(sync_problem_rows)
+            .expect("the rows draw");
+
+        assert_eq!(
+            app.world()
+                .resource::<CopyRows>()
+                .list(CopyListType::Problems)
+                .lines(),
+            [
+                format!("error: no thrust (at {path})"),
+                "warning: the mod holds no content".to_string(),
+            ]
+        );
     }
 }

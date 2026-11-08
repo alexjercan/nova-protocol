@@ -1,5 +1,5 @@
-//! The small windows around a mod: name it, copy it, rename a scenario, say
-//! where a package went, and pick a file by path.
+//! The small windows around a mod: name it, copy it, rename a scenario, and
+//! pick a file by path. Package has its own window, in `package`.
 //!
 //! No OS file dialog, on purpose: a mod lives in the same cache a downloaded
 //! one does, so naming is all a save needs. The path window is the one place a
@@ -165,7 +165,7 @@ fn offered_name(kind: &FileWindowKind, project: Option<&ModProject>) -> String {
     match kind {
         FileWindowKind::NameMod => project.data.meta.name.clone(),
         FileWindowKind::SaveCopy => format!("{} Copy", project.data.meta.name),
-        FileWindowKind::Packaged(_) | FileWindowKind::PickPath(_) => String::new(),
+        FileWindowKind::PickPath(_) => String::new(),
     }
 }
 
@@ -232,7 +232,6 @@ fn spawn_file_window(
     let title = match &kind {
         FileWindowKind::NameMod => "Name This Mod",
         FileWindowKind::SaveCopy => "Save As Copy",
-        FileWindowKind::Packaged(_) => "Packaged",
         FileWindowKind::PickPath(purpose) => purpose.title(),
     };
     let shown = kind.clone();
@@ -243,14 +242,6 @@ fn spawn_file_window(
         at,
         (FileWindow(kind.clone()), KnownMods(local_ids())),
         |body, _window| match &shown {
-            FileWindowKind::Packaged(path) => {
-                body.spawn(small_line(
-                    "Package Path Label",
-                    "The package is at",
-                    UiColor::Label,
-                ));
-                body.spawn(small_line("Package Path", path, UiColor::Primary));
-            }
             FileWindowKind::PickPath(_) => {
                 body.spawn(small_line("Path Label", "Path", UiColor::Label));
                 body.spawn((
@@ -317,12 +308,10 @@ fn start_folder() -> PathBuf {
 /// Cancel, and the press that goes through with it.
 fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: &FileWindowKind) {
     let go = match kind {
-        FileWindowKind::NameMod => Some("Save"),
-        FileWindowKind::SaveCopy => Some("Save Copy"),
-        FileWindowKind::PickPath(_) => Some("Pick"),
-        FileWindowKind::Packaged(_) => None,
+        FileWindowKind::NameMod => "Save",
+        FileWindowKind::SaveCopy => "Save Copy",
+        FileWindowKind::PickPath(_) => "Pick",
     };
-    let keep = if go.is_some() { "Cancel" } else { "Close" };
     frame
         .spawn((
             Name::new("File Window Answers"),
@@ -352,13 +341,10 @@ fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: &FileWindowK
                     slot.spawn((
                         Name::new("File Cancel Button"),
                         FileAnswer,
-                        themed_button(keep),
+                        themed_button("Cancel"),
                         ButtonCueType::Back,
                     ));
                 });
-            let Some(go) = go else {
-                return;
-            };
             answers
                 .spawn(Node {
                     flex_grow: 1.0,
@@ -533,7 +519,6 @@ pub(crate) fn on_save(
         FileWindowKind::NameMod => name_project(world, &typed),
         FileWindowKind::SaveCopy => save_copy(world, &typed),
         FileWindowKind::PickPath(purpose) => pressed(world, |world| purpose.run(world, &typed)),
-        FileWindowKind::Packaged(_) => {}
     });
 }
 

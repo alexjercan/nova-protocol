@@ -26,8 +26,9 @@ use nova_scenario::prelude::{EventConfig, GameScenarios, GameShipDesigns, Scenar
 
 use super::{
     package::{
-        adopt_package, import_over, import_package, manifest_findings, other_files, package_files,
-        play_faults, unzip_bytes, zip_bytes,
+        adopt_package, bumped, import_over, import_package, manifest_findings, other_files,
+        package_files, package_name, play_faults, shown_size, unzip_bytes, zip_bytes,
+        VersionBumpType,
     },
     store::{
         content_file, local_ids, manifest_of, read_project, renamed_copy, write_copy, write_project,
@@ -1663,4 +1664,53 @@ fn moving_a_hand_written_spawn_writes_only_its_position() {
     }
     assert!(moved > 5, "every mod has objects to move, {moved} did");
     assert!(hulls_moved > 0, "a hull stands as authored and moves");
+}
+
+#[test]
+fn a_bump_steps_one_part_and_zeroes_the_parts_after_it() {
+    assert_eq!(
+        bumped("1.2.3", VersionBumpType::Patch).as_deref(),
+        Some("1.2.4")
+    );
+    assert_eq!(
+        bumped("1.2.3", VersionBumpType::Minor).as_deref(),
+        Some("1.3.0")
+    );
+    assert_eq!(
+        bumped("1.2.3", VersionBumpType::Major).as_deref(),
+        Some("2.0.0")
+    );
+    assert_eq!(
+        bumped(" 0.9 ", VersionBumpType::Patch).as_deref(),
+        Some("0.9.1"),
+        "a missing part reads as 0"
+    );
+}
+
+#[test]
+fn a_version_that_is_not_three_numbers_has_no_bump() {
+    for version in ["1.0.0-beta", "1.0.0.0", "1..0", "v1", ""] {
+        for bump in VersionBumpType::ALL {
+            assert_eq!(bumped(version, bump), None, "{version:?} {bump:?}");
+        }
+    }
+    assert_eq!(
+        bumped(&format!("1.0.{}", u64::MAX), VersionBumpType::Patch),
+        None
+    );
+}
+
+#[test]
+fn the_package_file_is_the_published_id_and_the_version() {
+    assert_eq!(
+        package_name("editor_red_run", " 0.1.1"),
+        "red-run-0.1.1.zip"
+    );
+}
+
+#[test]
+fn a_size_reads_in_bytes_then_kb_then_mb() {
+    assert_eq!(shown_size(512), "512 B");
+    assert_eq!(shown_size(1536), "1.5 KB");
+    assert_eq!(shown_size(3 * 1024 * 1024), "3.0 MB");
 }

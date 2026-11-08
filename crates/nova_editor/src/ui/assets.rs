@@ -86,7 +86,7 @@ const LINE_CHARS: usize = 14;
 
 /// The mark on a file the package leaves out. DOTTED CIRCLE - a place the
 /// package holds nothing.
-const UNPACKAGED_MARK: &str = "\u{25cc}";
+pub(crate) const UNPACKAGED_MARK: &str = "\u{25cc}";
 
 /// One tile of the Assets tab.
 #[derive(Clone, Debug, PartialEq)]

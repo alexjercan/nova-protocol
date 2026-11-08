@@ -2,12 +2,14 @@
 //!
 //! Two feeds fill one list. Every line a verb says through [`EditorStatus`]
 //! lands here once, and so does every WARN and ERROR the app logs, through
-//! [`EditorLogFeed`]. INFO and DEBUG logging stays in the terminal.
+//! [`EditorLogFeed`]. INFO and DEBUG logging stays in the terminal. Rows copy
+//! out through `row_copy`.
 
 use std::collections::VecDeque;
 
 use bevy::{
     ecs::relationship::RelatedSpawnerCommands,
+    picking::hover::Hovered,
     prelude::*,
     ui_widgets::{observe, Activate},
 };
@@ -15,6 +17,7 @@ use nova_ui::{prelude::*, theme::UiColor};
 
 use super::{
     browser::{pane_text, BrowserTabType},
+    row_copy::{copy_row, CopyListType, CopyRows, ShownRow},
     shell::EditorPanels,
 };
 use crate::{
@@ -66,6 +69,8 @@ impl LogFilterType {
 }
 
 struct LogLine {
+    /// What the line stays known by while newer lines push it down.
+    key: u64,
     level: LogLevelType,
     text: String,
     tint: UiColor,
@@ -84,11 +89,20 @@ pub(crate) struct StatusLog {
     returned: u64,
     filter: LogFilterType,
     text: String,
+    /// The key the next line takes.
+    next_key: u64,
 }
 
 impl StatusLog {
     fn push(&mut self, level: LogLevelType, text: String, tint: UiColor) {
-        self.lines.push_back(LogLine { level, text, tint });
+        let key = self.next_key;
+        self.next_key += 1;
+        self.lines.push_back(LogLine {
+            key,
+            level,
+            text,
+            tint,
+        });
         if self.lines.len() > LOG_LINES {
             self.lines.pop_front();
         }
@@ -308,6 +322,7 @@ pub(crate) fn sync_log(
     fresh: Query<(), Added<LogList>>,
     fields: Query<&TextFieldValue, With<LogFilterField>>,
     mut scrolls: Query<&mut ScrollPosition, With<LogList>>,
+    mut copy: ResMut<CopyRows>,
     mut shown: Local<Option<u64>>,
     mut returned: Local<u64>,
 ) {
@@ -341,10 +356,34 @@ pub(crate) fn sync_log(
         for (index, line) in log.shown().enumerate() {
             list.spawn((
                 Name::new(format!("Log Row {index}")),
-                pane_text(&line.text, 12.0, line.tint),
+                ListRow,
+                Hovered::default(),
+                copy_row(CopyListType::Log, line.key),
+                Node {
+                    width: percent(100),
+                    min_height: px(18),
+                    flex_shrink: 0.0,
+                    align_items: AlignItems::Center,
+                    padding: UiRect::axes(px(6), px(1)),
+                    border: UiRect::all(px(theme::BORDER_W)),
+                    overflow: Overflow::clip(),
+                    ..default()
+                },
+                ThemedRadius::control(),
+                BackgroundColor(Color::NONE),
+                BorderColor::all(Color::NONE),
+                children![pane_text(&line.text, 12.0, line.tint)],
             ));
         }
     });
+    let rows = log
+        .shown()
+        .map(|line| ShownRow {
+            key: line.key,
+            text: line.text.clone(),
+        })
+        .collect();
+    copy.set_rows(CopyListType::Log, rows, true);
     *shown = Some(log.revision);
 }
 

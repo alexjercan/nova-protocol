@@ -173,6 +173,7 @@ use ui::{
     picker::{revert_picker, settle_on_close, sync_colour_windows, ColourWindow},
     plate::sync_nameplates,
     rail::sync_scene_tooltip,
+    row_copy::{copy_rows_hovered, row_copy_keys, sync_copy_controls, sync_copy_marks, CopyRows},
     section_kind::{section_kind_keys, sync_section_kind_tiles, SectionKindModal},
     settings::{apply_settings_fields, sync_settings_window},
     setup_editor_scene,
@@ -519,6 +520,7 @@ fn editor_plugin(app: &mut App) {
             asset_tile_keys.run_if(in_input_mode(InputMode::Normal)),
             (sync_problems, sync_problem_rows).chain(),
             (sync_log, sync_log_controls).chain(),
+            (sync_copy_marks, sync_copy_controls).after(sync_log),
             sync_inspector_head,
             focus_pending_rename,
         )
@@ -760,6 +762,9 @@ fn editor_plugin(app: &mut App) {
     app.init_resource::<EmptyPress>();
     app.init_resource::<StageRightPress>();
     app.init_resource::<EditorClipboard>();
+    app.init_resource::<CopyRows>();
+    #[cfg(not(target_arch = "wasm32"))]
+    app.add_plugins(ui::package::PackageWindowPlugin);
     app.add_observer(on_stage_release);
     app.add_systems(OnEnter(ExampleStates::Editor), setup_selection_frame);
     app.add_systems(
@@ -778,7 +783,14 @@ fn editor_plugin(app: &mut App) {
     app.add_systems(
         Update,
         (
-            (tool_keys, select_all, clipboard_keys, panel_keys)
+            // Over the Log or Problems list, Ctrl+A and Ctrl+C mean its rows.
+            (
+                tool_keys,
+                select_all.run_if(not(copy_rows_hovered)),
+                clipboard_keys.run_if(not(copy_rows_hovered)),
+                row_copy_keys.run_if(copy_rows_hovered),
+                panel_keys,
+            )
                 .run_if(in_input_mode(InputMode::Normal)),
             sync_scale_refusal,
             empty_space_press
