@@ -29,10 +29,12 @@ use super::{
     layer,
 };
 use crate::{
+    camera::ViewportPointer,
     config::{EditorFoot, EditorRail, EditorViewType, PlayButton, SelectedNode},
     history::{redo_item, undo_item},
     node::{EditContext, ShipNode},
     placement::continue_to_simulation,
+    project::{ship::open_ship_node, trail::DocumentTrail, verbs::go_back, ModProject},
     tool::{pick_tool, swap_handle_space, GizmoSpaceType, StageTool, StageToolType},
     ui::{
         menu::{MenuHistoryItem, UnsavedMark},
@@ -179,10 +181,15 @@ pub(crate) struct BarWord {
     narrow: &'static str,
 }
 
-/// The button that steps into the selected ship, or out of the one the editor
-/// stands in. Absent from the bar when neither is possible.
+/// Back: the document this one was opened over, named. Absent from the bar
+/// when there is none.
 #[derive(Component)]
-pub(crate) struct ShipStepButton;
+pub(crate) struct BackButton;
+
+/// Open Ship: the selected ship of the scenario, on its own. Absent from the
+/// bar when no ship of a scenario is selected.
+#[derive(Component)]
+pub(crate) struct OpenShipButton;
 
 /// The foot's count of marked nodes.
 #[derive(Component)]
@@ -420,11 +427,18 @@ fn spawn_tool_group(group: &mut RelatedSpawnerCommands<ChildOf>) {
         bar_button("Parts"),
     ));
     group.spawn((
-        Name::new("Ship Step Button"),
-        ShipStepButton,
+        Name::new("Open Ship Button"),
+        OpenShipButton,
+        Tooltip("Open this ship on its own (Enter)".to_string()),
+        bar_button("Open Ship"),
+        observe(on_open_ship),
+    ));
+    group.spawn((
+        Name::new("Back Button"),
+        BackButton,
         Tooltip::default(),
-        bar_button("Leave Ship"),
-        observe(on_ship_step),
+        bar_button("Back"),
+        observe(on_back),
     ));
 }
 
@@ -568,55 +582,98 @@ fn on_snap_button(_activate: On<Activate>, mut tool: ResMut<StageTool>) {
     tool.snap = !tool.snap;
 }
 
-/// Step into the selected ship, or out of the one the editor stands in.
-fn on_ship_step(
+/// Open Ship: the selected ship, on its own.
+fn on_open_ship(
     _activate: On<Activate>,
+    mut commands: Commands,
     ships: Query<(), With<ShipNode>>,
-    mut context: ResMut<EditContext>,
-    mut selected: ResMut<SelectedNode>,
+    context: Res<EditContext>,
+    selected: Res<SelectedNode>,
 ) {
-    if context.ship().is_some() {
-        context.exit_all();
-    } else if let Some(ship) = selected.primary().filter(|node| ships.contains(*node)) {
-        context.enter(ship);
-    } else {
-        return;
+    if let Some(ship) = selected
+        .primary()
+        .filter(|node| ships.contains(*node) && context.ship().is_none())
+    {
+        commands.queue(move |world: &mut World| open_ship_node(world, ship, None));
     }
-    selected.set(None);
 }
 
-/// Say Enter Ship over a selected ship and Leave Ship inside one, and take the
-/// button off the bar when it could do neither.
+/// Back: the document this one was opened over.
+fn on_back(_activate: On<Activate>, mut commands: Commands) {
+    commands.queue(go_back);
+}
+
+/// Enter over the stage opens the selected ship on its own. Over a panel the
+/// key is the panel's.
+pub(crate) fn stage_enter_opens_ship(
+    mut commands: Commands,
+    keys: Res<ButtonInput<KeyCode>>,
+    pointer: Res<ViewportPointer>,
+    ships: Query<(), With<ShipNode>>,
+    context: Res<EditContext>,
+    selected: Res<SelectedNode>,
+) {
+    if !keys.any_just_pressed([KeyCode::Enter, KeyCode::NumpadEnter])
+        || pointer.over_ui
+        || pointer.at.is_none()
+        || context.ship().is_some()
+    {
+        return;
+    }
+    if let Some(ship) = selected.primary().filter(|node| ships.contains(*node)) {
+        commands.queue(move |world: &mut World| open_ship_node(world, ship, None));
+    }
+}
+
+/// Name Back's target, and show Open Ship over a selected ship of a scenario.
+/// Each button leaves the bar when it could not act.
 pub(crate) fn sync_ship_step(
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
     ships: Query<(), With<ShipNode>>,
-    mut buttons: Query<(&mut Node, &Children, &mut Tooltip), With<ShipStepButton>>,
+    trail: Res<DocumentTrail>,
+    project: Option<Res<ModProject>>,
+    mut backs: Query<
+        (&mut Node, &Children, &mut Tooltip),
+        (With<BackButton>, Without<OpenShipButton>),
+    >,
+    mut opens: Query<&mut Node, (With<OpenShipButton>, Without<BackButton>)>,
     mut labels: Query<&mut Text, With<ButtonLabel>>,
 ) {
-    let inside = context.ship().is_some();
-    let over = selected.primary().is_some_and(|node| ships.contains(node));
-    let (word, hint) = if inside {
-        ("Leave Ship", "Back to the scenario")
-    } else {
-        ("Enter Ship", "Build inside this ship")
-    };
-    let display = if inside || over {
+    let over =
+        context.ship().is_none() && selected.primary().is_some_and(|node| ships.contains(node));
+    let shown = if over { Display::Flex } else { Display::None };
+    for mut node in &mut opens {
+        if node.display != shown {
+            node.display = shown;
+        }
+    }
+    let target = trail.last().map(|stop| {
+        stop.open
+            .as_ref()
+            .and_then(|open| project.as_ref()?.data.name_of(open))
+            .unwrap_or_else(|| "the last document".to_string())
+    });
+    let shown = if target.is_some() {
         Display::Flex
     } else {
         Display::None
     };
-    for (mut node, children, mut tooltip) in &mut buttons {
-        if node.display != display {
-            node.display = display;
+    let word = target
+        .as_ref()
+        .map_or_else(String::new, |name| format!("Back to {name}"));
+    for (mut node, children, mut tooltip) in &mut backs {
+        if node.display != shown {
+            node.display = shown;
         }
+        let hint = format!("{word} (Esc)");
         if tooltip.0 != hint {
-            tooltip.0 = hint.to_string();
+            tooltip.0 = hint;
         }
         for child in children {
             if let Ok(mut text) = labels.get_mut(*child) {
                 if text.0 != word {
-                    text.0 = word.to_string();
+                    text.0.clone_from(&word);
                 }
             }
         }

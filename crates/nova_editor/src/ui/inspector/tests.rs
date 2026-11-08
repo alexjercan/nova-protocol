@@ -546,7 +546,9 @@ fn a_ship_hands_itself_to_the_ai_from_its_driver_row() {
             ChildOf(scenario),
         ))
         .id();
-    app.world_mut().resource_mut::<EditContext>().enter(ship);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(ship));
     app.update();
 
     let option = app
@@ -624,7 +626,9 @@ fn a_second_ship_cannot_take_the_controls_while_another_flies() {
             ChildOf(scenario),
         ))
         .id();
-    app.world_mut().resource_mut::<EditContext>().enter(escort);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(escort));
     app.update();
 
     let option = app
@@ -701,7 +705,9 @@ fn only_a_ship_the_player_does_not_fly_takes_the_station_mark() {
             .map(|(line, _)| line.to_string())
     };
 
-    app.world_mut().resource_mut::<EditContext>().enter(flown);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(flown));
     app.update();
     let toggle = station_box(&mut app);
     app.world_mut().trigger(Activate { entity: toggle });
@@ -715,8 +721,9 @@ fn only_a_ship_the_player_does_not_fly_takes_the_station_mark() {
     );
     assert_eq!(said(&app).as_deref(), Some(STATION_FLOWN));
 
-    app.world_mut().resource_mut::<EditContext>().exit();
-    app.world_mut().resource_mut::<EditContext>().enter(escort);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(escort));
     app.update();
     let toggle = station_box(&mut app);
     app.world_mut().trigger(Activate { entity: toggle });
@@ -2002,7 +2009,9 @@ fn picking_a_driver_is_one_step() {
             ChildOf(scenario),
         ))
         .id();
-    app.world_mut().resource_mut::<EditContext>().enter(ship);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(ship));
     app.update();
 
     assert_one_step(&mut app, "Edit Driver", |app| {
@@ -2034,7 +2043,9 @@ fn ticking_a_flag_is_one_step() {
             ChildOf(scenario),
         ))
         .id();
-    app.world_mut().resource_mut::<EditContext>().enter(ship);
+    app.world_mut()
+        .resource_mut::<SelectedNode>()
+        .set(Some(ship));
     app.update();
 
     assert_one_step(&mut app, "Edit Station", |app| {

@@ -129,7 +129,12 @@ use placement::{
 use probe::{sync_editor_probe, sync_shell_probe};
 pub use probe::{EditorPlacement, EditorProbe, EditorSection, EditorTool, ShellProbe};
 use problems::{reset_problems, sync_problems, Problems};
-use project::{apply_pending_mods, conform_view, PendingMods};
+use project::{
+    apply_pending_mods, conform_view,
+    trail::{CameraReturn, DocumentTrail},
+    verbs::go_back,
+    PendingMods,
+};
 use readout::sync_ship_readout;
 use scenario::setup_scenario;
 use selection::{
@@ -170,7 +175,8 @@ use ui::{
     settings::{apply_settings_fields, sync_settings_window},
     setup_editor_scene,
     shell::{
-        panel_keys, sync_panels, sync_ship_step, sync_stage_overlay, sync_toolbar, EditorPanels,
+        panel_keys, stage_enter_opens_ship, sync_panels, sync_ship_step, sync_stage_overlay,
+        sync_toolbar, EditorPanels,
     },
     stage_menu::{stage_context_menu, StageRightPress},
     sync_context_panels, sync_editor_title, sync_hull_plan, sync_key_legend, sync_part_ticks,
@@ -241,6 +247,8 @@ fn editor_plugin(app: &mut App) {
     app.insert_resource(HeldPart(None));
     app.init_resource::<EditContext>();
     app.init_resource::<SelectedNode>();
+    app.init_resource::<DocumentTrail>();
+    app.init_resource::<CameraReturn>();
     app.init_resource::<HoveredNode>();
     app.init_resource::<EditorRebind>();
     app.init_resource::<EditorOverlays>();
@@ -498,6 +506,7 @@ fn editor_plugin(app: &mut App) {
             sync_panels,
             sync_toolbar,
             sync_ship_step,
+            stage_enter_opens_ship.run_if(in_input_mode(InputMode::Normal)),
             sync_stage_overlay,
             sync_browser,
             (apply_asset_rename, sync_assets, sync_asset_thumbs).chain(),
@@ -917,7 +926,7 @@ fn declare_editor_escape_owner(
     gallery: Res<GalleryState>,
     choice: Res<HeldPart>,
     rebind: Res<EditorRebind>,
-    context: Res<EditContext>,
+    trail: Option<Res<DocumentTrail>>,
     menu: Res<OpenMenu>,
     drag: Res<CanvasDrag>,
     typing: Query<(), With<nova_ui::prelude::TextFieldFocused>>,
@@ -934,7 +943,7 @@ fn declare_editor_escape_owner(
             || gallery.open
             || rebind.target.is_some()
             || *choice != HeldPart(None)
-            || context.ship().is_some());
+            || trail.is_some_and(|trail| trail.last().is_some()));
     if owner.0 != owned {
         owner.0 = owned;
     }
@@ -966,38 +975,37 @@ fn declare_editor_keyboard_owner(
     }
 }
 
-/// Backspace steps OUT one level, from anywhere.
+/// Backspace goes Back to the document this one was opened over, from
+/// anywhere.
 ///
 /// Escape ends at the same rung, but it is also the key that closes a menu,
-/// drops the part in hand and cancels a rebind - so "get me out of this ship"
-/// is a press whose effect depends on what else is open. This one does the one
-/// thing, always.
+/// drops the part in hand and cancels a rebind - so "take me back" is a press
+/// whose effect depends on what else is open. This one does the one thing,
+/// always.
 ///
 /// Not while a field has the keyboard: there, Backspace is a character.
-fn backspace_steps_out(keys: Res<ButtonInput<KeyCode>>, mut context: ResMut<EditContext>) {
+fn backspace_steps_out(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>) {
     if keys.just_pressed(KeyCode::Backspace) {
-        context.exit();
+        commands.queue(go_back);
     }
 }
 
 /// Escape backs out one step: it closes an open menu, then takes back an open
 /// colour picker, then puts the armed part down, and with nothing in hand it
-/// leaves the ship you are inside.
+/// goes Back to the document this one was opened over.
 ///
 /// ONE RUNG PER PRESS. The full ladder is: a block in hand, a popup, a block's
 /// pop-up, an open top-bar menu, then the gallery, then a pending rebind, then
-/// a colour picker, then the armed part, then the edit context, then the pause
-/// menu. This system owns the middle of that ladder and nothing
-/// else: the rungs above it belong to modes, and a mode holding the keyboard is
-/// a mode this never runs under. A block's pop-up is such a mode: see
-/// [`escape_block_popup`].
+/// a colour picker, then the armed part, then Back, then the pause menu. This
+/// system owns the middle of that ladder and nothing else: the rungs above it
+/// belong to modes, and a mode holding the keyboard is a mode this never runs
+/// under. A block's pop-up is such a mode: see [`escape_block_popup`].
 fn escape_backs_out(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     popups: Query<Entity, With<PopupRoot>>,
     mut menu: ResMut<OpenMenu>,
     mut choice: ResMut<HeldPart>,
-    mut context: ResMut<EditContext>,
     mut drag: ResMut<CanvasDrag>,
     pickers: Query<Entity, With<ColourWindow>>,
 ) {
@@ -1018,7 +1026,7 @@ fn escape_backs_out(
         *choice = HeldPart(None);
         return;
     }
-    context.exit();
+    commands.queue(go_back);
 }
 
 /// Esc under a block's pop-up: a list open on one of its rows goes first, then
@@ -1232,20 +1240,24 @@ mod tests {
     /// it at all (`the_editor_claims_the_keyboard_for_a_rebind`, the gallery's own claim
     /// and `nova_ui::input_mode`).
     #[test]
-    fn escape_puts_the_part_down_first_and_leaves_the_ship_second() {
-        let scenario = Entity::from_raw_u32(1).expect("a test entity id");
-        let ship = Entity::from_raw_u32(2).expect("a test entity id");
-
-        let mut world = World::new();
+    fn escape_puts_the_part_down_first_and_goes_back_second() {
+        let mut app = crate::project::tests::project_app();
+        let ship = crate::history::tests::first_with::<crate::node::ShipNode>(&mut app);
+        app.world_mut().commands().queue(move |world: &mut World| {
+            crate::project::ship::open_ship_node(world, ship, None)
+        });
+        app.update();
+        let world = app.world_mut();
+        let ship = world
+            .resource::<EditContext>()
+            .ship()
+            .expect("the ship is open");
         let mut keys = ButtonInput::<KeyCode>::default();
         keys.press(KeyCode::Escape);
         world.insert_resource(keys);
         world.init_resource::<CanvasDrag>();
         world.insert_resource(HeldPart(Some("hull".to_string())));
         world.insert_resource(OpenMenu(Some(MenuId::File)));
-        world.insert_resource(EditContext {
-            path: vec![scenario, ship],
-        });
 
         // The open menu first, drawn over the part in hand.
         world
@@ -1274,12 +1286,16 @@ mod tests {
         assert_eq!(
             world.resource::<EditContext>().ship(),
             None,
-            "the second press leaves the ship"
+            "the second press goes back"
         );
-        assert_eq!(
-            world.resource::<EditContext>().scenario(),
-            Some(scenario),
-            "and lands in the scenario context, not outside the document"
+        assert!(
+            world
+                .resource::<crate::project::ModProject>()
+                .data
+                .open
+                .as_ref()
+                .is_some_and(crate::project::OpenAsset::is_scenario),
+            "to the scenario the ship was opened from"
         );
     }
 

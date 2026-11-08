@@ -384,10 +384,11 @@ fn undo_after_a_switch_returns_to_the_asset_of_the_step() {
     assert_ne!(document_name(&app), "Edited First");
 }
 
-/// A ship tile opens the scenario that places the ship, with the ship entered
-/// and the Ship view up. Like any open, it is not a step and marks nothing.
+/// A ship tile opens the ship alone at identity: no other node of its scenario
+/// stands. Back returns to the scenario with its view and selection. Neither
+/// is a step, and neither marks anything.
 #[test]
-fn a_ship_tile_opens_its_scenario_with_the_ship_entered() {
+fn a_ship_tile_opens_the_ship_alone_and_back_returns() {
     let mut app = project_app();
     app.init_resource::<EditorViewType>();
     let range = open_id(&app);
@@ -397,28 +398,133 @@ fn a_ship_tile_opens_its_scenario_with_the_ship_entered() {
         .find(|item| item.kind() == "ship")
         .map(|item| item.id().to_string())
         .expect("the range places a ship");
-    add_scenario(app.world_mut());
-    app.update();
+    let rock = first_with::<crate::node::ObjectNode>(&mut app);
+    let rock_id = app.world().get::<NodeId>(rock).cloned();
+    app.world_mut()
+        .resource_mut::<crate::config::SelectedNode>()
+        .set(Some(rock));
+    *app.world_mut().resource_mut::<EditorViewType>() = EditorViewType::Events;
     let steps = depth(&app);
     let dirty = is_dirty(&app);
 
     open_asset(app.world_mut(), "ship", &design);
     app.update();
 
-    assert_eq!(open_id(&app), range, "its scenario is open");
+    assert_eq!(open_id(&app), design, "the ship is open");
     let ship = app
         .world()
         .resource::<EditContext>()
         .ship()
-        .expect("a ship is entered");
+        .expect("the ship stands entered");
     let node = app.world().get::<NodeId>(ship).expect("it has an id");
     assert_eq!(design, format!("{range}.{}", node.0));
+    let others = app
+        .world_mut()
+        .query_filtered::<Entity, Or<(With<ShipNode>, With<crate::node::ObjectNode>)>>()
+        .iter(app.world())
+        .filter(|other| *other != ship)
+        .count();
+    assert_eq!(others, 0, "no other node of the scenario stands");
     assert_eq!(
         *app.world().resource::<EditorViewType>(),
         EditorViewType::Ship
     );
     assert_eq!(depth(&app), steps, "opening is not a step");
     assert_eq!(is_dirty(&app), dirty, "and marks nothing");
+
+    app.world_mut().commands().queue(super::verbs::go_back);
+    app.update();
+
+    assert_eq!(open_id(&app), range, "Back opens the scenario again");
+    assert_eq!(app.world().resource::<EditContext>().ship(), None);
+    assert_eq!(
+        *app.world().resource::<EditorViewType>(),
+        EditorViewType::Events,
+        "with the view it was left on"
+    );
+    let marked = app
+        .world()
+        .resource::<crate::config::SelectedNode>()
+        .primary()
+        .and_then(|node| app.world().get::<NodeId>(node).cloned());
+    assert_eq!(marked, rock_id, "and the selection");
+    assert_eq!(depth(&app), steps, "Back is not a step");
+    assert_eq!(is_dirty(&app), dirty, "and marks nothing");
+}
+
+/// An edit in an ad-hoc ship's document is one step, and Back finds it in the
+/// scenario: the ship's design is the scenario's.
+#[test]
+fn an_edit_in_a_ship_document_writes_back_to_its_scenario() {
+    let mut app = project_app();
+    app.init_resource::<EditorViewType>();
+    lower_open_document(app.world_mut());
+    let design = data(&app)
+        .items()
+        .find(|item| item.kind() == "ship")
+        .map(|item| item.id().to_string())
+        .expect("the range places a ship");
+    open_asset(app.world_mut(), "ship", &design);
+    app.update();
+    let ship = app
+        .world()
+        .resource::<EditContext>()
+        .ship()
+        .expect("the ship is open");
+    let steps = depth(&app);
+
+    app.world_mut()
+        .get_mut::<ShipNode>(ship)
+        .expect("a ship")
+        .name = "Renamed Hull".to_string();
+    commit_edit_now(app.world_mut(), "Edit Name");
+    app.update();
+    assert_eq!(depth(&app), steps + 1, "one edit, one step");
+
+    app.world_mut().commands().queue(super::verbs::go_back);
+    app.update();
+    let named = app
+        .world_mut()
+        .query::<&ShipNode>()
+        .iter(app.world())
+        .any(|ship| ship.name == "Renamed Hull");
+    assert!(named, "the scenario's ship carries the edit");
+
+    undo(&mut app);
+    let named = app
+        .world_mut()
+        .query::<&ShipNode>()
+        .iter(app.world())
+        .any(|ship| ship.name == "Renamed Hull");
+    assert!(!named, "and one undo takes it back");
+}
+
+/// A shipped ship design, opened on its own and lowered with no edit, is the
+/// item it was: the document drops nothing it cannot show.
+#[test]
+fn an_unedited_ship_design_writes_back_unchanged() {
+    let mut app = project_app();
+    app.init_resource::<EditorViewType>();
+    let design = one_of_every_other_kind()
+        .into_iter()
+        .find(|item| item.kind() == "ship")
+        .expect("the shipped content holds a ship design");
+    let id = design.id().to_string();
+    app.world_mut()
+        .resource_mut::<ModProject>()
+        .edit()
+        .add_item(design.clone(), "kept.content.ron");
+
+    open_asset(app.world_mut(), "ship", &id);
+    app.update();
+    assert_eq!(open_id(&app), id, "the design is open");
+    super::verbs::lower_open_document(app.world_mut());
+
+    let held = data(&app)
+        .items()
+        .find(|item| item.kind() == "ship" && item.id() == id)
+        .map(|item| format!("{item:?}"));
+    assert_eq!(held, Some(format!("{design:?}")));
 }
 
 fn is_dirty(app: &App) -> bool {

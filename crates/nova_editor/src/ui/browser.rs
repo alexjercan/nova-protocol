@@ -30,6 +30,7 @@ use crate::{
     generate::{generate_ship, reroll_seed, GenerateButton, HullSeedField, UNAUTHORED_WEIGHT},
     node::{EditContext, NodeId, ObjectNode, SectionNode, ShipNode},
     problems::{Problem, ProblemSeverityType, Problems},
+    project::ship::open_ship_node,
     ui::canvas::CanvasBoard,
 };
 
@@ -677,17 +678,19 @@ pub(crate) fn sync_problem_rows(
 }
 
 /// Select the node a browser row names, going where the editor has to stand to
-/// show it: into the owning ship for a section, to the Events tab with the block
-/// framed for a script node, and out to the scenario for anything else.
+/// show it: the owning ship's own document for a section of another ship, the
+/// Events tab with the block framed for a script node, and the Scene for
+/// anything else.
 pub(crate) fn on_target_row(
     activate: On<Activate>,
+    mut commands: Commands,
     rows: Query<&RowTarget>,
     owners: Query<&ChildOf>,
     ships: Query<(), With<ShipNode>>,
     sections: Query<(), With<SectionNode>>,
     objects: Query<(), With<ObjectNode>>,
     named: Query<(), With<NodeId>>,
-    mut context: ResMut<EditContext>,
+    context: Res<EditContext>,
     mut tab: ResMut<EditorViewType>,
     mut selected: ResMut<SelectedNode>,
     mut board: ResMut<CanvasBoard>,
@@ -699,25 +702,20 @@ pub(crate) fn on_target_row(
     if !named.contains(node) {
         return;
     }
+    let in_ship_document = context.ship().is_some();
     if sections.contains(node) {
         let ship = owners
             .iter_ancestors(node)
             .find(|ancestor| ships.contains(*ancestor));
         if let Some(ship) = ship.filter(|ship| context.ship() != Some(*ship)) {
-            if let Some(scenario) = context.scenario() {
-                context.leave_to(scenario);
-            }
-            context.enter(ship);
+            commands.queue(move |world: &mut World| open_ship_node(world, ship, Some(node)));
+            return;
         }
-        *tab = EditorViewType::Scene;
     } else if ships.contains(node) || objects.contains(node) {
-        if let Some(scenario) = context.scenario() {
-            context.leave_to(scenario);
+        if !in_ship_document {
+            *tab = EditorViewType::Scene;
         }
-        *tab = EditorViewType::Scene;
-    } else if let Some(scenario) = context.scenario().filter(|scenario| *scenario != node) {
-        // The script is a view of the scenario, not of a ship inside it.
-        context.leave_to(scenario);
+    } else if context.scenario().is_some_and(|scenario| scenario != node) && !in_ship_document {
         *tab = EditorViewType::Events;
         board.frame = Some(node);
     }
@@ -735,7 +733,7 @@ mod tests {
     use crate::{
         config::{EditorViewType, SelectedNode},
         history::tests::{first_with, history_app},
-        node::{EditContext, SectionNode, ShipNode},
+        node::{EditContext, NodeId, SectionNode, ShipNode},
         problems::{Problem, ProblemSeverityType, Problems},
         ui::canvas::CanvasBoard,
     };
@@ -751,7 +749,7 @@ mod tests {
     }
 
     #[test]
-    fn a_problem_row_on_a_section_goes_into_its_ship_and_selects_it() {
+    fn a_problem_row_on_a_section_opens_its_ship_and_selects_it() {
         let mut app = history_app();
         app.init_resource::<EditorViewType>();
         app.init_resource::<CanvasBoard>();
@@ -762,14 +760,24 @@ mod tests {
             .expect("a section hangs off its ship")
             .parent();
         assert!(app.world().get::<ShipNode>(ship).is_some());
+        let ids = |app: &App, node: Entity| app.world().get::<NodeId>(node).cloned();
+        let (ship_id, section_id) = (ids(&app, ship), ids(&app, section));
 
         press_row_of(&mut app, section);
+        app.update();
 
-        assert_eq!(app.world().resource::<EditContext>().ship(), Some(ship));
-        assert_eq!(
-            app.world().resource::<SelectedNode>().primary(),
-            Some(section)
-        );
+        let open = app
+            .world()
+            .resource::<EditContext>()
+            .ship()
+            .expect("the ship is open");
+        assert_eq!(ids(&app, open), ship_id);
+        let marked = app
+            .world()
+            .resource::<SelectedNode>()
+            .primary()
+            .expect("a part is marked");
+        assert_eq!(ids(&app, marked), section_id);
     }
 
     /// A row drawn before an asset switch outlives the node it names by a frame.

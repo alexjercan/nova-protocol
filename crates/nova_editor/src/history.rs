@@ -492,6 +492,7 @@ impl EditHistory {
         }
         sync_project_sections(world);
         restore(world, &snapshot, &self.ordinals);
+        crate::project::ship::conform_context(world);
         let now_open = open_asset_of(world);
         if now_open != was_open {
             if let Some(name) = now_open {

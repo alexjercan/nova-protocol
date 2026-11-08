@@ -215,8 +215,12 @@ fn an_item_nobody_edited_lowers_equal_to_what_was_lifted() {
         .cloned()
         .chain([Content::Section(Box::new(oblique))])
     {
+        // A ship opens as a ship's document, not on the bench: see
+        // `an_unedited_ship_design_writes_back_unchanged`.
         let bench_kinds = KINDS.iter().find(|row| row.kind == item.kind());
-        if !bench_kinds.is_some_and(|row| row.opens) {
+        if !bench_kinds.is_some_and(|row| row.opens)
+            || crate::project::ship::is_ship_kind(item.kind())
+        {
             continue;
         }
         app.world_mut()

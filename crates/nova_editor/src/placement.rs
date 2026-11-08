@@ -249,25 +249,25 @@ fn default_binds_for(
     ))
 }
 
-/// Add a BLANK ship to the document and go inside it - the scenario context's
-/// "Add Ship" action.
+/// Add a BLANK ship to the scenario and open it on its own - the scenario's
+/// New Ship.
 ///
-/// ADDITIVE, where this used to despawn whatever was on the stage and reset the
-/// build state: the document holds ships, so a second "Add Ship" is one more
-/// subtree standing beside the first rather than a reset. The new ship becomes
-/// the edit context, so the builder lands inside the thing they just made.
-/// Blank rather than seeded: which part a ship starts from is the builder's
-/// first decision, and [`found_empty_ship`] is where they make it.
+/// ADDITIVE: the document holds ships, so a second New Ship is one more ship
+/// beside the first rather than a reset. The add is the step; opening the new
+/// ship's own document after it is not, so the builder lands inside the thing
+/// they just made and Back returns to the scenario. Blank rather than seeded:
+/// which part a ship starts from is the builder's first decision, and
+/// [`found_empty_ship`] is where they make it.
 pub(crate) fn create_blank_ship(
     _activate: On<Activate>,
     mut commands: Commands,
     mut ordinals: Query<&mut NextChildOrdinal>,
     q_ships: Query<&ShipNode>,
-    mut context: ResMut<EditContext>,
+    context: Res<EditContext>,
     mut says: EditorSays,
     benches: Query<(), With<AssetNode>>,
 ) {
-    if !benches.is_empty() {
+    if !benches.is_empty() || context.ship().is_some() {
         says.refuse("open a scenario to add a ship");
         return;
     }
@@ -281,12 +281,14 @@ pub(crate) fn create_blank_ship(
     } else {
         ShipDriver::Player
     };
-    // Entered, because a blank ship is not a ship yet: the founding click is
-    // the next thing the builder does and it happens INSIDE.
+    // Opened, because a blank ship is not a ship yet: the founding click is
+    // the next thing the builder does and it happens in the ship's document.
     match spawn_ship_node(&mut commands, &mut ordinals, &context, driver) {
         Some(ship) => {
-            context.enter(ship);
             commit_edit(&mut commands, "Add Ship");
+            commands.queue(move |world: &mut World| {
+                crate::project::ship::open_ship_node(world, ship, None);
+            });
             says.accept();
         }
         None => says.refuse("there is no scenario to add a ship to"),
@@ -597,7 +599,7 @@ pub(crate) fn continue_to_simulation(
     mut says: EditorSays,
 ) {
     if context.ship().is_some() {
-        says.refuse("Play flies the whole scenario - leave the ship first");
+        says.refuse("Play flies a scenario - go Back to one first");
         return;
     }
     if let Some((name, faults)) = catalogs
@@ -1667,10 +1669,10 @@ mod tests {
         assert_eq!(app.world().resource::<EditContext>().scenario(), scenario);
     }
 
-    /// Add Ship starts BLANK and entered: which part a ship begins from is the
-    /// builder's first decision, not the button's.
+    /// New Ship starts BLANK and opened on its own: which part a ship begins
+    /// from is the builder's first decision, not the button's.
     #[test]
-    fn add_ship_starts_blank_and_entered() {
+    fn new_ship_starts_blank_and_open() {
         let mut app = document_app(vec![]);
 
         press_new_ship(&mut app);
@@ -1696,32 +1698,43 @@ mod tests {
     }
 
     /// Two ships in one session, which is what the whole model exists for. A
-    /// second "Add Ship" once despawned the first and reset the build state.
+    /// second New Ship once despawned the first and reset the build state.
+    /// Each opens on its own, and Back finds both in the scenario.
     #[test]
     fn a_second_new_ship_leaves_the_first_standing() {
         let mut app = document_app(vec![]);
+        let back = |app: &mut App| {
+            app.world_mut()
+                .commands()
+                .queue(crate::project::verbs::go_back);
+            app.update();
+        };
 
         press_new_ship(&mut app);
-        let first = minted_ship_nodes(&mut app);
-        assert_eq!(first.len(), 1);
+        back(&mut app);
+        assert_eq!(minted_ship_nodes(&mut app).len(), 1);
 
         press_new_ship(&mut app);
-        let ships = minted_ship_nodes(&mut app);
-        assert_eq!(ships.len(), 2, "the first ship is still there");
-
-        let second = *ships
-            .iter()
-            .find(|ship| **ship != first[0])
-            .expect("a second ship");
+        let alone = minted_ship_nodes(&mut app);
+        assert_eq!(alone.len(), 1, "the new ship's document holds it alone");
         assert_eq!(
             app.world().resource::<EditContext>().ship(),
-            Some(second),
-            "the new ship is entered"
+            Some(alone[0]),
+            "the new ship is open"
         );
         assert_eq!(
-            app.world().get::<ShipNode>(second).map(|ship| ship.driver),
+            app.world()
+                .get::<ShipNode>(alone[0])
+                .map(|ship| ship.driver),
             Some(ShipDriver::Ai),
             "a ship built beside the player's is not a second thing to fly"
+        );
+
+        back(&mut app);
+        assert_eq!(
+            minted_ship_nodes(&mut app).len(),
+            2,
+            "the first ship is still there"
         );
     }
 
@@ -1902,7 +1915,7 @@ mod tests {
     /// rather than re-interpreting a click somewhere on the stage.
     #[test]
     fn the_object_palette_places_the_kind_it_names_and_marks_it() {
-        let mut app = document_app(vec![]);
+        let mut app = document_only(vec![]);
         app.init_resource::<SelectedNode>();
         app.add_observer(create_scenario_object);
         let before = object_nodes(&mut app).len();
@@ -1941,7 +1954,7 @@ mod tests {
     /// stored when it framed the node.
     #[test]
     fn a_placed_object_lands_at_the_distance_the_camera_is_framing() {
-        let mut app = document_app(vec![]);
+        let mut app = document_only(vec![]);
         app.init_resource::<SelectedNode>();
         app.add_observer(create_scenario_object);
 

@@ -100,7 +100,7 @@ pub(crate) enum MenuVerbType {
     /// The canvas's Clean Up: the scripts in one column.
     CleanUp,
     /// A verb of an Assets tile, and the kind of what the tile holds.
-    Tile(AssetVerbType, &'static str),
+    Tile(AssetVerbType, &'static str, bool),
     /// A verb of an Assets file tile, and what is known of the file.
     File(FileVerbType, FileFacts),
 }
@@ -202,7 +202,7 @@ impl MenuFacts<'_, '_> {
             .and_then(|root| self.benches.get(root).ok())
             .and_then(|bench| section_facts(&bench.0));
         MenuContext {
-            document: DocumentType::of(open, self.context.ship().is_some()),
+            document: DocumentType::of(open),
             view: *self.view,
             selected: !selected.is_empty(),
             deletable: !selected.is_empty()
@@ -270,7 +270,7 @@ pub(crate) fn verb_state(verb: MenuVerbType, context: &MenuContext) -> VerbState
         },
         Verb::Paste => match document {
             Doc::Scenario => live_if(context.clipboard, "copy something first"),
-            Doc::Ship => greyed("paste works on the stage - leave the ship first"),
+            Doc::Ship => greyed("paste works on a scenario - go Back to one first"),
             Doc::Section | Doc::Form => Hidden,
         },
         Verb::Delete => match document {
@@ -335,7 +335,7 @@ pub(crate) fn verb_state(verb: MenuVerbType, context: &MenuContext) -> VerbState
         },
         Verb::CleanUp if context.view == View::Events => Live,
         Verb::CleanUp => Hidden,
-        Verb::Tile(verb, kind) => tile_state(verb, kind),
+        Verb::Tile(verb, kind, in_scenario) => tile_state(verb, kind, in_scenario),
         Verb::File(verb, file) => file_state(verb, file),
     }
 }
@@ -354,17 +354,18 @@ fn file_state(verb: FileVerbType, file: FileFacts) -> VerbState {
     }
 }
 
-/// How a tile's `verb` shows on a tile of `kind`.
-fn tile_state(verb: AssetVerbType, kind: &str) -> VerbState {
+/// How a tile's `verb` shows on a tile of `kind`. `in_scenario` is a design a
+/// scenario owns: the ship of one of its nodes.
+fn tile_state(verb: AssetVerbType, kind: &str, in_scenario: bool) -> VerbState {
     use AssetVerbType as Tile;
     match (verb, kind) {
         (Tile::Open, _) => VerbState::Live,
         // A mod states one price table: it has no id to change, and no second
         // to copy into.
         (Tile::Rename | Tile::Duplicate, "price table") => VerbState::Hidden,
-        // A design is renamed, copied and deleted as the ship it is, in its
-        // scenario: the id is the scenario's and the node's.
-        (_, "ship" | "station") => VerbState::Hidden,
+        // A scenario's design is renamed, copied and deleted as the ship it
+        // is, in its scenario: the id is the scenario's and the node's.
+        _ if in_scenario => VerbState::Hidden,
         _ => VerbState::Live,
     }
 }
@@ -728,6 +729,17 @@ mod tests {
         world.init_resource::<EditorClipboard>();
         world.init_resource::<OpenMenu>();
         world.insert_resource(EditorViewType::Ship);
+        let mut project = crate::project::ModProject::new(
+            None,
+            "Scratch",
+            "",
+            crate::template::ScenarioTemplate::default(),
+        );
+        std::sync::Arc::make_mut(&mut project.data).open = Some(crate::project::OpenAsset {
+            kind: "ship",
+            id: "range.ship_1".to_string(),
+        });
+        world.insert_resource(project);
         let ship = world.spawn(ShipNode::default()).id();
         world.insert_resource(EditContext {
             path: vec![Entity::PLACEHOLDER, ship],
@@ -785,11 +797,18 @@ mod tests {
         world.insert_resource(EditContext {
             path: vec![Entity::PLACEHOLDER],
         });
+        world
+            .resource_mut::<crate::project::ModProject>()
+            .edit()
+            .open = Some(crate::project::OpenAsset {
+            kind: crate::project::SCENARIO_KIND,
+            id: "range".to_string(),
+        });
         run(&mut world);
         assert_eq!(
             world.get::<Node>(rebind).map(|node| node.display),
             Some(Display::None),
-            "out of the ship, the ship verbs are not offered"
+            "in a scenario, the ship verbs are not offered"
         );
     }
 }

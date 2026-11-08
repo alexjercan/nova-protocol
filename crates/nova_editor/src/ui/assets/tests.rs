@@ -16,6 +16,7 @@ fn entry(kind: &'static str, label: &str) -> AssetEntry {
         id: None,
         parts: Vec::new(),
         file: None,
+        scenario: None,
     }
 }
 
@@ -28,11 +29,36 @@ fn a_kind_and_a_filter_both_narrow_the_grid() {
         entry("audio", "sounds/boom.ogg"),
     ];
 
-    assert_eq!(filtered_entries(&entries, None, "").len(), 3);
-    assert_eq!(filtered_entries(&entries, None, "RED").len(), 2);
-    let kept = filtered_entries(&entries, Some("section"), "red");
+    assert_eq!(
+        filtered_entries(&entries, &AssetShelfType::All, "").len(),
+        3
+    );
+    assert_eq!(
+        filtered_entries(&entries, &AssetShelfType::All, "RED").len(),
+        2
+    );
+    let kept = filtered_entries(&entries, &AssetShelfType::Kind("section"), "red");
     assert_eq!(kept.len(), 1);
     assert_eq!(kept[0].label, "red_plate");
+}
+
+/// A ship a scenario made is on that scenario's shelf and not on the Ships
+/// shelf, which holds the designs no scenario owns.
+#[test]
+fn a_scenario_ship_shelves_under_its_scenario() {
+    let mut owned = entry("ship", "hulk_0");
+    owned.full = "range.hulk_0".to_string();
+    owned.scenario = Some("range".to_string());
+    let mut range = entry("scenario", "Range");
+    range.full = "range".to_string();
+    let entries = vec![range, owned, entry("ship", "red_run__courier")];
+
+    let scenario = filtered_entries(&entries, &AssetShelfType::Scenario("range".into()), "");
+    let labels: Vec<&str> = scenario.iter().map(|entry| entry.label.as_str()).collect();
+    assert_eq!(labels, ["Range", "hulk_0"]);
+    let ships = filtered_entries(&entries, &AssetShelfType::Kind("ship"), "");
+    let labels: Vec<&str> = ships.iter().map(|entry| entry.label.as_str()).collect();
+    assert_eq!(labels, ["red_run__courier"]);
 }
 
 /// An id is one word to the text layout, so a tile breaks it itself: at a word
@@ -105,7 +131,10 @@ fn the_filter_finds_a_tile_by_the_id_it_does_not_print() {
     let mut design = entry("ship", "hulk_0");
     design.full = "saved_range.hulk_0".to_string();
 
-    assert_eq!(filtered_entries(&[design], None, "saved_range").len(), 1);
+    assert_eq!(
+        filtered_entries(&[design], &AssetShelfType::All, "saved_range").len(),
+        1
+    );
 }
 
 /// Press a menu row for `asset`.

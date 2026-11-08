@@ -26,7 +26,8 @@ use crate::{
     },
     project::{package::asset_findings, ModProject, ProjectData},
     scenario::{
-        lower_fleet, sandbox_scenario, world_objects, world_script, world_settings, HullForm,
+        lower_fleet, lower_ship, sandbox_scenario, ship_design, world_objects, world_script,
+        world_settings, HullForm,
     },
     station::{short_fault, StationCatalogs},
 };
@@ -256,9 +257,86 @@ impl ProblemSources<'_, '_> {
         faults
     }
 
+    /// Lint the ship of a ship's document as a design: its sections and their
+    /// links, the station faults Play would refuse, and what the merge gate
+    /// would refuse in the mod. A ship's document is no scenario, so nothing a
+    /// scenario owes (a player, a world, a script) is asked of it.
+    fn ship_lint(&self) -> Option<Vec<Problem>> {
+        let project = self.project.as_deref()?;
+        let open = project.data.open.as_ref()?;
+        if !crate::project::ship::is_ship_kind(open.kind) {
+            return None;
+        }
+        let ids: Vec<(String, Entity)> = self
+            .q_named
+            .iter()
+            .map(|(node, id)| (id.0.clone(), node))
+            .collect();
+        let fleet = lower_fleet(&self.q_ships, &self.nodes);
+        let mut found = Vec::new();
+        for (name, faults) in self.catalogs.refused(&fleet) {
+            for fault in faults {
+                let message = format!("{name} cannot be a station: {}", short_fault(&fault));
+                found.push(Problem {
+                    severity: ProblemSeverityType::Error,
+                    node: named_node(&message, &ids).or_else(|| self.ship_named(&name)),
+                    message,
+                });
+            }
+        }
+        let no_sections = GameSections::default();
+        let sections = self.sections.as_deref().unwrap_or(&no_sections);
+        let known_sections = KnownSections::from_configs(&sections.0);
+        let no_items = GameItems::default();
+        let no_styles = GameStyles::default();
+        let issues: Vec<LintIssue> = self
+            .q_ships
+            .iter()
+            .flat_map(|(ship, id, node, _)| {
+                let lowered = lower_ship(ship, id, node, Transform::IDENTITY, &self.nodes);
+                let design = ShipDesignPrototype {
+                    id: open.id.as_str().into(),
+                    name: node.name.clone(),
+                    design: ship_design(&lowered),
+                };
+                lint_ship_design_config(
+                    &design,
+                    &known_sections,
+                    self.items.as_deref().unwrap_or(&no_items),
+                    self.styles.as_deref().unwrap_or(&no_styles),
+                    LINT_SOURCE,
+                )
+            })
+            .collect();
+        for issue in issues {
+            found.push(Problem {
+                severity: match issue.severity {
+                    LintSeverity::Error => ProblemSeverityType::Error,
+                    LintSeverity::Warn => ProblemSeverityType::Warning,
+                },
+                node: named_node(&issue.message, &ids),
+                message: issue.message,
+            });
+        }
+        let own = project.id.as_deref().unwrap_or(&project.namespace);
+        found.extend(asset_findings(own, &project.data, &self.assets));
+        found.extend(
+            self.ref_faults(project, &project.data)
+                .into_iter()
+                .map(|message| Problem {
+                    severity: ProblemSeverityType::Error,
+                    message,
+                    node: None,
+                }),
+        );
+        found.sort_by_key(|problem| problem.severity);
+        found.dedup();
+        Some(found)
+    }
+
     /// Lint the document as it stands.
     fn lint(&self) -> Vec<Problem> {
-        if let Some(found) = self.bench_lint() {
+        if let Some(found) = self.bench_lint().or_else(|| self.ship_lint()) {
             return found;
         }
         let targeting = self.targeting.as_deref().cloned().unwrap_or_default();

@@ -18,7 +18,9 @@
 
 pub(crate) mod ids;
 pub(crate) mod package;
+pub(crate) mod ship;
 pub(crate) mod store;
+pub(crate) mod trail;
 pub(crate) mod verbs;
 
 use std::{
@@ -65,7 +67,7 @@ pub(crate) struct KindRow {
 /// Every content kind, in Assets tab order.
 pub(crate) const KINDS: [KindRow; 12] = [
     KindRow::opens("scenario", "Scenarios"),
-    KindRow::placed("ship", "Ships"),
+    KindRow::opens("ship", "Ships"),
     KindRow::placed("station", "Stations"),
     KindRow::opens("section", "Sections"),
     KindRow::opens("campaign", "Campaigns"),
@@ -90,15 +92,15 @@ impl KindRow {
         }
     }
 
-    /// A design a scenario places: it opens inside its scenario, and a new one
-    /// is placed there, not added here.
+    /// A design only a scenario makes: it opens alone, and a new one is a
+    /// ship of a scenario marked as a station there, not added here.
     const fn placed(kind: &'static str, heading: &'static str) -> Self {
         Self {
             kind,
             heading,
             opens: true,
             add: false,
-            waits: "placed in a scenario: Add > New Ship there",
+            waits: "a scenario makes one: mark a ship there as a station",
         }
     }
 
@@ -151,16 +153,14 @@ pub(crate) struct ProjectData {
 
 /// What kind of document is open, which decides its views and its menus.
 ///
-/// Derived, never stored: from the open asset ([`ProjectData::open`]) and
-/// whether a ship of the open scenario is entered ([`EditContext::ship`]).
-/// Opening a ship tile opens its scenario and enters the ship.
-///
-/// [`EditContext::ship`]: crate::node::EditContext::ship
+/// Derived, never stored: from the open asset ([`ProjectData::open`]). Every
+/// asset opens alone; see [`ship`] for how a ship stands on its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum DocumentType {
     /// A scenario: its world and its script.
     Scenario,
-    /// One ship of the open scenario, entered.
+    /// One ship, alone at identity: a design of the mod, or an ad-hoc ship a
+    /// scenario placed.
     Ship,
     /// A section on the bench.
     Section,
@@ -170,12 +170,12 @@ pub(crate) enum DocumentType {
 }
 
 impl DocumentType {
-    /// The document `open` stands for, with a ship entered or not. With
-    /// nothing open the document is a scenario: the editor founds one.
-    pub(crate) fn of(open: Option<&OpenAsset>, inside_ship: bool) -> Self {
+    /// The document `open` stands for. With nothing open the document is a
+    /// scenario: the editor founds one.
+    pub(crate) fn of(open: Option<&OpenAsset>) -> Self {
         match open.map(|open| open.kind) {
-            None | Some(SCENARIO_KIND) if inside_ship => Self::Ship,
             None | Some(SCENARIO_KIND) => Self::Scenario,
+            Some(kind) if ship::is_ship_kind(kind) => Self::Ship,
             Some("section") => Self::Section,
             Some(_) => Self::Form,
         }
@@ -186,10 +186,7 @@ impl DocumentType {
         let open = world
             .get_resource::<ModProject>()
             .and_then(|project| project.data.open.as_ref());
-        let inside = world
-            .get_resource::<crate::node::EditContext>()
-            .is_some_and(|context| context.ship().is_some());
-        Self::of(open, inside)
+        Self::of(open)
     }
 
     /// Its views, the first the one it opens on.
@@ -203,18 +200,14 @@ impl DocumentType {
     }
 }
 
-/// Keep the view one the open document has: entering a ship shows the Ship
-/// view, leaving it the Scene, and opening an item its own view. Not a step
-/// and not an edit, so the unsaved mark never moves for it.
-pub(crate) fn conform_view(
-    project: Option<Res<ModProject>>,
-    context: Res<crate::node::EditContext>,
-    mut view: ResMut<EditorViewType>,
-) {
+/// Keep the view one the open document has: a ship shows the Ship view, a
+/// scenario the Scene, and an item its own view. Not a step and not an edit,
+/// so the unsaved mark never moves for it.
+pub(crate) fn conform_view(project: Option<Res<ModProject>>, mut view: ResMut<EditorViewType>) {
     let open = project
         .as_ref()
         .and_then(|project| project.data.open.as_ref());
-    let views = DocumentType::of(open, context.ship().is_some()).views();
+    let views = DocumentType::of(open).views();
     if !views.contains(&*view) {
         *view = views[0];
     }
@@ -289,7 +282,14 @@ impl ProjectData {
     /// What the open asset is called: a scenario's name, a section's name, any
     /// other item's id.
     pub(crate) fn open_name(&self) -> Option<String> {
-        let open = self.open.as_ref()?;
+        self.name_of(self.open.as_ref()?)
+    }
+
+    /// What asset `open` is called, as [`Self::open_name`] says it.
+    pub(crate) fn name_of(&self, open: &OpenAsset) -> Option<String> {
+        if ship::is_ship_kind(open.kind) {
+            return ship::ship_document_name(self, open);
+        }
         Some(match self.item(open.kind, &open.id)? {
             Content::Scenario(scenario) => scenario.name.clone(),
             Content::Section(config) => config.base.name.clone(),

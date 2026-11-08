@@ -2500,8 +2500,10 @@ pub(crate) const IMPLIED_ALLEGIANCE: &str = "default";
 pub(crate) const STATION_READY: &str = "ready";
 
 /// The rows a ship shows: who flies it, which side it is on, whether it is a
-/// station, and where it sits. `pose` is `None` inside the ship, where it stands
-/// at identity and has no pose to edit.
+/// station, and where it sits. `pose` is `None` in the ship's own document,
+/// where it stands at identity: there the ship shows its name and its station
+/// check, and the spawn's facts (driver, side, the station mark, the pose)
+/// wait for the scenario that places it.
 ///
 /// Allegiance is READ here, not set: it is what makes a picket dormant and a
 /// hulk inert, so a builder has to be able to see it - but the only way to
@@ -2517,8 +2519,31 @@ pub(crate) fn ship_rows(
     pose: Option<&Transform>,
     station_faults: &[String],
 ) -> Vec<InspectorRow> {
-    let mut rows = vec![
-        name_row(ship.name.clone()),
+    let mut rows = vec![name_row(ship.name.clone())];
+    if pose.is_some() {
+        rows.extend(spawn_rows(ship));
+    }
+    if ship.station {
+        let check = match station_faults.first() {
+            None => fixed(FieldRoot::Config, "Station Check", STATION_READY)
+                .saying("This hull can be a station."),
+            Some(first) => {
+                fixed(FieldRoot::Config, "Station Check", short_fault(first)).saying(format!(
+                    "Play refuses until this is fixed: {}.",
+                    station_faults.join("; ")
+                ))
+            }
+        };
+        rows.push(check);
+    }
+    rows.extend(pose.into_iter().flat_map(pose_rows));
+    rows
+}
+
+/// The rows of what a scenario says about the ship it places: who flies it,
+/// which side it is on, and whether it spawns as a station.
+fn spawn_rows(ship: &ShipNode) -> Vec<InspectorRow> {
+    vec![
         InspectorRow {
             root: FieldRoot::Config,
             path: Vec::new(),
@@ -2556,22 +2581,7 @@ pub(crate) fn ship_rows(
             "Spawn this hull as a station: parked, docked with, and offering rebuild, refit, \
              trade and storage. It needs a docking port and a controller, and no thruster.",
         ),
-    ];
-    if ship.station {
-        let check = match station_faults.first() {
-            None => fixed(FieldRoot::Config, "Station Check", STATION_READY)
-                .saying("This hull can be a station."),
-            Some(first) => {
-                fixed(FieldRoot::Config, "Station Check", short_fault(first)).saying(format!(
-                    "Play refuses until this is fixed: {}.",
-                    station_faults.join("; ")
-                ))
-            }
-        };
-        rows.push(check);
-    }
-    rows.extend(pose.into_iter().flat_map(pose_rows));
-    rows
+    ]
 }
 
 /// What the Player Ship row says when no ship of the document is flown.

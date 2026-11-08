@@ -22,6 +22,7 @@ use crate::{
         create_blank_ship, create_scenario_object, delete_selected_node, on_stage_drag_end,
         StageDrag,
     },
+    project::{ship::open_ship_node, verbs::go_back},
     ui::{
         menu::{
             menu_item_row, sync_history_menu, sync_unsaved_mark, MenuHistoryItem, MenuItemLabel,
@@ -170,8 +171,37 @@ fn select(app: &mut App, node: Entity) {
         .set(Some(node));
 }
 
-fn add_ship(app: &mut App) {
+/// New Ship, then Back to the scenario: the ship it added, standing there.
+fn add_ship(app: &mut App) -> Entity {
     press(app, observe(create_blank_ship));
+    app.world_mut().commands().queue(go_back);
+    app.update();
+    newest_ship(app)
+}
+
+/// The ship New Ship minted last.
+fn newest_ship(app: &mut App) -> Entity {
+    let mut minted: Vec<(String, Entity)> = app
+        .world_mut()
+        .query_filtered::<(&NodeId, Entity), With<ShipNode>>()
+        .iter(app.world())
+        .filter(|(id, _)| id.0.starts_with("ship_"))
+        .map(|(id, entity)| (id.0.clone(), entity))
+        .collect();
+    minted.sort_by_key(|(id, _)| (id.len(), id.clone()));
+    minted.last().expect("New Ship minted a ship").1
+}
+
+/// Open `ship` on its own, as a double click on its row does.
+fn open_ship(app: &mut App, ship: Entity) -> Entity {
+    app.world_mut()
+        .commands()
+        .queue(move |world: &mut World| open_ship_node(world, ship, None));
+    app.update();
+    app.world()
+        .resource::<EditContext>()
+        .ship()
+        .expect("the ship's document stands it entered")
 }
 
 /// Put one part on `ship` as a finished edit, under a minted id.
@@ -201,7 +231,9 @@ fn place_part(app: &mut App, ship: Entity) -> NodeId {
 #[test]
 fn every_document_verb_here_undoes_and_redoes_to_an_equal_lowered_document() {
     let cases: [(&str, fn(&mut App)); 6] = [
-        ("Add Ship", add_ship),
+        ("Add Ship", |app| {
+            add_ship(app);
+        }),
         ("Add Asteroid", |app| {
             press(
                 app,
@@ -301,7 +333,17 @@ fn an_undo_keeps_the_entity_the_selection_and_the_context_of_a_surviving_node() 
                 .find(|child| app.world().get::<SectionNode>(*child).is_some())
         })
         .expect("a stock hull has sections");
-    app.world_mut().resource_mut::<EditContext>().enter(ship);
+    let section_id = app.world().get::<NodeId>(section).cloned();
+    let ship = open_ship(&mut app, ship);
+    let section = app
+        .world()
+        .get::<Children>(ship)
+        .and_then(|children| {
+            children
+                .iter()
+                .find(|child| app.world().get::<NodeId>(*child) == section_id.as_ref())
+        })
+        .expect("the ship's document holds the same section");
     select(&mut app, section);
     baseline(&mut app);
 
@@ -324,12 +366,7 @@ fn an_undo_keeps_the_entity_the_selection_and_the_context_of_a_surviving_node() 
 #[test]
 fn a_selection_whose_node_is_undone_away_falls_to_its_nearest_surviving_parent() {
     let mut app = history_app();
-    add_ship(&mut app);
-    let ship = app
-        .world()
-        .resource::<EditContext>()
-        .ship()
-        .expect("Add Ship enters the ship");
+    let ship = add_ship(&mut app);
     place_part(&mut app, ship);
     let part = app
         .world()
@@ -360,12 +397,7 @@ fn a_selection_whose_node_is_undone_away_falls_to_its_nearest_surviving_parent()
 #[test]
 fn an_id_is_never_minted_twice_across_an_undo() {
     let mut app = history_app();
-    add_ship(&mut app);
-    let ship = app
-        .world()
-        .resource::<EditContext>()
-        .ship()
-        .expect("Add Ship enters the ship");
+    let ship = add_ship(&mut app);
     let first = place_part(&mut app, ship);
 
     undo(&mut app);
@@ -400,15 +432,10 @@ fn an_id_is_never_minted_twice_across_an_undo() {
 #[test]
 fn a_reflow_is_no_step() {
     let mut app = history_app();
-    add_ship(&mut app);
-    let first = app.world().resource::<EditContext>().ship();
-    add_ship(&mut app);
-    let second = app
-        .world()
-        .resource::<EditContext>()
-        .ship()
-        .expect("Add Ship enters the ship");
-    assert_ne!(first, Some(second));
+    let first = add_ship(&mut app);
+    let first = app.world().get::<NodeId>(first).cloned();
+    let second = add_ship(&mut app);
+    assert_ne!(first.as_ref(), app.world().get::<NodeId>(second));
     let steps = depth(&app);
 
     // The commit recorded the new ship where it spawned. The layout has moved
@@ -435,12 +462,7 @@ fn a_reflow_is_no_step() {
 #[test]
 fn undoing_a_move_of_a_row_ship_puts_it_back_in_the_row() {
     let mut app = history_app();
-    add_ship(&mut app);
-    let ship = app
-        .world()
-        .resource::<EditContext>()
-        .ship()
-        .expect("Add Ship enters the ship");
+    let ship = add_ship(&mut app);
     app.update();
     app.world_mut()
         .get_mut::<Transform>(ship)
@@ -470,15 +492,15 @@ fn a_new_edit_clears_the_redo_stack() {
     assert!(!app.world().resource::<EditHistory>().can_redo());
 }
 
+/// A ship opens on its own at identity, wherever the scenario turned it, and
+/// neither the open nor Back is an edit: no step, no unsaved mark, and the
+/// scenario keeps the pose.
 #[test]
-fn entering_a_turned_ship_stands_it_at_identity_and_is_no_edit() {
+fn opening_a_turned_ship_stands_it_at_identity_and_is_no_edit() {
     let mut app = history_app();
     app.init_resource::<StageFrame>();
     app.add_systems(Update, sync_stage_frame.after(reflow_auto_ships));
-    add_ship(&mut app);
-    let ship = first_with::<ShipNode>(&mut app);
-    let context = app.world().resource::<EditContext>();
-    let root = context.scenario().expect("a document");
+    let ship = add_ship(&mut app);
     let pose = Transform::from_xyz(40.0, -12.0, 7.0).with_rotation(Quat::from_euler(
         EulerRot::YXZ,
         1.1,
@@ -490,65 +512,64 @@ fn entering_a_turned_ship_stands_it_at_identity_and_is_no_edit() {
         .expect("a ship has a pose") = pose;
     commit_edit_now(app.world_mut(), "Move");
     with_history(app.world_mut(), EditHistory::saved_now);
-    let (steps, document) = (depth(&app), lowered(&mut app));
-    let stage = |app: &App| *app.world().get::<Transform>(root).expect("a root pose");
-    let shown = |app: &App| {
-        let ship = *app.world().get::<Transform>(ship).expect("a ship pose");
-        stage(app).compute_affine() * ship.compute_affine()
-    };
+    let steps = depth(&app);
+    let id = app.world().get::<NodeId>(ship).cloned().expect("an id");
 
-    app.world_mut().resource_mut::<EditContext>().enter(ship);
-    app.update();
-
+    let inside = open_ship(&mut app, ship);
+    let root = root(&app);
+    let shown = app
+        .world()
+        .get::<Transform>(root)
+        .expect("a root pose")
+        .compute_affine()
+        * app
+            .world()
+            .get::<Transform>(inside)
+            .expect("a ship pose")
+            .compute_affine();
     assert!(
-        shown(&app).abs_diff_eq(bevy::math::Affine3A::IDENTITY, 1e-4),
-        "inside, the ship stands at identity: {:?}",
-        shown(&app)
+        shown.abs_diff_eq(bevy::math::Affine3A::IDENTITY, 1e-4),
+        "alone, the ship stands at identity: {shown:?}"
     );
-    assert_eq!(app.world().get::<Transform>(ship), Some(&pose));
     commit_edit_now(app.world_mut(), "Nothing");
-    assert_eq!(depth(&app), steps, "entering is no step");
+    assert_eq!(depth(&app), steps, "opening is no step");
     assert!(!app.world().resource::<EditHistory>().dirty());
-    assert_eq!(
-        lowered(&mut app),
-        document,
-        "and a save inside writes the pose"
-    );
 
-    app.world_mut().resource_mut::<EditContext>().exit();
+    app.world_mut().commands().queue(go_back);
     app.update();
-
-    assert_eq!(stage(&app), Transform::IDENTITY);
-    assert_eq!(app.world().get::<Transform>(ship), Some(&pose));
+    let back = newest_ship(&mut app);
+    assert_eq!(app.world().get::<NodeId>(back), Some(&id));
+    assert!(
+        app.world().get::<Transform>(back).is_some_and(|stood| stood
+            .translation
+            .abs_diff_eq(pose.translation, 1e-3)
+            && stood.rotation.abs_diff_eq(pose.rotation, 1e-4)),
+        "the scenario keeps the pose"
+    );
     commit_edit_now(app.world_mut(), "Nothing");
-    assert_eq!(depth(&app), steps, "leaving is no step");
+    assert_eq!(depth(&app), steps, "Back is no step");
     assert!(!app.world().resource::<EditHistory>().dirty());
 }
 
+/// An undo in a ship's own document stays there: the step names the ship's
+/// document, so the context stays inside the one ship.
 #[test]
-fn a_step_undone_inside_a_ship_leaves_the_stage_where_it_stands() {
+fn a_step_undone_in_a_ship_document_keeps_it_open() {
     let mut app = history_app();
-    app.init_resource::<StageFrame>();
-    app.add_systems(Update, sync_stage_frame.after(reflow_auto_ships));
-    add_ship(&mut app);
-    let ship = first_with::<ShipNode>(&mut app);
-    let root = app
-        .world()
-        .resource::<EditContext>()
-        .scenario()
-        .expect("a document");
-    *app.world_mut()
-        .get_mut::<Transform>(ship)
-        .expect("a ship has a pose") = Transform::from_xyz(40.0, 0.0, 0.0);
-    commit_edit_now(app.world_mut(), "Move");
-    app.world_mut().resource_mut::<EditContext>().enter(ship);
-    app.update();
-    let stood = *app.world().get::<Transform>(root).expect("a root pose");
+    let ship = add_ship(&mut app);
+    let ship = open_ship(&mut app, ship);
 
     place_part(&mut app, ship);
     undo(&mut app);
 
-    assert_eq!(app.world().get::<Transform>(root), Some(&stood));
+    assert_eq!(app.world().resource::<EditContext>().ship(), Some(ship));
+    assert!(app
+        .world()
+        .resource::<ModProject>()
+        .data
+        .open
+        .as_ref()
+        .is_some_and(|open| open.kind == "ship"));
 }
 
 #[test]
@@ -594,8 +615,8 @@ fn a_saved_state_on_a_discarded_branch_never_reads_clean_again() {
 #[test]
 fn a_save_during_a_held_drag_does_not_mark_the_last_commit_clean() {
     let mut app = history_app();
-    let object = first_with::<ObjectNode>(&mut app);
     add_ship(&mut app);
+    let object = first_with::<ObjectNode>(&mut app);
 
     app.world_mut()
         .get_mut::<Transform>(object)

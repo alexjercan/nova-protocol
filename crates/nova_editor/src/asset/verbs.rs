@@ -58,8 +58,8 @@ pub(crate) fn with_id(item: &mut Content, id: &str) {
         Content::Item(design) => design.id = ItemDesignId::from(id),
         Content::StartRole(role) => role.id = id.into(),
         Content::TradeProfile(profile) => profile.id = id.into(),
+        Content::Ship(design) => design.id = id.into(),
         Content::Scenario(_)
-        | Content::Ship(_)
         | Content::Station(_)
         | Content::Lesson(_)
         | Content::PriceTable(_) => {}
@@ -76,6 +76,7 @@ fn mint_id(project: &ModProject, stem: &str) -> String {
 /// Add `item` to the mod and open it, as one step.
 pub(crate) fn add_and_open(world: &mut World, label: String, item: Content) {
     project_step(world, label, move |world| {
+        crate::project::trail::leave_stop(world);
         let mut project = world.resource_mut::<ModProject>();
         let file = project.default_file();
         let open = OpenAsset {
@@ -100,6 +101,7 @@ fn with_name(item: &mut Content, name: &str) {
         Content::UiTheme(config) => &mut config.name,
         Content::Item(design) => &mut design.name,
         Content::StartRole(role) => &mut role.name,
+        Content::Ship(design) => &mut design.name,
         _ => return,
     };
     *held = name.to_string();

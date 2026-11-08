@@ -74,8 +74,8 @@ use crate::{
     gallery::{gallery_host, EditorChrome},
     generate::{bow_gun, main_engine, Drawn, HullSeed},
     glyph::{
-        category_mark, choice_mark, object_mark, section_mark, ship_mark, INSIDE, OPEN, SCENARIO,
-        SHIP_AI, SHUT,
+        category_mark, choice_mark, object_mark, section_mark, ship_mark, OPEN, SCENARIO, SHIP_AI,
+        SHUT,
     },
     history::{commit_edit, delete_node, redo_item, undo_item},
     keybind::{on_rebind_action, EditorRebind},
@@ -89,6 +89,8 @@ use crate::{
     },
     project::{
         package::on_package_item,
+        ship::open_ship_node,
+        trail::DocumentTrail,
         verbs::{add_scenario, pressed},
         DocumentType, ModProject,
     },
@@ -575,7 +577,7 @@ fn edited_ship<'a>(context: &EditContext, ships: &'a Query<&ShipNode>) -> Option
 /// compiles the WHOLE document, and the one thing that stops it is standing
 /// inside a ship.
 pub(super) const PLAY_LABEL: &str = "Play";
-const PLAY_BLOCKED: &str = "Leave the ship first: Play flies the whole scenario.";
+const PLAY_BLOCKED: &str = "Play flies a scenario: go Back to one first.";
 
 /// Left rail width (px). Bounded by screen centre on the narrowest window,
 /// where the editor preview ship projects: a UI panel over that point would
@@ -1282,13 +1284,12 @@ pub(crate) fn sync_view_tabs(
     mut commands: Commands,
     view: Res<EditorViewType>,
     project: Option<Res<ModProject>>,
-    context: Res<EditContext>,
     mut tabs: Query<(Entity, &ViewTabButton, &mut Node, Has<Selected>)>,
 ) {
     let open = project
         .as_ref()
         .and_then(|project| project.data.open.as_ref());
-    let views = DocumentType::of(open, context.ship().is_some()).views();
+    let views = DocumentType::of(open).views();
     for (entity, ViewTabButton(this), mut node, marked) in &mut tabs {
         let display = if views.contains(this) {
             Display::Flex
@@ -1325,14 +1326,11 @@ pub(crate) struct ShownScene {
 /// id-sorted list, because a builder came here to build a ship and the range it
 /// stands on is context.
 ///
-/// INSIDE A SHIP THE TREE ISOLATES IT: the root, that ship, and that ship's
-/// sections - nothing else. The stage already takes the rest of the world away
-/// when a ship is entered, and a row for a beacon you cannot see, whose
-/// selection the Inspector would then report from inside a ship, is a click
-/// that means nothing. The root row stays because it is the way back out.
+/// A SHIP DOCUMENT HOLDS ONE SHIP: the tree is that ship and its sections, the
+/// ship at the top. The scenario around it is not in the document, so it has
+/// no row; Back is the way to it.
 ///
-/// The same nodes `context_nodes` reports, plus the two rungs of the path, so
-/// the tree and the probe agree.
+/// The same nodes `context_nodes` reports, so the tree and the probe agree.
 fn wanted_rows(
     context: &EditContext,
     q_scenarios: &Query<&NodeId, With<ScenarioNode>>,
@@ -1354,23 +1352,23 @@ fn wanted_rows(
     let Ok(root_id) = q_scenarios.get(scenario) else {
         return Vec::new();
     };
-    let mut rows = vec![scenario_row(scenario, &root_id.0)];
-
     let entered = context.ship();
+    let mut rows = Vec::new();
+    if entered.is_none() {
+        rows.push(scenario_row(scenario, &root_id.0));
+    }
+    // A ship of a scenario hangs one step in from its root; a ship document's
+    // ship is the top.
+    let top = usize::from(entered.is_none());
     let mut ships: Vec<_> = q_ships
         .iter()
         .filter(|(_, owner, ..)| owner.parent() == scenario)
         .collect();
     ships.sort_unstable_by(|a, b| id_order(&a.2 .0).cmp(&id_order(&b.2 .0)));
     for (ship, _, id, node) in ships {
-        // Isolation: a ship that is not the one being edited is not a rung of
-        // the path and not a thing to act on from in here.
         if entered.is_some_and(|inside| inside != ship) {
             continue;
         }
-        // WHO FLIES IT in the lead, WHERE YOU ARE in the trail. One column
-        // for both meant entering the player's ship hid the fact that it was
-        // the player's.
         let (glyph, kind) = ship_mark(node);
         let (label, ordinal) = tree_text(&node.name, &id.0);
         let inside = entered == Some(ship);
@@ -1381,19 +1379,18 @@ fn wanted_rows(
         let open = inside || all || script.expanded(ship);
         rows.push(WantedRow {
             node: ship,
-            depth: 1,
+            depth: top,
             open: (parts > 0).then_some(open),
             count: parts,
             lead: glyph.to_string(),
             id: id.0.clone(),
-            label: elide(&label, label_budget(1)),
+            label: elide(&label, label_budget(top)),
             full: label,
-            trail: if inside { INSIDE.to_string() } else { ordinal },
-            kind: match (inside, parts) {
-                (true, _) => format!("{kind} - EDITING"),
-                (false, 0) => format!("{kind} - EMPTY"),
-                (false, 1) => format!("{kind} - 1 PART"),
-                (false, parts) => format!("{kind} - {parts} PARTS"),
+            trail: ordinal,
+            kind: match parts {
+                0 => format!("{kind} - EMPTY"),
+                1 => format!("{kind} - 1 PART"),
+                parts => format!("{kind} - {parts} PARTS"),
             },
         });
         if !open {
@@ -1408,12 +1405,12 @@ fn wanted_rows(
             let (glyph, kind) = section_mark(node, catalog);
             rows.push(WantedRow {
                 node: section,
-                depth: 2,
+                depth: top + 1,
                 open: None,
                 count: 0,
                 lead: glyph.to_string(),
                 id: id.0.clone(),
-                label: elide(&label, label_budget(2)),
+                label: elide(&label, label_budget(top + 1)),
                 full: label,
                 trail,
                 kind: kind.to_string(),
@@ -1453,7 +1450,9 @@ fn wanted_rows(
         });
     }
     // The root counts what hangs under it, which the walk above just listed.
-    rows[0].count = rows.iter().filter(|row| row.depth == 1).count();
+    if entered.is_none() {
+        rows[0].count = rows.iter().filter(|row| row.depth == 1).count();
+    }
     show_ids(&mut rows, ids, label_budget);
     rows
 }
@@ -1550,18 +1549,15 @@ fn scenario_row(scenario: Entity, id: &str) -> WantedRow {
 /// View > Ids, applied to the finished list rather than threaded through every
 /// arm that built one: the id is the same string whatever made the row.
 ///
-/// The trail goes with the name - the ordinal it holds is the tail of the id
-/// now in the label - except the mark that says which ship you are inside,
-/// which no id carries.
+/// The trail goes with the name: the ordinal it holds is the tail of the id
+/// now in the label.
 fn show_ids(rows: &mut [WantedRow], ids: bool, budget: fn(usize) -> usize) {
     if !ids {
         return;
     }
     for row in rows {
         row.label = elide(&row.id, budget(row.depth));
-        if row.trail != INSIDE {
-            row.trail = String::new();
-        }
+        row.trail = String::new();
     }
 }
 
@@ -1761,22 +1757,13 @@ pub(crate) fn on_row_trash(
     selected.set(None);
 }
 
-/// One click SELECTS a row and puts the camera on it; two ENTER it; one on a
-/// row you are already INSIDE comes back out to it.
+/// One click SELECTS a row and puts the camera on it; two on a ship OPEN it on
+/// its own.
 ///
 /// The single click is the cheap, reversible one, so it is the one that
 /// answers everywhere: every row selects, and the camera goes to whatever was
-/// named. Only the second click goes IN - because entering is the gesture that
-/// hides the rest of the document behind a breadcrumb.
-///
-/// Coming OUT is not that gesture and never was. A row for a node the editor
-/// is inside cannot mean "go there", so one click means "come back out to
-/// there", at whatever depth. It used to frame instead, which read as the
-/// click having done nothing.
-///
-/// An earlier version entered on the first click, so that a container never
-/// needed a double (owner: a double-click here had read as "the first click
-/// did nothing"). It does something now: it frames.
+/// named. Only the second click opens a ship, because that is the gesture
+/// that puts the rest of the document away until Back.
 pub(crate) fn on_scene_row(
     activate: On<Activate>,
     mut commands: Commands,
@@ -1788,7 +1775,7 @@ pub(crate) fn on_scene_row(
     time: Res<Time<Real>>,
     mut last: ResMut<DoubleClick<Entity>>,
     mut selected: ResMut<SelectedNode>,
-    mut context: ResMut<EditContext>,
+    context: Res<EditContext>,
     mut request: ResMut<FrameRequest>,
     input: (
         Option<Res<ButtonInput<KeyCode>>>,
@@ -1809,22 +1796,22 @@ pub(crate) fn on_scene_row(
         return;
     }
     let (list, owners, sections) = tree;
-    // A section of a ship the editor is not in: the row is the way in, whatever
-    // the modifiers say, because a part can only be marked from inside.
+    // A section of a ship the editor is not in: the row opens that ship on its
+    // own with the part marked, whatever the modifiers say, because a part can
+    // only be marked in its ship's document.
     if sections.contains(*node) {
         let owner = owners
             .iter_ancestors(*node)
             .find(|ancestor| ships.contains(*ancestor));
         if let Some(ship) = owner.filter(|ship| context.ship() != Some(*ship)) {
-            context.enter(ship);
-            selected.set(Some(*node));
+            let part = *node;
+            commands.queue(move |world: &mut World| open_ship_node(world, ship, Some(part)));
             request.node = None;
             return;
         }
     }
     // Shift marks the run from the last mark to this row, in the order shown.
-    // A row on the path the editor stands on is a way out, which has no second
-    // meaning, so a run steps over it.
+    // The document's top row is the document itself, so a run steps over it.
     let shift = keys
         .as_deref()
         .is_some_and(|keys| keys.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]));
@@ -1846,15 +1833,6 @@ pub(crate) fn on_scene_row(
         return;
     }
     let double = last.press(*node, time.elapsed_secs());
-    // A click that CHANGES the context hands the camera to
-    // `crate::node::sync_camera_focus`, which frames whatever was entered - so
-    // the request the first half of the double raised steps aside rather than
-    // writing the camera a second time in the same frame.
-    if context.leave_to(*node) {
-        selected.set(None);
-        request.node = None;
-        return;
-    }
     if scenarios.contains(*node) {
         // The root, and the editor is already standing on it: framing it is
         // what "show me everything" means, and the Inspector falls back to it.
@@ -1862,9 +1840,12 @@ pub(crate) fn on_scene_row(
         selected.set(None);
         return;
     }
-    if double && ships.contains(*node) {
-        context.enter(*node);
-        selected.set(None);
+    // Opening hands the camera to `crate::node::sync_camera_focus`, which
+    // frames the new document, so the request the first half of the double
+    // raised steps aside rather than writing the camera twice in one frame.
+    if double && ships.contains(*node) && context.ship() != Some(*node) {
+        let ship = *node;
+        commands.queue(move |world: &mut World| open_ship_node(world, ship, None));
         request.node = None;
         return;
     }
@@ -1925,15 +1906,15 @@ pub(crate) fn sync_status_line(
     }
 }
 
-/// Disable Play anywhere but the scenario node.
+/// Disable Play in a ship's document.
 ///
-/// Play COMPILES the document, which is the scenario node's whole job. Inside a
-/// ship "play what" has no answer the builder asked for: the obvious readings -
-/// fly this ship alone, or fly the document you cannot currently see - are
-/// different scenarios, and picking one silently is worse than refusing.
+/// Play COMPILES a scenario. In a ship's document "play what" has no answer
+/// the builder asked for: fly this ship alone, or fly the scenario Back
+/// returns to, are different scenarios, and picking one silently is worse
+/// than refusing.
 ///
 /// Disabled rather than hidden: a control that vanishes reads as a bug, and the
-/// greyed button plus the ".." row above it says where Play went.
+/// greyed button's hover says where Play went.
 pub(crate) fn sync_play_button(
     mut commands: Commands,
     context: Res<EditContext>,
@@ -2252,15 +2233,15 @@ fn escape_rung(
     popup: bool,
     menu_open: bool,
     armed: bool,
-    inside_ship: bool,
+    way_back: bool,
 ) -> &'static str {
-    match (keyboard, popup, menu_open, armed, inside_ship) {
+    match (keyboard, popup, menu_open, armed, way_back) {
         (InputMode::Bind, ..) => "cancel the rebind",
         (InputMode::Insert, ..) => "leave the field",
         (_, true, ..) => "cancel the pop-up",
         (_, _, true, ..) => "close the menu",
         (_, _, _, true, _) => "put the part down",
-        (.., true) => "leave the ship",
+        (.., true) => "go back",
         _ => "pause",
     }
 }
@@ -2315,6 +2296,7 @@ pub(crate) fn sync_key_legend(
     rail: Res<EditorViewType>,
     keyboard: Res<InputMode>,
     block_popup: Res<canvas::BlockPopup>,
+    trail: Res<DocumentTrail>,
     legend: Query<(&mut Node, &Children, &ComputedNode), With<EditorKeyLegend>>,
     mut modes: Query<&mut Text, With<LegendMode>>,
     cells: Query<(&LegendCell, &Children)>,
@@ -2329,14 +2311,14 @@ pub(crate) fn sync_key_legend(
         popup,
         open_menu.0.is_some(),
         *selection != HeldPart(None),
-        inside,
+        trail.last().is_some(),
     );
     // The pointer and the rig, then the one key that changes meaning with the
     // rung it is on. Ordered so the gestures a builder is about to make come
     // first and the way out comes last.
     //
     // Bind FIRST, because it is a mode and the rest are tools. It takes every
-    // key except Escape, so a legend that still read `Bksp leave` would be
+    // key except Escape, so a legend that still offered a key would be
     // advertising a verb that now binds itself to a thruster.
     let tool = tool.tool.hint();
     let (mode, mut hints): (&str, Vec<Hint>) = if rebind.target.is_some() {
@@ -2366,14 +2348,9 @@ pub(crate) fn sync_key_legend(
                 ],
             ),
             (HeldPart(None), true) => (
-                "IN A SHIP",
+                "SHIP",
                 vec![
                     ("LMB", "select"),
-                    // The key, not the gesture: leaving is a single click on the
-                    // scenario row now, which the tree shows and does not need a
-                    // legend for. What the legend owes is the key that does it
-                    // without the rail - see `backspace_steps_out`.
-                    ("Bksp", "leave"),
                     ("P", "pick a part"),
                     ("MMB", "orbit"),
                     ("Wheel", "dolly"),
@@ -2878,11 +2855,11 @@ mod tests {
         );
     }
 
-    /// At the scenario node the tree is the whole DOCUMENT: the root and every
-    /// ship, each branch collapsed. Entering one ISOLATES it - the root, that
-    /// ship and its sections, and nothing a click in there could not mean.
+    /// A scenario's tree is the whole document: the root and every ship, each
+    /// branch collapsed. A ship's document holds that ship and its sections,
+    /// the ship at the top.
     #[test]
-    fn entering_a_ship_isolates_it_in_the_tree() {
+    fn a_ship_document_shows_only_its_ship_in_the_tree() {
         let mut app = scene_app();
         let scenario = document(&mut app);
         let first = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
@@ -2901,16 +2878,16 @@ mod tests {
         app.update();
         assert_eq!(
             row_names(&mut app),
-            vec!["scenario", "ship_1", "hull_1"],
-            "the entered ship opens, and its sibling is not in the tree at all"
+            vec!["ship_1", "hull_1"],
+            "the ship opens, and its sibling is not in the tree at all"
         );
 
         app.world_mut().resource_mut::<EditContext>().enter(second);
         app.update();
         assert_eq!(
             row_names(&mut app),
-            vec!["scenario", "ship_2", "turret_1"],
-            "entering the sibling moves the whole tree to it"
+            vec!["ship_2", "turret_1"],
+            "the sibling's document holds the sibling"
         );
     }
 
@@ -2936,8 +2913,8 @@ mod tests {
         app.update();
         assert_eq!(
             row_leads(&mut app),
-            vec![SCENARIO, SHIP_PLAYER, hull_mark(&mut app, first)],
-            "entering keeps the driver mark and the hull section shows its kind"
+            vec![SHIP_PLAYER, hull_mark(&mut app, first)],
+            "alone, the ship keeps its driver mark and the hull shows its kind"
         );
     }
 
@@ -3060,25 +3037,6 @@ mod tests {
         section_mark(&section, None).0
     }
 
-    /// Two facts, two columns: entering the player's ship used to overwrite the
-    /// mark that said it was the player's.
-    #[test]
-    fn the_entered_ship_is_marked_beside_its_driver() {
-        let mut app = scene_app();
-        let scenario = document(&mut app);
-        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
-
-        app.world_mut().resource_mut::<EditContext>().enter(ship);
-        app.update();
-
-        assert_eq!(row_leads(&mut app), vec![SCENARIO, SHIP_PLAYER]);
-        assert!(
-            row_columns(&mut app).contains(&("ship".to_string(), INSIDE.to_string())),
-            "{:?}",
-            row_columns(&mut app)
-        );
-    }
-
     /// A ship folded shut looked exactly like a ship with nothing in it. The
     /// count says how much is inside, and the hover hint says what it counts.
     #[test]
@@ -3131,13 +3089,8 @@ mod tests {
             .collect();
         assert_eq!(
             trails,
-            vec![
-                String::new(),
-                INSIDE.to_string(),
-                "1".into(),
-                "2".into(),
-                "10".into()
-            ],
+            vec!["1".to_string(), "1".into(), "2".into(), "10".into()],
+            "the ship, then its parts by ordinal"
         );
     }
 
@@ -3172,7 +3125,7 @@ mod tests {
         let scenario = document(&mut app);
         let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
         section_node(&mut app, ship, "hull_1");
-        app.world_mut().resource_mut::<EditContext>().enter(ship);
+        app.world_mut().entity_mut(ship).insert(Expanded);
         app.update();
 
         let indents = row_indents(&mut app);
@@ -3206,35 +3159,40 @@ mod tests {
         );
     }
 
-    /// Two clicks ENTER: the gesture that changes what the tree is showing is
-    /// the deliberate one.
+    /// Two clicks OPEN a ship on its own: the gesture that changes what the
+    /// tree is showing is the deliberate one.
     #[test]
-    fn two_clicks_on_a_ship_row_enter_it() {
-        let mut app = scene_app();
-        let scenario = document(&mut app);
-        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
-        section_node(&mut app, ship, "hull_1");
-        app.update();
+    fn two_clicks_on_a_ship_row_open_it_alone() {
+        let mut app = crate::history::tests::history_app();
+        app.init_resource::<DoubleClick<Entity>>();
+        app.init_resource::<FrameRequest>();
+        app.init_resource::<Time<Real>>();
+        app.init_resource::<EditorViewType>();
+        let ship = crate::history::tests::first_with::<ShipNode>(&mut app);
+        let id = app.world().get::<NodeId>(ship).cloned();
+        let row = app
+            .world_mut()
+            .spawn((SceneRow(ship), observe(on_scene_row)))
+            .id();
 
-        let row = row_for(&mut app, ship);
         double_press(&mut app, row);
 
-        assert_eq!(app.world().resource::<EditContext>().ship(), Some(ship));
+        let open = app
+            .world()
+            .resource::<EditContext>()
+            .ship()
+            .expect("the ship is open");
+        assert_eq!(app.world().get::<NodeId>(open).cloned(), id);
         assert_eq!(
-            app.world().resource::<SelectedNode>().primary(),
-            None,
-            "a container is entered, not selected"
+            DocumentType::open_in(app.world()),
+            DocumentType::Ship,
+            "in its own document"
         );
         assert_eq!(
             framed(&mut app),
             None,
-            "entering frames the new context itself; two systems writing the \
+            "opening frames the new document itself; two systems writing the \
              camera in one frame is what `crate::frame` exists to avoid"
-        );
-        assert_eq!(
-            row_names(&mut app),
-            vec!["scenario", "ship_1", "hull_1"],
-            "and its branch is open"
         );
     }
 
@@ -3303,31 +3261,6 @@ mod tests {
             Some(ship),
             "selecting a section does not move the context"
         );
-    }
-
-    /// The root row is the way back, on ONE click, and it lands at the scenario
-    /// node rather than outside the document.
-    ///
-    /// A row for something you are already inside cannot mean "go there". It
-    /// used to frame instead, and a builder who pressed the thing they wanted
-    /// to get back to watched the camera pull out without leaving.
-    #[test]
-    fn the_root_row_leaves_the_ship_on_one_click() {
-        let mut app = scene_app();
-        let scenario = document(&mut app);
-        let ship = spawn_ship(&mut app, scenario, "ship_1", ShipDriver::Player);
-        app.world_mut().resource_mut::<EditContext>().enter(ship);
-        app.update();
-
-        let root = row_for(&mut app, scenario);
-        press(&mut app, root);
-
-        assert_eq!(app.world().resource::<EditContext>().ship(), None);
-        assert_eq!(
-            app.world().resource::<EditContext>().scenario(),
-            Some(scenario)
-        );
-        assert_eq!(row_names(&mut app), vec!["scenario", "ship_1"]);
     }
 
     /// Standing ON the scenario node, its own row still frames the whole stage:
@@ -3481,7 +3414,7 @@ mod tests {
             app.world()
                 .resource::<EditorStatus>()
                 .line()
-                .is_some_and(|(line, _)| line.contains("leave the ship")),
+                .is_some_and(|(line, _)| line.contains("go Back to one")),
             "and it says so on the one line the editor speaks through, rather \
              than in a log nobody building a ship is reading"
         );
@@ -3810,7 +3743,7 @@ mod tests {
         );
         assert_eq!(
             rung(InputMode::Normal, false, false, false, true),
-            "leave the ship"
+            "go back"
         );
         assert_eq!(rung(InputMode::Normal, false, false, false, false), "pause");
     }
@@ -3869,7 +3802,7 @@ mod tests {
         let mut app = legend_app();
         enter_ship(app.world_mut(), true);
         app.update();
-        assert_eq!(legend_mode(&mut app), "IN A SHIP");
+        assert_eq!(legend_mode(&mut app), "SHIP");
 
         *app.world_mut().resource_mut::<HeldPart>() = HeldPart(Some("hull".into()));
         app.update();
@@ -3877,17 +3810,16 @@ mod tests {
     }
 
     /// Bind mode takes every key except Escape, so the legend stops advertising
-    /// the ones it took. `Bksp leave` was the worst of them: pressing it bound
-    /// Backspace to the thruster instead of leaving the ship, with nothing on
-    /// screen saying either thing had happened.
+    /// the ones it took: pressing one binds it to the thruster instead, with
+    /// nothing on screen saying either thing had happened.
     #[test]
     fn the_legend_stops_advertising_keys_a_rebind_has_taken() {
         let mut app = legend_app();
         enter_ship(app.world_mut(), true);
         app.update();
         assert!(
-            shown_hints(&mut app).iter().any(|(key, _)| key == "Bksp"),
-            "the ship legend offers Backspace to begin with"
+            shown_hints(&mut app).iter().any(|(key, _)| key == "P"),
+            "the ship legend offers the pipette key to begin with"
         );
 
         let section = app.world_mut().spawn_empty().id();
@@ -3943,6 +3875,7 @@ mod tests {
         app.init_resource::<StageTool>();
         app.init_resource::<InputMode>();
         app.init_resource::<canvas::BlockPopup>();
+        app.init_resource::<DocumentTrail>();
         app.add_systems(Update, sync_key_legend);
         app.world_mut().spawn((
             EditorKeyLegend,

@@ -27,13 +27,6 @@ pub(crate) const SHIP_AI: &str = "\u{25b7}";
 /// the AI's mark, gone quiet: a craft that is there and is going nowhere.
 pub(crate) const SHIP_ADRIFT: &str = "\u{25b9}";
 
-/// The mark on the ship the editor is INSIDE.
-///
-/// The row's TRAILING column, not its lead: which ship you are in and who flies
-/// it are two facts, and one column cannot hold both - entering the player's
-/// ship used to hide the fact that it was the player's.
-pub(crate) const INSIDE: &str = "@";
-
 /// A ship marked as a station: the station object's own mark, so a station
 /// reads the same built here or placed from a catalog.
 pub(crate) const SHIP_STATION: &str = "\u{25a2}";

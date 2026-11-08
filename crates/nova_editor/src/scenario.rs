@@ -563,6 +563,20 @@ pub(crate) struct LoweredFleet {
 }
 
 impl LoweredFleet {
+    /// A fleet of `ship` alone, standing where its driver puts it.
+    pub(crate) fn of_one(ship: LoweredShip) -> Self {
+        match ship.driver {
+            ShipDriver::Player => Self {
+                player: ship,
+                standing: Vec::new(),
+            },
+            ShipDriver::Ai | ShipDriver::Adrift => Self {
+                player: LoweredShip::default(),
+                standing: vec![ship],
+            },
+        }
+    }
+
     /// Every design in the document that a node stands behind, in id order -
     /// what a save writes one ship prototype per.
     ///

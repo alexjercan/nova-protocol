@@ -49,11 +49,12 @@ use crate::{
     history::EditHistory,
     problems::Problems,
     project::{
+        ship::{is_ship_kind, owner_scenario},
         store,
         verbs::{
             add_scenario, delete_scenario, duplicate_scenario, open_asset, pressed, rename_scenario,
         },
-        ModProject, OpenAsset, KINDS, SCENARIO_KIND,
+        KindRow, ModProject, OpenAsset, KINDS, SCENARIO_KIND,
     },
     ExampleStates,
 };
@@ -102,6 +103,8 @@ pub(crate) struct AssetEntry {
     parts: ThumbnailParts,
     /// The file, on a file tile.
     pub(crate) file: Option<ModFile>,
+    /// The scenario that owns it: the design of a ship a scenario made.
+    pub(crate) scenario: Option<String>,
 }
 
 /// `id` without the mod's prefix, which every id of the mod repeats.
@@ -210,42 +213,66 @@ fn name_tiles(entries: &mut [AssetEntry], namespace: &str) {
 }
 
 /// Everything the mod holds, in [`KINDS`] order, then the files of its folder
-/// (`on_disk`) and the files it declares, in [`FILE_KINDS`] order.
+/// (`on_disk`) and the files it declares, in [`FILE_KINDS`] order. The ships a
+/// scenario made follow that scenario, not their kind: they are its.
 pub(crate) fn asset_entries(
     project: &ModProject,
     catalog: Option<&GameSections>,
     on_disk: &[String],
 ) -> Vec<AssetEntry> {
     let data = &project.data;
-    let mut entries = Vec::new();
-    for row in KINDS {
-        for item in data.items().filter(|item| item.kind() == row.kind) {
-            let parts = match (item, catalog) {
-                // The catalog's copy has its `self://` refs resolved by
-                // `sync_project_sections`; the document's would reach the asset
-                // server as an unknown source. Until the catalog holds it, the
-                // tile has no picture.
-                (Content::Section(section), Some(catalog)) => catalog
-                    .get_section(&section.base.id)
-                    .map(|resolved| vec![(resolved.clone(), Transform::default())])
-                    .unwrap_or_default(),
-                (Content::Ship(ship), Some(catalog)) => design_parts(&ship.design, catalog),
-                _ => Vec::new(),
-            };
-            entries.push(AssetEntry {
-                kind: row.kind,
-                label: short_name(item, &project.namespace),
-                full: item.id().to_string(),
-                printed: String::new(),
-                waits: row.waits,
-                id: row.opens.then(|| OpenAsset {
-                    kind: row.kind,
-                    id: item.id().to_string(),
-                }),
-                parts,
-                file: None,
-            });
+    let owner = |item: &Content| {
+        is_ship_kind(item.kind())
+            .then(|| owner_scenario(data, item.id()))
+            .flatten()
+    };
+    let mut items: Vec<(&Content, &KindRow, Option<String>)> = Vec::new();
+    for row in &KINDS {
+        for item in data
+            .items()
+            .filter(|item| item.kind() == row.kind && owner(item).is_none())
+        {
+            items.push((item, row, None));
+            if row.kind != SCENARIO_KIND {
+                continue;
+            }
+            for owned in KINDS.iter().filter(|owned| is_ship_kind(owned.kind)) {
+                for design in data.items().filter(|design| {
+                    design.kind() == owned.kind && owner(design).as_deref() == Some(item.id())
+                }) {
+                    items.push((design, owned, Some(item.id().to_string())));
+                }
+            }
         }
+    }
+    let mut entries = Vec::new();
+    for (item, row, scenario) in items {
+        let parts = match (item, catalog) {
+            // The catalog's copy has its `self://` refs resolved by
+            // `sync_project_sections`; the document's would reach the asset
+            // server as an unknown source. Until the catalog holds it, the
+            // tile has no picture.
+            (Content::Section(section), Some(catalog)) => catalog
+                .get_section(&section.base.id)
+                .map(|resolved| vec![(resolved.clone(), Transform::default())])
+                .unwrap_or_default(),
+            (Content::Ship(ship), Some(catalog)) => design_parts(&ship.design, catalog),
+            _ => Vec::new(),
+        };
+        entries.push(AssetEntry {
+            kind: row.kind,
+            label: short_name(item, &project.namespace),
+            full: item.id().to_string(),
+            printed: String::new(),
+            waits: row.waits,
+            id: row.opens.then(|| OpenAsset {
+                kind: row.kind,
+                id: item.id().to_string(),
+            }),
+            parts,
+            file: None,
+            scenario,
+        });
     }
     entries.extend(mod_files(project, on_disk).into_iter().map(|file| {
         let kind = file_kind(&file.path);
@@ -267,23 +294,24 @@ pub(crate) fn asset_entries(
             id: None,
             parts,
             file: Some(file),
+            scenario: None,
         }
     }));
     name_tiles(&mut entries, &project.namespace);
     entries
 }
 
-/// The tiles under `kind` that a filter text keeps. A blank filter keeps them
-/// all, and no kind means every kind.
+/// The tiles on `shelf` that a filter text keeps. A blank filter keeps them
+/// all.
 pub(crate) fn filtered_entries(
     entries: &[AssetEntry],
-    kind: Option<&str>,
+    shelf: &AssetShelfType,
     filter: &str,
 ) -> Vec<AssetEntry> {
     let filter = filter.trim().to_lowercase();
     entries
         .iter()
-        .filter(|entry| kind.is_none_or(|kind| entry.kind == kind))
+        .filter(|entry| shelf.holds(entry))
         .filter(|entry| {
             entry.label.to_lowercase().contains(&filter)
                 || entry.full.to_lowercase().contains(&filter)
@@ -336,13 +364,39 @@ pub(crate) struct AssetList;
 #[derive(Component)]
 pub(crate) struct AssetKindList;
 
-/// A kind row, and the kind it keeps. `None` is every kind.
-#[derive(Component, Clone, Copy)]
-struct AssetKindRow(Option<&'static str>);
+/// What the grid is narrowed to.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(crate) enum AssetShelfType {
+    /// Every tile.
+    #[default]
+    All,
+    /// The items of one kind that no scenario owns, or the files of one kind.
+    Kind(&'static str),
+    /// One scenario and the ships it made.
+    Scenario(String),
+}
 
-/// The kind the grid is narrowed to.
+impl AssetShelfType {
+    /// Whether `entry` is on this shelf.
+    fn holds(&self, entry: &AssetEntry) -> bool {
+        match self {
+            Self::All => true,
+            Self::Kind(kind) => entry.kind == *kind && entry.scenario.is_none(),
+            Self::Scenario(id) => {
+                entry.scenario.as_ref() == Some(id)
+                    || (entry.kind == SCENARIO_KIND && entry.full == *id)
+            }
+        }
+    }
+}
+
+/// A row of the kind column, and the shelf it shows.
+#[derive(Component, Clone)]
+struct AssetKindRow(AssetShelfType);
+
+/// The shelf the grid shows.
 #[derive(Resource, Default, PartialEq, Eq)]
-pub(crate) struct AssetKindFilter(Option<&'static str>);
+pub(crate) struct AssetKindFilter(AssetShelfType);
 
 /// What a rename on a tile renames.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -668,6 +722,7 @@ fn on_asset_tile_menu(
     roots: Query<Entity, With<PopupRoot>>,
     facts: MenuFacts,
     selected: Res<SelectedNode>,
+    project: Option<Res<ModProject>>,
 ) {
     if click.button != PointerButton::Secondary {
         return;
@@ -699,13 +754,16 @@ fn on_asset_tile_menu(
                 ));
                 return;
             };
+            let in_scenario = project.as_ref().is_some_and(|project| {
+                is_ship_kind(asset.kind) && owner_scenario(&project.data, &asset.id).is_some()
+            });
             for (word, hint, verb) in [
                 ("Open", "Enter", AssetVerbType::Open),
                 ("Rename", "", AssetVerbType::Rename),
                 ("Duplicate", "", AssetVerbType::Duplicate),
                 ("Delete", "", AssetVerbType::Delete),
             ] {
-                let tile = MenuVerbType::Tile(verb, asset.kind);
+                let tile = MenuVerbType::Tile(verb, asset.kind, in_scenario);
                 if verb_state(tile, &context) == VerbState::Hidden {
                     continue;
                 }
@@ -779,8 +837,8 @@ fn on_asset_kind(
     rows: Query<&AssetKindRow>,
     mut filter: ResMut<AssetKindFilter>,
 ) {
-    if let Ok(AssetKindRow(kind)) = rows.get(activate.entity) {
-        filter.0 = *kind;
+    if let Ok(AssetKindRow(shelf)) = rows.get(activate.entity) {
+        filter.0 = shelf.clone();
     }
 }
 
@@ -820,7 +878,7 @@ pub(crate) fn apply_asset_rename(
 pub(crate) struct ShownAssets {
     revision: Option<u64>,
     filter: String,
-    kind: Option<&'static str>,
+    kind: AssetShelfType,
     open: Option<OpenAsset>,
     renaming: Option<RenameTarget>,
     faulted: Vec<OpenAsset>,
@@ -891,7 +949,7 @@ pub(crate) fn sync_assets(
             .next()
             .map(|value| value.0.clone())
             .unwrap_or_default(),
-        kind: kind.0,
+        kind: kind.0.clone(),
         faulted: entries
             .iter()
             .filter_map(|entry| entry.id.clone())
@@ -909,25 +967,49 @@ pub(crate) fn sync_assets(
     };
     commands.entity(kind_list).despawn_related::<Children>();
     commands.entity(kind_list).with_children(|list| {
-        spawn_kind_row(list, None, "All", entries.len(), wanted.kind.is_none());
+        let all = AssetShelfType::All;
+        spawn_kind_row(
+            list,
+            all.clone(),
+            "All",
+            entries.len(),
+            0,
+            wanted.kind == all,
+        );
         let mut held: Vec<&'static str> = Vec::new();
-        for entry in entries {
+        for entry in entries.iter().filter(|entry| entry.scenario.is_none()) {
             if !held.contains(&entry.kind) {
                 held.push(entry.kind);
             }
         }
         for held_kind in held {
-            let count = entries.iter().filter(|row| row.kind == held_kind).count();
-            spawn_kind_row(
-                list,
-                Some(held_kind),
-                heading_of(held_kind),
-                count,
-                wanted.kind == Some(held_kind),
-            );
+            let shelf = AssetShelfType::Kind(held_kind);
+            let count = entries.iter().filter(|entry| shelf.holds(entry)).count();
+            let chosen = wanted.kind == shelf;
+            spawn_kind_row(list, shelf, heading_of(held_kind), count, 0, chosen);
+            if held_kind != SCENARIO_KIND {
+                continue;
+            }
+            // Each scenario that made ships, one step in: the shelf of the
+            // scenario and its ships.
+            for scenario in entries
+                .iter()
+                .filter(|entry| entry.kind == SCENARIO_KIND && entry.scenario.is_none())
+            {
+                let shelf = AssetShelfType::Scenario(scenario.full.clone());
+                let ships = entries
+                    .iter()
+                    .filter(|entry| entry.scenario.as_ref() == Some(&scenario.full))
+                    .count();
+                if ships == 0 {
+                    continue;
+                }
+                let chosen = wanted.kind == shelf;
+                spawn_kind_row(list, shelf, &scenario.label, ships, 1, chosen);
+            }
         }
     });
-    let tiles = filtered_entries(entries, wanted.kind, &wanted.filter);
+    let tiles = filtered_entries(entries, &wanted.kind, &wanted.filter);
     commands.entity(list).despawn_related::<Children>();
     commands.entity(list).with_children(|list| {
         if tiles.is_empty() {
@@ -970,17 +1052,19 @@ pub(crate) fn sync_assets(
     *shown = Some(wanted);
 }
 
-/// One row of the kind column.
+/// One row of the kind column, `depth` steps in.
 fn spawn_kind_row(
     list: &mut RelatedSpawnerCommands<ChildOf>,
-    kind: Option<&'static str>,
+    shelf: AssetShelfType,
     heading: &str,
     count: usize,
+    depth: usize,
     chosen: bool,
 ) {
+    let indent = density::PANEL_PAD + depth as f32 * density::ROW_H * 0.6;
     let mut row = list.spawn((
         Name::new(format!("Asset Kind {heading}")),
-        AssetKindRow(kind),
+        AssetKindRow(shelf),
         ListRow,
         Button,
         Hovered::default(),
@@ -989,7 +1073,11 @@ fn spawn_kind_row(
             height: px(density::ROW_H),
             flex_shrink: 0.0,
             align_items: AlignItems::Center,
-            padding: UiRect::horizontal(px(density::PANEL_PAD)),
+            padding: UiRect {
+                left: px(indent),
+                right: px(density::PANEL_PAD),
+                ..default()
+            },
             border: UiRect::all(px(theme::BORDER_W)),
             overflow: Overflow::clip(),
             ..default()

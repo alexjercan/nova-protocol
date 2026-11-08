@@ -236,7 +236,7 @@ pub(crate) fn paste_clipboard(world: &mut World) {
         return;
     }
     if world.resource::<EditContext>().ship().is_some() {
-        refuse(world, "paste works on the stage - leave the ship first");
+        refuse(world, "paste works on a scenario - go Back to one first");
         return;
     }
     if on_bench(world) {

@@ -20,11 +20,13 @@ use nova_ui::theme::UiColor;
 
 use super::{
     conform_view_now,
-    ids::{namespace_of, node_of_design},
+    ids::namespace_of,
     mint_scenario_id,
     package::asset_faults,
+    ship::{absorb_ship_document, fill_ship_document, is_ship_kind, lift_ship_document},
     store::{self, bundle_file, renamed_copy, write_project},
-    ModProject, OpenAsset, PendingMods, SCENARIO_KIND,
+    trail::{keep_row, leave_stop, restore_row, restore_stop, take_stop},
+    ModProject, OpenAsset, PendingMods,
 };
 use crate::{
     asset::{frame_bench, lift_item, lowered_item, session::sync_project_sections},
@@ -196,8 +198,12 @@ pub(crate) fn absorb_document(world: &mut World) {
         return;
     };
     if let Some(open) = project.data.open_bench() {
-        let id = open.id.clone();
-        absorb_bench(world, &id);
+        let open = open.clone();
+        if is_ship_kind(open.kind) {
+            absorb_ship_document(world, &open);
+        } else {
+            absorb_bench(world, &open.id);
+        }
         return;
     }
     let open = project.data.open_scenario().map(str::to_string);
@@ -300,10 +306,26 @@ fn rebuild_document(world: &mut World, open: Option<&OpenAsset>) {
         let old_save = project.migrate.as_ref() == Some(id);
         lift_scenario(project.data.items(), id, old_save)
     });
-    let bench = open.filter(|open| !open.is_scenario()).and_then(|open| {
-        let project = world.get_resource::<ModProject>()?;
-        project.data.item(open.kind, &open.id).cloned()
-    });
+    let ship = open
+        .filter(|open| is_ship_kind(open.kind))
+        .and_then(|open| {
+            let project = world.get_resource::<ModProject>()?;
+            let migrate = project.migrate.clone();
+            let old_save = |id: &str| migrate.as_deref() == Some(id);
+            match lift_ship_document(&project.data, open, old_save) {
+                Ok(ship) => Some(ship),
+                Err(fault) => {
+                    error!("editor: {} did not open: {fault}", open.id);
+                    None
+                }
+            }
+        });
+    let bench = open
+        .filter(|open| !open.is_scenario() && !is_ship_kind(open.kind))
+        .and_then(|open| {
+            let project = world.get_resource::<ModProject>()?;
+            project.data.item(open.kind, &open.id).cloned()
+        });
     let mut context = world.resource_mut::<EditContext>();
     let mut held = std::mem::take(&mut *context);
     let scenario = {
@@ -314,6 +336,9 @@ fn rebuild_document(world: &mut World, open: Option<&OpenAsset>) {
     world.flush();
     if let Some(lifted) = lifted {
         fill_document(world, scenario, lifted);
+    }
+    if let Some(ship) = ship {
+        fill_ship_document(world, scenario, ship);
     }
     if let Some(item) = bench {
         lift_item(world, scenario, &item);
@@ -387,6 +412,10 @@ fn found_from_template(world: &mut World, template: ScenarioTemplate) {
 /// A project with a seed is a new mod: its first scenario is founded here,
 /// because a template is nodes and the hub has no document to found it in.
 pub(crate) fn open_project_document(world: &mut World) {
+    // A new session has nowhere to go back to.
+    if let Some(mut trail) = world.get_resource_mut::<super::trail::DocumentTrail>() {
+        trail.clear();
+    }
     let seed = world
         .get_resource_mut::<ModProject>()
         .and_then(|mut project| project.seed.take());
@@ -442,13 +471,10 @@ pub(crate) fn project_step(
     commit_project_now(world, label);
 }
 
-/// Open the item of `kind` and `id`. Never a step, and never loses an edit: the
-/// document is lowered first.
+/// Open the item of `kind` and `id`, over the document open now: Back returns
+/// to that one. Never a step, and never loses an edit: the document is lowered
+/// first.
 pub(crate) fn open_asset(world: &mut World, kind: &'static str, id: &str) {
-    if matches!(kind, "ship" | "station") {
-        open_design(world, id);
-        return;
-    }
     let Some(project) = world.get_resource::<ModProject>() else {
         return;
     };
@@ -459,22 +485,29 @@ pub(crate) fn open_asset(world: &mut World, kind: &'static str, id: &str) {
     if project.data.open.as_ref() == Some(&wanted) {
         return;
     }
-    if project.data.item(kind, id).is_none() {
-        refuse(world, format!("{id} is not in this mod"));
-        return;
-    }
     if refused_by_gaps(world, "Open") {
         return;
     }
+    // A ship of the open scenario writes its design only when the scenario is
+    // lowered, so the lowering comes before the question whether it exists.
     lower_open_document(world);
-    world.resource_mut::<ModProject>().edit().open = Some(wanted);
-    rebuild_open_document(world);
-    mark_document_switched(world);
-    if kind == "section" {
-        if let Some(mut overlays) = world.get_resource_mut::<EditorOverlays>() {
-            overlays.link_points = true;
-        }
+    let project = world.resource::<ModProject>();
+    let fault = if is_ship_kind(kind) {
+        let migrate = project.migrate.clone();
+        lift_ship_document(&project.data, &wanted, |id| migrate.as_deref() == Some(id)).err()
+    } else {
+        project
+            .data
+            .item(kind, id)
+            .is_none()
+            .then(|| format!("{id} is not in this mod"))
+    };
+    if let Some(fault) = fault {
+        refuse(world, fault);
+        return;
     }
+    leave_stop(world);
+    switch_document(world, wanted);
     let name = world
         .resource::<ModProject>()
         .data
@@ -483,51 +516,58 @@ pub(crate) fn open_asset(world: &mut World, kind: &'static str, id: &str) {
     note(world, format!("opened {name}"));
 }
 
-/// Open a ship or station design: the scenario that places it, with the ship
-/// entered. A design id is `<scenario>.<node>`, written by that scenario, and
-/// the ship is edited where it stands. Never a step, as [`open_asset`].
-fn open_design(world: &mut World, id: &str) {
-    let Some(project) = world.get_resource::<ModProject>() else {
-        return;
-    };
-    let owner = project
-        .data
-        .scenarios()
-        .filter(|scenario| {
-            id.strip_prefix(scenario.id.as_str())
-                .is_some_and(|rest| rest.starts_with('.'))
-        })
-        .max_by_key(|scenario| scenario.id.len())
-        .map(|scenario| scenario.id.clone());
-    let Some(scenario) = owner else {
-        refuse(
-            world,
-            format!("{id} stands in no scenario of this mod, so there is no ship to enter"),
-        );
-        return;
-    };
-    let node = node_of_design(&scenario, id).to_string();
-    open_asset(world, SCENARIO_KIND, &scenario);
-    let opened = world.resource::<ModProject>().data.open.as_ref()
-        == Some(&OpenAsset::scenario(scenario.clone()));
-    if !opened {
+/// Stand `wanted` up in place of the document, lowered first. Not a step.
+fn switch_document(world: &mut World, wanted: OpenAsset) {
+    lower_open_document(world);
+    keep_row(world);
+    let kind = wanted.kind;
+    world.resource_mut::<ModProject>().edit().open = Some(wanted);
+    rebuild_open_document(world);
+    restore_row(world);
+    mark_document_switched(world);
+    if kind == "section" {
+        if let Some(mut overlays) = world.get_resource_mut::<EditorOverlays>() {
+            overlays.link_points = true;
+        }
+    }
+}
+
+/// Back: the document the trail ends with, as it was left. A stop whose asset
+/// is gone, deleted or taken back since, is passed over and said.
+pub(crate) fn go_back(world: &mut World) {
+    if refused_by_gaps(world, "Back") {
         return;
     }
-    let ship = world
-        .query::<(Entity, &NodeId, &ShipNode)>()
-        .iter(world)
-        .find(|(_, held, _)| held.0 == node)
-        .map(|(ship, _, _)| ship);
-    let Some(ship) = ship else {
-        refuse(world, format!("{scenario} has no {node} to enter"));
+    // A stop is checked against the mod with this document's edits in it: a
+    // ship deleted here a moment ago is gone.
+    lower_open_document(world);
+    while let Some(stop) = take_stop(world) {
+        let Some(open) = stop.open.clone() else {
+            continue;
+        };
+        let project = world.resource::<ModProject>();
+        if project.data.open.as_ref() == Some(&open) {
+            continue;
+        }
+        let gone = if is_ship_kind(open.kind) {
+            lift_ship_document(&project.data, &open, |_| false).is_err()
+        } else {
+            project.data.item(open.kind, &open.id).is_none()
+        };
+        if gone {
+            note(world, format!("{} is gone, so Back passed it", open.id));
+            continue;
+        }
+        switch_document(world, open);
+        restore_stop(world, &stop);
+        let name = world
+            .resource::<ModProject>()
+            .data
+            .open_name()
+            .unwrap_or_default();
+        note(world, format!("back to {name}"));
         return;
-    };
-    let mut context = world.resource_mut::<EditContext>();
-    context.exit_all();
-    context.enter(ship);
-    world.resource_mut::<SelectedNode>().set(None);
-    conform_view_now(world);
-    note(world, format!("entered {node}"));
+    }
 }
 
 /// File > New Scenario, and the Assets tab's Add: a blank scenario, open. It
@@ -540,6 +580,7 @@ pub(crate) fn add_scenario(world: &mut World) {
     project_step(world, "Add Scenario", |world| {
         let project = world.resource::<ModProject>();
         let id = mint_scenario_id(project, template.settings().name.as_str());
+        leave_stop(world);
         world.resource_mut::<ModProject>().edit().open = Some(OpenAsset::scenario(id));
         found_from_template(world, template);
         views(world);

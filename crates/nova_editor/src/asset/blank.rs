@@ -103,6 +103,14 @@ fn blank_content(kind: &str, section: Option<&str>) -> Result<Content, String> {
             let section = section.ok_or("a new section needs its kind")?;
             Content::Section(Box::new(blank_section(section)?))
         }
+        // A ship holds no part yet, and carries the sounds every ship the
+        // editor writes carries: the same design a blank ship of a scenario
+        // writes, so the two read the same.
+        "ship" => Content::Ship(nova_scenario::prelude::ShipDesignPrototype {
+            id: "".into(),
+            name: String::new(),
+            design: crate::scenario::ship_design(&crate::scenario::LoweredShip::default()),
+        }),
         "campaign" => Content::Campaign(blank()?),
         "style" => Content::Style(blank()?),
         "ui theme" => Content::UiTheme(Box::new(blank()?)),

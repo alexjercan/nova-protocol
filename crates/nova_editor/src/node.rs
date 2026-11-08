@@ -502,7 +502,9 @@ impl EditContext {
         self.path.push(node);
     }
 
-    /// Come back out one level. The scenario node is the floor.
+    /// Come back out one level. The scenario node is the floor. Only a rig
+    /// steps out by hand; the editor goes Back to another document instead.
+    #[cfg(test)]
     pub(crate) fn exit(&mut self) {
         if self.path.len() > 1 {
             self.path.pop();
@@ -512,24 +514,6 @@ impl EditContext {
     /// Straight back to the scenario node, however deep the path is.
     pub(crate) fn exit_all(&mut self) {
         self.path.truncate(1);
-    }
-
-    /// Come back out to `node`, if the editor is inside it. Says whether it
-    /// was.
-    ///
-    /// The gesture a click on an ancestor row makes: a row for something you
-    /// are already INSIDE cannot mean "go there", so it means "come back out
-    /// to there" - one click, at whatever depth, rather than a double on the
-    /// root and a key for each rung between.
-    pub(crate) fn leave_to(&mut self, node: Entity) -> bool {
-        let Some(depth) = self.path.iter().position(|step| *step == node) else {
-            return false;
-        };
-        if depth + 1 == self.path.len() {
-            return false;
-        }
-        self.path.truncate(depth + 1);
-        true
     }
 }
 
@@ -803,6 +787,7 @@ pub(crate) fn sync_camera_focus(
     camera: Option<Single<&mut Transform, With<EditorCamera>>>,
     frame: Res<StageFrame>,
     mut shown: Local<Option<Vec<Entity>>>,
+    mut back: Option<ResMut<crate::project::trail::CameraReturn>>,
 ) {
     if fresh.is_empty() && shown.as_ref() == Some(&context.path) {
         return;
@@ -825,6 +810,13 @@ pub(crate) fn sync_camera_focus(
         .copied()
         .unwrap_or_default();
     let mut transform = camera.into_inner();
+    // Back puts the camera where the builder left that document.
+    if let Some((pose, framed)) = back.as_mut().and_then(|back| back.0.take()) {
+        *shown = Some(context.path.clone());
+        *transform = pose;
+        *framing = framed;
+        return;
+    }
     let (centre, spread) = subtree_bounding_sphere(node, &q_children, &q_bounds).map_or(
         (stage.transform_point(pose.translation), 0.0),
         |(centre, spread)| {

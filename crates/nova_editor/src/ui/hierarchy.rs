@@ -24,6 +24,7 @@ use crate::{
     placement::{
         create_blank_ship, create_scenario_object, deletable, delete_selected_node, DeletableNode,
     },
+    project::ship::open_ship_node,
     ExampleStates,
 };
 
@@ -234,21 +235,23 @@ fn rename_selection(
     pending.0 = selected.primary();
 }
 
-/// Add Part: go into the ship and open the parts gallery.
+/// Add Part: open the ship on its own and open the parts gallery there.
 fn add_part_to_row(
     _activate: On<Activate>,
+    mut commands: Commands,
     selected: Res<SelectedNode>,
     ships: Query<(), With<ShipNode>>,
-    mut context: ResMut<EditContext>,
-    mut gallery: ResMut<GalleryState>,
 ) {
     let Some(ship) = selected.primary().filter(|node| ships.contains(*node)) else {
         return;
     };
-    if context.ship() != Some(ship) {
-        context.enter(ship);
-    }
-    *gallery = gallery.opened();
+    commands.queue(move |world: &mut World| {
+        open_ship_node(world, ship, None);
+        if world.resource::<EditContext>().ship().is_some() {
+            let mut gallery = world.resource_mut::<GalleryState>();
+            *gallery = gallery.opened();
+        }
+    });
 }
 
 /// Focus the name field of the node a Rename row asked for, once the Inspector

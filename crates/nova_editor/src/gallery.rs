@@ -58,6 +58,46 @@ pub(crate) struct ParkedPose {
     skybox: Option<Skybox>,
 }
 
+/// The scenario's skybox, taken off the camera while a document that is not a
+/// scenario is open. A ship, a section or a form stands alone: the sky is the
+/// scenario's, and it is not there.
+#[derive(Component)]
+pub(crate) struct StashedSky(Skybox);
+
+/// Take the sky off the camera for a document that is not a scenario, and put
+/// it back for one that is. Not while the gallery holds the camera: it parks
+/// the sky itself and puts back what it took.
+pub(crate) fn sync_document_sky(
+    mut commands: Commands,
+    project: Option<Res<crate::project::ModProject>>,
+    cameras: Query<
+        (Entity, Option<&Skybox>, Option<&StashedSky>),
+        (With<EditorCamera>, Without<ParkedPose>),
+    >,
+) {
+    let open = project
+        .as_ref()
+        .and_then(|project| project.data.open.as_ref());
+    let scenario = crate::project::DocumentType::of(open) == crate::project::DocumentType::Scenario;
+    for (camera, sky, stash) in &cameras {
+        match (scenario, sky, stash) {
+            (false, Some(sky), _) => {
+                commands
+                    .entity(camera)
+                    .insert(StashedSky(sky.clone()))
+                    .remove::<Skybox>();
+            }
+            (true, None, Some(stash)) => {
+                commands
+                    .entity(camera)
+                    .insert(stash.0.clone())
+                    .remove::<StashedSky>();
+            }
+            _ => {}
+        }
+    }
+}
+
 /// The editor's own rail + drawer root, hidden while the gallery is up.
 ///
 /// The gallery is a MODE, not a panel: its tile grid has to stay transparent
@@ -296,7 +336,11 @@ pub(crate) fn register(app: &mut App) {
                 .before(PartsGallerySystems),
             // Before the tiles are spawned on the stage and placed through
             // the camera.
-            (sync_gallery_stage, park_camera_for_gallery)
+            (
+                sync_gallery_stage,
+                park_camera_for_gallery,
+                sync_document_sky,
+            )
                 .chain()
                 .before(PartsGallerySystems),
             sync_gallery_listing.before(PartsGallerySystems),
