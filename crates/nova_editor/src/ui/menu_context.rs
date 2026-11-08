@@ -335,7 +335,9 @@ pub(crate) fn verb_state(verb: MenuVerbType, context: &MenuContext) -> VerbState
         },
         Verb::CleanUp if context.view == View::Events => Live,
         Verb::CleanUp => Hidden,
-        Verb::Tile(verb, kind, in_scenario) => tile_state(verb, kind, in_scenario),
+        Verb::Tile(verb, kind, in_scenario) => {
+            tile_state(verb, kind, in_scenario, context.document)
+        }
         Verb::File(verb, file) => file_state(verb, file),
     }
 }
@@ -356,10 +358,22 @@ fn file_state(verb: FileVerbType, file: FileFacts) -> VerbState {
 
 /// How a tile's `verb` shows on a tile of `kind`. `in_scenario` is a design a
 /// scenario owns: the ship of one of its nodes.
-fn tile_state(verb: AssetVerbType, kind: &str, in_scenario: bool) -> VerbState {
+fn tile_state(
+    verb: AssetVerbType,
+    kind: &str,
+    in_scenario: bool,
+    document: DocumentType,
+) -> VerbState {
     use AssetVerbType as Tile;
     match (verb, kind) {
         (Tile::Open, _) => VerbState::Live,
+        // A placement names a design. A scenario's own ship is not one: its
+        // design is written for that one spawn.
+        (Tile::Place, "ship") if !in_scenario => match document {
+            DocumentType::Scenario => VerbState::Live,
+            _ => VerbState::Greyed("open a scenario to place the ship in".to_string()),
+        },
+        (Tile::Place, _) => VerbState::Hidden,
         // A mod states one price table: it has no id to change, and no second
         // to copy into.
         (Tile::Rename | Tile::Duplicate, "price table") => VerbState::Hidden,

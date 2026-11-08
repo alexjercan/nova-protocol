@@ -25,7 +25,7 @@ use super::{
 };
 use crate::{
     bundle::{fill_document, is_layout, lift_scenario, LiftedDocument, LiftedShip},
-    node::{EditContext, NodeId, SectionNodes, ShipDriver, ShipNode},
+    node::{EditContext, NodeId, ObjectNode, SectionNodes, ShipDriver, ShipNode},
     scenario::{lower_ship, ship_design, spawn_of, HullForm, LoweredFleet, LoweredShip},
     station::StationCatalogs,
 };
@@ -317,10 +317,28 @@ pub(crate) fn ship_document_name(data: &ProjectData, open: &OpenAsset) -> Option
     Some(if name.is_empty() { id } else { name })
 }
 
+/// The ship design a placed object spawns by reference, if it is one.
+pub(crate) fn placed_design(object: &ObjectNode) -> Option<&str> {
+    match &object.kind {
+        ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            design: ShipDesignSource::Prototype { id, .. },
+            ..
+        }) => Some(id.as_str()),
+        _ => None,
+    }
+}
+
 /// Open ship node `ship` of the open scenario as a document of its own, and
 /// mark `then`, a node under it, there. In the ship's own document it only
-/// marks.
+/// marks. A placed design opens the design it names.
 pub(crate) fn open_ship_node(world: &mut World, ship: Entity, then: Option<Entity>) {
+    if let Some(design) = world
+        .get::<ObjectNode>(ship)
+        .and_then(|object| placed_design(object).map(str::to_string))
+    {
+        super::verbs::open_asset(world, "ship", &design);
+        return;
+    }
     let inside = world.resource::<EditContext>().ship() == Some(ship)
         && super::DocumentType::open_in(world) == super::DocumentType::Ship;
     if inside {

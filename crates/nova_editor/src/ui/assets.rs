@@ -44,9 +44,12 @@ use crate::{
         },
         verbs::{add_asset, delete_asset, duplicate_asset, rename_asset},
     },
-    config::{EditorSays, SelectedNode},
+    camera::ViewportPointer,
+    config::{EditorCamera, EditorSays, SelectedNode},
+    frame::CameraFraming,
     glyph::asset_mark,
     history::EditHistory,
+    placement::place_design,
     problems::Problems,
     project::{
         ship::{is_ship_kind, owner_scenario},
@@ -437,6 +440,7 @@ pub(crate) struct AssetRenameField {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum AssetVerbType {
     Open,
+    Place,
     Rename,
     Duplicate,
     Delete,
@@ -759,6 +763,7 @@ fn on_asset_tile_menu(
             });
             for (word, hint, verb) in [
                 ("Open", "Enter", AssetVerbType::Open),
+                ("Place in Scenario", "", AssetVerbType::Place),
                 ("Rename", "", AssetVerbType::Rename),
                 ("Duplicate", "", AssetVerbType::Duplicate),
                 ("Delete", "", AssetVerbType::Delete),
@@ -783,6 +788,36 @@ fn on_asset_tile_menu(
         .insert(DespawnOnExit(ExampleStates::Editor));
 }
 
+/// A ship design tile dropped on the stage places the design where it fell, at
+/// the framing distance along the pointer's ray. A drop on a panel does
+/// nothing.
+fn on_asset_tile_drop(
+    drop: On<Pointer<DragEnd>>,
+    mut commands: Commands,
+    tiles: Query<&AssetTile>,
+    pointer: Res<ViewportPointer>,
+    framing: Res<CameraFraming>,
+    camera: Option<Single<(&Camera, &GlobalTransform), With<EditorCamera>>>,
+) {
+    if drop.button != PointerButton::Primary || pointer.over_ui {
+        return;
+    }
+    let Ok(AssetTile(Some(OpenAsset { kind: "ship", id }))) = tiles.get(drop.event_target()) else {
+        return;
+    };
+    let at = camera.and_then(|camera| {
+        let (camera, pose) = *camera;
+        let ray = camera
+            .viewport_to_world(pose, drop.pointer_location.position)
+            .ok()?;
+        Some(ray.origin + *ray.direction * framing.distance.to_engine())
+    });
+    let id = id.clone();
+    commands.queue(move |world: &mut World| {
+        pressed(world, |world| place_design(world, &id, at));
+    });
+}
+
 /// A menu row.
 pub(crate) fn on_asset_verb(
     activate: On<Activate>,
@@ -800,6 +835,11 @@ pub(crate) fn on_asset_verb(
         AssetVerbType::Open => {
             commands.queue(move |world: &mut World| {
                 pressed(world, |world| open_asset(world, kind, &id));
+            });
+        }
+        AssetVerbType::Place => {
+            commands.queue(move |world: &mut World| {
+                pressed(world, |world| place_design(world, &id, None));
             });
         }
         AssetVerbType::Rename => {
@@ -1176,6 +1216,7 @@ fn spawn_tile(
             ButtonCueType::Owned,
             observe(on_asset_tile),
             observe(on_asset_tile_menu),
+            observe(on_asset_tile_drop),
         ));
     }
     if let Some(file) = &entry.file {

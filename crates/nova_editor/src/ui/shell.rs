@@ -32,9 +32,14 @@ use crate::{
     camera::ViewportPointer,
     config::{EditorFoot, EditorRail, EditorViewType, PlayButton, SelectedNode},
     history::{redo_item, undo_item},
-    node::{EditContext, ShipNode},
+    node::{EditContext, ObjectNode, ShipNode},
     placement::continue_to_simulation,
-    project::{ship::open_ship_node, trail::DocumentTrail, verbs::go_back, ModProject},
+    project::{
+        ship::{open_ship_node, placed_design},
+        trail::DocumentTrail,
+        verbs::go_back,
+        ModProject,
+    },
     tool::{pick_tool, swap_handle_space, GizmoSpaceType, StageTool, StageToolType},
     ui::{
         menu::{MenuHistoryItem, UnsavedMark},
@@ -582,17 +587,28 @@ fn on_snap_button(_activate: On<Activate>, mut tool: ResMut<StageTool>) {
     tool.snap = !tool.snap;
 }
 
+/// The nodes that open as a document of their own: a ship, and a placed
+/// design, which opens the design.
+type Openable<'w, 's> = Query<'w, 's, (Has<ShipNode>, Option<&'static ObjectNode>)>;
+
+/// Whether `node` opens on its own.
+fn opens_alone(nodes: &Openable, node: Entity) -> bool {
+    nodes
+        .get(node)
+        .is_ok_and(|(ship, object)| ship || object.and_then(placed_design).is_some())
+}
+
 /// Open Ship: the selected ship, on its own.
 fn on_open_ship(
     _activate: On<Activate>,
     mut commands: Commands,
-    ships: Query<(), With<ShipNode>>,
+    ships: Openable,
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
 ) {
     if let Some(ship) = selected
         .primary()
-        .filter(|node| ships.contains(*node) && context.ship().is_none())
+        .filter(|node| opens_alone(&ships, *node) && context.ship().is_none())
     {
         commands.queue(move |world: &mut World| open_ship_node(world, ship, None));
     }
@@ -609,7 +625,7 @@ pub(crate) fn stage_enter_opens_ship(
     mut commands: Commands,
     keys: Res<ButtonInput<KeyCode>>,
     pointer: Res<ViewportPointer>,
-    ships: Query<(), With<ShipNode>>,
+    ships: Openable,
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
 ) {
@@ -620,7 +636,7 @@ pub(crate) fn stage_enter_opens_ship(
     {
         return;
     }
-    if let Some(ship) = selected.primary().filter(|node| ships.contains(*node)) {
+    if let Some(ship) = selected.primary().filter(|node| opens_alone(&ships, *node)) {
         commands.queue(move |world: &mut World| open_ship_node(world, ship, None));
     }
 }
@@ -630,7 +646,7 @@ pub(crate) fn stage_enter_opens_ship(
 pub(crate) fn sync_ship_step(
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
-    ships: Query<(), With<ShipNode>>,
+    ships: Openable,
     trail: Res<DocumentTrail>,
     project: Option<Res<ModProject>>,
     mut backs: Query<
@@ -640,8 +656,10 @@ pub(crate) fn sync_ship_step(
     mut opens: Query<&mut Node, (With<OpenShipButton>, Without<BackButton>)>,
     mut labels: Query<&mut Text, With<ButtonLabel>>,
 ) {
-    let over =
-        context.ship().is_none() && selected.primary().is_some_and(|node| ships.contains(node));
+    let over = context.ship().is_none()
+        && selected
+            .primary()
+            .is_some_and(|node| opens_alone(&ships, node));
     let shown = if over { Display::Flex } else { Display::None };
     for mut node in &mut opens {
         if node.display != shown {

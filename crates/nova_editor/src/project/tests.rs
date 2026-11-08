@@ -527,6 +527,58 @@ fn an_unedited_ship_design_writes_back_unchanged() {
     assert_eq!(held, Some(format!("{design:?}")));
 }
 
+/// A design placed in a scenario is one step, names the design by reference,
+/// and stays a reference after the scenario is lowered and lifted again. A
+/// double click on it opens the design.
+#[test]
+fn a_placed_design_stays_a_reference_to_the_design() {
+    let mut app = project_app();
+    app.init_resource::<EditorViewType>();
+    let range = open_id(&app);
+    let design = one_of_every_other_kind()
+        .into_iter()
+        .find(|item| item.kind() == "ship")
+        .expect("the shipped content holds a ship design");
+    let id = design.id().to_string();
+    app.world_mut()
+        .resource_mut::<ModProject>()
+        .edit()
+        .add_item(design, "kept.content.ron");
+    let steps = depth(&app);
+
+    crate::placement::place_design(app.world_mut(), &id, Some(Vec3::new(40.0, 0.0, 0.0)));
+    app.update();
+    assert_eq!(depth(&app), steps + 1, "a placement is one step");
+
+    let placed = |app: &mut App| {
+        app.world_mut()
+            .query::<(Entity, &crate::node::ObjectNode)>()
+            .iter(app.world())
+            .find(|(_, object)| super::ship::placed_design(object) == Some(id.as_str()))
+            .map(|(node, _)| node)
+    };
+    let node = placed(&mut app).expect("the scenario holds the placement");
+
+    // Open the design through the placement, then come back: the scenario is
+    // lowered on the way out and lifted on the way in.
+    super::ship::open_ship_node(app.world_mut(), node, None);
+    app.update();
+    assert_eq!(open_id(&app), id, "the placement opens its design");
+    app.world_mut().commands().queue(super::verbs::go_back);
+    app.update();
+    assert_eq!(open_id(&app), range);
+    assert!(
+        placed(&mut app).is_some(),
+        "the lifted scenario still names the design"
+    );
+    assert!(
+        data(&app)
+            .item("ship", &format!("{range}.{}", id))
+            .is_none(),
+        "and wrote no copy of it"
+    );
+}
+
 fn is_dirty(app: &App) -> bool {
     app.world().resource::<EditHistory>().dirty()
 }

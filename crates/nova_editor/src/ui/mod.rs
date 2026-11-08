@@ -89,7 +89,7 @@ use crate::{
     },
     project::{
         package::on_package_item,
-        ship::open_ship_node,
+        ship::{open_ship_node, placed_design},
         trail::DocumentTrail,
         verbs::{add_scenario, pressed},
         DocumentType, ModProject,
@@ -1785,6 +1785,7 @@ pub(crate) fn on_scene_row(
         Query<&Children, With<SceneList>>,
         Query<&ChildOf>,
         Query<(), With<SectionNode>>,
+        Query<&ObjectNode>,
     ),
 ) {
     let Ok(SceneRow(node)) = rows.get(activate.entity) else {
@@ -1795,7 +1796,7 @@ pub(crate) fn on_scene_row(
     if mouse.is_some_and(|mouse| mouse.just_released(MouseButton::Right)) {
         return;
     }
-    let (list, owners, sections) = tree;
+    let (list, owners, sections, objects) = tree;
     // A section of a ship the editor is not in: the row opens that ship on its
     // own with the part marked, whatever the modifiers say, because a part can
     // only be marked in its ship's document.
@@ -1843,7 +1844,10 @@ pub(crate) fn on_scene_row(
     // Opening hands the camera to `crate::node::sync_camera_focus`, which
     // frames the new document, so the request the first half of the double
     // raised steps aside rather than writing the camera twice in one frame.
-    if double && ships.contains(*node) && context.ship() != Some(*node) {
+    let design = objects
+        .get(*node)
+        .is_ok_and(|object| placed_design(object).is_some());
+    if double && (ships.contains(*node) || design) && context.ship() != Some(*node) {
         let ship = *node;
         commands.queue(move |world: &mut World| open_ship_node(world, ship, None));
         request.node = None;

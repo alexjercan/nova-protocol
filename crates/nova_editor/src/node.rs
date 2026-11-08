@@ -21,7 +21,7 @@ use avian3d::prelude::{Collider, ColliderAabb, Sensor};
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
 use nova_gameplay::prelude::{
-    subtree_bounding_sphere, subtree_local_collider_aabb, Allegiance, AssetRef,
+    subtree_bounding_sphere, subtree_local_collider_aabb, Allegiance, AssetRef, ShipInventoryStock,
 };
 use nova_input::prelude::InputSource;
 use nova_modding::prelude::Content;
@@ -1101,6 +1101,33 @@ pub(crate) fn spawn_object_node(
     let object = ObjectNode {
         name: minted_name(&id.0),
         ..choice.stock()
+    };
+    insert_object(commands, scenario, id, object, transform)
+}
+
+/// Place ship design `design` under `scenario` by reference: the spawn names
+/// the design, so an edit to the design reaches every placement of it. The
+/// node id is the design's short name and an ordinal.
+pub(crate) fn spawn_design_node(
+    commands: &mut Commands,
+    ordinals: &mut Query<&mut NextChildOrdinal>,
+    scenario: Entity,
+    design: &ShipDesignPrototype,
+    transform: Transform,
+) -> Entity {
+    let full = design.id.as_str();
+    let stem = full.rsplit("__").next().unwrap_or(full);
+    let id = mint_id(ordinals, scenario, stem);
+    let object = ObjectNode {
+        name: design.name.clone(),
+        kind: ScenarioObjectKind::Spaceship(SpaceshipConfig {
+            design: ShipDesignSource::Prototype {
+                id: design.id.clone(),
+                section_patches: default(),
+            },
+            inventory: ShipInventoryStock::new([]),
+            ..default()
+        }),
     };
     insert_object(commands, scenario, id, object, transform)
 }

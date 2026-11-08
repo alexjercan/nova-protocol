@@ -10,10 +10,14 @@
 //! on a ship you are not inside is an "enter", never a placement.
 
 use bevy::{
-    ecs::system::SystemParam, input::mouse::MouseWheel, picking::pointer::PointerInteraction,
-    prelude::*, ui_widgets::Activate,
+    ecs::system::{RunSystemOnce, SystemParam},
+    input::mouse::MouseWheel,
+    picking::pointer::PointerInteraction,
+    prelude::*,
+    ui_widgets::Activate,
 };
 use nova_input::prelude::InputSource;
+use nova_modding::prelude::Content;
 use nova_ship::prelude::*;
 use nova_ui::{prelude::DoubleClick, theme::UiColor};
 
@@ -30,14 +34,16 @@ use crate::{
     history::{commit_edit, delete_node, delete_nodes},
     keybind::EditorRebind,
     node::{
-        node_of_view, sections_of, spawn_object_node, spawn_section_node, spawn_ship_node,
-        EditContext, NextChildOrdinal, NodeId, NodeView, ObjectChoice, ObjectNode, SectionNode,
-        SectionNodes, ShipDriver, ShipNode,
+        node_of_view, sections_of, spawn_design_node, spawn_object_node, spawn_section_node,
+        spawn_ship_node, EditContext, NextChildOrdinal, NodeId, NodeView, ObjectChoice, ObjectNode,
+        SectionNode, SectionNodes, ShipDriver, ShipNode,
     },
     palette,
     project::{
         package::play_faults,
+        ship::owner_scenario,
         verbs::{accept, lower_open_document, refuse, refused_by_gaps},
+        DocumentType, ModProject,
     },
     scenario::lower_fleet,
     selection::toggling,
@@ -350,6 +356,59 @@ pub(crate) fn create_scenario_object(
     selected.set(Some(object));
     commit_edit(&mut commands, format!("Add {}", choice.label()));
     says.accept();
+}
+
+/// Place ship design `id` of the mod in the open scenario by reference, at `at`
+/// in world space, or in front of the camera. One undo step.
+///
+/// A reference (`ShipDesignSource::Prototype`) rather than a copy: the spawn
+/// resolves the id against the design catalog when the scenario loads, so an
+/// edit to the design reaches every ship placed from it. An inline copy would
+/// freeze the sections at the moment of the drop.
+pub(crate) fn place_design(world: &mut World, id: &str, at: Option<Vec3>) {
+    let Some(project) = world.get_resource::<ModProject>() else {
+        return;
+    };
+    if DocumentType::of(project.data.open.as_ref()) != DocumentType::Scenario {
+        refuse(world, "open a scenario to place a ship in");
+        return;
+    }
+    if owner_scenario(&project.data, id).is_some() {
+        refuse(world, format!("{id} is a ship of a scenario, not a design"));
+        return;
+    }
+    let Some(Content::Ship(design)) = project.data.item("ship", id).cloned() else {
+        refuse(world, format!("{id} is not a ship design of this mod"));
+        return;
+    };
+    let _ = world.run_system_once(
+        move |mut commands: Commands,
+              mut ordinals: Query<&mut NextChildOrdinal>,
+              context: Res<EditContext>,
+              framing: Res<CameraFraming>,
+              camera: Query<&GlobalTransform, With<crate::config::EditorCamera>>,
+              stage: Query<&GlobalTransform>,
+              mut selected: ResMut<SelectedNode>| {
+            let Some(scenario) = context.scenario() else {
+                return;
+            };
+            let at = at
+                .or_else(|| camera.iter().next().map(|eye| in_front_of(eye, &framing)))
+                .unwrap_or(Vec3::ZERO);
+            let at = stage
+                .get(scenario)
+                .map_or(at, |root| root.affine().inverse().transform_point3(at));
+            let node = spawn_design_node(
+                &mut commands,
+                &mut ordinals,
+                scenario,
+                &design,
+                Transform::from_translation(at),
+            );
+            selected.set(Some(node));
+            commit_edit(&mut commands, format!("Place {}", design.name));
+        },
+    );
 }
 
 /// The point a placed object lands on, out in front of `camera`.
