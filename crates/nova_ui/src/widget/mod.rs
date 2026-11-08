@@ -29,24 +29,27 @@
 /// small layout helpers.
 pub mod prelude {
     pub use super::{
-        badge, button, button_on_setting, checkbox, checkbox_glyph, close_popups, key_chip,
-        list_row, list_row_colors, menu_button, panel, panel_head, panel_header, panel_node,
-        panel_radius, popup_row, segmented, segmented_container, segmented_container_wrapping,
-        segmented_option, segmented_option_compact, segmented_option_fit, select, separator,
-        slider_meter_color, slider_track, spawn_popup, swatch, tab, tab_strip, text_field,
-        themed_button, toggle, tree_keep, tree_row, BadgeKind, ButtonCueMute, ButtonCueType,
-        ButtonLabel, ButtonSpec, ButtonValue, ButtonVariant, DoubleClick, KeyChip, KeyChipLabel,
-        ListRow, PanelHeadTag, PanelHeadTitle, PopupPanel, PopupRoot, PopupRow, SegmentedSkin,
-        Select, SelectChanged, SelectLabel, Selected, SliderBlock, SliderFill, SliderTrack,
-        TabLabel, TextField, TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted,
-        TextFieldSystems, TextFieldValue, ThemedBadge, ThemedBorder, ThemedButton, ThemedCheckbox,
-        ThemedFill, ThemedImageTint, ThemedPanel, ThemedPanelHead, ThemedRadius, ThemedSeparator,
-        ThemedSwatch, ThemedText, ThemedTextShadow, ThemedToggle, Tooltip, TooltipPanel, TreeCaret,
-        TreeRowSpec, UiText, DOUBLE_CLICK_SECS,
+        badge, button, button_on_setting, cascade_item, checkbox, checkbox_glyph, close_popups,
+        key_chip, list_row, list_row_colors, menu_button, panel, panel_head, panel_header,
+        panel_node, panel_radius, popup_row, search_cascade, segmented, segmented_container,
+        segmented_container_wrapping, segmented_option, segmented_option_compact,
+        segmented_option_fit, select, separator, slider_meter_color, slider_track, spawn_cascade,
+        spawn_popup, swatch, tab, tab_strip, text_field, themed_button, toggle, tree_keep,
+        tree_row, BadgeKind, ButtonCueMute, ButtonCueType, ButtonLabel, ButtonSpec, ButtonValue,
+        ButtonVariant, CascadeEntry, CascadeItem, CascadeMenu, CascadeNav, CascadeRow,
+        CascadeRowBundle, CascadeSearch, DoubleClick, KeyChip, KeyChipLabel, ListRow, PanelHeadTag,
+        PanelHeadTitle, PopupPanel, PopupRoot, PopupRow, SegmentedSkin, Select, SelectChanged,
+        SelectLabel, Selected, SliderBlock, SliderFill, SliderTrack, TabLabel, TextField,
+        TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldSystems,
+        TextFieldValue, ThemedBadge, ThemedBorder, ThemedButton, ThemedCheckbox, ThemedFill,
+        ThemedImageTint, ThemedPanel, ThemedPanelHead, ThemedRadius, ThemedSeparator, ThemedSwatch,
+        ThemedText, ThemedTextShadow, ThemedToggle, Tooltip, TooltipPanel, TreeCaret, TreeRowSpec,
+        UiText, DOUBLE_CLICK_SECS,
     };
 }
 
 mod button;
+mod cascade;
 mod chrome;
 mod double_click;
 mod list_row;
@@ -71,6 +74,7 @@ use bevy::{
     ui::{InteractionDisabled, Pressed},
 };
 pub use button::*;
+pub use cascade::*;
 pub use chrome::*;
 pub use double_click::*;
 pub use list_row::*;
@@ -88,6 +92,10 @@ use self::{
     button::{
         button_on_interaction, plain_button_on_interaction, reconcile_button_themes,
         reconcile_key_chips,
+    },
+    cascade::{
+        a_cascade_claims_the_keyboard, cascade_hover, cascade_keys, open_cascade_row,
+        place_cascade_columns, sync_cascade_search, sync_cascades,
     },
     chrome::{
         reconcile_badges, reconcile_checkboxes, reconcile_separators, reconcile_swatches,
@@ -154,6 +162,7 @@ pub(crate) fn build(app: &mut App) {
         .add_observer(spawn_tooltip_panel)
         .add_observer(close_popup_on_row)
         .add_observer(close_popup_on_press)
+        .add_observer(open_cascade_row)
         .add_observer(open_select)
         .add_observer(pick_select_option);
 
@@ -201,6 +210,26 @@ pub(crate) fn build(app: &mut App) {
             // the outgoing theme, so every selection change showed one stale
             // frame.
             .after(UiThemeSystems),
+    );
+    // The pointer, the search and the keys move a cascading menu's nav, then
+    // its columns follow it. The keys come after the field's own, so a close
+    // lands after the field lets go of the caret.
+    app.add_systems(
+        Update,
+        (
+            cascade_hover,
+            sync_cascade_search,
+            cascade_keys,
+            sync_cascades,
+            place_cascade_columns,
+        )
+            .chain()
+            .after(TextFieldSystems)
+            .after(UiThemeSystems),
+    );
+    app.add_systems(
+        PreUpdate,
+        a_cascade_claims_the_keyboard.before(crate::input_mode::InputModeSystems),
     );
     // Route the font BEFORE UI text is measured/laid out (PostUpdate,
     // before `UiSystems::Content`), not in Update - a `UiText` spawned this
