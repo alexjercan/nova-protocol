@@ -140,6 +140,8 @@ mod smoke {
     const FIRED_VALUE: f64 = 7.0;
     const SAVE: &[KeyCode] = &[KeyCode::ControlLeft, KeyCode::KeyS];
     const UNDO: &[KeyCode] = &[KeyCode::ControlLeft, KeyCode::KeyZ];
+    /// What stands while a block's pop-up is open.
+    const POPUP: &str = "Block Popup Catcher";
     const REDO: &[KeyCode] = &[KeyCode::ControlLeft, KeyCode::KeyY];
 
     /// The ids the walk's drops minted, and what it measured before them.
@@ -148,6 +150,7 @@ mod smoke {
         hat: String,
         set: String,
         sequence: String,
+        scatter: String,
         step: String,
         debug: String,
         or: String,
@@ -425,6 +428,74 @@ mod smoke {
             .add()
     }
 
+    /// Drop a Scatter Objects block, frame its pop-up, and take the drop back
+    /// as one undo step: the frame shows the kind, the region and the kind mix
+    /// as widgets, and the walk after it sees the document it had.
+    fn scatter_popup(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        let mut script = note(script, "the scatter block");
+        script = script.filter_palette("Scatter Objects");
+        script = drag(
+            script,
+            "a scatter block",
+            block_named("Palette Scatter Objects"),
+            at_built(|notes| format!("Slot {} 2", notes.hat)),
+            None,
+            stepped(),
+        );
+        script = keep(script, |notes, id| notes.scatter = id);
+        script = script
+            .step("editor blocks: point at the scatter's more chip")
+            .on_enter(|world: &mut World| {
+                let notes = built(world);
+                hover_named(format!("More {}/{}", notes.hat, notes.scatter))(world);
+            })
+            .until(frames(3))
+            .add()
+            .step("editor blocks: press the more chip")
+            .on_enter(press_mouse(MouseButton::Left))
+            .until(frames(3))
+            .add()
+            .step("editor blocks: the scatter's pop-up opens")
+            .on_enter(release_mouse(MouseButton::Left))
+            .until(ui_node_present(POPUP))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add();
+        script = shot(script, "s13-scatter-popup.png");
+        // Roll the pop-up down to the template's kind and the kind mix.
+        script = script
+            .step("editor blocks: point into the pop-up")
+            .on_enter(|world: &mut World| {
+                let notes = built(world);
+                let chip = format!("More {}/{}", notes.hat, notes.scatter);
+                let rect = ui_node_rect(world, &chip).expect("the more chip is up");
+                move_cursor(rect.max + Vec2::new(60.0, 160.0))(world);
+            })
+            .until(frames(3))
+            .add()
+            .step("editor blocks: roll the pop-up down")
+            .on_enter(scroll_lines(-12.0))
+            .until(frames(4))
+            .add();
+        script = shot(script, "s13-scatter-kinds.png");
+        script = chord(
+            script,
+            "close the pop-up",
+            &[KeyCode::Escape],
+            Arc::new(|world: &World| !ui_node_present(POPUP)(world)),
+        );
+        chord(
+            script,
+            "take the scatter block back",
+            UNDO,
+            Arc::new(|world: &World| {
+                let notes = built(world);
+                let probe = probe(world);
+                probe.history_depth == notes.depth && probe.shell.blocks == notes.blocks
+            }),
+        )
+    }
+
     /// The canvas near its top left, clear of every handler once it has rolled.
     fn clear_ground() -> BlockPoint {
         Arc::new(|world: &World| {
@@ -661,6 +732,9 @@ mod smoke {
             0,
             "blocks_beat",
         );
+        if capturing() {
+            script = scatter_popup(script);
+        }
 
         script = script
             .step("editor blocks: find the step the sequence came with")
