@@ -21,7 +21,7 @@
 //! walk's window. `NOVA_CAPTURE=1` shoots `editor-shell-scene.png`, `-filter.png`,
 //! `-menu.png`, `-assets.png`, `-tile-hint.png`, `-tile-clash.png`,
 //! `-problems.png`, `-add-menu.png`, `-add-search.png`, `-ship.png`,
-//! `-events.png` and `-popup.png`.
+//! `-back.png`, `-back-tools.png`, `-events.png` and `-popup.png`.
 //! Unset, no walk and no deadline run.
 
 use bevy::{prelude::*, window::PrimaryWindow};
@@ -31,6 +31,12 @@ use nova_protocol::{
     prelude::*,
 };
 
+#[path = "../systems/shared/minted_row.rs"]
+#[expect(
+    dead_code,
+    reason = "this walk single-clicks its minted row and never double-clicks one"
+)]
+mod minted_row;
 #[path = "shared/open_world_stage.rs"]
 mod open_world_stage;
 #[path = "../screenshots/shared/ui_walk.rs"]
@@ -136,8 +142,10 @@ mod smoke {
     use std::sync::{Arc, OnceLock};
 
     use nova_protocol::nova_debug::harness::{shoot, AutopilotPlugin, Predicate};
+    use nova_ui::widget::{Tooltip, TooltipPanel};
 
     use super::{
+        minted_row::RowGestures,
         ui_walk::{block_centre, block_named, canvas_middle, Gestures},
         *,
     };
@@ -173,6 +181,8 @@ mod smoke {
         strip: f32,
         depth: usize,
         play_at: Vec2,
+        /// The id of the ship Add New Ship minted.
+        ship: String,
     }
 
     /// Advance once the probe passes.
@@ -245,6 +255,65 @@ mod smoke {
             .until(shot_written(name))
             .deadline(SHOT_SECS)
             .add()
+    }
+
+    /// Advance once Back stands inside the stage tools' row and its tooltip
+    /// panel shows the whole `Back to <name> (Esc)`.
+    fn back_names_the_whole_way() -> Arc<Predicate> {
+        Arc::new(|world: &World| {
+            let (Some(back), Some(tools)) = (
+                laid_out(world, "Back Button"),
+                laid_out(world, "Stage Tools"),
+            ) else {
+                return false;
+            };
+            let Some(mut owners) = world.try_query::<(&Name, &Tooltip, &Children)>() else {
+                return false;
+            };
+            let Some((_, tip, children)) = owners
+                .iter(world)
+                .find(|(name, ..)| name.as_str() == "Back Button")
+            else {
+                return false;
+            };
+            let whole = tip.0.starts_with("Back to ") && tip.0.ends_with(" (Esc)");
+            let shown = children.iter().any(|panel| {
+                world.get::<TooltipPanel>(panel).is_some()
+                    && world
+                        .get::<Node>(panel)
+                        .is_some_and(|node| node.display == Display::Flex)
+                    && world.get::<Children>(panel).is_some_and(|lines| {
+                        lines
+                            .iter()
+                            .any(|line| world.get::<Text>(line).is_some_and(|text| text.0 == tip.0))
+                    })
+            });
+            whole && shown && back.min.x >= tools.min.x - 0.5 && back.max.x <= tools.max.x + 0.5
+        })
+    }
+
+    /// Advance once Back stands in the row after the shown Snap button.
+    fn back_follows_the_tools() -> Arc<Predicate> {
+        Arc::new(|world: &World| {
+            let (Some(back), Some(snap)) = (
+                ui_node_rect(world, "Back Button"),
+                ui_node_rect(world, "Snap Button"),
+            ) else {
+                return false;
+            };
+            back.min.x >= snap.max.x
+        })
+    }
+
+    /// The physical-px box of the node called `name`, hidden or not: the stage
+    /// tools are hidden in the Ship view and still hold their space.
+    fn laid_out(world: &World, name: &str) -> Option<Rect> {
+        let mut nodes = world.try_query::<(&Name, &UiGlobalTransform, &ComputedNode)>()?;
+        nodes
+            .iter(world)
+            .find(|(node, ..)| node.as_str() == name)
+            .map(|(_, at, computed)| Rect::from_center_size(at.translation, computed.size()))
+            .filter(|rect| rect.width() > 0.0)
     }
 
     /// Whether the menu row `name` carries the highlight.
@@ -809,7 +878,14 @@ mod smoke {
             .step("editor shell: note where Play stands")
             .on_enter(|world: &mut World| {
                 let at = ui_node_centre(world, "Play Button").expect("Play stands");
-                world.resource_mut::<Walk>().play_at = at;
+                let ship = world
+                    .resource::<EditorProbe>()
+                    .inside
+                    .clone()
+                    .expect("the walk is inside the ship it added");
+                let mut walk = world.resource_mut::<Walk>();
+                walk.play_at = at;
+                walk.ship = ship;
             })
             .until(frames(1))
             .add()
@@ -823,10 +899,68 @@ mod smoke {
             .diagnose(readout)
             .deadline(BEAT_SECS)
             .add()
+            // Back stands over the space the hidden stage tools hold, so its
+            // label is cut to that space, and the panel under it names the
+            // whole way back.
+            .step("editor shell: rest on Back")
+            .on_enter(hover_named("Back Button"))
+            .until(back_names_the_whole_way())
+            .deadline(BEAT_SECS)
+            .add();
+        let script = shot(script, "editor-shell-back.png");
+        // Over a scenario the stage tools show, so Back follows them in the
+        // row instead of covering them.
+        let script = script
+            .click_named(
+                "editor shell: show the Assets tab",
+                "Browser Tab Assets",
+                editor(|probe| probe.shell.browser_tab == "Assets"),
+                BEAT_SECS,
+            )
+            .double_click_named(
+                "editor shell: open the range over the ship",
+                "Asset Tile Saved Range",
+                BEAT_SECS,
+            )
+            .step("editor shell: Back follows the shown tools")
+            .until(and(
+                editor(|probe| probe.inside.is_none()),
+                back_follows_the_tools(),
+            ))
+            .deadline(BEAT_SECS)
+            .add();
+        let script = shot(script, "editor-shell-back-tools.png");
+        let script = script
+            .click_named(
+                "editor shell: back to the ship",
+                "Back Button",
+                editor(|probe| probe.inside.is_some()),
+                BEAT_SECS,
+            )
             // A ship is its own document: its tree holds only the ship, and
             // the bar's Back returns to the scenario it was opened over.
             .click_named(
                 "editor shell: back out to the scenario",
+                "Back Button",
+                editor(|probe| probe.inside.is_none()),
+                BEAT_SECS,
+            )
+            // Open Ship stands on the bar over a selected ship of a scenario,
+            // and goes straight back in.
+            .click_row(
+                "editor shell: select the ship",
+                |world| world.resource::<Walk>().ship.clone(),
+                ui_node_present("Open Ship Button"),
+                BEAT_SECS,
+            )
+            .click_named(
+                "editor shell: open the ship again",
+                "Open Ship Button",
+                editor(|probe| probe.inside.is_some()),
+                BEAT_SECS,
+            )
+            .click_named(
+                "editor shell: back out once more",
                 "Back Button",
                 editor(|probe| probe.inside.is_none()),
                 BEAT_SECS,
