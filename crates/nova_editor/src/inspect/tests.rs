@@ -2626,3 +2626,33 @@ fn a_scatter_mix_entry_reads_as_kind_and_weight() {
         RowValue::Number("1".to_string())
     );
 }
+
+/// A rotation inside a config reads and writes as the pose's three degrees,
+/// one box at a time. A box that is not a number is refused and the rotation
+/// is kept.
+#[test]
+fn a_spawn_rotation_is_three_degree_boxes_written_one_at_a_time() {
+    let mut node = stock_action(ActionChoice::SpawnScenarioObject);
+    let rotation = row(&action_rows(&node), "Rotation").clone();
+    assert_eq!(
+        rotation.value,
+        RowValue::Axes(["0", "0", "0"].map(str::to_string))
+    );
+    assert_eq!(rotation.unit, ROTATION_UNIT);
+    let yaw = [rotation.path.clone(), vec![axis_step(0)]].concat();
+    let pitch = [rotation.path.clone(), vec![axis_step(1)]].concat();
+
+    let config = action_config_mut(&mut node.kind).expect("a config");
+    write_field(config, &yaw, false, "90").expect("a yaw");
+    let rule = DragRule {
+        step: 1.0,
+        limit: Limit::Free,
+    };
+    nudge_field(config, &pitch, false, rule, 5.0).expect("a pitch scrub");
+    assert!(write_field(config, &yaw, false, "east").is_err());
+
+    assert_eq!(
+        row(&action_rows(&node), "Rotation").value,
+        RowValue::Axes(["90", "5", "0"].map(str::to_string))
+    );
+}

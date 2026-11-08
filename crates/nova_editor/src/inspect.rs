@@ -1688,10 +1688,18 @@ fn walk(
     // has to count commas through to change one of them, and a line long
     // enough to wrap in a panel this narrow.
     //
-    // A `Quat` is NOT given this. Its three boxes would have to be degrees,
-    // and a per-axis write walks reflection into the value's own fields -
-    // which on a quaternion are the raw x/y/z/w nobody authors. It stays one
-    // field, parsed as the same three degrees the pose's rotation row takes.
+    // A `Quat` gets the same shape in the pose rotation's DEGREES. Its boxes
+    // name `x`, `y` and `z` like a vector's do, and the write turns them into
+    // yaw, pitch and roll before they reach the quaternion ([`turn_axis`]):
+    // its own x/y/z/w are numbers nobody authors.
+    if let Some(turn) = value.try_downcast_ref::<Quat>() {
+        let degrees = rotation_degrees(&Transform::from_rotation(*turn));
+        let mut row = walked(root, path, false, axes_of(degrees));
+        row.unit = ROTATION_UNIT;
+        row.nudge = TURN_STEP;
+        out.push(row);
+        return;
+    }
     if let Some(vector) = value.try_downcast_ref::<Vec3>() {
         out.push(walked(root, path, false, axes_of(*vector)));
         return;
@@ -2486,6 +2494,15 @@ pub(crate) fn write_field(
     optional: bool,
     text: &str,
 ) -> Result<(), String> {
+    if let Some((turn, axis)) = turn_axis(root, path) {
+        let degrees = parse_leaf("f32", text)?;
+        check_finite(degrees.as_ref())?;
+        let degrees = degrees
+            .try_downcast_ref::<f32>()
+            .copied()
+            .ok_or_else(|| "not a number".to_string())?;
+        return write_turn(root, &turn, axis, degrees);
+    }
     let limit = limit_at(root, path);
     let target = resolve(root, path).ok_or_else(|| "gone".to_string())?;
     if optional {
@@ -2791,9 +2808,16 @@ pub(crate) fn nudge_field(
     rule: DragRule,
     steps: f64,
 ) -> Result<(), String> {
-    let held = {
-        let target = resolve(root, path).ok_or_else(|| GRIP_GONE.to_string())?;
-        number_at(target).ok_or_else(|| GRIP_EMPTY.to_string())?
+    let held = match turn_axis(root, path) {
+        Some((turn, axis)) => Held {
+            value: f64::from(turn_degrees(root, &turn).ok_or_else(|| GRIP_GONE.to_string())?[axis]),
+            whole: false,
+            floor: None,
+        },
+        None => {
+            let target = resolve(root, path).ok_or_else(|| GRIP_GONE.to_string())?;
+            number_at(target).ok_or_else(|| GRIP_EMPTY.to_string())?
+        }
     };
     let mut moved = snapped(
         held.value + steps * f64::from(rule.step),
@@ -3782,7 +3806,7 @@ fn pose_rows(pose: &Transform) -> Vec<InspectorRow> {
         axes_row(
             FieldRoot::Rotation,
             "Rotation",
-            "deg, yaw/pitch/roll",
+            ROTATION_UNIT,
             TURN_STEP,
             Limit::Free,
             rotation_degrees(pose),
@@ -3861,6 +3885,46 @@ fn axes_row(
         depth: 0,
         overridden: false,
     }
+}
+
+/// The unit a rotation row wears: the pose's and a config's alike.
+pub(crate) const ROTATION_UNIT: &str = "deg, yaw/pitch/roll";
+
+/// Where `path` names one box of a ROTATION row: the `Quat` it turns, and
+/// which of yaw, pitch and roll the box holds.
+///
+/// The box names `x`, `y` or `z` like a vector's box does, so the panel draws
+/// both with one widget. On a quaternion those names are its raw fields, and
+/// writing one there would shear the rotation, so the write comes here first.
+fn turn_axis(root: &dyn PartialReflect, path: &[PathStep]) -> Option<(Vec<PathStep>, usize)> {
+    let (PathStep::Field(name), turn) = path.split_last()? else {
+        return None;
+    };
+    let axis = ["x", "y", "z"].iter().position(|axis| axis == name)?;
+    peek(root, turn)?.try_downcast_ref::<Quat>()?;
+    Some((turn.to_vec(), axis))
+}
+
+/// The yaw, pitch and roll the `Quat` at `turn` holds, in degrees.
+fn turn_degrees(root: &dyn PartialReflect, turn: &[PathStep]) -> Option<Vec3> {
+    let held = peek(root, turn)?.try_downcast_ref::<Quat>()?;
+    Some(rotation_degrees(&Transform::from_rotation(*held)))
+}
+
+/// Put `degrees` into box `axis` of the rotation at `turn`, keeping the other
+/// two.
+fn write_turn(
+    root: &mut dyn PartialReflect,
+    turn: &[PathStep],
+    axis: usize,
+    degrees: f32,
+) -> Result<(), String> {
+    let mut held = turn_degrees(root, turn).ok_or_else(|| "gone".to_string())?;
+    held[axis] = degrees;
+    resolve(root, turn)
+        .ok_or_else(|| "gone".to_string())?
+        .try_apply(&rotation_from_degrees(held))
+        .map_err(|error| format!("refused: {error}"))
 }
 
 /// Which field of a `Vec3` the box for `axis` writes.

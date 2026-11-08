@@ -66,7 +66,7 @@ use crate::{
         set_item_text, set_well_target, ship_rows, socket_rows, step_rows, toggle_field,
         well_target_label, write_field, AssetPressType, CatalogType, DocumentIds, DragRule,
         FieldRoot, InspectTarget, InspectorRow, MeshPose, NodeKinds, Operand, PaletteEntry,
-        PathStep, RowValue, ScriptNames, GRIP_GONE,
+        PathStep, RowValue, ScriptNames, GRIP_GONE, ROTATION_UNIT,
     },
     keybind::on_rebind_action,
     node::{
@@ -1745,9 +1745,12 @@ fn spawn_well_target_row(
 /// learn that twice. A rotation's three numbers are yaw, pitch and roll - their
 /// own initials - tinted by the axis each one turns ABOUT, so the letters and
 /// the colours say the same thing.
-fn axis_leads(root: FieldRoot) -> [(&'static str, Color); 3] {
-    match root {
-        FieldRoot::Rotation => [
+///
+/// A rotation is told by its UNIT rather than its root: one nested in a
+/// config is walked from the config's root, and its boxes are still degrees.
+fn axis_leads(row: &InspectorRow) -> [(&'static str, Color); 3] {
+    match row.unit {
+        ROTATION_UNIT => [
             ("Y", GizmoAxis::Y.colour()),
             ("P", GizmoAxis::X.colour()),
             ("R", GizmoAxis::Z.colour()),
@@ -1899,7 +1902,7 @@ fn spawn_axes_row(
     axes: &[String; 3],
     step: f32,
 ) {
-    let leads = axis_leads(row.root);
+    let leads = axis_leads(row);
     let unit = row.unit;
     let rule = DragRule {
         step: row.nudge,
