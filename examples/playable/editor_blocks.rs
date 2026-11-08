@@ -154,6 +154,8 @@ mod smoke {
         blocks: usize,
         depth: usize,
         hat_at: Vec2,
+        palette_all: usize,
+        palette_events: usize,
     }
 
     fn probe(world: &World) -> &EditorProbe {
@@ -468,7 +470,104 @@ mod smoke {
                 assert_eq!(shell.block_faults, 0, "{shell:?}");
                 info!("editor blocks: the tutorial draws {} blocks", shell.blocks);
             })
+            .add();
+
+        // The rail filters the palette by group, together with the filter box.
+        script = script.filter_palette("");
+        script = script
+            .step("editor blocks: count the whole palette")
+            .until(editor(|probe| {
+                probe.shell.palette_group == "All" && !probe.shell.palette_entries.is_empty()
+            }))
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
             .add()
+            .step("editor blocks: note the whole palette")
+            .on_enter(|world: &mut World| {
+                let all = probe(world).shell.palette_entries.len();
+                world.resource_mut::<Built>().palette_all = all;
+            })
+            .add()
+            .click_named(
+                "editor blocks: show only Events",
+                "Palette Rail Events",
+                editor(|probe| probe.shell.palette_group == "Events"),
+                BEAT_SECS,
+            )
+            .step("editor blocks: the palette lists only Events blocks")
+            .on_enter(|world: &mut World| {
+                let all = built(world).palette_all;
+                let entries = probe(world).shell.palette_entries.clone();
+                assert!(!entries.is_empty(), "no Events block shown");
+                assert!(entries.len() < all, "{} of {all}", entries.len());
+                assert!(
+                    entries.iter().all(|entry| entry.starts_with("Events / ")),
+                    "{entries:?}"
+                );
+                info!(
+                    "editor blocks: the Events group shows {} of {all} blocks",
+                    entries.len()
+                );
+                world.resource_mut::<Built>().palette_events = entries.len();
+            })
+            .add();
+        if capturing() {
+            script = shot(script, "s4-rail-filter.png");
+        }
+        script = script.filter_palette("start");
+        script = script
+            .step("editor blocks: the group and the filter both apply")
+            .on_enter(|world: &mut World| {
+                let events = built(world).palette_events;
+                let entries = probe(world).shell.palette_entries.clone();
+                assert!(!entries.is_empty(), "On Start is an Events block");
+                assert!(entries.len() < events, "{} of {events}", entries.len());
+                assert!(
+                    entries.iter().all(|entry| {
+                        entry.starts_with("Events / ") && entry.to_lowercase().contains("start")
+                    }),
+                    "{entries:?}"
+                );
+                info!("editor blocks: Events and \"start\" show {entries:?}");
+            })
+            .add();
+        script = script.filter_palette("");
+        script = script
+            .click_named(
+                "editor blocks: a second click on Events shows every group",
+                "Palette Rail Events",
+                Arc::new(|world: &World| {
+                    let all = built(world).palette_all;
+                    let shell = &probe(world).shell;
+                    shell.palette_group == "All" && shell.palette_entries.len() == all
+                }),
+                BEAT_SECS,
+            )
+            .click_named(
+                "editor blocks: show only Conditions",
+                "Palette Rail Conditions",
+                Arc::new(|world: &World| {
+                    let shell = &probe(world).shell;
+                    shell.palette_group == "Conditions"
+                        && !shell.palette_entries.is_empty()
+                        && shell
+                            .palette_entries
+                            .iter()
+                            .all(|entry| entry.starts_with("Conditions / "))
+                }),
+                BEAT_SECS,
+            )
+            .click_named(
+                "editor blocks: All shows every group",
+                "Palette Rail All",
+                Arc::new(|world: &World| {
+                    let all = built(world).palette_all;
+                    let shell = &probe(world).shell;
+                    shell.palette_group == "All" && shell.palette_entries.len() == all
+                }),
+                BEAT_SECS,
+            );
+        script = script
             .step("editor blocks: point at the canvas")
             .on_enter(|world: &mut World| {
                 let centre = ui_node_centre(world, CANVAS).expect("the canvas is up");
@@ -493,6 +592,20 @@ mod smoke {
             stepped(),
         );
         script = keep(script, |notes, id| notes.hat = id);
+
+        // Move the placed hat across the bare canvas: the ghost follows the
+        // pointer from its first frame.
+        script = note(script, "the hat move");
+        script = drag(
+            script,
+            "the placed hat",
+            named_built(|notes| format!("Block {}", notes.hat)),
+            Arc::new(|world: &World| {
+                ui_node_rect(world, CANVAS).map(|rect| rect.min + Vec2::new(360.0, 60.0))
+            }),
+            None,
+            stepped(),
+        );
 
         // A stack in the hat.
         script = note(script, "the stack block");

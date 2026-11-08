@@ -30,7 +30,7 @@ use crate::{
     ui::{
         assets::AssetList,
         browser::BrowserTabType,
-        canvas::{CanvasBoard, CanvasDrag, CanvasView},
+        canvas::{CanvasBoard, CanvasDrag, CanvasView, PaletteEntry, PaletteGroup},
         inspector::{Document, InspectorField},
         log::StatusLog,
         menu::OpenMenu,
@@ -263,6 +263,10 @@ pub struct ShellProbe {
     pub log_lines: Vec<String>,
     /// How many of them its filters show.
     pub log_shown: usize,
+    /// The group the palette rail shows: `All` or a group's short name.
+    pub palette_group: String,
+    /// The palette entries shown, as `Group / Label`, in no set order.
+    pub palette_entries: Vec<String>,
 }
 
 /// Refresh [`EditorProbe::shell`], after [`sync_editor_probe`] wrote the rest.
@@ -284,6 +288,7 @@ pub(crate) fn sync_shell_probe(
     assets: Query<&Children, With<AssetList>>,
     view: Res<CanvasView>,
     log: Res<StatusLog>,
+    palette: (Res<PaletteGroup>, Query<(&PaletteEntry, &Node)>),
     mut probe: ResMut<EditorProbe>,
 ) {
     if *editor.get() != ExampleStates::Editor {
@@ -314,6 +319,13 @@ pub(crate) fn sync_shell_probe(
         asset_rows: assets.iter().map(|rows| rows.len()).sum(),
         log_lines: log.texts(),
         log_shown: log.shown_count(),
+        palette_group: palette.0.label().to_string(),
+        palette_entries: palette
+            .1
+            .iter()
+            .filter(|(_, node)| node.display != Display::None)
+            .map(|(entry, _)| format!("{} / {}", entry.0.role().short(), entry.0.label()))
+            .collect(),
     };
     if probe.shell != shell {
         probe.shell = shell;

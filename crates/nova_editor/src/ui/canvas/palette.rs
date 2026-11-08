@@ -8,9 +8,10 @@
 //! condition's points, a value's round ends. A click on a heading folds its
 //! group. Dropping a block on the palette bins it.
 //!
-//! The rail at the left edge holds one dot per group. A click scrolls the list
-//! to that group, and the rail marks the group in view, so every group is one
-//! click away however long the list above it is.
+//! The rail at the left edge holds an All row and one dot per group. A click
+//! on a group shows only that group's blocks; a second click on it, or a click
+//! on All, shows every group again. The group and the filter box both apply,
+//! and the rail marks the group it shows.
 
 use std::collections::HashSet;
 
@@ -19,7 +20,11 @@ use bevy::{
     prelude::*,
     ui_widgets::{observe, Activate, Button},
 };
-use nova_ui::prelude::*;
+use nova_ui::{
+    prelude::*,
+    theme::{self, UiColor},
+    widget::{ListRow, Selected, ThemedBorder, ThemedRadius, ThemedText},
+};
 
 use super::{
     paint::paint_points,
@@ -61,13 +66,6 @@ const RAIL_W: f32 = 58.0;
 /// A rail dot's size.
 const RAIL_DOT: f32 = 14.0;
 
-/// How far below the list's top a heading may sit and still count as the
-/// group in view, in logical pixels.
-const IN_VIEW_SLACK: f32 = 4.0;
-
-/// How far the list may move before a rail pick lets go, in logical pixels.
-const PICK_SLACK: f32 = 0.5;
-
 /// The palette's root.
 #[derive(Component)]
 pub(crate) struct BlockPalette;
@@ -92,15 +90,39 @@ pub(crate) struct HeadingFoldMark;
 #[derive(Component)]
 pub(crate) struct PaletteList;
 
-/// A rail dot: a click scrolls the list to its group.
+/// A rail row: a click shows only its group. `None` is the All row.
 #[derive(Component, Debug, Clone, Copy)]
-pub(crate) struct PaletteRailChip(pub(crate) BlockRoleType);
+pub(crate) struct PaletteRailChip(pub(crate) Option<BlockRoleType>);
 
-/// The group the rail last scrolled to, and the scroll offset it set. The rail
-/// marks that group until the list scrolls by other means: the last groups
-/// cannot reach the list's top, so the top rule alone would mark another.
-#[derive(Resource, Default, Debug)]
-pub(crate) struct PaletteRailPick(pub(crate) Option<(BlockRoleType, f32)>);
+/// The group the rail shows. `None` shows every group.
+#[derive(Resource, Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct PaletteGroup(pub(crate) Option<BlockRoleType>);
+
+impl PaletteGroup {
+    /// What the rail shows after a click on `pressed`: a group shows alone,
+    /// and a second click on it, or a click on All, shows every group.
+    pub(crate) fn after_press(self, pressed: Option<BlockRoleType>) -> Self {
+        Self(pressed.filter(|role| self.0 != Some(*role)))
+    }
+
+    /// The rail row's word for what it shows.
+    pub(crate) fn label(self) -> &'static str {
+        self.0.map_or("All", BlockRoleType::short)
+    }
+}
+
+/// Whether the palette lists `item` for the filter text `wanted` (trimmed and
+/// lower case) and the rail's `group`. Both apply.
+pub(crate) fn palette_shows(item: BlockItemType, wanted: &str, group: PaletteGroup) -> bool {
+    let in_group = group.0.is_none_or(|role| item.role() == role);
+    let named = wanted.is_empty()
+        || item.label().to_lowercase().contains(wanted)
+        || item.role().label().to_lowercase().contains(wanted)
+        || item
+            .subject()
+            .is_some_and(|subject| subject.label().to_lowercase().contains(wanted));
+    in_group && named
+}
 
 /// The groups a click on their heading folded.
 #[derive(Resource, Default, Debug)]
@@ -271,11 +293,30 @@ fn entry_picture(entry: &mut ChildSpawnerCommands, item: BlockItemType) {
     }
 }
 
-/// A rail dot and its group's short name.
-fn rail_chip(role: BlockRoleType) -> impl Bundle {
+/// A rail row: a dot and its group's short name, or a hollow dot and All.
+///
+/// A [`ListRow`], so the shared reconciler paints the hover and the mark of the
+/// group shown from the theme. The dot keeps its group's block colour: it is
+/// the key to the canvas, not a theme colour.
+fn rail_chip(role: Option<BlockRoleType>) -> impl Bundle {
+    let label = PaletteGroup(role).label();
+    let dot = (
+        Node {
+            width: px(RAIL_DOT),
+            height: px(RAIL_DOT),
+            border: UiRect::all(px(theme::BORDER_W)),
+            border_radius: BorderRadius::all(px(RAIL_DOT / 2.0)),
+            ..default()
+        },
+        BorderColor::all(Color::NONE),
+        ThemedBorder::new(UiColor::Label),
+        BackgroundColor(role.map_or(Color::NONE, block_colour)),
+        Pickable::IGNORE,
+    );
     (
-        Name::new(format!("Palette Rail {}", role.short())),
+        Name::new(format!("Palette Rail {label}")),
         PaletteRailChip(role),
+        ListRow,
         Button,
         Hovered::default(),
         Node {
@@ -284,31 +325,25 @@ fn rail_chip(role: BlockRoleType) -> impl Bundle {
             align_items: AlignItems::Center,
             row_gap: px(2),
             padding: UiRect::vertical(px(3)),
-            border_radius: BorderRadius::all(px(3)),
+            border: UiRect::all(px(theme::BORDER_W)),
             flex_shrink: 0.0,
             ..default()
         },
+        ThemedRadius::control(),
+        BorderColor::all(Color::NONE),
         BackgroundColor(Color::NONE),
         observe(on_rail_press),
         children![
-            (
-                Node {
-                    width: px(RAIL_DOT),
-                    height: px(RAIL_DOT),
-                    border_radius: BorderRadius::all(px(RAIL_DOT / 2.0)),
-                    ..default()
-                },
-                BackgroundColor(block_colour(role)),
-                Pickable::IGNORE,
-            ),
+            dot,
             (
                 UiText,
-                Text::new(role.short()),
+                Text::new(label),
                 TextFont {
                     font_size: FontSize::Px(9.0),
                     ..default()
                 },
-                TextColor(BLOCK_TEXT_DIM),
+                TextColor(Color::NONE),
+                ThemedText::new(UiColor::Primary),
                 Pickable::IGNORE,
             ),
         ],
@@ -364,8 +399,9 @@ pub(crate) fn spawn_block_palette(area: &mut ChildSpawnerCommands) {
                     },
                 ))
                 .with_children(|rail| {
+                    rail.spawn(rail_chip(None));
                     for role in BlockRoleType::ALL {
-                        rail.spawn(rail_chip(role));
+                        rail.spawn(rail_chip(Some(role)));
                     }
                 });
                 body.spawn((
@@ -499,97 +535,37 @@ fn spawn_entries(list: &mut ChildSpawnerCommands) {
     }
 }
 
-/// A heading's top and the list's top, in logical pixels, or nothing for a
-/// heading the filter hides or layout has not measured.
-fn heading_offset(
-    heading: (&ComputedNode, &UiGlobalTransform),
-    list: (&ComputedNode, &UiGlobalTransform),
-) -> Option<f32> {
-    let top = |(node, transform): (&ComputedNode, &UiGlobalTransform)| {
-        (transform.translation.y - node.size.y / 2.0) * node.inverse_scale_factor
-    };
-    (heading.0.size.y > 0.0).then(|| top(heading) - top(list))
-}
-
-/// A rail click: scroll the list so the group's heading tops it.
+/// A rail click: show only that group, or every group again. The list goes
+/// back to its top, where what is left of it starts.
 fn on_rail_press(
     activate: On<Activate>,
     chips: Query<&PaletteRailChip>,
-    headings: Query<(&PaletteHeading, &ComputedNode, &UiGlobalTransform)>,
-    mut lists: Query<(&mut ScrollPosition, &ComputedNode, &UiGlobalTransform), With<PaletteList>>,
-    mut pick: ResMut<PaletteRailPick>,
+    mut lists: Query<&mut ScrollPosition, With<PaletteList>>,
+    mut group: ResMut<PaletteGroup>,
 ) {
     let Ok(chip) = chips.get(activate.entity) else {
         return;
     };
-    let Ok((mut scroll, list_node, list_at)) = lists.single_mut() else {
-        return;
-    };
-    let offset = headings
-        .iter()
-        .filter(|(heading, ..)| heading.0 == chip.0)
-        .find_map(|(_, node, at)| heading_offset((node, at), (list_node, list_at)));
-    let Some(offset) = offset else {
-        return;
-    };
-    scroll.0.y = (scroll.0.y + offset).clamp(0.0, max_scroll_y(Some(list_node)));
-    pick.0 = Some((chip.0, scroll.0.y));
-}
-
-/// The group the rail marks: the rail's pick while its heading is shown, else
-/// the last group whose heading stands at or above the list's top, else the
-/// first group shown.
-///
-/// `offsets` holds each shown heading's top below the list's top, in list
-/// order.
-pub(crate) fn group_in_view(
-    offsets: &[(BlockRoleType, f32)],
-    picked: Option<BlockRoleType>,
-) -> Option<BlockRoleType> {
-    if let Some(picked) = picked.filter(|picked| offsets.iter().any(|(role, _)| role == picked)) {
-        return Some(picked);
+    *group = group.after_press(chip.0);
+    for mut scroll in &mut lists {
+        if scroll.0.y != 0.0 {
+            scroll.0.y = 0.0;
+        }
     }
-    offsets
-        .iter()
-        .rev()
-        .find(|(_, offset)| *offset <= IN_VIEW_SLACK)
-        .or_else(|| offsets.first())
-        .map(|(role, _)| *role)
 }
 
-/// Mark the rail dot of the group in view. A rail pick lets go once the list
-/// scrolls away from where the rail put it.
+/// Mark the rail row of the group shown.
 pub(crate) fn sync_palette_rail(
-    headings: Query<(&PaletteHeading, &ComputedNode, &UiGlobalTransform)>,
-    lists: Query<(&ScrollPosition, &ComputedNode, &UiGlobalTransform), With<PaletteList>>,
-    mut chips: Query<(&PaletteRailChip, &mut BackgroundColor)>,
-    mut pick: ResMut<PaletteRailPick>,
+    mut commands: Commands,
+    group: Res<PaletteGroup>,
+    chips: Query<(Entity, &PaletteRailChip, Has<Selected>)>,
 ) {
-    let Ok((scroll, list_node, list_at)) = lists.single() else {
-        return;
-    };
-    if pick
-        .0
-        .is_some_and(|(_, at)| (scroll.0.y - at).abs() > PICK_SLACK)
-    {
-        pick.0 = None;
-    }
-    let mut offsets: Vec<(BlockRoleType, f32)> = headings
-        .iter()
-        .filter_map(|(heading, node, at)| {
-            heading_offset((node, at), (list_node, list_at)).map(|offset| (heading.0, offset))
-        })
-        .collect();
-    offsets.sort_by(|a, b| a.1.total_cmp(&b.1));
-    let marked = group_in_view(&offsets, pick.0.map(|(role, _)| role));
-    for (chip, mut background) in &mut chips {
-        let colour = if Some(chip.0) == marked {
-            block_colour(chip.0).with_alpha(0.3)
-        } else {
-            Color::NONE
-        };
-        if background.0 != colour {
-            background.0 = colour;
+    for (entity, chip, marked) in &chips {
+        let wanted = chip.0 == group.0;
+        if wanted && !marked {
+            commands.entity(entity).insert(Selected);
+        } else if !wanted && marked {
+            commands.entity(entity).remove::<Selected>();
         }
     }
 }
@@ -608,11 +584,13 @@ fn on_heading_press(
     }
 }
 
-/// Narrow the list to what the filter box holds and what is not folded. A
-/// filter opens every group, so a match is never hidden in a folded one.
+/// Narrow the list to the rail's group, what the filter box holds and what is
+/// not folded. A filter or a group opens what it shows, so a match is never
+/// hidden in a folded group.
 pub(crate) fn sync_palette_filter(
     filters: Query<Ref<TextFieldValue>, With<PaletteFilter>>,
     folds: Res<PaletteFolds>,
+    group: Res<PaletteGroup>,
     mut entries: Query<(&PaletteEntry, &mut Node), Without<PaletteHeading>>,
     mut headings: Query<(&PaletteHeading, &mut Node, &Children), Without<PaletteEntry>>,
     mut marks: Query<&mut Text, With<HeadingFoldMark>>,
@@ -620,19 +598,13 @@ pub(crate) fn sync_palette_filter(
     let Ok(filter) = filters.single() else {
         return;
     };
-    if !filter.is_changed() && !folds.is_changed() {
+    if !filter.is_changed() && !folds.is_changed() && !group.is_changed() {
         return;
     }
     let wanted = filter.0.trim().to_lowercase();
-    let matches = |item: BlockItemType| {
-        wanted.is_empty()
-            || item.label().to_lowercase().contains(&wanted)
-            || item.role().label().to_lowercase().contains(&wanted)
-            || item
-                .subject()
-                .is_some_and(|subject| subject.label().to_lowercase().contains(&wanted))
-    };
-    let open = |role: BlockRoleType| !wanted.is_empty() || !folds.0.contains(&role);
+    let matches = |item: BlockItemType| palette_shows(item, &wanted, *group);
+    let open =
+        |role: BlockRoleType| !wanted.is_empty() || group.0.is_some() || !folds.0.contains(&role);
     let display = |on: bool| if on { Display::Flex } else { Display::None };
     for (entry, mut node) in &mut entries {
         let on = display(matches(entry.0) && open(entry.0.role()));

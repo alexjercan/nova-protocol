@@ -34,9 +34,8 @@ use drag::{
 };
 use nova_ui::prelude::*;
 use paint::{paint_stacked, ChipText, Paint};
-use palette::{
-    spawn_block_palette, sync_palette_filter, sync_palette_rail, PaletteFolds, PaletteRailPick,
-};
+use palette::{spawn_block_palette, sync_palette_filter, sync_palette_rail, PaletteFolds};
+pub(crate) use palette::{PaletteEntry, PaletteGroup};
 pub(crate) use popup::{close_block_popup, BlockPopup, PopupLeaveType, POPUP_W};
 use popup::{on_more_chip, place_block_popup, settle_block_popup, MoreChip};
 use view::{BlockView, ViewBuilder};
@@ -771,7 +770,7 @@ pub(crate) fn register(app: &mut App) {
         .init_resource::<CanvasDrag>()
         .init_resource::<BlockPopup>()
         .init_resource::<PaletteFolds>()
-        .init_resource::<PaletteRailPick>()
+        .init_resource::<PaletteGroup>()
         .init_resource::<menu::CanvasRightPress>()
         .add_observer(on_canvas_press)
         .add_systems(
@@ -780,10 +779,10 @@ pub(crate) fn register(app: &mut App) {
              mut drag: ResMut<CanvasDrag>,
              mut popup: ResMut<BlockPopup>,
              mut folds: ResMut<PaletteFolds>,
-             mut pick: ResMut<PaletteRailPick>| {
+             mut group: ResMut<PaletteGroup>| {
                 *board = CanvasBoard::default();
                 folds.0.clear();
-                pick.0 = None;
+                *group = PaletteGroup::default();
                 *drag = CanvasDrag::default();
                 *popup = BlockPopup::default();
             },

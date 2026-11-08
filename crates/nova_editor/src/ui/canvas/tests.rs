@@ -796,42 +796,59 @@ fn the_palette_lists_its_groups_in_build_order_with_only_hats_first() {
     }
 }
 
+/// S4: a rail click shows one group, a second click or All shows them all.
 #[test]
-fn the_rail_marks_the_group_at_the_top_or_the_one_it_scrolled_to() {
-    use BlockRoleType::{Action, Condition, Event, Flow, Value};
+fn a_rail_click_shows_one_group_and_a_second_click_shows_all() {
+    use BlockRoleType::{Action, Event};
 
-    use super::palette::group_in_view;
-    let top = [
-        (Event, 0.0),
-        (Condition, 500.0),
-        (Action, 600.0),
-        (Flow, 900.0),
-        (Value, 1000.0),
-    ];
-    assert_eq!(group_in_view(&top, None), Some(Event));
-    let scrolled = [
-        (Event, -520.0),
-        (Condition, -20.0),
-        (Action, 80.0),
-        (Flow, 380.0),
-        (Value, 480.0),
-    ];
+    use super::palette::PaletteGroup;
+    let all = PaletteGroup::default();
+    let events = all.after_press(Some(Event));
+    assert_eq!(events, PaletteGroup(Some(Event)));
+    assert_eq!(events.label(), "Events");
+    assert_eq!(events.after_press(Some(Event)), all, "a second click");
+    assert_eq!(events.after_press(None), all, "All");
     assert_eq!(
-        group_in_view(&scrolled, None),
-        Some(Condition),
-        "the heading above the top owns the view"
+        events.after_press(Some(Action)),
+        PaletteGroup(Some(Action)),
+        "another group takes over"
     );
+    assert_eq!(all.label(), "All");
+}
+
+/// S4: the rail's group and the filter text both narrow the palette.
+#[test]
+fn the_palette_shows_what_the_group_and_the_filter_both_allow() {
+    use BlockRoleType::{Event, Value};
+
+    use super::palette::{palette_items, palette_shows, PaletteGroup};
+    let items = palette_items();
+    let shown = |wanted: &str, group: PaletteGroup| -> Vec<BlockItemType> {
+        items
+            .iter()
+            .copied()
+            .filter(|item| palette_shows(*item, wanted, group))
+            .collect()
+    };
+    assert_eq!(shown("", PaletteGroup::default()).len(), items.len());
+    let events = shown("", PaletteGroup(Some(Event)));
+    assert!(!events.is_empty());
+    assert!(events.iter().all(|item| item.role() == Event));
     assert_eq!(
-        group_in_view(&scrolled, Some(Value)),
-        Some(Value),
-        "a group the list cannot scroll to the top stays marked after its rail click"
+        events.len(),
+        items.iter().filter(|item| item.role() == Event).count(),
+        "every hat, and only hats"
     );
-    assert_eq!(
-        group_in_view(&scrolled[..4], Some(Value)),
-        Some(Condition),
-        "a pick the filter hides is not marked"
+    let start = shown("start", PaletteGroup(Some(Event)));
+    assert!(!start.is_empty());
+    assert!(start.len() < events.len(), "the text narrows the group");
+    assert!(start
+        .iter()
+        .all(|item| item.role() == Event && item.label().to_lowercase().contains("start")));
+    assert!(
+        shown("start", PaletteGroup(Some(Value))).is_empty(),
+        "a hat's name finds nothing among the values"
     );
-    assert_eq!(group_in_view(&[], None), None);
 }
 
 #[test]
