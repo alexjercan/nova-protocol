@@ -68,6 +68,22 @@ R14. Rework the top menus and context menus. They detect what you edit and offer
     only what fits: a section can add a mesh and a collider, a section offers no
     asteroids, a scenario offers no sections.
 
+### Owner review 3 (after the land at 6fc2b0cf7; work on master)
+
+S1. Fix the WARN `remove::<nova_ui::widget::Selected>` on an entity already
+    despawned.
+S2. The top Add is not liked. Make it more like the Add menu in Blender. An
+    ad-hoc ship for a scenario stays useful, so Add stays.
+S3. Lean on "add ship" in the Assets browser: add a ship FROM the assets, a
+    predefined ship, into a scenario.
+S4. The Events palette group buttons do not filter. A click on "Events" shows
+    only events.
+S5. Text in Log and Problems can be copied out of the game.
+S6. Better labels in the Assets browser. Today it feels different from the
+    rest of the UI.
+S7. A right click in the Assets viewer can add a new asset, as `+` does.
+S8. The top Add relates to this: it can add an asset too.
+
 ## Decisions
 
 Approved by the owner:
@@ -1130,3 +1146,4 @@ Limits:
 | Each slice has a hand-playable example row | `examples/playable/README.md`: `editor_undo`, `editor_viewport`, `editor_shell`, `editor_mod_project`, `editor_blocks`, `editor_section_builder`, for slices 1 to 6. Slices 7 to 10 add no feature; slices 12 and 13 add `editor_views` and `editor_files` | MET |
 | Invalidated docs are updated | `web/src/create/mod-editor.md`, `web/src/wiki/keybinds.md`; each claim the review doubted is checked or rewritten; `mdbook build` and `npm run ci` pass | MET; the foot legend under a pop-up is true now and `keybinds.md` says so |
 | Owner review 2, R1 to R14 | Slice 11 notes: R1, R3, R4, R5, R8, R9, R10. Slice 12 notes: R7, R11, R12, R13, R14. Slice 13 notes: R2 (`editor_files` palette, drag, loose and empty-canvas PASS lines and frames) and R6 (import, delete, view and play PASS lines; `files-*-assets.png`). Each row has its tests, walk lines and frames | MET by unit tests and driven walks; not yet reviewed by the owner |
+| Owner review 3, S1 to S8 | See the Slice 14 notes | NOT MET |
