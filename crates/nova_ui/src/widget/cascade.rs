@@ -130,9 +130,10 @@ impl CascadeItem {
         !self.children.is_empty()
     }
 
-    /// Whether the keys may rest on the row.
+    /// Whether the keys and the pointer may rest on the row. A greyed row
+    /// cannot run, so it takes no highlight; the pointer on it shows why.
     fn stops_keys(&self) -> bool {
-        !self.separator
+        !self.separator && self.greyed.is_none()
     }
 }
 
@@ -306,7 +307,8 @@ impl CascadeNav {
     }
 
     /// The pointer came onto row `index` of column `depth`: highlight it, close
-    /// what was open deeper, and open it when it is a submenu.
+    /// what was open deeper, and open it when it is a submenu. A greyed row
+    /// only closes what was open deeper.
     pub fn hover(&mut self, items: &[CascadeItem], depth: usize, index: usize) {
         if depth >= self.levels.len() {
             return;
@@ -319,6 +321,10 @@ impl CascadeNav {
             return;
         }
         self.levels.truncate(depth + 1);
+        if !item.stops_keys() {
+            self.levels[depth] = None;
+            return;
+        }
         self.levels[depth] = Some(index);
         if item.is_submenu() && self.query.trim().is_empty() {
             self.levels.push(None);
@@ -418,6 +424,9 @@ pub struct CascadeRow {
 #[derive(Component)]
 pub struct CascadeSearch {
     menu: Entity,
+    /// [`sync_cascade_search`] has seen the field once. It takes the caret
+    /// from the next frame on: see there.
+    seen: bool,
 }
 
 /// The narrowest a column draws.
@@ -469,8 +478,10 @@ pub fn spawn_cascade(commands: &mut Commands, at: Vec2, z: i32, items: Vec<Casca
             .with_children(|column| {
                 column.spawn((
                     Name::new("Cascade Search"),
-                    CascadeSearch { menu: root },
-                    TextFieldFocused::at_end(""),
+                    CascadeSearch {
+                        menu: root,
+                        seen: false,
+                    },
                     text_field(
                         TextFieldSpec::new("")
                             .placeholder("search")
@@ -575,7 +586,6 @@ fn spawn_rows(
                 index,
                 path: entry.path.clone(),
             },
-            ListRow,
             Button,
             Hovered::default(),
             Node {
@@ -592,8 +602,9 @@ fn spawn_rows(
             BorderColor::all(Color::NONE),
             BackgroundColor(Color::NONE),
             children![
+                // Body, not Label: the highlight's fill drowns a muted line.
                 (
-                    row_text(&item.lead, UiColor::Label),
+                    row_text(&item.lead, UiColor::Body),
                     Node {
                         width: px(12),
                         flex_shrink: 0.0,
@@ -607,9 +618,9 @@ fn spawn_rows(
                         ..default()
                     },
                 ),
-                row_text(&hint, UiColor::Label),
+                row_text(&hint, UiColor::Body),
                 (
-                    row_text(mark, UiColor::Label),
+                    row_text(mark, UiColor::Body),
                     Node {
                         width: px(10),
                         flex_shrink: 0.0,
@@ -618,10 +629,15 @@ fn spawn_rows(
                 ),
             ],
         ));
+        // A greyed row is no ListRow: it takes no hover fill, which would
+        // drown its muted label. Its tooltip says why it cannot run.
         if let Some(reason) = &item.greyed {
             row.insert((InteractionDisabled, Tooltip(reason.clone())));
-        } else if !item.is_submenu() {
-            row.insert(PopupRow);
+        } else {
+            row.insert(ListRow);
+            if !item.is_submenu() {
+                row.insert(PopupRow);
+            }
         }
         if highlight == Some(index) {
             row.insert(Selected);
@@ -774,17 +790,27 @@ pub(super) fn open_cascade_row(
 /// The search field's text is the menu's search, and the field keeps the
 /// caret while the menu is open: a press on a row takes it, and typing must
 /// still search.
+///
+/// Not on the first frame the field is seen: a key that opened the menu
+/// (Shift+A) left its text in the keyboard messages, and a field focused on
+/// that frame reads them on the next one, so the menu would open searching
+/// for "A". This system runs after the field's typing, so a caret given a
+/// frame late meets only messages written after the key.
 pub(super) fn sync_cascade_search(
     mut commands: Commands,
-    fields: Query<(
+    mut fields: Query<(
         Entity,
-        &CascadeSearch,
+        &mut CascadeSearch,
         &TextFieldValue,
         Has<TextFieldFocused>,
     )>,
     mut menus: Query<&mut CascadeMenu>,
 ) {
-    for (field, search, value, focused) in &fields {
+    for (field, mut search, value, focused) in &mut fields {
+        if !search.seen {
+            search.seen = true;
+            continue;
+        }
         let Ok(mut menu) = menus.get_mut(search.menu) else {
             continue;
         };

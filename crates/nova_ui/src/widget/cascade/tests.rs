@@ -43,15 +43,18 @@ fn labels(items: &[CascadeItem], entries: &[CascadeEntry]) -> Vec<String> {
 }
 
 #[test]
-fn down_and_up_skip_the_rules_and_go_round() {
+fn down_and_up_skip_the_rules_and_greyed_rows_and_go_round() {
     let items = tree();
     let mut nav = CascadeNav::default();
     nav.down(&items);
     assert_eq!(nav.levels, vec![Some(0)]);
     nav.down(&items);
     nav.down(&items);
-    assert_eq!(nav.levels, vec![Some(3)], "the rule at 2 takes no stop");
-    nav.down(&items);
+    assert_eq!(
+        nav.levels,
+        vec![Some(4)],
+        "the rule at 2 and the greyed row at 3 take no stop"
+    );
     nav.down(&items);
     assert_eq!(nav.levels, vec![Some(0)], "past the bottom is the top");
     nav.up(&items);
@@ -96,10 +99,9 @@ fn enter_opens_a_submenu_then_answers_the_live_leaf_only() {
     assert_eq!(nav.enter(&items), Some(vec![1, 1]), "Planet runs");
 
     let mut nav = CascadeNav::default();
-    nav.up(&items);
-    nav.up(&items);
-    assert_eq!(nav.levels, vec![Some(3)]);
-    assert_eq!(nav.enter(&items), None, "a greyed row does not run");
+    nav.hover(&items, 0, 3);
+    assert_eq!(nav.levels, vec![None], "a greyed row takes no highlight");
+    assert_eq!(nav.enter(&items), None, "so Enter on it runs nothing");
 }
 
 #[test]
