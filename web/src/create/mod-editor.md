@@ -13,7 +13,7 @@ hides the Hierarchy, the Inspector and the strip's body.
 | Panel | Where | What it does |
 | --- | --- | --- |
 | Mod Hub | first screen | Lists your mods, most recent first. **New** makes one from a template (<kbd>Up</kbd> and <kbd>Down</kbd> pick it, <kbd>Enter</kbd> creates, <kbd>Esc</kbd> cancels), **Import** installs a zip, and a row's right-click menu holds Open, Duplicate and Delete. |
-| Top bar | top | One bar: the File, Edit, View and Add menus, the view switch, the tools, Axes, Snap, Undo, Redo and Play. In the Ship editor the tools, Axes and Snap give way to the Ship menu, Parts and **Back to {name}**. A menu shows only the verbs of the open document. A verb that fits but cannot run now is grey, and its hover says why. |
+| Top bar | top | One bar: the File, Edit, View and Add menus, the view switch, the tools, Axes, Snap, Undo, Redo and Play. In the Ship editor the tools, Axes and Snap give way to the Ship menu, which holds Parts, and **Back to {name}**, which stands in their place so Play does not move. Over a scenario, Back follows the tools. A menu shows only the verbs of the open document. A verb that fits but cannot run now is grey, and its hover says why. |
 | View switch | top bar | The views of the open document only: **Scene** and **Events** for a scenario, **Ship** for a ship, **Section** for a section, and **Form** for every other kind. A view change is not an edit: it adds no undo step. |
 | Hierarchy | left, in Scene | The tree of the document. |
 | Scene | centre | The stage: ships, objects and their handles. A right click without a drag opens the stage menu: the Add menu (what it adds lands at the clicked point), Paste, and Frame and Delete on the node under the pointer. |

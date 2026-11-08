@@ -188,6 +188,11 @@ pub(crate) struct BarWord {
 
 /// Back: the document this one was opened over, named. Absent from the bar
 /// when there is none.
+///
+/// A child of the stage tools' row, shown over it even where the row is
+/// hidden. Where the tools are hidden, as in the Ship view, Back stands over
+/// the space they hold, clipped to it, so Play does not move when Back comes
+/// and goes. Where the tools show, Back follows them in the row.
 #[derive(Component)]
 pub(crate) struct BackButton;
 
@@ -222,6 +227,10 @@ fn line(text: &str, size: f32, colour: UiColor) -> impl Bundle {
 fn bar_button(label: &str) -> impl Bundle {
     button(bar_spec(label))
 }
+
+/// The widest Back gets where it stands in the tools' row. Over the hidden
+/// tools it takes their width instead.
+const BACK_MAX_W: f32 = 200.0;
 
 /// The one size every bar word is set in.
 fn bar_spec(label: &str) -> ButtonSpec {
@@ -409,6 +418,23 @@ fn spawn_tool_group(group: &mut RelatedSpawnerCommands<ChildOf>) {
                 observe(on_snap_button),
             ));
             stage.spawn(bar_rule());
+            stage
+                .spawn((
+                    Name::new("Back Button"),
+                    BackButton,
+                    Tooltip::default(),
+                    Visibility::Visible,
+                    bar_button("Back"),
+                    observe(on_back),
+                ))
+                .entry::<Node>()
+                .and_modify(|mut node| {
+                    // The label starts at the left and the clip cuts its end.
+                    // The tooltip carries the whole name.
+                    node.left = px(0);
+                    node.overflow = Overflow::clip();
+                    node.justify_content = JustifyContent::FlexStart;
+                });
         });
     group.spawn((
         Name::new("Undo Button"),
@@ -437,13 +463,6 @@ fn spawn_tool_group(group: &mut RelatedSpawnerCommands<ChildOf>) {
         Tooltip("Open this ship on its own (Enter)".to_string()),
         bar_button("Open Ship"),
         observe(on_open_ship),
-    ));
-    group.spawn((
-        Name::new("Back Button"),
-        BackButton,
-        Tooltip::default(),
-        bar_button("Back"),
-        observe(on_back),
     ));
 }
 
@@ -642,7 +661,8 @@ pub(crate) fn stage_enter_opens_ship(
 }
 
 /// Name Back's target, and show Open Ship over a selected ship of a scenario.
-/// Each button leaves the bar when it could not act.
+/// Each button leaves the bar when it could not act. Back stands over the stage
+/// tools where they are hidden, and in their row where they show.
 pub(crate) fn sync_ship_step(
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
@@ -655,6 +675,7 @@ pub(crate) fn sync_ship_step(
     >,
     mut opens: Query<&mut Node, (With<OpenShipButton>, Without<BackButton>)>,
     mut labels: Query<&mut Text, With<ButtonLabel>>,
+    tools: Query<&Visibility, (With<StageTools>, Without<BackButton>)>,
 ) {
     let over = context.ship().is_none()
         && selected
@@ -680,9 +701,24 @@ pub(crate) fn sync_ship_step(
     let word = target
         .as_ref()
         .map_or_else(String::new, |name| format!("Back to {name}"));
+    let over_tools = tools
+        .iter()
+        .next()
+        .is_some_and(|visibility| *visibility == Visibility::Hidden);
+    let (position, max_width) = if over_tools {
+        (PositionType::Absolute, percent(100))
+    } else {
+        (PositionType::Relative, px(BACK_MAX_W))
+    };
     for (mut node, children, mut tooltip) in &mut backs {
         if node.display != shown {
             node.display = shown;
+        }
+        if node.position_type != position {
+            node.position_type = position;
+        }
+        if node.max_width != max_width {
+            node.max_width = max_width;
         }
         let hint = format!("{word} (Esc)");
         if tooltip.0 != hint {
