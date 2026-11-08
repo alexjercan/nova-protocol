@@ -462,6 +462,16 @@ fn free_copy_name(name: &str, known: &[String]) -> String {
     copy
 }
 
+/// The hub's per-frame systems, in order, each one's commands landed before
+/// the next one reads: the keys, whose Esc despawns the modal; the list, which
+/// a Delete or a Duplicate rebuilds; then the marks, read from the rows that
+/// now stand. A mark written beside the rebuild went to a row the rebuild had
+/// despawned, and Bevy warned `remove::<Selected>` on a despawned entity.
+pub(crate) fn hub_systems(
+) -> bevy::ecs::schedule::ScheduleConfigs<bevy::ecs::system::ScheduleSystem> {
+    (hub_keys, sync_hub_rows, sync_hub_form).chain()
+}
+
 /// Rebuild the list when the mods on disk may have changed.
 pub(crate) fn sync_hub_rows(
     mut commands: Commands,
@@ -925,10 +935,77 @@ fn on_back(_activate: On<Activate>, mut state: ResMut<NextState<GameStates>>) {
 
 #[cfg(test)]
 mod tests {
-    use bevy::{prelude::*, state::app::StatesPlugin};
+    use std::sync::{Arc, Mutex};
 
-    use super::{create_mod, HubForm};
+    use bevy::{
+        log::tracing_subscriber::{self, util::SubscriberInitExt},
+        prelude::*,
+        state::app::StatesPlugin,
+    };
+    use nova_ui::{theme::ActiveUiTheme, widget::Selected};
+
+    use super::{create_mod, hub_systems, HubForm, HubList, HubRow};
     use crate::{project::ModProject, template::ScenarioTemplate, ExampleStates};
+
+    /// A buffer this thread's log writes to.
+    #[derive(Clone, Default)]
+    struct Said(Arc<Mutex<Vec<u8>>>);
+
+    impl std::io::Write for Said {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().expect("unpoisoned").extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    /// Deleting the marked mod moves the list's revision and clears the mark
+    /// in one frame. The marks are read after the rebuild lands, so none is
+    /// taken off a row the rebuild despawned. `remove` bakes the WARN handler
+    /// in when it is queued, so the log is the only place the fault shows.
+    #[test]
+    fn deleting_the_marked_mod_takes_no_mark_off_a_despawned_row() {
+        let said = Said::default();
+        let writer = said.clone();
+        let _guard = tracing_subscriber::fmt()
+            .with_writer(move || writer.clone())
+            .set_default();
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, StatesPlugin))
+            .init_state::<ExampleStates>()
+            .init_resource::<HubForm>()
+            .init_resource::<ActiveUiTheme>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .add_systems(Update, hub_systems());
+        let list = app.world_mut().spawn(HubList).id();
+        app.update();
+        let row = app
+            .world_mut()
+            .spawn((
+                HubRow {
+                    id: "gone".to_string(),
+                    name: "Gone".to_string(),
+                    broken: false,
+                },
+                Selected,
+                ChildOf(list),
+            ))
+            .id();
+        app.world_mut().resource_mut::<HubForm>().selected = Some("gone".to_string());
+        app.update();
+
+        let mut form = app.world_mut().resource_mut::<HubForm>();
+        form.selected = None;
+        form.revision += 1;
+        app.update();
+
+        assert!(app.world().get_entity(row).is_err(), "the list was rebuilt");
+        let said = String::from_utf8_lossy(&said.0.lock().expect("unpoisoned")).into_owned();
+        assert!(!said.contains("Selected"), "{said}");
+    }
 
     #[test]
     fn a_new_mod_needs_only_a_name() {

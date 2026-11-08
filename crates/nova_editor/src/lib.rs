@@ -152,7 +152,7 @@ use ui::{
     canvas::{BlockPopup, CanvasDrag},
     files::{close_file_window, open_file_window, sync_path_window, sync_save_name},
     hierarchy::{focus_pending_rename, on_tree_caret, PendingRename},
-    hub::{hub_keys, spawn_hub, sync_hub_form, sync_hub_rows, HubForm},
+    hub::{hub_systems, spawn_hub, HubForm},
     inspector::{
         apply_inspector_edits, paint_field_reasons, paint_swatch_hover, sync_inspector,
         sync_inspector_head, sync_inspector_tooltip, sync_reference_faults, InspectorFolds,
@@ -300,10 +300,7 @@ fn editor_plugin(app: &mut App) {
         OnEnter(ExampleStates::Hub),
         (teardown_document, spawn_hub).chain(),
     );
-    app.add_systems(
-        Update,
-        (sync_hub_rows, sync_hub_form, hub_keys).run_if(in_state(ExampleStates::Hub)),
-    );
+    app.add_systems(Update, hub_systems().run_if(in_state(ExampleStates::Hub)));
     app.add_systems(
         Update,
         (
