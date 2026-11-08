@@ -38,10 +38,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New `SetTradeProfile` action gives a generated AI trader a trade profile or clears it. An unknown profile or a non-AI target fails lint.
 - Editor Mod Settings edits the manifest and dependencies. A remove that content still needs and a cycle are refused; picking from an undeclared mod adds the dependency in the same undo step.
 - Editor Assets > + > Sections builds a section in the mod: sockets on the gizmo, .glb import, live Problems. Ships can carry it, and Play flies it.
-- Editor Assets opens styles, start roles, items, price tables, trade profiles, UI themes and campaigns as undoable forms. Item and price table merge rules show in Problems.
+- Editor Assets opens styles, start roles, items, price tables, trade profiles, UI themes and campaigns as undoable forms. Lists and ids are picked, not typed. Merge rules show in Problems.
 - Editor + opens New Asset: a blank item with a new id. A section asks its kind first, in a modal. Problems lists what the blank still needs, and Save, Play and Package wait until it is filled.
 - Editor UI theme palettes are a grid of named swatches with a picker: a square, a hue strip and a hex field. The pick shows live, is one undo step, and Esc takes it back.
-- Editor File > Package writes `<id>-<version>.zip` under `exports/`, ready for the portal. Mod Hub Import refuses unsafe paths and asks before it replaces a mod. Desktop only.
+- Editor File > Package opens a window: version bump, lint check, files, name. It writes `<id>-<version>.zip` and shows its path and size. Hub Import refuses unsafe paths. Desktop only.
 - New `OnJobAccepted` scenario event fires when the Jobs pane accepts a board offer, with the job's id as `id`.
 - **(breaking)** A section with `health` 0 or less now fails lint, and so does a mining section or cargo intake sound or mesh ref that names no file.
 - **(breaking)** An `ObjectiveComplete` id that no `Objective` in the same scenario posts now fails lint and load. It was a warning.
@@ -51,17 +51,17 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Interface & HUD
 
 - The editor now has undo and redo: Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y, and Edit rows that name the step. An UNSAVED mark shows, and leaving or closing with unsaved work asks first.
-- The editor viewport has its own camera: RMB looks about, MMB or Alt+LMB orbits, Alt+RMB or the wheel dollies, Shift+MMB pans. WASD no longer flies it. The pipette moves from Q to P.
-- Editor tools: Q select, W move, E turn, R scale. X swaps world and local axes, and Snap or Ctrl snaps a handle. Scale drives a node's size field; a ship refuses it.
+- The editor viewport has its own camera: RMB looks about, MMB or Alt+LMB orbits, Alt+RMB or the wheel dollies, Shift+MMB pans. WASD no longer flies it.
+- Editor tools: Q select, W move, E turn, R scale. X swaps world and local axes; Snap or Ctrl snaps. The Ship view hides them: Q picks a part, R and Shift+R roll it.
 - The editor selects many nodes: Ctrl or Shift click, a box drag, Ctrl+A. A group moves, turns and deletes as one undo step. Ctrl+D, Ctrl+C and Ctrl+V copy nodes.
-- The editor has one top bar, a Hierarchy tree, an Inspector with folding groups, and a resizable strip: Assets, Problems, Ship, and a Log of warnings with level and text filters.
+- The editor has one top bar, a Hierarchy tree, an Inspector with folding groups, and a strip: Assets, Problems, Ship, and a Log. Log and Problems rows copy out with Ctrl+C.
 - Sandbox opens a Mod Hub: a recent-first list of mods with New, Import, Duplicate and Delete.
 - The editor works on a whole mod: Assets shows its items and folder files as tiles with a kind filter and +, scenario switches keep edits, one Ctrl+Z history covers it, and Play tests a scenario.
-- Editor Events is a block canvas beside a palette grouped by role, with a rail that jumps to each group. Drag blocks into the slots that fit and fill values on the block. Each drop is one undo step.
+- Editor Events is a block canvas beside a palette grouped by role, with a rail that filters to one group. Drag blocks into the slots that fit and fill values on the block. Each drop is one undo step.
 - Editor right-click menus: the stage offers Add, Paste, Frame and Delete; the canvas Paste, Clean Up, Duplicate and Delete; an Assets file Rename and Delete; empty Assets New Asset and Import File.
 - The editor Add menu groups what the document takes in submenus, with a search: ships and designs, objects, lights, markers, parts, section parts, new assets. Shift+A opens it on the stage.
 - An unfinished condition in the editor now shows as a Problem that blocks Save, Play and Package instead of vanishing on save.
-- Editor asset tiles open in their own view: a scenario on Scene and Events, a ship inside its scenario, a section on Section, other kinds on Form. Menus show only that document's verbs.
+- Editor assets open alone: a scenario on Scene and Events, any ship in the Ship editor (Esc goes back), a section on Section, others on Form. Drag a ship design in to place it.
 - Ship pane Rebind now takes Left Mouse. The click that arms it is not captured, and the click that binds reaches no button, tab or blip under it.
 - The lock readout now moves to the free side of the reticle to stay on screen and clear of the target inset, and the inset caption sits on a darker slab clear of its corner brackets.
 - At an interface scale other than 100%, the lock bracket and the target and objective markers now sit on their targets. They drew away from them, or off the screen, before.
@@ -110,7 +110,6 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - **(breaking)** A ship that streams back in or loads with a world keeps its RCS magazine instead of a free full one; an idle one refills for the time away. Older world saves are refused.
 - A torpedo warhead's `detonation_sound` now plays at the blast. A real detonation never played it.
 - Destroyed thrusters, on ships and shot-down torpedoes, no longer leave a glowing exhaust cone on their wreck.
-- Entering a turned ship in the editor now shows it square on the origin, with its grid, handles and sockets in its own frame. It showed the scenario's turn before.
 - The editor's axis rose now holds its corner while the camera moves. It drew from the last frame's camera pose and flickered.
 
 ## [0.16.0] - 2026-10-28
