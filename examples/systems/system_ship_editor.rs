@@ -52,6 +52,14 @@
 #[cfg(feature = "debug")]
 #[path = "shared/editor_stage.rs"]
 mod editor_stage;
+
+#[cfg(feature = "debug")]
+#[path = "shared/minted_row.rs"]
+#[expect(
+    dead_code,
+    reason = "this walk double-clicks its minted rows and never single-clicks one"
+)]
+mod minted_row;
 #[path = "../playable/shared/open_world_stage.rs"]
 mod open_world_stage;
 
@@ -65,6 +73,8 @@ use nova_protocol::prelude::*;
 // panels, so a range cannot drift onto a literal that lands on the Inspector.
 #[cfg(feature = "debug")]
 use crate::editor_stage::{ADD_MENU, ADD_SHIP, EMPTY_SPACE, NEW_SHIP};
+#[cfg(feature = "debug")]
+use crate::minted_row::{RowGestures, RowId};
 
 #[derive(Parser)]
 #[command(name = "system_ship_editor")]
@@ -249,15 +259,16 @@ const SKY_LIST: &str = "Pick Body";
 #[cfg(feature = "debug")]
 const OTHER_SKY: &str = "Ref Option dep://base/textures/cubemap_alt.png";
 
-/// The first ship's entity name.
-#[cfg(feature = "debug")]
-const FIRST_SHIP_NODE: &str = "Ship Node ship_1";
-
 /// What a beat measured, so a later beat can say whether the gesture changed
 /// anything.
 #[cfg(feature = "debug")]
 #[derive(Resource, Default)]
 struct EditorWalk {
+    /// The node ids the two Add Ship beats minted. Read from the world: a
+    /// reload resumes the id counter past every ordinal the document holds,
+    /// the range's own hulks included, so the second id is not known ahead.
+    first_ship: String,
+    second_ship: String,
     /// The undo steps before the walk entered the turned ship.
     steps_before_entering: usize,
     /// The turned ship's pose before the walk entered it.
@@ -413,6 +424,16 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .step("editor: the blank ship is up and entered")
         .until(inside_a_ship_of(0))
         .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: stamp the first ship's id")
+        .on_enter(|world: &mut World| {
+            let id = world
+                .resource::<EditorProbe>()
+                .inside
+                .clone()
+                .expect("the new ship was entered");
+            world.resource_mut::<EditorWalk>().first_ship = id;
+        })
         .add()
         // A blank ship has no view for the placement ray to hit, so the first
         // part FOUNDS it: armed from the gallery, dropped on empty space,
@@ -1294,7 +1315,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             assert_eq!(
                 probe.visible_ships,
-                vec!["ship_2".to_string()],
+                vec![second.clone()],
                 "inside a ship the stage shows only that ship"
             );
             nova_probe::probe_marker(
@@ -1306,10 +1327,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "editor: inside '{second}', and the first ship's {} sections are elsewhere",
                 first.len()
             );
+            world.resource_mut::<EditorWalk>().second_ship = second;
         })
         .add()
         // The second ship is BUILT ON, in its own space. Founding drops a
-        // controller at ship_2's origin, which the stage's automatic row stands
+        // controller at the second ship's origin, which the stage's automatic row stands
         // off the first ship's bounds, and the next placement must mate the
         // socket under the pointer - the world-space hit against ship-local
         // sockets used to make an offset ship accept exactly one link point,
@@ -1329,8 +1351,9 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         )
         .step("editor: the second ship built in its own space")
         .on_enter(|world: &mut World| {
+            let second = second_ship(world);
             let probe = world.resource::<EditorProbe>();
-            assert_eq!(probe.inside.as_deref(), Some("ship_2"));
+            assert_eq!(probe.inside.as_deref(), Some(second.as_str()));
             let roof = probe
                 .ship
                 .iter()
@@ -1348,7 +1371,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "outcome: an offset ship builds in its own space",
                 serde_json::json!({}),
             );
-            info!("editor: ship_2 took a roof at {:?}", roof.position);
+            info!("editor: {second} took a roof at {:?}", roof.position);
         })
         .add()
         // Out through the tree's root row.
@@ -1359,8 +1382,9 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         .step("editor: both ships are listed and Play is live again")
         .on_enter(|world: &mut World| {
+            let (first, second) = (first_ship(world), second_ship(world));
             let probe = world.resource::<EditorProbe>();
-            for ship in ["ship_1", "ship_2"] {
+            for ship in [first.as_str(), second.as_str()] {
                 assert!(
                     probe.context_nodes.iter().any(|node| node == ship),
                     "the document holds the ship that was built and the one \
@@ -1382,7 +1406,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             assert!(probe.can_play, "Play is the scenario node's gesture");
             // The two the run built, standing among the range's own hulls -
             // the hulks and pickets are ship nodes of this document too.
-            for ship in ["ship_1", "ship_2", "picket_warden"] {
+            for ship in [first.as_str(), second.as_str(), "picket_warden"] {
                 assert!(
                     probe.visible_ships.iter().any(|node| node == ship),
                     "the scenario node puts every ship back on the stage: {:?}",
@@ -1792,7 +1816,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // out here lights the row that names it, so a tree of minted ids can be
         // read against the stage without clicking anything.
         .step("editor: the stage hover reaches the tree")
-        .until(the_hovered_node_is("ship_1"))
+        .until(the_hovered_node_is(first_ship))
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: exactly the pointed-at ship's row is lit")
@@ -1801,8 +1825,9 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 world.resource::<EditorProbe>().selected_node.is_none(),
                 "the hover beats run on an unselected tree, or the tint proves nothing"
             );
-            let lit = row_tint(world, "Scene Row ship_1");
-            let dark = row_tint(world, "Scene Row ship_2");
+            let (first, second) = (first_ship(world), second_ship(world));
+            let lit = row_tint(world, &format!("Scene Row {first}"));
+            let dark = row_tint(world, &format!("Scene Row {second}"));
             assert!(lit > 0.0, "the hovered ship's row is painted, got {lit}");
             assert!(dark <= 0.0, "and its neighbour is not, got {dark}");
             nova_probe::probe_marker(
@@ -1810,7 +1835,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "outcome: pointing at a ship lights its row in the tree",
                 serde_json::json!({}),
             );
-            info!("editor: ship_1's row is lit from the stage ({lit} against {dark})");
+            info!("editor: {first}'s row is lit from the stage ({lit} against {dark})");
         })
         .add()
         .press_and_release(
@@ -1819,8 +1844,9 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         )
         .step("editor: the world click selected without entering")
         .on_enter(|world: &mut World| {
+            let first = first_ship(world);
             let probe = world.resource::<EditorProbe>();
-            assert_eq!(probe.selected_node.as_deref(), Some("ship_1"));
+            assert_eq!(probe.selected_node.as_deref(), Some(first.as_str()));
             assert!(
                 probe.inside.is_none(),
                 "a world click at the scenario node selects; entering is the tree's gesture"
@@ -1830,11 +1856,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "outcome: a world click selects the ship",
                 serde_json::json!({}),
             );
-            info!("editor: clicked ship_1 in the world - selected, not entered");
+            info!("editor: clicked {first} in the world - selected, not entered");
         })
         .add()
         // Grab the ship's BODY and slide it on the ground plane - the gesture
-        // that predates the handles. The pointer is still over ship_1 from the
+        // that predates the handles. The pointer is still over the first ship from the
         // select, and the rig leaves the middle of a node hollow so the body
         // under it is still what a press there lands on.
         .step("editor: grab the first ship")
@@ -1867,6 +1893,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .on_enter(|world: &mut World| {
             let before = world.resource::<EditorWalk>().first_ship_at;
             let now = first_ship_position(world);
+            let first = first_ship(world);
             let marked = world.resource::<EditorProbe>().selected_node.clone();
             assert!(
                 now.distance(before) > 0.5,
@@ -1878,7 +1905,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             assert_eq!(
                 marked.as_deref(),
-                Some("ship_1"),
+                Some(first.as_str()),
                 "grabbing a ship is also pointing at it"
             );
             nova_probe::probe_marker(
@@ -1886,14 +1913,26 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "outcome: a drag slides the ship on the ground plane",
                 serde_json::json!({}),
             );
-            info!("editor: dragged ship_1 from {before:?} to {now:?}");
+            info!("editor: dragged {first} from {before:?} to {now:?}");
         })
         .add()
         // The handles: the ground-plane drag has no way to say "up", and the
         // gizmo's Y arrow is the whole of that answer. It is on the stage
-        // because ship_1 is selected - which is what the click above did.
+        // because the first ship is selected - which is what the click above did
+        // - and because Move is the tool. The Ship editor holds the stage on
+        // Select, and the scenario keeps that tool when the run comes back out.
+        .step("editor: pick the Move tool")
+        .on_enter(press_key(KeyCode::KeyW))
+        .until(resource_where::<EditorProbe>(|probe| {
+            probe.stage_tool == StageToolType::Move
+        }))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: release W")
+        .on_enter(release_key(KeyCode::KeyW))
+        .add()
         .step("editor: the handles came up on the selected ship")
-        .until(editor_gizmo_on("ship_1"))
+        .until(the_gizmo_is_on_the_first_ship())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: aim at the lift handle")
@@ -1944,7 +1983,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "outcome: the Y handle moves the ship off the ground plane",
                 serde_json::json!({}),
             );
-            info!("editor: lifted ship_1 from {before:?} to {now:?}");
+            info!("editor: lifted the first ship from {before:?} to {now:?}");
         })
         .add()
         // Framing: the ship has been dragged and lifted out from under the
@@ -1975,7 +2014,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             assert_eq!(
                 world.resource::<EditorProbe>().selected_node.as_deref(),
-                Some("ship_1"),
+                Some(first_ship(world).as_str()),
                 "framing looks at the selection; it does not change it"
             );
             nova_probe::probe_marker(
@@ -1983,7 +2022,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "outcome: Frame Selection puts the camera on the marked node",
                 serde_json::json!({}),
             );
-            info!("editor: framed ship_1, camera {before:?} -> {now:?}");
+            info!("editor: framed the first ship, camera {before:?} -> {now:?}");
         })
         .add()
         // The axis views, on the same selection: a mate is checked by looking
@@ -2005,7 +2044,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .on_enter(|world: &mut World| {
             assert_eq!(
                 world.resource::<EditorProbe>().selected_node.as_deref(),
-                Some("ship_1"),
+                Some(first_ship(world).as_str()),
                 "the stage figure wants the handles up, so it wants a selection"
             );
             shoot(world, "editor-stage.png");
@@ -2045,7 +2084,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         // And back in - two clicks on the ship's tree row, because entering is
         // the gesture that hides the rest of the document.
-        .double_click_a_widget("editor: enter through the tree", "Scene Row ship_1")
+        .double_click_row(
+            "editor: enter through the tree",
+            first_ship,
+            BEAT_DEADLINE_SECS,
+        )
         .step("editor: back inside the first ship")
         .until(back_inside_the_stamped_ship())
         .deadline(BEAT_DEADLINE_SECS)
@@ -2055,10 +2098,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .add()
         .step("editor: the turned ship stands at identity in the viewer")
         .on_enter(|world: &mut World| {
+            let node = first_ship_node(world);
             let shown = world
                 .query::<(&GlobalTransform, &Name)>()
                 .iter(world)
-                .find(|(_, name)| name.as_str() == FIRST_SHIP_NODE)
+                .find(|(_, name)| name.as_str() == node)
                 .map(|(pose, _)| pose.compute_transform())
                 .expect("the ship stands");
             assert!(
@@ -2066,9 +2110,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                     && shown.rotation.angle_between(Quat::IDENTITY) < 0.001,
                 "inside, a ship has no pose of its own: {shown:?}"
             );
-            let pose = first_ship_pose(world);
             let walk = world.resource::<EditorWalk>();
-            assert_eq!(pose, walk.pose_before_entering);
             assert_eq!(
                 world.resource::<EditorProbe>().history_depth,
                 walk.steps_before_entering
@@ -2078,26 +2120,24 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(shot_written("editor-inside-turned.png"))
         .deadline(SHOT_DEADLINE_SECS)
         .add()
-        // Entering ISOLATES: the tree holds the way out, this ship and its
-        // parts, and not one row of the range standing around it - a click on
-        // a beacon from inside a ship means nothing, so there is nothing to
-        // click.
+        // Entering ISOLATES: the tree holds this ship and its parts, the Back
+        // button is the way out, and not one row of the range stands around
+        // it - a click on a beacon from inside a ship means nothing, so there
+        // is nothing to click.
         .step("editor: the tree isolates the entered ship")
         .on_enter(|world: &mut World| {
+            let (first, second) = (first_ship(world), second_ship(world));
             let rows = scene_row_names(world);
             assert!(
-                rows.iter().any(|row| row == "Scene Row ship_1"),
+                rows.iter().any(|row| *row == format!("Scene Row {first}")),
                 "the entered ship is in the tree: {rows:?}"
             );
-            assert!(
-                rows.iter().any(|row| row == "Scene Row scenario"),
-                "and so is the way back out: {rows:?}"
-            );
+            assert_named_visible("Back Button")(world);
             assert!(
                 !rows.iter().any(|row| {
                     row.starts_with("Scene Row beacon")
                         || row.starts_with("Scene Row hulk")
-                        || row == "Scene Row ship_2"
+                        || *row == format!("Scene Row {second}")
                 }),
                 "and nothing else: {rows:?}"
             );
@@ -2106,7 +2146,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "outcome: entering a node isolates it in the tree",
                 serde_json::json!({}),
             );
-            info!("editor: inside ship_1 the tree lists {rows:?}");
+            info!("editor: inside {first} the tree lists {rows:?}");
         })
         .add()
         // A 150px row clips its id, so resting on one reveals the whole thing
@@ -2375,9 +2415,25 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         .until(at_the_scenario_node())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
+        // The ship opened as its own document, where it has no pose. The turn
+        // lives in the scenario, and the trip in and out must not lose it.
+        .step("editor: the turned ship kept its scenario pose")
+        .on_enter(|world: &mut World| {
+            let pose = first_ship_pose(world);
+            assert_eq!(pose, world.resource::<EditorWalk>().pose_before_entering);
+        })
+        .add()
         // The root is a node like any other, and the panel on it says what the
         // document holds: a titled empty box reads as the panel breaking every
-        // time you leave a ship.
+        // time you leave a ship. Back selects the ship it came out of, so the
+        // run selects the root through its row.
+        .click_a_widget("editor: select the root", "Scene Row scenario")
+        .step("editor: the root panel is up")
+        .until(std::sync::Arc::new(|world: &World| {
+            !inspector_reading(world, "Ships").is_empty()
+        }))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
         .step("editor: the root says what the document holds")
         .on_enter(|world: &mut World| {
             let ships = inspector_reading(world, "Ships");
@@ -2419,6 +2475,29 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 !sections.is_empty(),
                 "a picket's sections are nodes of its own: {sections:?}"
             );
+            info!("editor: inside picket_warden - {sections:?}");
+        })
+        .add()
+        .click_a_widget("editor: back out to the range", "Back Button")
+        .step("editor: back at the scenario node")
+        .until(at_the_scenario_node())
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        // Who flies a placed hull and for which side is what the SCENARIO says
+        // about it, so those rows stand on the picket's panel out here, where
+        // Back left it selected.
+        .step("editor: the picket's panel is up")
+        .until(std::sync::Arc::new(|world: &World| {
+            !inspector_reading(world, "Driver").is_empty()
+        }))
+        .deadline(BEAT_DEADLINE_SECS)
+        .add()
+        .step("editor: the picket's placement names its pilot and side")
+        .on_enter(|world: &mut World| {
+            assert_eq!(
+                world.resource::<EditorProbe>().selected_node.as_deref(),
+                Some("picket_warden")
+            );
             let driver = inspector_reading(world, "Driver");
             let side = inspector_reading(world, "Allegiance");
             assert_eq!(driver, "AI", "a picket has a live pilot");
@@ -2431,13 +2510,8 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
                 "outcome: a seeded hull is entered and inspected as a ship",
                 serde_json::json!({}),
             );
-            info!("editor: inside picket_warden - {sections:?}, driven by {driver}, {side}");
+            info!("editor: picket_warden is driven by {driver}, {side}");
         })
-        .add()
-        .click_a_widget("editor: back out to the range", "Back Button")
-        .step("editor: back at the scenario node")
-        .until(at_the_scenario_node())
-        .deadline(BEAT_DEADLINE_SECS)
         .add()
         // The round trip. The document the run built - two ships and the
         // range around them - goes to disk as a mod bundle, gets thrown away,
@@ -2445,10 +2519,11 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         // after this point is an assert about the reloaded document.
         .step("editor: stamp the document before it is saved")
         .on_enter(|world: &mut World| {
+            let second = second_ship(world);
             let probe = world.resource::<EditorProbe>();
             let (nodes, poses) = (probe.context_nodes.clone(), probe.node_positions.clone());
             assert!(
-                nodes.iter().any(|node| node == "ship_2"),
+                nodes.iter().any(|node| *node == second),
                 "the run built a second ship, so the document to save holds one"
             );
             let walk = &mut world.resource_mut::<EditorWalk>();
@@ -2480,12 +2555,12 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
         })
         .add()
         // Moved off on purpose: New Scenario opens a blank scenario beside
-        // the saved one, which has no `ship_2` in it, so a `ship_2` after the
+        // the saved one, which has no second ship in it, so that ship after the
         // Open can only have come out of the project. It is a step like any
         // other, so it asks nothing and the saved scenario stays in the mod.
         .click_a_menu_item("editor: add a blank scenario", MENU_FILE, "New Scenario Item")
         .step("editor: the built scenario is closed")
-        .until(no_object_named("ship_2"))
+        .until(the_second_ship_is_closed())
         .deadline(BEAT_DEADLINE_SECS)
         .add()
         .step("editor: the blank scenario is open beside the saved one")
@@ -3234,29 +3309,70 @@ fn no_object_named(stem: &'static str) -> Wait {
 #[cfg(feature = "debug")]
 fn the_first_ship_is_selected() -> Wait {
     std::sync::Arc::new(|world: &World| {
-        world.resource::<EditorProbe>().selected_node.as_deref() == Some("ship_1")
+        world.resource::<EditorProbe>().selected_node.as_deref() == Some(first_ship(world).as_str())
     })
 }
 
 /// Where the first ship stands on the stage, off the probe's node positions.
 #[cfg(feature = "debug")]
 fn first_ship_position(world: &World) -> Vec3 {
+    let first = first_ship(world);
     world
         .resource::<EditorProbe>()
         .node_positions
         .iter()
-        .find(|(id, _)| id == "ship_1")
+        .find(|(id, _)| *id == first)
         .map(|(_, at)| *at)
-        .expect("ship_1 is listed at the scenario node")
+        .unwrap_or_else(|| panic!("{first} is listed at the scenario node"))
+}
+
+/// The node id the first Add Ship minted.
+#[cfg(feature = "debug")]
+fn first_ship(world: &World) -> String {
+    world.resource::<EditorWalk>().first_ship.clone()
+}
+
+/// The node id the second Add Ship minted.
+#[cfg(feature = "debug")]
+fn second_ship(world: &World) -> String {
+    world.resource::<EditorWalk>().second_ship.clone()
+}
+
+/// The first ship's entity name.
+#[cfg(feature = "debug")]
+fn first_ship_node(world: &World) -> String {
+    format!("Ship Node {}", first_ship(world))
+}
+
+/// Advance once the gizmo stands on the first ship.
+#[cfg(feature = "debug")]
+fn the_gizmo_is_on_the_first_ship() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        world.resource::<EditorProbe>().gizmo_node.as_deref() == Some(first_ship(world).as_str())
+    })
+}
+
+/// Advance once the second ship is no longer in the document.
+#[cfg(feature = "debug")]
+fn the_second_ship_is_closed() -> Wait {
+    std::sync::Arc::new(|world: &World| {
+        let second = second_ship(world);
+        !world
+            .resource::<EditorProbe>()
+            .context_nodes
+            .iter()
+            .any(|node| *node == second)
+    })
 }
 
 /// The first ship's document pose.
 #[cfg(feature = "debug")]
 fn first_ship_pose(world: &mut World) -> Transform {
+    let node = first_ship_node(world);
     *world
         .query::<(&Transform, &Name)>()
         .iter(world)
-        .find(|(_, name)| name.as_str() == FIRST_SHIP_NODE)
+        .find(|(_, name)| name.as_str() == node)
         .expect("the ship stands")
         .0
 }
@@ -3265,12 +3381,12 @@ fn first_ship_pose(world: &mut World) -> Transform {
 #[cfg(feature = "debug")]
 fn the_ship_turned() -> Wait {
     std::sync::Arc::new(|world: &World| {
+        let node = first_ship_node(world);
         world
             .try_query::<(&Transform, &Name)>()
             .is_some_and(|mut ships| {
                 ships.iter(world).any(|(pose, name)| {
-                    name.as_str() == FIRST_SHIP_NODE
-                        && pose.rotation.angle_between(Quat::IDENTITY) > 0.1
+                    name.as_str() == node && pose.rotation.angle_between(Quat::IDENTITY) > 0.1
                 })
             })
     })
@@ -3282,11 +3398,12 @@ fn the_ship_turned() -> Wait {
 fn the_first_ship_moved() -> Wait {
     std::sync::Arc::new(|world: &World| {
         let stamp = world.resource::<EditorWalk>().first_ship_at;
+        let first = first_ship(world);
         world
             .resource::<EditorProbe>()
             .node_positions
             .iter()
-            .any(|(id, at)| id == "ship_1" && at.distance(stamp) > 0.5)
+            .any(|(id, at)| *id == first && at.distance(stamp) > 0.5)
     })
 }
 
@@ -3297,11 +3414,12 @@ fn the_first_ship_moved() -> Wait {
 fn the_first_ship_rose() -> Wait {
     std::sync::Arc::new(|world: &World| {
         let stamp = world.resource::<EditorWalk>().first_ship_at;
+        let first = first_ship(world);
         world
             .resource::<EditorProbe>()
             .node_positions
             .iter()
-            .any(|(id, at)| id == "ship_1" && at.y - stamp.y > 0.5)
+            .any(|(id, at)| *id == first && at.y - stamp.y > 0.5)
     })
 }
 
@@ -3508,15 +3626,16 @@ fn object_view_wears(world: &mut World, wanted: LinearRgba) -> bool {
     })
 }
 
-/// Advance once the editor reports `id` as the node under the pointer.
+/// Advance once the editor reports the node `id` reads as the one under the
+/// pointer.
 ///
 /// One resource behind both surfaces, so this is what proves a rail hover and
 /// a stage hover are the same fact rather than two highlights that agree by
 /// coincidence.
 #[cfg(feature = "debug")]
-fn the_hovered_node_is(id: &'static str) -> Wait {
+fn the_hovered_node_is(id: RowId) -> Wait {
     std::sync::Arc::new(move |world: &World| {
-        world.resource::<EditorProbe>().hovered_node.as_deref() == Some(id)
+        world.resource::<EditorProbe>().hovered_node.as_deref() == Some(id(world).as_str())
     })
 }
 
@@ -3811,11 +3930,12 @@ fn camera_position(world: &mut World) -> Option<Vec3> {
 #[cfg(feature = "debug")]
 fn the_camera_frames_the_first_ship() -> Wait {
     std::sync::Arc::new(|world: &World| {
+        let first = first_ship(world);
         let Some((_, at)) = world
             .resource::<EditorProbe>()
             .node_positions
             .iter()
-            .find(|(id, _)| id == "ship_1")
+            .find(|(id, _)| *id == first)
         else {
             return false;
         };
@@ -3837,11 +3957,12 @@ fn the_camera_frames_the_first_ship() -> Wait {
 #[cfg(feature = "debug")]
 fn the_camera_looks_down_on_the_first_ship() -> Wait {
     std::sync::Arc::new(|world: &World| {
+        let first = first_ship(world);
         let Some((_, at)) = world
             .resource::<EditorProbe>()
             .node_positions
             .iter()
-            .find(|(id, _)| id == "ship_1")
+            .find(|(id, _)| *id == first)
         else {
             return false;
         };
@@ -4002,14 +4123,15 @@ fn the_flown_ship_is_whole() -> Wait {
 /// Advance once the AI design stands on the range: the sandbox lowers every
 /// non-empty ship of the document, not just the player's.
 ///
-/// Found by the NAME the ship node carries - `ship_2` is minted "Ship 2" - so
+/// Found by the NAME the ship node carries - `ship_5` is minted "Ship 5" - so
 /// this also proves the name a builder can edit is the one the range shows.
 #[cfg(feature = "debug")]
 fn the_second_ship_flies() -> Wait {
     std::sync::Arc::new(|world: &World| {
+        let name = second_ship(world).replace("ship_", "Ship ");
         world
             .try_query::<&Name>()
-            .is_some_and(|mut names| names.iter(world).any(|name| name.as_str() == "Ship 2"))
+            .is_some_and(|mut names| names.iter(world).any(|flown| flown.as_str() == name))
     })
 }
 
