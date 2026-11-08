@@ -18,7 +18,8 @@
 //! different colours, so it REBUILDS its children where the others repaint.
 //!
 //! One family per module - `button`, `panel`, `list_row`, `slider`,
-//! `segmented`, `chrome`, `tooltip`, `tabs`, `tree`, `popup`, `select` - all
+//! `segmented`, `chrome`, `tooltip`, `tabs`, `tree`, `popup`, `select`,
+//! `cascade`, `list_editor` - all
 //! re-exported here, with the shared
 //! [`DoubleClick`] detector (`double_click`), so `widget::<item>` paths are
 //! unchanged. [`NovaUiPlugin`](crate::NovaUiPlugin) wires every family's
@@ -30,21 +31,23 @@
 pub mod prelude {
     pub use super::{
         badge, button, button_on_setting, cascade_item, checkbox, checkbox_glyph, close_popups,
-        key_chip, list_row, list_row_colors, menu_button, panel, panel_head, panel_header,
-        panel_node, panel_radius, popup_row, search_cascade, segmented, segmented_container,
+        key_chip, list_add, list_count, list_editor, list_entry_row, list_picker, list_remove,
+        list_row, list_row_colors, menu_button, panel, panel_head, panel_header, panel_node,
+        panel_radius, popup_row, search_cascade, segmented, segmented_container,
         segmented_container_wrapping, segmented_option, segmented_option_compact,
         segmented_option_fit, select, separator, slider_meter_color, slider_track, spawn_cascade,
         spawn_popup, swatch, tab, tab_strip, text_field, themed_button, toggle, tree_keep,
         tree_row, BadgeKind, ButtonCueMute, ButtonCueType, ButtonLabel, ButtonSpec, ButtonValue,
         ButtonVariant, CascadeEntry, CascadeItem, CascadeMenu, CascadeNav, CascadeRow,
-        CascadeRowBundle, CascadeSearch, DoubleClick, KeyChip, KeyChipLabel, ListRow, PanelHeadTag,
-        PanelHeadTitle, PopupPanel, PopupRoot, PopupRow, SegmentedSkin, Select, SelectChanged,
-        SelectLabel, Selected, SliderBlock, SliderFill, SliderTrack, TabLabel, TextField,
-        TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldSystems,
-        TextFieldValue, ThemedBadge, ThemedBorder, ThemedButton, ThemedCheckbox, ThemedFill,
-        ThemedImageTint, ThemedPanel, ThemedPanelHead, ThemedRadius, ThemedSeparator, ThemedSwatch,
-        ThemedText, ThemedTextShadow, ThemedToggle, Tooltip, TooltipPanel, TreeCaret, TreeRowSpec,
-        UiText, DOUBLE_CLICK_SECS,
+        CascadeRowBundle, CascadeSearch, DoubleClick, KeyChip, KeyChipLabel, ListChoice,
+        ListEditor, ListEntryAdded, ListEntryCounted, ListEntryPicked, ListEntryRemoved, ListRow,
+        PanelHeadTag, PanelHeadTitle, PopupPanel, PopupRoot, PopupRow, SegmentedSkin, Select,
+        SelectChanged, SelectLabel, Selected, SliderBlock, SliderFill, SliderTrack, TabLabel,
+        TextField, TextFieldError, TextFieldFocused, TextFieldSpec, TextFieldSubmitted,
+        TextFieldSystems, TextFieldValue, ThemedBadge, ThemedBorder, ThemedButton, ThemedCheckbox,
+        ThemedFill, ThemedImageTint, ThemedPanel, ThemedPanelHead, ThemedRadius, ThemedSeparator,
+        ThemedSwatch, ThemedText, ThemedTextShadow, ThemedToggle, Tooltip, TooltipPanel, TreeCaret,
+        TreeRowSpec, UiText, DOUBLE_CLICK_SECS,
     };
 }
 
@@ -52,6 +55,7 @@ mod button;
 mod cascade;
 mod chrome;
 mod double_click;
+mod list_editor;
 mod list_row;
 mod panel;
 mod popup;
@@ -77,6 +81,7 @@ pub use button::*;
 pub use cascade::*;
 pub use chrome::*;
 pub use double_click::*;
+pub use list_editor::*;
 pub use list_row::*;
 pub use panel::*;
 pub use popup::*;
@@ -102,6 +107,7 @@ use self::{
         reconcile_themed_images, reconcile_themed_nodes, reconcile_themed_text,
         reconcile_themed_text_shadows, reconcile_toggles,
     },
+    list_editor::submit_list_counts,
     list_row::{list_row_on_interaction, reconcile_list_row_themes},
     panel::{reconcile_panel_head_themes, reconcile_panel_themes},
     popup::{close_popup_on_press, close_popup_on_row, place_popups},
@@ -227,6 +233,7 @@ pub(crate) fn build(app: &mut App) {
             .after(TextFieldSystems)
             .after(UiThemeSystems),
     );
+    app.add_systems(Update, submit_list_counts.after(TextFieldSystems));
     app.add_systems(
         PreUpdate,
         a_cascade_claims_the_keyboard.before(crate::input_mode::InputModeSystems),
