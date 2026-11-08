@@ -426,7 +426,7 @@ fn project_findings(world: &mut World) -> Vec<Problem> {
     };
     let data = std::sync::Arc::clone(&project.data);
     let on_disk: HashSet<String> = super::store::files_of(&own).into_iter().collect();
-    let installed: HashSet<String> = super::store::installed_deps()
+    let installed: HashSet<String> = super::store::installed_mods()
         .into_iter()
         .map(|(id, _)| id)
         .collect();
@@ -769,7 +769,7 @@ mod native {
         let shipped = world
             .run_system_once(|index: AssetIndex| index.shipped_ids())
             .map_err(|fault| format!("the shipped mods could not be read: {fault}"))?;
-        let installed: HashSet<String> = store::installed_deps()
+        let installed: HashSet<String> = store::installed_mods()
             .into_iter()
             .map(|(id, _)| id)
             .chain(shipped)

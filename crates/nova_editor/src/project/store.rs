@@ -399,15 +399,15 @@ mod native {
             .map(|path| path.display().to_string())
     }
 
-    /// What every installed mod declares, by id.
-    pub(crate) fn installed_deps() -> Vec<(String, Vec<String>)> {
+    /// Every installed mod's manifest, by id.
+    pub(crate) fn installed_mods() -> Vec<(String, ModMeta)> {
         read_index()
             .unwrap_or_default()
             .into_iter()
             .filter_map(|record| {
                 let bytes = read_mod_file(&record.id, &record.bundle)?;
                 let manifest = parse_manifest(&bytes).ok()?;
-                Some((record.id, manifest.meta.dependencies))
+                Some((record.id, manifest.meta))
             })
             .collect()
     }
@@ -519,7 +519,7 @@ mod web {
         Vec::new()
     }
 
-    pub(crate) fn installed_deps() -> Vec<(String, Vec<String>)> {
+    pub(crate) fn installed_mods() -> Vec<(String, ModMeta)> {
         Vec::new()
     }
 

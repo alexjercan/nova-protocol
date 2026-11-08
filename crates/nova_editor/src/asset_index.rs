@@ -19,7 +19,9 @@ use nova_assets::{
     mod_refs::prelude::{rewrite_refs, DepRef, RefScope, SELF_SCHEME},
     prelude::{enabled_bundles, DownloadedMods, EnabledMods, OptionalBundles},
 };
-use nova_modding::prelude::{BundleAsset, Content, ContentAsset, InstalledCatalog, BASE_MOD_ID};
+use nova_modding::prelude::{
+    BundleAsset, Content, ContentAsset, InstalledCatalog, ModMeta, BASE_MOD_ID,
+};
 use nova_scenario::prelude::ScenarioConfig;
 
 use crate::project::ModProject;
@@ -246,10 +248,10 @@ impl AssetIndex<'_> {
         })
     }
 
-    /// Every loaded bundle by id, enabled or not, with what it declares.
-    pub(crate) fn loaded_deps(&self) -> Vec<(String, Vec<String>)> {
+    /// Every loaded bundle by id, enabled or not, with its manifest.
+    pub(crate) fn loaded_mods(&self) -> Vec<(String, ModMeta)> {
         self.installed()
-            .map(|(id, bundle)| (id.to_string(), bundle.meta.dependencies.clone()))
+            .map(|(id, bundle)| (id.to_string(), bundle.meta.clone()))
             .collect()
     }
 

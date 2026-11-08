@@ -50,6 +50,10 @@ pub(crate) const MENU_Z: i32 = 26;
 /// hide would be a window nobody opened.
 pub(crate) const WINDOW_Z: i32 = 30;
 
+/// A dropdown a window opens, such as Mod Settings' Add dependency: over the
+/// window it drops from.
+pub(crate) const WINDOW_MENU_Z: i32 = 31;
+
 /// The block in hand on the script canvas: over every window a drag can start
 /// under, and still under the hint that explains where it is going.
 pub(crate) const GHOST_Z: i32 = 39;
@@ -80,6 +84,7 @@ mod tests {
             ("scrim", SCRIM_Z),
             ("menu", MENU_Z),
             ("window", WINDOW_Z),
+            ("window menu", WINDOW_MENU_Z),
             ("ghost", GHOST_Z),
             ("tooltip", TOOLTIP_Z),
         ] {

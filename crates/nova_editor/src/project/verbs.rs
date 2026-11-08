@@ -887,19 +887,28 @@ pub(crate) fn closes_cycle(graph: &DepGraph, own: &str, dep: &str) -> bool {
 
 /// Every mod's own dependency list: the loaded bundles and the installed ones.
 pub(crate) fn dep_graph(world: &mut World) -> DepGraph {
-    let mut graph: DepGraph = store::installed_deps().into_iter().collect();
-    let loaded = world.run_system_cached(|index: AssetIndex| index.loaded_deps());
-    graph.extend(loaded.unwrap_or_default());
-    graph
+    let loaded = world
+        .run_system_cached(|index: AssetIndex| index.loaded_mods())
+        .unwrap_or_default();
+    store::installed_mods()
+        .into_iter()
+        .chain(loaded)
+        .map(|(id, meta)| (id, meta.dependencies))
+        .collect()
 }
 
-/// Add `dep` to the project's dependencies, as one step. Refuses the cycle.
+/// Add `dep` to the project's dependencies, as one step. Refuses a mod that is
+/// not installed, and the cycle.
 pub(crate) fn add_dependency(world: &mut World, dep: &str) {
     let Some(project) = world.get_resource::<ModProject>() else {
         return;
     };
     let own = project.id.clone().unwrap_or_default();
     let mut graph = dep_graph(world);
+    if !graph.contains_key(dep) {
+        refuse(world, format!("{dep} is not installed"));
+        return;
+    }
     let project = world.resource::<ModProject>();
     graph.insert(own.clone(), project.data.meta.dependencies.clone());
     if closes_cycle(&graph, &own, dep) {

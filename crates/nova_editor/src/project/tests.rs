@@ -784,6 +784,7 @@ fn a_dependency_remove_is_refused_while_referenced() {
 #[test]
 fn a_dependency_add_is_one_undoable_step() {
     let mut app = project_app();
+    load_bundle(&mut app, "art-pack", &["textures/sky.png"]);
     let steps = depth(&app);
 
     add_dependency(app.world_mut(), "art-pack");
@@ -796,6 +797,26 @@ fn a_dependency_add_is_one_undoable_step() {
     );
     undo(&mut app);
     assert!(data(&app).meta.dependencies.is_empty());
+}
+
+/// A mod that is neither loaded nor installed is refused by name, and the
+/// manifest keeps what it held.
+#[test]
+fn a_dependency_on_a_missing_mod_is_refused() {
+    let mut app = project_app();
+    let steps = depth(&app);
+
+    add_dependency(app.world_mut(), "never-installed");
+    app.update();
+
+    assert_eq!(depth(&app), steps, "no step");
+    assert!(data(&app).meta.dependencies.is_empty());
+    let line = app
+        .world()
+        .resource::<crate::config::EditorStatus>()
+        .line()
+        .map(|(line, _)| line.to_string());
+    assert_eq!(line.as_deref(), Some("never-installed is not installed"));
 }
 
 /// A cycle is refused by id, before a merge could ever meet it.
@@ -834,11 +855,8 @@ fn play_refuses_a_ref_the_merge_would_refuse() {
 /// A missing dependency is a fault, and a Package error rather than a Save one.
 #[test]
 fn a_missing_dependency_blocks_package() {
-    let mut app = project_app();
-    add_dependency(app.world_mut(), "never-installed");
-    app.update();
-    let held = data(&app);
-    held.meta.dependencies.first().expect("it was added");
+    let mut held = (*data(&project_app())).clone();
+    held.meta.dependencies = vec!["never-installed".to_string()];
 
     let found = manifest_findings("editor_x", &held, |_| false, |_| false, |_| true);
 
