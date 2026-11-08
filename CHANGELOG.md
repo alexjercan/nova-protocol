@@ -39,7 +39,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Editor Mod Settings edits the manifest and dependencies. A remove that content still needs and a cycle are refused; picking from an undeclared mod adds the dependency in the same undo step.
 - Editor Assets > + > Sections builds a section in the mod: sockets on the gizmo, .glb import, live Problems. Ships can carry it, and Play flies it.
 - Editor Assets opens styles, start roles, items, price tables, trade profiles, UI themes and campaigns as undoable forms. Item and price table merge rules show in Problems.
-- Editor + adds a blank item with a new id; a section asks for its kind first. Problems lists what the blank still needs, and Save, Play and Package wait until it is filled.
+- Editor + opens New Asset: a blank item with a new id. A section asks its kind first, in a modal. Problems lists what the blank still needs, and Save, Play and Package wait until it is filled.
 - Editor UI theme palettes are a grid of named swatches with a picker: a square, a hue strip and a hex field. The pick shows live, is one undo step, and Esc takes it back.
 - Editor File > Package writes `<id>-<version>.zip` under `exports/`, ready for the portal. Mod Hub Import refuses unsafe paths and asks before it replaces a mod. Desktop only.
 - New `OnJobAccepted` scenario event fires when the Jobs pane accepts a board offer, with the job's id as `id`.
@@ -58,7 +58,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Sandbox opens a Mod Hub: a recent-first list of mods with New, Import, Duplicate and Delete.
 - The editor works on a whole mod: Assets shows its items and folder files as tiles with a kind filter and +, scenario switches keep edits, one Ctrl+Z history covers it, and Play tests a scenario.
 - Editor Events is a block canvas beside a palette grouped by role, with a rail that jumps to each group. Drag blocks into the slots that fit and fill values on the block. Each drop is one undo step.
-- Editor right-click menus: the stage offers the view's Add verbs, Paste, Frame and Delete; the canvas Paste, Clean Up, Duplicate and Delete; an Assets file Rename, Delete and Import File.
+- Editor right-click menus: the stage offers Add, Paste, Frame and Delete; the canvas Paste, Clean Up, Duplicate and Delete; an Assets file Rename and Delete; empty Assets New Asset and Import File.
+- The editor Add menu groups what the document takes in submenus, with a search: ships and designs, objects, lights, markers, parts, section parts, new assets. Shift+A opens it on the stage.
 - An unfinished condition in the editor now shows as a Problem that blocks Save, Play and Package instead of vanishing on save.
 - Editor asset tiles open in their own view: a scenario on Scene and Events, a ship inside its scenario, a section on Section, other kinds on Form. Menus show only that document's verbs.
 - Ship pane Rebind now takes Left Mouse. The click that arms it is not captured, and the click that binds reaches no button, tab or blip under it.

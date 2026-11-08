@@ -455,8 +455,10 @@ Inspector and the strip's body, and so do <kbd>Ctrl</kbd>+<kbd>1</kbd>,
 - **Strip**, along the bottom: **Assets** shows the mod's items and the files in
   its folder as tiles, sorted by kind, with a count per kind. A double click or
   <kbd>Enter</kbd> opens a tile in its view, views an image or a mesh, or plays a
-  sound. A right click holds its verbs, **+** adds a blank item, and a hover
-  shows the whole id. Drag a ship design onto the stage, or right click it and
+  sound. A right click on a tile holds its verbs, and on empty space New Asset
+  and Import File. **+** adds a blank item, and a hover shows the whole id. A
+  new section asks its kind first: the arrows pick one, <kbd>Enter</kbd> makes
+  it, <kbd>Esc</kbd> cancels. Drag a ship design onto the stage, or right click it and
 choose **Place in Scenario**, to place it in the open scenario. A ship a
 scenario made is listed under that scenario. A file the package leaves out wears a dotted mark. **Problems** is the
   live lint of what Play would load; a row selects the node it names. **Ship**
@@ -466,8 +468,17 @@ scenario made is listed under that scenario. A file the package leaves out wears
 
 The stage camera has no fly keys: in a scenario the letters are the tools. Hold
 right mouse to look about, and orbit, pan and dolly to move. The wheel always
-dollies. A right click without a drag opens the stage menu: the Add verbs of the
-view, Paste, and Frame and Delete on a node.
+dollies. A right click without a drag opens the stage menu: the Add menu,
+Paste, and Frame and Delete on a node.
+
+**Add** holds what the open document takes, in groups: a scenario has Ship (New
+Ship and each ship design of the mod), Objects, Lights and Markers; a ship has
+Parts; a section has Mesh, Collider and Socket. Every document has Asset, which
+starts a new item of any kind. <kbd>Shift</kbd>+<kbd>A</kbd> over the stage
+opens it at the pointer, and what it adds lands there. A group opens on hover or
+on <kbd>Right</kbd>. <kbd>Up</kbd> and <kbd>Down</kbd> move, <kbd>Left</kbd>
+closes a group, <kbd>Enter</kbd> adds, and <kbd>Esc</kbd> closes the menu. Type
+to search every group at once.
 <kbd>F</kbd> frames whatever is selected, and at the scenario level it
 frames the whole document.
 
@@ -598,6 +609,14 @@ pending rebind.
     <tr>
         <td>The menu of the stage, the canvas or a tile</td>
         <td>right click without a drag</td>
+    </tr>
+    <tr>
+        <td>Open the Add menu at the pointer, over the stage</td>
+        <td><kbd>Shift</kbd>+<kbd>A</kbd></td>
+    </tr>
+    <tr>
+        <td>In a menu: move; open or close a group; add; close</td>
+        <td><kbd>Up</kbd> <kbd>Down</kbd>; <kbd>Right</kbd> <kbd>Left</kbd>; <kbd>Enter</kbd>; <kbd>Esc</kbd> &nbsp;(type to search)</td>
     </tr>
     <tr>
         <td>Back out one rung</td>
