@@ -41,3 +41,39 @@
 
 ## Verification / Done when
 - On master under pinned Nix nightly: resolved graph has one Bevy 0.20 family; all workspace crates/targets compile native and wasm, affected focused tests and examples pass, full release-critical probes and rendered particle/UI paths pass under isolated X (never DISPLAY=:0), and exact-HEAD CI is green. Record Windows/macOS build evidence or explicit limits. Commit coherent changes, not an unsafe partial migration. No implementation has begun while Hanabi lacks a compatible published release.
+
+## Delta (2026-11-09, migration landed on master)
+- Manifests and `Cargo.lock` move to Bevy 0.20.1, bevy_hanabi 0.20.0, avian3d 0.8.0, bevy_enhanced_input 0.27.2, bevy_asset_loader 0.28.1, bevy_rand 0.16.0, bevy_transform_interpolation 0.6.0, bevy-inspector-egui 0.38.0 and bevy_mod_debugdump 0.17.0. No 0.19 bridge, no git or dev dependency.
+- The 9 built-in shaders move from naga_oil WGSL to WESL (`assets/shaders/*.wesl`). The WESL parser refuses `^` mixed with `*` without parentheses; `asteroid_surface.wesl` `hash_cell` now groups each product.
+- API moves: `On<Add<T>>` lifecycle observers, flat pointer events, the Forces API, enhanced-input `related!`, `EguiSchedule` in nova_debug, and the removed `SyncWorldPlugin` in nova_core.
+- `ContactModelPlugin` (`crates/nova_gameplay/src/contact_model.rs`) keeps the avian 0.7 contact model that ram damage, blasts and the cargo intake are tuned on: `SpeculativeCcd::MAX` and `SweptCcd { filter: CcdFilter::NONE }` on every `RigidBody`, and `NarrowPhaseConfig::recycle_distance = 0`. avian 0.8 makes speculative contacts opt-in, sweeps fast bodies by default, and recycles contacts with a stale `normal_speed`; with those, a 5.5 ram scored 9.125. Adopting swept CCD or recycling is an owner decision, not part of this migration.
+- The flight prediction mirror (`crates/nova_ship/src/flight/prediction.rs`) follows avian 0.8: f32 substep time and the `delta_position + (old_world_com - new_world_com)` writeback order.
+- Deleted the docking `on_separated_body_removed` island workaround: avian 0.8 `PhysicsIslands::remove_joint` no longer panics. `an_undock_separation_ends_with_its_hulls` covers it.
+- New `nova_ui::screen::window_root()`. bevy_ui 0.20 (taffy 0.14) sizes the implicit grid track of a root from its content, so a `percent(100)` root with a long scroll list grew to 3406 px and pushed the events canvas off screen (`editor_blocks` C-block drop stalled). In-flow full-window roots now spread `window_root()`: editor root, `overlay_root`, leave, outcome, pause, loading panel, and the ui_gallery, widget_zoo and wfc_arena roots. `a_window_root_stays_the_window_size_over_a_list_taller_than_the_window` fails with 3036 px without the zero minimum sizes.
+- Fixture fixes found on the way: the weapons binding test adds `InputPlugin` (enhanced-input 0.27 needs it); `frozen_rounds::real_fire_app` inits `PlayerTorpedoEta` (missing on 0.19 too).
+- `examples/playable/shared/open_world_stage.rs` imports `nova_debug` directly (separate commit).
+
+## Proof (2026-11-09, final tree, pinned nightly via `nix develop`)
+- One cargo at a time. `cargo check --workspace --all-targets`: exit 0, default and `--features debug`. CI wasm clippy (`CLIPPY_CONF_DIR=ci/wasm-clippy`, `--target wasm32-unknown-unknown -- -D warnings`, CI excludes): exit 0. Only warnings: dirty tree and `proc-macro-error2` future-incompat.
+- Lib tests: nova_ui 120 passed; nova_editor 787; nova_menu 232; nova_gameplay 445 passed, 2 ignored; nova_ship 1267; nova_scenario 543. No failures.
+- Content: `cargo run content gen` exit 0 with no diff under `assets/base`; `cargo run content lint` exit 0, "0 error(s), 0 warning(s), 0 finding(s)". No RON change, so no RON diff to explain.
+- Rendered runs: private Xvfb `:173`, lavapipe, sandboxed XDG, modcache and `NOVA_CAPTURE_DIR`, compared with a 0.19 baseline built from master before the bump. Every helper was stopped by recorded PID and checked with `ps`.
+
+| run | 0.19 baseline | 0.20 | frames |
+|---|---|---|---|
+| menu (pinned `menu_waystation`) | exit 143 (timeout by design), 0 ERROR, 5 WARN | same | planet backdrop and menu match |
+| lesson_mining | exit 0, 10 steps | same steps, 0 ERROR, 5 WARN | `flight_mine.png` sheet matches |
+| loop_vfx_range (railgun, PDC, cold launch) | exit 0, 23 steps | same | Hanabi sparks, beam and trail match |
+| loop_torpedo_blast | exit 0, 9 steps | same | blast debris and sparks match |
+| editor_shell | exit 0, 250 steps, 1 intended ERROR | same | match |
+| editor_blocks | exit 0, 187 steps | same | match |
+| editor_undo | exit 0, 90 steps | same | match |
+
+- WARN lines are the same five platform lines (no audio, software adapter, XRandR, XSETTINGS, example mod bundle). No panic.
+- `~/.local/share/nova-protocol` and `~/.config/nova-protocol` stat digests are equal before and after all runs.
+
+## Limits
+- PENDING: exact-HEAD CI and the Windows and macOS builds need a push, which is the owner's call.
+- NOT RUN: release-critical `nova-probe` sets and `nova-bench` player flows.
+- UNVERIFIED: about 30 code comments still cite Bevy 0.19 or avian 0.7 behaviour as a reason (`git grep -n -i 'bevy 0\.19'`). Each needs a check against 0.20 before it is reworded or its workaround deleted.
+- The menu backdrop is an unseeded rotation draw; the unpinned run drew `menu_weave` instead of `menu_waystation`, so the frame check uses `NOVA_MENU_BACKDROP`.
