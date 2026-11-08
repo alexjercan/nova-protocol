@@ -134,7 +134,7 @@ mod smoke {
         },
         prelude::type_text,
     };
-    use nova_ui::prelude::TextFieldValue;
+    use nova_ui::prelude::{TextFieldFocused, TextFieldValue};
 
     use super::*;
 
@@ -169,6 +169,7 @@ mod smoke {
     const BENCH_SHOT: &str = "section-bench.png";
     const GALLERY_SHOT: &str = "section-gallery.png";
     const FORM_SHOT: &str = "section-form.png";
+    const PARTS_SHOT: &str = "section-parts.png";
     const BLANK_SHOT: &str = "section-blank.png";
     const PLUS_SHOT: &str = "section-plus.png";
     const KIND_SHOT: &str = "section-kind.png";
@@ -653,6 +654,117 @@ mod smoke {
             .add()
     }
 
+    /// Advance once the Inspector's Parts row reads `parts`.
+    fn parts_read(parts: &'static str) -> Arc<Predicate> {
+        editor(move |probe| {
+            probe
+                .inspector
+                .iter()
+                .any(|(row, held)| row == "Parts" && held == parts)
+        })
+    }
+
+    /// Advance once the field named `name` holds the caret. A list count is a
+    /// widget of the list, not an Inspector field, so the probe's caret flag
+    /// does not see it.
+    fn holds_the_caret(name: String) -> Arc<Predicate> {
+        Arc::new(move |world: &World| {
+            world
+                .try_query_filtered::<&Name, With<TextFieldFocused>>()
+                .is_some_and(|mut fields| fields.iter(world).any(|held| held.as_str() == name))
+        })
+    }
+
+    /// Type `count` into the count of the Parts row of `item` and press Enter.
+    fn type_count(
+        script: AutopilotPlugin<GameStates>,
+        item: &'static str,
+        count: &'static str,
+        landed: Arc<Predicate>,
+    ) -> AutopilotPlugin<GameStates> {
+        script
+            .click_named(
+                &format!("section: reach for the {item} count"),
+                &format!("List Count {item}"),
+                holds_the_caret(format!("List Count {item}")),
+                BEAT_SECS,
+            )
+            .step(format!("section: type {count} as the {item} count"))
+            .on_enter(move |world: &mut World| {
+                press_edit_key(Key::End)(world);
+                for _ in 0..6 {
+                    press_edit_key(Key::Backspace)(world);
+                }
+                type_text(count)(world);
+                press_edit_key(Key::Enter)(world);
+            })
+            .until(landed)
+            .diagnose(readout)
+            .deadline(BEAT_SECS)
+            .add()
+    }
+
+    /// Build Parts through its list editor: add two items from the dropdown,
+    /// have a zero count refused, set a count, and remove a row.
+    fn edit_the_parts(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
+        let script = script.click_named(
+            "section: open Add part",
+            "List Add Parts",
+            ui_node_present("List Pick FrameSpar"),
+            BEAT_SECS,
+        );
+        let script = shot(script, PARTS_SHOT)
+            .click_named(
+                "section: pick Frame Spar",
+                "List Pick FrameSpar",
+                parts_read("FrameSpar=1"),
+                BEAT_SECS,
+            )
+            .click_named(
+                "section: open Add part again",
+                "List Add Parts",
+                Arc::new(|world: &World| {
+                    ui_node_present("List Pick SectionPanel")(world)
+                        && !ui_node_present("List Pick FrameSpar")(world)
+                }),
+                BEAT_SECS,
+            )
+            .click_named(
+                "section: pick Section Panel",
+                "List Pick SectionPanel",
+                parts_read("FrameSpar=1, SectionPanel=1"),
+                BEAT_SECS,
+            );
+        let script = type_count(
+            script,
+            "FrameSpar",
+            "0",
+            Arc::new(|world: &World| {
+                reads("a count is a whole number from 1 to 9999")(world)
+                    && parts_read("FrameSpar=1, SectionPanel=1")(world)
+            }),
+        );
+        let script = type_count(
+            script,
+            "FrameSpar",
+            "4",
+            parts_read("FrameSpar=4, SectionPanel=1"),
+        );
+        script
+            .click_named(
+                "section: remove Section Panel",
+                "List Remove SectionPanel",
+                parts_read("FrameSpar=4"),
+                BEAT_SECS,
+            )
+            .step("section: the parts list holds one row")
+            .on_enter(|_world: &mut World| {
+                info!("section: PASS parts list add, refuse, count, remove")
+            })
+            .until(frames(2))
+            .add()
+    }
+
     /// Type a long Description and the fields the blank needs, then import a
     /// real glb through Add > Mesh.
     fn fill_the_form(script: AutopilotPlugin<GameStates>) -> AutopilotPlugin<GameStates> {
@@ -710,6 +822,7 @@ mod smoke {
             .diagnose(readout)
             .deadline(BEAT_SECS)
             .add();
+        let script = edit_the_parts(script);
         let script = shot(script, FORM_SHOT)
             .click_named(
                 "section: open the Add menu for a mesh",

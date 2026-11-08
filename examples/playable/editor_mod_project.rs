@@ -139,6 +139,8 @@ mod smoke {
     const HUB_SHOT: &str = "editor-mod-hub.png";
     const NEW_SHOT: &str = "editor-mod-new.png";
     const SETTINGS_SHOT: &str = "editor-mod-settings.png";
+    const DEPS_SHOT: &str = "editor-mod-deps.png";
+    const REFUSED_SHOT: &str = "editor-mod-deps-refused.png";
     const ASSETS_SHOT: &str = "editor-mod-assets.png";
     const PACKAGE_SHOT: &str = "editor-mod-package.png";
     const SAVE: &[KeyCode] = &[KeyCode::ControlLeft, KeyCode::KeyS];
@@ -289,14 +291,60 @@ mod smoke {
             script,
             "open Mod Settings",
             "Mod Settings Item",
-            ui_node_present("Dependency Offer example"),
-        );
-        let script = script.click_named(
-            "mod project: depend on the example mod",
-            "Dependency Offer example",
-            ui_node_present("Dependency Row example"),
+            ui_node_present("Dependency Add"),
+        )
+        .click_named(
+            "mod project: open Add dependency",
+            "Dependency Add",
+            ui_node_present("List Pick example"),
             BEAT_SECS,
         );
+        let script = shot(script, DEPS_SHOT)
+            .click_named(
+                "mod project: depend on the example mod",
+                "List Pick example",
+                ui_node_present("Dependency Row example"),
+                BEAT_SECS,
+            )
+            // The template's ships name sections the example mod also
+            // defines, so its x is refused and the status line says by what.
+            .click_named(
+                "mod project: the example mod is in use, so its x is refused",
+                "Dependency Remove example",
+                Arc::new(|world: &World| {
+                    reads("example is in use by")(world)
+                        && ui_node_present("Dependency Row example")(world)
+                }),
+                BEAT_SECS,
+            );
+        let script = shot(script, REFUSED_SHOT)
+            .click_named(
+                "mod project: Undo takes the add back in one step",
+                "Undo Button",
+                Arc::new(|world: &World| {
+                    !ui_node_present("Dependency Row example")(world)
+                        && ui_node_present("Dependencies Empty")(world)
+                }),
+                BEAT_SECS,
+            )
+            .click_named(
+                "mod project: open Add dependency again",
+                "Dependency Add",
+                ui_node_present("List Pick example"),
+                BEAT_SECS,
+            )
+            .click_named(
+                "mod project: depend on the example mod again",
+                "List Pick example",
+                ui_node_present("Dependency Row example"),
+                BEAT_SECS,
+            )
+            .step("mod project: the dependency list holds example")
+            .on_enter(|_world: &mut World| {
+                info!("mod project: PASS dependency add, refused x, undo, re-add")
+            })
+            .until(frames(2))
+            .add();
         let script = shot(script, SETTINGS_SHOT)
             .step("mod project: Ctrl+S saves the project")
             .on_enter(|world: &mut World| {
