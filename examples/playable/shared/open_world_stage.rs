@@ -618,13 +618,13 @@ pub fn hold_the_walk_clock(mut time: ResMut<Time<Virtual>>) {
 /// software GPU spans two frames that each outlast the double-click window, so
 /// a walk takes the keyboard's way to the same open.
 pub fn open_hub_row(
-    script: nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates>,
+    script: nova_debug::harness::AutopilotPlugin<GameStates>,
     label: &str,
     row: &str,
-    landed: std::sync::Arc<nova_protocol::nova_debug::harness::Predicate>,
+    landed: std::sync::Arc<nova_debug::harness::Predicate>,
     secs: f32,
-) -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameStates> {
-    use nova_protocol::nova_debug::prelude::{frames, pointer_released, press_key, release_key};
+) -> nova_debug::harness::AutopilotPlugin<GameStates> {
+    use nova_debug::prelude::{frames, pointer_released, press_key, release_key};
     script
         .click_named(
             &format!("{label}: mark the row"),
