@@ -8,7 +8,7 @@ use bevy::{
     ui_widgets::{observe, Button},
 };
 use nova_ui::{
-    prelude::{panel, ThemedButton, UiText},
+    prelude::{icon_button, panel, IconButtonType, ThemedButton, UiText, CLOSE_GLYPH},
     theme,
     theme::{density, UiColor},
     widget::{
@@ -282,37 +282,30 @@ pub(crate) fn next_zone(zone: Option<WfcZone>) -> Option<WfcZone> {
 /// padding, which is what keeps the list as short as it was without one.
 const STYLE_SWATCH: f32 = 12.0;
 
-/// Row type size (px). One step under the panel type: the rail is a tree of
-/// minted ids in 150px, and every point of size is a character of id the row
-/// can show before it clips.
-const ROW_TEXT: f32 = 11.0;
-
 /// The row's own delete, revealed by hover or by selection.
 ///
 /// The pointer's way to the verb Del takes from the keyboard, on the surface
 /// that already lists everything the document holds. Hidden until the row is
 /// under the pointer or marked, so a 150px rail is not fifteen delete buttons
 /// waiting to be misclicked.
+///
+/// The slot is a row's content height and the button a 22px square centred in
+/// it: the button keeps its hit target across, and a revealed delete does not
+/// make its row taller than the rows around it.
 pub(crate) fn row_trash() -> impl Bundle {
     (
         SceneRowTrash,
-        Button,
-        Hovered::default(),
         Node {
             display: Display::None,
-            padding: UiRect::axes(px(4), px(0)),
+            height: px(density::ROW_H - 2.0 * theme::BORDER_W),
+            flex_shrink: 0.0,
             align_items: AlignItems::Center,
             ..default()
         },
         children![(
-            UiText,
-            Text::new("x"),
-            TextFont {
-                font_size: FontSize::Px(ROW_TEXT),
-                ..default()
-            },
-            TextColor(Color::NONE),
-            ThemedText::new(UiColor::Danger),
+            Name::new("Scene Row Delete"),
+            icon_button(IconButtonType::Delete, CLOSE_GLYPH, "Delete (Del)"),
+            observe(super::on_row_trash),
         )],
     )
 }

@@ -258,9 +258,10 @@ fn every_document_verb_here_undoes_and_redoes_to_an_equal_lowered_document() {
         ("Delete Object", |app| {
             let object = first_with::<ObjectNode>(app);
             let row = app.world_mut().spawn(SceneRow(object)).id();
+            let slot = app.world_mut().spawn(ChildOf(row)).id();
             let trash = app
                 .world_mut()
-                .spawn((observe(on_row_trash), ChildOf(row)))
+                .spawn((observe(on_row_trash), ChildOf(slot)))
                 .id();
             app.world_mut().trigger(Activate { entity: trash });
             app.world_mut().entity_mut(row).despawn();

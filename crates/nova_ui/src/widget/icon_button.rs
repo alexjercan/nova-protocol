@@ -4,7 +4,8 @@
 //! The glyph is muted at rest and lights in the primary ink on hover, on press
 //! and on keyboard focus. A [`IconButtonType::Delete`] lights in the danger
 //! colour instead, so red on the screen always means data goes. Focus also
-//! draws a 1px ring. Every icon button carries a [`Tooltip`]: a glyph alone
+//! draws a 1px ring. An [`IconButtonArmed`] button shows lit at rest: its verb
+//! is the one a key runs now. Every icon button carries a [`Tooltip`]: a glyph alone
 //! does not say what it closes.
 //!
 //! [`paint_icon_buttons`] is the one paint path. It writes only what changed,
@@ -55,6 +56,13 @@ pub enum IconButtonType {
 #[derive(Component)]
 pub struct IconButtonGlyph;
 
+/// Marks an icon button whose verb a key runs now, such as the delete of the
+/// marked row that Del deletes. Its glyph shows lit at rest, without the hover
+/// fill. Also keeps the glyph readable on a selected row's fill, which the
+/// muted rest colour does not.
+#[derive(Component)]
+pub struct IconButtonArmed;
+
 /// One icon button: a [`ICON_BUTTON_PX`] square with `glyph` centred, its hover
 /// hint `tooltip`. Unpainted: [`paint_icon_buttons`] paints it the frame it
 /// shows. The caller adds its name, its marker and its `Activate` observer.
@@ -98,6 +106,7 @@ struct IconState {
     hovered: bool,
     pressed: bool,
     focused: bool,
+    armed: bool,
     disabled: bool,
 }
 
@@ -130,7 +139,7 @@ fn icon_paint(theme: &ActiveUiTheme, kind: IconButtonType, state: IconState) -> 
         Color::NONE
     };
     IconPaint {
-        glyph: if state.hovered || state.pressed || state.focused {
+        glyph: if state.hovered || state.pressed || state.focused || state.armed {
             theme.color(lit)
         } else {
             theme.color(UiColor::Label)
@@ -144,7 +153,8 @@ fn icon_paint(theme: &ActiveUiTheme, kind: IconButtonType, state: IconState) -> 
     }
 }
 
-/// Paint every icon button from its hover, press, focus and disabled state.
+/// Paint every icon button from its hover, press, focus, armed and disabled
+/// state.
 #[expect(
     clippy::type_complexity,
     reason = "one query term per icon button visual state"
@@ -157,6 +167,7 @@ pub(super) fn paint_icon_buttons(
         &IconButtonType,
         &Hovered,
         Has<Pressed>,
+        Has<IconButtonArmed>,
         Has<InteractionDisabled>,
         &Children,
         &mut BackgroundColor,
@@ -165,12 +176,14 @@ pub(super) fn paint_icon_buttons(
     mut glyphs: Query<&mut TextColor, With<IconButtonGlyph>>,
 ) {
     let focused = focus.and_then(|focus| focus.get());
-    for (entity, kind, hovered, pressed, disabled, children, mut fill, mut outline) in &mut buttons
+    for (entity, kind, hovered, pressed, armed, disabled, children, mut fill, mut outline) in
+        &mut buttons
     {
         let state = IconState {
             hovered: hovered.get(),
             pressed,
             focused: focused == Some(entity),
+            armed,
             disabled,
         };
         let paint = icon_paint(&theme, *kind, state);
@@ -267,5 +280,35 @@ mod tests {
         assert_eq!(glyph(&app, delete), theme.color(UiColor::Danger));
         assert_eq!(glyph(&app, close), theme.color(UiColor::Primary));
         assert_ne!(theme.color(UiColor::Danger), theme.color(UiColor::Primary));
+    }
+
+    #[test]
+    fn an_armed_delete_shows_danger_at_rest_without_the_hover_fill() {
+        let mut app = themed_app(PHOSPHOR_THEME_ID);
+        let theme = phosphor();
+        let delete = app
+            .world_mut()
+            .spawn((
+                icon_button(IconButtonType::Delete, CLOSE_GLYPH, "Delete"),
+                IconButtonArmed,
+            ))
+            .id();
+        app.update();
+        assert_eq!(glyph(&app, delete), theme.color(UiColor::Danger));
+        assert_eq!(
+            app.world()
+                .entity(delete)
+                .get::<BackgroundColor>()
+                .unwrap()
+                .0,
+            Color::NONE
+        );
+        assert_eq!(ring(&app, delete), Color::NONE, "armed is not focus");
+
+        app.world_mut()
+            .entity_mut(delete)
+            .remove::<IconButtonArmed>();
+        app.update();
+        assert_eq!(glyph(&app, delete), theme.color(UiColor::Label));
     }
 }

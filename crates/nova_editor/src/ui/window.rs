@@ -11,14 +11,14 @@
 
 use bevy::{
     ecs::{relationship::RelatedSpawnerCommands, system::SystemParam},
-    picking::hover::Hovered,
     prelude::*,
-    ui_widgets::{observe, Activate, Button},
+    ui_widgets::{observe, Activate},
 };
 use nova_gameplay::prelude::{GameStates, GuardedLeave, PauseStates, UnsavedWork};
 use nova_ui::{
     prelude::{
-        panel, scroll_bar, scroll_column, scroll_row, scroll_viewport, themed_button, UiText,
+        icon_button, panel, scroll_bar, scroll_column, scroll_row, scroll_viewport, themed_button,
+        IconButtonType, UiText, CLOSE_GLYPH,
     },
     theme,
     theme::{density, UiColor},
@@ -486,7 +486,7 @@ pub(crate) fn window_frame(
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
                     column_gap: px(density::GAP),
-                    padding: UiRect::axes(px(density::PANEL_PAD + 1.0), px(2)),
+                    padding: UiRect::axes(px(density::PANEL_PAD + 1.0), px(0)),
                     border: UiRect::bottom(px(theme::BORDER_W)),
                     ..default()
                 },
@@ -515,22 +515,8 @@ pub(crate) fn window_frame(
                 bar.spawn((
                     Name::new(close_name),
                     WindowClose { window },
-                    Node {
-                        width: px(18),
-                        flex_shrink: 0.0,
-                        ..default()
-                    },
-                    Button,
+                    icon_button(IconButtonType::Dismiss, CLOSE_GLYPH, "Close"),
                     ButtonCueType::Back,
-                    Hovered::default(),
-                    UiText,
-                    Text::new("x"),
-                    TextFont {
-                        font_size: FontSize::Px(12.0),
-                        ..default()
-                    },
-                    TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Label),
                     observe(on_window_close),
                 ));
             });

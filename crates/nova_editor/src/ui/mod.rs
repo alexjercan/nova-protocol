@@ -55,8 +55,8 @@ use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{
         button, key_chip, panel, scroll_bar, scroll_column, scroll_row, scroll_viewport, separator,
-        tab, tab_strip, text_field, tree_row, ButtonSpec, DoubleClick, InputMode, TextFieldSpec,
-        TextFieldValue, Tooltip, TreeRowSpec, UiText,
+        tab, tab_strip, text_field, tree_row, ButtonSpec, DoubleClick, IconButtonArmed,
+        IconButtonType, InputMode, TextFieldSpec, TextFieldValue, Tooltip, TreeRowSpec, UiText,
     },
     theme,
     theme::{density, ActiveUiTheme, UiColor},
@@ -1611,7 +1611,7 @@ pub(crate) fn sync_scene_list(
                 }
                 // The row's own delete, on a child: a press on the trash must
                 // not read as a press on the row it sits in.
-                entity.with_child((row_trash(), observe(on_row_trash)));
+                entity.with_child(row_trash());
             }
         });
         shown.rows = wanted;
@@ -1638,24 +1638,40 @@ pub(crate) fn sync_scene_list(
 ///
 /// Both, rather than hover alone: the pointer is not the only way a row gets
 /// marked - the stage marks one too - and a marked row is the one the keyboard
-/// Del is aimed at, so it should be showing the same affordance.
+/// Del is aimed at, so it should be showing the same affordance. A marked row's
+/// delete is armed: lit in the danger colour, as Del would run it, and readable
+/// on the selected fill, where the muted rest colour is not.
 pub(crate) fn sync_row_trash(
+    mut commands: Commands,
     context: Res<EditContext>,
     selected: Res<SelectedNode>,
     nodes: Query<(), DeletableNode>,
     rows: Query<(&SceneRow, &Hovered, &Children)>,
-    mut trash: Query<&mut Node, With<SceneRowTrash>>,
+    mut trash: Query<(&mut Node, &Children), With<SceneRowTrash>>,
+    armed: Query<Has<IconButtonArmed>, With<IconButtonType>>,
 ) {
     for (row, hovered, children) in &rows {
-        let show =
-            (hovered.get() || selected.contains(row.0)) && deletable(row.0, &context, &nodes);
+        let deletable = deletable(row.0, &context, &nodes);
+        let marked = selected.contains(row.0) && deletable;
+        let show = (hovered.get() || marked) && deletable;
         let display = if show { Display::Flex } else { Display::None };
         for &child in children {
-            let Ok(mut node) = trash.get_mut(child) else {
+            let Ok((mut node, buttons)) = trash.get_mut(child) else {
                 continue;
             };
             if node.display != display {
                 node.display = display;
+            }
+            for &button in buttons {
+                match armed.get(button) {
+                    Ok(false) if marked => {
+                        commands.entity(button).insert(IconButtonArmed);
+                    }
+                    Ok(true) if !marked => {
+                        commands.entity(button).remove::<IconButtonArmed>();
+                    }
+                    _ => {}
+                }
             }
         }
     }
@@ -1674,8 +1690,10 @@ pub(crate) fn on_row_trash(
     parents: Query<&ChildOf>,
     rows: Query<&SceneRow>,
 ) {
+    // The button sits in the trash slot, and the slot in the row.
     let Some(row) = parents
         .get(activate.entity)
+        .and_then(|slot| parents.get(slot.parent()))
         .ok()
         .and_then(|parent| rows.get(parent.parent()).ok())
     else {
