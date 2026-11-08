@@ -134,6 +134,31 @@ Agent assumptions, not confirmed by the owner:
 - Old `editor_*` saves keep opening.
 - A new UI theme inherits from `base/phosphor`. The Inherit row in its form
   can change the parent. Slice 13 chose this; the owner has not confirmed it.
+- S9: every ship opens as its own document, `open = {ship|station, design
+  id}`. A scenario's own ship opens under the design id its scenario writes,
+  `<scenario>.<node>`. Its document writes the design and the spawn's facts
+  (name, keys) back to that scenario, so one undo history holds both. Open and
+  Back are not steps and mark nothing. Slice 14 chose this.
+- S9: the AutoLayout row of ships that were never moved survives a document
+  switch (`RowShips`, session only). Without it a ship stacked at the origin
+  after Back. Slice 14 chose this.
+- S9: the lint of a ship document covers its design only. The spawn facts
+  are linted when the scenario is open. Slice 14 chose this.
+- S3: a design placed in a scenario is spawned by reference,
+  `ShipDesignSource::Prototype { id }`, not copied inline. The spawn resolves
+  the id against the design catalog at load
+  (`nova_scenario/src/objects/ship_design.rs`, `Prototype`), so an edit to the
+  design reaches every placement. The format already had it: no format
+  change. It stays an object node on lift, because its spawn id is not the
+  design's (`bundle.rs`, `writes_back`). A scenario's own ship is not offered
+  for placement. Slice 14 chose this.
+- S14: Assets lists a scenario's own ships right after that scenario, not
+  under Ships, and the kind column has one row per scenario that made ships.
+  Slice 14 chose this.
+- S16: the in-game Ship pane uses R (roll), F (socket) and Q (pick)
+  (`nova_interface/src/bindings.rs`). The editor matches them and adds Shift
+  to step back. The editor keys are constants; the editor has no rebind rows
+  for them. Slice 14 chose this.
 
 ## Agent findings
 
