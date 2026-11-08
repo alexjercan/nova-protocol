@@ -18,8 +18,8 @@ use bevy::{
 };
 
 use super::{
-    button, close_popups, spawn_cascade, text_field, ButtonSpec, CascadeItem, PopupRoot,
-    TextFieldSpec, TextFieldSubmitted,
+    button, close_popups, icon_button, spawn_cascade, text_field, ButtonSpec, CascadeItem,
+    IconButtonType, PopupRoot, TextFieldSpec, TextFieldSubmitted, CLOSE_GLYPH,
 };
 use crate::theme::density;
 
@@ -172,11 +172,12 @@ pub fn list_entry_row() -> impl Bundle {
     }
 }
 
-/// The `x` that removes row `index` of `list`.
+/// The `x` that removes row `index` of `list`: the shared icon button, as a
+/// dismiss, because it takes an entry off a list and the step undoes.
 pub fn list_remove(list: Entity, index: usize) -> impl Bundle {
     (
         ListRemove { list, index },
-        button(ButtonSpec::new("x").dense().ghost().fit()),
+        icon_button(IconButtonType::Dismiss, CLOSE_GLYPH, "Remove"),
         observe(on_list_remove),
     )
 }
