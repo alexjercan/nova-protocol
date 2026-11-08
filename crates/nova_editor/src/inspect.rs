@@ -42,10 +42,14 @@ use nova_ship::prelude::{
     WellTargetType,
 };
 
-pub(crate) use self::asset::{
-    asset_kind_mut, asset_rows, content_reflect_mut, edited_entries, form_fault, inherited_palette,
-    item_text, list_entries, part_rows, set_item_text, set_list_entries, socket_rows,
-    AssetListType, AssetPressType, AssetTextType, ListEditType, ListEntry, MeshPose,
+pub(crate) use self::{
+    asset::{
+        asset_kind_mut, asset_rows, content_reflect_mut, edited_entries, form_fault,
+        inherited_palette, item_text, list_entries, part_rows, set_item_text, set_list_entries,
+        socket_rows, AssetListType, AssetPressType, AssetTextType, ListEditType, ListEntry,
+        MeshPose,
+    },
+    items::{append_item, remove_item, ADD},
 };
 use crate::{
     asset::{AssetNode, AssetPartType, SocketNode},
@@ -66,6 +70,7 @@ use crate::{
 
 mod asset;
 mod fresh;
+mod items;
 
 /// The document nodes the inspector can be pointed at, so one `get` answers
 /// which kind of panel to draw.
@@ -372,6 +377,23 @@ pub(crate) enum RowValue {
     /// list editor, one row per entry. Its [`FieldRoot::AssetList`] says which
     /// list it is.
     List(Vec<ListEntry>),
+    /// The foot of a walked list: one add button per option, each the
+    /// variant a new entry starts as, or [`items::ADD`] where entries have one
+    /// shape. See [`items::append_item`].
+    Append(Vec<String>),
+    /// The head of one entry of a walked list: the button that drops it. See
+    /// [`items::remove_item`].
+    Remove,
+    /// A list of distinct bare names as one toggle per name it may hold - a
+    /// section's damage effects. A press adds the name or drops it.
+    Set {
+        /// Every name, in declaration order.
+        options: Vec<String>,
+        /// What each of them means, in the same order.
+        hints: Vec<String>,
+        /// Whether the list holds each of them.
+        on: Vec<bool>,
+    },
 }
 
 /// One colour of a palette row.
@@ -425,6 +447,16 @@ impl RowValue {
                     let mark = if entry.inherited { "^" } else { "" };
                     format!("{}={}{mark}", entry.name, entry.hex)
                 })
+                .collect::<Vec<_>>()
+                .join(", "),
+            Self::Append(options) => options.join(", "),
+            Self::Remove => String::new(),
+            // The names the list holds, as it reads in a file.
+            Self::Set { options, on, .. } => options
+                .iter()
+                .zip(on)
+                .filter(|(_, on)| **on)
+                .map(|(name, _)| name.as_str())
                 .collect::<Vec<_>>()
                 .join(", "),
             // The list as it reads in a file: `id=count` where it counts.
@@ -1663,12 +1695,48 @@ fn option_payload(value: &dyn PartialReflect) -> Option<&'static TypeInfo> {
 /// What a row says where an authored TABLE holds nothing.
 pub(crate) const NOTHING: &str = "none";
 
-/// Every leaf of `value`, flattened into rows under `path`.
+/// Every leaf of `value`, flattened into rows under `path`. Its lists are
+/// shown, not edited.
 fn walk(
     value: &dyn PartialReflect,
     root: FieldRoot,
     path: Vec<PathStep>,
     out: &mut Vec<InspectorRow>,
+) {
+    walk_in(value, root, path, out, ListsType::Shown);
+}
+
+/// [`walk`], with every list an add and a remove control (see
+/// [`items::list_rows`]).
+///
+/// Only the surfaces that own their whole value take it: a form and a script
+/// block. A section's joint tree is walked for its numbers, and a joint added
+/// from a row would be a turret with a muzzle nothing aims.
+pub(crate) fn walk_edited(
+    value: &dyn PartialReflect,
+    root: FieldRoot,
+    path: Vec<PathStep>,
+    out: &mut Vec<InspectorRow>,
+) {
+    walk_in(value, root, path, out, ListsType::Edited);
+}
+
+/// Whether a walk gives its lists add and remove controls.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ListsType {
+    /// Each item's rows, and nothing to add or drop one with.
+    Shown,
+    /// Each item's rows under a remove control, and an add control after.
+    Edited,
+}
+
+/// [`walk`] in the given [`ListsType`].
+fn walk_in(
+    value: &dyn PartialReflect,
+    root: FieldRoot,
+    path: Vec<PathStep>,
+    out: &mut Vec<InspectorRow>,
+    lists: ListsType,
 ) {
     if let Some(flag) = value.try_downcast_ref::<bool>() {
         out.push(walked(root, path, false, RowValue::Flag(*flag)));
@@ -1712,7 +1780,7 @@ fn walk(
     // the field a builder is looking at.
     if let Some(inner) = quantity_inner(value) {
         let first = out.len();
-        walk(inner, root, path, out);
+        walk_in(inner, root, path, out, lists);
         if let Some(info) = value.get_represented_type_info() {
             declare_by_type(info.type_path(), &mut out[first..]);
             name_by_type(info.type_path(), &mut out[first..]);
@@ -1746,7 +1814,7 @@ fn walk(
         return;
     }
     if is_option(value) {
-        walk_option(value, root, path, out);
+        walk_option(value, root, path, out, lists);
         return;
     }
     match value.reflect_ref() {
@@ -1771,7 +1839,7 @@ fn walk(
                 let hint = hint_of(declared.and_then(NamedField::docs));
                 let first = out.len();
                 let at = step(&path, PathStep::Field(name.to_string()));
-                walk(field, root, at.clone(), out);
+                walk_in(field, root, at.clone(), out, lists);
                 declare_by_owner(value.get_represented_type_info(), &at, &mut out[first..]);
                 for row in &mut out[first..] {
                     // The INNERMOST declaration wins, like the doc below: a
@@ -1794,7 +1862,7 @@ fn walk(
                 let Some(field) = fields.field(index) else {
                     continue;
                 };
-                walk(field, root, step(&path, PathStep::Slot(index)), out);
+                walk_in(field, root, step(&path, PathStep::Slot(index)), out, lists);
             }
         }
         ReflectRef::Tuple(fields) => {
@@ -1810,7 +1878,7 @@ fn walk(
                 };
                 let at = step(&path, PathStep::Slot(index));
                 let first = out.len();
-                walk(field, root, at.clone(), out);
+                walk_in(field, root, at.clone(), out, lists);
                 let label = named
                     .and_then(|named| named.get(index))
                     .map_or_else(|| (index + 1).to_string(), ToString::to_string);
@@ -1825,11 +1893,15 @@ fn walk(
             // text. Without this a turret's fire rate - which lives on a muzzle
             // inside a joint inside `root.children` - had no row at all, and the
             // panel said the turret simply did not have one.
+            if lists == ListsType::Edited {
+                items::list_rows(value, root, path, out);
+                return;
+            }
             for index in 0..items.len() {
                 let Some(item) = items.get(index) else {
                     continue;
                 };
-                walk(item, root, step(&path, PathStep::Item(index)), out);
+                walk_in(item, root, step(&path, PathStep::Item(index)), out, lists);
             }
         }
         ReflectRef::Enum(chosen) => {
@@ -1878,7 +1950,7 @@ fn walk(
                     None => step(&path, PathStep::Slot(index)),
                 };
                 let first = out.len();
-                walk(field, root, inner.clone(), out);
+                walk_in(field, root, inner.clone(), out, lists);
                 declare_by_owner(value.get_represented_type_info(), &inner, &mut out[first..]);
                 for row in &mut out[first..] {
                     if row.names.is_none() {
@@ -1919,6 +1991,7 @@ fn walk_option(
     root: FieldRoot,
     path: Vec<PathStep>,
     out: &mut Vec<InspectorRow>,
+    lists: ListsType,
 ) {
     let payload = option_payload(value);
     // An optional QUANTITY is an optional number: `rake_radius` is one box a
@@ -1960,7 +2033,7 @@ fn walk_option(
     let Some(offered) = payload.and_then(option_choices) else {
         // A payload nothing can start: the field is shown, not switched.
         match held {
-            Some(inner) => walk(inner, root, step(&path, PathStep::Slot(0)), out),
+            Some(inner) => walk_in(inner, root, step(&path, PathStep::Slot(0)), out, lists),
             None => out.push(walked(
                 root,
                 path,
@@ -1998,7 +2071,7 @@ fn walk_option(
         return;
     }
     if let Some(inner) = held {
-        walk(inner, root, step(&path, PathStep::Slot(0)), out);
+        walk_in(inner, root, step(&path, PathStep::Slot(0)), out, lists);
     }
 }
 
@@ -2556,6 +2629,11 @@ pub(crate) fn choose_field(
         return target
             .try_apply(&variant.to_string())
             .map_err(|error| format!("refused: {error}"));
+    }
+    // A SET of names: the option is a toggle, so a press adds the name or
+    // drops it.
+    if matches!(target.reflect_ref(), ReflectRef::List(_)) {
+        return items::toggle_name(target, variant);
     }
     if is_option(target) {
         let wanted = optional_choice(target, variant)?;
@@ -3416,7 +3494,7 @@ pub(crate) fn filter_rows(filter: &FilterNode) -> Vec<InspectorRow> {
     .saying(variant_hint(&choice))];
     if let Some(config) = filter_config(&filter.kind) {
         let first = rows.len();
-        walk(config, FieldRoot::Config, Vec::new(), &mut rows);
+        walk_edited(config, FieldRoot::Config, Vec::new(), &mut rows);
         // The expression filter IS its condition: a newtype whose one slot has
         // no name for the walker to read, so it would be called "Kind".
         if choice == FilterChoice::Expression {
@@ -3442,7 +3520,7 @@ pub(crate) fn action_rows(action: &ActionNode) -> Vec<InspectorRow> {
     )
     .saying(variant_hint(&choice))];
     if let Some(config) = action_config(&action.kind) {
-        walk(config, FieldRoot::Config, Vec::new(), &mut rows);
+        walk_edited(config, FieldRoot::Config, Vec::new(), &mut rows);
     }
     rows
 }

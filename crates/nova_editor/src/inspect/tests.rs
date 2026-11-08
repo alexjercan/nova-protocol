@@ -2656,3 +2656,187 @@ fn a_spawn_rotation_is_three_degree_boxes_written_one_at_a_time() {
         RowValue::Axes(["90", "5", "0"].map(str::to_string))
     );
 }
+
+/// The form of `kind` from the stand-in content, as the bench holds it.
+fn form_of(kind: &str) -> nova_modding::prelude::Content {
+    crate::project::tests::one_of_every_other_kind()
+        .into_iter()
+        .find(|item| item.kind() == kind)
+        .unwrap_or_else(|| panic!("no {kind} in the stand-in content"))
+}
+
+/// The rows of `item`'s form.
+fn form_rows_of(item: &nova_modding::prelude::Content) -> Vec<InspectorRow> {
+    asset_rows(item, &Default::default())
+}
+
+/// The add row of the list labelled `label`.
+fn append_row<'a>(rows: &'a [InspectorRow], label: &str) -> &'a InspectorRow {
+    rows.iter()
+        .find(|row| row.label == label && matches!(row.value, RowValue::Append(_)))
+        .unwrap_or_else(|| panic!("no add row for {label}"))
+}
+
+/// The number of entries the list labelled `label` shows.
+fn entries(rows: &[InspectorRow], label: &str) -> usize {
+    rows.iter()
+        .filter(|row| matches!(row.value, RowValue::Remove) && row.label.starts_with(label))
+        .count()
+}
+
+/// A price rule added to the table is a rule no other rule keys alike, and a
+/// removed one is gone. Once every cluster holds a rule for every category,
+/// the add is refused and says why.
+#[test]
+fn a_price_rule_is_added_distinct_removed_and_refused_when_none_is_left() {
+    let mut item = form_of("price table");
+    let rows = form_rows_of(&item);
+    let before = entries(&rows, "Clusters");
+    let add = append_row(&rows, "Clusters").path.clone();
+    let config = content_reflect_mut(&mut item).expect("a form");
+
+    append_item(config, &add, ADD).expect("a free cluster and category");
+    let rows = form_rows_of(&item);
+    assert_eq!(entries(&rows, "Clusters"), before + 1);
+
+    let last = rows
+        .iter()
+        .filter(|row| matches!(row.value, RowValue::Remove) && row.label.starts_with("Clusters"))
+        .last()
+        .expect("the new rule")
+        .path
+        .clone();
+    let config = content_reflect_mut(&mut item).expect("a form");
+    remove_item(config, &last).expect("the rule drops");
+    assert_eq!(entries(&form_rows_of(&item), "Clusters"), before);
+
+    let config = content_reflect_mut(&mut item).expect("a form");
+    let refused = (0..1_000)
+        .find_map(|_| append_item(config, &add, ADD).err())
+        .expect("the keys run out");
+    assert_eq!(refused, "every cluster already has an entry");
+    assert!(append_item(config, &add, "Gold").is_err());
+}
+
+/// A fixture added to a style mints its own id and takes a model through its
+/// own row. An empty model is refused.
+#[test]
+fn a_style_fixture_is_added_with_a_minted_id_and_a_model_row() {
+    let mut item = form_of("style");
+    let rows = form_rows_of(&item);
+    let before = entries(&rows, "Fixtures");
+    let add = append_row(&rows, "Fixtures").path.clone();
+    let config = content_reflect_mut(&mut item).expect("a form");
+
+    append_item(config, &add, ADD).expect("a fixture");
+
+    let rows = form_rows_of(&item);
+    assert_eq!(entries(&rows, "Fixtures"), before + 1);
+    let group = [format!("Fixtures {}", before + 1)];
+    let id = rows
+        .iter()
+        .find(|row| row.label == "Id" && row.group == group)
+        .expect("the new fixture's id");
+    assert_eq!(id.value, RowValue::Text("fixture_1".to_string()));
+    let model = rows
+        .iter()
+        .find(|row| row.label == "Model" && row.group == group)
+        .expect("the new fixture's model row");
+    let FieldRoot::AssetText(kind) = model.root else {
+        panic!("the model is written by its own rule");
+    };
+    assert!(set_item_text(&mut item, kind, " ").is_err());
+    set_item_text(&mut item, kind, "self://gltf/crate.glb").expect("a model");
+    assert_eq!(item_text(&item, kind), "self://gltf/crate.glb");
+}
+
+/// A section's damage effects are one toggle per effect: a press adds the
+/// effect it names or drops it, and a name that is not an effect is refused.
+#[test]
+fn damage_effects_are_one_toggle_per_effect() {
+    let mut item = form_of("section");
+    let rows = form_rows_of(&item);
+    let effects = row(&rows, "Damage Effects").clone();
+    let RowValue::Set { options, on, .. } = &effects.value else {
+        panic!("the effects are a set: {:?}", effects.value);
+    };
+    assert_eq!(options, &["Cracks", "Sparks", "Plume"]);
+    let held = on.clone();
+    let config = content_reflect_mut(&mut item).expect("a form");
+
+    choose_field(config, &effects.path, "Plume").expect("a toggle");
+    let flipped = |rows: &[InspectorRow]| match &row(rows, "Damage Effects").value {
+        RowValue::Set { on, .. } => on.clone(),
+        other => panic!("still a set: {other:?}"),
+    };
+    let after = flipped(&form_rows_of(&item));
+    assert_eq!(after[2], !held[2]);
+    assert_eq!(after[..2], held[..2]);
+
+    let config = content_reflect_mut(&mut item).expect("a form");
+    choose_field(config, &effects.path, "Plume").expect("a toggle back");
+    assert_eq!(flipped(&form_rows_of(&item)), held);
+    let config = content_reflect_mut(&mut item).expect("a form");
+    assert!(choose_field(config, &effects.path, "Smoke").is_err());
+}
+
+/// A scatter's mix takes a new kind no entry holds yet, and drops one.
+#[test]
+fn a_scatter_mix_adds_an_unused_kind_and_drops_one() {
+    let mut node = stock_action(ActionChoice::ScatterObjects);
+    let add = append_row(&action_rows(&node), "Asteroid Kinds")
+        .path
+        .clone();
+    let config = action_config_mut(&mut node.kind).expect("a config");
+
+    append_item(config, &add, ADD).expect("a second kind");
+
+    let rows = action_rows(&node);
+    let kinds: Vec<String> = rows
+        .iter()
+        .filter(|row| row.label == "Kind" && row.group[0].starts_with("Asteroid Kinds"))
+        .map(|row| row.value.reading())
+        .collect();
+    assert_eq!(kinds, ["rock", "metal"]);
+    let first = [add.clone(), vec![PathStep::Item(0)]].concat();
+    let config = action_config_mut(&mut node.kind).expect("a config");
+    remove_item(config, &first).expect("the rock drops");
+    assert!(remove_item(config, &[add, vec![PathStep::Item(5)]].concat()).is_err());
+}
+
+/// Every add and remove control of every form and every script block lands:
+/// a new entry the list cannot hold would panic in reflection, so each one is
+/// pressed once here.
+#[test]
+fn every_list_control_of_every_form_and_block_lands() {
+    for mut item in crate::project::tests::one_of_every_other_kind() {
+        for row in form_rows_of(&item) {
+            let Some(config) = content_reflect_mut(&mut item) else {
+                continue;
+            };
+            match &row.value {
+                RowValue::Append(options) => {
+                    for option in options {
+                        let _ = append_item(config, &row.path, option);
+                    }
+                }
+                RowValue::Remove => {
+                    remove_item(config, &row.path).ok();
+                }
+                _ => {}
+            }
+        }
+    }
+    for choice in ActionChoice::ALL {
+        let mut node = stock_action(choice);
+        for row in action_rows(&node) {
+            let config = action_config_mut(&mut node.kind).expect("a config");
+            if let RowValue::Append(options) = &row.value {
+                for option in options {
+                    append_item(config, &row.path, option)
+                        .unwrap_or_else(|reason| panic!("{}: {reason}", choice.label()));
+                }
+            }
+        }
+    }
+}

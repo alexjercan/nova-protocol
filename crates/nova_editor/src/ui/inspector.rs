@@ -57,16 +57,16 @@ use crate::{
     glyph::{OPEN, SHUT},
     history::commit_edit,
     inspect::{
-        action_rows, asset_kind_mut, asset_rows, authored_hull_row, axis_step, choose_field,
-        content_reflect_mut, curated_object_rows, curated_section_rows, driver_label, edit_section,
-        event_rows, filter_rows, form_fault, gate_rows, inherited_palette, inspected, item_text,
-        nudge_field, object_config_mut, object_rows, operand_path, operand_row, parse_colour,
-        part_rows, pretty, reset_field, rotation_degrees, rotation_from_degrees,
-        scale_framed_drags, scenario_rows, script_name, section_config_mut, section_rows,
-        set_item_text, set_well_target, ship_rows, socket_rows, step_rows, toggle_field,
-        well_target_label, write_field, AssetPressType, CatalogType, DocumentIds, DragRule,
-        FieldRoot, InspectTarget, InspectorRow, MeshPose, NodeKinds, Operand, PaletteEntry,
-        PathStep, RowValue, ScriptNames, GRIP_GONE, ROTATION_UNIT,
+        action_rows, append_item, asset_kind_mut, asset_rows, authored_hull_row, axis_step,
+        choose_field, content_reflect_mut, curated_object_rows, curated_section_rows, driver_label,
+        edit_section, event_rows, filter_rows, form_fault, gate_rows, inherited_palette, inspected,
+        item_text, nudge_field, object_config_mut, object_rows, operand_path, operand_row,
+        parse_colour, part_rows, pretty, remove_item, reset_field, rotation_degrees,
+        rotation_from_degrees, scale_framed_drags, scenario_rows, script_name, section_config_mut,
+        section_rows, set_item_text, set_well_target, ship_rows, socket_rows, step_rows,
+        toggle_field, well_target_label, write_field, AssetPressType, CatalogType, DocumentIds,
+        DragRule, FieldRoot, InspectTarget, InspectorRow, MeshPose, NodeKinds, Operand,
+        PaletteEntry, PathStep, RowValue, ScriptNames, ADD, GRIP_GONE, ROTATION_UNIT,
     },
     keybind::on_rebind_action,
     node::{
@@ -1180,7 +1180,7 @@ fn spawn_choice_options(
     field: &InspectorField,
     slot: usize,
     options: &[String],
-    chosen: usize,
+    marked: &[bool],
 ) {
     // A ROW SLOT around the control, because a segmented container sizes to
     // its content: as a flex item of a row it shrinks to the width it is given
@@ -1220,7 +1220,7 @@ fn spawn_choice_options(
                         observe(on_inspector_choice),
                     ));
                     entity.insert(segmented_option_compact(option));
-                    if index == chosen {
+                    if marked.get(index).copied().unwrap_or(false) {
                         entity.insert(Selected);
                     }
                 }
@@ -1375,7 +1375,7 @@ fn spawn_choice_row(
     field: &InspectorField,
     slot: usize,
     options: &[String],
-    chosen: usize,
+    marked: &[bool],
     step: f32,
 ) {
     list.spawn((
@@ -1417,7 +1417,7 @@ fn spawn_choice_row(
                 ));
                 spawn_override_mark(line, row, field, slot);
             });
-        spawn_choice_options(block, &row.label, field, slot, options, chosen);
+        spawn_choice_options(block, &row.label, field, slot, options, marked);
     });
 }
 
@@ -2140,7 +2140,28 @@ fn build_rows(
                 continue;
             }
             if options.len() > 2 {
-                spawn_choice_row(list, row, &field, slot, options, *chosen, step);
+                spawn_choice_row(
+                    list,
+                    row,
+                    &field,
+                    slot,
+                    options,
+                    &one_marked(options.len(), *chosen),
+                    step,
+                );
+                continue;
+            }
+        }
+        // A SET is a choice row whose every held name is marked.
+        if let RowValue::Set { options, on, .. } = &row.value {
+            spawn_choice_row(list, row, &field, slot, options, on, step);
+            continue;
+        }
+        // Several things to add are a bar of their own under the list's name,
+        // like a wide choice: four job kinds do not fit the value column.
+        if let RowValue::Append(options) = &row.value {
+            if options.len() > 1 {
+                spawn_append_row(list, row, &field, options, step);
                 continue;
             }
         }
@@ -2286,7 +2307,14 @@ fn build_rows(
                     RowValue::Choice {
                         options, chosen, ..
                     } => {
-                        spawn_choice_options(value, &row.label, &field, slot, options, *chosen);
+                        spawn_choice_options(
+                            value,
+                            &row.label,
+                            &field,
+                            slot,
+                            options,
+                            &one_marked(options.len(), *chosen),
+                        );
                     }
                     RowValue::Flag(on) => {
                         value.spawn((
@@ -2353,6 +2381,23 @@ fn build_rows(
                             )],
                         ));
                     }
+                    RowValue::Append(options) => {
+                        for option in options {
+                            spawn_append_button(value, &row.label, &field, option);
+                        }
+                    }
+                    RowValue::Remove => {
+                        value.spawn((
+                            Name::new(format!("Inspector Remove {}", row.label)),
+                            InspectorRemove,
+                            field.clone(),
+                            button(ButtonSpec::new(REMOVE_WORD).ghost().dense()),
+                            ButtonCueType::Owned,
+                            observe(on_inspector_remove),
+                        ));
+                    }
+                    // Spawned whole above, as a choice row.
+                    RowValue::Set { .. } => {}
                     RowValue::Press(word) => {
                         value.spawn((
                             Name::new(format!("Inspector Press {}", row.label)),
@@ -2699,20 +2744,25 @@ pub(crate) fn sync_inspector(
         }
     }
     for (entity, slot, option, marked) in &choices {
-        let Some(
-            RowValue::Choice {
-                options, chosen, ..
-            }
-            | RowValue::Operand {
-                options, chosen, ..
-            },
-        ) = rows.get(slot.0).map(|row| &row.value)
-        else {
-            continue;
+        let wanted = match rows.get(slot.0).map(|row| &row.value) {
+            Some(
+                RowValue::Choice {
+                    options, chosen, ..
+                }
+                | RowValue::Operand {
+                    options, chosen, ..
+                },
+            ) => options
+                .get(*chosen)
+                .is_some_and(|name| *name == option.variant),
+            // Every held name of a set is marked.
+            Some(RowValue::Set { options, on, .. }) => options
+                .iter()
+                .position(|name| *name == option.variant)
+                .and_then(|index| on.get(index).copied())
+                .unwrap_or(false),
+            _ => continue,
         };
-        let wanted = options
-            .get(*chosen)
-            .is_some_and(|name| *name == option.variant);
         match (wanted, marked) {
             (true, false) => {
                 commands.entity(entity).insert(Selected);
@@ -3439,6 +3489,143 @@ pub(crate) fn on_inspector_reset(
         return;
     };
     match targets.reset(field) {
+        Ok(()) => {
+            commit_edit(&mut commands, field.edit_label());
+            says.accept();
+        }
+        Err(reason) => says.refuse(reason),
+    }
+}
+
+/// One mark per option, only `chosen` set: a single choice's marks.
+fn one_marked(count: usize, chosen: usize) -> Vec<bool> {
+    (0..count).map(|index| index == chosen).collect()
+}
+
+/// The word on the button that drops an entry of a walked list.
+const REMOVE_WORD: &str = "Remove";
+
+/// The button that drops one entry of a walked list.
+#[derive(Component)]
+pub(crate) struct InspectorRemove;
+
+/// One add button of a walked list: what the new entry starts as.
+#[derive(Component, Clone)]
+pub(crate) struct InspectorAppend {
+    option: String,
+}
+
+/// One add button: `+ Add` for a list of one shape, `+ <variant>` otherwise.
+fn spawn_append_button(
+    parent: &mut RelatedSpawnerCommands<ChildOf>,
+    label: &str,
+    field: &InspectorField,
+    option: &str,
+) {
+    let word = if option == ADD {
+        ADD.to_string()
+    } else {
+        format!("+ {option}")
+    };
+    parent.spawn((
+        Name::new(format!("Inspector Add {label} {option}")),
+        InspectorAppend {
+            option: option.to_string(),
+        },
+        field.clone(),
+        button(ButtonSpec::new(word).ghost().dense()),
+        ButtonCueType::Owned,
+        observe(on_inspector_append),
+    ));
+}
+
+/// The foot of a list whose entries start as one of several variants: its
+/// name over a wrapping bar of add buttons.
+fn spawn_append_row(
+    list: &mut RelatedSpawnerCommands<ChildOf>,
+    row: &InspectorRow,
+    field: &InspectorField,
+    options: &[String],
+    step: f32,
+) {
+    list.spawn((
+        Name::new(format!("Inspector Row {}", row.label)),
+        row_hint(row),
+        Node {
+            width: percent(100),
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::left(px(step)),
+            margin: UiRect::bottom(px(6)),
+            row_gap: px(3),
+            ..default()
+        },
+    ))
+    .with_children(|block| {
+        block.spawn((
+            UiText,
+            Text::new(format!("Add to {}", row.label)),
+            TextLayout {
+                linebreak: LineBreak::NoWrap,
+                ..default()
+            },
+            TextFont {
+                font_size: FontSize::Px(11.0),
+                ..default()
+            },
+            TextColor(Color::NONE),
+            ThemedText::new(label_colour(row)),
+        ));
+        block
+            .spawn(Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Row,
+                flex_wrap: FlexWrap::Wrap,
+                column_gap: px(4),
+                row_gap: px(3),
+                ..default()
+            })
+            .with_children(|bar| {
+                for option in options {
+                    spawn_append_button(bar, &row.label, field, option);
+                }
+            });
+    });
+}
+
+/// Add the entry this button names to the end of its list.
+pub(crate) fn on_inspector_append(
+    activate: On<Activate>,
+    mut commands: Commands,
+    buttons: Query<(&InspectorField, &InspectorAppend)>,
+    mut targets: EditTargets,
+    mut says: EditorSays,
+) {
+    let Ok((field, append)) = buttons.get(activate.entity) else {
+        return;
+    };
+    match targets.edit(field, |root, path, _| {
+        append_item(root, path, &append.option)
+    }) {
+        Ok(()) => {
+            commit_edit(&mut commands, field.edit_label());
+            says.accept();
+        }
+        Err(reason) => says.refuse(reason),
+    }
+}
+
+/// Drop the entry this button heads.
+pub(crate) fn on_inspector_remove(
+    activate: On<Activate>,
+    mut commands: Commands,
+    buttons: Query<&InspectorField, With<InspectorRemove>>,
+    mut targets: EditTargets,
+    mut says: EditorSays,
+) {
+    let Ok(field) = buttons.get(activate.entity) else {
+        return;
+    };
+    match targets.edit(field, |root, path, _| remove_item(root, path)) {
         Ok(()) => {
             commit_edit(&mut commands, field.edit_label());
             says.accept();

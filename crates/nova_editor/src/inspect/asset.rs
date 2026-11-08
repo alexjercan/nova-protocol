@@ -18,8 +18,8 @@ use nova_ui::theme::UiThemeConfig;
 
 use super::{
     fixed, name_row, pose_rows, rotation_degrees, rotation_from_degrees, section_config,
-    section_config_mut, walk, AssetSort, FieldRoot, InspectorRow, Limit, PaletteEntry, PathStep,
-    RowValue, TURN_STEP,
+    section_config_mut, walk, walk_edited, AssetSort, FieldRoot, InspectorRow, Limit, PaletteEntry,
+    PathStep, RowValue, TURN_STEP,
 };
 use crate::{
     asset::{
@@ -48,6 +48,10 @@ pub(crate) enum AssetTextType {
     DestroySound,
     /// Which shape a section's collider is.
     ColliderShape,
+    /// The model of a style's fixture, by its place in the list. Its own
+    /// rule because the field is kept out of reflection: an asset reference
+    /// is not a value the walk can rebuild.
+    FixtureModel(usize),
 }
 
 impl AssetTextType {
@@ -57,6 +61,7 @@ impl AssetTextType {
             Self::Mesh => "Edit Mesh",
             Self::DestroySound => "Edit Destroy Sound",
             Self::ColliderShape => "Edit Collider Shape",
+            Self::FixtureModel(_) => "Edit Fixture Model",
         }
     }
 }
@@ -462,6 +467,12 @@ pub(crate) fn item_text(item: &Content, kind: AssetTextType) -> String {
         (Content::Section(config), AssetTextType::ColliderShape) => {
             shape_word(config.base.collider).to_string()
         }
+        (Content::Style(style), AssetTextType::FixtureModel(index)) => style
+            .fixtures
+            .get(index)
+            .and_then(|fixture| fixture.model.path())
+            .map(str::to_string)
+            .unwrap_or_default(),
         _ => String::new(),
     }
 }
@@ -481,6 +492,18 @@ pub(crate) fn set_item_text(
         }
         (Content::Section(config), AssetTextType::ColliderShape) => {
             config.base.collider = reshaped(config.base.collider, text)?;
+            Ok(())
+        }
+        (Content::Style(style), AssetTextType::FixtureModel(index)) => {
+            let fixture = style
+                .fixtures
+                .get_mut(index)
+                .ok_or_else(|| "that fixture is gone".to_string())?;
+            let text = text.trim();
+            if text.is_empty() {
+                return Err("a fixture needs a model".to_string());
+            }
+            fixture.model = text.to_string().into();
             Ok(())
         }
         _ => Err("not a field of this item".to_string()),
@@ -505,7 +528,7 @@ fn section_rows(config: &SectionConfig, rows: &mut Vec<InspectorRow>) {
             .saying("Section kinds are code. Add > Sections asks for the kind of a new section."),
     );
     let mut base = Vec::new();
-    walk(&config.base, FieldRoot::Asset, Vec::new(), &mut base);
+    walk_edited(&config.base, FieldRoot::Asset, Vec::new(), &mut base);
     base.retain(|row| {
         !is_under(row, "id")
             && !is_under(row, "collider")
@@ -575,7 +598,7 @@ fn form_rows(item: &Content, inherited: &BTreeMap<String, String>, rows: &mut Ve
         return;
     };
     let mut walked = Vec::new();
-    walk(config, FieldRoot::Asset, Vec::new(), &mut walked);
+    walk_edited(config, FieldRoot::Asset, Vec::new(), &mut walked);
     walked.retain(|row| {
         !is_under(row, "id") && !is_under(row, "palette_map") && !is_under(row, "scenarios")
     });
@@ -616,6 +639,23 @@ fn form_rows(item: &Content, inherited: &BTreeMap<String, String>, rows: &mut Ve
             rows.extend(walked);
         }
         Content::Style(style) => {
+            // Each fixture's model under its own entry: the field is kept out
+            // of reflection, so the walk has no row for it.
+            for index in (0..style.fixtures.len()).rev() {
+                let entry = [
+                    PathStep::Field("fixtures".to_string()),
+                    PathStep::Item(index),
+                ];
+                let Some(last) = walked.iter().rposition(|row| row.path.starts_with(&entry)) else {
+                    continue;
+                };
+                let kind = AssetTextType::FixtureModel(index);
+                let mut model = text_row(kind, "Model", item_text(item, kind))
+                    .saying("The fixture's model file, a .glb the mod ships.");
+                model.group = vec![format!("Fixtures {}", index + 1)];
+                model.asset = Some(AssetSort::Model);
+                walked.insert(last + 1, model);
+            }
             rows.extend(walked);
             rows.push(kept_row(
                 "Greeble Rules",
