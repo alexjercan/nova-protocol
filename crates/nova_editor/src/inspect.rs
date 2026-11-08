@@ -37,8 +37,9 @@ use nova_ship::prelude::{
 };
 
 pub(crate) use self::asset::{
-    asset_kind_mut, asset_rows, content_reflect_mut, inherited_palette, item_text, part_rows,
-    set_item_text, socket_rows, AssetPressType, AssetTextType, MeshPose,
+    asset_kind_mut, asset_rows, content_reflect_mut, edited_entries, inherited_palette, item_text,
+    list_entries, part_rows, set_item_text, set_list_entries, socket_rows, AssetListType,
+    AssetPressType, AssetTextType, ListEditType, ListEntry, MeshPose,
 };
 use crate::{
     asset::{AssetNode, AssetPartType, SocketNode},
@@ -241,6 +242,9 @@ pub(crate) enum FieldRoot {
     AssetKind,
     /// A field of the bench item reached through text and a rule.
     AssetText(AssetTextType),
+    /// A list field of the bench item, edited a row at a time through
+    /// [`edited_entries`].
+    AssetList(AssetListType),
     /// A section's render mesh transform, through [`MeshPose`].
     MeshPose,
     /// A button on the bench.
@@ -355,6 +359,10 @@ pub(crate) enum RowValue {
     /// it inherits, as a grid. Each swatch writes through
     /// [`FieldRoot::PaletteColour`].
     Palette(Vec<PaletteEntry>),
+    /// A list of ids, each with a count where the list counts: drawn as a
+    /// list editor, one row per entry. Its [`FieldRoot::AssetList`] says which
+    /// list it is.
+    List(Vec<ListEntry>),
 }
 
 /// One colour of a palette row.
@@ -407,6 +415,15 @@ impl RowValue {
                 .map(|entry| {
                     let mark = if entry.inherited { "^" } else { "" };
                     format!("{}={}{mark}", entry.name, entry.hex)
+                })
+                .collect::<Vec<_>>()
+                .join(", "),
+            // The list as it reads in a file: `id=count` where it counts.
+            Self::List(entries) => entries
+                .iter()
+                .map(|entry| match entry.count {
+                    Some(count) => format!("{}={count}", entry.id),
+                    None => entry.id.clone(),
                 })
                 .collect::<Vec<_>>()
                 .join(", "),

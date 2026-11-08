@@ -20,6 +20,7 @@ pub(crate) mod hierarchy;
 pub(crate) mod hub;
 pub(crate) mod inspector;
 pub(crate) mod layer;
+pub(crate) mod list_field;
 pub(crate) mod log;
 pub(crate) mod menu;
 pub(crate) mod menu_context;

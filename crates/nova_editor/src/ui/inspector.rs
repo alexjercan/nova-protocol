@@ -80,6 +80,7 @@ use crate::{
     ui::{
         files::PathPurposeType,
         layer,
+        list_field::spawn_list_row,
         pick::{on_open_choice_list, on_open_ref_list},
         picker::on_open_colour_window,
         rail::SceneRowHint,
@@ -202,6 +203,7 @@ impl InspectorField {
             FieldRoot::Station => "Edit Station".to_string(),
             FieldRoot::AssetId => "Edit Id".to_string(),
             FieldRoot::AssetText(kind) => kind.edit_label().to_string(),
+            FieldRoot::AssetList(kind) => kind.edit_label().to_string(),
             FieldRoot::MeshPose => "Edit Mesh Transform".to_string(),
             FieldRoot::AssetPress(_) => "Press".to_string(),
             FieldRoot::SocketId => "Edit Socket Id".to_string(),
@@ -971,7 +973,7 @@ const HINT_W: f32 = 220.0;
 /// Hovering the ROW rather than its name, because the thing a builder points
 /// at when they do not know what a field wants is the box they were about to
 /// type into.
-fn row_hint(row: &InspectorRow) -> impl Bundle {
+pub(crate) fn row_hint(row: &InspectorRow) -> impl Bundle {
     let mut title = row.group.join(" / ");
     if !title.is_empty() {
         title.push_str(" / ");
@@ -1130,7 +1132,7 @@ const OPERAND_STEP: f32 = 16.0;
 ///
 /// `taken` is what the row's own indent has already eaten, so the column ends
 /// where every other row's does.
-fn row_label(row: &InspectorRow, taken: f32) -> impl Bundle {
+pub(crate) fn row_label(row: &InspectorRow, taken: f32) -> impl Bundle {
     (
         Node {
             width: px(LABEL_W - taken),
@@ -2143,6 +2145,10 @@ fn build_rows(
             spawn_palette_row(list, row, node, slot, entries, step);
             continue;
         }
+        if let (RowValue::List(entries), FieldRoot::AssetList(kind)) = (&row.value, row.root) {
+            spawn_list_row(list, row, field.node, kind, entries, step);
+            continue;
+        }
         if let RowValue::WellTarget(target) = &row.value {
             spawn_well_target_row(list, row, &field, slot, target.as_ref(), step);
             continue;
@@ -2296,7 +2302,8 @@ fn build_rows(
                     | RowValue::Driver(_)
                     | RowValue::Operand { .. }
                     | RowValue::WellTarget(_)
-                    | RowValue::Palette(_) => {}
+                    | RowValue::Palette(_)
+                    | RowValue::List(_) => {}
                     RowValue::Key(binding) => {
                         // The ROW is the button. A binding named on one surface
                         // and armed from another - the top bar's Rebind - left
@@ -2586,6 +2593,8 @@ pub(crate) fn sync_inspector(
                                 .collect::<Vec<_>>()
                                 .join(","),
                         ),
+                        // A list row is widgets per entry: any edit rebuilds.
+                        RowValue::List(_) => Some(row.value.reading()),
                         _ => None,
                     },
                 )
@@ -2946,10 +2955,12 @@ impl EditTargets<'_, '_> {
             }
             // Handled before the routing: a kind is swapped on the node, not
             // written through a path. See [`on_inspector_choice`]. A rename and
-            // a press are verbs, for the same reason.
-            FieldRoot::Kind | FieldRoot::AssetId | FieldRoot::AssetPress(_) => {
-                Err("not a field".to_string())
-            }
+            // a press are verbs, for the same reason. A list row writes a row at
+            // a time through its own editor (`ui::list_field`).
+            FieldRoot::Kind
+            | FieldRoot::AssetId
+            | FieldRoot::AssetPress(_)
+            | FieldRoot::AssetList(_) => Err("not a field".to_string()),
             FieldRoot::Asset => {
                 let mut asset = self.asset_of(field)?;
                 if_it_took(&mut asset, |asset| {

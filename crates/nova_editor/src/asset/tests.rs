@@ -26,8 +26,9 @@ use crate::{
         tests::{assert_one_step_of, depth, first_with, undo},
     },
     inspect::{
-        asset_kind_mut, asset_rows, content_reflect_mut, item_text, set_item_text, write_field,
-        AssetTextType, FieldRoot, RowValue,
+        asset_kind_mut, asset_rows, content_reflect_mut, edited_entries, item_text, list_entries,
+        set_item_text, set_list_entries, write_field, AssetListType, AssetTextType, FieldRoot,
+        ListEditType, ListEntry, RowValue,
     },
     node::{
         spawn_section_node, teardown_document, EditContext, NextChildOrdinal, NodeId, ShipNode,
@@ -692,6 +693,11 @@ fn each_form_kind_round_trips_equal() {
         assert!(!rows.is_empty(), "{} has a form", item.kind());
         let mut held = item.clone();
         for row in rows {
+            if let (RowValue::List(entries), FieldRoot::AssetList(kind)) = (&row.value, row.root) {
+                let written = set_list_entries(&mut held, kind, entries);
+                assert_eq!(written, Ok(()), "{} list {}", item.kind(), row.label);
+                continue;
+            }
             let RowValue::Text(text) = &row.value else {
                 continue;
             };
@@ -733,13 +739,165 @@ fn the_text_rows_read_back_what_was_typed() {
         .find(|item| matches!(item, Content::Section(_)))
         .expect("the shipped content holds a section");
 
-    set_item_text(&mut item, AssetTextType::Parts, "alloy=2, wire=1").expect("it takes");
     set_item_text(&mut item, AssetTextType::ColliderShape, "Sphere").expect("it takes");
 
-    assert_eq!(item_text(&item, AssetTextType::Parts), "alloy=2, wire=1");
     assert_eq!(item_text(&item, AssetTextType::ColliderShape), "Sphere");
-    assert!(set_item_text(&mut item, AssetTextType::Parts, "alloy").is_err());
-    assert!(set_item_text(&mut item, AssetTextType::Parts, "alloy=lots").is_err());
+}
+
+/// The first shipped item of `kind`.
+fn shipped(kind: &str) -> Content {
+    one_of_every_other_kind()
+        .into_iter()
+        .find(|item| item.kind() == kind)
+        .unwrap_or_else(|| panic!("the shipped content holds a {kind}"))
+}
+
+/// `item`'s `list` after `edits`, each written back; the first refusal stops
+/// it.
+fn list_after(
+    item: &mut Content,
+    list: AssetListType,
+    known: &[&str],
+    edits: &[ListEditType],
+) -> Result<Vec<ListEntry>, String> {
+    let known: Vec<String> = known.iter().map(|id| id.to_string()).collect();
+    for edit in edits {
+        let next = edited_entries(&list_entries(item, list), list, edit, &known)?;
+        set_list_entries(item, list, &next)?;
+    }
+    Ok(list_entries(item, list))
+}
+
+/// One entry of a counted list.
+fn counted(id: &str, count: u32) -> ListEntry {
+    ListEntry {
+        id: id.to_string(),
+        count: Some(count),
+    }
+}
+
+/// A section's parts take an item with a count of one, drop a row, take a
+/// typed count, and refuse a repeat, an unseen item and a count of zero.
+#[test]
+fn the_parts_list_adds_removes_and_refuses() {
+    let mut item = shipped("section");
+    set_list_entries(&mut item, AssetListType::Parts, &[]).expect("it clears");
+    let parts = AssetListType::Parts;
+    let known = ["alloy", "wire"];
+
+    let held = list_after(
+        &mut item,
+        parts,
+        &known,
+        &[
+            ListEditType::Add("alloy".into()),
+            ListEditType::Add("wire".into()),
+            ListEditType::Count(1, "3".into()),
+            ListEditType::Remove(0),
+        ],
+    );
+    assert_eq!(held, Ok(vec![counted("wire", 3)]));
+
+    let refused = |edit: ListEditType| list_after(&mut item.clone(), parts, &known, &[edit]);
+    assert_eq!(
+        refused(ListEditType::Add("wire".into())),
+        Err("wire is already listed".to_string())
+    );
+    assert_eq!(
+        refused(ListEditType::Add("gold".into())),
+        Err("gold is not an item this mod sees".to_string())
+    );
+    assert_eq!(
+        refused(ListEditType::Count(0, "0".into())),
+        Err("a count is a whole number from 1 to 9999".to_string())
+    );
+    assert_eq!(
+        refused(ListEditType::Count(0, "lots".into())),
+        Err("a count is a whole number from 1 to 9999".to_string())
+    );
+}
+
+/// A start role's stock takes an item, renames a row through its picker,
+/// drops a row, and refuses a pick of an item it already holds. Its rows read
+/// in id order, as the file keeps them.
+#[test]
+fn the_stock_list_adds_removes_and_refuses() {
+    let mut item = shipped("start role");
+    set_list_entries(&mut item, AssetListType::Stock, &[]).expect("it clears");
+    let stock = AssetListType::Stock;
+    let known = ["fuel", "ore", "wire"];
+
+    let held = list_after(
+        &mut item,
+        stock,
+        &known,
+        &[
+            ListEditType::Add("fuel".into()),
+            ListEditType::Add("ore".into()),
+            ListEditType::Pick(0, "wire".into()),
+            // The stock keeps its rows in id order: ore, then wire.
+            ListEditType::Remove(0),
+        ],
+    );
+    assert_eq!(held, Ok(vec![counted("wire", 1)]));
+
+    // fuel, then wire: picking fuel on the wire row repeats it.
+    let mut two = item.clone();
+    list_after(&mut two, stock, &known, &[ListEditType::Add("fuel".into())]).expect("it adds");
+    assert_eq!(
+        list_after(
+            &mut two,
+            stock,
+            &known,
+            &[ListEditType::Pick(1, "fuel".into())]
+        ),
+        Err("fuel is already listed".to_string())
+    );
+}
+
+/// A campaign's scenarios keep play order, carry no count, and refuse a
+/// count and a scenario the mod does not see.
+#[test]
+fn the_scenario_list_adds_removes_and_refuses() {
+    let mut item = shipped("campaign");
+    set_list_entries(&mut item, AssetListType::Scenarios, &[]).expect("it clears");
+    let members = AssetListType::Scenarios;
+    let known = ["first", "second", "third"];
+
+    let held = list_after(
+        &mut item,
+        members,
+        &known,
+        &[
+            ListEditType::Add("second".into()),
+            ListEditType::Add("first".into()),
+            ListEditType::Add("third".into()),
+            ListEditType::Remove(2),
+        ],
+    )
+    .expect("it takes");
+    let ids: Vec<&str> = held.iter().map(|entry| entry.id.as_str()).collect();
+    assert_eq!(ids, ["second", "first"]);
+    assert!(held.iter().all(|entry| entry.count.is_none()));
+
+    assert_eq!(
+        list_after(
+            &mut item.clone(),
+            members,
+            &known,
+            &[ListEditType::Count(0, "2".into())]
+        ),
+        Err("this list holds no counts".to_string())
+    );
+    assert_eq!(
+        list_after(
+            &mut item.clone(),
+            members,
+            &known,
+            &[ListEditType::Add("fourth".into())]
+        ),
+        Err("fourth is not a scenario this mod sees".to_string())
+    );
 }
 
 /// Two mods cannot define one id, so Save Copy takes the items along.

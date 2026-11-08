@@ -1,17 +1,18 @@
 //! The rows of the item on the bench.
 //!
 //! A form is the config walked by reflection, the same walk a scenario's nodes
-//! get. What reflection cannot reach is written here by hand, as text with a
-//! rule: a section's mesh and its destroy sound are `#[reflect(ignore)]`, a
-//! build recipe's parts are a map, and a campaign's member list is a shape the
-//! walk draws read-only. A theme's palette is a map too, drawn as a grid of
+//! get. What reflection cannot reach is written here by hand. A section's mesh
+//! and its destroy sound are `#[reflect(ignore)]`, so they are text with a
+//! rule. A build recipe's parts, a start role's stock and a campaign's member
+//! list are list editors ([`RowValue::List`]): a row per entry, picked from
+//! the ids the mod sees. A theme's palette is a map, drawn as a grid of
 //! swatches ([`RowValue::Palette`]).
 
 use std::collections::BTreeMap;
 
 use bevy::{prelude::*, reflect::PartialReflect};
+use nova_gameplay::prelude::{ItemDesignId, ShipInventoryStock};
 use nova_modding::prelude::Content;
-use nova_scenario::prelude::Names;
 use nova_ship::prelude::{RenderMeshTransform, SectionCollider, SectionConfig};
 use nova_ui::theme::UiThemeConfig;
 
@@ -45,10 +46,6 @@ pub(crate) enum AssetTextType {
     Mesh,
     /// A section's destroy sound ref.
     DestroySound,
-    /// A build recipe's parts, as `Item=2, Other=1`.
-    Parts,
-    /// A campaign's member scenarios, in play order, comma separated.
-    Scenarios,
     /// Which shape a section's collider is.
     ColliderShape,
 }
@@ -59,12 +56,91 @@ impl AssetTextType {
         match self {
             Self::Mesh => "Edit Mesh",
             Self::DestroySound => "Edit Destroy Sound",
-            Self::Parts => "Edit Parts",
-            Self::Scenarios => "Edit Scenarios",
             Self::ColliderShape => "Edit Collider Shape",
         }
     }
 }
+
+/// A list field of the item, edited a row at a time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum AssetListType {
+    /// A section's build recipe: an item and a count a row.
+    Parts,
+    /// A start role's kit stock: an item and a count a row.
+    Stock,
+    /// A campaign's member scenarios, in play order.
+    Scenarios,
+}
+
+impl AssetListType {
+    /// The undo step an edit of this list records.
+    pub(crate) fn edit_label(self) -> &'static str {
+        match self {
+            Self::Parts => "Edit Parts",
+            Self::Stock => "Edit Stock",
+            Self::Scenarios => "Edit Scenarios",
+        }
+    }
+
+    /// Whether a row carries a count.
+    pub(crate) fn counted(self) -> bool {
+        matches!(self, Self::Parts | Self::Stock)
+    }
+
+    /// The content kind a row names.
+    pub(crate) fn names_kind(self) -> &'static str {
+        match self {
+            Self::Parts | Self::Stock => "item",
+            Self::Scenarios => "scenario",
+        }
+    }
+
+    /// A row's content kind with its article, for a refusal.
+    pub(crate) fn noun(self) -> &'static str {
+        match self {
+            Self::Parts | Self::Stock => "an item",
+            Self::Scenarios => "a scenario",
+        }
+    }
+
+    /// What the add row says.
+    pub(crate) fn add_word(self) -> &'static str {
+        match self {
+            Self::Parts => "Add part",
+            Self::Stock => "Add item",
+            Self::Scenarios => "Add scenario",
+        }
+    }
+}
+
+/// One row of a list field: the id it names, and its count where the list
+/// counts.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ListEntry {
+    /// The id the row names.
+    pub(crate) id: String,
+    /// How many, for a counted list.
+    pub(crate) count: Option<u32>,
+}
+
+/// One edit of a list field, as the list editor says it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ListEditType {
+    /// Add this id at the end, with a count of one where the list counts.
+    Add(String),
+    /// Take this row away.
+    Remove(usize),
+    /// Name this id on this row instead.
+    Pick(usize, String),
+    /// Give this row the count typed.
+    Count(usize, String),
+}
+
+/// The largest count a row takes: what four digits hold.
+pub(crate) const MOST_COUNT: u32 = 9999;
+
+/// What a refused count says.
+const COUNT_RULE: &str = "a count is a whole number from 1 to 9999";
 
 /// What a press row does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -182,27 +258,138 @@ fn id_row(item: &Content) -> InspectorRow {
     .saying("What other content names this by. A rename updates the mod's own references.")
 }
 
-/// A build recipe's parts as one line.
-fn parts_text(parts: &BTreeMap<nova_gameplay::prelude::ItemDesignId, u32>) -> String {
-    parts
-        .iter()
-        .map(|(item, count)| format!("{}={count}", item.as_str()))
-        .collect::<Vec<_>>()
-        .join(", ")
-}
-
-/// `text` as `key=value` pairs, comma separated. An empty line holds none.
-fn pairs(text: &str) -> Result<Vec<(&str, &str)>, String> {
-    text.split(',')
-        .map(str::trim)
-        .filter(|pair| !pair.is_empty())
-        .map(|pair| {
-            let (key, value) = pair
-                .split_once('=')
-                .ok_or_else(|| format!("'{pair}' needs a name=value"))?;
-            Ok((key.trim(), value.trim()))
+/// A count map as list rows, in id order.
+fn counted_entries<'a>(stacks: impl Iterator<Item = (&'a ItemDesignId, u32)>) -> Vec<ListEntry> {
+    stacks
+        .map(|(id, count)| ListEntry {
+            id: id.as_str().to_string(),
+            count: Some(count),
         })
         .collect()
+}
+
+/// The rows `kind` reads as on `item`.
+pub(crate) fn list_entries(item: &Content, kind: AssetListType) -> Vec<ListEntry> {
+    match (item, kind) {
+        (Content::Section(config), AssetListType::Parts) => counted_entries(
+            config
+                .base
+                .build
+                .parts
+                .iter()
+                .map(|(id, count)| (id, *count)),
+        ),
+        (Content::StartRole(role), AssetListType::Stock) => {
+            counted_entries(role.kit.stock.stacks())
+        }
+        (Content::Campaign(campaign), AssetListType::Scenarios) => campaign
+            .scenarios
+            .iter()
+            .map(|id| ListEntry {
+                id: id.clone(),
+                count: None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// `entries` after `edit`, or why the edit cannot be made. `known` is every
+/// id a row may name.
+pub(crate) fn edited_entries(
+    entries: &[ListEntry],
+    kind: AssetListType,
+    edit: &ListEditType,
+    known: &[String],
+) -> Result<Vec<ListEntry>, String> {
+    let mut next = entries.to_vec();
+    let fits = |id: &str, except: Option<usize>| {
+        if !known.iter().any(|held| held == id) {
+            return Err(format!("{id} is not {} this mod sees", kind.noun()));
+        }
+        let taken = entries
+            .iter()
+            .enumerate()
+            .any(|(index, entry)| Some(index) != except && entry.id == id);
+        if taken {
+            return Err(format!("{id} is already listed"));
+        }
+        Ok(())
+    };
+    let gone = || "that row is gone - pick the list again".to_string();
+    match edit {
+        ListEditType::Add(id) => {
+            fits(id, None)?;
+            next.push(ListEntry {
+                id: id.clone(),
+                count: kind.counted().then_some(1),
+            });
+        }
+        ListEditType::Remove(index) => {
+            if *index >= next.len() {
+                return Err(gone());
+            }
+            next.remove(*index);
+        }
+        ListEditType::Pick(index, id) => {
+            fits(id, Some(*index))?;
+            next.get_mut(*index).ok_or_else(gone)?.id.clone_from(id);
+        }
+        ListEditType::Count(index, text) => {
+            let count = text
+                .trim()
+                .parse::<u32>()
+                .ok()
+                .filter(|count| (1..=MOST_COUNT).contains(count))
+                .ok_or_else(|| COUNT_RULE.to_string())?;
+            let entry = next.get_mut(*index).ok_or_else(gone)?;
+            if entry.count.is_none() {
+                return Err("this list holds no counts".to_string());
+            }
+            entry.count = Some(count);
+        }
+    }
+    Ok(next)
+}
+
+/// Write `entries` into `kind`'s field of `item`.
+pub(crate) fn set_list_entries(
+    item: &mut Content,
+    kind: AssetListType,
+    entries: &[ListEntry],
+) -> Result<(), String> {
+    let counted = || {
+        entries
+            .iter()
+            .map(|entry| {
+                (
+                    ItemDesignId::from(entry.id.as_str()),
+                    entry.count.unwrap_or(1),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    match (item, kind) {
+        (Content::Section(config), AssetListType::Parts) => {
+            config.base.build.parts = counted().into_iter().collect();
+        }
+        (Content::StartRole(role), AssetListType::Stock) => {
+            role.kit.stock = ShipInventoryStock::new(counted());
+        }
+        (Content::Campaign(campaign), AssetListType::Scenarios) => {
+            campaign.scenarios = entries.iter().map(|entry| entry.id.clone()).collect();
+        }
+        _ => return Err("not a list of this item".to_string()),
+    }
+    Ok(())
+}
+
+/// The row a list field stands in.
+fn list_row(kind: AssetListType, label: &str, item: &Content) -> InspectorRow {
+    InspectorRow {
+        value: RowValue::List(list_entries(item, kind)),
+        ..fixed(FieldRoot::AssetList(kind), label, "")
+    }
 }
 
 /// The word the shape row reads for `collider`.
@@ -249,11 +436,9 @@ pub(crate) fn item_text(item: &Content, kind: AssetTextType) -> String {
             .and_then(|sound| sound.path())
             .map(str::to_string)
             .unwrap_or_default(),
-        (Content::Section(config), AssetTextType::Parts) => parts_text(&config.base.build.parts),
         (Content::Section(config), AssetTextType::ColliderShape) => {
             shape_word(config.base.collider).to_string()
         }
-        (Content::Campaign(campaign), AssetTextType::Scenarios) => campaign.scenarios.join(", "),
         _ => String::new(),
     }
 }
@@ -271,28 +456,8 @@ pub(crate) fn set_item_text(
             config.base.destroy_sound = (!text.is_empty()).then(|| text.to_string().into());
             Ok(())
         }
-        (Content::Section(config), AssetTextType::Parts) => {
-            let mut parts = BTreeMap::new();
-            for (item, count) in pairs(text)? {
-                let count: u32 = count
-                    .parse()
-                    .map_err(|_| format!("{count} is not a whole count"))?;
-                parts.insert(item.into(), count);
-            }
-            config.base.build.parts = parts;
-            Ok(())
-        }
         (Content::Section(config), AssetTextType::ColliderShape) => {
             config.base.collider = reshaped(config.base.collider, text)?;
-            Ok(())
-        }
-        (Content::Campaign(campaign), AssetTextType::Scenarios) => {
-            campaign.scenarios = text
-                .split(',')
-                .map(str::trim)
-                .filter(|id| !id.is_empty())
-                .map(str::to_string)
-                .collect();
             Ok(())
         }
         _ => Err("not a field of this item".to_string()),
@@ -335,13 +500,13 @@ fn section_rows(config: &SectionConfig, rows: &mut Vec<InspectorRow>) {
         after,
         InspectorRow {
             group: vec![build],
-            ..text_row(
-                AssetTextType::Parts,
+            ..list_row(
+                AssetListType::Parts,
                 "Parts",
-                parts_text(&config.base.build.parts),
+                &Content::Section(Box::new(config.clone())),
             )
         }
-        .saying("What the section costs in items, as Item=2, Other=1."),
+        .saying("What the section costs in items: an item and a count a row."),
     );
     let mut sound = text_row(
         AssetTextType::DestroySound,
@@ -368,6 +533,11 @@ fn section_rows(config: &SectionConfig, rows: &mut Vec<InspectorRow>) {
         "Sockets",
         "Add Socket",
     ));
+}
+
+/// The path step of a kit's stock.
+fn stock_step() -> PathStep {
+    PathStep::Field("stock".to_string())
 }
 
 /// What a theme or a style keeps that no row reaches, as a row that says so.
@@ -400,14 +570,27 @@ fn form_rows(item: &Content, inherited: &BTreeMap<String, String>, rows: &mut Ve
         }
         Content::Campaign(_) => {
             rows.extend(walked);
-            let mut members = text_row(
-                AssetTextType::Scenarios,
-                "Scenarios",
-                item_text(item, AssetTextType::Scenarios),
-            )
-            .saying("Member scenario ids in play order, comma separated.");
-            members.names = None::<Names>;
-            rows.push(members);
+            rows.push(
+                list_row(AssetListType::Scenarios, "Scenarios", item)
+                    .saying("The member scenarios, in play order. A new one plays last."),
+            );
+        }
+        Content::StartRole(_) => {
+            let kit = "Kit".to_string();
+            walked.retain(|row| !(is_under(row, "kit") && row.path.get(1) == Some(&stock_step())));
+            let after = walked
+                .iter()
+                .rposition(|row| row.group.first() == Some(&kit))
+                .map_or(walked.len(), |last| last + 1);
+            walked.insert(
+                after,
+                InspectorRow {
+                    group: vec![kit],
+                    ..list_row(AssetListType::Stock, "Stock", item)
+                }
+                .saying("What the role starts with in its hold: an item and a count a row."),
+            );
+            rows.extend(walked);
         }
         Content::Style(style) => {
             rows.extend(walked);

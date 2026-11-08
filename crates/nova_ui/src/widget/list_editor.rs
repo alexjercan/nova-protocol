@@ -205,8 +205,9 @@ pub fn list_picker(list: Entity, index: usize, label: &str) -> impl Bundle {
     )
 }
 
-/// A count field in row `index`, holding `count`.
-pub fn list_count(list: Entity, index: usize, count: u32) -> impl Bundle {
+/// A count field in row `index`, holding `count`. `name` names the field
+/// itself, which is what a driven walk types into.
+pub fn list_count(list: Entity, index: usize, count: u32, name: impl Into<String>) -> impl Bundle {
     (
         ListCount { list, index },
         Node {
@@ -214,10 +215,13 @@ pub fn list_count(list: Entity, index: usize, count: u32) -> impl Bundle {
             flex_shrink: 0.0,
             ..default()
         },
-        children![text_field(
-            TextFieldSpec::new(count.to_string())
-                .max_chars(COUNT_CHARS)
-                .tool()
+        children![(
+            Name::new(name.into()),
+            text_field(
+                TextFieldSpec::new(count.to_string())
+                    .max_chars(COUNT_CHARS)
+                    .tool()
+            )
         )],
     )
 }
@@ -473,7 +477,7 @@ mod tests {
     #[test]
     fn a_submitted_count_reaches_the_list_unjudged() {
         let (mut app, list) = heard_app();
-        let count = app.world_mut().spawn(list_count(list, 1, 3)).id();
+        let count = app.world_mut().spawn(list_count(list, 1, 3, "Count")).id();
         app.update();
         let field = app.world().get::<Children>(count).unwrap()[0];
         assert_eq!(app.world().get::<TextFieldValue>(field).unwrap().0, "3");

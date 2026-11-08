@@ -162,6 +162,7 @@ use ui::{
         apply_inspector_edits, paint_field_reasons, paint_swatch_hover, sync_inspector,
         sync_inspector_head, sync_inspector_tooltip, sync_reference_faults, InspectorFolds,
     },
+    list_field::fill_list_choices,
     log::{sync_log, sync_log_controls, StatusLog},
     menu::{
         close_menu_on_item, close_menus, close_open_menu, sync_history_menu, sync_menu_item_paint,
@@ -316,6 +317,7 @@ fn editor_plugin(app: &mut App) {
             sync_editor_title,
             apply_settings_fields,
             sync_settings_window,
+            fill_list_choices,
         )
             .chain()
             .run_if(in_state(ExampleStates::Editor)),
