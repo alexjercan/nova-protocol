@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
+            window.path_to_searchindex_js = "searchindex-e28e0c87.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -223,6 +223,8 @@ the stall semantics.</p>
 <tr><td><code>NOVA_AUTOPILOT_DEADLINE</code></td><td>seconds before the completion watcher error-exits naming the laggards</td><td>harness</td></tr>
 <tr><td><code>NOVA_CAPTURE</code></td><td>puts a script on its CAPTURE path - its shot beats write PNGs, its loops record. Also makes the settings store INERT</td><td>harness</td></tr>
 <tr><td><code>NOVA_CAPTURE_DIR</code></td><td>directory relative capture paths stage under; absolute paths ignore it</td><td>harness</td></tr>
+<tr><td><code>NOVA_CAPTURE_SIZE</code></td><td>capture window size as <code>&lt;width&gt;x&lt;height&gt;</code>, in place of 1920x1080; a malformed value panics</td><td>harness</td></tr>
+<tr><td><code>NOVA_CAPTURE_UI_SCALE</code></td><td>interface scale of a scripted run: <code>75</code>, <code>100</code>, <code>125</code> or <code>150</code>, the Settings steps; any other value panics</td><td>harness</td></tr>
 </tbody>
 </table>
 </div>
@@ -342,7 +344,7 @@ to prevent.</p>
 <tr><th>Variable</th><th>Gates</th><th>For</th></tr>
 </thead>
 <tbody>
-<tr><td><code>NOVA_MODDING_CACHE_ROOT</code></td><td>moves the local mod cache off the platform data dir</td><td>tooling</td></tr>
+<tr><td><code>NOVA_MODDING_CACHE_ROOT</code></td><td>moves the local mod cache and the editor’s <code>exports/</code> folder off the platform data dir</td><td>tooling</td></tr>
 <tr><td><code>NOVA_MODDING_PORTAL_URL</code></td><td>points a native build at another portal tree</td><td>tooling</td></tr>
 <tr><td><code>NOVA_CONFIG_ROOT</code></td><td>moves the settings store off the platform config dir</td><td>tooling</td></tr>
 </tbody>
@@ -424,9 +426,8 @@ under their own commit header; a re-opened re-cut replaces that group.
 Any value other than <code>0</code> or <code>1</code> fails.</p>
 </li>
 <li>
-<p><strong>Retired.</strong> <code>NOVA_MENU_PATH</code> is read by nothing. <code>examples/ui/editor.rs</code>
-owns the create-a-ship-and-Play sequence end to end, so <code>system_menu_boot</code>
-dropped the branch; the only surviving mention is that example’s module doc
+<p><strong>Retired.</strong> <code>NOVA_MENU_PATH</code> is read by nothing. <code>system_menu_boot</code> has no
+editor branch; the only surviving mention is that example’s module doc
 saying the branch is gone.</p>
 </li>
 <li>

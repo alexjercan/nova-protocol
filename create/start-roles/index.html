@@ -246,11 +246,12 @@ the loaded content does not define, with
 <code>its start role '&lt;id&gt;' is not in the loaded content</code>. The content check runs
 first, so a role that a mod change removed shows <code>content changed</code>.</p>
 <h2 id="base-start-roles" tabindex="-1">Base start roles</h2>
-<p>Each base kit is worth 3,000 cr at ask, not counting PDC rounds: the credits
-plus the other items at their <code>ask_cr</code>. A PDC-armed hull also carries 1,000
-<code>PdcRound</code> (4,000 cr at ask) in its shared hold, not per mount. So an armed
-kit is worth 6,000 to 6,200 cr at ask, and its rounds sell for up to 3,000 cr
-at their <code>bid_cr</code>.</p>
+<p>A kit's worth at ask is its credits plus its items at their <code>ask_cr</code> per
+<code>price_lot</code>. Each unarmed kit is worth 3,000 cr. Each PDC-armed kit is worth 2,000 to 2,200 cr
+without its rounds. A PDC-armed hull also carries 1,000 <code>PdcRound</code> in its
+shared hold, not per mount. That is 10 whole lots of 100 at 10 cr each, so
+the rounds add 100 cr at ask and an armed kit is worth 2,100 to 2,300 cr. The
+rounds sell for 70 cr at their reference <code>bid_cr</code>.</p>
 <div class="table-scroll">
 <table>
 <thead>

@@ -10,8 +10,15 @@
 </header>
 <main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Mod files</p><h1>Mod files</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#folder-structure">Folder structure</a><ol></ol></li><li><a href="#the-bundle-manifest">The bundle manifest</a><ol></ol></li><li><a href="#the-installed-catalog">The installed catalog</a><ol></ol></li><li><a href="#balance-acknowledgments">Balance acknowledgments</a><ol></ol></li><li><a href="#content-files">Content files</a><ol></ol></li><li><a href="#the-content-chapters">The content chapters</a><ol></ol></li><li><a href="#paths-and-dependencies">Paths and dependencies</a><ol></ol></li><li><a href="#overlay-behavior">Overlay behavior</a><ol></ol></li></ol></nav><p>A Nova Protocol mod is a folder that contains one bundle manifest, one or more
 content files, and any art or audio that the mod owns. Content files can define
-eight kinds of reusable item: campaigns, scenarios, ship sections, whole
-ships, ship skin styles, training lessons, UI themes, and items.</p>
+twelve kinds of reusable item: campaigns, scenarios, ship sections, whole
+ships, stations, ship skin styles, training lessons, UI themes, items, start
+roles, price tables, and trade profiles.</p>
+<p>The editor writes this same layout. Open <strong>Sandbox</strong> on the main menu to
+make a mod without hand-editing a file. Its Assets tab shows the items as file
+tiles with a count per kind, and opens each kind but lessons, which stay as
+written; ships and stations are edited in their scenario. <strong>Mod Settings</strong> edits the manifest and the
+dependencies. To release
+the result, see <a href="../publish-a-mod/">Publish a mod</a>.</p>
 <p>Use this page to choose the right file. Then open the detailed reference for the
 item you want to author.</p>
 <h2 id="folder-structure" tabindex="-1">Folder structure</h2>
@@ -247,7 +254,7 @@ warning.</p>
 content is rebalanced, prune the entry.</p>
 <h2 id="content-files" tabindex="-1">Content files</h2>
 <p>Every <code>*.content.ron</code> file is a RON list. One file may contain any mix of the
-eleven item kinds:</p>
+twelve item kinds:</p>
 <pre><code class="hljs language-ron"><span class="ron-punct">[</span>
     <span class="ron-type">Campaign</span><span class="ron-punct">((</span>
         <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_campaign&quot;</span><span class="ron-punct">,</span>
@@ -319,9 +326,9 @@ eleven item kinds:</p>
         <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my-mod/amber&quot;</span><span class="ron-punct">,</span>
         <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Amber CRT&quot;</span><span class="ron-punct">,</span>
         <span class="ron-key">inherit</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;base/phosphor&quot;</span><span class="ron-punct">),</span>
-        <span class="ron-key">palette</span><span class="ron-punct">:</span> <span class="ron-punct">{</span>
-            <span class="ron-string">&quot;primary&quot;</span><span class="ron-punct">:</span> <span class="ron-string">&quot;#ffb84a&quot;</span><span class="ron-punct">,</span>
-        <span class="ron-punct">},</span>
+        <span class="ron-key">palette</span><span class="ron-punct">:</span> <span class="ron-punct">(</span>
+            <span class="ron-key">text</span><span class="ron-punct">:</span> <span class="ron-string">&quot;#ffb84a&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-punct">),</span>
         <span class="ron-key">metrics</span><span class="ron-punct">:</span> <span class="ron-type">None</span><span class="ron-punct">,</span>
         <span class="ron-key">roles</span><span class="ron-punct">:</span> <span class="ron-punct">(),</span>
     <span class="ron-punct">)),</span>
@@ -331,6 +338,7 @@ eleven item kinds:</p>
         <span class="ron-key">about</span><span class="ron-punct">:</span> <span class="ron-string">&quot;A sealed sensor core.&quot;</span><span class="ron-punct">,</span>
         <span class="ron-key">category</span><span class="ron-punct">:</span> <span class="ron-type">Parts</span><span class="ron-punct">,</span>
         <span class="ron-key">mass_g</span><span class="ron-punct">:</span> <span class="ron-literal">5000</span><span class="ron-punct">,</span>
+        <span class="ron-key">price_lot</span><span class="ron-punct">:</span> <span class="ron-literal">1</span><span class="ron-punct">,</span>
         <span class="ron-key">ask_cr</span><span class="ron-punct">:</span> <span class="ron-literal">60</span><span class="ron-punct">,</span>
         <span class="ron-key">bid_cr</span><span class="ron-punct">:</span> <span class="ron-literal">45</span><span class="ron-punct">,</span>
     <span class="ron-punct">)),</span>
@@ -339,18 +347,22 @@ eleven item kinds:</p>
 <p>An <code>Item</code> adds a new entry to the item catalog, or replaces one your mod
 depends on. Every field is required: <code>id</code>, <code>name</code> and <code>about</code> are not blank;
 <code>category</code> is one of <code>Raw</code>, <code>Repair</code>, <code>Ammo</code>, <code>Food</code>, <code>Parts</code>; <code>mass_g</code> is
-above 0; <code>bid_cr</code> is at most <code>ask_cr</code>. Any ship's stock, a cargo canister, or
-a trade may carry the id, mod items included. The base game must define ten
-role ids that the game itself uses: <code>HullPlate</code> feeds a repair, the
-ammunition feeds a weapon's reload, the ores are mining yield, and generated
-ship holds draw the two trade goods <code>Rations</code> and <code>SalvagedParts</code>. A role id
-keeps its category: <code>HullPlate</code> is <code>Repair</code>; <code>PdcRound</code>, <code>RailSlug</code> and
-<code>Torpedo</code> are <code>Ammo</code>; <code>StoneOre</code>, <code>IronOre</code>, <code>WaterIce</code> and <code>CarbonOre</code> are
-<code>Raw</code>; <code>Rations</code> is <code>Food</code>; <code>SalvagedParts</code> is <code>Parts</code>. Every item fits one
-cargo canister, so its <code>mass_g</code> is at most <code>200000</code>. A mod that depends on
-the base game may replace a role id whole, with its own <code>name</code>, <code>about</code>,
-<code>mass_g</code>, <code>ask_cr</code> and <code>bid_cr</code>, but not another <code>category</code>. A replacement
-that breaks either rule is an error. An id two unrelated packs both define is refused in both, whatever
+above 0; <code>price_lot</code> is above 0; <code>bid_cr</code> is at most <code>ask_cr</code>. <code>ask_cr</code> and
+<code>bid_cr</code> price one lot of <code>price_lot</code> items, not one item: a trade pays its
+share, rounded up for a Buy and down for a Sell, see
+<a href="../prices/#how-a-trader-prices">Reference price</a>. Any ship's stock, a cargo
+canister, or a trade may carry the id, mod items included. The base game
+must define ten role ids that the game itself uses: <code>HullPlate</code> feeds a
+repair, the ammunition feeds a weapon's reload, the ores are mining yield,
+and generated ship holds draw the two trade goods <code>Rations</code> and
+<code>SalvagedParts</code>. A role id keeps its category: <code>HullPlate</code> is <code>Repair</code>;
+<code>PdcRound</code>, <code>RailSlug</code> and <code>Torpedo</code> are <code>Ammo</code>; <code>StoneOre</code>, <code>IronOre</code>,
+<code>WaterIce</code> and <code>CarbonOre</code> are <code>Raw</code>; <code>Rations</code> is <code>Food</code>; <code>SalvagedParts</code>
+is <code>Parts</code>. Every item fits one cargo canister, so its <code>mass_g</code> is at most
+<code>1000000</code>. A mod that depends on the base game may replace a role id whole,
+with its own <code>name</code>, <code>about</code>, <code>mass_g</code>, <code>price_lot</code>, <code>ask_cr</code> and <code>bid_cr</code>,
+but not another <code>category</code>. A replacement that breaks either rule is an
+error. An id two unrelated packs both define is refused in both, whatever
 load order; a pack that depends on the id's owner may replace it whole. See
 <a href="../objects/#inventory">Scenario objects</a> for the item table and the stock
 format.</p>
@@ -383,6 +395,8 @@ palette, the metrics, and the paint of every control in every state. The
 player picks one in Settings.</li>
 <li>A <a href="../prices/">price table</a> holds the factors a generated trader prices
 every item by. One table: a mod that states one replaces it.</li>
+<li>A <a href="../trade-profiles/">trade profile</a> says what a visiting ship trades with a
+station and which jobs it posts on the station's board.</li>
 <li>An <a href="../objects/#inventory">item</a> is one entry in the catalog a ship's stock,
 a cargo canister, or a trade can carry - what it is called, what it is for,
 what it weighs, and what a trader pays for it.</li>

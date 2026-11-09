@@ -8,7 +8,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Base content catalog</p><h1>Base content catalog</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#section-prototypes">Section prototypes</a><ol><li><a href="#core-sections-the-editor-palette">Core sections (the editor palette)</a></li><li><a href="#cladding-not-a-prototype">Cladding (not a prototype)</a></li><li><a href="#skin-styles">Skin styles</a></li><li><a href="#modelled-ship-parts-not-base-content">Modelled ship parts (not base content)</a></li></ol></li><li><a href="#scenario-ids">Scenario ids</a><ol></ol></li><li><a href="#ui-theme-ids">UI theme ids</a><ol></ol></li><li><a href="#assets-what-depbase-can-reach">Assets: what dep://base/ can reach</a><ol><li><a href="#meshes-27-glb">Meshes (27 glb)</a></li><li><a href="#greebles-60-glb">Greebles (60 glb)</a></li><li><a href="#sounds-31-wav">Sounds (31 wav)</a></li><li><a href="#images-7">Images (7)</a></li></ol></li><li><a href="#the-overlay-rule">The overlay rule</a><ol></ol></li><li><a href="#see-the-source">See the source</a><ol></ol></li></ol></nav><p>Every id and asset the base game ships, so your mod can reference them
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Base content catalog</p><h1>Base content catalog</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#section-prototypes">Section prototypes</a><ol><li><a href="#core-sections-the-editor-palette">Core sections (the editor palette)</a></li><li><a href="#cladding-not-a-prototype">Cladding (not a prototype)</a></li><li><a href="#skin-styles">Skin styles</a></li><li><a href="#modelled-ship-parts-not-base-content">Modelled ship parts (not base content)</a></li></ol></li><li><a href="#scenario-ids">Scenario ids</a><ol></ol></li><li><a href="#ui-theme-ids">UI theme ids</a><ol></ol></li><li><a href="#assets-what-depbase-can-reach">Assets: what dep://base/ can reach</a><ol><li><a href="#meshes-27-glb">Meshes (27 glb)</a></li><li><a href="#greebles-60-glb">Greebles (60 glb)</a></li><li><a href="#sounds-41-wav">Sounds (41 wav)</a></li><li><a href="#images-7">Images (7)</a></li></ol></li><li><a href="#the-overlay-rule">The overlay rule</a><ol></ol></li><li><a href="#see-the-source">See the source</a><ol></ol></li></ol></nav><p>Every id and asset the base game ships, so your mod can reference them
 instead of guessing. Six registries matter to a mod author: <strong>section
 prototype ids</strong> (what <code>source: Prototype(id: &quot;&lt;id&gt;&quot;)</code> can name), <strong>ship ids</strong>
 (what <code>design: Prototype(id: &quot;&lt;id&gt;&quot;)</code> can name - tabled in
@@ -183,7 +183,7 @@ part serves every hull. Section kinds are <code>Hull</code>, <code>Thruster</cod
 <td>Cargo intake</td>
 <td>Cargo Intake Section</td>
 <td>90</td>
-<td>a 3x2x1 hold mouth behind an accordion door on its -Z face: the door opens for a canister within 40 m that fits the hold, and the intake takes one whole, at any speed, once it touches the 1 m deep trigger in front of the 22.2 x 15.3 m opening, if the hold has room. One jettison may queue several canisters; each drops out at 3 m/s. The mining tug, the salvage hauler and the line warship carry one on the top deck</td>
+<td>a 3x2x1 hold mouth behind an accordion door on its -Z face: the door opens for a canister within 40 m with at least one item that fits the hold, and the intake takes every whole item that fits, at any speed, once the canister touches the 1 m deep trigger in front of the 22.2 x 15.3 m opening; the rest stays in the canister. One jettison may queue several canisters; each drops out at 3 m/s. The mining tug, the salvage hauler and the line warship carry one on the top deck</td>
 </tr>
 <tr>
 <td><code>mining_beam_section</code></td>
@@ -381,8 +381,8 @@ is the order they are meant to be flown in and the header the Scenarios board
 draws them under. A mod may add its own campaigns, or replace <code>season_one</code> by
 reusing its id - see <a href="../campaigns/">Campaigns</a>.</p>
 <p>There are no other content kinds - a content file holds <code>Section</code>, <code>Scenario</code>,
-<code>Campaign</code>, <code>Ship</code>, <code>Station</code>, <code>StartRole</code>, <code>Style</code>, <code>Lesson</code>, <code>UiTheme</code> and
-<code>Item</code> items only;
+<code>Campaign</code>, <code>Ship</code>, <code>Station</code>, <code>StartRole</code>, <code>Style</code>, <code>Lesson</code>, <code>UiTheme</code>,
+<code>Item</code>, <code>PriceTable</code> and <code>TradeProfile</code> items only;
 factions are not content, and neither is impact audio, a comms channel or the
 table a generated hull is drawn from - all three are engine-owned. The base
 ship ids are tabled in <a href="../ships/#base-ships">Ships</a>, the start role ids in
@@ -480,16 +480,20 @@ kits - <code>armoured_*</code> (10), <code>civilian_*</code> (12), <code>industr
 <code>salvage_*</code> (14), <code>station_*</code> (6) - plus four magenta <code>placeholder_*</code> pieces no base style uses.
 All are generated from committed JSON recipes (<code>scripts/gen-greebles.py</code>,
 <code>scripts/greeble-recipes/</code>), and a mod can ship its own <code>.glb</code> the same way.</p>
-<h3 id="sounds-31-wav" tabindex="-1">Sounds (31 wav)</h3>
+<h3 id="sounds-41-wav" tabindex="-1">Sounds (41 wav)</h3>
 <p>All under <code>dep://base/sounds/</code>: <code>ammo_dry.wav</code>, <code>bay_door.wav</code>,
-<code>destroy_rock.wav</code>, <code>destroy_ship.wav</code>, <code>dry_fire.wav</code>, <code>explosion.wav</code>,
-<code>impact.wav</code>, <code>impact_explosive.wav</code>, <code>impact_pierce.wav</code>, <code>impact_rock.wav</code>,
-<code>lock_off.wav</code>, <code>lock_on.wav</code>, <code>pdc_stow_close.wav</code>, <code>pdc_stow_open.wav</code>,
-<code>pdc_twin_fire.wav</code>, <code>radar_deny.wav</code>, <code>radar_retarget.wav</code>,
-<code>railgun_charge.wav</code>, <code>railgun_fire.wav</code>, <code>railgun_reload.wav</code>, <code>rcs_loop.wav</code>,
-<code>safety_on.wav</code>, <code>salvage_pickup.wav</code>, <code>thruster_capital_loop.wav</code>,
-<code>thruster_loop.wav</code>, <code>thruster_vector_loop.wav</code>, <code>torpedo_detonate.wav</code>,
-<code>torpedo_launch.wav</code>, <code>turret_fire.wav</code>, <code>warn_hull.wav</code>, <code>warn_lock.wav</code>.</p>
+<code>cargo_eject.wav</code>, <code>destroy_rock.wav</code>, <code>destroy_ship.wav</code>, <code>dry_fire.wav</code>,
+<code>explosion.wav</code>, <code>impact.wav</code>, <code>impact_explosive.wav</code>, <code>impact_pierce.wav</code>,
+<code>impact_rock.wav</code>, <code>kill_confirm.wav</code>, <code>lock_off.wav</code>, <code>lock_on.wav</code>,
+<code>mining_door_close.wav</code>, <code>mining_door_open.wav</code>, <code>mining_pulse.wav</code>,
+<code>pdc_stow_close.wav</code>, <code>pdc_stow_open.wav</code>, <code>pdc_twin_fire.wav</code>,
+<code>radar_deny.wav</code>, <code>radar_retarget.wav</code>, <code>railgun_charge.wav</code>,
+<code>railgun_fire.wav</code>, <code>railgun_reload.wav</code>, <code>rcs_loop.wav</code>, <code>safety_on.wav</code>,
+<code>salvage_pickup.wav</code>, <code>thruster_capital_loop.wav</code>, <code>thruster_loop.wav</code>,
+<code>thruster_vector_loop.wav</code>, <code>torpedo_closing.wav</code>, <code>torpedo_detonate.wav</code>,
+<code>torpedo_dud.wav</code>, <code>torpedo_ignite.wav</code>, <code>torpedo_intercept.wav</code>,
+<code>torpedo_launch.wav</code>, <code>torpedo_rack.wav</code>, <code>turret_fire.wav</code>, <code>warn_hull.wav</code>,
+<code>warn_lock.wav</code>.</p>
 <p>(UI chrome sounds - menu clicks, objective chimes - are engine assets, not
 base bundle resources, and are NOT dep-referenceable.)</p>
 <h3 id="images-7" tabindex="-1">Images (7)</h3>
@@ -530,8 +534,10 @@ the upload itself is fatal.</p>
 <code>crates/nova_assets/src/items.rs</code>):</p>
 <ul>
 <li>The matching key is the id string per kind - <code>Section</code> matches on
-<code>base.id</code>; <code>Scenario</code>, <code>Campaign</code>, <code>Ship</code>, <code>Style</code>, <code>Lesson</code>, <code>UiTheme</code> and
-<code>Item</code> on <code>id</code>. Names and file paths never participate.</li>
+<code>base.id</code>; <code>Scenario</code>, <code>Campaign</code>, <code>Ship</code>, <code>Station</code>, <code>StartRole</code>, <code>Style</code>,
+<code>Lesson</code>, <code>UiTheme</code>, <code>Item</code> and <code>TradeProfile</code> on <code>id</code>. There is one
+<code>PriceTable</code>: a later bundle's table replaces it whole. Names and file paths
+never participate.</li>
 <li>Same id as base (or an earlier bundle) = REPLACE, whole item. It is not a
 field-level patch: an overlay must restate every field it wants to keep.
 <code>Item</code> replacement requires a one-way dependency chain from the replacing

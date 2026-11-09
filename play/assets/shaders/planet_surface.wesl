@@ -26,23 +26,22 @@
 // matrix, and projecting onto them is the inverse rotation - exact here because
 // nothing in a planet's hierarchy is sheared or scaled non-uniformly.
 
-#import bevy_pbr::{
-    pbr_fragment::pbr_input_from_standard_material,
-    pbr_functions::alpha_discard,
-    mesh_functions::get_world_from_local,
-}
+import bevy_pbr::{
+    render::pbr_fragment::pbr_input_from_standard_material,
+    render::pbr_functions::alpha_discard,
+    render::mesh_functions::get_world_from_local,
+};
 
-#ifdef PREPASS_PIPELINE
-#import bevy_pbr::{
-    prepass_io::{VertexOutput, FragmentOutput},
-    pbr_deferred_functions::deferred_output,
-}
-#else
-#import bevy_pbr::{
-    forward_io::{VertexOutput, FragmentOutput},
-    pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
-}
-#endif
+@if(PREPASS_PIPELINE)
+import bevy_pbr::{
+    prepass::io::{VertexOutput, FragmentOutput},
+    deferred::functions::deferred_output,
+};
+@else
+import bevy_pbr::{
+    render::forward_io::{VertexOutput, FragmentOutput},
+    render::pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
+};
 
 // One elevation band. Mirrors `PlanetBandUniform`.
 struct PlanetBand {
@@ -65,7 +64,7 @@ struct PlanetSurfaceData {
     extra: vec4<f32>,
 }
 
-@group(#{MATERIAL_BIND_GROUP}) @binding(100) var<uniform> planet: PlanetSurfaceData;
+@group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> planet: PlanetSurfaceData;
 
 // How many bands the uniform holds. Must match `PLANET_BAND_LIMIT`.
 const PLANET_BAND_LIMIT: u32 = 6u;
@@ -305,19 +304,19 @@ fn fragment(
     }
 
     // alpha discard
-    pbr_input.material.base_color = alpha_discard(pbr_input.material, pbr_input.material.base_color);
-#ifdef PREPASS_PIPELINE
-    // in deferred mode we can't modify anything after that, as lighting is run in a separate fullscreen shader.
-    let out = deferred_output(in, pbr_input);
-#else
+    pbr_input.material.base_color = alpha_discard(pbr_input.material.flags, pbr_input.material.alpha_cutoff, pbr_input.material.base_color);
     var out: FragmentOutput;
+@if(PREPASS_PIPELINE) {
+    // in deferred mode we can't modify anything after that, as lighting is run in a separate fullscreen shader.
+    out = deferred_output(in, pbr_input);
+} @else {
     // apply lighting
     out.color = apply_pbr_lighting(pbr_input);
 
     // apply in-shader post processing (fog, alpha-premultiply, and also tonemapping, debanding if the camera is non-hdr)
     // note this does not include fullscreen postprocessing effects like bloom.
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
-#endif
+}
 
     return out;
 }

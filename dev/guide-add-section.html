@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
+            window.path_to_searchindex_js = "searchindex-e28e0c87.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -190,7 +190,9 @@ author could supply. What IS data-extensible is the section CATALOG: a <code>Sec
 (base stats + one <code>SectionKind</code> instance) is authored in RON and loaded at
 runtime (see the <a href="sections.html">Ship sections</a> reference and
 <a href="https://alexjercan.github.io/nova-protocol/create/sections/">modding</a>). New KINDS are code; new INSTANCES of an existing
-kind are data. This guide is about the former.</p>
+kind are data. This guide is about the former. The editor’s section bench
+builds instances: it copies a prototype or a plain hull and edits it, and it
+cannot add a kind.</p>
 <p>The closed enum is a feature: it means “did I wire the new kind into the ship
 computer / the editor / spawning?” is a compile error, not a silent gap.</p>
 <pre class="mermaid">flowchart LR
@@ -265,9 +267,10 @@ else to fill in on the damage NUMBER. How much a section takes is its
 <code>Health.max</code> and never the class. What the section LOOKS like as it is
 damaged is a separate, authored decision - step 8.</p>
 <p>The interface’s Ship pane labels sections by this enum: add an arm to the
-exhaustive matches <code>code_prefix</code>, <code>kind_description</code> and <code>kind_index</code> in
-<code>crates/nova_interface/src/ship/sections.rs</code>, and to <code>SectionIconType::of</code>
-in <code>crates/nova_interface/src/icons.rs</code>.</p>
+exhaustive matches <code>code_prefix</code> and <code>kind_index</code> in
+<code>crates/nova_interface/src/ship/sections.rs</code>, <code>class_noun</code> in
+<code>crates/nova_interface/src/ship/refit.rs</code>, and <code>SectionIconType::of</code> in
+<code>crates/nova_interface/src/icons.rs</code>.</p>
 </li>
 <li>
 <p><strong>Wire the section plugin.</strong>
@@ -298,36 +301,40 @@ needs it (see the <code>Turret</code> / <code>Thruster</code> arms for that patt
 for how the spaceship object and its section observer fit together.</p>
 </li>
 <li>
-<p><strong>Editor placement arms.</strong>
-Two exhaustive matches, in two files. <code>default_binds_for</code>
+<p><strong>Placement and preview arms.</strong>
+Three exhaustive matches, in three files. <code>default_binds</code>
 (<code>crates/nova_editor/src/placement.rs</code>) gives the kind its default key/pad
-binding, or <code>vec![]</code> if it takes none - model <code>Hull</code> for unbindable,
-<code>Thruster</code> or <code>Turret</code> for bindable. <code>insert_preview_section</code>
-(<code>crates/nova_editor/src/preview.rs</code>) inserts the <code>&lt;kind&gt;_section(...)</code>
-bundle beside the shared <code>preview_section(...)</code> recipe, plus the kind’s
-input-binding component if it has one.</p>
+binding in the editor, or <code>vec![]</code> if it takes none - model <code>Hull</code> for
+unbindable, <code>Thruster</code> or <code>Turret</code> for bindable. <code>added_section_binds</code>
+(<code>crates/nova_ship/src/sections/section_add.rs</code>) gives the binding a
+section of the class takes when a station adds it to a ship.
+<code>insert_preview_section</code> (<code>crates/nova_ship/src/sections/section_preview.rs</code>)
+inserts the kind’s <code>preview_&lt;kind&gt;_section(...)</code> bundle beside the shared
+<code>preview_section(...)</code> recipe. Write that preview half in your section
+module beside <code>&lt;kind&gt;_section</code>: the render mesh and the config the render
+observers read, and none of the live state. A preview carries no input
+binding.</p>
 <p>Nothing here computes a placement POSE. The editor mates link points
 (<code>snap_placement</code>, <code>nova_ship::sections::link_points</code>), so orientation comes
 from the two sockets, not from the kind - which is what lets a part mate the
-same way up on any socket. Recording the placed section into
-<code>player_config.sections</code> is likewise generic
-(<code>register_preview_section</code>), so the arms only insert.</p>
+same way up on any socket. Recording the placed section is generic too, so
+the arms only insert.</p>
 </li>
 <li>
 <p><strong>Parts gallery category + readouts.</strong>
-In <code>crates/nova_editor/src/gallery/catalog.rs</code>, add a <code>GalleryCategory</code>
-variant (with its <code>ROW</code> entry, <code>label()</code> and <code>accepts()</code> arms), then arms to
-<code>kind_label()</code> and <code>behaviour()</code>. All of them match <code>SectionKind</code>
-exhaustively, so the compiler walks you through it:</p>
+In <code>crates/nova_ship/src/gallery/catalog.rs</code>, add an arm to
+<code>GalleryCategory::of()</code> and to <code>behaviour()</code>. Both match <code>SectionKind</code>
+exhaustively, so the compiler walks you through it. Put the kind under an
+existing category, or add a <code>GalleryCategory</code> variant with its <code>ROW</code> entry
+and <code>label()</code> arm. <code>kind_label()</code>, the tile’s category line, reads the
+category’s label, so it needs no arm:</p>
 <pre class="playground"><code class="language-rust"><span class="boring">#![allow(unused)]
 </span><span class="boring">fn main() {
-</span>// accepts
-Self::Shields =&gt; matches!(kind, SectionKind::Shield(_)),
-// kind_label - the tile's category line
-SectionKind::Shield(_) =&gt; "shields",
+</span>// GalleryCategory::of
+SectionKind::Shield(_) =&gt; Self::Shields,
 // behaviour - the two or three numbers a builder picks the part BY
 SectionKind::Shield(shield) =&gt; {
-    vec![("capacity".to_string(), format!("{:.0}", shield.capacity))]
+    vec![("Capacity".to_string(), format!("{:.0}", shield.capacity))]
 }
 <span class="boring">}</span></code></pre>
 </li>
@@ -407,9 +414,12 @@ runnable proof – so double-check those by hand.</p>
 interface’s label matches - <code>crates/nova_interface/src/ship/sections.rs</code>.</li>
 <li>Spawn arm: <code>insert_spaceship_sections</code> -
 <code>crates/nova_scenario/src/objects/spaceship.rs</code>.</li>
-<li>Editor arms: <code>default_binds_for</code> - <code>crates/nova_editor/src/placement.rs</code>;
-<code>insert_preview_section</code> - <code>crates/nova_editor/src/preview.rs</code>;
-<code>GalleryCategory</code> - <code>crates/nova_editor/src/gallery/catalog.rs</code>.</li>
+<li>Placement and preview arms: <code>default_binds</code> -
+<code>crates/nova_editor/src/placement.rs</code>; <code>added_section_binds</code> -
+<code>crates/nova_ship/src/sections/section_add.rs</code>; <code>insert_preview_section</code> -
+<code>crates/nova_ship/src/sections/section_preview.rs</code>.</li>
+<li>Gallery arms: <code>GalleryCategory::of</code>, <code>behaviour</code> -
+<code>crates/nova_ship/src/gallery/catalog.rs</code>.</li>
 <li>Cross-crate prototype ids: <code>crates/nova_ship/src/sections/catalog_ids.rs</code>.</li>
 <li>Prototypes: <code>section_catalog</code> -
 <code>crates/nova_authoring/src/base_content/sections/mod.rs</code>, with one

@@ -40,23 +40,22 @@
 //   4. the triplanar texture at two incommensurate scales, blended by the fBm,
 //      which breaks what is left of the tile's period.
 
-#import bevy_pbr::{
-    pbr_fragment::pbr_input_from_standard_material,
-    pbr_functions::alpha_discard,
-    mesh_functions::get_world_from_local,
-}
+import bevy_pbr::{
+    render::pbr_fragment::pbr_input_from_standard_material,
+    render::pbr_functions::alpha_discard,
+    render::mesh_functions::get_world_from_local,
+};
 
-#ifdef PREPASS_PIPELINE
-#import bevy_pbr::{
-    prepass_io::{VertexOutput, FragmentOutput},
-    pbr_deferred_functions::deferred_output,
-}
-#else
-#import bevy_pbr::{
-    forward_io::{VertexOutput, FragmentOutput},
-    pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
-}
-#endif
+@if(PREPASS_PIPELINE)
+import bevy_pbr::{
+    prepass::io::{VertexOutput, FragmentOutput},
+    deferred::functions::deferred_output,
+};
+@else
+import bevy_pbr::{
+    render::forward_io::{VertexOutput, FragmentOutput},
+    render::pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
+};
 
 // Field for field, in order, `AsteroidSurfaceUniform` in
 // crates/nova_scenario/src/objects/asteroid_surface.rs. The leading vec4s give
@@ -105,9 +104,9 @@ struct AsteroidSurfaceMaterialData {
     detail: f32,
 }
 
-@group(#{MATERIAL_BIND_GROUP}) @binding(100) var<uniform> material: AsteroidSurfaceMaterialData;
-@group(#{MATERIAL_BIND_GROUP}) @binding(101) var rock_texture: texture_2d<f32>;
-@group(#{MATERIAL_BIND_GROUP}) @binding(102) var rock_sampler: sampler;
+@group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> material: AsteroidSurfaceMaterialData;
+@group(constants::MATERIAL_BIND_GROUP) @binding(101) var rock_texture: texture_2d<f32>;
+@group(constants::MATERIAL_BIND_GROUP) @binding(102) var rock_sampler: sampler;
 
 const TAU: f32 = 6.2831853;
 
@@ -141,9 +140,9 @@ const BLEND_EDGE_HIGH: f32 = 0.58;
 // every backend and has none of the banding a sin-based hash shows on some
 // drivers.
 fn hash_cell(cell: vec3<i32>) -> u32 {
-    var hash = bitcast<u32>(cell.x) * 0x9e3779b1u
-        ^ bitcast<u32>(cell.y) * 0x85ebca6bu
-        ^ bitcast<u32>(cell.z) * 0xc2b2ae35u;
+    var hash = (bitcast<u32>(cell.x) * 0x9e3779b1u)
+        ^ (bitcast<u32>(cell.y) * 0x85ebca6bu)
+        ^ (bitcast<u32>(cell.z) * 0xc2b2ae35u);
     hash ^= hash >> 15u;
     hash = hash * 0x2545f491u;
     hash ^= hash >> 13u;
@@ -395,19 +394,19 @@ fn fragment(
     pbr_input.material.metallic = material.metallic;
 
     // alpha discard
-    pbr_input.material.base_color = alpha_discard(pbr_input.material, pbr_input.material.base_color);
-#ifdef PREPASS_PIPELINE
-    // in deferred mode we can't modify anything after that, as lighting is run in a separate fullscreen shader.
-    let out = deferred_output(in, pbr_input);
-#else
+    pbr_input.material.base_color = alpha_discard(pbr_input.material.flags, pbr_input.material.alpha_cutoff, pbr_input.material.base_color);
     var out: FragmentOutput;
+@if(PREPASS_PIPELINE) {
+    // in deferred mode we can't modify anything after that, as lighting is run in a separate fullscreen shader.
+    out = deferred_output(in, pbr_input);
+} @else {
     // apply lighting
     out.color = apply_pbr_lighting(pbr_input);
 
     // apply in-shader post processing (fog, alpha-premultiply, and also tonemapping, debanding if the camera is non-hdr)
     // note this does not include fullscreen postprocessing effects like bloom.
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
-#endif
+}
 
     return out;
 }

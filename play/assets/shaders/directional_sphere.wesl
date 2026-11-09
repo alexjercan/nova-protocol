@@ -1,33 +1,32 @@
-#import bevy_pbr::{
-    pbr_fragment::pbr_input_from_standard_material,
-    pbr_functions::alpha_discard,
-    mesh_functions::get_world_from_local,
-}
+import bevy_pbr::{
+    render::pbr_fragment::pbr_input_from_standard_material,
+    render::pbr_functions::alpha_discard,
+    render::mesh_functions::get_world_from_local,
+};
 
-#ifdef PREPASS_PIPELINE
-#import bevy_pbr::{
-    prepass_io::{VertexOutput, FragmentOutput},
-    pbr_deferred_functions::deferred_output,
-}
-#else
-#import bevy_pbr::{
-    forward_io::{VertexOutput, FragmentOutput},
-    pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
-}
-#endif
+@if(PREPASS_PIPELINE)
+import bevy_pbr::{
+    prepass::io::{VertexOutput, FragmentOutput},
+    deferred::functions::deferred_output,
+};
+@else
+import bevy_pbr::{
+    render::forward_io::{VertexOutput, FragmentOutput},
+    render::pbr_functions::{apply_pbr_lighting, main_pass_post_lighting_processing},
+};
 
 struct DirectionalSphereMaterialData {
     radius: f32,
     sharpness: f32,
-#ifdef SIXTEEN_BYTE_ALIGNMENT
     // WebGL2 support: structs must be 16 byte aligned.
+    @if(SIXTEEN_BYTE_ALIGNMENT)
     _webgl2_padding_16b1: u32,
     // WebGL2 support: structs must be 16 byte aligned.
+    @if(SIXTEEN_BYTE_ALIGNMENT)
     _webgl2_padding_16b2: u32,
-#endif
 }
 
-@group(#{MATERIAL_BIND_GROUP}) @binding(100) var<uniform> material: DirectionalSphereMaterialData;
+@group(constants::MATERIAL_BIND_GROUP) @binding(100) var<uniform> material: DirectionalSphereMaterialData;
 
 @fragment
 fn fragment(
@@ -48,19 +47,19 @@ fn fragment(
     pbr_input.material.base_color = col;
 
     // alpha discard
-    pbr_input.material.base_color = alpha_discard(pbr_input.material, pbr_input.material.base_color);
-#ifdef PREPASS_PIPELINE
-    // in deferred mode we can't modify anything after that, as lighting is run in a separate fullscreen shader.
-    let out = deferred_output(in, pbr_input);
-#else
+    pbr_input.material.base_color = alpha_discard(pbr_input.material.flags, pbr_input.material.alpha_cutoff, pbr_input.material.base_color);
     var out: FragmentOutput;
+@if(PREPASS_PIPELINE) {
+    // in deferred mode we can't modify anything after that, as lighting is run in a separate fullscreen shader.
+    out = deferred_output(in, pbr_input);
+} @else {
     // Directly output the color (ignoring lighting)
     out.color = pbr_input.material.base_color;
 
     // apply in-shader post processing (fog, alpha-premultiply, and also tonemapping, debanding if the camera is non-hdr)
     // note this does not include fullscreen postprocessing effects like bloom.
     out.color = main_pass_post_lighting_processing(pbr_input, out.color);
-#endif
+}
 
     return out;
 }

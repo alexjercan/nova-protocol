@@ -9,6 +9,7 @@
     </nav>
 </header>
 <main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Keybinds</p><h1>Keybinds</h1><div class="wiki__tags" id="wiki-tags"></div><p>The full control reference, keyboard and gamepad side by side. Thrust is analog on the gamepad and on/off on the keyboard. The autopilot verbs each fly a whole maneuver and hand control back; CANCEL, a main-drive burn, a bound thruster key, entering RCS or the engaged verb pressed again disengages them immediately, while the mouse only swings the camera. New players should start with <a href="../getting-started/">Your first flight</a>, which teaches these one at a time. Every one of these is REBINDABLE in-game under <strong>Settings &gt; Controls</strong>, reachable from both the main menu and the pause menu - one binding group at a time, keyboard and gamepad in their own columns. Pressing a key another action in the same live set already holds is refused by name, and <code>Reset Defaults</code> puts the whole table back. The MOUSE group in that same list holds no bindings - it is the three mouse sensitivity sliders, covered in <a href="../settings/#mouse">Settings</a>.</p>
+<p>Q and E are now the default roll keys. If an older saved control setting assigned either key to another action, that conflicting override returns to its default on load. Check <strong>Settings &gt; Controls</strong> to rebind the displaced action to a free key.</p>
 <p>A dash means the action has no binding on that device.</p>
 <h2 id="flight" tabindex="-1">Flight</h2>
 <table class="controls controls--split">
@@ -30,6 +31,11 @@
                     aria-label="Right bumper"
                 ></span>
             </td>
+        </tr>
+        <tr>
+            <td>Roll left / right - turn the hull about its nose</td>
+            <td><kbd>Q</kbd> / <kbd>E</kbd> (hold)</td>
+            <td>unbound</td>
         </tr>
         <tr>
             <td>GOTO - fly to the current lock</td>
@@ -65,6 +71,23 @@
             </td>
         </tr>
         <tr>
+            <td>MATCH - match the travel lock's velocity on RCS only</td>
+            <td><kbd>Shift</kbd> (hold) + <kbd>X</kbd></td>
+            <td>
+                <span
+                    class="pf pf-stick-left-click"
+                    role="img"
+                    aria-label="Left stick click"
+                ></span>
+                (hold) +
+                <span
+                    class="pf pf-face-east"
+                    role="img"
+                    aria-label="East face button"
+                ></span>
+            </td>
+        </tr>
+        <tr>
             <td>CANCEL autopilot (resume manual)</td>
             <td><kbd>Z</kbd></td>
             <td>
@@ -76,7 +99,7 @@
             </td>
         </tr>
         <tr>
-            <td>RCS fine translation (when a scenario grants it)</td>
+            <td>RCS fine translation (unless a scenario withholds it)</td>
             <td>
                 <kbd>Shift</kbd> (hold) +
                 <span
@@ -119,8 +142,9 @@
 </table>
 <p>DOCK needs a docking port on both hulls, so it is offered only on a ship built with one: build a hull with a docking port in the editor, or fly the <code>docking_approach</code> example. A dock starts neutral: the other ship flies the pair until <kbd>H</kbd> takes the helm, and <kbd>D</kbd> again lets go. A dock with a derelict or neutralized hull, ship or station, gives you the helm at once; a living station keeps it and refuses <kbd>H</kbd>. See <a href="../sections/docking/">Docking port</a>.</p>
 <p>Dock and Helm appear in <strong>Settings &gt; Controls &gt; FLIGHT</strong> with <kbd>D</kbd> and <kbd>H</kbd> as rebindable defaults.</p>
+<p>Roll turns the view and the hull together at a quarter turn a second, through the same controller that points the nose, and draws no RCS. <kbd>Q</kbd> rolls left and <kbd>E</kbd> rolls right; holding both holds still. Roll does nothing in free look, with weapons raised, while RCS is held or while an autopilot verb is flying. Roll Left and Roll Right appear in <strong>Settings &gt; Controls &gt; FLIGHT</strong>; no gamepad button is free for them, and a ship's own section keys cannot take <kbd>Q</kbd> or <kbd>E</kbd>.</p>
 <p>Mining has no flight key. Each mining beam section has its own key, like a weapon or a thruster: the mining tug's bow beam answers <kbd>V</kbd>, and a beam placed in the editor starts on <kbd>V</kbd> with no gamepad button. Hold a beam's key with an ore rock travel-locked, in front of that emitter and within 100 m; it opens, runs its tip out and cuts the rock once a second where it hits. Release the key and that beam retracts. Rebind each beam on the <a href="../interface/#rebinding-a-section">Ship pane</a>. See <a href="../sections/mining-beam/">Mining beam</a>.</p>
-<p>RCS is a docking aid, not standard flight: it appears only when a scenario grants it (the RCS chip in the keybind dock stays dark until it is available), and the training range hands it over for one leg of its pattern. See <a href="../flight-autopilot/#rcs-fine-docking-thrusters">Flight &amp; autopilot</a>.</p>
+<p>RCS is a docking aid on top of standard flight. Every ship has it unless a scenario withholds it: the RCS chip in the keybind dock stays dark while it is withheld, and Basic Training hands it over at the beat that teaches it. See <a href="../flight-autopilot/#rcs-fine-docking-thrusters">Flight &amp; autopilot</a>.</p>
 <h2 id="targeting-and-camera" tabindex="-1">Targeting and camera</h2>
 <table class="controls controls--split">
     <thead>
@@ -365,7 +389,7 @@
             </td>
         </tr>
         <tr>
-            <td>Back to editor (Sandbox only)</td>
+            <td>Back to editor (editor only)</td>
             <td><kbd>F1</kbd></td>
             <td>
                 <span
@@ -381,32 +405,124 @@
 <p>The editor is mouse-first and has no gamepad bindings. Every key below is also
 a row on the top bar - <strong>File</strong>, <strong>Edit</strong>, <strong>View</strong>, <strong>Add</strong>, <strong>Ship</strong> - with
 the key printed beside it, so this table is a shortcut list and not a second
-interface. The bottom-left legend shows the gestures that apply to whatever you
-are holding right now; <strong>View &gt; Key Legend</strong> hides it.</p>
-<p>The stage camera starts at a walking 60 m/s, which is the register a plate is
-inspected in, and a held direction ramps it to 32 times that over two seconds -
-the far end of an 8 km range is about four seconds away. Let go and it is back
-at walking pace at once. Double-click a ship and the camera frames the whole
-hull, however big it is; <kbd>F</kbd> does the same for whatever is selected,
-and at the scenario level it frames the whole document.</p>
+interface. The legend on the bottom line shows the gestures that apply to
+whatever you are holding right now, and what <kbd>Esc</kbd> does next. Under a
+block's pop-up it shows only what works there. <strong>View &gt; Key Legend</strong> hides it.</p>
+<h3 id="the-panels" tabindex="-1">The panels</h3>
+<p>The panels are fixed: nothing docks or drags. <strong>View</strong> hides the Hierarchy, the
+Inspector and the strip's body, and so do <kbd>Ctrl</kbd>+<kbd>1</kbd>,
+<kbd>Ctrl</kbd>+<kbd>2</kbd> and <kbd>Ctrl</kbd>+<kbd>3</kbd>.</p>
+<ul>
+<li><strong>Top bar</strong>: the menus, the view switch, the four tools, Axes, Snap, Undo,
+Redo and Play; in the Ship editor Parts and <strong>Back to {name}</strong> instead of the
+tools, Axes and Snap. Each button does what its key does. Snap inverts Ctrl:
+with it on, a handle snaps until you hold Ctrl. A menu shows only the verbs of
+the open document, and the Ship menu shows only in the Ship editor. A verb that fits but cannot run now is grey, and its
+hover says why.</li>
+<li><strong>View switch</strong>: the views of the open document only. A scenario has Scene
+and Events, a ship has Ship, a section has Section, and every other kind has
+Form. A view change adds no undo step.</li>
+<li><strong>Hierarchy</strong>, on the left in Scene: the tree of the document. A caret opens a
+row, the filter box finds a row under any shut one, <kbd>Ctrl</kbd>+click and
+<kbd>Shift</kbd>+click mark many, and right-click opens the row's menu: Rename,
+Duplicate, Delete, Frame and what can be added under it.</li>
+<li><strong>Inspector</strong>, on the right in Scene: the selected node's fields. Its header
+carries the kind, the name, the id and a validity word, and a group heading
+folds. In Form view the open asset's form takes the main area instead, and
+the stage and its tools hide. A UI theme's palette is a grid of named
+swatches; press one for the colour picker.</li>
+<li><strong>Events</strong> fills the window above the strip with a block palette and a canvas.
+The palette groups the blocks in build order: Events (the hats a script
+starts with), Conditions, Actions, Flow, and Values and logic. Only an Events
+block stands alone on the canvas. A right click on the canvas holds Paste,
+Clean Up (the scripts in one column, one undo step), and Duplicate and Delete
+on a block. It has no Hierarchy and no Inspector: fill a value on its block,
+and a block's <code>...</code> chip opens a pop-up with every field. The four tools, Axes and Snap hide,
+and <kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd> <kbd>X</kbd> do nothing.</li>
+<li><strong>Strip</strong>, along the bottom: <strong>Assets</strong> shows the mod's items and the files in
+its folder as tiles, sorted by kind, with a count per kind. A double click or
+<kbd>Enter</kbd> opens a tile in its view, views an image or a mesh, or plays a
+sound. A right click on a tile holds its verbs, and on empty space New Asset
+and Import File. <strong>+</strong> adds a blank item, and a hover shows the whole id. A
+new section asks its kind first: the arrows pick one, <kbd>Enter</kbd> makes
+it, <kbd>Esc</kbd> cancels. Drag a ship design onto the stage, or right click it and
+choose <strong>Place in Scenario</strong>, to place it in the open scenario. A ship a
+scenario made is listed under that scenario. A file the package leaves out wears a dotted mark. <strong>Problems</strong> is the
+live lint of what Play would load; a row selects the node it names. <strong>Ship</strong>
+appears in the Ship editor and holds the skin, the styles and Generate. <strong>Log</strong> keeps
+what the status line said and what the game warned of, with Clear, a level
+filter and a text filter. In the Log and Problems a click marks a row,
+<kbd>Shift</kbd>+click a range, and <strong>Copy</strong> copies the marked rows as text, or
+every shown row when none is marked. Drag the strip's top edge to resize it.</li>
+</ul>
+<p>The stage camera has no fly keys: in a scenario the letters are the tools. Hold
+right mouse to look about, and orbit, pan and dolly to move. The wheel always
+dollies. A right click without a drag opens the stage menu: the Add menu,
+Paste, and Frame and Delete on a node.</p>
+<p><strong>Add</strong> holds what the open document takes, in groups: a scenario has Ship (New
+Ship and each ship design of the mod), Objects, Lights and Markers; a ship has
+Parts; a section has Mesh, Collider and Socket. Every document has Asset, which
+starts a new item of any kind. <kbd>Shift</kbd>+<kbd>A</kbd> over the stage
+opens it at the pointer, and what it adds lands there. A group opens on hover or
+on <kbd>Right</kbd>. <kbd>Up</kbd> and <kbd>Down</kbd> move, <kbd>Left</kbd>
+closes a group, <kbd>Enter</kbd> adds, and <kbd>Esc</kbd> closes the menu. Type
+to search every group at once.
+<kbd>F</kbd> frames whatever is selected, and at the scenario level it
+frames the whole document.</p>
+<p>Every ship opens in the Ship editor, alone and square on the origin: double
+click it in the Hierarchy or on its tile, or select it and press
+<kbd>Enter</kbd>. Its position and rotation belong to the scenario, and only show
+there. A placed design opens the design. <kbd>Esc</kbd> or <strong>Back to {name}</strong> on
+the bar returns to the document you came from, with its camera, selection and
+view. The Ship editor has no stage tools: parts mate where they go, so
+<kbd>Q</kbd>, <kbd>R</kbd> and <kbd>F</kbd> are part keys there, as in the
+game's Ship pane.</p>
 <p>Keys are verbs only while nothing else has the keyboard. With the parts gallery
 up, the arrow keys move its grid and <kbd>Esc</kbd> closes the gallery rather
 than backing out of the ship; with the caret in a text field, every key is a
 character; and while a rebind waits for a key, it takes all of them except
-<kbd>Esc</kbd>. <kbd>Ctrl</kbd>+<kbd>S</kbd> answers under all of that except a
-field and a pending rebind.</p>
+<kbd>Esc</kbd>. A block's pop-up in the editor stops the verbs too, and
+<kbd>Ctrl</kbd>+<kbd>Z</kbd> closes it before it undoes.
+<kbd>Ctrl</kbd>+<kbd>S</kbd> answers under all of that except a field and a
+pending rebind.</p>
 <table class="controls">
     <tr>
-        <td>Fly the stage camera</td>
+        <td>Look about</td>
+        <td>hold right mouse and move the mouse</td>
+    </tr>
+    <tr>
+        <td>Orbit the pivot; pan; dolly</td>
         <td>
-            <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd>,
-            <kbd>Space</kbd> / <kbd>Shift</kbd> for up and down,
-            right-drag to look. Hold a direction and it builds speed
+            middle drag or <kbd>Alt</kbd>+left drag;
+            <kbd>Shift</kbd>+middle drag; wheel or <kbd>Alt</kbd>+right drag
         </td>
     </tr>
     <tr>
-        <td>Select a node; enter the ship you selected</td>
-        <td>left click; double click</td>
+        <td>Pick a tool: Select, Move, Turn, Scale (scenario only)</td>
+        <td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd></td>
+    </tr>
+    <tr>
+        <td>Swap the handles between world and local axes (scenario only)</td>
+        <td><kbd>X</kbd></td>
+    </tr>
+    <tr>
+        <td>Undo; redo</td>
+        <td>
+            <kbd>Ctrl</kbd>+<kbd>Z</kbd>; <kbd>Ctrl</kbd>+<kbd>Y</kbd> or
+            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>
+        </td>
+    </tr>
+    <tr>
+        <td>Copy; paste; duplicate</td>
+        <td><kbd>Ctrl</kbd>+<kbd>C</kbd>; <kbd>Ctrl</kbd>+<kbd>V</kbd>; <kbd>Ctrl</kbd>+<kbd>D</kbd></td>
+    </tr>
+    <tr>
+        <td>Over the Log or Problems: mark every shown row; copy the marked rows as text</td>
+        <td><kbd>Ctrl</kbd>+<kbd>A</kbd>; <kbd>Ctrl</kbd>+<kbd>C</kbd></td>
+    </tr>
+    <tr>
+        <td>Select a node; open the ship in the Ship editor</td>
+        <td>left click; double click or <kbd>Enter</kbd></td>
     </tr>
     <tr>
         <td>Slide a ship or object on the ground plane (scenario node only)</td>
@@ -425,11 +541,11 @@ field and a pending rebind.</p>
         <td><kbd>Del</kbd> &nbsp;(or <b>Edit &gt; Delete</b>)</td>
     </tr>
     <tr>
-        <td>Save the document</td>
+        <td>Save the mod</td>
         <td><kbd>Ctrl</kbd>+<kbd>S</kbd> &nbsp;(or <b>File &gt; Save</b>)</td>
     </tr>
     <tr>
-        <td>Open or close the parts gallery (inside a ship)</td>
+        <td>Open or close the parts gallery (Ship editor)</td>
         <td><kbd>Tab</kbd> &nbsp;(or <b>Ship &gt; Parts...</b>)</td>
     </tr>
     <tr>
@@ -453,15 +569,15 @@ field and a pending rebind.</p>
         <td>left click on the ship</td>
     </tr>
     <tr>
-        <td>Roll it about the mating axis</td>
-        <td>wheel &nbsp;or&nbsp; <kbd>R</kbd></td>
+        <td>Roll it about the mating axis; roll it back</td>
+        <td><kbd>R</kbd>; <kbd>Shift</kbd>+<kbd>R</kbd></td>
     </tr>
     <tr>
-        <td>Cycle which of its sockets mates</td>
-        <td><kbd>Ctrl</kbd>+wheel &nbsp;or&nbsp; <kbd>F</kbd></td>
+        <td>Cycle which of its sockets mates; step back</td>
+        <td><kbd>F</kbd>; <kbd>Shift</kbd>+<kbd>F</kbd></td>
     </tr>
     <tr>
-        <td>Pick up the part under the cursor</td>
+        <td>Pick up the part under the cursor (Ship editor)</td>
         <td><kbd>Q</kbd></td>
     </tr>
     <tr>
@@ -472,22 +588,40 @@ field and a pending rebind.</p>
         </td>
     </tr>
     <tr>
-        <td>Leave the ship you are inside</td>
-        <td><kbd>Bksp</kbd></td>
+        <td>Go back to the document you came from</td>
+        <td><kbd>Bksp</kbd> &nbsp;(or <b>Back to {name}</b> on the bar)</td>
+    </tr>
+    <tr>
+        <td>Open the marked asset tile in its view; view or play a file</td>
+        <td>double click &nbsp;or&nbsp; <kbd>Enter</kbd></td>
+    </tr>
+    <tr>
+        <td>The menu of the stage, the canvas or a tile</td>
+        <td>right click without a drag</td>
+    </tr>
+    <tr>
+        <td>Open the Add menu at the pointer, over the stage</td>
+        <td><kbd>Shift</kbd>+<kbd>A</kbd></td>
+    </tr>
+    <tr>
+        <td>In a menu: move; open or close a group; add; close</td>
+        <td><kbd>Up</kbd> <kbd>Down</kbd>; <kbd>Right</kbd> <kbd>Left</kbd>; <kbd>Enter</kbd>; <kbd>Esc</kbd> &nbsp;(type to search)</td>
     </tr>
     <tr>
         <td>Back out one rung</td>
         <td><kbd>Esc</kbd></td>
     </tr>
 </table>
-<p><kbd>Esc</kbd> takes one rung per press, in this order: an open top-bar menu,
-the search field, the gallery, a pending rebind, the part in hand, the ship you
-are inside, and finally the pause menu. <kbd>Bksp</kbd> is the shortcut past all
-of that - it leaves the ship from wherever you are, unless a text field has the
+<p><kbd>Esc</kbd> takes one rung per press, in this order: a block in hand, a row's
+menu, a block's pop-up, an open top-bar menu, an open colour picker (its pick is
+taken back), the part in hand, Back to the document you came from, and finally
+the pause menu. A text field with the caret, the gallery and
+a pending rebind hold the keyboard, so <kbd>Esc</kbd> goes to them first.
+<kbd>Bksp</kbd> is the shortcut past all of that - it goes Back from wherever you are, unless a text field has the
 caret, where it deletes a character instead.</p>
 <h3 id="the-build-readout" tabindex="-1">The build readout</h3>
-<p>The left rail prints what the hull on the stage would fly like, repainted as you
-place. Five lines, values aligned:</p>
+<p>The Hierarchy prints what the hull on the stage would fly like under its tree,
+repainted as you place. Five lines, values aligned:</p>
 <div class="table-scroll">
 <table>
 <thead>
@@ -523,7 +657,7 @@ place. Five lines, values aligned:</p>
 <p>A hull with nothing on it reads <code>no parts yet</code> rather than <code>-</code> down the column,
 because nothing has failed - nothing has been built. The numbers are measured
 off the parts as they are POSED, through the same arithmetic the flown ship
-spawns with, so the rail and the hull cannot disagree; a design that mounts its
+spawns with, so the readout and the hull cannot disagree; a design that mounts its
 engine at half health is counted at half health here too.</p>
 <p>Under the block sits one line naming the limit that holds <code>Turn</code> down, and the
 one thing that raises it: <strong><code>torque-limited - fit another computer</code></strong> or
@@ -532,8 +666,8 @@ answers - more computers do nothing against the metal, and shorter metal does
 nothing against the computers - so the remedy is printed rather than left to be
 guessed. See <a href="../sections/controller/">What sets how hard a ship turns</a>.</p>
 <h3 id="the-inspector" tabindex="-1">The inspector</h3>
-<p>The right-hand panel shows the selected node's own fields, read off the thing
-itself rather than from a list the editor keeps - so a part that grows a setting
+<p>The right-hand panel, and a block's pop-up in Events, show the selected node's
+own fields, read off the thing itself rather than from a list the editor keeps - so a part that grows a setting
 grows a row. It opens on the fields that matter for that kind; <strong>View &gt; All
 Fields</strong> shows the rest. A field the editor cannot edit is still listed, greyed,
 rather than hidden.</p>
@@ -550,7 +684,7 @@ stops there - dragging a radius past zero is asking for the smallest value there
 is. A typed number below the floor is REFUSED, because typing <code>-3</code> into a radius
 is a mistake. A drag that runs out of screen wraps the pointer to the other
 side, so a 0.05-per-pixel field is still reachable on a narrow window.</p>
-<p><strong>Ship Skin</strong>, in the left rail's <strong>Ship Settings</strong> block, dresses the build in
+<p><strong>Ship Skin</strong>, in the strip's <strong>Ship</strong> tab, dresses the build in
 the cladding the ship would fly with. Nothing places a plate: the skin is derived
 from the structure you have assembled, and it is re-derived as you build -
 including around the part you are still holding, so a hull is dragged about UNDER
@@ -566,7 +700,7 @@ the status line. The ship you fly cannot be a station. Driver <strong>AI</strong
 living station, and <strong>None</strong> spawns a dead one. Save writes the hull as a
 station, and Open reads it back as a marked ship.</p>
 <h3 id="generate-a-hull" tabindex="-1">Generate a hull</h3>
-<p><strong>Generate</strong>, in the same left-rail block, rolls a whole hull into the ship you
+<p><strong>Generate</strong>, in the same tab, rolls a whole hull into the ship you
 are inside. It is a ship verb: a hull is what one ship IS, so what the roll
 produces REPLACES the sections that ship is already holding. That is what makes
 a seed a dial you turn until you like the answer rather than a way to fill a
@@ -592,8 +726,8 @@ you set on the row beats the plan's own.</li>
 <p>The order is collapse, lint, then place. A roll that fails - or a hull the
 game's own content lint would reject - writes one line to the status bar and
 leaves the document exactly as it was, so the ship on the stage is never left
-holding something that will not save. Generate outside a ship, or with nothing
-ticked, and you get the same treatment: <code>go inside a ship to generate a hull into it</code>, <code>tick at least one section for the collapse to draw</code>.</p>
+holding something that will not save. Generate outside the Ship editor, or with
+nothing ticked, and you get the same treatment: <code>open a ship to generate a hull into it</code>, <code>tick at least one section for the collapse to draw</code>.</p>
 <p>The ship's current <strong>Ship Skin</strong> and style go INTO the collapse, so rolling the
 seed asks for a different hull under the same ship rather than the cladding back
 at its factory setting. What lands is ordinary section nodes - selectable,

@@ -1,0 +1,152 @@
+[
+    TradeProfile((
+        id: "base/ore_hauler",
+        generated: [
+            (
+                role: Industrial,
+                weight: 3,
+            ),
+        ],
+        trades: [
+            (
+                item: "IronOre",
+                side: Sell,
+                quantity: 12,
+                limit_cr: 6,
+            ),
+            (
+                item: "StoneOre",
+                side: Sell,
+                quantity: 12,
+                limit_cr: 1,
+            ),
+            (
+                item: "CarbonOre",
+                side: Sell,
+                quantity: 8,
+                limit_cr: 3,
+            ),
+            (
+                item: "Rations",
+                side: Buy,
+                quantity: 4,
+                limit_cr: 12,
+            ),
+        ],
+        jobs: [
+            Procure(
+                item: "WaterIce",
+                count: 6,
+                reward_cr: 180,
+            ),
+            Procure(
+                item: "SalvagedParts",
+                count: 3,
+                reward_cr: 150,
+            ),
+        ],
+    )),
+    TradeProfile((
+        id: "base/provisioner",
+        generated: [
+            (
+                role: Civilian,
+                weight: 3,
+            ),
+        ],
+        trades: [
+            (
+                item: "Rations",
+                side: Sell,
+                quantity: 10,
+                limit_cr: 3,
+            ),
+            (
+                item: "SalvagedParts",
+                side: Buy,
+                quantity: 4,
+                limit_cr: 180,
+            ),
+            (
+                item: "WaterIce",
+                side: Buy,
+                quantity: 6,
+                limit_cr: 18,
+            ),
+        ],
+        jobs: [
+            Procure(
+                item: "HullPlate",
+                count: 3,
+                reward_cr: 220,
+            ),
+        ],
+    )),
+    TradeProfile((
+        id: "base/salvage_broker",
+        generated: [
+            (
+                role: Scavenger,
+                weight: 2,
+            ),
+        ],
+        trades: [
+            (
+                item: "SalvagedParts",
+                side: Sell,
+                quantity: 6,
+                limit_cr: 45,
+            ),
+            (
+                item: "HullPlate",
+                side: Buy,
+                quantity: 2,
+                limit_cr: 60,
+            ),
+            (
+                item: "PdcRound",
+                side: Buy,
+                quantity: 20,
+                limit_cr: 1,
+            ),
+        ],
+        jobs: [],
+    )),
+    TradeProfile((
+        id: "base/garrison_supply",
+        generated: [
+            (
+                role: Armored,
+                weight: 1,
+            ),
+        ],
+        trades: [],
+        jobs: [
+            Procure(
+                item: "PdcRound",
+                count: 40,
+                reward_cr: 200,
+            ),
+            Procure(
+                item: "Rations",
+                count: 6,
+                reward_cr: 160,
+            ),
+        ],
+    )),
+    TradeProfile((
+        id: "base/idle_traffic",
+        generated: [
+            (
+                role: Civilian,
+                weight: 1,
+            ),
+            (
+                role: Industrial,
+                weight: 1,
+            ),
+        ],
+        trades: [],
+        jobs: [],
+    )),
+]

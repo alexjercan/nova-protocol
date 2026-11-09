@@ -1,0 +1,298 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>v0.17.0 - The world comes to you - Nova Protocol</title><meta name="description" content="Nova Protocol v0.17.0: traders that visit stations and post jobs, GOTO around obstacles, roll and MATCH, readable torpedoes, and a mod editor with a hub, asset tiles, block events, theme picker and packaging."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/news.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="news"><nav class="news__toc" aria-label="On this page"><p class="news__toc-title">On this page</p><a href="#a-living-world" class="news__toc-link">A living world</a> <a href="#traders-visit-stations" class="news__toc-link news__toc-link--sub">Traders visit stations</a> <a href="#jobs-from-the-traffic" class="news__toc-link news__toc-link--sub">Jobs from the traffic</a> <a href="#a-first-thing-to-do" class="news__toc-link news__toc-link--sub">A first thing to do</a> <a href="#goto-goes-around" class="news__toc-link news__toc-link--sub">GOTO goes around</a> <a href="#roll-and-match" class="news__toc-link news__toc-link--sub">Roll and match</a> <a href="#torpedoes-you-can-read" class="news__toc-link news__toc-link--sub">Torpedoes you can read</a> <a href="#wrecks-canisters-and-stopped-ships" class="news__toc-link news__toc-link--sub">Wrecks, canisters and stopped ships</a> <a href="#the-mod-editor" class="news__toc-link">The mod editor</a> <a href="#the-whole-mod-as-tiles" class="news__toc-link news__toc-link--sub">The whole mod as tiles</a> <a href="#every-asset-opens-alone" class="news__toc-link news__toc-link--sub">Every asset opens alone</a> <a href="#events-as-blocks" class="news__toc-link news__toc-link--sub">Events as blocks</a> <a href="#one-bar-one-add-menu-a-real-camera" class="news__toc-link news__toc-link--sub">One bar, one Add menu, a real camera</a> <a href="#themes-with-a-picker" class="news__toc-link news__toc-link--sub">Themes with a picker</a> <a href="#settings-sections-and-the-package" class="news__toc-link news__toc-link--sub">Settings, sections and the package</a> <a href="#engine" class="news__toc-link">Engine</a> <a href="#more-in-v0170" class="news__toc-link">More in v0.17.0</a> <a href="#for-modders" class="news__toc-link">For modders</a> <a href="#point-releases" class="news__toc-link">Point releases</a></nav><article class="prose news__body"><p class="prose__meta"><a href="/nova-protocol/news/">&larr; News</a> &nbsp;//&nbsp; 2026-11-09 &nbsp;//&nbsp; v0.17.0</p><h1>v0.17.0 - The world comes to you</h1><p>v0.16.0 was the release where <a href="/news/0.16.0/">the world keeps score</a>.
+Civilizations built stations, stations posted jobs, and every hand-in or kill
+moved what a civilization thought of you. But the stations sat and waited. The
+ships around them flew patrols and escorts; nobody came to a station to do
+business, and nothing on a board was there because somebody else had been.</p>
+<p>v0.17.0 puts traffic in the world. Generated traders now fly to a station,
+dock, trade real cargo for real credits, post jobs and leave. GOTO flies
+around the rocks in its way, Q and E roll the ship, and Shift + X matches a
+moving target. A fresh world tells you what to do first. And the Sandbox is
+now a mod editor: a hub of your mods, the whole mod as tiles, an Events
+canvas of blocks, forms for every content kind, a colour picker for themes,
+and a Package window that writes the zip.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0170-trader-docked.png -->
+    <div class="figure__placeholder" data-eager="true">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0170-trader-docked.png</span>
+        <span class="figure__placeholder-note">The pinned seed of the station visits walk: a generated ore hauler docked at a living station of its own civilization, after it picked the station and flew in on its own.</span>
+    </div>
+    <figcaption class="figure__caption">Nobody ordered this ship in. It picked the station, flew there and docked. The walk only lets play time run and points the camera; the player does not fly.</figcaption>
+</figure>
+<h2 id="a-living-world" tabindex="-1">A living world</h2>
+<h3 id="traders-visit-stations" tabindex="-1">Traders visit stations</h3>
+<p>Every living station now has two generated ships of its own civilization 2 to
+4 km from it, so most new worlds have a trader in visit range of the start
+station. A trader with a trade profile picks a station within 20 km, flies
+there and docks. Docked, it trades: goods and credits move between its hold
+and the station by the lines of one receipt, so nothing is made or lost. It
+posts its jobs, waits 60 s, undocks and flies 1 km clear.</p>
+<p>A station takes one visitor at a time. A visitor also docks at a station that
+orbits a planet or spins, and waits up to five minutes for a clear approach
+before it gives up. What a trader buys and sells comes from a new
+<code>TradeProfile</code> content kind: weighted buy and sell lists with a quantity and
+a per-unit price limit.</p>
+<h3 id="jobs-from-the-traffic" tabindex="-1">Jobs from the traffic</h3>
+<p>A visitor posts up to three jobs beside the station's own three slots. They
+are Procure jobs: bring the station what the trader wanted. An open one goes
+at the next slot expiry or after 20 minutes; one you accepted stays until you
+finish or lose it. The world save carries the visits and their jobs, so a
+docked visitor stays docked across a Load and never trades twice.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0170-visitor-jobs.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0170-visitor-jobs.png</span>
+        <span class="figure__placeholder-note">The job board of the Jobs pane, docked at Maris station: the three rows with a refresh button are the station's own slots; the three Bring rows below them have no refresh button and came with visitors.</span>
+    </div>
+    <figcaption class="figure__caption">Six offers on a board with three slots. The walk docks the player and opens the Jobs pane; it accepts nothing.</figcaption>
+</figure>
+<h3 id="a-first-thing-to-do" tabindex="-1">A first thing to do</h3>
+<p>A fresh New Game world now posts a <strong>Take a job</strong> objective, with the
+interface key under it. The chip stays up until your first accepted job, also
+across a Load. When a slot on your starting board renews, the board keeps one
+job your hull can do, so an unarmed start no longer runs out of work.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0170-first-job.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0170-first-job.png</span>
+        <span class="figure__placeholder-note">Seed 2, military role, the first frame of play: the patrol picket docked at its starting station under the amber TAKE A JOB chip, with Tab INTERFACE under it and STATION HELM at 0.0 m/s beside the hull.</span>
+    </div>
+    <figcaption class="figure__caption">The first thing a new world says to you. The capture starts New Game the way the Create World window does, then waits for the dock.</figcaption>
+</figure>
+<h3 id="goto-goes-around" tabindex="-1">GOTO goes around</h3>
+<p>GOTO now flies around rocks and planetoids on its leg, 200 m off your hull by
+default. The player, AI patrols and scripted orders all use it. The predicted
+path and the map route show the bend before you commit.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0170-goto-detour.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Video</span>
+        <span class="figure__placeholder-name">assets/loops/news-0170-goto-detour.webm</span>
+        <span class="figure__placeholder-note">A GOTO to a beacon behind an asteroid, from a fixed camera abeam of the lane: the predicted path bends over the rock, the ship turns, burns, flips and brakes along the bend while the DETOUR range counts down.</span>
+    </div>
+    <figcaption class="figure__caption">The straight line runs through the rock, so the leg does not. The autopilot flies a GOTO the walk engages; the clip plays the first 16 seconds at twice speed.</figcaption>
+</figure>
+<h3 id="roll-and-match" tabindex="-1">Roll and match</h3>
+<p><strong>Q and E roll your ship</strong> about its nose. The controller section turns the
+view and the hull together, and a roll costs no RCS. <strong>Shift + X is now
+MATCH</strong>: it matches your travel lock's velocity on RCS alone, keeps the
+hull's attitude and never docks. With no target, no RCS or an empty magazine
+it says why. Hold the RCS key and the dock row's STOP chip turns into MATCH,
+and goes dark when MATCH would refuse.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0170-match-roll.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Video</span>
+        <span class="figure__placeholder-name">assets/loops/news-0170-match-roll.webm</span>
+        <span class="figure__placeholder-note">A line warship beside a hauler on a circular orbit, with the hauler as the travel lock: E held rolls the hull about 30 degrees, Q held rolls it about 40 degrees back the other way, then Shift + X engages AP MATCH and the RCS puffs bring the warship onto the hauler's velocity.</span>
+    </div>
+    <figcaption class="figure__caption">E, then Q, then Shift + X. The walk presses the bound actions through the input layer, as keys would; the MATCH reports complete inside the clip.</figcaption>
+</figure>
+<p>The autopilot also waits for a refilling RCS magazine to reach half before it
+uses RCS again, so a hold against a steady pull no longer swaps between drive
+and RCS each tick.</p>
+<h3 id="torpedoes-you-can-read" tabindex="-1">Torpedoes you can read</h3>
+<p>A launch throws a cold light from the bay, and the drive lights with its own
+ignition sound and a short flare. A lit torpedo leaves a faint cold trail:
+1.5 s of path on High, 0.75 s on Medium, none on Low. A warhead blast opens
+with a faint shell that expands to its blast radius, and a hull your blast
+defeats confirms with a cockpit stinger and a camera jolt. A torpedo that dies
+unfired now says how: a grey puff and a clank on contact, a pop when shot
+down.</p>
+<figure class="figure">
+    <!-- Capture: assets/loops/news-0170-torpedo-blast.webm -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Video</span>
+        <span class="figure__placeholder-name">assets/loops/news-0170-torpedo-blast.webm</span>
+        <span class="figure__placeholder-note">A lit torpedo with its cold trail runs in on a Serpent among asteroids; the warhead's shell flashes out to the blast radius, sparks fly and the hull comes apart into sections.</span>
+    </div>
+    <figcaption class="figure__caption">Trail, shell, kill. A scripted scene fires the torpedo at a parked Serpent; nobody flies.</figcaption>
+</figure>
+<p>The lock readout shows <strong>TTI</strong>, the seconds until your soonest lit torpedo
+reaches the locked hull, and the cockpit ticks from 8 s out, faster as it
+closes. Each batch a reload lands in a bay plays a rack clunk.</p>
+<h3 id="wrecks-canisters-and-stopped-ships" tabindex="-1">Wrecks, canisters and stopped ships</h3>
+<p>Cargo canisters now hold up to 1,000 kg. A wreck packs its drop into mixed
+canisters, and an intake takes the whole items that fit your hold and leaves
+the rest in the canister. A neutralized ship now drops its patrol, escort slot
+or order and brakes to a stop on its own RCS; with no flight computer, no
+RCS, an empty magazine, a dock or a strong well, it drifts on.</p>
+<h2 id="the-mod-editor" tabindex="-1">The mod editor</h2>
+<p>The Sandbox opens a <strong>Mod Hub</strong> now: a recent-first list of your mods with
+New, Import, Duplicate and Delete. Open a mod and the editor works on all of
+it at once.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0170-mod-hub.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0170-mod-hub.png</span>
+        <span class="figure__placeholder-note">New on the Mod Hub: the name field reads Red Run, the line under it gives the save and publish ids, and three starters - Free-Flight Range, Duelling Arena, Empty Scenario - wait for Create.</span>
+    </div>
+    <figcaption class="figure__caption">A name and a starter make a mod. A scripted editor walk types the name and presses the buttons, in a sandboxed profile.</figcaption>
+</figure>
+<h3 id="the-whole-mod-as-tiles" tabindex="-1">The whole mod as tiles</h3>
+<p>The Assets strip shows the mod's content and its folder files as tiles, with a
+kind filter and a + to add one. A scenario switch keeps your edits, one
+Ctrl+Z history covers the whole mod, and Play tests a scenario. New Asset
+offers only the kinds it can make, as a blank with a new id; Save, Play and
+Package wait until the blank is filled.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0170-asset-tiles.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0170-asset-tiles.png</span>
+        <span class="figure__placeholder-note">A new hull section open on Section, over the Assets strip: the kind filter on the left (Scenarios, Saved Range, Sections), then the scenario, eight ship tiles and the new_hull section tile with a Problems mark.</span>
+    </div>
+    <figcaption class="figure__caption">The scenario, its ships and a new section side by side, each one double click from its own view. Captured by a scripted editor walk.</figcaption>
+</figure>
+<h3 id="every-asset-opens-alone" tabindex="-1">Every asset opens alone</h3>
+<p>A scenario opens on Scene and Events, any ship opens in the Ship editor, a
+section opens on Section, and the rest open on Form. Esc or Back returns to
+where you were. Styles, start roles, items, price tables, trade profiles, UI
+themes and campaigns all open as undoable forms: ids are picked from lists,
+numbers keep to their lint ranges, and Problems shows the merge rules.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0170-ship-back.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0170-ship-back.png</span>
+        <span class="figure__placeholder-note">The Picket Warden opened alone in the Ship view from its tile: its five parts in the tree, and Back to Saved Range in the top bar.</span>
+    </div>
+    <figcaption class="figure__caption">A ship on its own, one press from the scenario you left. Captured by a scripted editor walk.</figcaption>
+</figure>
+<h3 id="events-as-blocks" tabindex="-1">Events as blocks</h3>
+<p>Events is a block canvas beside a palette grouped by role, with a rail that
+filters the palette to one group. Drag a block into a slot that fits and fill
+its values on the block. Each drop is one undo step. An unfinished condition
+shows as a Problem that blocks Save, Play and Package instead of vanishing on
+save.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0170-events-drag.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0170-events-drag.png</span>
+        <span class="figure__placeholder-note">The palette filtered to Debug Message; the block is mid-drag over the wait-for slot of a Sequence step under an OnStart event, with the role rail (Events, Conditions, Actions, Flow, Values) on the left.</span>
+    </div>
+    <figcaption class="figure__caption">Drag, drop, fill in. The walk drives the pointer through the harness.</figcaption>
+</figure>
+<h3 id="one-bar-one-add-menu-a-real-camera" tabindex="-1">One bar, one Add menu, a real camera</h3>
+<p>The editor has one top bar, a Hierarchy tree, an Inspector with folding
+groups, and a strip of Assets, Problems, Ship and Log. Undo and redo cover
+every edit, with Edit rows that name the step, and an UNSAVED mark that asks
+before you leave. The <strong>Add menu</strong> groups what the document takes in
+submenus, with a search; Shift + A opens it on the stage. Right-click menus
+on the stage, the canvas and the Assets strip carry the rest.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0170-add-search.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0170-add-search.png</span>
+        <span class="figure__placeholder-note">The Add menu opened on the stage over a planet, with "beac" typed into its search: one row left, Beacon under Markers.</span>
+    </div>
+    <figcaption class="figure__caption">Type to find what goes on the stage. Captured by a scripted editor walk.</figcaption>
+</figure>
+<p>The viewport has its own camera: RMB looks about, MMB or Alt + LMB orbits,
+Alt + RMB or the wheel dollies, Shift + MMB pans. Q, W, E and R select, move,
+turn and scale; X swaps world and local axes. Ctrl or Shift click, a box
+drag or Ctrl + A select many nodes, and a group moves, turns, deletes and
+copies as one step.</p>
+<h3 id="themes-with-a-picker" tabindex="-1">Themes with a picker</h3>
+<p>A UI theme palette is now one fixed set of job-named colours, such as <code>text</code>,
+<code>surface</code> and <code>accent</code>, and every theme shows the same swatch rows. Click a
+swatch for a picker: a square, a hue strip and a hex field. The pick shows
+live, is one undo step, and Esc takes it back.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0170-theme-picker.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0170-theme-picker.png</span>
+        <span class="figure__placeholder-note">A new UI theme that inherits base/phosphor, open on Form: the picker on the text swatch (square, hue strip, hex #36ff79) beside the palette grid, text to highlight.</span>
+    </div>
+    <figcaption class="figure__caption">Same rows in every theme. Captured by a scripted editor walk.</figcaption>
+</figure>
+<h3 id="settings-sections-and-the-package" tabindex="-1">Settings, sections and the package</h3>
+<p><strong>Mod Settings</strong> edits the manifest and its dependencies. It refuses to
+remove a dependency that content still needs, refuses a cycle, and picking
+from an undeclared mod adds the dependency in the same undo step.
+<strong>New Asset &gt; Section</strong> builds a section in the mod: sockets on the gizmo, a
+<code>.glb</code> import and live Problems. Ships can carry it, and Play flies it.</p>
+<p><strong>File &gt; Package</strong> opens a window: version bump, lint check, the file list
+and the name. It writes <code>&lt;id&gt;-&lt;version&gt;.zip</code> and shows its path and size. Hub
+Import refuses unsafe paths. Packaging is desktop only.</p>
+<figure class="figure">
+    <!-- Capture: assets/news-0170-package.png -->
+    <div class="figure__placeholder">
+        <span class="figure__placeholder-tag">Image</span>
+        <span class="figure__placeholder-name">assets/news-0170-package.png</span>
+        <span class="figure__placeholder-note">Package Mod for Red Run: version 0.1.0 with Patch, Minor and Major bumps, the output folder, red-run-0.1.0.zip, a check that passes with 0 errors and 0 warnings, and two packaged files with a loose note left out.</span>
+    </div>
+    <figcaption class="figure__caption">From a mod to a zip you can share. Captured by a scripted editor walk; the run's data folder was mounted at /mnt/nova-protocol, so the Output line shows that path.</figcaption>
+</figure>
+<h2 id="engine" tabindex="-1">Engine</h2>
+<p>The game now runs on <strong>Bevy 0.20</strong>, <strong>avian3d 0.8</strong> and <strong>bevy_hanabi
+0.20</strong>. The built-in shaders moved from WGSL to WESL
+(<code>assets/shaders/*.wesl</code>). Mods cannot ship shaders, so nothing changes for
+them.</p>
+<h2 id="more-in-v0170" tabindex="-1">More in v0.17.0</h2>
+<ul>
+<li><strong>The HUD holds still at any interface scale.</strong> The lock bracket, the
+target and objective markers and the flight chips sit where they belong at
+a scale other than 100%, and the chips beside your ship no longer overlap
+in a burn.</li>
+<li><strong>DOCK says why.</strong> A DOCK press that does nothing names the reason in the
+HUD notice: no lock, no free port, too far, not facing or too fast.</li>
+<li><strong>Key hints follow your device.</strong> The dock row, the TAB card, objectives
+and the outcome screen show pad buttons after a pad press and keys after a
+key press.</li>
+<li><strong>Esc backs out one level.</strong> In the TAB card, the main menu and the pause
+menu. Buy station, Reset Defaults and mod Uninstall ask twice.</li>
+<li><strong>The Jobs pane scrolls and wraps.</strong> Long titles end in an ellipsis, and an
+empty list or an undocked board says what to do next.</li>
+<li><strong>The PDC round has a lot price.</strong> 10 cr ask and 7 cr bid per 100 rounds,
+and a station that stocks rounds opens with at least 2,000.</li>
+<li><strong>Buttons sound like buttons.</strong> Panes, catalogue and editor buttons tick on
+hover and click on a press; most refused presses buzz.</li>
+</ul>
+<h2 id="for-modders" tabindex="-1">For modders</h2>
+<p>Run <code>content lint</code> on every bundle before you publish for v0.17.0.</p>
+<ul>
+<li><strong><code>UiTheme</code> palettes are one fixed set</strong> of job-named colours in every
+theme. A root theme sets all of them; an unknown colour name fails to
+parse. See <a href="/create/ui-themes/">UI themes</a>.</li>
+<li><strong><code>Item</code> requires <code>price_lot</code></strong>, the item count one <code>ask_cr</code> or <code>bid_cr</code>
+prices: 100 for a PDC round, 1 for the other base items. An item without it
+fails lint, then load.</li>
+<li><strong>A section with <code>health</code> 0 or less fails lint</strong>, and so does a mining
+section or cargo intake whose sound or mesh ref names no file.</li>
+<li><strong><code>ObjectiveComplete</code> must name a posted objective.</strong> An id that no
+<code>Objective</code> in the same scenario posts fails lint and load; it was a
+warning.</li>
+<li><strong>New content and actions.</strong> A <code>TradeProfile</code> kind; the <code>OnJobAccepted</code>
+event; the <code>ObjectiveChipHold</code> and <code>SetTradeProfile</code> actions; optional
+torpedo and kill sounds. <code>ObjectiveChipHold</code> is not saved: run it from
+<code>OnResume</code> too.</li>
+<li><strong>Editor ship saves carry the mod's namespace.</strong> An older <code>editor_</code> save
+opens and converts on its next save.</li>
+</ul>
+<div class="callout callout--breaking">
+<p class="callout__title">Fix themes and items, and start a new world</p>
+<p>A theme with an old colour name, an item without <code>price_lot</code>, a section with no health or an <code>ObjectiveComplete</code> nothing posts fails lint in v0.17.0. World saves now carry station visits, visitor jobs and RCS magazines, so a v0.16.0 world save is refused: start a new world.</p>
+</div>
+<h2 id="point-releases" tabindex="-1">Point releases</h2>
+<p>No point releases yet.</p>
+<footer class="post-footer"><p class="post-footer__discuss">Got a reaction, a question, or a ship you want to show off? <a href="https://github.com/alexjercan/nova-protocol/discussions" target="_blank" rel="noopener">Talk about this release on GitHub Discussions</a>.</p><p class="post-footer__discuss">Want the terse, complete list for every version (patch releases included)? <a href="https://github.com/alexjercan/nova-protocol/blob/master/CHANGELOG.md" target="_blank" rel="noopener">Read CHANGELOG.md on GitHub</a>.</p><p class="post-footer__nav"><a href="/nova-protocol/news/">&larr; All news</a></p></footer></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+</footer>
+</body></html>

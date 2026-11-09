@@ -14,6 +14,25 @@ install.</p>
 <p>If you still need the folder or manifest, start with <a href="../mod-files/">Mod files</a>.
 For content authoring, use <a href="../author-a-scenario/">Create your first scenario</a>,
 <a href="../campaigns/">Campaign files</a>, or <a href="../sections/">Ship sections for mods</a>.</p>
+<h2 id="package-from-the-editor" tabindex="-1">Package from the editor</h2>
+<p>A mod built in the editor does not need the manual steps in section 1.
+<strong>File &gt; Package</strong> opens a window with the version, the output folder, the
+file name, the check and the files. A bump button steps the version first.
+<strong>Package</strong> writes <code>&lt;id&gt;-&lt;version&gt;.zip</code> under the <code>exports/</code> folder in the
+game's data directory. The window then names the full path and the size, with
+Copy Path and Open Folder.
+The <code>editor_</code> prefix goes: the mod <code>editor_red-run</code> at version <code>0.1.0</code> writes
+<code>red-run-0.1.0.zip</code>, and its dependencies on other editor mods change the same
+way.</p>
+<p>The zip holds the folder that section 1 describes, with the files at its root.
+Extract it to <code>webmods/&lt;id&gt;/</code> and go on at section 2. You can also send it as it
+is: <strong>Import</strong> on the Mod Hub installs it.</p>
+<p>An error stops Package. The window gives the count and the first errors, and
+the Problems tab lists every finding. A dependency
+that is not installed blocks Package, but it does not block Save.
+Import refuses a zip with an entry that leaves the folder, an absolute entry, or
+no manifest. It asks first when the mod id is installed already. Package and
+Import need a disk, so the browser build does not have them.</p>
 <h2 id="1-prepare-the-release-folder" tabindex="-1">1. Prepare the release folder</h2>
 <p>Portal source mods live at <code>webmods/&lt;id&gt;/</code>. The directory name is the public mod
 id and URL segment.</p>

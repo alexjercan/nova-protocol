@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
+            window.path_to_searchindex_js = "searchindex-e28e0c87.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -191,7 +191,7 @@ examples, the web build, and how to contribute a change.</li>
 </blockquote>
 <p>This page only orients you: the crate map and where to change X. For exact
 symbols per concept, use the <a href="concept-index.html">Concept index</a>.</p>
-<p>Nova Protocol is a 3D space game built on <strong>Bevy 0.19</strong> with <strong>avian3d</strong> physics.
+<p>Nova Protocol is a 3D space game built on <strong>Bevy 0.20</strong> with <strong>avian3d</strong> physics.
 You build ships out of modular sections (hull, controller, thruster, turret,
 torpedo bay), fly them with real Newtonian thrust and a diegetic <code>GOTO</code>/<code>ORBIT</code>/
 <code>STOP</code> autopilot, work inverse-square gravity wells, and fight with deliberate
@@ -224,7 +224,7 @@ for responsibilities and the dependency graph.</p>
 <tr><td><code>nova_assets</code></td><td><code>bevy_asset_loader</code> setup; loads glb/textures/shaders/sounds; owns the mod merge, safe mode (a broken optional mod is disabled, not fatal, except during a scenario) + prefs.</td></tr>
 <tr><td><code>nova_modding</code></td><td>Bundle/content/catalog asset loaders and the <code>Content</code> routing enum.</td></tr>
 <tr><td><code>nova_mod_format</code></td><td>Pure serde types for the mod formats (engine-free); re-exported by <code>nova_modding</code>. The static mod portal is built by <code>scripts/gen-portal.py</code>.</td></tr>
-<tr><td><code>nova_editor</code></td><td>The ship editor scene (<code>NovaEditorPlugin</code>), shown in <code>GameMode::Sandbox</code>.</td></tr>
+<tr><td><code>nova_editor</code></td><td>The Mod Editor (<code>NovaEditorPlugin</code>), shown in <code>GameMode::Sandbox</code>.</td></tr>
 <tr><td><code>nova_menu</code></td><td>Main menu + the ESC pause overlay; hands off to <code>Playing</code>. New Game opens the world seed modal first.</td></tr>
 <tr><td><code>nova_training</code></td><td>The training handbook’s data: the <code>Lesson</code> content type, catalog ordering, field notes, progress, and the pure lesson validation both <code>content lint</code> and the runtime merge run. A leaf under <code>nova_modding</code>, <code>nova_assets</code> and <code>nova_menu</code>.</td></tr>
 <tr><td><code>nova_input</code></td><td>The bindings registry: the one table of named actions and the sources each holds, the shared rebind capture, and the by-name dispatch. A leaf under every rig and every rebind surface.</td></tr>
@@ -269,7 +269,7 @@ for responsibilities and the dependency graph.</p>
 <tr><td>Mod loading / merge</td><td><code>crates/nova_assets/</code> + <code>crates/nova_modding/</code></td><td><a href="https://alexjercan.github.io/nova-protocol/create/mod-files/">Mod files</a>, <a href="https://alexjercan.github.io/nova-protocol/create/publish-a-mod/">Publish a mod</a></td></tr>
 <tr><td>A built-in scenario or section</td><td><code>crates/nova_authoring/src/</code> (builders), then <code>content -- gen</code></td><td><a href="https://alexjercan.github.io/nova-protocol/create/author-a-scenario/">Create your first scenario</a></td></tr>
 <tr><td>A generated hull, or the plan it is drawn from</td><td><code>crates/nova_wfc/</code> (<code>plan.rs</code> for the plan, <code>WfcPlan::standard_hull</code> for the shipped one) and each caller’s own plan builder</td><td><a href="concept-index.html">Concept index</a>, <a href="ship-layout-sense.html">Ship layout sense</a></td></tr>
-<tr><td>The ship editor</td><td><code>crates/nova_editor/</code></td><td>–</td></tr>
+<tr><td>The Mod Editor</td><td><code>crates/nova_editor/</code></td><td>–</td></tr>
 <tr><td>Shared UI theme / widgets</td><td><code>crates/nova_ui/</code></td><td>–</td></tr>
 <tr><td>The web site / wiki</td><td><code>web/</code></td><td><a href="development.html">Building &amp; running</a></td></tr>
 </tbody>

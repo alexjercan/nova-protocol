@@ -345,6 +345,8 @@
                     warn_lock_sound: Some("self://sounds/warn_lock.wav"),
                     ammo_dry_sound: Some("self://sounds/ammo_dry.wav"),
                     warn_hull_sound: Some("self://sounds/warn_hull.wav"),
+                    kill_confirm_sound: Some("self://sounds/kill_confirm.wav"),
+                    torpedo_closing_sound: Some("self://sounds/torpedo_closing.wav"),
                     rcs_loop_sound: Some("self://sounds/rcs_loop.wav"),
                 ),
             ),

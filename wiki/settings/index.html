@@ -54,11 +54,16 @@ and takes effect live as you drag.</p>
 </div>
 <p>Master multiplies the other three, so a track you have turned down stays down
 when you raise Master.</p>
+<p>Most buttons tick when the pointer reaches them and play a press sound, at the
+Interface level. Most refused presses buzz instead. A disabled button stays
+silent, and the NOVA OS monitor's controls follow its SND switch.</p>
 <h2 id="graphics-quality" tabindex="-1">Graphics quality</h2>
 <p>The <strong>Preset</strong> row offers <strong>Low / Medium / High</strong>; the four lever rows under
 it are what a preset sets. Move any lever on its own and the preset row reads
 <strong>Custom</strong>; land the levers back on a tier's values and it reads that tier
-again. Every row applies live.</p>
+again. Every row applies live. A preset also sets the torpedo trail: 1.5 s of
+path on High, 0.75 s on Medium, none on Low. With Custom levers the trail
+follows <strong>Particles</strong>: 0.75 s on, none off.</p>
 <div class="table-scroll">
 <table>
 <thead>
@@ -159,7 +164,9 @@ player measuring frame times or chasing input latency, at the cost of tearing.</
 <p>The web build has neither row: the game fits the canvas the page gives it and
 the browser presents on its own schedule. The panels themselves are sized as a
 share of the window, so a narrow browser column still gets a readable Settings
-modal with its Back button on screen.</p>
+modal with its Back button on screen. <kbd>Esc</kbd>, or <kbd>B</kbd> on a pad,
+does what <strong>Back</strong> does on every main-menu screen; in the pause menu it closes
+Settings first, and the next <kbd>Esc</kbd> resumes.</p>
 <h2 id="pause-when-unfocused" tabindex="-1">Pause when unfocused</h2>
 <p>Alt-tab, or clicking away from the game, leaves the run <strong>going</strong>: the fight
 does not wait. Switch <strong>Pause when unfocused</strong> to <strong>On</strong> under <strong>Focus</strong> on the
@@ -185,7 +192,9 @@ glyphs you actually press. The same table is laid out on the
 <p>Click a chip and it prompts <code>PRESS A KEY</code>; the next key, mouse button or pad
 button you press becomes that column's whole binding. <kbd>Esc</kbd> backs out,
 which is why no row can be bound to it, and <strong>Reset Defaults</strong> puts the whole
-table back.</p>
+table back. It asks twice: the first press puts <strong>Cancel</strong> where the button
+was, beside a red <strong>Confirm</strong> and what it resets. <strong>Cancel</strong>, <kbd>Esc</kbd>
+or any other button cancels.</p>
 <p>A press something else could answer at the same instant is refused by name -
 <code>W is already bound to Main Drive</code> - and the chip stays armed for another try.
 Sharing a key across screens is fine and deliberate: <kbd>G</kbd> is GO TO in

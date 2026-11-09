@@ -8,14 +8,13 @@
 // rock, and each pulse sends one bright slug down the beam while the whole
 // beam flares and fades back.
 
-#import bevy_pbr::{
-    forward_io::VertexOutput,
-    mesh_view_bindings::{globals, view},
-}
+import bevy_pbr::{
+    render::forward_io::VertexOutput,
+    render::mesh_view_bindings::{globals, view},
+};
 
-#ifdef TONEMAP_IN_SHADER
-#import bevy_core_pipeline::tonemapping::tone_mapping
-#endif
+@if(TONEMAP_IN_SHADER)
+import bevy_core_pipeline::tonemapping::tone_mapping;
 
 struct MiningBeamMaterial {
     // The halo's colour, HDR.
@@ -31,7 +30,7 @@ struct MiningBeamMaterial {
     flash: f32,
 }
 
-@group(#{MATERIAL_BIND_GROUP}) @binding(0) var<uniform> material: MiningBeamMaterial;
+@group(constants::MATERIAL_BIND_GROUP) @binding(0) var<uniform> material: MiningBeamMaterial;
 
 // Bands per engine unit, and how fast they run toward the rock.
 const BAND_DENSITY: f32 = 1.6;
@@ -76,9 +75,9 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         + material.core.rgb * core * (shimmer + 2.5 * slug) * flare;
     color *= ends;
 
-#ifdef TONEMAP_IN_SHADER
+@if(TONEMAP_IN_SHADER) {
     color = tone_mapping(vec4(color, 1.0), view.color_grading).rgb;
-#endif
+}
     // Bevy draws `AlphaMode::Add` with the premultiplied-alpha blend, so an
     // alpha of 0 keeps everything behind the beam and adds the beam on top.
     return vec4(color, 0.0);

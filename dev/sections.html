@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
+            window.path_to_searchindex_js = "searchindex-e28e0c87.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -201,7 +201,9 @@ merge lint runs it on every catalog section; the authoring walk and
 in <code>crates/nova_authoring/src/base_content/sections/recipes.rs</code>.</p>
 <p>A destroyed section drops <code>BuildRecipe::strip_parts</code>, <code>floor(strip_yield * count)</code> of each part, as cargo canisters; a destroyed ship root drops its
 hold, and a destroyed station root its <code>StationStorage</code> with it. A section destroyed in its root’s structural collapse adds its parts to
-the root’s drop, so a ship destroyed whole leaves one drop. The drop is a
+the root’s drop, so a ship destroyed whole leaves one drop. <code>CargoCanister::pack</code> packs one drop’s stacks together into mixed canisters
+of whole items, filled in item id order up to <code>CARGO_CANISTER_MAX_MASS_G</code>
+(1,000 kg); separate drops never share a canister. The drop is a
 <code>MinedOreDrop</code> that the mining ejector drains, so it freezes, thaws and saves
 like mined ore (<code>nova_scenario/src/wreck_cargo.rs</code>).</p>
 <h3 id="lost-sections-and-the-rebuild"><a class="header" href="#lost-sections-and-the-rebuild">Lost sections and the rebuild</a></h3>
@@ -303,10 +305,12 @@ row per item, with no gap, at the top of the card’s clipping details: the
 item’s icon, a quantity cell reading <code>covered/count</code> (covered is held plus
 bought, e.g. <code>1/2</code>, Danger-coloured when the item is short and Primary
 otherwise), the item’s name, and, only when something was bought, a right
-cell with the bought items’ total cost (<code>bought * ask</code>, e.g. <code>40 cr</code>).
+cell with the bought items’ total cost (<code>GalleryRecipeSupply::total_cr</code>,
+e.g. <code>40 cr</code>).
 <code>GalleryRecipeItem::supply</code> is a <code>GalleryRecipeSupply</code> that splits the count
-into held, bought and short, with the item’s <code>ask_cr</code>, the price
-<code>plan_recipe_payment</code> charges for one bought item; its <code>new</code> panics when the
+into held, bought and short, with the item’s ask, the price
+<code>plan_recipe_payment</code> charges per <code>ItemPrice::buy_cr</code> for the bought
+share; its <code>new</code> panics when the
 split does not sum to the count. Its tooltip, pointer-only and shown only for
 an item the station sells, lines up <code>Required N</code>, then only the sources that
 apply: <code>From the hold N</code>, <code>Bought N at &lt;ask&gt; cr, &lt;total&gt; cr</code>, and
@@ -585,7 +589,8 @@ it, and <code>PlayerFleetMarker</code> requires it, so an escort does too; a neu
 loses both. The root takes the bought hull’s name. The old port’s despawn
 releases the dock, and <code>redock_bought_hull</code> docks the new hull with the
 station, giving up with a warning after <code>REDOCK_FRAMES</code>. A docked ship
-that is not the station’s own parked hull keeps the station from retiring,
+that is neither the station’s own parked hull nor a plain AI hull with an id,
+which freezes inside the station’s record, keeps the station from retiring,
 so the player undocks the bought hull normally.</p>
 <p>After its hulls for sale the station lists one to three escorts for hire
 (<code>HullOfferType::Hire { slot }</code>), each parked as <code>ParkedHullType::Hire</code> but
@@ -598,8 +603,14 @@ half-diagonal (<code>design_reach</code>). In a gravity well that holds the stat
 <code>hire_offer_place</code> rotates the station’s pose and velocity about the orbit
 pole by the offset over the orbit radius, so an escort shares the station’s
 orbit a little ahead or behind and does not drift; in flat space it stands
-along the station’s +X with the station’s velocity and spin. A thaw places
-the escorts again by the same rule. Fighting roles (scavenger, armored) the
+along the station’s +Y with the station’s velocity and spin. A generated
+station opens its ports level: no port’s DOCK corridor runs along Y, and each
+escort keeps <code>HIRE_OFFER_CLEARANCE</code> off every corridor axis. Each parked
+record keeps the hull’s pose and motion relative to the station; a thaw, in
+flat space or in a well, puts each escort back at that pose with the
+station’s velocity, its spin about the station and the saved relative
+motion, so a hire never moves the escorts it leaves. Load refuses a
+non-finite saved motion. Fighting roles (scavenger, armored) the
 civilization can build, cycled from a seeded start, none where it builds no
 fighting role. Each keeps its roster slot, so <code>escort_id</code> (station id, stem
 <code>&lt;stem&gt;_&lt;index&gt;_escort</code>, the slot as index) gives one escort one id however
@@ -702,12 +713,12 @@ runtime counts a civilization’s stations.</p>
 <tr><td><code>Torpedo</code></td><td>Torpedo bay. Fires guided torpedoes of an authored <code>torpedo_type</code> (name, tint, <code>max_speed</code>, <code>weave_angle</code>, <code>weave_rate</code>) that detonate an Explosive area blast (<code>blast_radius</code>, <code>blast_damage</code>), optional <code>ammunition: Limited(n)</code> drawing <code>Torpedo</code> on reload. The TYPE is the run-in - how fast and how evasively; everything else on the config is the tube.</td></tr>
 <tr><td><code>Railgun</code></td><td>Spinal lance. No traverse: the HULL aims it down <code>muzzle_offset</code>. Tapping the trigger commits, the bolt walks the bore for <code>charge_seconds</code>, and the shot leaves whether or not the nose is still on the target. The slug deals <code>slug_damage</code> to every layer it rakes; <code>slug_power</code> and not a layer count bounds it, optional <code>rake_radius</code> spends that budget on a wider corridor instead of unused depth, <code>slug_speed</code> x <code>slug_lifetime</code> is the reach, and <code>recoil_impulse</code> lands at the muzzle point so an off-axis mount yaws the ship. Usually <code>ammunition: Limited(1)</code> with a long <code>reload</code> drawing <code>RailSlug</code>.</td></tr>
 <tr><td><code>Docking</code></td><td>Docking port. A cylindrical, rotationally symmetric collar that holds this hull to another one. <code>capture_distance</code>, <code>capture_angle</code> and the two relative-speed ceilings are the envelope a <code>DOCK</code> is graded against; the sleeve that reaches across once the dock holds is an animation track, not a collider (see <a href="#docking-ports-and-what-holds-a-pair-together">below</a>).</td></tr>
-<tr><td><code>CargoIntake</code></td><td>Cargo intake. Takes a <code>CargoCanister</code> whole into the ship’s <code>ShipInventory</code> and drops the Inventory pane’s jettisons from a <code>CargoIntakeEjectionQueue</code>, front first, one at a time while the door is open and the birth point is clear. Each live intake owns a detached static Avian <code>Sensor</code> trigger, <code>aperture_width</code> by <code>aperture_height</code> by <code>capture_gap</code> deep, in front of the <code>Cuboid</code> collider’s -Z face: not a child collider, since the workspace has no collision layers and a sensor in the ship’s compound would join it for mass, bullets, locks and overlap reads. <code>detection_range</code> opens the door for a canister that fits the hold’s free mass (visual only for a take); a canister whose collider touches the trigger is taken whole, at any speed, if the hold has room; a canister in two triggers goes to one intake once; <code>eject_speed</code> sets a drop; the <code>IntakeDoor</code> track gates only the drop. The door, drop and take trigger events that <code>ship_audio/machinery.rs</code> voices (<code>cargo_intake_section.rs</code>).</td></tr>
-<tr><td><code>Mining</code></td><td>Mining emitter. Each emitter deploys on its own key: a player ship’s <code>input_mapping</code> entry for the section becomes a <code>SpaceshipMiningInputBinding</code> rig that sets that section’s <code>MiningSectionHeld</code> (<code>input/player/weapons.rs</code>), and lint and spawn refuse a player mining section with no entry or an empty one, and two mining sections that share a source. While it is held, <code>drive_mining_emitters</code> opens the <code>StowDoors</code> track, then extends the <code>StowLift</code> tip; on release the tip goes in before the doors shut (<code>mining_section.rs</code>). Each change of the doors’ target triggers <code>MiningDoorsMoved</code>, and <code>ship_audio</code> plays the authored <code>door_open_sound</code> or <code>door_close_sound</code> at the section; the spawn snap and a held key play nothing. Each fully deployed emitter pulses on its own clock every <code>pulse_interval_seconds</code>. A pulse casts a ray from its collider’s -Z face against asteroid colliders within <code>reach</code> without a travel lock, picks the nearest hit (including barren rock), and carves <code>carve_radius_cells</code> there if it holds ore. Other bodies do not occlude this asteroid-only ray. Ore is paid per newly emptied corner after the remesh, then leaves the rock as canisters one at a time. A passed pulse plays the authored <code>pulse_sound</code> at the hit and, in a rendered app, flares the additive beam shader (<code>assets/shaders/mining_beam.wgsl</code>) and throws a fixed spark burst. A refusal is a <code>MiningPulse</code> with a <code>MiningRefusalType</code>, plays the authored <code>refusal_sound</code> once at the emitter face and changes nothing (<code>nova_scenario/src/mining.rs</code>).</td></tr>
+<tr><td><code>CargoIntake</code></td><td>Cargo intake. Takes the whole items of a <code>CargoCanister</code> that fit the hold’s free mass into the ship’s <code>ShipInventory</code>, in item id order (<code>CargoCanister::take_fitting</code>), and leaves the rest in the same canister with the same <code>CargoCanisterRuntimeId</code>; and drops the Inventory pane’s jettisons from a <code>CargoIntakeEjectionQueue</code>, front first, one at a time while the door is open and the birth point is clear. Each live intake owns a detached static Avian <code>Sensor</code> trigger, <code>aperture_width</code> by <code>aperture_height</code> by <code>capture_gap</code> deep, in front of the <code>Cuboid</code> collider’s -Z face: not a child collider, since the workspace has no collision layers and a sensor in the ship’s compound would join it for mass, bullets, locks and overlap reads. <code>detection_range</code> opens the door for a canister with at least one item that fits the hold’s free mass (visual only for a take); a canister whose collider touches the trigger gives up every whole item that fits, at any speed, and is despawned once empty; a canister in two triggers goes to the first intake in entity order, and the next sees only what is left; <code>eject_speed</code> sets a drop; the <code>IntakeDoor</code> track gates only the drop. The door, drop and take trigger events that <code>ship_audio/machinery.rs</code> voices (<code>cargo_intake_section.rs</code>).</td></tr>
+<tr><td><code>Mining</code></td><td>Mining emitter. Each emitter deploys on its own key: a player ship’s <code>input_mapping</code> entry for the section becomes a <code>SpaceshipMiningInputBinding</code> rig that sets that section’s <code>MiningSectionHeld</code> (<code>input/player/weapons.rs</code>), and lint and spawn refuse a player mining section with no entry or an empty one, and two mining sections that share a source. While it is held, <code>drive_mining_emitters</code> opens the <code>StowDoors</code> track, then extends the <code>StowLift</code> tip; on release the tip goes in before the doors shut (<code>mining_section.rs</code>). Each change of the doors’ target triggers <code>MiningDoorsMoved</code>, and <code>ship_audio</code> plays the authored <code>door_open_sound</code> or <code>door_close_sound</code> at the section; the spawn snap and a held key play nothing. Each fully deployed emitter pulses on its own clock every <code>pulse_interval_seconds</code>. A pulse casts a ray from its collider’s -Z face against asteroid colliders within <code>reach</code> without a travel lock, picks the nearest hit (including barren rock), and carves <code>carve_radius_cells</code> there if it holds ore. Other bodies do not occlude this asteroid-only ray. Ore is paid per newly emptied corner after the remesh, then leaves the rock as canisters one at a time. A passed pulse plays the authored <code>pulse_sound</code> at the hit and, in a rendered app, flares the additive beam shader (<code>assets/shaders/mining_beam.wesl</code>) and throws a fixed spark burst. A refusal is a <code>MiningPulse</code> with a <code>MiningRefusalType</code>, plays the authored <code>refusal_sound</code> once at the emitter face and changes nothing (<code>nova_scenario/src/mining.rs</code>).</td></tr>
 </tbody>
 </table>
 </div>
-<p><code>run_cargo_intakes</code> publishes <code>CargoPickupReadiness</code> for each live intake/canister pair on the fixed clock, including out-of-range canisters. A pair names only the ship, intake, canister and <code>ready</code>; it carries no pose. The HUD draws its live pickup sight for one published pair from rendered <code>GlobalTransform</code> poses, with the face from <code>cargo_intake_face</code>, the helper the fixed pass also uses. The canister must be within <code>CARGO_PICKUP_SIGHT_RANGE</code> (200 m) of the player’s ship, with no lock needed: a travel-locked canister first, else the nearest intake face, then the lower entity IDs (<code>pickup_sight.rs</code>). No pair in range draws no sight. A take despawns the canister in the same pass, so the sight clears with it and <code>CargoCanisterTaken</code> voices the take.</p>
+<p><code>run_cargo_intakes</code> publishes <code>CargoPickupReadiness</code> for each live intake/canister pair on the fixed clock, including out-of-range canisters. A pair names only the ship, intake, canister and <code>ready</code>; it carries no pose. The HUD draws its live pickup sight for one published pair from rendered <code>GlobalTransform</code> poses, with the face from <code>cargo_intake_face</code>, the helper the fixed pass also uses. The canister must be within <code>CARGO_PICKUP_SIGHT_RANGE</code> (200 m) of the player’s ship, with no lock needed: a travel-locked canister first, else the nearest intake face, then the lower entity IDs (<code>pickup_sight.rs</code>). No pair in range draws no sight. <code>ready</code> means this pass takes at least one item. A take that empties the canister despawns it in the same pass, so the sight clears with it; a canister with items left stays a candidate. <code>CargoCanisterTaken</code> voices every take.</p>
 <p><code>GameSections(Vec&lt;SectionConfig&gt;)</code> is the resource of section blueprints.
 Every base prototype is GENERIC and authored under
 <code>crates/nova_authoring/src/base_content/sections/</code>, one module per family
@@ -940,7 +951,7 @@ JointCollisionDisabled,
 <span class="boring">}</span></code></pre>
 <p>Both anchors land on <code>m</code>, and the second body’s basis holds the relative
 rotation the two hulls met at, roll included. Do not use the global
-<code>with_anchor</code> / <code>with_basis</code>: avian3d 0.7 converts a global basis as
+<code>with_anchor</code> / <code>with_basis</code>: avian3d 0.8 converts a global basis as
 <code>basis * rot.inverse()</code> where its solver needs <code>rot.inverse() * basis</code>, so the
 joint holds the capture pose only when the two hull rotations commute. A
 belly-up hull against a yawed partner does not, and the joint swings the
@@ -1123,6 +1134,15 @@ is outside what a patch can say (a different kind, a muzzle the prototype does
 not carry), which is the only case that falls back to an <code>Inline</code> copy. So the
 editor never keeps a second list of which fields the patch reaches.</li>
 </ul>
+<p>The same crate builds new instances of a section on a bench
+(<code>crates/nova_editor/src/asset.rs</code>). Assets &gt; + &gt; Sections copies a prototype
+or a plain hull into the mod and opens it as the document: the root holds the
+<code>Content</code>, and the collider, mesh and each link point are nodes under it. Sockets
+are <code>SocketNode</code>s with a <code>Transform</code> in cells, so the gizmo moves them on a 5 m
+grid and a move is one undo step; <code>lowered_item</code> writes them back to <code>link_points</code>.
+A project section reaches <code>GameSections</code> for the session through
+<code>sync_project_sections</code>, not through a merge, because a merge refusal during
+<code>GameStates::Playing</code> is fatal. The registrations go on leaving the document.</p>
 <h3 id="the-derived-skin"><a class="header" href="#the-derived-skin">The derived skin</a></h3>
 <p><code>skin: true</code> on a ship’s hull asks the game to CLAD it. Nothing authors a plate:
 <code>spawn_ship_skin</code> (<code>sections/shell_skin.rs</code>) reads the finished section batch on
@@ -1206,7 +1226,7 @@ will not be built, so cladding it would draw a ship that cannot exist.</li>
 <li>A preview plate is DISPLAY ONLY: <code>ShipSkinMarker</code> and a pose, so the shared
 <code>dress_skin_plate</code> observer still draws it, but no <code>SectionMarker</code>, no
 <code>Collider</code> and no health. The placement solver never counts one as a part,
-the pointer never hits one, and the <code>Q</code> pipette cannot arm one.</li>
+the pointer never hits one, and the <code>P</code> pipette cannot arm one.</li>
 </ul>
 <p>Both readings go through <code>read_structure</code> (<code>shell_skin.rs</code>), so the lattice the
 editor clads on and the lattice the flown ship clads on cannot drift - and the
@@ -1774,7 +1794,7 @@ so the guard covers nothing, and only sharing does. <code>Assets::get_mut</code>
 asset modified whether or not the value moves, and a modified material is
 re-extracted, re-uploaded and has its bind group rebuilt that frame.</p>
 <p>What quantising costs is smoothness, and the shader is what makes 16 enough: one
-bucket step moves the flame tip by 0.0667 local units, and <code>thruster_exhaust.wgsl</code>
+bucket step moves the flame tip by 0.0667 local units, and <code>thruster_exhaust.wesl</code>
 already jitters that same tip by up to <code>wobble_amp = 0.1</code> every frame.</p>
 <p>The rule the vocabulary is kept honest by: <strong>NO SHIP SECTION LOSES GEOMETRY.</strong>
 Every effect here is a material or a particle, and the only thing that changes a

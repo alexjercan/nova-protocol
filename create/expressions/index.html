@@ -256,8 +256,8 @@ snapshot when the action runs:</p>
 make the query unavailable. Expressions fail closed. Missing is not zero.</p>
 <h2 id="the-typed-form-in-the-editor" tabindex="-1">The typed form (in the editor)</h2>
 <p>The RON above is the authored form, and it is the one the file holds. In the
-in-game editor an expression filter is ONE ROW in the tree; selecting it opens
-the condition as a PAGE, a row per node: <code>Compare</code> at the top with <code>Left</code> and
+in-game editor an expression filter is ONE BLOCK on the canvas; its <code>...</code> chip
+opens the condition as a PAGE in a pop-up, a row per node: <code>Compare</code> at the top with <code>Left</code> and
 <code>Right</code> stepped in under it, each offering the operators its place allows. A
 leaf holds one value, typed in the short form below rather than as a nest of
 <code>Add(Term(Factor(...</code>. A leaf that names a variable can PICK one instead of
@@ -265,8 +265,7 @@ spelling it: the chip beside the box lists what the scenario declares.</p>
 <p>A <code>VariableSet</code> action opens the SAME page under its <code>Key</code>, headed <code>Value</code>
 instead of <code>Condition</code>: what it writes is an expression, so <code>Writes</code> sits where
 <code>Compare</code> does and takes the operators a value may have - <code>+ - * /</code> and a leaf,
-never a comparison. The tree row of that action reads as the assignment it
-makes, <code>beat = beat + 1</code>.</p>
+never a comparison.</p>
 <div class="table-scroll">
 <table>
 <thead>

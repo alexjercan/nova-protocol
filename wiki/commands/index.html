@@ -8,7 +8,7 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Commands</p><h1>Commands</h1><div class="wiki__tags" id="wiki-tags"></div><p>Press <kbd>;</kbd> anywhere - the main menu, the ship editor, mid-flight, on the pause screen, over the <a href="../interface/">interface</a> - and the ship's CRT monitor opens on <strong>NOVA COMMANDS</strong>: one prompt that can read the run, change your settings, print the flight log, and, once you deliberately arm it, cheat.</p>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Wiki navigation"></aside><article class="wiki__body prose" data-doc-section="wiki"><p class="wiki__crumb"><a href="/nova-protocol/wiki/">Wiki</a> / Commands</p><h1>Commands</h1><div class="wiki__tags" id="wiki-tags"></div><p>Press <kbd>;</kbd> anywhere - the main menu, the editor, mid-flight, on the pause screen, over the <a href="../interface/">interface</a> - and the ship's CRT monitor opens on <strong>NOVA COMMANDS</strong>: one prompt that can read the run, change your settings, print the flight log, and, once you deliberately arm it, cheat.</p>
 <figure class="figure">
     <!-- Capture: assets/loops/command-shell-open.webm -->
     <div class="figure__placeholder">
@@ -444,7 +444,7 @@ Hint: type `help` and press Enter.
 <details class="explain">
 <summary>Show explanation</summary>
 <!-- CRT composite + pointer forwarding: crates/nova_interface/src/terminal/crt.rs.
-     Shader physics: assets/shaders/nova_os_crt.wgsl (hum bar, mains flicker,
+     Shader physics: assets/shaders/nova_os_crt.wesl (hum bar, mains flicker,
      retrace beam, power collapse, degauss). Casing detail: terminal/casing.rs.
      Sounds: terminal/sound.rs, crates/nova_gameplay/src/audio/mod.rs. -->
 <p>The picture is a real tube, not a flat overlay: the terminal renders offscreen and is shown through one screen shader, so the green glyphs bloom into a phosphor halo, the image bows with barrel curvature under scanlines, grain and an edge vignette, a hum bar drifts, the mains flicker breathes, and a retrace beam sweeps by every few seconds. Your mouse works through all of it: clicks on the glass are mapped through the same curvature, so the control you see under the cursor is the one you hit.</p>

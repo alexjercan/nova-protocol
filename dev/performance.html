@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
+            window.path_to_searchindex_js = "searchindex-e28e0c87.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -473,7 +473,12 @@ rendered run, never instead of one.</p>
 <code>run --scenario</code>: it launches the game binary itself and needs no example.
 <code>run --scenario</code> only sets <code>NOVA_PROBE_SCENARIO</code>, which no cataloged example
 reads on the native side; on <code>--platform web</code> it is load-bearing, because
-<code>nova_perf_web</code> takes the scenario id from the URL.</p>
+<code>nova_perf_web</code> takes the scenario id from the URL. The shipped binary opens
+its window only once the scenario is BUILT - its camera is up and the loader’s
+gate is released - because the loader holds <code>Time&lt;Virtual&gt;</code> through the build
+and a window opened on that hold is refused as <code>simulation_stopped</code>. A build
+that fails never releases the gate, so the capture stays armed and silent and
+the probe’s own timeout ends the run; nothing admits a failed start.</p>
 <p>Every capture records run metadata (wgpu backend + GPU adapter, resolution,
 graphics preset, git SHA, host and the BUILD PROFILE) so a results file names
 its own renderer. That metadata is required, not optional: the reader accepts

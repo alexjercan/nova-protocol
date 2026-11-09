@@ -573,6 +573,7 @@ of its own is generic authored stock. See <a href="../mod-files/#content-files">
 <th>Item</th>
 <th>Mass</th>
 <th>Category</th>
+<th>Lot</th>
 <th>Ask</th>
 <th>Bid</th>
 </tr>
@@ -582,6 +583,7 @@ of its own is generic authored stock. See <a href="../mod-files/#content-files">
 <td><code>HullPlate</code></td>
 <td>10 kg</td>
 <td>Repair</td>
+<td>1</td>
 <td>40</td>
 <td>30</td>
 </tr>
@@ -589,13 +591,15 @@ of its own is generic authored stock. See <a href="../mod-files/#content-files">
 <td><code>PdcRound</code></td>
 <td>0.2 kg</td>
 <td>Ammo</td>
-<td>4</td>
-<td>3</td>
+<td>100</td>
+<td>10</td>
+<td>7</td>
 </tr>
 <tr>
 <td><code>RailSlug</code></td>
 <td>20 kg</td>
 <td>Ammo</td>
+<td>1</td>
 <td>40</td>
 <td>30</td>
 </tr>
@@ -603,6 +607,7 @@ of its own is generic authored stock. See <a href="../mod-files/#content-files">
 <td><code>Torpedo</code></td>
 <td>150 kg</td>
 <td>Ammo</td>
+<td>1</td>
 <td>400</td>
 <td>300</td>
 </tr>
@@ -610,6 +615,7 @@ of its own is generic authored stock. See <a href="../mod-files/#content-files">
 <td><code>StoneOre</code></td>
 <td>10 kg</td>
 <td>Raw</td>
+<td>1</td>
 <td>4</td>
 <td>3</td>
 </tr>
@@ -617,6 +623,7 @@ of its own is generic authored stock. See <a href="../mod-files/#content-files">
 <td><code>IronOre</code></td>
 <td>10 kg</td>
 <td>Raw</td>
+<td>1</td>
 <td>16</td>
 <td>12</td>
 </tr>
@@ -624,6 +631,7 @@ of its own is generic authored stock. See <a href="../mod-files/#content-files">
 <td><code>WaterIce</code></td>
 <td>10 kg</td>
 <td>Raw</td>
+<td>1</td>
 <td>12</td>
 <td>9</td>
 </tr>
@@ -631,6 +639,7 @@ of its own is generic authored stock. See <a href="../mod-files/#content-files">
 <td><code>CarbonOre</code></td>
 <td>10 kg</td>
 <td>Raw</td>
+<td>1</td>
 <td>8</td>
 <td>6</td>
 </tr>
@@ -638,6 +647,7 @@ of its own is generic authored stock. See <a href="../mod-files/#content-files">
 <td><code>Rations</code></td>
 <td>2 kg</td>
 <td>Food</td>
+<td>1</td>
 <td>8</td>
 <td>6</td>
 </tr>
@@ -645,16 +655,21 @@ of its own is generic authored stock. See <a href="../mod-files/#content-files">
 <td><code>SalvagedParts</code></td>
 <td>25 kg</td>
 <td>Parts</td>
+<td>1</td>
 <td>120</td>
 <td>90</td>
 </tr>
 </tbody>
 </table>
 </div>
-<p>Ask and Bid are credits for one item, the same on every ship.</p>
+<p>Ask and Bid are credits for one lot of items, the same on every ship. A
+trade of a count that is not a whole lot pays its share, rounded up for a
+Buy and down for a Sell; a Sell whose share rounds to 0 cr is refused. A
+lot of 1 prices each item, like every item but the PDC round.</p>
 <p>Base also ships ten <code>Parts</code> items that section build recipes spend (see
 <a href="../sections/#build-recipe">Build recipe</a>). They are not role ids: a mod may
-replace or skip them, and its own recipes may name its own <code>Parts</code> items.</p>
+replace or skip them, and its own recipes may name its own <code>Parts</code> items.
+Every one has a lot of 1.</p>
 <div class="table-scroll">
 <table>
 <thead>
@@ -762,9 +777,10 @@ Serpent and Lance alike - the bay decides the flight.</p>
      (`ResolvedShipDesign::cargo_capacity_g` :402, `HULL_SECTION_CARGO_G` :393);
      overstock lint in crates/nova_scenario/src/lint/ship.rs
      `check_object_prototypes`. Item catalog: crates/nova_gameplay/src/inventory.rs
-     `ItemDesign` (`mass_g`, `category`, `ask_cr`, `bid_cr`); the base
+     `ItemDesign` (`mass_g`, `category`, `price_lot`, `ask_cr`, `bid_cr`); the base
      catalog's values: crates/nova_authoring/src/base_content/items.rs
-     `item_catalog`. -->
+     `item_catalog`. Lot pricing: crates/nova_gameplay/src/market.rs
+     `ItemPrice::buy_cr`, `ItemPrice::sell_cr`. -->
 <h3 id="section-patches" tabindex="-1">Section patches</h3>
 <p><code>section_patches</code> tunes named sections of a catalog design for THIS spawn,
 keyed by the design's own section ids. A section id the design does not carry
@@ -936,7 +952,7 @@ naming the key, not a key quietly dropped.</p>
 <td><code>patrol</code></td>
 <td>list of 3-tuples</td>
 <td><code>[]</code></td>
-<td>waypoint loop in world METERS while nothing hostile is detected; empty = station-keep. Legs blocked by a solid body are flown around automatically - the clearance is the body's geometric radius plus this ship's own live hull radius plus <code>avoid_margin</code> - so routes need not measure every rock. Nav beacons are marks to fly TO, never obstacles, so a route can be its own beacons</td>
+<td>waypoint loop in world METERS while nothing hostile is detected; empty = station-keep. The autopilot routes every GOTO/GotoPos leg this ship flies - patrol legs and helm orders alike - around a solid body blocking it; the clearance is the body's geometric radius plus this ship's own live hull radius plus <code>avoid_margin</code>, so routes need not measure every rock. Nav beacons and other ships/stations are never obstacles, so a route can be its own beacons</td>
 </tr>
 <tr>
 <td><code>patrol_stops</code></td>
@@ -984,7 +1000,7 @@ naming the key, not a key quietly dropped.</p>
 <td><code>avoid_margin</code></td>
 <td><code>Option</code> number</td>
 <td><code>None</code></td>
-<td>patrol avoidance margin override in meters: the daylight this ship wants between its own hull and a sized body's, instead of the default 200 m. A FACE distance - the engine adds this ship's live hull radius - so the same number is the same visible gap for a skiff and for a carrier. <code>Some(0.0)</code> is legal and passes on the hull's own skin: a miner who knows the belt. Only the patrol routine avoids; a ship in combat flies its fight</td>
+<td>avoidance margin override in meters, applied to every GOTO/GotoPos leg this ship's autopilot flies (patrol, helm orders, player GOTO): the daylight this ship wants between its own hull and a sized body's, instead of the default 200 m. A FACE distance - the engine adds this ship's live hull radius - so the same number is the same visible gap for a skiff and for a carrier. <code>Some(0.0)</code> is legal and passes on the hull's own skin: a miner who knows the belt</td>
 </tr>
 <tr>
 <td><code>arrival_standoff</code></td>

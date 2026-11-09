@@ -488,7 +488,7 @@ while it has a card.</p>
 </tr>
 <tr>
 <td>the price</td>
-<td>every section's <a href="../sections/#build-recipe">build recipe</a> at ask: its <code>credits</code> plus its parts at the item's <code>ask_cr</code>, paid in full. The station pays nothing for the old ship</td>
+<td>every section's <a href="../sections/#build-recipe">build recipe</a> at ask: its <code>credits</code> plus its parts at the item's ask, rounded up per lot. The station pays nothing for the old ship</td>
 </tr>
 <tr>
 <td>the swap</td>
@@ -610,7 +610,7 @@ scenario places and a derelict are not for sale.</p>
 </tr>
 <tr>
 <td>the price</td>
-<td>twice what the station is worth at ask: every live section's <a href="../sections/#build-recipe">build recipe</a>, every stack of its hold at the item's <code>ask_cr</code>, and its credits. Your storage there is already yours and is not priced</td>
+<td>twice what the station is worth at ask: every live section's <a href="../sections/#build-recipe">build recipe</a>, every stack of its hold at the item's ask, rounded up per lot, and its credits. Your storage there is already yours and is not priced</td>
 </tr>
 <tr>
 <td>the credits</td>
@@ -622,7 +622,7 @@ scenario places and a derelict are not for sale.</p>
 </tr>
 <tr>
 <td>what becomes yours</td>
-<td>the station leaves its civilization: it takes the Player side, so its guns fire on your foes, and it is named <code>Owned station</code>. It admits you whatever your side. Its hold sells to you at the item's <code>bid_cr</code>; storage withdraw stays free. Its services still price at ask, and Take does not reach its credits</td>
+<td>the station leaves its civilization: it takes the Player side, so its guns fire on your foes, and it is named <code>Owned station</code>. It admits you whatever your side. Its hold sells to you at the item's bid, rounded up per lot; storage withdraw stays free. Its services still price at ask, and Take does not reach its credits</td>
 </tr>
 <tr>
 <td>what stays</td>
@@ -664,7 +664,7 @@ Its <code>design</code> names a catalog station with <code>Prototype(id)</code>:
 <p>Or it carries a one-off station whole with <code>Inline((hull: .., services: .., storage_cap_g: .., stock: .., credits: ..))</code>, the fields of <code>design</code> above.
 The lint checks an inline station as it checks a <code>Station</code> item. A station
 spawn takes no section patches.</p>
-<p>The Sandbox editor writes the same pair. A ship marked <strong>Station</strong> in its
+<p>The editor writes the same pair. A ship marked <strong>Station</strong> in its
 inspector saves as a <code>Station</code> item under the ship's node id and a <code>Station</code>
 object that spawns it. The editor writes the hull and its side and fills the
 rest: the four services, a 100 kg storage cap, 5000 credits, and the base
@@ -795,10 +795,11 @@ builds: every part at advancement 0, and of the parts above 0 that its
 advancement opens, each with chance 0.5 keyed to the civilization and the
 part id. The parts hold at least one recipe of every part it builds: for each
 item, the largest count any one of those recipes asks, so the Catalogue can
-sell every part it lists from the station's own stock. Its goods hold at
-least one unit of each ammunition item that a reloading weapon its
-civilization knows draws (<code>PdcRound</code>, <code>RailSlug</code>, <code>Torpedo</code>), and no other
-ammunition. It draws the parts its civilization knows at its advancement, by draw
+sell every part it lists from the station's own stock. Its goods hold
+ammunition only for the reloading weapons its civilization knows
+(<code>PdcRound</code>, <code>RailSlug</code>, <code>Torpedo</code>): at least 2,000 <code>PdcRound</code> when one of
+those weapons reloads from it, and at least one unit of each other such
+item. It draws the parts its civilization knows at its advancement, by draw
 weight, those within 0.25 below its advancement first, and carries
 flight computers for its mass, as a generated ship does. A dead station keeps the same stock
 and credits as loot.</p>
@@ -806,8 +807,8 @@ and credits as loot.</p>
 style, or when no station hull, flight computer, docking port or turret part
 is open at advancement 0. A station that no layout fits fails its sector
 with the seed, civilization, archetype, advancement and failed constraint.
-A station whose opening stock weighs more than its hull holds fails its
-sector with a <code>station_stock</code> fault.
+A station whose opening stock, PDC floor included, weighs more than its
+hull holds fails its sector with a <code>station_stock</code> fault.
 <code>block_waystation</code> is for scenarios; the generator never places it. A
 mod's <code>Station</code> items are for its scenarios too.</p>
 <p>A generated station spawns with a typed generated id and no scenario
@@ -915,13 +916,18 @@ docked at - the session's starting station, the nearest station of a
 civilization whose seeded stance is Ally, kept in the world save's <code>start</code>
 field - also wears <code>StarterBoardMarker</code> beside its board; it is the one board
 that posts the start role's starter jobs, and no other board ever carries the
-marker. Each board slot carries a posting number, the play-time stamp it was
-posted at and the offer it posted (<code>SlotPosting</code>, kept per station in the
-<code>JobPostings</code> session resource, saved with the world). A slot's offer is drawn
-once, when the slot posts, from the world seed, the station's generated id,
-the slot, the posting number, the cluster types of its sector, the start
-role's job mix, the board's standing offers and the field around the station,
-off its own <code>WyRand</code> seeded from FNV-64 of <code>(seed, &quot;station_jobs&quot;, station id, slot, posting)</code>. The offer then stands as drawn until its slot renews: a
+marker. When a slot there posts and no standing offer stays open to the
+player's current hull, the slot posts one the hull can do: a procurement the
+hold takes, else a distress call for a docking section, else an escort for a
+weapon. A held slot, and a slot that does not renew, stays as it is. Each
+board slot carries a posting number, the play-time stamp it was posted at and
+the offer it posted (<code>SlotPosting</code>, kept per station in the <code>JobPostings</code>
+session resource, saved with the world). A slot's offer is drawn once, when
+the slot posts, from the world seed, the station's generated id, the slot, the
+posting number, the cluster types of its sector, the start role's job mix, the
+board's standing offers, the field around the station and, on the starting
+station's board, the player's hull, off its own <code>WyRand</code> seeded from FNV-64 of
+<code>(seed, &quot;station_jobs&quot;, station id, slot, posting)</code>. The offer then stands as drawn until its slot renews: a
 looted wreck, a job held elsewhere, a thaw or a Load never changes it. A job's
 id is the posting station's id, its board slot and its posting number
 (<code>&lt;station&gt;#&lt;slot&gt;.&lt;posting&gt;</code>).</p>

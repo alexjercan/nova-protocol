@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
+            window.path_to_searchindex_js = "searchindex-e28e0c87.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -238,6 +238,8 @@ so.</p>
 <tr><td><code>NOVA_AUTOPILOT</code></td><td>the scripted state driver</td><td><code>AutopilotPlugin</code></td><td>any (presence only)</td></tr>
 <tr><td><code>NOVA_CAPTURE</code></td><td>the CAPTURE path of a script that has one: its shot steps write PNGs instead of driving straight through</td><td><code>capturing()</code>, which a script reads while building its steps</td><td>any (presence only)</td></tr>
 <tr><td><code>NOVA_CAPTURE_DIR</code></td><td>nothing on its own</td><td><code>capture_window</code>, and the scenario <code>Screenshot</code> action (<code>nova_scenario/src/actions/view.rs</code>) reads it independently</td><td>directory that relative capture paths resolve under; absolute paths ignore it</td></tr>
+<tr><td><code>NOVA_CAPTURE_SIZE</code></td><td>nothing on its own</td><td><code>capture_size_override</code>, applied by <code>force_capture_resolution</code></td><td><code>&lt;width&gt;x&lt;height&gt;</code> in pixels, in place of 1920x1080; a malformed value panics</td></tr>
+<tr><td><code>NOVA_CAPTURE_UI_SCALE</code></td><td>nothing on its own</td><td><code>force_capture_resolution</code>, which sets the <code>UiScale</code> factor</td><td><code>75</code>, <code>100</code>, <code>125</code> or <code>150</code>; any other value panics</td></tr>
 <tr><td><code>NOVA_AUTOPILOT_DEADLINE</code></td><td>nothing on its own</td><td>the completion watcher</td><td>seconds before the run gives up and error-exits naming the laggards (default 120); the RUN-level backstop under a script’s own per-step deadlines</td></tr>
 </tbody>
 </table>

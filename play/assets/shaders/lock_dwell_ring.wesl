@@ -3,7 +3,7 @@
 // via bevy's UiMaterial pipeline. Deliberately trivial maths (no textures, no
 // derivatives) so it is safe on the WebGL2 wasm target.
 
-#import bevy_ui::ui_vertex_output::UiVertexOutput
+import bevy_ui_render::ui_vertex_output::UiVertexOutput;
 
 const PI: f32 = 3.1415926535;
 const TAU: f32 = 6.2831853072;

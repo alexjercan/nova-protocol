@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
+            window.path_to_searchindex_js = "searchindex-e28e0c87.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -431,9 +431,11 @@ ship’s centre. The agent view has
 no carve result or intake position. It does show all live canisters, their
 contents, and their distance and bearing from the player’s ship. A newly
 visible ore canister shows ore in the world, not its source or pickup; a
-canister’s disappearance alone can also mean it was destroyed. The intake
-takes a whole canister on trigger contact when hold mass permits; only an
-increase in the relevant <code>me.cargo.items</code> count proves pickup.
+canister’s disappearance alone can also mean it was destroyed. On trigger
+contact the intake takes the whole items that fit the free hold mass and
+leaves the rest in the same canister with the same <code>id</code>, so a canister can
+stay live after a pickup; only an increase in the relevant <code>me.cargo.items</code>
+count proves pickup.
 Jettison (undocked) and Buy and Sell (docked to a trader) are Inventory pane
 buttons, driven with <code>pointer</code> gestures on the <code>ui.targets</code> the interface
 shows. Read every result off <code>me.cargo</code>.</p>

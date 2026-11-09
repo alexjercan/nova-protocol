@@ -436,12 +436,12 @@
             rows: 5,
             frames: 20,
             frames_per_second: 10.0,
-            alt: "a line warship rising under a drifting canister: the canister goes through the cargo intake\'s open door into the hold, and the door folds shut",
+            alt: "a line warship rising under a drifting canister, with the cargo intake\'s door open below it",
         ),
-        body: "A cargo intake takes a whole canister into your hold. Fly the intake\'s door onto the canister: the canister must touch the opening, and your hull beside it knocks the canister aside. The pickup sight draws a line from the intake to the canister.",
+        body: "A cargo intake takes each whole item in a canister that your hold has room for. The rest stays in that canister until taken. Fly the intake\'s door onto the canister; your hull beside the opening knocks it aside. The pickup sight lines you up.",
         wiki_path: "wiki/sections/cargo-intake#taking-a-canister-in",
         field_notes: [
-            "Fly your cargo intake\'s door onto a canister to take it into your hold.",
+            "Fly your cargo intake\'s door onto a canister to take its cargo into your hold.",
         ],
     )),
     Lesson((
@@ -821,7 +821,7 @@
         title: "The build readout",
         media: Image(
             image: "self://training/build_readout.webp",
-            alt: "the editor rail\'s stat block on a half-built hull: Turn, Mass, Thrust, HP and Parts down one column with the limit note under them",
+            alt: "the Hierarchy panel\'s stat block on a half-built hull: Turn, Mass, Thrust, HP and Parts down one column with the limit note under them",
         ),
         body: "The editor shows your ship\'s turn rate, mass, thrust, health, and section count. A note below these values explains what currently limits its turn rate.",
         wiki_path: "wiki/keybinds#the-build-readout",
@@ -851,7 +851,7 @@
         title: "What decides your turn rate",
         media: Image(
             image: "self://training/build_turning.webp",
-            alt: "a long spine in the editor, the rail printing its turn ceiling with the structure-limited note under it",
+            alt: "a long spine in the editor, the build readout printing its turn ceiling with the structure-limited note under it",
         ),
         body: "Turn rate is limited by your flight computers, the ship\'s mass, and the distance of its outermost sections. Long or heavy ships usually turn more slowly.",
         wiki_path: "wiki/sections/controller#what-sets-how-hard-a-ship-turns",
@@ -885,7 +885,7 @@
         title: "A second flight computer",
         media: Image(
             image: "self://training/build_stacking.webp",
-            alt: "two flight computers on one spine in the editor, both of them listed in the scene tree, and the rail naming the structure as what holds the turn rate down",
+            alt: "two flight computers on one spine in the editor, both of them listed in the Hierarchy, and the build readout naming the structure as what holds the turn rate down",
         ),
         body: "Most ships are already limited by their structure, so another flight computer does not make them turn faster. It improves turning precision and keeps the ship controllable if another computer is destroyed.",
         wiki_path: "wiki/sections/controller#stacking-controllers",

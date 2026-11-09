@@ -22,7 +22,11 @@ the moment you trade, from its market:</p>
 bid = reference bid_cr x scarcity.bid x cluster.bid x civilization.bid
 </code></pre>
 <p>Each side's product is clamped to <code>clamp</code>, then the price rounds to the
-nearest credit.</p>
+nearest credit per the item's <code>price_lot</code>: <code>ask_cr</code> and <code>bid_cr</code> price one
+lot, not one item. A trade of a count that is not a whole lot pays its
+share of that lot price, rounded up for a Buy and down for a Sell; a Sell
+whose share rounds to 0 cr is refused. A lot of 1, the base game's for
+every item but the PDC round, prices each item.</p>
 <div class="table-scroll">
 <table>
 <thead>
@@ -34,7 +38,7 @@ nearest credit.</p>
 <tbody>
 <tr>
 <td>reference</td>
-<td>the item's <code>ask_cr</code> and <code>bid_cr</code>, see <a href="../mod-files/#content-files">Content files</a></td>
+<td>the item's <code>ask_cr</code> and <code>bid_cr</code> per <code>price_lot</code>, see <a href="../mod-files/#content-files">Content files</a></td>
 </tr>
 <tr>
 <td>scarcity</td>

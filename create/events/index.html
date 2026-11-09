@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Events - Nova Protocol Creator Docs</title><meta name="description" content="Everything that can fire a scenario handler: thirty-four event kinds, payloads, lifecycle edges, hold events, and dispatch order."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Events - Nova Protocol Creator Docs</title><meta name="description" content="Everything that can fire a scenario handler: forty-five event kinds, payloads, lifecycle edges, hold events, and dispatch order."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
@@ -8,8 +8,8 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Events</p><h1>Events</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#onstart">OnStart</a><ol></ol></li><li><a href="#onresume">OnResume</a><ol></ol></li><li><a href="#onupdate">OnUpdate</a><ol></ol></li><li><a href="#ontimerend">OnTimerEnd</a><ol></ol></li><li><a href="#cinematic-endings">Cinematic endings</a><ol></ol></li><li><a href="#ship-order-lifecycle">Ship order lifecycle</a><ol></ol></li><li><a href="#onshipordercomplete">OnShipOrderComplete</a><ol></ol></li><li><a href="#onshiporderinterrupted">OnShipOrderInterrupted</a><ol></ol></li><li><a href="#onshiporderresumed">OnShipOrderResumed</a><ol></ol></li><li><a href="#onshipordercanceled">OnShipOrderCanceled</a><ol></ol></li><li><a href="#onshiporderfailed">OnShipOrderFailed</a><ol></ol></li><li><a href="#ondefeated">OnDefeated</a><ol></ol></li><li><a href="#ondestroyed">OnDestroyed</a><ol></ol></li><li><a href="#onneutralized">OnNeutralized</a><ol></ol></li><li><a href="#onenter">OnEnter</a><ol></ol></li><li><a href="#onexit">OnExit</a><ol></ol></li><li><a href="#player-maneuver-completion">Player maneuver completion</a><ol></ol></li><li><a href="#orbit-lifecycle">Orbit lifecycle</a><ol></ol></li><li><a href="#lock-lifecycle">Lock lifecycle</a><ol></ol></li><li><a href="#docking-lifecycle">Docking lifecycle</a><ol></ol></li><li><a href="#hold-events">Hold events</a><ol></ol></li><li><a href="#dispatch-order-what-you-can-rely-on">Dispatch order (what you can rely on)</a><ol></ol></li></ol></nav><p>Everything that can fire a handler. A handler's <code>name:</code> field names one of
-the THIRTY-FOUR event kinds below, written bare (they are unit variants):
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Events</p><h1>Events</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#onstart">OnStart</a><ol></ol></li><li><a href="#onresume">OnResume</a><ol></ol></li><li><a href="#onupdate">OnUpdate</a><ol></ol></li><li><a href="#ontimerend">OnTimerEnd</a><ol></ol></li><li><a href="#cinematic-endings">Cinematic endings</a><ol></ol></li><li><a href="#ship-order-lifecycle">Ship order lifecycle</a><ol></ol></li><li><a href="#onshipordercomplete">OnShipOrderComplete</a><ol></ol></li><li><a href="#onshiporderinterrupted">OnShipOrderInterrupted</a><ol></ol></li><li><a href="#onshiporderresumed">OnShipOrderResumed</a><ol></ol></li><li><a href="#onshipordercanceled">OnShipOrderCanceled</a><ol></ol></li><li><a href="#onshiporderfailed">OnShipOrderFailed</a><ol></ol></li><li><a href="#ondefeated">OnDefeated</a><ol></ol></li><li><a href="#ondestroyed">OnDestroyed</a><ol></ol></li><li><a href="#onneutralized">OnNeutralized</a><ol></ol></li><li><a href="#onenter">OnEnter</a><ol></ol></li><li><a href="#onexit">OnExit</a><ol></ol></li><li><a href="#player-maneuver-completion">Player maneuver completion</a><ol></ol></li><li><a href="#orbit-lifecycle">Orbit lifecycle</a><ol></ol></li><li><a href="#lock-lifecycle">Lock lifecycle</a><ol></ol></li><li><a href="#docking-lifecycle">Docking lifecycle</a><ol></ol></li><li><a href="#hold-events">Hold events</a><ol></ol></li><li><a href="#onjobaccepted">OnJobAccepted</a><ol></ol></li><li><a href="#dispatch-order-what-you-can-rely-on">Dispatch order (what you can rely on)</a><ol></ol></li></ol></nav><p>Everything that can fire a handler. A handler's <code>name:</code> field names one of
+the FORTY-FIVE event kinds below, written bare (they are unit variants):
 <code>name: OnStart</code>, <code>name: OnEnter</code>, and so on. When the event fires, the
 handler's <a href="../filters/">filters</a> gate it and its <a href="../actions/">actions</a> run.</p>
 <p>A handler that describes a beat happening ONCE says
@@ -183,7 +183,7 @@ event a paced beat waits for. The filters that qualify it are the same ones.</p>
 <tr>
 <td><a href="#hold-events"><code>OnPickedUp</code></a></td>
 <td><code>id</code>, <code>type_name</code>, <code>canister</code>, <code>item</code>, <code>count</code></td>
-<td>a cargo intake takes a canister stack into the hold</td>
+<td>a cargo intake takes whole items of a canister stack into the hold</td>
 </tr>
 <tr>
 <td><a href="#hold-events"><code>OnJettisoned</code></a></td>
@@ -249,6 +249,11 @@ event a paced beat waits for. The filters that qualify it are the same ones.</p>
 <td><a href="#hold-events"><code>OnWithdrawn</code></a></td>
 <td><code>id</code>, <code>other_id</code>, <code>other_type_name</code>, <code>item</code>, <code>count</code></td>
 <td>the player withdraws a stack from a docked station's storage, or Take all or Strip takes one from a dead station's</td>
+</tr>
+<tr>
+<td><a href="#onjobaccepted"><code>OnJobAccepted</code></a></td>
+<td><code>id</code></td>
+<td>the Jobs pane accepts a board offer; <code>id</code> is the job's id; a refused accept and a Load fire none</td>
 </tr>
 </tbody>
 </table>
@@ -850,7 +855,7 @@ go:</p>
 <p>To react to a dock with anything, omit <code>id</code> and keep <code>other_id</code>.</p>
 </details>
 <h2 id="hold-events" tabindex="-1">Hold events</h2>
-<p>Twelve edges report what a ship's hold and purse do. Each fires ONCE per
+<p>Fifteen edges report what a ship's hold and purse do. Each fires ONCE per
 occurrence from the system that did the work, never from a poll of the
 inventory, so a handler counts occurrences, not frames.</p>
 <div class="table-scroll">
@@ -967,7 +972,9 @@ single-ship events name the ship the hold or purse belongs to.</p>
 <code>count</code> is the corners it did flip, which is the ore that lands in the hold
 only if the intake catches the chips. <code>OnPickedUp</code> and <code>OnJettisoned</code> fire
 once per STACK: a canister holding two item kinds raises two events with the
-same <code>canister</code>.</p>
+same <code>canister</code>. A hold with room for only part of a canister takes whole
+items and raises <code>OnPickedUp</code> with the <code>count</code> it took; the rest is picked up
+later under the same <code>canister</code>.</p>
 <p><code>OnTraded</code> fires once per confirmed trade on the player's queue, so a buy of
 four rations is one event with <code>count: 4</code>. The credits move it causes raises
 one <code>OnCreditsChanged</code> per party, <code>cause: Trade</code>, in the same frame; the
@@ -1008,6 +1015,24 @@ closes. Intake and mining events arrive the frame the hold changes.</p>
 <p>The example mod's <code>example_prospect</code> scenario runs all but <code>OnRebuilt</code>,
 <code>OnSwapped</code>, <code>OnAdded</code>, <code>OnShipBought</code>, <code>OnEscortHired</code>, <code>OnStationBought</code>,
 <code>OnStripped</code>, <code>OnStored</code> and <code>OnWithdrawn</code>.</p>
+</details>
+<h2 id="onjobaccepted" tabindex="-1">OnJobAccepted</h2>
+<p>Fires once per successful accept from the Jobs pane. Payload: <code>id</code> only, and
+it is the JOB's id, not an entity id. There is no <code>type_name</code> and no
+<code>other_id</code>.</p>
+<pre><code class="hljs language-ron"><span class="ron-punct">(</span>
+    <span class="ron-key">name</span><span class="ron-punct">:</span> <span class="ron-type">OnJobAccepted</span><span class="ron-punct">,</span>
+    <span class="ron-key">once</span><span class="ron-punct">:</span> <span class="ron-literal">true</span><span class="ron-punct">,</span>
+    <span class="ron-key">actions</span><span class="ron-punct">:</span> <span class="ron-punct">[</span><span class="ron-type">ObjectiveComplete</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;take_a_job&quot;</span><span class="ron-punct">))],</span>
+<span class="ron-punct">),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<p>An <code>Entity</code> filter on <code>id</code> matches a job id here, not a scenario object. A
+job id reads <code>&lt;station id&gt;#&lt;slot&gt;.&lt;posting&gt;</code> for a slot job and
+<code>&lt;station id&gt;#&lt;visit id&gt;.&lt;index&gt;</code> for a visit posting.</p>
+<p>A refused accept fires nothing, and neither does a Load that restores held
+jobs, so a handler on this event never runs twice for one job.</p>
 </details>
 <h2 id="dispatch-order-what-you-can-rely-on" tabindex="-1">Dispatch order (what you can rely on)</h2>
 <ul>

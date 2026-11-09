@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
+            window.path_to_searchindex_js = "searchindex-e28e0c87.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -190,11 +190,22 @@ event handlers; each pairs an event with filters (all must pass) and actions
 <code>nova_events</code>; nova_scenario provides <code>NovaEventWorld</code> and the enums below.</p>
 <p>Three surfaces write that list: a RON file, a Rust builder under
 <code>nova_authoring</code>, and the editor’s EVENTS mode, which lifts a handler into nodes
-you select and inspect - a condition included, drawn as a page of its own - and
-lowers them back on save (<code>crates/nova_editor/src/event.rs</code>). All three produce
-the same <code>ScenarioEventConfig</code>, so nothing below cares which one wrote it. The
-editor reads its TOOLTIPS off these configs too: a field’s doc comment is what
-the panel says about it, through <code>bevy/reflect_documentation</code>.</p>
+and lowers them back on save (<code>crates/nova_editor/src/event.rs</code>). All three
+produce the same <code>ScenarioEventConfig</code>, so nothing below cares which one wrote
+it. The editor reads its TOOLTIPS off these configs too: a field’s doc comment
+is what the field’s row says about it, through <code>bevy/reflect_documentation</code>.</p>
+<p>EVENTS draws those nodes as interlocking blocks, and the canvas is a view: it
+holds no second document (<code>crates/nova_editor/src/ui/canvas/</code>). A handler is a
+hat, an action a stack block, a sequence or cinematic a C-block whose steps are
+C-blocks of their own, a filter a hexagonal boolean, and a value a round
+reporter. The rules of what fits where live in <code>event/blocks.rs</code>: <code>refusal</code>
+answers every drop, and the palette, the slot lighting and the drop itself all
+read it. Only a handler stands alone, because a block outside a handler has no
+lowering. A handler’s optional <code>position</code> is the one thing the canvas adds to
+the file; the runtime ignores it, and absence means auto-layout.</p>
+<p>A condition with an empty socket has no lowering either. It raises an error in
+Problems, which blocks Play, Save and Package until the author fills or removes
+it, because a save would otherwise drop the half-built block without a word.</p>
 <h2 id="scenario-structure"><a class="header" href="#scenario-structure">Scenario structure</a></h2>
 <ul>
 <li><code>ScenarioConfig</code> - <code>id</code>, <code>name</code>, <code>description</code>, <code>cubemap</code> (skybox),
@@ -642,9 +653,10 @@ more: no operator the crate cannot evaluate, and <code>a - b - c</code> parses r
 because <code>Subtract(Term, Expression)</code> nests that way.</p>
 <p>The editor takes a condition APART along the same grammar: each operator is one
 document node with its two sides as children, and a leaf holds whatever fits one
-row of the text form. Those nodes are NOT part of the tree - the rail shows the
-filter and stops - and the panel draws the whole condition as a page instead,
-one row per node, each writing to its own entity. <code>Parens</code> is dropped on the way
+row of the text form. Those nodes are NOT part of the tree - the Hierarchy shows
+the filter and stops - and the canvas draws them as reporters in the filter’s
+sockets, while the Inspector keeps the whole condition as a page, one row per
+node, each writing to its own entity. <code>Parens</code> is dropped on the way
 in - the nesting says what the brackets said - and put back on the way out
 wherever the position needs it, so a sum under a product lowers as <code>(a + b) * 2</code>.
 What a switched operator cannot hold it does not keep: an operand a value has no
@@ -1152,7 +1164,7 @@ material itself: <code>DAMAGE_PER_UNIT_VOLUME</code> -
 <code>ASTEROID_KINDS</code> -
 <code>crates/nova_scenario/src/objects/asteroid_kind.rs</code>; the surface they drive:
 <code>AsteroidSurfaceMaterial</code> - <code>crates/nova_scenario/src/objects/</code>
-<code>asteroid_surface.rs</code> and <code>assets/shaders/asteroid_surface.wgsl</code>.</li>
+<code>asteroid_surface.rs</code> and <code>assets/shaders/asteroid_surface.wesl</code>.</li>
 <li>API detail: <code>cargo doc --open -p nova_scenario</code> (event engine:
 <code>-p nova_events</code>).</li>
 </ul>

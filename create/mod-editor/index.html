@@ -1,0 +1,232 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>The Mod Editor - Nova Protocol Creator Docs</title><meta name="description" content="The Mod Hub, the editor's panels, the keys you use most, and what happens to a mod written by hand."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / The Mod Editor</p><h1>The Mod Editor</h1><div class="wiki__tags" id="wiki-tags"></div><p><strong>Sandbox</strong>, on the main menu, opens the Mod Hub. A mod holds all of its work:
+scenarios, sections and every other kind of content. This page is the map of the
+panels and the keys you use most. The
+<a href="../../wiki/keybinds/#editor">full key list</a> is in the wiki.</p>
+<h2 id="the-panels" tabindex="-1">The panels</h2>
+<p>Nothing docks. Drag the strip's top edge to make it taller or shorter. <strong>View</strong>
+hides the Hierarchy, the Inspector and the strip's body.</p>
+<p>Every close, remove and delete is the same small <strong>x</strong>. It is dim until you
+point at it, and its hover says what it does. Only an <strong>x</strong> that deletes data,
+such as the one on a Hierarchy row, lights red.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>Panel</th>
+<th>Where</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mod Hub</td>
+<td>first screen</td>
+<td>Lists your mods, most recent first. <strong>New</strong> makes one from a template (<kbd>Up</kbd> and <kbd>Down</kbd> pick it, <kbd>Enter</kbd> creates, <kbd>Esc</kbd> cancels), <strong>Import</strong> installs a zip, and a row's right-click menu holds Open, Duplicate and Delete.</td>
+</tr>
+<tr>
+<td>Top bar</td>
+<td>top</td>
+<td>One bar: the File, Edit, View and Add menus, the view switch, the tools, Axes, Snap, Undo, Redo and Play. In the Ship editor the tools, Axes and Snap give way to the Ship menu and <strong>Back to {name}</strong>, which stands in their place so Play does not move. <strong>Parts</strong> stays on the bar there. Over a scenario, Back follows the tools. A menu shows only the verbs of the open document. A verb that fits but cannot run now is grey, and its hover says why.</td>
+</tr>
+<tr>
+<td>View switch</td>
+<td>top bar</td>
+<td>The views of the open document only: <strong>Scene</strong> and <strong>Events</strong> for a scenario, <strong>Ship</strong> for a ship, <strong>Section</strong> for a section, and <strong>Form</strong> for every other kind. A view change is not an edit: it adds no undo step.</td>
+</tr>
+<tr>
+<td>Hierarchy</td>
+<td>left, in Scene</td>
+<td>The tree of the document. A row's <strong>x</strong> shows on hover or when the row is marked, and deletes the node, as <kbd>Del</kbd> does. On a marked row it is red already: that is the node <kbd>Del</kbd> deletes.</td>
+</tr>
+<tr>
+<td>Scene</td>
+<td>centre</td>
+<td>The stage: ships, objects and their handles. A right click without a drag opens the stage menu: the Add menu (what it adds lands at the clicked point), Paste, and Frame and Delete on the node under the pointer.</td>
+</tr>
+<tr>
+<td>Add menu</td>
+<td>top bar, <kbd>Shift</kbd>+<kbd>A</kbd> on the stage</td>
+<td>What the open document takes, in groups. A scenario has Ship (New Ship, then each ship design of the mod, placed by reference), Objects, Lights and Markers. A ship has Parts. A section has Mesh, Collider and Socket. Every document has Asset, which starts a new item. The Add menu holds only rows that work when chosen: a row that could not run is not there, so a section with a collider does not offer that shape again, and a turret or an unsaved mod offers no Mesh. A group opens on hover or <kbd>Right</kbd>. Type to search every group at once. <kbd>Shift</kbd>+<kbd>A</kbd> opens it at the pointer, and what it adds lands there.</td>
+</tr>
+<tr>
+<td>Inspector</td>
+<td>right, in Scene</td>
+<td>The fields of the selected node. In Form view the form of the open asset takes the main area, and the stage and its tools hide. A UI theme's palette is a grid of named swatches, the same rows for every theme. A dim name is inherited until you pick it here. Press a swatch for the picker: a square, a hue strip and a hex field. A colour with alpha also gets an alpha strip. The pick shows live. One pick is one undo step, and <kbd>Esc</kbd> takes it back. A list field, such as a section's build <strong>Parts</strong>, a start role's <strong>Stock</strong> or a campaign's <strong>Scenarios</strong>, has a row per entry: pick the id, type the count where the list counts, and <strong>x</strong> removes the row. <strong>+ Add</strong> at the foot searches the ids the mod sees; a build recipe takes only Parts items. A repeat, an unknown id or a count outside 1 to 9999 is refused, and the status line says why. Each change is one undo step. Any other list a form or a block holds, such as a price table's rules, a style's fixtures or a scatter's kind mix, has an <strong>x</strong> on each entry and <strong>Add</strong> after the last; a list of variants has one <strong>+</strong> button per variant. A new entry takes the first key no other entry holds, and the add is refused when none is left. A set of names, such as a section's damage effects, is one toggle per name. A rotation is three degree boxes: yaw, pitch and roll. A refill's section offers the sections of the ship it names, and a HUD slot offers the slots in use. An empty object id, scatter prefix, sequence key or HUD slot is refused, and so is an object id with a <code>/</code> or one that spells a generated body id.</td>
+</tr>
+<tr>
+<td>Package</td>
+<td>File menu</td>
+<td>A window first: the version, with <strong>Patch</strong>, <strong>Minor</strong> and <strong>Major</strong> buttons that show the next version (a bump is one undo step), the output folder, the file name, the check, and the files. A file the package leaves out wears the dotted mark. An error blocks Package: the window gives the count and the first errors, and Problems lists every one. After a package the window gives the path and the size, with <strong>Copy Path</strong> and <strong>Open Folder</strong>. A failure stays in the window with its reason. <kbd>Esc</kbd> closes it. Desktop only.</td>
+</tr>
+<tr>
+<td>Mod Settings</td>
+<td>File menu</td>
+<td>A window for the manifest: name, description, author and version, the icon (none, or one of the mod's images) and the screenshots, picked from the mod's images. Each dependency is a row of name, id and version with an <strong>x</strong>. <strong>+ Add dependency</strong> searches the other mods the editor knows that are not listed yet. A refusal says why: a cycle, a mod the content still uses, or a mod that is not installed. Each change is one undo step.</td>
+</tr>
+<tr>
+<td>Events</td>
+<td>whole width</td>
+<td>The script as blocks, beside a palette. The palette groups the blocks in build order: Events (the hats a script starts with), Conditions, Actions, Flow, and Values. Each entry is one short line in its block's shape. The rail at the palette's left edge has an <strong>All</strong> row and one dot per group. Click a group to show only its blocks. Click it again, or click <strong>All</strong>, to show every group. The rail marks the group it shows, and the group and the filter both apply. Click a group's heading to fold it. A filter opens every folded group it matches in. A hover says where a block goes. Drag a block and every place it fits lights up; only an Events block stands alone on the canvas. Fill a value on the block; its <code>...</code> chip opens a pop-up with every field and the block's kind. A right click holds Paste and Clean Up, which stands the scripts in one column as one undo step, and Duplicate and Delete on a block. The tools, Parts, the Hierarchy and the Inspector stay away here.</td>
+</tr>
+<tr>
+<td>Assets</td>
+<td>strip</td>
+<td>Every item of the mod and every file in its folder as a tile, in one grid sorted by kind. A tile prints its name over its kind; two tiles of one name print what tells them apart, such as their scenario, in place of the kind. The column at the left filters the grid by kind, with a count per kind, in rows like the Hierarchy's. A double click or <kbd>Enter</kbd> opens a tile in its view: a scenario on Scene, a ship alone in the Ship editor, a section on Section, and any other kind on its Form. A ship a scenario made is listed under that scenario. Drag a ship design onto the stage, or right click it and choose <strong>Place in Scenario</strong>: the scenario spawns the design by its id, so an edit to the design reaches every placement. A right click holds the tile's verbs, and a hover shows the whole id. A right click on empty space holds New Asset and Import File. <strong>+</strong> opens New Asset: a blank item of a kind, with a new id. New Asset offers only the kinds the editor makes there. A lesson and a station are not offered: a lesson is kept as the file says, and a station is made from a ship marked as a station in a scenario. A mod with a price table is not offered a second one. A section first asks for its kind in a window: a tile per kind says what it does; the arrows pick, <kbd>Enter</kbd> makes it, <kbd>Esc</kbd> cancels. Problems lists what the blank still needs, and Save, Play and Package wait until it is filled.</td>
+</tr>
+<tr>
+<td>Assets files</td>
+<td>strip</td>
+<td>Images show themselves, meshes their rendered picture, and other files a glyph. A double click views an image or a mesh large and plays a sound. A file's menu holds Reveal Path, Rename, Include in Package, Delete and Import File (desktop only). The package holds only the files the manifest declares: a file it leaves out wears a dotted mark, and Include in Package adds it. Rename and Delete refuse a file that content names, and say which item. Delete takes a declared file out of the package as one undo step; a second Delete removes it from the folder, and no undo puts it back.</td>
+</tr>
+<tr>
+<td>Problems</td>
+<td>strip</td>
+<td>The live lint of what Play would load. A row selects the node it names. Empty when there is nothing to report. Rows copy out like the Log's, and a copied row ends with its location, such as <code>(at ship/section)</code>.</td>
+</tr>
+<tr>
+<td>Ship</td>
+<td>strip, in the Ship editor</td>
+<td>The skin, the styles and Generate.</td>
+</tr>
+<tr>
+<td>Log</td>
+<td>strip</td>
+<td>What the status line said, and every warning and error the game logged. Clear it, filter it by level or by text; the newest line stays on top. Click a row to mark it, <kbd>Shift</kbd>+click to mark a range, and <kbd>Ctrl</kbd>+<kbd>A</kbd> marks every row the filters show. <strong>Copy</strong> or <kbd>Ctrl</kbd>+<kbd>C</kbd> copies the marked rows as plain text, one line each, or every shown row when none is marked. A right click on a row holds <strong>Copy line</strong>. The status line gives the count. The web build has no clipboard, and the status line says so.</td>
+</tr>
+<tr>
+<td>Parts gallery</td>
+<td>over the stage, in the Ship editor</td>
+<td><strong>Parts</strong> or <kbd>Tab</kbd> opens it. Take a part and click a free face.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="the-keys" tabindex="-1">The keys</h2>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd></td>
+<td>Select, Move, Turn, Scale. Scenario only.</td>
+</tr>
+<tr>
+<td><kbd>X</kbd></td>
+<td>Swap the handles between world and local axes. Scenario only.</td>
+</tr>
+<tr>
+<td>right mouse held</td>
+<td>Look about</td>
+</tr>
+<tr>
+<td>middle drag, or <kbd>Alt</kbd> + left drag</td>
+<td>Orbit the pivot</td>
+</tr>
+<tr>
+<td><kbd>Shift</kbd> + middle drag</td>
+<td>Pan</td>
+</tr>
+<tr>
+<td>wheel</td>
+<td>Dolly, always</td>
+</tr>
+<tr>
+<td>double click, or <kbd>Enter</kbd> on the stage</td>
+<td>Open the selected ship alone in the Ship editor</td>
+</tr>
+<tr>
+<td><kbd>Q</kbd></td>
+<td>Ship editor: pick up the part under the pointer</td>
+</tr>
+<tr>
+<td><kbd>R</kbd>, <kbd>Shift</kbd>+<kbd>R</kbd></td>
+<td>Ship editor: roll the part in hand, or roll it back</td>
+</tr>
+<tr>
+<td><kbd>F</kbd>, <kbd>Shift</kbd>+<kbd>F</kbd></td>
+<td>Ship editor, part in hand: cycle its mating socket, or step back</td>
+</tr>
+<tr>
+<td><kbd>F</kbd></td>
+<td>Frame the selection</td>
+</tr>
+<tr>
+<td>right click, no drag</td>
+<td>The menu of the stage, the canvas or the tile under the pointer</td>
+</tr>
+<tr>
+<td><kbd>Shift</kbd>+<kbd>A</kbd></td>
+<td>Open the Add menu at the pointer, over the stage</td>
+</tr>
+<tr>
+<td><kbd>Up</kbd> <kbd>Down</kbd>, <kbd>Right</kbd> <kbd>Left</kbd>, <kbd>Enter</kbd>, <kbd>Esc</kbd></td>
+<td>In a menu: move, open or close a group, add, close. Type to search.</td>
+</tr>
+<tr>
+<td><kbd>Tab</kbd></td>
+<td>Open or close the parts gallery, in the Ship editor</td>
+</tr>
+<tr>
+<td><kbd>Ctrl</kbd>+<kbd>Z</kbd>, <kbd>Ctrl</kbd>+<kbd>Y</kbd></td>
+<td>Undo, redo</td>
+</tr>
+<tr>
+<td><kbd>Ctrl</kbd>+<kbd>C</kbd>, <kbd>Ctrl</kbd>+<kbd>V</kbd>, <kbd>Ctrl</kbd>+<kbd>D</kbd></td>
+<td>Copy, paste, duplicate</td>
+</tr>
+<tr>
+<td><kbd>Ctrl</kbd>+<kbd>A</kbd>, <kbd>Ctrl</kbd>+<kbd>C</kbd> over the Log or Problems</td>
+<td>Mark every shown row; copy the marked rows as text</td>
+</tr>
+<tr>
+<td><kbd>Del</kbd></td>
+<td>Delete the selection</td>
+</tr>
+<tr>
+<td><kbd>Ctrl</kbd>+<kbd>S</kbd></td>
+<td>Save the mod</td>
+</tr>
+<tr>
+<td><kbd>Enter</kbd></td>
+<td>Open the marked asset tile</td>
+</tr>
+<tr>
+<td><kbd>Esc</kbd></td>
+<td>Back out one step. It puts down a block or a part you hold, it takes back what a block's pop-up did, and it takes back the colour picker's pick. Last, it goes Back to the document you came from.</td>
+</tr>
+<tr>
+<td><kbd>F1</kbd></td>
+<td>Return from Play to the editor</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="mods-written-by-hand" tabindex="-1">Mods written by hand</h2>
+<p><strong>Import</strong> on the Mod Hub brings a hand-written mod into the editor. One edit
+writes that edit. Each file that you did not change keeps its bytes. A file that
+you changed is written again from its items, so its comments and its layout go.</p>
+<p>A hull stays as the file wrote it when a ship node cannot hold it all: a stock,
+a section patch, a spawn id of its own, or a design that the editor did not
+write. It stands on the stage and it moves. Its Inspector says
+<code>preserved as authored</code>. Edit that hull in the file.</p>
+<p>Play does not carry a scenario's generated <code>world</code>. A handler that names the
+<code>bounds</code> area is saved, and Play leaves it out.</p>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+</footer>
+</body></html>

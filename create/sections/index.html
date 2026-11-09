@@ -564,7 +564,7 @@ that matters in a fight: it sinks lazily over 0.9 s and comes back up in 0.35.</
 </tr>
 <tr>
 <td><code>IntakeDoor</code></td>
-<td>The cargo intake, while a canister that fits the hold is in its detection volume or a jettison waits on it. It drops a canister only at progress 1.</td>
+<td>The cargo intake, while a canister with an item that fits the hold is in its detection volume or a jettison waits on it. It drops a canister only at progress 1.</td>
 <td>the door fully folded open</td>
 </tr>
 </tbody>
@@ -979,9 +979,8 @@ crosses, alive or dead, undiminished by depth, so its total legitimately
 exceeds one round's worth. It pays for travel out of a separate power
 budget: crossing a section costs that section's <code>health</code> RATING (not its
 remaining health), and closing speed divides that cost (clamped
-0.5x..3.0x). POWER IS THE ONLY BOUND - there is no layer cap - so a
-section authored with a <code>health</code> of zero costs nothing to cross and stops
-the round instead of letting it chain without limit.</li>
+0.5x..3.0x). POWER IS THE ONLY BOUND - there is no layer cap. A <code>health</code>
+of zero or less fails lint, so every crossing costs power.</li>
 <li><code>Explosive</code> on a bullet is spent on its first hit. A torpedo blast uses the
 Explosive pressure rule described below.</li>
 </ul>
@@ -1054,9 +1053,30 @@ torpedoes dealing blast damage. The shipped <code>torpedo_section</code>:</p>
 silent launch.</p>
 </li>
 <li>
-<p><code>detonation_sound</code> (optional) - the sound the warhead plays when it blasts;
-rides the torpedo's own destroy event, so it fires even when a torpedo is shot
-down. Omit for a silent detonation.</p>
+<p><code>ignition_sound</code> (optional) - the sound the drive makes as it lights at the
+end of the cold coast (<code>dep://base/sounds/torpedo_ignite.wav</code> is the base
+burn); omit for a silent ignition.</p>
+</li>
+<li>
+<p><code>detonation_sound</code> (optional) - the sound the warhead plays when it blasts,
+heard at the blast. Omit for a silent detonation.</p>
+</li>
+<li>
+<p><code>dud_sound</code> (optional) - the sound a torpedo plays when it strikes a hull or a
+rock and breaks up with its warhead unfired
+(<code>dep://base/sounds/torpedo_dud.wav</code> is the base clank); omit for a silent
+dud.</p>
+</li>
+<li>
+<p><code>intercept_sound</code> (optional) - the sound a torpedo plays when a round or a
+blast destroys it before it fuzes (<code>dep://base/sounds/torpedo_intercept.wav</code>
+is the base pop); omit for a silent intercept. A dud and an intercept never
+play <code>detonation_sound</code>.</p>
+</li>
+<li>
+<p><code>reload_sound</code> (optional) - the rack clunk, played once each time a reload
+batch lands in the bay (<code>dep://base/sounds/torpedo_rack.wav</code> is the base
+one). A bay with no <code>reload</code> never plays it; omit for a silent rack.</p>
 </li>
 <li>
 <p><code>door_sound</code> (optional) - the muzzle iris servo
@@ -1324,9 +1344,10 @@ whole charge, played back faster as the charge runs, so the gun sounds like
 it is arriving at something. A loop and not a one-shot because
 <code>charge_seconds</code> is a number a mod may set to anything, and a fixed-length
 file would either end early or be cut off.</li>
-<li><code>reload_sound</code> (optional) - a shell going back into the breech, played when
-the magazine returns to capacity. For a one-shell railgun that IS the whole of
-its cadence: the reload is the silence, and this is the silence ending.</li>
+<li><code>reload_sound</code> (optional) - a shell going back into the breech, played each
+time a reload batch lands. For a one-shell railgun that IS the whole of its
+cadence: the reload is the silence, and this is the silence ending. A gun
+with a larger magazine plays it once per batch, not only when full.</li>
 <li><code>ammunition</code> - shells carried: <code>Limited(n)</code>, or <code>Unlimited</code> (the default
 every weapon section shares).</li>
 <li><code>reload</code> - the same <code>Disabled</code> / <code>Batch((delay, amount))</code> a turret and a bay
@@ -1454,11 +1475,15 @@ face, relative to the intake's own point velocity.</li>
 </ul>
 <p>The trigger is measured from the <code>-Z</code> face of the section's <code>Cuboid</code>
 collider, so an intake must author one; it is a detached sensor, not a child
-of the ship body, so weapons and sight lines pass through it. A take is whole
-or nothing: a canister heavier than the hold's free mass stays out, and a
-canister touching two triggers goes to one intake only. A canister can hold
-several item types up to 200 kg total; hull plates weigh 10 kg each. A
-canister has 20 HP; at zero it and its contents are lost. A jettison fills
+of the ship body, so weapons and sight lines pass through it. A take moves
+every whole item that fits the hold's free mass, in item id order, and leaves
+the rest in the same canister with the same id; a hold with no room for any
+of its items takes nothing and keeps the door shut. A canister touching two
+triggers goes to the first intake, and the next sees only what is left. A
+canister can hold several item types up to 1,000 kg total; hull plates weigh
+10 kg each, and lint refuses an item heavier than one canister. A canister has 20 HP;
+at zero it and its contents are lost. A wreck drop packs its stacks together
+into mixed canisters, filled in item id order up to 1,000 kg. A jettison fills
 canisters with whole items, topping up the last waiting one first, and queues
 them on the intake; the intake drops the front one once the door is fully open
 and no canister centre is within 12.5 m of the birth point. Waiting canisters
@@ -1552,6 +1577,17 @@ parse. Offer no link point on the <code>-Z</code> face: that face is the emitter
     <span class="ron-punct">)),</span>
 <span class="ron-punct">)),</span>
 </code></pre>
+<p>To build a section without writing RON, open your mod in the <strong>Sandbox</strong> and
+press <strong>+</strong> in the Assets tab and pick <strong>Sections</strong>. Start from a loaded prototype or a
+plain hull: a new kind is code, so the bench copies one and edits it. The Viewport
+shows the section alone, the Hierarchy lists its collider, mesh and sockets, and
+the Inspector edits their fields. Click a socket and move or turn it with W and
+E on a 5 m grid; <strong>Add Socket</strong> adds one and Del removes it. A section with no
+sockets has none. On the Mesh row pick a file, or press <strong>Import .glb</strong> to copy a
+model into the mod and write its <code>self://</code> ref. A missing or unreadable model, a
+lint fault and a ship-part fault show in Problems, and an Error there stops Play,
+Package and Save. The section is in the parts gallery's Mod category at once,
+saved or not. A rename updates the ships that use it; a delete is refused while one does.</p>
 <p>Reuse a base id to REBALANCE or re-skin that part; give a NEW id to ADD a part
 alongside the base catalog. Either way, a ship references the section by id via
 <code>source: Prototype(id: &quot;&lt;id&gt;&quot;)</code> in its <code>sections</code> list. To ship the section, package

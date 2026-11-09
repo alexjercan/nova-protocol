@@ -1,0 +1,177 @@
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Trade profiles for mods - Nova Protocol Creator Docs</title><meta name="description" content="Author what a visiting ship trades with a station and which jobs it posts: the roles it is drawn for, the items and price limits it trades, and the procurement jobs it leaves on the board."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+    <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
+    <nav class="site-nav" aria-label="Primary">
+        <a href="/nova-protocol/">Home</a>
+        <a href="/nova-protocol/wiki/">Wiki</a>
+        <a href="/nova-protocol/create/">Create</a>
+        <a href="/nova-protocol/news/">News</a>
+        <a href="/nova-protocol/play/" class="is-cta">Play</a>
+    </nav>
+</header>
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/mod-files/">Mod files</a> / Trade profiles for mods</p><h1>Trade profiles for mods</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#the-tradeprofile-item">The TradeProfile item</a><ol></ol></li><li><a href="#overlay-and-lint">Overlay and lint</a><ol></ol></li><li><a href="#base-trade-profiles">Base trade profiles</a><ol></ol></li></ol></nav><p>A <code>TradeProfile</code> says what a visiting ship trades with a station and which
+jobs it posts on the station's board. The open world draws a profile for a
+generated ship by its role. Trade profiles are content like items and start
+roles. Create a new id to add a profile, or reuse a base id to replace that
+profile.</p>
+<p>The trade list and the job list are independent. Either or both may be
+empty. An empty profile is valid traffic that only visits. A trade never
+creates cargo or credits: a visit plans each trade against the ship's hold
+and balance and the station's stock, balance and price.</p>
+<p>This page is the field-by-field trade profile reference. For general RON
+spelling rules, see
+<a href="../reference/#how-ron-content-is-written">RON spelling rules</a>.</p>
+<h2 id="the-tradeprofile-item" tabindex="-1">The TradeProfile item</h2>
+<pre><code class="hljs language-ron"><span class="ron-punct">[</span>
+    <span class="ron-type">TradeProfile</span><span class="ron-punct">((</span>
+        <span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;my_mod/ice_runner&quot;</span><span class="ron-punct">,</span>
+        <span class="ron-key">generated</span><span class="ron-punct">:</span> <span class="ron-punct">[(</span><span class="ron-key">role</span><span class="ron-punct">:</span> <span class="ron-type">Industrial</span><span class="ron-punct">,</span> <span class="ron-key">weight</span><span class="ron-punct">:</span> <span class="ron-literal">2</span><span class="ron-punct">)],</span>
+        <span class="ron-key">trades</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+            <span class="ron-punct">(</span><span class="ron-key">item</span><span class="ron-punct">:</span> <span class="ron-string">&quot;WaterIce&quot;</span><span class="ron-punct">,</span> <span class="ron-key">side</span><span class="ron-punct">:</span> <span class="ron-type">Sell</span><span class="ron-punct">,</span> <span class="ron-key">quantity</span><span class="ron-punct">:</span> <span class="ron-literal">10</span><span class="ron-punct">,</span> <span class="ron-key">limit_cr</span><span class="ron-punct">:</span> <span class="ron-literal">3</span><span class="ron-punct">),</span>
+            <span class="ron-punct">(</span><span class="ron-key">item</span><span class="ron-punct">:</span> <span class="ron-string">&quot;Rations&quot;</span><span class="ron-punct">,</span> <span class="ron-key">side</span><span class="ron-punct">:</span> <span class="ron-type">Buy</span><span class="ron-punct">,</span> <span class="ron-key">quantity</span><span class="ron-punct">:</span> <span class="ron-literal">4</span><span class="ron-punct">,</span> <span class="ron-key">limit_cr</span><span class="ron-punct">:</span> <span class="ron-literal">9</span><span class="ron-punct">),</span>
+        <span class="ron-punct">],</span>
+        <span class="ron-key">jobs</span><span class="ron-punct">:</span> <span class="ron-punct">[</span>
+            <span class="ron-type">Procure</span><span class="ron-punct">(</span><span class="ron-key">item</span><span class="ron-punct">:</span> <span class="ron-string">&quot;HullPlate&quot;</span><span class="ron-punct">,</span> <span class="ron-key">count</span><span class="ron-punct">:</span> <span class="ron-literal">3</span><span class="ron-punct">,</span> <span class="ron-key">reward_cr</span><span class="ron-punct">:</span> <span class="ron-literal">220</span><span class="ron-punct">),</span>
+        <span class="ron-punct">],</span>
+    <span class="ron-punct">)),</span>
+<span class="ron-punct">]</span>
+</code></pre>
+<p>Every field is required.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>the profile id. A mod namespaces it, as the base game uses <code>base/...</code></td>
+</tr>
+<tr>
+<td><code>generated</code></td>
+<td>list of <code>(role, weight)</code></td>
+<td>the roles of generated ships the open world draws this profile for. <code>role</code> is <code>Civilian</code>, <code>Industrial</code>, <code>Scavenger</code> or <code>Armored</code>; <code>weight</code> is above 0 and sets the draw odds against every other profile that names the role. Empty: only a script gives a ship this profile</td>
+</tr>
+<tr>
+<td><code>trades</code></td>
+<td>list of trade intents</td>
+<td>what the ship trades on each visit, in order</td>
+</tr>
+<tr>
+<td><code>jobs</code></td>
+<td>list of visit jobs</td>
+<td>what the ship posts on the station's board on each visit, in order</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A trade intent has four fields:</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>item</code></td>
+<td>item id</td>
+<td>the item traded. Must be a known <a href="../objects/#inventory">item</a></td>
+</tr>
+<tr>
+<td><code>side</code></td>
+<td><code>Buy</code> or <code>Sell</code></td>
+<td>seen from the visiting ship: a <code>Buy</code> moves items from the station into the ship, a <code>Sell</code> from the ship into the station</td>
+</tr>
+<tr>
+<td><code>quantity</code></td>
+<td>number</td>
+<td>the most units traded on one visit, from 1 to 1000</td>
+</tr>
+<tr>
+<td><code>limit_cr</code></td>
+<td>number</td>
+<td>the price limit per unit, above 0. A <code>Buy</code> pays at most this times the count. A <code>Sell</code> earns at least this times the count. The visit trades the largest count that keeps the limit. An item priced under 1 cr a unit can never keep a <code>Sell</code> limit</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A visit job is <code>Procure(item, count, reward_cr)</code>: bring <code>count</code> units of
+<code>item</code> to the station, for <code>reward_cr</code> paid on the hand-in. <code>count</code> and
+<code>reward_cr</code> are above 0.</p>
+<p>A ship whose role no profile names never visits.</p>
+<h2 id="overlay-and-lint" tabindex="-1">Overlay and lint</h2>
+<p>A later bundle that declares an id replaces the earlier profile whole, like
+an item. Two profiles with one id in one bundle are a conflict: the merge
+keeps the first and reports the second.</p>
+<p><code>content lint</code> and the content check at load both report an error for a
+profile that:</p>
+<ul>
+<li>has an empty id;</li>
+<li>names an item that no visible bundle defines, in a trade or in a job;</li>
+<li>states a <code>quantity</code> of 0 or above 1000;</li>
+<li>states a <code>limit_cr</code>, <code>count</code> or <code>reward_cr</code> of 0;</li>
+<li>states a <code>weight</code> of 0;</li>
+<li>names one role twice in <code>generated</code>;</li>
+<li>names one item on one side twice in <code>trades</code>.</li>
+</ul>
+<h2 id="base-trade-profiles" tabindex="-1">Base trade profiles</h2>
+<p>Each base limit derives from the item's reference price per unit: a <code>Sell</code>
+limit is half the bid, a <code>Buy</code> limit is one and a half times the ask, each at
+least 1 cr.</p>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>id</th>
+<th>drawn for</th>
+<th>trades</th>
+<th>jobs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>base/ore_hauler</code></td>
+<td><code>Industrial</code>, weight 3</td>
+<td>sells iron ore 12, stone ore 12, carbon ore 8; buys rations 4</td>
+<td>procure 6 water ice for 180 cr; 3 salvaged parts for 150 cr</td>
+</tr>
+<tr>
+<td><code>base/provisioner</code></td>
+<td><code>Civilian</code>, weight 3</td>
+<td>sells rations 10; buys salvaged parts 4, water ice 6</td>
+<td>procure 3 hull plate for 220 cr</td>
+</tr>
+<tr>
+<td><code>base/salvage_broker</code></td>
+<td><code>Scavenger</code>, weight 2</td>
+<td>sells salvaged parts 6; buys hull plate 2, PDC round 20</td>
+<td>none</td>
+</tr>
+<tr>
+<td><code>base/garrison_supply</code></td>
+<td><code>Armored</code>, weight 1</td>
+<td>none</td>
+<td>procure 40 PDC rounds for 200 cr; 6 rations for 160 cr</td>
+</tr>
+<tr>
+<td><code>base/idle_traffic</code></td>
+<td><code>Civilian</code> 1, <code>Industrial</code> 1</td>
+<td>none</td>
+<td>none</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The profiles are generated into <code>assets/base/trade_profiles/base.content.ron</code>.</p>
+<div id="wiki-seealso"></div></article></div></main><footer class="site-footer">
+    <span>Nova Protocol - a 3D space shooter built with Bevy.</span>
+</footer>
+</body></html>

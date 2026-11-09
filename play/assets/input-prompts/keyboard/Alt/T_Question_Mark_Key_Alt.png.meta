@@ -9,6 +9,7 @@
             sampler: Default,
             asset_usage: ("MAIN_WORLD | RENDER_WORLD"),
             array_layout: None,
+            expand_grayscale: true,
         ),
     ),
 )

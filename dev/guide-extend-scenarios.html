@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
+            window.path_to_searchindex_js = "searchindex-e28e0c87.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -430,10 +430,10 @@ value a freshly added action starts life as, with every id field EMPTY.
 The match is exhaustive, so the compiler asks for it.</p>
 <p>A leaf action needs nothing else from the tree. An action the editor holds
 as more than a leaf - because its steps are child NODES, or because its
-panel shows a head rather than the whole payload - is an <code>ActionKind</code>
+pop-up shows a head rather than the whole payload - is an <code>ActionKind</code>
 variant of its own, and owes arms in <code>action_config</code>, <code>action_config_mut</code>
 and <code>action_choice</code> beside it. <code>Sequence</code> and <code>Cinematic</code> are there because
-their steps are children; <code>VariableSet</code> because its panel is a head. All
+their steps are children; <code>VariableSet</code> because its pop-up is a head. All
 three matches are exhaustive.</p>
 </li>
 <li>
@@ -585,9 +585,9 @@ ScenarioObjectKind::Mine(config) =&gt; {
 and it draws every row it shows by REFLECTION off the same config structs. So a
 config that is not <code>Reflect</code> is a construct the editor cannot show, and a string
 field with no <a href="scenario-system.html#the-vocabulary-and-who-documents-it"><code>Names</code></a>
-attribute is a blank box where the panel could have offered the ids the document
+attribute is a blank box where the block could have offered the ids the document
 actually spawns.</p>
-<p>AN <code>AssetRef&lt;A&gt;</code> FIELD PICKS ITS OWN FILE. The panel reads the sort off the
+<p>AN <code>AssetRef&lt;A&gt;</code> FIELD PICKS ITS OWN FILE. The row reads the sort off the
 type, so a field typed <code>AssetRef&lt;Image&gt;</code> offers the images the installed bundles
 DECLARE in their <code>resources</code> lists, written as the <code>dep://&lt;mod&gt;/&lt;file&gt;</code> ref that
 resolves - and marks a <code>dep://</code> path no bundle ships. Do not add
@@ -596,7 +596,7 @@ field has no row at all.</p>
 <p>A FIELD’S DOC COMMENT IS ITS TOOLTIP. <code>nova_editor</code> builds against
 <code>bevy/reflect_documentation</code>, so the first paragraph of the <code>///</code> above a field</p>
 <ul>
-<li>or above the variant a choice row stands on - is what the panel says when the
+<li>or above the variant a choice row stands on - is what the row says when the
 pointer rests on that row. Write it for the person filling the box in, not for
 the person calling the constructor: a field nobody documented is a row the
 editor cannot explain.</li>

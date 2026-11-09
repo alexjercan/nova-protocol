@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-5fbecee9.js";
+            window.path_to_searchindex_js = "searchindex-e28e0c87.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-6ac6c19d.js"></script>
@@ -571,7 +571,7 @@ the menu and editor walks (<code>screenshot_menu</code>,
 interface and the command shell (<code>screenshot_interface</code>,
 <code>screenshot_command_shell</code>), the Rock
 hollow combat beats (<code>screenshot_radar_lock</code>, <code>screenshot_contextual_hud</code>,
-<code>screenshot_combat_lock</code>, <code>screenshot_combat_hud</code>, <code>screenshot_combat_wide</code>,
+<code>screenshot_key_hints</code>, <code>screenshot_combat_lock</code>, <code>screenshot_combat_hud</code>, <code>screenshot_combat_wide</code>,
 <code>screenshot_hull_juice</code>, <code>screenshot_torpedo_run</code>, <code>screenshot_comms</code>), the
 spinal lance
 (<code>screenshot_railgun</code>) and the flight computer around a real well
@@ -936,10 +936,12 @@ before/after, run it once per commit into two dirs and compare the matching
 pairs at identical crop and scale - a comparison at two different zooms shows
 you the resize, not the change.</p>
 <h3 id="the-theme-is-shared-with-the-game"><a class="header" href="#the-theme-is-shared-with-the-game">The theme is shared with the game</a></h3>
-<p><code>web/src/style.css</code> and <code>crates/nova_ui/src/theme.rs</code> both mirror the <code>:root</code>
-block of <code>web/design/nova_ui_rework_poc.html</code> - the interface palette and its
-control vocabulary. That PoC is the single source: change it first, then both
-consumers.</p>
+<p><code>web/src/style.css</code> and the base theme builders in
+<code>crates/nova_ui/src/theme/base.rs</code> both mirror the <code>:root</code> block of
+<code>web/design/nova_ui_rework_poc.html</code> - the interface palette and its control
+vocabulary. That PoC is the single source: change it first, then both
+consumers. The builders are content: <code>content gen</code> writes them to
+<code>assets/base/ui_themes/base.content.ron</code>, so regenerate after a change.</p>
 <p>The PoC ships two skins and the site wears only one. Everything the site draws
 comes from the PHOSPHOR skin (the PoC’s <code>body[data-skin="phosphor"]</code> widget
 zoo): flat translucent green fills, 1px phosphor hairlines, 2px corners on
@@ -994,7 +996,10 @@ any catalog. Its <code>self://</code> art resolves against the nearest enclosing
 <code>*.bundle.ron</code> folder, the same place the merge would have resolved it. There
 is no spec to expand and no aggregate: one subject, one run dir, the same
 <code>report.html</code> + <code>checks.json</code>. Measuring a scenario needs NO example, no
-<code>[[example]]</code> block and no Rust file - that is the point of the verb.</p>
+<code>[[example]]</code> block and no Rust file - that is the point of the verb. Its
+frame-time window waits for the scenario to be built (camera up, load gate
+released), since the loader holds the clock through the build and a window
+opened on a held clock is refused; see <a href="performance.html">performance</a>.</p>
 <p>Every run spec resolves to a list. A single example is just a one-item list;
 comma lists, category dir names, and <code>--all</code> expand against the <code>[[example]]</code>
 catalog and run sequentially with continue-on-failure. The status index lives

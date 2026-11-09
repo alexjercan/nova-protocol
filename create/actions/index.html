@@ -1,4 +1,4 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Actions - Nova Protocol Creator Docs</title><meta name="description" content="All 51 actions a scenario handler can run, grouped by spawning, mission, sound, pacing, flow, ship state, helm orders, forced fire, AI constraints, timers, and camera."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
+<!doctype html><html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Actions - Nova Protocol Creator Docs</title><meta name="description" content="All 55 actions a scenario handler can run, grouped by spawning, mission, sound, pacing, flow, ship state, helm orders, forced fire, AI constraints, timers, and camera."/><link rel="icon" href="/nova-protocol/favicon.svg"/><script defer="defer" src="/nova-protocol/docs.js"></script></head><body><header class="site-header">
     <a href="/nova-protocol/" class="site-header__brand">Nova<b>Protocol</b></a>
     <nav class="site-nav" aria-label="Primary">
         <a href="/nova-protocol/">Home</a>
@@ -8,10 +8,10 @@
         <a href="/nova-protocol/play/" class="is-cta">Play</a>
     </nav>
 </header>
-<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Actions</p><h1>Actions</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#spawnstartrole">SpawnStartRole</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#narrativecue">NarrativeCue</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#sound">Sound</a><ol><li><a href="#playsound">PlaySound</a></li></ol></li><li><a href="#pacing">Pacing</a><ol><li><a href="#sequence">Sequence</a></li><li><a href="#cinematic">Cinematic</a></li><li><a href="#cancelcinematic">CancelCinematic</a></li><li><a href="#cinematictitle">CinematicTitle</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li><li><a href="#backdropdone">BackdropDone</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#ship-capabilities">Ship capabilities</a></li><li><a href="#setallegiance">SetAllegiance</a></li><li><a href="#helm-orders">Helm orders</a></li><li><a href="#moveshipto">MoveShipTo</a></li><li><a href="#forcealign">ForceAlign</a></li><li><a href="#stopship">StopShip</a></li><li><a href="#patrolship">PatrolShip</a></li><li><a href="#orbitship">OrbitShip</a></li><li><a href="#clearshiporder">ClearShipOrder</a></li><li><a href="#zeroshipmotion">ZeroShipMotion</a></li><li><a href="#forced-fire">Forced fire</a></li><li><a href="#forcerailgunfire">ForceRailgunFire</a></li><li><a href="#forcetorpedofire">ForceTorpedoFire</a></li><li><a href="#setinfiniteammo">SetInfiniteAmmo</a></li><li><a href="#refillammo">RefillAmmo</a></li><li><a href="#ai-constraints">AI constraints</a></li><li><a href="#setaileash">SetAILeash</a></li><li><a href="#setaiengagerange">SetAIEngageRange</a></li><li><a href="#setaipointdefenserange">SetAIPointDefenseRange</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#setcameraanchor">SetCameraAnchor</a></li><li><a href="#releasecamera">ReleaseCamera</a></li><li><a href="#suspendplayercontrol">SuspendPlayerControl</a></li><li><a href="#resumeplayercontrol">ResumePlayerControl</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol></nav><p>Everything a handler can DO. Actions run in authored order once every filter
+<main><div class="wiki"><aside class="wiki__nav" id="wiki-nav" aria-label="Create navigation"></aside><article class="wiki__body prose" data-doc-section="create"><p class="wiki__crumb"><a href="/nova-protocol/create/">Create</a> / <a href="/nova-protocol/create/reference/">Modding reference</a> / Actions</p><h1>Actions</h1><div class="wiki__tags" id="wiki-tags"></div><nav class="wiki-toc" aria-label="Contents"><p class="wiki-toc__title">Contents</p><ol><li><a href="#spawning-the-world">Spawning &amp; the world</a><ol><li><a href="#spawnscenarioobject">SpawnScenarioObject</a></li><li><a href="#spawnstartrole">SpawnStartRole</a></li><li><a href="#scatterobjects">ScatterObjects</a></li><li><a href="#despawnscenarioobject">DespawnScenarioObject</a></li><li><a href="#createscenarioarea">CreateScenarioArea</a></li></ol></li><li><a href="#mission-story">Mission &amp; story</a><ol><li><a href="#objective">Objective</a></li><li><a href="#objectivecomplete">ObjectiveComplete</a></li><li><a href="#objectivemarkerattach">ObjectiveMarkerAttach</a></li><li><a href="#objectivemarkerdetach">ObjectiveMarkerDetach</a></li><li><a href="#narrativecue">NarrativeCue</a></li><li><a href="#hudreadout">HudReadout</a></li><li><a href="#objectivechiphold">ObjectiveChipHold</a></li><li><a href="#hintemphasisset">HintEmphasisSet</a></li><li><a href="#hintemphasisclear">HintEmphasisClear</a></li></ol></li><li><a href="#sound">Sound</a><ol><li><a href="#playsound">PlaySound</a></li></ol></li><li><a href="#pacing">Pacing</a><ol><li><a href="#sequence">Sequence</a></li><li><a href="#cinematic">Cinematic</a></li><li><a href="#cancelcinematic">CancelCinematic</a></li><li><a href="#cinematictitle">CinematicTitle</a></li></ol></li><li><a href="#flow-outcomes-transitions">Flow: outcomes &amp; transitions</a><ol><li><a href="#outcome">Outcome</a></li><li><a href="#nextscenario">NextScenario</a></li><li><a href="#backdropdone">BackdropDone</a></li></ol></li><li><a href="#ship-state">Ship state</a><ol><li><a href="#ship-capabilities">Ship capabilities</a></li><li><a href="#setallegiance">SetAllegiance</a></li><li><a href="#helm-orders">Helm orders</a></li><li><a href="#moveshipto">MoveShipTo</a></li><li><a href="#forcealign">ForceAlign</a></li><li><a href="#stopship">StopShip</a></li><li><a href="#patrolship">PatrolShip</a></li><li><a href="#orbitship">OrbitShip</a></li><li><a href="#clearshiporder">ClearShipOrder</a></li><li><a href="#zeroshipmotion">ZeroShipMotion</a></li><li><a href="#forced-fire">Forced fire</a></li><li><a href="#forcerailgunfire">ForceRailgunFire</a></li><li><a href="#forcetorpedofire">ForceTorpedoFire</a></li><li><a href="#setinfiniteammo">SetInfiniteAmmo</a></li><li><a href="#refillammo">RefillAmmo</a></li><li><a href="#ai-constraints">AI constraints</a></li><li><a href="#setaileash">SetAILeash</a></li><li><a href="#setaiengagerange">SetAIEngageRange</a></li><li><a href="#setaipointdefenserange">SetAIPointDefenseRange</a></li><li><a href="#settradeprofile">SetTradeProfile</a></li></ol></li><li><a href="#variables-timers-debugging">Variables, timers &amp; debugging</a><ol><li><a href="#timerstart">TimerStart</a></li><li><a href="#timercancel">TimerCancel</a></li><li><a href="#variableset">VariableSet</a></li><li><a href="#debugmessage">DebugMessage</a></li></ol></li><li><a href="#camera-photo-mode">Camera &amp; photo mode</a><ol><li><a href="#setcamera">SetCamera</a></li><li><a href="#setcameraanchor">SetCameraAnchor</a></li><li><a href="#releasecamera">ReleaseCamera</a></li><li><a href="#suspendplayercontrol">SuspendPlayerControl</a></li><li><a href="#resumeplayercontrol">ResumePlayerControl</a></li><li><a href="#screenshot">Screenshot</a></li><li><a href="#setskybox">SetSkybox</a></li></ol></li></ol></nav><p>Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - <code>Name((field: value, ...))</code>, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 53 at a glance:</p>
+never panics a scenario). All 55 at a glance:</p>
 <div class="table-scroll">
 <table>
 <thead>
@@ -76,6 +76,11 @@ never panics a scenario). All 53 at a glance:</p>
 <td><a href="#hudreadout"><code>HudReadout</code></a></td>
 <td><a href="#mission-story">mission</a></td>
 <td>bind a live HUD readout to a scenario variable</td>
+</tr>
+<tr>
+<td><a href="#objectivechiphold"><code>ObjectiveChipHold</code></a></td>
+<td><a href="#mission-story">mission</a></td>
+<td>keep one objective's HUD chip up until the objective leaves</td>
 </tr>
 <tr>
 <td><a href="#hintemphasisset"><code>HintEmphasisSet</code></a></td>
@@ -231,6 +236,11 @@ never panics a scenario). All 53 at a glance:</p>
 <td><a href="#setaipointdefenserange"><code>SetAIPointDefenseRange</code></a></td>
 <td><a href="#ship-state">ship state</a></td>
 <td>change how close an inbound torpedo gets before the guns answer</td>
+</tr>
+<tr>
+<td><a href="#settradeprofile"><code>SetTradeProfile</code></a></td>
+<td><a href="#ship-state">ship state</a></td>
+<td>give a generated AI trader a trade profile for its station visits, or clear it</td>
 </tr>
 <tr>
 <td><a href="#variableset"><code>VariableSet</code></a></td>
@@ -695,7 +705,7 @@ inside (the entry still fires).</p>
 <td><code>id</code></td>
 <td>string</td>
 <td>required</td>
-<td>the objective to complete; a never-posted id warns (and lints)</td>
+<td>the objective to complete; an id no <code>Objective</code> in this scenario posts fails lint and load</td>
 </tr>
 </tbody>
 </table>
@@ -915,6 +925,50 @@ variable vocabulary (a run clock, a score, a countdown).</p>
 frame thereafter. It freezes under pause and behind the outcome overlay
 because the variable does - a time-trial's final time simply holds through
 the banner. Cleared at teardown.</p>
+</details>
+<h3 id="objectivechiphold" tabindex="-1">ObjectiveChipHold</h3>
+<p>Keep one objective's HUD chip up until the objective leaves - how a scenario
+holds a first-step cue on screen past its usual reading time.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">ObjectiveChipHold</span><span class="ron-punct">((</span><span class="ron-key">id</span><span class="ron-punct">:</span> <span class="ron-string">&quot;take_a_job&quot;</span><span class="ron-punct">)),</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>required</td>
+<td>the objective whose chip stays up; it must be an <code>Objective</code> this scenario posts, or lint fails (below)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Every objective chip is normally read after its 12 second dwell, or when the
+player opens the interface. A held chip stays up and unread past both, and
+leaves only with its objective, so the matching
+<a href="#objectivecomplete"><code>ObjectiveComplete</code></a> removes it. Every other chip is
+unaffected. While a held chip is up the stack footer reads the interface key
+plus INTERFACE, not OBJECTIVES.</p>
+<p>Post the <code>Objective</code> FIRST. The hold does nothing when no objective with that
+id is active, and it does not wait for one to appear.</p>
+<p>The hold is NOT saved. A scenario that wants it across a Load runs the action
+from <a href="../events/#onresume"><code>OnResume</code></a> as well as after the <code>Objective</code> in
+<a href="../events/#onstart"><code>OnStart</code></a>. A Load after the objective ended runs the
+action against no active objective, which is a quiet no-op and the result you
+want. Teardown clears every hold, and only teardown: an <code>Objective</code> posted again
+under a held id in the same run is held with no second action.</p>
+<p>A hold naming an id that no <code>Objective</code> in the scenario posts is a lint
+Error, which fails lint and load.</p>
 </details>
 <h3 id="hintemphasisset" tabindex="-1">HintEmphasisSet</h3>
 <p>Pulse one keybind-dock chip gold - how a tutorial points at a key before
@@ -2267,6 +2321,45 @@ or restore the engine's 1.5 km default.</p>
 turret's own ~1.8 km reach it only wastes the opening shots, so authoring
 wider than the guns can shoot buys nothing.</p>
 </details>
+<h3 id="settradeprofile" tabindex="-1">SetTradeProfile</h3>
+<p>Give a generated AI trader the <a href="../trade-profiles/">trade profile</a> it runs on
+its station visits, or take it away.</p>
+<pre><code class="hljs language-ron"><span class="ron-type">SetTradeProfile</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;sector_1_0_0_cluster_1_0_0_hull_2&quot;</span><span class="ron-punct">,</span> <span class="ron-key">profile</span><span class="ron-punct">:</span> <span class="ron-type">Some</span><span class="ron-punct">(</span><span class="ron-string">&quot;base/ore_hauler&quot;</span><span class="ron-punct">))),</span>
+<span class="ron-type">SetTradeProfile</span><span class="ron-punct">((</span><span class="ron-key">ship</span><span class="ron-punct">:</span> <span class="ron-string">&quot;sector_1_0_0_cluster_1_0_0_hull_2&quot;</span><span class="ron-punct">)),</span>   <span class="ron-comment">// no further visits</span>
+</code></pre>
+<details class="explain">
+<summary>Show explanation</summary>
+<div class="table-scroll">
+<table>
+<thead>
+<tr>
+<th>field</th>
+<th>type</th>
+<th>default</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ship</code></td>
+<td>string</td>
+<td>required</td>
+<td>scoped AI ship root with a trade market: a generated trader, never a station</td>
+</tr>
+<tr>
+<td><code>profile</code></td>
+<td><code>Option</code> profile id</td>
+<td><code>None</code></td>
+<td><code>Some(&quot;id&quot;)</code> sets the profile its next visit runs; omitted takes it away</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>A visit already under way keeps the profile it started with. An unknown
+profile id or a ship that is not AI-driven fails lint. At run time a station,
+a ship without a trade market or an unknown profile is refused with an error
+in the log, and nothing changes.</p>
+</details>
 <h2 id="variables-timers-debugging" tabindex="-1">Variables, timers &amp; debugging</h2>
 <h3 id="timerstart" tabindex="-1">TimerStart</h3>
 <p>Start a keyed scenario timer. Starting an existing key restarts its deadline.</p>
@@ -2354,9 +2447,9 @@ the write half of the whole
 </tbody>
 </table>
 </div>
-<p>In the in-game editor the expression is not a text field: the action opens a
-<code>Value</code> page under its <code>Key</code>, a row per node, exactly as an expression filter
-opens its condition. See
+<p>In the in-game editor the expression is not a text field: the block's pop-up
+holds a <code>Value</code> page under its <code>Key</code>, a row per node, exactly as an expression
+filter holds its condition. See
 <a href="../expressions/#the-typed-form-in-the-editor">the typed form</a>.</p>
 </details>
 <h3 id="debugmessage" tabindex="-1">DebugMessage</h3>

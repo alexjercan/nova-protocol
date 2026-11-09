@@ -874,8 +874,11 @@
     )),
     // -- 5. ITEM ---------------------------------------------------------------
     // A NEW item id, so it ADDS to the catalog. Any ship stock, canister or
-    // trade may carry it. Every field is required: `mass_g` above 0 grams, and
-    // `bid_cr` (what a Sell earns) at most `ask_cr` (what a Buy pays). The ten
+    // trade may carry it. Every field is required: `mass_g` above 0 grams,
+    // `price_lot` above 0 (the count one `ask_cr` and `bid_cr` price: 1 here,
+    // 100 for base PDC rounds), and `bid_cr` (what a Sell earns per lot) at
+    // most `ask_cr` (what a Buy pays per lot). A Buy rounds its credits up, a
+    // Sell rounds them down and is refused when it earns 0 cr. The ten
     // ids the game itself uses - "HullPlate", the ammunition, the ores,
     // "Rations" and "SalvagedParts" - belong to base. A mod may replace one
     // whole, with its own mass and prices but the same category, because base
@@ -886,6 +889,7 @@
         about: "A sealed sensor core from the example mod. Traders buy and sell it.",
         category: Parts,
         mass_g: 5000,
+        price_lot: 1,
         ask_cr: 60,
         bid_cr: 45,
     )),
