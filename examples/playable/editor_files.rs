@@ -203,19 +203,6 @@ mod smoke {
             .add()
     }
 
-    /// Advance once the heading `name` stands inside the palette list's box.
-    fn heading_in_list(name: &'static str) -> Arc<Predicate> {
-        Arc::new(move |world: &World| {
-            let (Some(heading), Some(list)) = (
-                ui_node_rect(world, name),
-                ui_node_rect(world, "Palette List"),
-            ) else {
-                return false;
-            };
-            heading.min.y >= list.min.y - 1.0 && heading.max.y <= list.max.y + 1.0
-        })
-    }
-
     /// Advance once the canvas hint shows a line holding `text`.
     fn hint_says(text: &'static str) -> Arc<Predicate> {
         Arc::new(move |world: &World| {
@@ -343,17 +330,19 @@ mod smoke {
         let script = pass(script, "the palette lists Events above Actions");
         let script = shot(script, width, "palette");
         let script = script.click_named(
-            "files: the rail takes the list to Values",
+            "files: the rail shows only Values",
             "Palette Rail Values",
-            heading_in_list("Palette Heading Values and logic"),
+            editor(|probe| probe.shell.palette_group == "Values"),
             BEAT_SECS,
         );
-        let script = pass(script, "a rail click brings the Values group into view");
+        let script = pass(script, "a rail click shows only the Values group");
         let script = shot(script, width, "rail");
+        // The drags below take an action from the palette, so the rail goes
+        // back to every group first.
         let script = script.click_named(
-            "files: the rail takes the list back to Events",
-            "Palette Rail Events",
-            heading_in_list("Palette Heading Events"),
+            "files: the rail shows every group again",
+            "Palette Rail All",
+            editor(|probe| probe.shell.palette_group == "All"),
             BEAT_SECS,
         );
         let script = script.filter_palette("Debug Message").drag_block(
