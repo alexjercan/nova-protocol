@@ -15,6 +15,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-11-09
+
 ### Gameplay & Flight
 
 - The base PDC round now prices 10 cr ask / 7 cr bid per 100 rounds. A Buy rounds its lot share up, a Sell rounds down, and a Sell that would earn 0 cr is refused.
@@ -23,67 +25,69 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A neutralized ship now drops its patrol, escort slot or order and brakes to a stop on its own RCS. With no flight computer or RCS, an empty magazine, a dock or a strong well, it drifts on.
 - GOTO now flies around rocks and planetoids on its leg, 200 m off your hull by default, for the player, AI patrols and scripted orders alike; the predicted path and map route show the bend.
 - Q and E now roll your ship about its nose through the controller section, view and hull together, with no RCS cost. No gamepad binding; mods cannot bind Q or E to sections.
+- Shift + X is now MATCH, not STOP: it matches your travel lock's velocity on RCS alone, keeps the hull's attitude, never docks, and says why when it has no target, RCS or magazine.
+- The autopilot now waits for a refilling RCS magazine to reach half before it uses RCS again, so a hold against a steady pull no longer swaps between drive and RCS each tick.
 - Generated traders now fly to a station within 20 km, dock, trade real cargo and credits, post their jobs, undock after 60 s and fly 1 km clear. A station takes one visitor at a time.
-- Visiting ships dock at stations that orbit a planet or spin, take turns at a station, and hold up to 5 minutes for a clear approach before they give up.
+- A visitor also docks at a station that orbits a planet or spins, and waits up to 5 minutes for a clear approach before it gives up.
 - Each living station now has two generated ships of its own civilization 2 to 4 km from it, so most new worlds have a trader in visit range of the start station.
 - A visitor posts up to 3 extra jobs beside a station's 3 slots. An open one goes at the next slot expiry or after 20 minutes; an accepted one stays until you finish or lose it.
-- The autopilot now waits for a refilling RCS magazine to reach half before it uses RCS again, so a hold against a steady pull no longer swaps between drive and RCS each tick.
 - **(breaking)** World saves now carry station visits and visitor jobs, so a docked visitor stays docked and never trades twice. Older world saves are refused.
-- Shift + X is now MATCH, not STOP: it matches your travel lock's velocity on RCS alone, keeps the hull's attitude, never docks, and says why when it has no target, RCS or magazine.
+
+### Scenarios & Objectives
+
+- A fresh New Game world now posts a Take a job objective with the interface key under it. The chip stays up until your first accepted job, also across a Load.
+- New `OnJobAccepted` scenario event fires when the Jobs pane accepts a board offer, with the job's id as `id`.
+- New `ObjectiveChipHold` action keeps one objective's HUD chip up until it leaves. It is not saved: run it from `OnResume` too. An id no Objective posts fails lint.
+- New `SetTradeProfile` action gives a generated AI trader a trade profile or clears it. An unknown profile or a non-AI target fails lint.
+- **(breaking)** An `ObjectiveComplete` id that no `Objective` in the same scenario posts now fails lint and load. It was a warning.
 
 ### Modding & Mod Portal
 
+- Editor Mod Settings edits the manifest and dependencies. A remove that content still needs and a cycle are refused; picking from an undeclared mod adds the dependency in the same undo step.
+- Editor New Asset (+, right click, Add) offers only kinds it can make: a blank with a new id. A section asks its kind in a modal. Save, Play and Package wait until the blank is filled.
+- Editor New Asset > Section builds a section in the mod: sockets on the gizmo, .glb import, live Problems. Ships can carry it, and Play flies it.
+- Editor Assets opens styles, start roles, items, price tables, trade profiles, UI themes and campaigns as undoable forms. Ids are picked, numbers keep to lint ranges, and Problems shows merge rules.
+- Editor UI theme palettes show the same swatch rows for every theme, with a picker: a square, a hue strip and a hex field. The pick shows live, is one undo step, and Esc takes it back.
+- Editor File > Package opens a window: version bump, lint check, files, name. It writes `<id>-<version>.zip` and shows its path and size. Hub Import refuses unsafe paths. Desktop only.
 - **(breaking)** A `UiTheme` palette is now one fixed set of job-named colours, such as `text`, `surface` and `accent`, in every theme. A root theme sets all; an unknown name fails to parse.
 - **(breaking)** `Item` content now requires `price_lot`, the item count one `ask_cr`/`bid_cr` prices: 100 for a PDC round, 1 for other base items. An item without it fails lint, then load.
 - New `TradeProfile` content gives generated ship roles weighted buy/sell lists, with quantity and per-unit price limit, and Procure jobs for their station visits.
-- New `SetTradeProfile` action gives a generated AI trader a trade profile or clears it. An unknown profile or a non-AI target fails lint.
-- Editor Mod Settings edits the manifest and dependencies. A remove that content still needs and a cycle are refused; picking from an undeclared mod adds the dependency in the same undo step.
-- Editor Assets > + > Sections builds a section in the mod: sockets on the gizmo, .glb import, live Problems. Ships can carry it, and Play flies it.
-- Editor Assets opens styles, start roles, items, price tables, trade profiles, UI themes and campaigns as undoable forms. Lists and ids are picked, not typed. Merge rules show in Problems.
-- Editor New Asset (+, right click, Add) offers only kinds it can make: a blank with a new id. A section asks its kind in a modal. Save, Play and Package wait until the blank is filled.
-- Editor UI theme palettes show the same swatch rows for every theme, with a picker: a square, a hue strip and a hex field. The pick shows live, is one undo step, and Esc takes it back.
-- Editor File > Package opens a window: version bump, lint check, files, name. It writes `<id>-<version>.zip` and shows its path and size. Hub Import refuses unsafe paths. Desktop only.
-- New `OnJobAccepted` scenario event fires when the Jobs pane accepts a board offer, with the job's id as `id`.
 - **(breaking)** A section with `health` 0 or less now fails lint, and so does a mining section or cargo intake sound or mesh ref that names no file.
-- **(breaking)** An `ObjectiveComplete` id that no `Objective` in the same scenario posts now fails lint and load. It was a warning.
-- New `ObjectiveChipHold` action keeps one objective's HUD chip up until it leaves. It is not saved: run it from `OnResume` too. An id no Objective posts fails lint.
 - New optional sounds: torpedo bay `ignition_sound`, `dud_sound`, `intercept_sound` and `reload_sound`; ship presentation `torpedo_closing_sound` and `kill_confirm_sound`.
 
 ### Interface & HUD
 
+- Sandbox opens a Mod Hub: a recent-first list of mods with New, Import, Duplicate and Delete.
+- The editor works on a whole mod: Assets shows its items and folder files as tiles with a kind filter and +, scenario switches keep edits, one Ctrl+Z history covers it, and Play tests a scenario.
+- Editor assets open alone: a scenario on Scene and Events, any ship in the Ship editor (Esc goes back), a section on Section, others on Form. Drag a ship design in to place it.
+- The editor has one top bar, a Hierarchy tree, an Inspector with folding groups, and a strip: Assets, Problems, Ship, and a Log. Log and Problems rows copy out with Ctrl+C.
 - The editor now has undo and redo: Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y, and Edit rows that name the step. An UNSAVED mark shows, and leaving or closing with unsaved work asks first.
 - The editor viewport has its own camera: RMB looks about, MMB or Alt+LMB orbits, Alt+RMB or the wheel dollies, Shift+MMB pans. WASD no longer flies it.
 - Editor tools: Q select, W move, E turn, R scale. X swaps world and local axes; Snap or Ctrl snaps. The Ship view hides them: Q picks a part, R and Shift+R roll it.
 - The editor selects many nodes: Ctrl or Shift click, a box drag, Ctrl+A. A group moves, turns and deletes as one undo step. Ctrl+D, Ctrl+C and Ctrl+V copy nodes.
-- The editor has one top bar, a Hierarchy tree, an Inspector with folding groups, and a strip: Assets, Problems, Ship, and a Log. Log and Problems rows copy out with Ctrl+C.
-- Sandbox opens a Mod Hub: a recent-first list of mods with New, Import, Duplicate and Delete.
-- The editor works on a whole mod: Assets shows its items and folder files as tiles with a kind filter and +, scenario switches keep edits, one Ctrl+Z history covers it, and Play tests a scenario.
-- Editor Events is a block canvas beside a palette grouped by role, with a rail that filters to one group. Drag blocks into the slots that fit and fill values on the block. Each drop is one undo step.
-- Editor right-click menus: the stage offers Add, Paste, Frame and Delete; the canvas Paste, Clean Up, Duplicate and Delete; an Assets file Rename and Delete; empty Assets New Asset and Import File.
 - The editor Add menu groups what the document takes in submenus, with a search: ships and designs, objects, lights, markers, parts, section parts, new assets. Shift+A opens it on the stage.
+- Editor right-click menus: the stage offers Add, Paste, Frame and Delete; the canvas Paste, Clean Up, Duplicate and Delete; an Assets file Rename and Delete; empty Assets New Asset and Import File.
+- Editor Events is a block canvas beside a palette grouped by role, with a rail that filters to one group. Drag blocks into the slots that fit and fill values on the block. Each drop is one undo step.
 - An unfinished condition in the editor now shows as a Problem that blocks Save, Play and Package instead of vanishing on save.
-- Editor assets open alone: a scenario on Scene and Events, any ship in the Ship editor (Esc goes back), a section on Section, others on Form. Drag a ship design in to place it.
-- Ship pane Rebind now takes Left Mouse. The click that arms it is not captured, and the click that binds reaches no button, tab or blip under it.
 - The lock readout now moves to the free side of the reticle to stay on screen and clear of the target inset, and the inset caption sits on a darker slab clear of its corner brackets.
-- At an interface scale other than 100%, the lock bracket and the target and objective markers now sit on their targets. They drew away from them, or off the screen, before.
 - The lock readout now shows TTI, the seconds until your soonest lit torpedo reaches the locked hull. The line hides while no torpedo of yours is closing on the lock.
-- The chart's OBJECTIVES heading now reads `LAYER 2`, not `Y2`, and a selected job's panel drops its repeated JOB and Cell lines.
-- A DOCK press that does nothing now says why in the HUD notice: no lock, no free port, too far, not facing or too fast. Targets that refuse you and asteroid or planet locks stay silent.
-- A fresh New Game world now posts a Take a job objective with the interface key under it. The chip stays up until your first accepted job, also across a Load.
-- The Hull plate description now says Ship pane repairs spend it and a destroyed section needs a station rebuild.
-- Key hints now follow the device you pressed last: the flight dock row, the TAB card and its footer, objectives and the outcome screen show pad buttons after a pad press and keys after a key press.
+- At an interface scale other than 100%, the lock bracket, the target and objective markers and the flight chips now sit where they belong. They drew away, or off the screen, before.
+- The speed, autopilot and RCS chips beside your ship no longer overlap in a burn. In a small or scaled window they stay on screen and move clear of the target inset.
 - Holding the RCS key lights the RCS chip and turns the dock row's STOP chip into MATCH. The chip goes dark when MATCH would refuse. With Shift up it reads STOP, also over a flying match.
+- A DOCK press that does nothing now says why in the HUD notice: no lock, no free port, too far, not facing or too fast. Targets that refuse you and asteroid or planet locks stay silent.
+- Ammo gauges now show only with weapons raised or a combat lock held. A low or reloading magazine no longer brings them up in normal flight; it still pulses while they show.
+- Unavailable dock chips and small instruction lines are easier to read.
+- Key hints now follow the device you pressed last: the flight dock row, the TAB card and its footer, objectives and the outcome screen show pad buttons after a pad press and keys after a key press.
 - The TAB card now has a Close button and a Next hint with the live keys. Esc backs out one level first: a held part, a Jobs confirm, hull Info, a trade draft or an armed buy.
+- Ship pane Rebind now takes Left Mouse. The click that arms it is not captured, and the click that binds reaches no button, tab or blip under it.
+- The Hull plate description now says Ship pane repairs spend it and a destroyed section needs a station rebuild.
+- The Jobs pane lists now scroll, long titles end in an ellipsis, rows wrap at narrow widths instead of clipping their buttons, and an empty list or an undocked board says what to do next.
+- The chart's OBJECTIVES heading now reads `LAYER 2`, not `Y2`, and a selected job's panel drops its repeated JOB and Cell lines.
+- The main menu groups its buttons, lights one action (Continue, else New Game) and scrolls in a small window. New Game shows its step, fits a small window and says why Create is disabled.
 - Esc or pad B now backs out of the open main-menu screen one level and closes the pause menu's Settings; Esc then resumes. Back buttons show Esc, or B after a pad press.
 - Buy station, Reset Defaults and mod Uninstall now ask twice: the first press puts Cancel where the button was, beside a red Confirm and a sentence that says what it does. Esc also cancels.
-- The Jobs pane lists now scroll, long titles end in an ellipsis, rows wrap at narrow widths instead of clipping their buttons, and an empty list or an undocked board says what to do next.
-- The main menu groups its buttons, lights one action (Continue, else New Game) and scrolls in a small window. New Game shows its step, fits a small window and says why Create is disabled.
-- Panels, cards and chips in the Phosphor theme now share one sharp 2 px corner, and pill bars are rectangles. Reticles, map blips and status dots stay round.
 - Menus and modals now dim and block the screen behind them, tooltips flip to stay inside the window, and the TAB panes pick their narrow layout from the interface scale as well as the window.
-- Unavailable dock chips and small instruction lines are easier to read.
-- The speed, autopilot and RCS chips beside your ship no longer overlap in a burn. In a small or scaled window they stay on screen and move clear of the target inset.
-- At an interface scale other than 100%, the flight chips now sit beside your ship. They drew away from it, or off the screen, before.
-- Ammo gauges now show only with weapons raised or a combat lock held. A low or reloading magazine no longer brings them up in normal flight; it still pulses while they show.
+- Panels, cards and chips in the Phosphor theme now share one sharp 2 px corner, and pill bars are rectangles. Reticles, map blips and status dots stay round.
 
 ### Audio & Visuals
 
@@ -96,23 +100,23 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Each batch a reload lands in a torpedo bay now plays a rack clunk. A railgun with a magazine above one round now plays its reload sound per batch, not once when full.
 - Buttons in the panes, catalogue and editor now tick on hover, light under the pointer and click on a press. Most refused presses buzz, in the menus too. Disabled buttons stay silent.
 
-### Internals & Tooling
-
-- The game now runs on Bevy 0.20, avian3d 0.8 and bevy_hanabi 0.20. Its built-in shaders moved from WGSL to WESL (`assets/shaders/*.wesl`).
-- `probe scenario` now opens its frame-time window once the scenario is built instead of refusing every capture at the loader's clock hold.
-- New `NOVA_CAPTURE_SIZE` and `NOVA_CAPTURE_UI_SCALE` set a scripted run's window size and interface scale, and harness clicks now land at any interface scale. New `screenshot_key_hints` example.
-
 ### Fixes
 
 - Editor saves no longer collide on a ship id: saved ships now carry the mod's namespace. An older `editor_` save opens and converts on its next save.
-- Pressing F1 just after Play no longer crashes the game.
+- Pressing F1 just after the editor's Play no longer crashes the game.
+- The editor's axis rose now holds its corner while the camera moves. It drew from the last frame's camera pose and flickered.
 - When a slot on your starting station's board renews, the board keeps one job your hull can do, so an unarmed start no longer runs out. A board of only hidden jobs now says so.
 - A GOTO or ORBIT cue now moves aside while a HUD notice would cover it, and returns when the notice ends.
 - **(breaking)** An escort for hire keeps its place and motion beside its station, in flat space or a well, after a Load or a sector stream, instead of moving to the other side after a hire.
 - **(breaking)** A ship that streams back in or loads with a world keeps its RCS magazine instead of a free full one; an idle one refills for the time away. Older world saves are refused.
 - A torpedo warhead's `detonation_sound` now plays at the blast. A real detonation never played it.
 - Destroyed thrusters, on ships and shot-down torpedoes, no longer leave a glowing exhaust cone on their wreck.
-- The editor's axis rose now holds its corner while the camera moves. It drew from the last frame's camera pose and flickered.
+
+### Internals & Tooling
+
+- The game now runs on Bevy 0.20, avian3d 0.8 and bevy_hanabi 0.20. Its built-in shaders moved from WGSL to WESL (`assets/shaders/*.wesl`).
+- `probe scenario` now opens its frame-time window once the scenario is built instead of refusing every capture at the loader's clock hold.
+- New `NOVA_CAPTURE_SIZE` and `NOVA_CAPTURE_UI_SCALE` set a scripted run's window size and interface scale, and harness clicks now land at any interface scale. New `screenshot_key_hints` example.
 
 ## [0.16.0] - 2026-10-28
 
@@ -3463,7 +3467,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - Editor and simulation scenes.
 
-[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.16.0...HEAD
+[unreleased]: https://github.com/alexjercan/nova-protocol/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/alexjercan/nova-protocol/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/alexjercan/nova-protocol/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/alexjercan/nova-protocol/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/alexjercan/nova-protocol/compare/v0.13.2...v0.14.0
