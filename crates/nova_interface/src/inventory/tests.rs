@@ -354,19 +354,13 @@ fn an_overflowing_row_name_ends_in_an_ellipsis_and_shows_whole_once_its_cell_wid
     // The shown name, its laid-out width and its cell's content width, both
     // in physical px.
     let row_name = |world: &mut World| {
-        let mut names = world.query_filtered::<
-            (&Text, &TextLayoutInfo, &ComputedNode, &ChildOf),
-            With<EllipsisText>,
-        >();
-        let (text, layout, node, child_of) = names.single(world).expect("the hold has one row");
+        let mut names =
+            world.query_filtered::<(&Text, &TextLayoutInfo, &ChildOf), With<EllipsisText>>();
+        let (text, layout, child_of) = names.single(world).expect("the hold has one row");
         let cell = world
             .get::<ComputedNode>(child_of.parent())
             .expect("a row name sits in its cell");
-        (
-            text.0.clone(),
-            layout.size.x / node.inverse_scale_factor(),
-            cell.content_box().size().x,
-        )
+        (text.0.clone(), layout.size.x, cell.content_box().size().x)
     };
     for scale in [2.0, 0.8] {
         // The shared fitter lives in `NovaUiPlugin`, which goes in before any

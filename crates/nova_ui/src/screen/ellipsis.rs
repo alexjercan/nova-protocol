@@ -59,12 +59,11 @@ pub(crate) fn fit_ellipsis_texts(
         &mut Text,
         &TextLayoutInfo,
         &ComputedTextBlock,
-        &ComputedNode,
         &ChildOf,
     )>,
     cells: Query<&ComputedNode>,
 ) {
-    for (full, mut state, mut text, layout, block, node, child_of) in &mut labels {
+    for (full, mut state, mut text, layout, block, child_of) in &mut labels {
         // A new text has no layout yet: draw it whole and fit it next frame.
         // The content decides, not the change tick: a surface that writes
         // the same text again every frame leaves the cut one alone.
@@ -84,10 +83,9 @@ pub(crate) fn fit_ellipsis_texts(
         let Ok(cell) = cells.get(child_of.parent()) else {
             continue;
         };
-        // Compare in physical px, where the layout rounds the width up
-        // before it stores it in logical px; the round undoes the float
-        // error of that conversion.
-        let shown_width = (layout.size.x / node.inverse_scale_factor()).round();
+        // Both widths are physical px: the text layout keeps its size
+        // unscaled, and so does the cell's computed node.
+        let shown_width = layout.size.x;
         let width = cell.content_box().size().x;
         let Some((fitted, overflowed_at)) =
             fit(&full.0, &text.0, shown_width, width, &state, || {
