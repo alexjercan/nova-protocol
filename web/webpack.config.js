@@ -111,6 +111,13 @@ const sectionDocPages = (section) => {
 // fill the meta line; description is the head meta; the title comes from the H1.
 const NEWS_POSTS = [
     {
+        slug: "0.17.0",
+        version: "v0.17.0",
+        date: "2026-11-09",
+        description:
+            "Nova Protocol v0.17.0: traders that visit stations and post jobs, GOTO around obstacles, roll and MATCH, readable torpedoes, and a mod editor with a hub, asset tiles, block events, theme picker and packaging.",
+    },
+    {
         slug: "0.16.0",
         version: "v0.16.0",
         date: "2026-10-28",

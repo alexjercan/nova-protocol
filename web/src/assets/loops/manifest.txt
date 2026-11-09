@@ -91,3 +91,7 @@ news-0160-chart-view.webm	news_0160_chart_view	12.8	622521	fresh
 news-0160-station-orbit.webm	news_0160_station_orbit	14.1	1913048	fresh
 news-0160-escort-ambush.webm	news_0160_escort_ambush	17.2	1267879	fresh
 news-0160-escort-done.webm	news_0160_escort_ambush	9.9	814216	fresh
+# news-0170 group: the 3 rows below were captured from commit c989ec0d0 on master with the news_0170 producers added; the rows above keep the commit in the top header
+news-0170-match-roll.webm	news_0170_match_roll	7.4	653361	fresh
+news-0170-torpedo-blast.webm	loop_torpedo_blast	3.2	695433	fresh
+news-0170-goto-detour.webm	system_goto_detour	8.1	211259	frozen
