@@ -292,13 +292,17 @@ impl VisitAssetDependencies for BundleAsset {
 
 impl Asset for BundleAsset {}
 
-/// Errors produced while loading a modding RON asset (`*.content.ron`).
+/// Errors produced while loading a modding RON asset (`*.content.ron`,
+/// `*.bundle.ron`).
 #[derive(Debug)]
 pub enum ModdingLoaderError {
     /// The file could not be read.
     Io(std::io::Error),
     /// The bytes were not valid RON for the expected type.
     Ron(ron::error::SpannedError),
+    /// A bundle manifest lists a content path that resolves outside the
+    /// bundle's asset source, such as `../../x.content.ron` in a mod.
+    EscapingContentPath(String),
 }
 
 impl std::fmt::Display for ModdingLoaderError {
@@ -306,6 +310,9 @@ impl std::fmt::Display for ModdingLoaderError {
         match self {
             ModdingLoaderError::Io(err) => write!(f, "failed to read modding file: {err}"),
             ModdingLoaderError::Ron(err) => write!(f, "failed to parse modding RON: {err}"),
+            ModdingLoaderError::EscapingContentPath(path) => {
+                write!(f, "bundle content path '{path}' leaves its asset source")
+            }
         }
     }
 }
@@ -315,6 +322,7 @@ impl std::error::Error for ModdingLoaderError {
         match self {
             ModdingLoaderError::Io(err) => Some(err),
             ModdingLoaderError::Ron(err) => Some(err),
+            ModdingLoaderError::EscapingContentPath(_) => None,
         }
     }
 }
@@ -440,17 +448,24 @@ impl AssetLoader for BundleAssetLoader {
             .parent()
             .unwrap_or_else(|| AssetPath::from(""));
 
+        // An escaping path fails the whole bundle. The asset server refuses to
+        // read it, but it returns a default handle and no longer tracks it as
+        // a dependency, so without this check the bundle would load with a
+        // content entry that never arrives.
         let content = manifest
             .content
             .iter()
             .map(|rel| {
-                // The owned `to_string` is load-bearing - an
-                // `AssetPath::from(&str)` would borrow `manifest.content`, which
-                // does not outlive the resolved path.
+                // The owned `to_string` is required: an `AssetPath::from(&str)`
+                // would borrow `manifest.content`, which does not outlive the
+                // resolved path.
                 let resolved = base.resolve(&AssetPath::from(rel.to_string()));
-                load_context.load::<ContentAsset>(resolved)
+                if resolved.is_unapproved() {
+                    return Err(ModdingLoaderError::EscapingContentPath(rel.clone()));
+                }
+                Ok(load_context.load::<ContentAsset>(resolved))
             })
-            .collect();
+            .collect::<Result<_, _>>()?;
 
         // `base` keeps its source scheme, so this is `mods/<id>` for a
         // shipped bundle and `mods://<id>` for a downloaded one - exactly the

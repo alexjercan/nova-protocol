@@ -500,19 +500,20 @@ pub fn register_mods_source(app: &mut bevy::app::App) {
 /// non-Normal component (`..`, a root, a drive prefix, `.`) is rejected as
 /// not-found before the wrapped reader sees it.
 ///
-/// Threat and layering (verified in bevy_asset 0.19 source): `AssetPath::
-/// resolve` PRESERVES an underflowing `..` (normalize_path, path.rs:692, per
-/// RFC 1808), so a bundle manifest listing `../../x.content.ron` yields a
-/// source-relative path that still starts with `..` - record validation alone
-/// cannot stop a malicious MANIFEST. The FIRST guard against such a path is
-/// bevy itself: `AssetPlugin::unapproved_path_mode` defaults to `Forbid` and
-/// the server rejects `is_unapproved` paths at load time (server/mod.rs:544);
-/// the raw `FileAssetReader`, which would happily raw-join `..` onto its root,
-/// never sees them. This sandbox is the READER-layer backstop so the cache's
-/// containment does not hinge on that config staying at its default (an
-/// `unapproved_path_mode: Allow` app, a `load_override` caller, or any future
-/// direct-reader consumer would otherwise reopen the hole). Escaping requests
-/// always retain a non-Normal component, so the check is exact.
+/// Threat and layering (verified in bevy_asset 0.20 source): `AssetPath::
+/// resolve` PRESERVES an underflowing `..` (`normalize_path`, per RFC 1808),
+/// so a bundle manifest listing `../../x.content.ron` yields a source-relative
+/// path that still starts with `..` - record validation alone cannot stop a
+/// malicious MANIFEST. `BundleAssetLoader` fails such a bundle, and bevy
+/// itself refuses the read: `AssetPlugin::unapproved_path_mode` defaults to
+/// `Forbid` and the server rejects `is_unapproved` paths at load time (its
+/// `validate_path`); the raw `FileAssetReader`, which would happily raw-join
+/// `..` onto its root, never sees them. This sandbox is the READER-layer
+/// backstop so the cache's containment does not hinge on that config staying
+/// at its default (an `unapproved_path_mode: Allow` app, a `load_override`
+/// caller, or any future direct-reader consumer would otherwise reopen the
+/// hole). Escaping requests always retain a non-Normal component, so the
+/// check is exact.
 #[cfg(not(target_arch = "wasm32"))]
 struct SandboxedAssetReader<R: bevy::asset::io::AssetReader> {
     inner: R,
