@@ -139,6 +139,9 @@ fn a_load_that_cannot_fill_its_window_is_refused_and_releases_the_clocks() {
     app.init_resource::<GameMode>();
     app.init_resource::<ButtonInput<KeyCode>>();
     app.init_resource::<ButtonInput<MouseButton>>();
+    // The menu's back-key chips read the last input device with a hard `Res`;
+    // `NovaInputPlugin` installs it in production.
+    app.init_resource::<nova_input::prelude::InputDeviceType>();
     app.init_resource::<ClockFreeze>();
     // `load_menu_ambience` (`OnEnter(MainMenu)`) reads this with a hard `Res`;
     // empty is a legal "no clean backdrop" catalog.

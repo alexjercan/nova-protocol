@@ -464,6 +464,15 @@ mod tests {
         Playing,
     }
 
+    /// A world that can hold a picking pointer. `PointerId`'s insert hook
+    /// registers the pointer in `PointerMap`, which `bevy_picking`'s plugin
+    /// owns, and panics when the map is missing.
+    fn pointer_world() -> World {
+        let mut world = World::new();
+        world.init_resource::<bevy::picking::pointer::PointerMap>();
+        world
+    }
+
     /// A world with the driver's clock in it, so the time predicates have
     /// something to read.
     fn world_at(step_elapsed: f32, step_frames: u32) -> World {
@@ -740,7 +749,7 @@ mod tests {
     fn the_pointer_acks_read_the_picking_pointer() {
         use bevy::picking::pointer::{PointerId, PointerPressState};
 
-        let mut world = World::new();
+        let mut world = pointer_world();
         assert!(
             !pointer_pressed()(&world) && !pointer_released()(&world),
             "no picking pointer is not an ack of anything"
@@ -762,7 +771,7 @@ mod tests {
     fn another_pointer_does_not_answer_for_the_mouse() {
         use bevy::picking::pointer::{PointerId, PointerPressState};
 
-        let mut world = World::new();
+        let mut world = pointer_world();
         // A forwarded pointer, parked and released, and NO mouse at all.
         world.spawn((PointerId::Touch(1), PointerPressState::default()));
         assert!(
@@ -789,7 +798,7 @@ mod tests {
         };
 
         let target = Vec2::new(760.0, 640.0);
-        let mut world = World::new();
+        let mut world = pointer_world();
         assert!(
             !pointer_at(target)(&world),
             "no picking pointer is not an arrival"

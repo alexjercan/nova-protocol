@@ -364,9 +364,12 @@ mod tests {
         let mut context = EguiContext::default();
         let mut typed = String::new();
         for _ in 0..2 {
-            let _ = context.get_mut().run_ui(egui::RawInput::default(), |ui| {
+            let mut output = context.get_mut().run_ui(egui::RawInput::default(), |ui| {
                 ui.text_edit_singleline(&mut typed).request_focus();
             });
+            // No renderer uploads the font atlas here, and epaint asserts
+            // that a dropped delta was applied.
+            output.textures_delta.clear();
         }
         app.world_mut().spawn(context);
         app.world_mut().resource_mut::<DebugHud>().open = true;

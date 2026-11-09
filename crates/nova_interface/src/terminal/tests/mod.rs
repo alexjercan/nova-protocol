@@ -299,6 +299,10 @@ fn spawn_nova_os_shell_with_crt(app: &mut App) {
     // The chin's brand plate loads a logo image, so the render-capable rig
     // must register the `Image` asset too (production has it via DefaultPlugins).
     app.init_asset::<Image>();
+    // The render-capable build parks a forwarded picking pointer, and
+    // `PointerId`'s insert hook registers it in `PointerMap`, which
+    // `bevy_picking`'s plugin owns in production.
+    app.init_resource::<bevy::picking::pointer::PointerMap>();
     spawn_nova_os_shell(app);
 }
 
@@ -363,6 +367,8 @@ fn chin_controls_app() -> App {
     app.init_asset::<Font>();
     app.init_asset::<Image>();
     app.init_asset::<NovaOsCrtMaterial>();
+    // See `spawn_nova_os_shell_with_crt`: the forwarded pointer needs it.
+    app.init_resource::<bevy::picking::pointer::PointerMap>();
     app.add_systems(Update, ensure_nova_os_spawned);
     app.add_systems(
         Update,
