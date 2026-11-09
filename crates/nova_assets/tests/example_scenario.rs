@@ -573,6 +573,10 @@ fn the_loaded_catalog_digest_is_stable_and_follows_the_enabled_mods() {
 /// A loaded mod whose section has a non-finite stat leaves no canonical
 /// catalog: the merge withdraws the section packs an earlier merge
 /// registered, rather than hash the value or keep a stale catalog.
+///
+/// The fixture's stat is a thruster magnitude because `lint_section_config`
+/// does not check it. A linted stat such as `health` quarantines the mod
+/// before the merge, and the digest never sees it.
 #[test]
 fn a_loaded_non_finite_stat_withdraws_the_section_packs() {
     let mut app = headless_app();
@@ -585,20 +589,25 @@ fn a_loaded_non_finite_stat_withdraws_the_section_packs() {
         "the mods catalog",
     );
 
-    let nan_hull = nova_ship::prelude::SectionConfig {
+    let nan_thruster = nova_ship::prelude::SectionConfig {
         base: nova_ship::prelude::BaseSectionConfig {
-            id: "nan_hull".to_string(),
-            health: f32::NAN,
+            id: "nan_thruster".to_string(),
+            health: 100.0,
             advancement: 0.0,
             draw_weight: 1.0,
             ..Default::default()
         },
-        kind: nova_ship::prelude::SectionKind::Hull(Default::default()),
+        kind: nova_ship::prelude::SectionKind::Thruster(
+            nova_ship::prelude::ThrusterSectionConfig {
+                magnitude: f32::NAN,
+                ..Default::default()
+            },
+        ),
     };
     let content = app
         .world_mut()
         .resource_mut::<Assets<ContentAsset>>()
-        .add(ContentAsset(vec![Content::Section(Box::new(nan_hull))]));
+        .add(ContentAsset(vec![Content::Section(Box::new(nan_thruster))]));
     let bundle = app
         .world_mut()
         .resource_mut::<Assets<BundleAsset>>()
