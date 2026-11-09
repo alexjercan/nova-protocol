@@ -41,6 +41,8 @@ fn the_harness_variables_are_the_documented_ones() {
     assert_eq!(DEADLINE_ENV, "NOVA_AUTOPILOT_DEADLINE");
     assert_eq!(CAPTURE_ENV, "NOVA_CAPTURE");
     assert_eq!(CAPTURE_DIR_ENV, "NOVA_CAPTURE_DIR");
+    assert_eq!(CAPTURE_SIZE_ENV, "NOVA_CAPTURE_SIZE");
+    assert_eq!(CAPTURE_UI_SCALE_ENV, "NOVA_CAPTURE_UI_SCALE");
 }
 
 /// Measurement: every knob is `NOVA_PROBE_*`, computed from one prefix.
@@ -121,6 +123,8 @@ const ROSTER: &[&str] = &[
     "NOVA_AUTOPILOT_DEADLINE",
     "NOVA_CAPTURE",
     "NOVA_CAPTURE_DIR",
+    "NOVA_CAPTURE_SIZE",
+    "NOVA_CAPTURE_UI_SCALE",
     // Measurement - nova_probe, all computed from one prefix.
     "NOVA_PROBE",
     "NOVA_PROBE_MODE",
