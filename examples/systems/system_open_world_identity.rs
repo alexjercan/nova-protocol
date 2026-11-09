@@ -102,6 +102,8 @@ const SEED_FIELD: &str = "World Seed Field";
 const CREATE_WORLD_BUTTON: &str = "Create World Button";
 #[cfg(feature = "debug")]
 const WORLD_NEXT_BUTTON: &str = "World Next Button";
+#[cfg(feature = "debug")]
+const MAP_CAMERA: &str = "NovaOsMapCamera";
 
 /// How many cells the open world keeps live: radius 2 is a 5x5x5 window.
 #[cfg(feature = "debug")]
@@ -496,6 +498,56 @@ fn blip_diagnosis(derelict: bool) -> impl Fn(&World) -> String + Send + Sync + '
 #[cfg(feature = "debug")]
 const ZOOM_NOTCHES: f32 = 3.0;
 
+/// How near the Map camera stands to the subject before the walk aims. The
+/// pane opens framed on the whole live window, about 250 km out, where every
+/// contact within a few km of the player falls on the same few pixels. At
+/// 30 km a 22 px tile spans about 1 km, and a subject 6 km from the focus
+/// still stands inside the viewport.
+#[cfg(feature = "debug")]
+const AIM_CAMERA_RANGE: Meters = Meters(30_000.0);
+
+/// The Map camera's distance to the subject, once both stand.
+#[cfg(feature = "debug")]
+fn map_camera_range(world: &World, derelict: bool) -> Option<Meters> {
+    let entity = world.resource::<IdentityWatch>().subject(derelict).entity;
+    let subject = world.get::<GlobalTransform>(entity)?.translation();
+    let mut cameras = world.try_query::<(&Name, &GlobalTransform)>()?;
+    let camera = cameras
+        .iter(world)
+        .find(|(name, _)| name.as_str() == MAP_CAMERA)?
+        .1
+        .translation();
+    Some(Meters::from_engine(camera.distance(subject)))
+}
+
+/// Turn the wheel in with the pointer on the subject's blip, every other
+/// frame so the blips move before the next notch, as a player does before
+/// clicking one contact out of a crowd.
+#[cfg(feature = "debug")]
+fn wheel_in_on_the_blip(derelict: bool) -> impl Fn(&mut World, f32, u32) + Send + Sync + 'static {
+    move |world: &mut World, _, frame: u32| {
+        if !frame.is_multiple_of(2) {
+            return;
+        }
+        let Some((_, points)) = blip_aim_points(world, derelict) else {
+            return;
+        };
+        move_cursor(points[0])(world);
+        scroll_lines(ZOOM_NOTCHES)(world);
+    }
+}
+
+/// Advance once the Map camera stands within [`AIM_CAMERA_RANGE`] of the
+/// subject.
+#[cfg(feature = "debug")]
+fn the_map_is_wheeled_in(
+    derelict: bool,
+) -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(move |world: &World| {
+        map_camera_range(world, derelict).is_some_and(|range| range.get() <= AIM_CAMERA_RANGE.get())
+    })
+}
+
 /// Move the pointer over the subject's blip, one aim point every other frame
 /// so picking can answer for the last one. A pass that finds another blip on
 /// top at every point ends the way a player works through crowded contacts:
@@ -781,6 +833,14 @@ fn identity_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Game
             .until(the_blip_is_up(derelict))
             .diagnose(blip_diagnosis(derelict))
             .deadline(BEAT_DEADLINE_SECS)
+            .add()
+            .step(format!("identity: wheel the map in on the {label} blip"))
+            .each(wheel_in_on_the_blip(derelict))
+            .until(the_map_is_wheeled_in(derelict))
+            .diagnose(move |world: &World| {
+                format!("camera range {:?}", map_camera_range(world, derelict))
+            })
+            .deadline(SESSION_SECS)
             .add()
             .step(format!("identity: aim at the {label} blip"))
             .each(sweep_the_blip(derelict))
