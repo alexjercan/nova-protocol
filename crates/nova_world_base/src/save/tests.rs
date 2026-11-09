@@ -328,15 +328,15 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
     // this build does not know.
     let old = root.path().join("old-format").join("world.ron");
     let text = std::fs::read_to_string(&old).unwrap().replacen(
-        "format: \"v0.16.0\",",
+        "format: \"v0.17.0\",",
         "format: 30, weather: \"rain\",",
         1,
     );
     std::fs::write(&old, text).unwrap();
     let other = root.path().join("other-release").join("world.ron");
     let text = std::fs::read_to_string(&other).unwrap().replacen(
+        "format: \"v0.17.0\",",
         "format: \"v0.16.0\",",
-        "format: \"v0.15.0\",",
         1,
     );
     std::fs::write(&other, text).unwrap();
@@ -394,13 +394,13 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
         (
             "other-release",
             Err(&WorldRefusal::Format {
-                found: "v0.15.0".to_string()
+                found: "v0.16.0".to_string()
             })
         )
     );
     assert_eq!(
         shown[3].1.unwrap_err().to_string(),
-        "save format 30; this build reads v0.16.0"
+        "save format 30; this build reads v0.17.0"
     );
 
     assert!(matches!(
@@ -416,7 +416,7 @@ fn the_list_shows_why_each_refused_world_cannot_load() {
         ),
         Err(WorldRefusal::Catalog { .. })
     ));
-    for (slug, found) in [("old-format", "30"), ("other-release", "v0.15.0")] {
+    for (slug, found) in [("old-format", "30"), ("other-release", "v0.16.0")] {
         assert!(matches!(
             open_world(
                 root.path(),
@@ -491,8 +491,8 @@ fn a_written_world_opens_as_it_was_saved() {
         ["state.2.ron", "world.lock", "world.ron"]
     );
     let on_disk = |file: &str| std::fs::read_to_string(folder.path.join(file)).unwrap();
-    assert!(on_disk("world.ron").starts_with("(\n    format: \"v0.16.0\",\n"));
-    assert!(on_disk("state.2.ron").starts_with("(format:\"v0.16.0\","));
+    assert!(on_disk("world.ron").starts_with("(\n    format: \"v0.17.0\",\n"));
+    assert!(on_disk("state.2.ron").starts_with("(format:\"v0.17.0\","));
     drop(lock);
 
     let (opened, _lock, read, saved) = open_world(
@@ -531,8 +531,8 @@ fn a_state_of_another_release_than_its_header_is_refused() {
     drop(lock);
     let path = folder.path.join("state.1.ron");
     let text = std::fs::read_to_string(&path).unwrap().replacen(
+        "format:\"v0.17.0\"",
         "format:\"v0.16.0\"",
-        "format:\"v0.15.0\"",
         1,
     );
     std::fs::write(&path, &text).unwrap();
@@ -551,7 +551,7 @@ fn a_state_of_another_release_than_its_header_is_refused() {
     };
     assert_eq!(
         reason,
-        "state.1.ron is format v0.15.0 generation 1; world.ron names format v0.16.0 generation 1"
+        "state.1.ron is format v0.16.0 generation 1; world.ron names format v0.17.0 generation 1"
     );
     assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
 }

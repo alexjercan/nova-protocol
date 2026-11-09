@@ -97,7 +97,7 @@ pub use transients::{
 /// the player never visited regenerates from the seed on Load, so another
 /// generator would change it silently. It is not `CARGO_PKG_VERSION`: the
 /// crates keep the last release's version until the release bump.
-pub const WORLD_SAVE_VERSION: &str = "v0.16.0";
+pub const WORLD_SAVE_VERSION: &str = "v0.17.0";
 
 /// The most characters a world name has, after trimming.
 const WORLD_NAME_MAX: usize = 32;

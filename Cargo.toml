@@ -1811,7 +1811,7 @@ too_many_arguments = "allow"
 
 [workspace.package]
 edition = "2021"
-version = "0.16.0"
+version = "0.17.0"
 license = "MIT"
 
 [workspace]
