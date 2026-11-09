@@ -30,7 +30,10 @@
 //! weapons lock is, so cover takes both - but an ENGAGED trip is not a
 //! designation: the autopilot owns its target from the moment it engages, so
 //! the ship keeps flying the leg it was given. Only the player's own tap-clear
-//! ends a trip.
+//! ends a trip. The leg bends round the rock, so the line can clear inside the
+//! beat; an empty travel slot then takes the trip's own target back with no
+//! dwell (the GOTO exception in `update_contacts_and_locks`). Invariant 6
+//! accepts that designation and fails on any other.
 //!
 //! Invariant 7 is the other half of the rule: the world takes a lock, and
 //! nothing else does. A combat lock used to let go on its own after thirty
@@ -804,13 +807,20 @@ fn assert_the_cover_drops_the_designation(world: &mut World) {
 /// Invariant 6: an engaged trip is not a designation. The computer owns its
 /// target from the moment it engages, so losing the mark cannot strand the
 /// ship - it keeps flying the leg, and only the player's tap-clear ends it.
+///
+/// The detour bends the leg round the rock, and the line clears when the ship
+/// is far enough off the axis. The empty travel slot then takes the trip's
+/// own target back with no dwell. When that happens depends on the frame rate,
+/// so the beat accepts no designation or the trip's target. Any other body in
+/// the slot is a fault.
 #[cfg(feature = "debug")]
 fn assert_the_trip_flew_on(world: &mut World) {
     let target = target_root(world);
     let (designation, trip) = designation_and_trip(world);
-    assert_eq!(
-        designation, None,
-        "line of sight: the designation came back on its own"
+    assert!(
+        designation.is_none() || designation == Some(target),
+        "line of sight: the travel slot took {designation:?} while the trip \
+         flew at {target:?}; only the trip's own target may come back"
     );
     assert_eq!(
         trip,
@@ -828,9 +838,12 @@ fn assert_the_trip_flew_on(world: &mut World) {
     nova_probe::probe_marker(
         world,
         "outcome: an engaged trip flies through the drop",
-        serde_json::json!({ "closed_m": closed.0 }),
+        serde_json::json!({ "closed_m": closed.0, "retaken": designation.is_some() }),
     );
-    info!("line of sight: the designation let go and the trip flew on");
+    info!(
+        "line of sight: the designation let go and the trip flew on (retaken: {})",
+        designation.is_some()
+    );
 }
 
 /// Start the idle wait: wind the clock on and wipe the tape, so the assertion
