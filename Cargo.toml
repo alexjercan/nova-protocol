@@ -1460,6 +1460,20 @@ name = "news_0160_escort_ambush"
 path = "examples/screenshots/news_0160_escort_ambush.rs"
 required-features = ["debug"]
 
+# The v0.17.0 news flight loop: Q and E roll the warship, then Shift + X
+# matches a hauler on an orbit.
+[[example]]
+name = "news_0170_match_roll"
+path = "examples/screenshots/news_0170_match_roll.rs"
+required-features = ["debug"]
+
+# The v0.17.0 news New Game still: the docked start with the held Take a job
+# chip.
+[[example]]
+name = "news_0170_first_job"
+path = "examples/screenshots/news_0170_first_job.rs"
+required-features = ["debug"]
+
 # Every station design parked side by side, each shot framed by its own hull.
 [[example]]
 name = "screenshot_station_showcase"

@@ -136,6 +136,9 @@ LOOPS=(
     # armed run, is raised.
     "news_0160_escort_ambush|news-0160-escort-ambush||NOVA_AUTOPILOT_DEADLINE=1800"
     "news_0160_escort_ambush|news-0160-escort-done||NOVA_AUTOPILOT_DEADLINE=1800"
+    # The v0.17.0 post: Q and E roll the warship, then Shift + X matches a
+    # hauler on an orbit.
+    "news_0170_match_roll|news-0170-match-roll||"
 )
 
 # A second name for footage already captured above, when a second producer
@@ -176,6 +179,8 @@ ALIASES=(
     # The v0.15.0 post freezes the wiki section loops of the two new sections.
     "news-0150-mining-beam|loop-section-mining-beam|screenshot_mining_beam"
     "news-0150-intake-pickup|loop-section-cargo-intake|mine_and_sell"
+    # The v0.17.0 post freezes the living torpedo blast: trail, shell, kill.
+    "news-0170-torpedo-blast|torpedo-blast|loop_torpedo_blast"
 )
 
 for alias in "${ALIASES[@]}"; do
@@ -587,6 +592,7 @@ IMPORTED=(
     "news-0140-live-themes|content-machine-v0.14.0|dedicated live-themes capsule scene"
     "news-0140-carrier-collapse|content-machine-v0.14.0|dedicated carrier-collapse capsule scene"
     "news-0140-four-v-four|content-machine-v0.14.0|dedicated four-v-four capsule scene"
+    "news-0170-goto-detour|system_goto_detour|the first 16 s of its goto-detour loop at twice speed, cut by hand with no audio"
 )
 
 package_import() {

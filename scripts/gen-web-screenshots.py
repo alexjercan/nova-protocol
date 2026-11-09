@@ -235,6 +235,9 @@ THUMBNAILS = [
     ("thumb-news-0.15.0.png", None),
     # Cut from the inspected release-lead GOTO frame by capture-web-media.sh.
     ("thumb-news-0.16.0.png", None),
+    # The same window of the docked trader as news-0170-trader-docked.png;
+    # a CUTS row writes it.
+    ("thumb-news-0.17.0.png", None),
     ("thumb-devlog-3.png", None),
     ("thumb-devlog-4.png", None),
     ("thumb-devlog-5.png", None),
@@ -292,6 +295,19 @@ CUTS = [
     ("news-0130-planet-types.png",    "planet-types-lineup.png",  "planet_types",      (107, 100, 1706, 960)),
     ("news-0130-hull-row.png",        "wfc-ships-row.png",        "wfc_ships",         (107, 60, 1706, 960)),
     ("news-0130-block-fleet.png",     "first-shift-ships.png",    "first_shift_ships", (120, 230, 1440, 810)),
+    # The v0.17.0 post. Each window drops the dev readout, the status line or
+    # the empty part of a 1920x1080 editor frame.
+    ("news-0170-trader-docked.png",   "station-visits-docked.png",    "system_station_visits", (440, 140, 1280, 720)),
+    ("thumb-news-0.17.0.png",         "station-visits-docked.png",    "system_station_visits", (440, 140, 1280, 720)),
+    ("news-0170-visitor-jobs.png",    "station-visits-jobs-pane.png", "system_station_visits", (214, 92, 1168, 657)),
+    ("news-0170-first-job.png",       "news-0170-first-job.png",      "news_0170_first_job",   (320, 40, 1280, 720)),
+    ("news-0170-mod-hub.png",         "editor-mod-new.png",           "editor_mod_project",    (640, 360, 640, 360)),
+    ("news-0170-package.png",         "s10-package-modal.png",        "editor_mod_project",    (640, 360, 640, 360)),
+    ("news-0170-asset-tiles.png",     "views-1920-section.png",       "editor_views",          (0, 360, 1280, 720)),
+    ("news-0170-ship-back.png",       "views-1920-ship.png",          "editor_views",          (0, 0, 1280, 720)),
+    ("news-0170-theme-picker.png",    "views-1920-picker.png",        "editor_views",          (335, 195, 960, 540)),
+    ("news-0170-events-drag.png",     "editor-blocks-drag.png",       "editor_blocks",         (0, 36, 768, 432)),
+    ("news-0170-add-search.png",      "editor-shell-add-search.png",  "editor_shell",          (720, 250, 640, 360)),
 ]
 
 # Composite output frame (16:9, the figure resolution the capture examples use).
