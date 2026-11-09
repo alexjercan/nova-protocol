@@ -1,6 +1,6 @@
 # Migrate all Nova crates to Bevy 0.20 after ecosystem gate
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 90
 - TAGS: v0.17.0
 
@@ -77,3 +77,7 @@
 - NOT RUN: release-critical `nova-probe` sets and `nova-bench` player flows.
 - UNVERIFIED: about 30 code comments still cite Bevy 0.19 or avian 0.7 behaviour as a reason (`git grep -n -i 'bevy 0\.19'`). Each needs a check against 0.20 before it is reworded or its workaround deleted.
 - The menu backdrop is an unseeded rotation draw; the unpinned run drew `menu_weave` instead of `menu_waystation`, so the frame check uses `NOVA_MENU_BACKDROP`.
+
+## Closure (2026-11-09)
+- Closed by the owner. Pushed to origin at `9db33b053`; CI run 42610251622: autopilot, wasm32 clippy, license gate, default-features check, web and probe smoke passed; fmt / clippy / test was still running at close.
+- Limits kept: no Windows or macOS build yet (the release workflow builds them on the tag); release probe sets and bench flows not run; about 30 comments still cite Bevy 0.19 or avian 0.7 reasons; `ContactModelPlugin` keeps the avian 0.7 contact behaviour until ram damage is retuned.

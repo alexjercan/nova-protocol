@@ -1,8 +1,8 @@
 # Production-ready mod editor
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 80
-- TAGS: v0.17.0,editor,modding
+- TAGS: v0.17.0, editor, modding
 
 ## User facts
 
@@ -1474,3 +1474,7 @@ Limits:
 | Owner review 2, R1 to R14 | Slice 11 notes: R1, R3, R4, R5, R8, R9, R10. Slice 12 notes: R7, R11, R12, R13, R14. Slice 13 notes: R2 (`editor_files` palette, drag, loose and empty-canvas PASS lines and frames) and R6 (import, delete, view and play PASS lines; `files-*-assets.png`). Each row has its tests, walk lines and frames | MET by unit tests and driven walks; not yet reviewed by the owner |
 | Owner review 3, S1 to S17 | Slice 14 notes: a status, commits and evidence per item, the S13 audit table, the S17 before and after numbers, and the final proof on `575931f29` | MET by unit tests and driven walks; not yet reviewed by the owner |
 | Owner review 3, S18 and S19 | Slice 15 notes: the New Asset leaf test and `editor_views` PASS lines; the palette mapping table, identical resolved paint, before and after frames in both themes | MET by unit tests, driven walks and frames; not yet reviewed by the owner |
+
+## Closure (2026-11-09)
+- Closed by the owner after owner reviews 2 and 3 (R1 to R14, S1 to S19). The open confirmations (old catalog as the Tab gallery, the Inspector, old `editor_*` saves, the two undo-less confirms, new UI themes inheriting `base/phosphor`) stand as built.
+- Limits kept: undo of a file Import, Rename or Delete does not revert the disk; Rename refuses a referenced file instead of rewriting refs; an override of a base id counts as use of that dependency; the ship breadcrumb repeats the ship name; `system_ship_editor` walks only at 1024x768.
