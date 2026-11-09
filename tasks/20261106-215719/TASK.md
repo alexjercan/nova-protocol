@@ -187,6 +187,55 @@ Agent assumptions, not confirmed by the owner:
   Ids the author mints (Base Id, Scatter Id Prefix, Sequence Key, fixture
   ids) stay text with the content lint's rule; ids that name something are
   pickers. Slice 14 chose this.
+- S18: a New Asset tree offers a kind only when choosing it makes an item.
+  The rule is one `verb_state` arm (`MenuVerbType::NewAsset`) over the
+  `KINDS` `add` flag. Station is hidden, not made: a station design opens and
+  saves only as a ship a scenario places (`lift_ship_document`
+  `project/ship.rs`), so a free station needs a new open, absorb and place
+  path. A blank that opens with lint faults still counts as made (R13): Save
+  waits until it is filled. Slice 15 chose this.
+- S19: the palette is `UiPalette`, one `Option<String>` field per
+  `UiColorType`, declared from one list (`theme/config.rs`). `None` inherits;
+  a root theme with a gap fails resolve and lint by name. A palette colour
+  reads as a plain `"#rrggbb"` in RON. `UiColorType` is also what screens
+  paint through: `UiColor` is gone, so a screen, a role and the editor use one
+  vocabulary. The fields are the union of what both shipped role tables read.
+  Slice 15 chose this. The old names map as follows:
+
+  | old name | theme | new field | reason |
+  | --- | --- | --- | --- |
+  | `primary` | both | `text` | the main ink |
+  | `body` | both | `text_body` | body copy |
+  | `secondary` | both | `text_secondary` | secondary text |
+  | `label` | both | `text_muted` | labels, heads, rules |
+  | `inverted` | both | `text_inverse` | glyphs on a lit fill |
+  | `surface` | both | `surface` | panel face |
+  | `void` | both | `background` | the deepest field |
+  | `accent`, `accent_high`, `accent_low` | both | `accent`, `accent_light`, `accent_dark` | the accent family |
+  | `nominal` | both | `nominal` | the lit lamp |
+  | `danger`, `info` | both | `danger`, `info` | unchanged |
+  | `hover_text` | phosphor | `text_hover` | hovered legend |
+  | `white` (hovered legend) | hardware | `text_hover` | hovered legend; hardware sets `#ffffff` |
+  | `white` (other) | both | `highlight` | light washes, the head title |
+  | `black` | both | `shadow` | shadows, wells |
+  | `danger_text_hot` | both | `danger_text` | legend on a danger face |
+  | `primary_high`, `nominal_high` | phosphor, hardware | `nominal_light` | same `#7dffab` in both |
+  | `primary_low`, `nominal_low` | phosphor, hardware | `nominal_dark` | same `#12b552`; phosphor's ink is its lamp |
+  | `screen_lifted` | phosphor | `surface_raised` | no role read it |
+  | `case_0` | hardware | `surface_sunken` | pressed face, unchecked box |
+  | `case_1` | hardware | `surface` | same `#161b20` as its `surface` |
+  | `case_2` | hardware | `surface_raised` | selected row |
+  | `case_3` | hardware | `surface_lit` | bevel top, rule, thumb |
+  | `case_edge` | hardware | `border` | outline round a face |
+  | `face_hot_high`, `face_hot_mid`, `face_hot_low` | hardware | `surface_hover_light`, `surface_hover`, `surface_hover_dark` | hovered face |
+  | `case_text` | hardware | `text` | same `#dcefe0` as its `primary` |
+  | `danger_face_lit`, `danger_face_dark` | hardware | `danger_face`, `danger_face_dark` | danger face |
+  | `knob_off` | hardware | `control_off` | off knob |
+  | `label` (toggle off knob) | phosphor | `control_off` | phosphor sets `#0d6e35`, the label value |
+
+  Phosphor's role table reads no surface step, hover face, border or danger
+  face. Phosphor sets each to the nearest phosphor tone for its job
+  (`theme/base.rs`), so a derived theme that paints with one stays green.
 
 ## Agent findings
 
@@ -1339,6 +1388,70 @@ Limits:
 - The rail rows now carry a theme border and look boxier than the old dots.
   The owner has not seen the new widgets.
 
+### Slice 15 notes
+
+Owner review 3, S18 and S19, on master.
+
+| Item | Status | Commit | Evidence |
+| --- | --- | --- | --- |
+| S18 | DONE | `6c0fb4730` | `every_new_asset_row_makes_an_item_that_opens_and_saves` iterates every New Asset leaf; `editor_views` 1920: `views: PASS Add > Asset offers no Lesson and no Station`, `views: PASS + offers no Lesson and no Station`; `frames/slice15/s18-*` |
+| S19 | DONE | see `git log` after `6c0fb4730` | the mapping table in Decisions; the proof below |
+
+S18: one rule, `verb_state` for `MenuVerbType::NewAsset`, feeds the New
+Asset tree, the `+` menu and the scenario and section Add submenus. A row
+that refuses is hidden, not greyed. Lesson and Station are hidden. Add >
+Script is gone: no verb made a script.
+
+S19: `UiPalette` has 29 fields (`theme/config.rs`, the `ui_palette!` list).
+`ColorValue::Variable` holds a `UiColorType`, so an unknown name fails at
+parse: `an_unknown_palette_name_is_refused`. A root theme with a gap fails
+resolve and lint and names the colour. The editor palette row lists every
+`UiColorType` in the same order for every theme; an inherited colour shows
+dim with a `^`. An edit is still one undo step through the slice 12 picker.
+`UiColor` is removed; screens paint through `UiColorType`.
+
+Proof:
+
+- Resolved paint: an `ActiveUiTheme` dump of both themes, roles and
+  metrics, is byte-identical before and after. The 13 colours screens read
+  map to the same values. So no pixel can change from the palette.
+- Frames, phosphor and hardware, before and after on the same binaries with
+  a temporary theme hook (removed before commit): `screenshot_menu` (9),
+  `screenshot_interface` (4), `editor_shell` (18). `magick compare -fuzz 3%`:
+  `screenshot_interface` 0 to 0.02 px per frame. `editor_shell` 0 to 350 px;
+  each diff is run state, not colour: the random seed field, and the timing
+  of the "undid duplicate" status line. `screenshot_menu`: the UI panels are
+  0 px; the full frame differs only where the 3D backdrop moves (sparks,
+  carved rock, the drifting ship), see
+  `s19-menu-controls-phosphor-diffmask.png`. Kept pairs:
+  `frames/slice15/s19-*`.
+- `content gen`: only `assets/base/ui_themes/base.content.ron` changed:
+  `palette: {"name": ...}` became `palette: (field: ...)`, the new fields,
+  and each `Variable` name. `content lint`: 0 errors, 0 warnings.
+- Tests, sandboxed, owner dirs unchanged: `nova_ui --lib` 121 passed,
+  `nova_editor --lib` 788 passed, `nova_authoring --test content_ron_parity`
+  2 passed, `nova_menu --lib settings` 52 passed, `nova_modding --lib` 2
+  passed.
+- `cargo check --workspace --all-targets`, default and `--features debug`:
+  clean. `cargo fmt --all --check`: clean. The CI wasm clippy: exit 0.
+- Walks at 1920, private Xvfb, lavapipe, sandboxed, owner dirs unchanged,
+  each EXIT 0 with 0 panic: `editor_views` (12 PASS, including the palette
+  pick as one step over all 29 colours; `s19-editor-palette-grid-1920.png`),
+  `editor_shell` (250 steps), `editor_files` (14 PASS),
+  `editor_mod_project` (12 PASS).
+- `editor_files` first failed at `files: carry an action: reach`. Cause:
+  slice 14 S4 (`461b50b3f`) made a rail click show only its group, and the
+  walk left the rail on Events before it dragged an action. The walk now
+  asserts that Values shows alone, then clicks All. Not caused by S19.
+
+Limits:
+
+- `widget_zoo` hardware fails its hover step (`hovering Zoo Idle Button must
+  repaint it`) on the binary from BEFORE this change, so it is not caused
+  by S19. It was not run after.
+- No mod in the repo ships a `UiTheme`; a player mod with the old palette
+  map now fails to parse and must migrate.
+
 ## Verification
 
 - Undo: every verb in the write-site list undoes and redoes to an equal
@@ -1360,3 +1473,4 @@ Limits:
 | Invalidated docs are updated | `web/src/create/mod-editor.md`, `web/src/wiki/keybinds.md`; each claim the review doubted is checked or rewritten; `mdbook build` and `npm run ci` pass | MET; the foot legend under a pop-up is true now and `keybinds.md` says so |
 | Owner review 2, R1 to R14 | Slice 11 notes: R1, R3, R4, R5, R8, R9, R10. Slice 12 notes: R7, R11, R12, R13, R14. Slice 13 notes: R2 (`editor_files` palette, drag, loose and empty-canvas PASS lines and frames) and R6 (import, delete, view and play PASS lines; `files-*-assets.png`). Each row has its tests, walk lines and frames | MET by unit tests and driven walks; not yet reviewed by the owner |
 | Owner review 3, S1 to S17 | Slice 14 notes: a status, commits and evidence per item, the S13 audit table, the S17 before and after numbers, and the final proof on `575931f29` | MET by unit tests and driven walks; not yet reviewed by the owner |
+| Owner review 3, S18 and S19 | Slice 15 notes: the New Asset leaf test and `editor_views` PASS lines; the palette mapping table, identical resolved paint, before and after frames in both themes | MET by unit tests, driven walks and frames; not yet reviewed by the owner |
