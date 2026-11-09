@@ -5,7 +5,7 @@ use std::time::Duration;
 use bevy::prelude::*;
 use nova_gameplay::prelude::GameStates;
 use nova_hud::prelude::HudTier;
-use nova_ui::{prelude::HUD_Z, theme::UiColor, widget::ThemedText};
+use nova_ui::{prelude::HUD_Z, theme::UiColorType, widget::ThemedText};
 use nova_world_base::prelude::{WorldSaveSession, WorldSaveStatus};
 
 /// Marker for the one notice [`sync_save_notice`] keeps.
@@ -13,17 +13,17 @@ use nova_world_base::prelude::{WorldSaveSession, WorldSaveStatus};
 pub(crate) struct SaveNotice;
 
 /// The notice's text and theme colour for `status`.
-fn status_text(status: &WorldSaveStatus, show_saved: bool) -> Option<(String, UiColor)> {
+fn status_text(status: &WorldSaveStatus, show_saved: bool) -> Option<(String, UiColorType)> {
     match status {
         WorldSaveStatus::Unsaved => None,
         WorldSaveStatus::Saved { .. } if show_saved => {
-            Some(("World saved".to_string(), UiColor::Label))
+            Some(("World saved".to_string(), UiColorType::TextMuted))
         }
         WorldSaveStatus::Saved { .. } => None,
         WorldSaveStatus::Writing | WorldSaveStatus::Waiting(_) => {
-            Some(("Saving world...".to_string(), UiColor::Label))
+            Some(("Saving world...".to_string(), UiColorType::TextMuted))
         }
-        WorldSaveStatus::Failed(err) => Some((format!("SAVE FAILED: {err}"), UiColor::Danger)),
+        WorldSaveStatus::Failed(err) => Some((format!("SAVE FAILED: {err}"), UiColorType::Danger)),
     }
 }
 

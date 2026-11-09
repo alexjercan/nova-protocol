@@ -4,7 +4,7 @@
 //! the keys.
 
 use bevy::prelude::*;
-use nova_ui::{prelude::*, theme::UiColor};
+use nova_ui::{prelude::*, theme::UiColorType};
 
 use crate::{
     chart3d::{spawn_chart_scene, CellView, ChartView, MarkView, SceneAssets, SceneKind},
@@ -101,7 +101,7 @@ pub fn chart_page(
                 ] {
                     legend.spawn(legend_entry()).with_children(|e| {
                         e.spawn(icon(icons, what, 14.0));
-                        e.spawn(text(label, 12.0, UiColor::Body));
+                        e.spawn(text(label, 12.0, UiColorType::TextBody));
                     });
                 }
             },
@@ -136,7 +136,7 @@ fn objectives(side: &mut ChildSpawnerCommands, icons: &GalleryIcons, jobs: &Jobs
     })
     .with_children(|r| {
         r.spawn(icon(icons, IconType::Milestone, 16.0));
-        r.spawn(grow_cell(FIRST_MILESTONE, 13.0, UiColor::Primary));
+        r.spawn(grow_cell(FIRST_MILESTONE, 13.0, UiColorType::Text));
         r.spawn(tag(BadgeKind::Green, "MET"));
     });
     for &id in &jobs.held {
@@ -147,16 +147,16 @@ fn objectives(side: &mut ChildSpawnerCommands, icons: &GalleryIcons, jobs: &Jobs
         })
         .with_children(|r| {
             r.spawn(icon(icons, j.kind.icon(), 16.0));
-            r.spawn(grow_cell(j.title, 13.0, UiColor::Primary));
+            r.spawn(grow_cell(j.title, 13.0, UiColorType::Text));
             r.spawn(text(
                 &format!("{} / {}", j.have, j.need),
                 12.0,
-                UiColor::Body,
+                UiColorType::TextBody,
             ));
         });
     }
     if jobs.held.is_empty() {
-        side.spawn(text("EMPTY", 12.0, UiColor::Label));
+        side.spawn(text("EMPTY", 12.0, UiColorType::TextMuted));
     }
 }
 
@@ -174,7 +174,7 @@ fn discovery_log(side: &mut ChildSpawnerCommands, icons: &GalleryIcons) {
                     "Earlier"
                 },
                 11.0,
-                UiColor::Label,
+                UiColorType::TextMuted,
             ));
         }
         side.spawn(Node {
@@ -183,9 +183,13 @@ fn discovery_log(side: &mut ChildSpawnerCommands, icons: &GalleryIcons) {
         })
         .with_children(|r| {
             r.spawn(icon(icons, what, 16.0));
-            r.spawn(grow_cell(code, 13.0, UiColor::Primary));
-            r.spawn(text(&format!("({},{})", at.0, at.1), 12.0, UiColor::Body));
-            r.spawn(cell(72.0, when, 11.0, UiColor::Label, true));
+            r.spawn(grow_cell(code, 13.0, UiColorType::Text));
+            r.spawn(text(
+                &format!("({},{})", at.0, at.1),
+                12.0,
+                UiColorType::TextBody,
+            ));
+            r.spawn(cell(72.0, when, 11.0, UiColorType::TextMuted, true));
         });
     }
 }
@@ -202,15 +206,19 @@ fn sector_panel(
             head.spawn(text(
                 &format!("SECTOR ({},{})", at.0, at.1),
                 15.0,
-                UiColor::Primary,
+                UiColorType::Text,
             ));
-            head.spawn(text(&crate::data::offset_hint(at), 12.0, UiColor::Label));
+            head.spawn(text(
+                &crate::data::offset_hint(at),
+                12.0,
+                UiColorType::TextMuted,
+            ));
         });
     let Some(cell_data) = chart_cell(at) else {
         side.spawn(text(
             "Uncharted. Fly there to chart its contents.",
             12.0,
-            UiColor::Body,
+            UiColorType::TextBody,
         ));
         return;
     };
@@ -235,14 +243,14 @@ fn sector_panel(
         })
         .with_children(|r| {
             r.spawn(icon(icons, what, 16.0));
-            r.spawn(grow_cell(&label, 13.0, UiColor::Primary));
+            r.spawn(grow_cell(&label, 13.0, UiColorType::Text));
             if let Some(n) = count {
-                r.spawn(text(&format!("x{n}"), 12.0, UiColor::Body));
+                r.spawn(text(&format!("x{n}"), 12.0, UiColorType::TextBody));
             }
         });
     }
     if !listed {
-        side.spawn(text("Empty space.", 12.0, UiColor::Body));
+        side.spawn(text("Empty space.", 12.0, UiColorType::TextBody));
     }
     side.spawn(divider());
     match cell_data.entered {
@@ -261,7 +269,11 @@ fn sector_panel(
         section(side, &format!("{name} last seen"));
         match kind {
             StationKind::Dead => {
-                side.spawn(text("Dead. Nothing trades here.", 12.0, UiColor::Body));
+                side.spawn(text(
+                    "Dead. Nothing trades here.",
+                    12.0,
+                    UiColorType::TextBody,
+                ));
             }
             _ => {
                 kv(side, "Docked", "play time 00:03");
@@ -271,13 +283,13 @@ fn sector_panel(
                         ..control_row(JustifyContent::FlexStart)
                     })
                     .with_children(|r| {
-                        r.spawn(grow_cell(ware, 13.0, UiColor::Primary));
-                        r.spawn(text(&format!("{stock} t"), 12.0, UiColor::Body));
+                        r.spawn(grow_cell(ware, 13.0, UiColorType::Text));
+                        r.spawn(text(&format!("{stock} t"), 12.0, UiColorType::TextBody));
                         r.spawn(cell(
                             60.0,
                             &format!("{} cr", thousands(price)),
                             12.0,
-                            UiColor::Accent,
+                            UiColorType::Accent,
                             true,
                         ));
                     });
@@ -304,7 +316,7 @@ fn sector_panel(
             })
             .with_children(|r| {
                 r.spawn(icon(icons, j.kind.icon(), 16.0));
-                r.spawn(grow_cell(j.title, 13.0, UiColor::Primary));
+                r.spawn(grow_cell(j.title, 13.0, UiColorType::Text));
                 r.spawn(text(
                     if jobs.held.contains(&id) {
                         "to do"
@@ -312,7 +324,7 @@ fn sector_panel(
                         "open"
                     },
                     12.0,
-                    UiColor::Label,
+                    UiColorType::TextMuted,
                 ));
             });
         }
@@ -329,7 +341,7 @@ fn sector_panel(
         side.spawn(text(
             "Several contents: the tile stacks one layer per content.",
             11.0,
-            UiColor::Label,
+            UiColorType::TextMuted,
         ));
     }
 }

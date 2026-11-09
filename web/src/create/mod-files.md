@@ -238,9 +238,9 @@ twelve item kinds:
         id: "my-mod/amber",
         name: "Amber CRT",
         inherit: Some("base/phosphor"),
-        palette: {
-            "primary": "#ffb84a",
-        },
+        palette: (
+            text: "#ffb84a",
+        ),
         metrics: None,
         roles: (),
     )),

@@ -9,7 +9,7 @@ use bevy::{
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
-use nova_ui::{theme::UiColor, widget::ThemedImageTint};
+use nova_ui::{theme::UiColorType, widget::ThemedImageTint};
 
 /// Every icon the gallery draws.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Hash)]
@@ -132,29 +132,29 @@ impl IconType {
     }
 
     /// The tint an icon reads in where no caller picks one.
-    pub fn color(self) -> UiColor {
+    pub fn color(self) -> UiColorType {
         match self {
             IconType::Bring
             | IconType::Recover
             | IconType::Escort
             | IconType::Answer
             | IconType::Neutralize
-            | IconType::Job => UiColor::Accent,
-            IconType::Asteroids => UiColor::Accent,
-            IconType::Rocks => UiColor::Secondary,
-            IconType::Planet => UiColor::Info,
-            IconType::Derelicts => UiColor::Body,
-            IconType::Station => UiColor::Nominal,
-            IconType::Wreck => UiColor::AccentHigh,
-            IconType::You => UiColor::Primary,
-            IconType::Raw => UiColor::Nominal,
-            IconType::Repair => UiColor::Info,
-            IconType::Ammo => UiColor::Danger,
-            IconType::Food => UiColor::Accent,
-            IconType::Parts => UiColor::AccentHigh,
-            IconType::Pirate => UiColor::Danger,
-            IconType::Milestone => UiColor::Nominal,
-            IconType::Randomize => UiColor::Primary,
+            | IconType::Job => UiColorType::Accent,
+            IconType::Asteroids => UiColorType::Accent,
+            IconType::Rocks => UiColorType::TextSecondary,
+            IconType::Planet => UiColorType::Info,
+            IconType::Derelicts => UiColorType::TextBody,
+            IconType::Station => UiColorType::Nominal,
+            IconType::Wreck => UiColorType::AccentLight,
+            IconType::You => UiColorType::Text,
+            IconType::Raw => UiColorType::Nominal,
+            IconType::Repair => UiColorType::Info,
+            IconType::Ammo => UiColorType::Danger,
+            IconType::Food => UiColorType::Accent,
+            IconType::Parts => UiColorType::AccentLight,
+            IconType::Pirate => UiColorType::Danger,
+            IconType::Milestone => UiColorType::Nominal,
+            IconType::Randomize => UiColorType::Text,
         }
     }
 }
@@ -553,7 +553,12 @@ pub fn init_gallery_icons(mut commands: Commands, mut images: ResMut<Assets<Imag
 }
 
 /// An icon mask tinted by the theme, `size` px square.
-pub fn icon_node(icons: &GalleryIcons, icon: IconType, tint: UiColor, size: f32) -> impl Bundle {
+pub fn icon_node(
+    icons: &GalleryIcons,
+    icon: IconType,
+    tint: UiColorType,
+    size: f32,
+) -> impl Bundle {
     (
         ImageNode::new(icons.get(icon)),
         Node {

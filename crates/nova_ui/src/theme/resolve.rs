@@ -9,105 +9,22 @@
 //! 2. each role is taken from the NEAREST ancestor that declares it, whole - a
 //!    declared role replaces the inherited one completely, so no control is
 //!    ever painted half in one look and half in another; and
-//! 3. every [`ThemeColor`] is resolved against the merged palette, rejecting an
-//!    unknown variable and a malformed literal.
+//! 3. each palette colour is taken from the nearest theme that sets it, and
+//!    every [`ThemeColor`] resolved against that palette, rejecting a colour
+//!    no theme sets and a malformed hex. An unknown colour name never gets
+//!    this far: [`UiColorType`] is closed, so the file fails to parse.
 //!
 //! A theme that survives all three paints every role in every state. That is
 //! the contract [`ActiveUiTheme`] carries, and it is why the widget layer can
 //! index a role without an `Option` in sight.
 
-use std::collections::BTreeMap;
-
 use bevy::prelude::*;
 
 use super::config::{
     BadgeRole, ButtonRole, CheckboxRole, ColorValue, Effect, Fill, HeadPaint, RadialAnchor,
-    RowPaint, SliderMeter, SliderRole, StatePaint, SurfacePaint, ThemeColor, ToggleRole, UiMetrics,
-    UiThemeConfig,
+    RowPaint, SliderMeter, SliderRole, StatePaint, SurfacePaint, ThemeColor, ToggleRole,
+    UiColorType, UiMetrics, UiThemeConfig,
 };
-
-/// A semantic colour the SCREENS ask for by meaning.
-///
-/// The closed half of the palette: a theme may name as many extra variables as
-/// its role table wants, but these thirteen must exist in every root theme
-/// because screen chrome resolves through them. They are what the retired
-/// `theme::PHOSPHOR` / `theme::PHOSPHOR_MUTED` / ... constants meant, named for
-/// the meaning rather than for the look that happened to ship first.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum UiColor {
-    /// Live text, active borders, glyphs - the primary ink of the UI.
-    Primary,
-    /// Secondary text and idle fills.
-    Secondary,
-    /// Labels, section heads, tags.
-    Label,
-    /// Readable body copy.
-    Body,
-    /// Selection / keycap / warning accent.
-    Accent,
-    /// The bright end of the accent family.
-    AccentHigh,
-    /// The deep end of the accent family.
-    AccentLow,
-    /// Glyphs sitting on a bright fill.
-    Inverted,
-    /// The panel and screen surface.
-    Surface,
-    /// The deepest field behind everything.
-    Void,
-    /// The danger family.
-    Danger,
-    /// The info family.
-    Info,
-    /// The healthy / online / lit tone - a passed check, an enabled dependency,
-    /// a lamp that is on.
-    ///
-    /// Separate from [`Primary`](Self::Primary) because the two agree only on a
-    /// look whose ink IS green. On the hardware casing the ink is bone white
-    /// and the lamp is still green, and a screen that asked for "primary"
-    /// because it wanted "good" got a white ONLINE badge.
-    Nominal,
-}
-
-impl UiColor {
-    /// Every semantic colour, in declaration order - what the completeness
-    /// check walks and what a root theme must define.
-    pub const ALL: [UiColor; 13] = [
-        UiColor::Primary,
-        UiColor::Secondary,
-        UiColor::Label,
-        UiColor::Body,
-        UiColor::Accent,
-        UiColor::AccentHigh,
-        UiColor::AccentLow,
-        UiColor::Inverted,
-        UiColor::Surface,
-        UiColor::Void,
-        UiColor::Danger,
-        UiColor::Info,
-        UiColor::Nominal,
-    ];
-
-    /// The palette variable name this colour resolves through. Role tables
-    /// reference the SAME names, so a theme states each semantic tone once.
-    pub fn variable(self) -> &'static str {
-        match self {
-            UiColor::Primary => "primary",
-            UiColor::Secondary => "secondary",
-            UiColor::Label => "label",
-            UiColor::Body => "body",
-            UiColor::Accent => "accent",
-            UiColor::AccentHigh => "accent_high",
-            UiColor::AccentLow => "accent_low",
-            UiColor::Inverted => "inverted",
-            UiColor::Surface => "surface",
-            UiColor::Void => "void",
-            UiColor::Danger => "danger",
-            UiColor::Info => "info",
-            UiColor::Nominal => "nominal",
-        }
-    }
-}
 
 /// A shared metric the screens ask for by meaning.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -286,7 +203,8 @@ pub struct ResolvedBar {
 pub struct ActiveUiTheme {
     id: String,
     name: String,
-    colors: BTreeMap<&'static str, Color>,
+    /// One colour per [`UiColorType`], indexed by its discriminant.
+    colors: Vec<Color>,
     metrics: UiMetrics,
     button: ResolvedButtons,
     panel: ResolvedSurface,
@@ -449,14 +367,14 @@ impl ActiveUiTheme {
         &self.name
     }
 
-    /// One semantic colour.
-    pub fn color(&self, color: UiColor) -> Color {
-        self.colors[color.variable()]
+    /// One palette colour.
+    pub fn color(&self, color: UiColorType) -> Color {
+        self.colors[color as usize]
     }
 
     /// One semantic colour at an explicit alpha - the themed replacement for
     /// the retired `theme::PHOSPHOR.with_alpha(0.4)` idiom.
-    pub fn color_alpha(&self, color: UiColor, alpha: f32) -> Color {
+    pub fn color_alpha(&self, color: UiColorType, alpha: f32) -> Color {
         self.color(color).with_alpha(alpha)
     }
 
@@ -636,25 +554,17 @@ pub fn resolve_theme(id: &str, themes: &[UiThemeConfig]) -> Result<ActiveUiTheme
     let chain = chain(id, themes)?;
     let head = chain[0];
 
-    // Nearest-first: a child's palette entry shadows an ancestor's, and its
-    // extra names join rather than replace.
-    let mut palette: BTreeMap<&str, &str> = BTreeMap::new();
-    for config in chain.iter().rev() {
-        for (name, hex) in &config.palette {
-            palette.insert(name.as_str(), hex.as_str());
-        }
-    }
-
-    let mut colors = BTreeMap::new();
-    for color in UiColor::ALL {
-        let name = color.variable();
-        let Some(hex) = palette.get(name) else {
+    // Each colour comes from the nearest theme in the chain that sets it.
+    let mut colors = Vec::with_capacity(UiColorType::ALL.len());
+    for &color in UiColorType::ALL {
+        let name = color.name();
+        let Some(hex) = chain.iter().find_map(|config| config.palette.get(color)) else {
             return Err(issue(
                 id,
-                format!("palette is missing the required variable '{name}'"),
+                format!("no theme in the inheritance chain sets the palette colour '{name}'"),
             ));
         };
-        colors.insert(name, parse_hex(id, name, hex)?);
+        colors.push(parse_hex(id, name, hex)?);
     }
 
     let metrics = *chain
@@ -664,7 +574,7 @@ pub fn resolve_theme(id: &str, themes: &[UiThemeConfig]) -> Result<ActiveUiTheme
 
     let ctx = Ctx {
         id,
-        palette: &palette,
+        colors: &colors,
         metrics,
     };
 
@@ -690,7 +600,7 @@ pub fn resolve_theme(id: &str, themes: &[UiThemeConfig]) -> Result<ActiveUiTheme
     let theme = ActiveUiTheme {
         id: head.id.clone(),
         name: head.name.clone(),
-        colors,
+        colors: colors.clone(),
         metrics,
         button: ResolvedButtons {
             default: ctx.button(role!(button))?,
@@ -748,23 +658,17 @@ pub fn lint_theme(config: &UiThemeConfig, registered: &[UiThemeConfig]) -> Vec<T
     }
 }
 
-/// The palette + metrics one theme resolves its colours against.
+/// The resolved palette + metrics one theme resolves its colours against.
 struct Ctx<'a> {
     id: &'a str,
-    palette: &'a BTreeMap<&'a str, &'a str>,
+    colors: &'a [Color],
     metrics: UiMetrics,
 }
 
 impl Ctx<'_> {
     fn color(&self, color: &ThemeColor) -> Result<Color, ThemeIssue> {
         let rgb = match &color.value {
-            ColorValue::Variable(name) => {
-                let hex = self
-                    .palette
-                    .get(name.as_str())
-                    .ok_or_else(|| issue(self.id, format!("unknown palette variable '{name}'")))?;
-                parse_hex(self.id, name, hex)?
-            }
+            ColorValue::Variable(color) => self.colors[*color as usize],
             ColorValue::Literal(hex) => parse_hex(self.id, "literal", hex)?,
         };
         Ok(rgb.with_alpha(color.alpha))

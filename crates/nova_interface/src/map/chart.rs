@@ -48,7 +48,7 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::DockAdmission;
 use nova_ui::{
     prelude::{button, ButtonSpec},
-    theme::{ActiveUiTheme, UiColor},
+    theme::{ActiveUiTheme, UiColorType},
     widget::{ThemedBorder, ThemedFill, Tooltip},
 };
 
@@ -190,7 +190,7 @@ pub(crate) fn job_cell(job: &Job) -> SectorCoord {
 }
 
 /// The colour a cluster type's tile layer, icon and word read in.
-pub(crate) const fn chart_cell_color(cluster: ClusterType) -> UiColor {
+pub(crate) const fn chart_cell_color(cluster: ClusterType) -> UiColorType {
     ChartIconType::of(cluster).color()
 }
 
@@ -198,12 +198,12 @@ pub(crate) const fn chart_cell_color(cluster: ClusterType) -> UiColor {
 const MAP_CHART_TILE_ALPHA: f32 = 0.9;
 /// The fill under a visited cell's layers: the player's cell in the own-ship
 /// colour, every other visited cell faint.
-const MAP_CHART_PLAYER_CELL_FILL: (UiColor, f32) = (UiColor::Primary, 0.16);
-const MAP_CHART_VISITED_CELL_FILL: (UiColor, f32) = (UiColor::Secondary, 0.14);
+const MAP_CHART_PLAYER_CELL_FILL: (UiColorType, f32) = (UiColorType::Text, 0.16);
+const MAP_CHART_VISITED_CELL_FILL: (UiColorType, f32) = (UiColorType::TextSecondary, 0.14);
 /// The grid of a visited cell with no cluster body.
-const MAP_CHART_EMPTY_CELL: (UiColor, f32) = (UiColor::Label, 0.5);
+const MAP_CHART_EMPTY_CELL: (UiColorType, f32) = (UiColorType::TextMuted, 0.5);
 /// The outline of a cell the player never entered.
-const MAP_CHART_UNVISITED_CELL: (UiColor, f32) = (UiColor::Secondary, 0.6);
+const MAP_CHART_UNVISITED_CELL: (UiColorType, f32) = (UiColorType::TextSecondary, 0.6);
 /// The alpha a dead station's mark fades to.
 const MAP_CHART_DEAD_STATION_ALPHA: f32 = 0.3;
 
@@ -241,18 +241,18 @@ fn chart_cell_icon(cell: &ChartCell) -> ChartIconType {
 /// What a station mark is, as the panel's kind line names it, and its
 /// colour: dead, the player's (in the Map's ally colour) or a civilization's.
 /// A dead station is dead whoever owned it.
-pub(crate) const fn chart_station_kind(derelict: bool, owned: bool) -> (&'static str, UiColor) {
+pub(crate) const fn chart_station_kind(derelict: bool, owned: bool) -> (&'static str, UiColorType) {
     match (derelict, owned) {
-        (true, _) => ("DEAD STATION", UiColor::Danger),
-        (false, true) => ("OWNED STATION", UiColor::Info),
-        (false, false) => ("LIVING STATION", UiColor::Nominal),
+        (true, _) => ("DEAD STATION", UiColorType::Danger),
+        (false, true) => ("OWNED STATION", UiColorType::Info),
+        (false, false) => ("LIVING STATION", UiColorType::Nominal),
     }
 }
 
 /// The colour of a wreck mark.
-pub(crate) const MAP_CHART_WRECK_COLOR: UiColor = ChartIconType::Wreck.color();
+pub(crate) const MAP_CHART_WRECK_COLOR: UiColorType = ChartIconType::Wreck.color();
 /// The colour of a held job's mark and label.
-pub(crate) const MAP_CHART_JOB_COLOR: UiColor = ChartIconType::Job.color();
+pub(crate) const MAP_CHART_JOB_COLOR: UiColorType = ChartIconType::Job.color();
 
 /// How long ago a play-time stamp was, read against the clock: `just now`
 /// under a minute, else whole minutes, else whole hours. A stamp ahead of
@@ -531,7 +531,7 @@ pub(crate) fn manage_map_chart(
 
     // The grid follows the focused Y layer, not the player's Y layer.
     let span = MAP_CHART_CELL * (2 * MAP_CHART_REACH + 1) as f32;
-    let line_material = materials.add(unlit(theme.color_alpha(UiColor::Secondary, 0.5)));
+    let line_material = materials.add(unlit(theme.color_alpha(UiColorType::TextSecondary, 0.5)));
     let along_x = meshes.add(Cuboid::new(span, 0.6, 0.6));
     let along_z = meshes.add(Cuboid::new(0.6, 0.6, span));
     let layer_height = (runtime.chart_layer - player_cell.y) as f32 * MAP_CHART_CELL;
@@ -609,7 +609,7 @@ pub(crate) fn manage_map_chart(
                     Some(MapChartMarkType::Cell(coord)),
                     coord.to_string(),
                     coord.to_string(),
-                    UiColor::Label,
+                    UiColorType::TextMuted,
                     10.0,
                 ));
             }
@@ -630,7 +630,7 @@ pub(crate) fn manage_map_chart(
                 tile.clone(),
                 materials.add(textured(
                     tiles.outline.clone(),
-                    theme.color(UiColor::Accent),
+                    theme.color(UiColorType::Accent),
                 )),
                 Transform::from_translation(at + Vec3::Y * 1.2),
             );
@@ -639,7 +639,7 @@ pub(crate) fn manage_map_chart(
 
     // Stations and wrecks, side by side in the cell that generated them,
     // and held jobs in their target's cell.
-    let marks: Vec<(MapChartMarkType, SectorCoord, UiColor)> = chart
+    let marks: Vec<(MapChartMarkType, SectorCoord, UiColorType)> = chart
         .stations()
         .iter()
         .map(|station| {
@@ -695,7 +695,7 @@ pub(crate) fn manage_map_chart(
                 if live.refusing {
                     spawn_mesh(
                         refusal_ring.clone(),
-                        materials.add(unlit(theme.color(UiColor::Danger))),
+                        materials.add(unlit(theme.color(UiColorType::Danger))),
                         Transform::from_translation(at - Vec3::Y * 4.0),
                     );
                 }
@@ -786,7 +786,7 @@ fn spawn_chart_label(
     mark: Option<MapChartMarkType>,
     text: &str,
     name: &str,
-    color: UiColor,
+    color: UiColorType,
     size: f32,
 ) -> Entity {
     let clickable = mark.is_some();
@@ -801,9 +801,12 @@ fn spawn_chart_label(
         Visibility::Hidden,
         ZIndex(i32::from(clickable)),
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Void, 0.8),
+        ThemedFill::alpha(UiColorType::Background, 0.8),
         BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(UiColor::Secondary, if clickable { 0.3 } else { 0.0 }),
+        ThemedBorder::alpha(
+            UiColorType::TextSecondary,
+            if clickable { 0.3 } else { 0.0 },
+        ),
         ChildOf(viewport),
         children![(themed_label(text, size, color), Pickable::IGNORE)],
     ));
@@ -889,7 +892,10 @@ fn on_map_chart_log_row_click(
 
 /// A section heading of a chart panel block.
 fn block_heading(parent: &mut ChildSpawnerCommands, text: &str) {
-    parent.spawn((themed_label(text, 11.0, UiColor::Label), Pickable::IGNORE));
+    parent.spawn((
+        themed_label(text, 11.0, UiColorType::TextMuted),
+        Pickable::IGNORE,
+    ));
 }
 
 /// A `label  value` line of a chart panel block.
@@ -906,10 +912,13 @@ fn block_fact(parent: &mut ChildSpawnerCommands, label: &str, value: &str) {
                     flex_shrink: 0.0,
                     ..default()
                 },
-                children![(themed_label(label, 12.0, UiColor::Label), Pickable::IGNORE)],
+                children![(
+                    themed_label(label, 12.0, UiColorType::TextMuted),
+                    Pickable::IGNORE
+                )],
             ));
             row.spawn((
-                themed_label(value, 13.0, UiColor::Primary),
+                themed_label(value, 13.0, UiColorType::Text),
                 Pickable::IGNORE,
             ));
         });
@@ -917,7 +926,10 @@ fn block_fact(parent: &mut ChildSpawnerCommands, label: &str, value: &str) {
 
 /// A note line of a chart panel block.
 fn block_note(parent: &mut ChildSpawnerCommands, text: &str) {
-    parent.spawn((themed_label(text, 12.0, UiColor::Body), Pickable::IGNORE));
+    parent.spawn((
+        themed_label(text, 12.0, UiColorType::TextBody),
+        Pickable::IGNORE,
+    ));
 }
 
 /// One icon row of a chart panel block: an icon in its tint, a label that
@@ -925,10 +937,10 @@ fn block_note(parent: &mut ChildSpawnerCommands, text: &str) {
 /// Returns the row for the caller to make a button of.
 fn spawn_icon_row<'a>(
     parent: &'a mut ChildSpawnerCommands,
-    icon: Option<(Handle<Image>, UiColor)>,
+    icon: Option<(Handle<Image>, UiColorType)>,
     label: &str,
-    label_color: UiColor,
-    trailing: &[(&str, f32, UiColor)],
+    label_color: UiColorType,
+    trailing: &[(&str, f32, UiColorType)],
 ) -> EntityCommands<'a> {
     spawn_icon_row_breaking(
         parent,
@@ -945,10 +957,10 @@ fn spawn_icon_row<'a>(
 /// clipping.
 fn spawn_icon_row_breaking<'a>(
     parent: &'a mut ChildSpawnerCommands,
-    icon: Option<(Handle<Image>, UiColor)>,
+    icon: Option<(Handle<Image>, UiColorType)>,
     label: &str,
-    label_color: UiColor,
-    trailing: &[(&str, f32, UiColor)],
+    label_color: UiColorType,
+    trailing: &[(&str, f32, UiColorType)],
     line_break: LineBreak,
 ) -> EntityCommands<'a> {
     let mut row = parent.spawn(Node {
@@ -1105,11 +1117,15 @@ pub(crate) fn update_map_chart_sector(
                 .spawn(control_row(JustifyContent::SpaceBetween))
                 .with_children(|head| {
                     head.spawn((
-                        themed_label(&format!("SECTOR {coord}"), 15.0, UiColor::Primary),
+                        themed_label(&format!("SECTOR {coord}"), 15.0, UiColorType::Text),
                         Pickable::IGNORE,
                     ));
                     head.spawn((
-                        themed_label(&route_hint(player_cell, coord), 12.0, UiColor::Label),
+                        themed_label(
+                            &route_hint(player_cell, coord),
+                            12.0,
+                            UiColorType::TextMuted,
+                        ),
                         Pickable::IGNORE,
                     ));
                 });
@@ -1124,7 +1140,7 @@ pub(crate) fn update_map_chart_sector(
                             block,
                             Some((icons.chart(icon), icon.color())),
                             icon.label(),
-                            UiColor::Primary,
+                            UiColorType::Text,
                             &[],
                         );
                     }
@@ -1182,7 +1198,7 @@ pub(crate) fn update_map_chart_sector(
                     Some((icons.chart(ChartIconType::Station), color)),
                     &station_row_label(&chart, &jobs, station),
                     color,
-                    &[(&facts, 12.0, UiColor::Label)],
+                    &[(&facts, 12.0, UiColorType::TextMuted)],
                 );
                 select_row(
                     &mut row,
@@ -1203,7 +1219,7 @@ pub(crate) fn update_map_chart_sector(
                     Some((icons.chart(ChartIconType::Wreck), MAP_CHART_WRECK_COLOR)),
                     &code,
                     MAP_CHART_WRECK_COLOR,
-                    &[(&found, 12.0, UiColor::Label)],
+                    &[(&found, 12.0, UiColorType::TextMuted)],
                 );
                 select_row(
                     &mut row,
@@ -1277,8 +1293,8 @@ pub(crate) fn update_map_chart_sector(
                     block,
                     Some((icons.chart(ChartIconType::Job), MAP_CHART_JOB_COLOR)),
                     &job_title(job, items.as_deref()),
-                    UiColor::Primary,
-                    &[(state, 12.0, UiColor::Label)],
+                    UiColorType::Text,
+                    &[(state, 12.0, UiColorType::TextMuted)],
                 );
                 select_row(
                     &mut row,
@@ -1298,8 +1314,8 @@ pub(crate) fn update_map_chart_sector(
                     block,
                     Some((icons.chart(ChartIconType::Job), MAP_CHART_JOB_COLOR)),
                     &format!("{code} posts {count} jobs"),
-                    UiColor::Primary,
-                    &[("open", 12.0, UiColor::Label)],
+                    UiColorType::Text,
+                    &[("open", 12.0, UiColorType::TextMuted)],
                 );
             }
         });
@@ -1326,8 +1342,8 @@ fn stock_row(
         block,
         icon,
         &name,
-        UiColor::Primary,
-        &[(&format!("x{count}"), 12.0, UiColor::Body)],
+        UiColorType::Text,
+        &[(&format!("x{count}"), 12.0, UiColorType::TextBody)],
     );
 }
 
@@ -1425,7 +1441,7 @@ pub(crate) fn update_map_chart_objectives(
                     heading.spawn(themed_label(
                         &format!("OBJECTIVES  LAYER {}", runtime.chart_layer),
                         12.0,
-                        UiColor::Label,
+                        UiColorType::TextMuted,
                     ));
                 });
             let (objectives, met_at, _) = &rows;
@@ -1450,16 +1466,19 @@ pub(crate) fn update_map_chart_objectives(
                 );
                 let mark = MapChartMarkType::Job(id.clone());
                 let (meter, meter_color) = match (*done, have >= need) {
-                    (true, _) => ("done".to_string(), UiColor::Accent),
-                    (false, true) => (format!("{have} / {need}"), UiColor::Accent),
-                    (false, false) => (format!("{have} / {need}"), UiColor::Body),
+                    (true, _) => ("done".to_string(), UiColorType::Accent),
+                    (false, true) => (format!("{have} / {need}"), UiColorType::Accent),
+                    (false, false) => (format!("{have} / {need}"), UiColorType::TextBody),
                 };
                 let mut row = spawn_icon_row(
                     block,
                     Some((icons.job(icon), icon.color())),
                     &format!("{code} {title}"),
-                    UiColor::Primary,
-                    &[(&meter, 12.0, meter_color), (hand_in, 12.0, UiColor::Label)],
+                    UiColorType::Text,
+                    &[
+                        (&meter, 12.0, meter_color),
+                        (hand_in, 12.0, UiColorType::TextMuted),
+                    ],
                 );
                 select_row(&mut row, format!("MapChartObjective{code}"), mark, false);
             }
@@ -1471,7 +1490,7 @@ pub(crate) fn update_map_chart_objectives(
                 .any(|objective| matches!(objective, OpenObjectiveType::Milestone(_)))
                 || met_at.is_some()
             {
-                block.spawn(themed_label(&progress.title, 12.0, UiColor::Label));
+                block.spawn(themed_label(&progress.title, 12.0, UiColorType::TextMuted));
             }
             for objective in objectives {
                 if let OpenObjectiveType::Milestone(line) = objective {
@@ -1479,11 +1498,11 @@ pub(crate) fn update_map_chart_objectives(
                         block,
                         Some(milestone.clone()),
                         &line.label,
-                        UiColor::Primary,
+                        UiColorType::Text,
                         &[(
                             &format!("{} / {}", line.have, line.need),
                             12.0,
-                            UiColor::Body,
+                            UiColorType::TextBody,
                         )],
                     )
                     .insert(Name::new("MapChartObjectiveMilestone"));
@@ -1494,7 +1513,7 @@ pub(crate) fn update_map_chart_objectives(
                     block,
                     Some(milestone.clone()),
                     &format!("Goal reached at {}", play_time_text(*at)),
-                    UiColor::Accent,
+                    UiColorType::Accent,
                     &[],
                 )
                 .insert(Name::new("MapChartObjectiveMet"));
@@ -1525,7 +1544,7 @@ struct ChartLogRowView {
     mark: MapChartMarkType,
     icon: ChartIconType,
     /// The icon's and the label's colour.
-    color: UiColor,
+    color: UiColorType,
     /// A cell's contents in words, a station's code and last-seen name, or
     /// a wreck's code.
     label: String,
@@ -1540,7 +1559,7 @@ fn chart_log_row(chart: &Chart, jobs: &Jobs, entry: &ChartLogEntry) -> ChartLogR
             ChartLogRowView {
                 mark: MapChartMarkType::Cell(*coord),
                 icon: cell.map_or(ChartIconType::Sector, chart_cell_icon),
-                color: UiColor::Primary,
+                color: UiColorType::Text,
                 label: cell.map_or_else(|| "CELL".to_string(), chart_cell_words),
                 cell: *coord,
             }
@@ -1575,11 +1594,11 @@ fn chart_log_row(chart: &Chart, jobs: &Jobs, entry: &ChartLogEntry) -> ChartLogR
 
 /// The edge a find row wears: the accent when it is the selected find, else
 /// the faint secondary the chart labels wear.
-const fn chart_log_row_edge(selected: bool) -> (UiColor, f32) {
+const fn chart_log_row_edge(selected: bool) -> (UiColorType, f32) {
     if selected {
-        (UiColor::Accent, 1.0)
+        (UiColorType::Accent, 1.0)
     } else {
-        (UiColor::Secondary, 0.3)
+        (UiColorType::TextSecondary, 0.3)
     }
 }
 
@@ -1623,9 +1642,13 @@ pub(crate) fn update_map_chart_log(
             .entity(log)
             .despawn_related::<Children>()
             .with_children(|log| {
-                log.spawn(themed_label("DISCOVERY LOG", 12.0, UiColor::Label));
+                log.spawn(themed_label("DISCOVERY LOG", 12.0, UiColorType::TextMuted));
                 if entries.is_empty() {
-                    log.spawn(themed_label("Nothing found yet.", 11.0, UiColor::Label));
+                    log.spawn(themed_label(
+                        "Nothing found yet.",
+                        11.0,
+                        UiColorType::TextMuted,
+                    ));
                 }
                 for (index, entry) in entries.iter().enumerate() {
                     let view = chart_log_row(&chart, &jobs, entry);
@@ -1636,7 +1659,10 @@ pub(crate) fn update_map_chart_log(
                         Some((icons.chart(view.icon), view.color)),
                         &view.label,
                         view.color,
-                        &[(&cell, 12.0, UiColor::Body), (&when, 11.0, UiColor::Label)],
+                        &[
+                            (&cell, 12.0, UiColorType::TextBody),
+                            (&when, 11.0, UiColorType::TextMuted),
+                        ],
                     );
                     select_row(
                         &mut row,
@@ -1762,9 +1788,9 @@ pub(crate) fn project_map_chart_labels(
         if label.mark.is_some() {
             let selected = label.mark == runtime.chart_selected;
             let (color, alpha) = if selected {
-                (UiColor::Accent, 1.0)
+                (UiColorType::Accent, 1.0)
             } else {
-                (UiColor::Secondary, 0.3)
+                (UiColorType::TextSecondary, 0.3)
             };
             if border.color != color || border.alpha != alpha {
                 border.color = color;
@@ -1789,7 +1815,7 @@ pub(crate) fn chart_panel_field(
     items: Option<&GameItems>,
     selected: Option<&MapChartMarkType>,
     field: MapPanelField,
-) -> (String, UiColor) {
+) -> (String, UiColorType) {
     let station = |id: &GeneratedBodyId| chart.station(id);
     let station_name = |id: &GeneratedBodyId| {
         station(id)
@@ -1798,41 +1824,43 @@ pub(crate) fn chart_panel_field(
     };
     let found = |at: f64| format!("Found {}.", play_time_text(at));
     match (selected, field) {
-        (None, _) => (String::new(), UiColor::Body),
+        (None, _) => (String::new(), UiColorType::TextBody),
         (Some(mark), MapPanelField::Code) => (
             chart_mark_code(chart, jobs, mark).unwrap_or_default(),
-            UiColor::Primary,
+            UiColorType::Text,
         ),
         (Some(MapChartMarkType::Cell(coord)), MapPanelField::Name) => (
             match chart.cell(*coord) {
                 Some(cell) if !cell.clusters.is_empty() => chart_cell_words(cell),
                 _ => "Empty space".to_string(),
             },
-            UiColor::Body,
+            UiColorType::TextBody,
         ),
         (Some(MapChartMarkType::Cell(_)), MapPanelField::Kind) => {
-            ("VISITED CELL".to_string(), UiColor::Primary)
+            ("VISITED CELL".to_string(), UiColorType::Text)
         }
         (Some(MapChartMarkType::Cell(coord)), MapPanelField::Range) => {
-            (format!("Cell {coord}"), UiColor::Primary)
+            (format!("Cell {coord}"), UiColorType::Text)
         }
         (Some(MapChartMarkType::Cell(coord)), MapPanelField::Bearing) => (
             chart.cell(*coord).map_or_else(String::new, |cell| {
                 format!("Entered {}", play_time_text(cell.entered_at))
             }),
-            UiColor::Primary,
+            UiColorType::Text,
         ),
-        (Some(MapChartMarkType::Cell(_)), MapPanelField::Note) => (String::new(), UiColor::Label),
+        (Some(MapChartMarkType::Cell(_)), MapPanelField::Note) => {
+            (String::new(), UiColorType::TextMuted)
+        }
         (Some(MapChartMarkType::Job(id)), MapPanelField::Name) => (
             jobs.job(id)
                 .map_or_else(String::new, |job| job_title(job, items)),
-            UiColor::Body,
+            UiColorType::TextBody,
         ),
         (Some(MapChartMarkType::Job(id)), MapPanelField::Bearing) => (
             jobs.job(id).map_or_else(String::new, |job| {
                 format!("Reward {}", cr_text(job.reward_cr))
             }),
-            UiColor::Primary,
+            UiColorType::Text,
         ),
         (Some(MapChartMarkType::Job(id)), MapPanelField::Note) => (
             jobs.job(id).map_or_else(String::new, |job| {
@@ -1847,7 +1875,7 @@ pub(crate) fn chart_panel_field(
                     station_name(&job.target)
                 )
             }),
-            UiColor::Label,
+            UiColorType::TextMuted,
         ),
         (Some(MapChartMarkType::Station(id)), MapPanelField::Name) => (
             station(id)
@@ -1856,7 +1884,7 @@ pub(crate) fn chart_panel_field(
                     || "Unknown station".to_string(),
                     |summary| summary.name.clone(),
                 ),
-            UiColor::Body,
+            UiColorType::TextBody,
         ),
         (Some(MapChartMarkType::Station(id)), MapPanelField::Kind) => {
             let (word, color) = station(id).map_or(chart_station_kind(false, false), |station| {
@@ -1865,7 +1893,7 @@ pub(crate) fn chart_panel_field(
             (word.to_string(), color)
         }
         (Some(MapChartMarkType::Wreck(_)), MapPanelField::Name) => {
-            ("Derelict hull".to_string(), UiColor::Body)
+            ("Derelict hull".to_string(), UiColorType::TextBody)
         }
         (Some(MapChartMarkType::Wreck(_)), MapPanelField::Kind) => {
             ("WRECK".to_string(), MAP_CHART_WRECK_COLOR)
@@ -1873,10 +1901,10 @@ pub(crate) fn chart_panel_field(
         (
             Some(MapChartMarkType::Station(id) | MapChartMarkType::Wreck(id)),
             MapPanelField::Range,
-        ) => (format!("Cell {}", id.origin), UiColor::Primary),
+        ) => (format!("Cell {}", id.origin), UiColorType::Text),
         (Some(MapChartMarkType::Station(id)), MapPanelField::Note) => {
             let Some(station) = station(id) else {
-                return (String::new(), UiColor::Label);
+                return (String::new(), UiColorType::TextMuted);
             };
             let found = found(station.found_at);
             let note = if station.summary.is_some() {
@@ -1884,15 +1912,15 @@ pub(crate) fn chart_panel_field(
             } else {
                 format!("{found}\nNot docked: no stock seen.")
             };
-            (note, UiColor::Label)
+            (note, UiColorType::TextMuted)
         }
         (Some(MapChartMarkType::Wreck(id)), MapPanelField::Note) => (
             chart
                 .wreck(id)
                 .map_or_else(String::new, |wreck| found(wreck.found_at)),
-            UiColor::Label,
+            UiColorType::TextMuted,
         ),
-        (Some(_), _) => (String::new(), UiColor::Body),
+        (Some(_), _) => (String::new(), UiColorType::TextBody),
     }
 }
 
@@ -1902,7 +1930,7 @@ pub(crate) fn spawn_chart_legend(legend: &mut ChildSpawnerCommands, icons: &Inte
     for icon in ChartIconType::LEGEND {
         legend.spawn(legend_entry()).with_children(|entry| {
             entry.spawn(icon_node(icons.chart(icon), icon.color(), 16.0));
-            entry.spawn(themed_label(icon.label(), 12.0, UiColor::Body));
+            entry.spawn(themed_label(icon.label(), 12.0, UiColorType::TextBody));
         });
     }
 }

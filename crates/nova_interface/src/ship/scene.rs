@@ -25,7 +25,7 @@ use nova_ship::prelude::{
     PlacedSectionLinkPoints,
 };
 use nova_ui::{
-    theme::{ActiveUiTheme, UiColor},
+    theme::{ActiveUiTheme, UiColorType},
     widget::{
         ButtonCueType, Selected, TextFieldError, TextFieldFocused, TextFieldValue, ThemedBorder,
         ThemedFill, ThemedImageTint, ThemedText, Tooltip,
@@ -403,20 +403,22 @@ pub(crate) fn manage_ship_scene(
         .to_vec();
     // Darker than the family tint, so the accent plate on the target face
     // reads against it.
-    let surface = theme.color(UiColor::Surface);
+    let surface = theme.color(UiColorType::Surface);
     runtime.mat_blocks_solid = SectionIconType::ALL
         .map(|icon| materials.add(solid(theme.color(icon.color()).mix(&surface, 0.45))))
         .to_vec();
-    runtime.mat_target_face = Some(materials.add(solid(theme.color(UiColor::Accent))));
-    runtime.mat_mates = Some(materials.add(unlit(theme.color(UiColor::Accent))));
-    runtime.mat_outline = Some(materials.add(unlit(theme.color_alpha(UiColor::Primary, 0.95))));
-    runtime.mat_outline_selected = Some(materials.add(unlit(theme.color(UiColor::Accent))));
-    runtime.mat_ghost_go = Some(materials.add(unlit(theme.color(UiColor::Nominal))));
-    runtime.mat_ghost_no = Some(materials.add(unlit(theme.color(UiColor::Danger))));
+    runtime.mat_target_face = Some(materials.add(solid(theme.color(UiColorType::Accent))));
+    runtime.mat_mates = Some(materials.add(unlit(theme.color(UiColorType::Accent))));
+    runtime.mat_outline = Some(materials.add(unlit(theme.color_alpha(UiColorType::Text, 0.95))));
+    runtime.mat_outline_selected = Some(materials.add(unlit(theme.color(UiColorType::Accent))));
+    runtime.mat_ghost_go = Some(materials.add(unlit(theme.color(UiColorType::Nominal))));
+    runtime.mat_ghost_no = Some(materials.add(unlit(theme.color(UiColorType::Danger))));
     // Denser than any family fill, so a cut-off block reads through the
     // neighbours and the docked station's outlines over it.
-    runtime.mat_fill_severed = Some(materials.add(unlit(theme.color_alpha(UiColor::Danger, 0.6))));
-    runtime.mat_station = Some(materials.add(unlit(theme.color_alpha(UiColor::Secondary, 0.45))));
+    runtime.mat_fill_severed =
+        Some(materials.add(unlit(theme.color_alpha(UiColorType::Danger, 0.6))));
+    runtime.mat_station =
+        Some(materials.add(unlit(theme.color_alpha(UiColorType::TextSecondary, 0.45))));
 
     let scene_root = commands
         .spawn((
@@ -433,7 +435,7 @@ pub(crate) fn manage_ship_scene(
         Camera3d::default(),
         Camera {
             order: SHIP_CAMERA_ORDER,
-            clear_color: ClearColorConfig::Custom(theme.color(UiColor::Surface)),
+            clear_color: ClearColorConfig::Custom(theme.color(UiColorType::Surface)),
             is_active: true,
             ..default()
         },
@@ -495,7 +497,7 @@ pub(crate) fn manage_ship_scene(
         let gap = length * 0.15;
         let shaft = length * 0.03;
         let point_back = Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2);
-        let bow_mat = materials.add(unlit(theme.color_alpha(UiColor::Accent, 0.9)));
+        let bow_mat = materials.add(unlit(theme.color_alpha(UiColorType::Accent, 0.9)));
         commands.spawn((
             Mesh3d(meshes.add(Cylinder::new(shaft, length * 0.7))),
             MeshMaterial3d(bow_mat.clone()),
@@ -1169,9 +1171,9 @@ pub(crate) fn spawn_ship_blip(
             // Hidden until the first projection places it.
             Visibility::Hidden,
             BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Void, 0.8),
+            ThemedFill::alpha(UiColorType::Background, 0.8),
             BorderColor::all(Color::NONE),
-            ThemedBorder::alpha(UiColor::Accent, 0.0),
+            ThemedBorder::alpha(UiColorType::Accent, 0.0),
             children![
                 icon_node(icons.section(icon), icon.color(), SHIP_BLIP_PX - 6.0),
                 (
@@ -1209,10 +1211,10 @@ pub(crate) fn spawn_ship_blip(
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Void, 0.8),
+        ThemedFill::alpha(UiColorType::Background, 0.8),
         Visibility::Hidden,
         ChildOf(badge),
-        children![themed_label(&view.code, 12.0, UiColor::Body)],
+        children![themed_label(&view.code, 12.0, UiColorType::TextBody)],
     ));
     commands.entity(viewport).add_child(badge);
     badge
@@ -1606,11 +1608,11 @@ pub(crate) fn update_ship_panel(
             }
         });
     let (note, note_color) = if prompt.is_some() {
-        (String::new(), UiColor::Label)
+        (String::new(), UiColorType::TextMuted)
     } else if let Some((note, _)) = &runtime.note {
-        (note.clone(), UiColor::Accent)
+        (note.clone(), UiColorType::Accent)
     } else {
-        (String::new(), UiColor::Label)
+        (String::new(), UiColorType::TextMuted)
     };
 
     for (field, mut node) in &mut q_part {
@@ -1629,20 +1631,20 @@ pub(crate) fn update_ship_panel(
 
     for (field, mut text, mut themed) in &mut q_text {
         let (value, tint) = match field {
-            ShipPanelField::Title => (title.as_str(), UiColor::Primary),
-            ShipPanelField::Control => (control.as_deref().unwrap_or_default(), UiColor::Primary),
+            ShipPanelField::Title => (title.as_str(), UiColorType::Text),
+            ShipPanelField::Control => (control.as_deref().unwrap_or_default(), UiColorType::Text),
             ShipPanelField::RepairStock => (
                 form.as_ref().map_or("", |(stock, _)| stock.as_str()),
-                UiColor::Primary,
+                UiColorType::Text,
             ),
             ShipPanelField::RepairPreview => match form.as_ref().map(|(_, summary)| summary) {
-                Some(Ok(summary)) => (summary.as_str(), UiColor::Body),
-                Some(Err(reason)) => (reason.as_str(), UiColor::Danger),
-                None => ("", UiColor::Body),
+                Some(Ok(summary)) => (summary.as_str(), UiColorType::TextBody),
+                Some(Err(reason)) => (reason.as_str(), UiColorType::Danger),
+                None => ("", UiColorType::TextBody),
             },
             ShipPanelField::Note => (note.as_str(), note_color),
             ShipPanelField::RebindPrompt => {
-                (prompt.as_deref().unwrap_or_default(), UiColor::Accent)
+                (prompt.as_deref().unwrap_or_default(), UiColorType::Accent)
             }
             ShipPanelField::RepairForm | ShipPanelField::Salvage => continue,
         };
@@ -1730,7 +1732,11 @@ pub(crate) fn update_ship_panel(
                 .despawn_related::<Children>()
                 .with_children(|row| match &salvage {
                     Some(parts) if parts.is_empty() => {
-                        row.spawn(themed_label("nothing to salvage", 12.0, UiColor::Body));
+                        row.spawn(themed_label(
+                            "nothing to salvage",
+                            12.0,
+                            UiColorType::TextBody,
+                        ));
                     }
                     Some(parts) => {
                         for (item, count) in parts {

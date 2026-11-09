@@ -12,7 +12,7 @@
 //! That is what lets a builder type into a field at all: a list rebuilt every
 //! frame would despawn the box under the caret.
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 
 use bevy::{
     ecs::{component::Mutable, relationship::RelatedSpawnerCommands, system::SystemParam},
@@ -33,7 +33,7 @@ use nova_ui::{
         TextFieldSubmitted, TextFieldValue, ThemedButton, UiText,
     },
     theme,
-    theme::{density, ActiveUiTheme, GameUiThemes, UiColor},
+    theme::{density, ActiveUiTheme, GameUiThemes, UiColorType, UiPalette},
     widget::{
         checkbox, icon_button, swatch, ButtonCueType, IconButtonType, ThemedBorder, ThemedCheckbox,
         ThemedRadius, ThemedText, CLOSE_GLYPH,
@@ -290,7 +290,7 @@ fn ref_chip() -> impl Bundle {
         },
         ThemedRadius::control(),
         BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(UiColor::Primary, 0.4),
+        ThemedBorder::alpha(UiColorType::Text, 0.4),
         BackgroundColor(Color::NONE),
         children![(
             UiText,
@@ -300,7 +300,7 @@ fn ref_chip() -> impl Bundle {
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Label),
+            ThemedText::new(UiColorType::TextMuted),
         )],
     )
 }
@@ -329,7 +329,7 @@ fn reset_chip() -> impl Bundle {
         },
         ThemedRadius::control(),
         BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(UiColor::Accent, 0.5),
+        ThemedBorder::alpha(UiColorType::Accent, 0.5),
         BackgroundColor(Color::NONE),
         children![(
             UiText,
@@ -339,7 +339,7 @@ fn reset_chip() -> impl Bundle {
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Accent),
+            ThemedText::new(UiColorType::Accent),
         )],
     )
 }
@@ -371,11 +371,11 @@ fn spawn_override_mark(
 
 /// What a row's name is painted in: the panel's own label tone, or the accent
 /// that says this value is the placement's rather than the part's.
-fn label_colour(row: &InspectorRow) -> UiColor {
+fn label_colour(row: &InspectorRow) -> UiColorType {
     if row.overridden {
-        UiColor::Accent
+        UiColorType::Accent
     } else {
-        UiColor::Label
+        UiColorType::TextMuted
     }
 }
 
@@ -544,7 +544,7 @@ impl BenchRead<'_, '_> {
                 });
                 own.or_else(|| self.themes.as_deref()?.get(id))
             }),
-            _ => BTreeMap::new(),
+            _ => UiPalette::default(),
         };
         Some(asset_rows(item, &inherited))
     }
@@ -859,7 +859,7 @@ pub(crate) fn inspector_panel() -> impl Bundle {
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Secondary),
+                        ThemedText::new(UiColorType::TextSecondary),
                     ),
                     (
                         Name::new("Inspector Title"),
@@ -880,7 +880,7 @@ pub(crate) fn inspector_panel() -> impl Bundle {
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Accent),
+                        ThemedText::new(UiColorType::Accent),
                         // Grows from a zero basis: a shrink-only text child of
                         // a row lays out at zero size.
                         Node {
@@ -898,7 +898,7 @@ pub(crate) fn inspector_panel() -> impl Bundle {
                                 ..default()
                             },
                             TextColor(Color::NONE),
-                            ThemedText::new(UiColor::Label),
+                            ThemedText::new(UiColorType::TextMuted),
                         )],
                     ),
                     (
@@ -1042,7 +1042,7 @@ pub(crate) fn inspector_tooltip() -> impl Bundle {
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
+                ThemedText::new(UiColorType::TextMuted),
             ),
             (
                 Name::new("Inspector Hint Body"),
@@ -1053,7 +1053,7 @@ pub(crate) fn inspector_tooltip() -> impl Bundle {
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Primary),
+                ThemedText::new(UiColorType::Text),
             )
         ],
     )
@@ -1327,7 +1327,7 @@ fn spawn_pick_row(
                 // button reconciler repaints it on hover, and these are the
                 // colours it lands on.
                 BorderColor::all(Color::NONE),
-                ThemedBorder::alpha(UiColor::Primary, 0.25),
+                ThemedBorder::alpha(UiColorType::Text, 0.25),
                 BackgroundColor(Color::NONE),
                 observe(on_open_choice_list),
                 children![
@@ -1347,7 +1347,7 @@ fn spawn_pick_row(
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Primary),
+                        ThemedText::new(UiColorType::Text),
                         Node {
                             flex_grow: 1.0,
                             flex_basis: px(0),
@@ -1364,7 +1364,7 @@ fn spawn_pick_row(
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Label),
+                        ThemedText::new(UiColorType::TextMuted),
                     ),
                 ],
             ));
@@ -1582,7 +1582,7 @@ fn spawn_driver_row(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Label),
+            ThemedText::new(UiColorType::TextMuted),
         ));
         block
             .spawn((Name::new("Inspector Driver"), segmented_container()))
@@ -1792,7 +1792,7 @@ fn unit_text(label: &str, unit: &'static str, slot: usize) -> impl Bundle {
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Secondary),
+        ThemedText::new(UiColorType::TextSecondary),
         Node {
             min_width: px(if unit.is_empty() { 0.0 } else { UNIT_W }),
             flex_shrink: 0.0,
@@ -1889,9 +1889,9 @@ fn spawn_palette_row(
                             },
                             TextColor(Color::NONE),
                             ThemedText::new(if entry.inherited {
-                                UiColor::Label
+                                UiColorType::TextMuted
                             } else {
-                                UiColor::Body
+                                UiColorType::TextBody
                             }),
                         ));
                     });
@@ -2092,7 +2092,7 @@ fn build_rows(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Secondary),
+                ThemedText::new(UiColorType::TextSecondary),
                 // A rule under each level, so the eye can see where one part
                 // of the config ends and the next begins without reading the
                 // headings at all.
@@ -2104,7 +2104,7 @@ fn build_rows(
                     ..default()
                 },
                 BorderColor::all(Color::NONE),
-                ThemedBorder::alpha(UiColor::Primary, 0.16),
+                ThemedBorder::alpha(UiColorType::Text, 0.16),
             ));
         }
         row.group.clone_into(&mut heading);
@@ -2368,7 +2368,7 @@ fn build_rows(
                             // repaints this on the frame it appears and on every
                             // hover after, so these are the colours it lands on.
                             BorderColor::all(Color::NONE),
-                            ThemedBorder::alpha(UiColor::Primary, 0.25),
+                            ThemedBorder::alpha(UiColorType::Text, 0.25),
                             BackgroundColor(Color::NONE),
                             observe(on_rebind_action),
                             children![(
@@ -2383,7 +2383,7 @@ fn build_rows(
                                     ..default()
                                 },
                                 TextColor(Color::NONE),
-                                ThemedText::new(UiColor::Primary),
+                                ThemedText::new(UiColorType::Text),
                             )],
                         ));
                     }
@@ -2432,7 +2432,7 @@ fn build_rows(
                                 ..default()
                             },
                             TextColor(Color::NONE),
-                            ThemedText::new(UiColor::Label),
+                            ThemedText::new(UiColorType::TextMuted),
                         ));
                     }
                 });
@@ -2484,7 +2484,7 @@ pub(crate) fn inspector_empty() -> impl Bundle {
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Label),
+        ThemedText::new(UiColorType::TextMuted),
         Node {
             display: Display::None,
             margin: UiRect::all(px(10)),
@@ -2824,7 +2824,7 @@ pub(crate) fn paint_field_reasons(
         let (wanted, tint) = match (reason, unresolved) {
             (Some(reason), _) => (reason, theme::semantic::THREAT),
             (None, true) => (UNRESOLVED, theme::semantic::THREAT),
-            (None, false) => (unit.0, theme.color(UiColor::Secondary)),
+            (None, false) => (unit.0, theme.color(UiColorType::TextSecondary)),
         };
         if text.0 != wanted {
             text.0 = wanted.to_string();
@@ -2910,9 +2910,9 @@ pub(crate) fn paint_swatch_hover(
 ) {
     for (hovered, mut border) in &mut swatches {
         let wanted = if hovered.get() {
-            theme.color(UiColor::Primary)
+            theme.color(UiColorType::Text)
         } else {
-            theme.color_alpha(UiColor::Primary, 0.4)
+            theme.color_alpha(UiColorType::Text, 0.4)
         };
         if border.top != wanted {
             border.set_all(wanted);
@@ -3124,18 +3124,20 @@ impl EditTargets<'_, '_> {
                 Ok(())
             }
             FieldRoot::PaletteColour => {
-                let name = field.palette_name().to_string();
+                let name = field.palette_name();
+                let color = UiColorType::from_name(name)
+                    .ok_or_else(|| format!("{name} is not a palette colour"))?;
                 let mut asset = self.asset_of(field)?;
                 if_it_took(&mut asset, |asset| {
                     let Content::UiTheme(theme) = &mut asset.0 else {
                         return Err("not a UI theme".to_string());
                     };
-                    let mut text = theme.palette.get(&name).cloned().unwrap_or_default();
+                    let slot = theme.palette.slot_mut(color);
+                    let mut text = slot.clone().unwrap_or_default();
                     edit(&mut text, &[], false)?;
-                    let text = palette_hex(&text)?;
                     // A colour the theme took from its parent becomes its own
-                    // here: the palette is a map, and the override is an entry.
-                    theme.palette.insert(name, text);
+                    // here: the unset field is set.
+                    *slot = Some(palette_hex(&text)?);
                     Ok(())
                 })
             }

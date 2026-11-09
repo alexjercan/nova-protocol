@@ -7,7 +7,7 @@
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Button};
 
 use super::{ListRow, ThemedRadius, ThemedText, UiText};
-use crate::theme::{density, UiColor, BORDER_W};
+use crate::theme::{density, UiColorType, BORDER_W};
 
 /// The text of a [`tab`], for a caller that writes a count into it.
 #[derive(Component)]
@@ -48,7 +48,7 @@ pub fn tab(label: &str, fill: bool) -> impl Bundle {
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Primary),
+            ThemedText::new(UiColorType::Text),
         )],
     )
 }

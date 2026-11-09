@@ -19,7 +19,7 @@
 //! free while it plays.
 
 use bevy::prelude::*;
-use nova_ui::theme::{ActiveUiTheme, UiColor};
+use nova_ui::theme::{ActiveUiTheme, UiColorType};
 
 /// The `CinematicTitle` resource, its card and the corner it sits in.
 pub mod prelude {
@@ -242,8 +242,8 @@ fn sync_cinematic_title(
         } else {
             AlignItems::FlexEnd
         };
-        *border = BorderColor::all(theme.color_alpha(UiColor::Accent, strength));
-        background.0 = theme.color_alpha(UiColor::Void, 0.55 * strength);
+        *border = BorderColor::all(theme.color_alpha(UiColorType::Accent, strength));
+        background.0 = theme.color_alpha(UiColorType::Background, 0.55 * strength);
     }
     let Some(card) = card else {
         return;
@@ -259,7 +259,7 @@ fn sync_cinematic_title(
             &mut text,
             &mut color,
             &card.location,
-            theme.color(UiColor::AccentHigh),
+            theme.color(UiColorType::AccentLight),
         );
     }
     for (mut text, mut color) in &mut q_date {
@@ -267,7 +267,7 @@ fn sync_cinematic_title(
             &mut text,
             &mut color,
             &card.date,
-            theme.color(UiColor::Accent),
+            theme.color(UiColorType::Accent),
         );
     }
     for (mut text, mut color, mut node) in &mut q_note {
@@ -275,7 +275,7 @@ fn sync_cinematic_title(
             &mut text,
             &mut color,
             &card.note,
-            theme.color(UiColor::AccentLow),
+            theme.color(UiColorType::AccentDark),
         );
         // An authored empty note is "no third line", not a blank one: a text
         // node with no glyphs still takes its line height in the column.

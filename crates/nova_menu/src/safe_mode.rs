@@ -16,7 +16,7 @@ use nova_gameplay::prelude::GameStates;
 use nova_ui::{
     prelude::REPORT_Z,
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{panel, ThemedRadius, ThemedText},
 };
 
@@ -113,7 +113,7 @@ pub(crate) fn sync_mod_report_overlay(
                             font_size: FontSize::Px(16.0),
                             ..default()
                         },
-                        TextColor(Color::NONE), ThemedText::new(UiColor::Body),
+                        TextColor(Color::NONE), ThemedText::new(UiColorType::TextBody),
                         Node {
                             margin: UiRect::top(px(8)),
                             max_width: px(380),
@@ -128,7 +128,7 @@ pub(crate) fn sync_mod_report_overlay(
                                 font_size: FontSize::Px(13.0),
                                 ..default()
                             },
-                            TextColor(Color::NONE), ThemedText::new(UiColor::Label),
+                            TextColor(Color::NONE), ThemedText::new(UiColorType::TextMuted),
                             Node {
                                 margin: UiRect::top(px(4)),
                                 max_width: px(380),
@@ -149,7 +149,7 @@ pub(crate) fn sync_mod_report_overlay(
                                 font_size: FontSize::Px(13.0),
                                 ..default()
                             },
-                            TextColor(Color::NONE), ThemedText::new(UiColor::Label),
+                            TextColor(Color::NONE), ThemedText::new(UiColorType::TextMuted),
                             Node {
                                 margin: UiRect::top(px(4)),
                                 max_width: px(380),

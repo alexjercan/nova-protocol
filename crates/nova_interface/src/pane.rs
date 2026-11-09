@@ -32,7 +32,7 @@ use nova_input::prelude::{
 use nova_ship::prelude::{GalleryAction, GalleryState, HeldPart};
 use nova_ui::{
     prelude::*,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{ThemedBorder, ThemedFill, ThemedText, UiText},
 };
 
@@ -483,7 +483,7 @@ pub(crate) fn spawn_credit_figure(
     icons: &InterfaceIcons,
     credits: u64,
     size: f32,
-    tone: UiColor,
+    tone: UiColorType,
     marker: impl Bundle,
 ) {
     parent
@@ -663,13 +663,13 @@ fn spawn_interface_card(
                         icons,
                         0,
                         12.0,
-                        UiColor::Primary,
+                        UiColorType::Text,
                         (InterfacePaneBalance, Name::new(INTERFACE_PANE_BALANCE)),
                     );
                     head.spawn((
                         InterfacePaneClock,
                         Name::new(INTERFACE_PANE_CLOCK),
-                        themed_label("0:00:00", 12.0, UiColor::Label),
+                        themed_label("0:00:00", 12.0, UiColorType::TextMuted),
                         Node {
                             display: Display::None,
                             min_width: px(64.0),
@@ -689,7 +689,7 @@ fn spawn_interface_card(
                     .with_children(|hint| {
                         hint.spawn((InterfaceNextKey, key_chip("", 12.0)));
                         hint.spawn((
-                            themed_label("Next", 12.0, UiColor::Secondary),
+                            themed_label("Next", 12.0, UiColorType::TextSecondary),
                             TextLayout::new(Justify::Left, LineBreak::NoWrap),
                             Node {
                                 margin: UiRect::left(px(6)),
@@ -857,11 +857,11 @@ impl ActionNotice {
 
     /// The text and tone a notice line paints: Nominal for Done, Danger for
     /// Refused, an empty Label line with nothing shown.
-    pub(crate) fn line(&self) -> (&str, UiColor) {
+    pub(crate) fn line(&self) -> (&str, UiColorType) {
         match self.shown() {
-            Some((ActionOutcomeType::Done, note)) => (note, UiColor::Nominal),
-            Some((ActionOutcomeType::Refused, note)) => (note, UiColor::Danger),
-            None => ("", UiColor::Label),
+            Some((ActionOutcomeType::Done, note)) => (note, UiColorType::Nominal),
+            Some((ActionOutcomeType::Refused, note)) => (note, UiColorType::Danger),
+            None => ("", UiColorType::TextMuted),
         }
     }
 }
@@ -873,7 +873,7 @@ impl ActionNotice {
 /// paints it from [`ActionNotice::line`].
 pub(crate) fn notice_line() -> impl Bundle {
     (
-        themed_label("", 13.0, UiColor::Label),
+        themed_label("", 13.0, UiColorType::TextMuted),
         TextLayout::new(Justify::Left, LineBreak::NoWrap),
         Node {
             min_height: px(NOTICE_LINE_PX),
@@ -967,9 +967,9 @@ pub(crate) fn side_panel(overflow: Overflow) -> impl Bundle {
 pub(crate) fn panel_paint() -> impl Bundle {
     (
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Secondary, 0.08),
+        ThemedFill::alpha(UiColorType::TextSecondary, 0.08),
         BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColor::Secondary),
+        ThemedBorder::new(UiColorType::TextSecondary),
     )
 }
 
@@ -987,9 +987,9 @@ pub(crate) fn panel_preview_frame() -> impl Bundle {
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Surface, 0.6),
+        ThemedFill::alpha(UiColorType::Surface, 0.6),
         BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColor::Secondary),
+        ThemedBorder::new(UiColorType::TextSecondary),
         ThemedRadius::control(),
     )
 }
@@ -1008,7 +1008,7 @@ pub(crate) fn divider() -> impl Bundle {
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Secondary, 0.35),
+        ThemedFill::alpha(UiColorType::TextSecondary, 0.35),
     )
 }
 
@@ -1317,7 +1317,7 @@ fn pane_footer(
         InterfacePaneFooter,
         footer_node(false),
         BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(UiColor::Secondary, 0.5),
+        ThemedBorder::alpha(UiColorType::TextSecondary, 0.5),
     ))
     .with_children(|footer| {
         footer
@@ -1359,7 +1359,7 @@ fn pane_footer(
                                     raw_key,
                                     when,
                                 },
-                                themed_label("", 12.0, UiColor::Body),
+                                themed_label("", 12.0, UiColorType::TextBody),
                                 Node {
                                     display: display(when),
                                     ..default()
@@ -1369,7 +1369,7 @@ fn pane_footer(
                         for (pointer, when) in POINTER_HINTS {
                             hints.spawn((
                                 PanePointerHint(when),
-                                themed_label(pointer, 12.0, UiColor::Label),
+                                themed_label(pointer, 12.0, UiColorType::TextMuted),
                                 Node {
                                     display: display(when),
                                     ..default()
@@ -1610,7 +1610,11 @@ fn ship_body(body: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                             for &icon in icons_in_row {
                                 row.spawn(legend_entry()).with_children(|entry| {
                                     entry.spawn(icon_node(icons.section(icon), icon.color(), 18.0));
-                                    entry.spawn(themed_label(icon.label(), 12.0, UiColor::Body));
+                                    entry.spawn(themed_label(
+                                        icon.label(),
+                                        12.0,
+                                        UiColorType::TextBody,
+                                    ));
                                 });
                             }
                         });
@@ -1651,7 +1655,7 @@ pub(crate) fn legend_entry() -> Node {
 }
 
 /// A themed text bundle for the interface chrome.
-pub(crate) fn themed_label(value: &str, size: f32, color: UiColor) -> impl Bundle {
+pub(crate) fn themed_label(value: &str, size: f32, color: UiColorType) -> impl Bundle {
     (
         UiText,
         Text::new(value.to_string()),
@@ -1690,11 +1694,11 @@ pub(crate) fn spawn_part_tile(
             18.0,
         ));
         tile.spawn((
-            themed_label(count, 12.0, UiColor::Primary),
+            themed_label(count, 12.0, UiColorType::Text),
             TextLayout::new(Justify::Left, LineBreak::NoWrap),
         ));
         tile.spawn((
-            themed_label(&design.name, 11.0, UiColor::Body),
+            themed_label(&design.name, 11.0, UiColorType::TextBody),
             TextLayout::new(Justify::Left, LineBreak::NoWrap),
         ));
     });

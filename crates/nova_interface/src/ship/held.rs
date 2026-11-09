@@ -10,7 +10,7 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
-    theme::UiColor,
+    theme::UiColorType,
     widget::{ThemedImageTint, ThemedText},
 };
 
@@ -75,7 +75,7 @@ pub(crate) fn spawn_ship_held_block(panel: &mut ChildSpawnerCommands, icons: &In
             },
         ))
         .with_children(|block| {
-            block.spawn(themed_label("Placing", 13.0, UiColor::Accent));
+            block.spawn(themed_label("Placing", 13.0, UiColorType::Accent));
             block.spawn(panel_preview_frame()).with_children(|frame| {
                 frame.spawn((
                     ShipHeldIcon,
@@ -88,7 +88,7 @@ pub(crate) fn spawn_ship_held_block(panel: &mut ChildSpawnerCommands, icons: &In
             });
             block.spawn((
                 ShipHeldField::Name,
-                themed_label("", 16.0, UiColor::Primary),
+                themed_label("", 16.0, UiColorType::Text),
             ));
             block.spawn(divider());
             for (label, field) in [
@@ -102,7 +102,7 @@ pub(crate) fn spawn_ship_held_block(panel: &mut ChildSpawnerCommands, icons: &In
                     .spawn(control_row(JustifyContent::SpaceBetween))
                     .with_children(|fact| {
                         fact.spawn((
-                            themed_label(label, 12.0, UiColor::Label),
+                            themed_label(label, 12.0, UiColorType::TextMuted),
                             Node {
                                 flex_shrink: 0.0,
                                 ..default()
@@ -110,7 +110,7 @@ pub(crate) fn spawn_ship_held_block(panel: &mut ChildSpawnerCommands, icons: &In
                         ));
                         fact.spawn((
                             field,
-                            themed_label("", 13.0, UiColor::Primary),
+                            themed_label("", 13.0, UiColorType::Text),
                             TextLayout::new(Justify::Right, LineBreak::NoWrap),
                             Node {
                                 min_width: Val::Px(0.0),
@@ -120,7 +120,10 @@ pub(crate) fn spawn_ship_held_block(panel: &mut ChildSpawnerCommands, icons: &In
                         ));
                     });
             }
-            block.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
+            block.spawn((
+                ShipPanelField::Note,
+                themed_label("", 12.0, UiColorType::TextMuted),
+            ));
         });
 }
 
@@ -207,19 +210,19 @@ pub(crate) fn update_ship_held_block(
             cr_text(payment.price_cr),
             parts(payment.from_hold.values().sum()),
             parts(payment.bought.values().sum()),
-            UiColor::Primary,
+            UiColorType::Text,
         ),
         Some(Err(refusal)) => (
             tile_refusal_text(refusal),
             "-".to_string(),
             "-".to_string(),
-            UiColor::Danger,
+            UiColorType::Danger,
         ),
         None => (
             "No refit here".to_string(),
             "-".to_string(),
             "-".to_string(),
-            UiColor::Danger,
+            UiColorType::Danger,
         ),
     };
     let sockets = offered.base.link_points.len();
@@ -232,12 +235,12 @@ pub(crate) fn update_ship_held_block(
 
     for (field, mut text, mut themed) in &mut q_text {
         let (value, color) = match field {
-            ShipHeldField::Name => (&offered.base.name, UiColor::Primary),
+            ShipHeldField::Name => (&offered.base.name, UiColorType::Text),
             ShipHeldField::Price => (&price, price_color),
-            ShipHeldField::FromHold => (&from_hold, UiColor::Primary),
-            ShipHeldField::Bought => (&bought, UiColor::Primary),
-            ShipHeldField::Socket => (&socket, UiColor::Primary),
-            ShipHeldField::Roll => (&roll, UiColor::Primary),
+            ShipHeldField::FromHold => (&from_hold, UiColorType::Text),
+            ShipHeldField::Bought => (&bought, UiColorType::Text),
+            ShipHeldField::Socket => (&socket, UiColorType::Text),
+            ShipHeldField::Roll => (&roll, UiColorType::Text),
         };
         if text.0 != *value {
             text.0 = value.clone();

@@ -3,7 +3,7 @@
 //! save's chart in 3D, list the fleet it holds and its open objectives.
 
 use bevy::prelude::*;
-use nova_ui::{prelude::*, theme::UiColor};
+use nova_ui::{prelude::*, theme::UiColorType};
 
 use crate::{
     chart3d::{spawn_chart_scene, CellView, ChartView, MarkView, SceneAssets, SceneKind},
@@ -135,7 +135,7 @@ pub fn load_page(
                     row.spawn(text(
                         &format!("{}, saved {}", latest.world, latest.saved_rel),
                         13.0,
-                        UiColor::Body,
+                        UiColorType::TextBody,
                     ));
                 });
                 table_head(
@@ -158,10 +158,22 @@ pub fn load_page(
                     )
                     .with_children(|r| {
                         r.spawn(icon(icons, role.icon, 18.0));
-                        r.spawn(grow_cell(save.world, 13.0, UiColor::Primary));
-                        r.spawn(cell(90.0, save.play_time, 12.0, UiColor::Body, false));
-                        r.spawn(cell(90.0, save.saved_rel, 12.0, UiColor::Body, false));
-                        r.spawn(grow_cell(&open_summary(save), 12.0, UiColor::Label));
+                        r.spawn(grow_cell(save.world, 13.0, UiColorType::Text));
+                        r.spawn(cell(
+                            90.0,
+                            save.play_time,
+                            12.0,
+                            UiColorType::TextBody,
+                            false,
+                        ));
+                        r.spawn(cell(
+                            90.0,
+                            save.saved_rel,
+                            12.0,
+                            UiColorType::TextBody,
+                            false,
+                        ));
+                        r.spawn(grow_cell(&open_summary(save), 12.0, UiColorType::TextMuted));
                     });
                 }
             });
@@ -194,7 +206,7 @@ fn details(
         })
         .with_children(|left| {
             left.spawn(icon(icons, role.icon, 20.0));
-            left.spawn(text(save.world, 15.0, UiColor::Primary));
+            left.spawn(text(save.world, 15.0, UiColorType::Text));
         });
         if save.version != RUNNING_VERSION {
             head.spawn(tag(BadgeKind::Amber, save.version));
@@ -217,7 +229,7 @@ fn details(
     side.spawn(text(
         "Right-drag turns, wheel zooms, T reframes.",
         11.0,
-        UiColor::Label,
+        UiColorType::TextMuted,
     ));
     kv(side, "Seed", &save.seed.to_string());
     kv(side, "Sector", save.sector);
@@ -251,18 +263,18 @@ fn details(
         })
         .with_children(|r| {
             r.spawn(icon(icons, objective.icon, 16.0));
-            r.spawn(grow_cell(objective.title, 13.0, UiColor::Primary));
+            r.spawn(grow_cell(objective.title, 13.0, UiColorType::Text));
             r.spawn(text(
                 &format!("{} / {}", objective.have, objective.need),
                 12.0,
-                UiColor::Body,
+                UiColorType::TextBody,
             ));
         });
     }
     if !any {
         side.spawn((
             Name::new(NO_OPEN_OBJECTIVES),
-            text("No open objectives", 12.0, UiColor::Label),
+            text("No open objectives", 12.0, UiColorType::TextMuted),
         ));
     }
     side.spawn(Node {
@@ -293,7 +305,7 @@ fn fleet_line(side: &mut ChildSpawnerCommands, name: &str, label: &str, value: &
         },
     ))
     .with_children(|r| {
-        r.spawn(cell(84.0, label, 12.0, UiColor::Label, false));
-        r.spawn(grow_cell(value, 13.0, UiColor::Primary));
+        r.spawn(cell(84.0, label, 12.0, UiColorType::TextMuted, false));
+        r.spawn(grow_cell(value, 13.0, UiColorType::Text));
     });
 }

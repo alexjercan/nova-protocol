@@ -30,12 +30,11 @@
 //! this theme replaced. Moving them here changed nothing visually - that is the
 //! point, and the round-trip tests pin it.
 
-use std::collections::BTreeMap;
-
 use super::config::{
     BadgeRole, BarRole, ButtonRole, CheckboxRole, Effect, FieldRole, Fill, HeadPaint, RadialAnchor,
     RowPaint, RowRole, SliderMeter, SliderRole, StatePaint, Stop, SurfacePaint, ThemeColor,
-    ToggleRole, UiMetrics, UiRoles, UiThemeConfig, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID,
+    ToggleRole, UiColorType as C, UiMetrics, UiPalette, UiRoles, UiThemeConfig, HARDWARE_THEME_ID,
+    PHOSPHOR_THEME_ID,
 };
 
 /// Both shipped themes, in the order the generated content file carries them -
@@ -46,12 +45,12 @@ pub fn base_ui_themes() -> Vec<UiThemeConfig> {
 
 // -- shared shorthand --------------------------------------------------------
 
-fn var(name: &str) -> ThemeColor {
-    ThemeColor::var(name)
+fn var(color: C) -> ThemeColor {
+    ThemeColor::var(color)
 }
 
-fn va(name: &str, alpha: f32) -> ThemeColor {
-    ThemeColor::var_alpha(name, alpha)
+fn va(color: C, alpha: f32) -> ThemeColor {
+    ThemeColor::var_alpha(color, alpha)
 }
 
 /// The moulded-face drop shadow (PoC `--drop`): outset only, since bevy 0.19
@@ -59,7 +58,7 @@ fn va(name: &str, alpha: f32) -> ThemeColor {
 /// approximated by the face gradient instead.
 fn drop_shadow() -> Effect {
     Effect {
-        color: va("black", 0.55),
+        color: va(C::Shadow, 0.55),
         offset_y: 2.0,
         blur: 8.0,
     }
@@ -67,16 +66,16 @@ fn drop_shadow() -> Effect {
 
 /// A coloured glow (selected and primary faces). Kept subtle so it reads as a
 /// lit element, not a halo that fights the text.
-fn glow(variable: &str) -> Effect {
+fn glow(color: C) -> Effect {
     Effect {
-        color: va(variable, 0.22),
+        color: va(color, 0.22),
         offset_y: 0.0,
         blur: 7.0,
     }
 }
 
 /// A three-stop moulded face over a base: lit top, body, shaded bottom.
-fn bevel3(base: &str, top: &str, mid: &str, bottom: &str) -> Fill {
+fn bevel3(base: C, top: C, mid: C, bottom: C) -> Fill {
     Fill::linear(
         var(base),
         vec![
@@ -88,7 +87,7 @@ fn bevel3(base: &str, top: &str, mid: &str, bottom: &str) -> Fill {
 }
 
 /// A two-stop face over a base.
-fn bevel2(base: &str, top: &str, bottom: &str) -> Fill {
+fn bevel2(base: C, top: C, bottom: C) -> Fill {
     Fill::linear(
         var(base),
         vec![Stop::new(var(top), 0.0), Stop::new(var(bottom), 100.0)],
@@ -108,11 +107,8 @@ fn state(fill: Fill, border: ThemeColor, text: ThemeColor, effect: Option<Effect
     }
 }
 
-fn palette(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
-    entries
-        .iter()
-        .map(|(name, hex)| ((*name).to_string(), (*hex).to_string()))
-        .collect()
+fn hex(value: &str) -> Option<String> {
+    Some(value.to_string())
 }
 
 // -- base/phosphor -----------------------------------------------------------
@@ -124,31 +120,41 @@ pub fn phosphor_theme() -> UiThemeConfig {
         id: PHOSPHOR_THEME_ID.to_string(),
         name: "Phosphor".to_string(),
         inherit: None,
-        palette: palette(&[
-            // The twelve semantic names every theme must carry.
-            ("primary", "#36ff79"),
-            ("secondary", "#19a64f"),
-            ("label", "#0d6e35"),
-            ("body", "#b9ffc9"),
-            ("accent", "#ffb84a"),
-            ("accent_high", "#ffd07a"),
-            ("accent_low", "#e6952f"),
-            ("inverted", "#04140a"),
-            ("surface", "#001304"),
-            ("void", "#03060b"),
-            ("danger", "#ff4e42"),
-            ("info", "#36a3ff"),
+        palette: UiPalette {
+            text: hex("#36ff79"),
+            text_body: hex("#b9ffc9"),
+            text_secondary: hex("#19a64f"),
+            text_muted: hex("#0d6e35"),
+            text_hover: hex("#d6ffe4"),
+            text_inverse: hex("#04140a"),
+            surface: hex("#001304"),
+            // The faces below are the hardware look's. This look's role table
+            // does not read them, so each holds the nearest phosphor tone for
+            // its job: a derived theme that paints with them stays green.
+            surface_sunken: hex("#03060b"),
+            surface_raised: hex("#002b0f"),
+            surface_lit: hex("#0d6e35"),
+            surface_hover: hex("#002b0f"),
+            surface_hover_light: hex("#0d6e35"),
+            surface_hover_dark: hex("#001304"),
+            background: hex("#03060b"),
+            border: hex("#0d6e35"),
+            accent: hex("#ffb84a"),
+            accent_light: hex("#ffd07a"),
+            accent_dark: hex("#e6952f"),
             // On a phosphor screen the ink and the lamp are the same green.
-            ("nominal", "#36ff79"),
-            // This look's own tones, referenced only by its role table.
-            ("primary_high", "#7dffab"),
-            ("primary_low", "#12b552"),
-            ("screen_lifted", "#002b0f"),
-            ("hover_text", "#d6ffe4"),
-            ("danger_text_hot", "#ffd9d5"),
-            ("black", "#000000"),
-            ("white", "#ffffff"),
-        ]),
+            nominal: hex("#36ff79"),
+            nominal_light: hex("#7dffab"),
+            nominal_dark: hex("#12b552"),
+            danger: hex("#ff4e42"),
+            danger_text: hex("#ffd9d5"),
+            danger_face: hex("#6b2a26"),
+            danger_face_dark: hex("#3a1512"),
+            info: hex("#36a3ff"),
+            control_off: hex("#0d6e35"),
+            highlight: hex("#ffffff"),
+            shadow: hex("#000000"),
+        },
         metrics: Some(UiMetrics {
             border_width: 1.0,
             radius: 2.0,
@@ -162,102 +168,97 @@ pub fn phosphor_theme() -> UiThemeConfig {
                 // Neutral: a lit wash that brightens on hover and deepens on
                 // press, the label staying phosphor throughout.
                 state(
-                    solid(va("primary", 0.05)),
-                    va("primary", 0.4),
-                    var("primary"),
+                    solid(va(C::Text, 0.05)),
+                    va(C::Text, 0.4),
+                    var(C::Text),
                     None,
                 ),
                 state(
-                    solid(va("primary", 0.12)),
-                    var("primary"),
-                    var("hover_text"),
+                    solid(va(C::Text, 0.12)),
+                    var(C::Text),
+                    var(C::TextHover),
                     None,
                 ),
-                state(
-                    solid(va("primary", 0.2)),
-                    var("primary"),
-                    var("primary"),
-                    None,
-                ),
+                state(solid(va(C::Text, 0.2)), var(C::Text), var(C::Text), None),
             )),
             button_primary: Some(phosphor_primary_button()),
             button_danger: Some(phosphor_button(
                 state(
-                    solid(va("danger", 0.06)),
-                    va("danger", 0.5),
-                    var("danger"),
+                    solid(va(C::Danger, 0.06)),
+                    va(C::Danger, 0.5),
+                    var(C::Danger),
                     None,
                 ),
                 state(
-                    solid(va("danger", 0.16)),
-                    var("danger"),
-                    var("danger_text_hot"),
+                    solid(va(C::Danger, 0.16)),
+                    var(C::Danger),
+                    var(C::DangerText),
                     None,
                 ),
-                state(solid(va("danger", 0.2)), var("danger"), var("danger"), None),
+                state(
+                    solid(va(C::Danger, 0.2)),
+                    var(C::Danger),
+                    var(C::Danger),
+                    None,
+                ),
             )),
             button_ghost: Some(phosphor_button(
-                state(Fill::none(), va("primary", 0.25), var("primary"), None),
+                state(Fill::none(), va(C::Text, 0.25), var(C::Text), None),
                 state(
-                    solid(va("primary", 0.06)),
-                    va("primary", 0.4),
-                    var("primary"),
+                    solid(va(C::Text, 0.06)),
+                    va(C::Text, 0.4),
+                    var(C::Text),
                     None,
                 ),
-                state(
-                    solid(va("primary", 0.14)),
-                    var("primary"),
-                    var("primary"),
-                    None,
-                ),
+                state(solid(va(C::Text, 0.14)), var(C::Text), var(C::Text), None),
             )),
             panel: Some(SurfacePaint {
                 // A dark screen face under a phosphor glow blooming down from
                 // the top edge (PoC `radial-gradient(ellipse 70% 60% at 50% 0%,
                 // phosphor .10, transparent 70%)`).
                 fill: Fill::Radial {
-                    base: var("surface"),
+                    base: var(C::Surface),
                     anchor: RadialAnchor::Top,
                     stops: vec![
-                        Stop::new(va("primary", 0.06), 0.0),
-                        Stop::new(va("black", 0.0), 70.0),
+                        Stop::new(va(C::Text, 0.06), 0.0),
+                        Stop::new(va(C::Shadow, 0.0), 70.0),
                     ],
                 },
-                border: va("primary", 0.16),
+                border: va(C::Text, 0.16),
                 effect: None,
                 radius: None,
             }),
             panel_head: Some(HeadPaint {
-                border: va("primary", 0.18),
-                title: var("primary"),
-                rule: va("label", 0.6),
-                tag: var("primary"),
+                border: va(C::Text, 0.18),
+                title: var(C::Text),
+                rule: va(C::TextMuted, 0.6),
+                tag: var(C::Text),
             }),
             list_row: Some(RowRole {
                 normal: RowPaint {
                     fill: Fill::none(),
-                    border: va("primary", 0.14),
+                    border: va(C::Text, 0.14),
                 },
                 hovered: RowPaint {
-                    fill: solid(va("primary", 0.06)),
-                    border: va("primary", 0.2),
+                    fill: solid(va(C::Text, 0.06)),
+                    border: va(C::Text, 0.2),
                 },
                 // Selection INVERTS on this look rather than tinting.
                 selected: RowPaint {
-                    fill: solid(va("primary", 0.14)),
-                    border: var("primary"),
+                    fill: solid(va(C::Text, 0.14)),
+                    border: var(C::Text),
                 },
             }),
             segmented: Some(SurfacePaint {
-                fill: solid(va("black", 0.35)),
-                border: va("primary", 0.25),
+                fill: solid(va(C::Shadow, 0.35)),
+                border: va(C::Text, 0.25),
                 effect: None,
                 radius: None,
             }),
             slider_track: Some(SliderRole {
                 surface: SurfacePaint {
-                    fill: solid(va("black", 0.5)),
-                    border: va("primary", 0.32),
+                    fill: solid(va(C::Shadow, 0.5)),
+                    border: va(C::Text, 0.32),
                     effect: None,
                     radius: None,
                 },
@@ -266,30 +267,30 @@ pub fn phosphor_theme() -> UiThemeConfig {
                     segments: 24,
                     gap: 2.0,
                 },
-                lit: var("primary"),
-                unlit: va("primary", 0.16),
+                lit: var(C::Text),
+                unlit: va(C::Text, 0.16),
             }),
-            text_field: Some(washed_field("primary")),
+            text_field: Some(washed_field()),
             checkbox: Some(CheckboxRole {
                 radius: None,
-                off: state(Fill::none(), va("primary", 0.4), var("primary"), None),
-                on: state(solid(var("primary")), var("primary"), var("inverted"), None),
+                off: state(Fill::none(), va(C::Text, 0.4), var(C::Text), None),
+                on: state(solid(var(C::Text)), var(C::Text), var(C::TextInverse), None),
             }),
             toggle: Some(ToggleRole {
                 radius: None,
                 knob_radius: 1.0,
                 off: state(
-                    solid(va("black", 0.4)),
-                    va("primary", 0.35),
-                    var("label"),
+                    solid(va(C::Shadow, 0.4)),
+                    va(C::Text, 0.35),
+                    var(C::ControlOff),
                     None,
                 ),
                 on: state(
-                    solid(va("primary", 0.14)),
-                    var("primary"),
-                    var("primary"),
+                    solid(va(C::Text, 0.14)),
+                    var(C::Text),
+                    var(C::Text),
                     Some(Effect {
-                        color: va("primary", 0.35),
+                        color: va(C::Text, 0.35),
                         offset_y: 0.0,
                         blur: 5.0,
                     }),
@@ -303,11 +304,11 @@ pub fn phosphor_theme() -> UiThemeConfig {
                 fill_alpha: 0.0,
             }),
             scroll_bar: Some(BarRole {
-                track: va("primary", 0.07),
-                thumb: va("primary", 0.35),
+                track: va(C::Text, 0.07),
+                thumb: va(C::Text, 0.35),
             }),
             key_chip: Some(key_chip()),
-            separator: Some(va("label", 0.5)),
+            separator: Some(va(C::TextMuted, 0.5)),
         },
     }
 }
@@ -334,10 +335,10 @@ fn phosphor_button(normal: StatePaint, hovered: StatePaint, pressed: StatePaint)
 /// Selected: solid phosphor, inverted glyphs, lit.
 fn phosphor_inverted() -> StatePaint {
     state(
-        solid(var("primary")),
-        var("primary"),
-        var("inverted"),
-        Some(glow("primary")),
+        solid(var(C::Text)),
+        var(C::Text),
+        var(C::TextInverse),
+        Some(glow(C::Text)),
     )
 }
 
@@ -345,18 +346,18 @@ fn phosphor_inverted() -> StatePaint {
 /// full phosphor, so dimming is the only move left) and the glow goes out.
 fn phosphor_inverted_pressed() -> StatePaint {
     state(
-        solid(var("primary_low")),
-        var("primary"),
-        var("inverted"),
+        solid(var(C::NominalDark)),
+        var(C::Text),
+        var(C::TextInverse),
         None,
     )
 }
 
 fn phosphor_disabled() -> StatePaint {
     state(
-        solid(va("primary", 0.02)),
-        va("primary", 0.25),
-        va("primary", 0.5),
+        solid(va(C::Text, 0.02)),
+        va(C::Text, 0.25),
+        va(C::Text, 0.5),
         None,
     )
 }
@@ -374,19 +375,19 @@ fn phosphor_primary_button() -> ButtonRole {
     }
 }
 
-/// A text field over one ink colour: the terminal look types in phosphor, the
-/// hardware look in the casing's own ink. Everything else about the field is
-/// shared, which is why one builder serves both.
+/// A text field in the look's ink: phosphor types in green, hardware in the
+/// casing's bone white, both through [`C::Text`]. One builder serves both.
 ///
 /// The ERROR state carries the focused fill on purpose: a field only becomes
 /// invalid because somebody typed into it, so it is focused in practice, and
 /// giving error the idle wash made a live field flicker darker as it went bad.
-fn washed_field(ink: &str) -> FieldRole {
+fn washed_field() -> FieldRole {
+    let ink = C::Text;
     FieldRole {
         normal: state(solid(va(ink, 0.035)), va(ink, 0.32), var(ink), None),
         hovered: state(solid(va(ink, 0.035)), va(ink, 0.65), var(ink), None),
-        focused: state(solid(va(ink, 0.08)), var("accent"), var(ink), None),
-        error: state(solid(va(ink, 0.08)), var("danger"), var(ink), None),
+        focused: state(solid(va(ink, 0.08)), var(C::Accent), var(ink), None),
+        error: state(solid(va(ink, 0.08)), var(C::Danger), var(ink), None),
     }
 }
 
@@ -394,9 +395,9 @@ fn washed_field(ink: &str) -> FieldRole {
 /// looks paint identically - a keycap is a keycap.
 fn key_chip() -> StatePaint {
     state(
-        solid(va("black", 0.3)),
-        va("accent", 0.5),
-        var("accent"),
+        solid(va(C::Shadow, 0.3)),
+        va(C::Accent, 0.5),
+        var(C::Accent),
         None,
     )
 }
@@ -412,45 +413,44 @@ pub fn hardware_theme() -> UiThemeConfig {
         // phosphor about nearly every role, so inheriting would name a parent
         // whose every role the child replaced.
         inherit: None,
-        palette: palette(&[
-            // The twelve semantic names in the CASING's own tones. Copying
-            // phosphor's greens here is what made every label, title and body
-            // line on this look read green: the screens paint through these
-            // names, so a look that shares them cannot differ from the one it
-            // copied, whatever its role table says.
-            ("primary", "#dcefe0"),
-            ("secondary", "#8b9aa3"),
-            ("label", "#69777f"),
-            ("body", "#c3d2d8"),
-            ("accent", "#ffb84a"),
-            ("accent_high", "#ffd07a"),
-            ("accent_low", "#e6952f"),
-            ("inverted", "#0a0d10"),
-            ("surface", "#161b20"),
-            ("void", "#05070a"),
-            ("danger", "#ff4e42"),
-            ("info", "#36a3ff"),
-            // The ink is bone white, but a lamp that is ON is still green.
-            ("nominal", "#36ff79"),
-            ("nominal_high", "#7dffab"),
-            ("nominal_low", "#12b552"),
-            ("black", "#000000"),
-            ("white", "#ffffff"),
+        palette: UiPalette {
+            // The casing's own ink. Copying phosphor's greens here is what
+            // made every label, title and body line on this look read green:
+            // the screens paint through these colours, so a look that shares
+            // them cannot differ from the one it copied, whatever its role
+            // table says.
+            text: hex("#dcefe0"),
+            text_body: hex("#c3d2d8"),
+            text_secondary: hex("#8b9aa3"),
+            text_muted: hex("#69777f"),
+            text_hover: hex("#ffffff"),
+            text_inverse: hex("#0a0d10"),
             // The moulded casing tones (PoC `--case-*`).
-            ("case_0", "#0a0d10"),
-            ("case_1", "#161b20"),
-            ("case_2", "#232a31"),
-            ("case_3", "#2f383f"),
-            ("case_edge", "#05070a"),
-            ("face_hot_high", "#3a444c"),
-            ("face_hot_mid", "#222a31"),
-            ("face_hot_low", "#12171b"),
-            ("case_text", "#dcefe0"),
-            ("danger_text_hot", "#ffd9d5"),
-            ("danger_face_lit", "#6b2a26"),
-            ("danger_face_dark", "#3a1512"),
-            ("knob_off", "#55636c"),
-        ]),
+            surface: hex("#161b20"),
+            surface_sunken: hex("#0a0d10"),
+            surface_raised: hex("#232a31"),
+            surface_lit: hex("#2f383f"),
+            surface_hover: hex("#222a31"),
+            surface_hover_light: hex("#3a444c"),
+            surface_hover_dark: hex("#12171b"),
+            background: hex("#05070a"),
+            border: hex("#05070a"),
+            accent: hex("#ffb84a"),
+            accent_light: hex("#ffd07a"),
+            accent_dark: hex("#e6952f"),
+            // The ink is bone white, but a lamp that is ON is still green.
+            nominal: hex("#36ff79"),
+            nominal_light: hex("#7dffab"),
+            nominal_dark: hex("#12b552"),
+            danger: hex("#ff4e42"),
+            danger_text: hex("#ffd9d5"),
+            danger_face: hex("#6b2a26"),
+            danger_face_dark: hex("#3a1512"),
+            info: hex("#36a3ff"),
+            control_off: hex("#55636c"),
+            highlight: hex("#ffffff"),
+            shadow: hex("#000000"),
+        },
         metrics: Some(UiMetrics {
             border_width: 1.0,
             radius: 7.0,
@@ -458,136 +458,146 @@ pub fn hardware_theme() -> UiThemeConfig {
         }),
         roles: UiRoles {
             button: Some(hardware_button(
-                hardware_face(var("case_text")),
+                hardware_face(var(C::Text)),
                 state(
                     bevel3(
-                        "face_hot_mid",
-                        "face_hot_high",
-                        "face_hot_mid",
-                        "face_hot_low",
+                        C::SurfaceHover,
+                        C::SurfaceHoverLight,
+                        C::SurfaceHover,
+                        C::SurfaceHoverDark,
                     ),
-                    var("case_edge"),
-                    var("white"),
+                    var(C::Border),
+                    var(C::TextHover),
                     Some(drop_shadow()),
                 ),
                 // Pressed SINKS: the bevel inverts and the drop shadow goes.
                 state(
-                    bevel2("case_0", "case_0", "case_1"),
-                    var("case_edge"),
-                    var("case_text"),
+                    bevel2(C::SurfaceSunken, C::SurfaceSunken, C::Surface),
+                    var(C::Border),
+                    var(C::Text),
                     None,
                 ),
             )),
             button_primary: Some(hardware_primary_button()),
             button_danger: Some(hardware_button(
-                hardware_face(var("danger_text_hot")),
+                hardware_face(var(C::DangerText)),
                 state(
-                    bevel2("danger", "danger_face_lit", "danger_face_dark"),
-                    var("case_edge"),
-                    var("white"),
+                    bevel2(C::Danger, C::DangerFace, C::DangerFaceDark),
+                    var(C::Border),
+                    var(C::TextHover),
                     Some(drop_shadow()),
                 ),
                 state(
-                    bevel2("danger", "danger_face_dark", "danger_face_lit"),
-                    var("case_edge"),
-                    var("white"),
+                    bevel2(C::Danger, C::DangerFaceDark, C::DangerFace),
+                    var(C::Border),
+                    var(C::Highlight),
                     None,
                 ),
             )),
             // Ghost stays fill-less by contract, so its press cannot be a
             // bevel: it is a dark wash under a brightening border instead.
             button_ghost: Some(hardware_button(
-                state(Fill::none(), va("white", 0.12), var("case_text"), None),
+                state(Fill::none(), va(C::Highlight, 0.12), var(C::Text), None),
                 state(
-                    solid(va("white", 0.04)),
-                    va("white", 0.22),
-                    var("case_text"),
+                    solid(va(C::Highlight, 0.04)),
+                    va(C::Highlight, 0.22),
+                    var(C::Text),
                     None,
                 ),
                 state(
-                    solid(va("black", 0.22)),
-                    va("white", 0.3),
-                    var("case_text"),
+                    solid(va(C::Shadow, 0.22)),
+                    va(C::Highlight, 0.3),
+                    var(C::Text),
                     None,
                 ),
             )),
             panel: Some(SurfacePaint {
                 // PoC panel: linear-gradient(168deg, case-2, case-0 88%, edge).
                 fill: Fill::Linear {
-                    base: var("case_1"),
+                    base: var(C::Surface),
                     degrees: 168.0,
                     stops: vec![
-                        Stop::new(var("case_2"), 0.0),
-                        Stop::new(var("case_0"), 88.0),
-                        Stop::new(var("case_edge"), 100.0),
+                        Stop::new(var(C::SurfaceRaised), 0.0),
+                        Stop::new(var(C::SurfaceSunken), 88.0),
+                        Stop::new(var(C::Border), 100.0),
                     ],
                 },
-                border: var("case_edge"),
+                border: var(C::Border),
                 effect: Some(drop_shadow()),
                 radius: None,
             }),
             panel_head: Some(HeadPaint {
-                border: var("case_edge"),
-                title: var("white"),
-                rule: var("case_3"),
-                tag: va("white", 0.7),
+                border: var(C::Border),
+                title: var(C::Highlight),
+                rule: var(C::SurfaceLit),
+                tag: va(C::Highlight, 0.7),
             }),
             list_row: Some(RowRole {
                 normal: RowPaint {
-                    fill: solid(va("white", 0.02)),
-                    border: va("white", 0.05),
+                    fill: solid(va(C::Highlight, 0.02)),
+                    border: va(C::Highlight, 0.05),
                 },
                 hovered: RowPaint {
-                    fill: solid(va("white", 0.06)),
-                    border: va("white", 0.1),
+                    fill: solid(va(C::Highlight, 0.06)),
+                    border: va(C::Highlight, 0.1),
                 },
                 // Selection TINTS amber on this look rather than inverting.
                 selected: RowPaint {
-                    fill: solid(var("case_2")),
-                    border: va("accent", 0.5),
+                    fill: solid(var(C::SurfaceRaised)),
+                    border: va(C::Accent, 0.5),
                 },
             }),
             segmented: Some(SurfacePaint {
-                fill: solid(va("black", 0.4)),
-                border: var("case_edge"),
+                fill: solid(va(C::Shadow, 0.4)),
+                border: var(C::Border),
                 effect: None,
                 radius: None,
             }),
             slider_track: Some(SliderRole {
                 surface: SurfacePaint {
-                    fill: solid(va("black", 0.55)),
-                    border: var("case_edge"),
+                    fill: solid(va(C::Shadow, 0.55)),
+                    border: var(C::Border),
                     effect: None,
                     radius: Some(6.0),
                 },
                 height: 10.0,
                 meter: SliderMeter::Fill,
-                lit: var("nominal_low"),
+                lit: var(C::NominalDark),
                 // The solid fill draws nothing behind itself: the well IS the
                 // unlit part.
-                unlit: va("black", 0.0),
+                unlit: va(C::Shadow, 0.0),
             }),
-            text_field: Some(washed_field("case_text")),
+            text_field: Some(washed_field()),
             checkbox: Some(CheckboxRole {
                 radius: Some(5.0),
-                off: state(solid(var("case_0")), var("case_edge"), var("nominal"), None),
+                off: state(
+                    solid(var(C::SurfaceSunken)),
+                    var(C::Border),
+                    var(C::Nominal),
+                    None,
+                ),
                 // Checked is the same lit square in both looks: a checkbox
                 // reads as ON or it does not.
-                on: state(solid(var("nominal")), var("nominal"), var("inverted"), None),
+                on: state(
+                    solid(var(C::Nominal)),
+                    var(C::Nominal),
+                    var(C::TextInverse),
+                    None,
+                ),
             }),
             toggle: Some(ToggleRole {
                 radius: Some(11.0),
                 knob_radius: 9.0,
                 off: state(
-                    solid(va("black", 0.5)),
-                    var("case_edge"),
-                    var("knob_off"),
+                    solid(va(C::Shadow, 0.5)),
+                    var(C::Border),
+                    var(C::ControlOff),
                     None,
                 ),
                 on: state(
-                    solid(va("nominal", 0.14)),
-                    var("nominal"),
-                    var("nominal"),
+                    solid(va(C::Nominal, 0.14)),
+                    var(C::Nominal),
+                    var(C::Nominal),
                     None,
                 ),
             }),
@@ -599,11 +609,11 @@ pub fn hardware_theme() -> UiThemeConfig {
                 fill_alpha: 0.06,
             }),
             scroll_bar: Some(BarRole {
-                track: va("white", 0.04),
-                thumb: var("case_3"),
+                track: va(C::Highlight, 0.04),
+                thumb: var(C::SurfaceLit),
             }),
             key_chip: Some(key_chip()),
-            separator: Some(va("label", 0.5)),
+            separator: Some(va(C::TextMuted, 0.5)),
         },
     }
 }
@@ -613,8 +623,8 @@ pub fn hardware_theme() -> UiThemeConfig {
 /// resting danger button are all this face under different legends.
 fn hardware_face(text: ThemeColor) -> StatePaint {
     state(
-        bevel3("case_1", "case_3", "case_1", "case_0"),
-        var("case_edge"),
+        bevel3(C::Surface, C::SurfaceLit, C::Surface, C::SurfaceSunken),
+        var(C::Border),
         text,
         Some(drop_shadow()),
     )
@@ -633,24 +643,24 @@ fn hardware_button(normal: StatePaint, hovered: StatePaint, pressed: StatePaint)
         pressed,
         selected: hardware_amber(),
         selected_pressed: hardware_amber_pressed(),
-        disabled: hardware_face(va("case_text", 0.4)),
+        disabled: hardware_face(va(C::Text, 0.4)),
     }
 }
 
 fn hardware_amber() -> StatePaint {
     state(
-        bevel3("accent", "accent_high", "accent", "accent_low"),
-        var("case_edge"),
-        var("inverted"),
-        Some(glow("accent")),
+        bevel3(C::Accent, C::AccentLight, C::Accent, C::AccentDark),
+        var(C::Border),
+        var(C::TextInverse),
+        Some(glow(C::Accent)),
     )
 }
 
 fn hardware_amber_pressed() -> StatePaint {
     state(
-        bevel3("accent", "accent_low", "accent", "accent_high"),
-        var("case_edge"),
-        var("inverted"),
+        bevel3(C::Accent, C::AccentDark, C::Accent, C::AccentLight),
+        var(C::Border),
+        var(C::TextInverse),
         None,
     )
 }
@@ -661,23 +671,23 @@ fn hardware_amber_pressed() -> StatePaint {
 fn hardware_primary_button() -> ButtonRole {
     let lit = || {
         state(
-            bevel3("nominal", "nominal_high", "nominal", "nominal_low"),
-            var("case_edge"),
-            var("inverted"),
-            Some(glow("nominal")),
+            bevel3(C::Nominal, C::NominalLight, C::Nominal, C::NominalDark),
+            var(C::Border),
+            var(C::TextInverse),
+            Some(glow(C::Nominal)),
         )
     };
     ButtonRole {
         normal: lit(),
         hovered: lit(),
         pressed: state(
-            bevel3("nominal", "nominal_low", "nominal", "nominal_high"),
-            var("case_edge"),
-            var("inverted"),
+            bevel3(C::Nominal, C::NominalDark, C::Nominal, C::NominalLight),
+            var(C::Border),
+            var(C::TextInverse),
             None,
         ),
         selected: hardware_amber(),
         selected_pressed: hardware_amber_pressed(),
-        disabled: hardware_face(va("case_text", 0.4)),
+        disabled: hardware_face(va(C::Text, 0.4)),
     }
 }

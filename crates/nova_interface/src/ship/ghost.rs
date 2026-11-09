@@ -34,7 +34,7 @@ use nova_gameplay::{prelude::*, PauseStates};
 use nova_input::prelude::{InputBindings, InputSources};
 use nova_ship::prelude::*;
 use nova_ui::{
-    theme::UiColor,
+    theme::UiColorType,
     widget::{ThemedFill, ThemedText},
 };
 
@@ -745,14 +745,17 @@ pub(crate) fn sync_ship_ghost(
                 ..default()
             },
             BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Void, 0.85),
+            ThemedFill::alpha(UiColorType::Background, 0.85),
             Visibility::Hidden,
             Pickable::IGNORE,
             // Above the section badges, its siblings, which would cover its
             // text on a dense hull.
             ZIndex(1),
             ChildOf(viewport),
-            children![(themed_label("", 12.0, UiColor::Body), Pickable::IGNORE)],
+            children![(
+                themed_label("", 12.0, UiColorType::TextBody),
+                Pickable::IGNORE
+            )],
         ));
         return;
     };
@@ -781,8 +784,8 @@ pub(crate) fn sync_ship_ghost(
     }
     visibility.set_if_neq(Visibility::Inherited);
     let (line, color) = match &placement.verdict {
-        Ok(line) => (line, UiColor::Nominal),
-        Err(line) => (line, UiColor::Danger),
+        Ok(line) => (line, UiColorType::Nominal),
+        Err(line) => (line, UiColorType::Danger),
     };
     for child in children.iter() {
         if let Ok((mut text, mut themed)) = q_text.get_mut(child) {

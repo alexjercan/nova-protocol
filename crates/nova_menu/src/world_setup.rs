@@ -37,7 +37,7 @@ use nova_ui::{
     prelude::REPORT_Z,
     screen::{scroll_bar, scroll_column, scroll_row, scroll_viewport},
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{
         list_row, panel, panel_head, separator, text_field, ButtonCueType, ButtonVariant,
         PanelHeadTag, PanelHeadTitle, Selected, TextFieldError, TextFieldSpec, TextFieldValue,
@@ -215,7 +215,7 @@ fn label(name: &'static str, text: &str) -> impl Bundle {
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Label),
+        ThemedText::new(UiColorType::TextMuted),
     )
 }
 
@@ -420,7 +420,7 @@ fn spawn_world_step(seed: String, name: String) -> impl FnOnce(&mut ChildSpawner
                     ..default()
                 },
             ),
-            ThemedBorder::new(UiColor::Label),
+            ThemedBorder::new(UiColorType::TextMuted),
             ThemedRadius::control(),
         ));
         parent.spawn((SeedPreviewCaption, label("Seed Preview Caption", "")));
@@ -500,7 +500,7 @@ fn spawn_role_step(
                         row.with_children(|row| {
                             row.spawn((
                                 Name::new("Start Role Button Icon"),
-                                icon_node(icon, UiColor::Accent, ROLE_ICON_PX),
+                                icon_node(icon, UiColorType::Accent, ROLE_ICON_PX),
                             ));
                             row.spawn((
                                 Name::new("Start Role Button Name"),
@@ -511,7 +511,7 @@ fn spawn_role_step(
                                     ..default()
                                 },
                                 TextColor(Color::NONE),
-                                ThemedText::new(UiColor::Body),
+                                ThemedText::new(UiColorType::TextBody),
                             ));
                         });
                     }
@@ -850,7 +850,7 @@ pub(crate) fn refresh_start_role_details(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Primary),
+            ThemedText::new(UiColorType::Text),
         ));
         details.spawn((
             Name::new("Start Role Details About"),
@@ -861,7 +861,7 @@ pub(crate) fn refresh_start_role_details(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Body),
+            ThemedText::new(UiColorType::TextBody),
         ));
         if let Some(hull) = hull {
             details.spawn((
@@ -875,7 +875,7 @@ pub(crate) fn refresh_start_role_details(
                         ..default()
                     },
                 ),
-                ThemedBorder::new(UiColor::Label),
+                ThemedBorder::new(UiColorType::TextMuted),
                 ThemedRadius::control(),
             ));
         }
@@ -899,27 +899,27 @@ pub(crate) fn refresh_start_role_details(
                             "Start Role Details Hull Line",
                             label,
                             value,
-                            UiColor::Body,
+                            UiColorType::TextBody,
                         ));
                     }
                     lines.spawn(detail_row(
                         "Start Role Details Credits",
                         "Credits",
                         cr_text(role.kit.credits),
-                        UiColor::Body,
+                        UiColorType::TextBody,
                     ));
                     lines.spawn(detail_row(
                         "Start Role Details Kit",
                         "Cargo",
                         cargo,
-                        UiColor::Body,
+                        UiColorType::TextBody,
                     ));
                     for (index, step) in steps.into_iter().enumerate() {
                         lines.spawn(detail_row(
                             "Start Role Details Milestone",
                             if index == 0 { "Milestones" } else { "" },
                             step,
-                            UiColor::Body,
+                            UiColorType::TextBody,
                         ));
                     }
                     lines.spawn((
@@ -931,7 +931,7 @@ pub(crate) fn refresh_start_role_details(
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Label),
+                        ThemedText::new(UiColorType::TextMuted),
                         Node {
                             margin: UiRect::top(px(8)),
                             ..default()

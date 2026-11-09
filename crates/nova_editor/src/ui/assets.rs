@@ -21,7 +21,7 @@ use nova_modding::prelude::Content;
 use nova_ship::prelude::GameSections;
 use nova_ui::{
     prelude::*,
-    theme::{self, density, UiColor},
+    theme::{self, density, UiColorType},
 };
 
 use super::{
@@ -327,12 +327,12 @@ fn heading_of(kind: &str) -> &'static str {
 }
 
 /// A kind's colour, the one thing that tells two glyph tiles apart at a glance.
-fn kind_tint(kind: &str) -> UiColor {
+fn kind_tint(kind: &str) -> UiColorType {
     match kind {
-        SCENARIO_KIND | "campaign" => UiColor::Accent,
-        "section" | "ship" | "station" => UiColor::Primary,
-        _ if FILE_KINDS.iter().any(|(held, _)| *held == kind) => UiColor::Label,
-        _ => UiColor::Secondary,
+        SCENARIO_KIND | "campaign" => UiColorType::Accent,
+        "section" | "ship" | "station" => UiColorType::Text,
+        _ if FILE_KINDS.iter().any(|(held, _)| *held == kind) => UiColorType::TextMuted,
+        _ => UiColorType::TextSecondary,
     }
 }
 
@@ -1034,7 +1034,7 @@ pub(crate) fn sync_assets(
                 pane_text(
                     "nothing here: + adds an item, a right click imports a file",
                     density::TEXT,
-                    UiColor::Label,
+                    UiColorType::TextMuted,
                 ),
             ));
         }
@@ -1102,7 +1102,7 @@ fn spawn_kind_row(
 }
 
 /// One line under a tile's picture, already cut to the tile.
-fn tile_line(line: &str, colour: UiColor) -> impl Bundle {
+fn tile_line(line: &str, colour: UiColorType) -> impl Bundle {
     (
         UiText,
         Text::new(line),
@@ -1233,7 +1233,7 @@ fn spawn_tile(
         if unpackaged {
             tile.spawn((
                 Name::new("Asset Tile Unpackaged"),
-                pane_text(UNPACKAGED_MARK, density::TEXT, UiColor::Label),
+                pane_text(UNPACKAGED_MARK, density::TEXT, UiColorType::TextMuted),
                 Node {
                     position_type: PositionType::Absolute,
                     top: px(1),
@@ -1246,7 +1246,7 @@ fn spawn_tile(
         if faulted || missing {
             tile.spawn((
                 Name::new("Asset Tile Fault"),
-                pane_text("!", density::TEXT, UiColor::Danger),
+                pane_text("!", density::TEXT, UiColorType::Danger),
                 Node {
                     position_type: PositionType::Absolute,
                     top: px(1),
@@ -1269,7 +1269,7 @@ fn spawn_tile(
                     ..default()
                 },
                 BackgroundColor(Color::NONE),
-                ThemedFill::new(UiColor::Accent),
+                ThemedFill::new(UiColorType::Accent),
                 Pickable::IGNORE,
             ));
         }
@@ -1288,11 +1288,11 @@ fn spawn_tile(
             None => {
                 tile.spawn((
                     Name::new("Asset Tile Name"),
-                    tile_line(&entry.name, UiColor::Primary),
+                    tile_line(&entry.name, UiColorType::Text),
                 ));
                 tile.spawn((
                     Name::new("Asset Tile Kind"),
-                    tile_line(&entry.note, UiColor::Label),
+                    tile_line(&entry.note, UiColorType::TextMuted),
                 ));
             }
         }

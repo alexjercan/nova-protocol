@@ -6,7 +6,7 @@ use bevy::{
 use nova_ui::{
     prelude::window_root,
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{prelude::*, ThemedText},
 };
 
@@ -134,7 +134,7 @@ fn spawn_pause(mut commands: Commands) {
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Body),
+                        ThemedText::new(UiColorType::TextBody),
                         Node {
                             margin: UiRect::bottom(px(10)),
                             ..default()

@@ -28,7 +28,7 @@ use super::{
 };
 use crate::{
     input_mode::{ClaimKeyboard, InputMode},
-    theme::{density, UiColor, BORDER_W},
+    theme::{density, UiColorType, BORDER_W},
 };
 
 /// What a leaf row carries beside the menu's own components: the observer that
@@ -521,7 +521,7 @@ fn column_node() -> Node {
 }
 
 /// One text of a row.
-fn row_text(line: &str, colour: UiColor) -> impl Bundle {
+fn row_text(line: &str, colour: UiColorType) -> impl Bundle {
     (
         UiText,
         Text::new(line.to_string()),
@@ -568,9 +568,9 @@ fn spawn_rows(
             continue;
         }
         let label_colour = if item.greyed.is_some() {
-            UiColor::Label
+            UiColorType::TextMuted
         } else {
-            UiColor::Primary
+            UiColorType::Text
         };
         let hint = if entry.crumb.is_empty() {
             item.hint.clone()
@@ -604,7 +604,7 @@ fn spawn_rows(
             children![
                 // Body, not Label: the highlight's fill drowns a muted line.
                 (
-                    row_text(&item.lead, UiColor::Body),
+                    row_text(&item.lead, UiColorType::TextBody),
                     Node {
                         width: px(12),
                         flex_shrink: 0.0,
@@ -618,9 +618,9 @@ fn spawn_rows(
                         ..default()
                     },
                 ),
-                row_text(&hint, UiColor::Body),
+                row_text(&hint, UiColorType::TextBody),
                 (
-                    row_text(mark, UiColor::Body),
+                    row_text(mark, UiColorType::TextBody),
                     Node {
                         width: px(10),
                         flex_shrink: 0.0,

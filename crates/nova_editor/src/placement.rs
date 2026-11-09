@@ -18,7 +18,7 @@ use bevy::{
 use nova_input::prelude::InputSource;
 use nova_modding::prelude::Content;
 use nova_ship::prelude::*;
-use nova_ui::{prelude::DoubleClick, theme::UiColor};
+use nova_ui::{prelude::DoubleClick, theme::UiColorType};
 
 use crate::{
     asset::{on_bench, AssetNode, SocketNode},
@@ -939,7 +939,7 @@ pub(crate) fn sync_placement_ghost(
         status.report(founding.then(|| {
             (
                 "click empty space - the first part founds the ship".to_string(),
-                UiColor::Label,
+                UiColorType::TextMuted,
             )
         }));
         return;

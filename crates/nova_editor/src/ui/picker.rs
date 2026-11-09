@@ -24,7 +24,7 @@ use bevy::{
 use nova_ui::{
     prelude::{text_field, TextFieldFocused, TextFieldSpec, TextFieldValue},
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{ThemedBorder, ThemedRadius},
 };
 
@@ -250,7 +250,7 @@ fn spawn_picker(
                 },
                 ThemedRadius::control(),
                 BorderColor::all(Color::NONE),
-                ThemedBorder::alpha(UiColor::Primary, 0.4),
+                ThemedBorder::alpha(UiColorType::Text, 0.4),
             ))
             .with_children(|compare| {
                 compare.spawn((
@@ -360,7 +360,7 @@ fn spawn_area(
             ..default()
         },
         BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(UiColor::Primary, 0.4),
+        ThemedBorder::alpha(UiColorType::Text, 0.4),
         paint,
         observe(on_pick_press),
         observe(on_pick_drag),

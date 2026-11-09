@@ -5,7 +5,7 @@
 use bevy::prelude::*;
 use nova_input::prelude::{gamepad_label, InputDeviceType};
 use nova_ui::{
-    theme::UiColor,
+    theme::UiColorType,
     widget::{
         menu_button, ButtonCueType, ButtonSpec, ButtonVariant, KeyChipLabel, ThemedText, UiText,
     },
@@ -146,7 +146,7 @@ pub(crate) fn detail_row(
     name: &'static str,
     label: &str,
     value: String,
-    color: UiColor,
+    color: UiColorType,
 ) -> impl Bundle {
     let label = label.to_uppercase();
     (
@@ -173,7 +173,7 @@ pub(crate) fn detail_row(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
+                ThemedText::new(UiColorType::TextMuted),
                 Node {
                     width: px(DETAIL_LABEL_W),
                     flex_shrink: 0.0,

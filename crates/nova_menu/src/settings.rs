@@ -21,7 +21,7 @@ use nova_ship::prelude::{
     SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
 };
 use nova_ui::{
-    theme::{GameUiThemes, SelectedUiTheme, UiColor, UiThemeDiagnostic},
+    theme::{GameUiThemes, SelectedUiTheme, UiColorType, UiThemeDiagnostic},
     widget::{
         panel_header, segmented_container, segmented_container_wrapping, segmented_option,
         segmented_option_compact, segmented_option_fit, separator, slider_track, ButtonCueType,
@@ -1024,7 +1024,7 @@ fn build_slider_row(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Primary),
+            ThemedText::new(UiColorType::Text),
             Node {
                 min_width: px(44),
                 ..default()
@@ -1045,7 +1045,7 @@ fn setting_label(name: String, text: &str) -> impl Bundle {
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Body),
+        ThemedText::new(UiColorType::TextBody),
         // Without this a two-word label measures as two lines and sits above
         // the row's centre, although it renders on one.
         TextLayout::no_wrap(),
@@ -1264,7 +1264,7 @@ fn build_interface_tab(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Danger),
+            ThemedText::new(UiColorType::Danger),
             Node {
                 margin: UiRect::top(px(6)),
                 ..default()
@@ -1340,7 +1340,7 @@ fn build_controls_header(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Accent),
+            ThemedText::new(UiColorType::Accent),
             Node {
                 margin: UiRect::top(px(6)),
                 ..default()
@@ -1483,7 +1483,7 @@ fn build_controls_tab(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Body),
+            ThemedText::new(UiColorType::TextBody),
             Node {
                 // Takes the width the buttons leave and wraps inside it.
                 flex_grow: 1.0,
@@ -1749,7 +1749,7 @@ fn spawn_rebind_row(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Body),
+            ThemedText::new(UiColorType::TextBody),
             // The label takes ALL the leftover width, so the two chip columns
             // land at the same x on every row. Sized by the label instead, a
             // long verb pushed its chips right and the column read as ragged.
@@ -1817,7 +1817,13 @@ fn spawn_chip(
                 InteractionDisabled,
             ))
             .with_children(|slot| {
-                spawn_binding_chips(slot, chips, glyphs, UiColor::Label, Some(UiColor::Label));
+                spawn_binding_chips(
+                    slot,
+                    chips,
+                    glyphs,
+                    UiColorType::TextMuted,
+                    Some(UiColorType::TextMuted),
+                );
             });
         });
         return;
@@ -1836,7 +1842,7 @@ fn spawn_chip(
             chip.insert(Selected);
         } else {
             chip.with_children(|slot| {
-                spawn_binding_chips(slot, chips, glyphs, UiColor::Body, None);
+                spawn_binding_chips(slot, chips, glyphs, UiColorType::TextBody, None);
             });
         }
     });
@@ -1852,12 +1858,12 @@ pub(crate) fn spawn_binding_chips(
     slot: &mut ChildSpawnerCommands,
     chips: &[BindingChip],
     glyphs: Option<&KeyGlyphs>,
-    text_color: UiColor,
+    text_color: UiColorType,
     // `None` = the art as drawn. A disabled row passes a tint so the PICTURE
     // greys with its text: while the tint reached the text branch alone, an
     // unchangeable row - Escape, Aim - drew a full-brightness keycap
     // indistinguishable from the rebindable row under it.
-    glyph_tint: Option<UiColor>,
+    glyph_tint: Option<UiColorType>,
 ) {
     if chips.is_empty() {
         slot.spawn((
@@ -2090,7 +2096,7 @@ pub(crate) fn spawn_keybind_row(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Body),
+            ThemedText::new(UiColorType::TextBody),
             Node {
                 flex_grow: 1.0,
                 flex_basis: px(0),
@@ -2123,8 +2129,8 @@ pub(crate) fn spawn_keybind_row(
                         slot,
                         &[chip],
                         glyphs,
-                        UiColor::Label,
-                        Some(UiColor::Label),
+                        UiColorType::TextMuted,
+                        Some(UiColorType::TextMuted),
                     );
                 });
             });

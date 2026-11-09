@@ -11,7 +11,7 @@ use nova_gameplay::prelude::*;
 use nova_scenario::prelude::*;
 use nova_ui::{
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{
         list_row, separator, themed_button, Selected, ThemedBorder, ThemedButton, ThemedFill,
         ThemedRadius, ThemedText, UiText,
@@ -248,7 +248,7 @@ pub(crate) fn refresh_scenarios_list(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
+                ThemedText::new(UiColorType::TextMuted),
             ));
         }
         for campaign in &ordered {
@@ -319,9 +319,9 @@ pub(crate) fn spawn_campaign_header(
         Button,
         Hovered::default(),
         BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColor::Label),
+        ThemedBorder::new(UiColorType::TextMuted),
         BackgroundColor(Color::NONE),
-        ThemedFill::new(UiColor::Surface),
+        ThemedFill::new(UiColorType::Surface),
         observe(on_campaign_header_toggle),
     ))
     .with_children(|header| {
@@ -333,7 +333,7 @@ pub(crate) fn spawn_campaign_header(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Primary),
+            ThemedText::new(UiColorType::Text),
         ));
     });
 }
@@ -397,7 +397,7 @@ pub(crate) fn spawn_scenario_row(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Body),
+                ThemedText::new(UiColorType::TextBody),
             ));
             if !s.description.is_empty() {
                 col.spawn((
@@ -409,7 +409,7 @@ pub(crate) fn spawn_scenario_row(
                         ..default()
                     },
                     TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Secondary),
+                    ThemedText::new(UiColorType::TextSecondary),
                 ));
             }
         });
@@ -451,7 +451,7 @@ pub(crate) fn refresh_scenario_details(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
+                ThemedText::new(UiColorType::TextMuted),
             ));
             details.spawn((
                 Name::new("Scenario Details Actions"),
@@ -470,7 +470,7 @@ pub(crate) fn refresh_scenario_details(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Body),
+            ThemedText::new(UiColorType::TextBody),
         ));
         details.spawn((Name::new("Scenario Details Separator"), separator()));
         // The thumbnail (authored + asset server present; headless test apps have
@@ -504,7 +504,7 @@ pub(crate) fn refresh_scenario_details(
                             ..default()
                         },
                         BorderColor::all(Color::NONE),
-                        ThemedBorder::new(UiColor::Label),
+                        ThemedBorder::new(UiColorType::TextMuted),
                     ));
                 } else {
                     warn!(
@@ -527,7 +527,7 @@ pub(crate) fn refresh_scenario_details(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Body),
+                ThemedText::new(UiColorType::TextBody),
                 Node {
                     margin: UiRect::bottom(px(8)),
                     ..default()

@@ -22,7 +22,7 @@ use bevy::{
 };
 use nova_ui::{
     prelude::*,
-    theme::{self, UiColor},
+    theme::{self, UiColorType},
     widget::{ListRow, Selected, ThemedBorder, ThemedRadius, ThemedText},
 };
 
@@ -309,7 +309,7 @@ fn rail_chip(role: Option<BlockRoleType>) -> impl Bundle {
             ..default()
         },
         BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColor::Label),
+        ThemedBorder::new(UiColorType::TextMuted),
         BackgroundColor(role.map_or(Color::NONE, block_colour)),
         Pickable::IGNORE,
     );
@@ -343,7 +343,7 @@ fn rail_chip(role: Option<BlockRoleType>) -> impl Bundle {
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Primary),
+                ThemedText::new(UiColorType::Text),
                 Pickable::IGNORE,
             ),
         ],

@@ -2152,7 +2152,10 @@ fn a_palette_pick_overrides_its_entry_and_refuses_an_alpha() {
                 id: "t/derived".to_string(),
                 name: "Derived".to_string(),
                 inherit: Some(nova_ui::theme::PHOSPHOR_THEME_ID.to_string()),
-                palette: BTreeMap::from([("primary".to_string(), "#102030".to_string())]),
+                palette: nova_ui::theme::UiPalette {
+                    text: Some("#102030".to_string()),
+                    ..default()
+                },
                 metrics: None,
                 roles: default(),
             },
@@ -2180,17 +2183,17 @@ fn a_palette_pick_overrides_its_entry_and_refuses_an_alpha() {
 
     write(&mut app, field("accent"), "#A0B0C0").expect("a six-digit colour takes");
     assert_eq!(
-        palette(&app).get("accent").map(String::as_str),
+        palette(&app).get(UiColorType::Accent),
         Some("#a0b0c0"),
         "the inherited colour is the theme's own now"
     );
 
-    let refused = write(&mut app, field("primary"), "#11223344");
+    let refused = write(&mut app, field("text"), "#11223344");
     assert!(refused.is_err(), "an alpha is refused");
     assert_eq!(
-        palette(&app).get("primary").map(String::as_str),
+        palette(&app).get(UiColorType::Text),
         Some("#102030"),
         "and the colour it held stays"
     );
-    assert_eq!(field("primary").edit_label(), "Edit Colour primary");
+    assert_eq!(field("text").edit_label(), "Edit Colour text");
 }

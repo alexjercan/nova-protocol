@@ -15,7 +15,7 @@ use nova_ui::{
         ListEditor, ListEntryAdded, ListEntryRemoved, Select, SelectChanged, SelectLabel,
         TextFieldFocused, TextFieldSpec, TextFieldSubmitted, TextFieldValue, UiText,
     },
-    theme::UiColor,
+    theme::UiColorType,
     widget::ThemedText,
 };
 
@@ -139,7 +139,7 @@ struct KnownMod {
 }
 
 /// Words in `colour`.
-fn line(text: impl Into<String>, colour: UiColor) -> impl Bundle {
+fn line(text: impl Into<String>, colour: UiColorType) -> impl Bundle {
     (
         UiText,
         Text::new(text.into()),
@@ -153,7 +153,7 @@ fn line(text: impl Into<String>, colour: UiColor) -> impl Bundle {
 }
 
 /// A cell of a list row: `text` in `colour`, `width` wide, cut at its end.
-fn cell(text: impl Into<String>, colour: UiColor, width: Val) -> impl Bundle {
+fn cell(text: impl Into<String>, colour: UiColorType, width: Val) -> impl Bundle {
     (
         line(text, colour),
         TextLayout {
@@ -174,7 +174,7 @@ fn cell(text: impl Into<String>, colour: UiColor, width: Val) -> impl Bundle {
 fn heading(body: &mut RelatedSpawnerCommands<ChildOf>, name: &str, word: &str) {
     body.spawn((
         Name::new(name.to_string()),
-        line(word, UiColor::Accent),
+        line(word, UiColorType::Accent),
         Node {
             margin: UiRect::top(px(6)),
             ..default()
@@ -218,7 +218,7 @@ fn spawn_body(body: &mut RelatedSpawnerCommands<ChildOf>, meta: &ModMeta, images
     for field in MetaFieldType::ALL {
         body.spawn((
             Name::new(format!("Settings Label {}", field.label())),
-            line(field.label(), UiColor::Label),
+            line(field.label(), UiColorType::TextMuted),
         ));
         let limit = match field {
             MetaFieldType::Description => DESCRIPTION_CHARS,
@@ -232,7 +232,7 @@ fn spawn_body(body: &mut RelatedSpawnerCommands<ChildOf>, meta: &ModMeta, images
     }
     body.spawn((
         Name::new("Settings Label Icon"),
-        line("Icon", UiColor::Label),
+        line("Icon", UiColorType::TextMuted),
     ));
     let (options, chosen) = icon_options(meta.icon.as_deref(), images);
     body.spawn((
@@ -443,9 +443,9 @@ pub(crate) fn sync_settings_window(
                 .with_children(|row| {
                     let found = images.contains(file);
                     let colour = if found {
-                        UiColor::Primary
+                        UiColorType::Text
                     } else {
-                        UiColor::Danger
+                        UiColorType::Danger
                     };
                     row.spawn(cell(file.clone(), colour, percent(100)));
                     row.spawn((
@@ -469,7 +469,7 @@ pub(crate) fn sync_settings_window(
         if declared.is_empty() {
             rows.spawn((
                 Name::new("Dependencies Empty"),
-                line("Only the base game.", UiColor::Label),
+                line("Only the base game.", UiColorType::TextMuted),
             ));
         }
         for (index, dep) in declared.iter().enumerate() {
@@ -477,16 +477,16 @@ pub(crate) fn sync_settings_window(
             rows.spawn((Name::new(format!("Dependency Row {dep}")), list_entry_row()))
                 .with_children(|row| {
                     let (name, version, colour) = match held {
-                        Some(held) => (held.name.clone(), held.version.clone(), UiColor::Primary),
+                        Some(held) => (held.name.clone(), held.version.clone(), UiColorType::Text),
                         None => (
                             "not installed".to_string(),
                             "-".to_string(),
-                            UiColor::Danger,
+                            UiColorType::Danger,
                         ),
                     };
                     row.spawn(cell(name, colour, percent(45)));
-                    row.spawn(cell(dep.clone(), UiColor::Label, percent(35)));
-                    row.spawn(cell(version, UiColor::Label, percent(20)));
+                    row.spawn(cell(dep.clone(), UiColorType::TextMuted, percent(35)));
+                    row.spawn(cell(version, UiColorType::TextMuted, percent(20)));
                     row.spawn((
                         Name::new(format!("Dependency Remove {dep}")),
                         list_remove(dep_list, index),

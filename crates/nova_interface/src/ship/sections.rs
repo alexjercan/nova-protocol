@@ -13,7 +13,7 @@ use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::{InputBindings, InputSource};
 use nova_ship::prelude::*;
-use nova_ui::theme::UiColor;
+use nova_ui::theme::UiColorType;
 
 use crate::terminal::section_kind_from_markers;
 
@@ -284,12 +284,12 @@ impl ShipSectionView {
     }
 
     /// The theme colour of this status on the badge pip and condition bar.
-    pub(crate) fn status_color(&self) -> UiColor {
+    pub(crate) fn status_color(&self) -> UiColorType {
         match self.status() {
-            "nominal" => UiColor::Nominal,
-            "degraded" => UiColor::Accent,
-            "critical" => UiColor::Danger,
-            _ => UiColor::Label,
+            "nominal" => UiColorType::Nominal,
+            "degraded" => UiColorType::Accent,
+            "critical" => UiColorType::Danger,
+            _ => UiColorType::TextMuted,
         }
     }
 }

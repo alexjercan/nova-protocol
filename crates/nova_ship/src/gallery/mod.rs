@@ -26,7 +26,7 @@ use bevy::{
 use nova_gameplay::prelude::ItemPrice;
 use nova_ui::{
     prelude::{owns_or_enters, ClaimKeyboard, InputMode, InputModeSystems},
-    theme::UiColor,
+    theme::UiColorType,
 };
 
 pub use self::{
@@ -161,7 +161,7 @@ pub struct GalleryRecipeItem {
     /// The item's icon mask, tinted `tint`. The host owns the icon set.
     pub icon: Handle<Image>,
     /// The theme colour of the icon.
-    pub tint: UiColor,
+    pub tint: UiColorType,
     /// The item's name.
     pub name: String,
     /// How many the part needs.

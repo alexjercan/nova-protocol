@@ -15,7 +15,7 @@ use bevy::{
     render::render_resource::{Extent3d, TextureDimension, TextureFormat},
 };
 use nova_gameplay::prelude::{ClusterType, ItemCategoryType, JobType, RoleIconType, SectionClass};
-use nova_ui::{theme::UiColor, widget::ThemedImageTint};
+use nova_ui::{theme::UiColorType, widget::ThemedImageTint};
 
 /// How the panes draw a section kind: one icon, tint and legend word per
 /// family, so a weapon reads as a weapon whatever it fires.
@@ -240,15 +240,15 @@ impl SectionIconType {
 
     /// The tint of the family's icon and 3D block. Hull keeps the ink colour,
     /// so the bulk of a ship reads as the hull and the rest stands out.
-    pub(crate) fn color(self) -> UiColor {
+    pub(crate) fn color(self) -> UiColorType {
         match self {
-            Self::Weapon => UiColor::Danger,
-            Self::Thruster => UiColor::Info,
-            Self::Controller => UiColor::AccentHigh,
-            Self::Hull => UiColor::Primary,
-            Self::Docking => UiColor::Nominal,
-            Self::Mining => UiColor::Accent,
-            Self::CargoIntake => UiColor::AccentHigh,
+            Self::Weapon => UiColorType::Danger,
+            Self::Thruster => UiColorType::Info,
+            Self::Controller => UiColorType::AccentLight,
+            Self::Hull => UiColorType::Text,
+            Self::Docking => UiColorType::Nominal,
+            Self::Mining => UiColorType::Accent,
+            Self::CargoIntake => UiColorType::AccentLight,
         }
     }
 
@@ -491,18 +491,18 @@ impl ChartIconType {
     /// The tint of the icon, and of the tile layer or the mark it stands
     /// for: a living station's colour for the station icon, the Map's own
     /// ship colour for you.
-    pub(crate) const fn color(self) -> UiColor {
+    pub(crate) const fn color(self) -> UiColorType {
         match self {
-            Self::Asteroids => UiColor::Accent,
-            Self::Rocks => UiColor::Secondary,
-            Self::Planet => UiColor::Info,
-            Self::Derelicts => UiColor::Body,
-            Self::Sector => UiColor::Label,
-            Self::Station => UiColor::Nominal,
-            Self::Wreck => UiColor::AccentHigh,
-            Self::Job => UiColor::Accent,
-            Self::You => UiColor::Primary,
-            Self::Milestone => UiColor::Nominal,
+            Self::Asteroids => UiColorType::Accent,
+            Self::Rocks => UiColorType::TextSecondary,
+            Self::Planet => UiColorType::Info,
+            Self::Derelicts => UiColorType::TextBody,
+            Self::Sector => UiColorType::TextMuted,
+            Self::Station => UiColorType::Nominal,
+            Self::Wreck => UiColorType::AccentLight,
+            Self::Job => UiColorType::Accent,
+            Self::You => UiColorType::Text,
+            Self::Milestone => UiColorType::Nominal,
         }
     }
 
@@ -663,8 +663,8 @@ impl JobIconType {
     }
 
     /// The tint of every job icon: the accent, as the chart's job mark.
-    pub(crate) const fn color(self) -> UiColor {
-        UiColor::Accent
+    pub(crate) const fn color(self) -> UiColorType {
+        UiColorType::Accent
     }
 
     /// A strapped crate for a procurement, a hook over a cracked hull for a
@@ -1001,7 +1001,7 @@ pub fn init_interface_icons(
 }
 
 /// An icon mask tinted by the theme, `size` px square.
-pub fn icon_node(image: Handle<Image>, tint: UiColor, size: f32) -> impl Bundle {
+pub fn icon_node(image: Handle<Image>, tint: UiColorType, size: f32) -> impl Bundle {
     (
         ImageNode::new(image),
         Node {

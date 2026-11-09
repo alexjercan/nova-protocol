@@ -14,7 +14,7 @@ use nova_gameplay::prelude::{play_menu_deny, play_menu_select, SoundBank, UiSfx}
 use nova_mod_format::BASE_MOD_ID;
 use nova_ui::{
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{
         badge, checkbox, list_row, separator, themed_button, BadgeKind, ButtonCueType, Selected,
         ThemedBorder, ThemedCheckbox, ThemedFill, ThemedRadius, ThemedText, UiText,
@@ -158,7 +158,7 @@ pub(crate) fn spawn_mod_row(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Body),
+                ThemedText::new(UiColorType::TextBody),
             ));
             let line = version_author_line(&m.meta);
             if !line.is_empty() {
@@ -171,7 +171,7 @@ pub(crate) fn spawn_mod_row(
                         ..default()
                     },
                     TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Secondary),
+                    ThemedText::new(UiColorType::TextSecondary),
                 ));
             }
         });
@@ -415,9 +415,9 @@ pub(crate) fn refresh_mods_list(
                             },
                             ThemedRadius::control(),
                             BorderColor::all(Color::NONE),
-                            ThemedBorder::new(UiColor::Label),
+                            ThemedBorder::new(UiColorType::TextMuted),
                             BackgroundColor(Color::NONE),
-                            ThemedFill::new(UiColor::Void),
+                            ThemedFill::new(UiColorType::Background),
                         ))
                         .with_children(|row| {
                             row.spawn((
@@ -428,7 +428,7 @@ pub(crate) fn refresh_mods_list(
                                     ..default()
                                 },
                                 TextColor(Color::NONE),
-                                ThemedText::new(UiColor::Accent),
+                                ThemedText::new(UiColorType::Accent),
                             ));
                             row.spawn((
                                 Name::new("Portal Retry Slot"),
@@ -476,7 +476,7 @@ pub(crate) fn spawn_details_empty(details: &mut ChildSpawnerCommands) {
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Label),
+        ThemedText::new(UiColorType::TextMuted),
     ));
     details.spawn((
         Name::new("Mod Details Actions"),
@@ -528,7 +528,7 @@ pub(crate) fn spawn_details_meta(
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Body),
+        ThemedText::new(UiColorType::TextBody),
     ));
     if !line.is_empty() {
         details.spawn((
@@ -539,7 +539,7 @@ pub(crate) fn spawn_details_meta(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Label),
+            ThemedText::new(UiColorType::TextMuted),
         ));
     }
     details.spawn((Name::new("Mod Details Separator"), separator()));
@@ -552,7 +552,7 @@ pub(crate) fn spawn_details_meta(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Body),
+            ThemedText::new(UiColorType::TextBody),
             Node {
                 margin: UiRect::bottom(px(8)),
                 ..default()
@@ -567,7 +567,7 @@ pub(crate) fn spawn_details_meta(
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Label),
+        ThemedText::new(UiColorType::TextMuted),
     ));
     if meta.dependencies.is_empty() {
         details.spawn((
@@ -578,16 +578,16 @@ pub(crate) fn spawn_details_meta(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Label),
+            ThemedText::new(UiColorType::TextMuted),
         ));
     } else {
         // One line per dep, coloured by whether it is enabled / installed / missing
         // so the player sees what enabling this mod will pull in.
         for dep in &meta.dependencies {
             let (suffix, color) = match dep_status(dep, catalog, enabled) {
-                DepStatus::Enabled => ("enabled", UiColor::Nominal),
-                DepStatus::InstalledDisabled => ("installed, disabled", UiColor::Label),
-                DepStatus::Missing => ("missing", UiColor::Accent),
+                DepStatus::Enabled => ("enabled", UiColorType::Nominal),
+                DepStatus::InstalledDisabled => ("installed, disabled", UiColorType::TextMuted),
+                DepStatus::Missing => ("missing", UiColorType::Accent),
             };
             details.spawn((
                 Name::new(format!("Mod Details Dependency: {dep}")),
@@ -684,7 +684,7 @@ pub(crate) fn refresh_mod_details(
                                     ..default()
                                 },
                                 TextColor(Color::NONE),
-                                ThemedText::new(UiColor::Primary),
+                                ThemedText::new(UiColorType::Text),
                             ));
                         } else {
                             // Fixed-width slot: the percent-width themed

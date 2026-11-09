@@ -18,7 +18,7 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
-    theme::{ActiveUiTheme, UiColor},
+    theme::{ActiveUiTheme, UiColorType},
     widget::{ButtonCueType, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText},
 };
 
@@ -105,11 +105,11 @@ pub(crate) fn manage_map_scene(
         .map(|r| meshes.add(Torus::new(r - half_width, r + half_width)))
         .collect();
     // Under the blips: the rings are a scale reference, not a contact.
-    let ring_mat = materials.add(unlit(theme.color_alpha(UiColor::Secondary, 0.45)));
+    let ring_mat = materials.add(unlit(theme.color_alpha(UiColorType::TextSecondary, 0.45)));
     // A UNIT sphere: `map_focus_follow` scales it to whatever is focused, and
     // a sphere is the one shape uniform scaling cannot distort.
     let hub_mesh = meshes.add(Sphere::new(1.0));
-    let hub_mat = materials.add(unlit(theme.color(UiColor::Primary)));
+    let hub_mat = materials.add(unlit(theme.color(UiColorType::Text)));
 
     let scene_root = commands
         .spawn((
@@ -127,7 +127,7 @@ pub(crate) fn manage_map_scene(
             Camera3d::default(),
             Camera {
                 order: MAP_CAMERA_ORDER,
-                clear_color: ClearColorConfig::Custom(theme.color(UiColor::Surface)),
+                clear_color: ClearColorConfig::Custom(theme.color(UiColorType::Surface)),
                 is_active: true,
                 ..default()
             },
@@ -969,7 +969,7 @@ fn spawn_map_route(commands: &mut Commands, viewport: Entity) {
             ZIndex(-1),
             Pickable::IGNORE,
             BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Accent, 0.8),
+            ThemedFill::alpha(UiColorType::Accent, 0.8),
             ChildOf(viewport),
         ));
     }
@@ -987,12 +987,12 @@ fn spawn_map_route(commands: &mut Commands, viewport: Entity) {
         ZIndex(-1),
         Pickable::IGNORE,
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Void, 0.85),
+        ThemedFill::alpha(UiColorType::Background, 0.85),
         BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(UiColor::Accent, 1.0),
+        ThemedBorder::alpha(UiColorType::Accent, 1.0),
         ChildOf(viewport),
         children![(
-            themed_label("GOTO", 11.0, UiColor::Accent),
+            themed_label("GOTO", 11.0, UiColorType::Accent),
             Pickable::IGNORE
         )],
     ));
@@ -1002,11 +1002,11 @@ fn spawn_map_route(commands: &mut Commands, viewport: Entity) {
 /// edge so it reads against a bright body behind it; the selection is a full
 /// accent edge, and its label also shows on an asteroid, so it does not rely
 /// on colour alone.
-fn blip_border(selected: bool) -> (UiColor, f32) {
+fn blip_border(selected: bool) -> (UiColorType, f32) {
     if selected {
-        (UiColor::Accent, 1.0)
+        (UiColorType::Accent, 1.0)
     } else {
-        (UiColor::Secondary, 0.20)
+        (UiColorType::TextSecondary, 0.20)
     }
 }
 
@@ -1048,7 +1048,7 @@ pub(crate) fn spawn_blip(
             // Hidden until the first projection places it.
             Visibility::Hidden,
             BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Void, 0.75),
+            ThemedFill::alpha(UiColorType::Background, 0.75),
             BorderColor::all(Color::NONE),
             {
                 let (color, alpha) = blip_border(false);
@@ -1079,11 +1079,11 @@ pub(crate) fn spawn_blip(
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Void, 0.85),
+        ThemedFill::alpha(UiColorType::Background, 0.85),
         ChildOf(blip),
         // The blip carries its unique CODE, not the freeform name, so the
         // label you read is the label the contact panel shows.
-        children![themed_label(&contact.code, 12.0, UiColor::Body)],
+        children![themed_label(&contact.code, 12.0, UiColorType::TextBody)],
     ));
     commands.entity(viewport).add_child(blip);
     blip
@@ -1191,14 +1191,14 @@ pub(crate) fn update_map_panel(
         Some(target) => match list.iter().find(|c| c.entity == target) {
             Some(contact) => (
                 format!("GOTO {}  {}", contact.code, contact.range_text()),
-                UiColor::Accent,
+                UiColorType::Accent,
             ),
-            None => ("GOTO target lost".to_string(), UiColor::Accent),
+            None => ("GOTO target lost".to_string(), UiColorType::Accent),
         },
-        None => ("No GOTO set".to_string(), UiColor::Label),
+        None => ("No GOTO set".to_string(), UiColorType::TextMuted),
     };
     let note = match (&runtime.goto_note, &selected) {
-        (Some((goto, _)), _) => (goto.clone(), UiColor::Accent),
+        (Some((goto, _)), _) => (goto.clone(), UiColorType::Accent),
         (None, Some(contact)) => match &contact.marker {
             // The marker label, then each held job that sends the player to
             // this body. A scenario marker names no job and no objective
@@ -1223,14 +1223,14 @@ pub(crate) fn update_map_panel(
                         .chain(lines)
                         .collect::<Vec<_>>()
                         .join("\n"),
-                    UiColor::Label,
+                    UiColorType::TextMuted,
                 )
             }
-            None => (contact.kind.note().to_string(), UiColor::Label),
+            None => (contact.kind.note().to_string(), UiColorType::TextMuted),
         },
         (None, None) => (
             "Click a contact to select it.".to_string(),
-            UiColor::Secondary,
+            UiColorType::TextSecondary,
         ),
     };
 
@@ -1253,7 +1253,9 @@ pub(crate) fn update_map_panel(
             (_, MapPanelField::Note) if runtime.goto_note.is_some() && !runtime.chart => {
                 note.clone()
             }
-            (_, MapPanelField::Destination) if runtime.chart => (String::new(), UiColor::Label),
+            (_, MapPanelField::Destination) if runtime.chart => {
+                (String::new(), UiColorType::TextMuted)
+            }
             (_, MapPanelField::Destination) => destination.clone(),
             _ if runtime.chart => chart_panel_field(
                 &chart,
@@ -1263,23 +1265,23 @@ pub(crate) fn update_map_panel(
                 *field,
             ),
             (_, MapPanelField::Note) => note.clone(),
-            (Some(contact), MapPanelField::Code) => (contact.code.clone(), UiColor::Primary),
-            (Some(contact), MapPanelField::Name) => (contact.name.clone(), UiColor::Body),
+            (Some(contact), MapPanelField::Code) => (contact.code.clone(), UiColorType::Text),
+            (Some(contact), MapPanelField::Name) => (contact.name.clone(), UiColorType::TextBody),
             (Some(contact), MapPanelField::Kind) => {
                 (contact.kind.label().to_string(), contact.kind.color())
             }
             (Some(contact), MapPanelField::Range) => {
-                (format!("Range {}", contact.range_text()), UiColor::Primary)
+                (format!("Range {}", contact.range_text()), UiColorType::Text)
             }
-            (Some(contact), MapPanelField::Bearing) => (contact.bearing_text(), UiColor::Primary),
-            (None, MapPanelField::Code) => ("No contact".to_string(), UiColor::Label),
+            (Some(contact), MapPanelField::Bearing) => (contact.bearing_text(), UiColorType::Text),
+            (None, MapPanelField::Code) => ("No contact".to_string(), UiColorType::TextMuted),
             (
                 None,
                 MapPanelField::Name
                 | MapPanelField::Kind
                 | MapPanelField::Range
                 | MapPanelField::Bearing,
-            ) => (String::new(), UiColor::Body),
+            ) => (String::new(), UiColorType::TextBody),
         };
         if text.0 != value {
             text.0 = value;
@@ -1417,7 +1419,11 @@ pub(crate) fn refresh_map_legend(
             for mark in &marks {
                 legend.spawn(legend_entry()).with_children(|entry| {
                     entry.spawn(icon_node(icons.body(mark.0), mark.1.color(), 16.0));
-                    entry.spawn(themed_label(legend_label(*mark), 12.0, UiColor::Body));
+                    entry.spawn(themed_label(
+                        legend_label(*mark),
+                        12.0,
+                        UiColorType::TextBody,
+                    ));
                 });
             }
         });

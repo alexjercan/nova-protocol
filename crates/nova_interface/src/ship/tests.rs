@@ -14,7 +14,7 @@ use nova_gameplay::{prelude::*, test_support::test_items, PauseStates};
 use nova_input::prelude::{InputSource, RegisterInputActions};
 use nova_ship::prelude::*;
 use nova_ui::{
-    theme::{ActiveUiTheme, UiColor},
+    theme::{ActiveUiTheme, UiColorType},
     widget::{
         ButtonCueType, TextFieldError, TextFieldFocused, TextFieldValue, ThemedFill,
         ThemedImageTint, Tooltip,
@@ -1482,7 +1482,7 @@ fn badge_shows_family_icon_status_pip_and_code() {
         .expect("the badge shows its family icon");
     assert_eq!(
         tint.color,
-        UiColor::Danger,
+        UiColorType::Danger,
         "a turret wears the weapon tint"
     );
     let pip = children
@@ -1492,7 +1492,7 @@ fn badge_shows_family_icon_status_pip_and_code() {
         .expect("the badge has a status pip");
     assert_eq!(
         pip.color,
-        UiColor::Danger,
+        UiColorType::Danger,
         "a critical section's pip reads danger"
     );
 
@@ -1532,7 +1532,7 @@ fn unknown_health_reads_nominal() {
     // panel condition bar.
     let unknown = view_fixture(SectionClass::Thruster, None);
     assert_eq!(unknown.status(), "nominal");
-    assert_eq!(unknown.status_color(), UiColor::Nominal);
+    assert_eq!(unknown.status_color(), UiColorType::Nominal);
 }
 
 #[test]

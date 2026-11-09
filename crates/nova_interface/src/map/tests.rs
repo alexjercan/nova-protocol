@@ -15,7 +15,7 @@ use nova_gameplay::{prelude::*, PauseStates};
 use nova_input::prelude::{BindingSpec, InputBindings, InputSource, RegisterInputActions};
 use nova_ship::prelude::*;
 use nova_ui::{
-    theme::{ActiveUiTheme, UiColor},
+    theme::{ActiveUiTheme, UiColorType},
     widget::{ThemedFill, ThemedText, Tooltip},
 };
 use nova_world_base::prelude::{
@@ -1536,7 +1536,7 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
             .any(|text| text.0 == "DOCK STN-1")
     };
     assert!(take_cues(&mut rig.app).is_empty(), "the rig starts silent");
-    assert_eq!(line(&mut rig), (String::new(), UiColor::Label));
+    assert_eq!(line(&mut rig), (String::new(), UiColorType::TextMuted));
 
     assert!(
         disabled(&rig),
@@ -1572,7 +1572,7 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
     assert_eq!(notice(&rig), None, "a disabled button reports nothing");
     assert_eq!(
         line(&mut rig),
-        (String::new(), UiColor::Label),
+        (String::new(), UiColorType::TextMuted),
         "a disabled button paints nothing"
     );
     assert!(
@@ -1623,7 +1623,7 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
     );
     assert_eq!(
         line(&mut rig),
-        (refusal, UiColor::Danger),
+        (refusal, UiColorType::Danger),
         "the Map line paints the refusal in red"
     );
     assert_eq!(
@@ -1720,7 +1720,7 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
     );
     assert_eq!(
         line(&mut rig),
-        (settled, UiColor::Nominal),
+        (settled, UiColorType::Nominal),
         "the Map line paints the settlement in green"
     );
     assert_eq!(
@@ -1857,7 +1857,11 @@ fn route_strokes(app: &mut App) -> Vec<(Vec2, Vec2, f32)> {
         .iter(world)
         .filter(|(_, _, _, visibility)| **visibility != Visibility::Hidden)
         .map(|(line, transform, fill, _)| {
-            assert_eq!(fill.color, UiColor::Accent, "every route stroke is accent");
+            assert_eq!(
+                fill.color,
+                UiColorType::Accent,
+                "every route stroke is accent"
+            );
             let centre = Vec2::new(
                 px(line.left) + px(line.width) * 0.5,
                 px(line.top) + px(line.height) * 0.5,
@@ -3041,7 +3045,7 @@ fn chart_selection_fills_code_and_range_in_place() {
     let mut q = world.query::<(&MapPanelField, &ThemedText, &ComputedNode)>();
     for (field, themed, computed) in q.iter(world) {
         if *field == MapPanelField::Code || *field == MapPanelField::Range {
-            assert_eq!(themed.color, UiColor::Primary, "{field:?}");
+            assert_eq!(themed.color, UiColorType::Text, "{field:?}");
             assert!((themed.alpha - 1.0).abs() < 1e-6, "{field:?}");
             assert!(computed.size().y > 0.0, "{field:?} laid out at zero height");
         }

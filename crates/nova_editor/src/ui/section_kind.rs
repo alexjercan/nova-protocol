@@ -16,7 +16,7 @@ use bevy::{
 };
 use nova_ui::{
     prelude::*,
-    theme::{self, density, UiColor},
+    theme::{self, density, UiColorType},
 };
 
 use super::layer;
@@ -66,7 +66,7 @@ pub(crate) fn section_kind_hint(kind: &str) -> Option<&'static str> {
 }
 
 /// Words of `size` in `colour`.
-fn words(text: impl Into<String>, size: f32, colour: UiColor) -> impl Bundle {
+fn words(text: impl Into<String>, size: f32, colour: UiColorType) -> impl Bundle {
     (
         UiText,
         Text::new(text.into()),
@@ -102,7 +102,7 @@ pub(crate) fn open_section_kind_modal(commands: &mut Commands) {
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            ThemedFill::alpha(UiColor::Void, 0.7),
+            ThemedFill::alpha(UiColorType::Background, 0.7),
         ))
         .with_children(|scrim| {
             scrim
@@ -123,14 +123,14 @@ pub(crate) fn open_section_kind_modal(commands: &mut Commands) {
                 .with_children(|modal| {
                     modal.spawn((
                         Name::new("Section Kind Title"),
-                        words("NEW SECTION", density::TEXT, UiColor::Accent),
+                        words("NEW SECTION", density::TEXT, UiColorType::Accent),
                     ));
                     modal.spawn((
                         Name::new("Section Kind Prompt"),
                         words(
                             "Pick what the section is. Arrows move, Enter creates.",
                             density::TEXT_SMALL,
-                            UiColor::Label,
+                            UiColorType::TextMuted,
                         ),
                     ));
                     modal
@@ -202,12 +202,12 @@ fn spawn_tile(tiles: &mut RelatedSpawnerCommands<ChildOf>, index: usize, kind: &
             observe(on_tile),
         ))
         .with_children(|tile| {
-            tile.spawn(words(spaced(kind), density::TEXT, UiColor::Primary));
+            tile.spawn(words(spaced(kind), density::TEXT, UiColorType::Text));
             // Body, not Label: a picked tile's fill drowns a muted line.
             tile.spawn(words(
                 section_kind_hint(kind).unwrap_or_default(),
                 density::TEXT_SMALL,
-                UiColor::Body,
+                UiColorType::TextBody,
             ));
         });
 }

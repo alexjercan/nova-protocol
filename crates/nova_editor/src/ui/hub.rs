@@ -18,7 +18,7 @@ use nova_ui::{
         scroll_viewport, spawn_popup, text_field, ButtonSpec, DoubleClick, ListRow, PopupRoot,
         TextFieldFocused, TextFieldSpec, TextFieldValue, UiText,
     },
-    theme::{self, density, ActiveUiTheme, UiColor},
+    theme::{self, density, ActiveUiTheme, UiColorType},
     widget::{ButtonCueType, Selected, ThemedFill, ThemedRadius, ThemedText},
 };
 
@@ -109,7 +109,7 @@ pub(crate) enum HubVerb {
 }
 
 /// Words of `size` in `colour`.
-fn line(text: impl Into<String>, size: f32, colour: UiColor) -> impl Bundle {
+fn line(text: impl Into<String>, size: f32, colour: UiColorType) -> impl Bundle {
     (
         UiText,
         Text::new(text.into()),
@@ -164,7 +164,7 @@ pub(crate) fn spawn_hub(mut commands: Commands, mut form: ResMut<HubForm>) {
                 ..default()
             },
             BackgroundColor(Color::NONE),
-            ThemedFill::new(UiColor::Void),
+            ThemedFill::new(UiColorType::Background),
         ))
         .with_children(|hub| {
             spawn_head(hub, &form.line);
@@ -200,14 +200,14 @@ fn spawn_head(hub: &mut RelatedSpawnerCommands<ChildOf>, status: &str) {
         ));
         head.spawn((
             Name::new("Hub Title"),
-            line("MODS", density::TEXT, UiColor::Body),
+            line("MODS", density::TEXT, UiColorType::TextBody),
         ));
         head.spawn((Name::new("Hub Line Slot"), column(None)))
             .with_children(|slot| {
                 slot.spawn((
                     Name::new("Hub Line"),
                     HubLine,
-                    line(status, density::TEXT_SMALL, UiColor::Accent),
+                    line(status, density::TEXT_SMALL, UiColorType::Accent),
                 ));
             });
         let mut import = head.spawn((
@@ -247,9 +247,11 @@ fn spawn_list(hub: &mut RelatedSpawnerCommands<ChildOf>) {
             ("VERSION", Some(VERSION_W)),
             ("LAST OPENED", Some(OPENED_W)),
         ] {
-            heads
-                .spawn(column(width))
-                .with_child(line(word, density::TEXT_SMALL, UiColor::Label));
+            heads.spawn(column(width)).with_child(line(
+                word,
+                density::TEXT_SMALL,
+                UiColorType::TextMuted,
+            ));
         }
     });
     hub.spawn((
@@ -293,7 +295,7 @@ fn spawn_new_modal(commands: &mut Commands, template: ScenarioTemplate) {
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            ThemedFill::alpha(UiColor::Void, 0.7),
+            ThemedFill::alpha(UiColorType::Background, 0.7),
             observe(on_modal_scrim),
         ))
         .with_children(|scrim| {
@@ -315,7 +317,7 @@ fn spawn_new_modal(commands: &mut Commands, template: ScenarioTemplate) {
                 .with_children(|modal| {
                     modal.spawn((
                         Name::new("Hub New Title"),
-                        line("NEW MOD", density::TEXT, UiColor::Accent),
+                        line("NEW MOD", density::TEXT, UiColorType::Accent),
                     ));
                     modal.spawn((
                         Name::new("Hub Name Field"),
@@ -335,7 +337,7 @@ fn spawn_new_modal(commands: &mut Commands, template: ScenarioTemplate) {
                             min_height: px(density::TEXT_SMALL + 3.0),
                             ..default()
                         },
-                        line("", density::TEXT_SMALL, UiColor::Label),
+                        line("", density::TEXT_SMALL, UiColorType::TextMuted),
                     ));
                     modal
                         .spawn((
@@ -413,7 +415,7 @@ fn spawn_template_tile(
     }
     tile.with_children(|tile| {
         tile.spawn((
-            line(template.label(), density::TEXT, UiColor::Primary),
+            line(template.label(), density::TEXT, UiColorType::Text),
             Pickable::IGNORE,
         ));
         tile.spawn((
@@ -425,7 +427,7 @@ fn spawn_template_tile(
             },
             TextColor(Color::NONE),
             // Not Label: a picked tile's fill drowns it.
-            ThemedText::new(UiColor::Body),
+            ThemedText::new(UiColorType::TextBody),
             Pickable::IGNORE,
         ));
     });
@@ -500,7 +502,7 @@ pub(crate) fn sync_hub_rows(
                 line(
                     "No mods here yet. Press New to start one.",
                     density::TEXT,
-                    UiColor::Label,
+                    UiColorType::TextMuted,
                 ),
             ));
         }
@@ -547,12 +549,12 @@ fn spawn_row(list: &mut RelatedSpawnerCommands<ChildOf>, entry: &HubEntry) {
         })
         .with_children(|name| {
             name.spawn((
-                line(entry.name.clone(), density::TEXT + 1.0, UiColor::Primary),
+                line(entry.name.clone(), density::TEXT + 1.0, UiColorType::Text),
                 Pickable::IGNORE,
             ));
             let (detail, tint) = entry.fault.as_ref().map_or_else(
-                || (entry.id.clone(), UiColor::Label),
-                |fault| (fault.clone(), UiColor::Danger),
+                || (entry.id.clone(), UiColorType::TextMuted),
+                |fault| (fault.clone(), UiColorType::Danger),
             );
             name.spawn((line(detail, density::TEXT_SMALL, tint), Pickable::IGNORE));
         });
@@ -561,14 +563,14 @@ fn spawn_row(list: &mut RelatedSpawnerCommands<ChildOf>, entry: &HubEntry) {
                 line(
                     format!("v{}", entry.version),
                     density::TEXT,
-                    UiColor::Secondary,
+                    UiColorType::TextSecondary,
                 ),
                 Pickable::IGNORE,
             ));
         let opened = entry.opened.map_or_else(|| "-".to_string(), date_of);
         row.spawn((column(Some(OPENED_W)), Pickable::IGNORE))
             .with_child((
-                line(opened, density::TEXT, UiColor::Secondary),
+                line(opened, density::TEXT, UiColorType::TextSecondary),
                 Pickable::IGNORE,
             ));
     });
@@ -596,7 +598,7 @@ pub(crate) fn sync_hub_form(
     }
     let typed = names.iter().next().map_or("", |value| value.0.as_str());
     let (preview, colour, usable) = if typed.trim().is_empty() {
-        (String::new(), UiColor::Label, false)
+        (String::new(), UiColorType::TextMuted, false)
     } else {
         id_line(typed, &known.1)
     };

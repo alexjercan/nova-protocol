@@ -13,7 +13,7 @@ use bevy::{
     prelude::*,
     ui::{ComputedNode, UiGlobalTransform},
 };
-use nova_ui::theme::{ActiveUiTheme, UiColor};
+use nova_ui::theme::{ActiveUiTheme, UiColorType};
 
 use super::{catalog, GalleryHost, GalleryState};
 use crate::prelude::*;
@@ -384,7 +384,7 @@ pub(crate) fn draw_focus_sockets(
         return;
     };
     let eye = camera.translation();
-    let colour = theme.color(UiColor::Nominal);
+    let colour = theme.color(UiColorType::Nominal);
 
     for (item, pose) in &items {
         if !item.focused {

@@ -12,7 +12,7 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_ui::{
-    theme::UiColor,
+    theme::UiColorType,
     widget::{badge, slider_track, BadgeKind, ThemedRadius},
 };
 use nova_world_base::prelude::CivilizationField;
@@ -187,14 +187,14 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
             ..control_row(JustifyContent::FlexStart)
         })
         .with_children(|row| {
-            row.spawn(themed_label("MARKET", 11.0, UiColor::Label));
-            row.spawn(themed_label("Buys", 12.0, UiColor::Body));
+            row.spawn(themed_label("MARKET", 11.0, UiColorType::TextMuted));
+            row.spawn(themed_label("Buys", 12.0, UiColorType::TextBody));
             for lead in &draw.pays_most {
                 row.spawn(badge(BadgeKind::Amber, &lead_text(lead)));
             }
-            row.spawn(themed_label("Sells", 12.0, UiColor::Body));
+            row.spawn(themed_label("Sells", 12.0, UiColorType::TextBody));
             if draw.sells_cheapest.is_empty() {
-                row.spawn(themed_label("Empty", 12.0, UiColor::Label));
+                row.spawn(themed_label("Empty", 12.0, UiColorType::TextMuted));
             }
             for lead in &draw.sells_cheapest {
                 row.spawn(badge(BadgeKind::Green, &lead_text(lead)));
@@ -220,7 +220,7 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
             ..control_row(JustifyContent::FlexStart)
         })
         .with_children(|row| {
-            row.spawn(themed_label("Restock", 12.0, UiColor::Body));
+            row.spawn(themed_label("Restock", 12.0, UiColorType::TextBody));
             match &draw.restock {
                 Some(restock) => {
                     row.spawn((
@@ -237,7 +237,7 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
                             restock.name, restock.stock, restock.target, restock.minutes_away
                         ),
                         12.0,
-                        UiColor::Label,
+                        UiColorType::TextMuted,
                     ));
                 }
                 None => {
@@ -249,7 +249,7 @@ fn spawn_strip_rows(strip: &mut ChildSpawnerCommands, draw: &MarketStripDraw) {
                         },
                         children![slider_track(1.0)],
                     ));
-                    row.spawn(themed_label("Stocked", 12.0, UiColor::Label));
+                    row.spawn(themed_label("Stocked", 12.0, UiColorType::TextMuted));
                 }
             }
         });

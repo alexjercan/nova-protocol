@@ -36,7 +36,7 @@ use nova_scenario::prelude::{GameScenarios, GameShipDesigns, GameStartRoles};
 use nova_ui::{
     screen::{scroll_column, scroll_viewport, EllipsisText},
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{
         badge, list_row, separator, themed_button, BadgeKind, ButtonCueType, ButtonSpec,
         ButtonVariant, Selected, ThemedBorder, ThemedRadius, ThemedText, UiText,
@@ -461,7 +461,7 @@ pub(crate) fn spawn_primary_actions(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Secondary),
+            ThemedText::new(UiColorType::TextSecondary),
             Node {
                 margin: UiRect::bottom(px(6)),
                 ..default()
@@ -761,7 +761,7 @@ fn head_cell(text: &str, width: Option<f32>) -> impl Bundle {
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Label),
+        ThemedText::new(UiColorType::TextMuted),
         Node {
             width: width.map_or(Val::Auto, px),
             flex_grow: if width.is_some() { 0.0 } else { 1.0 },
@@ -772,7 +772,7 @@ fn head_cell(text: &str, width: Option<f32>) -> impl Bundle {
 }
 
 /// One fixed cell of a world row, at `width`.
-fn row_cell(name: &'static str, text: String, width: f32, color: UiColor) -> impl Bundle {
+fn row_cell(name: &'static str, text: String, width: f32, color: UiColorType) -> impl Bundle {
     (
         Name::new(name),
         UiText,
@@ -812,7 +812,7 @@ fn spawn_load_note(commands: &mut Commands, list: Entity, text: &str) {
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Label),
+            ThemedText::new(UiColorType::TextMuted),
             Node {
                 padding: UiRect::axes(px(13), px(10)),
                 ..default()
@@ -898,7 +898,7 @@ fn spawn_load_row(
         if let Some(role) = role {
             slot.with_child((
                 Name::new("Load World Row Icon"),
-                icon_node(icons.role(role.icon), UiColor::Accent, ROLE_ICON_PX),
+                icon_node(icons.role(role.icon), UiColorType::Accent, ROLE_ICON_PX),
             ));
         }
         row.spawn((
@@ -926,7 +926,7 @@ fn spawn_load_row(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Body),
+                ThemedText::new(UiColorType::TextBody),
             ));
             info.spawn(row_line("Load World Row Status", status));
         });
@@ -935,13 +935,13 @@ fn spawn_load_row(
                 "Load World Row Play Time",
                 play_time_text(header.play_seconds),
                 ROW_TIME_W,
-                UiColor::Body,
+                UiColorType::TextBody,
             ));
             row.spawn(row_cell(
                 "Load World Row Saved",
                 saved_ago_text(now, header.saved_at_unix),
                 ROW_TIME_W,
-                UiColor::Body,
+                UiColorType::TextBody,
             ));
         }
         row.spawn((
@@ -966,7 +966,7 @@ fn spawn_load_row(
                             "Load World Row Open",
                             open_count_text(header),
                             ROW_BADGE_SLOT_W,
-                            UiColor::Body,
+                            UiColorType::TextBody,
                         ));
                     }
                     Err(_) => {
@@ -1045,7 +1045,7 @@ fn details_heading(name: &'static str, text: &str) -> impl Bundle {
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Label),
+        ThemedText::new(UiColorType::TextMuted),
         Node {
             margin: UiRect::top(px(4)),
             ..default()
@@ -1076,7 +1076,7 @@ fn objective_row(details: &mut ChildSpawnerCommands, title: &str, counts: &str) 
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Primary),
+                ThemedText::new(UiColorType::Text),
                 Node {
                     flex_grow: 1.0,
                     min_width: px(0),
@@ -1093,7 +1093,7 @@ fn objective_row(details: &mut ChildSpawnerCommands, title: &str, counts: &str) 
                         ..default()
                     },
                     TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Body),
+                    ThemedText::new(UiColorType::TextBody),
                 ));
             }
         });
@@ -1120,13 +1120,13 @@ fn row_line(name: &'static str, text: String) -> impl Bundle {
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Secondary),
+        ThemedText::new(UiColorType::TextSecondary),
     )
 }
 
 /// A one-line note in the details pane at `color`: the refusal of a world,
 /// the reason a delete refused, or the delete prompt.
-fn details_note(name: &'static str, text: String, color: UiColor) -> impl Bundle {
+fn details_note(name: &'static str, text: String, color: UiColorType) -> impl Bundle {
     (
         Name::new(name),
         UiText,
@@ -1214,7 +1214,7 @@ pub(crate) fn refresh_load_details(
             body.with_child(details_note(
                 "Load World Delete Refusal",
                 format!("Cannot delete {slug}: {reason}"),
-                UiColor::Accent,
+                UiColorType::Accent,
             ));
         }
 
@@ -1238,7 +1238,7 @@ pub(crate) fn refresh_load_details(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Primary),
+                ThemedText::new(UiColorType::Text),
             ));
             body.spawn((Name::new("Load World Details Separator"), separator()));
 
@@ -1256,13 +1256,13 @@ pub(crate) fn refresh_load_details(
                                 ..default()
                             },
                         ),
-                        ThemedBorder::new(UiColor::Label),
+                        ThemedBorder::new(UiColorType::TextMuted),
                         ThemedRadius::control(),
                     ));
                     body.spawn(details_note(
                         "Load World Details Preview Hint",
                         "Right-drag turns, wheel zooms.".to_string(),
-                        UiColor::Label,
+                        UiColorType::TextMuted,
                     ));
                     let now = now_unix();
                     for (label, value) in [
@@ -1284,7 +1284,7 @@ pub(crate) fn refresh_load_details(
                             "Load World Details Line",
                             label,
                             value,
-                            UiColor::Body,
+                            UiColorType::TextBody,
                         ));
                     }
                     body.spawn((Name::new("Load World Details Fleet Rule"), separator()));
@@ -1293,7 +1293,7 @@ pub(crate) fn refresh_load_details(
                         "Load World Details Fleet Ship",
                         "Ship",
                         header.hull.clone(),
-                        UiColor::Primary,
+                        UiColorType::Text,
                     ));
                     for (name, label, count) in [
                         (
@@ -1317,7 +1317,7 @@ pub(crate) fn refresh_load_details(
                                 name,
                                 label,
                                 count.to_string(),
-                                UiColor::Primary,
+                                UiColorType::Text,
                             ));
                         }
                     }
@@ -1330,7 +1330,7 @@ pub(crate) fn refresh_load_details(
                         body.spawn(details_note(
                             "Load World Details No Objectives",
                             "No open objectives".to_string(),
-                            UiColor::Label,
+                            UiColorType::TextMuted,
                         ));
                     }
                     for objective in &header.objectives {
@@ -1341,7 +1341,7 @@ pub(crate) fn refresh_load_details(
                             "Load World Details Checking",
                             "State",
                             CHECKING_TEXT.to_string(),
-                            UiColor::Label,
+                            UiColorType::TextMuted,
                         ));
                     }
                 }
@@ -1349,7 +1349,7 @@ pub(crate) fn refresh_load_details(
                     body.spawn(details_note(
                         "Load World Details Refusal",
                         refusal.to_string(),
-                        UiColor::Accent,
+                        UiColorType::Accent,
                     ));
                 }
             }
@@ -1392,7 +1392,7 @@ pub(crate) fn refresh_load_details(
             details.spawn(details_note(
                 "Load World Delete Prompt",
                 format!("Delete {title}? This removes its save files and cannot be undone."),
-                UiColor::Body,
+                UiColorType::TextBody,
             ));
             details
                 .spawn(actions_row(

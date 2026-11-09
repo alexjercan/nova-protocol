@@ -615,17 +615,17 @@ fn the_strip_block_counts_sections_and_parts_and_names_a_held_strip() {
     app.update();
     assert_eq!(
         block_text(&mut app, StripBlockField::Time),
-        ("Held".to_string(), UiColor::Danger)
+        ("Held".to_string(), UiColorType::Danger)
     );
     let (hold_text, hold_color) = block_text(&mut app, StripBlockField::Hold);
     assert!(hold_text.contains("needs"), "{hold_text}");
-    assert_eq!(hold_color, UiColor::Danger);
+    assert_eq!(hold_color, UiColorType::Danger);
     let mut q = app.world_mut().query::<(&StripBlockFill, &ThemedFill)>();
     let hold_fill = q
         .iter(app.world())
         .find(|(fill, _)| **fill == StripBlockFill::Hold)
         .map(|(_, themed)| themed.color);
-    assert_eq!(hold_fill, Some(UiColor::Danger));
+    assert_eq!(hold_fill, Some(UiColorType::Danger));
 }
 
 /// A strip demolishes the station and every hull parked there with it, so it

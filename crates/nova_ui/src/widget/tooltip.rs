@@ -17,7 +17,7 @@ use bevy::{
 use super::{panel, ThemedRadius, ThemedText, UiText};
 use crate::{
     layer::TOOLTIP_Z,
-    theme::{UiColor, BORDER_W},
+    theme::{UiColorType, BORDER_W},
 };
 
 /// The hover hint of a node. An empty text shows no panel, so a caller keeps
@@ -67,7 +67,7 @@ pub(super) fn spawn_tooltip_panel(add: On<Add<Tooltip>>, mut commands: Commands)
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Body),
+            ThemedText::new(UiColorType::TextBody),
             Pickable::IGNORE,
         )],
     ));

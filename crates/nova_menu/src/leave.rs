@@ -33,7 +33,7 @@ use nova_scenario::prelude::{
 use nova_ui::{
     prelude::{window_root, PAUSE_Z},
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{panel, ButtonVariant, ThemedRadius, ThemedText, UiText},
 };
 use nova_world_base::prelude::{
@@ -285,9 +285,9 @@ pub(crate) fn sync_leave_overlay(
                         },
                         TextColor(Color::NONE),
                         ThemedText::new(if failed {
-                            UiColor::Danger
+                            UiColorType::Danger
                         } else {
-                            UiColor::Body
+                            UiColorType::TextBody
                         }),
                     ));
                     parent.spawn((
@@ -299,7 +299,7 @@ pub(crate) fn sync_leave_overlay(
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Label),
+                        ThemedText::new(UiColorType::TextMuted),
                     ));
                     if failed {
                         parent.spawn((

@@ -34,7 +34,7 @@ use nova_ship::prelude::{
     insert_preview_section, spawn_display_skin, DesignSection, GameStyles, PreviewRole, ShipStyle,
 };
 use nova_ui::{
-    theme::{ActiveUiTheme, UiColor},
+    theme::{ActiveUiTheme, UiColorType},
     widget::{ThemedFill, ThemedText, UiText},
 };
 
@@ -222,7 +222,9 @@ pub(crate) fn build_menu_previews(
                         Camera3d::default(),
                         Camera {
                             order,
-                            clear_color: ClearColorConfig::Custom(theme.color(UiColor::Surface)),
+                            clear_color: ClearColorConfig::Custom(
+                                theme.color(UiColorType::Surface),
+                            ),
                             ..default()
                         },
                         RenderTarget::Image(ImageRenderTarget {
@@ -296,7 +298,7 @@ pub(crate) fn build_menu_previews(
                         },
                         Visibility::Hidden,
                         BackgroundColor(Color::NONE),
-                        ThemedFill::alpha(UiColor::Void, 0.8),
+                        ThemedFill::alpha(UiColorType::Background, 0.8),
                         Pickable::IGNORE,
                         ChildOf(node),
                         children![(

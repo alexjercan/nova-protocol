@@ -24,7 +24,7 @@ use nova_ui::{
     prelude::{window_root, PAUSE_SETTINGS_Z, PAUSE_Z},
     screen::{footer_back_slot, scroll_bar, scroll_column, scroll_viewport},
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{panel, panel_head, ButtonVariant, ThemedRadius, ThemedText, UiText},
 };
 #[cfg(not(target_arch = "wasm32"))]
@@ -530,7 +530,7 @@ pub(crate) fn reconcile_pause_overlay(
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Body),
+                        ThemedText::new(UiColorType::TextBody),
                     ));
                     parent.spawn((
                         Name::new("Resume Button"),

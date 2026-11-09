@@ -22,7 +22,7 @@ use nova_command::prelude::TerminalRowKind;
 use nova_gameplay::prelude::*;
 use nova_ui::{
     screen::drive_wheel_scroll,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{
         button, slider_track, text_field, ButtonCueType, ButtonSpec, TextFieldSpec, ThemedFill,
         ThemedRadius, Tooltip,
@@ -125,7 +125,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         .with_children(|detail| {
                             detail.spawn((
                                 ShipPanelField::Title,
-                                themed_label("", 16.0, UiColor::Primary),
+                                themed_label("", 16.0, UiColorType::Text),
                             ));
                             detail
                                 .spawn((
@@ -136,7 +136,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                                         ..default()
                                     },
                                     BackgroundColor(Color::NONE),
-                                    ThemedFill::alpha(UiColor::Secondary, 0.25),
+                                    ThemedFill::alpha(UiColorType::TextSecondary, 0.25),
                                     ThemedRadius::control(),
                                 ))
                                 .with_children(|track| {
@@ -148,7 +148,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                                             ..default()
                                         },
                                         BackgroundColor(Color::NONE),
-                                        ThemedFill::new(UiColor::Nominal),
+                                        ThemedFill::new(UiColorType::Nominal),
                                     ));
                                 });
                         });
@@ -163,7 +163,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                     ))
                     .with_children(|fact| {
                         fact.spawn((
-                            themed_label("Control", 12.0, UiColor::Label),
+                            themed_label("Control", 12.0, UiColorType::TextMuted),
                             Node {
                                 flex_shrink: 0.0,
                                 ..default()
@@ -172,7 +172,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         fact.spawn((
                             ShipPanelField::Control,
                             Name::new("ShipControl"),
-                            themed_label("", 13.0, UiColor::Primary),
+                            themed_label("", 13.0, UiColorType::Text),
                             TextLayout::new(Justify::Right, LineBreak::NoWrap),
                             Node {
                                 min_width: Val::Px(0.0),
@@ -214,7 +214,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                     ))
                     .with_children(|block| {
                         block.spawn(divider());
-                        block.spawn(themed_label("Salvage", 12.0, UiColor::Label));
+                        block.spawn(themed_label("Salvage", 12.0, UiColorType::TextMuted));
                         // One part per line, so two parts never read as one.
                         block.spawn((
                             ShipSalvageTiles::default(),
@@ -237,7 +237,10 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             });
                     });
                 // Under the actions: a result shows where the press was.
-                panel.spawn((ShipPanelField::Note, themed_label("", 12.0, UiColor::Label)));
+                panel.spawn((
+                    ShipPanelField::Note,
+                    themed_label("", 12.0, UiColorType::TextMuted),
+                ));
                 panel
                     .spawn((
                         ShipPanelField::RepairForm,
@@ -251,7 +254,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                     ))
                     .with_children(|form| {
                         form.spawn(divider());
-                        form.spawn(themed_label("Repair", 13.0, UiColor::Accent));
+                        form.spawn(themed_label("Repair", 13.0, UiColorType::Accent));
                         form.spawn(Node {
                             flex_wrap: FlexWrap::Wrap,
                             row_gap: Val::Px(6.0),
@@ -271,7 +274,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                             });
                             row.spawn((
                                 ShipPanelField::RepairStock,
-                                themed_label("", 15.0, UiColor::Primary),
+                                themed_label("", 15.0, UiColorType::Text),
                                 Node {
                                     flex_grow: 1.0,
                                     ..default()
@@ -299,7 +302,7 @@ pub(crate) fn spawn_ship_panel(parent: &mut ChildSpawnerCommands, icons: &Interf
                         .observe(on_ship_repair_slider);
                         form.spawn((
                             ShipPanelField::RepairPreview,
-                            themed_label("", 13.0, UiColor::Body),
+                            themed_label("", 13.0, UiColorType::TextBody),
                             Node {
                                 min_height: Val::Px(13.0 * 1.2 * SUMMARY_LINES),
                                 ..default()
@@ -343,13 +346,13 @@ pub(crate) fn spawn_ship_rebind_prompt(view: &mut ChildSpawnerCommands) {
     .with_children(|row| {
         row.spawn((
             ShipPanelField::RebindPrompt,
-            themed_label("", 14.0, UiColor::Accent),
+            themed_label("", 14.0, UiColorType::Accent),
             Node {
                 padding: UiRect::axes(Val::Px(10.0), Val::Px(4.0)),
                 ..default()
             },
             BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Void, 0.85),
+            ThemedFill::alpha(UiColorType::Background, 0.85),
             Pickable::IGNORE,
         ));
     });

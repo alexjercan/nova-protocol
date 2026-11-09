@@ -24,7 +24,7 @@ use bevy::{
 };
 use nova_ui::{
     prelude::*,
-    theme::{self, density, UiColor},
+    theme::{self, density, UiColorType},
 };
 
 use super::{assets::UNPACKAGED_MARK, layer, settings::MetaFieldType};
@@ -67,7 +67,7 @@ pub(crate) struct PackageModal {
     /// What the last Package press did.
     outcome: Option<Result<PackageDone, String>>,
     /// What Copy Path or Open Folder said.
-    said: Option<(String, UiColor)>,
+    said: Option<(String, UiColorType)>,
 }
 
 /// The panel the window draws into.
@@ -98,7 +98,7 @@ impl Plugin for PackageWindowPlugin {
 }
 
 /// Words of `size` in `colour`.
-fn words(text: impl Into<String>, size: f32, colour: UiColor) -> impl Bundle {
+fn words(text: impl Into<String>, size: f32, colour: UiColorType) -> impl Bundle {
     (
         UiText,
         Text::new(text.into()),
@@ -154,7 +154,7 @@ pub(crate) fn open_package_modal(world: &mut World) {
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            ThemedFill::alpha(UiColor::Void, 0.7),
+            ThemedFill::alpha(UiColorType::Background, 0.7),
         ))
         .with_child((
             Name::new("Package Panel"),
@@ -275,7 +275,7 @@ fn spawn_field(
                 flex_shrink: 0.0,
                 ..default()
             },
-            children![words(label, density::TEXT_SMALL, UiColor::Label)],
+            children![words(label, density::TEXT_SMALL, UiColorType::TextMuted)],
         ));
         row.spawn(Node {
             flex_grow: 1.0,
@@ -294,14 +294,14 @@ fn spawn_field(
 fn spawn_settings(body: &mut RelatedSpawnerCommands<ChildOf>, modal: &PackageModal) {
     body.spawn((
         Name::new("Package Title"),
-        words("PACKAGE MOD", density::TEXT, UiColor::Accent),
+        words("PACKAGE MOD", density::TEXT, UiColorType::Accent),
     ));
     match &modal.plan {
         Some(Ok(plan)) => spawn_plan(body, plan),
         Some(Err(reason)) => {
             body.spawn((
                 Name::new("Package Plan Fault"),
-                words(reason.clone(), density::TEXT_SMALL, UiColor::Danger),
+                words(reason.clone(), density::TEXT_SMALL, UiColorType::Danger),
             ));
         }
         None => {}
@@ -309,7 +309,7 @@ fn spawn_settings(body: &mut RelatedSpawnerCommands<ChildOf>, modal: &PackageMod
     if let Some(Err(reason)) = &modal.outcome {
         body.spawn((
             Name::new("Package Refusal"),
-            words(reason.clone(), density::TEXT_SMALL, UiColor::Danger),
+            words(reason.clone(), density::TEXT_SMALL, UiColorType::Danger),
         ));
     }
     body.spawn((
@@ -342,15 +342,15 @@ fn spawn_settings(body: &mut RelatedSpawnerCommands<ChildOf>, modal: &PackageMod
 }
 
 /// What the check found, as the window's Check line.
-pub(crate) fn check_line(errors: usize, warnings: usize) -> (String, UiColor) {
+pub(crate) fn check_line(errors: usize, warnings: usize) -> (String, UiColorType) {
     let count = |count: usize, word: &str| match count {
         1 => format!("1 {word}"),
         count => format!("{count} {word}s"),
     };
     let line = format!("{}, {}", count(errors, "error"), count(warnings, "warning"));
     match errors {
-        0 => (format!("passes: {line}"), UiColor::Nominal),
-        _ => (format!("blocked: {line}"), UiColor::Danger),
+        0 => (format!("passes: {line}"), UiColorType::Nominal),
+        _ => (format!("blocked: {line}"), UiColorType::Danger),
     }
 }
 
@@ -397,13 +397,13 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
             words(
                 "a bump steps a version of up to three numbers, like 1.0.0",
                 density::TEXT_SMALL,
-                UiColor::Label,
+                UiColorType::TextMuted,
             ),
         ));
     }
     let (folder, tint) = match &plan.folder {
-        Ok(folder) => (folder.display().to_string(), UiColor::Primary),
-        Err(reason) => (reason.clone(), UiColor::Danger),
+        Ok(folder) => (folder.display().to_string(), UiColorType::Text),
+        Err(reason) => (reason.clone(), UiColorType::Danger),
     };
     spawn_field(body, "Package Output", "Output", |row| {
         row.spawn((
@@ -417,7 +417,7 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
             words(
                 plan.file_name.clone(),
                 density::TEXT_SMALL,
-                UiColor::Primary,
+                UiColorType::Text,
             ),
         ));
     });
@@ -435,7 +435,11 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
                 margin: UiRect::left(px(LABEL_W + density::GAP)),
                 ..default()
             },
-            children![words(error.clone(), density::TEXT_SMALL, UiColor::Danger)],
+            children![words(
+                error.clone(),
+                density::TEXT_SMALL,
+                UiColorType::Danger
+            )],
         ));
     }
     if plan.errors.len() > SHOWN_ERRORS {
@@ -448,7 +452,7 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
             children![words(
                 format!("+{} more in Problems", plan.errors.len() - SHOWN_ERRORS),
                 density::TEXT_SMALL,
-                UiColor::Label,
+                UiColorType::TextMuted,
             )],
         ));
     }
@@ -460,7 +464,7 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
     };
     body.spawn((
         Name::new("Package Files Title"),
-        words(title, density::TEXT_SMALL, UiColor::Label),
+        words(title, density::TEXT_SMALL, UiColorType::TextMuted),
     ));
     body.spawn((Name::new("Package Files Scroll"), scroll_row()))
         .insert(Node {
@@ -489,8 +493,12 @@ fn spawn_plan(body: &mut RelatedSpawnerCommands<ChildOf>, plan: &PackagePlan) {
 /// One file: the mark of a file the package leaves out, its path and size.
 fn spawn_file_row(list: &mut RelatedSpawnerCommands<ChildOf>, path: &str, size: Option<u64>) {
     let (mark, detail, tint) = match size {
-        Some(size) => ("", shown_size(size), UiColor::Primary),
-        None => (UNPACKAGED_MARK, "not packaged".to_string(), UiColor::Label),
+        Some(size) => ("", shown_size(size), UiColorType::Text),
+        None => (
+            UNPACKAGED_MARK,
+            "not packaged".to_string(),
+            UiColorType::TextMuted,
+        ),
     };
     list.spawn((
         Name::new(format!("Package File Row {path}")),
@@ -511,7 +519,7 @@ fn spawn_file_row(list: &mut RelatedSpawnerCommands<ChildOf>, path: &str, size: 
                 flex_shrink: 0.0,
                 ..default()
             },
-            children![words(mark, density::TEXT_SMALL, UiColor::Label)],
+            children![words(mark, density::TEXT_SMALL, UiColorType::TextMuted)],
         ));
         row.spawn((
             Node {
@@ -523,7 +531,7 @@ fn spawn_file_row(list: &mut RelatedSpawnerCommands<ChildOf>, path: &str, size: 
             },
             children![words(path, density::TEXT_SMALL, tint)],
         ));
-        row.spawn(words(detail, density::TEXT_SMALL, UiColor::Label));
+        row.spawn(words(detail, density::TEXT_SMALL, UiColorType::TextMuted));
     });
 }
 
@@ -531,23 +539,27 @@ fn spawn_file_row(list: &mut RelatedSpawnerCommands<ChildOf>, path: &str, size: 
 fn spawn_done(
     body: &mut RelatedSpawnerCommands<ChildOf>,
     done: &PackageDone,
-    said: Option<&(String, UiColor)>,
+    said: Option<&(String, UiColorType)>,
 ) {
     body.spawn((
         Name::new("Package Title"),
-        words("PACKAGED", density::TEXT, UiColor::Accent),
+        words("PACKAGED", density::TEXT, UiColorType::Accent),
     ));
     let path = done.path.display().to_string();
     spawn_field(body, "Package Done Path", "Path", |row| {
         row.spawn((
             Name::new("Package Done Path"),
-            words(path, density::TEXT_SMALL, UiColor::Primary),
+            words(path, density::TEXT_SMALL, UiColorType::Text),
         ));
     });
     spawn_field(body, "Package Done Size", "Size", |row| {
         row.spawn((
             Name::new("Package Done Size"),
-            words(shown_size(done.size), density::TEXT_SMALL, UiColor::Primary),
+            words(
+                shown_size(done.size),
+                density::TEXT_SMALL,
+                UiColorType::Text,
+            ),
         ));
     });
     if let Some((line, tint)) = said {
@@ -653,9 +665,9 @@ fn say_in_window(world: &mut World, line: String, refused: bool) {
         note(world, line.clone());
     }
     let tint = if refused {
-        UiColor::Danger
+        UiColorType::Danger
     } else {
-        UiColor::Nominal
+        UiColorType::Nominal
     };
     if let Some(mut modal) = modal_mut(world) {
         modal.said = Some((line, tint));
@@ -705,11 +717,17 @@ mod tests {
     fn the_check_line_counts_and_says_whether_it_blocks() {
         assert_eq!(
             check_line(0, 1),
-            ("passes: 0 errors, 1 warning".to_string(), UiColor::Nominal)
+            (
+                "passes: 0 errors, 1 warning".to_string(),
+                UiColorType::Nominal
+            )
         );
         assert_eq!(
             check_line(2, 0),
-            ("blocked: 2 errors, 0 warnings".to_string(), UiColor::Danger)
+            (
+                "blocked: 2 errors, 0 warnings".to_string(),
+                UiColorType::Danger
+            )
         );
     }
 }

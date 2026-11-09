@@ -16,7 +16,7 @@ use nova_assets::prelude::{
 use nova_gameplay::prelude::{play_menu_deny, play_menu_select, SoundBank, UiSfx};
 use nova_ui::{
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{
         button, themed_button, ButtonCueType, ButtonSpec, Selected, ThemedBorder, ThemedButton,
         ThemedFill, ThemedRadius, ThemedText, UiText,
@@ -350,9 +350,9 @@ pub(crate) fn spawn_explore_note(list: &mut ChildSpawnerCommands, name: &'static
         },
         ThemedRadius::control(),
         BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColor::Label),
+        ThemedBorder::new(UiColorType::TextMuted),
         BackgroundColor(Color::NONE),
-        ThemedFill::new(UiColor::Void),
+        ThemedFill::new(UiColorType::Background),
         children![(
             Text::new(text.to_string()),
             TextFont {
@@ -360,7 +360,7 @@ pub(crate) fn spawn_explore_note(list: &mut ChildSpawnerCommands, name: &'static
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Label),
+            ThemedText::new(UiColorType::TextMuted),
         )],
     ));
 }
@@ -396,9 +396,9 @@ pub(crate) fn spawn_explore_row(
         Button,
         Hovered::default(),
         BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColor::Label),
+        ThemedBorder::new(UiColorType::TextMuted),
         BackgroundColor(Color::NONE),
-        ThemedFill::new(UiColor::Surface),
+        ThemedFill::new(UiColorType::Surface),
         observe(on_mod_row_select),
     ));
     if selected {
@@ -422,7 +422,7 @@ pub(crate) fn spawn_explore_row(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Body),
+                ThemedText::new(UiColorType::TextBody),
             ));
             let line = portal_version_author_line(entry);
             if !line.is_empty() {
@@ -434,7 +434,7 @@ pub(crate) fn spawn_explore_row(
                         ..default()
                     },
                     TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Label),
+                    ThemedText::new(UiColorType::TextMuted),
                 ));
             }
         });
@@ -448,9 +448,9 @@ pub(crate) fn spawn_explore_row(
                 },
                 TextColor(Color::NONE),
                 ThemedText::new(if tag == "update" {
-                    UiColor::Accent
+                    UiColorType::Accent
                 } else {
-                    UiColor::Label
+                    UiColorType::TextMuted
                 }),
             ));
         }
@@ -551,7 +551,7 @@ pub(crate) fn spawn_uninstall_prompt(row: &mut ChildSpawnerCommands, prompt: Str
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Body),
+        ThemedText::new(UiColorType::TextBody),
         Node {
             flex_grow: 1.0,
             flex_basis: px(UNINSTALL_PROMPT_MIN_W),
@@ -567,7 +567,7 @@ pub(crate) fn spawn_action_text(
     actions: &mut ChildSpawnerCommands,
     name: &'static str,
     text: String,
-    color: UiColor,
+    color: UiColorType,
 ) {
     actions.spawn((
         Name::new(name),
@@ -603,7 +603,12 @@ pub(crate) fn spawn_portal_actions(
 ) {
     match job {
         Some(InstallStatus::Failed(reason)) => {
-            spawn_action_text(actions, "Mod Details Job Error", reason, UiColor::Accent);
+            spawn_action_text(
+                actions,
+                "Mod Details Job Error",
+                reason,
+                UiColorType::Accent,
+            );
             actions
                 .spawn((
                     Name::new("Mod Details Action Buttons"),
@@ -640,14 +645,14 @@ pub(crate) fn spawn_portal_actions(
                 // Handled by the arm above; keep the match total.
                 InstallStatus::Failed(reason) => reason,
             };
-            spawn_action_text(actions, "Mod Details Progress", text, UiColor::Primary);
+            spawn_action_text(actions, "Mod Details Progress", text, UiColorType::Text);
         }
         None if updating => {
             spawn_action_text(
                 actions,
                 "Mod Details Progress",
                 "Updating...".to_string(),
-                UiColor::Primary,
+                UiColorType::Text,
             );
         }
         None => {
@@ -707,7 +712,7 @@ pub(crate) fn spawn_portal_actions(
                     actions,
                     "Mod Details Offline Note",
                     "offline - reconnect to install or update".to_string(),
-                    UiColor::Label,
+                    UiColorType::TextMuted,
                 );
             }
         }

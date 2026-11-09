@@ -3,7 +3,7 @@
 //! The inspector at the right reads the selected job.
 
 use bevy::{prelude::*, ui::InteractionDisabled};
-use nova_ui::{prelude::*, theme::UiColor};
+use nova_ui::{prelude::*, theme::UiColorType};
 
 use crate::{
     chrome::*,
@@ -61,7 +61,7 @@ fn board_panel(
                     ..control_row(JustifyContent::FlexStart)
                 })
                 .with_children(|left| {
-                    left.spawn(text("Dust Gate board", 15.0, UiColor::Primary));
+                    left.spawn(text("Dust Gate board", 15.0, UiColorType::Text));
                 });
                 head.spawn(segmented_container()).with_children(|seg| {
                     for (value, label) in [
@@ -82,7 +82,7 @@ fn board_panel(
         panel.spawn(text(
             "Job kinds are a proof of concept; the set changes.",
             11.0,
-            UiColor::Label,
+            UiColorType::TextMuted,
         ));
         table_head(
             panel,
@@ -109,12 +109,12 @@ fn board_panel(
             )
             .with_children(|r| {
                 r.spawn(icon(icons, j.kind.icon(), 18.0));
-                r.spawn(grow_cell(j.title, 13.0, UiColor::Primary));
+                r.spawn(grow_cell(j.title, 13.0, UiColorType::Text));
                 r.spawn(cell(
                     90.0,
                     &format!("{} cr", thousands(j.reward)),
                     13.0,
-                    UiColor::Accent,
+                    UiColorType::Accent,
                     false,
                 ));
                 r.spawn((
@@ -127,7 +127,11 @@ fn board_panel(
                     },
                     children![
                         bare_meter(72.0, j.minutes_left as f32 / j.window.max(1) as f32),
-                        text_nowrap(&format!("{} min", j.minutes_left), 12.0, UiColor::Body),
+                        text_nowrap(
+                            &format!("{} min", j.minutes_left),
+                            12.0,
+                            UiColorType::TextBody
+                        ),
                     ],
                 ));
                 r.spawn((
@@ -174,7 +178,7 @@ fn held_panel(
     docked: bool,
 ) {
     col.spawn(column_panel()).with_children(|panel| {
-        panel.spawn(text("Your jobs", 15.0, UiColor::Primary));
+        panel.spawn(text("Your jobs", 15.0, UiColorType::Text));
         table_head(
             panel,
             &[
@@ -195,7 +199,7 @@ fn held_panel(
             )
             .with_children(|r| {
                 r.spawn(icon(icons, j.kind.icon(), 18.0));
-                r.spawn(grow_cell(j.title, 13.0, UiColor::Primary));
+                r.spawn(grow_cell(j.title, 13.0, UiColorType::Text));
                 r.spawn(Node {
                     width: px(130.0),
                     flex_shrink: 0.0,
@@ -249,14 +253,14 @@ fn job_inspector(
     })
     .with_children(|head| {
         head.spawn(icon(icons, j.kind.icon(), 24.0));
-        head.spawn(text(j.title, 15.0, UiColor::Primary));
+        head.spawn(text(j.title, 15.0, UiColorType::Text));
         if j.done {
             head.spawn(tag(BadgeKind::Green, "DONE"));
         }
     });
     side.spawn(divider());
     section(side, "Task");
-    side.spawn(text(j.task, 12.0, UiColor::Body));
+    side.spawn(text(j.task, 12.0, UiColorType::TextBody));
     side.spawn(divider());
     // The live inspector's wrapping Target row; `chrome::kv` stays one line
     // for its other pages.
@@ -266,7 +270,7 @@ fn job_inspector(
         ..control_row(JustifyContent::FlexStart)
     })
     .with_children(|r| {
-        r.spawn(cell(84.0, "Target", 12.0, UiColor::Label, false));
+        r.spawn(cell(84.0, "Target", 12.0, UiColorType::TextMuted, false));
         r.spawn((
             Node {
                 flex_grow: 1.0,
@@ -283,7 +287,7 @@ fn job_inspector(
                     distance_hint(j.target)
                 ),
                 13.0,
-                UiColor::Primary,
+                UiColorType::Text,
             )],
         ));
     });
@@ -296,7 +300,7 @@ fn job_inspector(
             ..control_row(JustifyContent::FlexStart)
         })
         .with_children(|r| {
-            r.spawn(cell(84.0, "Time left", 12.0, UiColor::Label, false));
+            r.spawn(cell(84.0, "Time left", 12.0, UiColorType::TextMuted, false));
             r.spawn(bare_meter(
                 110.0,
                 j.minutes_left as f32 / j.window.max(1) as f32,
@@ -304,7 +308,7 @@ fn job_inspector(
             r.spawn(text(
                 &format!("{} min", j.minutes_left),
                 12.0,
-                UiColor::Body,
+                UiColorType::TextBody,
             ));
         });
     }
@@ -314,11 +318,11 @@ fn job_inspector(
             ..control_row(JustifyContent::FlexStart)
         })
         .with_children(|r| {
-            r.spawn(cell(84.0, "Progress", 12.0, UiColor::Label, false));
+            r.spawn(cell(84.0, "Progress", 12.0, UiColorType::TextMuted, false));
             r.spawn(meter(110.0, j.have, j.need));
         });
         if let Some(why) = hand_in_refusal(j, docked) {
-            side.spawn(text(&why, 12.0, UiColor::Accent));
+            side.spawn(text(&why, 12.0, UiColorType::Accent));
         }
     }
     side.spawn(divider());

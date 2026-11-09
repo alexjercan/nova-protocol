@@ -8,7 +8,7 @@ use bevy::{picking::Pickable, prelude::*};
 use nova_ship::prelude::{GameSections, SectionConfig};
 use nova_ui::{
     prelude::{hang_at, panel, Hang, UiText},
-    theme::{self, UiColor},
+    theme::{self, UiColorType},
     widget::{ThemedRadius, ThemedText},
 };
 
@@ -77,7 +77,7 @@ pub(crate) fn placement_callout() -> impl Bundle {
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Danger),
+                ThemedText::new(UiColorType::Danger),
                 Node {
                     display: Display::None,
                     ..default()
@@ -94,7 +94,7 @@ pub(crate) fn placement_callout() -> impl Bundle {
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
+                ThemedText::new(UiColorType::TextMuted),
                 Node {
                     display: Display::None,
                     ..default()

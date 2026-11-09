@@ -42,7 +42,9 @@ use clap::Parser;
 use nova_protocol::prelude::GameStates;
 use nova_ui::{
     prelude::*,
-    theme::{base::base_ui_themes, ActiveUiTheme, UiColor, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID},
+    theme::{
+        base::base_ui_themes, ActiveUiTheme, UiColorType, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID,
+    },
     widget::{ButtonSpec, ThemedFill, ThemedText, UiText},
     NovaUiPlugin,
 };
@@ -197,7 +199,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ..window_root()
             },
             BackgroundColor(Color::NONE),
-            ThemedFill::new(UiColor::Void),
+            ThemedFill::new(UiColorType::Background),
             // The glows are painted by `repaint_backdrop`, which has the live
             // theme to mix them from. A gradient is not a plain colour, so no
             // `Themed*` marker covers it.
@@ -228,7 +230,7 @@ fn top_bar(root: &mut ChildSpawnerCommands) {
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Primary),
+            ThemedText::new(UiColorType::Text),
         ));
         bar.spawn((
             UiText,
@@ -238,7 +240,7 @@ fn top_bar(root: &mut ChildSpawnerCommands) {
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Label),
+            ThemedText::new(UiColorType::TextMuted),
             Node {
                 margin: UiRect::left(px(12)),
                 ..default()
@@ -439,7 +441,7 @@ fn list_row_entry(c: &mut ChildSpawnerCommands, on: bool, title: &str, sub: &str
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Body),
+                ThemedText::new(UiColorType::TextBody),
             ));
             col.spawn((
                 UiText,
@@ -449,7 +451,7 @@ fn list_row_entry(c: &mut ChildSpawnerCommands, on: bool, title: &str, sub: &str
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Secondary),
+                ThemedText::new(UiColorType::TextSecondary),
             ));
         });
         row.spawn(clickable(checkbox(on), id));
@@ -502,7 +504,7 @@ fn repaint_backdrop(
                 UiPosition::TOP_LEFT,
                 RadialGradientShape::FarthestSide,
                 vec![
-                    ColorStop::percent(theme.color_alpha(UiColor::Info, 0.10), 0.0),
+                    ColorStop::percent(theme.color_alpha(UiColorType::Info, 0.10), 0.0),
                     ColorStop::percent(Color::NONE, 40.0),
                 ],
             )),
@@ -510,7 +512,7 @@ fn repaint_backdrop(
                 UiPosition::BOTTOM_RIGHT,
                 RadialGradientShape::FarthestSide,
                 vec![
-                    ColorStop::percent(theme.color_alpha(UiColor::Primary, 0.06), 0.0),
+                    ColorStop::percent(theme.color_alpha(UiColorType::Text, 0.06), 0.0),
                     ColorStop::percent(Color::NONE, 42.0),
                 ],
             )),
@@ -566,7 +568,7 @@ fn sub_header(c: &mut ChildSpawnerCommands, text: &str) {
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Label),
+        ThemedText::new(UiColorType::TextMuted),
         Node {
             margin: UiRect::top(px(4)),
             ..default()
@@ -584,7 +586,7 @@ fn note(c: &mut ChildSpawnerCommands, text: &str) {
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Secondary),
+        ThemedText::new(UiColorType::TextSecondary),
     ));
 }
 

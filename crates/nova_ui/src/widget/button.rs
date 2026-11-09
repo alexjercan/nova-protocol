@@ -21,7 +21,8 @@ use bevy::{
 
 use super::{Selected, UiText};
 use crate::theme::{
-    density, ActiveUiTheme, ButtonState, ResolvedState, ThemeButton, UiColor, UiMetric, BORDER_W,
+    density, ActiveUiTheme, ButtonState, ResolvedState, ThemeButton, UiColorType, UiMetric,
+    BORDER_W,
 };
 
 /// Marks a themed button so the colour observers + theme reconciler pick it up.
@@ -163,7 +164,7 @@ fn apply_paint(
         if let Ok(mut tc) = q_cursor.get_mut(child) {
             // The cursor keeps the theme's primary ink; only its alpha toggles.
             *tc = TextColor(
-                theme.color_alpha(UiColor::Primary, if cursor_visible { 1.0 } else { 0.0 }),
+                theme.color_alpha(UiColorType::Text, if cursor_visible { 1.0 } else { 0.0 }),
             );
         }
     }
@@ -259,8 +260,8 @@ pub(super) fn plain_button_on_interaction<P: EventPattern<Event: EntityEvent>>(
 
     let ring = match (disabled, pressed, hovered.get()) {
         (true, _, _) | (false, false, false) => None,
-        (false, true, _) => Some((PRESS_RING_PX, UiColor::Primary)),
-        (false, false, true) => Some((HOVER_RING_PX, UiColor::Accent)),
+        (false, true, _) => Some((PRESS_RING_PX, UiColorType::Text)),
+        (false, false, true) => Some((HOVER_RING_PX, UiColorType::Accent)),
     };
     // `try_`: the press that despawns a button lands in the same flush.
     match ring {
@@ -731,23 +732,26 @@ mod tests {
         app.update();
 
         let theme = phosphor();
-        assert_eq!(bg(&app, btn), theme.color_alpha(UiColor::Primary, 0.05));
+        assert_eq!(bg(&app, btn), theme.color_alpha(UiColorType::Text, 0.05));
         assert_eq!(
             app.world().entity(btn).get::<BorderColor>().unwrap().top,
-            theme.color_alpha(UiColor::Primary, 0.4)
+            theme.color_alpha(UiColorType::Text, 0.4)
         );
         assert!(
             !has_gradient(&app, btn),
             "phosphor is a flat CLI element, not a bevel"
         );
         assert!(!app.world().entity(btn).contains::<BoxShadow>());
-        assert_eq!(label_color(&mut app, btn), theme.color(UiColor::Primary));
+        assert_eq!(label_color(&mut app, btn), theme.color(UiColorType::Text));
 
         // Selected inverts: solid phosphor fill, ink glyphs.
         app.world_mut().entity_mut(btn).insert(Selected);
         app.update();
-        assert_eq!(bg(&app, btn), theme.color(UiColor::Primary));
-        assert_eq!(label_color(&mut app, btn), theme.color(UiColor::Inverted));
+        assert_eq!(bg(&app, btn), theme.color(UiColorType::Text));
+        assert_eq!(
+            label_color(&mut app, btn),
+            theme.color(UiColorType::TextInverse)
+        );
         assert!(!has_gradient(&app, btn), "inverted phosphor is still flat");
     }
 
@@ -775,7 +779,10 @@ mod tests {
         app.world_mut().entity_mut(btn).insert(Selected);
         app.update();
         assert!(has_gradient(&app, btn));
-        assert_eq!(label_color(&mut app, btn), theme.color(UiColor::Inverted));
+        assert_eq!(
+            label_color(&mut app, btn),
+            theme.color(UiColorType::TextInverse)
+        );
     }
 
     /// Moving the SELECTION restyles buttons ALREADY in the tree, and a button

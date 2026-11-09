@@ -20,7 +20,7 @@ use bevy::{
 };
 
 use super::{Tooltip, UiText};
-use crate::theme::{ActiveUiTheme, UiColor};
+use crate::theme::{ActiveUiTheme, UiColorType};
 
 /// The close mark: MULTIPLICATION X (U+2715). In the cmap of the UI face,
 /// `SGr-IosevkaTerm-Medium.ttf`, and drawn larger than the multiplication sign
@@ -122,14 +122,14 @@ struct IconPaint {
 fn icon_paint(theme: &ActiveUiTheme, kind: IconButtonType, state: IconState) -> IconPaint {
     if state.disabled {
         return IconPaint {
-            glyph: theme.color_alpha(UiColor::Label, DISABLED_GLYPH),
+            glyph: theme.color_alpha(UiColorType::TextMuted, DISABLED_GLYPH),
             fill: Color::NONE,
             ring: Color::NONE,
         };
     }
     let lit = match kind {
-        IconButtonType::Dismiss => UiColor::Primary,
-        IconButtonType::Delete => UiColor::Danger,
+        IconButtonType::Dismiss => UiColorType::Text,
+        IconButtonType::Delete => UiColorType::Danger,
     };
     let fill = if state.pressed {
         theme.color_alpha(lit, PRESS_FILL)
@@ -142,7 +142,7 @@ fn icon_paint(theme: &ActiveUiTheme, kind: IconButtonType, state: IconState) -> 
         glyph: if state.hovered || state.pressed || state.focused || state.armed {
             theme.color(lit)
         } else {
-            theme.color(UiColor::Label)
+            theme.color(UiColorType::TextMuted)
         },
         fill,
         ring: if state.focused {
@@ -235,21 +235,21 @@ mod tests {
             .spawn(icon_button(IconButtonType::Dismiss, CLOSE_GLYPH, "Close"))
             .id();
         app.update();
-        assert_eq!(glyph(&app, close), theme.color(UiColor::Label));
+        assert_eq!(glyph(&app, close), theme.color(UiColorType::TextMuted));
         assert_eq!(ring(&app, close), Color::NONE);
 
         app.world_mut().entity_mut(close).insert(Hovered(true));
         app.update();
-        assert_eq!(glyph(&app, close), theme.color(UiColor::Primary));
+        assert_eq!(glyph(&app, close), theme.color(UiColorType::Text));
 
         app.world_mut().entity_mut(close).insert(Hovered(false));
         app.world_mut()
             .insert_resource(InputFocus::from_entity(close));
         app.update();
-        assert_eq!(glyph(&app, close), theme.color(UiColor::Primary));
+        assert_eq!(glyph(&app, close), theme.color(UiColorType::Text));
         assert_eq!(
             ring(&app, close),
-            theme.color(UiColor::Primary),
+            theme.color(UiColorType::Text),
             "keyboard focus draws a ring"
         );
     }
@@ -269,7 +269,7 @@ mod tests {
         app.update();
         assert_eq!(
             glyph(&app, delete),
-            theme.color(UiColor::Label),
+            theme.color(UiColorType::TextMuted),
             "a delete rests muted like any other"
         );
 
@@ -277,9 +277,12 @@ mod tests {
             app.world_mut().entity_mut(button).insert(Hovered(true));
         }
         app.update();
-        assert_eq!(glyph(&app, delete), theme.color(UiColor::Danger));
-        assert_eq!(glyph(&app, close), theme.color(UiColor::Primary));
-        assert_ne!(theme.color(UiColor::Danger), theme.color(UiColor::Primary));
+        assert_eq!(glyph(&app, delete), theme.color(UiColorType::Danger));
+        assert_eq!(glyph(&app, close), theme.color(UiColorType::Text));
+        assert_ne!(
+            theme.color(UiColorType::Danger),
+            theme.color(UiColorType::Text)
+        );
     }
 
     #[test]
@@ -294,7 +297,7 @@ mod tests {
             ))
             .id();
         app.update();
-        assert_eq!(glyph(&app, delete), theme.color(UiColor::Danger));
+        assert_eq!(glyph(&app, delete), theme.color(UiColorType::Danger));
         assert_eq!(
             app.world()
                 .entity(delete)
@@ -309,6 +312,6 @@ mod tests {
             .entity_mut(delete)
             .remove::<IconButtonArmed>();
         app.update();
-        assert_eq!(glyph(&app, delete), theme.color(UiColor::Label));
+        assert_eq!(glyph(&app, delete), theme.color(UiColorType::TextMuted));
     }
 }

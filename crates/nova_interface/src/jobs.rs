@@ -69,7 +69,7 @@ use nova_events::prelude::{
 use nova_gameplay::prelude::*;
 use nova_ui::{
     prelude::*,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{ThemedBorder, ThemedText},
 };
 use nova_world_base::prelude::{record_merit, PlayerHull};
@@ -925,7 +925,7 @@ fn column_panel() -> impl Bundle {
         },
         BackgroundColor(Color::NONE),
         BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(UiColor::Secondary, 0.35),
+        ThemedBorder::alpha(UiColorType::TextSecondary, 0.35),
         ThemedRadius::control(),
     )
 }
@@ -960,12 +960,12 @@ fn scroll_rows(
 /// what to do next, so it takes the secondary ink: at 12 px the label ink is
 /// under 3:1 on a panel.
 fn empty_line(panel: &mut ChildSpawnerCommands, sentence: &str) {
-    panel.spawn(themed_label(sentence, 12.0, UiColor::Secondary));
+    panel.spawn(themed_label(sentence, 12.0, UiColorType::TextSecondary));
 }
 
 /// A themed text that never wraps and takes no clicks, so a row's click
 /// lands on the row.
-fn text_nowrap(value: &str, size: f32, color: UiColor) -> impl Bundle {
+fn text_nowrap(value: &str, size: f32, color: UiColorType) -> impl Bundle {
     (
         themed_label(value, size, color),
         TextLayout::new(Justify::Left, LineBreak::NoWrap),
@@ -979,7 +979,7 @@ fn text_nowrap(value: &str, size: f32, color: UiColor) -> impl Bundle {
 }
 
 /// A fixed-width column cell, so the columns line up down a table.
-fn cell(width: f32, value: &str, size: f32, color: UiColor) -> impl Bundle {
+fn cell(width: f32, value: &str, size: f32, color: UiColorType) -> impl Bundle {
     (
         Node {
             width: px(width),
@@ -993,7 +993,7 @@ fn cell(width: f32, value: &str, size: f32, color: UiColor) -> impl Bundle {
 
 /// A one-line label that ends in `...` when its cell is too narrow, and takes
 /// no clicks, so a row's click lands on the row.
-fn ellipsis_label(value: &str, size: f32, color: UiColor) -> impl Bundle {
+fn ellipsis_label(value: &str, size: f32, color: UiColorType) -> impl Bundle {
     (
         themed_label(value, size, color),
         TextLayout::new(Justify::Left, LineBreak::NoWrap),
@@ -1005,7 +1005,7 @@ fn ellipsis_label(value: &str, size: f32, color: UiColor) -> impl Bundle {
 /// A row's title cell: it grows, and it never gets narrower than
 /// [`TITLE_MIN_PX`], so the row wraps its other cells before the title is
 /// lost.
-fn title_cell(value: &str, size: f32, color: UiColor) -> impl Bundle {
+fn title_cell(value: &str, size: f32, color: UiColorType) -> impl Bundle {
     (
         Node {
             flex_grow: 1.0,
@@ -1035,7 +1035,7 @@ fn ask_title_cell(question: &str, title: &str, size: f32) -> impl Bundle {
         Pickable::IGNORE,
         children![
             (
-                themed_label(question, size, UiColor::Accent),
+                themed_label(question, size, UiColorType::Accent),
                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                 Node {
                     flex_shrink: 0.0,
@@ -1052,7 +1052,7 @@ fn ask_title_cell(question: &str, title: &str, size: f32) -> impl Bundle {
                     ..default()
                 },
                 Pickable::IGNORE,
-                children![ellipsis_label(title, size, UiColor::Primary)],
+                children![ellipsis_label(title, size, UiColorType::Text)],
             ),
         ],
     )
@@ -1105,7 +1105,7 @@ fn meter(width: f32, have: u64, need: u64) -> impl Bundle {
         Pickable::IGNORE,
         children![
             bare_meter(width, fraction),
-            text_nowrap(&format!("{have} / {need}"), 12.0, UiColor::Body),
+            text_nowrap(&format!("{have} / {need}"), 12.0, UiColorType::TextBody),
         ],
     )
 }
@@ -1131,9 +1131,9 @@ fn table_head(panel: &mut ChildSpawnerCommands, columns: &[(f32, &str)]) {
         .with_children(|row| {
             for (width, label) in columns {
                 if *width == 0.0 {
-                    row.spawn(title_cell(label, 11.0, UiColor::Secondary));
+                    row.spawn(title_cell(label, 11.0, UiColorType::TextSecondary));
                 } else {
-                    row.spawn(cell(*width, label, 11.0, UiColor::Secondary));
+                    row.spawn(cell(*width, label, 11.0, UiColorType::TextSecondary));
                 }
             }
         });
@@ -1297,7 +1297,7 @@ fn board_panel(
                     head.spawn(themed_label(
                         &format!("Jobs posted here: {}", board.station),
                         15.0,
-                        UiColor::Primary,
+                        UiColorType::Text,
                     ));
                 });
             table_head(
@@ -1335,7 +1335,7 @@ fn board_panel(
                         if row.confirming {
                             r.spawn(ask_title_cell("Delete offer?", &row.title, 13.0));
                         } else {
-                            r.spawn(title_cell(&row.title, 13.0, UiColor::Primary));
+                            r.spawn(title_cell(&row.title, 13.0, UiColorType::Text));
                         }
                         if row.confirming {
                             let tooltip = row.refresh_refusal.clone().unwrap_or_else(|| {
@@ -1357,7 +1357,7 @@ fn board_panel(
                                     icons,
                                     u64::from(JOB_OFFER_REFRESH_FEE_CR),
                                     13.0,
-                                    UiColor::Accent,
+                                    UiColorType::Accent,
                                     (),
                                 );
                             });
@@ -1376,7 +1376,7 @@ fn board_panel(
                                     icons,
                                     row.reward_cr,
                                     13.0,
-                                    UiColor::Accent,
+                                    UiColorType::Accent,
                                     (),
                                 );
                             });
@@ -1416,7 +1416,7 @@ fn board_panel(
                                 Pickable::IGNORE,
                                 children![
                                     bare_meter(ROW_METER_PX, row.time_left.0),
-                                    text_nowrap(&row.time_left.1, 12.0, UiColor::Body),
+                                    text_nowrap(&row.time_left.1, 12.0, UiColorType::TextBody),
                                 ],
                             ),
                         ));
@@ -1459,7 +1459,11 @@ fn board_panel(
                             ));
                             ask.observe(on_job_refresh_button);
                             ask.with_children(|b| {
-                                b.spawn(icon_node(icons.job_drop_cancel(), UiColor::Primary, 14.0));
+                                b.spawn(icon_node(
+                                    icons.job_drop_cancel(),
+                                    UiColorType::Text,
+                                    14.0,
+                                ));
                             });
                         });
                     });
@@ -1473,7 +1477,7 @@ fn board_panel(
 fn closed_board_panel(col: &mut ChildSpawnerCommands) {
     col.spawn((Name::new(JOBS_BOARD_CLOSED), column_panel()))
         .with_children(|panel| {
-            panel.spawn(themed_label("Station board", 15.0, UiColor::Primary));
+            panel.spawn(themed_label("Station board", 15.0, UiColorType::Text));
             empty_line(panel, "Dock at a station to see its job board.");
         });
 }
@@ -1488,11 +1492,11 @@ fn held_panel(
 ) {
     col.spawn((Name::new(JOBS_HELD), column_panel()))
         .with_children(|panel| {
-            panel.spawn(themed_label("Your jobs", 15.0, UiColor::Primary));
+            panel.spawn(themed_label("Your jobs", 15.0, UiColorType::Text));
             let goal = match (&view.milestone, view.goal_met_at) {
                 (Some(line), _) => Some((
                     format!("{}: {}", view.goal_title, line.label),
-                    UiColor::Primary,
+                    UiColorType::Text,
                     Some((line.have, line.need)),
                 )),
                 (None, Some(at)) => Some((
@@ -1501,7 +1505,7 @@ fn held_panel(
                         view.goal_title,
                         play_time_text(at)
                     ),
-                    UiColor::Accent,
+                    UiColorType::Accent,
                     None,
                 )),
                 (None, None) => None,
@@ -1585,7 +1589,7 @@ fn held_panel(
                         if row.confirming {
                             r.spawn(ask_title_cell("Drop job?", &row.title, 13.0));
                         } else {
-                            r.spawn(title_cell(&row.title, 13.0, UiColor::Primary));
+                            r.spawn(title_cell(&row.title, 13.0, UiColorType::Text));
                         }
                         r.spawn(fixed(
                             PROGRESS_PX,
@@ -1655,7 +1659,11 @@ fn held_panel(
                             ));
                             ask.observe(on_job_drop_button);
                             ask.with_children(|b| {
-                                b.spawn(icon_node(icons.job_drop_cancel(), UiColor::Primary, 14.0));
+                                b.spawn(icon_node(
+                                    icons.job_drop_cancel(),
+                                    UiColorType::Text,
+                                    14.0,
+                                ));
                             });
                         });
                     });
@@ -1673,7 +1681,7 @@ fn kv(side: &mut ChildSpawnerCommands, label: &str, value: &str) {
         ..control_row(JustifyContent::FlexStart)
     })
     .with_children(|row| {
-        row.spawn(cell(LABEL_PX, label, 12.0, UiColor::Label));
+        row.spawn(cell(LABEL_PX, label, 12.0, UiColorType::TextMuted));
         row.spawn((
             Node {
                 flex_grow: 1.0,
@@ -1681,7 +1689,7 @@ fn kv(side: &mut ChildSpawnerCommands, label: &str, value: &str) {
                 min_width: px(0),
                 ..default()
             },
-            children![themed_label(value, 13.0, UiColor::Primary)],
+            children![themed_label(value, 13.0, UiColorType::Text)],
         ));
     });
 }
@@ -1709,15 +1717,15 @@ fn inspector_panel(
                 min_width: px(0),
                 ..default()
             },
-            children![themed_label(&job.title, 15.0, UiColor::Primary)],
+            children![themed_label(&job.title, 15.0, UiColorType::Text)],
         ));
         if job.done {
             head.spawn(badge(BadgeKind::Green, "DONE"));
         }
     });
     side.spawn(divider());
-    side.spawn(themed_label("TASK", 11.0, UiColor::Label));
-    side.spawn(themed_label(&job.task, 12.0, UiColor::Body));
+    side.spawn(themed_label("TASK", 11.0, UiColorType::TextMuted));
+    side.spawn(themed_label(&job.task, 12.0, UiColorType::TextBody));
     side.spawn(divider());
     kv(side, "Target", &job.target);
     kv(side, "Hand in", &job.hand_in);
@@ -1726,8 +1734,8 @@ fn inspector_panel(
         ..control_row(JustifyContent::FlexStart)
     })
     .with_children(|row| {
-        row.spawn(cell(LABEL_PX, "Reward", 12.0, UiColor::Label));
-        spawn_credit_figure(row, icons, job.reward_cr, 13.0, UiColor::Accent, ());
+        row.spawn(cell(LABEL_PX, "Reward", 12.0, UiColorType::TextMuted));
+        spawn_credit_figure(row, icons, job.reward_cr, 13.0, UiColorType::Accent, ());
     });
     if let Some((fraction, minutes)) = &job.time_left {
         side.spawn(Node {
@@ -1735,9 +1743,9 @@ fn inspector_panel(
             ..control_row(JustifyContent::FlexStart)
         })
         .with_children(|row| {
-            row.spawn(cell(LABEL_PX, "Time left", 12.0, UiColor::Label));
+            row.spawn(cell(LABEL_PX, "Time left", 12.0, UiColorType::TextMuted));
             row.spawn(bare_meter(METER_PX, *fraction));
-            row.spawn(text_nowrap(minutes, 12.0, UiColor::Body));
+            row.spawn(text_nowrap(minutes, 12.0, UiColorType::TextBody));
         });
     }
     if let Some((have, need)) = job.progress {
@@ -1746,12 +1754,12 @@ fn inspector_panel(
             ..control_row(JustifyContent::FlexStart)
         })
         .with_children(|row| {
-            row.spawn(cell(LABEL_PX, "Progress", 12.0, UiColor::Label));
+            row.spawn(cell(LABEL_PX, "Progress", 12.0, UiColorType::TextMuted));
             row.spawn(meter(METER_PX, have.into(), need.into()));
         });
     }
     if let Some(refusal) = &job.refusal {
-        side.spawn(themed_label(refusal, 12.0, UiColor::Accent));
+        side.spawn(themed_label(refusal, 12.0, UiColorType::Accent));
     }
     side.spawn(divider());
     side.spawn(control_row(JustifyContent::FlexStart))

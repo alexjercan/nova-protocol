@@ -11,7 +11,7 @@ use bevy::{
         Slider, SliderPrecision, SliderRange, SliderStep, SliderValue, TrackClick, ValueChange,
     },
 };
-use nova_ui::{prelude::*, theme::UiColor};
+use nova_ui::{prelude::*, theme::UiColorType};
 
 use crate::{
     chrome::*,
@@ -138,7 +138,7 @@ fn trade_column(
                     TradeSide::Trader => "Trader: Dust Gate",
                     TradeSide::Storage => unreachable!("the storage column has its own panel"),
                 };
-                head.spawn(text(title, 15.0, UiColor::Primary));
+                head.spawn(text(title, 15.0, UiColorType::Text));
             });
         panel
             .spawn(Node {
@@ -209,13 +209,19 @@ fn trade_column(
             })
             .with_children(|r| {
                 r.spawn(icon(icons, w.category.icon(), 16.0));
-                r.spawn(grow_cell(w.name, 13.0, UiColor::Primary));
-                r.spawn(cell(40.0, &format!("x{qty}"), 12.0, UiColor::Body, true));
+                r.spawn(grow_cell(w.name, 13.0, UiColorType::Text));
+                r.spawn(cell(
+                    40.0,
+                    &format!("x{qty}"),
+                    12.0,
+                    UiColorType::TextBody,
+                    true,
+                ));
                 r.spawn(cell(
                     48.0,
                     &format!("{} cr", thousands(price)),
                     12.0,
-                    UiColor::Accent,
+                    UiColorType::Accent,
                     true,
                 ));
                 r.spawn(Node {
@@ -235,7 +241,11 @@ fn trade_column(
                     padding: UiRect::axes(px(8), px(8)),
                     ..default()
                 },
-                children![text("Nothing in this category.", 12.0, UiColor::Label)],
+                children![text(
+                    "Nothing in this category.",
+                    12.0,
+                    UiColorType::TextMuted
+                )],
             ));
         }
     });
@@ -247,7 +257,7 @@ fn trade_column(
 /// an own hold is listed to read.
 fn storage_column(columns: &mut ChildSpawnerCommands, icons: &GalleryIcons, market: &MarketState) {
     columns.spawn(column_panel()).with_children(|panel| {
-        panel.spawn(text("Storage: Dust Gate", 15.0, UiColor::Primary));
+        panel.spawn(text("Storage: Dust Gate", 15.0, UiColorType::Text));
         panel
             .spawn(Node {
                 column_gap: px(18),
@@ -298,7 +308,7 @@ fn storage_column(columns: &mut ChildSpawnerCommands, icons: &GalleryIcons, mark
                 children![text(
                     "Nothing stored in this category.",
                     12.0,
-                    UiColor::Label
+                    UiColorType::TextMuted
                 )],
             ));
         }
@@ -312,11 +322,11 @@ fn storage_column(columns: &mut ChildSpawnerCommands, icons: &GalleryIcons, mark
                     ..control_row(JustifyContent::SpaceBetween)
                 })
                 .with_children(|head| {
-                    head.spawn(text(hold.ship, 13.0, UiColor::Primary));
+                    head.spawn(text(hold.ship, 13.0, UiColorType::Text));
                     head.spawn(text(
                         &format!("{} / {}", kg_text(load), kg_text(hold.cap_kg)),
                         12.0,
-                        UiColor::Label,
+                        UiColorType::TextMuted,
                     ));
                 });
             for (i, qty) in hold.stacks {
@@ -340,9 +350,21 @@ fn storage_column(columns: &mut ChildSpawnerCommands, icons: &GalleryIcons, mark
 /// and the mass.
 fn stack_cells(r: &mut ChildSpawnerCommands, icons: &GalleryIcons, w: &Ware, qty: u32) {
     r.spawn(icon(icons, w.category.icon(), 16.0));
-    r.spawn(grow_cell(w.name, 13.0, UiColor::Primary));
-    r.spawn(cell(48.0, &format!("x{qty}"), 12.0, UiColor::Body, true));
-    r.spawn(cell(58.0, &kg_text(qty * w.kg), 12.0, UiColor::Body, true));
+    r.spawn(grow_cell(w.name, 13.0, UiColorType::Text));
+    r.spawn(cell(
+        48.0,
+        &format!("x{qty}"),
+        12.0,
+        UiColorType::TextBody,
+        true,
+    ));
+    r.spawn(cell(
+        58.0,
+        &kg_text(qty * w.kg),
+        12.0,
+        UiColorType::TextBody,
+        true,
+    ));
 }
 
 /// The `Deal` badge: the percent off the reference, green when it favours
@@ -398,8 +420,8 @@ fn market_strip(stores: &mut ChildSpawnerCommands, market: &MarketState) {
                     ..control_row(JustifyContent::FlexStart)
                 })
                 .with_children(|row| {
-                    row.spawn(text("MARKET", 11.0, UiColor::Label));
-                    row.spawn(text("Buys", 12.0, UiColor::Body));
+                    row.spawn(text("MARKET", 11.0, UiColorType::TextMuted));
+                    row.spawn(text("Buys", 12.0, UiColorType::TextBody));
                     row.spawn(tag(
                         BadgeKind::Amber,
                         &format!(
@@ -408,7 +430,7 @@ fn market_strip(stores: &mut ChildSpawnerCommands, market: &MarketState) {
                             delta_percent(pays_most.bid, pays_most.reference)
                         ),
                     ));
-                    row.spawn(text("Sells", 12.0, UiColor::Body));
+                    row.spawn(text("Sells", 12.0, UiColorType::TextBody));
                     row.spawn(tag(
                         BadgeKind::Green,
                         &format!(
@@ -435,18 +457,18 @@ fn market_strip(stores: &mut ChildSpawnerCommands, market: &MarketState) {
                     ..control_row(JustifyContent::FlexStart)
                 })
                 .with_children(|row| {
-                    row.spawn(text("Restock in 12 min", 12.0, UiColor::Body));
+                    row.spawn(text("Restock in 12 min", 12.0, UiColorType::TextBody));
                     let ore = market.station[0];
                     row.spawn(bare_meter(140.0, ore as f32 / 40.0));
                     row.spawn(text(
                         &format!("iron ore stock {ore} t / target 40 t"),
                         12.0,
-                        UiColor::Label,
+                        UiColorType::TextMuted,
                     ));
                     row.spawn(text(
                         "Refusal: docked Vane Dock first; the yard's quarantine lifts when the timer ends.",
                         11.0,
-                        UiColor::Label,
+                        UiColorType::TextMuted,
                     ));
                 });
         });
@@ -458,7 +480,7 @@ fn inspector(side: &mut ChildSpawnerCommands, icons: &GalleryIcons, market: &Mar
         side.spawn(text(
             "Select an item to read its prices and trade it.",
             12.0,
-            UiColor::Label,
+            UiColorType::TextMuted,
         ));
         return;
     };
@@ -469,7 +491,7 @@ fn inspector(side: &mut ChildSpawnerCommands, icons: &GalleryIcons, market: &Mar
     })
     .with_children(|head| {
         head.spawn(icon(icons, w.category.icon(), 24.0));
-        head.spawn(text(w.name, 15.0, UiColor::Primary));
+        head.spawn(text(w.name, 15.0, UiColorType::Text));
     });
     side.spawn(Node {
         column_gap: px(6),
@@ -516,7 +538,7 @@ fn inspector(side: &mut ChildSpawnerCommands, icons: &GalleryIcons, market: &Mar
         &format!("x{} ({})", market.ship[i], kg_text(market.ship[i] * w.kg)),
     );
     kv(side, "In stock", &format!("x{}", market.station[i]));
-    side.spawn(text(w.reason, 11.0, UiColor::Label));
+    side.spawn(text(w.reason, 11.0, UiColorType::TextMuted));
     side.spawn(divider());
     side.spawn(text(
         match trade_side {
@@ -524,7 +546,7 @@ fn inspector(side: &mut ChildSpawnerCommands, icons: &GalleryIcons, market: &Mar
             TradeSide::Trader | TradeSide::Storage => "Buy from the stock",
         },
         13.0,
-        UiColor::Accent,
+        UiColorType::Accent,
     ));
     draft_form(side, market.draft_max());
     side.spawn(Node {
@@ -578,7 +600,7 @@ fn inspector(side: &mut ChildSpawnerCommands, icons: &GalleryIcons, market: &Mar
         }
     });
     if let Some(note) = &market.note {
-        side.spawn(text(note, 12.0, UiColor::Nominal));
+        side.spawn(text(note, 12.0, UiColorType::Nominal));
     }
 }
 
@@ -604,7 +626,7 @@ fn draft_form(side: &mut ChildSpawnerCommands, max: u32) {
             ));
         });
         row.spawn((
-            text(&format!("of {max}"), 15.0, UiColor::Primary),
+            text(&format!("of {max}"), 15.0, UiColorType::Text),
             Node {
                 flex_grow: 1.0,
                 ..default()
@@ -633,7 +655,7 @@ fn draft_form(side: &mut ChildSpawnerCommands, max: u32) {
     .observe(on_draft_slide);
     side.spawn((
         MarketDraftSummary,
-        text("", 13.0, UiColor::Body),
+        text("", 13.0, UiColorType::TextBody),
         Node {
             min_height: px(13.0 * 1.2 * 3.0),
             ..default()
@@ -670,13 +692,13 @@ fn storage_inspector(side: &mut ChildSpawnerCommands, market: &MarketState, i: u
     side.spawn(text(
         "Storage keeps a stack for free while the station lives; it is lost with the station.",
         11.0,
-        UiColor::Label,
+        UiColorType::TextMuted,
     ));
     side.spawn(divider());
     side.spawn(text(
         "Move between the hold and storage",
         13.0,
-        UiColor::Accent,
+        UiColorType::Accent,
     ));
     draft_form(side, market.draft_max());
     side.spawn(Node {
@@ -708,7 +730,7 @@ fn storage_inspector(side: &mut ChildSpawnerCommands, market: &MarketState, i: u
         }
     });
     if let Some(note) = &market.note {
-        side.spawn(text(note, 12.0, UiColor::Nominal));
+        side.spawn(text(note, 12.0, UiColorType::Nominal));
     }
 }
 

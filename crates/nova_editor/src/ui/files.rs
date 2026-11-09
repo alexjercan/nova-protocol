@@ -20,7 +20,7 @@ use nova_ui::{
         button, text_field, themed_button, ButtonSpec, TextFieldSpec, TextFieldValue, UiText,
     },
     theme,
-    theme::{density, ActiveUiTheme, UiColor},
+    theme::{density, ActiveUiTheme, UiColorType},
     widget::{ButtonCueType, ThemedBorder, ThemedText},
 };
 
@@ -132,26 +132,26 @@ pub(crate) struct PathRow(PathBuf);
 
 /// The id `typed` makes, against `known`, as the line to show, its colour, and
 /// whether it can be used. The hub's New Mod form says the same.
-pub(crate) fn id_line(typed: &str, known: &[String]) -> (String, UiColor, bool) {
+pub(crate) fn id_line(typed: &str, known: &[String]) -> (String, UiColorType, bool) {
     match project_id(typed.trim()) {
         Err(NameProblem::Unusable) => (
             "A name needs a letter or a digit.".to_string(),
-            UiColor::Danger,
+            UiColorType::Danger,
             false,
         ),
         Err(NameProblem::Reserved) => (
             "That name is the game's own. Pick another.".to_string(),
-            UiColor::Danger,
+            UiColorType::Danger,
             false,
         ),
         Ok(id) if is_taken(&id, known) => (
             format!("{id} already exists. Pick another."),
-            UiColor::Danger,
+            UiColorType::Danger,
             false,
         ),
         Ok(id) => (
             format!("saves as {id}, publishes as {}", publish_id(&id)),
-            UiColor::Label,
+            UiColorType::TextMuted,
             true,
         ),
     }
@@ -208,7 +208,7 @@ pub(crate) fn open_file_window(
 }
 
 /// Small text under a field or above a list.
-fn small_line(name: &str, line: &str, colour: UiColor) -> impl Bundle {
+fn small_line(name: &str, line: &str, colour: UiColorType) -> impl Bundle {
     (
         Name::new(name.to_string()),
         UiText,
@@ -243,7 +243,7 @@ fn spawn_file_window(
         (FileWindow(kind.clone()), KnownMods(local_ids())),
         |body, _window| match &shown {
             FileWindowKind::PickPath(_) => {
-                body.spawn(small_line("Path Label", "Path", UiColor::Label));
+                body.spawn(small_line("Path Label", "Path", UiColorType::TextMuted));
                 body.spawn((
                     Name::new("Path Field"),
                     PathField,
@@ -266,7 +266,11 @@ fn spawn_file_window(
                 ));
             }
             _ => {
-                body.spawn(small_line("Save Name Label", "Name", UiColor::Label));
+                body.spawn(small_line(
+                    "Save Name Label",
+                    "Name",
+                    UiColorType::TextMuted,
+                ));
                 body.spawn((
                     Name::new("Save Name Field"),
                     SaveNameField,
@@ -282,7 +286,7 @@ fn spawn_file_window(
                 // one place that works it out.
                 body.spawn((
                     SaveIdReadout,
-                    small_line("Save Id Readout", "", UiColor::Label),
+                    small_line("Save Id Readout", "", UiColorType::TextMuted),
                 ));
             }
         },
@@ -324,7 +328,7 @@ fn spawn_answers(frame: &mut RelatedSpawnerCommands<ChildOf>, kind: &FileWindowK
                 ..default()
             },
             BorderColor::all(Color::NONE),
-            ThemedBorder::alpha(UiColor::Primary, 0.16),
+            ThemedBorder::alpha(UiColorType::Text, 0.16),
         ))
         .with_children(|answers| {
             // The safe answer FIRST and named for what it does, the way the

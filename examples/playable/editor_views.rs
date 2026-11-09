@@ -138,7 +138,7 @@ mod smoke {
     const SECTION_TILE: &str = "Asset Tile new_hull";
     const THEME_TILE: &str = "Asset Tile new_ui_theme";
     /// A colour the blank theme takes from the theme it inherits.
-    const COLOUR: &str = "primary";
+    const COLOUR: &str = "text";
     /// Every view tab, by the name its document gives it.
     const VIEWS: [&str; 5] = ["Scene", "Events", "Ship", "Section", "Form"];
 

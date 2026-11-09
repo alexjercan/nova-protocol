@@ -28,7 +28,7 @@ use bevy::{
 };
 use nova_events::prelude::SectorCoord;
 use nova_gameplay::prelude::ClusterType;
-use nova_ui::theme::{ActiveUiTheme, UiColor};
+use nova_ui::theme::{ActiveUiTheme, UiColorType};
 
 /// Glob-import surface: `use nova_hud::preview::chart::prelude::*`.
 pub mod prelude {
@@ -70,41 +70,41 @@ const CHART_TILE_SHARE: f32 = 0.92;
 const CHART_TILE_ALPHA: f32 = 0.9;
 /// The fill under a visited cell's layers: the centre cell in the own-ship
 /// colour, every other visited cell faint.
-const CHART_CENTRE_CELL_FILL: (UiColor, f32) = (UiColor::Primary, 0.16);
-const CHART_VISITED_CELL_FILL: (UiColor, f32) = (UiColor::Secondary, 0.14);
+const CHART_CENTRE_CELL_FILL: (UiColorType, f32) = (UiColorType::Text, 0.16);
+const CHART_VISITED_CELL_FILL: (UiColorType, f32) = (UiColorType::TextSecondary, 0.14);
 /// The grid of a visited cell with no cluster body.
-const CHART_EMPTY_CELL: (UiColor, f32) = (UiColor::Label, 0.5);
+const CHART_EMPTY_CELL: (UiColorType, f32) = (UiColorType::TextMuted, 0.5);
 /// The outline of a cell the player never entered.
-const CHART_UNVISITED_CELL: (UiColor, f32) = (UiColor::Secondary, 0.6);
+const CHART_UNVISITED_CELL: (UiColorType, f32) = (UiColorType::TextSecondary, 0.6);
 /// The alpha a dead station's mark fades to.
 const CHART_DEAD_STATION_ALPHA: f32 = 0.3;
 /// The colour of a wreck mark.
-pub const CHART_WRECK_COLOR: UiColor = UiColor::AccentHigh;
+pub const CHART_WRECK_COLOR: UiColorType = UiColorType::AccentLight;
 /// The colour of a held job's mark.
-pub const CHART_JOB_COLOR: UiColor = UiColor::Accent;
+pub const CHART_JOB_COLOR: UiColorType = UiColorType::Accent;
 /// The colour of the own ship: the Map's own-ship colour.
-pub const CHART_YOU_COLOR: UiColor = UiColor::Primary;
+pub const CHART_YOU_COLOR: UiColorType = UiColorType::Text;
 
 /// The colour a cluster type's tile layer, icon and word read in.
-pub const fn chart_cluster_color(cluster: ClusterType) -> UiColor {
+pub const fn chart_cluster_color(cluster: ClusterType) -> UiColorType {
     match cluster {
-        ClusterType::AsteroidRich => UiColor::Accent,
-        ClusterType::RockOnly => UiColor::Secondary,
-        ClusterType::PlanetHeavy => UiColor::Info,
-        ClusterType::DerelictField => UiColor::Body,
+        ClusterType::AsteroidRich => UiColorType::Accent,
+        ClusterType::RockOnly => UiColorType::TextSecondary,
+        ClusterType::PlanetHeavy => UiColorType::Info,
+        ClusterType::DerelictField => UiColorType::TextBody,
     }
 }
 
 /// The colour a station mark reads in: dead in the danger colour, the
 /// player's own in the ally colour, any other living station in the living
 /// colour.
-pub const fn chart_station_color(dead: bool, owned: bool) -> UiColor {
+pub const fn chart_station_color(dead: bool, owned: bool) -> UiColorType {
     if dead {
-        UiColor::Danger
+        UiColorType::Danger
     } else if owned {
-        UiColor::Info
+        UiColorType::Info
     } else {
-        UiColor::Nominal
+        UiColorType::Nominal
     }
 }
 
@@ -146,7 +146,7 @@ pub enum ChartSceneMarkType {
 
 impl ChartSceneMarkType {
     /// The colour the mark and its label read in.
-    pub const fn color(self) -> UiColor {
+    pub const fn color(self) -> UiColorType {
         match self {
             Self::Station { dead, owned, .. } => chart_station_color(dead, owned),
             Self::Wreck => CHART_WRECK_COLOR,
@@ -249,7 +249,7 @@ pub fn spawn_chart_scene(
 
     // The grid: cell borders on the centre's layer.
     let span = CHART_CELL * (2 * reach + 1) as f32;
-    let line_material = materials.add(unlit(theme.color_alpha(UiColor::Secondary, 0.5)));
+    let line_material = materials.add(unlit(theme.color_alpha(UiColorType::TextSecondary, 0.5)));
     let along_x = meshes.add(Cuboid::new(span, 0.6, 0.6));
     let along_z = meshes.add(Cuboid::new(0.6, 0.6, span));
     for line in 0..=(2 * reach + 1) {
@@ -336,7 +336,7 @@ pub fn spawn_chart_scene(
                 tile.clone(),
                 materials.add(textured(
                     tiles.outline.clone(),
-                    theme.color(UiColor::Accent),
+                    theme.color(UiColorType::Accent),
                 )),
                 Transform::from_translation(at + Vec3::Y * 1.2),
             );
@@ -373,7 +373,7 @@ pub fn spawn_chart_scene(
                 if refusing {
                     spawn_mesh(
                         refusal_ring.clone(),
-                        materials.add(unlit(theme.color(UiColor::Danger))),
+                        materials.add(unlit(theme.color(UiColorType::Danger))),
                         Transform::from_translation(at - Vec3::Y * 4.0),
                     );
                 }

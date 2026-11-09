@@ -27,7 +27,7 @@ use nova_ship::prelude::{
 };
 use nova_ui::{
     screen::{drive_wheel_scroll, EllipsisText},
-    theme::UiColor,
+    theme::UiColorType,
     widget::{
         badge, slider_track, text_field, BadgeKind, ButtonCueType, ButtonSpec, TextFieldError,
         TextFieldFocused, TextFieldSpec, TextFieldValue, ThemedBorder, ThemedFill, ThemedImageTint,
@@ -349,13 +349,13 @@ fn category_label(category: ItemCategoryType) -> &'static str {
 }
 
 /// The tint of a category's icon, row and quantity.
-pub(crate) fn category_color(category: ItemCategoryType) -> UiColor {
+pub(crate) fn category_color(category: ItemCategoryType) -> UiColorType {
     match category {
-        ItemCategoryType::Raw => UiColor::Secondary,
-        ItemCategoryType::Repair => UiColor::Nominal,
-        ItemCategoryType::Ammo => UiColor::Danger,
-        ItemCategoryType::Food => UiColor::Accent,
-        ItemCategoryType::Parts => UiColor::AccentHigh,
+        ItemCategoryType::Raw => UiColorType::TextSecondary,
+        ItemCategoryType::Repair => UiColorType::Nominal,
+        ItemCategoryType::Ammo => UiColorType::Danger,
+        ItemCategoryType::Food => UiColorType::Accent,
+        ItemCategoryType::Parts => UiColorType::AccentLight,
     }
 }
 
@@ -369,11 +369,11 @@ fn row_alphas(selected: bool) -> (f32, f32) {
 }
 
 /// Colour, fill alpha and border alpha of a filter chip, current or not.
-fn chip_paint(current: bool) -> (UiColor, f32, f32) {
+fn chip_paint(current: bool) -> (UiColorType, f32, f32) {
     if current {
-        (UiColor::Accent, 0.25, 1.0)
+        (UiColorType::Accent, 0.25, 1.0)
     } else {
-        (UiColor::Secondary, 0.08, 0.4)
+        (UiColorType::TextSecondary, 0.08, 0.4)
     }
 }
 
@@ -477,7 +477,10 @@ fn filter_chip(
                 16.0,
             ));
         }
-        chip_node.spawn((themed_label(label, 12.0, UiColor::Body), Pickable::IGNORE));
+        chip_node.spawn((
+            themed_label(label, 12.0, UiColorType::TextBody),
+            Pickable::IGNORE,
+        ));
     });
 }
 
@@ -507,7 +510,7 @@ fn inventory_column(
             },
             BackgroundColor(Color::NONE),
             BorderColor::all(Color::NONE),
-            ThemedBorder::alpha(UiColor::Secondary, 0.35),
+            ThemedBorder::alpha(UiColorType::TextSecondary, 0.35),
             ThemedRadius::control(),
         ))
         .with_children(|panel| {
@@ -522,7 +525,7 @@ fn inventory_column(
                 .with_children(|head| {
                     head.spawn((
                         InventoryColumnTitle(side),
-                        themed_label("", 15.0, UiColor::Primary),
+                        themed_label("", 15.0, UiColorType::Text),
                         TextLayout::new(Justify::Left, LineBreak::NoWrap),
                         Node {
                             min_width: px(0),
@@ -558,20 +561,20 @@ fn inventory_column(
                                 ..control_row(JustifyContent::FlexStart)
                             })
                             .with_children(|pair| {
-                                pair.spawn(themed_label(label, 11.0, UiColor::Label));
+                                pair.spawn(themed_label(label, 11.0, UiColorType::TextMuted));
                                 if fact == InventoryColumnFactType::Credits {
                                     spawn_credit_figure(
                                         pair,
                                         icons,
                                         0,
                                         13.0,
-                                        UiColor::Primary,
+                                        UiColorType::Text,
                                         InventoryColumnFact(side, fact),
                                     );
                                 } else {
                                     pair.spawn((
                                         InventoryColumnFact(side, fact),
-                                        themed_label("", 13.0, UiColor::Primary),
+                                        themed_label("", 13.0, UiColorType::Text),
                                         TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                     ));
                                 }
@@ -625,13 +628,13 @@ fn inventory_column(
                     })
                     .with_children(|cell| {
                         cell.spawn((
-                            themed_label("Item", 11.0, UiColor::Label),
+                            themed_label("Item", 11.0, UiColorType::TextMuted),
                             TextLayout::new(Justify::Left, LineBreak::NoWrap),
                         ));
                     });
                     line.spawn(fixed_cell(QTY_PX)).with_children(|cell| {
                         cell.spawn((
-                            themed_label("Qty", 11.0, UiColor::Label),
+                            themed_label("Qty", 11.0, UiColorType::TextMuted),
                             TextLayout::new(Justify::Left, LineBreak::NoWrap),
                         ));
                     });
@@ -648,13 +651,13 @@ fn inventory_column(
                         .with_children(|prices| {
                             prices.spawn(fixed_cell(PRICE_PX)).with_children(|cell| {
                                 cell.spawn((
-                                    themed_label("Price", 11.0, UiColor::Label),
+                                    themed_label("Price", 11.0, UiColorType::TextMuted),
                                     TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                 ));
                             });
                             prices.spawn(fixed_cell(DEAL_PX)).with_children(|cell| {
                                 cell.spawn((
-                                    themed_label("Deal", 11.0, UiColor::Label),
+                                    themed_label("Deal", 11.0, UiColorType::TextMuted),
                                     TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                 ));
                             });
@@ -795,11 +798,11 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                     hint.spawn(themed_label(
                         "Docked, double-click an item to move its stack, Shift for one.",
                         12.0,
-                        UiColor::Secondary,
+                        UiColorType::TextSecondary,
                     ));
                     hint.spawn((
                         InventoryInspectorField::SelectCue,
-                        themed_label("", 12.0, UiColor::Secondary),
+                        themed_label("", 12.0, UiColorType::TextSecondary),
                     ));
                 });
             panel
@@ -826,9 +829,9 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                                     ..default()
                                 },
                                 BackgroundColor(Color::NONE),
-                                ThemedFill::alpha(UiColor::Surface, 0.6),
+                                ThemedFill::alpha(UiColorType::Surface, 0.6),
                                 BorderColor::all(Color::NONE),
-                                ThemedBorder::new(UiColor::Secondary),
+                                ThemedBorder::new(UiColorType::TextSecondary),
                                 ThemedRadius::control(),
                             ))
                             .with_children(|frame| {
@@ -852,12 +855,12 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                             .with_children(|names| {
                                 names.spawn((
                                     InventoryInspectorField::Name,
-                                    themed_label("", 16.0, UiColor::Primary),
+                                    themed_label("", 16.0, UiColorType::Text),
                                     TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                 ));
                                 names.spawn((
                                     InventoryInspectorField::Category,
-                                    themed_label("", 12.0, UiColor::Body),
+                                    themed_label("", 12.0, UiColorType::TextBody),
                                 ));
                             });
                         });
@@ -872,10 +875,10 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
                         Visibility::Hidden,
                     ))
                     .with_children(|fact| {
-                        fact.spawn(themed_label("Total weight", 12.0, UiColor::Label));
+                        fact.spawn(themed_label("Total weight", 12.0, UiColorType::TextMuted));
                         fact.spawn((
                             InventoryInspectorField::TotalWeight,
-                            themed_label("", 13.0, UiColor::Primary),
+                            themed_label("", 13.0, UiColorType::Text),
                             TextLayout::new(Justify::Right, LineBreak::NoWrap),
                         ));
                     });
@@ -915,7 +918,7 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &InterfaceIcons) {
             panel.spawn((
                 Name::new("InventoryNote"),
                 InventoryInspectorField::Note,
-                themed_label("", 12.0, UiColor::Accent),
+                themed_label("", 12.0, UiColorType::Accent),
             ));
         });
 }
@@ -948,7 +951,7 @@ fn about_box(item: &mut ChildSpawnerCommands) {
             .with_children(|clip| {
                 clip.spawn((
                     InventoryInspectorField::About,
-                    themed_label("", ABOUT_FONT_PX, UiColor::Body),
+                    themed_label("", ABOUT_FONT_PX, UiColorType::TextBody),
                     // At its full height, so the panel can compare it with
                     // the box and tell a clipped text.
                     Node {
@@ -968,14 +971,14 @@ fn about_box(item: &mut ChildSpawnerCommands) {
                     ..default()
                 },
                 BackgroundColor(Color::NONE),
-                ThemedFill::new(UiColor::Surface),
+                ThemedFill::new(UiColorType::Surface),
                 Pickable::IGNORE,
                 Visibility::Hidden,
             ))
             .with_children(|more| {
                 more.spawn((
                     InventoryInspectorField::DetailsCue,
-                    themed_label("", 11.0, UiColor::Accent),
+                    themed_label("", 11.0, UiColorType::Accent),
                     TextLayout::new(Justify::Right, LineBreak::NoWrap),
                 ));
             });
@@ -994,15 +997,15 @@ fn about_box(item: &mut ChildSpawnerCommands) {
                     ..default()
                 },
                 BackgroundColor(Color::NONE),
-                ThemedFill::new(UiColor::Surface),
+                ThemedFill::new(UiColorType::Surface),
                 BorderColor::all(Color::NONE),
-                ThemedBorder::new(UiColor::Accent),
+                ThemedBorder::new(UiColorType::Accent),
                 ThemedRadius::control(),
             ))
             .with_children(|full| {
                 full.spawn((
                     InventoryInspectorField::AboutFull,
-                    themed_label("", ABOUT_FONT_PX, UiColor::Body),
+                    themed_label("", ABOUT_FONT_PX, UiColorType::TextBody),
                 ));
             });
     });
@@ -1070,7 +1073,7 @@ fn fact_row(item: &mut ChildSpawnerCommands, label: &str, field: InventoryInspec
     item.spawn(control_row(JustifyContent::SpaceBetween))
         .with_children(|fact| {
             fact.spawn((
-                themed_label(label, 12.0, UiColor::Label),
+                themed_label(label, 12.0, UiColorType::TextMuted),
                 Node {
                     flex_shrink: 0.0,
                     ..default()
@@ -1078,7 +1081,7 @@ fn fact_row(item: &mut ChildSpawnerCommands, label: &str, field: InventoryInspec
             ));
             fact.spawn((
                 field,
-                themed_label("", 13.0, UiColor::Primary),
+                themed_label("", 13.0, UiColorType::Text),
                 TextLayout::new(Justify::Right, LineBreak::NoWrap),
                 Node {
                     min_width: px(0),
@@ -1097,7 +1100,7 @@ fn draft_form(form: &mut ChildSpawnerCommands) {
     form.spawn(divider());
     form.spawn((
         InventoryInspectorField::DraftTitle,
-        themed_label("", 13.0, UiColor::Accent),
+        themed_label("", 13.0, UiColorType::Accent),
         TextLayout::new(Justify::Left, LineBreak::NoWrap),
         Node {
             overflow: Overflow::clip(),
@@ -1144,7 +1147,7 @@ fn draft_form(form: &mut ChildSpawnerCommands) {
         });
         row.spawn((
             InventoryInspectorField::DraftStock,
-            themed_label("", 15.0, UiColor::Primary),
+            themed_label("", 15.0, UiColorType::Text),
             Node {
                 flex_grow: 1.0,
                 ..default()
@@ -1173,7 +1176,7 @@ fn draft_form(form: &mut ChildSpawnerCommands) {
     form.spawn((
         Name::new("InventoryDraftSummary"),
         InventoryInspectorField::DraftSummary,
-        themed_label("", 13.0, UiColor::Body),
+        themed_label("", 13.0, UiColorType::TextBody),
         Node {
             min_height: px(13.0 * 1.2 * SUMMARY_LINES),
             ..default()
@@ -1245,7 +1248,10 @@ fn action_chip(
         ))
         .observe(on_inventory_draft_action_chip)
         .with_children(|chip| {
-            chip.spawn((themed_label(label, 12.0, UiColor::Body), Pickable::IGNORE));
+            chip.spawn((
+                themed_label(label, 12.0, UiColorType::TextBody),
+                Pickable::IGNORE,
+            ));
         });
 }
 
@@ -1312,7 +1318,7 @@ fn inventory_row(
         ))
         .with_children(|cell| {
             cell.spawn((
-                themed_label(&design.name, 13.0, UiColor::Body),
+                themed_label(&design.name, 13.0, UiColorType::TextBody),
                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                 EllipsisText(design.name.clone()),
                 Pickable::IGNORE,
@@ -1327,7 +1333,7 @@ fn inventory_row(
         });
         if let Some(price) = price {
             row.spawn(fixed_cell(PRICE_PX)).with_children(|cell| {
-                spawn_credit_figure(cell, icons, price.cr.into(), 12.0, UiColor::Accent, ());
+                spawn_credit_figure(cell, icons, price.cr.into(), 12.0, UiColorType::Accent, ());
                 if price.lot > 1 {
                     cell.spawn((
                         themed_label(&format!(" / {}", cr_digits(price.lot.into())), 12.0, tone),
@@ -3331,7 +3337,7 @@ pub(crate) fn update_inventory_panel(
             for section in draw.sections.iter().flatten() {
                 if let Some(heading) = &section.heading {
                     rows.spawn((
-                        themed_label(heading, 13.0, UiColor::Primary),
+                        themed_label(heading, 13.0, UiColorType::Text),
                         TextLayout::new(Justify::Left, LineBreak::NoWrap),
                         Node {
                             margin: UiRect::top(px(6)),
@@ -3341,7 +3347,11 @@ pub(crate) fn update_inventory_panel(
                     ));
                 }
                 if section.stacks.is_empty() {
-                    rows.spawn(themed_label("Inventory empty.", 12.0, UiColor::Secondary));
+                    rows.spawn(themed_label(
+                        "Inventory empty.",
+                        12.0,
+                        UiColorType::TextSecondary,
+                    ));
                     continue;
                 }
                 let visible: Vec<RowStack> = section
@@ -3354,7 +3364,7 @@ pub(crate) fn update_inventory_panel(
                     rows.spawn(themed_label(
                         "Nothing in this category.",
                         12.0,
-                        UiColor::Secondary,
+                        UiColorType::TextSecondary,
                     ));
                 }
                 for stack in visible {
@@ -3746,9 +3756,9 @@ pub(crate) fn update_inventory_panel(
     });
     for (field, mut text, mut themed) in &mut q_field {
         let (value, color) = match (field, picked.as_ref(), form.as_ref()) {
-            (InventoryInspectorField::Note, ..) => (note.clone(), UiColor::Accent),
+            (InventoryInspectorField::Note, ..) => (note.clone(), UiColorType::Accent),
             (InventoryInspectorField::Name, Some((item, _)), _) => {
-                (items.design(item).name.clone(), UiColor::Primary)
+                (items.design(item).name.clone(), UiColorType::Text)
             }
             (InventoryInspectorField::Category, Some((item, _)), _) => {
                 let category = items.design(item).category;
@@ -3761,59 +3771,59 @@ pub(crate) fn update_inventory_panel(
                 InventoryInspectorField::About | InventoryInspectorField::AboutFull,
                 Some((item, _)),
                 _,
-            ) => (items.design(item).about.clone(), UiColor::Body),
+            ) => (items.design(item).about.clone(), UiColorType::TextBody),
             (InventoryInspectorField::Stock, Some((_, stock)), _) => {
-                (stock.clone(), UiColor::Primary)
+                (stock.clone(), UiColorType::Text)
             }
             (InventoryInspectorField::Weight, Some((item, _)), _) => (
                 kg_text(u64::from(items.design(item).mass_g)),
-                UiColor::Primary,
+                UiColorType::Text,
             ),
             (InventoryInspectorField::TotalWeight, ..) => match &total_weight {
-                Some(total) => (total.clone(), UiColor::Primary),
+                Some(total) => (total.clone(), UiColorType::Text),
                 None => continue,
             },
             (InventoryInspectorField::DraftTitle, _, Some((title, ..))) => {
-                (title.clone(), UiColor::Accent)
+                (title.clone(), UiColorType::Accent)
             }
             (InventoryInspectorField::DraftStock, _, Some((_, have, _))) => {
-                (have.clone(), UiColor::Primary)
+                (have.clone(), UiColorType::Text)
             }
             (InventoryInspectorField::DraftSummary, _, Some((.., summary))) => match summary {
-                Ok(text) => (text.clone(), UiColor::Body),
-                Err(text) => (text.clone(), UiColor::Danger),
+                Ok(text) => (text.clone(), UiColorType::TextBody),
+                Err(text) => (text.clone(), UiColorType::Danger),
             },
             (InventoryInspectorField::PriceReference, ..) => match &priced {
-                Some((reference, ..)) => (price_text(*reference), UiColor::Body),
+                Some((reference, ..)) => (price_text(*reference), UiColorType::TextBody),
                 None => continue,
             },
             (InventoryInspectorField::PricePays, ..) => match &priced {
                 Some((reference, quote, ..)) => (
                     priced_text(quote.price.bid_cr, reference.bid_cr, reference.lot),
-                    UiColor::Primary,
+                    UiColorType::Text,
                 ),
                 None => continue,
             },
             (InventoryInspectorField::PriceAsks, ..) => match &priced {
                 Some((reference, _, TradePriceType::Market(price), _)) => (
                     priced_text(price.ask_cr, reference.ask_cr, reference.lot),
-                    UiColor::Primary,
+                    UiColorType::Text,
                 ),
                 // An owned station sells its stock at its bid.
                 Some((_, _, TradePriceType::Owned(price), _)) => (
                     format!("{} at bid, yours", lot_cr_text(price.bid_cr, price.lot)),
-                    UiColor::Primary,
+                    UiColorType::Text,
                 ),
                 None => continue,
             },
             (InventoryInspectorField::PriceScarcity, ..) => match &priced {
-                Some((_, quote, ..)) => (factor_text(quote.scarcity), UiColor::Body),
+                Some((_, quote, ..)) => (factor_text(quote.scarcity), UiColorType::TextBody),
                 None => continue,
             },
             (InventoryInspectorField::PriceCluster, ..) => match &priced {
                 Some((_, quote, _, market)) => (
                     labelled_factor(market.map(|market| market.cluster.label()), quote.cluster),
-                    UiColor::Body,
+                    UiColorType::TextBody,
                 ),
                 None => continue,
             },
@@ -3823,16 +3833,16 @@ pub(crate) fn update_inventory_panel(
                         market.map(|market| market.leading_role().label()),
                         quote.civilization,
                     ),
-                    UiColor::Body,
+                    UiColorType::TextBody,
                 ),
                 None => continue,
             },
             (InventoryInspectorField::PriceTotal, ..) => match &priced {
                 Some((_, quote, ..)) if quote.clamped => (
                     format!("{} clamped", factor_text(quote.total)),
-                    UiColor::Accent,
+                    UiColorType::Accent,
                 ),
-                Some((_, quote, ..)) => (factor_text(quote.total), UiColor::Primary),
+                Some((_, quote, ..)) => (factor_text(quote.total), UiColorType::Text),
                 None => continue,
             },
             _ => continue,

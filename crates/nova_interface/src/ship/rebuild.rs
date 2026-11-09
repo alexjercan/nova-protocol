@@ -19,7 +19,7 @@ use nova_events::prelude::{CreditChangeCauseType, EntityId};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
-    theme::UiColor,
+    theme::UiColorType,
     widget::{ButtonCueType, ButtonSpec},
 };
 
@@ -425,7 +425,7 @@ pub(crate) fn spawn_ship_rebuild_list(panel: &mut ChildSpawnerCommands) {
         ))
         .with_children(|list| {
             list.spawn(crate::pane::divider());
-            list.spawn(themed_label("Lost sections", 13.0, UiColor::Accent));
+            list.spawn(themed_label("Lost sections", 13.0, UiColorType::Accent));
             list.spawn((
                 ShipRebuildRows::default(),
                 Node {
@@ -507,8 +507,8 @@ pub(crate) fn update_ship_rebuild_list(
                     ..default()
                 })
                 .with_children(|cell| {
-                    cell.spawn(themed_label(&row.code, 13.0, UiColor::Primary));
-                    cell.spawn(themed_label(&row.line, 12.0, UiColor::Body));
+                    cell.spawn(themed_label(&row.code, 13.0, UiColorType::Text));
+                    cell.spawn(themed_label(&row.line, 12.0, UiColorType::TextBody));
                     cell.spawn((
                         Name::new(format!("ShipRebuild-{}", row.code)),
                         compact_button(ButtonSpec::new("Rebuild").fit().primary()),

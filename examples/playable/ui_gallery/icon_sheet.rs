@@ -3,7 +3,7 @@
 //! sizes the pages use it.
 
 use bevy::prelude::*;
-use nova_ui::{prelude::*, theme::UiColor};
+use nova_ui::{prelude::*, theme::UiColorType};
 
 use crate::{
     chrome::*,
@@ -30,7 +30,7 @@ pub fn icon_sheet_page(body: &mut ChildSpawnerCommands, icons: &GalleryIcons) {
             sheet.spawn(text(
                 "Procedural coverage masks, drawn once at startup and tinted by the theme. Columns: 16, 24 and 48 px in the icon's tint, then 24 px in body ink.",
                 12.0,
-                UiColor::Body,
+                UiColorType::TextBody,
             ));
             for (family, members) in IconType::FAMILIES {
                 sheet.spawn(divider());
@@ -56,9 +56,9 @@ pub fn icon_sheet_page(body: &mut ChildSpawnerCommands, icons: &GalleryIcons) {
                                     ..default()
                                 },
                                 BackgroundColor(Color::NONE),
-                                ThemedFill::alpha(UiColor::Secondary, 0.06),
+                                ThemedFill::alpha(UiColorType::TextSecondary, 0.06),
                                 BorderColor::all(Color::NONE),
-                                ThemedBorder::alpha(UiColor::Secondary, 0.35),
+                                ThemedBorder::alpha(UiColorType::TextSecondary, 0.35),
                             ))
                             .with_children(|card| {
                                 card.spawn(Node {
@@ -71,9 +71,9 @@ pub fn icon_sheet_page(body: &mut ChildSpawnerCommands, icons: &GalleryIcons) {
                                     for size in SIZES {
                                         sizes.spawn(icon_node(icons, icon, icon.color(), size));
                                     }
-                                    sizes.spawn(icon_node(icons, icon, UiColor::Body, 24.0));
+                                    sizes.spawn(icon_node(icons, icon, UiColorType::TextBody, 24.0));
                                 });
-                                card.spawn(text(icon.label(), 12.0, UiColor::Primary));
+                                card.spawn(text(icon.label(), 12.0, UiColorType::Text));
                             });
                         }
                     });

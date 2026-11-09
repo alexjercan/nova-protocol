@@ -13,7 +13,7 @@ use bevy::{
 };
 use nova_ui::{
     prelude::*,
-    theme::{self, density, UiColor},
+    theme::{self, density, UiColorType},
 };
 
 use super::{
@@ -100,7 +100,7 @@ const RESIZE_GRIP_H: f32 = 4.0;
 pub(crate) struct RowTarget(pub(crate) Entity);
 
 /// One line of pane text.
-pub(super) fn pane_text(text: &str, size: f32, colour: UiColor) -> impl Bundle {
+pub(super) fn pane_text(text: &str, size: f32, colour: UiColorType) -> impl Bundle {
     (
         UiText,
         Text::new(text.to_string()),
@@ -118,7 +118,7 @@ pub(super) fn pane_text(text: &str, size: f32, colour: UiColor) -> impl Bundle {
 }
 
 /// Text that wraps inside a column.
-fn pane_note(text: &str, size: f32, colour: UiColor) -> impl Bundle {
+fn pane_note(text: &str, size: f32, colour: UiColorType) -> impl Bundle {
     (
         UiText,
         Text::new(text.to_string()),
@@ -133,7 +133,7 @@ fn pane_note(text: &str, size: f32, colour: UiColor) -> impl Bundle {
 
 /// One row of a browser list: a mark, a label that takes the free width, and a
 /// muted detail. The label clips rather than pushing the detail out.
-fn browser_row(mark: &str, label: &str, detail: &str, tint: UiColor) -> impl Bundle {
+fn browser_row(mark: &str, label: &str, detail: &str, tint: UiColorType) -> impl Bundle {
     (
         ListRow,
         Button,
@@ -143,7 +143,7 @@ fn browser_row(mark: &str, label: &str, detail: &str, tint: UiColor) -> impl Bun
 }
 
 /// A browser row's face: what a row that goes nowhere shows on its own.
-fn browser_line(mark: &str, label: &str, detail: &str, tint: UiColor) -> impl Bundle {
+fn browser_line(mark: &str, label: &str, detail: &str, tint: UiColorType) -> impl Bundle {
     (
         Node {
             width: percent(100),
@@ -169,9 +169,9 @@ fn browser_line(mark: &str, label: &str, detail: &str, tint: UiColor) -> impl Bu
                     overflow: Overflow::clip(),
                     ..default()
                 },
-                children![pane_text(label, 12.0, UiColor::Primary)],
+                children![pane_text(label, 12.0, UiColorType::Text)],
             ),
-            pane_text(detail, 11.0, UiColor::Label),
+            pane_text(detail, 11.0, UiColorType::TextMuted),
         ],
     )
 }
@@ -275,7 +275,7 @@ fn spawn_ship_pane(strip: &mut RelatedSpawnerCommands<ChildOf>, ship: &ShipPaneD
                     ));
                     skin.spawn((
                         Name::new("Ship Skin Note"),
-                        pane_note("reflows around the part in hand", 11.0, UiColor::Label),
+                        pane_note("reflows around the part in hand", 11.0, UiColorType::TextMuted),
                     ));
                     // Two to a line: the strip is too short to stack the base
                     // styles, and a mod may add more.
@@ -307,7 +307,7 @@ fn spawn_ship_pane(strip: &mut RelatedSpawnerCommands<ChildOf>, ship: &ShipPaneD
                         pane_note(
                             "collapses this ship out of the ticked sections, replacing what it holds",
                             11.0,
-                            UiColor::Label,
+                            UiColorType::TextMuted,
                         ),
                     ));
                     block
@@ -337,19 +337,19 @@ fn spawn_ship_pane(strip: &mut RelatedSpawnerCommands<ChildOf>, ship: &ShipPaneD
                         });
                     block.spawn((
                         Name::new("Hull Plan Label"),
-                        pane_text("HULL PLAN", 10.0, UiColor::Label),
+                        pane_text("HULL PLAN", 10.0, UiColorType::TextMuted),
                     ));
                     block.spawn((
                         Name::new("Hull Plan Line"),
                         HullPlanLine,
-                        pane_note("stern -\nbow -", 10.0, UiColor::Secondary),
+                        pane_note("stern -\nbow -", 10.0, UiColorType::TextSecondary),
                     ));
                 });
             pane.spawn((Name::new("Draw Column"), column(1.4)))
                 .with_children(|block| {
                     block.spawn((
                         Name::new("Draw Label"),
-                        pane_text("DRAW FROM", 10.0, UiColor::Label),
+                        pane_text("DRAW FROM", 10.0, UiColorType::TextMuted),
                     ));
                     block.spawn((
                         Name::new("Draw Note"),
@@ -358,7 +358,7 @@ fn spawn_ship_pane(strip: &mut RelatedSpawnerCommands<ChildOf>, ship: &ShipPaneD
                                 "unpriced parts join at {UNAUTHORED_WEIGHT}; the chip says where a part may stand",
                             ),
                             10.0,
-                            UiColor::Label,
+                            UiColorType::TextMuted,
                         ),
                     ));
                     spawn_scroll_list(block, "Part List", PartList, |list| {
@@ -411,7 +411,7 @@ pub(crate) fn spawn_browser(root: &mut RelatedSpawnerCommands<ChildOf>, ship: &S
                 ..default()
             },
             BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Primary, 0.16),
+            ThemedFill::alpha(UiColorType::Text, 0.16),
             observe(on_browser_resize),
         ));
         strip
@@ -629,10 +629,10 @@ pub(crate) fn sync_browser(
 }
 
 /// The mark and tint of a problem row.
-fn problem_paint(problem: &Problem) -> (&'static str, UiColor) {
+fn problem_paint(problem: &Problem) -> (&'static str, UiColorType) {
     match problem.severity {
-        ProblemSeverityType::Error => ("!", UiColor::Danger),
-        ProblemSeverityType::Warning => ("?", UiColor::Accent),
+        ProblemSeverityType::Error => ("!", UiColorType::Danger),
+        ProblemSeverityType::Warning => ("?", UiColorType::Accent),
     }
 }
 

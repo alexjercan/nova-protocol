@@ -33,6 +33,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Modding & Mod Portal
 
+- **(breaking)** A `UiTheme` palette is now one fixed set of job-named colours, such as `text`, `surface` and `accent`, in every theme. A root theme sets all; an unknown name fails to parse.
 - **(breaking)** `Item` content now requires `price_lot`, the item count one `ask_cr`/`bid_cr` prices: 100 for a PDC round, 1 for other base items. An item without it fails lint, then load.
 - New `TradeProfile` content gives generated ship roles weighted buy/sell lists, with quantity and per-unit price limit, and Procure jobs for their station visits.
 - New `SetTradeProfile` action gives a generated AI trader a trade profile or clears it. An unknown profile or a non-AI target fails lint.
@@ -40,7 +41,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Editor Assets > + > Sections builds a section in the mod: sockets on the gizmo, .glb import, live Problems. Ships can carry it, and Play flies it.
 - Editor Assets opens styles, start roles, items, price tables, trade profiles, UI themes and campaigns as undoable forms. Lists and ids are picked, not typed. Merge rules show in Problems.
 - Editor New Asset (+, right click, Add) offers only kinds it can make: a blank with a new id. A section asks its kind in a modal. Save, Play and Package wait until the blank is filled.
-- Editor UI theme palettes are a grid of named swatches with a picker: a square, a hue strip and a hex field. The pick shows live, is one undo step, and Esc takes it back.
+- Editor UI theme palettes show the same swatch rows for every theme, with a picker: a square, a hue strip and a hex field. The pick shows live, is one undo step, and Esc takes it back.
 - Editor File > Package opens a window: version bump, lint check, files, name. It writes `<id>-<version>.zip` and shows its path and size. Hub Import refuses unsafe paths. Desktop only.
 - New `OnJobAccepted` scenario event fires when the Jobs pane accepts a board offer, with the job's id as `id`.
 - **(breaking)** A section with `health` 0 or less now fails lint, and so does a mining section or cargo intake sound or mesh ref that names no file.

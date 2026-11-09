@@ -46,7 +46,7 @@ use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
-    theme::UiColor,
+    theme::UiColorType,
     widget::{
         ButtonCueType, ButtonSpec, ThemedBorder, ThemedFill, ThemedRadius, ThemedText, Tooltip,
     },
@@ -467,7 +467,7 @@ pub(crate) fn spawn_strip_block(panel: &mut ChildSpawnerCommands) {
                 ..default()
             },
             BorderColor::all(Color::NONE),
-            ThemedBorder::alpha(UiColor::Accent, 0.45),
+            ThemedBorder::alpha(UiColorType::Accent, 0.45),
             ThemedRadius::control(),
         ))
         .with_children(|block| {
@@ -538,7 +538,7 @@ fn spawn_meter_row(
         })
         .with_children(|row| {
             row.spawn((
-                themed_label(label, 11.0, UiColor::Label),
+                themed_label(label, 11.0, UiColorType::TextMuted),
                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                 Node {
                     width: Val::Px(64.0),
@@ -555,7 +555,7 @@ fn spawn_meter_row(
                     ..default()
                 },
                 BackgroundColor(Color::NONE),
-                ThemedFill::alpha(UiColor::Secondary, 0.25),
+                ThemedFill::alpha(UiColorType::TextSecondary, 0.25),
                 ThemedRadius::control(),
             ))
             .with_children(|track| {
@@ -567,12 +567,12 @@ fn spawn_meter_row(
                         ..default()
                     },
                     BackgroundColor(Color::NONE),
-                    ThemedFill::new(UiColor::Accent),
+                    ThemedFill::new(UiColorType::Accent),
                 ));
             });
             let mut value = row.spawn((
                 field,
-                themed_label("", 12.0, UiColor::Primary),
+                themed_label("", 12.0, UiColorType::Text),
                 TextLayout::new(Justify::Right, LineBreak::NoWrap),
             ));
             if field == StripBlockField::Time {
@@ -644,7 +644,7 @@ pub(crate) fn update_strip_block(
         }
     }
     // Each meter as (fill share, fill colour, text, text colour).
-    let empty = (0.0, UiColor::Accent, String::new(), UiColor::Primary);
+    let empty = (0.0, UiColorType::Accent, String::new(), UiColorType::Text);
     let (mut total, mut step, mut sections, mut hold) =
         (empty.clone(), empty.clone(), empty.clone(), empty);
     let mut tiles = Vec::new();
@@ -654,21 +654,21 @@ pub(crate) fn update_strip_block(
         total = match job {
             None => (
                 0.0,
-                UiColor::Accent,
+                UiColorType::Accent,
                 format!("{} to strip", duration_text(strip.duration_secs)),
-                UiColor::Primary,
+                UiColorType::Text,
             ),
             Some(job) if held.is_some() => (
                 job.progress(),
-                UiColor::Accent,
+                UiColorType::Accent,
                 "Held".to_string(),
-                UiColor::Danger,
+                UiColorType::Danger,
             ),
             Some(job) => (
                 job.progress(),
-                UiColor::Accent,
+                UiColorType::Accent,
                 format!("{} left", duration_text(job.remaining_secs())),
-                UiColor::Primary,
+                UiColorType::Text,
             ),
         };
         if let Some(running) = job.and_then(|job| job.step.as_ref()) {
@@ -686,7 +686,7 @@ pub(crate) fn update_strip_block(
             } else {
                 (1.0, running.code.clone())
             };
-            step = (share, UiColor::Accent, text, UiColor::Primary);
+            step = (share, UiColorType::Accent, text, UiColorType::Text);
         }
         let taken = job.map_or(0, |job| job.taken);
         let all = taken + partner.live.len() as u32;
@@ -696,9 +696,9 @@ pub(crate) fn update_strip_block(
             } else {
                 0.0
             },
-            UiColor::Accent,
+            UiColorType::Accent,
             format!("{taken} / {all}"),
-            UiColor::Primary,
+            UiColorType::Text,
         );
         let (_, own, _, _) = ships.ship(player);
         let used_g = own.used_g(&items);
@@ -716,9 +716,9 @@ pub(crate) fn update_strip_block(
         hold = match held {
             Some(HullStripPauseType::HoldFull { need_g, .. }) => (
                 share,
-                UiColor::Danger,
+                UiColorType::Danger,
                 format!("{used}  needs {}", kg_text(need_g)),
-                UiColor::Danger,
+                UiColorType::Danger,
             ),
             None => {
                 let mass_g: u64 = strip
@@ -728,9 +728,9 @@ pub(crate) fn update_strip_block(
                     .sum();
                 (
                     share,
-                    UiColor::Accent,
+                    UiColorType::Accent,
                     format!("{used}  +{}", kg_text(mass_g)),
-                    UiColor::Primary,
+                    UiColorType::Text,
                 )
             }
         };

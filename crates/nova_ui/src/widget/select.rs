@@ -11,7 +11,7 @@ use bevy::{
 };
 
 use super::{popup_row, spawn_popup, ListRow, ThemedRadius, ThemedText, UiText};
-use crate::theme::{UiColor, BORDER_W};
+use crate::theme::{UiColorType, BORDER_W};
 
 /// The state of a [`select`].
 #[derive(Component, Clone, Debug, PartialEq, Eq)]
@@ -47,7 +47,7 @@ pub struct SelectChanged {
 /// A select showing `options[chosen]`, whose list opens on rung `z`.
 pub fn select(options: Vec<String>, chosen: usize, z: i32) -> impl Bundle {
     let label = options.get(chosen).cloned().unwrap_or_default();
-    let text = |line: String, colour: UiColor| {
+    let text = |line: String, colour: UiColorType| {
         (
             UiText,
             Text::new(line),
@@ -83,8 +83,8 @@ pub fn select(options: Vec<String>, chosen: usize, z: i32) -> impl Bundle {
         BorderColor::all(Color::NONE),
         BackgroundColor(Color::NONE),
         children![
-            (SelectLabel, text(label, UiColor::Primary)),
-            text("v".to_string(), UiColor::Label),
+            (SelectLabel, text(label, UiColorType::Text)),
+            text("v".to_string(), UiColorType::TextMuted),
         ],
     )
 }

@@ -118,7 +118,7 @@ use nova_protocol::{
 use nova_ui::{
     prelude::*,
     screen::{clamp_stored_scroll, drive_wheel_scroll},
-    theme::{ActiveUiTheme, UiColor, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID},
+    theme::{ActiveUiTheme, UiColorType, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID},
     widget::{ButtonSpec, ThemedBorder, ThemedFill, ThemedImageTint, ThemedText, UiText},
 };
 
@@ -822,7 +822,7 @@ fn spawn_root(
             // Above the flight HUD, below every interface layer.
             GlobalZIndex(MENU_PANEL_Z),
             BackgroundColor(Color::NONE),
-            ThemedFill::new(UiColor::Void),
+            ThemedFill::new(UiColorType::Background),
         ))
         .with_children(|root| {
             left_debug_rail(root, context, &theme);
@@ -908,17 +908,20 @@ fn left_debug_rail(root: &mut ChildSpawnerCommands, context: SketchContext, them
             });
         rail.spawn((
             Name::new(DOCK_HEAD),
-            themed_text("", 20.0, UiColor::Secondary),
+            themed_text("", 20.0, UiColorType::TextSecondary),
         ));
         rail.spawn((
             Name::new(DOCK_PARTNER),
-            themed_text("", 16.0, UiColor::Primary),
+            themed_text("", 16.0, UiColorType::Text),
         ));
         rail.spawn((
             Name::new(DOCK_CREDITS),
-            themed_text("", 16.0, UiColor::Primary),
+            themed_text("", 16.0, UiColorType::Text),
         ));
-        rail.spawn((Name::new(DOCK_NOTICE), themed_text("", 12.0, UiColor::Body)));
+        rail.spawn((
+            Name::new(DOCK_NOTICE),
+            themed_text("", 12.0, UiColorType::TextBody),
+        ));
     });
 }
 
@@ -934,7 +937,7 @@ fn top_bar(main: &mut ChildSpawnerCommands, view: SketchView) {
         ..default()
     })
     .with_children(|bar| {
-        text(bar, "NOVA", 18.0, UiColor::Primary);
+        text(bar, "NOVA", 18.0, UiColorType::Text);
         bar.spawn(segmented_container()).with_children(|seg| {
             for (value, label, name) in SketchView::ALL {
                 let mut option = seg.spawn((
@@ -1087,31 +1090,36 @@ fn update_dock_line(
     let (head, tone, partner, partner_tone) = match *context {
         SketchContext::Undocked => (
             "UNDOCKED",
-            UiColor::Secondary,
+            UiColorType::TextSecondary,
             "No station or boarded ship".to_string(),
-            UiColor::Label,
+            UiColorType::TextMuted,
         ),
         SketchContext::Station => (
             "STATION",
-            UiColor::Accent,
+            UiColorType::Accent,
             format!("{STATION_NAME}  (fixture)"),
-            UiColor::Primary,
+            UiColorType::Text,
         ),
         SketchContext::Boarded => (
             "BOARDED",
-            UiColor::Danger,
+            UiColorType::Danger,
             format!("{}  {}  (mock)", BOARDED.name, BOARDED.design),
-            UiColor::Primary,
+            UiColorType::Text,
         ),
     };
     set_themed_text(&mut texts, DOCK_HEAD, head, tone);
     set_themed_text(&mut texts, DOCK_PARTNER, &partner, partner_tone);
-    set_themed_text(&mut texts, DOCK_NOTICE, &fixture.notice, UiColor::Body);
+    set_themed_text(
+        &mut texts,
+        DOCK_NOTICE,
+        &fixture.notice,
+        UiColorType::TextBody,
+    );
     set_themed_text(
         &mut texts,
         DOCK_CREDITS,
         &fixture.credits_text(),
-        UiColor::Primary,
+        UiColorType::Text,
     );
 }
 
@@ -1121,7 +1129,7 @@ fn set_themed_text(
     texts: &mut Query<(&Name, &mut Text, &mut ThemedText)>,
     name: &str,
     value: &str,
-    color: UiColor,
+    color: UiColorType,
 ) {
     for (node, mut text, mut themed) in texts.iter_mut() {
         if node.as_str() != name {
@@ -1281,7 +1289,7 @@ fn view_footer(
                 .with_children(|zone| {
                     zone.spawn((
                         Name::new(summary.to_string()),
-                        themed_text("", 14.0, UiColor::Body),
+                        themed_text("", 14.0, UiColorType::TextBody),
                         TextLayout::new(Justify::Right, LineBreak::WordBoundary),
                     ));
                 });
@@ -1321,8 +1329,8 @@ fn input_hints(view: SketchView) -> &'static [(&'static str, &'static str)] {
 fn input_hint(row: &mut ChildSpawnerCommands, (input, action): &(&str, &str)) {
     row.spawn((Name::new(format!("{HINT_PREFIX}{input}")), legend_entry()))
         .with_children(|hint| {
-            text(hint, input, 12.0, UiColor::Primary);
-            text(hint, action, 12.0, UiColor::Body);
+            text(hint, input, 12.0, UiColorType::Text);
+            text(hint, action, 12.0, UiColorType::TextBody);
         });
 }
 
@@ -1397,7 +1405,7 @@ fn section_legend(parent: &mut ChildSpawnerCommands, icons: &SketchIcons) {
                                     icon.color(),
                                     18.0,
                                 ));
-                                text(entry, icon.label(), 12.0, UiColor::Body);
+                                text(entry, icon.label(), 12.0, UiColorType::TextBody);
                             });
                         }
                     });
@@ -1438,9 +1446,9 @@ fn panel_box(width: Val, height: Val) -> impl Bundle {
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Secondary, 0.08),
+        ThemedFill::alpha(UiColorType::TextSecondary, 0.08),
         BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColor::Secondary),
+        ThemedBorder::new(UiColorType::TextSecondary),
     )
 }
 
@@ -1458,9 +1466,9 @@ fn icon_frame(size: f32) -> impl Bundle {
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Surface, 0.6),
+        ThemedFill::alpha(UiColorType::Surface, 0.6),
         BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColor::Secondary),
+        ThemedBorder::new(UiColorType::TextSecondary),
     )
 }
 
@@ -1510,10 +1518,12 @@ fn ship_panel(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: boo
                     .with_children(|detail| {
                         detail.spawn((
                             Name::new(SHIP_DETAIL),
-                            themed_text("", 16.0, UiColor::Primary),
+                            themed_text("", 16.0, UiColorType::Text),
                         ));
-                        detail
-                            .spawn((Name::new(SHIP_STATUS), themed_text("", 12.0, UiColor::Body)));
+                        detail.spawn((
+                            Name::new(SHIP_STATUS),
+                            themed_text("", 12.0, UiColorType::TextBody),
+                        ));
                         detail.spawn(bar_track()).with_children(|track| {
                             track.spawn((
                                 ConditionFill,
@@ -1524,10 +1534,13 @@ fn ship_panel(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: boo
                                     ..default()
                                 },
                                 BackgroundColor(Color::NONE),
-                                ThemedFill::new(UiColor::Nominal),
+                                ThemedFill::new(UiColorType::Nominal),
                             ));
                         });
-                        detail.spawn((Name::new(SHIP_ABOUT), themed_text("", 13.0, UiColor::Body)));
+                        detail.spawn((
+                            Name::new(SHIP_ABOUT),
+                            themed_text("", 13.0, UiColorType::TextBody),
+                        ));
                         detail
                             .spawn(control_row(JustifyContent::FlexStart))
                             .with_children(|row| {
@@ -1572,7 +1585,7 @@ fn map_detail(split: &mut ChildSpawnerCommands, icons: &SketchIcons) {
                     Name::new(MAP_DETAIL_HINT),
                     column_node(10.0),
                 ))
-                .with_children(|hint| text(hint, "Select a contact.", 13.0, UiColor::Body));
+                .with_children(|hint| text(hint, "Select a contact.", 13.0, UiColorType::TextBody));
             panel
                 .spawn((MapDetailPart::Contact, column_node(6.0)))
                 .with_children(|contact| {
@@ -1581,16 +1594,16 @@ fn map_detail(split: &mut ChildSpawnerCommands, icons: &SketchIcons) {
                             Name::new(MAP_DETAIL_ICON),
                             icon_node(
                                 icons.bodies[BodyIcon::Ship.index()].clone(),
-                                UiColor::Secondary,
+                                UiColorType::TextSecondary,
                                 40.0,
                             ),
                         ));
                     });
                     for (name, size, color) in [
-                        (MAP_DETAIL_CODE, 16.0, UiColor::Primary),
-                        (MAP_DETAIL_NAME, 13.0, UiColor::Body),
-                        (MAP_DETAIL_KIND, 12.0, UiColor::Secondary),
-                        (MAP_DETAIL_RANGE, 12.0, UiColor::Body),
+                        (MAP_DETAIL_CODE, 16.0, UiColorType::Text),
+                        (MAP_DETAIL_NAME, 13.0, UiColorType::TextBody),
+                        (MAP_DETAIL_KIND, 12.0, UiColorType::TextSecondary),
+                        (MAP_DETAIL_RANGE, 12.0, UiColorType::TextBody),
                     ] {
                         contact.spawn((Name::new(name), themed_text("", size, color)));
                     }
@@ -1618,11 +1631,11 @@ fn bar_track() -> impl Bundle {
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Secondary, 0.25),
+        ThemedFill::alpha(UiColorType::TextSecondary, 0.25),
     )
 }
 
-fn themed_text(value: &str, size: f32, color: UiColor) -> impl Bundle {
+fn themed_text(value: &str, size: f32, color: UiColorType) -> impl Bundle {
     (
         UiText,
         Text::new(value.to_string()),
@@ -1635,7 +1648,7 @@ fn themed_text(value: &str, size: f32, color: UiColor) -> impl Bundle {
     )
 }
 
-fn text(parent: &mut ChildSpawnerCommands, value: &str, size: f32, color: UiColor) {
+fn text(parent: &mut ChildSpawnerCommands, value: &str, size: f32, color: UiColorType) {
     parent.spawn(themed_text(value, size, color));
 }
 
@@ -1738,14 +1751,14 @@ impl SectionIcon {
 
     /// The tint of the family's icon and 3D block. Hull keeps the ink colour,
     /// so the bulk of a ship reads as the hull and the rest stands out.
-    fn color(self) -> UiColor {
+    fn color(self) -> UiColorType {
         match self {
-            Self::Weapon => UiColor::Danger,
-            Self::Thruster => UiColor::Info,
-            Self::Controller => UiColor::AccentHigh,
-            Self::Hull => UiColor::Primary,
-            Self::Docking => UiColor::Nominal,
-            Self::Mining => UiColor::Accent,
+            Self::Weapon => UiColorType::Danger,
+            Self::Thruster => UiColorType::Info,
+            Self::Controller => UiColorType::AccentLight,
+            Self::Hull => UiColorType::Text,
+            Self::Docking => UiColorType::Nominal,
+            Self::Mining => UiColorType::Accent,
         }
     }
 
@@ -1871,14 +1884,14 @@ impl Category {
         }
     }
 
-    fn color(self) -> UiColor {
+    fn color(self) -> UiColorType {
         match self {
-            Self::Food => UiColor::Accent,
-            Self::Ammo => UiColor::Danger,
-            Self::Repair => UiColor::Nominal,
-            Self::Raw => UiColor::Secondary,
-            Self::Fuel => UiColor::Info,
-            Self::Parts => UiColor::AccentHigh,
+            Self::Food => UiColorType::Accent,
+            Self::Ammo => UiColorType::Danger,
+            Self::Repair => UiColorType::Nominal,
+            Self::Raw => UiColorType::TextSecondary,
+            Self::Fuel => UiColorType::Info,
+            Self::Parts => UiColorType::AccentLight,
         }
     }
 
@@ -2068,7 +2081,7 @@ fn init_icons(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 }
 
 /// An icon mask tinted by the theme, `size` px square.
-fn icon_node(image: Handle<Image>, tint: UiColor, size: f32) -> impl Bundle {
+fn icon_node(image: Handle<Image>, tint: UiColorType, size: f32) -> impl Bundle {
     (
         ImageNode::new(image),
         Node {
@@ -2105,7 +2118,7 @@ fn scene_camera(
         Camera3d::default(),
         Camera {
             order,
-            clear_color: ClearColorConfig::Custom(theme.color(UiColor::Surface)),
+            clear_color: ClearColorConfig::Custom(theme.color(UiColorType::Surface)),
             ..default()
         },
         RenderTarget::Image(ImageRenderTarget {
@@ -2581,14 +2594,14 @@ fn reframe_map(
 }
 
 /// The theme colour a contact kind reads in.
-fn kind_color(kind: MapContactKind) -> UiColor {
+fn kind_color(kind: MapContactKind) -> UiColorType {
     match kind {
-        MapContactKind::OwnShip => UiColor::Primary,
-        MapContactKind::Ally => UiColor::Info,
-        MapContactKind::Hostile => UiColor::Danger,
-        MapContactKind::Objective => UiColor::Accent,
+        MapContactKind::OwnShip => UiColorType::Text,
+        MapContactKind::Ally => UiColorType::Info,
+        MapContactKind::Hostile => UiColorType::Danger,
+        MapContactKind::Objective => UiColorType::Accent,
         MapContactKind::Terrain | MapContactKind::Neutral | MapContactKind::Planet => {
-            UiColor::Secondary
+            UiColorType::TextSecondary
         }
     }
 }
@@ -2677,9 +2690,9 @@ fn spawn_blip(
                 ..default()
             },
             BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Void, 0.55),
+            ThemedFill::alpha(UiColorType::Background, 0.55),
             BorderColor::all(Color::NONE),
-            ThemedBorder::alpha(UiColor::Accent, 0.0),
+            ThemedBorder::alpha(UiColorType::Accent, 0.0),
             ChildOf(host),
             children![icon_node(
                 icons.bodies[mark.body.index()].clone(),
@@ -2700,7 +2713,7 @@ fn spawn_badge(
     name: String,
     icons: &SketchIcons,
     icon: SectionIcon,
-    status: UiColor,
+    status: UiColorType,
 ) -> Entity {
     let badge = commands
         .spawn((
@@ -2717,9 +2730,9 @@ fn spawn_badge(
                 ..default()
             },
             BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Void, 0.8),
+            ThemedFill::alpha(UiColorType::Background, 0.8),
             BorderColor::all(Color::NONE),
-            ThemedBorder::alpha(UiColor::Accent, 0.0),
+            ThemedBorder::alpha(UiColorType::Accent, 0.0),
             ChildOf(host),
             children![
                 icon_node(
@@ -2761,9 +2774,9 @@ fn spawn_blip_label(commands: &mut Commands, blip: Entity, size: f32) {
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Void, 0.8),
+        ThemedFill::alpha(UiColorType::Background, 0.8),
         ChildOf(blip),
-        children![themed_text("", 12.0, UiColor::Body)],
+        children![themed_text("", 12.0, UiColorType::TextBody)],
     ));
 }
 
@@ -2914,7 +2927,7 @@ fn refresh_map_legend(
                             kind_color(mark.kind),
                             16.0,
                         ));
-                        text(entry, mark.label(), 12.0, UiColor::Body);
+                        text(entry, mark.label(), 12.0, UiColorType::TextBody);
                     });
             }
         });
@@ -3041,12 +3054,12 @@ fn set_border(borders: &mut Query<&mut ThemedBorder>, blip: Entity, alpha: f32) 
 }
 
 /// The theme colour a section status reads in.
-fn status_color(status: &str) -> UiColor {
+fn status_color(status: &str) -> UiColorType {
     match status {
-        "nominal" => UiColor::Nominal,
-        "degraded" => UiColor::Accent,
-        "critical" => UiColor::Danger,
-        _ => UiColor::Label,
+        "nominal" => UiColorType::Nominal,
+        "degraded" => UiColorType::Accent,
+        "critical" => UiColorType::Danger,
+        _ => UiColorType::TextMuted,
     }
 }
 
@@ -3166,7 +3179,12 @@ fn update_map_detail(
         show(&mut node, shown);
     }
     let Some(contact) = contact else {
-        set_themed_text(&mut texts, MAP_READOUT, "Select a contact.", UiColor::Body);
+        set_themed_text(
+            &mut texts,
+            MAP_READOUT,
+            "Select a contact.",
+            UiColorType::TextBody,
+        );
         return;
     };
     let mark = map_mark(contact.entity, contact.kind, &markers);
@@ -3184,10 +3202,20 @@ fn update_map_detail(
             tint.color = tone;
         }
     }
-    set_themed_text(&mut texts, MAP_DETAIL_CODE, &contact.code, UiColor::Primary);
-    set_themed_text(&mut texts, MAP_DETAIL_NAME, &contact.name, UiColor::Body);
+    set_themed_text(
+        &mut texts,
+        MAP_DETAIL_CODE,
+        &contact.code,
+        UiColorType::Text,
+    );
+    set_themed_text(
+        &mut texts,
+        MAP_DETAIL_NAME,
+        &contact.name,
+        UiColorType::TextBody,
+    );
     set_themed_text(&mut texts, MAP_DETAIL_KIND, mark.label(), tone);
-    set_themed_text(&mut texts, MAP_DETAIL_RANGE, &range, UiColor::Body);
+    set_themed_text(&mut texts, MAP_DETAIL_RANGE, &range, UiColorType::TextBody);
     // A no-break space keeps the range's number and unit on one line when
     // the narrow footer wraps the summary.
     set_themed_text(
@@ -3200,7 +3228,7 @@ fn update_map_detail(
             mark.label(),
             range.replace(' ', "\u{a0}"),
         ),
-        UiColor::Body,
+        UiColorType::TextBody,
     );
 }
 
@@ -3311,11 +3339,11 @@ fn repaint_scenes(
         )
     });
     for (handle, color, alpha) in [
-        (&palette.ring, UiColor::Secondary, 0.6),
-        (&palette.hub, UiColor::Primary, 1.0),
-        (&palette.outline, UiColor::Primary, 0.95),
-        (&palette.outline_selected, UiColor::Accent, 1.0),
-        (&palette.bow, UiColor::Accent, 0.9),
+        (&palette.ring, UiColorType::TextSecondary, 0.6),
+        (&palette.hub, UiColorType::Text, 1.0),
+        (&palette.outline, UiColorType::Text, 0.95),
+        (&palette.outline_selected, UiColorType::Accent, 1.0),
+        (&palette.bow, UiColorType::Accent, 0.9),
     ]
     .into_iter()
     .chain(blocks)
@@ -3325,7 +3353,7 @@ fn repaint_scenes(
         }
     }
     for mut camera in &mut cameras {
-        camera.clear_color = ClearColorConfig::Custom(theme.color(UiColor::Surface));
+        camera.clear_color = ClearColorConfig::Custom(theme.color(UiColorType::Surface));
     }
 }
 
@@ -4044,7 +4072,7 @@ fn fill_repair(
     if context != SketchContext::Station {
         slot.spawn((
             Name::new(SHIP_NO_REPAIR),
-            themed_text("Repair at a station only", 12.0, UiColor::Label),
+            themed_text("Repair at a station only", 12.0, UiColorType::TextMuted),
         ));
         return;
     }
@@ -4060,12 +4088,16 @@ fn fill_repair(
             compact_button(row, bay, SHIP_BAY)
                 .insert(SketchClick)
                 .observe(toggle_repair_bay);
-            text(row, "fixture", 11.0, UiColor::Label);
+            text(row, "fixture", 11.0, UiColorType::TextMuted);
         });
     if !fixture.repair_bay {
         slot.spawn((
             Name::new(SHIP_NO_REPAIR),
-            themed_text("The bay is off: no repair here", 12.0, UiColor::Label),
+            themed_text(
+                "The bay is off: no repair here",
+                12.0,
+                UiColorType::TextMuted,
+            ),
         ));
         return;
     }
@@ -4090,7 +4122,7 @@ fn fill_repair(
         slot,
         &format!("{REPAIR_CR_PER_POINT} cr per point"),
         11.0,
-        UiColor::Label,
+        UiColorType::TextMuted,
     );
 }
 
@@ -4170,7 +4202,7 @@ fn inventory_view(
 fn filter_chip(bar: &mut ChildSpawnerCommands, chip: Option<Category>, icons: &SketchIcons) {
     let (name, label, tone) = match chip {
         Some(category) => (category.filter_name(), category.label(), category.color()),
-        None => (FILTER_ALL.to_string(), "All", UiColor::Primary),
+        None => (FILTER_ALL.to_string(), "All", UiColorType::Text),
     };
     bar.spawn((
         Name::new(name),
@@ -4188,16 +4220,19 @@ fn filter_chip(bar: &mut ChildSpawnerCommands, chip: Option<Category>, icons: &S
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Secondary, 0.08),
+        ThemedFill::alpha(UiColorType::TextSecondary, 0.08),
         BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(UiColor::Secondary, 0.4),
+        ThemedBorder::alpha(UiColorType::TextSecondary, 0.4),
     ))
     .observe(pick_filter)
     .with_children(|chip_node| {
         if let Some(category) = chip {
             chip_node.spawn(icon_node(icons.cargo[category.index()].clone(), tone, 16.0));
         }
-        chip_node.spawn((themed_text(label, 12.0, UiColor::Body), Pickable::IGNORE));
+        chip_node.spawn((
+            themed_text(label, 12.0, UiColorType::TextBody),
+            Pickable::IGNORE,
+        ));
     });
 }
 
@@ -4216,9 +4251,9 @@ fn mark_filter_chips(
 ) {
     for (chip, mut fill, mut border) in &mut chips {
         let (color, fill_alpha, border_alpha) = if chip.0 == filter.0 {
-            (UiColor::Accent, 0.25, 1.0)
+            (UiColorType::Accent, 0.25, 1.0)
         } else {
-            (UiColor::Secondary, 0.08, 0.4)
+            (UiColorType::TextSecondary, 0.08, 0.4)
         };
         if fill.color != color || fill.alpha != fill_alpha {
             fill.color = color;
@@ -4262,14 +4297,14 @@ fn store_panel(
             },
             BackgroundColor(Color::NONE),
             BorderColor::all(Color::NONE),
-            ThemedBorder::alpha(UiColor::Secondary, 0.35),
+            ThemedBorder::alpha(UiColorType::TextSecondary, 0.35),
         ))
         .with_children(|panel| {
             panel
                 .spawn(control_row(JustifyContent::FlexStart))
                 .with_children(|head| {
                     head.spawn((
-                        themed_text(&store.title(), 15.0, UiColor::Primary),
+                        themed_text(&store.title(), 15.0, UiColorType::Text),
                         Node {
                             flex_grow: 1.0,
                             ..default()
@@ -4280,7 +4315,7 @@ fn store_panel(
                         themed_text(
                             &hold.map_or_else(|| "Fixture prices".to_string(), FixtureHold::load),
                             13.0,
-                            UiColor::Body,
+                            UiColorType::TextBody,
                         ),
                     ));
                 });
@@ -4296,7 +4331,7 @@ fn store_panel(
                             ..default()
                         },
                         BackgroundColor(Color::NONE),
-                        ThemedFill::new(UiColor::Primary),
+                        ThemedFill::new(UiColorType::Text),
                     ));
                 });
             }
@@ -4314,7 +4349,7 @@ fn store_panel(
                 })
                 .with_children(|columns| {
                     columns.spawn((
-                        themed_text("Item", 11.0, UiColor::Label),
+                        themed_text("Item", 11.0, UiColorType::TextMuted),
                         Node {
                             flex_grow: 1.0,
                             margin: UiRect::left(px(27)),
@@ -4323,7 +4358,7 @@ fn store_panel(
                     ));
                     for heading in headings {
                         columns.spawn((
-                            themed_text(heading, 11.0, UiColor::Label),
+                            themed_text(heading, 11.0, UiColorType::TextMuted),
                             Node {
                                 width: px(COLUMN_PX),
                                 justify_content: JustifyContent::FlexEnd,
@@ -4348,7 +4383,7 @@ fn store_panel(
                         "Empty"
                     },
                     12.0,
-                    UiColor::Label,
+                    UiColorType::TextMuted,
                 );
             }
             for line in lines {
@@ -4411,7 +4446,7 @@ fn store_row(
                 18.0,
             ));
             row.spawn((
-                themed_text(line.good.label, 13.0, UiColor::Body),
+                themed_text(line.good.label, 13.0, UiColorType::TextBody),
                 Node {
                     flex_grow: 1.0,
                     min_width: px(0),
@@ -4420,7 +4455,10 @@ fn store_row(
                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                 Pickable::IGNORE,
             ));
-            for (value, color) in [(line.good.amount(line.qty), tone), (value, UiColor::Body)] {
+            for (value, color) in [
+                (line.good.amount(line.qty), tone),
+                (value, UiColorType::TextBody),
+            ] {
                 row.spawn((
                     themed_text(&value, 13.0, color),
                     Node {
@@ -4520,10 +4558,15 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool
             panel
                 .spawn((InspectorPart::Hint, column_node(10.0)))
                 .with_children(|hint| {
-                    text(hint, "Click an item to inspect it.", 13.0, UiColor::Body);
+                    text(
+                        hint,
+                        "Click an item to inspect it.",
+                        13.0,
+                        UiColorType::TextBody,
+                    );
                     hint.spawn((
                         Name::new(INSPECT_HINT),
-                        themed_text("", 12.0, UiColor::Label),
+                        themed_text("", 12.0, UiColorType::TextMuted),
                     ));
                 });
             panel
@@ -4544,11 +4587,11 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool
                             head.spawn(column_node(4.0)).with_children(|names| {
                                 names.spawn((
                                     Name::new(INSPECT_NAME),
-                                    themed_text("", 16.0, UiColor::Primary),
+                                    themed_text("", 16.0, UiColorType::Text),
                                 ));
                                 names.spawn((
                                     Name::new(INSPECT_CATEGORY),
-                                    themed_text("", 12.0, UiColor::Body),
+                                    themed_text("", 12.0, UiColorType::TextBody),
                                 ));
                             });
                         });
@@ -4556,7 +4599,7 @@ fn inspector(split: &mut ChildSpawnerCommands, icons: &SketchIcons, narrow: bool
                         .with_children(|facts| {
                             facts.spawn((
                                 Name::new(INSPECT_ABOUT),
-                                themed_text("", 12.0, UiColor::Body),
+                                themed_text("", 12.0, UiColorType::TextBody),
                             ));
                             for (label, name) in [
                                 ("Unit mass", INSPECT_MASS),
@@ -4579,10 +4622,10 @@ fn fact(panel: &mut ChildSpawnerCommands, label: &str, name: &str) {
     panel
         .spawn(control_row(JustifyContent::SpaceBetween))
         .with_children(|row| {
-            text(row, label, 12.0, UiColor::Label);
+            text(row, label, 12.0, UiColorType::TextMuted);
             row.spawn((
                 Name::new(name.to_string()),
-                themed_text("", 13.0, UiColor::Body),
+                themed_text("", 13.0, UiColorType::TextBody),
                 TextLayout::new(Justify::Right, LineBreak::WordBoundary),
             ));
         });
@@ -4594,7 +4637,7 @@ fn fact(panel: &mut ChildSpawnerCommands, label: &str, name: &str) {
 fn deal_form(form: &mut ChildSpawnerCommands) {
     form.spawn((
         Name::new(DEAL_TITLE),
-        themed_text("", 13.0, UiColor::Accent),
+        themed_text("", 13.0, UiColorType::Accent),
     ));
     form.spawn((
         Name::new(DEAL_ROW),
@@ -4618,7 +4661,7 @@ fn deal_form(form: &mut ChildSpawnerCommands) {
         });
         row.spawn((
             Name::new(DEAL_QTY),
-            themed_text("", 15.0, UiColor::Primary),
+            themed_text("", 15.0, UiColorType::Text),
             Node {
                 flex_grow: 1.0,
                 ..default()
@@ -4643,7 +4686,10 @@ fn deal_form(form: &mut ChildSpawnerCommands) {
         slider_track(0.0),
     ))
     .observe(slide_draft);
-    form.spawn((Name::new(DEAL_TOTAL), themed_text("", 13.0, UiColor::Body)));
+    form.spawn((
+        Name::new(DEAL_TOTAL),
+        themed_text("", 13.0, UiColorType::TextBody),
+    ));
     fact(form, "Hold after", DEAL_HOLD);
     form.spawn(control_row(JustifyContent::FlexStart))
         .with_children(|row| {
@@ -4704,7 +4750,7 @@ fn update_inspector(
         SketchContext::Station => "Buy from the market or sell from your hold.",
         SketchContext::Boarded => "Loot from the raider's hold into yours.",
     };
-    set_themed_text(&mut texts, INSPECT_HINT, hint, UiColor::Label);
+    set_themed_text(&mut texts, INSPECT_HINT, hint, UiColorType::TextMuted);
     let Some((store, good)) = inspected.0 else {
         return;
     };
@@ -4721,14 +4767,14 @@ fn update_inspector(
             tint.color = tone;
         }
     }
-    set_themed_text(&mut texts, INSPECT_NAME, good.label, UiColor::Primary);
+    set_themed_text(&mut texts, INSPECT_NAME, good.label, UiColorType::Text);
     set_themed_text(&mut texts, INSPECT_CATEGORY, good.category.label(), tone);
-    set_themed_text(&mut texts, INSPECT_ABOUT, good.about, UiColor::Body);
+    set_themed_text(&mut texts, INSPECT_ABOUT, good.about, UiColorType::TextBody);
     set_themed_text(
         &mut texts,
         INSPECT_MASS,
         &unit_mass(good.unit_kg),
-        UiColor::Body,
+        UiColorType::TextBody,
     );
     set_themed_text(
         &mut texts,
@@ -4738,27 +4784,31 @@ fn update_inspector(
             good.amount(fixture.stock(store).qty(good)),
             store.title()
         ),
-        UiColor::Body,
+        UiColorType::TextBody,
     );
     let price = match (*context, store) {
         (SketchContext::Station, _) => format!("{} cr  station", good.price_cr),
         (SketchContext::Boarded, Store::Boarded) => "Free  loot".to_string(),
         _ => "No price".to_string(),
     };
-    set_themed_text(&mut texts, INSPECT_PRICE, &price, UiColor::Body);
+    set_themed_text(&mut texts, INSPECT_PRICE, &price, UiColorType::TextBody);
     let Some(DealDraft { deal, good, qty }) = draft.0 else {
         return;
     };
-    set_themed_text(&mut texts, DEAL_TITLE, &deal.title(), UiColor::Accent);
+    set_themed_text(&mut texts, DEAL_TITLE, &deal.title(), UiColorType::Accent);
     let (amount, summary, tone) = match qty {
-        Some(qty) => (good.amount(qty), deal.summary(good, qty), UiColor::Body),
+        Some(qty) => (
+            good.amount(qty),
+            deal.summary(good, qty),
+            UiColorType::TextBody,
+        ),
         None => (
             String::new(),
             "Type a whole number".to_string(),
-            UiColor::Danger,
+            UiColorType::Danger,
         ),
     };
-    set_themed_text(&mut texts, DEAL_QTY, &amount, UiColor::Primary);
+    set_themed_text(&mut texts, DEAL_QTY, &amount, UiColorType::Text);
     set_themed_text(&mut texts, DEAL_TOTAL, &summary, tone);
     let moved = qty.unwrap_or(0) * good.unit_kg;
     let carried = fixture.own.stock.mass_kg();
@@ -4772,9 +4822,9 @@ fn update_inspector(
         DEAL_HOLD,
         &format!("{} / {}", tonnes(after), tonnes(fixture.own.capacity_kg)),
         if after > fixture.own.capacity_kg {
-            UiColor::Danger
+            UiColorType::Danger
         } else {
-            UiColor::Body
+            UiColorType::TextBody
         },
     );
 }

@@ -16,7 +16,7 @@ use nova_scenario::prelude::{
     ScenarioWorldType, BOUNDS_AREA_ID,
 };
 use nova_ship::prelude::{GameSections, TargetingSettings};
-use nova_ui::theme::UiColor;
+use nova_ui::theme::UiColorType;
 
 use super::{
     conform_view_now,
@@ -53,7 +53,7 @@ use crate::{
 };
 
 /// Say `line` on the status line, in `colour`.
-fn say(world: &mut World, line: impl Into<String>, colour: UiColor) {
+fn say(world: &mut World, line: impl Into<String>, colour: UiColorType) {
     let now = world
         .get_resource::<Time>()
         .map_or(0.0, Time::elapsed_secs_f64);
@@ -66,7 +66,7 @@ fn say(world: &mut World, line: impl Into<String>, colour: UiColor) {
 ///
 /// [`EditorSays::refuse`]: crate::config::EditorSays::refuse
 pub(crate) fn refuse(world: &mut World, line: impl Into<String>) {
-    say(world, line, UiColor::Danger);
+    say(world, line, UiColorType::Danger);
     if let Err(fault) = world.run_system_once(|mut cues: EditorCues| cues.deny()) {
         error!("editor: a refusal could not buzz: {fault}");
     }
@@ -101,7 +101,7 @@ pub(crate) fn pressed(world: &mut World, verb: impl FnOnce(&mut World)) {
 
 /// Say what happened.
 pub(crate) fn note(world: &mut World, line: impl Into<String>) {
-    say(world, line, UiColor::Primary);
+    say(world, line, UiColorType::Text);
 }
 
 /// The open document as items, the scenario under `id`.

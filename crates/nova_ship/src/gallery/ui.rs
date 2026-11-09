@@ -16,7 +16,7 @@ use nova_gameplay::prelude::{cr_text, lot_cr_text};
 use nova_ui::{
     prelude::{button, panel, ButtonSpec, UiText},
     theme,
-    theme::{ActiveUiTheme, UiColor},
+    theme::{ActiveUiTheme, UiColorType},
     widget::{
         ButtonCueType, ThemedBorder, ThemedFill, ThemedImageTint, ThemedRadius, ThemedText, Tooltip,
     },
@@ -117,7 +117,10 @@ const VEIL_ALPHA: f32 = 0.6;
 fn stage_veil(placeable: bool) -> impl Bundle {
     (
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Surface, if placeable { 0.0 } else { VEIL_ALPHA }),
+        ThemedFill::alpha(
+            UiColorType::Surface,
+            if placeable { 0.0 } else { VEIL_ALPHA },
+        ),
     )
 }
 
@@ -220,7 +223,7 @@ pub(crate) fn rebuild_gallery(
                         ..default()
                     },
                     TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Primary),
+                    ThemedText::new(UiColorType::Text),
                 ));
 
                 let own = listing.is_some_and(|listing| listing.0.iter().any(|entry| entry.own));
@@ -327,9 +330,9 @@ pub(crate) fn rebuild_gallery(
                     },
                     TextColor(Color::NONE),
                     ThemedText::new(if narrowed {
-                        UiColor::Accent
+                        UiColorType::Accent
                     } else {
-                        UiColor::Label
+                        UiColorType::TextMuted
                     }),
                     Node {
                         margin: UiRect::left(px(6)),
@@ -399,7 +402,7 @@ pub(crate) fn rebuild_gallery(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
+                ThemedText::new(UiColorType::TextMuted),
                 Node {
                     margin: UiRect::axes(px(16), px(8)),
                     ..default()
@@ -545,7 +548,7 @@ fn spawn_cell(
                 ..default()
             },
             BackgroundColor(Color::NONE),
-            ThemedFill::new(UiColor::Surface),
+            ThemedFill::new(UiColorType::Surface),
             Pickable {
                 should_block_lower: false,
                 is_hoverable: false,
@@ -572,7 +575,7 @@ fn spawn_cell(
                         },
                         TextLayout::new(Justify::Left, LineBreak::NoWrap),
                         TextColor(Color::NONE),
-                        ThemedText::alpha(UiColor::Body, alpha),
+                        ThemedText::alpha(UiColorType::TextBody, alpha),
                     ));
                     if let Some(tile) = entry.and_then(|entry| entry.tile.clone()) {
                         line.spawn((
@@ -584,7 +587,7 @@ fn spawn_cell(
                             },
                             TextLayout::new(Justify::Right, LineBreak::NoWrap),
                             TextColor(Color::NONE),
-                            ThemedText::new(UiColor::Accent),
+                            ThemedText::new(UiColorType::Accent),
                             Node {
                                 flex_shrink: 0.0,
                                 ..default()
@@ -601,7 +604,7 @@ fn spawn_cell(
                 },
                 TextLayout::new(Justify::Left, LineBreak::NoWrap),
                 TextColor(Color::NONE),
-                ThemedText::alpha(UiColor::Label, alpha),
+                ThemedText::alpha(UiColorType::TextMuted, alpha),
             ));
         });
     });
@@ -723,9 +726,9 @@ fn recipe_row(recipe: &mut ChildSpawnerCommands, item: &GalleryRecipeItem) {
             TextColor(Color::NONE),
             ThemedText::alpha(
                 if short {
-                    UiColor::Danger
+                    UiColorType::Danger
                 } else {
-                    UiColor::Primary
+                    UiColorType::Text
                 },
                 alpha,
             ),
@@ -745,7 +748,7 @@ fn recipe_row(recipe: &mut ChildSpawnerCommands, item: &GalleryRecipeItem) {
             },
             TextLayout::new(Justify::Left, LineBreak::NoWrap),
             TextColor(Color::NONE),
-            ThemedText::alpha(UiColor::Body, alpha),
+            ThemedText::alpha(UiColorType::TextBody, alpha),
         ));
         if let Some(price) = text.price {
             row.spawn((
@@ -757,7 +760,7 @@ fn recipe_row(recipe: &mut ChildSpawnerCommands, item: &GalleryRecipeItem) {
                 },
                 TextLayout::new(Justify::Right, LineBreak::NoWrap),
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Accent),
+                ThemedText::new(UiColorType::Accent),
                 Node {
                     flex_shrink: 0.0,
                     ..default()
@@ -844,7 +847,7 @@ fn focus_body(
                         ..default()
                     },
                     TextColor(Color::NONE),
-                    ThemedText::alpha(UiColor::Primary, if placeable { 1.0 } else { MUTED_ALPHA }),
+                    ThemedText::alpha(UiColorType::Text, if placeable { 1.0 } else { MUTED_ALPHA }),
                 ));
                 // The details take the free height and clip, so the actions
                 // sit on the card floor and stay inside a short host.
@@ -888,7 +891,7 @@ fn focus_body(
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Label),
+                        ThemedText::new(UiColorType::TextMuted),
                         Node {
                             margin: UiRect::bottom(px(6)),
                             ..default()
@@ -912,7 +915,7 @@ fn focus_body(
                                         ..default()
                                     },
                                     TextColor(Color::NONE),
-                                    ThemedText::new(UiColor::Label),
+                                    ThemedText::new(UiColorType::TextMuted),
                                 ),
                                 (
                                     UiText,
@@ -922,7 +925,7 @@ fn focus_body(
                                         ..default()
                                     },
                                     TextColor(Color::NONE),
-                                    ThemedText::new(UiColor::Body),
+                                    ThemedText::new(UiColorType::TextBody),
                                 ),
                             ],
                         ));
@@ -939,7 +942,7 @@ fn focus_body(
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Accent),
+                        ThemedText::new(UiColorType::Accent),
                     ));
                 }
                 // Enter places only what may be placed, so a muted part's
@@ -986,10 +989,10 @@ fn filter_box(filter: &str, focused: bool) -> impl Bundle {
     // Amber whenever the field is holding parts back, focused or not: the box
     // is the only thing on screen that says WHY the grid is short.
     let (text, color) = match (focused, filter.is_empty()) {
-        (true, true) => ("_".to_string(), UiColor::Body),
-        (true, false) => (format!("{filter}_"), UiColor::Accent),
-        (false, true) => ("/ to filter".to_string(), UiColor::Label),
-        (false, false) => (filter.to_string(), UiColor::Accent),
+        (true, true) => ("_".to_string(), UiColorType::TextBody),
+        (true, false) => (format!("{filter}_"), UiColorType::Accent),
+        (false, true) => ("/ to filter".to_string(), UiColorType::TextMuted),
+        (false, false) => (filter.to_string(), UiColorType::Accent),
     };
     (
         Name::new("Gallery Filter"),
@@ -1008,12 +1011,12 @@ fn filter_box(filter: &str, focused: bool) -> impl Bundle {
         ThemedRadius::control(),
         BorderColor::all(Color::NONE),
         ThemedBorder::new(match (focused, filter.is_empty()) {
-            (_, false) => UiColor::Accent,
-            (true, true) => UiColor::Primary,
-            (false, true) => UiColor::Label,
+            (_, false) => UiColorType::Accent,
+            (true, true) => UiColorType::Text,
+            (false, true) => UiColorType::TextMuted,
         }),
         BackgroundColor(Color::NONE),
-        ThemedFill::new(UiColor::Surface),
+        ThemedFill::new(UiColorType::Surface),
         children![(
             UiText,
             Text::new(text),
@@ -1052,11 +1055,11 @@ pub(crate) fn paint_gallery_cells(
     }
 }
 
-fn cell_border(selected: bool, hovered: bool) -> UiColor {
+fn cell_border(selected: bool, hovered: bool) -> UiColorType {
     match (selected, hovered) {
-        (true, _) => UiColor::Primary,
-        (false, true) => UiColor::Secondary,
-        (false, false) => UiColor::Label,
+        (true, _) => UiColorType::Text,
+        (false, true) => UiColorType::TextSecondary,
+        (false, false) => UiColorType::TextMuted,
     }
 }
 
@@ -1064,7 +1067,7 @@ fn cell_border(selected: bool, hovered: bool) -> UiColor {
 /// tints the 3D preview behind them.
 fn cell_fill(theme: &ActiveUiTheme, selected: bool, hovered: bool) -> Color {
     match (selected, hovered) {
-        (true, _) | (false, true) => theme.color_alpha(UiColor::Primary, 0.05),
+        (true, _) | (false, true) => theme.color_alpha(UiColorType::Text, 0.05),
         (false, false) => Color::NONE,
     }
 }
@@ -1180,7 +1183,7 @@ mod tests {
     fn item(count: u32, supply: Option<GalleryRecipeSupply>) -> GalleryRecipeItem {
         GalleryRecipeItem {
             icon: default(),
-            tint: UiColor::Body,
+            tint: UiColorType::TextBody,
             name: "Section panel".to_string(),
             count,
             supply,

@@ -6,7 +6,7 @@ use bevy::{
 use nova_input::prelude::InputSource;
 use nova_ui::{
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{prelude::*, ThemedBorder, ThemedFill, ThemedText},
 };
 
@@ -168,7 +168,7 @@ fn start_match(
     result::begin_match(commands, roster.ships.len());
 }
 
-fn text(text: impl Into<String>, size: f32, color: UiColor) -> impl Bundle {
+fn text(text: impl Into<String>, size: f32, color: UiColorType) -> impl Bundle {
     (
         UiText,
         Text::new(text.into()),
@@ -215,14 +215,14 @@ pub(super) fn spawn_lobby(commands: &mut Commands, model: &LobbyModel, styles: &
                 row_gap: px(10),
                 ..default()
             },
-            BackgroundColor(Color::NONE), ThemedFill::alpha(UiColor::Void, 0.97),
+            BackgroundColor(Color::NONE), ThemedFill::alpha(UiColorType::Background, 0.97),
         ))
         .with_children(|root| {
-            root.spawn(text("WFC ARENA / MATCH CONFIGURATOR", 25.0, UiColor::Primary));
+            root.spawn(text("WFC ARENA / MATCH CONFIGURATOR", 25.0, UiColorType::Text));
             root.spawn(text(
                 "Configure both formations. Seeds are exact; use REROLL for another combat-ready hull.",
                 13.0,
-                UiColor::Secondary,
+                UiColorType::TextSecondary,
             ));
             root.spawn(Node {
                 width: vw(94),
@@ -297,7 +297,7 @@ fn spawn_side(
             },
             BorderColor::all(TEAMS[team].tint.with_alpha(0.62)),
             BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Surface, 0.72),
+            ThemedFill::alpha(UiColorType::Surface, 0.72),
         ))
         .with_children(|side| {
             side.spawn(tinted_text(
@@ -305,7 +305,7 @@ fn spawn_side(
                 19.0,
                 TEAMS[team].tint,
             ));
-            side.spawn(text("SIDE STYLE", 11.0, UiColor::Label));
+            side.spawn(text("SIDE STYLE", 11.0, UiColorType::TextMuted));
             side.spawn(Node {
                 width: percent(100),
                 display: Display::Grid,
@@ -322,14 +322,18 @@ fn spawn_side(
                         Button,
                         Hovered::default(),
                         LobbyAction::Style(team, index),
-                        children![text(style.name.to_ascii_uppercase(), 12.0, UiColor::Body)],
+                        children![text(
+                            style.name.to_ascii_uppercase(),
+                            12.0,
+                            UiColorType::TextBody
+                        )],
                     ));
                     if selected {
                         row.insert(Selected);
                     }
                 }
             });
-            side.spawn(text("SHIPS", 11.0, UiColor::Label));
+            side.spawn(text("SHIPS", 11.0, UiColorType::TextMuted));
             side.spawn(Node {
                 width: percent(100),
                 flex_grow: 1.0,
@@ -370,13 +374,13 @@ fn spawn_ship_row(
                 ..default()
             },
             BorderColor::all(Color::NONE),
-            ThemedBorder::alpha(UiColor::Primary, 0.15),
+            ThemedBorder::alpha(UiColorType::Text, 0.15),
             BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Primary, 0.025),
+            ThemedFill::alpha(UiColorType::Text, 0.025),
         ))
         .with_children(|row| {
             row.spawn((
-                text(format!("{:02}", slot + 1), 12.0, UiColor::Label),
+                text(format!("{:02}", slot + 1), 12.0, UiColorType::TextMuted),
                 Node {
                     margin: UiRect::top(px(23)),
                     ..default()
@@ -389,7 +393,7 @@ fn spawn_ship_row(
                 ..default()
             })
             .with_children(|field| {
-                field.spawn(text("SEED", 9.0, UiColor::Label));
+                field.spawn(text("SEED", 9.0, UiColorType::TextMuted));
                 field.spawn((
                     text_field(TextFieldSpec::new(&ship.seed).max_chars(20)),
                     LobbySeedField(slot),

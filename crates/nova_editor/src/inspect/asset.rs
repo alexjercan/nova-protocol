@@ -5,16 +5,14 @@
 //! and its destroy sound are `#[reflect(ignore)]`, so they are text with a
 //! rule. A build recipe's parts, a start role's stock and a campaign's member
 //! list are list editors ([`RowValue::List`]): a row per entry, picked from
-//! the ids the mod sees. A theme's palette is a map, drawn as a grid of
-//! swatches ([`RowValue::Palette`]).
-
-use std::collections::BTreeMap;
+//! the ids the mod sees. A theme's palette is the fixed colour set, drawn as a
+//! grid of swatches ([`RowValue::Palette`]).
 
 use bevy::{prelude::*, reflect::PartialReflect};
 use nova_gameplay::prelude::{ItemCategoryType, ItemDesignId, ShipInventoryStock};
 use nova_modding::prelude::Content;
 use nova_ship::prelude::{RenderMeshTransform, SectionCollider, SectionConfig};
-use nova_ui::theme::UiThemeConfig;
+use nova_ui::theme::{UiColorType, UiPalette, UiThemeConfig};
 
 use super::{
     fixed, name_row, pose_rows, rotation_degrees, rotation_from_degrees, section_config,
@@ -593,7 +591,7 @@ fn kept_row(label: &str, text: String) -> InspectorRow {
 }
 
 /// The rows of a form kind.
-fn form_rows(item: &Content, inherited: &BTreeMap<String, String>, rows: &mut Vec<InspectorRow>) {
+fn form_rows(item: &Content, inherited: &UiPalette, rows: &mut Vec<InspectorRow>) {
     let Some(config) = content_reflect(item) else {
         return;
     };
@@ -670,13 +668,13 @@ fn form_rows(item: &Content, inherited: &BTreeMap<String, String>, rows: &mut Ve
     }
 }
 
-/// The palette `theme` takes from the themes it inherits: each ancestor's
-/// colours, the nearer over the farther. `lookup` finds a theme by id. A
-/// missing or repeated ancestor ends the walk; the lint names both faults.
+/// The palette `theme` takes from the themes it inherits: each colour from
+/// the nearest ancestor that sets it. `lookup` finds a theme by id. A missing
+/// or repeated ancestor ends the walk; the lint names both faults.
 pub(crate) fn inherited_palette<'a>(
     theme: &UiThemeConfig,
     lookup: impl Fn(&str) -> Option<&'a UiThemeConfig>,
-) -> BTreeMap<String, String> {
+) -> UiPalette {
     let mut chain: Vec<&UiThemeConfig> = Vec::new();
     let mut next = theme.inherit.as_deref();
     while let Some(id) = next {
@@ -689,45 +687,45 @@ pub(crate) fn inherited_palette<'a>(
         chain.push(parent);
         next = parent.inherit.as_deref();
     }
-    let mut palette = BTreeMap::new();
-    for ancestor in chain.iter().rev() {
-        palette.extend(ancestor.palette.clone());
+    let mut palette = UiPalette::default();
+    for &color in UiColorType::ALL {
+        *palette.slot_mut(color) = chain
+            .iter()
+            .find_map(|ancestor| ancestor.palette.get(color))
+            .map(str::to_string);
     }
     palette
 }
 
-/// A theme's palette as one grid row: its own colours, and the ones it takes
-/// from `inherited`, the palette of the theme it inherits.
-fn palette_row(theme: &UiThemeConfig, inherited: &BTreeMap<String, String>) -> InspectorRow {
-    let mut entries: BTreeMap<&str, PaletteEntry> = inherited
+/// A theme's palette as one grid row: one swatch per [`UiColorType`], the
+/// same rows for every theme. A colour the theme does not set shows the one
+/// it takes from `inherited`, the palette of the theme it inherits.
+fn palette_row(theme: &UiThemeConfig, inherited: &UiPalette) -> InspectorRow {
+    let entries = UiColorType::ALL
         .iter()
-        .map(|(name, hex)| {
-            let entry = PaletteEntry {
-                name: name.clone(),
-                hex: hex.clone(),
-                inherited: true,
+        .map(|&color| {
+            let (hex, inherited) = match (theme.palette.get(color), inherited.get(color)) {
+                (Some(own), _) => (own, false),
+                (None, Some(parent)) => (parent, true),
+                // A root theme with a gap: the swatch stays empty, and the
+                // lint names the colour.
+                (None, None) => ("", false),
             };
-            (name.as_str(), entry)
+            PaletteEntry {
+                name: color.name().to_string(),
+                hex: hex.to_string(),
+                inherited,
+            }
         })
         .collect();
-    for (name, hex) in &theme.palette {
-        entries.insert(
-            name.as_str(),
-            PaletteEntry {
-                name: name.clone(),
-                hex: hex.clone(),
-                inherited: false,
-            },
-        );
-    }
     let hint = match &theme.inherit {
         Some(parent) => format!(
-            "Named colours. Press one to pick it. A dim name is {parent}'s until it is picked here."
+            "The colours every theme sets. Press one to pick it. A dim name is {parent}'s until it is picked here."
         ),
-        None => "Named colours. Press one to pick it.".to_string(),
+        None => "The colours every theme sets. Press one to pick it.".to_string(),
     };
     InspectorRow {
-        value: RowValue::Palette(entries.into_values().collect()),
+        value: RowValue::Palette(entries),
         ..fixed(FieldRoot::PaletteColour, "Palette", "")
     }
     .saying(hint)
@@ -735,10 +733,7 @@ fn palette_row(theme: &UiThemeConfig, inherited: &BTreeMap<String, String>) -> I
 
 /// The rows of the bench's root: the item itself. `inherited` is the palette
 /// a UI theme takes from the themes it inherits, and empty for anything else.
-pub(crate) fn asset_rows(
-    item: &Content,
-    inherited: &BTreeMap<String, String>,
-) -> Vec<InspectorRow> {
+pub(crate) fn asset_rows(item: &Content, inherited: &UiPalette) -> Vec<InspectorRow> {
     let mut rows = match item {
         Content::PriceTable(_) => vec![fixed(FieldRoot::Asset, "Id", item.id())
             .saying("A mod states one price table, and it replaces the base table whole.")],

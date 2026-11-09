@@ -10,7 +10,7 @@ use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 use nova_ui::{
     prelude::{button, ButtonSpec},
     screen::drive_wheel_scroll,
-    theme::UiColor,
+    theme::UiColorType,
     widget::ThemedFill,
 };
 
@@ -164,19 +164,22 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
                         })
                         .with_children(|identity| {
                             for (field, size, color) in [
-                                (MapPanelField::Code, 18.0, UiColor::Primary),
-                                (MapPanelField::Name, 13.0, UiColor::Body),
-                                (MapPanelField::Kind, 12.0, UiColor::Body),
+                                (MapPanelField::Code, 18.0, UiColorType::Text),
+                                (MapPanelField::Name, 13.0, UiColorType::TextBody),
+                                (MapPanelField::Kind, 12.0, UiColorType::TextBody),
                             ] {
                                 identity.spawn((field, themed_label("", size, color)));
                             }
                         });
                     header.spawn(panel_rule());
                     for field in [MapPanelField::Range, MapPanelField::Bearing] {
-                        header.spawn((field, themed_label("", 13.0, UiColor::Primary)));
+                        header.spawn((field, themed_label("", 13.0, UiColorType::Text)));
                     }
                     header.spawn(panel_rule());
-                    header.spawn((MapPanelField::Note, themed_label("", 12.0, UiColor::Label)));
+                    header.spawn((
+                        MapPanelField::Note,
+                        themed_label("", 12.0, UiColorType::TextMuted),
+                    ));
                     header.spawn(panel_rule());
                 });
             spawn_map_chart_sector(panel);
@@ -185,7 +188,7 @@ pub(crate) fn spawn_map_panel(parent: &mut ChildSpawnerCommands, icons: &Interfa
             spawn_map_stance_block(panel);
             panel.spawn((
                 MapPanelField::Destination,
-                themed_label("", 12.0, UiColor::Label),
+                themed_label("", 12.0, UiColorType::TextMuted),
             ));
             // Disabled at spawn: the map opens with nothing selected.
             panel
@@ -216,7 +219,7 @@ fn panel_rule() -> impl Bundle {
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Secondary, 0.35),
+        ThemedFill::alpha(UiColorType::TextSecondary, 0.35),
     )
 }
 

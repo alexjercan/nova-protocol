@@ -18,7 +18,7 @@ use nova_ui::{
         spawn_popup, text_field, InputMode, PopupRoot, TextFieldFocused, TextFieldSpec,
         TextFieldSubmitted, TextFieldValue, UiText,
     },
-    theme::{density, UiColor},
+    theme::{density, UiColorType},
     widget::{ButtonCueType, ThemedText},
 };
 
@@ -312,7 +312,7 @@ fn small_text(text: &str) -> impl Bundle {
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Label),
+        ThemedText::new(UiColorType::TextMuted),
         Pickable::IGNORE,
     )
 }

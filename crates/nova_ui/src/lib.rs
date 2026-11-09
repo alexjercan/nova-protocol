@@ -60,7 +60,7 @@ impl Plugin for NovaUiPlugin {
 
 /// Glob-import surface: `use nova_ui::prelude::*` brings the [`theme`] stack
 /// (the live [`ActiveUiTheme`](theme::ActiveUiTheme) and the semantic
-/// [`UiColor`](theme::UiColor) / [`UiMetric`](theme::UiMetric) names screens
+/// [`UiColorType`](theme::UiColorType) / [`UiMetric`](theme::UiMetric) names screens
 /// ask it for), the [`units`] formatters and the
 /// themed-button widgets ([`themed_button`](widget::themed_button),
 /// [`ThemedButton`](widget::ThemedButton), [`Selected`](widget::Selected), ...)

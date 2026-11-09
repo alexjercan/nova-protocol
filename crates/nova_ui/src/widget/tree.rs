@@ -7,7 +7,7 @@
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::Button};
 
 use super::{ListRow, ThemedRadius, ThemedText, UiText};
-use crate::theme::{density, UiColor, BORDER_W};
+use crate::theme::{density, UiColorType, BORDER_W};
 
 /// The left padding of a root row.
 const INDENT_BASE: f32 = 4.0;
@@ -54,7 +54,7 @@ pub fn tree_row(spec: &TreeRowSpec) -> impl Bundle {
         reason = "tree depth is single digits, not a precision question"
     )]
     let indent = px(INDENT_BASE + INDENT_STEP * spec.depth as f32);
-    let text = |line: &str, colour: UiColor| {
+    let text = |line: &str, colour: UiColorType| {
         (
             UiText,
             Text::new(line.to_string()),
@@ -77,7 +77,7 @@ pub fn tree_row(spec: &TreeRowSpec) -> impl Bundle {
             justify_content: JustifyContent::Center,
             ..default()
         },
-        children![text(&spec.caret, UiColor::Label)],
+        children![text(&spec.caret, UiColorType::TextMuted)],
     );
     (
         ListRow,
@@ -104,7 +104,7 @@ pub fn tree_row(spec: &TreeRowSpec) -> impl Bundle {
         BackgroundColor(Color::NONE),
         children![
             (TreeCaret, Button, Hovered::default(), caret_paint),
-            text(&spec.lead, UiColor::Label),
+            text(&spec.lead, UiColorType::TextMuted),
             // `flex_basis` 0 and `min_width` 0 let a long label give its width
             // back instead of pushing the count out of the row.
             (
@@ -115,10 +115,10 @@ pub fn tree_row(spec: &TreeRowSpec) -> impl Bundle {
                     overflow: Overflow::clip(),
                     ..default()
                 },
-                children![text(&spec.label, UiColor::Primary)],
+                children![text(&spec.label, UiColorType::Text)],
             ),
-            text(&spec.count, UiColor::Label),
-            text(&spec.trail, UiColor::Secondary),
+            text(&spec.count, UiColorType::TextMuted),
+            text(&spec.trail, UiColorType::TextSecondary),
         ],
     )
 }

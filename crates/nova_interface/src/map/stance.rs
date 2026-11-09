@@ -23,7 +23,7 @@ use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::*;
 use nova_ui::{
     prelude::{badge, BadgeKind, ButtonCueType, ButtonSpec, Tooltip},
-    theme::UiColor,
+    theme::UiColorType,
 };
 use nova_world_base::prelude::{enemy_neighbours, standing, CivilizationField};
 
@@ -328,7 +328,7 @@ pub(crate) fn spawn_map_stance_block(panel: &mut ChildSpawnerCommands) {
         .with_children(|block| {
             block.spawn(divider());
             block.spawn((
-                themed_label("STANCES", 11.0, UiColor::Label),
+                themed_label("STANCES", 11.0, UiColorType::TextMuted),
                 Pickable::IGNORE,
             ));
             block.spawn((
@@ -465,7 +465,7 @@ pub(crate) fn update_map_stance_block(
                                 },
                                 Pickable::IGNORE,
                                 children![(
-                                    themed_label(name, 13.0, UiColor::Primary),
+                                    themed_label(name, 13.0, UiColorType::Text),
                                     TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                     Pickable::IGNORE
                                 )],
@@ -490,7 +490,7 @@ pub(crate) fn update_map_stance_block(
                             });
                         });
                         for (detail, hint) in details {
-                            let label = themed_label(detail, 12.0, UiColor::Label);
+                            let label = themed_label(detail, 12.0, UiColorType::TextMuted);
                             if let Some(hint) = hint {
                                 // A Tooltip spawns its panel as a child, and a
                                 // text node with a child lays out as a container
@@ -529,7 +529,7 @@ pub(crate) fn update_map_stance_block(
                                 },
                                 Pickable::IGNORE,
                                 children![(
-                                    themed_label(&civilization.name(), 13.0, UiColor::Primary),
+                                    themed_label(&civilization.name(), 13.0, UiColorType::Text),
                                     TextLayout::new(Justify::Left, LineBreak::NoWrap),
                                     Pickable::IGNORE
                                 )],
@@ -542,7 +542,7 @@ pub(crate) fn update_map_stance_block(
                                 Pickable::IGNORE,
                             ));
                             row.spawn((
-                                themed_label(&cr_text(u64::from(*fine)), 12.0, UiColor::Body),
+                                themed_label(&cr_text(u64::from(*fine)), 12.0, UiColorType::TextBody),
                                 TextLayout::new(Justify::Right, LineBreak::NoWrap),
                                 Pickable::IGNORE,
                             ));
@@ -558,7 +558,7 @@ pub(crate) fn update_map_stance_block(
                         });
                     }
                     MapStanceRowView::Dock(line) => {
-                        list.spawn(themed_label(line, 12.0, UiColor::Label));
+                        list.spawn(themed_label(line, 12.0, UiColorType::TextMuted));
                     }
                 }
             }

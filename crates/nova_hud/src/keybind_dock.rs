@@ -78,7 +78,7 @@ const CUE_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
 /// The gap (px) a cue keeps from the shown notice box and the target inset.
 const CUE_NOTICE_GAP_PX: f32 = 8.0;
 use nova_ui::{
-    theme::{ActiveUiTheme, UiColor},
+    theme::{ActiveUiTheme, UiColorType},
     widget::{ThemedBorder, ThemedText},
 };
 
@@ -223,18 +223,18 @@ fn chip_paint(state: DockChipState, theme: &ActiveUiTheme) -> (Color, Color, Col
     match state {
         DockChipState::Dim => (
             chip::CHIP_FILL_QUIET.with_alpha(0.62),
-            theme.color_alpha(UiColor::Primary, 0.22),
-            theme.color_alpha(UiColor::Label, 0.8),
+            theme.color_alpha(UiColorType::Text, 0.22),
+            theme.color_alpha(UiColorType::TextMuted, 0.8),
         ),
         DockChipState::Available => (
             chip::CHIP_FILL,
-            theme.color_alpha(UiColor::Primary, 0.4),
-            theme.color(UiColor::Primary),
+            theme.color_alpha(UiColorType::Text, 0.4),
+            theme.color(UiColorType::Text),
         ),
         DockChipState::Hot => (
-            theme.color(UiColor::Primary),
-            theme.color(UiColor::Primary),
-            theme.color(UiColor::Inverted),
+            theme.color(UiColorType::Text),
+            theme.color(UiColorType::Text),
+            theme.color(UiColorType::TextInverse),
         ),
     }
 }
@@ -388,7 +388,7 @@ pub fn verb_cues_hud() -> impl Bundle {
             CUE_CLEARANCE,
             BackgroundColor(chip::CHIP_FILL),
             BorderColor::all(Color::NONE),
-            ThemedBorder::alpha(UiColor::Primary, 0.4),
+            ThemedBorder::alpha(UiColorType::Text, 0.4),
             children![
                 (
                     ChipGlyph,
@@ -406,7 +406,7 @@ pub fn verb_cues_hud() -> impl Bundle {
                     Text::new(""),
                     TextFont::from_font_size(CHIP_TEXT_PX),
                     TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Primary),
+                    ThemedText::new(UiColorType::Text),
                     Node {
                         display: Display::None,
                         ..default()
@@ -417,7 +417,7 @@ pub fn verb_cues_hud() -> impl Bundle {
                     Text::new(label),
                     TextFont::from_font_size(CHIP_TEXT_PX),
                     TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Primary),
+                    ThemedText::new(UiColorType::Text),
                 ),
             ],
         )

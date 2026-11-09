@@ -22,7 +22,7 @@ use nova_events::{
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::{BodyRadius, HullEnvelopeRadius};
-use nova_ui::theme::UiColor;
+use nova_ui::theme::UiColorType;
 
 use super::chart::{chart_mark_code, MapChartMarkType};
 use crate::icons::BodyIconType;
@@ -63,14 +63,14 @@ impl MapContactKind {
 
     /// The theme colour a contact of this kind reads in: its blip icon, its
     /// legend entry and its contact panel.
-    pub(crate) fn color(self) -> UiColor {
+    pub(crate) fn color(self) -> UiColorType {
         match self {
-            MapContactKind::OwnShip => UiColor::Primary,
-            MapContactKind::Ally => UiColor::Info,
-            MapContactKind::Hostile => UiColor::Danger,
-            MapContactKind::Objective => UiColor::Accent,
+            MapContactKind::OwnShip => UiColorType::Text,
+            MapContactKind::Ally => UiColorType::Info,
+            MapContactKind::Hostile => UiColorType::Danger,
+            MapContactKind::Objective => UiColorType::Accent,
             MapContactKind::Terrain | MapContactKind::Neutral | MapContactKind::Planet => {
-                UiColor::Secondary
+                UiColorType::TextSecondary
             }
         }
     }

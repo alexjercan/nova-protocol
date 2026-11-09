@@ -33,7 +33,7 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{bottom_edge_px, StatusBarRootMarker},
-    theme::{combat, ActiveUiTheme, UiColor},
+    theme::{combat, ActiveUiTheme, UiColorType},
 };
 
 use crate::{
@@ -132,11 +132,11 @@ const CONFIRMATION_FADE_SECS: f32 = 0.4;
 /// and the backdrop tints stay literal (they are near-black washes tuned to the
 /// inset, not palette colours).
 fn neutralized_flash_color(theme: &ActiveUiTheme) -> Color {
-    theme.color(UiColor::Primary)
+    theme.color(UiColorType::Text)
 }
 const NEUTRALIZED_FLASH_BACKDROP: Color = Color::srgba(0.0, 0.04, 0.01, 0.9);
 fn destroyed_flash_color(theme: &ActiveUiTheme) -> Color {
-    theme.color(UiColor::Accent)
+    theme.color(UiColorType::Accent)
 }
 const DESTROYED_FLASH_BACKDROP: Color = Color::srgba(0.05, 0.025, 0.0, 0.92);
 

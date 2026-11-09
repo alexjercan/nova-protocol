@@ -12,7 +12,7 @@ use nova_scenario::prelude::*;
 use nova_ui::{
     prelude::{window_root, REPORT_Z},
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{panel, ButtonVariant, KeyChipLabel, ThemedRadius, ThemedText},
 };
 #[cfg(not(target_arch = "wasm32"))]
@@ -177,7 +177,7 @@ pub(crate) fn sync_outcome_overlay(
                                 ..default()
                             },
                             TextColor(Color::NONE),
-                            ThemedText::new(UiColor::Body),
+                            ThemedText::new(UiColorType::TextBody),
                             Node {
                                 margin: UiRect::top(px(8)),
                                 max_width: px(280),
@@ -394,7 +394,7 @@ pub(crate) fn sync_start_failure_overlay(
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Body),
+                        ThemedText::new(UiColorType::TextBody),
                         Node {
                             margin: UiRect::top(px(8)),
                             max_width: px(340),
@@ -410,7 +410,7 @@ pub(crate) fn sync_start_failure_overlay(
                                 ..default()
                             },
                             TextColor(Color::NONE),
-                            ThemedText::new(UiColor::Label),
+                            ThemedText::new(UiColorType::TextMuted),
                             Node {
                                 margin: UiRect::top(px(4)),
                                 max_width: px(340),

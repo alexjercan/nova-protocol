@@ -17,7 +17,7 @@ use bevy::{
 };
 
 use super::UiText;
-use crate::theme::{ActiveUiTheme, OnOff, UiColor, UiMetric, BORDER_W};
+use crate::theme::{ActiveUiTheme, OnOff, UiColorType, UiMetric, BORDER_W};
 
 /// Marks a text span whose colour is a theme colour, so it re-tints live.
 ///
@@ -27,19 +27,19 @@ use crate::theme::{ActiveUiTheme, OnOff, UiColor, UiMetric, BORDER_W};
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ThemedText {
     /// Which theme colour the span takes.
-    pub color: UiColor,
+    pub color: UiColorType,
     /// Alpha applied to it.
     pub alpha: f32,
 }
 
 impl ThemedText {
     /// A span at the theme colour's own alpha.
-    pub fn new(color: UiColor) -> Self {
+    pub fn new(color: UiColorType) -> Self {
         Self { color, alpha: 1.0 }
     }
 
     /// A span at a fraction of the theme colour.
-    pub fn alpha(color: UiColor, alpha: f32) -> Self {
+    pub fn alpha(color: UiColorType, alpha: f32) -> Self {
         Self { color, alpha }
     }
 }
@@ -71,19 +71,19 @@ pub(super) fn reconcile_themed_text(
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ThemedTextShadow {
     /// Which theme colour the shadow takes.
-    pub color: UiColor,
+    pub color: UiColorType,
     /// Alpha applied to it.
     pub alpha: f32,
 }
 
 impl ThemedTextShadow {
     /// A shadow at the theme colour's own alpha.
-    pub fn new(color: UiColor) -> Self {
+    pub fn new(color: UiColorType) -> Self {
         Self { color, alpha: 1.0 }
     }
 
     /// A shadow at a fraction of the theme colour.
-    pub fn alpha(color: UiColor, alpha: f32) -> Self {
+    pub fn alpha(color: UiColorType, alpha: f32) -> Self {
         Self { color, alpha }
     }
 }
@@ -116,19 +116,19 @@ pub(super) fn reconcile_themed_text_shadows(
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ThemedImageTint {
     /// Which theme colour the picture is tinted with.
-    pub color: UiColor,
+    pub color: UiColorType,
     /// Alpha applied to it.
     pub alpha: f32,
 }
 
 impl ThemedImageTint {
     /// A picture at the theme colour's own alpha.
-    pub fn new(color: UiColor) -> Self {
+    pub fn new(color: UiColorType) -> Self {
         Self { color, alpha: 1.0 }
     }
 
     /// A picture at a fraction of the theme colour.
-    pub fn alpha(color: UiColor, alpha: f32) -> Self {
+    pub fn alpha(color: UiColorType, alpha: f32) -> Self {
         Self { color, alpha }
     }
 }
@@ -159,19 +159,19 @@ pub(super) fn reconcile_themed_images(
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ThemedFill {
     /// Which theme colour the surface takes.
-    pub color: UiColor,
+    pub color: UiColorType,
     /// Alpha applied to it.
     pub alpha: f32,
 }
 
 impl ThemedFill {
     /// A surface at the theme colour's own alpha.
-    pub fn new(color: UiColor) -> Self {
+    pub fn new(color: UiColorType) -> Self {
         Self { color, alpha: 1.0 }
     }
 
     /// A surface at a fraction of the theme colour.
-    pub fn alpha(color: UiColor, alpha: f32) -> Self {
+    pub fn alpha(color: UiColorType, alpha: f32) -> Self {
         Self { color, alpha }
     }
 }
@@ -181,19 +181,19 @@ impl ThemedFill {
 #[derive(Component, Debug, Clone, Copy)]
 pub struct ThemedBorder {
     /// Which theme colour the border takes.
-    pub color: UiColor,
+    pub color: UiColorType,
     /// Alpha applied to it.
     pub alpha: f32,
 }
 
 impl ThemedBorder {
     /// A border at the theme colour's own alpha.
-    pub fn new(color: UiColor) -> Self {
+    pub fn new(color: UiColorType) -> Self {
         Self { color, alpha: 1.0 }
     }
 
     /// A border at a fraction of the theme colour.
-    pub fn alpha(color: UiColor, alpha: f32) -> Self {
+    pub fn alpha(color: UiColorType, alpha: f32) -> Self {
         Self { color, alpha }
     }
 }
@@ -275,7 +275,7 @@ pub(super) fn reconcile_themed_nodes(
 pub fn panel_header(text: &str) -> impl Bundle {
     (
         UiText,
-        ThemedText::new(UiColor::Primary),
+        ThemedText::new(UiColorType::Text),
         Text::new(text.to_uppercase()),
         TextFont {
             font_size: FontSize::Px(13.0),
@@ -376,13 +376,13 @@ pub enum BadgeKind {
 
 impl BadgeKind {
     /// The theme colour and the alpha this family reads at.
-    fn tone(self) -> (UiColor, f32) {
+    fn tone(self) -> (UiColorType, f32) {
         match self {
-            BadgeKind::Green => (UiColor::Nominal, 1.0),
-            BadgeKind::Amber => (UiColor::Accent, 1.0),
-            BadgeKind::Blue => (UiColor::Info, 1.0),
-            BadgeKind::Red => (UiColor::Danger, 1.0),
-            BadgeKind::Mute => (UiColor::Label, 0.9),
+            BadgeKind::Green => (UiColorType::Nominal, 1.0),
+            BadgeKind::Amber => (UiColorType::Accent, 1.0),
+            BadgeKind::Blue => (UiColorType::Info, 1.0),
+            BadgeKind::Red => (UiColorType::Danger, 1.0),
+            BadgeKind::Mute => (UiColorType::TextMuted, 0.9),
         }
     }
 }
@@ -600,7 +600,7 @@ pub(super) fn reconcile_swatches(
     if !restyle_all && just_added.is_empty() {
         return;
     }
-    let border = theme.color_alpha(UiColor::Primary, 0.4);
+    let border = theme.color_alpha(UiColorType::Text, 0.4);
     let radius = theme.metric(UiMetric::Radius);
     for (entity, mut node, mut border_color) in &mut q {
         if !restyle_all && !just_added.contains(&entity) {
@@ -757,7 +757,7 @@ mod tests {
         select(&mut app, HARDWARE_THEME_ID);
         app.update();
         assert_eq!(label_of(&mut app, chip), "ONLINE");
-        let expected = phosphor().color(UiColor::Primary);
+        let expected = phosphor().color(UiColorType::Text);
         assert_eq!(
             bg(&app, chip),
             expected.with_alpha(hardware().badge().fill_alpha),

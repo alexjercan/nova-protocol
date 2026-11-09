@@ -45,11 +45,11 @@ ships:
         id: "my-mod/amber",
         name: "Amber CRT",
         inherit: Some("base/phosphor"),
-        palette: {
-            "primary": "#ffb84a",
-            "secondary": "#c98a28",
-            "body": "#ffe6bd",
-        },
+        palette: (
+            text: "#ffb84a",
+            text_secondary: "#c98a28",
+            text_body: "#ffe6bd",
+        ),
         metrics: None,
         roles: (
             badge: Some((
@@ -69,7 +69,7 @@ ships:
 | `id` | string | required | Stable key. The overlay key, the value Settings persists, and what another theme's `inherit` names. Prefix new ids with your mod id. |
 | `name` | string | required | The label on the Settings row. |
 | `inherit` | `Option` string | required | The theme this one derives from, or `None` for a root theme - see [Inheritance](#inheritance). |
-| `palette` | map of string to string | `{}` | Named colour variables, six-digit `#rrggbb`. |
+| `palette` | palette | `()` | The fixed colour set, six-digit `#rrggbb` each - see [Palette](#palette). |
 | `metrics` | `Option` metrics | required | Border width and the two radii, or `None` to take the parent's - see [Metrics](#metrics). |
 | `roles` | roles | `()` | The per-control paint tables - see [Roles](#roles). |
 
@@ -79,49 +79,60 @@ that would have been valid.
 
 ## Palette
 
-The palette is a map of name to hex. Role tables reference these names, so each
-tone is stated once and changed once.
+Every theme sets the SAME colours, by the same names. The names say what a
+colour is for, not what it looks like, so a role written for one theme reads
+the same in another. The screens, the role tables and the editor's swatch grid
+all use this list:
 
-Thirteen names are REQUIRED in a root theme, because the screens ask for them
-directly:
-
-| variable | what it inks |
+| colour | what it paints |
 |---|---|
-| `primary` | Live text, active borders, glyphs - the primary ink. |
-| `secondary` | Secondary text and idle fills. |
-| `label` | Labels, section heads, tags. |
-| `body` | Readable body copy. |
-| `accent` | Selection, keycaps, warnings. |
-| `accent_high` | The bright end of the accent family. |
-| `accent_low` | The deep end of the accent family. |
-| `inverted` | Glyphs sitting on a bright fill. |
-| `surface` | The panel and screen surface. |
-| `void` | The deepest field behind everything. |
-| `danger` | The danger family. |
-| `info` | The info family. |
-| `nominal` | Healthy, online, lit - a passed check, an enabled dependency. |
+| `text` | The main ink: live text, titles, glyphs, and on a terminal look its lines too. |
+| `text_body` | Readable body copy. |
+| `text_secondary` | Secondary text and idle fills. |
+| `text_muted` | Labels, section heads, tags and rules. |
+| `text_hover` | A control's legend under the pointer. |
+| `text_inverse` | Glyphs on a lit fill: a selected control, a checked box. |
+| `surface` | The panel and screen face. |
+| `surface_sunken` | A face set below the panel: a pressed control, an unchecked box. |
+| `surface_raised` | A face raised above the panel: a selected row. |
+| `surface_lit` | The lit top edge of a raised face, a rule, a scroll thumb. |
+| `surface_hover` | A control's face under the pointer. |
+| `surface_hover_light` | The lit top of `surface_hover`. |
+| `surface_hover_dark` | The shaded foot of `surface_hover`. |
+| `background` | The deepest field, behind everything. |
+| `border` | The dark outline round a raised face. |
+| `accent` | Selection, keycaps and warnings. |
+| `accent_light` | The bright end of the accent family. |
+| `accent_dark` | The deep end of the accent family. |
+| `nominal` | Healthy, online, lit: a passed check, an enabled dependency. |
+| `nominal_light` | The bright end of the nominal family. |
+| `nominal_dark` | The deep end of the nominal family. |
+| `danger` | Destructive actions and faults. |
+| `danger_text` | A legend on or beside a danger face. |
+| `danger_face` | A danger control's face. |
+| `danger_face_dark` | The shaded end of `danger_face`. |
+| `info` | Information. |
+| `control_off` | An off switch's knob. |
+| `highlight` | Light washes and the brightest legend. |
+| `shadow` | Drop shadows and dark wells. |
 
-`nominal` is separate from `primary` on purpose. On a phosphor screen the ink
+A ROOT theme sets all of them. A DERIVED theme sets only the ones it changes;
+each colour it leaves out comes from the nearest theme up its chain that sets
+it. The example above recolours three and inherits the rest.
+
+The list is closed. A name that is not on it, in the palette or in a
+`Variable(...)`, stops the file from parsing, and the message names the
+colours that would have been valid.
+
+`nominal` is separate from `text` on purpose. On a phosphor screen the ink
 IS green, so the two look like one colour and a screen that wanted "good" can
 get away with asking for the ink. On a casing the ink is bone white and the
 lamp is still green, and a theme that answers both questions with one colour
 draws a white ONLINE badge.
 
-Give these thirteen your OWN tones. A theme that copies another theme's
-semantic palette cannot differ from it anywhere a screen paints by meaning,
-whatever its role table says - the labels, the body copy and the preview panes
-all keep the colours they were copied from.
-
-Extra names are free, and are how a theme gives its role table tones the
-screens never ask for by name. The base themes add `black`, `white`,
-`hover_text`, `primary_high`, `primary_low`, `screen_lifted`, the `case_*`
-casing family and `danger_text_hot` this way.
-
-A derived theme's palette entry SHADOWS its parent's, and its extra names join
-rather than replace. The example above recolours three variables and inherits
-the rest.
-
-An unknown variable name is a lint error, never a silent black.
+Give the `text` family, `surface` and `background` your OWN tones. A theme that
+copies another theme's ink and surfaces cannot differ from it anywhere a
+screen paints by job, whatever its role table says.
 
 ## Metrics
 
@@ -150,7 +161,7 @@ Every colour in a role table is a value plus an alpha:
 
 ```ron
 border: (
-    value: Variable("primary"),
+    value: Variable(text),
     alpha: 0.4,
 ),
 text: (
@@ -160,8 +171,8 @@ text: (
 
 | field | meaning |
 |---|---|
-| `value` | `Variable("name")` reads the palette, `Literal("#rrggbb")` writes a one-off tone. Anything reused belongs in the palette. |
-| `alpha` | `0.0` to `1.0`. Omitted means opaque. It REPLACES the source colour's alpha rather than multiplying it, so the same variable at `0.12` reads the same in every theme. |
+| `value` | `Variable(name)` reads a palette colour by its name, such as `Variable(text_muted)`. `Literal("#rrggbb")` writes a one-off tone. |
+| `alpha` | `0.0` to `1.0`. Omitted means opaque. It REPLACES the source colour's alpha rather than multiplying it, so the same colour at `0.12` reads the same in every theme. |
 
 Transparent paint is alpha `0.0`, never a missing colour.
 
@@ -170,23 +181,23 @@ Transparent paint is alpha `0.0`, never a missing colour.
 A surface background is one of three:
 
 ```ron
-fill: Solid((value: Variable("surface"))),
+fill: Solid((value: Variable(surface))),
 
 fill: Linear(
-    base: (value: Variable("surface")),
+    base: (value: Variable(surface)),
     degrees: 180.0,
     stops: [
-        (color: (value: Variable("white"), alpha: 0.06), percent: 0.0),
-        (color: (value: Variable("black"), alpha: 0.18), percent: 100.0),
+        (color: (value: Variable(highlight), alpha: 0.06), percent: 0.0),
+        (color: (value: Variable(shadow), alpha: 0.18), percent: 100.0),
     ],
 ),
 
 fill: Radial(
-    base: (value: Variable("surface")),
+    base: (value: Variable(surface)),
     anchor: Top,
     stops: [
-        (color: (value: Variable("primary"), alpha: 0.05), percent: 0.0),
-        (color: (value: Variable("black"), alpha: 0.0), percent: 70.0),
+        (color: (value: Variable(text), alpha: 0.05), percent: 0.0),
+        (color: (value: Variable(shadow), alpha: 0.0), percent: 70.0),
     ],
 ),
 ```
@@ -207,7 +218,7 @@ A glow or a drop shadow, or `None` for a flat face:
 
 ```ron
 effect: Some((
-    color: (value: Variable("primary"), alpha: 0.25),
+    color: (value: Variable(text), alpha: 0.25),
     offset_y: 0.0,
     blur: 12.0,
 )),
@@ -245,9 +256,9 @@ A control state is a fill, a border, a text colour and an optional effect:
 
 ```ron
 normal: (
-    fill: Solid((value: Variable("primary"), alpha: 0.05)),
-    border: (value: Variable("primary"), alpha: 0.4),
-    text: (value: Variable("primary")),
+    fill: Solid((value: Variable(text), alpha: 0.05)),
+    border: (value: Variable(text), alpha: 0.4),
+    text: (value: Variable(text)),
     effect: None,
 ),
 ```
@@ -272,15 +283,15 @@ A slider meters in discrete blocks or in one continuous fill:
 ```ron
 slider_track: Some((
     surface: (
-        fill: Solid((value: Variable("black"), alpha: 0.5)),
-        border: (value: Variable("primary"), alpha: 0.32),
+        fill: Solid((value: Variable(shadow), alpha: 0.5)),
+        border: (value: Variable(text), alpha: 0.32),
         effect: None,
         radius: None,
     ),
     height: 14.0,
     meter: Blocks(segments: 24, gap: 2.0),
-    lit: (value: Variable("primary")),
-    unlit: (value: Variable("primary"), alpha: 0.16),
+    lit: (value: Variable(text)),
+    unlit: (value: Variable(text), alpha: 0.16),
 )),
 ```
 
@@ -303,20 +314,20 @@ badge: Some((
 `bracketed: true` renders `[TAG]` as text with no chrome. `bracketed: false`
 draws the chip, and then `padding_x`, `border_width`, `border_alpha` and
 `fill_alpha` shape it. A badge's HUE comes from what it reports: a nominal
-badge reads `primary`, a warning `accent`, a fault `danger`. The theme sets
-those variables in its palette, so the role itself carries alphas rather than
+badge reads `text`, a warning `accent`, a fault `danger`. The theme sets
+those colours in its palette, so the role itself carries alphas rather than
 colours.
 
 ## Inheritance
 
 `inherit: None` marks a ROOT theme. A root theme must define every one of the
-sixteen roles, all thirteen required palette variables, and its metrics. Nothing
-stands behind it.
+sixteen roles, every palette colour, and its metrics. Nothing stands behind
+it.
 
 `inherit: Some("base/phosphor")` marks a DERIVED theme. Every role it omits
-comes from its parent. This is the normal way to ship a look: recolour the
-palette, override the two or three roles that should differ, and inherit the
-rest.
+comes from its parent, and so does every palette colour it does not set. This
+is the normal way to ship a look: recolour a few palette colours, override the
+two or three roles that should differ, and inherit the rest.
 
 A role a derived theme DOES declare replaces the inherited one COMPLETELY.
 Individual states are never merged, so a theme can never leave a control
@@ -326,7 +337,7 @@ Chains can be any depth. The game refuses:
 
 - an `inherit` that names a theme nothing declares;
 - an inheritance cycle, by the names in it;
-- a root theme missing a role, a palette variable or its metrics;
+- a theme whose chain sets no value for a role, a palette colour or the metrics;
 - a hex that does not parse.
 
 Each is one lint finding naming the theme and what is missing.
@@ -369,8 +380,9 @@ nix develop --command cargo run content lint --target path/to/your-mod
 ```
 
 The lint RESOLVES every theme the bundle declares, against every theme visible
-to it. It refuses an unknown parent, a cycle, a missing role, a missing palette
-variable, an unknown variable name and an unparseable hex. A theme that does
+to it. It refuses an unknown parent, a cycle, a missing role, a palette colour
+no theme in the chain sets, and an unparseable hex. An unknown colour name
+fails earlier, when the file is parsed. A theme that does
 not resolve is not a theme that looks wrong; it is one the game would refuse
 and fall back from.
 

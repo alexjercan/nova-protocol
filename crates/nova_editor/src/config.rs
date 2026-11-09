@@ -8,7 +8,7 @@
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_ship::prelude::MountPose;
-use nova_ui::theme::UiColor;
+use nova_ui::theme::UiColorType;
 use nova_wfc::prelude::WfcZone;
 
 use crate::cues::EditorCues;
@@ -345,9 +345,9 @@ pub(crate) struct PlacementStatus;
 #[derive(Resource, Default)]
 pub(crate) struct EditorStatus {
     /// The placement readout, or `None` when nothing is being placed.
-    readout: Option<(String, UiColor)>,
+    readout: Option<(String, UiColorType)>,
     /// The last thing a verb said, and the moment it stops holding the line.
-    said: Option<(String, UiColor, f64)>,
+    said: Option<(String, UiColorType, f64)>,
     /// How many refusals have been said, so a press can tell whether the verb
     /// it ran turned it down.
     refusals: u64,
@@ -358,20 +358,20 @@ const SAID_HOLD_SECS: f64 = 4.0;
 
 impl EditorStatus {
     /// Write the placement readout, or clear it.
-    pub(crate) fn report(&mut self, line: Option<(String, UiColor)>) {
+    pub(crate) fn report(&mut self, line: Option<(String, UiColorType)>) {
         self.readout = line;
     }
 
     /// What a verb is saying, while it holds the line.
-    pub(crate) fn said(&self) -> Option<(&str, UiColor)> {
+    pub(crate) fn said(&self) -> Option<(&str, UiColorType)> {
         self.said
             .as_ref()
             .map(|(message, tint, _)| (message.as_str(), *tint))
     }
 
     /// Say something that has to be read: it holds the line for a few seconds.
-    pub(crate) fn say(&mut self, message: impl Into<String>, tint: UiColor, now: f64) {
-        if tint == UiColor::Danger {
+    pub(crate) fn say(&mut self, message: impl Into<String>, tint: UiColorType, now: f64) {
+        if tint == UiColorType::Danger {
             self.refusals += 1;
         }
         self.said = Some((message.into(), tint, now + SAID_HOLD_SECS));
@@ -398,7 +398,7 @@ impl EditorStatus {
     }
 
     /// What the line shows right now.
-    pub(crate) fn line(&self) -> Option<(&str, UiColor)> {
+    pub(crate) fn line(&self) -> Option<(&str, UiColorType)> {
         self.said
             .as_ref()
             .map(|(message, tint, _)| (message.as_str(), *tint))
@@ -441,7 +441,7 @@ impl EditorSays<'_, '_> {
     /// is held, and a watcher that no press asked.
     pub(crate) fn flag(&mut self, message: impl Into<String>) {
         let now = self.time.elapsed_secs_f64();
-        self.status.say(message, UiColor::Danger, now);
+        self.status.say(message, UiColorType::Danger, now);
     }
 
     /// The click of a press that went through.
@@ -453,7 +453,7 @@ impl EditorSays<'_, '_> {
     /// would otherwise do silently.
     pub(crate) fn note(&mut self, message: impl Into<String>) {
         let now = self.time.elapsed_secs_f64();
-        self.status.say(message, UiColor::Primary, now);
+        self.status.say(message, UiColorType::Text, now);
     }
 }
 

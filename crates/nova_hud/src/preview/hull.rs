@@ -15,7 +15,7 @@ use bevy::{
 };
 use nova_gameplay::prelude::new_render_target_image;
 use nova_ship::prelude::DesignSection;
-use nova_ui::theme::{ActiveUiTheme, UiColor};
+use nova_ui::theme::{ActiveUiTheme, UiColorType};
 
 /// Glob-import surface: `use nova_hud::preview::hull::prelude::*`.
 pub mod prelude {
@@ -168,7 +168,7 @@ pub fn spawn_hull_preview_scene(
             Camera3d::default(),
             Camera {
                 order,
-                clear_color: ClearColorConfig::Custom(theme.color(UiColor::Surface)),
+                clear_color: ClearColorConfig::Custom(theme.color(UiColorType::Surface)),
                 is_active: active,
                 ..default()
             },

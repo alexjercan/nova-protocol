@@ -31,7 +31,7 @@ use bevy::{
 use nova_protocol::nova_interface::prelude::stack_chart_labels;
 use nova_ui::{
     prelude::{TextFieldFocused, UiText},
-    theme::{ActiveUiTheme, UiColor},
+    theme::{ActiveUiTheme, UiColorType},
     widget::{ThemedBorder, ThemedFill, ThemedText},
 };
 
@@ -476,21 +476,23 @@ fn cell_position(at: (i32, i32), player: (i32, i32)) -> Vec3 {
 }
 
 /// The tint a content's tile layer reads in, the game's cluster colours.
-pub fn content_color(content: Content) -> UiColor {
+pub fn content_color(content: Content) -> UiColorType {
     match content {
-        Content::Asteroids => UiColor::Accent,
-        Content::Rocks => UiColor::Secondary,
-        Content::Planet => UiColor::Info,
-        Content::Derelicts => UiColor::Body,
+        Content::Asteroids => UiColorType::Accent,
+        Content::Rocks => UiColorType::TextSecondary,
+        Content::Planet => UiColorType::Info,
+        Content::Derelicts => UiColorType::TextBody,
     }
 }
 
 /// The tint of a station mark by kind.
-pub fn station_color(kind: StationKind) -> UiColor {
+pub fn station_color(kind: StationKind) -> UiColorType {
     match kind {
-        StationKind::Living | StationKind::Posting(_) | StationKind::Refusing => UiColor::Nominal,
-        StationKind::Dead => UiColor::Danger,
-        StationKind::Owned => UiColor::Info,
+        StationKind::Living | StationKind::Posting(_) | StationKind::Refusing => {
+            UiColorType::Nominal
+        }
+        StationKind::Dead => UiColorType::Danger,
+        StationKind::Owned => UiColorType::Info,
     }
 }
 
@@ -538,7 +540,7 @@ pub fn spawn_chart_scene(
             Camera3d::default(),
             Camera {
                 order: kind.order(),
-                clear_color: ClearColorConfig::Custom(theme.color(UiColor::Surface)),
+                clear_color: ClearColorConfig::Custom(theme.color(UiColorType::Surface)),
                 ..default()
             },
             RenderTarget::Image(ImageRenderTarget {
@@ -567,7 +569,7 @@ pub fn spawn_chart_scene(
     let span = CELL * (2 * view.reach + 1) as f32;
     let line_material = assets
         .materials
-        .add(unlit(theme.color_alpha(UiColor::Secondary, 0.5)));
+        .add(unlit(theme.color_alpha(UiColorType::TextSecondary, 0.5)));
     let along_x = assets.meshes.add(Cuboid::new(span, 0.6, 0.6));
     let along_z = assets.meshes.add(Cuboid::new(0.6, 0.6, span));
     for line in 0..=(2 * view.reach + 1) {
@@ -589,15 +591,15 @@ pub fn spawn_chart_scene(
     let tile = assets
         .meshes
         .add(Plane3d::default().mesh().size(CELL * 0.92, CELL * 0.92));
-    let mut labels: Vec<(Vec3, Option<(i32, i32)>, String, String, UiColor, f32)> = Vec::new();
+    let mut labels: Vec<(Vec3, Option<(i32, i32)>, String, String, UiColorType, f32)> = Vec::new();
     for cell in &view.cells {
         let at = cell_position(cell.at, view.player);
         let player = cell.at == view.player;
         if cell.visited {
             let (color, alpha) = if player {
-                (UiColor::Primary, 0.16)
+                (UiColorType::Text, 0.16)
             } else {
-                (UiColor::Secondary, 0.14)
+                (UiColorType::TextSecondary, 0.14)
             };
             spawn_mesh(
                 commands,
@@ -611,7 +613,7 @@ pub fn spawn_chart_scene(
                     tile.clone(),
                     assets.materials.add(textured(
                         assets.tiles.grid.clone(),
-                        theme.color_alpha(UiColor::Label, 0.5),
+                        theme.color_alpha(UiColorType::TextMuted, 0.5),
                     )),
                     Transform::from_translation(at),
                 );
@@ -633,7 +635,7 @@ pub fn spawn_chart_scene(
                     Some(cell.at),
                     format!("{},{}", cell.at.0, cell.at.1),
                     format!("{TILE_PREFIX} {} {}", cell.at.0, cell.at.1),
-                    UiColor::Label,
+                    UiColorType::TextMuted,
                     10.0,
                 ));
             }
@@ -643,7 +645,7 @@ pub fn spawn_chart_scene(
                 tile.clone(),
                 assets.materials.add(textured(
                     assets.tiles.outline.clone(),
-                    theme.color_alpha(UiColor::Secondary, 0.6),
+                    theme.color_alpha(UiColorType::TextSecondary, 0.6),
                 )),
                 Transform::from_translation(at),
             );
@@ -654,7 +656,7 @@ pub fn spawn_chart_scene(
                 tile.clone(),
                 assets.materials.add(textured(
                     assets.tiles.outline.clone(),
-                    theme.color(UiColor::Accent),
+                    theme.color(UiColorType::Accent),
                 )),
                 Transform::from_translation(at + Vec3::Y * 1.2),
             );
@@ -685,7 +687,9 @@ pub fn spawn_chart_scene(
                         spawn_mesh(
                             commands,
                             refusal_ring.clone(),
-                            assets.materials.add(unlit(theme.color(UiColor::Danger))),
+                            assets
+                                .materials
+                                .add(unlit(theme.color(UiColorType::Danger))),
                             Transform::from_translation(at - Vec3::Y * 4.0),
                         );
                     }
@@ -702,7 +706,7 @@ pub fn spawn_chart_scene(
                         wreck_mesh.clone(),
                         assets
                             .materials
-                            .add(unlit(theme.color(UiColor::AccentHigh))),
+                            .add(unlit(theme.color(UiColorType::AccentLight))),
                         Transform::from_translation(at).with_scale(Vec3::splat(10.0)),
                     );
                     labels.push((
@@ -710,7 +714,7 @@ pub fn spawn_chart_scene(
                         Some(cell.at),
                         code.clone(),
                         code.clone(),
-                        UiColor::AccentHigh,
+                        UiColorType::AccentLight,
                         12.0,
                     ));
                 }
@@ -718,7 +722,9 @@ pub fn spawn_chart_scene(
                     spawn_mesh(
                         commands,
                         job_mesh.clone(),
-                        assets.materials.add(unlit(theme.color(UiColor::Accent))),
+                        assets
+                            .materials
+                            .add(unlit(theme.color(UiColorType::Accent))),
                         Transform::from_translation(at + Vec3::Y * 3.0),
                     );
                     labels.push((
@@ -726,7 +732,7 @@ pub fn spawn_chart_scene(
                         Some(cell.at),
                         code.clone(),
                         code.clone(),
-                        UiColor::Accent,
+                        UiColorType::Accent,
                         12.0,
                     ));
                 }
@@ -739,7 +745,7 @@ pub fn spawn_chart_scene(
     spawn_mesh(
         commands,
         assets.meshes.add(Sphere::new(3.5)),
-        assets.materials.add(unlit(theme.color(UiColor::Primary))),
+        assets.materials.add(unlit(theme.color(UiColorType::Text))),
         Transform::from_translation(you),
     );
     labels.push((
@@ -747,7 +753,7 @@ pub fn spawn_chart_scene(
         None,
         view.you.to_string(),
         view.you.to_string(),
-        UiColor::Primary,
+        UiColorType::Text,
         11.0,
     ));
 
@@ -795,7 +801,7 @@ fn spawn_chart_label(
     selects: Option<(i32, i32)>,
     text: &str,
     name: &str,
-    color: UiColor,
+    color: UiColorType,
     size: f32,
 ) {
     let clickable = selects.is_some();
@@ -815,9 +821,12 @@ fn spawn_chart_label(
         Visibility::Hidden,
         ZIndex(i32::from(clickable)),
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Void, 0.8),
+        ThemedFill::alpha(UiColorType::Background, 0.8),
         BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(UiColor::Secondary, if clickable { 0.3 } else { 0.0 }),
+        ThemedBorder::alpha(
+            UiColorType::TextSecondary,
+            if clickable { 0.3 } else { 0.0 },
+        ),
         ChildOf(viewport),
         children![(
             UiText,
@@ -1129,9 +1138,9 @@ pub fn project_chart_labels(
             if label.selects.is_some() {
                 let selected = label.selects == chart.selected;
                 let (color, alpha) = if selected {
-                    (UiColor::Accent, 1.0)
+                    (UiColorType::Accent, 1.0)
                 } else {
-                    (UiColor::Secondary, 0.3)
+                    (UiColorType::TextSecondary, 0.3)
                 };
                 if border.color != color || border.alpha != alpha {
                     border.color = color;
@@ -1185,7 +1194,7 @@ pub fn spawn_hull_scene(
             Camera3d::default(),
             Camera {
                 order: kind.order(),
-                clear_color: ClearColorConfig::Custom(theme.color(UiColor::Surface)),
+                clear_color: ClearColorConfig::Custom(theme.color(UiColorType::Surface)),
                 ..default()
             },
             RenderTarget::Image(ImageRenderTarget {
@@ -1212,15 +1221,15 @@ pub fn spawn_hull_scene(
         ChildOf(root),
     ));
 
-    let lit = |color: UiColor| StandardMaterial {
+    let lit = |color: UiColorType| StandardMaterial {
         base_color: theme.color(color).with_alpha(1.0),
         perceptual_roughness: 0.75,
         metallic: 0.15,
         ..default()
     };
-    let plate = assets.materials.add(lit(UiColor::Body));
-    let part = assets.materials.add(lit(UiColor::Accent));
-    let drive = assets.materials.add(lit(UiColor::Info));
+    let plate = assets.materials.add(lit(UiColorType::TextBody));
+    let part = assets.materials.add(lit(UiColorType::Accent));
+    let drive = assets.materials.add(lit(UiColorType::Info));
     // (size, offset, material): the hull plating, the fitted parts and the
     // drives, so a cargoa reads as a boxy hauler and a racer as a dart.
     let blocks: Vec<(Vec3, Vec3, Handle<StandardMaterial>)> = match hull {
@@ -1348,7 +1357,7 @@ pub fn spawn_backdrop_scene(parent: &mut ChildSpawnerCommands, assets: &mut Scen
             Camera3d::default(),
             Camera {
                 order: kind.order(),
-                clear_color: ClearColorConfig::Custom(theme.color(UiColor::Void)),
+                clear_color: ClearColorConfig::Custom(theme.color(UiColorType::Background)),
                 ..default()
             },
             RenderTarget::Image(ImageRenderTarget {
@@ -1358,7 +1367,7 @@ pub fn spawn_backdrop_scene(parent: &mut ChildSpawnerCommands, assets: &mut Scen
             Transform::from_translation(Vec3::new(0.0, 30.0, 320.0))
                 .looking_at(Vec3::ZERO, Vec3::Y),
             AmbientLight {
-                color: theme.color(UiColor::Secondary),
+                color: theme.color(UiColorType::TextSecondary),
                 brightness: 60.0,
                 affects_lightmapped_meshes: false,
             },

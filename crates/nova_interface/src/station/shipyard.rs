@@ -21,7 +21,7 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{CreditChangeCauseType, Meters};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::theme::UiColor;
+use nova_ui::theme::UiColorType;
 
 use super::{
     card_actions, offer_cell, offer_rows, spawn_card_price, spawn_hull_card_head,
@@ -193,7 +193,7 @@ pub(crate) fn spawn_station_hull_list(panel: &mut ChildSpawnerCommands) {
                     },
                 ))
                 .with_children(|section| {
-                    section.spawn(themed_label(header, 13.0, UiColor::Accent));
+                    section.spawn(themed_label(header, 13.0, UiColorType::Accent));
                     section.spawn((
                         StationHullRows {
                             terms,

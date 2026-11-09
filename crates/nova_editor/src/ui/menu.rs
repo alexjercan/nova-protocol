@@ -21,7 +21,7 @@ use bevy::{
 use nova_gameplay::prelude::{GameStates, UnsavedWork};
 use nova_ui::{
     theme,
-    theme::{ActiveUiTheme, UiColor},
+    theme::{ActiveUiTheme, UiColorType},
     widget::{checkbox_glyph, key_chip, ListRow, ThemedRadius, UiText},
 };
 
@@ -517,9 +517,9 @@ pub(crate) enum ViewToggle {
 /// Edit > Delete greys and ungreys with the selection (see
 /// `crate::ui::menu_context`) - and a row that only says "disabled" in its border
 /// is a row a builder keeps pressing.
-const ITEM_LABEL: UiColor = UiColor::Primary;
+const ITEM_LABEL: UiColorType = UiColorType::Text;
 /// The right-hand column: the shortcut, or a toggle's on/off mark.
-const ITEM_MARK: UiColor = UiColor::Label;
+const ITEM_MARK: UiColorType = UiColorType::TextMuted;
 /// How much of its colour a greyed row keeps.
 const DISABLED_ALPHA: f32 = 0.35;
 
@@ -540,7 +540,7 @@ pub(crate) fn sync_menu_item_paint(
 ) {
     let item_label = theme.color(ITEM_LABEL);
     let item_mark = theme.color(ITEM_MARK);
-    let chip_ink = theme.color(UiColor::Accent);
+    let chip_ink = theme.color(UiColorType::Accent);
     for (disabled, children) in &items {
         for &part in children {
             match parts.get(part) {
@@ -562,7 +562,7 @@ pub(crate) fn sync_menu_item_paint(
             for &text in tails.get(tail).map(|kids| &kids[..]).unwrap_or_default() {
                 paint_text(&mut texts, text, chip_ink, disabled);
             }
-            let edge = alpha_if(theme.color_alpha(UiColor::Accent, 0.5), disabled);
+            let edge = alpha_if(theme.color_alpha(UiColorType::Accent, 0.5), disabled);
             if let Ok(mut border) = borders.get_mut(tail) {
                 if border.left != edge {
                     border.set_all(edge);

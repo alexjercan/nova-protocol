@@ -13,7 +13,7 @@ use bevy::{
 };
 
 use super::{panel, ListRow, ThemedRadius, ThemedText, UiText};
-use crate::theme::{density, UiColor, BORDER_W};
+use crate::theme::{density, UiColorType, BORDER_W};
 
 /// The catcher behind an open popup.
 #[derive(Component)]
@@ -77,7 +77,7 @@ pub fn spawn_popup(
 
 /// One line of a popup: a label, and a muted hint such as its key.
 pub fn popup_row(label: &str, hint: &str) -> impl Bundle {
-    let text = |line: &str, colour: UiColor| {
+    let text = |line: &str, colour: UiColorType| {
         (
             UiText,
             Text::new(line.to_string()),
@@ -111,7 +111,10 @@ pub fn popup_row(label: &str, hint: &str) -> impl Bundle {
         ThemedRadius::control(),
         BorderColor::all(Color::NONE),
         BackgroundColor(Color::NONE),
-        children![text(label, UiColor::Primary), text(hint, UiColor::Label)],
+        children![
+            text(label, UiColorType::Text),
+            text(hint, UiColorType::TextMuted)
+        ],
     )
 }
 

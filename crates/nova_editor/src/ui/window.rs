@@ -21,7 +21,7 @@ use nova_ui::{
         IconButtonType, UiText, CLOSE_GLYPH,
     },
     theme,
-    theme::{density, UiColor},
+    theme::{density, UiColorType},
     widget::{ButtonCueType, ThemedBorder, ThemedText},
 };
 
@@ -307,7 +307,7 @@ fn spawn_confirm_window(
                     ..default()
                 },
                 BorderColor::all(Color::NONE),
-                ThemedBorder::alpha(UiColor::Primary, 0.16),
+                ThemedBorder::alpha(UiColorType::Text, 0.16),
                 observe(on_window_drag),
             ))
             .with_children(|bar| {
@@ -320,7 +320,7 @@ fn spawn_confirm_window(
                         ..default()
                     },
                     TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Accent),
+                    ThemedText::new(UiColorType::Accent),
                 ));
             });
         frame
@@ -344,7 +344,7 @@ fn spawn_confirm_window(
                         ..default()
                     },
                     TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Primary),
+                    ThemedText::new(UiColorType::Text),
                 ));
                 body.spawn((
                     Name::new("Confirm Window Answers"),
@@ -491,7 +491,7 @@ pub(crate) fn window_frame(
                     ..default()
                 },
                 BorderColor::all(Color::NONE),
-                ThemedBorder::alpha(UiColor::Primary, 0.16),
+                ThemedBorder::alpha(UiColorType::Text, 0.16),
                 observe(on_window_drag),
             ))
             .with_children(|bar| {
@@ -510,7 +510,7 @@ pub(crate) fn window_frame(
                         ..default()
                     },
                     TextColor(Color::NONE),
-                    ThemedText::new(UiColor::Primary),
+                    ThemedText::new(UiColorType::Text),
                 ));
                 bar.spawn((
                     Name::new(close_name),

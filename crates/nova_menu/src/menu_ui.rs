@@ -19,7 +19,7 @@ use nova_ui::{
         scroll_column, scroll_row, scroll_viewport,
     },
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{
         panel, panel_head, segmented_container, segmented_option_fit, Selected, ThemedFill,
         ThemedRadius, ThemedText, ThemedTextShadow, UiText,
@@ -222,7 +222,7 @@ pub(crate) fn setup_menu_ui(
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Label),
+                        ThemedText::new(UiColorType::TextMuted),
                     ));
 
                     parent.spawn((
@@ -329,7 +329,7 @@ pub(crate) fn setup_menu_ui(
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Label),
+                        ThemedText::new(UiColorType::TextMuted),
                     ));
 
                     parent.spawn((
@@ -521,8 +521,8 @@ pub(crate) fn spawn_menu_card(
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Body),
-                        ThemedTextShadow::alpha(UiColor::Primary, 0.35),
+                        ThemedText::new(UiColorType::TextBody),
+                        ThemedTextShadow::alpha(UiColorType::Text, 0.35),
                         TextShadow {
                             color: Color::NONE,
                             offset: Vec2::ZERO,
@@ -538,7 +538,7 @@ pub(crate) fn spawn_menu_card(
                             ..default()
                         },
                         BackgroundColor(Color::NONE),
-                        ThemedFill::new(UiColor::Label),
+                        ThemedFill::new(UiColorType::TextMuted),
                     ));
                     card.spawn((Name::new("Menu Buttons Row"), scroll_row()))
                         .with_children(|row| {
@@ -590,7 +590,7 @@ pub(crate) fn spawn_menu_card(
                                     ..default()
                                 },
                                 TextColor(Color::NONE),
-                                ThemedText::new(UiColor::Label),
+                                ThemedText::new(UiColorType::TextMuted),
                             ));
                         }
                     });

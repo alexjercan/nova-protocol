@@ -45,7 +45,7 @@ use nova_ui::{
         scroll_column, scroll_row, scroll_viewport,
     },
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{
         badge, list_row, panel, panel_header, BadgeKind, ButtonSpec, Selected, ThemedBorder,
         ThemedFill, ThemedRadius, ThemedText, UiText,
@@ -223,7 +223,7 @@ pub(crate) fn spawn_training_panel(commands: &mut Commands) {
                                     ..default()
                                 },
                                 TextColor(Color::NONE),
-                                ThemedText::new(UiColor::Body),
+                                ThemedText::new(UiColorType::TextBody),
                             ),
                             (
                                 Name::new("Training Progress"),
@@ -235,7 +235,7 @@ pub(crate) fn spawn_training_panel(commands: &mut Commands) {
                                     ..default()
                                 },
                                 TextColor(Color::NONE),
-                                ThemedText::new(UiColor::Primary),
+                                ThemedText::new(UiColorType::Text),
                             ),
                         ],
                     ));
@@ -251,7 +251,7 @@ pub(crate) fn spawn_training_panel(commands: &mut Commands) {
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Label),
+                        ThemedText::new(UiColorType::TextMuted),
                     ));
 
                     parent.spawn((
@@ -358,7 +358,7 @@ pub(crate) fn spawn_menu_aside(commands: &mut Commands, note: Option<&FieldNote>
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Body),
+                        ThemedText::new(UiColorType::TextBody),
                     ),
                     (
                         Name::new("Training Prompt Actions"),
@@ -442,7 +442,7 @@ fn spawn_field_note_card(commands: &mut Commands, aside: Entity, note: &FieldNot
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Body),
+                        ThemedText::new(UiColorType::TextBody),
                     ));
                 }
                 card.spawn((
@@ -776,7 +776,7 @@ pub(crate) fn refresh_training_list(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Body),
+                ThemedText::new(UiColorType::TextBody),
             )],
         ));
         if catalog.is_empty() {
@@ -789,7 +789,7 @@ pub(crate) fn refresh_training_list(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
+                ThemedText::new(UiColorType::TextMuted),
             ));
             return;
         }
@@ -851,7 +851,7 @@ fn spawn_lesson_row(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Body),
+            ThemedText::new(UiColorType::TextBody),
             Node {
                 flex_grow: 1.0,
                 // Without this a long title refuses to wrap and pushes the
@@ -947,7 +947,7 @@ pub(crate) fn refresh_training_details(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
+                ThemedText::new(UiColorType::TextMuted),
             ));
             return;
         };
@@ -975,9 +975,9 @@ pub(crate) fn refresh_training_details(
                 },
                 ThemedRadius::control(),
                 BorderColor::all(Color::NONE),
-                ThemedBorder::new(UiColor::Label),
+                ThemedBorder::new(UiColorType::TextMuted),
                 BackgroundColor(Color::NONE),
-                ThemedFill::new(UiColor::Surface),
+                ThemedFill::new(UiColorType::Surface),
             ))
             .with_children(|box_| {
                 box_.spawn((
@@ -999,7 +999,7 @@ pub(crate) fn refresh_training_details(
                             ..default()
                         },
                         TextColor(Color::NONE),
-                        ThemedText::new(UiColor::Body),
+                        ThemedText::new(UiColorType::TextBody),
                         Node {
                             flex_grow: 1.0,
                             min_width: px(0),
@@ -1027,7 +1027,7 @@ pub(crate) fn refresh_training_details(
                                         ..default()
                                     },
                                     TextColor(Color::NONE),
-                                    ThemedText::new(UiColor::Body),
+                                    ThemedText::new(UiColorType::TextBody),
                                 ));
                                 if !lesson.actions.is_empty() {
                                     body.spawn((
@@ -1167,9 +1167,9 @@ fn spawn_media_frame(
         },
         ThemedRadius::control(),
         BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColor::Label),
+        ThemedBorder::new(UiColorType::TextMuted),
         BackgroundColor(Color::NONE),
-        ThemedFill::new(UiColor::Surface),
+        ThemedFill::new(UiColorType::Surface),
     ))
     .with_children(|frame| match resolved {
         Some(ResolvedMedia::Still(handle)) => {
@@ -1206,7 +1206,7 @@ fn spawn_media_frame(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Secondary),
+                ThemedText::new(UiColorType::TextSecondary),
                 TextLayout {
                     justify: Justify::Center,
                     ..default()
@@ -1310,7 +1310,7 @@ fn spawn_binding_row(
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Body),
+            ThemedText::new(UiColorType::TextBody),
             Node {
                 flex_grow: 1.0,
                 flex_basis: px(0),
@@ -1328,7 +1328,7 @@ fn spawn_binding_row(
             },
         ))
         .with_children(|slot| {
-            spawn_binding_chips(slot, &chips, glyphs, UiColor::Body, None);
+            spawn_binding_chips(slot, &chips, glyphs, UiColorType::TextBody, None);
         });
     });
 }
@@ -1390,7 +1390,7 @@ fn spawn_lesson_actions(box_: &mut ChildSpawnerCommands, lesson: &Lesson) {
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Label),
+            ThemedText::new(UiColorType::TextMuted),
         ));
     });
 }

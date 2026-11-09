@@ -92,7 +92,7 @@ const GAUGE_CLEARANCE: ScreenIndicatorClearance = ScreenIndicatorClearance {
     min_px: RING_PX * 0.6 * std::f32::consts::SQRT_2,
 };
 use nova_ui::{
-    theme::{ActiveUiTheme, UiColor},
+    theme::{ActiveUiTheme, UiColorType},
     widget::ThemedText,
 };
 
@@ -291,7 +291,7 @@ fn cluster_badge() -> impl Bundle {
         Text::new(""),
         TextFont::from_font_size(BADGE_FONT_PX),
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Accent),
+        ThemedText::new(UiColorType::Accent),
         Node {
             position_type: PositionType::Absolute,
             left: Val::Percent(100.0),
@@ -844,7 +844,7 @@ fn drive_ammo_readouts(
         // it is already coming back.
         let low = is_low_ammo(ammo) && active_reload.is_none();
         let hue = if low {
-            theme.color(UiColor::Accent)
+            theme.color(UiColorType::Accent)
         } else {
             damage_type_color(damage_type)
         };
@@ -1708,7 +1708,7 @@ mod tests {
         assert_ne!(
             healthy.to_srgba().to_vec3(),
             ActiveUiTheme::default()
-                .color(UiColor::Accent)
+                .color(UiColorType::Accent)
                 .to_srgba()
                 .to_vec3(),
             "a full magazine does not nag"
@@ -1725,7 +1725,7 @@ mod tests {
         assert_eq!(
             low.to_srgba().to_vec3(),
             ActiveUiTheme::default()
-                .color(UiColor::Accent)
+                .color(UiColorType::Accent)
                 .to_srgba()
                 .to_vec3(),
             "a nearly-dry group warns in amber"
@@ -1767,7 +1767,7 @@ mod tests {
         assert_ne!(
             reloading.to_srgba().to_vec3(),
             ActiveUiTheme::default()
-                .color(UiColor::Accent)
+                .color(UiColorType::Accent)
                 .to_srgba()
                 .to_vec3(),
             "a rearming group shows its batch pulse, not the warning"

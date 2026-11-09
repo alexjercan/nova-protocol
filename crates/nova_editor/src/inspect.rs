@@ -264,9 +264,8 @@ pub(crate) enum FieldRoot {
     /// A socket's id: the node's [`NodeId`](crate::node::NodeId).
     SocketId,
     /// One colour of a UI theme's palette, named by the path's one
-    /// [`PathStep::Field`]. Its own root because the palette is a map, which
-    /// the walk has no step for, and because a colour the theme inherits is
-    /// written as a new entry rather than through a path that exists.
+    /// [`PathStep::Field`]. Its own root because a colour the theme inherits
+    /// is an unset field, which the reflection walk cannot write through.
     PaletteColour,
     /// The socket's own fields.
     Socket,
@@ -399,7 +398,7 @@ pub(crate) enum RowValue {
 /// One colour of a palette row.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct PaletteEntry {
-    /// The variable's name.
+    /// The colour's authored name.
     pub(crate) name: String,
     /// Its colour, as `#rrggbb`.
     pub(crate) hex: String,

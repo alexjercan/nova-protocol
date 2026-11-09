@@ -8,7 +8,7 @@ use bevy::{
 use nova_ui::{
     prelude::window_root,
     theme,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{prelude::*, ThemedText},
 };
 
@@ -433,7 +433,7 @@ fn show_boundary_warnings(
                         warning.remaining_secs
                     ),
                     12.0,
-                    UiColor::Body,
+                    UiColorType::TextBody,
                 ));
             }
         });
@@ -476,7 +476,7 @@ fn keep_interactive_screen_owned(
     }
 }
 
-fn result_text(text: impl Into<String>, size: f32, color: UiColor) -> impl Bundle {
+fn result_text(text: impl Into<String>, size: f32, color: UiColorType) -> impl Bundle {
     (
         UiText,
         Text::new(text.into()),
@@ -556,11 +556,11 @@ fn spawn_result(
                     nova_ui::widget::panel(),
                 ))
                 .with_children(|panel| {
-                    panel.spawn(result_text(ending.label(), 28.0, UiColor::Accent));
+                    panel.spawn(result_text(ending.label(), 28.0, UiColorType::Accent));
                     panel.spawn(result_text(
                         format!("MATCH TIME  {:02}:{:02}", duration as u64 / 60, duration as u64 % 60),
                         13.0,
-                        UiColor::Secondary,
+                        UiColorType::TextSecondary,
                     ));
                     panel.spawn(Node {
                         width: percent(100),
@@ -601,13 +601,13 @@ fn spawn_result(
                                             score.pool[team].unwrap_or(0.0), score.dealt[team]
                                         ),
                                         13.0,
-                                        UiColor::Body,
+                                        UiColorType::TextBody,
                                     ));
                                 });
                         }
                     });
 
-                    panel.spawn(result_text("AMMUNITION FIRED", 12.0, UiColor::Label));
+                    panel.spawn(result_text("AMMUNITION FIRED", 12.0, UiColorType::TextMuted));
                     let ammunition: BTreeSet<&str> = score
                         .fired
                         .iter()
@@ -622,11 +622,11 @@ fn spawn_result(
                                 score.fired[1].0.get(name).copied().unwrap_or(0),
                             ),
                             12.0,
-                            UiColor::Body,
+                            UiColorType::TextBody,
                         ));
                     }
 
-                    panel.spawn(result_text("SHIP OUTCOMES", 12.0, UiColor::Label));
+                    panel.spawn(result_text("SHIP OUTCOMES", 12.0, UiColorType::TextMuted));
                     for (slot, ship) in roster.ships.iter().enumerate() {
                         let state = if operational.get(slot).copied().unwrap_or(false) {
                             "OPERATIONAL"
@@ -647,7 +647,7 @@ fn spawn_result(
                                 starting.get(slot).copied().unwrap_or(0.0),
                             ),
                             12.0,
-                            UiColor::Body,
+                            UiColorType::TextBody,
                         ));
                     }
                     panel.spawn(Node {

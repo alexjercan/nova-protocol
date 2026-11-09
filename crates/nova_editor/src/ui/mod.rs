@@ -60,7 +60,7 @@ use nova_ui::{
         TreeRowSpec, UiText,
     },
     theme,
-    theme::{density, ActiveUiTheme, UiColor},
+    theme::{density, ActiveUiTheme, UiColorType},
     widget::{checkbox_glyph, ButtonCueType, Selected, ThemedCheckbox, ThemedText},
 };
 use nova_wfc::prelude::{WfcPlan, WfcZone};
@@ -753,7 +753,7 @@ pub(crate) fn setup_editor_scene(
                                         ..default()
                                     },
                                     TextColor(Color::NONE),
-                                    ThemedText::new(UiColor::Primary),
+                                    ThemedText::new(UiColorType::Text),
                                     Node {
                                         margin: UiRect::top(px(4)),
                                         ..default()
@@ -770,7 +770,7 @@ pub(crate) fn setup_editor_scene(
                                         ..default()
                                     },
                                     TextColor(Color::NONE),
-                                    ThemedText::new(UiColor::Label),
+                                    ThemedText::new(UiColorType::TextMuted),
                                 ));
                             });
                     });
@@ -1993,9 +1993,9 @@ pub(crate) fn sync_style_list(
     let ship = edited_ship(&context, &q_ships);
     let skinned = ship.is_some_and(|ship| ship.skin);
     let label = theme.color(if skinned {
-        UiColor::Primary
+        UiColorType::Text
     } else {
-        UiColor::Label
+        UiColorType::TextMuted
     });
     let paint = if skinned { 1.0 } else { GREYED_STYLE_ALPHA };
 
@@ -2125,7 +2125,7 @@ fn legend_mode_cell() -> impl Bundle {
             ..default()
         },
         TextColor(Color::NONE),
-        ThemedText::new(UiColor::Accent),
+        ThemedText::new(UiColorType::Accent),
     )
 }
 
@@ -2153,7 +2153,7 @@ fn legend_cell(index: usize) -> impl Bundle {
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
+                ThemedText::new(UiColorType::TextMuted),
             ),
         ],
     )

@@ -13,7 +13,7 @@ use bevy::{
     prelude::*,
     ui_widgets::{observe, Activate},
 };
-use nova_ui::{prelude::*, theme::UiColor};
+use nova_ui::{prelude::*, theme::UiColorType};
 
 use super::{
     browser::{pane_text, BrowserTabType},
@@ -73,7 +73,7 @@ struct LogLine {
     key: u64,
     level: LogLevelType,
     text: String,
-    tint: UiColor,
+    tint: UiColorType,
 }
 
 /// What the Log tab holds, oldest first, and how it is filtered.
@@ -94,7 +94,7 @@ pub(crate) struct StatusLog {
 }
 
 impl StatusLog {
-    fn push(&mut self, level: LogLevelType, text: String, tint: UiColor) {
+    fn push(&mut self, level: LogLevelType, text: String, tint: UiColorType) {
         let key = self.next_key;
         self.next_key += 1;
         self.lines.push_back(LogLine {
@@ -110,7 +110,7 @@ impl StatusLog {
     }
 
     /// Write down what the status line says, once however long it holds.
-    fn hear_status(&mut self, said: Option<(&str, UiColor)>) {
+    fn hear_status(&mut self, said: Option<(&str, UiColorType)>) {
         let Some((line, tint)) = said else {
             self.last.clear();
             return;
@@ -120,8 +120,8 @@ impl StatusLog {
         }
         line.clone_into(&mut self.last);
         let level = match tint {
-            UiColor::Danger => LogLevelType::Error,
-            UiColor::Accent => LogLevelType::Warning,
+            UiColorType::Danger => LogLevelType::Error,
+            UiColorType::Accent => LogLevelType::Warning,
             _ => LogLevelType::Info,
         };
         self.push(level, line.to_string(), tint);
@@ -130,9 +130,9 @@ impl StatusLog {
     /// Write down a line the log warned of.
     fn hear_log(&mut self, line: FedLine) {
         let (level, tint) = if line.error {
-            (LogLevelType::Error, UiColor::Danger)
+            (LogLevelType::Error, UiColorType::Danger)
         } else {
-            (LogLevelType::Warning, UiColor::Accent)
+            (LogLevelType::Warning, UiColorType::Accent)
         };
         self.push(level, line.text, tint);
     }
@@ -213,7 +213,7 @@ pub(super) fn spawn_log_controls(row: &mut RelatedSpawnerCommands<ChildOf>) {
         Name::new("Log Count"),
         LogTabControl,
         LogCount,
-        pane_text("0 lines", 11.0, UiColor::Label),
+        pane_text("0 lines", 11.0, UiColorType::TextMuted),
     ));
     for filter in LogFilterType::ALL {
         row.spawn((
@@ -400,7 +400,7 @@ mod tests {
 
     fn filled() -> StatusLog {
         let mut log = StatusLog::default();
-        log.hear_status(Some(("saved scenario", UiColor::Nominal)));
+        log.hear_status(Some(("saved scenario", UiColorType::Nominal)));
         log.hear_log(fed(false, "bevy_ecs: stale entity"));
         log.hear_log(fed(true, "nova_editor: the file broke"));
         log
@@ -440,7 +440,7 @@ mod tests {
 
         log.clear();
         assert!(rows(&log).is_empty());
-        log.hear_status(Some(("saved scenario", UiColor::Nominal)));
+        log.hear_status(Some(("saved scenario", UiColorType::Nominal)));
         assert!(rows(&log).is_empty(), "the bar still holds the same line");
         log.hear_log(fed(false, "bevy_ecs: stale entity"));
 
@@ -451,10 +451,10 @@ mod tests {
     fn a_status_line_said_again_after_it_left_the_bar_is_a_new_line() {
         let mut log = StatusLog::default();
 
-        log.hear_status(Some(("nothing to undo", UiColor::Danger)));
-        log.hear_status(Some(("nothing to undo", UiColor::Danger)));
+        log.hear_status(Some(("nothing to undo", UiColorType::Danger)));
+        log.hear_status(Some(("nothing to undo", UiColorType::Danger)));
         log.hear_status(None);
-        log.hear_status(Some(("nothing to undo", UiColor::Danger)));
+        log.hear_status(Some(("nothing to undo", UiColorType::Danger)));
 
         assert_eq!(rows(&log).len(), 2);
     }

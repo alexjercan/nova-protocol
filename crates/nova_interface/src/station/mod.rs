@@ -61,7 +61,7 @@ use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
 use nova_ui::{
     screen::drive_wheel_scroll,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{ThemedRadius, ThemedText},
 };
 
@@ -186,7 +186,7 @@ pub(crate) fn station_body(body: &mut ChildSpawnerCommands) {
             themed_label(
                 "This station sells no ships, hires no escorts and is not for sale.",
                 13.0,
-                UiColor::Label,
+                UiColorType::TextMuted,
             ),
         ));
     });
@@ -231,8 +231,8 @@ pub(crate) fn spawn_hull_card_head(
             ..default()
         },
     ));
-    cell.spawn(themed_label(name, 13.0, UiColor::Primary));
-    cell.spawn(themed_label(length, 12.0, UiColor::Body));
+    cell.spawn(themed_label(name, 13.0, UiColorType::Text));
+    cell.spawn(themed_label(length, 12.0, UiColorType::TextBody));
 }
 
 /// A card's price block: the figure at 15 px, muted while short, then
@@ -252,9 +252,9 @@ pub(crate) fn spawn_card_price(
     })
     .with_children(|line| {
         let tone = if short_cr.is_some() {
-            UiColor::Secondary
+            UiColorType::TextSecondary
         } else {
-            UiColor::Accent
+            UiColorType::Accent
         };
         spawn_credit_figure(line, icons, price_cr, 15.0, tone, ());
         if let Some(short_cr) = short_cr {
@@ -273,10 +273,10 @@ pub(crate) fn spawn_card_price(
                         ..default()
                     })
                     .with_children(|word| {
-                        word.spawn(themed_label("(missing", 15.0, UiColor::Danger));
-                        spawn_credit_figure(word, icons, short_cr, 15.0, UiColor::Danger, ());
+                        word.spawn(themed_label("(missing", 15.0, UiColorType::Danger));
+                        spawn_credit_figure(word, icons, short_cr, 15.0, UiColorType::Danger, ());
                     });
-                missing.spawn(themed_label(")", 15.0, UiColor::Danger));
+                missing.spawn(themed_label(")", 15.0, UiColorType::Danger));
             });
         }
     });

@@ -20,19 +20,24 @@
 //! flex/grid, z order, visibility, pointer behaviour or font size. Those are
 //! structure, and structure is the screen's, not the theme's.
 //!
+//! # The palette
+//!
+//! Every theme names its colours from ONE fixed set, [`UiColorType`], held in
+//! a [`UiPalette`]. A role, a screen and the editor all ask for a colour by
+//! that job name, so two themes differ only in the values they set, never in
+//! the names they offer. An unknown name fails when the file is parsed.
+//!
 //! # Inheritance
 //!
-//! `inherit: None` marks a ROOT theme, which must define every role and every
-//! required palette variable. `inherit: Some("base/phosphor")` marks a derived
-//! theme: the roles it omits come from its parent whole. A role it DOES declare
-//! replaces the inherited one COMPLETELY - individual interaction states are
-//! never inherited, so a theme can never leave a control half-painted in two
-//! looks.
-
-use std::collections::BTreeMap;
+//! `inherit: None` marks a ROOT theme, which must define every role and set
+//! every palette colour. `inherit: Some("base/phosphor")` marks a derived
+//! theme: the palette colours it does not set and the roles it omits come
+//! from its parent. A role it DOES declare replaces the inherited one
+//! COMPLETELY - individual interaction states are never inherited, so a theme
+//! can never leave a control half-painted in two looks.
 
 use bevy::reflect::Reflect;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// The stable id of the phosphor terminal theme the base mod ships - the
 /// shipped default, and the theme a missing or broken selection falls back to.
@@ -58,12 +63,10 @@ pub struct UiThemeConfig {
     /// The theme this one derives from, or `None` for a root theme. A root
     /// theme must be complete; a derived theme inherits every role it omits.
     pub inherit: Option<String>,
-    /// Named colour variables a [`ColorValue::Variable`] resolves through.
-    /// Six-digit `#rrggbb`. Every [`super::UiColor`] name must be present in a
-    /// root theme's map; extra names are free, and are how a theme gives its
-    /// role table tones the screens never ask for directly.
+    /// The colours a [`ColorValue::Variable`] resolves through. A root theme
+    /// sets every one; a derived theme sets the ones it changes.
     #[serde(default)]
-    pub palette: BTreeMap<String, String>,
+    pub palette: UiPalette,
     /// Border width and the two corner radii, or `None` to inherit the
     /// parent's whole. A root theme must carry them.
     pub metrics: Option<UiMetrics>,
@@ -111,18 +114,18 @@ fn opaque() -> f32 {
 }
 
 impl ThemeColor {
-    /// A palette variable at full opacity.
-    pub fn var(name: &str) -> Self {
+    /// A palette colour at full opacity.
+    pub fn var(color: UiColorType) -> Self {
         Self {
-            value: ColorValue::Variable(name.to_string()),
+            value: ColorValue::Variable(color),
             alpha: 1.0,
         }
     }
 
-    /// A palette variable at an explicit alpha.
-    pub fn var_alpha(name: &str, alpha: f32) -> Self {
+    /// A palette colour at an explicit alpha.
+    pub fn var_alpha(color: UiColorType, alpha: f32) -> Self {
         Self {
-            value: ColorValue::Variable(name.to_string()),
+            value: ColorValue::Variable(color),
             alpha,
         }
     }
@@ -147,12 +150,166 @@ impl ThemeColor {
 /// Where a [`ThemeColor`]'s RGB comes from.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ColorValue {
-    /// A name in the theme's (or an ancestor's) palette. Unknown names are a
-    /// lint error, never a silent black.
-    Variable(String),
+    /// A colour of the theme's palette, or of the nearest ancestor that sets
+    /// it. The set is closed, so an unknown name fails at parse.
+    Variable(UiColorType),
     /// A six-digit `#rrggbb` literal. For a one-off tone no other role shares;
     /// anything reused belongs in the palette.
     Literal(String),
+}
+
+/// Declares [`UiColorType`] and [`UiPalette`] from one list, so the enum a
+/// role names and the struct a theme sets can never disagree.
+macro_rules! ui_palette {
+    ($($(#[doc = $doc:literal])* $field:ident => $variant:ident,)*) => {
+        /// One colour of the fixed UI palette, named by its job.
+        ///
+        /// Every theme offers the same set. Screens paint through it
+        /// ([`ActiveUiTheme::color`](super::ActiveUiTheme::color)) and role
+        /// tables name it ([`ColorValue::Variable`]). The authored name is the
+        /// snake_case [`name`](Self::name).
+        #[derive(
+            Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize, Reflect,
+        )]
+        #[serde(rename_all = "snake_case")]
+        pub enum UiColorType {
+            $($(#[doc = $doc])* $variant,)*
+        }
+
+        impl UiColorType {
+            /// Every palette colour, in the order the palette lists them.
+            pub const ALL: &'static [UiColorType] = &[$(UiColorType::$variant,)*];
+
+            /// The authored name: the [`UiPalette`] field and the
+            /// `Variable(...)` word.
+            pub fn name(self) -> &'static str {
+                match self {
+                    $(UiColorType::$variant => stringify!($field),)*
+                }
+            }
+
+            /// The colour an authored name stands for.
+            pub fn from_name(name: &str) -> Option<Self> {
+                Self::ALL.iter().copied().find(|color| color.name() == name)
+            }
+        }
+
+        /// A theme's palette: one `#rrggbb` per [`UiColorType`].
+        ///
+        /// A field left out takes the parent's colour, so a root theme must
+        /// set every field and a derived theme sets only what it changes. The
+        /// lint and the resolver name a field no theme in the chain sets.
+        #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, Reflect)]
+        #[serde(deny_unknown_fields)]
+        pub struct UiPalette {
+            $(
+                $(#[doc = $doc])*
+                #[serde(default, skip_serializing_if = "Option::is_none", with = "hex_slot")]
+                pub $field: Option<String>,
+            )*
+        }
+
+        impl UiPalette {
+            /// The colour this palette sets for `color`, if it sets one.
+            pub fn get(&self, color: UiColorType) -> Option<&str> {
+                match color {
+                    $(UiColorType::$variant => self.$field.as_deref(),)*
+                }
+            }
+
+            /// The slot for `color`: `None` takes the parent's colour.
+            pub fn slot_mut(&mut self, color: UiColorType) -> &mut Option<String> {
+                match color {
+                    $(UiColorType::$variant => &mut self.$field,)*
+                }
+            }
+        }
+    };
+}
+
+ui_palette! {
+    /// The main ink: live text, titles, glyphs, and on a terminal look its
+    /// lines too.
+    text => Text,
+    /// Readable body copy.
+    text_body => TextBody,
+    /// Secondary text and idle fills.
+    text_secondary => TextSecondary,
+    /// Labels, section heads, tags and rules.
+    text_muted => TextMuted,
+    /// A control's legend under the pointer.
+    text_hover => TextHover,
+    /// Glyphs on a lit fill: a selected control, a checked box.
+    text_inverse => TextInverse,
+    /// The panel and screen face.
+    surface => Surface,
+    /// A face set below the panel: a pressed control, an unchecked box.
+    surface_sunken => SurfaceSunken,
+    /// A face raised above the panel: a selected row.
+    surface_raised => SurfaceRaised,
+    /// The lit top edge of a raised face, a rule, a scroll thumb.
+    surface_lit => SurfaceLit,
+    /// A control's face under the pointer.
+    surface_hover => SurfaceHover,
+    /// The lit top of `surface_hover`.
+    surface_hover_light => SurfaceHoverLight,
+    /// The shaded foot of `surface_hover`.
+    surface_hover_dark => SurfaceHoverDark,
+    /// The deepest field, behind everything.
+    background => Background,
+    /// The dark outline round a raised face.
+    border => Border,
+    /// Selection, keycaps and warnings.
+    accent => Accent,
+    /// The bright end of the accent family.
+    accent_light => AccentLight,
+    /// The deep end of the accent family.
+    accent_dark => AccentDark,
+    /// The healthy, online, lit tone: a passed check, a lamp that is on. Not
+    /// `text`: the two agree only on a look whose ink is green.
+    nominal => Nominal,
+    /// The bright end of the nominal family.
+    nominal_light => NominalLight,
+    /// The deep end of the nominal family.
+    nominal_dark => NominalDark,
+    /// Destructive actions and faults.
+    danger => Danger,
+    /// A legend on or beside a danger face.
+    danger_text => DangerText,
+    /// A danger control's face.
+    danger_face => DangerFace,
+    /// The shaded end of `danger_face`.
+    danger_face_dark => DangerFaceDark,
+    /// Information.
+    info => Info,
+    /// An off switch's knob.
+    control_off => ControlOff,
+    /// Light washes and the brightest legend.
+    highlight => Highlight,
+    /// Drop shadows and dark wells.
+    shadow => Shadow,
+}
+
+/// A palette colour reads as a plain `"#rrggbb"`, not `Some("#rrggbb")`: a
+/// field that is absent is the one that inherits.
+mod hex_slot {
+    use super::{Deserialize, Deserializer, Serializer};
+
+    pub(super) fn serialize<S: Serializer>(
+        hex: &Option<String>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        match hex {
+            Some(hex) => serializer.serialize_str(hex),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<String>, D::Error> {
+        String::deserialize(deserializer).map(Some)
+    }
 }
 
 /// One stop of a gradient: a colour at a percentage along it.

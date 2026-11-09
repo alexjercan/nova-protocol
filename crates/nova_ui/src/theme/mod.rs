@@ -45,22 +45,26 @@ mod tests;
 /// theme and the semantic names screens ask it for.
 pub mod prelude {
     pub use super::{
-        config::{SliderMeter, UiThemeConfig, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID},
+        config::{
+            SliderMeter, UiColorType, UiPalette, UiThemeConfig, HARDWARE_THEME_ID,
+            PHOSPHOR_THEME_ID,
+        },
         registry::{GameUiThemes, SelectedUiTheme, UiThemeDiagnostic, UiThemeSystems},
         resolve::{
             ActiveUiTheme, ButtonState, FieldState, OnOff, RowState, ThemeButton, ThemeIssue,
-            UiColor, UiMetric,
+            UiMetric,
         },
     };
 }
 
-pub use config::{SliderMeter, UiThemeConfig, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID};
+pub use config::{
+    SliderMeter, UiColorType, UiPalette, UiThemeConfig, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID,
+};
 pub use registry::{GameUiThemes, SelectedUiTheme, UiThemeDiagnostic, UiThemeSystems};
 pub use resolve::{
     lint_theme, resolve_theme, ActiveUiTheme, ButtonState, FieldState, OnOff, ResolvedBadge,
     ResolvedBar, ResolvedCheckbox, ResolvedFill, ResolvedHead, ResolvedRow, ResolvedSlider,
-    ResolvedState, ResolvedSurface, ResolvedToggle, RowState, ThemeButton, ThemeIssue, UiColor,
-    UiMetric,
+    ResolvedState, ResolvedSurface, ResolvedToggle, RowState, ThemeButton, ThemeIssue, UiMetric,
 };
 
 /// Placeholder/thumbnail icon size (the wiki `.wiki-child__icon` is 44x44).

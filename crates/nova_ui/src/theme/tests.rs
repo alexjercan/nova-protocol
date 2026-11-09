@@ -11,11 +11,11 @@ use bevy::prelude::*;
 use super::{
     base::base_ui_themes,
     config::{
-        BadgeRole, ColorValue, Fill, RowPaint, RowRole, SliderMeter, ThemeColor, UiMetrics,
-        UiRoles, UiThemeConfig, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID,
+        BadgeRole, ColorValue, Fill, RowPaint, RowRole, SliderMeter, ThemeColor, UiColorType,
+        UiMetrics, UiPalette, UiRoles, UiThemeConfig, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID,
     },
     registry::{GameUiThemes, SelectedUiTheme, UiThemeDiagnostic},
-    resolve::{lint_theme, resolve_theme, RowState, UiColor, UiMetric},
+    resolve::{lint_theme, resolve_theme, RowState, UiMetric},
     ActiveUiTheme,
 };
 use crate::NovaUiPlugin;
@@ -27,7 +27,7 @@ fn derived(id: &str, roles: UiRoles) -> UiThemeConfig {
         id: id.to_string(),
         name: id.to_string(),
         inherit: Some(PHOSPHOR_THEME_ID.to_string()),
-        palette: std::collections::BTreeMap::new(),
+        palette: UiPalette::default(),
         metrics: None,
         roles,
     }
@@ -51,24 +51,26 @@ fn a_theme_decodes_from_authored_ron() {
         id: "wildcat/amber_crt",
         name: "Amber CRT",
         inherit: Some("base/phosphor"),
-        palette: {
-            "primary": "#ffb84a",
-        },
+        palette: (
+            text: "#ffb84a",
+        ),
         metrics: None,
         roles: (
-            separator: Some((value: Variable("primary"), alpha: 0.25)),
+            separator: Some((value: Variable(text), alpha: 0.25)),
         ),
     )"##;
     let config: UiThemeConfig = ron::from_str(authored).expect("the theme decodes");
     assert_eq!(config.id, "wildcat/amber_crt");
     assert_eq!(config.inherit.as_deref(), Some(PHOSPHOR_THEME_ID));
+    assert_eq!(config.palette.get(UiColorType::Text), Some("#ffb84a"));
     assert_eq!(
-        config.palette.get("primary").map(String::as_str),
-        Some("#ffb84a")
+        config.palette.get(UiColorType::Surface),
+        None,
+        "a colour the file leaves out is inherited"
     );
     assert!(config.metrics.is_none(), "a derived theme may omit metrics");
     let separator = config.roles.separator.expect("the one role it declares");
-    assert_eq!(separator.value, ColorValue::Variable("primary".to_string()));
+    assert_eq!(separator.value, ColorValue::Variable(UiColorType::Text));
     assert!((separator.alpha - 0.25).abs() < f32::EPSILON);
 }
 
@@ -80,7 +82,7 @@ fn an_unknown_theme_field_is_refused() {
         id: "wildcat/typo",
         name: "Typo",
         inherit: Some("base/phosphor"),
-        palette: {},
+        palette: (),
         metrics: None,
         roles: (),
         glow: 3.0,
@@ -94,19 +96,19 @@ fn an_unknown_theme_field_is_refused() {
 #[test]
 fn an_omitted_alpha_is_opaque_and_a_written_one_replaces_it() {
     let opaque: ThemeColor =
-        ron::from_str(r#"(value: Variable("primary"))"#).expect("the colour decodes");
+        ron::from_str(r#"(value: Variable(text))"#).expect("the colour decodes");
     assert!((opaque.alpha - 1.0).abs() < f32::EPSILON);
 
     let mut themes = base_ui_themes();
     themes.push(derived(
         "t/alpha",
         UiRoles {
-            separator: Some(ThemeColor::var_alpha("primary", 0.25)),
+            separator: Some(ThemeColor::var_alpha(UiColorType::Text, 0.25)),
             ..UiRoles::default()
         },
     ));
     let theme = resolve_theme("t/alpha", &themes).expect("it resolves");
-    let primary = theme.color(UiColor::Primary);
+    let primary = theme.color(UiColorType::Text);
     assert_eq!(
         theme.separator(),
         primary.with_alpha(0.25),
@@ -130,22 +132,26 @@ fn a_colour_resolves_from_the_palette_or_from_a_literal() {
     assert_eq!(theme.separator(), Color::srgb_u8(0x11, 0x22, 0x33));
 }
 
-/// An unknown palette name is an ERROR, never a silent black.
+/// An unknown palette name is refused when the file is read, in a role and in
+/// the palette alike: the set is closed, so nothing can name a colour no theme
+/// has.
 #[test]
 fn an_unknown_palette_name_is_refused() {
-    let mut themes = base_ui_themes();
-    themes.push(derived(
-        "t/unknown",
-        UiRoles {
-            separator: Some(ThemeColor::var("nosuchcolour")),
-            ..UiRoles::default()
-        },
-    ));
-    let issue = resolve_theme("t/unknown", &themes).expect_err("an unknown name is refused");
-    assert!(
-        issue.message.contains("nosuchcolour"),
-        "the finding must name the variable: {issue}"
-    );
+    ron::from_str::<ThemeColor>(r#"(value: Variable(nosuchcolour))"#)
+        .expect_err("an unknown colour in a role is refused");
+    ron::from_str::<UiPalette>(r##"(nosuchcolour: "#112233")"##)
+        .expect_err("an unknown colour in a palette is refused");
+}
+
+/// Every palette colour reads in a file by the name the editor and the docs
+/// show, and back.
+#[test]
+fn every_palette_colour_reads_by_its_name() {
+    for &color in UiColorType::ALL {
+        let written = ron::to_string(&color).expect("the colour writes");
+        assert_eq!(written, color.name());
+        assert_eq!(UiColorType::from_name(color.name()), Some(color));
+    }
 }
 
 /// A derived theme inherits every role it omits, and its palette override
@@ -155,15 +161,13 @@ fn an_unknown_palette_name_is_refused() {
 fn a_derived_theme_inherits_roles_and_recolours_them() {
     let mut themes = base_ui_themes();
     let mut recolour = derived("t/amber", UiRoles::default());
-    recolour
-        .palette
-        .insert("primary".to_string(), "#ffb84a".to_string());
+    recolour.palette.text = Some("#ffb84a".to_string());
     themes.push(recolour);
 
     let base = resolve_theme(PHOSPHOR_THEME_ID, &themes).expect("base resolves");
     let child = resolve_theme("t/amber", &themes).expect("the child resolves");
     assert_eq!(
-        child.color(UiColor::Primary),
+        child.color(UiColorType::Text),
         Color::srgb_u8(0xff, 0xb8, 0x4a)
     );
     assert_ne!(
@@ -247,7 +251,7 @@ fn an_incomplete_root_theme_is_refused_and_linted() {
         id: "t/bare".to_string(),
         name: "Bare".to_string(),
         inherit: None,
-        palette: std::collections::BTreeMap::new(),
+        palette: UiPalette::default(),
         metrics: Some(UiMetrics {
             border_width: 1.0,
             radius: 2.0,
@@ -302,7 +306,7 @@ fn button_state_precedence_is_resolved_once() {
     );
 }
 
-/// BOTH shipped themes resolve every role and every required palette variable.
+/// BOTH shipped themes resolve every role and every palette colour.
 /// This is the coverage contract: a role added to `UiRoles` that neither base
 /// theme declares fails here rather than on somebody's screen.
 #[test]
@@ -312,7 +316,7 @@ fn both_base_themes_resolve_completely() {
         let theme = resolve_theme(id, &themes).unwrap_or_else(|issue| panic!("{issue}"));
         assert_eq!(theme.id(), id);
         assert!(!theme.name().is_empty(), "{id} needs a picker label");
-        for color in UiColor::ALL {
+        for &color in UiColorType::ALL {
             assert_ne!(
                 theme.color(color),
                 Color::NONE,
@@ -466,14 +470,13 @@ fn a_badge_role_is_shape_and_alpha_alone() {
     assert!((badge.fill_alpha - 0.25).abs() < f32::EPSILON);
 }
 
-/// The two shipped looks disagree on the SEMANTIC palette, not only on their
-/// role tables.
+/// The two shipped looks disagree on the ink and the surfaces, not only on
+/// their role tables.
 ///
-/// The screens paint their text and their surfaces through these names, so two
-/// themes that share them cannot differ wherever a screen asks by meaning -
+/// The screens paint their text and their surfaces through these colours, so
+/// two themes that share them cannot differ wherever a screen asks by job -
 /// which is how the hardware look kept drawing green labels, green body copy
-/// and a green mods preview under a moulded grey casing. Every semantic name
-/// except the four whose meaning is fixed across looks has to move.
+/// and a green mods preview under a moulded grey casing.
 #[test]
 fn the_two_shipped_looks_do_not_share_one_semantic_palette() {
     let themes = base_ui_themes();
@@ -484,30 +487,42 @@ fn the_two_shipped_looks_do_not_share_one_semantic_palette() {
     // comms in both, and a lamp that is on is green in both. Those are the
     // meaning, not the look.
     let shared = [
-        UiColor::Accent,
-        UiColor::AccentHigh,
-        UiColor::AccentLow,
-        UiColor::Danger,
-        UiColor::Info,
-        UiColor::Nominal,
+        UiColorType::Accent,
+        UiColorType::AccentLight,
+        UiColorType::AccentDark,
+        UiColorType::Danger,
+        UiColorType::Info,
+        UiColorType::Nominal,
     ];
-    for color in UiColor::ALL {
-        let (a, b) = (phosphor.color(color), hardware.color(color));
-        if shared.contains(&color) {
-            assert_eq!(a, b, "{color:?} carries a meaning both looks keep");
-        } else {
-            assert_ne!(
-                a, b,
-                "{color:?} is the same in both looks, so no screen painting \
-                 through it can tell them apart"
-            );
-        }
+    for color in shared {
+        assert_eq!(
+            phosphor.color(color),
+            hardware.color(color),
+            "{color:?} carries a meaning both looks keep"
+        );
+    }
+    let look = [
+        UiColorType::Text,
+        UiColorType::TextBody,
+        UiColorType::TextSecondary,
+        UiColorType::TextMuted,
+        UiColorType::TextInverse,
+        UiColorType::Surface,
+        UiColorType::Background,
+    ];
+    for color in look {
+        assert_ne!(
+            phosphor.color(color),
+            hardware.color(color),
+            "{color:?} is the same in both looks, so no screen painting \
+             through it can tell them apart"
+        );
     }
 }
 
-/// `Nominal` is the lit/healthy tone, and it is NOT the primary ink.
+/// `Nominal` is the lit/healthy tone, and it is NOT the `Text` ink.
 ///
-/// A screen that wanted "good" used to ask for `Primary` because on a phosphor
+/// A screen that wanted "good" used to ask for the ink because on a phosphor
 /// screen the ink happens to be green. On the casing the ink is bone white, and
 /// that turned every ONLINE badge and every enabled dependency white.
 #[test]
@@ -515,15 +530,15 @@ fn the_lit_tone_is_not_the_ink_on_a_look_whose_ink_is_not_green() {
     let themes = base_ui_themes();
     let hardware = resolve_theme(HARDWARE_THEME_ID, &themes).expect("hardware resolves");
     assert_ne!(
-        hardware.color(UiColor::Nominal),
-        hardware.color(UiColor::Primary),
+        hardware.color(UiColorType::Nominal),
+        hardware.color(UiColorType::Text),
         "the hardware lamp and the hardware ink must be two colours"
     );
 
     let phosphor = resolve_theme(PHOSPHOR_THEME_ID, &themes).expect("phosphor resolves");
     assert_eq!(
-        phosphor.color(UiColor::Nominal),
-        phosphor.color(UiColor::Primary),
+        phosphor.color(UiColorType::Nominal),
+        phosphor.color(UiColorType::Text),
         "on a phosphor screen they are the same green, and that is the trap"
     );
 }

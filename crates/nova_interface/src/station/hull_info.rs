@@ -15,7 +15,7 @@
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_gameplay::prelude::*;
 use nova_ui::{
-    theme::UiColor,
+    theme::UiColorType,
     widget::{ButtonCueType, ButtonSpec},
 };
 
@@ -117,7 +117,7 @@ pub(crate) fn sync_hull_info_header(
             },
         ))
         .with_children(|header| {
-            header.spawn(themed_label(&shown.0, 13.0, UiColor::Primary));
+            header.spawn(themed_label(&shown.0, 13.0, UiColorType::Text));
             header
                 .spawn((
                     Name::new(HULL_INFO_CLOSE),

@@ -61,7 +61,9 @@ use icons::GalleryIcons;
 use nova_protocol::prelude::GameStates;
 use nova_ui::{
     prelude::*,
-    theme::{base::base_ui_themes, ActiveUiTheme, UiColor, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID},
+    theme::{
+        base::base_ui_themes, ActiveUiTheme, UiColorType, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID,
+    },
     widget::ThemedFill,
     NovaUiPlugin,
 };
@@ -467,7 +469,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ..window_root()
             },
             BackgroundColor(Color::NONE),
-            ThemedFill::new(UiColor::Void),
+            ThemedFill::new(UiColorType::Background),
         ))
         .with_children(top_bar);
 }
@@ -483,7 +485,7 @@ fn top_bar(root: &mut ChildSpawnerCommands) {
         ..default()
     })
     .with_children(|bar| {
-        bar.spawn(text("NOVA UI // GALLERY", 18.0, UiColor::Primary));
+        bar.spawn(text("NOVA UI // GALLERY", 18.0, UiColorType::Text));
         bar.spawn(segmented_container()).with_children(|seg| {
             for (page, label, name) in GalleryPage::ALL {
                 let mut b = seg.spawn((
@@ -500,7 +502,7 @@ fn top_bar(root: &mut ChildSpawnerCommands) {
             flex_grow: 1.0,
             ..default()
         });
-        bar.spawn(text("Jobs page", 12.0, UiColor::Label));
+        bar.spawn(text("Jobs page", 12.0, UiColorType::TextMuted));
         bar.spawn(segmented_container()).with_children(|seg| {
             for (value, label) in [
                 (DockState::Docked, "Docked"),
@@ -516,7 +518,7 @@ fn top_bar(root: &mut ChildSpawnerCommands) {
                 }
             }
         });
-        bar.spawn(text("Theme", 12.0, UiColor::Label));
+        bar.spawn(text("Theme", 12.0, UiColorType::TextMuted));
         bar.spawn(segmented_container()).with_children(|seg| {
             for (label, id, name) in [
                 ("Phosphor", PHOSPHOR_THEME_ID, THEME_PHOSPHOR),

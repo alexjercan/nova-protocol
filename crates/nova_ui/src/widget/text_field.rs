@@ -12,7 +12,7 @@ use bevy::{
 };
 
 use super::UiText;
-use crate::theme::{density, ActiveUiTheme, FieldState, UiColor, UiMetric, BORDER_W};
+use crate::theme::{density, ActiveUiTheme, FieldState, UiColorType, UiMetric, BORDER_W};
 
 const FONT_SIZE: f32 = 14.0;
 const CHARACTER_WIDTH: f32 = 8.4;
@@ -463,7 +463,7 @@ pub(super) fn paint_text_fields(
     >,
 ) {
     let radius = theme.metric(UiMetric::Radius);
-    let error_ink = theme.color(UiColor::Danger);
+    let error_ink = theme.color(UiColorType::Danger);
     for (
         entity,
         value,

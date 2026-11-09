@@ -23,7 +23,7 @@ use bevy::{ecs::system::SystemParam, prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{CreditChangeCauseType, EntityId, GeneratedBodyId};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::{prelude::*, theme::UiColor};
+use nova_ui::{prelude::*, theme::UiColorType};
 
 use super::{card_actions, offer_cell, spawn_card_price, StationRuntime};
 use crate::{
@@ -194,7 +194,7 @@ pub(crate) fn spawn_station_sale_block(panel: &mut ChildSpawnerCommands) {
         ))
         .with_children(|list| {
             list.spawn(crate::pane::divider());
-            list.spawn(themed_label("This station", 13.0, UiColor::Accent));
+            list.spawn(themed_label("This station", 13.0, UiColorType::Accent));
             list.spawn((StationSaleRows::default(), offer_cell()));
         });
 }
@@ -275,7 +275,7 @@ pub(crate) fn update_station_sale_block(
                 ..control_row(JustifyContent::FlexStart)
             })
             .with_children(|head| {
-                head.spawn(themed_label(&row.name, 13.0, UiColor::Primary));
+                head.spawn(themed_label(&row.name, 13.0, UiColorType::Text));
                 match row.sale {
                     StationSaleType::Owned => {
                         head.spawn((
@@ -337,7 +337,7 @@ pub(crate) fn update_station_sale_block(
                         themed_label(
                             &format!("Buy {} for {}?", row.name, cr_text(price_cr)),
                             13.0,
-                            UiColor::Body,
+                            UiColorType::TextBody,
                         ),
                     ));
                 }

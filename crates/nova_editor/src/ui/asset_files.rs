@@ -15,7 +15,7 @@ use bevy::{
 };
 use nova_assets::mod_cache::prelude::MODS_SOURCE;
 use nova_gameplay::prelude::{AudioRoute, PlaySfx};
-use nova_ui::{prelude::*, theme::UiColor};
+use nova_ui::{prelude::*, theme::UiColorType};
 
 use super::{
     assets::{import_file_item, new_asset_items, AssetRenaming, RenameTarget},
@@ -270,7 +270,7 @@ fn open_viewer(world: &mut World, file: &str, picture: impl Bundle) {
         panel.spawn((Name::new("File Viewer Picture"), picture));
         panel.spawn((
             Name::new("File Viewer Path"),
-            pane_text(file, nova_ui::theme::density::TEXT, UiColor::Label),
+            pane_text(file, nova_ui::theme::density::TEXT, UiColorType::TextMuted),
         ));
     });
     commands.entity(root).insert((

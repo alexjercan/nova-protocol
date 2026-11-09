@@ -11,7 +11,7 @@ use nova_input::prelude::{
 use nova_ship::prelude::*;
 use nova_ui::{
     prelude::{clear_of, hang_at, take_keyboard_now, Hang, InputMode, UiText},
-    theme::UiColor,
+    theme::UiColorType,
     widget::{ThemedFill, ThemedText},
 };
 
@@ -135,7 +135,7 @@ pub(crate) fn sync_section_keybind_labels(
                     ..default()
                 },
                 BackgroundColor(Color::NONE),
-                ThemedFill::alpha(UiColor::Accent, 0.6),
+                ThemedFill::alpha(UiColorType::Accent, 0.6),
                 Visibility::Hidden,
             ));
             commands.spawn((
@@ -156,7 +156,7 @@ pub(crate) fn sync_section_keybind_labels(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Accent),
+                ThemedText::new(UiColorType::Accent),
                 Node {
                     position_type: PositionType::Absolute,
                     // Pill padding + rounded corners so the background

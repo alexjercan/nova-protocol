@@ -20,7 +20,7 @@ use bevy::{
 use nova_ship::prelude::{GalleryAction, HeldPart};
 use nova_ui::{
     prelude::*,
-    theme::{self, density, ActiveUiTheme, UiColor},
+    theme::{self, density, ActiveUiTheme, UiColorType},
 };
 
 use super::{
@@ -213,7 +213,7 @@ pub(crate) struct OpenShipButton;
 pub(crate) struct FootSelection;
 
 /// One line of chrome text, on a single line.
-fn line(text: &str, size: f32, colour: UiColor) -> impl Bundle {
+fn line(text: &str, size: f32, colour: UiColorType) -> impl Bundle {
     (
         UiText,
         Text::new(text.to_string()),
@@ -264,7 +264,7 @@ fn bar_rule() -> impl Bundle {
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Primary, 0.16),
+        ThemedFill::alpha(UiColorType::Text, 0.16),
     )
 }
 
@@ -360,14 +360,14 @@ pub(crate) fn spawn_top_bar(root: &mut RelatedSpawnerCommands<ChildOf>) {
                 .with_child((
                     Name::new("Editor Title"),
                     super::EditorTitle,
-                    line("EDITOR", density::TEXT, UiColor::Body),
+                    line("EDITOR", density::TEXT, UiColorType::TextBody),
                 ));
             // Beside the title and never in it: the title clips, and this is
             // the one word that must not be cut off.
             right.spawn((
                 Name::new("Unsaved Mark"),
                 UnsavedMark,
-                line("UNSAVED", density::TEXT_SMALL, UiColor::Danger),
+                line("UNSAVED", density::TEXT_SMALL, UiColorType::Danger),
                 Node {
                     display: Display::None,
                     flex_shrink: 0.0,
@@ -496,13 +496,13 @@ pub(crate) fn stage() -> impl Bundle {
             Name::new("Stage Overlay"),
             StageOverlay,
             Pickable::IGNORE,
-            line("", 12.0, UiColor::Primary),
+            line("", 12.0, UiColorType::Text),
             Node {
                 padding: UiRect::axes(px(6), px(2)),
                 ..default()
             },
             BackgroundColor(Color::NONE),
-            ThemedFill::alpha(UiColor::Void, 0.6),
+            ThemedFill::alpha(UiColorType::Background, 0.6),
         )],
     )
 }
@@ -577,12 +577,12 @@ pub(crate) fn spawn_foot(root: &mut RelatedSpawnerCommands<ChildOf>, legend: imp
             Name::new("Placement Status"),
             super::PlacementStatus,
             Visibility::Hidden,
-            line("", 12.0, UiColor::Danger),
+            line("", 12.0, UiColorType::Danger),
         ));
         foot.spawn((
             Name::new("Foot Selection"),
             FootSelection,
-            line("", 11.0, UiColor::Secondary),
+            line("", 11.0, UiColorType::TextSecondary),
         ));
         foot.spawn(legend);
     });
@@ -1051,9 +1051,9 @@ pub(crate) fn toggle_browser(_activate: On<Activate>, mut panels: ResMut<EditorP
 /// The colour the validity word of a node takes.
 pub(crate) fn validity_tint(theme: &ActiveUiTheme, errors: usize, warnings: usize) -> Color {
     theme.color(match (errors, warnings) {
-        (0, 0) => UiColor::Nominal,
-        (0, _) => UiColor::Accent,
-        _ => UiColor::Danger,
+        (0, 0) => UiColorType::Nominal,
+        (0, _) => UiColorType::Accent,
+        _ => UiColorType::Danger,
     })
 }
 

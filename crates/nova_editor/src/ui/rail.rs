@@ -10,7 +10,7 @@ use bevy::{
 use nova_ui::{
     prelude::{icon_button, panel, IconButtonType, ThemedButton, UiText, CLOSE_GLYPH},
     theme,
-    theme::{density, UiColor},
+    theme::{density, UiColorType},
     widget::{
         checkbox, checkbox_glyph, ListRow, ThemedBorder, ThemedFill, ThemedRadius, ThemedText,
     },
@@ -48,9 +48,9 @@ pub(crate) fn skin_toggle_row(on: bool) -> impl Bundle {
         },
         ThemedRadius::control(),
         BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColor::Label),
+        ThemedBorder::new(UiColorType::TextMuted),
         BackgroundColor(Color::NONE),
-        ThemedFill::new(UiColor::Surface),
+        ThemedFill::new(UiColorType::Surface),
         children![
             (
                 UiText,
@@ -60,7 +60,7 @@ pub(crate) fn skin_toggle_row(on: bool) -> impl Bundle {
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Primary),
+                ThemedText::new(UiColorType::Text),
             ),
             (SkinToggleCheckbox, checkbox(on)),
         ],
@@ -117,7 +117,7 @@ pub(crate) fn style_row(id: &str, name: &str, colour: Color) -> impl Bundle {
                     ..default()
                 },
                 BorderColor::all(Color::NONE),
-                ThemedBorder::alpha(UiColor::Primary, 0.4),
+                ThemedBorder::alpha(UiColorType::Text, 0.4),
                 BackgroundColor(colour),
             ),
             (
@@ -128,7 +128,7 @@ pub(crate) fn style_row(id: &str, name: &str, colour: Color) -> impl Bundle {
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Primary),
+                ThemedText::new(UiColorType::Text),
             )
         ],
     )
@@ -179,7 +179,7 @@ pub(crate) fn part_row(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Primary),
+                ThemedText::new(UiColorType::Text),
                 Node {
                     width: px(7),
                     flex_shrink: 0.0,
@@ -194,7 +194,7 @@ pub(crate) fn part_row(
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Primary),
+                ThemedText::new(UiColorType::Text),
                 // The name takes the slack so the chip stays hard right,
                 // where it reads as a setting on the row rather than as part
                 // of the name.
@@ -235,7 +235,7 @@ pub(crate) fn zone_chip(zone: Option<WfcZone>, drawn: bool) -> impl Bundle {
         },
         ThemedRadius::control(),
         BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColor::Label),
+        ThemedBorder::new(UiColorType::TextMuted),
         children![(
             UiText,
             Text::new(zone_label(zone).to_string()),
@@ -244,7 +244,7 @@ pub(crate) fn zone_chip(zone: Option<WfcZone>, drawn: bool) -> impl Bundle {
                 ..default()
             },
             TextColor(Color::NONE),
-            ThemedText::new(UiColor::Secondary),
+            ThemedText::new(UiColorType::TextSecondary),
         )],
     )
 }
@@ -374,7 +374,7 @@ pub(crate) fn scene_tooltip() -> impl Bundle {
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Label),
+                ThemedText::new(UiColorType::TextMuted),
             ),
             (
                 Name::new("Scene Row Hint Id"),
@@ -389,7 +389,7 @@ pub(crate) fn scene_tooltip() -> impl Bundle {
                     ..default()
                 },
                 TextColor(Color::NONE),
-                ThemedText::new(UiColor::Primary),
+                ThemedText::new(UiColorType::Text),
             )
         ],
     )

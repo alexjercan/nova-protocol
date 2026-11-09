@@ -9,7 +9,7 @@
 use bevy::prelude::*;
 use nova_ui::{
     prelude::*,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{ThemedRadius, ThemedTextShadow},
 };
 
@@ -66,7 +66,7 @@ pub fn new_game_page(
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::new(UiColor::Void),
+        ThemedFill::new(UiColorType::Background),
     ))
     .with_children(|screen| {
         spawn_backdrop_scene(screen, assets);
@@ -98,8 +98,8 @@ fn menu_column(screen: &mut ChildSpawnerCommands) {
         ))
         .with_children(|menu| {
             menu.spawn((
-                text("Nova Protocol", 28.0, UiColor::Body),
-                ThemedTextShadow::alpha(UiColor::Primary, 0.35),
+                text("Nova Protocol", 28.0, UiColorType::TextBody),
+                ThemedTextShadow::alpha(UiColorType::Text, 0.35),
                 TextShadow {
                     color: Color::NONE,
                     offset: Vec2::ZERO,
@@ -113,7 +113,7 @@ fn menu_column(screen: &mut ChildSpawnerCommands) {
                     ..default()
                 },
                 BackgroundColor(Color::NONE),
-                ThemedFill::new(UiColor::Label),
+                ThemedFill::new(UiColorType::TextMuted),
             ));
             menu.spawn((
                 Name::new(MENU_NEW_GAME),
@@ -140,8 +140,8 @@ fn menu_column(screen: &mut ChildSpawnerCommands) {
                 ..default()
             })
             .with_children(|foot| {
-                foot.spawn(text(RUNNING_VERSION, 10.0, UiColor::Label));
-                foot.spawn(text("NOVA OS", 10.0, UiColor::Label));
+                foot.spawn(text(RUNNING_VERSION, 10.0, UiColorType::TextMuted));
+                foot.spawn(text("NOVA OS", 10.0, UiColorType::TextMuted));
             });
         });
 }
@@ -187,7 +187,7 @@ fn modal(
                     panel(),
                 ))
                 .with_children(|panel| {
-                    panel.spawn(text("New Game", 24.0, UiColor::Body));
+                    panel.spawn(text("New Game", 24.0, UiColorType::TextBody));
                     match new_game.step {
                         NewGameStep::Role => role_step(panel, icons, assets, new_game),
                         NewGameStep::World | NewGameStep::Closed => {
@@ -201,8 +201,8 @@ fn modal(
 /// The world step: the profile line, the name, the seed with Randomize, the
 /// seed's preview, then Cancel and Next.
 fn world_step(panel: &mut ChildSpawnerCommands, assets: &mut SceneAssets, new_game: &NewGameState) {
-    panel.spawn(text(PROFILE_TEXT, 13.0, UiColor::Label));
-    panel.spawn(text("World name", 13.0, UiColor::Label));
+    panel.spawn(text(PROFILE_TEXT, 13.0, UiColorType::TextMuted));
+    panel.spawn(text("World name", 13.0, UiColorType::TextMuted));
     panel.spawn((
         Name::new(WORLD_NAME_FIELD),
         WorldNameField,
@@ -212,7 +212,7 @@ fn world_step(panel: &mut ChildSpawnerCommands, assets: &mut SceneAssets, new_ga
                 .max_chars(32),
         ),
     ));
-    panel.spawn(text("World seed", 13.0, UiColor::Label));
+    panel.spawn(text("World seed", 13.0, UiColorType::TextMuted));
     panel
         .spawn(Node {
             column_gap: px(8),
@@ -260,7 +260,7 @@ fn world_step(panel: &mut ChildSpawnerCommands, assets: &mut SceneAssets, new_ga
             new_game.seed
         ),
         11.0,
-        UiColor::Label,
+        UiColorType::TextMuted,
     ));
     panel.spawn(actions_row()).with_children(|actions| {
         actions.spawn(button_slot(SIDE_SLOT_W)).with_child((
@@ -303,7 +303,7 @@ fn role_step(
                 ..default()
             })
             .with_children(|list| {
-                list.spawn(text("Start role", 13.0, UiColor::Label));
+                list.spawn(text("Start role", 13.0, UiColorType::TextMuted));
                 for (i, role) in ROLES.iter().enumerate() {
                     let mut row = list.spawn((
                         Name::new(format!("{ROLE_PREFIX} {i}")),
@@ -314,7 +314,10 @@ fn role_step(
                     }
                     row.with_children(|r| {
                         r.spawn(icon(icons, role.icon, 16.0));
-                        r.spawn((text(role.name, 15.0, UiColor::Body), Pickable::IGNORE));
+                        r.spawn((
+                            text(role.name, 15.0, UiColorType::TextBody),
+                            Pickable::IGNORE,
+                        ));
                     });
                 }
             });
@@ -360,8 +363,8 @@ fn role_details(
     index: usize,
     role: &RoleCard,
 ) {
-    details.spawn(text(role.name, 18.0, UiColor::Primary));
-    details.spawn(text(role.line, 13.0, UiColor::Body));
+    details.spawn(text(role.name, 18.0, UiColorType::Text));
+    details.spawn(text(role.line, 13.0, UiColorType::TextBody));
     spawn_hull_scene(
         details,
         assets,
@@ -405,10 +408,10 @@ fn detail_row(details: &mut ChildSpawnerCommands, label: &str, value: &str) {
                 DETAIL_LABEL_W,
                 &label.to_uppercase(),
                 11.0,
-                UiColor::Label,
+                UiColorType::TextMuted,
                 false,
             ));
-            r.spawn(grow_cell(value, 13.0, UiColor::Body));
+            r.spawn(grow_cell(value, 13.0, UiColorType::TextBody));
         });
 }
 

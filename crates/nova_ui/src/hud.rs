@@ -30,7 +30,7 @@ pub mod prelude {
 
 use bevy::{platform::collections::HashSet, prelude::*};
 
-use crate::theme::{ActiveUiTheme, UiColor, UiThemeSystems};
+use crate::theme::{ActiveUiTheme, UiColorType, UiThemeSystems};
 
 /// The chip's translucent slab fill (`rgba(2,14,8,0.62)` in the demo) - dark
 /// enough to hold text over a bright starfield, sheer enough that the HUD never
@@ -77,12 +77,12 @@ pub enum ChipTone {
 
 impl ChipTone {
     /// The semantic colour this tone's family is drawn from.
-    fn family(self) -> UiColor {
+    fn family(self) -> UiColorType {
         match self {
-            ChipTone::Readout => UiColor::Primary,
-            ChipTone::Amber => UiColor::Accent,
-            ChipTone::Threat => UiColor::Danger,
-            ChipTone::Comms => UiColor::Info,
+            ChipTone::Readout => UiColorType::Text,
+            ChipTone::Amber => UiColorType::Accent,
+            ChipTone::Threat => UiColorType::Danger,
+            ChipTone::Comms => UiColorType::Info,
         }
     }
 
@@ -93,7 +93,7 @@ impl ChipTone {
             // slab, while its border stays the saturated family colour. Lifted
             // from the family rather than authored beside it, so a theme that
             // moves danger moves both together.
-            ChipTone::Threat => body_colour(theme.color(UiColor::Danger)),
+            ChipTone::Threat => body_colour(theme.color(UiColorType::Danger)),
             other => theme.color(other.family()),
         }
     }
@@ -101,10 +101,10 @@ impl ChipTone {
     /// The dimmer tone for unit suffixes and secondary text (`.u` in the demo).
     pub fn unit(self, theme: &ActiveUiTheme) -> Color {
         match self {
-            ChipTone::Readout => theme.color(UiColor::Secondary),
-            ChipTone::Amber => theme.color(UiColor::AccentLow),
-            ChipTone::Threat => theme.color(UiColor::Danger),
-            ChipTone::Comms => theme.color_alpha(UiColor::Info, 0.7),
+            ChipTone::Readout => theme.color(UiColorType::TextSecondary),
+            ChipTone::Amber => theme.color(UiColorType::AccentDark),
+            ChipTone::Threat => theme.color(UiColorType::Danger),
+            ChipTone::Comms => theme.color_alpha(UiColorType::Info, 0.7),
         }
     }
 
@@ -424,9 +424,10 @@ mod tests {
             id: AMBER_CRT.to_string(),
             name: "Amber CRT".to_string(),
             inherit: Some(PHOSPHOR_THEME_ID.to_string()),
-            palette: [("primary".to_string(), "#ffb84a".to_string())]
-                .into_iter()
-                .collect(),
+            palette: crate::theme::config::UiPalette {
+                text: Some("#ffb84a".to_string()),
+                ..Default::default()
+            },
             metrics: None,
             roles: crate::theme::config::UiRoles::default(),
         });
@@ -451,7 +452,7 @@ mod tests {
         *app.world_mut().resource_mut::<SelectedUiTheme>() = SelectedUiTheme(AMBER_CRT.to_string());
         app.update();
         let (_, amber_ink) = read(&app);
-        assert_ne!(amber_ink, ink, "a theme that moves `primary` moves the ink");
+        assert_ne!(amber_ink, ink, "a theme that moves `text` moves the ink");
     }
 
     /// The geometry is a bordered, rounded slab - a chip that lost its border

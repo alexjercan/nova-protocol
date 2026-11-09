@@ -19,7 +19,7 @@ use bevy::{prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{CreditChangeCauseType, GeneratedBodyId};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
-use nova_ui::{theme::UiColor, widget::ThemedBorder};
+use nova_ui::{theme::UiColorType, widget::ThemedBorder};
 
 use super::{
     card_actions, offer_cell, offer_rows, shipyard::hull_length_text, spawn_card_price,
@@ -211,12 +211,12 @@ fn spawn_fleet_row(list: &mut ChildSpawnerCommands, slots: &[Option<String>]) {
         ..default()
     })
     .with_children(|row| {
-        row.spawn(themed_label("FLEET", 11.0, UiColor::Label));
+        row.spawn(themed_label("FLEET", 11.0, UiColorType::TextMuted));
         for (side, name) in FLEET_SIDES.iter().zip(slots) {
             let border = if name.is_some() {
-                ThemedBorder::new(UiColor::Accent)
+                ThemedBorder::new(UiColorType::Accent)
             } else {
-                ThemedBorder::alpha(UiColor::Secondary, 0.35)
+                ThemedBorder::alpha(UiColorType::TextSecondary, 0.35)
             };
             row.spawn((
                 Node {
@@ -231,10 +231,14 @@ fn spawn_fleet_row(list: &mut ChildSpawnerCommands, slots: &[Option<String>]) {
                 border,
             ))
             .with_children(|slot| {
-                slot.spawn(themed_label(fleet_side_label(*side), 11.0, UiColor::Label));
+                slot.spawn(themed_label(
+                    fleet_side_label(*side),
+                    11.0,
+                    UiColorType::TextMuted,
+                ));
                 match name {
-                    Some(name) => slot.spawn(themed_label(name, 12.0, UiColor::Primary)),
-                    None => slot.spawn(themed_label("--", 12.0, UiColor::Label)),
+                    Some(name) => slot.spawn(themed_label(name, 12.0, UiColorType::Text)),
+                    None => slot.spawn(themed_label("--", 12.0, UiColorType::TextMuted)),
                 };
             });
         }
@@ -332,7 +336,7 @@ pub(crate) fn update_station_escort_list(
                 ..default()
             })
             .with_children(|header| {
-                header.spawn(themed_label("Escorts for hire", 13.0, UiColor::Accent));
+                header.spawn(themed_label("Escorts for hire", 13.0, UiColorType::Accent));
                 spawn_fleet_row(header, &slots);
             });
         parent.spawn(offer_rows()).with_children(|cards| {

@@ -17,7 +17,7 @@ use nova_scenario::prelude::ScenarioObjectKind;
 use nova_ui::{
     prelude::{clear_of, hang_at, Hang, UiText},
     theme,
-    theme::{ActiveUiTheme, UiColor},
+    theme::{ActiveUiTheme, UiColorType},
     widget::{list_row_colors, ThemedRadius},
 };
 
@@ -80,13 +80,13 @@ fn plate(label: &str, marked: bool, theme: &ActiveUiTheme) -> impl Bundle {
     // it, so the row paint is mixed over a chip of screen rather than trusted
     // to carry a label over whatever the camera is pointed at.
     let background = theme
-        .color(UiColor::Void)
+        .color(UiColorType::Background)
         .with_alpha(FILL)
         .mix(&fill, fill.alpha());
     let ink = theme.color(if marked {
-        UiColor::Primary
+        UiColorType::Text
     } else {
-        UiColor::Label
+        UiColorType::TextMuted
     });
     (
         Pickable::IGNORE,

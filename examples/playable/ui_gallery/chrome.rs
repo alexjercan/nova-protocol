@@ -8,7 +8,7 @@
 use bevy::{picking::hover::Hovered, prelude::*, ui_widgets::observe};
 use nova_ui::{
     prelude::*,
-    theme::UiColor,
+    theme::UiColorType,
     widget::{ThemedBorder, ThemedFill, ThemedText, UiText},
 };
 
@@ -27,7 +27,7 @@ const PANE_FOOTER_PX: f32 = 96.0;
 const SIDE_PANEL_PX: f32 = 300.0;
 
 /// A themed text bundle.
-pub fn text(value: &str, size: f32, color: UiColor) -> impl Bundle {
+pub fn text(value: &str, size: f32, color: UiColorType) -> impl Bundle {
     (
         UiText,
         Text::new(value.to_string()),
@@ -41,7 +41,7 @@ pub fn text(value: &str, size: f32, color: UiColor) -> impl Bundle {
 }
 
 /// A themed text that never wraps and clips instead.
-pub fn text_nowrap(value: &str, size: f32, color: UiColor) -> impl Bundle {
+pub fn text_nowrap(value: &str, size: f32, color: UiColorType) -> impl Bundle {
     (
         text(value, size, color),
         TextLayout::new(Justify::Left, LineBreak::NoWrap),
@@ -54,7 +54,7 @@ pub fn text_nowrap(value: &str, size: f32, color: UiColor) -> impl Bundle {
 }
 
 /// A fixed-width column cell, so numbers line up down a table.
-pub fn cell(width: f32, value: &str, size: f32, color: UiColor, right: bool) -> impl Bundle {
+pub fn cell(width: f32, value: &str, size: f32, color: UiColorType, right: bool) -> impl Bundle {
     (
         Node {
             width: px(width),
@@ -71,7 +71,7 @@ pub fn cell(width: f32, value: &str, size: f32, color: UiColor, right: bool) -> 
 }
 
 /// A cell that takes the rest of the row.
-pub fn grow_cell(value: &str, size: f32, color: UiColor) -> impl Bundle {
+pub fn grow_cell(value: &str, size: f32, color: UiColorType) -> impl Bundle {
     (
         Node {
             flex_grow: 1.0,
@@ -116,7 +116,7 @@ pub fn meter(width: f32, have: u32, need: u32) -> impl Bundle {
             text(
                 &format!("{} / {}", thousands(have), thousands(need)),
                 12.0,
-                UiColor::Body
+                UiColorType::TextBody
             ),
         ],
     )
@@ -169,9 +169,9 @@ pub fn table_head(p: &mut ChildSpawnerCommands, columns: &[(f32, &str)]) {
     .with_children(|r| {
         for (width, label) in columns {
             if *width == 0.0 {
-                r.spawn(grow_cell(label, 11.0, UiColor::Label));
+                r.spawn(grow_cell(label, 11.0, UiColorType::TextMuted));
             } else {
-                r.spawn(cell(*width, label, 11.0, UiColor::Label, false));
+                r.spawn(cell(*width, label, 11.0, UiColorType::TextMuted, false));
             }
         }
     });
@@ -190,9 +190,9 @@ pub fn compact_button(spec: ButtonSpec) -> impl Bundle {
 pub fn panel_paint() -> impl Bundle {
     (
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Secondary, 0.08),
+        ThemedFill::alpha(UiColorType::TextSecondary, 0.08),
         BorderColor::all(Color::NONE),
-        ThemedBorder::new(UiColor::Secondary),
+        ThemedBorder::new(UiColorType::TextSecondary),
     )
 }
 
@@ -253,7 +253,7 @@ pub fn column_panel() -> impl Bundle {
         },
         BackgroundColor(Color::NONE),
         BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(UiColor::Secondary, 0.35),
+        ThemedBorder::alpha(UiColorType::TextSecondary, 0.35),
     )
 }
 
@@ -266,7 +266,7 @@ pub fn divider() -> impl Bundle {
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Secondary, 0.35),
+        ThemedFill::alpha(UiColorType::TextSecondary, 0.35),
     )
 }
 
@@ -306,7 +306,7 @@ pub fn view_split() -> Node {
 
 /// A section heading inside a panel.
 pub fn section(c: &mut ChildSpawnerCommands, label: &str) {
-    c.spawn(text(&label.to_uppercase(), 11.0, UiColor::Label));
+    c.spawn(text(&label.to_uppercase(), 11.0, UiColorType::TextMuted));
 }
 
 /// A `label  value` line.
@@ -316,8 +316,8 @@ pub fn kv(c: &mut ChildSpawnerCommands, label: &str, value: &str) {
         ..control_row(JustifyContent::FlexStart)
     })
     .with_children(|r| {
-        r.spawn(cell(84.0, label, 12.0, UiColor::Label, false));
-        r.spawn(grow_cell(value, 13.0, UiColor::Primary));
+        r.spawn(cell(84.0, label, 12.0, UiColorType::TextMuted, false));
+        r.spawn(grow_cell(value, 13.0, UiColorType::Text));
     });
 }
 
@@ -330,8 +330,8 @@ pub fn fact(c: &mut ChildSpawnerCommands, label: &str, value: &str) {
         ..default()
     })
     .with_children(|f| {
-        f.spawn(text(label, 11.0, UiColor::Label));
-        f.spawn(text(value, 13.0, UiColor::Primary));
+        f.spawn(text(label, 11.0, UiColorType::TextMuted));
+        f.spawn(text(value, 13.0, UiColorType::Text));
     });
 }
 
@@ -351,9 +351,9 @@ pub fn chip(
     click: Click,
 ) {
     let (color, fill, border) = if current {
-        (UiColor::Accent, 0.25, 1.0)
+        (UiColorType::Accent, 0.25, 1.0)
     } else {
-        (UiColor::Secondary, 0.08, 0.4)
+        (UiColorType::TextSecondary, 0.08, 0.4)
     };
     bar.spawn((
         Name::new(name),
@@ -381,7 +381,7 @@ pub fn chip(
         if let Some(icon) = icon {
             chip.spawn(icon_node(icons, icon, icon.color(), 16.0));
         }
-        chip.spawn((text(label, 12.0, UiColor::Body), Pickable::IGNORE));
+        chip.spawn((text(label, 12.0, UiColorType::TextBody), Pickable::IGNORE));
     });
 }
 
@@ -418,8 +418,8 @@ pub fn interface_card(
                             ..control_row(JustifyContent::FlexEnd)
                         })
                         .with_children(|c| {
-                            c.spawn(text("PLAY", 11.0, UiColor::Label));
-                            c.spawn(text(clock, 13.0, UiColor::Primary));
+                            c.spawn(text("PLAY", 11.0, UiColorType::TextMuted));
+                            c.spawn(text(clock, 13.0, UiColorType::Text));
                         });
                     }
                     head.spawn(segmented_container()).with_children(|seg| {
@@ -517,7 +517,7 @@ pub fn pane_footer(
             ..default()
         },
         BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(UiColor::Secondary, 0.5),
+        ThemedBorder::alpha(UiColorType::TextSecondary, 0.5),
     ))
     .with_children(|footer| {
         footer.spawn(side()).with_children(legend);
@@ -545,11 +545,11 @@ pub fn pane_footer(
                         for (key, verb) in keys {
                             hints.spawn(legend_entry()).with_children(|h| {
                                 h.spawn(key_chip(key, 11.0));
-                                h.spawn(text(verb, 12.0, UiColor::Body));
+                                h.spawn(text(verb, 12.0, UiColorType::TextBody));
                             });
                         }
                         for hint in pointer {
-                            hints.spawn(text(hint, 12.0, UiColor::Label));
+                            hints.spawn(text(hint, 12.0, UiColorType::TextMuted));
                         }
                     });
             });
@@ -633,14 +633,14 @@ pub fn spawn_toast(commands: &mut Commands, headline: &str, detail: &str) {
             ..default()
         },
         BackgroundColor(Color::NONE),
-        ThemedFill::alpha(UiColor::Surface, 1.0),
+        ThemedFill::alpha(UiColorType::Surface, 1.0),
         BorderColor::all(Color::NONE),
-        ThemedBorder::alpha(UiColor::Nominal, 1.0),
+        ThemedBorder::alpha(UiColorType::Nominal, 1.0),
         GlobalZIndex(50),
         Pickable::IGNORE,
         children![
-            text(headline, 16.0, UiColor::Nominal),
-            text(detail, 12.0, UiColor::Body),
+            text(headline, 16.0, UiColorType::Nominal),
+            text(detail, 12.0, UiColorType::TextBody),
         ],
     ));
 }
