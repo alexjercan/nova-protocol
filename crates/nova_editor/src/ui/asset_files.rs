@@ -178,13 +178,14 @@ pub(crate) fn on_asset_grid_menu(
             on_disk: true,
         },
     );
+    let context = facts.context(&selected);
     let mut items = vec![CascadeItem::submenu(
         "Asset Menu New Asset",
         "New Asset",
-        new_asset_items(),
+        new_asset_items(&context),
     )];
     // No Paste: the clipboard holds nodes and blocks, never a whole asset.
-    match verb_state(row, &facts.context(&selected)) {
+    match verb_state(row, &context) {
         VerbState::Hidden => {}
         VerbState::Greyed(reason) => items.push(import_file_item().greyed(reason)),
         VerbState::Live => items.push(import_file_item()),

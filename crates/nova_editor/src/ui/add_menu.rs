@@ -170,13 +170,6 @@ pub(crate) fn add_items(
     if shown(MenuVerbType::AddWorld) {
         items.extend(world_items(designs, at));
     }
-    // Blocks are added by dragging them out of the palette; the greyed row
-    // says where a builder used to the menu should go.
-    items.extend(by_verb(
-        CascadeItem::leaf("Add Script Hint", "Blocks"),
-        MenuVerbType::AddScript,
-        context,
-    ));
     if shown(MenuVerbType::AddPart) {
         let parts = GalleryCategory::ROW
             .into_iter()
@@ -241,7 +234,7 @@ pub(crate) fn add_items(
     items.push(CascadeItem::submenu(
         "Add Menu Asset",
         "Asset",
-        new_asset_items(),
+        new_asset_items(context),
     ));
     items
 }
@@ -400,11 +393,7 @@ mod tests {
                     "Add Menu Asset",
                 ],
             ),
-            (
-                Doc::Scenario,
-                View::Events,
-                vec!["Add Script Hint", "Add Menu Asset"],
-            ),
+            (Doc::Scenario, View::Events, vec!["Add Menu Asset"]),
             (
                 Doc::Ship,
                 View::Ship,

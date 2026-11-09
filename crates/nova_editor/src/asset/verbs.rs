@@ -9,13 +9,13 @@ use nova_assets::mod_refs::prelude::{map_string_leaves, names_string, SELF_SCHEM
 use nova_gameplay::prelude::ItemDesignId;
 use nova_modding::prelude::Content;
 use nova_ship::prelude::{LinkPoint, LinkPointSkinType};
+use nova_ui::theme::PHOSPHOR_THEME_ID;
 
 use super::{
     blank::{blank_item, spaced},
     set_mesh, spawn_socket, AssetNode, SocketNode,
 };
 use crate::{
-    asset_index::AssetIndex,
     config::SelectedNode,
     history::commit_edit_now,
     inspect::{set_item_text, AssetTextType},
@@ -123,20 +123,6 @@ fn new_name(kind: &str, section: Option<&str>) -> String {
     format!("New {}", words.join(" "))
 }
 
-/// The first root theme the mod can see, base first: what a new theme derives
-/// from. A root theme must declare every role, and the form cannot write roles,
-/// so a blank root theme is one no builder could finish.
-fn root_theme(In(()): In<()>, index: AssetIndex, project: Res<ModProject>) -> Option<String> {
-    index
-        .visible_packs(&project.data.meta.dependencies)
-        .iter()
-        .flat_map(|pack| pack.items.iter())
-        .find_map(|item| match item {
-            Content::UiTheme(theme) if theme.inherit.is_none() => Some(theme.id.clone()),
-            _ => None,
-        })
-}
-
 /// `+ Add`: a blank item of `kind`, open. A section is of the kind `section`
 /// names; see [`blank_item`] for what a blank holds.
 pub(crate) fn add_asset(world: &mut World, kind: &'static str, section: Option<&str>) {
@@ -155,8 +141,10 @@ pub(crate) fn add_asset(world: &mut World, kind: &'static str, section: Option<&
         }
     };
     let name = new_name(kind, section);
+    // A root theme must set every role, and the form cannot write roles, so
+    // a new theme derives from the stock one and overrides what it changes.
     if let Content::UiTheme(theme) = &mut item {
-        theme.inherit = world.run_system_cached_with(root_theme, ()).ok().flatten();
+        theme.inherit = Some(PHOSPHOR_THEME_ID.to_string());
     }
     let id = mint_id(world.resource::<ModProject>(), &name);
     with_id(&mut item, &id);

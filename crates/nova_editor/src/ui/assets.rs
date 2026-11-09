@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use bevy::{
     ecs::relationship::RelatedSpawnerCommands,
     prelude::*,
-    ui::{InteractionDisabled, UiScale},
+    ui::UiScale,
     ui_widgets::{observe, Activate, Button},
 };
 use nova_modding::prelude::Content;
@@ -32,7 +32,7 @@ use super::{
     },
     browser::{pane_text, BrowserTabType},
     layer,
-    menu_context::{verb_state, MenuFacts, MenuVerbType, VerbState},
+    menu_context::{verb_state, MenuContext, MenuFacts, MenuVerbType, VerbState},
     section_kind::open_section_kind_modal,
     shell::EditorPanels,
     thumbnail::{design_parts, thumbnail_key, AssetThumbnails, ThumbnailParts},
@@ -104,8 +104,6 @@ pub(crate) struct AssetEntry {
     /// The muted line under the name: the kind, or what tells the tile from
     /// one that prints the same name. See [`name_tiles`].
     note: String,
-    /// Why it does not open, on a tile that does not.
-    pub(crate) waits: &'static str,
     /// The item, on a tile that holds verbs.
     pub(crate) id: Option<OpenAsset>,
     /// What its picture shows. Empty for a kind that keeps its glyph.
@@ -255,7 +253,6 @@ pub(crate) fn asset_entries(
             full: item.id().to_string(),
             name: String::new(),
             note: String::new(),
-            waits: row.waits,
             id: row.opens.then(|| OpenAsset {
                 kind: row.kind,
                 id: item.id().to_string(),
@@ -282,7 +279,6 @@ pub(crate) fn asset_entries(
             full: file.path.clone(),
             name: String::new(),
             note: String::new(),
-            waits: "",
             id: None,
             parts,
             file: Some(file),
@@ -535,23 +531,21 @@ pub(crate) fn spawn_asset_body(pane: &mut RelatedSpawnerCommands<ChildOf>) {
     });
 }
 
-/// The New Asset tree: a row a kind of the mod. Each row makes a blank item
-/// and opens it; nothing starts from another item. A section asks its kind
-/// first, in a modal. A kind made elsewhere is greyed with the reason.
+/// The New Asset tree in `context`: a row a kind the editor makes there. Each
+/// row makes a blank item and opens it; nothing starts from another item. A
+/// section asks its kind first, in a modal. [`verb_state`] hides every kind
+/// the row could not make, so no row refuses.
 ///
 /// The `+`, the Add menu's Asset group and the right-click on empty Assets
 /// space all hold it.
-pub(crate) fn new_asset_items() -> Vec<CascadeItem> {
+pub(crate) fn new_asset_items(context: &MenuContext) -> Vec<CascadeItem> {
     KINDS
         .iter()
+        .filter(|row| verb_state(MenuVerbType::NewAsset(row.kind), context).is_live())
         .map(|row| {
             let kind = row.kind;
             let name = format!("Asset Add {}", row.heading);
-            if !row.add {
-                CascadeItem::leaf(name, kind_label(kind))
-                    .lead(asset_mark(kind))
-                    .greyed(row.waits)
-            } else if kind == "section" {
+            if kind == "section" {
                 CascadeItem::leaf(name, format!("{}...", kind_label(kind)))
                     .lead(asset_mark(kind))
                     .on_row(|row| {
@@ -601,12 +595,14 @@ fn on_asset_add(
     scale: Option<Res<UiScale>>,
     buttons: Query<(&ComputedNode, &UiGlobalTransform)>,
     roots: Query<Entity, With<PopupRoot>>,
+    facts: MenuFacts,
+    selected: Res<SelectedNode>,
 ) {
     let Ok((computed, at)) = buttons.get(activate.entity) else {
         return;
     };
     let at = below(computed, at, scale.map_or(1.0, |scale| scale.0));
-    let mut items = new_asset_items();
+    let mut items = new_asset_items(&facts.context(&selected));
     if store::CAN_SAVE {
         items.push(CascadeItem::separator());
         items.push(import_file_item());
@@ -708,12 +704,12 @@ pub(crate) fn asset_tile_keys(
     }
 }
 
-/// A right press on a tile: its verbs. A tile with none says why.
+/// A right press on a tile: its verbs. A tile of a kind the editor only
+/// lists has none, and opens no menu.
 fn on_asset_tile_menu(
     click: On<PointerClick>,
     mut commands: Commands,
     tiles: Query<(&AssetTile, Option<&AssetFileTile>)>,
-    entries: Query<&AssetWaits>,
     roots: Query<Entity, With<PopupRoot>>,
     facts: MenuFacts,
     selected: Res<SelectedNode>,
@@ -726,12 +722,12 @@ fn on_asset_tile_menu(
         return;
     };
     let file = file.map(|tile| tile.0.clone());
+    if asset.is_none() && file.is_none() {
+        return;
+    }
     let context = facts.context(&selected);
     close_popups(&mut commands, &roots);
     let asset = asset.clone();
-    let waits = entries
-        .get(click.event_target())
-        .map_or("", |waits| waits.0);
     let root = spawn_popup(
         &mut commands,
         click.pointer.position,
@@ -742,11 +738,6 @@ fn on_asset_tile_menu(
                 return;
             }
             let Some(asset) = asset else {
-                menu.spawn((
-                    Name::new("Asset Menu Waits"),
-                    popup_row(waits, ""),
-                    InteractionDisabled,
-                ));
                 return;
             };
             let in_scenario = project.as_ref().is_some_and(|project| {
@@ -914,10 +905,6 @@ pub(crate) struct ShownAssets {
     /// The folder's reading: a file verb that writes only the folder moves it.
     folder: u64,
 }
-
-/// Why a tile holds no verbs, read by its right-click menu.
-#[derive(Component)]
-struct AssetWaits(&'static str);
 
 /// Rebuild the tiles when their tab is open and the mod or the filter moved.
 pub(crate) fn sync_assets(
@@ -1162,7 +1149,6 @@ fn spawn_tile(
     let mut tile = list.spawn((
         Name::new(format!("Asset Tile {}", entry.label)),
         AssetTile(entry.id.clone()),
-        AssetWaits(entry.waits),
         ListRow,
         Tooltip(hint),
         Node {

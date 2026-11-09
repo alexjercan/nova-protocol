@@ -58,60 +58,59 @@ pub(crate) struct KindRow {
     pub(crate) heading: &'static str,
     /// Whether a double click opens an item of this kind.
     pub(crate) opens: bool,
-    /// Whether the Add menu can make one.
+    /// Whether a New Asset tree offers it. True only where choosing the row
+    /// makes an item that opens, saves and lints: a kind the editor cannot
+    /// make is not offered at all ([`crate::ui::menu_context::verb_state`]).
     pub(crate) add: bool,
-    /// Why it does not open, or why the Add menu cannot make one.
-    pub(crate) waits: &'static str,
 }
 
 /// Every content kind, in Assets tab order.
 pub(crate) const KINDS: [KindRow; 12] = [
-    KindRow::opens("scenario", "Scenarios"),
-    KindRow::opens("ship", "Ships"),
+    KindRow::made("scenario", "Scenarios"),
+    KindRow::made("ship", "Ships"),
     KindRow::placed("station", "Stations"),
-    KindRow::opens("section", "Sections"),
-    KindRow::opens("campaign", "Campaigns"),
-    KindRow::opens("style", "Styles"),
-    KindRow::waits("lesson", "Lessons", "kept as written"),
-    KindRow::opens("ui theme", "UI Themes"),
-    KindRow::opens("item", "Items"),
-    KindRow::opens("start role", "Start Roles"),
-    KindRow::opens("price table", "Price Tables"),
-    KindRow::opens("trade profile", "Trade Profiles"),
+    KindRow::made("section", "Sections"),
+    KindRow::made("campaign", "Campaigns"),
+    KindRow::made("style", "Styles"),
+    KindRow::listed("lesson", "Lessons"),
+    KindRow::made("ui theme", "UI Themes"),
+    KindRow::made("item", "Items"),
+    KindRow::made("start role", "Start Roles"),
+    KindRow::made("price table", "Price Tables"),
+    KindRow::made("trade profile", "Trade Profiles"),
 ];
 
 impl KindRow {
-    /// A kind the document can open.
-    const fn opens(kind: &'static str, heading: &'static str) -> Self {
+    /// A kind the editor makes blank and opens.
+    const fn made(kind: &'static str, heading: &'static str) -> Self {
         Self {
             kind,
             heading,
             opens: true,
             add: true,
-            waits: "",
         }
     }
 
-    /// A design only a scenario makes: it opens alone, and a new one is a
-    /// ship of a scenario marked as a station there, not added here.
+    /// A design only a scenario makes, from a ship marked as a station there.
+    /// It opens through that scenario. A free station design has no document
+    /// that opens it, writes it back and places it, so none is made here.
     const fn placed(kind: &'static str, heading: &'static str) -> Self {
         Self {
             kind,
             heading,
             opens: true,
             add: false,
-            waits: "a scenario makes one: mark a ship there as a station",
         }
     }
 
-    /// A kind that is kept and listed, and not edited here yet.
-    const fn waits(kind: &'static str, heading: &'static str, waits: &'static str) -> Self {
+    /// A kind the editor lists and keeps through a save, and neither opens
+    /// nor makes.
+    const fn listed(kind: &'static str, heading: &'static str) -> Self {
         Self {
             kind,
             heading,
             opens: false,
             add: false,
-            waits,
         }
     }
 }

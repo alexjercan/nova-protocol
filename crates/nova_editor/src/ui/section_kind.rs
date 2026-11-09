@@ -37,7 +37,7 @@ pub(crate) struct SectionKindModal {
 
 /// One kind's tile.
 #[derive(Component, Clone, Copy, Debug)]
-pub(crate) struct SectionKindTile(usize);
+pub(crate) struct SectionKindTile(pub(crate) usize);
 
 /// The modal's width, as New Mod's.
 const MODAL_W: f32 = 500.0;

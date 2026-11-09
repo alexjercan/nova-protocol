@@ -39,7 +39,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Editor Mod Settings edits the manifest and dependencies. A remove that content still needs and a cycle are refused; picking from an undeclared mod adds the dependency in the same undo step.
 - Editor Assets > + > Sections builds a section in the mod: sockets on the gizmo, .glb import, live Problems. Ships can carry it, and Play flies it.
 - Editor Assets opens styles, start roles, items, price tables, trade profiles, UI themes and campaigns as undoable forms. Lists and ids are picked, not typed. Merge rules show in Problems.
-- Editor + opens New Asset: a blank item with a new id. A section asks its kind first, in a modal. Problems lists what the blank still needs, and Save, Play and Package wait until it is filled.
+- Editor New Asset (+, right click, Add) offers only kinds it can make: a blank with a new id. A section asks its kind in a modal. Save, Play and Package wait until the blank is filled.
 - Editor UI theme palettes are a grid of named swatches with a picker: a square, a hue strip and a hex field. The pick shows live, is one undo step, and Esc takes it back.
 - Editor File > Package opens a window: version bump, lint check, files, name. It writes `<id>-<version>.zip` and shows its path and size. Hub Import refuses unsafe paths. Desktop only.
 - New `OnJobAccepted` scenario event fires when the Jobs pane accepts a board offer, with the job's id as `id`.

@@ -104,6 +104,19 @@ S16. The Ship editor has its own input, not the scenario's. The wheel cycles
     turn tools, so drop them, keep the scenario camera, and fix the turn key.
 S17. A placed Events block flickers to the top left corner while it is
     dragged.
+S18. Never offer what cannot be made. Owner: "why would you show Lesson in
+    the add menu if you cannot add a lesson???? like what even is the
+    point?? station too??". A New Asset tree (Add > Asset, the Assets `+`,
+    the Assets right click) shows a kind only if choosing it makes a working
+    asset. Anything else is hidden, not greyed. The same rule holds for the
+    scenario and section Add submenus: no row that refuses when chosen.
+S19. One fixed set of colour variables for every UI theme. Owner: "for UI
+    theme why are they different like why don't we have a set of rules, we
+    should have the same color names like the same variables for all color
+    UI themes". The palette is a typed struct with job-named fields. A root
+    theme sets every field; a derived theme sets the fields it changes. An
+    unknown colour name fails at parse or lint. The editor form shows the
+    same swatch rows for every theme.
 
 ## Decisions
 

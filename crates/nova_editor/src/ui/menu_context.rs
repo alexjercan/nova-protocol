@@ -29,7 +29,7 @@ use crate::{
     inspect::{item_text, AssetTextType},
     node::{EditContext, SectionNode},
     placement::{deletable, DeletableNode},
-    project::{store::CAN_SAVE, verbs::pressed, DocumentType, ModProject},
+    project::{store::CAN_SAVE, verbs::pressed, DocumentType, ModProject, KINDS},
 };
 
 /// The collider shapes a section can author, in the order Add lists them.
@@ -75,8 +75,6 @@ pub(crate) enum MenuVerbType {
     Rebind,
     /// Add in a scenario's stage: its ships, objects, lights and markers.
     AddWorld,
-    /// Add in Events: the script palette's hint.
-    AddScript,
     /// Add in a ship: the part categories.
     AddPart,
     /// The Hierarchy's Add Part on a ship row: it enters the ship and opens
@@ -92,6 +90,8 @@ pub(crate) enum MenuVerbType {
     AddSocket,
     /// The canvas's Clean Up: the scripts in one column.
     CleanUp,
+    /// A row of a New Asset tree: a blank item of this kind, open.
+    NewAsset(&'static str),
     /// A verb of an Assets tile, and the kind of what the tile holds.
     Tile(AssetVerbType, &'static str, bool),
     /// A verb of an Assets file tile, and what is known of the file.
@@ -164,6 +164,8 @@ pub(crate) struct MenuContext {
     pub(crate) saved: bool,
     /// The open section's parts, when a section is open.
     pub(crate) section: Option<SectionFacts>,
+    /// The mod states its one price table.
+    pub(crate) price_table: bool,
 }
 
 /// What hiding, greying and showing reads from the world, beside the
@@ -219,6 +221,10 @@ impl MenuFacts<'_, '_> {
                 .as_ref()
                 .is_some_and(|project| project.id.is_some()),
             section,
+            price_table: self
+                .project
+                .as_ref()
+                .is_some_and(|project| !project.data.ids_of("price table").is_empty()),
         }
     }
 }
@@ -298,39 +304,45 @@ pub(crate) fn verb_state(verb: MenuVerbType, context: &MenuContext) -> VerbState
         ),
         Verb::Parts | Verb::PosePart | Verb::Rebind => Hidden,
         Verb::AddWorld if context.view == View::Scene => Live,
-        Verb::AddScript if context.view == View::Events => {
-            greyed("blocks are dragged out of the palette")
-        }
         Verb::AddPart if context.view == View::Ship => Live,
         Verb::EnterShipParts if matches!(context.view, View::Scene | View::Ship) => Live,
-        Verb::AddWorld | Verb::AddScript | Verb::AddPart | Verb::EnterShipParts => Hidden,
+        Verb::AddWorld | Verb::AddPart | Verb::EnterShipParts => Hidden,
         Verb::AddSectionPart | Verb::AddSocket => match context.section {
             Some(_) => Live,
             None => Hidden,
         },
+        // An Add row that would refuse is not offered: a turret's meshes sit
+        // on its joints, a mesh is copied into the mod's folder, which an
+        // unsaved mod does not have, and the held shape is set already.
         Verb::AddMesh => match context.section.map(|section| section.mesh) {
-            None => Hidden,
-            Some(MeshSlotType::PerJoint) => {
-                greyed("a turret holds a mesh on each joint: see its joints in the Inspector")
-            }
-            Some(_) => live_if(
-                context.saved,
-                "save the mod first: a mesh is copied into its folder",
-            ),
+            Some(MeshSlotType::Empty | MeshSlotType::Set) if context.saved => Live,
+            _ => Hidden,
         },
         Verb::AddCollider(shape) => match context.section.map(|section| section.collider) {
             None => Hidden,
-            Some(Some(held)) if held == shape => {
-                Greyed(format!("the collider is a {shape} already"))
-            }
+            Some(Some(held)) if held == shape => Hidden,
             Some(_) => Live,
         },
+        Verb::NewAsset(kind) => new_asset_state(kind, context),
         Verb::CleanUp if context.view == View::Events => Live,
         Verb::CleanUp => Hidden,
         Verb::Tile(verb, kind, in_scenario) => {
             tile_state(verb, kind, in_scenario, context.document)
         }
         Verb::File(verb, file) => file_state(verb, file),
+    }
+}
+
+/// How New Asset > `kind` shows. A row is offered only where choosing it makes
+/// an item that opens, saves and lints; anything else is hidden, never greyed:
+/// a kind the editor does not make ([`KINDS`]), and a second price table.
+fn new_asset_state(kind: &str, context: &MenuContext) -> VerbState {
+    let made = KINDS.iter().any(|row| row.kind == kind && row.add);
+    let second_table = kind == "price table" && context.price_table;
+    if made && !second_table {
+        VerbState::Live
+    } else {
+        VerbState::Hidden
     }
 }
 
@@ -563,11 +575,12 @@ pub(crate) mod tests {
                 mesh: MeshSlotType::Empty,
                 collider: None,
             }),
+            price_table: false,
         }
     }
 
-    /// Add holds only what the open document takes: a scenario's world or its
-    /// script, a ship's parts, a section's own parts. A form adds only a new
+    /// Add holds only what the open document takes: a scenario's world, a
+    /// ship's parts, a section's own parts. Events and a form add only a new
     /// asset, which every document offers. The Ship menu shows only in a ship.
     #[test]
     fn each_document_offers_only_its_own_add_verbs() {
@@ -577,7 +590,6 @@ pub(crate) mod tests {
 
         let verbs = [
             Verb::AddWorld,
-            Verb::AddScript,
             Verb::AddPart,
             Verb::AddSectionPart,
             Verb::Menu(MenuId::Add),
@@ -589,11 +601,7 @@ pub(crate) mod tests {
                 View::Scene,
                 vec![Verb::AddWorld, Verb::Menu(MenuId::Add)],
             ),
-            (
-                Doc::Scenario,
-                View::Events,
-                vec![Verb::AddScript, Verb::Menu(MenuId::Add)],
-            ),
+            (Doc::Scenario, View::Events, vec![Verb::Menu(MenuId::Add)]),
             (
                 Doc::Ship,
                 View::Ship,
@@ -623,8 +631,9 @@ pub(crate) mod tests {
     }
 
     /// A section holds one mesh and at most one collider: Add sets the first,
-    /// then the rows say Replace. The shape it already has is greyed with the
-    /// reason, and a turret's mesh is greyed because it sits on the joints.
+    /// then the rows say Replace. A row that would refuse is hidden: the shape
+    /// it has already, a turret's mesh, which sits on the joints, and a mesh in
+    /// a mod with no folder to copy it into.
     #[test]
     fn a_section_part_reads_add_until_it_is_set_then_replace() {
         let mut at = context(DocumentType::Section, EditorViewType::Section);
@@ -647,25 +656,19 @@ pub(crate) mod tests {
             verb_label(MenuVerbType::AddMesh, &at).as_deref(),
             Some("Replace Mesh...")
         );
-        assert!(matches!(verb_state(sphere, &at), VerbState::Greyed(_)));
+        assert_eq!(verb_state(sphere, &at), VerbState::Hidden);
 
         at.section = Some(SectionFacts {
             mesh: MeshSlotType::PerJoint,
             collider: None,
         });
-        assert!(matches!(
-            verb_state(MenuVerbType::AddMesh, &at),
-            VerbState::Greyed(_)
-        ));
+        assert_eq!(verb_state(MenuVerbType::AddMesh, &at), VerbState::Hidden);
         at.saved = false;
         at.section = Some(SectionFacts {
             mesh: MeshSlotType::Empty,
             collider: None,
         });
-        assert!(matches!(
-            verb_state(MenuVerbType::AddMesh, &at),
-            VerbState::Greyed(_)
-        ));
+        assert_eq!(verb_state(MenuVerbType::AddMesh, &at), VerbState::Hidden);
     }
 
     /// The sync greys a verb that fits but cannot run, with the reason on its

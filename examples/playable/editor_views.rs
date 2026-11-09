@@ -283,6 +283,64 @@ mod smoke {
             .add()
     }
 
+    /// The New Asset rows no tree may hold: kinds the editor does not make.
+    const NOT_MADE: &[&str] = &["Asset Add Lessons", "Asset Add Stations"];
+
+    /// Whether the New Asset tree stands, with no row for a kind the editor
+    /// does not make.
+    fn only_made_kinds() -> Arc<Predicate> {
+        Arc::new(|world: &World| {
+            ui_node_present("Asset Add Scenarios")(world)
+                && NOT_MADE.iter().all(|row| !ui_node_present(*row)(world))
+        })
+    }
+
+    /// Open Add > Asset and read it: every row makes something, so no Lesson
+    /// and no Station. Shoot it, and put the menu away.
+    fn read_the_add_asset_tree(
+        script: AutopilotPlugin<GameStates>,
+        width: u32,
+    ) -> AutopilotPlugin<GameStates> {
+        let script = script
+            .click_named(
+                "views: open Add for its Asset group",
+                ADD_MENU,
+                ui_node_present("Add Menu Asset"),
+                BEAT_SECS,
+            )
+            .step("views: point at Add > Asset")
+            .on_enter(hover_named("Add Menu Asset"))
+            .until(only_made_kinds())
+            .diagnose(|world: &World| {
+                let standing: Vec<&str> = NOT_MADE
+                    .iter()
+                    .copied()
+                    .filter(|row| ui_node_present(*row)(world))
+                    .collect();
+                format!("standing {standing:?}")
+            })
+            .deadline(BEAT_SECS)
+            .add()
+            .step("views: read Add > Asset")
+            .on_enter(|_world: &mut World| {
+                info!("views: PASS Add > Asset offers no Lesson and no Station");
+            })
+            .add();
+        let script = shot(script, width, "add-asset");
+        script
+            .step("views: put Add > Asset away")
+            .on_enter(press_key(KeyCode::Escape))
+            .until(Arc::new(|world: &World| {
+                !ui_node_present("Add Menu Asset")(world)
+            }))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("views: let Escape go on Add > Asset")
+            .on_enter(release_key(KeyCode::Escape))
+            .until(frames(2))
+            .add()
+    }
+
     /// Wait for a view switch of exactly `wanted`, say so, and shoot it.
     fn read_the_views(
         script: AutopilotPlugin<GameStates>,
@@ -365,6 +423,7 @@ mod smoke {
             ],
             &["Add Menu Parts", "Add Socket Item", "Add Mesh Item"],
         );
+        let script = read_the_add_asset_tree(script, width);
         let script = script
             .step("views: the Ship menu is the ship's")
             .until(Arc::new(|world: &World| !ui_node_present(SHIP_MENU)(world)))
@@ -399,6 +458,17 @@ mod smoke {
                 ui_node_present("Asset Add Sections"),
                 BEAT_SECS,
             )
+            .step("views: + offers only kinds it makes")
+            .until(only_made_kinds())
+            .deadline(BEAT_SECS)
+            .add()
+            .step("views: read the + menu")
+            .on_enter(|_world: &mut World| {
+                info!("views: PASS + offers no Lesson and no Station");
+            })
+            .add();
+        let script = shot(script, width, "plus");
+        let script = script
             .click_named(
                 "views: add a section",
                 "Asset Add Sections",
