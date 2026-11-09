@@ -858,23 +858,30 @@ fn log_plugin(assembly: Assembly) -> LogPlugin {
 const THIRD_PARTY_FILTER: &str = "wgpu=error,bevy_ecs=warn,bevy_time=warn,naga=warn";
 
 /// The bevy diagnostics a BACKENDLESS run provokes by construction: one ERROR
-/// ("Render app did not exist when trying to add `extract_resource`"), the
-/// `CompressedImageFormatSupport` warning, and gizmos noticing there is no
-/// `RenderApp`. All three are correct reports of a state
-/// [`AppBuilder::headless`] asks for on purpose, and all three are unreachable
-/// when a render sub-app exists - so this is only ever added to a headless
-/// filter, and a rendering run keeps every one of these targets at its normal
-/// level.
+/// ("Sub app did not exist when trying to add `extract_resource`", raised by
+/// `CameraPlugin`'s `ClearColor` extract), the "sub world does not exist" sync
+/// warning, the `CompressedImageFormatSupport` warning, and gizmos noticing
+/// there is no `RenderApp`. All are correct reports of a state
+/// [`AppBuilder::headless`] asks for on purpose, and all are unreachable when a
+/// render sub-app exists - so this is only ever added to a headless filter, and
+/// a rendering run keeps every one of these targets at its normal level.
 ///
-/// The two `bevy_render` targets are MODULES, not the crate: at the pinned
-/// version `bevy_render::extract_resource` logs nothing but the missing-render-
-/// app pair and `bevy_render::texture` nothing but the compressed-format
-/// warning, so silencing them cannot hide an unrelated error. Gizmos has no
-/// such split - its remaining warnings are line-style complaints raised while
-/// DRAWING, which a run with no renderer never reaches - so it is clamped to
-/// `error` rather than off.
-const HEADLESS_FILTER: &str =
-    "bevy_render::extract_resource=off,bevy_render::texture=off,bevy_gizmos_render=error";
+/// The `bevy_extract` and `bevy_render` targets are MODULES, not crates: at the
+/// pinned version (bevy 0.20.1) `bevy_extract::extract_resource` logs nothing
+/// but the missing-sub-app ERROR and a removed-resource warning that needs a
+/// sub-app, `bevy_extract::sync_component` nothing but the missing-sub-world
+/// warning, and `bevy_render::texture` nothing but the compressed-format
+/// warning, so silencing them cannot hide an unrelated error. A target names
+/// the module where the macro EXPANDS, not a re-export: bevy 0.20 moved
+/// extraction from `bevy_render` to `bevy_extract`, and a directive left on the
+/// old path silences nothing. `bevy_gltf` logs the same compressed-format
+/// warning from its crate root, so it stays unclamped: a crate-wide directive
+/// would hide real glTF load warnings. Gizmos has no module split either - its
+/// remaining warnings are line-style complaints raised while DRAWING, which a
+/// run with no renderer never reaches - so it is clamped to `error` rather than
+/// off.
+const HEADLESS_FILTER: &str = "bevy_extract::extract_resource=off,\
+bevy_extract::sync_component=off,bevy_render::texture=off,bevy_gizmos_render=error";
 
 /// The one INFO line an offscreen recording provokes by construction, once per
 /// captured tick: `save_to_disk`'s "Screenshot saved to ..". The clamp is to
@@ -1280,14 +1287,15 @@ mod tests {
     #[test]
     fn a_rendering_run_keeps_the_bevy_targets_a_headless_run_clamps() {
         let filter = log_filter_str(Assembly::Windowed);
-        assert!(!filter.contains("bevy_render::extract_resource"));
+        assert!(!filter.contains("bevy_extract"));
         assert!(!filter.contains("bevy_gizmos_render"));
     }
 
     #[test]
-    fn a_headless_run_clamps_the_three_diagnostics_it_provokes_by_construction() {
+    fn a_headless_run_clamps_the_diagnostics_it_provokes_by_construction() {
         let filter = log_filter_str(Assembly::Headless);
-        assert!(filter.contains("bevy_render::extract_resource=off"));
+        assert!(filter.contains("bevy_extract::extract_resource=off"));
+        assert!(filter.contains("bevy_extract::sync_component=off"));
         assert!(filter.contains("bevy_render::texture=off"));
         assert!(filter.contains("bevy_gizmos_render=error"));
     }
@@ -1297,7 +1305,7 @@ mod tests {
         let filter = log_filter_str(Assembly::Offscreen);
         assert!(filter.contains("bevy_render::view::window::screenshot=warn"));
         assert!(
-            !filter.contains("bevy_render::extract_resource"),
+            !filter.contains("bevy_extract"),
             "offscreen has a render sub-app; the headless clamps do not apply"
         );
         assert!(!log_filter_str(Assembly::Windowed).contains("screenshot"));
