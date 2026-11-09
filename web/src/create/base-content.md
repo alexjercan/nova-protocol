@@ -161,8 +161,8 @@ draws them under. A mod may add its own campaigns, or replace `season_one` by
 reusing its id - see [Campaigns](../campaigns/).
 
 There are no other content kinds - a content file holds `Section`, `Scenario`,
-`Campaign`, `Ship`, `Station`, `StartRole`, `Style`, `Lesson`, `UiTheme` and
-`Item` items only;
+`Campaign`, `Ship`, `Station`, `StartRole`, `Style`, `Lesson`, `UiTheme`,
+`Item`, `PriceTable` and `TradeProfile` items only;
 factions are not content, and neither is impact audio, a comms channel or the
 table a generated hull is drawn from - all three are engine-owned. The base
 ship ids are tabled in [Ships](../ships/#base-ships), the start role ids in
@@ -317,8 +317,10 @@ How a mod item interacts with this catalog (implemented in
 `crates/nova_assets/src/items.rs`):
 
 - The matching key is the id string per kind - `Section` matches on
-  `base.id`; `Scenario`, `Campaign`, `Ship`, `Style`, `Lesson`, `UiTheme` and
-  `Item` on `id`. Names and file paths never participate.
+  `base.id`; `Scenario`, `Campaign`, `Ship`, `Station`, `StartRole`, `Style`,
+  `Lesson`, `UiTheme`, `Item` and `TradeProfile` on `id`. There is one
+  `PriceTable`: a later bundle's table replaces it whole. Names and file paths
+  never participate.
 - Same id as base (or an earlier bundle) = REPLACE, whole item. It is not a
   field-level patch: an overlay must restate every field it wants to keep.
   `Item` replacement requires a one-way dependency chain from the replacing

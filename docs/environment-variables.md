@@ -229,9 +229,8 @@ names its own root on `SettingsStorePlugin` instead.
   `NOVA_UNFREEZE` re-opens it, and appends its rows to the existing manifest
   under their own commit header; a re-opened re-cut replaces that group.
   Any value other than `0` or `1` fails.
-- **Retired.** `NOVA_MENU_PATH` is read by nothing. `examples/ui/editor.rs`
-  owns the create-a-ship-and-Play sequence end to end, so `system_menu_boot`
-  dropped the branch; the only surviving mention is that example's module doc
+- **Retired.** `NOVA_MENU_PATH` is read by nothing. `system_menu_boot` has no
+  editor branch; the only surviving mention is that example's module doc
   saying the branch is gone.
 - **Foreign variables the code legitimately reads**: `DISPLAY`,
   `WAYLAND_DISPLAY`, `RUST_LOG`, `BEVY_ASSET_ROOT`, `CARGO_*`, `CI`,

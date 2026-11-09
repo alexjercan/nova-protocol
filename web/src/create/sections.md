@@ -755,9 +755,8 @@ Section-wide fields (once, alongside `root`):
     exceeds one round's worth. It pays for travel out of a separate power
     budget: crossing a section costs that section's `health` RATING (not its
     remaining health), and closing speed divides that cost (clamped
-    0.5x..3.0x). POWER IS THE ONLY BOUND - there is no layer cap - so a
-    section authored with a `health` of zero costs nothing to cross and stops
-    the round instead of letting it chain without limit.
+    0.5x..3.0x). POWER IS THE ONLY BOUND - there is no layer cap. A `health`
+    of zero or less fails lint, so every crossing costs power.
   - `Explosive` on a bullet is spent on its first hit. A torpedo blast uses the
     Explosive pressure rule described below.
 

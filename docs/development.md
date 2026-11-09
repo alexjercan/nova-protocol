@@ -817,10 +817,12 @@ you the resize, not the change.
 
 ### The theme is shared with the game
 
-`web/src/style.css` and `crates/nova_ui/src/theme.rs` both mirror the `:root`
-block of `web/design/nova_ui_rework_poc.html` - the interface palette and its
-control vocabulary. That PoC is the single source: change it first, then both
-consumers.
+`web/src/style.css` and the base theme builders in
+`crates/nova_ui/src/theme/base.rs` both mirror the `:root` block of
+`web/design/nova_ui_rework_poc.html` - the interface palette and its control
+vocabulary. That PoC is the single source: change it first, then both
+consumers. The builders are content: `content gen` writes them to
+`assets/base/ui_themes/base.content.ron`, so regenerate after a change.
 
 The PoC ships two skins and the site wears only one. Everything the site draws
 comes from the PHOSPHOR skin (the PoC's `body[data-skin="phosphor"]` widget

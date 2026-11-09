@@ -99,9 +99,10 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    damaged is a separate, authored decision - step 8.
 
    The interface's Ship pane labels sections by this enum: add an arm to the
-   exhaustive matches `code_prefix`, `kind_description` and `kind_index` in
-   `crates/nova_interface/src/ship/sections.rs`, and to `SectionIconType::of`
-   in `crates/nova_interface/src/icons.rs`.
+   exhaustive matches `code_prefix` and `kind_index` in
+   `crates/nova_interface/src/ship/sections.rs`, `class_noun` in
+   `crates/nova_interface/src/ship/refit.rs`, and `SectionIconType::of` in
+   `crates/nova_interface/src/icons.rs`.
 
 4. **Wire the section plugin.**
    In `crates/nova_ship/src/sections/mod.rs`, add your plugin to the
@@ -130,36 +131,40 @@ Replace `<kind>` / `<Kind>` below with your section name (e.g. `shield` /
    This is the production spawn path; see the [Scenario engine](scenario-system.md)
    for how the spaceship object and its section observer fit together.
 
-6. **Editor placement arms.**
-   Two exhaustive matches, in two files. `default_binds_for`
+6. **Placement and preview arms.**
+   Three exhaustive matches, in three files. `default_binds`
    (`crates/nova_editor/src/placement.rs`) gives the kind its default key/pad
-   binding, or `vec![]` if it takes none - model `Hull` for unbindable,
-   `Thruster` or `Turret` for bindable. `insert_preview_section`
-   (`crates/nova_editor/src/preview.rs`) inserts the `<kind>_section(...)`
-   bundle beside the shared `preview_section(...)` recipe, plus the kind's
-   input-binding component if it has one.
+   binding in the editor, or `vec![]` if it takes none - model `Hull` for
+   unbindable, `Thruster` or `Turret` for bindable. `added_section_binds`
+   (`crates/nova_ship/src/sections/section_add.rs`) gives the binding a
+   section of the class takes when a station adds it to a ship.
+   `insert_preview_section` (`crates/nova_ship/src/sections/section_preview.rs`)
+   inserts the kind's `preview_<kind>_section(...)` bundle beside the shared
+   `preview_section(...)` recipe. Write that preview half in your section
+   module beside `<kind>_section`: the render mesh and the config the render
+   observers read, and none of the live state. A preview carries no input
+   binding.
 
    Nothing here computes a placement POSE. The editor mates link points
    (`snap_placement`, `nova_ship::sections::link_points`), so orientation comes
    from the two sockets, not from the kind - which is what lets a part mate the
-   same way up on any socket. Recording the placed section into
-   `player_config.sections` is likewise generic
-   (`register_preview_section`), so the arms only insert.
+   same way up on any socket. Recording the placed section is generic too, so
+   the arms only insert.
 
 7. **Parts gallery category + readouts.**
-   In `crates/nova_editor/src/gallery/catalog.rs`, add a `GalleryCategory`
-   variant (with its `ROW` entry, `label()` and `accepts()` arms), then arms to
-   `kind_label()` and `behaviour()`. All of them match `SectionKind`
-   exhaustively, so the compiler walks you through it:
+   In `crates/nova_ship/src/gallery/catalog.rs`, add an arm to
+   `GalleryCategory::of()` and to `behaviour()`. Both match `SectionKind`
+   exhaustively, so the compiler walks you through it. Put the kind under an
+   existing category, or add a `GalleryCategory` variant with its `ROW` entry
+   and `label()` arm. `kind_label()`, the tile's category line, reads the
+   category's label, so it needs no arm:
 
    ```rust
-   // accepts
-   Self::Shields => matches!(kind, SectionKind::Shield(_)),
-   // kind_label - the tile's category line
-   SectionKind::Shield(_) => "shields",
+   // GalleryCategory::of
+   SectionKind::Shield(_) => Self::Shields,
    // behaviour - the two or three numbers a builder picks the part BY
    SectionKind::Shield(shield) => {
-       vec![("capacity".to_string(), format!("{:.0}", shield.capacity))]
+       vec![("Capacity".to_string(), format!("{:.0}", shield.capacity))]
    }
    ```
 
@@ -244,9 +249,12 @@ runnable proof -- so double-check those by hand.
   interface's label matches - `crates/nova_interface/src/ship/sections.rs`.
 - Spawn arm: `insert_spaceship_sections` -
   `crates/nova_scenario/src/objects/spaceship.rs`.
-- Editor arms: `default_binds_for` - `crates/nova_editor/src/placement.rs`;
-  `insert_preview_section` - `crates/nova_editor/src/preview.rs`;
-  `GalleryCategory` - `crates/nova_editor/src/gallery/catalog.rs`.
+- Placement and preview arms: `default_binds` -
+  `crates/nova_editor/src/placement.rs`; `added_section_binds` -
+  `crates/nova_ship/src/sections/section_add.rs`; `insert_preview_section` -
+  `crates/nova_ship/src/sections/section_preview.rs`.
+- Gallery arms: `GalleryCategory::of`, `behaviour` -
+  `crates/nova_ship/src/gallery/catalog.rs`.
 - Cross-crate prototype ids: `crates/nova_ship/src/sections/catalog_ids.rs`.
 - Prototypes: `section_catalog` -
   `crates/nova_authoring/src/base_content/sections/mod.rs`, with one
