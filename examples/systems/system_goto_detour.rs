@@ -637,10 +637,10 @@ fn census_leg(
     detour.min_daylight = detour.min_daylight.min(daylight);
 
     let corner = autopilot.and_then(|autopilot| autopilot.detour);
-    if corner.is_some() {
+    if let Some(seen) = corner {
         detour.detour_seen = true;
         if detour.last_corner != corner {
-            detour.corners.push(corner.expect("checked is_some above"));
+            detour.corners.push(seen);
         }
     }
     detour.last_corner = corner;

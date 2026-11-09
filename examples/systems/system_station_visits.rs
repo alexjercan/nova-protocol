@@ -520,10 +520,6 @@ mod walk {
     }
 
     /// A live station that offers Trade or Jobs, with where it stands.
-    #[expect(
-        clippy::type_complexity,
-        reason = "the living-station filter repeats the writer's markers"
-    )]
     fn offering_stations(world: &mut World) -> Vec<(GeneratedBodyId, Meters3, bool, bool)> {
         world
             .query_filtered::<(&GeneratedBodyId, &GlobalTransform, Option<&StationServices>), (
@@ -552,10 +548,6 @@ mod walk {
     /// Log which profiled ships stand near which offering station on this
     /// seed. Fails loudly when no profiled ship has an offering station in
     /// reach, so a seed that cannot prove the claim says so at once.
-    #[expect(
-        clippy::type_complexity,
-        reason = "the ship filter repeats the writer's markers"
-    )]
     fn census(world: &mut World) {
         let seed = seed();
         let stations = offering_stations(world);

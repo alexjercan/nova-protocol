@@ -2701,8 +2701,7 @@ fn a_price_rule_is_added_distinct_removed_and_refused_when_none_is_left() {
 
     let last = rows
         .iter()
-        .filter(|row| matches!(row.value, RowValue::Remove) && row.label.starts_with("Clusters"))
-        .last()
+        .rfind(|row| matches!(row.value, RowValue::Remove) && row.label.starts_with("Clusters"))
         .expect("the new rule")
         .path
         .clone();

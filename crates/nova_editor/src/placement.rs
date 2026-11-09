@@ -1908,7 +1908,7 @@ mod tests {
     fn r_rolls_the_part_in_hand_and_shift_r_rolls_it_back() {
         let mut world = World::new();
         world.insert_resource(GameSections(vec![hull_config("hull")]));
-        world.insert_resource(HeldPart(Some("hull".to_string().into())));
+        world.insert_resource(HeldPart(Some("hull".to_string())));
         world.init_resource::<PlacementPose>();
         let press = |world: &mut World, keys: &[KeyCode]| {
             let mut input = ButtonInput::<KeyCode>::default();
@@ -1930,7 +1930,7 @@ mod tests {
     #[test]
     fn q_picks_a_part_only_in_the_ship_editor() {
         let mut world = World::new();
-        world.insert_resource(HeldPart(Some("hull".to_string().into())));
+        world.insert_resource(HeldPart(Some("hull".to_string())));
         world.insert_resource(EditorViewType::Scene);
         let mut input = ButtonInput::<KeyCode>::default();
         input.press(KeyCode::KeyQ);

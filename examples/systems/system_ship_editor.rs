@@ -2523,7 +2523,7 @@ fn editor_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             let probe = world.resource::<EditorProbe>();
             let (nodes, poses) = (probe.context_nodes.clone(), probe.node_positions.clone());
             assert!(
-                nodes.iter().any(|node| *node == second),
+                nodes.contains(&second),
                 "the run built a second ship, so the document to save holds one"
             );
             let walk = &mut world.resource_mut::<EditorWalk>();
@@ -3360,8 +3360,7 @@ fn the_second_ship_is_closed() -> Wait {
         !world
             .resource::<EditorProbe>()
             .context_nodes
-            .iter()
-            .any(|node| *node == second)
+            .contains(&second)
     })
 }
 
@@ -3817,10 +3816,6 @@ fn inspector_labels(world: &World) -> Vec<String> {
         .map(|(label, _)| label.clone())
         .collect()
 }
-
-/// The scenario id the editor's save writes its range under: derived from the
-/// stock range's own name, which is what the offered name field holds.
-#[cfg(feature = "debug")]
 
 /// The tile that range is offered on in the Assets grid.
 #[cfg(feature = "debug")]

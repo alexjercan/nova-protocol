@@ -181,7 +181,7 @@ fn the_wheel_with_no_gesture_dollies_even_with_a_part_in_hand() {
     assert_ne!(pose(&app, eye), start);
 
     let closer = pose(&app, eye);
-    app.world_mut().resource_mut::<HeldPart>().0 = Some("hull".to_string().into());
+    app.world_mut().resource_mut::<HeldPart>().0 = Some("hull".to_string());
     wheel(&mut app, 1.0);
     step(&mut app);
     assert_ne!(

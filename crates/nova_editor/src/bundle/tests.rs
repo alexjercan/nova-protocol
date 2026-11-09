@@ -303,7 +303,7 @@ fn a_retry_naming_another_scenario_is_left_alone() {
 /// one, and the spawn would stop being what the modder wrote.
 #[test]
 fn a_hand_written_inline_hull_stays_as_authored() {
-    let items = vec![scenario(vec![spawn(instance(
+    let items = [scenario(vec![spawn(instance(
         "inline_hulk",
         ShipDesignSource::Inline(ShipDesign {
             sections: vec![section("spine")],
@@ -1022,7 +1022,7 @@ fn two_saves_with_the_same_ship_ids_do_not_collide() {
     let first = lower_as(&mut world_with_document(), "editor_first");
     let second = lower_as(&mut world_with_document(), "editor_second");
 
-    let outcome = nova_assets::merge_bundles([first.iter(), second.iter()].into_iter());
+    let outcome = nova_assets::merge_bundles([first.iter(), second.iter()]);
 
     assert_eq!(outcome.ships.len(), 2, "each range keeps its own hull");
 }
