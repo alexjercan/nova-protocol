@@ -144,6 +144,8 @@ A hull carrying a [cargo intake](../sections/cargo-intake/#taking-a-canister-in)
 
 Within **100 m**, each canister carries an amber **tag** that reads what it holds, such as `4 Hull plate`, or `Mixed cargo` for more than one item, with its total mass under it.
 
+- **Pickup tick.** The moment your intake takes a canister, one line per stack prints above the key row, such as `+4 HULL PLATE`, and leaves after 1.5 s. A take your hold's room cut short lists only what came aboard. At most three lines show; a fourth pushes the oldest out. The intake blinks warm at the same moment. The tick has no sound of its own: the take sound is the intake's.
+
 ## Allegiance markers
 
 A small filled triangle floats above every ship in view, pointing down at the hull and coloured by how it stands to YOU: **green** for your allies (your AI wingmen included), **red** for hostiles, **grey** for neutral bystanders. Your own ship shows none - you know where you are. The triangle tracks each ship and hides when it leaves the screen (pointing at off-screen ships is the edge indicators' job); a ship re-aligned mid-scenario flips its marker on the spot, and so does an armed Neutral ship answering your fire - red while it is hitting back at you, grey again once it lets go, even though its side never changed. It reads at a glance so a mixed brawl - wingmen and enemies tangled together - stays legible. See [Factions](../factions/).

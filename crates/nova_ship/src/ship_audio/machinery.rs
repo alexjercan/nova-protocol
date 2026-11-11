@@ -531,8 +531,10 @@ mod tests {
         }
         app.world_mut()
             .trigger(CargoCanisterEjected { entity: intake });
-        app.world_mut()
-            .trigger(CargoCanisterTaken { entity: intake });
+        app.world_mut().trigger(CargoCanisterTaken {
+            entity: intake,
+            stacks: Vec::new(),
+        });
         app.world_mut().flush();
 
         let server = app.world().resource::<AssetServer>().clone();

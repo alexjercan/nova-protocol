@@ -32,9 +32,9 @@ fn intake_config() -> CargoIntakeSectionConfig {
     }
 }
 
-/// How many [`CargoCanisterTaken`] events fired.
+/// Every [`CargoCanisterTaken`] that fired, as its stacks.
 #[derive(Resource, Default)]
-struct Takes(u32);
+struct Takes(Vec<Vec<TakenStack>>);
 
 /// A headless app with one hull carrying `stock` hull plates in a 400 kg
 /// hold and one intake at each hull-local x in `intakes_x`. Returns the app,
@@ -50,8 +50,8 @@ fn intakes_app(stock: u32, intakes_x: &[f32]) -> (App, Entity, Vec<Entity>) {
     // Not pulled in by CargoIntakeSectionPlugin itself: only NovaGameplayPlugin
     // owns it in a real app, which this minimal rig never adds.
     app.init_resource::<CargoCanisterIdAllocator>();
-    app.add_observer(|_: On<CargoCanisterTaken>, mut takes: ResMut<Takes>| {
-        takes.0 += 1;
+    app.add_observer(|taken: On<CargoCanisterTaken>, mut takes: ResMut<Takes>| {
+        takes.0.push(taken.stacks.clone());
     });
     app.insert_resource(test_items());
     app.finish();
@@ -213,7 +213,19 @@ fn plates(app: &App, ship: Entity) -> u32 {
 }
 
 fn takes(app: &App) -> u32 {
-    app.world().resource::<Takes>().0
+    app.world().resource::<Takes>().0.len() as u32
+}
+
+/// The stacks the last take reported, as (item id, count).
+fn last_take(app: &App) -> Vec<(String, u32)> {
+    app.world()
+        .resource::<Takes>()
+        .0
+        .last()
+        .expect("a take fired")
+        .iter()
+        .map(|stack| (stack.item.as_str().to_string(), stack.count))
+        .collect()
 }
 
 fn door(app: &App, intake: Entity) -> f32 {
@@ -531,6 +543,11 @@ fn a_canister_heavier_than_the_free_room_gives_up_the_whole_items_that_fit() {
     }
     assert_eq!(plates(&app, ship), 40, "the two that fit are taken");
     assert_eq!(takes(&app), 1);
+    assert_eq!(
+        last_take(&app),
+        [("HullPlate".to_string(), 2)],
+        "the take reports only what it moved"
+    );
     assert_eq!(pickups(&app, ship), [(id, "HullPlate".to_string(), 2)]);
     assert_eq!(contents(&app, canister), [("HullPlate".to_string(), 2)]);
     assert_eq!(

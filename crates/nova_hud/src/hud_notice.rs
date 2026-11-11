@@ -67,7 +67,7 @@ const NOTICE_FONT_PX: f32 = 13.0;
 
 /// The box height (px): `LineBreak::NoWrap` holds the text to one line of
 /// [`NOTICE_FONT_PX`], and `chip_node` adds 10 px of padding and border.
-const NOTICE_MAX_HEIGHT_PX: f32 = 26.0;
+pub(crate) const NOTICE_MAX_HEIGHT_PX: f32 = 26.0;
 
 /// Notice cue volume: over the comms blip (0.22), under the objective posting
 /// blip (0.30).

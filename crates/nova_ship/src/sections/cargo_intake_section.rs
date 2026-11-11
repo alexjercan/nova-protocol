@@ -55,7 +55,7 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use bevy_transform_interpolation::{RotationEasingState, TranslationEasingState};
 use nova_events::units::prelude::*;
-use nova_gameplay::{asset_ref::AssetRef, prelude::*};
+use nova_gameplay::{asset_ref::AssetRef, prelude::*, transient_light::prelude::LightFlash};
 
 use super::local_pose_in_root;
 use crate::{physics::prelude::rigid_body_point_velocity, prelude::*};
@@ -69,7 +69,7 @@ pub mod prelude {
         preview_cargo_intake_section, thaw_canister, CargoCanisterEjected, CargoCanisterTaken,
         CargoIntakeDoorMoved, CargoIntakeEjectionQueue, CargoIntakeSectionConfig,
         CargoIntakeSectionConfigHelper, CargoIntakeSectionMarker, CargoIntakeSectionPlugin,
-        CargoIntakeSystems, CargoPickupPair, CargoPickupReadiness, FrozenCanister,
+        CargoIntakeSystems, CargoPickupPair, CargoPickupReadiness, FrozenCanister, TakenStack,
         CARGO_CANISTER_SIZE,
     };
 }
@@ -164,11 +164,23 @@ pub struct CargoCanisterEjected {
     pub entity: Entity,
 }
 
+/// One stack a take moved into the hold.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TakenStack {
+    /// The item taken.
+    pub item: ItemDesignId,
+    /// How many of it this take moved; never zero.
+    pub count: u32,
+}
+
 /// An intake took at least one item from a canister into its ship's hold.
-#[derive(EntityEvent, Clone, Copy, Debug)]
+#[derive(EntityEvent, Clone, Debug)]
 pub struct CargoCanisterTaken {
     /// The intake that took it.
     pub entity: Entity,
+    /// What came aboard, one entry per stack, in catalog id order. A take
+    /// the hold's room cut short lists only what it moved.
+    pub stacks: Vec<TakenStack>,
 }
 
 /// The last fixed intake pass's live intake/canister pairs. An absent pair is
@@ -638,15 +650,20 @@ fn run_cargo_intakes(
             if !ready {
                 continue;
             }
+            let mut stacks = Vec::new();
             for (item, count) in read.canister.take_fitting(&items, inventory.free_g(&items)) {
                 inventory.add(&items, &item, count);
                 reports.0.push(ShipInventoryReport::PickedUp {
                     canister: read.id,
-                    item,
+                    item: item.clone(),
                     count,
                 });
+                stacks.push(TakenStack { item, count });
             }
-            commands.trigger(CargoCanisterTaken { entity: intake });
+            commands.trigger(CargoCanisterTaken {
+                entity: intake,
+                stacks,
+            });
             read.changed = true;
             if read.canister.is_empty() {
                 commands.entity(read.entity).despawn();
@@ -702,6 +719,44 @@ fn run_cargo_intakes(
             .expect("run_cargo_intakes: a canister read this pass left the query");
         *canister = read.canister;
     }
+}
+
+/// Brightness of the take blink, in lumens, and how far it reaches in world
+/// units (50 m): the door and the plating around it. The torpedo launch
+/// puff's level; a take is a small event on the hull.
+const TAKE_LIGHT_LUMENS: f32 = 20_000.0;
+const TAKE_LIGHT_RANGE: f32 = 5.0;
+
+/// How long the take blink burns, in seconds.
+const TAKE_LIGHT_SECS: f32 = 0.2;
+
+/// Light the player's intake when it takes: one warm blink at the door, the
+/// visual half of the take sound. Budgeted by the transient-light cap only;
+/// nothing here reads the graphics tier. Another hull's take is not lit:
+/// the player cannot tell its door from here.
+fn on_canister_taken_light(
+    taken: On<CargoCanisterTaken>,
+    q_intakes: Query<&GlobalTransform, With<CargoIntakeSectionMarker>>,
+    q_child_of: Query<&ChildOf>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+) {
+    let Ok(at) = q_intakes.get(taken.entity) else {
+        return;
+    };
+    if !q_child_of
+        .iter_ancestors(taken.entity)
+        .any(|hull| q_player.contains(hull))
+    {
+        return;
+    }
+    commands.trigger(LightFlash {
+        at: at.translation(),
+        color: Color::srgb(1.0, 0.78, 0.5),
+        peak_intensity: TAKE_LIGHT_LUMENS,
+        range: TAKE_LIGHT_RANGE,
+        duration: TAKE_LIGHT_SECS,
+    });
 }
 
 /// Spawn an intake's scene.
@@ -798,6 +853,7 @@ impl Plugin for CargoIntakeSectionPlugin {
         if self.render {
             app.add_observer(insert_cargo_intake_section_render);
             app.add_observer(insert_cargo_canister_render);
+            app.add_observer(on_canister_taken_light);
         }
     }
 }
