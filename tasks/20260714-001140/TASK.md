@@ -75,3 +75,16 @@ pad playthrough or full menu/editor gamepad navigation. This task is cut from
 v0.15.0, remains OPEN on the backlog, and the game does not claim full pad
 support. Both parts stay in scope when rescheduled. The findings from Part B
 are what `20260831-145917` (mobile virtual pad) waits on.
+
+## Deferred from the contextual key row (2026-11-11, task 20261111-122531)
+- DOCK (`D`) and HELM (`H`) have no pad button: every face button, bumper,
+  trigger, thumb and D-pad direction is taken (`crates/nova_ship/src/input/bindings.rs`,
+  `crates/nova_interface/src/bindings.rs`, scenario advance on DPadDown in
+  `crates/nova_scenario/src/loader/lifecycle.rs:701-721`). Needs a pad layout
+  decision (a chord, or a button moved off a maneuver) before a binding.
+- Section defaults collide with pad rig buttons: torpedo LT2 is also
+  `combat_stance` (`crates/nova_editor/src/placement.rs:234`), railgun R3 is
+  also `interface_toggle` (`placement.rs:235`). `flight_rig_reserved_sources`
+  reads `flight_bindings` only, so neither is refused at lint. Widen the
+  reservation to camera and `Always` interface sources once the defaults
+  have somewhere else to go.

@@ -35,18 +35,38 @@ useless unless something happens (docking, orbit).
   only (`bindings.rs:156-166`).
 - Weapon keys are per-section bindings, not Settings rows (`ship_rebind`).
 
-## Decisions (pending owner review of the proposal)
-- Proposal: a core group that is always on while flying (drive, RCS, radar,
-  TAB) and a situational group that appears on state change: DOCK only with a
-  dockable lock or while docked, HELM only docked, ORBIT only in a well,
-  CANCEL only while engaged, GOTO only with a travel lock, weapon chips (fire,
-  torpedo, railgun, lock cycle) only while weapons are raised. Roll Q/E shows
-  in the core group or in the first-flight lesson, owner call.
-- A chip that enters or leaves must not shift the others (keep slot stability
-  within a group). Device-follow rule stays.
-- Pad gets DOCK and HELM buttons; the LT2 and R3 collisions are resolved in
-  the same slice, and `flight_rig_reserved_sources` must refuse a section
-  default that collides with a rig or interface binding (lint, then load).
+## Decisions (owner said start 2026-11-11; the calls below are the agent's, stated, not asked)
+- `VerbHint` gains `shown: bool`: the verb applies to the situation, so the
+  dock draws its chip. `available` keeps its meaning (the press does
+  something). Shown and unavailable draws Dim; not shown leaves the layout.
+- Groups, in `DOCK_VERBS` order. Core, always shown while the flight rig
+  exists: INTERFACE (`interface_toggle`), DRIVE (`main_drive`), STOP, RCS,
+  RADAR. Situational: GOTO (travel lock, not the docked partner), ORBIT (a
+  dominant well, or orbiting), CANCEL (engaged), DOCK (docked, or the travel
+  lock carries a docking port; dim until the gates pass or while refused),
+  HELM (docked), MINE (a bound mining section). Weapons: AIM
+  (`combat_stance`, shown while the ship carries a turret, torpedo bay or
+  railgun; hot while `WeaponsHot`), FIRE / TORPEDO / RAILGUN (shown while
+  weapons are hot and a section of that kind holds a binding; key from the
+  section's own `Spaceship*InputBinding` on the device pressed last; FIRE
+  hot while firing). DRIVE is hot while the main drive is held.
+- Roll Q/E stays out of the row: a two-key verb has no chip shape, and roll
+  is a camera-class control like free look and zoom. The first-flight lesson
+  owns it.
+- The lock-cycle chip stays out, as decided in `53f881a7a`.
+- Layout: the core group is right-aligned to the screen centre line, the
+  other groups grow rightward from it in order. A core chip never moves; a
+  situational chip entering only pushes the chips to its right. HELM is an
+  ordinary situational chip, no longer absolute.
+- An emphasized verb (`HintEmphasis`) is always shown, dim when unavailable,
+  so a tutorial can still point at a key before it applies. The verb names
+  content uses today (STOP, GOTO, ORBIT, RADAR, RCS, DOCK) are unchanged.
+- RCS is dim while the magazine is empty, matching the MATCH gate.
+- Pad DOCK and HELM buttons and the LT2 / R3 section-default collisions are
+  NOT in this slice: every pad button is taken, so they need the pad layout
+  decision in `tasks/20260714-001140`. Recorded there as the next slice.
+- Row-level wiki text (`web/src/wiki/hud.md` keybind dock, `glossary.md`),
+  the lessons text and the changelog ship with the code.
 
 ## Delivery
 - Owner: `nova_hud` keybind_dock; inputs from `nova_ship` hints and
@@ -68,3 +88,24 @@ useless unless something happens (docking, orbit).
 - The row shows no chip that does nothing in the current state.
 - Drive, weapons, lock cycle and TAB are visible from the row when they apply.
 - Pad players see pad buttons for every chip shown.
+
+## Delivery record (2026-11-11)
+- Landed `822e330e1` on master: `VerbHint.shown`, the new hint fields, the
+  two-half centre-line dock, the emphasis-keeps-shown rule, the RCS
+  empty-magazine fix, wiki, lesson text and changelog.
+- Proof run: `nova_ship --lib input::player::hints` 15 pass; `nova_hud --lib
+  keybind_dock` 26 pass; `cargo check --examples --keep-going` clean;
+  `screenshot_key_hints` smoke under Xvfb + lavapipe passed all 22 steps
+  without capture.
+- Frames: `row-stop.png` and `row-match-chord.png` in this folder, from the
+  same example with `NOVA_CAPTURE=1` under lavapipe. They show the core
+  group ending at the centre line, GOTO / ORBIT / DOCK (dim: the lock
+  carries a port, the gates fail) / AIM to its right, and the MATCH word
+  with RCS inverted while Shift is held. The capture run stalled at `let the
+  modifier up` because the MATCH completed under the slow frames before the
+  step's predicate ran (`maneuver complete, disengaging` in the log); the
+  same step passes without capture, so it is a lavapipe timing limit, not a
+  row defect.
+- Still OPEN: pad players see keyboard caps on DOCK, HELM and MINE (no pad
+  button exists). That is the pad layout slice in `tasks/20260714-001140`.
+  The `Done when` pad line is not met until it lands.
