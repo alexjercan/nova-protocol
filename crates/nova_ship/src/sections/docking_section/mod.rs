@@ -33,6 +33,7 @@ use crate::prelude::*;
 
 mod admission;
 mod assembly;
+mod beacon;
 mod connection;
 mod port;
 mod render;
@@ -42,6 +43,7 @@ pub use admission::{
 };
 pub use assembly::DockedAssembly;
 use assembly::{apply_docked_helm_wrench, measure_docked_assemblies};
+pub use beacon::{StationBeacon, StationBeaconPort};
 use connection::{
     end_undock_separations, on_docking_connection_request, on_docking_helm_request,
     on_docking_port_removed_release, on_docking_release_request, on_station_derelict_release_helm,
@@ -68,7 +70,8 @@ pub mod prelude {
         DockingConnectionRequest, DockingEnvelope, DockingHelmRequest, DockingPair, DockingPorts,
         DockingReleaseRequest, DockingSectionConfig, DockingSectionConfigHelper,
         DockingSectionMarker, DockingSectionPlugin, DockingSectionState, DockingSystems, PortPose,
-        SavedJointFrame, StationDock, StationDocks, UndockSeparation, BERTH_GAP,
+        SavedJointFrame, StationBeacon, StationBeaconPort, StationDock, StationDocks,
+        UndockSeparation, BERTH_GAP,
     };
 }
 
@@ -391,8 +394,14 @@ impl Plugin for DockingSectionPlugin {
 
         if self.render {
             app.init_resource::<PlaceholderArt>();
+            app.register_type::<StationBeacon>();
+            app.register_type::<StationBeaconPort>();
             app.add_observer(insert_docking_section_render);
             app.add_observer(on_dock_clamped_light);
+            app.add_systems(
+                Update,
+                (beacon::light_station_ports, beacon::pulse_station_beacons).chain(),
+            );
         }
     }
 }

@@ -48,7 +48,7 @@ follows **Particles**: 0.75 s on, none off.
 | Preset | Low, Medium, High, Custom | All four levers at once. Custom is read-only: it means the levers match no tier. |
 | Particles | Off, On | Torpedo and muzzle bursts, hit sparks and the railgun wake. Off spawns none of them. |
 | Resolution | 50%, 70%, 85%, 100% | The internal resolution the 3D world is drawn at before it is upscaled to the window. The HUD and menus stay crisp. |
-| Flash lights | Off, 3, 6 | How many detonations and slugs may light the hull at once. |
+| Flash lights | Off, 3, 6 | How many detonations and slugs may light the hull at once. Off also puts out the beacons on every station's docking ports. |
 | Camera shake | Off, On | The shake on hits and detonations. |
 
 | Preset | Camera shake | Flash lights | Particles | Resolution |

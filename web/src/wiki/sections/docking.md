@@ -61,7 +61,7 @@ You do not choose the ports. The game pairs the nearest eligible ones on the two
 
 The geometry is only half of it: the DOCK chip also goes dark, and a request refuses, while the target itself will not have you. A target refuses while it reads [Hostile](../../factions/) to you, while it is on the Enemy side, while it is [answering](../../factions/#retaliation) any ship's fire, or while its AI is actively fighting. A calm ally or Neutral lets you in, and a **neutralized** ship always admits a boarding, whatever side it was. A station you own lets you in whatever your side.
 
-A ship holds one dock at a time. A station holds one ship per docking port: you can dock while any of its ports is free, and once every port is held the HUD posts `<NAME> DOCK OCCUPIED` as a notice. Everything docked at a station turns with it as one body, held level by the station's bridge.
+A ship holds one dock at a time. A station holds one ship per docking port: you can dock while any of its ports is free, and once every port is held the HUD posts `<NAME> DOCK OCCUPIED` as a notice. Everything docked at a station turns with it as one body, held level by the station's bridge. Every port of a station wears a beacon: a cold light that breathes slowly and burns amber while a ship holds that port. A dead station keeps its beacons dark. The beacons go out with the **Flash lights** lever at Off (the Low preset); see [Settings](../../settings/#graphics-quality).
 
 Two refusals name a station. The HUD posts each once, when your travel lock settles on the station, not when you press the key: `<NAME> REFUSES DOCKING` for a living station on the Enemy side or hostile to you, and `<NAME> DOCK OCCUPIED` for a station with every live port held, even one you own.
 
