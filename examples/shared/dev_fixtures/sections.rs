@@ -96,6 +96,7 @@ pub fn siege_railgun_lance() -> SectionConfig {
             fire_sound: Some(sound("railgun_fire")),
             charge_sound: Some(sound("railgun_charge")),
             reload_sound: Some(sound("railgun_reload")),
+            impact_sound: Some(sound("railgun_impact")),
             ammunition: AmmoCapacity::Limited(1),
             reload: ReloadConfig::Batch(SectionReloadConfig {
                 delay: 12.0,
