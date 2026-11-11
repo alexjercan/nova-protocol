@@ -43,6 +43,9 @@ use crate::{physics::prelude::rigid_body_point_velocity, prelude::*};
 
 /// The charge/fire path: the commit, the charge clock, the slug and the recoil.
 mod firing;
+/// What a slug landing looks like: the penetration flash and the entry-face
+/// sparks. Gated by the plugin's `render` flag.
+mod impact;
 /// Render/audio for the lance: the slug's body and the muzzle flash. Gated by
 /// the plugin's `render` flag.
 mod render;
@@ -53,7 +56,10 @@ mod wake;
 
 pub use firing::RailgunFired;
 use firing::*;
-pub(crate) use firing::{RailgunSectionChargeSound, RailgunSectionFireSound};
+pub(crate) use firing::{
+    RailgunSectionChargeSound, RailgunSectionFireSound, RailgunSlugImpactSound,
+};
+use impact::on_slug_impact_flash;
 use render::*;
 pub use scripted::ScriptedRailgunOrder;
 use scripted::{hold_scripted_railgun_trigger, on_railgun_fired_retire_scripted_order};
@@ -164,6 +170,16 @@ pub struct RailgunSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub reload_sound: Option<AssetRef<AudioSource>>,
+    /// The slug landing: played once at the entry face of the first body a
+    /// shot meets, in place of the fixed Pierce row of the impact table. A
+    /// lance that authors none keeps the table's voice, so the field is
+    /// AUTHORED-OR-BANK rather than authored-or-silent: every hit has a sound.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub impact_sound: Option<AssetRef<AudioSource>>,
     /// How many shells this gun holds: `Unlimited`, or `Limited(n)` for a
     /// [`SectionAmmo`] of `n` that depletes one per shot and blocks firing
     /// once empty.
@@ -211,6 +227,7 @@ impl Default for RailgunSectionConfig {
             fire_sound: None,
             charge_sound: None,
             reload_sound: None,
+            impact_sound: None,
             ammunition: AmmoCapacity::Unlimited,
             reload: ReloadConfig::Disabled,
         }
@@ -407,6 +424,7 @@ impl Plugin for RailgunSectionPlugin {
             app.add_observer(insert_railgun_slug_render);
             app.add_observer(on_railgun_fired_flash);
             app.add_observer(on_railgun_fired_kick);
+            app.add_observer(on_slug_impact_flash);
             app.register_type::<RailgunChargeGlowMarker>();
             app.register_type::<RailgunSlugLight>();
             app.add_observer(close_railgun_wakes);

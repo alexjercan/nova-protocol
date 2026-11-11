@@ -137,6 +137,8 @@ The line thickens as the charge runs, so the seconds you are committed to holdin
 <p>The scope shoots a block of 200 hp reinforced hull cells, five across, five tall and four deep, with the shipped railgun. The slug's tip cuts the centre column, and a 10 m sphere trailing the tip widens that cut to the eight cells around it - the face neighbours and the diagonals, never the second ring. Every cell in the corridor takes 300 and pays a third of its max health out of the one 1800-point budget, so the shot takes 28 cells as nine, nine, nine and one, removes 5600 hp, and stops with the exit hole as wide as the entry. Set the radius to zero and the same shot takes four cells in a line; set it to 40 m and it takes the same 28 as the whole entry face plus three, and stops one layer in.</p>
 </div>
 
+The arrival is its own event: the entry face flashes the slug's steel blue, throws a dense spray of spall, and the hit plays the lance's own impact sound instead of the ordinary penetration click. One flash per shot, at the first body it meets, so a corridor reads as one hit and not thirty.
+
 The slug deals **300 Pierce damage to every section it takes**, flat. It is not scaled by how fast the two ships are closing and it does not decay with depth, so the tenth section in the line takes exactly what the first did. Three hundred clears every hull block, controller, mount and torpedo bay in the catalog outright, so an aligned shot takes a **corridor out of a ship** rather than damaging one.
 
 | what the corridor takes | health | sections in one shot |

@@ -85,6 +85,11 @@ use self::{
 /// punchy moments. Kept modest so nothing is harsh up close.
 const TURRET_FIRE_VOLUME: f32 = 0.10;
 const IMPACT_VOLUME: f32 = 0.22;
+/// A railgun slug's authored impact, in place of the table's Pierce row. Over
+/// the table's hit (the slug is one round every thirteen seconds, not a
+/// stream) and well under its own shot ([`RAILGUN_FIRE_VOLUME`]): the arrival
+/// is heard across the gap, the discharge is heard through the hull.
+const RAILGUN_IMPACT_VOLUME: f32 = 0.34;
 const EXPLOSION_VOLUME: f32 = 0.40;
 /// Was 0.45, which measured as the LOUDEST cue in the game A-weighted - louder
 /// than the explosion it is quieter than on paper, and 8 dB over the railgun

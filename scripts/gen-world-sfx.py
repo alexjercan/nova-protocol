@@ -538,6 +538,53 @@ def impact_pierce(rng):
     return out
 
 
+def railgun_impact(rng):
+    """A lance slug arriving: a hard, bright penetration.
+
+    The pierce table's row is a RAKE - seven tightening strikes over a shear -
+    because a PDC penetrator crosses the stack at a speed the ear can follow.
+    A slug at 15 km/s does not: the whole corridor opens inside one tick, so
+    this is ONE event. A sharper, brighter transient than the pierce row, a
+    deeper body under it (a round this heavy lands, it does not scrape), and a
+    longer steel ring after - the plating left vibrating around a hole.
+    """
+    duration = 0.55
+    out = silence(duration)
+
+    # The entry: brighter and shorter than the pierce row's, a crack not a tap.
+    entry = white(0.025, rng) * env_exp(0.025, 0.00006, 0.0014)
+    out = place(out, highpass(entry, 4800.0, order=3) * 1.1, 0.0)
+    out = place(out, resonator(entry, 5200.0, 0.03, 0.8) * 0.9, 0.0)
+
+    # The spall leaving the face: a short bright shear right behind the crack.
+    shear = white(0.08, rng) * env_exp(0.08, 0.0003, 0.012)
+    shear = bandpass(shear, 1400.0, 7200.0, order=2)
+    out = place(out, shear * 0.9, 0.002)
+
+    # The body: deeper and heavier than the pierce row's, swept down the way
+    # the shot's own body is, so the two read as the same round.
+    body = white(0.16, rng) * env_exp(0.16, 0.0008, 0.022)
+    body = bandpass(body, 60.0, 380.0, order=3)
+    body += sweep(0.16, 240.0, 55.0, curve=1.4) * env_exp(0.16, 0.0008, 0.020) * 0.6
+    out = place(out, saturate(body * 2.4, 2.2), 0.003)
+
+    # The ring: the plating around the hole, longer than any other hit's.
+    ring = white(0.45, rng) * env_exp(0.45, 0.0004, 0.045)
+    ring = modes(
+        ring,
+        [
+            (890.0, 0.30, 1.0),
+            (1460.0, 0.24, 0.7),
+            (2310.0, 0.16, 0.45),
+            (3700.0, 0.10, 0.28),
+            (5900.0, 0.06, 0.16),
+        ],
+    )
+    out = place(out, ring * 1.6, 0.004)
+
+    return out
+
+
 def impact_explosive(rng):
     """A shaped charge landing.
 
@@ -1098,6 +1145,7 @@ CUES = {
     "railgun_charge": (railgun_charge, "assets/base/sounds/railgun_charge.wav"),
     "railgun_fire": (railgun_fire, "assets/base/sounds/railgun_fire.wav"),
     "railgun_reload": (railgun_reload, "assets/base/sounds/railgun_reload.wav"),
+    "railgun_impact": (railgun_impact, "assets/base/sounds/railgun_impact.wav"),
     "torpedo_launch": (torpedo_launch, "assets/base/sounds/torpedo_launch.wav"),
     "torpedo_detonate": (torpedo_detonate, "assets/base/sounds/torpedo_detonate.wav"),
     "impact_kinetic": (impact_kinetic, "assets/base/sounds/impact.wav"),

@@ -2755,6 +2755,7 @@
             fire_sound: Some("self://sounds/railgun_fire.wav"),
             charge_sound: Some("self://sounds/railgun_charge.wav"),
             reload_sound: Some("self://sounds/railgun_reload.wav"),
+            impact_sound: Some("self://sounds/railgun_impact.wav"),
             ammunition: Limited(1),
             reload: Batch((
                 delay: 12.0,

@@ -1003,6 +1003,7 @@ kind: Railgun((
     fire_sound: Some("dep://base/sounds/railgun_fire.wav"),
     charge_sound: Some("dep://base/sounds/railgun_charge.wav"),
     reload_sound: Some("dep://base/sounds/railgun_reload.wav"),
+    impact_sound: Some("dep://base/sounds/railgun_impact.wav"),
     ammunition: Limited(1),
     reload: Batch((delay: 12.0, amount: 1)),
 )),
@@ -1073,6 +1074,10 @@ kind: Railgun((
   time a reload batch lands. For a one-shell railgun that IS the whole of its
   cadence: the reload is the silence, and this is the silence ending. A gun
   with a larger magazine plays it once per batch, not only when full.
+- `impact_sound` (optional) - the slug landing, played once where it met the
+  first body in its line, in place of the impact table's Pierce row. Omit it
+  and the hit keeps the table's voice; every hit has one. An empty path is a
+  lint error.
 - `ammunition` - shells carried: `Limited(n)`, or `Unlimited` (the default
   every weapon section shares).
 - `reload` - the same `Disabled` / `Batch((delay, amount))` a turret and a bay

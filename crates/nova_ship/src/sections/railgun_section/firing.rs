@@ -218,6 +218,11 @@ pub(super) fn charge_and_fire_railgun(
         if let Some(&allegiance) = allegiance {
             slug.insert(allegiance);
         }
+        // Carried on the slug for the same reason: the hit is voiced off the
+        // round, and the gun may be gone by the time the round lands.
+        if let Some(sound) = config.impact_sound.clone() {
+            slug.insert(RailgunSlugImpactSound(sound));
+        }
 
         // RECOIL, at the MUZZLE and not at the centre of mass. That is the
         // whole mechanic: `apply_linear_impulse_at_point` derives the torque
@@ -265,3 +270,9 @@ pub struct RailgunSectionFireSound(#[reflect(ignore)] pub Option<AssetRef<AudioS
 /// lance and retires it on the shot.
 #[derive(Component, Clone, Debug, Reflect)]
 pub struct RailgunSectionChargeSound(#[reflect(ignore)] pub Option<AssetRef<AudioSource>>);
+
+/// The lance's authored [`RailgunSectionConfig::impact_sound`], carried on the
+/// slug it fired. Only a slug whose lance authored one wears it; the hit voice
+/// plays it in place of the impact table's Pierce row.
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct RailgunSlugImpactSound(#[reflect(ignore)] pub AssetRef<AudioSource>);

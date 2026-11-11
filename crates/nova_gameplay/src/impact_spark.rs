@@ -42,8 +42,8 @@ pub struct ImpactSparks {
     pub at: Vec3,
     /// How many sparks to throw. Zero is a legal ask and does nothing.
     pub count: u32,
-    /// Scales how far they fly, `0..1`, so a glancing hit does not spray like a
-    /// killing one.
+    /// Scales how far they fly: under `1.0` for a glancing hit, `1.0` for a
+    /// killing one, over it for a round whose whole speed goes into the spall.
     pub force: f32,
 }
 

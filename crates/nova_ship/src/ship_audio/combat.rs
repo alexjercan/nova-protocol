@@ -18,15 +18,15 @@ use nova_gameplay::{
 use super::{
     routing::{owning_root, route_for, route_from},
     DESTROY_SHIP_VOLUME, EXPLOSION_MIN_INTERVAL, EXPLOSION_VOLUME, IMPACT_MIN_INTERVAL,
-    IMPACT_VOLUME, KILL_CONFIRM_VOLUME, RAILGUN_FIRE_VOLUME, SECTION_RELOAD_VOLUME,
-    TORPEDO_DEATH_MIN_INTERVAL, TORPEDO_DUD_VOLUME, TORPEDO_IGNITION_VOLUME,
+    IMPACT_VOLUME, KILL_CONFIRM_VOLUME, RAILGUN_FIRE_VOLUME, RAILGUN_IMPACT_VOLUME,
+    SECTION_RELOAD_VOLUME, TORPEDO_DEATH_MIN_INTERVAL, TORPEDO_DUD_VOLUME, TORPEDO_IGNITION_VOLUME,
     TORPEDO_INTERCEPT_VOLUME, TORPEDO_LAUNCH_MIN_INTERVAL, TORPEDO_LAUNCH_VOLUME,
     TURRET_FIRE_MIN_INTERVAL, TURRET_FIRE_VOLUME,
 };
 use crate::{
     prelude::*,
     sections::{
-        railgun_section::RailgunSectionFireSound,
+        railgun_section::{RailgunSectionFireSound, RailgunSlugImpactSound},
         torpedo_section::{
             TorpedoLaunchConfig, TorpedoSectionLaunchSound, TorpedoSectionSpawnerEntity,
         },
@@ -201,6 +201,11 @@ pub(super) fn on_collapse_play_hull_loss(
 /// the pair with a `match` - every hit has a voice, and a body that carries no
 /// tag at all is plate, which is what a nameless collider in this game is.
 ///
+/// One round overrides the table: a railgun slug whose lance authored an
+/// `impact_sound` carries it as [`RailgunSlugImpactSound`], and that plays in
+/// the table's place at the lance's own level. The throttle is the same
+/// either way, so a raking slug's cells collapse exactly as a blast's do.
+///
 /// [`SurfaceImpact`] does not propagate, which is why there is no
 /// "am I the original target" guard here: the old cue rode `HealthApplyDamage`
 /// up `ChildOf` to the ship root and had to filter the hops back out. It also
@@ -208,12 +213,14 @@ pub(super) fn on_collapse_play_hull_loss(
 /// plays where the round actually bit.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one observer: the clock, the sample bank, the struck surface, what it is part of, its route and the throttle"
+    reason = "one observer: the clock, the sample bank, the slug's own voice, the struck surface, what it is part of, its route and the throttle"
 )]
 pub(super) fn on_surface_impact_play_sfx(
     impact: On<SurfaceImpact>,
     time: Res<Time>,
+    asset_server: Res<AssetServer>,
     impacts: Res<ImpactSounds>,
+    q_slug_sound: Query<&RailgunSlugImpactSound>,
     q_surface: Query<&ImpactSurface>,
     q_bodies: Query<(&GlobalTransform, Option<&ComputedCenterOfMass>), With<RigidBody>>,
     q_child_of: Query<&ChildOf>,
@@ -222,10 +229,19 @@ pub(super) fn on_surface_impact_play_sfx(
     mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
-    let surface = nearest(impact.entity, &q_surface, &q_child_of)
-        .copied()
-        .unwrap_or_default();
-    let sound = impacts.sound(impact.kind, surface).clone();
+    let authored = impact
+        .source
+        .and_then(|source| q_slug_sound.get(source).ok())
+        .map(|sound| sound.0.resolve(&asset_server));
+    let (sound, volume) = match authored {
+        Some(sound) => (sound, RAILGUN_IMPACT_VOLUME),
+        None => {
+            let surface = nearest(impact.entity, &q_surface, &q_child_of)
+                .copied()
+                .unwrap_or_default();
+            (impacts.sound(impact.kind, surface).clone(), IMPACT_VOLUME)
+        }
+    };
     let pos = impact.at;
     // Grouped by the hull that was hit - a blast raking a dozen of one ship's
     // colliders is one report - and played at the CONTACT, because where on
@@ -238,7 +254,7 @@ pub(super) fn on_surface_impact_play_sfx(
     ) {
         // Damage landing on YOUR hull is heard through it, not across the gap.
         let route = route_for(impact.entity, &q_child_of, &q_is_root, &q_is_player);
-        commands.play_sfx_at(sound, route, IMPACT_VOLUME, pos);
+        commands.play_sfx_at(sound, route, volume, pos);
     }
 }
 
@@ -572,8 +588,20 @@ mod tests {
     /// Hit `target` at `at` and flush - the observer plays via `Commands`, so
     /// the queued `PlaySfx` triggers only fire on the next flush.
     fn strike(app: &mut App, target: Entity, kind: DamageType, at: Vec3) {
+        strike_from(app, target, None, kind, at);
+    }
+
+    /// Hit `target` with `source` - the round the sweep names - and flush.
+    fn strike_from(
+        app: &mut App,
+        target: Entity,
+        source: Option<Entity>,
+        kind: DamageType,
+        at: Vec3,
+    ) {
         app.world_mut().trigger(SurfaceImpact {
             entity: target,
+            source,
             kind,
             at,
         });
@@ -613,6 +641,39 @@ mod tests {
             Vec3::splat(SFX_AREA_CELL * 20.0),
         );
         assert_eq!(last(&app), Some(bank.kinetic_hull.clone()));
+
+        // A lance round that carries its own voice plays THAT, whatever it
+        // hit; a lance round that carries none is the table's Pierce row.
+        let authored = AssetRef::from("sounds/railgun_impact.wav".to_string());
+        let expected = authored.resolve(app.world().resource::<AssetServer>());
+        let voiced = app
+            .world_mut()
+            .spawn((
+                RailgunSlugProjectileMarker,
+                RailgunSlugImpactSound(authored),
+            ))
+            .id();
+        let mute = app.world_mut().spawn(RailgunSlugProjectileMarker).id();
+        strike_from(
+            &mut app,
+            rock,
+            Some(voiced),
+            DamageType::Pierce,
+            Vec3::splat(SFX_AREA_CELL * 30.0),
+        );
+        assert_eq!(last(&app), Some(expected), "the authored impact wins");
+        strike_from(
+            &mut app,
+            rock,
+            Some(mute),
+            DamageType::Pierce,
+            Vec3::splat(SFX_AREA_CELL * 40.0),
+        );
+        assert_eq!(
+            last(&app),
+            Some(bank.pierce.clone()),
+            "no authored impact: the bank"
+        );
     }
 
     #[test]

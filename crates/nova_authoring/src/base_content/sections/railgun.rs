@@ -150,6 +150,7 @@ fn railgun_lance_prototype(meshes: &BaseContentAssets, spec: LanceSpec<'_>) -> S
             fire_sound: Some(meshes.railgun_fire_sound.clone()),
             charge_sound: Some(meshes.railgun_charge_sound.clone()),
             reload_sound: Some(meshes.railgun_reload_sound.clone()),
+            impact_sound: Some(meshes.railgun_impact_sound.clone()),
             // One shell in the air per gun, ever. The magazine IS the design: a
             // lance that could queue a second shot would be a turret with a
             // long fire rate.

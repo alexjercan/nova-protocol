@@ -125,6 +125,8 @@ pub struct BaseContentAssets {
     /// A shell going back into the lance: breech, rail, seat, lock. Written as
     /// four separable events so a pilot can hear how far through it is.
     pub railgun_reload_sound: AssetRef<AudioSource>,
+    /// The slug arriving: one hard entry and the plating ringing behind it.
+    pub railgun_impact_sound: AssetRef<AudioSource>,
 
     /// The ship's radar/lock/safety feedback cues, spoken from the root.
     pub ship_lock_on_sound: AssetRef<AudioSource>,
@@ -294,6 +296,7 @@ impl BaseContentAssets {
             railgun_fire_sound: AssetRef::from("self://sounds/railgun_fire.wav".to_string()),
             railgun_charge_sound: AssetRef::from("self://sounds/railgun_charge.wav".to_string()),
             railgun_reload_sound: AssetRef::from("self://sounds/railgun_reload.wav".to_string()),
+            railgun_impact_sound: AssetRef::from("self://sounds/railgun_impact.wav".to_string()),
 
             ship_lock_on_sound: AssetRef::from("self://sounds/lock_on.wav".to_string()),
             ship_lock_off_sound: AssetRef::from("self://sounds/lock_off.wav".to_string()),

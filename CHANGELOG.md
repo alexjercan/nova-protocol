@@ -23,10 +23,12 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Modding & Mod Portal
 
 - `DockingSectionConfig` gains optional `clamp_sound` and `release_sound`, played once at the port that captured or let go; the base port authors `dock_clamp.wav` and `dock_release.wav`.
+- `RailgunSectionConfig` gains optional `impact_sound`, played where the slug meets its first body in place of the impact table's Pierce row; the base lance authors `railgun_impact.wav`.
 
 ### Audio & Visuals
 
 - A docking clamp now latches audibly, blinks a cold light on the collar and posts `DOCKED <NAME>` on the HUD; letting go plays the release and posts `UNDOCKED`. A Load or damage stays quiet.
+- A railgun slug landing now flashes steel blue at the entry face, throws a dense spall burst and plays its own impact sound, once per shot however many cells the corridor crosses.
 
 ### Fixes
 

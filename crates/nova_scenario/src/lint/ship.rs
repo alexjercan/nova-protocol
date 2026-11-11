@@ -374,6 +374,7 @@ pub fn lint_section_config(config: &SectionConfig, source: &str) -> Vec<LintIssu
                 &mut issues,
             );
             check_railgun_numbers(config.base.id.as_str(), railgun, source, &mut issues);
+            check_railgun_sounds(config.base.id.as_str(), railgun, source, &mut issues);
         }
         SectionKind::Docking(docking) => {
             check_docking_config(config, docking, source, &mut issues);
@@ -534,6 +535,40 @@ fn check_railgun_numbers(
                  number of meters, got {}",
                 radius.get()
             ),
+        ));
+    }
+}
+
+/// Flag a lance sound authored as an empty path. Omitting a sound is legal
+/// (the shot and the charge go silent, the hit falls back to the impact
+/// table); naming no file is the editor's blank field left in.
+fn check_railgun_sounds(
+    section_id: &str,
+    config: &RailgunSectionConfig,
+    source: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    for field in unnamed_files([
+        (
+            "fire_sound",
+            config.fire_sound.as_ref().and_then(AssetRef::path),
+        ),
+        (
+            "charge_sound",
+            config.charge_sound.as_ref().and_then(AssetRef::path),
+        ),
+        (
+            "reload_sound",
+            config.reload_sound.as_ref().and_then(AssetRef::path),
+        ),
+        (
+            "impact_sound",
+            config.impact_sound.as_ref().and_then(AssetRef::path),
+        ),
+    ]) {
+        issues.push(LintIssue::error(
+            source,
+            format!("section '{section_id}': railgun {field} names no file"),
         ));
     }
 }
@@ -2481,6 +2516,35 @@ mod tests {
         assert_eq!(errs.len(), 1, "{issues:?}");
         assert!(
             errs[0].message.contains("clamp_sound names no file"),
+            "{issues:?}"
+        );
+        let lance = |railgun| SectionConfig {
+            base: BaseSectionConfig {
+                id: "lance".to_string(),
+                advancement: 0.0,
+                draw_weight: 1.0,
+                health: 1.0,
+                ..default()
+            },
+            kind: SectionKind::Railgun(railgun),
+        };
+        assert!(
+            errors(&lint_section_config(
+                &lance(RailgunSectionConfig::default()),
+                "s"
+            ))
+            .is_empty(),
+            "a lance with no sounds falls back, it is not wrong"
+        );
+        let unnamed = RailgunSectionConfig {
+            impact_sound: Some(String::new().into()),
+            ..default()
+        };
+        let issues = lint_section_config(&lance(unnamed), "s");
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(
+            errs[0].message.contains("impact_sound names no file"),
             "{issues:?}"
         );
         let mut deep = good.clone();

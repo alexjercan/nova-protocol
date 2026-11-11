@@ -292,6 +292,11 @@ pub fn damage_type_color(kind: DamageType) -> Color {
 pub struct SurfaceImpact {
     /// The collider that was struck.
     pub entity: Entity,
+    /// The round or blast that struck, the same entity
+    /// [`HealthApplyDamage::source`] names, so a cue can read what the round
+    /// carries (its marker, its authored sound). `None` when nothing struck:
+    /// a scripted blast with no body behind it.
+    pub source: Option<Entity>,
     /// Which weapon class paid for the hit - the round-side half of "what hit
     /// what". The target-side half is the struck body's
     /// [`ImpactSurface`](crate::impact_sound::ImpactSurface).
@@ -331,6 +336,7 @@ pub fn apply_damage(
         record_damage_mark(commands, target, at, amount, kind);
         commands.trigger(SurfaceImpact {
             entity: target,
+            source,
             kind,
             at,
         });
@@ -375,6 +381,7 @@ pub fn apply_blast_damage(
         // against whichever material the pressure reached first.
         commands.trigger(SurfaceImpact {
             entity: target,
+            source,
             kind,
             at,
         });

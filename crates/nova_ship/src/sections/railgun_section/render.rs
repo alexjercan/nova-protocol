@@ -68,7 +68,7 @@ const CHARGE_LIGHT_CURVE: i32 = 3;
 
 /// Sparks thrown off the brake on the shot: the arc flash of a bank dumping
 /// into a bore.
-const MUZZLE_SPARK_COUNT: u32 = 28;
+pub(super) const MUZZLE_SPARK_COUNT: u32 = 28;
 /// Camera trauma the player's own lance puts through the hull when it fires.
 ///
 /// Between the juice layer's hit and destroy kicks: bigger than being shot,

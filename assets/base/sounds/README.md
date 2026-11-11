@@ -80,6 +80,7 @@ this directory is reachable from shipped content.
 | `railgun_fire.wav` | railgun `fire_sound` |
 | `railgun_charge.wav` | railgun `charge_sound` - a LOOP, driven up in gain and rate as the charge fills |
 | `railgun_reload.wav` | railgun `reload_sound`, once per reload batch that lands |
+| `railgun_impact.wav` | railgun `impact_sound`, the slug landing, in place of the impact table's Pierce row |
 
 ### Ordnance and impacts
 

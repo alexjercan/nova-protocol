@@ -297,6 +297,7 @@
         "sounds/radar_retarget.wav",
         "sounds/railgun_charge.wav",
         "sounds/railgun_fire.wav",
+        "sounds/railgun_impact.wav",
         "sounds/railgun_reload.wav",
         "sounds/rcs_loop.wav",
         "sounds/safety_on.wav",
