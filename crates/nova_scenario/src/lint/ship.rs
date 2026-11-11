@@ -2,7 +2,7 @@
 
 use bevy::prelude::Vec3;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{kg_text, GameItems, ItemCategoryType, ShipInventoryStock};
+use nova_gameplay::prelude::{kg_text, AssetRef, GameItems, ItemCategoryType, ShipInventoryStock};
 use nova_ship::prelude::{
     candidate_link_point_mates, derive_link_point_graph, duplicate_muzzle_id, muzzle_ids,
     section_colliders_overlap, AmmoCapacity, CargoIntakeSectionConfig, ControllerSectionConfig,
@@ -557,6 +557,21 @@ fn check_docking_config(
     issues: &mut Vec<LintIssue>,
 ) {
     let section_id = config.base.id.as_str();
+    for field in unnamed_files([
+        (
+            "clamp_sound",
+            docking.clamp_sound.as_ref().and_then(AssetRef::path),
+        ),
+        (
+            "release_sound",
+            docking.release_sound.as_ref().and_then(AssetRef::path),
+        ),
+    ]) {
+        issues.push(LintIssue::error(
+            source,
+            format!("section '{section_id}': docking port {field} names no file"),
+        ));
+    }
     if docking.capture_distance <= Meters::ZERO || !docking.capture_distance.is_finite() {
         issues.push(LintIssue::error(
             source,
@@ -2432,6 +2447,41 @@ mod tests {
         refused(
             lint(cuboid, vec![door.clone()], unnamed),
             "take_sound names no file",
+        );
+        let docking = |docking| SectionConfig {
+            base: BaseSectionConfig {
+                id: "port".to_string(),
+                collider: None,
+                animations: vec![SectionAnimation {
+                    cue: SectionAnimationCue::DockTube,
+                    node_prefix: "dock_tube".to_string(),
+                    motion: SectionAnimationMotion::Translate {
+                        offset: Vec3::NEG_Z * 0.5,
+                    },
+                    open_seconds: 1.2,
+                    close_seconds: 0.8,
+                }],
+                advancement: 0.0,
+                draw_weight: 1.0,
+                health: 1.0,
+                ..default()
+            },
+            kind: SectionKind::Docking(docking),
+        };
+        assert!(
+            lint_section_config(&docking(DockingSectionConfig::default()), "s").is_empty(),
+            "a port with no sounds is silent, not wrong"
+        );
+        let unnamed = DockingSectionConfig {
+            clamp_sound: Some(String::new().into()),
+            ..default()
+        };
+        let issues = lint_section_config(&docking(unnamed), "s");
+        let errs = errors(&issues);
+        assert_eq!(errs.len(), 1, "{issues:?}");
+        assert!(
+            errs[0].message.contains("clamp_sound names no file"),
+            "{issues:?}"
         );
         let mut deep = good.clone();
         deep.capture_gap = Meters(40.0);

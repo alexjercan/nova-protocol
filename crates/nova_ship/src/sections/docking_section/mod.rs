@@ -48,27 +48,27 @@ use connection::{
     on_station_docks_emptied, park_suppressed_docked_helms, release_broken_docking_connections,
 };
 pub use connection::{
-    helm_on_capture, helm_request_admitted, restore_docking_connection, DockPartnerType,
-    DockedHelmType, DockedPort, DockedShip, DockedStation, DockingConnection,
-    DockingConnectionRequest, DockingHelmRequest, DockingReleaseRequest, DockingSystems,
-    SavedJointFrame, StationDock, StationDocks, UndockSeparation,
+    helm_on_capture, helm_request_admitted, restore_docking_connection, DockClamped,
+    DockPartnerType, DockReleased, DockedHelmType, DockedPort, DockedShip, DockedStation,
+    DockingConnection, DockingConnectionRequest, DockingHelmRequest, DockingReleaseRequest,
+    DockingSystems, SavedJointFrame, StationDock, StationDocks, UndockSeparation,
 };
 pub(crate) use port::PORT_FACE;
 pub use port::{DockingPair, DockingPorts, PortPose, BERTH_GAP, GAP_SLACK};
-use render::insert_docking_section_render;
+use render::{insert_docking_section_render, on_dock_clamped_light};
 
 /// The `docking_section` spawners, its config, marker, port state, connection,
 /// helm, assembly, candidate search and `DockingSectionPlugin`.
 pub mod prelude {
     pub use super::{
         docking_section, helm_on_capture, helm_request_admitted, preview_docking_section,
-        restore_docking_connection, station_admission, DockAdmission, DockPartnerType,
-        DockPressRefusal, DockPressRefusalType, DockRefusalType, DockedAssembly, DockedHelmType,
-        DockedPort, DockedShip, DockedStation, DockingConnection, DockingConnectionRequest,
-        DockingEnvelope, DockingHelmRequest, DockingPair, DockingPorts, DockingReleaseRequest,
-        DockingSectionConfig, DockingSectionConfigHelper, DockingSectionMarker,
-        DockingSectionPlugin, DockingSectionState, DockingSystems, PortPose, SavedJointFrame,
-        StationDock, StationDocks, UndockSeparation, BERTH_GAP,
+        restore_docking_connection, station_admission, DockAdmission, DockClamped, DockPartnerType,
+        DockPressRefusal, DockPressRefusalType, DockRefusalType, DockReleased, DockedAssembly,
+        DockedHelmType, DockedPort, DockedShip, DockedStation, DockingConnection,
+        DockingConnectionRequest, DockingEnvelope, DockingHelmRequest, DockingPair, DockingPorts,
+        DockingReleaseRequest, DockingSectionConfig, DockingSectionConfigHelper,
+        DockingSectionMarker, DockingSectionPlugin, DockingSectionState, DockingSystems, PortPose,
+        SavedJointFrame, StationDock, StationDocks, UndockSeparation, BERTH_GAP,
     };
 }
 
@@ -96,6 +96,26 @@ pub struct DockingSectionConfig {
         serde(default, skip_serializing_if = "Option::is_none")
     )]
     pub render_mesh_transform: Option<RenderMeshTransform>,
+    /// The sound the clamp makes as it closes: played once at the port of
+    /// the hull that pressed `DOCK`, the instant the joint holds and before
+    /// the sleeves move. Never played for a dock a Load or a sector thaw
+    /// rebuilds. AUTHORED-OR-SILENT.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub clamp_sound: Option<AssetRef<AudioSource>>,
+    /// The sound the clamp makes as it lets go: played once at the port of
+    /// the hull that asked to be free, on `DOCK` pressed again or an AI
+    /// release. A dock a destroyed port or a lost hull takes apart plays
+    /// nothing; the damage is its own sound. AUTHORED-OR-SILENT.
+    #[reflect(ignore)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub release_sound: Option<AssetRef<AudioSource>>,
     /// The widest gap between the two RETRACTED port faces that still
     /// captures. Measured face to face, not origin to origin: a port is
     /// judged by where its mouth is, not by where the cell it sits in is
@@ -124,6 +144,8 @@ impl Default for DockingSectionConfig {
         Self {
             render_mesh: None,
             render_mesh_transform: None,
+            clamp_sound: None,
+            release_sound: None,
             capture_distance: Meters(10.0),
             capture_angle: 15.0,
             maximum_relative_speed: MetersPerSecond(5.0),
@@ -370,6 +392,7 @@ impl Plugin for DockingSectionPlugin {
         if self.render {
             app.init_resource::<PlaceholderArt>();
             app.add_observer(insert_docking_section_render);
+            app.add_observer(on_dock_clamped_light);
         }
     }
 }

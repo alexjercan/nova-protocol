@@ -12,7 +12,11 @@
 //! chord shares with STOP (no STOP capability, docked without the helm, the
 //! docked partner) stay silent, as STOP does. A `DOCK` press that did nothing
 //! ([`DockPressRefusal`]) posts why, once per press; a target that refuses
-//! writes no press line, so a station's line is never said twice.
+//! writes no press line, so a station's line is never said twice. The
+//! player's clamp closing ([`DockClamped`]) posts `DOCKED <NAME>` and letting
+//! go on a request ([`DockReleased`]) posts `UNDOCKED`, on whichever end of
+//! the dock the player's hull is; a dock a Load rebuilds and a dock damage
+//! takes apart raise neither.
 //!
 //! One slot, no queue: a new text replaces the shown one and plays the cue; the
 //! same text again while it shows restarts the dwell and stays quiet. The dwell
@@ -29,7 +33,7 @@ use nova_gameplay::prelude::*;
 use nova_ship::{
     flight::prelude::{MatchRefusal, MatchRefusalType},
     input::prelude::FlightVerbHints,
-    sections::prelude::{DockPressRefusal, DockPressRefusalType},
+    sections::prelude::{DockClamped, DockPressRefusal, DockPressRefusalType, DockReleased},
 };
 use nova_ui::{
     hud::{chip_node, ChipTone},
@@ -170,7 +174,8 @@ impl HudNoticeKeepOut<'_, '_> {
 }
 
 /// Registers [`HudNotice`], posts a station's dock refusal, a MATCH refusal,
-/// a refused `DOCK` press and a held job's done to it, and runs
+/// a refused `DOCK` press, the player's clamp closing and letting go and a
+/// held job's done to it, and runs
 /// `post_dock_refusal_notice`, `post_match_refusal_notice`,
 /// `post_dock_press_notice`, `show_hud_notice` and `paint_hud_notice` chained
 /// in Update within [`NovaHudSystems`]. The box itself is a player-scoped
@@ -189,6 +194,8 @@ impl Plugin for HudNoticePlugin {
         app.register_type::<HudNoticeMarker>();
         app.register_type::<HudNoticeText>();
         app.add_observer(post_job_done_notice);
+        app.add_observer(post_dock_clamped_notice);
+        app.add_observer(post_dock_released_notice);
         app.add_systems(
             Update,
             (
@@ -260,6 +267,63 @@ fn dock_press_refusal_line(refusal: DockPressRefusalType) -> &'static str {
         DockPressRefusalType::NotFacing => "DOCK: NOT FACING",
         DockPressRefusalType::TooFast => "DOCK: TOO FAST",
     }
+}
+
+/// The hull the player is docked with, when the player's hull is one end of
+/// the dock `port` reported against `partner`: the partner when the port is
+/// the player's, the port's own hull when the partner is the player. `None`
+/// for a dock between two other hulls.
+fn player_dock_partner(
+    port: Entity,
+    partner: Entity,
+    q_child_of: &Query<&ChildOf>,
+    q_player: &Query<(), With<PlayerSpaceshipMarker>>,
+) -> Option<Entity> {
+    let hull = q_child_of.get(port).ok().map(ChildOf::parent)?;
+    if q_player.contains(hull) {
+        Some(partner)
+    } else if q_player.contains(partner) {
+        Some(hull)
+    } else {
+        None
+    }
+}
+
+/// Post `DOCKED <NAME>` when the player's clamp closes, naming the other hull
+/// in the refusal lines' register. A hull with no name posts `DOCKED`.
+fn post_dock_clamped_notice(
+    clamped: On<DockClamped>,
+    q_child_of: Query<&ChildOf>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    q_names: Query<&Name>,
+    mut notices: MessageWriter<HudNotice>,
+) {
+    let Some(partner) =
+        player_dock_partner(clamped.entity, clamped.partner, &q_child_of, &q_player)
+    else {
+        return;
+    };
+    let line = match q_names.get(partner) {
+        Ok(name) => format!("DOCKED {}", name.as_str().to_uppercase()),
+        Err(_) => "DOCKED".to_string(),
+    };
+    debug!("hud_notice: {line}");
+    notices.write(HudNotice(line));
+}
+
+/// Post `UNDOCKED` when the player's dock lets go on a request, from either
+/// end.
+fn post_dock_released_notice(
+    released: On<DockReleased>,
+    q_child_of: Query<&ChildOf>,
+    q_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut notices: MessageWriter<HudNotice>,
+) {
+    if player_dock_partner(released.entity, released.partner, &q_child_of, &q_player).is_none() {
+        return;
+    }
+    debug!("hud_notice: UNDOCKED");
+    notices.write(HudNotice("UNDOCKED".to_string()));
 }
 
 /// Post `JOB-n done: hand in at STN-m` when a held job's work is done. The
@@ -535,6 +599,58 @@ mod tests {
             1,
             "one done, one cue"
         );
+    }
+
+    /// A hull with a port on it, named.
+    fn hull(app: &mut App, name: &str, player: bool) -> (Entity, Entity) {
+        let mut root = app.world_mut().spawn(Name::new(name.to_string()));
+        if player {
+            root.insert(PlayerSpaceshipMarker);
+        }
+        let root = root.id();
+        let port = app.world_mut().spawn(ChildOf(root)).id();
+        (root, port)
+    }
+
+    /// The player's clamp closing posts `DOCKED <NAME>` once and letting go
+    /// posts `UNDOCKED` once, from either end of the dock; a dock between two
+    /// other hulls posts nothing.
+    #[test]
+    fn the_players_dock_posts_docked_and_undocked_once_and_another_pairs_dock_posts_nothing() {
+        let mut app = notice_app();
+        let (player, player_port) = hull(&mut app, "Tender", true);
+        let (station, station_port) = hull(&mut app, "Waystation", false);
+        let (raider, raider_port) = hull(&mut app, "Raider", false);
+
+        app.world_mut().trigger(DockClamped {
+            entity: player_port,
+            partner: station,
+        });
+        app.update();
+        assert_eq!(rendered(&mut app).0, "DOCKED WAYSTATION");
+        assert_eq!(app.world().resource::<NoticeCues>().interface, 1);
+
+        // The partner lets go: the player's hull is the other end.
+        app.world_mut().trigger(DockReleased {
+            entity: station_port,
+            partner: player,
+        });
+        app.update();
+        assert_eq!(rendered(&mut app).0, "UNDOCKED");
+        assert_eq!(app.world().resource::<NoticeCues>().interface, 2);
+
+        advance(&mut app, NOTICE_DWELL_SECS + NOTICE_FADE_SECS + 1.0);
+        app.world_mut().trigger(DockClamped {
+            entity: raider_port,
+            partner: station,
+        });
+        app.world_mut().trigger(DockReleased {
+            entity: station_port,
+            partner: raider,
+        });
+        app.update();
+        assert_eq!(rendered(&mut app).0, "", "another pair's dock is not news");
+        assert_eq!(app.world().resource::<NoticeCues>().interface, 2);
     }
 
     #[test]

@@ -2869,6 +2869,8 @@
         ),
         kind: Docking((
             render_mesh: Some("self://gltf/dock_flush.glb#Scene0"),
+            clamp_sound: Some("self://sounds/dock_clamp.wav"),
+            release_sound: Some("self://sounds/dock_release.wav"),
             capture_distance: 10.0,
             capture_angle: 15.0,
             maximum_relative_speed: 5.0,

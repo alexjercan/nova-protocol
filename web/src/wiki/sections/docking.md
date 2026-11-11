@@ -83,6 +83,8 @@ A docked pair flies as **one body**, and exactly one ship flies it. A dock with 
 
 If the game cannot measure the pair, neither ship flies it and the mode chip reads **HELM FAULT** until it can. <kbd>H</kbd> cannot take the helm then, and its chip stays dark on the dock. The blocked chips stay dark until the pair measures. If you held the helm when the fault came, <kbd>H</kbd> still hands it back, but you cannot take it again until the pair measures. A GOTO set on the map waits for the undock. The clamp holds, and <kbd>D</kbd> still lets go; the next dock starts clear.
 
+The clamp says so. The instant the joint holds, your port plays the clamp latching, a cold light blinks on the collar, and the HUD posts `DOCKED <NAME>` in the notice slot, naming the hull you are now held to. The light is a High and Medium thing: on Low you keep the sound and the notice. A dock a Load or a sector thaw rebuilds is not a new clamp, so a game resumed docked stays quiet.
+
 Only then do the sleeves move. Both ports reach 5 m out over about a second, which bridges a full cell of gap; at a shorter gap the two sleeves simply overlap inside each other and read as one tunnel. They are skin, not structure: the clamp is already holding before they start, and an extended sleeve never touches the other ship.
 
 <figure class="figure">
@@ -106,11 +108,11 @@ Only then do the sleeves move. Both ports reach 5 m out over about a second, whi
 
 <!-- Behavior verified against crates/nova_ship/src/sections/docking_section/connection.rs: on_docking_release_request is ungated and addressed to a ship; release_connection removes DockedShip and DockedAssembly from both roots; plus a destroyed port and a destroyed ship. Player-hit-ends-dock: crates/nova_ship/src/input/ai/threat.rs on_damage_track_threat (triggers DockingReleaseRequest). -->
 
-**<kbd>D</kbd> again lets go**, the same way <kbd>O</kbd> again drops an orbit. Either ship can press it, and neither needs the other's permission - the ship you docked with can leave while you are still sitting there. Each ship flies itself again the moment the clamp goes, and the helm goes with it: the next dock starts neutral.
+**<kbd>D</kbd> again lets go**, the same way <kbd>O</kbd> again drops an orbit. Either ship can press it, and neither needs the other's permission - the ship you docked with can leave while you are still sitting there. Each ship flies itself again the moment the clamp goes, and the helm goes with it: the next dock starts neutral. The port that let go plays the clamp releasing, and the HUD posts `UNDOCKED` whichever side pressed it.
 
 A dock has no timer and no drift. A pair stays docked indefinitely, because nothing you do at the controls can end it - only the verb can, or damage. A maneuver does not end it either: [ORBIT](../../flight-autopilot/#the-autopilot-flies-the-hull), GOTO and STOP fly the whole pair.
 
-The other endings are damage. Shoot the port off either hull, or kill either ship, and the clamp goes with it; the surviving port stows its sleeve and is free to dock again. A port is the lightest thing on a hull at 90 health, so a dock in a firefight is a dock on borrowed time. A crewed Neutral is an exception: it holds the dock while a third ship shoots at it, but YOUR hit on it ends the dock at once, whole port or not. A derelict has nobody aboard to let go.
+The other endings are damage. Shoot the port off either hull, or kill either ship, and the clamp goes with it; the surviving port stows its sleeve and is free to dock again, with no release sound and no notice: the damage was the news. A port is the lightest thing on a hull at 90 health, so a dock in a firefight is a dock on borrowed time. A crewed Neutral is an exception: it holds the dock while a third ship shoots at it, but YOUR hit on it ends the dock at once, whole port or not. A derelict has nobody aboard to let go.
 
 ## Variants
 

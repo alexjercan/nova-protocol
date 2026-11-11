@@ -88,6 +88,8 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
         kind: SectionKind::Docking(DockingSectionConfig {
             render_mesh: Some(meshes.dock_flush.clone()),
             render_mesh_transform: None,
+            clamp_sound: Some(meshes.dock_clamp_sound.clone()),
+            release_sound: Some(meshes.dock_release_sound.clone()),
             // One cell of reach between the two RETRACTED faces, which is
             // exactly what two 0.5 sleeves bridge.
             capture_distance: Meters(10.0),

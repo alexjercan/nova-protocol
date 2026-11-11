@@ -12,18 +12,23 @@
 //! or not at all.
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::*;
+use nova_gameplay::{
+    audio::{SfxThrottle, ThrottleKey},
+    prelude::*,
+};
 
 use super::{
-    routing::route_for, BAY_DOOR_CLOSE_VOLUME, BAY_DOOR_OPEN_VOLUME, CARGO_EJECT_VOLUME,
-    INTAKE_DOOR_CLOSE_VOLUME, INTAKE_DOOR_OPEN_VOLUME, MINING_DOOR_CLOSE_VOLUME,
-    MINING_DOOR_OPEN_VOLUME, STOW_CLOSE_VOLUME, STOW_OPEN_VOLUME,
+    routing::{owning_root, route_for, route_from},
+    BAY_DOOR_CLOSE_VOLUME, BAY_DOOR_OPEN_VOLUME, CARGO_EJECT_VOLUME, DOCK_CLAMP_VOLUME,
+    DOCK_MIN_INTERVAL, DOCK_RELEASE_VOLUME, INTAKE_DOOR_CLOSE_VOLUME, INTAKE_DOOR_OPEN_VOLUME,
+    MINING_DOOR_CLOSE_VOLUME, MINING_DOOR_OPEN_VOLUME, STOW_CLOSE_VOLUME, STOW_OPEN_VOLUME,
 };
 use crate::sections::{
     cargo_intake_section::{
         CargoCanisterEjected, CargoCanisterTaken, CargoIntakeDoorMoved,
         CargoIntakeSectionConfigHelper,
     },
+    docking_section::{DockClamped, DockReleased, DockingSectionConfigHelper},
     mining_section::{MiningDoorsMoved, MiningSectionConfigHelper},
     torpedo_section::{TorpedoBayDoorsMoved, TorpedoSectionDoorSound},
     turret_section::{TurretSectionStowSounds, TurretStowDoorsMoved},
@@ -213,6 +218,103 @@ pub(super) fn on_canister_taken_play_sfx(
     );
 }
 
+/// The clamp closing, at the port of the hull that pressed `DOCK`, the
+/// frame the joint holds. AUTHORED-OR-SILENT: the port's own `clamp_sound`.
+pub(super) fn on_dock_clamped_play_sfx(
+    clamped: On<DockClamped>,
+    asset_server: Res<AssetServer>,
+    time: Res<Time>,
+    mut throttle: ResMut<SfxThrottle>,
+    q_ports: Query<(&DockingSectionConfigHelper, &GlobalTransform)>,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+) {
+    play_dock_cue(
+        clamped.entity,
+        |config| config.clamp_sound.as_ref(),
+        ThrottleKey::DockClamp,
+        DOCK_CLAMP_VOLUME,
+        &asset_server,
+        &time,
+        &mut throttle,
+        &q_ports,
+        &q_child_of,
+        &q_is_root,
+        &q_is_player,
+        &mut commands,
+    );
+}
+
+/// The clamp letting go, at the port of the hull that asked to be free.
+/// AUTHORED-OR-SILENT: the port's own `release_sound`. The damage releases
+/// never report, so they never reach here.
+pub(super) fn on_dock_released_play_sfx(
+    released: On<DockReleased>,
+    asset_server: Res<AssetServer>,
+    time: Res<Time>,
+    mut throttle: ResMut<SfxThrottle>,
+    q_ports: Query<(&DockingSectionConfigHelper, &GlobalTransform)>,
+    q_child_of: Query<&ChildOf>,
+    q_is_root: Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    mut commands: Commands,
+) {
+    play_dock_cue(
+        released.entity,
+        |config| config.release_sound.as_ref(),
+        ThrottleKey::DockRelease,
+        DOCK_RELEASE_VOLUME,
+        &asset_server,
+        &time,
+        &mut throttle,
+        &q_ports,
+        &q_child_of,
+        &q_is_root,
+        &q_is_player,
+        &mut commands,
+    );
+}
+
+/// One docking cue at `port`: the authored file `pick` names, throttled per
+/// hull so a request echoed on one frame plays once.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the two dock observers share one body: the bank, the clock, the throttle, the port and its route"
+)]
+fn play_dock_cue(
+    port: Entity,
+    pick: impl FnOnce(&DockingSectionConfigHelper) -> Option<&AssetRef<AudioSource>>,
+    key: impl FnOnce(Entity) -> ThrottleKey,
+    volume: f32,
+    asset_server: &AssetServer,
+    time: &Time,
+    throttle: &mut SfxThrottle,
+    q_ports: &Query<(&DockingSectionConfigHelper, &GlobalTransform)>,
+    q_child_of: &Query<&ChildOf>,
+    q_is_root: &Query<(), With<SpaceshipRootMarker>>,
+    q_is_player: &Query<(), With<PlayerSpaceshipMarker>>,
+    commands: &mut Commands,
+) {
+    let Ok((config, at)) = q_ports.get(port) else {
+        return;
+    };
+    let Some(sound) = pick(config) else {
+        return;
+    };
+    let root = owning_root(port, q_child_of, q_is_root);
+    if !throttle.allow(key(root), time.elapsed_secs(), DOCK_MIN_INTERVAL) {
+        return;
+    }
+    commands.play_sfx_at(
+        sound.resolve(asset_server),
+        route_from(root, q_is_player),
+        volume,
+        at.translation(),
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use nova_events::units::prelude::*;
@@ -220,6 +322,7 @@ mod tests {
     use super::{super::test_support::LastPlayed, *};
     use crate::sections::{
         cargo_intake_section::{preview_cargo_intake_section, CargoIntakeSectionConfig},
+        docking_section::{preview_docking_section, DockingSectionConfig},
         mining_section::{preview_mining_section, MiningSectionConfig},
     };
 
@@ -507,6 +610,77 @@ mod tests {
                 (
                     server.load("base/sounds/mining_door_close.wav"),
                     MINING_DOOR_CLOSE_VOLUME,
+                    at
+                ),
+            ]
+        );
+    }
+
+    /// The clamp and the release each play the port's own authored file at
+    /// the port, and a port that authors neither stays silent.
+    #[test]
+    fn the_clamp_and_the_release_play_the_ports_authored_files_at_the_port() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.init_resource::<SfxThrottle>();
+        app.add_observer(on_dock_clamped_play_sfx);
+        app.add_observer(on_dock_released_play_sfx);
+        #[derive(Resource, Default)]
+        struct Heard(Vec<(Handle<AudioSource>, f32, SfxSource)>);
+        app.init_resource::<Heard>();
+        app.add_observer(|ev: On<PlaySfx>, mut heard: ResMut<Heard>| {
+            heard.0.push((ev.handle.clone(), ev.volume, ev.source));
+        });
+        let ship = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let partner = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let point = Vec3::new(1.0, 2.0, -3.0);
+        let at = SfxSource::At(point);
+        let voiced = app
+            .world_mut()
+            .spawn((
+                preview_docking_section(DockingSectionConfig {
+                    clamp_sound: Some(AssetRef::from("base/sounds/dock_clamp.wav")),
+                    release_sound: Some(AssetRef::from("base/sounds/dock_release.wav")),
+                    ..default()
+                }),
+                GlobalTransform::from_translation(point),
+                ChildOf(ship),
+            ))
+            .id();
+        let silent = app
+            .world_mut()
+            .spawn((
+                preview_docking_section(DockingSectionConfig::default()),
+                GlobalTransform::from_translation(point),
+                ChildOf(partner),
+            ))
+            .id();
+
+        for port in [voiced, silent] {
+            app.world_mut().trigger(DockClamped {
+                entity: port,
+                partner,
+            });
+            app.world_mut().trigger(DockReleased {
+                entity: port,
+                partner,
+            });
+        }
+        app.world_mut().flush();
+
+        let server = app.world().resource::<AssetServer>().clone();
+        assert_eq!(
+            app.world().resource::<Heard>().0,
+            vec![
+                (
+                    server.load("base/sounds/dock_clamp.wav"),
+                    DOCK_CLAMP_VOLUME,
+                    at
+                ),
+                (
+                    server.load("base/sounds/dock_release.wav"),
+                    DOCK_RELEASE_VOLUME,
                     at
                 ),
             ]

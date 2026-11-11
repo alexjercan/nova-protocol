@@ -307,6 +307,34 @@ pub struct DockingReleaseRequest {
     pub entity: Entity,
 }
 
+/// A clamp closed: the joint holds and both sleeves are starting out.
+///
+/// Fired ONCE per capture, from the `DOCK` that built it, on the port of the
+/// hull that pressed the key. A dock a Load or a sector thaw rebuilds
+/// (`restore_docking_connection`) fires nothing: the clamp closed in an
+/// earlier session, and the feedback for it was given then.
+#[derive(EntityEvent, Clone, Copy, Debug)]
+pub struct DockClamped {
+    /// The port on the hull that issued `DOCK`.
+    pub entity: Entity,
+    /// The hull root the port clamped to.
+    pub partner: Entity,
+}
+
+/// A clamp let go on a request: `DOCK` pressed again or an AI release.
+///
+/// Fired ONCE per request, on the port of the hull that asked to be free.
+/// The damage paths - a destroyed port, a lost hull - fire nothing: the
+/// section coming apart is its own feedback, and half the entities a release
+/// names are already on their way out.
+#[derive(EntityEvent, Clone, Copy, Debug)]
+pub struct DockReleased {
+    /// The port on the hull that asked to be free.
+    pub entity: Entity,
+    /// The hull root it was clamped to.
+    pub partner: Entity,
+}
+
 /// Execute `DOCK`: pick the pair, reserve both ports, and lock the two hulls
 /// together with one fixed joint.
 ///
@@ -408,6 +436,10 @@ pub(super) fn on_docking_connection_request(
             *state = DockingSectionState::Extending;
         }
     }
+    commands.trigger(DockClamped {
+        entity: record.first_section,
+        partner: second_ship,
+    });
 }
 
 /// Spawn the connection `record` held by `joint`, reserve both ports and put
@@ -775,7 +807,16 @@ pub(super) fn on_docking_release_request(
         "on_docking_release_request: {:?} lets go of {:?}",
         request.entity, docked.connection
     );
+    let (port, partner) = if record.first_ship == request.entity {
+        (record.first_section, record.second_ship)
+    } else {
+        (record.second_section, record.first_ship)
+    };
     release_connection(&mut commands, docked.connection, record, hub, &mut q_states);
+    commands.trigger(DockReleased {
+        entity: port,
+        partner,
+    });
 }
 
 /// Take or hand back the helm of the pair the player is docked in.

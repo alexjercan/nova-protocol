@@ -94,6 +94,14 @@ pub enum ThrottleKey {
     /// pops, not six on top of each other. Torpedoes dying in different cells
     /// are still heard apart.
     TorpedoDeath(IVec3),
+    /// A docking clamp closing, keyed by the hull whose port reported it. One
+    /// hull holds one dock, so this only collapses a request echoed on one
+    /// frame; a station's several ports stay distinct through the visitors'
+    /// own keys. Its own key beside [`ThrottleKey::DockRelease`], so a dock
+    /// let go at once still says so.
+    DockClamp(Entity),
+    /// A docking clamp letting go, keyed like [`ThrottleKey::DockClamp`].
+    DockRelease(Entity),
 }
 
 /// Quantize a world position to a [`SFX_AREA_CELL`]-sized integer cell, so

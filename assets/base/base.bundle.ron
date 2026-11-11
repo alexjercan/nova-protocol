@@ -276,6 +276,8 @@
         "sounds/cargo_eject.wav",
         "sounds/destroy_rock.wav",
         "sounds/destroy_ship.wav",
+        "sounds/dock_clamp.wav",
+        "sounds/dock_release.wav",
         "sounds/dry_fire.wav",
         "sounds/explosion.wav",
         "sounds/impact.wav",

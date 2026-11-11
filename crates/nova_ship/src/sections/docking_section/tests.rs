@@ -1597,6 +1597,102 @@ fn docked_rcs_translates_the_pair_without_turning_it() {
     );
 }
 
+/// Which clamp events fired, as `(port, partner)` in order.
+#[derive(Resource, Default)]
+struct DockEvents {
+    clamped: Vec<(Entity, Entity)>,
+    released: Vec<(Entity, Entity)>,
+}
+
+fn record_dock_events(app: &mut App) {
+    app.init_resource::<DockEvents>();
+    app.add_observer(|ev: On<DockClamped>, mut log: ResMut<DockEvents>| {
+        log.clamped.push((ev.entity, ev.partner));
+    });
+    app.add_observer(|ev: On<DockReleased>, mut log: ResMut<DockEvents>| {
+        log.released.push((ev.entity, ev.partner));
+    });
+}
+
+#[test]
+fn one_capture_reports_one_clamp_and_one_request_reports_one_release() {
+    let mut app = docking_app();
+    record_dock_events(&mut app);
+    let (first, first_port, second, second_port) = facing_pair(&mut app, NOMINAL_GAP);
+
+    request_dock(&mut app, first, second);
+    // Refused: both ports are spoken for, so nothing new clamps.
+    request_dock(&mut app, first, second);
+    assert_eq!(
+        app.world().resource::<DockEvents>().clamped,
+        vec![(first_port, second)],
+        "one capture, one clamp, on the port of the hull that pressed DOCK"
+    );
+
+    app.world_mut()
+        .trigger(DockingReleaseRequest { entity: second });
+    app.update();
+    // Not docked any more: a second request has nothing to let go of.
+    app.world_mut()
+        .trigger(DockingReleaseRequest { entity: second });
+    app.update();
+    let events = app.world().resource::<DockEvents>();
+    assert_eq!(
+        events.released,
+        vec![(second_port, first)],
+        "one request, one release, on the port of the hull that asked"
+    );
+    assert_eq!(events.clamped.len(), 1, "a release never clamps");
+}
+
+#[test]
+fn a_restored_dock_and_a_damage_release_report_nothing() {
+    let mut app = docking_app();
+    record_dock_events(&mut app);
+    let (first, first_port, second, second_port) = facing_pair(&mut app, NOMINAL_GAP);
+
+    let (p1, r1, p2, r2, anchor) = app
+        .world_mut()
+        .run_system_once(move |ports: DockingPorts| {
+            let (p1, r1) = ports.body_pose(first).expect("the first hull is a body");
+            let (p2, r2) = ports.body_pose(second).expect("the second hull is a body");
+            let face1 = ports.pose(first_port, first).expect("a posed port").face;
+            let face2 = ports.pose(second_port, second).expect("a posed port").face;
+            (p1, r1, p2, r2, face1.midpoint(face2))
+        })
+        .expect("the capture pose reads");
+    let frames = [
+        JointFrame {
+            anchor: JointAnchor::Local(r1.inverse() * (anchor - p1)),
+            basis: JointBasis::Local(Quat::IDENTITY),
+        },
+        JointFrame {
+            anchor: JointAnchor::Local(r2.inverse() * (anchor - p2)),
+            basis: JointBasis::Local(r2.inverse() * r1),
+        },
+    ];
+    let record = DockingConnection {
+        first_ship: first,
+        first_section: first_port,
+        second_ship: second,
+        second_section: second_port,
+        helm: DockedHelmType::Neutral,
+        measurement_fault: false,
+    };
+    restore_docking_connection(app.world_mut(), record, frames);
+    app.update();
+    assert_eq!(connections(&mut app).len(), 1, "the restored dock holds");
+
+    // The port is shot off: the dock goes with it, and says nothing.
+    app.world_mut().entity_mut(first_port).despawn();
+    app.update();
+    assert!(connections(&mut app).is_empty(), "the connection is gone");
+
+    let events = app.world().resource::<DockEvents>();
+    assert!(events.clamped.is_empty(), "a Load is not a capture");
+    assert!(events.released.is_empty(), "damage is not a request");
+}
+
 #[test]
 fn a_destroyed_port_frees_its_partner() {
     let mut app = docking_app();

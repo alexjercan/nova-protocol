@@ -19,6 +19,14 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - The flight key row now shows only the chips that apply: INTERFACE, DRIVE, STOP, RCS and RADAR always; GOTO, ORBIT, CANCEL, DOCK, HELM, MINE, AIM, FIRE, TORPEDO and RAILGUN as they apply.
 
+### Modding & Mod Portal
+
+- `DockingSectionConfig` gains optional `clamp_sound` and `release_sound`, played once at the port that captured or let go; the base port authors `dock_clamp.wav` and `dock_release.wav`.
+
+### Audio & Visuals
+
+- A docking clamp now latches audibly, blinks a cold light on the collar and posts `DOCKED <NAME>` on the HUD; letting go plays the release and posts `UNDOCKED`. A Load or damage stays quiet.
+
 ### Fixes
 
 - The RCS chip now draws dark while the RCS magazine is empty, as the MATCH chord already did.

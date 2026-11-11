@@ -1115,6 +1115,8 @@ modded craft.
 ```ron
 kind: Docking((
     render_mesh: Some("dep://base/gltf/dock_flush.glb#Scene0"),
+    clamp_sound: Some("dep://base/sounds/dock_clamp.wav"),
+    release_sound: Some("dep://base/sounds/dock_release.wav"),
     capture_distance: 10.0,
     capture_angle: 15.0,
     maximum_relative_speed: 5.0,
@@ -1125,6 +1127,16 @@ kind: Docking((
 - `render_mesh`, `render_mesh_transform` (both optional) - the port mesh and a
   visual-only transform for it. Omit the mesh and the port draws as a unit
   cuboid, and still docks.
+- `clamp_sound` (optional) - the clamp closing
+  (`dep://base/sounds/dock_clamp.wav` is the base latch), played once per
+  capture at the port of the hull that pressed `DOCK`, the instant the joint
+  holds. A dock a Load or a sector thaw rebuilds plays nothing. Omit for a
+  silent clamp.
+- `release_sound` (optional) - the clamp letting go
+  (`dep://base/sounds/dock_release.wav` is the base one), played once at the
+  port of the hull that asked: `DOCK` again, or an AI release. A dock a
+  destroyed port or a lost hull takes apart plays nothing. Omit for a silent
+  release. Either sound set to an empty path fails lint.
 - `capture_distance` (meters) - the widest FACE GAP a dock is offered at,
   measured between the two ports' retracted outer faces and not between their
   section origins. The shipped 10.0 is one build cell.

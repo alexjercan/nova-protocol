@@ -146,6 +146,8 @@ ship's cockpit voice. Only the player's ship plays them.
 | `radar_deny.wav` | the mining beam's `refusal_sound`, once per refused pulse (also the presentation `radar_deny_sound`) |
 | `mining_door_open.wav` | the mining beam's `door_open_sound`, when its lids start to part |
 | `mining_door_close.wav` | the mining beam's `door_close_sound`, when its lids start to shut |
+| `dock_clamp.wav` | the docking port's `clamp_sound`, once per capture at the port of the hull that pressed DOCK; never for a dock a Load rebuilds |
+| `dock_release.wav` | the docking port's `release_sound`, once per request (DOCK again, an AI release) at the port of the hull that asked; never for a dock damage takes apart |
 
 ## Recorded (licensed)
 

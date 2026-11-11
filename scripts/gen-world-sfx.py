@@ -1020,6 +1020,66 @@ def mining_door_close(rng):
     return out
 
 
+def dock_clamp(rng):
+    """The docking clamp closing: the servo slides the collar home, the latch
+    takes the other hull with one hard knock, and the collar rings.
+
+    The heaviest latch on the hull, so it sits a register under the pickup's
+    bay ring and lands harder than any door. The slide is the servo band the
+    PDC housing and the mining lids share; the knock is where the weight is.
+    """
+    duration = 0.55
+    out = silence(duration)
+
+    out = place(out, _stow_servo(rng, 0.26, 150.0, 118.0), 0.0)
+
+    # The collar seats on the other hull: a hard transient with the motor
+    # still pushing, lower and shorter than the stow panel's.
+    seat = white(0.18, rng) * env_exp(0.18, 0.0004, 0.014)
+    out = place(out, saturate(bandpass(seat, 55.0, 320.0, order=3) * 2.0, 2.2) * 1.8, 0.27)
+    out = place(out, modes(seat, [(210.0, 0.09, 1.0), (470.0, 0.05, 0.5)]) * 1.4, 0.271)
+
+    # The latch dogs dropping in, a beat after the seat.
+    lock = white(0.04, rng) * env_exp(0.04, 0.0002, 0.003)
+    out = place(out, modes(lock, [(1850.0, 0.020, 1.0), (3100.0, 0.012, 0.5)]) * 1.4, 0.33)
+
+    # The collar answering: a short metal ring, two modes that are not an
+    # interval, so it stays machinery and not a chime.
+    ring = modes(
+        white(0.22, rng) * env_exp(0.22, 0.0004, 0.010),
+        [(330.0, 0.16, 1.0), (880.0, 0.09, 0.4)],
+    )
+    out = place(out, ring * 1.2, 0.335)
+
+    return out
+
+
+def dock_release(rng):
+    """The clamp letting go: the latch dogs lift, the collar slides clear.
+
+    The clamp in reverse, on the same hardware, so it keeps the clamp's latch
+    register and servo and drops the seat. Lighter: letting go is not an
+    impact.
+    """
+    duration = 0.42
+    out = silence(duration)
+
+    unlock = white(0.04, rng) * env_exp(0.04, 0.0002, 0.003)
+    out = place(out, modes(unlock, [(1850.0, 0.020, 1.0), (3100.0, 0.012, 0.5)]) * 1.3, 0.0)
+
+    # The collar coming off the other hull: a soft release, not a knock.
+    part = white(0.10, rng) * env_exp(0.10, 0.0008, 0.010)
+    out = place(out, bandpass(part, 90.0, 520.0, order=3) * 1.2, 0.04)
+
+    out = place(out, _stow_servo(rng, 0.24, 118.0, 150.0), 0.08)
+
+    # The servo reaching its stop, softer than the clamp's seat.
+    stop = white(0.10, rng) * env_exp(0.10, 0.0005, 0.010)
+    out = place(out, modes(stop, [(300.0, 0.07, 1.0), (640.0, 0.04, 0.4)]) * 1.1, 0.32)
+
+    return out
+
+
 # name -> (renderer, output path relative to the repo root)
 #
 # Nine cues render onto LEGACY filenames, and they keep them. Those paths are
@@ -1059,6 +1119,8 @@ CUES = {
     "mining_pulse": (mining_pulse, "assets/base/sounds/mining_pulse.wav"),
     "mining_door_open": (mining_door_open, "assets/base/sounds/mining_door_open.wav"),
     "mining_door_close": (mining_door_close, "assets/base/sounds/mining_door_close.wav"),
+    "dock_clamp": (dock_clamp, "assets/base/sounds/dock_clamp.wav"),
+    "dock_release": (dock_release, "assets/base/sounds/dock_release.wav"),
 }
 
 

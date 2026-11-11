@@ -74,7 +74,8 @@ use self::{
     loops::{drive_railgun_charge_loops, drive_rcs_loops, drive_thruster_loops},
     machinery::{
         on_bay_doors_play_sfx, on_canister_ejected_play_sfx, on_canister_taken_play_sfx,
-        on_intake_door_play_sfx, on_mining_doors_play_sfx, on_stow_doors_play_sfx,
+        on_dock_clamped_play_sfx, on_dock_released_play_sfx, on_intake_door_play_sfx,
+        on_mining_doors_play_sfx, on_stow_doors_play_sfx,
     },
 };
 
@@ -190,6 +191,13 @@ const MINING_DOOR_CLOSE_VOLUME: f32 = 0.14;
 /// [`nova_gameplay::audio::SALVAGE_PICKUP_VOLUME`].
 const CARGO_EJECT_VOLUME: f32 = 0.20;
 
+/// The docking clamp closing and letting go. The heaviest latch on the hull,
+/// so the clamp sits over the bay iris seating ([`BAY_DOOR_CLOSE_VOLUME`])
+/// and the release, the same hardware unloading, back at the iris's level.
+/// Still under the salvage take: a dock is a service event, not a reward.
+const DOCK_CLAMP_VOLUME: f32 = 0.24;
+const DOCK_RELEASE_VOLUME: f32 = 0.20;
+
 /// A reload batch landing: a shell going back into the lance, a torpedo
 /// seating in the bay's rack. Well under the lance's shot
 /// ([`RAILGUN_FIRE_VOLUME`], about 6 dB) - it is an answer to a silence, not an
@@ -247,6 +255,10 @@ const TORPEDO_LAUNCH_MIN_INTERVAL: f32 = 0.15;
 /// sound.
 const TORPEDO_DEATH_MIN_INTERVAL: f32 = 0.08;
 
+/// Minimum seconds between docking cues on one hull. A hull holds one dock,
+/// so this only collapses a request echoed on one frame into one clamp.
+const DOCK_MIN_INTERVAL: f32 = 0.15;
+
 /// The ship's one-shot CUE systems: the cockpit's lock, safety, dry-fire,
 /// threat, hull-warning and torpedo closing voices.
 ///
@@ -295,6 +307,8 @@ impl Plugin for ShipAudioPlugin {
         app.add_observer(on_mining_doors_play_sfx);
         app.add_observer(on_canister_ejected_play_sfx);
         app.add_observer(on_canister_taken_play_sfx);
+        app.add_observer(on_dock_clamped_play_sfx);
+        app.add_observer(on_dock_released_play_sfx);
         app.add_observer(on_reload_landed_play_sfx);
         app.add_observer(on_collapse_play_hull_loss);
 

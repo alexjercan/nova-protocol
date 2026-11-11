@@ -90,6 +90,10 @@ pub struct BaseContentAssets {
     pub cargo_eject_sound: AssetRef<AudioSource>,
     /// A cargo intake taking a canister into the hold, the salvage pickup.
     pub cargo_take_sound: AssetRef<AudioSource>,
+    /// A docking clamp closing on the other hull.
+    pub dock_clamp_sound: AssetRef<AudioSource>,
+    /// A docking clamp letting go.
+    pub dock_release_sound: AssetRef<AudioSource>,
     /// One mining beam pulse landing on the rock.
     pub mining_pulse_sound: AssetRef<AudioSource>,
     /// One mining beam pulse refused.
@@ -268,6 +272,8 @@ impl BaseContentAssets {
             torpedo_door_sound: AssetRef::from("self://sounds/bay_door.wav".to_string()),
             cargo_eject_sound: AssetRef::from("self://sounds/cargo_eject.wav".to_string()),
             cargo_take_sound: AssetRef::from("self://sounds/salvage_pickup.wav".to_string()),
+            dock_clamp_sound: AssetRef::from("self://sounds/dock_clamp.wav".to_string()),
+            dock_release_sound: AssetRef::from("self://sounds/dock_release.wav".to_string()),
             mining_pulse_sound: AssetRef::from("self://sounds/mining_pulse.wav".to_string()),
             mining_refusal_sound: AssetRef::from("self://sounds/radar_deny.wav".to_string()),
             mining_door_open_sound: AssetRef::from(
