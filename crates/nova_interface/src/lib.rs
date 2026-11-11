@@ -25,6 +25,7 @@
 //! | `inventory` | The Inventory pane: the player and docked-ship inventories. |
 //! | `jobs` | The Jobs pane: the held jobs and the docked station's board. |
 //! | `station` | The Station pane: what the docked station sells. |
+//! | `sector_notice` | The `SECTOR` HUD notice on a sector crossing. |
 //! | `viewer` | The orbit camera and selection cycle both panes run on. |
 
 #![warn(missing_docs)]
@@ -35,6 +36,7 @@ pub mod inventory;
 pub mod jobs;
 pub mod map;
 pub mod pane;
+pub mod sector_notice;
 pub mod ship;
 pub mod station;
 pub mod terminal;
@@ -68,6 +70,7 @@ pub mod prelude {
         jobs::prelude::*,
         map::prelude::*,
         pane::{ActionOutcomeType, InterfacePaneType},
+        sector_notice::{post_sector_crossing_notice, sector_notice_line, SectorNoticePlugin},
         ship::prelude::*,
         station::prelude::*,
         terminal::prelude::*,
@@ -211,6 +214,7 @@ impl Plugin for InterfacePlugin {
         app.add_plugins(inventory::InventoryPanePlugin);
         app.add_plugins(jobs::JobsPanePlugin);
         app.add_plugins(station::StationPanePlugin);
+        app.add_plugins(sector_notice::SectorNoticePlugin);
     }
 }
 

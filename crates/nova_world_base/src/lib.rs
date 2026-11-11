@@ -142,8 +142,8 @@ pub mod prelude {
         station_archetype, station_ceiling, Civilization, CivilizationField, CivilizationReach,
         CivilizationStatusType, ClusterSummary, Environment, EnvironmentFieldType,
         EnvironmentFields, HullLineageType, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin,
-        PlannedShip, PlayerHull, SectorClusters, ShipDriveLayoutType, ShipLayout,
-        ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
+        NovaWorldBaseSystems, PlannedShip, PlayerHull, SectorClusters, ShipDriveLayoutType,
+        ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
         ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
         StanceStanding, StartPreview, StationArchetypeType, StationLayout,
         StationLayoutConstraintType, StationLayoutFailure, StationLayoutRequest, ARMOURED_STYLE_ID,
@@ -220,6 +220,18 @@ pub const OPEN_WORLD_BOUNDS_RADIUS_MAX: Meters =
 /// streaming stages do not run.
 pub struct NovaWorldBasePlugin;
 
+/// The base world's own `Update` stages, for a plugin above it to order
+/// against.
+#[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum NovaWorldBaseSystems {
+    /// Feed the player's [`Chart`]: the cell the player stands in, the
+    /// sensor finds and the docked station. After
+    /// [`NovaWorldSystems::Retire`], so a cell materialized this frame is on
+    /// hand. A reader that wants the chart as it stood before this frame's
+    /// crossing was recorded (the HUD's `FIRST VISIT`) orders before it.
+    Chart,
+}
+
 impl Plugin for NovaWorldBasePlugin {
     fn build(&self, app: &mut App) {
         trace!("NovaWorldBasePlugin: build");
@@ -269,9 +281,13 @@ impl Plugin for NovaWorldBasePlugin {
             (
                 chart::clear_chart.in_set(NovaWorldSystems::Cleanup),
                 (
-                    chart::chart_visited_cell.run_if(resource_exists::<CurrentSector>),
-                    chart::chart_sensor_finds,
-                    chart::chart_docked_station,
+                    (
+                        chart::chart_visited_cell.run_if(resource_exists::<CurrentSector>),
+                        chart::chart_sensor_finds,
+                        chart::chart_docked_station,
+                    )
+                        .chain()
+                        .in_set(NovaWorldBaseSystems::Chart),
                     // The goal reads this frame's hand-ins before the save
                     // snapshots the record.
                     goal::track_role_goal,

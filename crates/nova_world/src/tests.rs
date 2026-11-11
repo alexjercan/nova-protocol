@@ -1667,6 +1667,7 @@ mod arming {
     fn armed(config: WorldConfig<Rocks>) -> World {
         let mut world = World::new();
         world.insert_resource(config);
+        world.init_resource::<Messages<crate::SectorCrossed>>();
         world.init_resource::<nova_scenario::prelude::CurrentScenario>();
         world.init_resource::<crate::streaming::ReadySectors>();
         world.init_resource::<crate::SectorJobStats>();
@@ -1734,16 +1735,20 @@ mod arming {
 /// unmarked session would otherwise stream around the origin and look like a
 /// world that simply starts somewhere else.
 mod observer {
-    use bevy::{ecs::system::RunSystemOnce, prelude::*};
+    use bevy::{
+        ecs::system::{RunSystemOnce, SystemId},
+        prelude::*,
+    };
 
     use super::{rocks, Rocks};
-    use crate::prelude::{CurrentSector, SectorCoord, WorldObserver};
+    use crate::prelude::{CurrentSector, SectorCoord, SectorCrossed, WorldObserver};
 
     /// A world with the fixture config in it, taken through the arming
     /// frame's [`crate::NovaWorldSystems::Cleanup`] and holding nothing else.
     fn world() -> World {
         let mut world = World::new();
         world.insert_resource(rocks());
+        world.init_resource::<Messages<SectorCrossed>>();
         world.init_resource::<nova_scenario::prelude::CurrentScenario>();
         world.init_resource::<crate::streaming::ReadySectors>();
         world.init_resource::<crate::SectorJobStats>();
@@ -1788,6 +1793,98 @@ mod observer {
             world.resource::<CurrentSector>().0,
             SectorCoord::new(1, 0, 0),
             "the streamed centre must be the cell the observer stands in"
+        );
+    }
+
+    /// The crossings posted so far, in order.
+    fn crossings(world: &World) -> Vec<SectorCrossed> {
+        world
+            .resource::<Messages<SectorCrossed>>()
+            .iter_current_update_messages()
+            .copied()
+            .collect()
+    }
+
+    /// Put the observer at `x` world units along +X.
+    fn move_observer(world: &mut World, x: f32) {
+        let mut observers = world.query_filtered::<&mut GlobalTransform, With<WorldObserver>>();
+        let mut transform = observers.single_mut(world).expect("one observer");
+        *transform = GlobalTransform::from(Transform::from_xyz(x, 0.0, 0.0));
+    }
+
+    /// A world with the observer in the origin cell, and the tracker
+    /// registered so it keeps its own change ticks: a system run once sees
+    /// every resource as changed, and the arming check reads the config's.
+    fn tracked_world() -> (World, SystemId) {
+        let mut world = world();
+        world.spawn((WorldObserver, GlobalTransform::default()));
+        let tracker = world.register_system(crate::streaming::track_current_sector::<Rocks>);
+        (world, tracker)
+    }
+
+    #[test]
+    fn the_first_cell_on_an_armed_world_is_not_a_crossing() {
+        let (mut world, tracker) = tracked_world();
+        world
+            .run_system(tracker)
+            .expect("the observer system must run");
+        assert_eq!(world.resource::<CurrentSector>().0, SectorCoord::ORIGIN);
+        assert!(crossings(&world).is_empty(), "arming posts no crossing");
+    }
+
+    #[test]
+    fn a_cell_change_under_the_armed_config_posts_one_crossing() {
+        let (mut world, tracker) = tracked_world();
+        world
+            .run_system(tracker)
+            .expect("the observer system must run");
+        // 40 km along +X: the next cell at a 32 km edge.
+        move_observer(&mut world, 4_000.0);
+        world
+            .run_system(tracker)
+            .expect("the observer system must run");
+        assert_eq!(
+            world.resource::<CurrentSector>().0,
+            SectorCoord::new(1, 0, 0)
+        );
+        assert_eq!(
+            crossings(&world),
+            [SectorCrossed {
+                from: SectorCoord::ORIGIN,
+                to: SectorCoord::new(1, 0, 0),
+            }]
+        );
+        // Standing still in the new cell posts nothing more.
+        world
+            .run_system(tracker)
+            .expect("the observer system must run");
+        assert_eq!(crossings(&world).len(), 1);
+    }
+
+    /// A Load or a New Game keeps `CurrentSector` across `Cleanup` and arms
+    /// a config the same frame; the cell it starts in is not a crossing.
+    #[test]
+    fn a_cell_change_on_the_arming_frame_posts_no_crossing() {
+        let (mut world, tracker) = tracked_world();
+        world
+            .run_system(tracker)
+            .expect("the observer system must run");
+        world.insert_resource(rocks());
+        world
+            .run_system_once(crate::streaming::clear_sector_work::<Rocks>)
+            .expect("the arming frame must clear the world it replaces");
+        move_observer(&mut world, 4_000.0);
+        world
+            .run_system(tracker)
+            .expect("the observer system must run");
+        assert_eq!(
+            world.resource::<CurrentSector>().0,
+            SectorCoord::new(1, 0, 0),
+            "the streamed centre follows the observer on the arming frame"
+        );
+        assert!(
+            crossings(&world).is_empty(),
+            "the arming frame posts no crossing"
         );
     }
 }

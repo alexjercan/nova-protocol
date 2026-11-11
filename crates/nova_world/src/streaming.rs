@@ -136,6 +136,22 @@ impl ObserverBody {
 #[derive(Resource, Clone, Copy, Debug)]
 pub struct CurrentSector(pub SectorCoord);
 
+/// The [`WorldObserver`] left `from` for `to` while the world stayed armed.
+///
+/// Written by [`track_current_sector`] once per cell change under an
+/// unchanged [`WorldConfig`]. Not written on the arming frame: a New Game, a
+/// Load or a Retry arms its config that frame, and [`CurrentSector`] is kept
+/// across `Cleanup` (a world that starts in the last world's cell never
+/// changes it), so the cell the observer stands in on that frame is where
+/// the world starts, not a crossing from where the last one ended.
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SectorCrossed {
+    /// The cell the observer stood in last frame.
+    pub from: SectorCoord,
+    /// The cell the observer stands in now.
+    pub to: SectorCoord,
+}
+
 /// The cells the observer wants live: the cube of side `2 * radius + 1`
 /// centred on `centre`.
 ///
@@ -575,9 +591,13 @@ pub fn track_current_sector<G: SectorGenerator>(
     cleared: Res<ClearedConfig>,
     observer: Query<&GlobalTransform, With<WorldObserver>>,
     current: Option<ResMut<CurrentSector>>,
+    mut crossings: MessageWriter<SectorCrossed>,
 ) {
     assert_world_was_cleared(config.last_changed(), &cleared);
-    if config.is_changed() {
+    // The arming frame: the config arrived or was replaced, and a cell
+    // change under it is where the new world starts, not a crossing.
+    let armed = config.is_changed();
+    if armed {
         if let Err(fault) = config.validate() {
             panic!("nova_world: {fault}");
         }
@@ -593,6 +613,12 @@ pub fn track_current_sector<G: SectorGenerator>(
         Some(mut current) => {
             if current.0 != coord {
                 debug!("nova_world: the observer crossed into {coord}");
+                if !armed {
+                    crossings.write(SectorCrossed {
+                        from: current.0,
+                        to: coord,
+                    });
+                }
                 current.0 = coord;
             }
         }

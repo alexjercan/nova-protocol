@@ -17,6 +17,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Interface & HUD
 
+- Crossing into another sector of a generated world now posts `SECTOR (x, y, z)` on the HUD notice, with `- FIRST VISIT` for a sector your chart had not recorded. A New Game or a Load posts nothing.
 - A canister take prints a pickup tick above the key row, one `+<COUNT> <ITEM>` line per stack for 1.5 s (three at most), and the intake blinks warm. Another hull's take shows nothing.
 - The flight key row now shows only the chips that apply: INTERFACE, DRIVE, STOP, RCS and RADAR always; GOTO, ORBIT, CANCEL, DOCK, HELM, MINE, AIM, FIRE, TORPEDO and RAILGUN as they apply.
 

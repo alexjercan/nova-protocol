@@ -66,7 +66,8 @@
 //!    world on that same frame. So no frame can hand a new world work the
 //!    previous one asked for.
 //! 2. [`NovaWorldSystems::Observe`] writes which cell the [`WorldObserver`]
-//!    stands in, and refuses a newly armed config. The generator validates
+//!    stands in, posts [`SectorCrossed`] when that cell changed under an
+//!    armed config, and refuses a newly armed config. The generator validates
 //!    too, but on a worker, which is one job too late for a window the main
 //!    thread enumerates whole in the very next stage.
 //! 3. [`NovaWorldSystems::Request`] starts jobs for the desired cells that are
@@ -207,8 +208,8 @@ pub use crate::{
         clear_sector_work, collect_sector_jobs, desired_sectors, live_sectors,
         materialize_pending_bodies, materialize_ready_sector, materialize_sector, request_sectors,
         retire_sectors, track_current_sector, CurrentSector, ObserverBody, PendingSectorShip,
-        PendingSectorStation, ReadySectors, SectorClusterTypes, SectorJob, SectorJobStats,
-        SectorRoot, WorldObserver,
+        PendingSectorStation, ReadySectors, SectorClusterTypes, SectorCrossed, SectorJob,
+        SectorJobStats, SectorRoot, WorldObserver,
     },
 };
 
@@ -232,7 +233,8 @@ pub mod prelude {
         },
         streaming::{
             desired_sectors, live_sectors, CurrentSector, PendingSectorShip, PendingSectorStation,
-            ReadySectors, SectorClusterTypes, SectorJob, SectorJobStats, SectorRoot, WorldObserver,
+            ReadySectors, SectorClusterTypes, SectorCrossed, SectorJob, SectorJobStats, SectorRoot,
+            WorldObserver,
         },
     };
 }
@@ -768,6 +770,7 @@ impl<G: SectorGenerator> Plugin for NovaWorldPlugin<G> {
         app.init_resource::<WorldClock>();
         app.init_resource::<crate::frozen::SettlingBodies>();
         app.init_resource::<crate::streaming::ClearedConfig>();
+        app.add_message::<SectorCrossed>();
         app.add_observer(crate::streaming::rename_dead_generated_station);
         // `ClearedConfig` holds a `Tick` in a plain field, which bevy's
         // periodic tick sweep cannot reach on its own. Without this the
