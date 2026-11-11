@@ -20,6 +20,7 @@ pub mod camera;
 pub mod flight;
 pub mod gallery;
 pub mod input;
+pub mod kill_credit;
 pub mod physics;
 pub mod sections;
 // Private: the soundtrack is wired by `NovaShipPlugin` and has no consumer
@@ -34,7 +35,8 @@ pub mod prelude {
     // needs both imports both, the precedent `nova_hud` set.
     pub use super::{
         camera::prelude::*, flight::prelude::*, gallery::prelude::*, input::prelude::*,
-        physics::prelude::*, sections::prelude::*, ship_audio::prelude::*, NovaShipPlugin,
+        kill_credit::prelude::*, physics::prelude::*, sections::prelude::*, ship_audio::prelude::*,
+        NovaShipPlugin,
     };
 }
 
@@ -88,6 +90,9 @@ impl Plugin for NovaShipPlugin {
         });
         app.add_plugins(camera::SpaceshipCameraControllerPlugin);
         app.add_plugins(flight::NovaFlightPlugin);
+        // Every build: it decides an event the audio and juice layers answer,
+        // and a headless run still has to fire it.
+        app.add_plugins(kill_credit::PlayerKillCreditPlugin);
         // What an RCS push looks like. Render-only, like the damage effects.
         if self.render {
             app.add_plugins(flight::RcsPuffPlugin);

@@ -229,7 +229,10 @@ impl Default for AIEvade {
 /// warhead on its projectile root, a detonation blast on the blast entity.
 /// With no owner anywhere (a ram), the attacker is the source's own ship
 /// root, if it has one.
-fn resolve_damage_attacker(
+///
+/// Shared with the kill credit: who beat a hull and who gets the stinger
+/// are one question, so they go through one walk.
+pub(crate) fn resolve_damage_attacker(
     source: Entity,
     q_owner: &Query<&ProjectileOwner>,
     q_allegiance: &Query<&Allegiance>,

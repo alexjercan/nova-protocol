@@ -29,6 +29,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - A docking clamp now latches audibly, blinks a cold light on the collar and posts `DOCKED <NAME>` on the HUD; letting go plays the release and posts `UNDOCKED`. A Load or damage stays quiet.
 - A railgun slug landing now flashes steel blue at the entry face, throws a dense spall burst and plays its own impact sound, once per shot however many cells the corridor crosses.
+- The kill stinger and jolt now confirm any hull the player's own fire defeated - PDC rounds, a railgun slug, a torpedo blast or a ram - not only a torpedo kill.
 
 ### Fixes
 

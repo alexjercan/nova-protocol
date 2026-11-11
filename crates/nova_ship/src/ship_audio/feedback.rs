@@ -59,7 +59,7 @@ pub struct ShipFeedbackSounds {
     /// [`ShipHullWarning`].
     #[reflect(ignore)]
     pub warn_hull: Option<AssetRef<AudioSource>>,
-    /// The player's torpedo got the kill - the stinger, once per defeated
+    /// The player's weapon got the kill - the stinger, once per defeated
     /// hull, on `PlayerKillConfirmed`.
     #[reflect(ignore)]
     pub kill_confirm: Option<AssetRef<AudioSource>>,

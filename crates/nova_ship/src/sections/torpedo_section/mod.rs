@@ -41,9 +41,6 @@ mod eta;
 /// bay-launch bundle [`bay::TorpedoLaunch`]/[`bay::spawn_torpedo`] builds with
 /// the in-flight state only a save needs to carry.
 mod frozen;
-/// Kill credit: which hull a torpedo blast damaged, so the defeat that follows
-/// confirms the player's kill.
-mod kill_credit;
 /// In-flight torpedo behavior: target tracking, arming, detonation, and PN
 /// guidance (steer / thrust). These systems act on the spawned projectiles, not
 /// on the bay that launched them.
@@ -65,8 +62,6 @@ use death::*;
 use eta::*;
 pub use eta::{torpedo_time_to_impact, PlayerTorpedoEta, TorpedoEta};
 pub use frozen::{freeze_torpedo, thaw_torpedo, FrozenTorpedo, SavedTorpedoTarget};
-pub use kill_credit::TorpedoBlastCredit;
-use kill_credit::*;
 // The warhead's voice is answered in `ship_audio`, which drives the real fuze
 // to prove the blast carries it.
 #[cfg(test)]
@@ -82,13 +77,13 @@ pub mod prelude {
     pub use super::{
         freeze_torpedo, preview_torpedo_section, scripted::ScriptedTorpedoOrder, thaw_torpedo,
         torpedo_section, torpedo_time_to_impact, BlastMomentum, FrozenTorpedo, PlayerTorpedoEta,
-        SavedTorpedoTarget, TorpedoArming, TorpedoBayDoorsMoved, TorpedoBlast, TorpedoBlastCredit,
-        TorpedoColdLaunch, TorpedoControllerMarker, TorpedoDeathType, TorpedoEngineFigures,
-        TorpedoEta, TorpedoGuidance, TorpedoIgnited, TorpedoKilled, TorpedoLaunched,
-        TorpedoSectionConfig, TorpedoSectionConfigHelper, TorpedoSectionInput,
-        TorpedoSectionPartOf, TorpedoSectionPlugin, TorpedoSectionSpawnerFireState,
-        TorpedoSectionSpawnerMarker, TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen,
-        TorpedoTargetEntity, TorpedoTargetPosition, TorpedoType, TorpedoTypeConfig, TorpedoWeave,
+        SavedTorpedoTarget, TorpedoArming, TorpedoBayDoorsMoved, TorpedoBlast, TorpedoColdLaunch,
+        TorpedoControllerMarker, TorpedoDeathType, TorpedoEngineFigures, TorpedoEta,
+        TorpedoGuidance, TorpedoIgnited, TorpedoKilled, TorpedoLaunched, TorpedoSectionConfig,
+        TorpedoSectionConfigHelper, TorpedoSectionInput, TorpedoSectionPartOf,
+        TorpedoSectionPlugin, TorpedoSectionSpawnerFireState, TorpedoSectionSpawnerMarker,
+        TorpedoShotDownMarker, TorpedoSteering, TorpedoTargetChosen, TorpedoTargetEntity,
+        TorpedoTargetPosition, TorpedoType, TorpedoTypeConfig, TorpedoWeave,
     };
 }
 
@@ -1046,13 +1041,6 @@ impl Plugin for TorpedoSectionPlugin {
         app.register_type::<PlayerTorpedoEta>();
         app.init_resource::<PlayerTorpedoEta>();
         app.add_observer(clear_player_torpedo_eta);
-
-        // Kill credit on every build: it decides an event the audio and juice
-        // layers answer, and a headless run still has to fire it.
-        app.register_type::<TorpedoBlastCredit>();
-        app.add_observer(on_damage_stamp_torpedo_credit);
-        app.add_observer(on_defeated_confirm_player_kill);
-        app.add_observer(on_destroyed_confirm_player_kill);
 
         // A torpedo whose body is shot dead must die as a whole -
         // without this the collider-less root keeps flying, armed, and still

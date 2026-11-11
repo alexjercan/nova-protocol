@@ -503,7 +503,8 @@ pub(super) fn on_torpedo_killed_play_sfx(
     commands.play_sfx_at(sound.resolve(&asset_server), route, volume, killed.at);
 }
 
-/// The kill stinger, once per hull the player's torpedo got.
+/// The kill stinger, once per hull the player's own fire got: a round, a
+/// slug, a blast or a ram, whichever landed inside the credit window.
 ///
 /// A cockpit cue, on [`AudioRoute::Hull`]: the computer confirming the kill,
 /// not the kill itself, which has its own explosion out in the world.

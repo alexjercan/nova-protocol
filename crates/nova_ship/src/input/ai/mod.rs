@@ -43,6 +43,7 @@ use maneuver::update_combat_flight;
 use mission::interrupt_ai_ship_orders;
 use passive::update_passive_flight;
 use railgun::update_railgun_section_input;
+pub(crate) use threat::resolve_damage_attacker;
 use threat::{on_damage_stamp_attacker, on_damage_track_threat, release_retaliation_target};
 use torpedo::{update_torpedo_section_input, update_torpedo_target_input};
 

@@ -134,7 +134,7 @@ ship's cockpit voice. Only the player's ship plays them.
 | `ammo_dry.wav` | presentation `ammo_dry_sound` - the cockpit gauge behind the guns' own clicks |
 | `warn_lock.wav` | presentation `warn_lock_sound`, on a hostile's `CombatLock` arriving |
 | `warn_hull.wav` | presentation `warn_hull_sound`, below `warn_hull_fraction` of the built hull |
-| `kill_confirm.wav` | presentation `kill_confirm_sound`, once per hull the player's torpedo blast defeated |
+| `kill_confirm.wav` | presentation `kill_confirm_sound`, once per hull the player's own weapon defeated - a round, a slug, a blast or a ram inside the 0.5 s credit window |
 | `torpedo_closing.wav` | presentation `torpedo_closing_sound`, one tick per beat while the player's soonest torpedo on the locked target is under 8 s out; the beat tightens from about 1 s to 80 ms |
 
 ### Handling

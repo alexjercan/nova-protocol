@@ -19,7 +19,7 @@
 //! - a lance discharging -> the railgun's authored `fire_sound` (`On<RailgunFired>`);
 //! - a torpedo dying unfired -> the bay's authored `dud_sound` or
 //!   `intercept_sound` (`On<TorpedoKilled>`);
-//! - the player's torpedo getting the kill -> the ship's authored
+//! - the player's weapon getting the kill -> the ship's authored
 //!   `kill_confirm` stinger (`On<PlayerKillConfirmed>`).
 //!
 //! The closing tone polls instead: the ship's authored `torpedo_closing` tick,
