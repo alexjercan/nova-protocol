@@ -19,7 +19,7 @@
 use bevy::prelude::*;
 use nova_gameplay::prelude::{DerelictShipMarker, GraphicsBudget, StationMarker};
 
-use super::{DockedPort, DockingSectionMarker};
+use super::{DockedPort, DockingSectionMarker, PORT_FACE};
 
 /// Peak brightness of a beacon, in lumens: three clamp blinks, enough to
 /// read on a collar sitting in the station's own shadow.
@@ -28,6 +28,12 @@ const BEACON_LUMENS: f32 = 60_000.0;
 /// How far a beacon reaches, in world units (600 m): the collar, the plating
 /// around it and a hull on its final approach.
 const BEACON_RANGE: f32 = 60.0;
+
+/// How far past the retracted face the beacon hangs, in world units (10 m).
+/// At the port's origin the light sits inside the cell and lights nothing:
+/// every face of the port and of its neighbours points away from it. Out
+/// past the face it lands on the collar and the plating around it.
+const BEACON_STANDOFF: f32 = 1.0;
 
 /// One breath of the pulse, in virtual seconds.
 const BEACON_PULSE_SECS: f32 = 3.0;
@@ -85,7 +91,7 @@ pub(super) fn light_station_ports(
         commands.entity(port).with_child((
             Name::new("Station Beacon"),
             StationBeacon { phase },
-            Transform::default(),
+            Transform::from_translation(PORT_FACE + Vec3::NEG_Z * BEACON_STANDOFF),
             PointLight {
                 color: BEACON_FREE_COLOR,
                 intensity: BEACON_LUMENS,
@@ -182,6 +188,27 @@ mod tests {
             .iter(app.world())
             .map(|(child_of, light)| (child_of.parent(), *light))
             .collect()
+    }
+
+    #[test]
+    fn a_beacon_hangs_out_past_the_port_face_not_inside_the_cell() {
+        let mut app = app(GraphicsQuality::High);
+        station(&mut app, 1);
+        app.update();
+        app.update();
+        let hung: Vec<f32> = app
+            .world_mut()
+            .query_filtered::<&Transform, With<StationBeacon>>()
+            .iter(app.world())
+            .map(|transform| transform.translation.z)
+            .collect();
+        assert_eq!(hung.len(), 1);
+        assert!(
+            hung[0] < PORT_FACE.z,
+            "the beacon must hang past the face at z {} to light the collar, sat at z {}",
+            PORT_FACE.z,
+            hung[0]
+        );
     }
 
     #[test]
