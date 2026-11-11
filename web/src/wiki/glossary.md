@@ -90,7 +90,7 @@ Short definitions for the terms and units that recur across the wiki, grouped th
 - **Velocity sphere** - the flight readout that shows where the ship is going, with the speed chip beside it. It turns violet while RCS is held. See [Flight readouts](../hud/#flight-readouts).
 - **Viewfinder** - the target frame: what you have locked, how far it is and how fast it is closing, and the NEUTRALIZED tag on a wreck. See [Target viewfinder](../hud/#target-viewfinder).
 - **Allegiance markers** - the always-on ship markers, tinted by how each ship stands to you. See [Allegiance markers](../hud/#allegiance-markers).
-- **Keybind dock** - the strip of chips for the main flight verbs, one fixed slot each. A verb your ship cannot use right now draws dark in its slot, RCS included. See [Keybinds](../keybinds/).
+- **Keybind dock** - the strip of chips for the flight verbs that apply right now: five core chips left of the centre line, and the others joining right of it only while there is something for them to do. A shown verb your ship cannot use right now draws dark, RCS on an empty magazine included. See [Keybinds](../keybinds/).
 - **Interface** - the Tab panel with Map, Ship and Inventory panes over the frozen world. See [Interface](../interface/).
 - **NOVA COMMANDS** - the `;` prompt on the ship's CRT monitor: inspection, settings, the flight log and armed cheats, over any screen. See [Commands](../commands/).
 - **Comms** - the story panel where a scenario talks to you and lists its objectives. See [Comms and objectives](../hud/#comms-and-objectives).

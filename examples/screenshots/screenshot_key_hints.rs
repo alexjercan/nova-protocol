@@ -2,14 +2,17 @@
 //! now, on the device in hand.
 //!
 //! Six stills of one scene, a warship beside a hauler that coasts on an
-//! orbit, with the hauler as the travel lock:
-//! - `key-hints-stop.png`: the dock row at rest. Chip one reads `STOP`.
-//! - `key-hints-match-chord.png`: the RCS modifier held. Chip one reads
+//! orbit, with the hauler as the travel lock. The chips are found by NAME:
+//! the row is contextual, so the STOP chip's place depends on what else is
+//! shown.
+//! - `key-hints-stop.png`: the dock row at rest. The STOP chip reads `STOP`.
+//! - `key-hints-match-chord.png`: the RCS modifier held. The STOP chip reads
 //!   `MATCH` and the RCS chip is lit.
 //! - `key-hints-match-flying-chord.png`: MATCH engaged, the modifier still
-//!   held. Chip one reads `MATCH`, hot: the same press ends the match.
-//! - `key-hints-match-flying.png`: MATCH engaged, the modifier let go. Chip one
-//!   reads `STOP`, lit and not hot: the plain key brakes and replaces the match.
+//!   held. The STOP chip reads `MATCH`, hot: the same press ends the match.
+//! - `key-hints-match-flying.png`: MATCH engaged, the modifier let go. The
+//!   STOP chip reads `STOP`, lit and not hot: the plain key brakes and
+//!   replaces the match.
 //! - `key-hints-pad.png`: after a pad press. The row draws pad buttons.
 //! - `key-hints-interface-pad.png`: the interface card head with the pad's
 //!   Close and Next buttons.

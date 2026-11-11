@@ -10,7 +10,10 @@ use super::flight_rig::{
     flight_input_rig, AutopilotGotoInput, AutopilotOffInput, AutopilotOrbitInput,
     AutopilotStopInput, RcsModifierInput,
 };
-use crate::{input::bindings::flight_bindings, prelude::*};
+use crate::{
+    input::bindings::{camera_bindings, flight_bindings},
+    prelude::*,
+};
 
 /// Spawn the REAL flight rig, bound from the REAL defaults. Every rig test
 /// goes through here so none of them can drift from what the game ships.
@@ -31,8 +34,11 @@ pub(super) fn hint_world() -> World {
     world.init_resource::<FlightVerbHints>();
     world.insert_resource(InputDeviceType::default());
     // The hints read their LABELS off this table and their EXISTENCE off the
-    // rig below, so a fixture missing either draws nothing.
-    world.insert_resource(InputBindings::from_actions(flight_bindings()));
+    // rig below, so a fixture missing either draws nothing. The camera rig's
+    // actions are in it for the AIM label (`combat_stance`).
+    world.insert_resource(InputBindings::from_actions(
+        flight_bindings().into_iter().chain(camera_bindings()),
+    ));
     world.spawn((
         Action::<AutopilotStopInput>::new(),
         related!(Bindings[Binding::from(KeyCode::KeyX), Binding::from(GamepadButton::East)]),

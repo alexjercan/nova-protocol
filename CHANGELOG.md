@@ -15,6 +15,14 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
 
+### Interface & HUD
+
+- The flight key row now shows only the chips that apply: INTERFACE, DRIVE, STOP, RCS and RADAR always; GOTO, ORBIT, CANCEL, DOCK, HELM, MINE, AIM, FIRE, TORPEDO and RAILGUN as they apply.
+
+### Fixes
+
+- The RCS chip now draws dark while the RCS magazine is empty, as the MATCH chord already did.
+
 ## [0.17.0] - 2026-11-09
 
 ### Gameplay & Flight

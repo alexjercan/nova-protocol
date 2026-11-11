@@ -185,13 +185,17 @@ pub(crate) fn lesson_catalog() -> Vec<Lesson> {
                 "the verb chips along the bottom of a cruising ship, then STOP engaged: its chip \
                  inverts and a CANCEL chip joins the row",
             ),
-            "The labels at the bottom of the screen show the actions your ship can take right now.",
+            "The chips at the bottom of the screen show the keys that apply right now. A chip \
+             joins the row when its action has something to act on, and leaves when it does \
+             not.",
             &[],
             "wiki/hud#flight-readouts",
             Some(DRILL_AUTOPILOT_ID),
             &[],
             &[
-                "The labels at the bottom of the screen show the actions your ship can take right now.",
+                "The chips at the bottom of the screen show the keys that apply right now. A chip \
+                 joins the row when its action has something to act on, and leaves when it does \
+                 not.",
             ],
         ),
         lesson(

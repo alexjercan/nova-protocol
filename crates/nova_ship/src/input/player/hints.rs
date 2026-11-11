@@ -1,13 +1,21 @@
 //! The keybind hint surface: which flight verbs are available right now and
 //! what key each is bound to, resolved from the live rig for the HUD.
 
+use std::ops::Deref;
+
 use avian3d::prelude::LinearVelocity;
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
 
-use super::flight_rig::{AutopilotStopInput, RcsModifierInput};
+use super::{
+    flight_rig::{AutopilotStopInput, FlightBurnInput, RcsModifierInput},
+    weapons::{
+        SpaceshipMiningInputBinding, SpaceshipRailgunInputBinding, SpaceshipTorpedoInputBinding,
+        SpaceshipTurretInputBinding,
+    },
+};
 use crate::{
     flight::{
         ship_capabilities, ship_has_attitude_authority, LiveFlightComputers, ShipCapabilityQuery,
@@ -21,6 +29,11 @@ pub struct VerbHint {
     /// The verb's keycap label ("X", "G"...), read from the LIVE bindings
     /// table; empty until the flight rig exists.
     pub key: String,
+    /// Whether the verb applies to the situation, so the dock draws its chip:
+    /// a GOTO with a lock to fly to, a DOCK with a port in reach, a FIRE with
+    /// the weapons hot. A shown verb may still be unavailable (the chip draws
+    /// dim); a verb that is not shown leaves the row.
+    pub shown: bool,
     /// Whether pressing the key right now would do something.
     pub available: bool,
     /// The world entity the verb would act on (the aim lock for GOTO, the
@@ -51,6 +64,14 @@ pub(super) const HOLD_FIRE_DURING_RADAR: bool = false;
 #[derive(Resource, Clone, Debug, Default, PartialEq, Reflect)]
 #[reflect(Resource)]
 pub struct FlightVerbHints {
+    /// The INTERFACE verb hint (open the interface), labelled off
+    /// `interface_toggle`; shown and available while the flight rig exists.
+    pub interface: VerbHint,
+    /// The DRIVE verb hint (the main-drive burn), labelled off `main_drive`;
+    /// available while a live thruster answers it and the hull flies.
+    pub drive: VerbHint,
+    /// Whether the main-drive burn is held, so the DRIVE chip paints hot.
+    pub drive_held: bool,
     /// The hint for what the STOP key does now (flip retrograde and burn to
     /// rest). While the RCS modifier is held ([`rcs_held`](Self::rcs_held)) it
     /// is the MATCH chord's hint, gated like the chord.
@@ -108,10 +129,115 @@ pub struct FlightVerbHints {
     /// lock is clear, on a ship, or on a station that admits; a ship's
     /// refusal keeps the dark chip it always had.
     pub dock_refusal: Option<String>,
+    /// The MINE verb hint (hold a mining emitter out), keyed off the first
+    /// mining section's own [`SpaceshipMiningInputBinding`]; shown while the
+    /// ship carries a bound mining section.
+    pub mine: VerbHint,
+    /// The AIM verb hint (raise the weapons), labelled off `combat_stance`;
+    /// shown while the ship carries a turret, torpedo bay or railgun.
+    pub aim: VerbHint,
+    /// The FIRE verb hint, keyed off the first turret's own
+    /// [`SpaceshipTurretInputBinding`]; shown while the weapons are hot and a
+    /// turret holds a binding.
+    pub fire: VerbHint,
+    /// The TORPEDO verb hint, keyed off the first torpedo bay's own
+    /// [`SpaceshipTorpedoInputBinding`]; shown on the same terms as FIRE.
+    pub torpedo: VerbHint,
+    /// The RAILGUN verb hint, keyed off the first railgun's own
+    /// [`SpaceshipRailgunInputBinding`]; shown on the same terms as FIRE.
+    pub railgun: VerbHint,
     /// Whether any maneuver is engaged right now - explicit, so consumers
     /// (the GOTO cue hides mid-maneuver) do not have to proxy it through
     /// another verb's availability.
     pub engaged: bool,
+}
+
+/// The player ship's sections the situational and weapon chips read: which
+/// kinds the hull carries, the key each section binds, the docking ports a
+/// travel lock may carry, the weapons safety and the held main drive.
+#[derive(SystemParam)]
+pub(super) struct SectionHintQuery<'w, 's> {
+    turrets: Query<
+        'w,
+        's,
+        (
+            &'static ChildOf,
+            Option<&'static SpaceshipTurretInputBinding>,
+        ),
+        With<TurretSectionMarker>,
+    >,
+    torpedoes: Query<
+        'w,
+        's,
+        (
+            &'static ChildOf,
+            Option<&'static SpaceshipTorpedoInputBinding>,
+        ),
+        With<TorpedoSectionMarker>,
+    >,
+    railguns: Query<
+        'w,
+        's,
+        (
+            &'static ChildOf,
+            Option<&'static SpaceshipRailgunInputBinding>,
+        ),
+        With<RailgunSectionMarker>,
+    >,
+    miners: Query<
+        'w,
+        's,
+        (
+            &'static ChildOf,
+            Option<&'static SpaceshipMiningInputBinding>,
+        ),
+        With<MiningSectionMarker>,
+    >,
+    /// Live docking ports, held or free: a lock on a hull that carries one
+    /// is a DOCK the gates may still refuse, which is the dim chip.
+    docking: Query<
+        'w,
+        's,
+        &'static ChildOf,
+        (With<DockingSectionMarker>, Without<SectionInactiveMarker>),
+    >,
+    hot: Query<'w, 's, &'static WeaponsHot>,
+    burn: Query<'w, 's, &'static TriggerState, With<Action<FlightBurnInput>>>,
+}
+
+/// The keycap a section binding draws: the first source on the device the
+/// player pressed last, else the first source at all, so a mining key with no
+/// pad button keeps its key the way a rig verb does.
+fn section_key(sources: &[InputSource], device: InputDeviceType) -> Option<String> {
+    let on_device = |source: &&InputSource| {
+        matches!(source, InputSource::Gamepad(_)) == (device == InputDeviceType::Pad)
+    };
+    sources
+        .iter()
+        .find(on_device)
+        .or(sources.first())
+        .map(InputSource::glyph_label)
+}
+
+/// Whether `ship` carries a section of the kind, and the keycap of the first
+/// one that holds a binding.
+fn section_hint<'a, B: Deref<Target = Vec<InputSource>> + 'a>(
+    sections: impl Iterator<Item = (&'a ChildOf, Option<&'a B>)>,
+    ship: Option<Entity>,
+    device: InputDeviceType,
+) -> (bool, Option<String>) {
+    let mut carried = false;
+    let mut key = None;
+    for (&ChildOf(parent), binding) in sections {
+        if Some(parent) != ship {
+            continue;
+        }
+        carried = true;
+        if key.is_none() {
+            key = binding.and_then(|binding| section_key(binding, device));
+        }
+    }
+    (carried, key)
 }
 
 /// The HUD notice line for a station's refusal, or `None` for a ship's, which
@@ -157,12 +283,13 @@ pub(super) fn update_flight_verb_hints(
     q_names: Query<&Name>,
     ports: DockingPorts,
     admission: DockAdmission,
+    sections: SectionHintQuery,
     bindings: Option<Res<InputBindings>>,
     device: Res<InputDeviceType>,
 ) {
     // The rig is the gate, not the source: a row is drawn only while the rig
-    // that answers it exists, so all eight vanish together on a ship with no
-    // flight computer.
+    // that answers it exists, so every chip vanishes together on a ship with
+    // no flight computer.
     let rig_exists = !q_rig.is_empty();
     // The keycap an action draws, off the LIVE table: the source on the device
     // the player pressed last, else the other device's. Reading the rig's own
@@ -205,11 +332,12 @@ pub(super) fn update_flight_verb_hints(
         travel.is_some_and(|target| connection.is_some_and(|connection| connection.joins(target)));
     // The autopilot needs a live flight computer and at least one live
     // engine or it disengages on its next tick; a hint below that bar
-    // would light a key that visibly does nothing.
-    let hardware = ship.is_some_and(|ship| {
-        ship_has_attitude_authority(ship, &q_computer)
-            && q_thruster.iter().any(|&ChildOf(parent)| parent == ship)
-    });
+    // would light a key that visibly does nothing. The burn needs only the
+    // engine.
+    let thrusters =
+        ship.is_some_and(|ship| q_thruster.iter().any(|&ChildOf(parent)| parent == ship));
+    let hardware =
+        thrusters && ship.is_some_and(|ship| ship_has_attitude_authority(ship, &q_computer));
     // The individual maneuvers are the SHIP's own capabilities, read from the
     // same root the input observers read, so a lit hint and a firing key can
     // never disagree. Kept SEPARATE from `hardware` above (which only asks "is
@@ -226,24 +354,27 @@ pub(super) fn update_flight_verb_hints(
         Some(AutopilotAction::MatchTarget { .. })
     );
     let rcs_held = crate::camera::action_held(&q_modifier);
+    let drive_held = crate::camera::action_held(&sections.burn);
     let stopping = matches!(autopilot.map(|ap| ap.action), Some(AutopilotAction::Stop));
     let (stop_verb, stop_flying) = if rcs_held {
         (StopVerbType::Match, matching)
     } else {
         (StopVerbType::Stop, stopping)
     };
+    // A ship with no RCS budget counts as empty: the quads have nothing to
+    // push with, so the RCS chip and the MATCH chord both go dim.
+    let magazine_filled = ship
+        .and_then(|ship| q_budget.get(ship).ok())
+        .is_some_and(|budget| !budget.is_empty());
     // The MATCH branch of `on_autopilot_stop_input`, in its order, so a lit
-    // chip and a firing chord cannot disagree. It does not ask for `hardware`,
-    // and a ship with no RCS budget counts as empty here.
+    // chip and a firing chord cannot disagree. It does not ask for `hardware`.
     let match_available = !docked_without_helm
         && (matching
             || (capabilities.stop_enabled
                 && travel.is_some_and(|target| q_motion.contains(target))
                 && !partner_lock
                 && capabilities.rcs_enabled
-                && ship
-                    .and_then(|ship| q_budget.get(ship).ok())
-                    .is_some_and(|budget| !budget.is_empty())));
+                && magazine_filled));
     let orbiting = matches!(
         autopilot.map(|ap| ap.action),
         Some(AutopilotAction::Orbit { .. })
@@ -265,10 +396,58 @@ pub(super) fn update_flight_verb_hints(
         }
         _ => None,
     };
+    // The weapon chips key off the sections' own bindings, so a section
+    // rebound in the Ship pane redraws its chip the way a rig rebind does.
+    let section_label = |key: Option<String>| {
+        if rig_exists {
+            key.unwrap_or_default()
+        } else {
+            String::new()
+        }
+    };
+    let (turret, turret_key) = section_hint(sections.turrets.iter(), ship, *device);
+    let (torpedo_bay, torpedo_key) = section_hint(sections.torpedoes.iter(), ship, *device);
+    let (railgun, railgun_key) = section_hint(sections.railguns.iter(), ship, *device);
+    let (_, mine_key) = section_hint(sections.miners.iter(), ship, *device);
+    let weapons_hot = ship
+        .and_then(|ship| sections.hot.get(ship).ok())
+        .is_some_and(|hot| hot.0);
+    // A lock on a hull with a port is a DOCK worth showing before the gates
+    // pass: the chip is dim through the approach and lights when they do.
+    let lock_has_port = travel.is_some_and(|target| {
+        sections
+            .docking
+            .iter()
+            .any(|&ChildOf(parent)| parent == target)
+    });
+    // A weapon chip is on the row while the weapons are hot and its section
+    // holds a key; the press then fires, so shown and available agree.
+    let weapon = |key: String| {
+        let shown = weapons_hot && !key.is_empty();
+        VerbHint {
+            key,
+            shown,
+            available: shown,
+            anchor: None,
+        }
+    };
 
     let next = FlightVerbHints {
+        interface: VerbHint {
+            key: label("interface_toggle"),
+            shown: rig_exists,
+            available: rig_exists,
+            anchor: None,
+        },
+        drive: VerbHint {
+            key: label("main_drive"),
+            shown: rig_exists,
+            ..helm_gate(thrusters)
+        },
+        drive_held,
         stop: VerbHint {
             key: label("autopilot_stop"),
+            shown: rig_exists,
             // The gate of what this press would do. The chord needs the
             // modifier down; with it up the key is plain STOP, also over a
             // flying match, which it replaces with a STOP burn.
@@ -277,31 +456,36 @@ pub(super) fn update_flight_verb_hints(
             } else {
                 helm_gate(hardware && capabilities.stop_enabled).available
             },
-            ..default()
+            anchor: None,
         },
         stop_verb,
         stop_flying,
         rcs_held,
         goto: VerbHint {
             key: label("autopilot_goto"),
+            // The partner flies with the pair: no lock to fly to, no chip.
+            shown: travel.is_some() && !partner_lock,
             anchor: travel,
             ..helm_gate(hardware && capabilities.goto_enabled && travel.is_some() && !partner_lock)
         },
         orbit: VerbHint {
             key: label("autopilot_orbit"),
+            shown: dominant.is_some() || orbiting,
             anchor: dominant.map(|well| **well),
             ..helm_gate(hardware && capabilities.orbit_enabled && dominant.is_some() && !orbiting)
         },
         cancel: VerbHint {
             key: label("autopilot_off"),
             // Z always answers while engaged, even on a crippled ship.
+            shown: engaged,
             available: engaged,
-            ..default()
+            anchor: None,
         },
         radar: VerbHint {
             key: label("radar_hold"),
+            shown: rig_exists,
             available: capabilities.lock_enabled,
-            ..default()
+            anchor: None,
         },
         // The one verb whose availability is the real answer: the search that
         // lights the chip is the search the command runs, so a lit DOCK means
@@ -310,6 +494,7 @@ pub(super) fn update_flight_verb_hints(
         // draws it inverted, because that is the state the key would leave.
         dock: VerbHint {
             key: label("dock"),
+            shown: docked.is_some() || lock_has_port,
             available: docked.is_some()
                 || ship.is_some_and(|ship| {
                     capabilities.dock_enabled
@@ -321,22 +506,43 @@ pub(super) fn update_flight_verb_hints(
             anchor: travel,
         },
         rcs: VerbHint {
-            // Shown only while the computer grants RCS, and only to the pair's
-            // driver while docked.
+            // Lit only while the computer grants RCS, the magazine has
+            // something in it, and only to the pair's driver while docked.
             key: label("rcs_modifier"),
-            ..helm_gate(capabilities.rcs_enabled)
+            shown: rig_exists,
+            ..helm_gate(capabilities.rcs_enabled && magazine_filled)
         },
         helm: VerbHint {
             key: label("dock_helm"),
+            shown: docked.is_some(),
             // A fault refuses taking the helm, never handing it back; a
             // living station refuses both.
             available: docked.is_some() && !helm_station && (helm_held || !helm_fault),
-            ..default()
+            anchor: None,
         },
         helm_held,
         helm_fault,
         helm_station,
         dock_refusal,
+        mine: {
+            let key = section_label(mine_key);
+            let shown = !key.is_empty();
+            VerbHint {
+                key,
+                shown,
+                available: shown,
+                anchor: None,
+            }
+        },
+        aim: VerbHint {
+            key: label("combat_stance"),
+            shown: turret || torpedo_bay || railgun,
+            available: turret || torpedo_bay || railgun,
+            anchor: None,
+        },
+        fire: weapon(section_label(turret_key)),
+        torpedo: weapon(section_label(torpedo_key)),
+        railgun: weapon(section_label(railgun_key)),
         engaged,
     };
     // set_if_neq semantics by hand: only dirty the resource on real change.
@@ -443,6 +649,7 @@ mod tests {
     fn rcs_hint_shows_shift_only_when_the_capability_is_on() {
         let mut world = hint_world();
         let (ship, _controller) = spawn_flyable_ship(&mut world);
+        world.entity_mut(ship).insert(RcsBudget::default());
 
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>();
@@ -460,6 +667,199 @@ mod tests {
             !world.resource::<FlightVerbHints>().rcs.available,
             "RCS off hides the SHIFT hint"
         );
+    }
+
+    /// The RCS chip is the magazine's offer: with nothing left to push, the
+    /// modifier enters a mode that moves nothing, so the chip goes dim the
+    /// way the MATCH chord does. It stayed lit on an empty magazine before.
+    #[test]
+    fn an_empty_rcs_magazine_dims_the_rcs_hint() {
+        let mut world = hint_world();
+        let (ship, _controller) = spawn_flyable_ship(&mut world);
+        let mut budget = RcsBudget::default();
+        world.entity_mut(ship).insert(budget);
+
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>();
+        assert!(
+            hints.rcs.shown && hints.rcs.available,
+            "a full magazine lights RCS"
+        );
+
+        budget.spent = budget.capacity;
+        world.entity_mut(ship).insert(budget);
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>();
+        assert!(hints.rcs.shown, "the core chip stays on the row");
+        assert!(!hints.rcs.available, "an empty magazine dims RCS");
+    }
+
+    /// Which verbs are on the row, from the situation: the core group while
+    /// the rig exists, the others only while there is something to act on.
+    #[test]
+    fn verbs_are_shown_by_the_situation_they_apply_to() {
+        let mut world = hint_world();
+        let (ship, _controller) = spawn_flyable_ship(&mut world);
+
+        // Flat space, no lock: the core group alone.
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        for (verb, hint) in [
+            ("DRIVE", &hints.drive),
+            ("STOP", &hints.stop),
+            ("RCS", &hints.rcs),
+            ("RADAR", &hints.radar),
+        ] {
+            assert!(hint.shown, "{verb} is a core verb");
+        }
+        assert_eq!(hints.drive.key, "W");
+        assert!(hints.drive.available, "a live thruster answers the drive");
+        for (verb, hint) in [
+            ("GOTO", &hints.goto),
+            ("ORBIT", &hints.orbit),
+            ("CANCEL", &hints.cancel),
+            ("DOCK", &hints.dock),
+            ("HELM", &hints.helm),
+            ("MINE", &hints.mine),
+            ("AIM", &hints.aim),
+            ("FIRE", &hints.fire),
+        ] {
+            assert!(!hint.shown, "{verb} has nothing to act on");
+        }
+
+        // A lock shows GOTO, a well shows ORBIT, a maneuver shows CANCEL.
+        let lock = world.spawn_empty().id();
+        let well = world.spawn_empty().id();
+        world.entity_mut(ship).insert((
+            TravelLock(Some(lock)),
+            DominantWell(well),
+            Autopilot::engage(AutopilotAction::Orbit { well, plan: None }),
+        ));
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(hints.goto.shown && hints.orbit.shown && hints.cancel.shown);
+        assert!(!hints.dock.shown, "a lock with no port is no DOCK");
+
+        // No rig: nothing is shown, nothing has a key.
+        let rigs: Vec<Entity> = world
+            .query_filtered::<Entity, With<Action<AutopilotStopInput>>>()
+            .iter(&world)
+            .collect();
+        for rig in rigs {
+            world.entity_mut(rig).despawn();
+        }
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(!hints.stop.shown && !hints.drive.shown && !hints.rcs.shown);
+        assert!(hints.stop.key.is_empty() && hints.fire.key.is_empty());
+    }
+
+    /// DOCK joins the row the moment the travel lock is a hull with a port,
+    /// dim: the pilot sees the key through the approach, and it lights only
+    /// when the port pair passes the gates.
+    #[test]
+    fn a_lock_with_a_docking_port_shows_dock_before_its_gates_pass() {
+        let mut world = hint_world();
+        let (ship, _controller) = spawn_flyable_ship(&mut world);
+        let station = world.spawn(SpaceshipRootMarker).id();
+        world.spawn((ChildOf(station), DockingSectionMarker));
+        world.entity_mut(ship).insert(TravelLock(Some(station)));
+
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(hints.dock.shown, "a port in the lock puts DOCK on the row");
+        assert!(
+            !hints.dock.available,
+            "no port pair passes the gates, so the chip is dim"
+        );
+        assert_eq!(hints.dock.anchor, Some(station));
+
+        // A dead port is no offer at all.
+        let ports: Vec<Entity> = world
+            .query_filtered::<Entity, With<DockingSectionMarker>>()
+            .iter(&world)
+            .collect();
+        for port in ports {
+            world.entity_mut(port).insert(SectionInactiveMarker);
+        }
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        assert!(!world.resource::<FlightVerbHints>().dock.shown);
+    }
+
+    /// The weapon chips read the sections' own bindings and follow the
+    /// device in hand; FIRE, TORPEDO and RAILGUN wait for the weapons to be
+    /// hot, AIM and MINE do not.
+    #[test]
+    fn weapon_hints_take_their_keys_from_the_section_bindings() {
+        use InputSource::{Gamepad, Keyboard, Mouse};
+
+        let mut world = hint_world();
+        let (ship, _controller) = spawn_flyable_ship(&mut world);
+        world.entity_mut(ship).insert(WeaponsHot(false));
+
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(!hints.aim.shown, "an unarmed hull has no AIM");
+        assert!(!hints.mine.shown, "no mining section, no MINE");
+
+        world.spawn((
+            ChildOf(ship),
+            TurretSectionMarker,
+            SpaceshipTurretInputBinding(vec![
+                Mouse(MouseButton::Left),
+                Gamepad(GamepadButton::RightTrigger2),
+            ]),
+        ));
+        world.spawn((
+            ChildOf(ship),
+            TorpedoSectionMarker,
+            SpaceshipTorpedoInputBinding(vec![
+                Keyboard(KeyCode::KeyF),
+                Gamepad(GamepadButton::LeftTrigger2),
+            ]),
+        ));
+        world.spawn((
+            ChildOf(ship),
+            RailgunSectionMarker,
+            SpaceshipRailgunInputBinding(vec![Keyboard(KeyCode::KeyR)]),
+        ));
+        world.spawn((
+            ChildOf(ship),
+            MiningSectionMarker,
+            SpaceshipMiningInputBinding(vec![Keyboard(KeyCode::KeyV)]),
+        ));
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(
+            hints.aim.shown && hints.aim.available,
+            "an armed hull has AIM"
+        );
+        assert_eq!(hints.aim.key, "RMB");
+        assert!(hints.mine.shown && hints.mine.available);
+        assert_eq!(hints.mine.key, "V");
+        assert_eq!(hints.fire.key, "LMB", "the key is read while cold");
+        assert!(
+            !hints.fire.shown && !hints.torpedo.shown && !hints.railgun.shown,
+            "cold weapons keep the trigger chips off the row"
+        );
+
+        world.entity_mut(ship).insert(WeaponsHot(true));
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert!(hints.fire.shown && hints.fire.available);
+        assert!(hints.torpedo.shown && hints.railgun.shown);
+        assert_eq!(hints.torpedo.key, "F");
+        assert_eq!(hints.railgun.key, "R");
+
+        // The pad in hand: a section with a pad button draws it, one without
+        // keeps its key.
+        world.insert_resource(InputDeviceType::Pad);
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert_eq!(hints.fire.key, "Pad Right Trigger 2");
+        assert_eq!(hints.torpedo.key, "Pad Left Trigger 2");
+        assert_eq!(hints.railgun.key, "R", "no pad button keeps the key");
+        assert_eq!(hints.aim.key, "Pad Left Trigger 2");
     }
 
     #[test]
@@ -581,6 +981,7 @@ mod tests {
         world.entity_mut(ship).insert((
             TravelLock(Some(lock)),
             DominantWell(well),
+            RcsBudget::default(),
             DockedShip {
                 connection,
                 helm: Quat::IDENTITY,
