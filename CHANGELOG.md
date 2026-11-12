@@ -15,6 +15,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
 
+### Ships & Sections
+
+- Five second-tier sections swap in at a shipyard: wide intake, long mining beam, armoured controller, wide-gate docking port and heavy lance. Each recipe spends one new `AlloyPlate` part.
+
 ### Interface & HUD
 
 - Crossing into another sector of a generated world now posts `SECTOR (x, y, z)` on the HUD notice, with `- FIRST VISIT` for a sector your chart had not recorded. A New Game or a Load posts nothing.

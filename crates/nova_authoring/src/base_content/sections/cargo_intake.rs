@@ -7,6 +7,7 @@
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
+use nova_gameplay::prelude::BuildRecipe;
 use nova_ship::prelude::*;
 
 use super::recipes;
@@ -14,6 +15,9 @@ use crate::base_content::assets::BaseContentAssets;
 
 /// The intake prototype id. Only the block fleet mounts it by name.
 pub(crate) const CARGO_INTAKE_SECTION_ID: &str = "cargo_intake_section";
+
+/// The second-tier intake: the same box with a wider, longer trigger.
+const WIDE_INTAKE_SECTION_ID: &str = "wide_intake_section";
 
 /// Hold machinery behind a door, as soft as a docking port: shooting the door
 /// is a real way to stop a pickup.
@@ -83,25 +87,39 @@ fn intake_door_track() -> Vec<SectionAnimation> {
     }]
 }
 
-/// The intake prototype.
-pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
-    vec![SectionConfig {
+/// What one intake grade is: its tier, its door and its trigger. Everything
+/// else - the 3x2x1 box, the sockets, the accordion track, the art and the
+/// sounds - is the INTAKE, shared by construction below so the two grades
+/// never drift apart.
+struct IntakeSpec<'a> {
+    id: &'a str,
+    name: &'a str,
+    description: &'a str,
+    health: f32,
+    advancement: f32,
+    draw_weight: f32,
+    build: BuildRecipe,
+    /// How far out a fitting canister folds the door open.
+    detection_range: Meters,
+    /// How deep the take trigger stands in front of the opening.
+    capture_gap: Meters,
+    /// The clear opening, inside the 30 x 20 m door face.
+    aperture_width: Meters,
+    aperture_height: Meters,
+}
+
+/// One intake, named for the grade it is built at.
+fn intake_prototype(meshes: &BaseContentAssets, spec: IntakeSpec<'_>) -> SectionConfig {
+    SectionConfig {
         base: BaseSectionConfig {
-            id: CARGO_INTAKE_SECTION_ID.to_string(),
+            id: spec.id.to_string(),
             damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
-            name: "Cargo Intake Section".to_string(),
-            description: "A hold mouth behind an accordion door. The door \
-                          folds open for a canister within 40 m of it. When \
-                          a canister reaches into the 1 m in front of its \
-                          opening, the intake takes, at any speed, every \
-                          whole item the hold has room for. The rest stays \
-                          in the same canister. Jettison in the Inventory \
-                          pane drops a canister out through the same door."
-                .to_string(),
-            health: CARGO_INTAKE_BASE_HEALTH,
-            advancement: 0.0,
-            draw_weight: 1.0,
-            build: recipes::cargo_intake(),
+            name: spec.name.to_string(),
+            description: spec.description.to_string(),
+            health: spec.health,
+            advancement: spec.advancement,
+            draw_weight: spec.draw_weight,
+            build: spec.build,
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             collider: Some(SectionCollider::Cuboid { size: INTAKE_CELLS }),
             link_points: intake_link_points(),
@@ -115,15 +133,67 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             door_sound: meshes.torpedo_door_sound.clone(),
             eject_sound: meshes.cargo_eject_sound.clone(),
             take_sound: meshes.cargo_take_sound.clone(),
-            detection_range: Meters(40.0),
-            capture_gap: Meters(1.0),
-            // The clear opening centred on the face, inside the folded slat
-            // stacks and the face ring of intake_accordion_3x2x1.glb. Neither
-            // is centred: the nearer slat stack is 11.13 m out and the ring
-            // top 7.70 m up, so the opening is 22.2 m by 15.3 m.
-            aperture_width: Meters(22.2),
-            aperture_height: Meters(15.3),
+            detection_range: spec.detection_range,
+            capture_gap: spec.capture_gap,
+            aperture_width: spec.aperture_width,
+            aperture_height: spec.aperture_height,
             eject_speed: MetersPerSecond(3.0),
         }),
-    }]
+    }
+}
+
+/// The intake prototypes, in catalog order.
+pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
+    vec![
+        intake_prototype(
+            meshes,
+            IntakeSpec {
+                id: CARGO_INTAKE_SECTION_ID,
+                name: "Cargo Intake Section",
+                description: "A hold mouth behind an accordion door. The door \
+                              folds open for a canister within 40 m of it. When \
+                              a canister reaches into the 1 m in front of its \
+                              opening, the intake takes, at any speed, every \
+                              whole item the hold has room for. The rest stays \
+                              in the same canister. Jettison in the Inventory \
+                              pane drops a canister out through the same door.",
+                health: CARGO_INTAKE_BASE_HEALTH,
+                advancement: 0.0,
+                draw_weight: 1.0,
+                build: recipes::cargo_intake(),
+                detection_range: Meters(40.0),
+                capture_gap: Meters(1.0),
+                // The clear opening centred on the face, inside the folded
+                // slat stacks and the face ring of intake_accordion_3x2x1.glb.
+                // Neither is centred: the nearer slat stack is 11.13 m out
+                // and the ring top 7.70 m up, so the opening is 22.2 m by
+                // 15.3 m.
+                aperture_width: Meters(22.2),
+                aperture_height: Meters(15.3),
+            },
+        ),
+        intake_prototype(
+            meshes,
+            IntakeSpec {
+                id: WIDE_INTAKE_SECTION_ID,
+                name: "Wide Intake Section",
+                description: "The same door and hold mouth with a wider \
+                              trigger: the door opens for a canister within \
+                              60 m, the take reaches 1.5 m out over a 28 x \
+                              18 m opening, and the machinery takes a third \
+                              more damage before it fails.",
+                health: 120.0,
+                advancement: 0.3,
+                draw_weight: 0.6,
+                build: recipes::wide_intake(),
+                detection_range: Meters(60.0),
+                capture_gap: Meters(1.5),
+                // Past the slat stacks of the same art, so a canister the
+                // base opening would miss by a cell still goes in. The lint
+                // holds it inside the 30 x 20 m collider face.
+                aperture_width: Meters(28.0),
+                aperture_height: Meters(18.0),
+            },
+        ),
+    ]
 }

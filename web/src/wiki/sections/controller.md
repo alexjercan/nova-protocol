@@ -96,6 +96,7 @@ One flight computer ships, and every hull in the game is steered by copies of it
 </thead>
 <tbody>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-basic-controller-section.png</span></span></span></td><td><span class="catalog__name">Basic Controller Section</span><span class="catalog__id">basic_controller_section</span></td><td class="catalog__num">9760</td><td class="catalog__num">0.5 s</td><td class="catalog__num">100</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-armoured-controller-section.png</span></span></span></td><td><span class="catalog__name">Armoured Controller Section</span><span class="catalog__id">armoured_controller_section</span></td><td class="catalog__num">11000</td><td class="catalog__num">0.7 s</td><td class="catalog__num">160</td></tr>
 </tbody>
 </table>
 </div>

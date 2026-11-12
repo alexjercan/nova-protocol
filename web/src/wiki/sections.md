@@ -56,6 +56,7 @@ The whole shipped catalog at a glance; every child page carries the full per-kin
 <tr><td>Hull</td><td><span class="catalog__name">Truss Section</span><span class="catalog__id">truss_hull_section</span></td><td class="catalog__num">120</td><td>open frame, mates at two ends</td></tr>
 <tr><td>Hull</td><td><span class="catalog__name">Solar Panel Section</span><span class="catalog__id">solar_panel_section</span></td><td class="catalog__num">40</td><td>thin panel, mates side to side</td></tr>
 <tr><td>Controller</td><td><span class="catalog__name">Basic Controller Section</span><span class="catalog__id">basic_controller_section</span></td><td class="catalog__num">100</td><td class="catalog__num">9760 torque</td></tr>
+<tr><td>Controller</td><td><span class="catalog__name">Armoured Controller Section</span><span class="catalog__id">armoured_controller_section</span></td><td class="catalog__num">160</td><td class="catalog__num">11000 torque</td></tr>
 <tr><td>Thruster</td><td><span class="catalog__name">Basic Thruster Section</span><span class="catalog__id">basic_thruster_section</span></td><td class="catalog__num">70</td><td class="catalog__num">1.0 thrust</td></tr>
 <tr><td>Thruster</td><td><span class="catalog__name">Vector Thruster Section</span><span class="catalog__id">vector_thruster_section</span></td><td class="catalog__num">480</td><td class="catalog__num">9.0 thrust, 3x3x2</td></tr>
 <tr><td>Thruster</td><td><span class="catalog__name">Capital Thruster Section</span><span class="catalog__id">capital_thruster_section</span></td><td class="catalog__num">1250</td><td class="catalog__num">75.0 thrust, 5x5x3</td></tr>
@@ -66,9 +67,13 @@ The whole shipped catalog at a glance; every child page carries the full per-kin
 <tr><td>Torpedo bay</td><td><span class="catalog__name">Torpedo Bay (Serpent)</span><span class="catalog__id">torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">750 blast / 300 m</td></tr>
 <tr><td>Torpedo bay</td><td><span class="catalog__name">Torpedo Bay (Lance)</span><span class="catalog__id">lance_torpedo_section</span></td><td class="catalog__num">100</td><td class="catalog__num">750 blast / 300 m</td></tr>
 <tr><td>Railgun</td><td><span class="catalog__name">Railgun Lance</span><span class="catalog__id">railgun_lance_section</span></td><td class="catalog__num">180</td><td class="catalog__num">300 Pierce / 1800 power</td></tr>
+<tr><td>Railgun</td><td><span class="catalog__name">Heavy Lance</span><span class="catalog__id">heavy_railgun_section</span></td><td class="catalog__num">180</td><td class="catalog__num">450 Pierce / 2700 power</td></tr>
 <tr><td>Docking</td><td><span class="catalog__name">Docking Port Section</span><span class="catalog__id">docking_port_section</span></td><td class="catalog__num">90</td><td class="catalog__num">10 m gap / 15 deg</td></tr>
+<tr><td>Docking</td><td><span class="catalog__name">Wide-Gate Docking Port Section</span><span class="catalog__id">wide_docking_port_section</span></td><td class="catalog__num">110</td><td class="catalog__num">15 m gap / 25 deg</td></tr>
 <tr><td>Cargo intake</td><td><span class="catalog__name">Cargo Intake Section</span><span class="catalog__id">cargo_intake_section</span></td><td class="catalog__num">90</td><td class="catalog__num">1 m reach, 3x2x1</td></tr>
+<tr><td>Cargo intake</td><td><span class="catalog__name">Wide Intake Section</span><span class="catalog__id">wide_intake_section</span></td><td class="catalog__num">120</td><td class="catalog__num">1.5 m reach, 3x2x1</td></tr>
 <tr><td>Mining</td><td><span class="catalog__name">Mining Beam Section</span><span class="catalog__id">mining_beam_section</span></td><td class="catalog__num">90</td><td class="catalog__num">100 m / 1 pulse/s</td></tr>
+<tr><td>Mining</td><td><span class="catalog__name">Long Mining Beam Section</span><span class="catalog__id">long_mining_beam_section</span></td><td class="catalog__num">110</td><td class="catalog__num">160 m / 1 pulse per 0.8 s</td></tr>
 </tbody>
 </table>
 </div>

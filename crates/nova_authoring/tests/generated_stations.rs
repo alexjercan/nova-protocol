@@ -18,7 +18,10 @@ use nova_scenario::prelude::{
     lint_station_design, resolve_ship_design, GameShipDesigns, KnownSections, LintSeverity,
     ShipDesignSource,
 };
-use nova_ship::prelude::{GameSections, GameStyles, RAILGUN_LANCE_SECTION_ID};
+use nova_ship::prelude::{
+    section_swap_family, GameSections, GameStyles, BASIC_CONTROLLER_SECTION_ID,
+    DOCKING_PORT_SECTION_ID, RAILGUN_LANCE_SECTION_ID,
+};
 use nova_world_base::prelude::{
     generate_station, generated_station, station_ceiling, Civilization, CivilizationStatusType,
     ShipPartSnapshot, StationArchetypeType, StationLayoutRequest,
@@ -322,5 +325,79 @@ fn a_generated_station_builds_what_its_civilization_knows_and_no_more() {
     assert!(
         built.contains(RAILGUN_LANCE_SECTION_ID),
         "{advanced} at 0.5 builds the railgun lance it knows: {built:?}"
+    );
+}
+
+/// The second tier of every single-variant kind, as `(base, variant)`. Each
+/// variant shares its base's kind and collider footprint, so the catalogue
+/// offers it as a swap, and generated stations of a civilization that knows
+/// one build it. The intake and mining variants never reach a station
+/// (`station_carries`), and the heavy lance opens past 0.5, so the builds
+/// census below can only land the controller and the port.
+const SECOND_TIER: [(&str, &str); 5] = [
+    ("cargo_intake_section", "wide_intake_section"),
+    ("mining_beam_section", "long_mining_beam_section"),
+    (BASIC_CONTROLLER_SECTION_ID, "armoured_controller_section"),
+    (DOCKING_PORT_SECTION_ID, "wide_docking_port_section"),
+    (RAILGUN_LANCE_SECTION_ID, "heavy_railgun_section"),
+];
+
+/// Every second-tier variant swaps for its base, and over the eight census
+/// civilizations at advancement 0.5 some generated station builds one: a
+/// known draw at 50 % per civilization lands a station that upgrades a
+/// section the player already flies.
+#[test]
+fn generated_stations_build_second_tier_sections_that_swap_for_their_base() {
+    let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+        .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
+    let catalog = build_section_catalog();
+    let items = GameItems::new(build_items());
+    for (base, variant) in SECOND_TIER {
+        let section = |id: &str| {
+            catalog
+                .iter()
+                .find(|section| section.base.id == id)
+                .unwrap_or_else(|| panic!("the catalog ships '{id}'"))
+        };
+        assert_eq!(
+            section_swap_family(section(base), section(variant)),
+            Ok(()),
+            "'{variant}' swaps for '{base}'"
+        );
+    }
+
+    let mut built = BTreeSet::new();
+    for node in 0..8 {
+        let id = CivilizationId {
+            world_seed: 5,
+            node: [node, 0, 0],
+        };
+        let civilization = Civilization {
+            id,
+            centroid: Meters3::ZERO,
+            status: CivilizationStatusType::Living,
+            advancement: 0.5,
+            role_preference: [1.0; 4],
+            stance: StanceType::Neutral,
+        };
+        let request = StationLayoutRequest {
+            seed: 0,
+            civilization: id,
+            archetype: StationArchetypeType::Ring,
+            advancement: 0.5,
+        };
+        let layout = generate_station(&parts, request)
+            .unwrap_or_else(|failure| panic!("{id} at 0.5: {failure}"));
+        let design = generated_station(&parts, &items, &layout, &civilization)
+            .unwrap_or_else(|constraint| panic!("{id} at 0.5: {constraint}"));
+        for (_, variant) in SECOND_TIER {
+            if design.builds.iter().any(|built| built == variant) {
+                built.insert(variant);
+            }
+        }
+    }
+    assert!(
+        !built.is_empty(),
+        "no census civilization's station at 0.5 builds a second-tier section"
     );
 }

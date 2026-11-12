@@ -6,6 +6,7 @@
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
+use nova_gameplay::prelude::BuildRecipe;
 use nova_ship::prelude::*;
 
 use super::recipes;
@@ -77,13 +78,22 @@ fn lance_charge_bolt() -> Vec<SectionAnimation> {
     }]
 }
 
-/// What one lance grade costs its target. Everything else - the art, the
-/// bore, the commit, the recoil, the single shell and the twelve-second
-/// reload - is the WEAPON, and is shared by construction below.
+/// The second-tier lance: the same spine, a longer charge and a heavier slug.
+const HEAVY_RAILGUN_SECTION_ID: &str = "heavy_railgun_section";
+
+/// What one lance grade costs its target, and where it sits on the
+/// advancement curve. Everything else - the art, the bore, the recoil, the
+/// single shell and the twelve-second reload - is the WEAPON, and is shared by
+/// construction below.
 struct LanceSpec<'a> {
     id: &'a str,
     name: &'a str,
     description: &'a str,
+    advancement: f32,
+    draw_weight: f32,
+    build: BuildRecipe,
+    /// The alignment window, and the tell: how long the bolt walks the bore.
+    charge_seconds: f32,
     /// Damage dealt in full to every layer the slug crosses.
     slug_damage: f32,
     /// The pierce budget: the only bound on how deep one shell goes.
@@ -105,10 +115,9 @@ fn railgun_lance_prototype(meshes: &BaseContentAssets, spec: LanceSpec<'_>) -> S
             name: spec.name.to_string(),
             description: spec.description.to_string(),
             health: RAILGUN_BASE_HEALTH,
-            // About 2,000 km out on the advancement curve.
-            advancement: 0.5,
-            draw_weight: 1.0,
-            build: recipes::railgun_lance(),
+            advancement: spec.advancement,
+            draw_weight: spec.draw_weight,
+            build: spec.build,
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             // Three cells long, and the collider has to claim all of it: the
             // lance is the biggest single target on any ship carrying one.
@@ -127,11 +136,7 @@ fn railgun_lance_prototype(meshes: &BaseContentAssets, spec: LanceSpec<'_>) -> S
             // as well as pushing it - which is the whole reason a builder puts
             // one on the spine.
             muzzle_offset: Vec3::NEG_Z * (LANCE_CELLS.z * 0.5),
-            // The alignment window, and the tell. Long enough that a target
-            // being lanced can see the bolt climbing the bore and break the
-            // line; short enough that a pilot who has already set up the shot
-            // is not flying a straight line forever.
-            charge_seconds: 1.5,
+            charge_seconds: spec.charge_seconds,
             slug_speed: MetersPerSecond(15_000.0),
             slug_damage: spec.slug_damage,
             slug_power: spec.slug_power,
@@ -166,47 +171,84 @@ fn railgun_lance_prototype(meshes: &BaseContentAssets, spec: LanceSpec<'_>) -> S
     }
 }
 
-/// The lance prototype.
+/// The lance prototypes, in catalog order.
 pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
-    vec![railgun_lance_prototype(
-        meshes,
-        LanceSpec {
-            id: RAILGUN_LANCE_SECTION_ID,
-            name: "Railgun Lance",
-            description: "A spinal kinetic lance: no traverse, so the HULL \
+    vec![
+        railgun_lance_prototype(
+            meshes,
+            LanceSpec {
+                id: RAILGUN_LANCE_SECTION_ID,
+                name: "Railgun Lance",
+                description: "A spinal kinetic lance: no traverse, so the HULL \
                               aims it. Tapping the trigger COMMITS - the bolt \
                               walks the bore and the shot leaves when it \
                               arrives, whether or not the nose is still on the \
                               target. What leaves rakes through everything in \
                               the line, and shoves the ship that fired.",
-            // Dealt in FULL to every layer crossed. It clears every hull,
-            // controller, turret and bay in the catalog outright - the
-            // toughest of those is a reinforced hull block at 200 - so an
-            // aligned shot takes a column out of a ship rather than
-            // damaging one.
-            //
-            // It does NOT clear the two large drives: `vector_thruster_
-            // section` is 480 and `capital_thruster_section` is 1250, both
-            // older than this gun. A lance cripples a capital drive over
-            // several shots instead of removing it, which is the intended
-            // read - depth is priced in `slug_power`, lethality here - but
-            // it is the number to revisit if a lance is meant to answer a
-            // capital hull in one pass.
-            slug_damage: 300.0,
-            // Sized to pass through an entire ship. At the 3x
-            // closing-speed ceiling a lance slug spends max_health/3 per
-            // layer, so this crosses 27 reinforced hull blocks - past the
-            // depth of anything that flies. Depth is NOT the cost of this
-            // weapon; the commit, the recoil and the reload are.
-            slug_power: 1800.0,
-            // ONE UNIT, from the range's measurement bank. On the unit
-            // lattice every hull is built on it takes the face and
-            // diagonal neighbours of the cell it bores through and stops
-            // short of the second ring at 1.5. The corridor is three cells
-            // wide, which is a hole you can see and not a ship you delete.
-            rake_radius: Meters(10.0),
-        },
-    )]
+                // About 2,000 km out on the advancement curve.
+                advancement: 0.5,
+                draw_weight: 1.0,
+                build: recipes::railgun_lance(),
+                // Long enough that a target being lanced can see the bolt
+                // climbing the bore and break the line; short enough that a
+                // pilot who has already set up the shot is not flying a
+                // straight line forever.
+                charge_seconds: 1.5,
+                // Dealt in FULL to every layer crossed. It clears every
+                // hull, controller, turret and bay in the catalog outright -
+                // the toughest of those is a reinforced hull block at 200 -
+                // so an aligned shot takes a column out of a ship rather
+                // than damaging one.
+                //
+                // It does NOT clear the two large drives: `vector_thruster_
+                // section` is 480 and `capital_thruster_section` is 1250,
+                // both older than this gun. A lance cripples a capital drive
+                // over several shots instead of removing it, which is the
+                // intended read - depth is priced in `slug_power`, lethality
+                // here - but it is the number to revisit if a lance is meant
+                // to answer a capital hull in one pass.
+                slug_damage: 300.0,
+                // Sized to pass through an entire ship. At the 3x
+                // closing-speed ceiling a lance slug spends max_health/3 per
+                // layer, so this crosses 27 reinforced hull blocks - past
+                // the depth of anything that flies. Depth is NOT the cost of
+                // this weapon; the commit, the recoil and the reload are.
+                slug_power: 1800.0,
+                // ONE UNIT, from the range's measurement bank. On the unit
+                // lattice every hull is built on it takes the face and
+                // diagonal neighbours of the cell it bores through and stops
+                // short of the second ring at 1.5. The corridor is three
+                // cells wide, which is a hole you can see and not a ship you
+                // delete.
+                rake_radius: Meters(10.0),
+            },
+        ),
+        railgun_lance_prototype(
+            meshes,
+            LanceSpec {
+                id: HEAVY_RAILGUN_SECTION_ID,
+                name: "Heavy Lance",
+                description: "The same spinal lance with a heavier slug: the \
+                              bolt walks the bore for 2 s, and what leaves \
+                              deals half again the damage and bores half \
+                              again as deep through everything in the line.",
+                // A tier past the lance it upgrades. The armament census
+                // holds that no lance of any grade mounts below 0.5.
+                advancement: 0.6,
+                draw_weight: 0.5,
+                build: recipes::heavy_railgun(),
+                // Half a second more of tell for half again the slug: the
+                // target gets longer to break the line.
+                charge_seconds: 2.0,
+                // 450 clears the vector thruster (480) in two shots instead
+                // of two and a bit, and still leaves the capital drive a
+                // several-shot cripple.
+                slug_damage: 450.0,
+                slug_power: 2700.0,
+                rake_radius: Meters(10.0),
+            },
+        ),
+    ]
 }
 
 #[cfg(test)]

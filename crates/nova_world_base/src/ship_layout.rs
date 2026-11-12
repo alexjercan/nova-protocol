@@ -3211,6 +3211,54 @@ pub(crate) mod tests {
         }
     }
 
+    /// A second tier on the same footprint reaches generated hulls through
+    /// the family draw alone: an Industrial hull at advancement 0.5, built
+    /// by a civilization that knows the tiered intake, port, core and beam,
+    /// mounts at least one of them over twelve seeds, with nothing in a
+    /// layout table naming it.
+    #[test]
+    fn an_industrial_hull_at_mid_advancement_mounts_a_second_tier_section() {
+        let mut packs = packs();
+        let tiered = |mut section: SectionConfig| {
+            section.base.advancement = 0.3;
+            section.base.draw_weight = 0.6;
+            section
+        };
+        packs[0].sections.push(tiered(intake("wide_intake")));
+        packs[0]
+            .sections
+            .push(tiered(dock("wide_dock", &DOCK_FACES)));
+        packs[0]
+            .sections
+            .push(tiered(controller("armoured_controller")));
+        packs[0]
+            .sections
+            .push(mining("long_mining_beam", 1.5, &DOCK_FACES, 0.3));
+        let variants = [
+            "wide_intake",
+            "wide_dock",
+            "armoured_controller",
+            "long_mining_beam",
+        ];
+        let snapshot = ShipPartSnapshot::build(&packs).expect("the packs build");
+        let civilization = knowing(&snapshot, &variants);
+        let mut mounted: BTreeSet<String> = BTreeSet::new();
+        for seed in 0..12 {
+            let request = request_of(civilization, seed, ShipRoleType::Industrial, 0.5);
+            let layout = generate_ship(&snapshot, request).expect("the ship generates");
+            for section in &layout.design.sections {
+                let id = prototype_of(section).expect("a prototype");
+                if variants.contains(&id) {
+                    mounted.insert(id.to_string());
+                }
+            }
+        }
+        assert!(
+            !mounted.is_empty(),
+            "twelve Industrial hulls at 0.5 mount no second-tier section"
+        );
+    }
+
     #[test]
     fn a_high_advancement_ship_draws_its_drives_from_its_tier() {
         let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");

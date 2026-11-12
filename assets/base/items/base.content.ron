@@ -199,4 +199,14 @@
         ask_cr: 200,
         bid_cr: 150,
     )),
+    Item((
+        id: "AlloyPlate",
+        name: "Alloy plate",
+        about: "Alloy plate refined from iron and carbon ore at a station. Every second-tier section recipe spends one.",
+        category: Parts,
+        mass_g: 30000,
+        price_lot: 1,
+        ask_cr: 90,
+        bid_cr: 68,
+    )),
 ]

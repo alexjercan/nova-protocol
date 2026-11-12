@@ -41,6 +41,8 @@ pub(crate) const CAPACITOR_BANK: &str = "CapacitorBank";
 pub(crate) const TORPEDO_TUBE: &str = "TorpedoTube";
 /// Seal ring and latches for a docking port.
 pub(crate) const DOCKING_COLLAR: &str = "DockingCollar";
+/// Refined plate every second-tier section recipe spends one of.
+pub(crate) const ALLOY_PLATE: &str = "AlloyPlate";
 
 /// The base game's items, in the order the file carries them.
 pub(crate) fn item_catalog() -> Vec<ItemDesign> {
@@ -245,6 +247,16 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             1,
             200,
             150,
+        ),
+        (
+            ALLOY_PLATE,
+            "Alloy plate",
+            "Alloy plate refined from iron and carbon ore at a station. Every second-tier section recipe spends one.",
+            Parts,
+            30_000,
+            1,
+            90,
+            68,
         ),
     ]
     .into_iter()

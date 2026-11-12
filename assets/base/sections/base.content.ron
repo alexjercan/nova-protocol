@@ -1298,6 +1298,115 @@
     )),
     Section((
         base: (
+            id: "armoured_controller_section",
+            name: "Armoured Controller Section",
+            description: "The same core in an armoured cell: it takes more damage before it fails and turns the hull harder, but it answers the stick more slowly.",
+            health: 160.0,
+            build: (
+                credits: 150,
+                parts: {
+                    "AlloyPlate": 1,
+                    "FlightCore": 1,
+                    "SectionPanel": 2,
+                },
+                strip_yield: 0.5,
+            ),
+            advancement: 0.3,
+            draw_weight: 0.6,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "negative_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        -1.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+        ),
+        kind: Controller((
+            steering_lag: 0.7,
+            max_torque: 11000.0,
+            render_mesh: Some("self://gltf/core_wires.glb#Scene0"),
+        )),
+    )),
+    Section((
+        base: (
             id: "pdc_kinetic_turret_section",
             name: "PDC Turret (Kinetic)",
             description: "A compact point-defense mount that fits any hull face. Slugs: the hardest single hit, harder still on a charge, and they stop at anything they cannot destroy.",
@@ -2765,6 +2874,248 @@
     )),
     Section((
         base: (
+            id: "heavy_railgun_section",
+            name: "Heavy Lance",
+            description: "The same spinal lance with a heavier slug: the bolt walks the bore for 2 s, and what leaves deals half again the damage and bores half again as deep through everything in the line.",
+            health: 180.0,
+            build: (
+                credits: 450,
+                parts: {
+                    "AlloyPlate": 1,
+                    "CapacitorBank": 3,
+                    "FrameSpar": 3,
+                    "SectionPanel": 6,
+                },
+                strip_yield: 0.5,
+            ),
+            advancement: 0.6,
+            draw_weight: 0.5,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.0,
+                    1.0,
+                    3.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        1.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_fore",
+                    position: (
+                        0.5,
+                        0.0,
+                        -1.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_mid",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_aft",
+                    position: (
+                        0.5,
+                        0.0,
+                        1.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_fore",
+                    position: (
+                        -0.5,
+                        0.0,
+                        -1.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_mid",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_aft",
+                    position: (
+                        -0.5,
+                        0.0,
+                        1.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_fore",
+                    position: (
+                        0.0,
+                        0.5,
+                        -1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_mid",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_aft",
+                    position: (
+                        0.0,
+                        0.5,
+                        1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_fore",
+                    position: (
+                        0.0,
+                        -0.5,
+                        -1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_mid",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_aft",
+                    position: (
+                        0.0,
+                        -0.5,
+                        1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: Charge,
+                    node_prefix: "charge_bolt",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            0.0,
+                            -1.18,
+                        ),
+                    ),
+                    open_seconds: 0.0,
+                    close_seconds: 0.0,
+                ),
+            ],
+        ),
+        kind: Railgun((
+            render_mesh: Some("self://gltf/railgun_lance.glb#Scene0"),
+            muzzle_offset: (
+                0.0,
+                0.0,
+                -1.5,
+            ),
+            charge_seconds: 2.0,
+            slug_speed: 15000.0,
+            slug_damage: 450.0,
+            slug_power: 2700.0,
+            rake_radius: Some(10.0),
+            slug_lifetime: 1.2,
+            recoil_impulse: 45.0,
+            fire_sound: Some("self://sounds/railgun_fire.wav"),
+            charge_sound: Some("self://sounds/railgun_charge.wav"),
+            reload_sound: Some("self://sounds/railgun_reload.wav"),
+            impact_sound: Some("self://sounds/railgun_impact.wav"),
+            ammunition: Limited(1),
+            reload: Batch((
+                delay: 12.0,
+                amount: 1,
+            )),
+        )),
+    )),
+    Section((
+        base: (
             id: "docking_port_section",
             name: "Docking Port Section",
             description: "A sealed-hatch docking port. Lock the ship you want to dock with, close to within a cell of its port with your own port facing it, and DOCK clamps the two hulls together; the sleeves reach across once the clamp holds. The pair flies as one body: the other ship flies it until HELM takes it, and DOCK again from either side lets go.",
@@ -2876,6 +3227,122 @@
             capture_angle: 15.0,
             maximum_relative_speed: 5.0,
             maximum_relative_angular_speed: 5.0,
+        )),
+    )),
+    Section((
+        base: (
+            id: "wide_docking_port_section",
+            name: "Wide-Gate Docking Port Section",
+            description: "The same hatch with a wider capture gate: DOCK takes hold from 15 m out, 25 degrees off and at 8 m/s of closing speed, and the port takes more damage before it fails.",
+            health: 110.0,
+            build: (
+                credits: 120,
+                parts: {
+                    "ActuatorPack": 1,
+                    "AlloyPlate": 1,
+                    "DockingCollar": 1,
+                    "SectionPanel": 2,
+                },
+                strip_yield: 0.5,
+            ),
+            advancement: 0.3,
+            draw_weight: 0.6,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: DockTube,
+                    node_prefix: "dock_tube",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            0.0,
+                            -0.5,
+                        ),
+                    ),
+                    open_seconds: 1.2,
+                    close_seconds: 0.8,
+                ),
+            ],
+        ),
+        kind: Docking((
+            render_mesh: Some("self://gltf/dock_flush.glb#Scene0"),
+            clamp_sound: Some("self://sounds/dock_clamp.wav"),
+            release_sound: Some("self://sounds/dock_release.wav"),
+            capture_distance: 15.0,
+            capture_angle: 25.0,
+            maximum_relative_speed: 8.0,
+            maximum_relative_angular_speed: 8.0,
         )),
     )),
     Section((
@@ -3146,6 +3613,273 @@
     )),
     Section((
         base: (
+            id: "wide_intake_section",
+            name: "Wide Intake Section",
+            description: "The same door and hold mouth with a wider trigger: the door opens for a canister within 60 m, the take reaches 1.5 m out over a 28 x 18 m opening, and the machinery takes a third more damage before it fails.",
+            health: 120.0,
+            build: (
+                credits: 90,
+                parts: {
+                    "ActuatorPack": 2,
+                    "AlloyPlate": 1,
+                    "FrameSpar": 1,
+                    "SectionPanel": 4,
+                },
+                strip_yield: 0.5,
+            ),
+            advancement: 0.3,
+            draw_weight: 0.6,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    3.0,
+                    2.0,
+                    1.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "positive_x_a",
+                    position: (
+                        1.5,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_b",
+                    position: (
+                        1.5,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_a",
+                    position: (
+                        -1.5,
+                        -0.5,
+                        -0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_b",
+                    position: (
+                        -1.5,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        -0.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_a",
+                    position: (
+                        -1.0,
+                        1.0,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_b",
+                    position: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_c",
+                    position: (
+                        1.0,
+                        1.0,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_a",
+                    position: (
+                        -1.0,
+                        -1.0,
+                        -0.0,
+                    ),
+                    normal: (
+                        -0.0,
+                        -1.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_b",
+                    position: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -0.0,
+                        -1.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_c",
+                    position: (
+                        1.0,
+                        -1.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -0.0,
+                        -1.0,
+                        -0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_a_a",
+                    position: (
+                        -1.0,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_a_b",
+                    position: (
+                        -1.0,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_b_a",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_b_b",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_c_a",
+                    position: (
+                        1.0,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_z_c_b",
+                    position: (
+                        1.0,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: IntakeDoor,
+                    node_prefix: "intake_slat_",
+                    motion: Fold(
+                        degrees: 80.0,
+                        slat_width: 0.2292,
+                        slat_thickness: 0.02,
+                    ),
+                    open_seconds: 1.2,
+                    close_seconds: 1.2,
+                ),
+            ],
+        ),
+        kind: CargoIntake((
+            render_mesh: "self://gltf/intake_accordion_3x2x1.glb#Scene0",
+            canister_mesh: "self://gltf/cargo_canister_cuboid.glb#Scene0",
+            door_sound: "self://sounds/bay_door.wav",
+            eject_sound: "self://sounds/cargo_eject.wav",
+            take_sound: "self://sounds/salvage_pickup.wav",
+            detection_range: 60.0,
+            capture_gap: 1.5,
+            aperture_width: 28.0,
+            aperture_height: 18.0,
+            eject_speed: 3.0,
+        )),
+    )),
+    Section((
+        base: (
             id: "mining_beam_section",
             name: "Mining Beam Section",
             description: "A compact ore emitter behind sliding doors. Hold its key: the doors part, the tip runs out, and once a second the beam cuts the nearest rock straight ahead of the emitter face within 100 m, with no lock needed. A barren rock in front blocks ore behind it. The ore it cuts free leaves the rock as canisters. Release the key and the tip retracts before the doors shut.",
@@ -3277,6 +4011,143 @@
             door_close_sound: "self://sounds/mining_door_close.wav",
             reach: 100.0,
             pulse_interval_seconds: 1.0,
+            carve_radius_cells: 1.5,
+        )),
+    )),
+    Section((
+        base: (
+            id: "long_mining_beam_section",
+            name: "Long Mining Beam Section",
+            description: "The same emitter with a longer, faster beam: it cuts rock within 160 m, pulses every 0.8 s, and its casing takes more damage before it fails.",
+            health: 110.0,
+            build: (
+                credits: 150,
+                parts: {
+                    "ActuatorPack": 1,
+                    "AlloyPlate": 1,
+                    "CapacitorBank": 1,
+                    "SectionPanel": 2,
+                },
+                strip_yield: 0.5,
+            ),
+            advancement: 0.3,
+            draw_weight: 0.6,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.0,
+                    1.0,
+                    1.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "positive_x",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.0,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.0,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: StowDoors,
+                    node_prefix: "stow_lid_",
+                    motion: Translate(
+                        offset: (
+                            -0.22,
+                            0.0,
+                            0.0,
+                        ),
+                    ),
+                    open_seconds: 0.3,
+                    close_seconds: 0.3,
+                ),
+                (
+                    cue: StowLift,
+                    node_prefix: "beam_tip",
+                    motion: Translate(
+                        offset: (
+                            0.0,
+                            0.0,
+                            0.16,
+                        ),
+                    ),
+                    open_seconds: 0.3,
+                    close_seconds: 0.3,
+                ),
+            ],
+        ),
+        kind: Mining((
+            render_mesh: "self://gltf/mining_beam_compact.glb#Scene0",
+            pulse_sound: "self://sounds/mining_pulse.wav",
+            refusal_sound: "self://sounds/radar_deny.wav",
+            door_open_sound: "self://sounds/mining_door_open.wav",
+            door_close_sound: "self://sounds/mining_door_close.wav",
+            reach: 160.0,
+            pulse_interval_seconds: 0.8,
             carve_radius_cells: 1.5,
         )),
     )),

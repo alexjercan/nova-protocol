@@ -115,6 +115,7 @@ Every rock in the New Game world holds ore. Ore sells only to a docked ship that
 </thead>
 <tbody>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-mining-beam-section.png</span></span></span></td><td><span class="catalog__name">Mining Beam Section</span><span class="catalog__id">mining_beam_section</span></td><td class="catalog__num">100 m</td><td class="catalog__num">1 pulse/s</td><td class="catalog__num">1.5 field cells</td><td class="catalog__num">0.6 s</td><td class="catalog__num">90</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-long-mining-beam-section.png</span></span></span></td><td><span class="catalog__name">Long Mining Beam Section</span><span class="catalog__id">long_mining_beam_section</span></td><td class="catalog__num">160 m</td><td class="catalog__num">1 pulse / 0.8 s</td><td class="catalog__num">1.5 field cells</td><td class="catalog__num">0.6 s</td><td class="catalog__num">110</td></tr>
 </tbody>
 </table>
 </div>

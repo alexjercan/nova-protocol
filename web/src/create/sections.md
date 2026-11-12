@@ -1193,9 +1193,10 @@ dock with a line on the HUD, unless the player owns it.
 section's local `-Z` face. The door opens for a nearby canister that fits the
 hold, the intake takes one, at any speed, into the ship's
 [inventory](../objects/#inventory), and the Inventory pane's Jettison drops
-canisters out through it. One ships: `cargo_intake_section`, a 3x2x1 box on
+canisters out through it. Two ship: `cargo_intake_section`, a 3x2x1 box on
 the top deck of the mining tug, the salvage hauler and the line warship, door
-up.
+up, and `wide_intake_section`, the same box with a 60 m door zone and a
+28 x 18 m opening that swaps for it at a shipyard.
 
 ```ron
 kind: CargoIntake((
@@ -1259,9 +1260,10 @@ on the `-Z` face: that face is the door.
 ## Mining
 
 `MiningSectionConfig` - a mining emitter: a beam out of the section's local
-`-Z` face that cuts ore from the nearest asteroid it meets within reach, without a travel lock. One ships:
+`-Z` face that cuts ore from the nearest asteroid it meets within reach, without a travel lock. Two ship:
 `mining_beam_section`, a 1x1x1 emitter at the tip of the mining tug's bow
-boom.
+boom, and `long_mining_beam_section`, the same emitter reaching 160 m every
+0.8 s that swaps for it at a shipyard.
 
 ```ron
 kind: Mining((

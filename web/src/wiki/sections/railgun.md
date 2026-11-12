@@ -225,6 +225,7 @@ Your warning is the same one you give: the charge. A ship whose nose swings dead
 </thead>
 <tbody>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-railgun-lance-section.png</span></span></span></td><td><span class="catalog__name">Railgun Lance</span><span class="catalog__id">railgun_lance_section</span></td><td class="catalog__num">300</td><td>Pierce</td><td class="catalog__num">1800 power</td><td class="catalog__num">10 m rake</td><td class="catalog__num">1.5 s</td><td class="catalog__num">1</td><td class="catalog__num">1 / 12 s</td><td class="catalog__num">15,000 m/s</td><td class="catalog__num">18 km</td><td class="catalog__num">180</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-heavy-railgun-section.png</span></span></span></td><td><span class="catalog__name">Heavy Lance</span><span class="catalog__id">heavy_railgun_section</span></td><td class="catalog__num">450</td><td>Pierce</td><td class="catalog__num">2700 power</td><td class="catalog__num">10 m rake</td><td class="catalog__num">2 s</td><td class="catalog__num">1</td><td class="catalog__num">1 / 12 s</td><td class="catalog__num">15,000 m/s</td><td class="catalog__num">18 km</td><td class="catalog__num">180</td></tr>
 </tbody>
 </table>
 </div>

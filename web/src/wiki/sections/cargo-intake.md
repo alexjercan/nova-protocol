@@ -117,6 +117,7 @@ Canisters come from three places: your own jettison, a [mining beam](../mining-b
 </thead>
 <tbody>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-cargo-intake-section.png</span></span></span></td><td><span class="catalog__name">Cargo Intake Section</span><span class="catalog__id">cargo_intake_section</span></td><td class="catalog__num">3x2x1</td><td class="catalog__num">22.2 x 15.3 m</td><td class="catalog__num">40 m</td><td class="catalog__num">1 m</td><td class="catalog__num">3 m/s</td><td class="catalog__num">90</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-wide-intake-section.png</span></span></span></td><td><span class="catalog__name">Wide Intake Section</span><span class="catalog__id">wide_intake_section</span></td><td class="catalog__num">3x2x1</td><td class="catalog__num">28 x 18 m</td><td class="catalog__num">60 m</td><td class="catalog__num">1.5 m</td><td class="catalog__num">3 m/s</td><td class="catalog__num">120</td></tr>
 </tbody>
 </table>
 </div>

@@ -13,8 +13,8 @@ use std::collections::BTreeMap;
 use nova_gameplay::prelude::{BuildRecipe, ItemDesignId};
 
 use crate::base_content::items::{
-    ACTUATOR_PACK, CAPACITOR_BANK, DOCKING_COLLAR, DRIVE_BELL, FLIGHT_CORE, FRAME_SPAR,
-    SECTION_PANEL, TORPEDO_TUBE, TURRET_BARREL, TURRET_BODY,
+    ACTUATOR_PACK, ALLOY_PLATE, CAPACITOR_BANK, DOCKING_COLLAR, DRIVE_BELL, FLIGHT_CORE,
+    FRAME_SPAR, SECTION_PANEL, TORPEDO_TUBE, TURRET_BARREL, TURRET_BODY,
 };
 
 /// The strip share of most recipes.
@@ -30,6 +30,19 @@ fn recipe(credits: u32, parts: &[(&str, u32)], strip_yield: f32) -> BuildRecipe 
             .map(|&(id, count)| (ItemDesignId::from(id), count))
             .collect::<BTreeMap<_, _>>(),
         strip_yield,
+    }
+}
+
+/// The second tier of a recipe: the base row plus one alloy plate, at half
+/// again the credits. One rule for every tier-two section, so a retune of a
+/// base row moves its variant with it.
+fn second_tier(base: BuildRecipe) -> BuildRecipe {
+    let mut parts = base.parts;
+    *parts.entry(ItemDesignId::from(ALLOY_PLATE)).or_default() += 1;
+    BuildRecipe {
+        credits: base.credits * 3 / 2,
+        parts,
+        strip_yield: base.strip_yield,
     }
 }
 
@@ -81,6 +94,11 @@ pub(crate) fn controller() -> BuildRecipe {
     recipe(100, &[(FLIGHT_CORE, 1), (SECTION_PANEL, 2)], STRIP_YIELD)
 }
 
+/// Armoured controller.
+pub(crate) fn armoured_controller() -> BuildRecipe {
+    second_tier(controller())
+}
+
 /// A PDC mount with one barrel per muzzle, kinetic or pierce alike.
 pub(crate) fn pdc_turret(barrels: u32) -> BuildRecipe {
     recipe(
@@ -118,6 +136,11 @@ pub(crate) fn railgun_lance() -> BuildRecipe {
     )
 }
 
+/// Heavy lance.
+pub(crate) fn heavy_railgun() -> BuildRecipe {
+    second_tier(railgun_lance())
+}
+
 /// Docking port.
 pub(crate) fn docking_port() -> BuildRecipe {
     recipe(
@@ -125,6 +148,11 @@ pub(crate) fn docking_port() -> BuildRecipe {
         &[(DOCKING_COLLAR, 1), (ACTUATOR_PACK, 1), (SECTION_PANEL, 2)],
         STRIP_YIELD,
     )
+}
+
+/// Wide-gate docking port.
+pub(crate) fn wide_docking_port() -> BuildRecipe {
+    second_tier(docking_port())
 }
 
 /// Cargo intake.
@@ -136,6 +164,11 @@ pub(crate) fn cargo_intake() -> BuildRecipe {
     )
 }
 
+/// Wide intake.
+pub(crate) fn wide_intake() -> BuildRecipe {
+    second_tier(cargo_intake())
+}
+
 /// Mining beam.
 pub(crate) fn mining_beam() -> BuildRecipe {
     recipe(
@@ -143,4 +176,9 @@ pub(crate) fn mining_beam() -> BuildRecipe {
         &[(CAPACITOR_BANK, 1), (ACTUATOR_PACK, 1), (SECTION_PANEL, 2)],
         STRIP_YIELD,
     )
+}
+
+/// Long mining beam.
+pub(crate) fn long_mining_beam() -> BuildRecipe {
+    second_tier(mining_beam())
 }

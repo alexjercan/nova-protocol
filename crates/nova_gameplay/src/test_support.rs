@@ -152,5 +152,6 @@ pub fn test_items() -> crate::inventory::GameItems {
             200,
             150,
         ),
+        item("AlloyPlate", "Alloy plate", Parts, 30_000, 1, 90, 68),
     ])
 }

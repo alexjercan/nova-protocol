@@ -7,6 +7,7 @@
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
+use nova_gameplay::prelude::BuildRecipe;
 use nova_ship::prelude::*;
 
 use super::recipes;
@@ -57,28 +58,38 @@ fn dock_tube_track() -> Vec<SectionAnimation> {
     }]
 }
 
-/// The port prototype.
-pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
-    vec![SectionConfig {
+/// The second-tier port: the same hatch with a wider capture gate.
+const WIDE_DOCKING_PORT_SECTION_ID: &str = "wide_docking_port_section";
+
+/// What one port grade is: its tier and its capture gate. Everything else -
+/// the cell, the sockets, the sleeve track, the art and the sounds - is the
+/// PORT, shared by construction below so the two grades never drift apart.
+struct DockingPortSpec<'a> {
+    id: &'a str,
+    name: &'a str,
+    description: &'a str,
+    health: f32,
+    advancement: f32,
+    draw_weight: f32,
+    build: BuildRecipe,
+    capture_distance: Meters,
+    capture_angle: f32,
+    maximum_relative_speed: MetersPerSecond,
+    maximum_relative_angular_speed: f32,
+}
+
+/// One port, named for the grade it is built at.
+fn docking_port_prototype(meshes: &BaseContentAssets, spec: DockingPortSpec<'_>) -> SectionConfig {
+    SectionConfig {
         base: BaseSectionConfig {
-            id: DOCKING_PORT_SECTION_ID.to_string(),
+            id: spec.id.to_string(),
             damage_effects: DamageEffects(vec![DamageEffect::Cracks, DamageEffect::Sparks]),
-            name: "Docking Port Section".to_string(),
-            description: "A sealed-hatch docking port. Lock the ship you \
-                              want to dock with, close to within a cell of its \
-                              port with your own port facing it, and DOCK \
-                              clamps the two hulls together; the sleeves reach \
-                              across once the clamp holds. The pair flies as \
-                              one body: the other ship flies it until HELM \
-                              takes it, and DOCK again from either side lets \
-                              go."
-            .to_string(),
-            // Light machinery behind a hatch: softer than the command core
-            // it is bolted beside, tougher than exposed propulsion.
-            health: DOCKING_BASE_HEALTH,
-            advancement: 0.0,
-            draw_weight: 1.0,
-            build: recipes::docking_port(),
+            name: spec.name.to_string(),
+            description: spec.description.to_string(),
+            health: spec.health,
+            advancement: spec.advancement,
+            draw_weight: spec.draw_weight,
+            build: spec.build,
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             collider: None,
             link_points: dock_link_points(),
@@ -90,17 +101,70 @@ pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
             render_mesh_transform: None,
             clamp_sound: Some(meshes.dock_clamp_sound.clone()),
             release_sound: Some(meshes.dock_release_sound.clone()),
-            // One cell of reach between the two RETRACTED faces, which is
-            // exactly what two 0.5 sleeves bridge.
-            capture_distance: Meters(10.0),
-            // Roll is free (the port is round); this is the only angle
-            // that matters, and 15 degrees is a hand-flown approach.
-            capture_angle: 15.0,
-            // Both hulls must be nearly station-keeping on each other. A
-            // joint built at a real closing rate would snap the two ships
-            // to a stop, and nothing here is allowed to do that.
-            maximum_relative_speed: MetersPerSecond(5.0),
-            maximum_relative_angular_speed: 5.0,
+            capture_distance: spec.capture_distance,
+            capture_angle: spec.capture_angle,
+            maximum_relative_speed: spec.maximum_relative_speed,
+            maximum_relative_angular_speed: spec.maximum_relative_angular_speed,
         }),
-    }]
+    }
+}
+
+/// The port prototypes, in catalog order.
+pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
+    vec![
+        docking_port_prototype(
+            meshes,
+            DockingPortSpec {
+                id: DOCKING_PORT_SECTION_ID,
+                name: "Docking Port Section",
+                description: "A sealed-hatch docking port. Lock the ship you \
+                              want to dock with, close to within a cell of its \
+                              port with your own port facing it, and DOCK \
+                              clamps the two hulls together; the sleeves reach \
+                              across once the clamp holds. The pair flies as \
+                              one body: the other ship flies it until HELM \
+                              takes it, and DOCK again from either side lets \
+                              go.",
+                // Light machinery behind a hatch: softer than the command
+                // core it is bolted beside, tougher than exposed propulsion.
+                health: DOCKING_BASE_HEALTH,
+                advancement: 0.0,
+                draw_weight: 1.0,
+                build: recipes::docking_port(),
+                // One cell of reach between the two RETRACTED faces, which
+                // is exactly what two 0.5 sleeves bridge.
+                capture_distance: Meters(10.0),
+                // Roll is free (the port is round); this is the only angle
+                // that matters, and 15 degrees is a hand-flown approach.
+                capture_angle: 15.0,
+                // Both hulls must be nearly station-keeping on each other. A
+                // joint built at a real closing rate would snap the two
+                // ships to a stop, and nothing here is allowed to do that.
+                maximum_relative_speed: MetersPerSecond(5.0),
+                maximum_relative_angular_speed: 5.0,
+            },
+        ),
+        docking_port_prototype(
+            meshes,
+            DockingPortSpec {
+                id: WIDE_DOCKING_PORT_SECTION_ID,
+                name: "Wide-Gate Docking Port Section",
+                description: "The same hatch with a wider capture gate: DOCK \
+                              takes hold from 15 m out, 25 degrees off and \
+                              at 8 m/s of closing speed, and the port takes \
+                              more damage before it fails.",
+                health: 110.0,
+                advancement: 0.3,
+                draw_weight: 0.6,
+                build: recipes::wide_docking_port(),
+                // Half a cell past the retracted faces the sleeves bridge:
+                // the sleeves still overlap on purpose, and the joint is the
+                // mechanic.
+                capture_distance: Meters(15.0),
+                capture_angle: 25.0,
+                maximum_relative_speed: MetersPerSecond(8.0),
+                maximum_relative_angular_speed: 8.0,
+            },
+        ),
+    ]
 }

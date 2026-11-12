@@ -125,6 +125,7 @@ The other endings are damage. Shoot the port off either hull, or kill either shi
 </thead>
 <tbody>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-docking-port-section.png</span></span></span></td><td><span class="catalog__name">Docking Port Section</span><span class="catalog__id">docking_port_section</span></td><td class="catalog__num">10 m</td><td class="catalog__num">15 deg</td><td class="catalog__num">5 m/s</td><td class="catalog__num">5 m / 1.2 s</td><td class="catalog__num">90</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-wide-docking-port-section.png</span></span></span></td><td><span class="catalog__name">Wide-Gate Docking Port Section</span><span class="catalog__id">wide_docking_port_section</span></td><td class="catalog__num">15 m</td><td class="catalog__num">25 deg</td><td class="catalog__num">8 m/s</td><td class="catalog__num">5 m / 1.2 s</td><td class="catalog__num">110</td></tr>
 </tbody>
 </table>
 </div>
