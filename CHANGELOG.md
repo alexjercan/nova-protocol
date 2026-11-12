@@ -20,6 +20,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Stations that offer Refine turn 2 iron ore, 1 carbon ore and a 30 cr fee into an alloy plate from the Inventory pane. The waystation refines; generated stations do from advancement 0.25.
 - A distress rescue now takes one Medkit from your hold at the dock with the caller. With none aboard the HUD reads `NO MEDKIT ABOARD` and the call stays open. Stations sell medkits.
 - Half the civilizations of a generated world are lawful: their stations refuse a dock while your hold carries Contraband, on the HUD as `<NAME> REFUSES CONTRABAND`. Scavengers deal unmarked cores.
+- Gamepad: L3 + Y docks and L3 + A takes the helm, two caps on the key row. New hulls put torpedoes on LB, the railgun on View and mining on RT; hot weapons turn off pad free look and HUD toggle.
 
 ### Ships & Sections
 

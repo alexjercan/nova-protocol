@@ -127,12 +127,36 @@ A dash means the action has no binding on that device.
         <tr>
             <td>DOCK - clamp to the ship you have locked, press again to let go</td>
             <td><kbd>D</kbd></td>
-            <td>unbound</td>
+            <td>
+                <span
+                    class="pf pf-stick-left-click"
+                    role="img"
+                    aria-label="Left stick click"
+                ></span>
+                (hold) +
+                <span
+                    class="pf pf-face-north"
+                    role="img"
+                    aria-label="North face button"
+                ></span>
+            </td>
         </tr>
         <tr>
             <td>HELM - take a docked pair's helm, press again to hand it back</td>
             <td><kbd>H</kbd></td>
-            <td>unbound</td>
+            <td>
+                <span
+                    class="pf pf-stick-left-click"
+                    role="img"
+                    aria-label="Left stick click"
+                ></span>
+                (hold) +
+                <span
+                    class="pf pf-face-south"
+                    role="img"
+                    aria-label="South face button"
+                ></span>
+            </td>
         </tr>
     </tbody>
 </table>
@@ -141,9 +165,11 @@ DOCK needs a docking port on both hulls, so it is offered only on a ship built w
 
 Dock and Helm appear in **Settings > Controls > FLIGHT** with <kbd>D</kbd> and <kbd>H</kbd> as rebindable defaults.
 
+On a gamepad DOCK and HELM are chords on the RCS button, like MATCH. GOTO and ORBIT do nothing useful while RCS is held, so while you hold the left stick click the GOTO button docks and lets go, and the ORBIT button takes and hands back the helm. The keybind dock draws both buttons on the DOCK and HELM chips. The chord follows the RCS, GOTO and ORBIT bindings, so <kbd>Shift</kbd> + <kbd>G</kbd> and <kbd>Shift</kbd> + <kbd>O</kbd> do the same on a keyboard. The gamepad column of the Dock and Helm rows in Settings stays empty until you bind a button of your own there.
+
 Roll turns the view and the hull together at a quarter turn a second, through the same controller that points the nose, and draws no RCS. <kbd>Q</kbd> rolls left and <kbd>E</kbd> rolls right; holding both holds still. Roll does nothing in free look, with weapons raised, while RCS is held or while an autopilot verb is flying. Roll Left and Roll Right appear in **Settings > Controls > FLIGHT**; no gamepad button is free for them, and a ship's own section keys cannot take <kbd>Q</kbd> or <kbd>E</kbd>.
 
-Mining has no flight key. Each mining beam section has its own key, like a weapon or a thruster: the mining tug's bow beam answers <kbd>V</kbd>, and a beam placed in the editor starts on <kbd>V</kbd> with no gamepad button. Hold a beam's key with an ore rock travel-locked, in front of that emitter and within 100 m; it opens, runs its tip out and cuts the rock once a second where it hits. Release the key and that beam retracts. Rebind each beam on the [Ship pane](../interface/#rebinding-a-section). See [Mining beam](../sections/mining-beam/).
+Mining has no flight key. Each mining beam section has its own key, like a weapon or a thruster: a ship's first beam answers <kbd>V</kbd> and the right trigger on a gamepad, on the mining tug's bow and on a beam placed in the editor alike. A second beam takes <kbd>B</kbd> and no gamepad button. The right trigger is also FIRE: with the weapons cold it only mines, and with them hot it does both. Hold a beam's key with an ore rock travel-locked, in front of that emitter and within 100 m; it opens, runs its tip out and cuts the rock once a second where it hits. Release the key and that beam retracts. Rebind each beam on the [Ship pane](../interface/#rebinding-a-section). See [Mining beam](../sections/mining-beam/).
 
 RCS is a docking aid on top of standard flight. Every ship has it unless a scenario withholds it: the RCS chip in the keybind dock stays dark while it is withheld, and Basic Training hands it over at the beat that teaches it. See [Flight & autopilot](../flight-autopilot/#rcs-fine-docking-thrusters).
 
@@ -301,9 +327,9 @@ RCS is a docking aid on top of standard flight. Every ship has it unless a scena
             <td><kbd>F</kbd> (default)</td>
             <td>
                 <span
-                    class="pf pf-trigger-left"
+                    class="pf pf-shoulder-left"
                     role="img"
-                    aria-label="Left trigger"
+                    aria-label="Left bumper"
                 ></span>
             </td>
         </tr>
@@ -312,21 +338,29 @@ RCS is a docking aid on top of standard flight. Every ship has it unless a scena
             <td><kbd>R</kbd> (default)</td>
             <td>
                 <span
-                    class="pf pf-stick-right-click"
+                    class="pf pf-select"
                     role="img"
-                    aria-label="Right stick click"
+                    aria-label="Select button"
                 ></span>
             </td>
         </tr>
         <tr>
             <td>Run a mining beam out (hold)</td>
             <td><kbd>V</kbd> (default)</td>
-            <td>-</td>
+            <td>
+                <span
+                    class="pf pf-trigger-right"
+                    role="img"
+                    aria-label="Right trigger"
+                ></span>
+            </td>
         </tr>
     </tbody>
 </table>
 
-One weapon, one button. A gun takes its own key the moment it is placed or generated, so a hull you never drew can be flown as it comes: the thrusters answer <kbd>Space</kbd>, the PDC turrets the left mouse button, the tubes <kbd>F</kbd>, a [railgun](../sections/railgun/) <kbd>R</kbd>, a [mining beam](../sections/mining-beam/) <kbd>V</kbd> with no gamepad button. The railgun key is a tap that commits the charge rather than a burst you hold, and a torpedo only launches while you hold a raised (red) combat lock.
+One weapon, one button. A gun takes its own key the moment it is placed or generated, so a hull you never drew can be flown as it comes: the thrusters answer <kbd>Space</kbd>, the PDC turrets the left mouse button, the tubes <kbd>F</kbd>, a [railgun](../sections/railgun/) <kbd>R</kbd>, a [mining beam](../sections/mining-beam/) <kbd>V</kbd>. The railgun key is a tap that commits the charge rather than a burst you hold, and a torpedo only launches while you hold a raised (red) combat lock.
+
+On a gamepad the torpedo button is the left bumper and the railgun button is Select, the buttons free look and the HUD toggle use. A torpedo and a railgun only answer while the weapons are hot, so while they are hot the left bumper does not free look and Select does not toggle the HUD; <kbd>Alt</kbd> and <kbd>`</kbd> still do. A ship in a save from an earlier version keeps the bindings it had: rebind it on the [Ship pane](../interface/#rebinding-a-section).
 
 None of this is fixed: in the editor, click a section to bind it to any key or mouse button, so a ship's controls are whatever its build assigns.
 

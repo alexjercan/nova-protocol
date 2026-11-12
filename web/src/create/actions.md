@@ -111,10 +111,11 @@ two handlers (an either-or fork) is a Warn.
 
 Spawn the player's ship as the [start role](../start-roles/) the player
 picked on New Game: the role's hull, its kit of credits and stock, and a
-Player controller. Each section of the hull is bound by its kind:
-point-defense turrets to the left mouse button and the gamepad right
-trigger, railguns to <kbd>R</kbd>, torpedo bays to <kbd>F</kbd> and mining
-beams to <kbd>V</kbd>. The ship takes the hull's design name.
+Player controller. Each section of the hull is bound by its kind, keyboard
+then gamepad: point-defense turrets to the left mouse button and the right
+trigger, railguns to <kbd>R</kbd> and View, torpedo bays to <kbd>F</kbd> and
+the left bumper, the first mining beam to <kbd>V</kbd> and the right trigger
+and a second to <kbd>B</kbd>. The ship takes the hull's design name.
 
 ```ron
 SpawnStartRole((id: "player")),

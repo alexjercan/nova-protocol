@@ -25,7 +25,7 @@ The beam does not aim. It runs straight out of the emitter's face, so the **ship
 
 | The mining beam at a glance | |
 |---|---|
-| Key | its own, held: <kbd>V</kbd> on the mining tug |
+| Key | its own, held: <kbd>V</kbd>, or the gamepad right trigger, on the mining tug |
 | Deploy | doors **0.3 s**, then the tip **0.3 s** |
 | Reach | **100 m** from the emitter face, straight ahead of it |
 | Rate | a pulse as soon as it is out, then **one a second** |
