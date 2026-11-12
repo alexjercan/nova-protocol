@@ -34,7 +34,7 @@
 //! | 5 | `outcome: a loaded world restores the job and the board` | after the Load the job is held again and the station posts the same board, the saved offers |
 //! | 6 | `outcome: a passed window renews the unheld offers and pins the held job` | docked again, once the clock passes the offer window the two unheld slots renew, stamped at the clock, and the tab lists them with their reward, while the held slot and job stand unchanged |
 //! | 7 | `outcome: a thaw renews only the unheld offers` | after the station's cell retires and thaws with the clock again past the offer window, the two unheld slots renew and their old postings' bodies are gone, while the held slot still carries the pinned job |
-//! | 8 | `outcome: a hand-in pays the reward and completes the job` | docked a third time with the goods, the Hand in click takes the goods, pays the reward from the station and lists the job completed |
+//! | 8 | `outcome: a hand-in pays the reward and completes the job` | docked a third time with the goods, the Hand in click takes the goods, pays the reward from the station, the open world grants its first-delivery bonus and the job is listed completed |
 //! | 9 | `outcome: a hand-in renews the slot under a new posting` | the hand-in's slot posts a new job one posting above the old, the other two slots hold, and the tab lists the new offer with its reward |
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
@@ -1011,8 +1011,12 @@ mod walk {
         );
     }
 
+    /// What the open world's once `OnJobHandedIn` handler grants the player
+    /// on a world's first hand-in, over the job's reward, in credits.
+    const FIRST_DELIVERY_BONUS_CR: u32 = 50;
+
     /// Claim 8: the hand-in took the goods, paid the reward and completed
-    /// the job.
+    /// the job, and the open world granted its first-delivery bonus.
     fn assert_the_hand_in(world: &mut World) {
         let (_, job) = the_job(world);
         let JobType::Procure { item, count } = job.kind.clone() else {
@@ -1030,8 +1034,8 @@ mod walk {
         let station_cr = world.get::<ShipCredits>(station).expect("credits").0;
         assert_eq!(
             own_cr,
-            own_before + job.reward_cr,
-            "station jobs: the player was paid"
+            own_before + job.reward_cr + FIRST_DELIVERY_BONUS_CR,
+            "station jobs: the player was paid the reward and the first-delivery bonus"
         );
         assert_eq!(
             station_cr,
@@ -1058,6 +1062,7 @@ mod walk {
                 "item": item.to_string(),
                 "count": count,
                 "reward_cr": job.reward_cr,
+                "first_delivery_bonus_cr": FIRST_DELIVERY_BONUS_CR,
                 "player_cr": own_cr,
                 "station_cr": station_cr,
             }),

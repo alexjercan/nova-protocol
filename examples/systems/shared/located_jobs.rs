@@ -23,7 +23,7 @@
 //! | 1 | `outcome: a <kind> job is posted and accepted` | a living station's board posts the kind; after the Accept click the job is held and its bodies, if the kind puts any in the world, stand under the poster's cell root |
 //! | 2 | `outcome: the hand-in is refused until the <kind> job is done` | docked at the poster with the job held, Your jobs greys the Hand in button with the not-done reason in its tooltip |
 //! | 3 | `outcome: the world marks the <kind> job done` | after the work the job is listed done while still held |
-//! | 4 | `outcome: the hand-in pays the <kind> job` | docked again, the Hand in click pays the reward from the station, takes nothing out of the hold and lists the job completed |
+//! | 4 | `outcome: the hand-in pays the <kind> job` | docked again, the Hand in click pays the reward from the station, the played scenario grants its [`HandInGrant`], nothing leaves the hold and the job is listed completed |
 //!
 //! The escort range flies its work instead of editing the world: the player
 //! flies to the waiting hauler with GOTO, holds formation on the leg, meets
@@ -208,15 +208,26 @@ const TURRET_PIN_SECS: f32 = 2.0;
 const ESCORT_LOG_PERIOD_SECS: f32 = 1.0;
 
 /// Seconds a load, a stream or a beat gets on a software-rendered GPU.
-const SESSION_SECS: f32 = 240.0;
+pub const SESSION_SECS: f32 = 240.0;
 /// Seconds the work in the world gets.
 const WORK_SECS: f32 = 480.0;
 /// Seconds a click gets.
-const BEAT_SECS: f32 = 60.0;
+pub const BEAT_SECS: f32 = 60.0;
 /// Frames a pane gets to draw.
-const SETTLE_FRAMES: u32 = 6;
+pub const SETTLE_FRAMES: u32 = 6;
 /// The virtual clock's clamp on the software rasterizer.
 const WALK_CLOCK_SECS: f32 = 1.0;
+/// What the open world's once `OnJobHandedIn` handler grants the player on a
+/// world's first hand-in, over the job's reward, in credits.
+pub const FIRST_DELIVERY_BONUS_CR: u32 = 50;
+
+/// The credits the played scenario's `OnJobHandedIn` handlers grant the
+/// player on the walk's hand-in, over the job's reward. The walk is a world's
+/// first hand-in, so the open world grants [`FIRST_DELIVERY_BONUS_CR`]; a
+/// range that plays a fixture with a grant of its own inserts the sum before
+/// [`LocatedJobWalkPlugin`].
+#[derive(Resource, Clone, Copy, Debug)]
+pub struct HandInGrant(pub u32);
 
 /// What the run chose and recorded between beats.
 #[derive(Resource, Debug)]
@@ -300,6 +311,9 @@ impl Plugin for LocatedJobWalkPlugin {
             "located jobs: the escort range, and only it, names its flight markers"
         );
         app.insert_resource(LocatedJobWatch::new(self.0, self.1));
+        if !app.world().contains_resource::<HandInGrant>() {
+            app.insert_resource(HandInGrant(FIRST_DELIVERY_BONUS_CR));
+        }
         app.add_systems(Update, hold_the_walk_clock);
         if self.0 == LocatedKindType::Neutralize {
             // Every frame from boot: the spawn cell's board can post while
@@ -318,7 +332,8 @@ fn hold_the_walk_clock(mut time: ResMut<Time<Virtual>>) {
     }
 }
 
-fn when(check: impl Fn(&World) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
+/// A predicate from a closure over the world.
+pub fn when(check: impl Fn(&World) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
     Arc::new(check)
 }
 
@@ -353,7 +368,8 @@ fn player_cell(world: &World) -> Option<SectorCoord> {
     Some(SectorCoord::containing(Meters3::from_engine(at), edge))
 }
 
-fn player(world: &World) -> Entity {
+/// The one player ship.
+pub fn player(world: &World) -> Entity {
     the_player(world).expect("located jobs: exactly one player ship")
 }
 
@@ -371,11 +387,13 @@ fn station_root(world: &World) -> Option<Entity> {
     body_wearing(world, &id)
 }
 
-fn station(world: &World) -> Entity {
+/// The posting station's root.
+pub fn station(world: &World) -> Entity {
     station_root(world).expect("located jobs: the station stands")
 }
 
-fn the_job(world: &World) -> (usize, Job) {
+/// The job the walk accepts, and its row on the posted list.
+pub fn the_job(world: &World) -> (usize, Job) {
     world
         .resource::<LocatedJobWatch>()
         .job
@@ -482,7 +500,8 @@ fn docked_with(world: &World, target: Option<Entity>) -> bool {
     })
 }
 
-fn player_docked_at_the_station() -> Arc<Predicate> {
+/// The player is docked with the posting station.
+pub fn player_docked_at_the_station() -> Arc<Predicate> {
     when(|world| docked_with(world, station_root(world)))
 }
 
@@ -490,7 +509,8 @@ fn player_docked() -> Arc<Predicate> {
     when(|world| docked_with(world, None))
 }
 
-fn player_free() -> Arc<Predicate> {
+/// The player is docked with nothing.
+pub fn player_free() -> Arc<Predicate> {
     when(|world| the_player(world).is_some_and(|player| world.get::<DockedShip>(player).is_none()))
 }
 
@@ -507,7 +527,8 @@ fn the_interface_shows(pane: Option<InterfacePaneType>) -> Arc<Predicate> {
     })
 }
 
-fn unpaused() -> Arc<Predicate> {
+/// The game runs: no interface and no pause is up.
+pub fn unpaused() -> Arc<Predicate> {
     when(|world| {
         world
             .get_resource::<State<PauseStates>>()
@@ -526,7 +547,7 @@ fn texts(world: &mut World) -> Vec<String> {
 
 /// The index and texts of the Jobs pane's posted row `JobRowPosted-<i>`
 /// whose title cell reads `title`.
-fn posted_row(world: &mut World, title: &str) -> Option<(usize, Vec<String>)> {
+pub fn posted_row(world: &mut World, title: &str) -> Option<(usize, Vec<String>)> {
     let rows: Vec<(usize, Entity)> = world
         .query::<(Entity, &Name)>()
         .iter(world)
@@ -587,7 +608,8 @@ fn park_beside(world: &mut World, root: Entity) {
     );
 }
 
-fn park_beside_the_station(world: &mut World) {
+/// Teleport the player to the posting station's side, at rest.
+pub fn park_beside_the_station(world: &mut World) {
     let station = station(world);
     park_beside(world, station);
 }
@@ -711,13 +733,14 @@ fn berth_and_dock(world: &mut World, target: Entity) {
     });
 }
 
-fn berth_and_dock_at_the_station(world: &mut World) {
+/// One frame of the berth and dock with the posting station.
+pub fn berth_and_dock_at_the_station(world: &mut World) {
     let station = station(world);
     berth_and_dock(world, station);
 }
 
 /// Activate the UI node named `name`, as a click on it would.
-fn activate_named(world: &mut World, name: &str) {
+pub fn activate_named(world: &mut World, name: &str) {
     let target = world
         .query::<(Entity, &Name)>()
         .iter(world)
@@ -981,7 +1004,7 @@ fn describe_the_boards(world: &World) -> String {
 }
 
 /// Press and release a key action, one frame each.
-fn tap(
+pub fn tap(
     script: AutopilotPlugin<GameStates>,
     label: &str,
     action: &'static str,
@@ -1949,7 +1972,8 @@ fn note_the_balances(world: &mut World) {
     world.resource_mut::<LocatedJobWatch>().before_cr = Some((own_cr, station_cr));
 }
 
-/// Claim 4: the hand-in paid the reward, took nothing and completed the job.
+/// Claim 4: the hand-in paid the reward, the scenario granted its
+/// [`HandInGrant`], nothing left the hold and the job is completed.
 fn assert_the_hand_in(world: &mut World) {
     let tag = tag(world);
     let (_, job) = the_job(world);
@@ -1966,10 +1990,11 @@ fn assert_the_hand_in(world: &mut World) {
     assert_eq!(completed, [&job.id], "{tag} job: the job is completed");
     let own_cr = world.get::<ShipCredits>(player).expect("credits").0;
     let station_cr = world.get::<ShipCredits>(station).expect("credits").0;
+    let granted = world.resource::<HandInGrant>().0;
     assert_eq!(
         own_cr,
-        own_before + job.reward_cr,
-        "{tag} job: the player was paid"
+        own_before + job.reward_cr + granted,
+        "{tag} job: the player was paid the reward and the scenario's {granted} cr"
     );
     assert_eq!(
         station_cr,
@@ -1999,11 +2024,15 @@ fn assert_the_hand_in(world: &mut World) {
         serde_json::json!({
             "job": job.id.to_string(),
             "reward_cr": job.reward_cr,
+            "scenario_grant_cr": granted,
             "player_cr": own_cr,
             "station_cr": station_cr,
         }),
     );
-    info!("{tag} job: PASS the hand-in paid {} cr", job.reward_cr);
+    info!(
+        "{tag} job: PASS the hand-in paid {} cr and the scenario granted {granted} cr",
+        job.reward_cr
+    );
 }
 
 /// The HUD line a dock with a distress caller posts with no medkit aboard.

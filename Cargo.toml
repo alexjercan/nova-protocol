@@ -978,6 +978,14 @@ name = "system_role_goals"
 path = "examples/systems/system_role_goals.rs"
 required-features = ["debug"]
 
+# A fixture of the open world whose handlers count a job's steps, post a job
+# under a key, write the hold and set a civilization's stance; the walk reads
+# each handler-written variable beside the real world state.
+[[example]]
+name = "system_scenario_jobs"
+path = "examples/systems/system_scenario_jobs.rs"
+required-features = ["debug"]
+
 # The four located job kinds the boards post beside procurement: each range
 # shares examples/systems/shared/located_jobs.rs and walks one kind from the
 # board through the work in the world to the hand-in.

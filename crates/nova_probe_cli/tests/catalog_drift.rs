@@ -1215,6 +1215,19 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_scenario_jobs",
+        &[
+            "the scenario walk accepts a recover job",
+            "the scenario walk reads the hand-in refused until done",
+            "the scenario walk sees the recover job done",
+            "the scenario walk is paid the reward and the scenario grants",
+            "a scenario counts the steps of a job in order",
+            "a scenario posts a job that is accepted and handed in under its key",
+            "a scenario taking more than the hold carries is refused",
+            "a scenario sets the stance of a docked station's civilization",
+        ],
+    ),
+    (
         "system_job_recover",
         &[
             "a recover job is posted and accepted",
@@ -1280,7 +1293,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 637;
+const SYSTEMS_INVARIANTS: usize = 645;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///
