@@ -17,7 +17,10 @@
 //!   RAILGUN) while the hull is armed and the weapons are hot. The core group
 //!   is right-aligned to the screen's centre line and the other groups grow
 //!   rightward from it, so a core chip never moves and a chip entering pushes
-//!   only the chips right of it. A shown chip reads in three states - dim
+//!   only the chips right of it. That holds while the right groups fit their
+//!   half of the screen; past that the whole row moves left by the overflow,
+//!   so the last chip ends [`DOCK_SIDE_PX`] short of the screen edge and no
+//!   chip is cut. A shown chip reads in three states - dim
 //!   (pressing it now does nothing), available (full phosphor) and hot
 //!   (inverted, the verb is what the ship is doing).
 //! - **Anchored cues**: the hint sits on the thing you would act on - ORBIT
@@ -92,6 +95,9 @@ use nova_ui::{
 /// else that wants that spot stacks ON it, measuring the row's live height
 /// rather than assuming one (see `cinematic_prompt`).
 pub const DOCK_BOTTOM_PX: f32 = 14.0;
+
+/// The margin the dock row keeps from the left and right screen edges.
+const DOCK_SIDE_PX: f32 = 12.0;
 
 /// Space between dock chips. Split across the two halves' inner padding, so
 /// the gap at the centre line is the same gap.
@@ -283,10 +289,18 @@ fn glyph_tint(state: DockChipState) -> Color {
     }
 }
 
-/// UI bundle for the keybind dock: two half-width halves on the bottom edge.
-/// The left half right-aligns the core chips to the centre line, the right
-/// half grows the situational and weapon chips rightward from it, so a core
-/// chip never moves and a chip entering pushes only the chips right of it.
+/// UI bundle for the keybind dock: two halves on the bottom edge. The left
+/// half right-aligns the core chips to the centre line, the right half grows
+/// the situational and weapon chips rightward from it, so a core chip never
+/// moves and a chip entering pushes only the chips right of it.
+///
+/// The halves share the row by equal growth from a zero basis, and a flex
+/// item is never narrower than its content. So each half is half the row
+/// while the right chips fit, and once they do not the right half takes its
+/// content width and the left half the rest: the whole row moves left by the
+/// overflow and the last chip ends [`DOCK_SIDE_PX`] short of the screen edge.
+/// A row wider than the screen less both margins fits nowhere: both halves
+/// sit at their content width and the last chips run off the right edge.
 ///
 /// The chips spawn EMPTY - no keycap, no key text, collapsed. `update_dock`
 /// fills them, and its `Added<DockChip>` gate makes that happen on the same
@@ -372,7 +386,8 @@ pub fn keybind_dock_hud() -> impl Bundle {
         (
             Name::new(name),
             Node {
-                width: Val::Percent(50.0),
+                flex_grow: 1.0,
+                flex_basis: Val::Px(0.0),
                 justify_content: justify,
                 column_gap: Val::Px(DOCK_CHIP_GAP_PX),
                 padding,
@@ -391,6 +406,7 @@ pub fn keybind_dock_hud() -> impl Bundle {
             bottom: Val::Px(DOCK_BOTTOM_PX),
             left: Val::Px(0.0),
             width: Val::Percent(100.0),
+            padding: UiRect::horizontal(Val::Px(DOCK_SIDE_PX)),
             ..default()
         },
         Pickable::IGNORE,
@@ -2484,6 +2500,72 @@ mod keycap_sizing_tests {
         assert!(
             (helm.height() - radar.height()).abs() <= 0.5,
             "HELM matches the row height: {helm:?} vs {radar:?}"
+        );
+    }
+
+    /// The centre-line rule gives way only when the right groups need more
+    /// than their half of the screen: the whole row then moves left by the
+    /// overflow, so the last chip ends at the side margin and no chip is cut.
+    /// With the row short again the core group is back on the centre line.
+    #[test]
+    fn a_right_half_wider_than_half_the_screen_moves_the_row_left_uncut() {
+        // Every verb shown: ten chips right of the core group.
+        let (mut app, chips) = dock_app();
+        // The rig lays out a 1280 px wide target.
+        let view = 1280.0;
+        let centre = view / 2.0;
+        let rect = |app: &App, verb: &str| measure(app, chip_of(&chips, verb)).rect;
+
+        let interface = rect(&app, "INTERFACE");
+        let radar = rect(&app, "RADAR");
+        let goto = rect(&app, "GOTO");
+        let railgun = rect(&app, "RAILGUN");
+        assert!(
+            railgun.max.x - goto.min.x + DOCK_CHIP_GAP_PX / 2.0 > centre - DOCK_SIDE_PX,
+            "delivery guard: the right chips need more than their half: {goto:?} to {railgun:?}"
+        );
+        assert!(
+            interface.min.x >= DOCK_SIDE_PX - 1.0,
+            "delivery guard: the whole row fits the screen: {interface:?}"
+        );
+        assert!(
+            (railgun.max.x - (view - DOCK_SIDE_PX)).abs() <= 1.0,
+            "the last chip ends at the side margin, whole: {railgun:?}"
+        );
+        assert!(
+            radar.max.x < centre - DOCK_CHIP_GAP_PX,
+            "the core group gave way, left of the centre line: {radar:?}"
+        );
+        assert!(
+            (goto.min.x - radar.max.x - DOCK_CHIP_GAP_PX).abs() <= 1.0,
+            "the gap between the halves is still the chip gap: {radar:?} vs {goto:?}"
+        );
+        let mut previous = interface;
+        for verb in &DOCK_VERBS[1..] {
+            let next = rect(&app, verb);
+            assert!(
+                next.min.x >= previous.max.x,
+                "{verb} overlaps the chip left of it: {previous:?} vs {next:?}"
+            );
+            previous = next;
+        }
+
+        // The weapon group leaves: the right chips fit their half again.
+        let mut short = all_available_hints();
+        for verb in ["AIM", "FIRE", "TORPEDO", "RAILGUN"] {
+            verb_hint_mut(&mut short, verb).shown = false;
+        }
+        app.insert_resource(short);
+        settle(&mut app);
+        let radar = rect(&app, "RADAR");
+        let mine = rect(&app, "MINE");
+        assert!(
+            mine.max.x < view - DOCK_SIDE_PX - 1.0,
+            "delivery guard: the short row has room on the right: {mine:?}"
+        );
+        assert!(
+            (radar.max.x + DOCK_CHIP_GAP_PX / 2.0 - centre).abs() <= 1.0,
+            "the core group is back on the centre line: {radar:?}"
         );
     }
 
