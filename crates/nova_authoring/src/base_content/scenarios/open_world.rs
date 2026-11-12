@@ -14,6 +14,11 @@
 //! A Load restores it through the saved scenario state, so only `OnStart`
 //! posts it. Its chip is held until then, and the hold is not saved, so both
 //! openings set it; on a Load after the accept there is nothing left to hold.
+//! Station control speaks three times, once each per world: when the first
+//! job's work is done it sends the player back to the poster, on the first
+//! hand-in it pays [`FIRST_DELIVERY_BONUS_CR`] over the reward, and when the
+//! world takes a held job it calls the contract void. A procurement has no
+//! work in the world, so the hand-in line does not wait on the first one.
 //! The jobs the player takes and the start role's goal are the open
 //! world's aims, and neither runs on scenario objectives. The one outcome is
 //! the player's death, a Defeat with nothing queued: the menu offers Load last
@@ -23,13 +28,33 @@ use nova_events::prelude::Meters3;
 use nova_scenario::prelude::*;
 use nova_world_base::prelude::OPEN_WORLD_SCENARIO_ID;
 
-use crate::{base_content::assets::BaseContentAssets, scenario_helpers::prelude::entity};
+use crate::{
+    base_content::assets::BaseContentAssets,
+    scenario_helpers::prelude::{comms, entity},
+};
 
 /// The player's ship, by the id events and tools address it with.
 const PLAYER_ID: &str = "player";
 
 /// The first-step cue a fresh world posts, by the id its completion names.
 const TAKE_A_JOB_OBJECTIVE: &str = "take_a_job";
+
+/// Who speaks the job lines: the station side of the comms channel.
+const STATION_CONTROL: &str = "Station Control";
+
+/// What the first hand-in of a world pays over the job's reward, in credits.
+const FIRST_DELIVERY_BONUS_CR: i32 = 50;
+
+/// A filter that passes a job the world took: `event.cause == "Lost"`.
+fn job_lost() -> EventFilterConfig {
+    let text = |factor| VariableExpressionNode::new_term(VariableTermNode::new_factor(factor));
+    EventFilterConfig::Expression(ExpressionFilterConfig(VariableConditionNode::new_equals(
+        text(VariableFactorNode::new_event_field("cause")),
+        text(VariableFactorNode::new_literal(VariableLiteral::String(
+            "Lost".to_string(),
+        ))),
+    )))
+}
 
 /// The open-world bootstrap scenario.
 pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
@@ -89,8 +114,9 @@ pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
                     "Your ship was destroyed.",
                 ))],
             },
-            // Last in the list: a save names its spent `once` handlers by
-            // index, so a handler added before this one would move them.
+            // From here on the list only grows at its end: a save names its
+            // spent `once` handlers by index, so a handler added before any
+            // of these would move them.
             ScenarioEventConfig {
                 label: None,
                 position: None,
@@ -101,6 +127,48 @@ pub(crate) fn open_world(assets: &BaseContentAssets) -> ScenarioConfig {
                     ObjectiveCompleteActionConfig {
                         id: TAKE_A_JOB_OBJECTIVE.to_string(),
                     },
+                )],
+            },
+            ScenarioEventConfig {
+                label: None,
+                position: None,
+                name: EventConfig::OnJobDone,
+                once: true,
+                filters: vec![],
+                actions: vec![comms(
+                    STATION_CONTROL,
+                    "Work confirmed. Return to the station that posted the job and hand it in.",
+                )],
+            },
+            ScenarioEventConfig {
+                label: None,
+                position: None,
+                name: EventConfig::OnJobHandedIn,
+                once: true,
+                filters: vec![],
+                actions: vec![
+                    EventActionConfig::GrantCredits(GrantCreditsActionConfig {
+                        ship: PLAYER_ID.to_string(),
+                        amount: FIRST_DELIVERY_BONUS_CR,
+                    }),
+                    comms(
+                        STATION_CONTROL,
+                        format!(
+                            "First delivery logged. A {FIRST_DELIVERY_BONUS_CR} cr bonus is on \
+                             your account. The board has more work."
+                        ),
+                    ),
+                ],
+            },
+            ScenarioEventConfig {
+                label: None,
+                position: None,
+                name: EventConfig::OnJobDropped,
+                once: true,
+                filters: vec![job_lost()],
+                actions: vec![comms(
+                    STATION_CONTROL,
+                    "Contract void. The target of the job is lost. The board has other work.",
                 )],
             },
         ],

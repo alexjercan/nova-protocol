@@ -191,11 +191,11 @@ const FIXTURE_MARK_LABEL: &str = "FIXTURE";
 /// `OnStart`, the self-counting `OnUpdate` and the timer-starting `OnUpdate`
 /// fire in the create phase.
 #[cfg(feature = "debug")]
-const SPENT_BY_THE_LEAVE: [usize; 3] = [0, 3, 5];
+const SPENT_BY_THE_LEAVE: [usize; 3] = [0, 7, 9];
 
 /// The index of the `OnTimerEnd` handler, spent only once the timer ends.
 #[cfg(feature = "debug")]
-const TIMER_END_HANDLER: usize = 4;
+const TIMER_END_HANDLER: usize = 8;
 
 /// The index of the once `OnResume` handler: spent in the load phase's live
 /// record once it fires, never listed by a save (the next resume needs it).

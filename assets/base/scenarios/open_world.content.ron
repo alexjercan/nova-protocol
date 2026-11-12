@@ -223,6 +223,46 @@
                     )),
                 ],
             ),
+            (
+                name: OnJobDone,
+                once: true,
+                actions: [
+                    NarrativeCue((
+                        speaker: "Station Control",
+                        text: "Work confirmed. Return to the station that posted the job and hand it in.",
+                    )),
+                ],
+            ),
+            (
+                name: OnJobHandedIn,
+                once: true,
+                actions: [
+                    GrantCredits((
+                        ship: "player",
+                        amount: 50,
+                    )),
+                    NarrativeCue((
+                        speaker: "Station Control",
+                        text: "First delivery logged. A 50 cr bonus is on your account. The board has more work.",
+                    )),
+                ],
+            ),
+            (
+                name: OnJobDropped,
+                once: true,
+                filters: [
+                    Expression((Equal(
+                        Term(Factor(Event("cause"))),
+                        Term(Factor(Literal(String("Lost")))),
+                    ))),
+                ],
+                actions: [
+                    NarrativeCue((
+                        speaker: "Station Control",
+                        text: "Contract void. The target of the job is lost. The board has other work.",
+                    )),
+                ],
+            ),
         ],
     )),
 ]

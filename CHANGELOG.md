@@ -27,6 +27,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Five second-tier sections swap in at a shipyard: wide intake, long mining beam, armoured controller, wide-gate docking port and heavy lance. Each recipe spends one new `AlloyPlate` part.
 - `dart_torpedo_section` loads the Dart, a third torpedo type: the Lance's straight run at a 450 m/s cruise. It opens at advancement 0.25 and its recipe spends one `AlloyPlate`.
 
+### Scenarios & Objectives
+
+- Station Control now speaks in the open world: it sends you back to hand in your first finished job, pays a 50 cr bonus on your first delivery and tells you when a contract is lost.
+
 ### Interface & HUD
 
 - Crossing into another sector of a generated world now posts `SECTOR (x, y, z)` on the HUD notice, with `- FIRST VISIT` for a sector your chart had not recorded. A New Game or a Load posts nothing.
