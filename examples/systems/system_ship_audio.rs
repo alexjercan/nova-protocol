@@ -582,6 +582,8 @@ fn rake_both_hulls(world: &mut World) {
     for (section, at) in contacts {
         world.trigger(SurfaceImpact {
             entity: section,
+            // A scripted rake: no round stands behind it.
+            source: None,
             kind: DamageType::Kinetic,
             at,
         });
