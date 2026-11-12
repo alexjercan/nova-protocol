@@ -72,8 +72,8 @@ pub mod prelude {
         CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME, DERELICT_STATION_TYPE_NAME,
         ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
         ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
-        ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, JOB_DROP_CAUSE_FIELD_NAME, JOB_KEY_FIELD_NAME,
-        JOB_KIND_FIELD_NAME, JOB_REWARD_FIELD_NAME, JOB_STATION_FIELD_NAME, LIGHT_TYPE_NAME,
+        ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, JOB_DROP_CAUSE_FIELD_NAME, JOB_KIND_FIELD_NAME,
+        JOB_POST_KEY_FIELD_NAME, JOB_REWARD_FIELD_NAME, JOB_STATION_FIELD_NAME, LIGHT_TYPE_NAME,
         LIVING_STATION_TYPE_NAME, PLANET_TYPE_NAME, PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME,
         SECTION_FIELD_NAME, SECTOR_FIELD_NAME, SECTOR_FROM_FIELD_NAME, SHIP_ORDER_FIELD_NAME,
         SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME, STANCE_CIVILIZATION_FIELD_NAME,
@@ -912,7 +912,7 @@ pub const JOB_STATION_FIELD_NAME: &str = "station";
 pub const JOB_REWARD_FIELD_NAME: &str = "reward_cr";
 /// Field name for the authored key of a job event's job: empty for a job a
 /// board generated.
-pub const JOB_KEY_FIELD_NAME: &str = "key";
+pub const JOB_POST_KEY_FIELD_NAME: &str = "post_key";
 /// Field name for the [`JobDropCauseType`] of a dropped job.
 pub const JOB_DROP_CAUSE_FIELD_NAME: &str = "cause";
 /// Field name for the id text of the civilization a stance event names.
@@ -1483,8 +1483,8 @@ pub struct JobEventInfo {
     pub reward_cr: u32,
     /// The job's authored key. Empty for a job a board generated, which is
     /// every job today.
-    #[serde(rename = "key")]
-    pub key: String,
+    #[serde(rename = "post_key")]
+    pub post_key: String,
 }
 
 /// Why a held job ended with no hand-in.
@@ -1526,9 +1526,9 @@ pub struct JobDroppedEventInfo {
     /// The reward the hand-in would have paid, in credits.
     #[serde(rename = "reward_cr")]
     pub reward_cr: u32,
-    /// The job's authored key; see [`JobEventInfo::key`].
-    #[serde(rename = "key")]
-    pub key: String,
+    /// The job's authored key; see [`JobEventInfo::post_key`].
+    #[serde(rename = "post_key")]
+    pub post_key: String,
     /// Why the job ended.
     #[serde(rename = "cause")]
     pub cause: JobDropCauseType,
@@ -1542,7 +1542,7 @@ impl JobDroppedEventInfo {
             kind: job.kind,
             station: job.station,
             reward_cr: job.reward_cr,
-            key: job.key,
+            post_key: job.post_key,
             cause,
         }
     }

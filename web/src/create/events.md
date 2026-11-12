@@ -62,10 +62,10 @@ The whole vocabulary at a glance:
 | [`OnStripped`](#hold-events) | `id`, `type_name`, `hull`, `section`, `parts` | an Inventory pane strip takes a section off a docked wreck, once per section, the berth port last; or a Ship pane delete takes a section off the ship itself |
 | [`OnStored`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player stores a stack in a docked station's storage |
 | [`OnWithdrawn`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player withdraws a stack from a docked station's storage, or Take all or Strip takes one from a dead station's |
-| [`OnJobAccepted`](#onjobaccepted) | `id`, `kind`, `station`, `reward_cr`, `key` | the Jobs pane accepts a board offer; `id` is the job's id; a refused accept and a Load fire none |
-| [`OnJobDone`](#onjobdone) | `id`, `kind`, `station`, `reward_cr`, `key` | a held job's work in the world is finished and the job waits for its hand-in; a `Procure` and a Load fire none |
-| [`OnJobHandedIn`](#onjobhandedin) | `id`, `kind`, `station`, `reward_cr`, `key` | the Jobs pane hands a held job in at its posting station and the reward is paid; a refused hand-in fires none |
-| [`OnJobDropped`](#onjobdropped) | `id`, `kind`, `station`, `reward_cr`, `key`, `cause` | a held job ends with no hand-in: `cause` is `Lost` (the world took it) or `Abandoned` (the Drop button) |
+| [`OnJobAccepted`](#onjobaccepted) | `id`, `kind`, `station`, `reward_cr`, `post_key` | the Jobs pane accepts a board offer; `id` is the job's id; a refused accept and a Load fire none |
+| [`OnJobDone`](#onjobdone) | `id`, `kind`, `station`, `reward_cr`, `post_key` | a held job's work in the world is finished and the job waits for its hand-in; a `Procure` and a Load fire none |
+| [`OnJobHandedIn`](#onjobhandedin) | `id`, `kind`, `station`, `reward_cr`, `post_key` | the Jobs pane hands a held job in at its posting station and the reward is paid; a refused hand-in fires none |
+| [`OnJobDropped`](#onjobdropped) | `id`, `kind`, `station`, `reward_cr`, `post_key`, `cause` | a held job ends with no hand-in: `cause` is `Lost` (the world took it) or `Abandoned` (the Drop button) |
 | [`OnStanceChanged`](#onstancechanged) | `civilization`, `from`, `to` | a civilization's stance toward the player moves one step; a provocation and a Load fire none |
 | [`OnSectorEntered`](#onsectorentered) | `sector`, `x`, `y`, `z`, `from` | the player crosses into another sector of a generated world; a New Game and a Load fire none |
 
@@ -925,7 +925,7 @@ accept to its end. All four carry the same job fields; `OnJobDropped` adds
 | `kind` | text | `Procure`, `Recover`, `Escort`, `Distress` or `Neutralize` |
 | `station` | text | the scenario id of the station that posted the job, the part of `id` before `#` |
 | `reward_cr` | number | the reward the hand-in pays, in credits |
-| `key` | text | empty for a job a board generated |
+| `post_key` | text | empty for a job a board generated |
 | `cause` | text | `OnJobDropped` only: `Lost` or `Abandoned` |
 
 | a job's life | events, in order |

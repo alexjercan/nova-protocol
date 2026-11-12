@@ -27,7 +27,7 @@ pub(super) fn register_bridged_events(app: &mut App) {
     app.add_observer(fire_stance_changed);
 }
 
-/// The payload every job event carries for `job`. `key` is empty: a board
+/// The payload every job event carries for `job`. `post_key` is empty: a board
 /// generated every job there is.
 fn job_event_info(job: &Job) -> JobEventInfo {
     JobEventInfo {
@@ -35,7 +35,7 @@ fn job_event_info(job: &Job) -> JobEventInfo {
         kind: job.kind.name().to_string(),
         station: job.id.station.to_string(),
         reward_cr: job.reward_cr,
-        key: String::new(),
+        post_key: String::new(),
     }
 }
 
@@ -131,8 +131,8 @@ mod tests {
         let id = format!("{station}#1.2");
         let job_fields = [
             (ENTITY_ID_COMPONENT_NAME, id.as_str()),
-            (JOB_KEY_FIELD_NAME, ""),
             (JOB_KIND_FIELD_NAME, "Recover"),
+            (JOB_POST_KEY_FIELD_NAME, ""),
             (JOB_REWARD_FIELD_NAME, "420"),
             (JOB_STATION_FIELD_NAME, station.as_str()),
         ];
@@ -174,8 +174,8 @@ mod tests {
                 fields(&[
                     (JOB_DROP_CAUSE_FIELD_NAME, cause),
                     (ENTITY_ID_COMPONENT_NAME, id.as_str()),
-                    (JOB_KEY_FIELD_NAME, ""),
                     (JOB_KIND_FIELD_NAME, "Recover"),
+                    (JOB_POST_KEY_FIELD_NAME, ""),
                     (JOB_REWARD_FIELD_NAME, "420"),
                     (JOB_STATION_FIELD_NAME, station.as_str()),
                 ]),
