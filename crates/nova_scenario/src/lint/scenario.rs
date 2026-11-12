@@ -1387,6 +1387,19 @@ fn check_action(
                 }
             }
         }
+        EventActionConfig::GrantCredits(config) => {
+            check_purse_holder(&config.ship, "GrantCredits", scenario, declared, issues);
+            if config.amount == 0 {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "GrantCredits on '{}' moves 0 credits; a positive amount grants and a \
+                         negative one charges",
+                        config.ship
+                    ),
+                ));
+            }
+        }
         EventActionConfig::SetAILeash(config) => {
             check_ai_ship(&config.ship, "SetAILeash", scenario, declared, issues);
             if let Some(leash) = &config.leash {
@@ -1715,6 +1728,33 @@ fn check_ai_ship(
              something on a ship that flies itself"
         ),
     ));
+}
+
+/// Whether this scenario gives `id` BY NAME to a body that is neither a ship
+/// nor a station, and so has no purse and no hold. A scattered id
+/// (`<prefix><n>`) and an id nothing spawns answer false: nothing static says
+/// what the first is, and the reference check names the second.
+fn names_no_purse_holder(id: &str, declared: &Declared) -> bool {
+    declared.spawn_ids.iter().any(|spawned| spawned == id) && !declared.ship_ids.contains(id)
+}
+
+/// The target of a purse or hold action must be a ship or a station.
+fn check_purse_holder(
+    ship: &str,
+    what: &str,
+    scenario: &str,
+    declared: &Declared,
+    issues: &mut Vec<LintIssue>,
+) {
+    if names_no_purse_holder(ship, declared) {
+        issues.push(LintIssue::error(
+            scenario,
+            format!(
+                "{what} targets '{ship}', which this scenario spawns as neither a ship nor a \
+                 station; only those hold credits and items"
+            ),
+        ));
+    }
 }
 
 /// An AI range override must be a real distance: a negative or non-finite one
@@ -2420,7 +2460,7 @@ fn check_query(
         EntityProperty::Speed => false,
         EntityProperty::Credits | EntityProperty::Items(_) => true,
     };
-    if reads_a_ship && declared.spawn_ids.contains(id) && !declared.ship_ids.contains(id) {
+    if reads_a_ship && names_no_purse_holder(id, declared) {
         issues.push(LintIssue::error(
             scenario,
             format!(
@@ -5789,6 +5829,86 @@ mod tests {
             let found = query_errors(filter);
             assert_eq!(found.len(), 1, "{filter}: {found:?}");
             assert!(found[0].contains(reason), "{filter}: {found:?}");
+        }
+    }
+
+    fn grant(ship: &str, amount: i32) -> EventActionConfig {
+        EventActionConfig::GrantCredits(GrantCreditsActionConfig {
+            ship: ship.to_string(),
+            amount,
+        })
+    }
+
+    fn area(id: &str) -> EventActionConfig {
+        EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
+            id: id.to_string(),
+            name: id.to_string(),
+            position: Meters3::ZERO,
+            rotation: Quat::IDENTITY,
+            radius: Meters(10.0),
+        })
+    }
+
+    /// The error messages of `actions` run at start beside a freighter and
+    /// an area `dock`.
+    fn purse_action_errors(actions: Vec<EventActionConfig>) -> Vec<String> {
+        let mut spawned = vec![spawn_ship("freighter", "hull"), area("dock")];
+        spawned.extend(actions);
+        let issues = lint_scenario(
+            &scenario(spawned, vec![]),
+            &sections(&["hull"]),
+            &ships(&[]),
+            &stations(&[]),
+            &known(&["test_scenario"]),
+            &nova_gameplay::test_support::test_items(),
+            &GameStyles::default(),
+            &GameTradeProfiles::default(),
+        );
+        errors(&issues)
+            .iter()
+            .map(|issue| issue.message.clone())
+            .collect()
+    }
+
+    /// `GrantCredits` moves a real amount on a ship or a station. The
+    /// player's ship is one however it was spawned: `SpawnStartRole` declares
+    /// its id like any other spawn.
+    #[test]
+    fn a_credit_grant_names_a_purse_holder_and_a_real_amount() {
+        let found = purse_action_errors(vec![grant("freighter", 50), grant("freighter", -50)]);
+        assert!(found.is_empty(), "{found:?}");
+
+        let start_role = || {
+            EventActionConfig::SpawnStartRole(StartRoleSpawnConfig {
+                id: "player".to_string(),
+            })
+        };
+        let mut open_world = scenario(vec![start_role(), grant("player", 50)], vec![]);
+        open_world.world = generated(None);
+        open_world.events.push(on_resume(vec![start_role()]));
+        let issues = lint_scenario(
+            &open_world,
+            &sections(&[]),
+            &ships(&[]),
+            &stations(&[]),
+            &known(&["test_scenario"]),
+            &GameItems::default(),
+            &GameStyles::default(),
+            &GameTradeProfiles::default(),
+        );
+        assert!(errors(&issues).is_empty(), "{issues:?}");
+
+        for (action, reason) in [
+            (grant("freighter", 0), "moves 0 credits"),
+            (
+                grant("dock", 50),
+                "targets 'dock', which this scenario spawns as neither a ship nor a station",
+            ),
+            (grant("ghost", 50), "targets id 'ghost'"),
+        ] {
+            let found = purse_action_errors(vec![action]);
+            assert_eq!(found.len(), 1, "{reason}: {found:?}");
+            assert!(found[0].contains(reason), "{reason}: {found:?}");
         }
     }
 

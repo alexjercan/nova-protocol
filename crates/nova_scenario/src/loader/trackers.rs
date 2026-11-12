@@ -572,7 +572,7 @@ pub(super) fn track_ship_order_reports(
 /// on the next fixed tick. Draining
 /// preserves the order the reports were queued in: a trade's two balance
 /// moves fire before the trade itself, which queued last.
-pub(super) fn track_ship_inventory_reports(
+pub(crate) fn track_ship_inventory_reports(
     mut q_ships: Query<
         (&mut ShipInventoryReports, &EntityId, &EntityTypeName),
         With<SpaceshipRootMarker>,

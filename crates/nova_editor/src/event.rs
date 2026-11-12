@@ -897,6 +897,12 @@ impl ActionChoiceExt for ActionChoice {
                     profile: None,
                 })
             }
+            ActionChoice::GrantCredits => {
+                EventActionConfig::GrantCredits(GrantCreditsActionConfig {
+                    ship: String::new(),
+                    amount: 100,
+                })
+            }
             ActionChoice::SetAILeash => EventActionConfig::SetAILeash(SetAILeashActionConfig {
                 ship: String::new(),
                 leash: None,

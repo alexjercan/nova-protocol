@@ -29,7 +29,7 @@ pub mod gate;
 mod lifecycle;
 /// The scenario's glTF warm-up: resolved at load, held for the run.
 pub mod preload;
-mod trackers;
+pub(crate) mod trackers;
 mod wake;
 
 use bridges::register_bridged_events;

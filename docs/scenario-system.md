@@ -1083,10 +1083,13 @@ or a Retry starts in fires nothing.
   row in `GENERATED_WORLD_ONLY`. A new occurrence below `nova_scenario` pushes a
   `ShipInventoryReport` variant; it does not get a second queue.
 - Action: config struct + `EventAction<NovaEventWorld>` impl in the right
-  `actions/` submodule (`audio`/`cinematic`/`flow`/`mission`/`sequence`/`ship`/
-  `spawn`/`timer`/`view`), plus a row in the `registry::scenario_actions!`
+  `actions/` submodule (`audio`/`cinematic`/`flow`/`hold`/`mission`/`sequence`/
+  `ship`/`spawn`/`timer`/`view`), plus a row in the `registry::scenario_actions!`
   table in `actions/mod.rs`. The `EventActionConfig` variant is GENERATED from
-  that row - writing one by hand collides with the macro.
+  that row - writing one by hand collides with the macro. An action that can
+  be impossible at run time checks before it writes and calls `refuse_action`
+  (`actions/hold.rs`) with an `ActionRefusalType`: it logs the error and
+  fires `OnActionRefused`. A new reason is a new variant there.
 - Filter: same pattern in `filters.rs` (`EventFilterConfig`).
 - Object: a module under `objects/` (config + bundle function, plugin in
   `objects/mod.rs`) plus a `ScenarioObjectKind` variant/match in

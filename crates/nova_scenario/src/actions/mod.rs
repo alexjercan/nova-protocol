@@ -24,6 +24,7 @@ use crate::{
 mod audio;
 mod cinematic;
 mod flow;
+mod hold;
 mod mission;
 pub(crate) mod registry;
 mod sequence;
@@ -35,6 +36,7 @@ mod view;
 pub use audio::*;
 pub use cinematic::*;
 pub use flow::*;
+pub use hold::*;
 pub use mission::*;
 pub use sequence::*;
 pub use ship::*;
@@ -477,6 +479,14 @@ registry::scenario_actions! {
         label: "Set Trade Profile",
         category: Trade,
         stem: "trade_profile",
+        effect: Injection,
+        inspect: Reflect,
+    },
+    /// Grant credits to one ship or station, or charge it.
+    GrantCredits(GrantCreditsActionConfig) {
+        label: "Grant Credits",
+        category: Trade,
+        stem: "credits",
         effect: Injection,
         inspect: Reflect,
     },

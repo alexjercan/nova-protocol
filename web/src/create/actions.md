@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 55 at a glance:
+never panics a scenario). All 56 at a glance:
 
 | action | group | what it does |
 |---|---|---|
@@ -51,6 +51,7 @@ never panics a scenario). All 55 at a glance:
 | [`SetAIEngageRange`](#setaiengagerange) | [ship state](#ship-state) | change how far an AI ship looks for hostiles, or restore the default |
 | [`SetAIPointDefenseRange`](#setaipointdefenserange) | [ship state](#ship-state) | change how close an inbound torpedo gets before the guns answer |
 | [`SetTradeProfile`](#settradeprofile) | [ship state](#ship-state) | give a generated AI trader a trade profile for its station visits, or clear it |
+| [`GrantCredits`](#grantcredits) | [ship state](#ship-state) | grant credits to a ship or a station, or charge it |
 | [`VariableSet`](#variableset) | [variables](#variables-timers-debugging) | evaluate an expression and store the result in a variable |
 | [`TimerStart`](#timerstart) | [variables](#variables-timers-debugging) | start (or restart) a keyed scenario timer |
 | [`TimerCancel`](#timercancel) | [variables](#variables-timers-debugging) | cancel a running timer |
@@ -1477,6 +1478,40 @@ A visit already under way keeps the profile it started with. An unknown
 profile id or a ship that is not AI-driven fails lint. At run time a station,
 a ship without a trade market or an unknown profile is refused with an error
 in the log, and nothing changes.
+
+</details>
+
+### GrantCredits
+
+Grant credits to one ship or station, or charge it.
+
+```ron
+GrantCredits((ship: "player", amount: 500)),    // grant 500 cr
+GrantCredits((ship: "player", amount: -200)),   // charge 200 cr
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `ship` | string | required | scoped ship or station; the id a `SpawnStartRole` gives the player's ship works |
+| `amount` | integer | required | credits to add; a negative amount charges |
+
+The write is all or nothing. A balance stays between 0 and 4,294,967,295 cr.
+An action that cannot run moves no credits, logs an error and raises
+[`OnActionRefused`](../events/#onactionrefused) with one of these reasons:
+
+| `reason` | when |
+|---|---|
+| `insufficient_credits` | the charge is larger than the balance |
+| `credit_overflow` | the grant would pass the limit of a balance |
+| `unknown_ship` | no live ship or station carries the id |
+
+A write that goes through raises
+[`OnCreditsChanged`](../events/#hold-events) with `cause: Scenario`. An
+`amount` of 0, and an id the scenario gives to a body that is neither a ship
+nor a station, fail lint.
 
 </details>
 

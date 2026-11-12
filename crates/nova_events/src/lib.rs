@@ -45,13 +45,14 @@ pub mod prelude {
         generated::{GeneratedBodyId, NotAGeneratedBodyId, SectorCoord},
         scale::LOAD_LIMIT,
         units::prelude::*,
-        AddedEventInfo, CargoEventInfo, CinematicEventInfo, CreditChangeCauseType,
-        CreditsChangedEventInfo, DockingEventInfo, EntityId, EntityTypeName, EscortHiredEventInfo,
-        ItemTradeType, JobDropCauseType, JobDroppedEventInfo, JobEventInfo, LockEventInfo,
-        MinedEventInfo, OnAddedEvent, OnCinematicFinishedEvent, OnCinematicSkippedEvent,
-        OnCombatLockEndEvent, OnCombatLockStartEvent, OnCreditsChangedEvent, OnDefeatedEvent,
-        OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnDockedEvent, OnEnterEvent,
-        OnEnterEventInfo, OnEscortHiredEvent, OnExitEvent, OnExitEventInfo, OnGotoCompleteEvent,
+        ActionRefusedEventInfo, AddedEventInfo, CargoEventInfo, CinematicEventInfo,
+        CreditChangeCauseType, CreditsChangedEventInfo, DockingEventInfo, EntityId, EntityTypeName,
+        EscortHiredEventInfo, ItemTradeType, JobDropCauseType, JobDroppedEventInfo, JobEventInfo,
+        LockEventInfo, MinedEventInfo, OnActionRefusedEvent, OnAddedEvent,
+        OnCinematicFinishedEvent, OnCinematicSkippedEvent, OnCombatLockEndEvent,
+        OnCombatLockStartEvent, OnCreditsChangedEvent, OnDefeatedEvent, OnDefeatedEventInfo,
+        OnDestroyedEvent, OnDestroyedEventInfo, OnDockedEvent, OnEnterEvent, OnEnterEventInfo,
+        OnEscortHiredEvent, OnExitEvent, OnExitEventInfo, OnGotoCompleteEvent,
         OnGotoCompleteEventInfo, OnJettisonedEvent, OnJobAcceptedEvent, OnJobDoneEvent,
         OnJobDroppedEvent, OnJobHandedInEvent, OnMinedEvent, OnNeutralizedEvent,
         OnNeutralizedEventInfo, OnOrbitEndEvent, OnOrbitLapEvent, OnOrbitStableEvent,
@@ -75,7 +76,8 @@ pub mod prelude {
         ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, JOB_DROP_CAUSE_FIELD_NAME, JOB_KIND_FIELD_NAME,
         JOB_POST_KEY_FIELD_NAME, JOB_REWARD_FIELD_NAME, JOB_STATION_FIELD_NAME, LIGHT_TYPE_NAME,
         LIVING_STATION_TYPE_NAME, PLANET_TYPE_NAME, PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME,
-        SECTION_FIELD_NAME, SECTOR_FIELD_NAME, SECTOR_FROM_FIELD_NAME, SHIP_ORDER_FIELD_NAME,
+        REFUSAL_REASON_FIELD_NAME, REFUSED_ACTION_FIELD_NAME, SECTION_FIELD_NAME,
+        SECTOR_FIELD_NAME, SECTOR_FROM_FIELD_NAME, SHIP_ORDER_FIELD_NAME,
         SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME, STANCE_CIVILIZATION_FIELD_NAME,
         STANCE_FROM_FIELD_NAME, STANCE_TO_FIELD_NAME, TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
     };
@@ -925,6 +927,10 @@ pub const STANCE_TO_FIELD_NAME: &str = "to";
 pub const SECTOR_FIELD_NAME: &str = "sector";
 /// Field name for the slug of the sector a sector event's observer left.
 pub const SECTOR_FROM_FIELD_NAME: &str = "from";
+/// Field name for the RON name of the action a refusal event names.
+pub const REFUSED_ACTION_FIELD_NAME: &str = "action";
+/// Field name for the reason a refusal event's action was refused.
+pub const REFUSAL_REASON_FIELD_NAME: &str = "reason";
 
 /// Which way a trade with a docked trader moves items and credits.
 ///
@@ -990,6 +996,8 @@ pub enum CreditChangeCauseType {
     Refine,
     /// An armed `credits give` or `credits set` command wrote the balance.
     Cheat,
+    /// A scenario's `GrantCredits` action granted or charged the credits.
+    Scenario,
 }
 
 impl CreditChangeCauseType {
@@ -1009,6 +1017,7 @@ impl CreditChangeCauseType {
             CreditChangeCauseType::Settle => "Settle",
             CreditChangeCauseType::Refine => "Refine",
             CreditChangeCauseType::Cheat => "Cheat",
+            CreditChangeCauseType::Scenario => "Scenario",
         }
     }
 }
@@ -1625,6 +1634,30 @@ impl SectorEnteredEventInfo {
     }
 }
 
+/// A scenario action refused to run at run time and changed nothing
+/// (`onactionrefused`).
+///
+/// One event per refused action. A refusal lint can see is a lint error
+/// instead and never reaches a running scenario.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onactionrefused")]
+#[event_info(ActionRefusedEventInfo)]
+pub struct OnActionRefusedEvent;
+
+/// Payload for [`OnActionRefusedEvent`]: the action, its target and why.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct ActionRefusedEventInfo {
+    /// The action's RON name, such as `GrantCredits`.
+    #[serde(rename = "action")]
+    pub action: String,
+    /// The id the action targeted.
+    #[serde(rename = "id")]
+    pub id: String,
+    /// A stable snake_case reason, such as `insufficient_credits`.
+    #[serde(rename = "reason")]
+    pub reason: String,
+}
+
 /// A Ship pane buy at a docked station made the station the player's
 /// (`onstationbought`).
 ///
@@ -1759,7 +1792,12 @@ mod inventory_event_tests {
             CreditChangeCauseType::ShipBuy,
             CreditChangeCauseType::EscortHire,
             CreditChangeCauseType::StationBuy,
+            CreditChangeCauseType::JobReward,
+            CreditChangeCauseType::JobRefresh,
+            CreditChangeCauseType::Settle,
+            CreditChangeCauseType::Refine,
             CreditChangeCauseType::Cheat,
+            CreditChangeCauseType::Scenario,
         ] {
             let serialized = serde_json::to_value(cause).expect("a unit variant serializes");
             assert_eq!(serialized.as_str(), Some(cause.as_str()));

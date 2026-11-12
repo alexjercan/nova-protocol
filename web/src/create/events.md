@@ -1,7 +1,7 @@
 # Events
 
 Everything that can fire a handler. A handler's `name:` field names one of
-the FIFTY event kinds below, written bare (they are unit variants):
+the FIFTY-ONE event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
@@ -22,6 +22,7 @@ The whole vocabulary at a glance:
 | [`OnResume`](#onresume) | none | once, right after a saved world loads, instead of `OnStart` |
 | [`OnUpdate`](#onupdate) | none | every frame while live, unpaused and fully spawned |
 | [`OnTimerEnd`](#ontimerend) | `key` | a keyed scenario timer ends |
+| [`OnActionRefused`](#onactionrefused) | `action`, `id`, `reason` | an action could not run at run time and changed nothing |
 | [`OnCinematicFinished`](#cinematic-endings) | `cinematic` | a scene ends, by ANY path |
 | [`OnCinematicSkipped`](#cinematic-endings) | `cinematic` | the player leaves a scene early |
 | [`OnDefeated`](#ondefeated) | `id`, `type_name` | a ship is neutralized or directly destroyed |
@@ -213,6 +214,40 @@ Timer-end events queue before that frame's `OnUpdate` pulse.
 Start or restart the delay with [`TimerStart`](../actions/#timerstart). Cancel
 it with [`TimerCancel`](../actions/#timercancel). Timers use live, unpaused
 scenario time and clear on retry or teardown.
+
+</details>
+
+## OnActionRefused
+
+Fires once each time an action refuses to run at run time. A refused action
+changes nothing and writes an error to the log.
+
+| field | type | value |
+|---|---|---|
+| `action` | text | the action's RON name: `GrantCredits` |
+| `id` | text | the id the action targeted |
+| `reason` | text | why, as a stable word: `insufficient_credits`, `credit_overflow`, `unknown_ship` |
+
+```ron
+(
+    name: OnActionRefused,
+    filters: [
+        Expression((Equal(
+            Term(Factor(Event("reason"))),
+            Term(Factor(Literal(String("insufficient_credits")))),
+        ))),
+    ],
+    actions: [NarrativeCue((speaker: "Dockmaster", text: "Come back with the fee."))],
+),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+Only the actions that list refusal reasons raise it; today that is
+[`GrantCredits`](../actions/#grantcredits). `id` is the id as authored, so
+an [`Entity`](../filters/#entity) filter on `id` matches it. Lint catches
+what it can before the run: an id nothing spawns never reaches this event.
 
 </details>
 
@@ -836,7 +871,7 @@ inventory, so a handler counts occurrences, not frames.
 | `OnPickedUp` | the ship whose intake took the stack | none | `canister`, `item`, `count` |
 | `OnJettisoned` | the ship whose intake dropped the stack | none | `canister`, `item`, `count` |
 | `OnTraded` | the ship traded WITH | the player's ship | `trade` (`Buy` or `Sell`, from the player's side), `item`, `count`, `price_cr` |
-| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take`, `Rebuild`, `Swap`, `Add`, `ShipBuy`, `EscortHire`, `StationBuy`, `JobReward`, `Settle`, `Refine` or `Cheat`) |
+| `OnCreditsChanged` | the ship whose purse moved | none | `previous_cr`, `current_cr`, `delta_cr` (signed), `cause` (`Trade`, `Take`, `Rebuild`, `Swap`, `Add`, `ShipBuy`, `EscortHire`, `StationBuy`, `JobReward`, `Settle`, `Refine`, `Scenario` or `Cheat`) |
 | `OnRepaired` | the repaired ship | none | `section` (the Ship pane code, `CTL-1`), `item`, `count` (plates spent) |
 | `OnRebuilt` | the rebuilt ship | none | `section` (the code the lost section had, `PDC-1`), `parts` (every recipe part, item id to count), `price_cr` (work plus bought parts) |
 | `OnSwapped` | the refitted ship | none | `section` (the Ship pane code, `PDC-1`), `from` and `to` (the old and new section prototype ids), `parts` (every part of the new part's recipe), `price_cr` (work plus bought parts) |
@@ -874,7 +909,9 @@ with `cause: Add`, a hull buy one per party with `cause: ShipBuy`, and an
 escort hire one per party with `cause: EscortHire`. A station buy raises
 one, for the player only, with `cause: StationBuy`: the price goes to the
 civilization, so the station's purse does not move. A refine raises one per
-party with `cause: Refine`, the ship paying the fee and the station paid. An armed `credits give`
+party with `cause: Refine`, the ship paying the fee and the station paid. A
+[`GrantCredits`](../actions/#grantcredits) action raises one with
+`cause: Scenario`. An armed `credits give`
 or `credits set` command raises one with `cause: Cheat`. A move that
 leaves the purse unchanged raises nothing. `OnStored` and `OnWithdrawn` fire
 once per confirmed move and move no credits, so they raise no

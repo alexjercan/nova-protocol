@@ -182,6 +182,10 @@ scenario_events! {
     OnUpdate => OnUpdateEvent { label: "On Update", category: Flow },
     /// Fires once when a keyed scenario timer ends.
     OnTimerEnd => OnTimerEndEvent { label: "On Timer End", category: Flow },
+    /// An action refused to run at run time and changed nothing (`action` =
+    /// its RON name, `id` = the id it targeted, `reason` = a stable word
+    /// such as `insufficient_credits`). Once per refused action.
+    OnActionRefused => OnActionRefusedEvent { label: "On Action Refused", category: Flow },
     /// Fires when a cinematic ends for ANY reason: its last beat ran, the
     /// player skipped it, a `CancelCinematic` stopped it, or a step blew its
     /// deadline. What the scene owes the player back - the camera, the
