@@ -149,11 +149,16 @@ Base recipes, from the [item table](../objects/#inventory):
 | capital thruster | 1200 | 10 DriveBell, 20 SectionPanel, 10 FrameSpar | 0.3 |
 | controller | 100 | 1 FlightCore, 2 SectionPanel | 0.5 |
 | PDC turret | 100 | 1 TurretBody, 1 TurretBarrel per muzzle, 1 ActuatorPack, 2 SectionPanel | 0.5 |
-| torpedo bay | 150 | 1 TorpedoTube, 1 ActuatorPack, 4 SectionPanel, 1 FrameSpar | 0.5 |
+| Serpent and Lance torpedo bay | 150 | 1 TorpedoTube, 1 ActuatorPack, 4 SectionPanel, 1 FrameSpar | 0.5 |
 | railgun lance | 300 | 3 CapacitorBank, 3 FrameSpar, 6 SectionPanel | 0.5 |
 | docking port | 80 | 1 DockingCollar, 1 ActuatorPack, 2 SectionPanel | 0.5 |
 | cargo intake | 60 | 2 ActuatorPack, 4 SectionPanel, 1 FrameSpar | 0.5 |
 | mining beam | 100 | 1 CapacitorBank, 1 ActuatorPack, 2 SectionPanel | 0.5 |
+
+A second-tier section costs its base row plus one `AlloyPlate`, at 1.5 times
+the credits and the same `strip_yield`: the armoured controller (150), the
+heavy lance (450), the wide-gate docking port (120), the wide intake (90), the
+long mining beam (150) and the Dart torpedo bay (225).
 
 ### Stats that content lint checks
 
@@ -908,22 +913,24 @@ kind: Torpedo((
   ordnance point defense has to chew through across the closing window.
 - `torpedo_type` (optional, defaults to the Serpent) - **what the bay loads**, as
   opposed to the tube it loads into. A type is DATA, not an enum: base authors
-  two (the straight-running Lance and the weaving Serpent), and a mod authors its
-  own by writing the same five fields:
-  - `name` - the ordnance's player-facing name (`"Lance"`, `"Serpent"`). It names
+  three (the straight-running Lance, the weaving Serpent and the Dart, a faster
+  Lance), and a mod authors its own by writing the same five fields:
+  - `name` - the ordnance's player-facing name (`"Lance"`, `"Serpent"`, `"Dart"`). It names
     the launched projectile, so a log line or a probe snapshot says WHICH torpedo
     is in the air.
   - `tint` - the warhead's colour in flight, as
     `Srgba((red: .., green: .., blue: .., alpha: 1.0))`. Two types a player is
     meant to tell apart want different colours: it is the only difference visible
     before the flight paths have diverged.
-  - `max_speed` (m/s; `350.0` on the Lance, `320.0` on the Serpent) - cruise speed
-    cap. The thruster tapers off over the last **15 percent** of it, so every
-    type gets the same run-up in its own terms and a slow one is not stranded
-    inside its own taper. It decides time to target and, with
-    `projectile_lifetime`, how far the ordnance can reach. **This is where an
-    evasive type pays for its weave**, and it has to be authored: see the note
-    below.
+  - `max_speed` (m/s; `350.0` on the Lance, `320.0` on the Serpent, `450.0` on
+    the Dart) - cruise speed cap. The thruster tapers off over the last
+    **15 percent** of it, so every type gets the same run-up in its own terms
+    and a slow one is not stranded inside its own taper. It decides time to
+    target and, with `projectile_lifetime`, how far the ordnance can reach.
+    **This is where an evasive type pays for its weave**, and it has to be
+    authored: see the note below. The torpedo's drive holds about 365 m/s
+    along the line against the shipped `linear_damping`, so a cap above 450
+    buys almost nothing.
   - `weave_angle` (rad; `0.44`, ~25 degrees, on the Serpent) - the terminal
     weave: how far off the guidance solution an armed torpedo corkscrews. It
     PERTURBS the solution rather than replacing it and fades linearly to nothing
@@ -932,7 +939,8 @@ kind: Torpedo((
     `blast_radius`, never off the fuze: the terminal sprint has to start out at
     point-defense range, not a unit from the hull. `0.0` flies the bare
     intercept, which is what the Lance authors.
-  - `weave_rate` (rad/s; `1.4` on both shipped types) - how fast the weave spins
+  - `weave_rate` (rad/s; `1.4` on the Serpent, `0.0` on the two straight types) -
+    how fast the weave spins
     about the guidance command. The lateral acceleration a defender's lead
     solution fails to predict scales with
     `max_speed * sin(weave_angle) * weave_rate`, while the helix radius

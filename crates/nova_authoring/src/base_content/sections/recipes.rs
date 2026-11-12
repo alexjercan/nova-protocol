@@ -113,7 +113,7 @@ pub(crate) fn pdc_turret(barrels: u32) -> BuildRecipe {
     )
 }
 
-/// Either torpedo bay: the tube is the same, only the load differs.
+/// The Serpent and the Lance bay: the tube is the same, only the load differs.
 pub(crate) fn torpedo_bay() -> BuildRecipe {
     recipe(
         150,
@@ -125,6 +125,11 @@ pub(crate) fn torpedo_bay() -> BuildRecipe {
         ],
         STRIP_YIELD,
     )
+}
+
+/// Dart torpedo bay.
+pub(crate) fn dart_torpedo_bay() -> BuildRecipe {
+    second_tier(torpedo_bay())
 }
 
 /// Railgun lance.

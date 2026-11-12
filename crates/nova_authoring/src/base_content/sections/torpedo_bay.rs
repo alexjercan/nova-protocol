@@ -1,15 +1,15 @@
 //! The torpedo bays, and the ordnance TYPES they load.
 //!
 //! A bay is the tube: the art, the cadence, the warhead, the six-round rack and
-//! its idle reload. All of that is identical across both shipped bays, so the
+//! its idle reload. All of that is identical across every shipped bay, so the
 //! only argument between them is which type is in the tube.
 //!
 //! A type is defined by how the torpedo FLIES. Blast damage, warhead toughness,
-//! blast radius and magazine all stay on the bay, and the two shipped types are
+//! blast radius and magazine all stay on the bay, and the shipped types are
 //! deliberately identical in every one of them, which
 //! `sections::ordnance_tests::torpedo_types_differ_only_in_how_the_ordnance_flies`
 //! keeps true. What a type owns is the run-in - the weave, and the cruise cap
-//! that pays for it:
+//! that pays for it. The two types open at advancement 0:
 //!
 //! | | Lance | Serpent |
 //! |---|---|---|
@@ -38,9 +38,14 @@
 //! `bay::tests::evasion_costs_time_because_the_type_is_slower_not_because_the_path_is_longer`.
 //! A weaving torpedo has to BE slower rather than fly just as fast behind a
 //! shorter timer, so the price is the cap and not `projectile_lifetime`.
+//!
+//! The third type, the Dart, is the Lance with a higher cap. It is a later
+//! grade and not a trade: its price is its advancement and its recipe. See
+//! [`dart`] for its numbers.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
+use nova_gameplay::prelude::BuildRecipe;
 use nova_ship::prelude::*;
 
 use super::recipes;
@@ -55,6 +60,9 @@ pub(super) const TORPEDO_BASE_HEALTH: f32 = 100.0;
 /// comes from `nova_ship` instead.
 pub(crate) const LANCE_TORPEDO_SECTION_ID: &str = "lance_torpedo_section";
 
+/// The Dart bay's id: the second-tier bay.
+const DART_TORPEDO_SECTION_ID: &str = "dart_torpedo_section";
+
 /// The node prefix of the iris petals inside `bay_tube.glb`. Producer and test
 /// read the same name, so a renamed node fails loudly.
 const DOOR_PETAL_NODE_PREFIX: &str = "door_petal_";
@@ -67,6 +75,9 @@ const BAY_CELLS: Vec3 = Vec3::new(1.0, 1.0, 2.0);
 /// Cruise cap of the straight-running type, and the reference every other
 /// torpedo speed here is quoted against.
 const LANCE_MAX_SPEED: MetersPerSecond = MetersPerSecond(350.0);
+
+/// Cruise cap of the fast straight-running type. See [`dart`].
+const DART_MAX_SPEED: MetersPerSecond = MetersPerSecond(450.0);
 
 /// The bay's sockets: the back plate, and one per cell on each flank - nine
 /// in all, every closed face flush with the unit grid.
@@ -126,32 +137,39 @@ fn bay_muzzle_door() -> Vec<SectionAnimation> {
     }]
 }
 
+/// What one bay is: the ordnance it loads and where it sits on the
+/// advancement curve. Everything else - the tube art, the cadence, the
+/// warhead, the rack and its idle reload - is the BAY, shared by construction
+/// below.
+struct BaySpec<'a> {
+    id: &'a str,
+    name: &'a str,
+    description: &'a str,
+    advancement: f32,
+    draw_weight: f32,
+    build: BuildRecipe,
+    torpedo_type: TorpedoTypeConfig,
+}
+
 /// One assault torpedo bay, named for the ORDNANCE it loads.
 ///
 /// Everything a bay is - the tube art, the cadence, the warhead, the rack and
-/// its idle reload - is identical across both shipped bays, so the only argument
-/// between them is `torpedo_type` and the trade it carries. Keeping them one
-/// builder is what makes that true by construction rather than by review: a
-/// balance edit here lands on both types at once and cannot quietly become a
-/// second, unmeasured difference.
-fn torpedo_bay_prototype(
-    meshes: &BaseContentAssets,
-    id: &str,
-    name: &str,
-    description: &str,
-    torpedo_type: TorpedoTypeConfig,
-) -> SectionConfig {
+/// its idle reload - is identical across every shipped bay, so the only
+/// argument between them is `torpedo_type` and the tier that type opens at.
+/// Keeping them one builder is what makes that true by construction rather
+/// than by review: a balance edit here lands on every type at once and cannot
+/// quietly become a second, unmeasured difference.
+fn torpedo_bay_prototype(meshes: &BaseContentAssets, spec: BaySpec<'_>) -> SectionConfig {
     SectionConfig {
         base: BaseSectionConfig {
-            id: id.to_string(),
-            name: name.to_string(),
-            description: description.to_string(),
+            id: spec.id.to_string(),
+            name: spec.name.to_string(),
+            description: spec.description.to_string(),
             // Torpedo bay: mid durability baseline.
             health: TORPEDO_BASE_HEALTH,
-            advancement: 0.0,
-            // Early, rare: a tenth of a turret's draw.
-            draw_weight: 0.1,
-            build: recipes::torpedo_bay(),
+            advancement: spec.advancement,
+            draw_weight: spec.draw_weight,
+            build: spec.build,
             destroy_sound: Some(meshes.section_destroy_sound.clone()),
             // Two cells long: the tube art earns its length, and the collider
             // has to claim it or half the bay would be a ghost.
@@ -218,9 +236,9 @@ fn torpedo_bay_prototype(
             // Kinetic speed ceiling), so an intercept costs two or three
             // rounds instead of one lucky tap.
             projectile_health: 10.0,
-            // The whole difference between the two shipped bays: see this
+            // The whole flight difference between the shipped bays: see this
             // module's header for what each type costs and buys.
-            torpedo_type,
+            torpedo_type: spec.torpedo_type,
             // The rack, and the alpha strike it buys: six away in six
             // seconds at the fire rate above. Saturation is what beats
             // point defense - attrition never does - so the burst is the
@@ -279,30 +297,112 @@ fn serpent() -> TorpedoTypeConfig {
     TorpedoTypeConfig::default()
 }
 
+/// **Dart** - the fast straight-running torpedo: the [`lance`]'s bare
+/// intercept under a cap 100 m/s higher.
+///
+/// A later grade of the Lance and not a trade against it, so its price is the
+/// bay's advancement and recipe. Point defense solves it as it solves a Lance;
+/// what it buys is time. Measured on `nova_ship`'s real-body rig
+/// (`bay::tests::fly`) and its point-defense rig
+/// (`point_defense_cost_tests::defend`), with the Lance read on the same run:
+///
+/// | | Lance | Dart |
+/// |---|---|---|
+/// | cruise cap | 350 m/s | 450 m/s |
+/// | time over a 3 km run-in | 9.32 s | 7.92 s |
+/// | speed along the line | 306 m/s | 359 m/s |
+/// | reach at the bay's 100 s lifetime | 30.6 km | 35.9 km |
+/// | rounds one PDC spends to stop it | 116 | 110 |
+/// | where that PDC kills it | 1.14 km out | 1.08 km out |
+///
+/// **450 is the last cap the drive uses.** Thrust against the bay's 0.8
+/// damping tops out near 365 m/s along the line: a 500 m/s cap reads 7.82 s
+/// over the same run, 0.10 s for 50 m/s of authored speed.
+///
+/// **Turn and fuze at the new speed.** The guidance rigs turn the nose at
+/// 3 rad/s, so the turning circle is 450 / 3 = 150 m at the cap and 120 m at
+/// the 359 m/s the body holds. Both are under the 300 m blast radius that
+/// [`TorpedoTypeConfig::max_speed`] bounds the circle by, and under the
+/// launcher clearance (hull radius plus 300 m) a torpedo opens before it
+/// arms. The authored arming gate (0.5 s or 50 m) closes in the 0.6 s cold
+/// coast, at no more than the 80 m/s ejection speed and before the drive
+/// lights, so the cap does not move it. On the real body, injected at
+/// 350 m/s, the Dart fuzed on a stationary target abeam at 400 m, 600 m and
+/// 1 km and astern at 1.5 km: closest sample 151 to 154 m against the rig's
+/// 150 m fuze, no orbit. The contact fuze window is 30 m; the Dart covers 6 m
+/// in a 1/60 s step.
+fn dart() -> TorpedoTypeConfig {
+    TorpedoTypeConfig {
+        name: "Dart".to_string(),
+        // Violet: not the Lance's steel, not the Serpent's orange, and not a
+        // damage-type hue of the ammo readout.
+        tint: Color::srgb(0.72, 0.5, 1.0),
+        max_speed: DART_MAX_SPEED,
+        // The bare intercept, authored as the Lance authors it.
+        weave_angle: 0.0,
+        weave_rate: 0.0,
+    }
+}
+
 /// The bay prototypes, in catalog order.
 pub(super) fn prototypes(meshes: &BaseContentAssets) -> Vec<SectionConfig> {
     vec![
         torpedo_bay_prototype(
             meshes,
-            TORPEDO_SECTION_ID,
-            "Torpedo Bay (Serpent)",
-            "The standard bay, loaded with Serpent assault torpedoes. They run \
-             in on a terminal weave, so point defense spends roughly three \
-             times the rounds to stop one and only kills it on the doorstep. \
-             The corkscrew is a longer path: a Serpent arrives later than a \
-             Lance and gains less on a target that is running.",
-            serpent(),
+            BaySpec {
+                id: TORPEDO_SECTION_ID,
+                name: "Torpedo Bay (Serpent)",
+                description: "The standard bay, loaded with Serpent assault \
+                              torpedoes. They run in on a terminal weave, so \
+                              point defense spends roughly three times the \
+                              rounds to stop one and only kills it on the \
+                              doorstep. The corkscrew is a longer path: a \
+                              Serpent arrives later than a Lance and gains \
+                              less on a target that is running.",
+                advancement: 0.0,
+                // Early, rare: a tenth of a turret's draw.
+                draw_weight: 0.1,
+                build: recipes::torpedo_bay(),
+                torpedo_type: serpent(),
+            },
         ),
         torpedo_bay_prototype(
             meshes,
-            LANCE_TORPEDO_SECTION_ID,
-            "Torpedo Bay (Lance)",
-            "The same bay and the same warhead, loaded with Lance bombardment \
-             torpedoes: no weave, the bare intercept. The shortest path there \
-             is - it arrives soonest and keeps closing on a runner - which is \
-             also the path point defense is built to solve. Ordnance for a \
-             target that will not shoot back.",
-            lance(),
+            BaySpec {
+                id: LANCE_TORPEDO_SECTION_ID,
+                name: "Torpedo Bay (Lance)",
+                description: "The same bay and the same warhead, loaded with \
+                              Lance bombardment torpedoes: no weave, the bare \
+                              intercept. The shortest path there is - it \
+                              arrives soonest and keeps closing on a runner - \
+                              which is also the path point defense is built \
+                              to solve. Ordnance for a target that will not \
+                              shoot back.",
+                advancement: 0.0,
+                draw_weight: 0.1,
+                build: recipes::torpedo_bay(),
+                torpedo_type: lance(),
+            },
+        ),
+        torpedo_bay_prototype(
+            meshes,
+            BaySpec {
+                id: DART_TORPEDO_SECTION_ID,
+                name: "Torpedo Bay (Dart)",
+                description: "The same bay and the same warhead, loaded with \
+                              Dart torpedoes: the Lance's straight run at a \
+                              higher cruise. It arrives sooner and gains more \
+                              on a runner. Point defense still solves it.",
+                // A tier past the two bays it upgrades, level with the Pierce
+                // turrets.
+                advancement: 0.25,
+                // Three times an early bay's draw: a hull that knows the Dart
+                // mounts it more often than the bays it replaces, and a bay
+                // stays rarer than a turret.
+                draw_weight: 0.3,
+                build: recipes::dart_torpedo_bay(),
+                torpedo_type: dart(),
+            },
         ),
     ]
 }
@@ -418,7 +518,11 @@ mod tests {
     #[test]
     fn every_bay_claims_both_cells_and_births_its_torpedo_inside_the_tube() {
         let catalog = crate::generation::build_section_catalog();
-        for id in [TORPEDO_SECTION_ID, LANCE_TORPEDO_SECTION_ID] {
+        for id in [
+            TORPEDO_SECTION_ID,
+            LANCE_TORPEDO_SECTION_ID,
+            DART_TORPEDO_SECTION_ID,
+        ] {
             let section = catalog
                 .iter()
                 .find(|section| section.base.id == id)

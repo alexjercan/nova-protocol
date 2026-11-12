@@ -313,7 +313,7 @@ trade of a count that is not a whole lot pays its share, rounded up for a
 Buy and down for a Sell; a Sell whose share rounds to 0 cr is refused. A
 lot of 1 prices each item, like every item but the PDC round.
 
-Base also ships ten `Parts` items that section build recipes spend (see
+Base also ships eleven `Parts` items that section build recipes spend (see
 [Build recipe](../sections/#build-recipe)). They are not role ids: a mod may
 replace or skip them, and its own recipes may name its own `Parts` items.
 Every one has a lot of 1.
@@ -330,10 +330,11 @@ Every one has a lot of 1.
 | `CapacitorBank` | 40 kg | Parts | 240 | 180 |
 | `TorpedoTube` | 80 kg | Parts | 240 | 180 |
 | `DockingCollar` | 80 kg | Parts | 200 | 150 |
+| `AlloyPlate` | 30 kg | Parts | 90 | 68 |
 
 `PdcRound` feeds both Kinetic and Pierce turret mounts - the mount decides the
 round's damage type, not the item. `Torpedo` feeds every torpedo bay type,
-Serpent and Lance alike - the bay decides the flight.
+Serpent, Lance and Dart alike - the bay decides the flight.
 
 ```ron
 // The open world's derelict: nobody aboard, free to loot.

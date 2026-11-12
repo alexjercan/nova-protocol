@@ -18,6 +18,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Ships & Sections
 
 - Five second-tier sections swap in at a shipyard: wide intake, long mining beam, armoured controller, wide-gate docking port and heavy lance. Each recipe spends one new `AlloyPlate` part.
+- `dart_torpedo_section` loads the Dart, a third torpedo type: the Lance's straight run at a 450 m/s cruise. It opens at advancement 0.25 and its recipe spends one `AlloyPlate`.
 
 ### Interface & HUD
 

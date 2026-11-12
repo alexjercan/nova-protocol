@@ -20,7 +20,7 @@ use nova_scenario::prelude::{
 };
 use nova_ship::prelude::{
     section_swap_family, GameSections, GameStyles, BASIC_CONTROLLER_SECTION_ID,
-    DOCKING_PORT_SECTION_ID, RAILGUN_LANCE_SECTION_ID,
+    DOCKING_PORT_SECTION_ID, RAILGUN_LANCE_SECTION_ID, TORPEDO_SECTION_ID,
 };
 use nova_world_base::prelude::{
     generate_station, generated_station, station_ceiling, Civilization, CivilizationStatusType,
@@ -328,18 +328,20 @@ fn a_generated_station_builds_what_its_civilization_knows_and_no_more() {
     );
 }
 
-/// The second tier of every single-variant kind, as `(base, variant)`. Each
-/// variant shares its base's kind and collider footprint, so the catalogue
-/// offers it as a swap, and generated stations of a civilization that knows
-/// one build it. The intake and mining variants never reach a station
-/// (`station_carries`), and the heavy lance opens past 0.5, so the builds
-/// census below can only land the controller and the port.
-const SECOND_TIER: [(&str, &str); 5] = [
+/// The second tier of every kind that had one variant, and the Dart bay over
+/// the Serpent bay, as `(base, variant)`. Each variant shares its base's kind
+/// and collider footprint, so the catalogue offers it as a swap, and
+/// generated stations of a civilization that knows one build it. A station
+/// builds every part its civilization knows, mounted or not, so the builds
+/// census below can land any variant but the heavy lance, which opens past
+/// 0.5.
+const SECOND_TIER: [(&str, &str); 6] = [
     ("cargo_intake_section", "wide_intake_section"),
     ("mining_beam_section", "long_mining_beam_section"),
     (BASIC_CONTROLLER_SECTION_ID, "armoured_controller_section"),
     (DOCKING_PORT_SECTION_ID, "wide_docking_port_section"),
     (RAILGUN_LANCE_SECTION_ID, "heavy_railgun_section"),
+    (TORPEDO_SECTION_ID, "dart_torpedo_section"),
 ];
 
 /// Every second-tier variant swaps for its base, and over the eight census

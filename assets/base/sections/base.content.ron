@@ -2633,6 +2633,217 @@
     )),
     Section((
         base: (
+            id: "dart_torpedo_section",
+            name: "Torpedo Bay (Dart)",
+            description: "The same bay and the same warhead, loaded with Dart torpedoes: the Lance\'s straight run at a higher cruise. It arrives sooner and gains more on a runner. Point defense still solves it.",
+            health: 100.0,
+            build: (
+                credits: 225,
+                parts: {
+                    "ActuatorPack": 1,
+                    "AlloyPlate": 1,
+                    "FrameSpar": 1,
+                    "SectionPanel": 4,
+                    "TorpedoTube": 1,
+                },
+                strip_yield: 0.5,
+            ),
+            advancement: 0.25,
+            draw_weight: 0.3,
+            destroy_sound: Some("self://sounds/explosion.wav"),
+            collider: Some(Cuboid(
+                size: (
+                    1.0,
+                    1.0,
+                    2.0,
+                ),
+            )),
+            link_points: [
+                (
+                    id: "positive_z",
+                    position: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                    normal: (
+                        0.0,
+                        0.0,
+                        1.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_fore",
+                    position: (
+                        0.5,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_x_aft",
+                    position: (
+                        0.5,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_fore",
+                    position: (
+                        -0.5,
+                        0.0,
+                        -0.5,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_x_aft",
+                    position: (
+                        -0.5,
+                        0.0,
+                        0.5,
+                    ),
+                    normal: (
+                        -1.0,
+                        0.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_fore",
+                    position: (
+                        0.0,
+                        0.5,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "positive_y_aft",
+                    position: (
+                        0.0,
+                        0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_fore",
+                    position: (
+                        0.0,
+                        -0.5,
+                        -0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+                (
+                    id: "negative_y_aft",
+                    position: (
+                        0.0,
+                        -0.5,
+                        0.5,
+                    ),
+                    normal: (
+                        0.0,
+                        -1.0,
+                        0.0,
+                    ),
+                ),
+            ],
+            damage_effects: ([
+                Cracks,
+                Sparks,
+            ]),
+            animations: [
+                (
+                    cue: MuzzleDoor,
+                    node_prefix: "door_petal_",
+                    motion: RotateX(
+                        degrees: 105.0,
+                    ),
+                    open_seconds: 0.25,
+                    close_seconds: 0.7,
+                ),
+            ],
+        ),
+        kind: Torpedo((
+            render_mesh: Some("self://gltf/bay_tube.glb#Scene0"),
+            spawn_offset: (
+                0.0,
+                0.0,
+                -1.0,
+            ),
+            spawn_rotation: (
+                -0.70710677,
+                0.0,
+                0.0,
+                0.70710677,
+            ),
+            spawn_recess: 1.0,
+            fire_rate: 1.0,
+            spawner_speed: 80.0,
+            projectile_lifetime: 100.0,
+            arm_time: 0.5,
+            arm_distance: 50.0,
+            nav_constant: 3.0,
+            linear_damping: 0.8,
+            blast_radius: 300.0,
+            blast_damage: 750.0,
+            launch_sound: Some("self://sounds/torpedo_launch.wav"),
+            door_sound: Some("self://sounds/bay_door.wav"),
+            detonation_sound: Some("self://sounds/torpedo_detonate.wav"),
+            dud_sound: Some("self://sounds/torpedo_dud.wav"),
+            intercept_sound: Some("self://sounds/torpedo_intercept.wav"),
+            ignition_sound: Some("self://sounds/torpedo_ignite.wav"),
+            reload_sound: Some("self://sounds/torpedo_rack.wav"),
+            torpedo_type: (
+                name: "Dart",
+                tint: Srgba((
+                    red: 0.72,
+                    green: 0.5,
+                    blue: 1.0,
+                    alpha: 1.0,
+                )),
+                max_speed: 450.0,
+                weave_angle: 0.0,
+                weave_rate: 0.0,
+            ),
+            ammunition: Limited(6),
+            reload: Batch((
+                delay: 10.0,
+                amount: 1,
+            )),
+        )),
+    )),
+    Section((
+        base: (
             id: "railgun_lance_section",
             name: "Railgun Lance",
             description: "A spinal kinetic lance: no traverse, so the HULL aims it. Tapping the trigger COMMITS - the bolt walks the bore and the shot leaves when it arrives, whether or not the nose is still on the target. What leaves rakes through everything in the line, and shoves the ship that fired.",

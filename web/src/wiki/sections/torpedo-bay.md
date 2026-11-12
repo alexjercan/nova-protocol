@@ -62,7 +62,7 @@ The iris is honest. A safed bay keeps it shut and so does an empty one, so an op
 
 ## The two run-ins
 
-A bay is loaded with a **torpedo type**. The two shipped bays are **Torpedo Bay (Serpent)** and **Torpedo Bay (Lance)**. They share the same tube, warhead, blast, and six-round rack; only the run-in differs.
+A bay is loaded with a **torpedo type**. The two bays open from the start are **Torpedo Bay (Serpent)** and **Torpedo Bay (Lance)**. They share the same tube, warhead, blast, and six-round rack; only the run-in differs. A third bay, **Torpedo Bay (Dart)**, loads a faster Lance: see [The Dart](#the-dart).
 
 **Serpent** - the assault torpedo. Once armed it runs in on a **terminal weave**: a slow corkscrew laid over the guidance solution rather than instead of it. Point defense fires on a lead solution - where the torpedo will be when the round gets there - and a weaving torpedo is never quite there, so the defender spends roughly three times the ammunition on the same intercept and only kills it on the doorstep. The weave fades out on the final approach, and the torpedo arrives dead on the aim point - which is also the defender's cleanest shot at it. It pays for that with **speed**: the Serpent cruises slower, so it takes noticeably longer to arrive and gains ground on a fleeing target far more slowly.
 
@@ -107,6 +107,12 @@ So the Serpent is what you fire at something that shoots back, and the Lance at 
         >
     </div>
 </figure>
+
+### The Dart
+
+**Dart** - the fast straight torpedo. It flies the Lance's bare intercept at a cruise of 450 m/s against 350. Over a 3 km run-in it arrives in 7.9 seconds where a Lance on the same range takes 9.3, and against a target running at 150 m/s it closes about a third faster. Point defense solves it as it solves a Lance: one stock mount spends 110 rounds and kills it 1.08 km out. It is a later grade, not a trade. The bay opens at advancement 0.25, so the waystation does not build it, and its recipe adds one `AlloyPlate` to the bay's parts at 225 credits against 150. A shipyard that builds it swaps it in for either of the other two bays.
+
+<!-- Dart figures: the table on `dart` in crates/nova_authoring/src/base_content/sections/torpedo_bay.rs. The 9.3 s Lance figure is the same run of the real-body rig; the widget above keeps the older 9.10 s measurement. Closing rate: 359 - 150 = 209 m/s against 306 - 150 = 156 m/s. -->
 
 ## What a warhead does to a hull
 
@@ -159,10 +165,10 @@ The result scales through geometry rather than a ship-size bonus. A thin small c
 
 ## Variants
 
-Both bays share every number but the torpedo type. Ordnance hp is what point defense has to shoot through per torpedo.
+All three bays share every number in this table but the torpedo type. Ordnance hp is what point defense has to shoot through per torpedo. The Dart bay opens at advancement 0.25 and costs one `AlloyPlate` more.
 
 <div class="catalog">
-<!-- Stats verified against crates/nova_authoring/src/base_content/sections/torpedo_bay.rs: torpedo_bay_prototype (health, blast radius 300 m, blast damage 750, projectile_health 10, rack 6, rearm 10s/1) and the Lance type there (cruise 350 m/s, no weave); Serpent defaults crates/nova_ship/src/sections/torpedo_section/mod.rs:395-404 (cruise 320 m/s :401, weave :402-403). -->
+<!-- Stats verified against crates/nova_authoring/src/base_content/sections/torpedo_bay.rs: torpedo_bay_prototype (health, blast radius 300 m, blast damage 750, projectile_health 10, rack 6, rearm 10s/1) and the Lance and Dart types there (cruise 350 m/s and 450 m/s, no weave); Serpent defaults crates/nova_ship/src/sections/torpedo_section/mod.rs:395-404 (cruise 320 m/s :401, weave :402-403). -->
 <div class="catalog__head"><span class="catalog__kindicon"><span class="figure__placeholder"><span class="figure__placeholder-name">assets/icon-torpedo-bay.png</span></span></span><span class="catalog__title">Torpedo bay - shipped prototypes</span></div>
 <table>
 <thead>
@@ -171,6 +177,7 @@ Both bays share every number but the torpedo type. Ordnance hp is what point def
 <tbody>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-torpedo-section.png</span></span></span></td><td><span class="catalog__name">Torpedo Bay (Serpent)</span><span class="catalog__id">torpedo_section</span></td><td>Serpent (weaves)</td><td class="catalog__num">320 m/s</td><td class="catalog__num">750</td><td class="catalog__num">300 m</td><td class="catalog__num">6</td><td class="catalog__num">1 / 10 s</td><td class="catalog__num">10</td><td class="catalog__num">100</td></tr>
 <tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-lance-torpedo-section.png</span></span></span></td><td><span class="catalog__name">Torpedo Bay (Lance)</span><span class="catalog__id">lance_torpedo_section</span></td><td>Lance (straight)</td><td class="catalog__num">350 m/s</td><td class="catalog__num">750</td><td class="catalog__num">300 m</td><td class="catalog__num">6</td><td class="catalog__num">1 / 10 s</td><td class="catalog__num">10</td><td class="catalog__num">100</td></tr>
+<tr><td><span class="catalog__thumb"><span class="figure__placeholder"><span class="figure__placeholder-tag">capture</span><span class="figure__placeholder-name">assets/catalog-dart-torpedo-section.png</span></span></span></td><td><span class="catalog__name">Torpedo Bay (Dart)</span><span class="catalog__id">dart_torpedo_section</span></td><td>Dart (straight, fast)</td><td class="catalog__num">450 m/s</td><td class="catalog__num">750</td><td class="catalog__num">300 m</td><td class="catalog__num">6</td><td class="catalog__num">1 / 10 s</td><td class="catalog__num">10</td><td class="catalog__num">100</td></tr>
 </tbody>
 </table>
 </div>
