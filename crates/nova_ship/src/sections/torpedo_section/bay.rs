@@ -2284,14 +2284,14 @@ mod tests {
     /// proportionally less far for the same `projectile_lifetime`. It does not
     /// work, for two reasons this test pins with a third arm:
     ///
-    /// 1. The flown path is longer by only ~1.7%, not 11%. The body's drag is
+    /// 1. The flown path is longer by only ~1.5%, not 11%. The body's drag is
     ///    a first-order lag on the velocity, so the flown helix is far
     ///    shallower than the commanded cone.
     /// 2. [`thrust_headroom`](super::thrust_headroom) gates thrust on the
     ///    ALONG-NOSE speed, not the total. A torpedo holding its nose off its
     ///    own velocity never reaches the taper band, keeps its engine lit, and
     ///    settles at a HIGHER terminal speed against the same drag. Evasion
-    ///    runs a hotter engine, and 1.7% of extra path is not a fee it notices.
+    ///    runs a hotter engine, and 1.5% of extra path is not a fee it notices.
     ///
     /// Do not "fix" that by capping total speed instead: the doc on
     /// `thrust_headroom` rejects it, because a total-speed cap leaves the
@@ -2301,10 +2301,10 @@ mod tests {
     ///
     /// | | straight (350 m/s) | evasive (320 m/s) | evasive AT 350 m/s |
     /// |---|---|---|---|
-    /// | path flown | 284.3 u | 289.2 u | 289.6 u |
-    /// | time to fuze | 9.10 s | **9.78 s** | **8.97 s** |
-    /// | speed along the line | 31.30 u/s | 29.14 u/s | 31.83 u/s |
-    /// | reach at a 100 s lifetime | 3130 u | 2914 u | 3183 u |
+    /// | path flown | 284.3 u | 288.6 u | 288.4 u |
+    /// | time to fuze | 9.32 s | **9.85 s** | **9.18 s** |
+    /// | speed along the line | 30.57 u/s | 28.92 u/s | 30.99 u/s |
+    /// | reach at a 100 s lifetime | 3057 u | 2892 u | 3099 u |
     ///
     /// The third column is the control and the whole argument for the second:
     /// give the weave the straight type's cap and it arrives SOONER, longer

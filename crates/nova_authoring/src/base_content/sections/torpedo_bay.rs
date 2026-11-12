@@ -17,23 +17,23 @@
 //! | weave half-angle | 0.00 rad | 0.44 rad |
 //! | rounds one PDC spends to stop it | ~116 | ~390 |
 //! | where that PDC finally kills it | ~1.14 km out | ~400 m out |
-//! | time over a 3 km run-in | 9.10 s | 9.78 s |
-//! | speed along the line | 313 m/s | 291 m/s |
-//! | reach at the bay's 100 s lifetime | 31.3 km | 29.1 km |
+//! | time over a 3 km run-in | 9.32 s | 9.85 s |
+//! | speed along the line | 306 m/s | 289 m/s |
+//! | reach at the bay's 100 s lifetime | 30.6 km | 28.9 km |
 //!
 //! So the Lance is the torpedo you fire at something that will not shoot back:
-//! it arrives ~7% sooner, and against a target RUNNING at 150 m/s - the
+//! it arrives ~5% sooner, and against a target RUNNING at 150 m/s - the
 //! reference runner speed this closing comparison is quoted against, not a
-//! limit the game puts on a ship - it closes at 163 m/s where a Serpent
-//! manages 141 - ~16% faster. And a defender meeting Lances is a defender
+//! limit the game puts on a ship - it closes at 156 m/s where a Serpent
+//! manages 139 - ~12% faster. And a defender meeting Lances is a defender
 //! whose point defense WORKS.
 //!
 //! **The cruise cap is AUTHORED as that price, because path length alone does
 //! not make the weave slower.** Measured on the real body, the path stretch is
-//! ~1.7% rather than the ideal 11%, and thrust is capped on
+//! ~1.5% rather than the ideal 11%, and thrust is capped on
 //! the ALONG-NOSE speed, so a weaving torpedo never reaches the taper band,
 //! keeps its engine lit and settles FASTER. Give the Serpent the Lance's cap
-//! and it arrives 1.5% SOONER, longer path and all - which is the control arm
+//! and it arrives 1.4% SOONER, longer path and all - which is the control arm
 //! in `nova_ship`'s
 //! `bay::tests::evasion_costs_time_because_the_type_is_slower_not_because_the_path_is_longer`.
 //! A weaving torpedo has to BE slower rather than fly just as fast behind a

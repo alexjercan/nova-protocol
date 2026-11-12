@@ -283,8 +283,8 @@ const REINFORCED_HULL_HP = 200; // hull.rs
 // torpedo_bay.rs (Lance) and torpedo_section/mod.rs:413 (Serpent).
 const KINETIC_PDC_BULLET_DAMAGE = 4.0; // turret.rs
 const PDC_MUZZLE_SPEED = 1000; // turret.rs (MetersPerSecond)
-const SERPENT_REACH = 29140; // meters; torpedo_bay.rs (2 914 u)
-const LANCE_TORPEDO_REACH = 31300; // meters; torpedo_bay.rs (3 130 u)
+const SERPENT_REACH = 28920; // meters; torpedo_bay.rs (2 892 u)
+const LANCE_TORPEDO_REACH = 30570; // meters; torpedo_bay.rs (3 057 u)
 const SERPENT_CRUISE = 320; // torpedo_section/mod.rs:413 (MetersPerSecond)
 const LANCE_TORPEDO_CRUISE = 350; // torpedo_bay.rs (MetersPerSecond)
 // Rounds one stock PDC spends to stop each type (torpedo_bay.rs).
@@ -5764,8 +5764,8 @@ const TORPEDO_TYPES: TorpedoType[] = [
         name: "LANCE",
         weaveAngle: 0,
         cruise: LANCE_TORPEDO_CRUISE,
-        lineSpeed: 313,
-        runSecs: 9.1,
+        lineSpeed: 306,
+        runSecs: 9.32,
         rounds: ROUNDS_PER_LANCE_TORPEDO,
         killedAt: 1140,
         lane: 86,
@@ -5774,8 +5774,8 @@ const TORPEDO_TYPES: TorpedoType[] = [
         name: "SERPENT",
         weaveAngle: SERPENT_WEAVE_ANGLE,
         cruise: SERPENT_CRUISE,
-        lineSpeed: 291,
-        runSecs: 9.78,
+        lineSpeed: 289,
+        runSecs: 9.85,
         rounds: ROUNDS_PER_SERPENT,
         killedAt: 400,
         lane: 178,

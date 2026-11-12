@@ -450,15 +450,15 @@ impl Default for TorpedoTypeConfig {
     ///
     /// | cap | rounds an intercept costs | killed at | arrival vs straight |
     /// |---|---|---|---|
-    /// | 350 m/s | 369 (3.18x) | 38.8 u | **1.5% SOONER** |
-    /// | 340 m/s | 375 (3.23x) | 39.0 u | +1.3% |
-    /// | **320 m/s** | **390 (3.36x)** | **39.9 u** | **+7.5%** |
-    /// | 300 m/s | 409 (3.53x) | 41.8 u | +14.5% |
-    /// | 240 m/s | 484 (4.17x) | 47.6 u | - |
+    /// | 350 m/s | 370 (3.19x) | 38.9 u | **1.4% SOONER** |
+    /// | 340 m/s | 375 (3.23x) | 38.9 u | +0.9% |
+    /// | **320 m/s** | **388 (3.34x)** | **39.8 u** | **+5.7%** |
+    /// | 300 m/s | 405 (3.49x) | 41.4 u | +11.3% |
+    /// | 240 m/s | 470 (4.05x) | 46.5 u | - |
     ///
     /// Dying CLOSE is the binding constraint and it erodes monotonically with
     /// the cap, so the value is the smallest cut that buys an arrival gap a
-    /// player can feel: 0.68 s over a 300 u run-in, for 1.1 u of kill range.
+    /// player can feel: 0.53 s over a 300 u run-in, for 0.9 u of kill range.
     /// The intercept cost does not fall as expected - a slower torpedo IS
     /// easier to lead, but the extra seconds it spends in the envelope more
     /// than pay for the defender's better hit rate, so the ratio improves.

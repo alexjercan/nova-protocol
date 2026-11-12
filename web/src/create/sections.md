@@ -956,7 +956,7 @@ kind: Torpedo((
   visible swing runs 240 m at 0.7 rad/s down to 60 m at 2.2.
 
   A weave does NOT pay for itself, which is why the shipped Serpent authors a
-  lower `max_speed`. A corkscrew is a longer path, but only by ~1.7% as the real
+  lower `max_speed`. A corkscrew is a longer path, but only by ~1.5% as the real
   body flies it, and thrust is capped on the ALONG-NOSE speed - so a torpedo
   holding its nose off its own velocity never reaches the taper band, keeps its
   engine lit, and settles FASTER than a straight one. Author a weave without

@@ -490,8 +490,8 @@ assert.deepEqual(lanceCorridor(0, HP, 5, 5, 4).profile, [1, 1, 1, 1]);
     const rungs = reachLadder(0);
     assert.equal(rungs[0].reach, 2000, "PDC reach, 1 000 m/s x 2 s");
     assert.equal(rungs[1].reach, 18000, "lance reach, 15 000 m/s x 1.2 s");
-    assert.equal(rungs[2].reach, 29140, "Serpent reach");
-    assert.equal(rungs[3].reach, 31300, "Lance torpedo reach");
+    assert.equal(rungs[2].reach, 28920, "Serpent reach");
+    assert.equal(rungs[3].reach, 30570, "Lance torpedo reach");
 }
 
 // The ladder: a target at 10 km is inside the lance and outside the PDC, and
