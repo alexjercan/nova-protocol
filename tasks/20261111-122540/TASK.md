@@ -1,8 +1,8 @@
 # Scenario events and actions for jobs, credits, cargo and stance
 
-- STATUS: OPEN
+- STATUS: CLOSED
 - PRIORITY: 60
-- TAGS: v0.18.0,scenario,modding
+- TAGS: v0.18.0, scenario, modding
 
 Planned 2026-11-11 from the v0.17.0 post-release review. Owner direction:
 authored scenarios and the story must be able to drive jobs and the economy.
