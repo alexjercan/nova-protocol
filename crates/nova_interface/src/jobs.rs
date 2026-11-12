@@ -2115,6 +2115,7 @@ fn apply_job_commands(
         if let Ok(market) = q_markets.get(*station) {
             if let Some(step) = record_merit(&mut stances, market.civilization, clock.play_seconds)
             {
+                commands.trigger(StanceChanged(step));
                 info!(
                     "stance: {} moved from {:?} to {:?} on the hand-in at {:.1} s of play",
                     step.civilization.name(),
@@ -3027,6 +3028,37 @@ mod tests {
         let raised = app.world().resource::<Raised>();
         assert_eq!(raised.dropped, [(distress, JobDropCauseType::Abandoned)]);
         assert!(raised.handed_in.is_empty());
+    }
+
+    /// The hand-in that takes a civilization's third merit raises one
+    /// `StanceChanged` with its step up.
+    #[test]
+    fn a_hand_in_that_steps_a_stance_raises_one_stance_changed() {
+        #[derive(Resource, Default)]
+        struct StanceSteps(Vec<StanceStep>);
+
+        let civilization = neutral_civilization();
+        let mut app = jobs_app();
+        app.init_resource::<StanceSteps>();
+        app.add_observer(
+            |changed: On<StanceChanged>, mut steps: ResMut<StanceSteps>| {
+                steps.0.push(changed.0);
+            },
+        );
+        let (_, job) = hand_in_fixture(&mut app, civilization);
+
+        app.world_mut()
+            .write_message(JobHandInCommand { id: job.id });
+        app.update();
+        app.update();
+        assert_eq!(
+            app.world().resource::<StanceSteps>().0,
+            [StanceStep {
+                civilization,
+                from: StanceType::Neutral,
+                to: StanceType::Ally,
+            }]
+        );
     }
 
     /// A board row's `X` only asks and Back only cancels the ask: the offer

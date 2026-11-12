@@ -56,16 +56,17 @@ pub mod prelude {
         OnJobDroppedEvent, OnJobHandedInEvent, OnMinedEvent, OnNeutralizedEvent,
         OnNeutralizedEventInfo, OnOrbitEndEvent, OnOrbitLapEvent, OnOrbitStableEvent,
         OnOrbitStartEvent, OnOrbitUnstableEvent, OnPickedUpEvent, OnRebuiltEvent, OnRepairedEvent,
-        OnResumeEvent, OnResumeEventInfo, OnShipBoughtEvent, OnShipOrderCanceledEvent,
-        OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo,
-        OnShipOrderFailedEvent, OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent,
-        OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent, OnShipOrderResumedEventInfo,
-        OnStartEvent, OnStartEventInfo, OnStationBoughtEvent, OnStopCompleteEvent,
-        OnStopCompleteEventInfo, OnStoredEvent, OnStrippedEvent, OnSwappedEvent, OnTimerEndEvent,
-        OnTimerEndEventInfo, OnTradedEvent, OnTravelLockEndEvent, OnTravelLockStartEvent,
-        OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo, OnWithdrawnEvent, OrbitEventInfo,
-        RebuiltEventInfo, RepairedEventInfo, ScenarioAddressableMarker, ShipBoughtEventInfo,
-        ShipOrderKind, StationBoughtEventInfo, StorageEventInfo, StrippedEventInfo,
+        OnResumeEvent, OnResumeEventInfo, OnSectorEnteredEvent, OnShipBoughtEvent,
+        OnShipOrderCanceledEvent, OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent,
+        OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent, OnShipOrderFailedEventInfo,
+        OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent,
+        OnShipOrderResumedEventInfo, OnStanceChangedEvent, OnStartEvent, OnStartEventInfo,
+        OnStationBoughtEvent, OnStopCompleteEvent, OnStopCompleteEventInfo, OnStoredEvent,
+        OnStrippedEvent, OnSwappedEvent, OnTimerEndEvent, OnTimerEndEventInfo, OnTradedEvent,
+        OnTravelLockEndEvent, OnTravelLockStartEvent, OnUndockedEvent, OnUpdateEvent,
+        OnUpdateEventInfo, OnWithdrawnEvent, OrbitEventInfo, RebuiltEventInfo, RepairedEventInfo,
+        ScenarioAddressableMarker, SectorEnteredEventInfo, ShipBoughtEventInfo, ShipOrderKind,
+        StanceChangedEventInfo, StationBoughtEventInfo, StorageEventInfo, StrippedEventInfo,
         SwappedEventInfo, TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
         CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME,
         CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME, DERELICT_STATION_TYPE_NAME,
@@ -74,8 +75,9 @@ pub mod prelude {
         ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, JOB_DROP_CAUSE_FIELD_NAME, JOB_KEY_FIELD_NAME,
         JOB_KIND_FIELD_NAME, JOB_REWARD_FIELD_NAME, JOB_STATION_FIELD_NAME, LIGHT_TYPE_NAME,
         LIVING_STATION_TYPE_NAME, PLANET_TYPE_NAME, PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME,
-        SECTION_FIELD_NAME, SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
-        TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
+        SECTION_FIELD_NAME, SECTOR_FIELD_NAME, SECTOR_FROM_FIELD_NAME, SHIP_ORDER_FIELD_NAME,
+        SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME, STANCE_CIVILIZATION_FIELD_NAME,
+        STANCE_FROM_FIELD_NAME, STANCE_TO_FIELD_NAME, TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
     };
 }
 
@@ -913,6 +915,16 @@ pub const JOB_REWARD_FIELD_NAME: &str = "reward_cr";
 pub const JOB_KEY_FIELD_NAME: &str = "key";
 /// Field name for the [`JobDropCauseType`] of a dropped job.
 pub const JOB_DROP_CAUSE_FIELD_NAME: &str = "cause";
+/// Field name for the id text of the civilization a stance event names.
+pub const STANCE_CIVILIZATION_FIELD_NAME: &str = "civilization";
+/// Field name for the stance a stance event's civilization held before.
+pub const STANCE_FROM_FIELD_NAME: &str = "from";
+/// Field name for the stance a stance event's civilization holds after.
+pub const STANCE_TO_FIELD_NAME: &str = "to";
+/// Field name for the slug of the sector a sector event's observer entered.
+pub const SECTOR_FIELD_NAME: &str = "sector";
+/// Field name for the slug of the sector a sector event's observer left.
+pub const SECTOR_FROM_FIELD_NAME: &str = "from";
 
 /// Which way a trade with a docked trader moves items and credits.
 ///
@@ -1539,6 +1551,77 @@ impl JobDroppedEventInfo {
 impl Default for JobDroppedEventInfo {
     fn default() -> Self {
         Self::new(JobEventInfo::default(), JobDropCauseType::Lost)
+    }
+}
+
+/// A civilization's table stance toward the player moved one step
+/// (`onstancechanged`).
+///
+/// One event per step: an offence's, each neighbour's it reached, a
+/// merit's, the decay's and a paid fine's. A provocation moves no table
+/// stance and fires nothing, and neither does a Load.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onstancechanged")]
+#[event_info(StanceChangedEventInfo)]
+pub struct OnStanceChangedEvent;
+
+/// Payload for [`OnStanceChangedEvent`]: the civilization and the step.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct StanceChangedEventInfo {
+    /// The civilization's id text, `civ_<x>_<y>_<z>@<seed>`, a negative
+    /// index written `n<abs>`.
+    #[serde(rename = "civilization")]
+    pub civilization: String,
+    /// The stance before the step: `Ally`, `Neutral` or `Enemy`.
+    #[serde(rename = "from")]
+    pub from: String,
+    /// The stance after the step: `Ally`, `Neutral` or `Enemy`.
+    #[serde(rename = "to")]
+    pub to: String,
+}
+
+/// The open world's observer left one sector for another while the world
+/// stayed armed (`onsectorentered`).
+///
+/// One event per cell change. The cell the observer stands in on the frame
+/// a world is armed is where that world starts and fires nothing: a New
+/// Game, a Load and a Retry.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onsectorentered")]
+#[event_info(SectorEnteredEventInfo)]
+pub struct OnSectorEnteredEvent;
+
+/// Payload for [`OnSectorEnteredEvent`]: the sector entered and the one
+/// left.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct SectorEnteredEventInfo {
+    /// The entered sector's slug ([`generated::SectorCoord::slug`]).
+    #[serde(rename = "sector")]
+    pub sector: String,
+    /// The entered sector's index along +X.
+    #[serde(rename = "x")]
+    pub x: i32,
+    /// The entered sector's index along +Y.
+    #[serde(rename = "y")]
+    pub y: i32,
+    /// The entered sector's index along +Z.
+    #[serde(rename = "z")]
+    pub z: i32,
+    /// The slug of the sector left.
+    #[serde(rename = "from")]
+    pub from: String,
+}
+
+impl SectorEnteredEventInfo {
+    /// The payload for a crossing from `from` into `to`.
+    pub fn new(from: generated::SectorCoord, to: generated::SectorCoord) -> Self {
+        Self {
+            sector: to.slug(),
+            x: to.x,
+            y: to.y,
+            z: to.z,
+            from: from.slug(),
+        }
     }
 }
 

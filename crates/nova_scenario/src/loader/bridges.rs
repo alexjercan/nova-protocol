@@ -10,6 +10,9 @@
 //! [`JobDone`], [`JobHandedIn`] and [`JobDropped`], which fire
 //! `OnJobAccepted`, `OnJobDone`, `OnJobHandedIn` and `OnJobDropped` through
 //! one payload builder, so the four payloads cannot drift apart.
+//!
+//! The stance event: every site that steps a civilization's table stance
+//! raises [`StanceChanged`], which fires `OnStanceChanged`.
 
 use bevy::prelude::*;
 use nova_events::prelude::*;
@@ -21,6 +24,7 @@ pub(super) fn register_bridged_events(app: &mut App) {
     app.add_observer(fire_job_done);
     app.add_observer(fire_job_handed_in);
     app.add_observer(fire_job_dropped);
+    app.add_observer(fire_stance_changed);
 }
 
 /// The payload every job event carries for `job`. `key` is empty: a board
@@ -52,6 +56,15 @@ fn fire_job_dropped(dropped: On<JobDropped>, mut commands: Commands) {
         job_event_info(&dropped.job),
         dropped.cause,
     ));
+}
+
+fn fire_stance_changed(changed: On<StanceChanged>, mut commands: Commands) {
+    let StanceChanged(step) = *changed;
+    commands.fire::<OnStanceChangedEvent>(StanceChangedEventInfo {
+        civilization: step.civilization.to_string(),
+        from: step.from.name().to_string(),
+        to: step.to.name().to_string(),
+    });
 }
 
 #[cfg(test)]
@@ -171,6 +184,33 @@ mod tests {
         assert_eq!(
             app.world().resource::<Fired>().0,
             [dropped("Lost"), dropped("Abandoned")]
+        );
+    }
+
+    #[test]
+    fn a_stance_step_fires_one_event_with_the_civilization_and_both_stances() {
+        let mut app = bridge_app();
+
+        app.world_mut().trigger(StanceChanged(StanceStep {
+            civilization: CivilizationId {
+                world_seed: 7,
+                node: [1, -2, 0],
+            },
+            from: StanceType::Neutral,
+            to: StanceType::Enemy,
+        }));
+        app.world_mut().flush();
+
+        assert_eq!(
+            app.world().resource::<Fired>().0,
+            [(
+                OnStanceChangedEvent::name(),
+                fields(&[
+                    (STANCE_CIVILIZATION_FIELD_NAME, "civ_1_n2_0@7"),
+                    (STANCE_FROM_FIELD_NAME, "Neutral"),
+                    (STANCE_TO_FIELD_NAME, "Enemy"),
+                ]),
+            )]
         );
     }
 }

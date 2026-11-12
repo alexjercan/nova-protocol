@@ -1,7 +1,7 @@
 # Events
 
 Everything that can fire a handler. A handler's `name:` field names one of
-the FORTY-EIGHT event kinds below, written bare (they are unit variants):
+the FIFTY event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
@@ -66,6 +66,8 @@ The whole vocabulary at a glance:
 | [`OnJobDone`](#onjobdone) | `id`, `kind`, `station`, `reward_cr`, `key` | a held job's work in the world is finished and the job waits for its hand-in; a `Procure` and a Load fire none |
 | [`OnJobHandedIn`](#onjobhandedin) | `id`, `kind`, `station`, `reward_cr`, `key` | the Jobs pane hands a held job in at its posting station and the reward is paid; a refused hand-in fires none |
 | [`OnJobDropped`](#onjobdropped) | `id`, `kind`, `station`, `reward_cr`, `key`, `cause` | a held job ends with no hand-in: `cause` is `Lost` (the world took it) or `Abandoned` (the Drop button) |
+| [`OnStanceChanged`](#onstancechanged) | `civilization`, `from`, `to` | a civilization's stance toward the player moves one step; a provocation and a Load fire none |
+| [`OnSectorEntered`](#onsectorentered) | `sector`, `x`, `y`, `z`, `from` | the player crosses into another sector of a generated world; a New Game and a Load fire none |
 
 Entity payload fields are what an `Entity` filter can match: `id` /
 `type_name` name the event's SUBJECT, `other_id` / `other_type_name` its other
@@ -1007,6 +1009,96 @@ the job is never offered or accepted again.
 |---|---|
 | `Lost` | the posting station was neutralized or destroyed; or, before the job was done, its hauler, wreck or caller was; or the escort hauler's leg order failed |
 | `Abandoned` | the player confirmed Drop in the Jobs pane |
+
+## OnStanceChanged
+
+Fires once per step of a civilization's stance toward the player on a
+generated world.
+
+| field | type | value |
+|---|---|---|
+| `civilization` | text | the civilization's id, `civ_<x>_<y>_<z>@<seed>`, a negative index written `n<abs>` |
+| `from` | text | the stance before: `Ally`, `Neutral` or `Enemy` |
+| `to` | text | the stance after, one step from `from` |
+
+| what steps a stance | step |
+|---|---|
+| the third intact hull of a civilization the player neutralizes inside one hour | that civilization one down |
+| the same step, reaching a living neighbour | an Ally of that civilization one down, an Enemy of it one up: one event each |
+| the third job handed in at a civilization's stations | one up |
+| two hours with no new offence against a civilization the player's kills made Enemy | `Enemy` to `Neutral` |
+| a fine paid at a station to settle | `Enemy` to `Neutral` |
+
+```ron
+(
+    name: OnStanceChanged,
+    filters: [
+        Expression((Equal(
+            Term(Factor(Event("to"))),
+            Term(Factor(Literal(String("Enemy")))),
+        ))),
+    ],
+    actions: [VariableSet((key: "made_an_enemy", expression: Term(Factor(Literal(Boolean(true))))))],
+),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+A step that the stance cannot take fires nothing: an Ally's third merit and
+an Enemy's third offence leave it where it is.
+
+A provocation fires nothing. Fire on a Neutral or Ally body makes its
+civilization's ships act Enemy for fifteen minutes, but the stance the
+table holds does not move, and it is the table this event reports.
+
+A civilization has no authored id, so a handler cannot name one ahead of
+time. Compare `event.civilization` with a value an earlier event stored, or
+gate on `event.from` and `event.to` alone.
+
+A Load restores every stance and fires none. Only a generated world has
+civilizations: on a `Void` world the event is a lint error.
+
+</details>
+
+## OnSectorEntered
+
+Fires once each time the player's ship leaves one sector of a generated
+world for another, the frame the HUD posts `SECTOR (x, y, z)`.
+
+| field | type | value |
+|---|---|---|
+| `sector` | text | the sector entered, as its id text `sector_<x>_<y>_<z>`, a negative index written `n<abs>` |
+| `x`, `y`, `z` | number | the entered sector's indices |
+| `from` | text | the sector left, as its id text |
+
+```ron
+(
+    name: OnSectorEntered,
+    once: true,
+    filters: [
+        Expression((GreaterThan(
+            Term(Factor(Event("x"))),
+            Term(Factor(Literal(Number(2.0)))),
+        ))),
+    ],
+    actions: [ObjectiveComplete((id: "go_east"))],
+),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+The sector the player starts in is not a crossing: a New Game, a Load and a
+Retry fire nothing for the first cell, wherever the last world ended.
+
+The event carries no `id`, so an `Entity` filter never matches it. Read the
+fields with [`event.<field>`](../expressions/#event-fields).
+
+Only a generated world has sectors: on a `Void` world the event is a lint
+error.
+
+</details>
 
 ## Dispatch order (what you can rely on)
 

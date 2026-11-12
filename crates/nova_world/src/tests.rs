@@ -1887,6 +1887,85 @@ mod observer {
             "the arming frame posts no crossing"
         );
     }
+
+    /// Every scenario event fired so far: its name and its payload fields.
+    #[derive(Resource, Default)]
+    struct Fired(Vec<(&'static str, Vec<(String, String)>)>);
+
+    /// A crossing fires one `onsectorentered` naming the cell entered and
+    /// the cell left; the cell a New Game starts in, a frame standing still
+    /// and the cell a Load starts in fire none.
+    #[test]
+    fn a_crossing_fires_one_sector_entered_and_a_new_game_and_a_load_fire_none() {
+        use nova_events::prelude::{
+            EventKind, GameEvent, GameEventField, OnSectorEnteredEvent, SECTOR_FIELD_NAME,
+            SECTOR_FROM_FIELD_NAME,
+        };
+
+        let (mut world, tracker) = tracked_world();
+        let bridge = world.register_system(crate::streaming::fire_sector_entered);
+        world.init_resource::<Fired>();
+        world.add_observer(|event: On<GameEvent>, mut fired: ResMut<Fired>| {
+            let info = event.info();
+            let fields = info
+                .field_names()
+                .into_iter()
+                .map(|name| {
+                    let value = match info.field(name).expect("a listed field reads") {
+                        GameEventField::Text(text) => text.to_string(),
+                        GameEventField::Number(number) => number.to_string(),
+                        GameEventField::Boolean(flag) => flag.to_string(),
+                    };
+                    (name.to_string(), value)
+                })
+                .collect();
+            fired.0.push((event.name(), fields));
+        });
+        let frame = |world: &mut World| {
+            world
+                .run_system(tracker)
+                .expect("the observer system must run");
+            world.run_system(bridge).expect("the bridge must run");
+            world.flush();
+        };
+
+        // The New Game: the first cell on the armed world.
+        frame(&mut world);
+        assert!(world.resource::<Fired>().0.is_empty());
+
+        // 40 km along +X: the next cell at a 32 km edge. Then a frame
+        // standing still in it.
+        move_observer(&mut world, 4_000.0);
+        frame(&mut world);
+        frame(&mut world);
+        let crossed = [(
+            OnSectorEnteredEvent::name(),
+            [
+                (SECTOR_FROM_FIELD_NAME, "sector_0_0_0"),
+                (SECTOR_FIELD_NAME, "sector_1_0_0"),
+                ("x", "1"),
+                ("y", "0"),
+                ("z", "0"),
+            ]
+            .map(|(name, value)| (name.to_string(), value.to_string()))
+            .to_vec(),
+        )];
+        assert_eq!(world.resource::<Fired>().0, crossed);
+
+        // The Load: a config armed the same frame, with the saved ship two
+        // cells from where the last world ended.
+        world.insert_resource(rocks());
+        world
+            .run_system_once(crate::streaming::clear_sector_work::<Rocks>)
+            .expect("the arming frame must clear the world it replaces");
+        move_observer(&mut world, 9_600.0);
+        frame(&mut world);
+        assert_eq!(
+            world.resource::<CurrentSector>().0,
+            SectorCoord::new(3, 0, 0)
+        );
+        assert_eq!(world.resource::<Fired>().0, crossed, "a Load fires none");
+    }
 }
 
 /// [`NovaWorldSystems::Cleanup`] runs once per world change and never on

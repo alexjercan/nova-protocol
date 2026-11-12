@@ -100,10 +100,11 @@ structurally. The example mod's `example_bounds` is the shipped instance, and
 `system_world_bounds` the asserted range.
 
 Some vocabulary only a generated world can serve: a `Void` has no station
-that posts a job board. `GENERATED_WORLD_ONLY` (`lint/scenario.rs`) is the one
-list of it, each row with its reason, and a `Void` scenario that names a row -
-as a handler's event or a step's `until` gate - is a lint Error, because the
-handler could never run. Today the rows are the four job events.
+that posts a job board, no civilization and no sector. `GENERATED_WORLD_ONLY`
+(`lint/scenario.rs`) is the one list of it, each row with its reason, and a
+`Void` scenario that names a row - as a handler's event or a step's `until`
+gate - is a lint Error, because the handler could never run. Today the rows
+are the four job events, `OnStanceChanged` and `OnSectorEntered`.
 
 `nova_world_base::sync_open_world` arms `WorldConfig` from this block and the
 player ship, and disarms it under a `Void` scenario or none. The base bundle's
@@ -1041,6 +1042,22 @@ four payloads cannot drift. Each fires in the command flush of the system
 that moved the job. A Load restores `Jobs` in place and raises none of the
 gameplay events, so it fires none of these.
 
+`OnStanceChanged` crosses the same way. Every site that steps a civilization's
+table stance raises the gameplay event `StanceChanged(StanceStep)` once per
+step: `record_offence` and `expire_stances` (`nova_world_base/src/stance.rs`),
+the hand-in's merit (`nova_interface/src/jobs.rs`) and the paid fine
+(`nova_interface/src/station/settle.rs`). `loader/bridges.rs` observes it and
+fires `OnStanceChanged` with the civilization's id text and both stance names.
+A provocation moves no table stance and a Load restores the table in place, so
+neither raises it.
+
+`OnSectorEntered` is fired by `nova_world`, the owner of the crossing:
+`fire_sector_entered` (`streaming.rs`) reads the `SectorCrossed` messages in
+`NovaWorldSystems::Observe`, after `track_current_sector` posts them, and fires
+one event per message on the frame the cell changed. The tracker posts no
+message on the frame a `WorldConfig` is armed, so the cell a New Game, a Load
+or a Retry starts in fires nothing.
+
 ## Adding new pieces
 
 - Event: event + info structs in `nova_events/src/lib.rs`, an `EventConfig`
@@ -1051,8 +1068,9 @@ gameplay events, so it fires none of these.
   `OnNeutralized` fires from `nova_gameplay`'s integrity stack, a rock's
   `OnDestroyed` from `objects/asteroid_carve.rs` when its field is exhausted,
   the hold events from `track_ship_inventory_reports` in `trackers.rs`,
-  `OnMined` from `mining.rs`, and the job events from the observers in
-  `loader/bridges.rs`). An event only a generated world can raise also gets a
+  `OnMined` from `mining.rs`, the job events and `OnStanceChanged` from the
+  observers in `loader/bridges.rs`, and `OnSectorEntered` from `nova_world`'s
+  `fire_sector_entered`). An event only a generated world can raise also gets a
   row in `GENERATED_WORLD_ONLY`. A new occurrence below `nova_scenario` pushes a
   `ShipInventoryReport` variant; it does not get a second queue.
 - Action: config struct + `EventAction<NovaEventWorld>` impl in the right

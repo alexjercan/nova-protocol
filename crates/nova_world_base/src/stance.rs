@@ -38,9 +38,9 @@ use std::collections::BTreeMap;
 use bevy::prelude::*;
 use nova_gameplay::prelude::{
     Allegiance, CivilizationId, CivilizationStances, DerelictShipMarker, LawfulStationMarker,
-    NeutralizedMarker, OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker, StanceStep,
-    StanceType, StationMarker, TraderMarket, ENEMY_DECAY_SECONDS, OFFENCE_WINDOW_SECONDS,
-    PROVOKED_WINDOW_SECONDS,
+    NeutralizedMarker, OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker, StanceChanged,
+    StanceStep, StanceType, StationMarker, TraderMarket, ENEMY_DECAY_SECONDS,
+    OFFENCE_WINDOW_SECONDS, PROVOKED_WINDOW_SECONDS,
 };
 use nova_ship::prelude::{LastAttacker, ShipProvoked};
 use nova_world::prelude::WorldClock;
@@ -200,13 +200,15 @@ pub fn enemy_neighbours(
 /// hull carries a [`TraderMarket`] (every intact generated ship and living
 /// station does) and its [`LastAttacker`] is the player's ship or a fleet
 /// escort. A hull thawed already neutralized carries no attacker and
-/// records nothing.
+/// records nothing. Every step the offence made raises one
+/// [`StanceChanged`], the civilization's own first.
 pub(crate) fn record_offence(
     add: On<Add<NeutralizedMarker>>,
     hulls: Query<(Option<&Name>, &TraderMarket, Option<&LastAttacker>)>,
     player: Query<(), Or<(With<PlayerSpaceshipMarker>, With<PlayerFleetMarker>)>>,
     clock: Res<WorldClock>,
     mut stances: ResMut<CivilizationStances>,
+    mut commands: Commands,
 ) {
     let Ok((name, market, attacker)) = hulls.get(add.entity) else {
         return;
@@ -225,6 +227,7 @@ pub(crate) fn record_offence(
     );
     for step in apply_offence(&mut stances, market.civilization, clock.play_seconds) {
         log_step(&step, clock.play_seconds);
+        commands.trigger(StanceChanged(step));
     }
 }
 
@@ -258,13 +261,18 @@ pub(crate) fn record_provocation(
 }
 
 /// Let the play clock pass over the table: windows close and an Enemy by
-/// events decays.
-pub(crate) fn expire_stances(clock: Res<WorldClock>, mut stances: ResMut<CivilizationStances>) {
+/// events decays, raising one [`StanceChanged`] per decay.
+pub(crate) fn expire_stances(
+    clock: Res<WorldClock>,
+    mut stances: ResMut<CivilizationStances>,
+    mut commands: Commands,
+) {
     if stances.is_empty() {
         return;
     }
     for step in stances.expire(clock.play_seconds, seeded_stance) {
         log_step(&step, clock.play_seconds);
+        commands.trigger(StanceChanged(step));
     }
 }
 
@@ -541,6 +549,118 @@ mod tests {
             Some(ENEMY_DECAY_SECONDS - 600.0),
             "the decay counts from the flipping offence"
         );
+    }
+
+    /// Every `StanceChanged` raised so far, in order.
+    #[derive(Resource, Default)]
+    struct Raised(Vec<StanceStep>);
+
+    /// The offence observer and the expiry system over an empty table at
+    /// zero play seconds, with every `StanceChanged` recorded.
+    fn stance_app() -> App {
+        let mut app = App::new();
+        app.init_resource::<WorldClock>();
+        app.init_resource::<CivilizationStances>();
+        app.init_resource::<Raised>();
+        app.add_observer(record_offence);
+        app.add_systems(Update, expire_stances);
+        app.add_observer(|changed: On<StanceChanged>, mut raised: ResMut<Raised>| {
+            raised.0.push(changed.0);
+        });
+        app
+    }
+
+    /// A living civilization the seed drew Neutral, with a living neighbour.
+    fn a_neutral_civilization_with_neighbours() -> CivilizationId {
+        SWEEP_SEEDS
+            .into_iter()
+            .find_map(|seed| {
+                let field = CivilizationField::new(seed);
+                sweep_nodes().into_iter().find_map(|node| {
+                    let civilization = field.civilization(node);
+                    (civilization.status == CivilizationStatusType::Living
+                        && civilization.stance == StanceType::Neutral
+                        && !field.neighbours(node).is_empty())
+                    .then_some(civilization.id)
+                })
+            })
+            .expect("the sweep holds a living Neutral civilization with a neighbour")
+    }
+
+    /// The player neutralizes one intact hull of `civilization`.
+    fn neutralize_a_hull(app: &mut App, player: Entity, civilization: CivilizationId) {
+        let hull = station_of(app, civilization);
+        app.world_mut()
+            .entity_mut(hull)
+            .insert((LastAttacker(player), NeutralizedMarker));
+        app.world_mut().flush();
+    }
+
+    /// Two offences raise nothing; the third raises one `StanceChanged` per
+    /// step it made, the civilization's own first and then each neighbour
+    /// the step reached.
+    #[test]
+    fn the_third_offence_raises_one_stance_changed_per_step_it_made() {
+        let civilization = a_neutral_civilization_with_neighbours();
+        let mut app = stance_app();
+        let player = app.world_mut().spawn(PlayerSpaceshipMarker).id();
+
+        let mut replay = CivilizationStances::default();
+        let mut expected = Vec::new();
+        for offence in 0..OFFENCE_STEP {
+            assert!(
+                app.world().resource::<Raised>().0.is_empty(),
+                "offence {offence} of the grace count raises nothing"
+            );
+            neutralize_a_hull(&mut app, player, civilization);
+            expected = apply_offence(&mut replay, civilization, 0.0);
+        }
+
+        assert_eq!(
+            expected[0],
+            StanceStep {
+                civilization,
+                from: StanceType::Neutral,
+                to: StanceType::Enemy,
+            }
+        );
+        assert_eq!(app.world().resource::<Raised>().0, expected);
+    }
+
+    /// The frame the decay returns an Enemy by events to Neutral raises one
+    /// `StanceChanged` for it, and the frames around it none.
+    #[test]
+    fn a_decayed_enemy_raises_one_stance_changed() {
+        let civilization = a_neutral_civilization_with_neighbours();
+        let mut app = stance_app();
+        let mut replay = CivilizationStances::default();
+        for _ in 0..OFFENCE_STEP {
+            apply_offence(&mut replay, civilization, 0.0);
+        }
+        app.insert_resource(replay.clone());
+
+        app.world_mut().resource_mut::<WorldClock>().play_seconds = ENEMY_DECAY_SECONDS - 1.0;
+        app.update();
+        assert!(
+            app.world().resource::<Raised>().0.is_empty(),
+            "the window has not passed"
+        );
+
+        app.world_mut().resource_mut::<WorldClock>().play_seconds = ENEMY_DECAY_SECONDS;
+        app.update();
+        app.update();
+        let expected = replay.expire(ENEMY_DECAY_SECONDS, seeded_stance);
+        let own = StanceStep {
+            civilization,
+            from: StanceType::Enemy,
+            to: StanceType::Neutral,
+        };
+        assert_eq!(
+            expected.iter().filter(|step| **step == own).count(),
+            1,
+            "the decay returns the civilization to Neutral"
+        );
+        assert_eq!(app.world().resource::<Raised>().0, expected);
     }
 
     /// The offences that turn a Neutral civilization Enemy take no outlaw

@@ -28,7 +28,7 @@ use crate::{
 /// Glob-import surface: `use nova_gameplay::civilization::prelude::*`.
 pub mod prelude {
     pub use super::{
-        CivilizationId, CivilizationStances, StanceRecord, StanceStep, StanceType,
+        CivilizationId, CivilizationStances, StanceChanged, StanceRecord, StanceStep, StanceType,
         ENEMY_DECAY_SECONDS, MERIT_STEP, OFFENCE_STEP, OFFENCE_WINDOW_SECONDS,
         PROVOKED_WINDOW_SECONDS,
     };
@@ -162,6 +162,16 @@ pub enum StanceType {
 }
 
 impl StanceType {
+    /// The stance's name, which is its variant's: what a scenario event's
+    /// `from` and `to` fields carry.
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Ally => "Ally",
+            Self::Neutral => "Neutral",
+            Self::Enemy => "Enemy",
+        }
+    }
+
     /// The side a body of a civilization on this stance flies.
     pub fn side(self) -> Allegiance {
         match self {
@@ -254,6 +264,14 @@ pub struct StanceStep {
     /// Its stance after.
     pub to: StanceType,
 }
+
+/// Raised by whatever moved a civilization's table stance, once per
+/// [`StanceStep`]: the open world for an offence, the neighbours it reaches
+/// and the decay; the Jobs pane for a merit; the station's settle for a paid
+/// fine. A provocation moves no table stance and raises none, and neither
+/// does a Load, which restores the table in place.
+#[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StanceChanged(pub StanceStep);
 
 /// The player's table of civilization stances: sparse, one record per
 /// civilization whose standing differs from the seed or has something

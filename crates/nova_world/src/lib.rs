@@ -67,9 +67,10 @@
 //!    previous one asked for.
 //! 2. [`NovaWorldSystems::Observe`] writes which cell the [`WorldObserver`]
 //!    stands in, posts [`SectorCrossed`] when that cell changed under an
-//!    armed config, and refuses a newly armed config. The generator validates
-//!    too, but on a worker, which is one job too late for a window the main
-//!    thread enumerates whole in the very next stage.
+//!    armed config and fires `OnSectorEntered` for it, and refuses a newly
+//!    armed config. The generator validates too, but on a worker, which is
+//!    one job too late for a window the main thread enumerates whole in the
+//!    very next stage.
 //! 3. [`NovaWorldSystems::Request`] starts jobs for the desired cells that are
 //!    not already live, running or prepared, NEAREST FIRST and only as many as
 //!    the task pool has threads. The rest of the window stays unrequested -
@@ -205,7 +206,7 @@ pub use crate::{
         SectorShip, SectorShipConditionType, SectorStation, SECTOR_SHIP_CLEARANCE_MAX,
     },
     streaming::{
-        clear_sector_work, collect_sector_jobs, desired_sectors, live_sectors,
+        clear_sector_work, collect_sector_jobs, desired_sectors, fire_sector_entered, live_sectors,
         materialize_pending_bodies, materialize_ready_sector, materialize_sector, request_sectors,
         retire_sectors, track_current_sector, CurrentSector, ObserverBody, PendingSectorShip,
         PendingSectorStation, ReadySectors, SectorClusterTypes, SectorCrossed, SectorJob,
@@ -812,6 +813,9 @@ impl<G: SectorGenerator> Plugin for NovaWorldPlugin<G> {
             (
                 clear_sector_work::<G>.in_set(NovaWorldSystems::Cleanup),
                 (advance_world_clock, track_current_sector::<G>).in_set(NovaWorldSystems::Observe),
+                fire_sector_entered
+                    .in_set(NovaWorldSystems::Observe)
+                    .after(track_current_sector::<G>),
                 request_sectors::<G>.in_set(NovaWorldSystems::Request),
                 collect_sector_jobs::<G>.in_set(NovaWorldSystems::Collect),
                 (materialize_ready_sector::<G>, materialize_pending_bodies)

@@ -1398,6 +1398,14 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
             .chain(),
     );
     hear_ui_cues(app);
+    #[derive(Resource, Default)]
+    struct StanceSteps(Vec<StanceStep>);
+    app.init_resource::<StanceSteps>();
+    app.add_observer(
+        |changed: On<StanceChanged>, mut steps: ResMut<StanceSteps>| {
+            steps.0.push(changed.0);
+        },
+    );
 
     let station_id = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
     app.world_mut().resource_mut::<Chart>().find_station(
@@ -1707,6 +1715,15 @@ fn the_chart_pays_a_fine_only_while_docked_at_the_selected_station_and_reports_i
         standing_table(&rig, enemy),
         StanceType::Neutral,
         "the settled civilization reads Neutral"
+    );
+    assert_eq!(
+        rig.app.world().resource::<StanceSteps>().0,
+        [StanceStep {
+            civilization: enemy,
+            from: StanceType::Enemy,
+            to: StanceType::Neutral,
+        }],
+        "the paid fine raises one stance step and the refusals before it none"
     );
     let settled = format!(
         "settled with {} for {}",

@@ -85,8 +85,8 @@ pub(crate) fn settle_refusal_text(name: &str, need: u32, have: u32) -> String {
 /// Apply [`StanceSettleCommand`]s: a civilization that is an Enemy
 /// neighbour of the docked station's and whose fine the ship holds is
 /// settled to Neutral, the fine moving with `Settle` credit changes on both
-/// sides. A refusal changes nothing and shows its reason on the Map's notice
-/// line.
+/// sides and the step raising one [`StanceChanged`]. A refusal changes
+/// nothing and shows its reason on the Map's notice line.
 pub(crate) fn apply_station_settle_commands(
     mut messages: MessageReader<StanceSettleCommand>,
     mut map: ResMut<MapRuntime>,
@@ -94,6 +94,7 @@ pub(crate) fn apply_station_settle_commands(
     mut stances: ResMut<CivilizationStances>,
     clock: Res<WorldClock>,
     mut q_credits: Query<(&mut ShipCredits, &mut ShipInventoryReports)>,
+    mut commands: Commands,
 ) {
     for command in messages.read() {
         let Some((player, station, station_name, home)) = dock.docked() else {
@@ -137,6 +138,9 @@ pub(crate) fn apply_station_settle_commands(
         own_reports.change_credits(&mut own_cr, left, CreditChangeCauseType::Settle);
         station_reports.change_credits(&mut station_cr, paid, CreditChangeCauseType::Settle);
         let step = settle(&mut stances, command.civilization, clock.play_seconds);
+        if let Some(step) = step {
+            commands.trigger(StanceChanged(step));
+        }
         info!(
             "stance: settled with {name} for {fine} cr at {:.1} s of play: {step:?}",
             clock.play_seconds

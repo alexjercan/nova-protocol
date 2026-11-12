@@ -21,7 +21,10 @@ use bevy::{
     prelude::*,
     tasks::{block_on, poll_once, AsyncComputeTaskPool, Task},
 };
-use nova_events::prelude::{GeneratedBodyId, Meters, Meters3, ScenarioAddressableMarker};
+use nova_events::prelude::{
+    CommandsGameEventExt, GeneratedBodyId, Meters, Meters3, OnSectorEnteredEvent,
+    ScenarioAddressableMarker, SectorEnteredEventInfo,
+};
 use nova_gameplay::prelude::{
     ClusterType, DerelictShipMarker, IntegrityEnvelope, PlayerFleetMarker, TempEntity,
     UnsettledBody,
@@ -625,6 +628,19 @@ pub fn track_current_sector<G: SectorGenerator>(
         None => {
             commands.insert_resource(CurrentSector(coord));
         }
+    }
+}
+
+/// Fire one `OnSectorEntered` scenario event per [`SectorCrossed`] this frame.
+///
+/// Runs in [`crate::NovaWorldSystems::Observe`] after
+/// [`track_current_sector`], which posts the crossing, so a handler hears it
+/// on the frame the cell changed. The tracker posts nothing on the arming
+/// frame, so the cell a New Game, a Load or a Retry starts in fires nothing.
+pub fn fire_sector_entered(mut crossings: MessageReader<SectorCrossed>, mut commands: Commands) {
+    for crossing in crossings.read() {
+        commands
+            .fire::<OnSectorEnteredEvent>(SectorEnteredEventInfo::new(crossing.from, crossing.to));
     }
 }
 

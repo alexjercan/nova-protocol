@@ -2122,6 +2122,13 @@ impl GeneratedWorldOnlyType {
 const NO_JOB_BOARD: &str =
     "only a generated world's stations post job boards, so the event can never fire";
 
+/// Why no stance event fires on a `Void` world.
+const NO_CIVILIZATION: &str =
+    "only a generated world has civilizations, so no stance can move and the event can never fire";
+
+/// Why no sector event fires on a `Void` world.
+const NO_SECTOR: &str = "only a generated world has sectors to cross, so the event can never fire";
+
 /// Everything a `Void` scenario may not name, each with why it can never
 /// happen there. The one list [`check_generated_world_only`] reads: an
 /// event joins as a row, and an action as a [`GeneratedWorldOnlyType`]
@@ -2142,6 +2149,14 @@ const GENERATED_WORLD_ONLY: &[(GeneratedWorldOnlyType, &str)] = &[
     (
         GeneratedWorldOnlyType::Event(EventConfig::OnJobDropped),
         NO_JOB_BOARD,
+    ),
+    (
+        GeneratedWorldOnlyType::Event(EventConfig::OnStanceChanged),
+        NO_CIVILIZATION,
+    ),
+    (
+        GeneratedWorldOnlyType::Event(EventConfig::OnSectorEntered),
+        NO_SECTOR,
     ),
 ];
 
@@ -5534,16 +5549,19 @@ mod tests {
             .collect()
     }
 
-    /// A void has no station that posts a board, so a handler or a step gate
-    /// on a job event could never run. The same scenario on a generated
-    /// world may name them.
+    /// A void has no station that posts a board, no civilization and no
+    /// sector, so a handler or a step gate on a job, stance or sector event
+    /// could never run. The same scenario on a generated world may name
+    /// them.
     #[test]
-    fn a_job_event_on_a_void_world_is_an_error_that_names_the_event_and_the_reason() {
-        for event in [
-            EventConfig::OnJobAccepted,
-            EventConfig::OnJobDone,
-            EventConfig::OnJobHandedIn,
-            EventConfig::OnJobDropped,
+    fn a_generated_world_event_on_a_void_world_is_an_error_that_names_the_event_and_the_reason() {
+        for (event, reason) in [
+            (EventConfig::OnJobAccepted, "post job boards"),
+            (EventConfig::OnJobDone, "post job boards"),
+            (EventConfig::OnJobHandedIn, "post job boards"),
+            (EventConfig::OnJobDropped, "post job boards"),
+            (EventConfig::OnStanceChanged, "has civilizations"),
+            (EventConfig::OnSectorEntered, "has sectors to cross"),
         ] {
             let mut handler = scenario(vec![], vec![]);
             handler.events[0].name = event;
@@ -5553,7 +5571,7 @@ mod tests {
                 found[0].starts_with(&format!("`{}` on a `Void` world", event.name())),
                 "{found:?}"
             );
-            assert!(found[0].contains("post job boards"), "{found:?}");
+            assert!(found[0].contains(reason), "{found:?}");
 
             handler.world = generated(Some(1));
             assert!(void_world_errors(&handler).is_empty());
