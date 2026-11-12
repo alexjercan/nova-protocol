@@ -838,6 +838,14 @@ name = "system_station_swap"
 path = "examples/systems/system_station_swap.rs"
 required-features = ["debug"]
 
+# A cargo intake swapped for the wide intake at a generated station whose
+# civilization knows it: the catalogue offers the swap at the planned price
+# and the hold comes out as it went in.
+[[example]]
+name = "system_station_swap_intake"
+path = "examples/systems/system_station_swap_intake.rs"
+required-features = ["debug"]
+
 # A kinetic PDC added at a free socket of a base hull through the Ship pane
 # and of a generated hull: an add at a taken socket refused, the binding
 # taken from the sibling turrets, and each add kept through a freeze and thaw.
