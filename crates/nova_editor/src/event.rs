@@ -24,7 +24,7 @@
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{default_comms_accent, Allegiance, AssetRef};
+use nova_gameplay::prelude::{default_comms_accent, Allegiance, AssetRef, ItemDesignId};
 use nova_scenario::prelude::*;
 use nova_ship::prelude::WellTargetType;
 
@@ -145,6 +145,8 @@ pub(crate) enum ExprKind {
     /// A typed operand: a literal, a variable, a query, or any expression that
     /// fits one row.
     Value(ValueOperand),
+    /// A query, picked rather than typed.
+    Query(QueryOperand),
 }
 
 /// A leaf operand, as the one row it fits on.
@@ -156,6 +158,104 @@ pub(crate) enum ExprKind {
 pub(crate) struct ValueOperand {
     /// The operand.
     pub(crate) value: VariableExpressionNode,
+}
+
+/// A query operand, as the rows it is picked by.
+///
+/// Flat, so a switch of [`QueryReadType`] keeps the id and the item a builder
+/// already picked. Only the fields the chosen read takes are shown (see
+/// [`query_rows`](crate::inspect::query_rows)) and lowered.
+#[derive(Debug, Clone, PartialEq, Reflect)]
+pub(crate) struct QueryOperand {
+    /// What the query reads.
+    pub(crate) read: QueryReadType,
+    /// The object the query reads from.
+    #[reflect(@Names::Object)]
+    pub(crate) id: String,
+    /// The item the query counts.
+    pub(crate) item: ItemDesignId,
+}
+
+/// Every query the grammar has, as one choice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Reflect)]
+pub(crate) enum QueryReadType {
+    /// Seconds since this scenario started.
+    Elapsed,
+    /// The slug of the sector the player stands in. A generated world only.
+    Sector,
+    /// How fast an object moves, in metres per second.
+    Speed,
+    /// The credits a ship holds.
+    Credits,
+    /// How many of one item a ship's hold carries.
+    Items,
+}
+
+impl QueryReadType {
+    /// Whether the read is of one object, and so takes an id.
+    pub(crate) fn reads_an_object(self) -> bool {
+        match self {
+            QueryReadType::Elapsed | QueryReadType::Sector => false,
+            QueryReadType::Speed | QueryReadType::Credits | QueryReadType::Items => true,
+        }
+    }
+}
+
+impl QueryOperand {
+    /// The stock query: one that reads true in every scenario.
+    fn stock() -> Self {
+        Self {
+            read: QueryReadType::Elapsed,
+            id: String::new(),
+            item: ItemDesignId::from(""),
+        }
+    }
+
+    /// The operand that edits `query`.
+    fn of(query: QueryConfig) -> Self {
+        let stock = Self::stock();
+        match query {
+            QueryConfig::Scenario(ScenarioQuery { property }) => Self {
+                read: match property {
+                    ScenarioProperty::Elapsed => QueryReadType::Elapsed,
+                    ScenarioProperty::Sector => QueryReadType::Sector,
+                },
+                ..stock
+            },
+            QueryConfig::Entity(EntityQuery { filter, property }) => {
+                let (read, item) = match property {
+                    EntityProperty::Speed => (QueryReadType::Speed, stock.item),
+                    EntityProperty::Credits => (QueryReadType::Credits, stock.item),
+                    EntityProperty::Items(item) => (QueryReadType::Items, item),
+                };
+                Self {
+                    read,
+                    id: filter.id,
+                    item,
+                }
+            }
+        }
+    }
+
+    /// The query it authors.
+    fn query(&self) -> QueryConfig {
+        let scenario = |property| QueryConfig::Scenario(ScenarioQuery { property });
+        let entity = |property| {
+            QueryConfig::Entity(EntityQuery {
+                filter: EntityQueryFilter {
+                    id: self.id.clone(),
+                },
+                property,
+            })
+        };
+        match self.read {
+            QueryReadType::Elapsed => scenario(ScenarioProperty::Elapsed),
+            QueryReadType::Sector => scenario(ScenarioProperty::Sector),
+            QueryReadType::Speed => entity(EntityProperty::Speed),
+            QueryReadType::Credits => entity(EntityProperty::Credits),
+            QueryReadType::Items => entity(EntityProperty::Items(self.item.clone())),
+        }
+    }
 }
 
 /// One action of a handler or of a sequence step.
@@ -386,11 +486,13 @@ pub(crate) enum ExprChoice {
     Divide,
     /// A typed operand.
     Value,
+    /// A live reading of the running scenario, of a ship or of the world.
+    Query,
 }
 
 impl ExprChoice {
     /// Every operator, and the leaf.
-    pub(crate) const ALL: [ExprChoice; 8] = [
+    pub(crate) const ALL: [ExprChoice; 9] = [
         ExprChoice::Equal,
         ExprChoice::LessThan,
         ExprChoice::GreaterThan,
@@ -399,6 +501,7 @@ impl ExprChoice {
         ExprChoice::Multiply,
         ExprChoice::Divide,
         ExprChoice::Value,
+        ExprChoice::Query,
     ];
 
     /// The row label: the SYMBOL, not the word for it.
@@ -416,6 +519,7 @@ impl ExprChoice {
             ExprChoice::Multiply => "*",
             ExprChoice::Divide => "/",
             ExprChoice::Value => "value",
+            ExprChoice::Query => "query",
         }
     }
 
@@ -431,14 +535,15 @@ impl ExprChoice {
             ExprChoice::Multiply => "multiply",
             ExprChoice::Divide => "divide",
             ExprChoice::Value => "value",
+            ExprChoice::Query => "query",
         }
     }
 
     /// How many operands the kind takes. Every operator is binary; a value
-    /// takes none.
+    /// and a query take none.
     pub(crate) fn operands(self) -> usize {
         match self {
-            ExprChoice::Value => 0,
+            ExprChoice::Value | ExprChoice::Query => 0,
             _ => 2,
         }
     }
@@ -464,6 +569,7 @@ impl ExprChoice {
             ExprChoice::Multiply => ExprKind::Multiply,
             ExprChoice::Divide => ExprKind::Divide,
             ExprChoice::Value => ExprKind::Value(ValueOperand { value: number(0.0) }),
+            ExprChoice::Query => ExprKind::Query(QueryOperand::stock()),
         }
     }
 }
@@ -479,6 +585,7 @@ pub(crate) fn expr_choice(kind: &ExprKind) -> ExprChoice {
         ExprKind::Multiply => ExprChoice::Multiply,
         ExprKind::Divide => ExprChoice::Divide,
         ExprKind::Value(_) => ExprChoice::Value,
+        ExprKind::Query(_) => ExprChoice::Query,
     }
 }
 
@@ -486,6 +593,7 @@ pub(crate) fn expr_choice(kind: &ExprKind) -> ExprChoice {
 pub(crate) fn expr_config_mut(kind: &mut ExprKind) -> Option<&mut dyn PartialReflect> {
     match kind {
         ExprKind::Value(operand) => Some(operand),
+        ExprKind::Query(operand) => Some(operand),
         _ => None,
     }
 }
@@ -1128,6 +1236,13 @@ fn lift_factor(
 ) -> Entity {
     match factor {
         VariableFactorNode::Parens(inner) => lift_expression(commands, parent, ordinal, *inner),
+        VariableFactorNode::Query(query) => spawn_expression(
+            commands,
+            parent,
+            ordinal,
+            ExprKind::Query(QueryOperand::of(query)),
+            0,
+        ),
         leaf => {
             let value = VariableExpressionNode::new_term(VariableTermNode::new_factor(leaf));
             spawn_expression(
@@ -1574,6 +1689,7 @@ impl ScriptNodes<'_, '_> {
                 value: VariableExpressionNode::Term(VariableTermNode::Factor(ref factor)),
             }) => factor.clone(),
             ExprKind::Value(ref operand) => VariableFactorNode::new_parens(operand.value.clone()),
+            ExprKind::Query(ref operand) => VariableFactorNode::new_query(operand.query()),
             _ => VariableFactorNode::new_parens(self.lower_expression(node)?),
         })
     }

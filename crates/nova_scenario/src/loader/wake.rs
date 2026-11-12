@@ -49,7 +49,7 @@ pub enum WakeProfile {
 /// handler spawns lands inside it and leaving it is an ordinary `OnExit` for
 /// [`BOUNDS_AREA_ID`].
 pub(crate) fn configure_scenario_shape(world: &mut NovaEventWorld, scenario: &ScenarioConfig) {
-    world.set_watches(scenario.watches.clone(), scenario.reads_an_entity_query());
+    world.set_watches(scenario.watches.clone(), scenario.entity_queries());
     world.set_wake(profile(scenario));
     if let ScenarioWorldType::Generated(GeneratedWorldConfig {
         bounds: Some(bounds),
@@ -132,14 +132,27 @@ fn clock_watches(scenario: &ScenarioConfig) -> HashSet<&str> {
         .collect()
 }
 
-/// Watch names fed by a per-frame sample that is NOT the clock - `player_speed`
-/// and anything like it. A filter reading one is a continuous question and
-/// keeps its per-frame pulse.
+/// Watch names fed by a per-frame sample that is NOT the clock - a speed, a
+/// purse, a hold count, the current sector. Nothing marks a watched name as
+/// written when its sample moves, so a filter reading one keeps its per-frame
+/// pulse.
+///
+/// The match is exhaustive on purpose: a new query property must be put on
+/// one side here, or its watch would be collected as a content variable and
+/// its handlers would sleep through every change.
 fn sampled_watches(scenario: &ScenarioConfig) -> HashSet<&str> {
     scenario
         .watches
         .iter()
-        .filter(|watch| matches!(&watch.query, QueryConfig::Entity(_)))
+        .filter(|watch| match &watch.query {
+            QueryConfig::Scenario(query) => match query.property {
+                ScenarioProperty::Elapsed => false,
+                ScenarioProperty::Sector => true,
+            },
+            QueryConfig::Entity(query) => match query.property {
+                EntityProperty::Speed | EntityProperty::Credits | EntityProperty::Items(_) => true,
+            },
+        })
         .map(|watch| watch.variable.as_str())
         .collect()
 }

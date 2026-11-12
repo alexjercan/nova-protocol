@@ -1713,7 +1713,7 @@ fn an_operator_is_offered_the_kinds_its_place_allows() {
     };
     assert_eq!(
         options,
-        &["+", "-", "*", "/", "value"],
+        &["+", "-", "*", "/", "value", "query"],
         "and what it compares are values"
     );
 
@@ -1723,7 +1723,7 @@ fn an_operator_is_offered_the_kinds_its_place_allows() {
     let RowValue::Operand { options, .. } = &written.value else {
         panic!("an operand row offers its kinds");
     };
-    assert_eq!(options, &["+", "-", "*", "/", "value"]);
+    assert_eq!(options, &["+", "-", "*", "/", "value", "query"]);
     assert_eq!(compared.group, ["Condition"], "and each page is headed");
     assert_eq!(written.group, ["Value"]);
 }

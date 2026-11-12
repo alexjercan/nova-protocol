@@ -157,8 +157,6 @@ pub(crate) enum BlockItemType {
     Expr(ExprChoice),
     /// A scenario variable, read by name.
     Variable,
-    /// A live reading of the running scenario.
-    Query,
     /// A field of the event the handler is running for.
     EventField,
     /// One more beat.
@@ -175,11 +173,7 @@ impl BlockItemType {
         items.extend(ActionChoice::ALL.into_iter().map(BlockItemType::Action));
         items.extend(FilterChoice::ALL.into_iter().map(BlockItemType::Filter));
         items.extend(ExprChoice::ALL.into_iter().map(BlockItemType::Expr));
-        items.extend([
-            BlockItemType::Variable,
-            BlockItemType::Query,
-            BlockItemType::EventField,
-        ]);
+        items.extend([BlockItemType::Variable, BlockItemType::EventField]);
         items
     }
 
@@ -190,9 +184,9 @@ impl BlockItemType {
             BlockItemType::Action(action) => action.label().to_string(),
             BlockItemType::Filter(filter) => filter.label().to_string(),
             BlockItemType::Expr(ExprChoice::Value) => "Number".to_string(),
+            BlockItemType::Expr(ExprChoice::Query) => "Query".to_string(),
             BlockItemType::Expr(expr) => expr.label().to_string(),
             BlockItemType::Variable => "Variable".to_string(),
-            BlockItemType::Query => "Elapsed".to_string(),
             BlockItemType::EventField => "Event Field".to_string(),
             BlockItemType::Step => "Step".to_string(),
             BlockItemType::Gate => "Wait For".to_string(),
@@ -205,10 +199,9 @@ impl BlockItemType {
             BlockItemType::Hat(_) => BlockRoleType::Event,
             BlockItemType::Action(action) => BlockRoleType::of_action(action),
             BlockItemType::Filter(filter) => BlockRoleType::of_filter(filter),
-            BlockItemType::Expr(_)
-            | BlockItemType::Variable
-            | BlockItemType::Query
-            | BlockItemType::EventField => BlockRoleType::Value,
+            BlockItemType::Expr(_) | BlockItemType::Variable | BlockItemType::EventField => {
+                BlockRoleType::Value
+            }
             BlockItemType::Step | BlockItemType::Gate => BlockRoleType::Flow,
         }
     }
@@ -250,10 +243,9 @@ impl BlockItemType {
             BlockItemType::Action(_) => BlockShapeType::Stack,
             BlockItemType::Filter(_) => BlockShapeType::Boolean,
             BlockItemType::Expr(expr) if expr.compares() => BlockShapeType::Comparison,
-            BlockItemType::Expr(_)
-            | BlockItemType::Variable
-            | BlockItemType::Query
-            | BlockItemType::EventField => BlockShapeType::Reporter,
+            BlockItemType::Expr(_) | BlockItemType::Variable | BlockItemType::EventField => {
+                BlockShapeType::Reporter
+            }
             BlockItemType::Step => BlockShapeType::Step,
             BlockItemType::Gate => BlockShapeType::Gate,
         }
@@ -267,7 +259,6 @@ impl BlockItemType {
             BlockItemType::Filter(filter) => variant_hint(&filter),
             BlockItemType::Expr(expr) => variant_hint(&expr),
             BlockItemType::Variable => "Read a scenario variable by name.".to_string(),
-            BlockItemType::Query => "Seconds since this scenario started.".to_string(),
             BlockItemType::EventField => "Read a field of the event this handler runs for, \
                                           such as event.id. Not inside a step's actions."
                 .to_string(),
@@ -884,14 +875,13 @@ fn new_reporter(world: &mut World, parent: Entity, ordinal: u32, item: BlockItem
             )),
             0,
         ),
-        _ => (
-            leaf(VariableFactorNode::new_query(QueryConfig::Scenario(
-                ScenarioQuery {
-                    property: ScenarioProperty::Elapsed,
-                },
-            ))),
-            0,
-        ),
+        BlockItemType::Hat(_)
+        | BlockItemType::Action(_)
+        | BlockItemType::Filter(_)
+        | BlockItemType::Step
+        | BlockItemType::Gate => {
+            unreachable!("`place_new` refuses every shape but a reporter in a value socket")
+        }
     };
     let mut commands = world.commands();
     let made = spawn_expression(&mut commands, parent, ordinal, kind, operands);
@@ -1172,11 +1162,16 @@ impl ScriptNodes<'_, '_> {
         let Some(expression) = self.expression(node) else {
             return;
         };
-        if let ExprKind::Value(ValueOperand { value }) = &expression.kind {
-            if value.to_string().trim().is_empty() {
-                gaps.push((owner, "a variable has no name".to_string()));
+        match &expression.kind {
+            ExprKind::Value(ValueOperand { value }) => {
+                if value.to_string().trim().is_empty() {
+                    gaps.push((owner, "a variable has no name".to_string()));
+                }
+                return;
             }
-            return;
+            // The scenario lint names an id or an item a query lacks.
+            ExprKind::Query(_) => return,
+            _ => {}
         }
         let held = self.operands_of(node);
         if held.len() < 2 {

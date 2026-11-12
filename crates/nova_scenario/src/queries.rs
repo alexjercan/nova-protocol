@@ -8,6 +8,8 @@ pub mod prelude {
     };
 }
 
+use nova_gameplay::prelude::ItemDesignId;
+
 /// A typed read-only query supported by scenario expressions and watches.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -27,11 +29,15 @@ pub struct ScenarioQuery {
 }
 
 /// Properties available on the running scenario.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ScenarioProperty {
     /// Live, unpaused seconds since this scenario started.
     Elapsed,
+    /// The slug of the generated-world sector the player stands in, as text
+    /// (`sector_0_0_0`, `n` for a minus sign). Unavailable on a `Void` world,
+    /// which has no sectors; the lint refuses the read there.
+    Sector,
 }
 
 /// A strict single-entity query.
@@ -58,6 +64,11 @@ pub struct EntityQueryFilter {
 pub enum EntityProperty {
     /// Magnitude of the entity's linear velocity, in meters per second.
     Speed,
+    /// The credits a ship or a station holds.
+    Credits,
+    /// How many units of one item the hold of a ship or a station carries;
+    /// zero for an item the hold lacks.
+    Items(ItemDesignId),
 }
 
 /// A query sampled each live update and published under a variable name.

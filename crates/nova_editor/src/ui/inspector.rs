@@ -51,7 +51,7 @@ use crate::{
     config::{EditorOverlays, EditorSays, SceneRow, SelectedNode},
     event::{
         action_config, action_config_mut, expr_config_mut, filter_config_mut, retype_script_node,
-        ActionNode, EventNode, ExpressionNode, FilterNode, GateNode, StepNode,
+        ActionNode, EventNode, ExprKind, ExpressionNode, FilterNode, GateNode, StepNode,
     },
     frame::CameraFraming,
     gizmo::GizmoAxis,
@@ -62,7 +62,7 @@ use crate::{
         choose_field, content_reflect_mut, curated_object_rows, curated_section_rows, driver_label,
         edit_section, event_rows, filter_rows, form_fault, gate_rows, inherited_palette, inspected,
         item_text, nudge_field, object_config_mut, object_rows, operand_path, operand_row,
-        parse_colour, part_rows, pretty, remove_item, reset_field, rotation_degrees,
+        parse_colour, part_rows, pretty, query_rows, remove_item, reset_field, rotation_degrees,
         rotation_from_degrees, scale_framed_drags, scenario_rows, script_name, section_config_mut,
         section_rows, section_scope, set_item_text, set_well_target, ship_rows, socket_rows,
         step_rows, toggle_field, well_target_label, write_field, AssetPressType, CatalogType,
@@ -599,7 +599,22 @@ impl Document<'_, '_> {
         let Ok(expression) = self.expressions.get(node) else {
             return;
         };
-        rows.push(operand_row(node, expression, place, role, depth));
+        let row = operand_row(node, expression, place, role, depth);
+        if let ExprKind::Query(operand) = &expression.kind {
+            let group = row.group.clone();
+            rows.push(row);
+            rows.extend(
+                query_rows(node, operand)
+                    .into_iter()
+                    .map(|picked| InspectorRow {
+                        group: group.clone(),
+                        depth: depth + 1,
+                        ..picked
+                    }),
+            );
+        } else {
+            rows.push(row);
+        }
         for (side, operand) in SIDES.into_iter().zip(self.operands_of(node)) {
             self.operand_rows(operand, side, role.inside(), depth + 1, rows);
         }

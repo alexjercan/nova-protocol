@@ -34,6 +34,12 @@ struct Declared {
     /// purpose: their ids are `<prefix><n>`, minted at runtime, so nothing
     /// static can resolve one.
     spawned_ships: HashMap<String, SpawnedShip>,
+    /// Every id this scenario gives BY NAME to a ship root: the keys of
+    /// `spawned_ships`, each spawned station and the id of each
+    /// `SpawnStartRole`. A station is a ship root with a purse and a hold. A
+    /// named spawn absent from here is an asteroid, an area or another body
+    /// with neither.
+    ship_ids: HashSet<String>,
 }
 
 /// Everything OUTSIDE this scenario that its references must resolve against:
@@ -480,10 +486,17 @@ pub fn lint_scenario(
     };
 
     for watch in &scenario.watches {
-        check_query(&watch.query, id, &satisfiable, &mut issues);
+        check_query(
+            &watch.query,
+            id,
+            &satisfiable,
+            &declared,
+            &catalog,
+            &mut issues,
+        );
     }
     for query in scenario.inline_queries() {
-        check_query(query, id, &satisfiable, &mut issues);
+        check_query(query, id, &satisfiable, &declared, &catalog, &mut issues);
     }
 
     // Pass 2: what the scenario references.
@@ -989,6 +1002,12 @@ fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
     match action {
         EventActionConfig::SpawnScenarioObject(config) => {
             declared.spawn_ids.push(config.base.id.clone());
+            if matches!(
+                config.kind,
+                ScenarioObjectKind::Spaceship(_) | ScenarioObjectKind::Station(_)
+            ) {
+                declared.ship_ids.insert(config.base.id.clone());
+            }
             if let ScenarioObjectKind::Spaceship(ship) = &config.kind {
                 declared.spawned_ships.insert(
                     config.base.id.clone(),
@@ -1004,6 +1023,7 @@ fn collect_declared(action: &EventActionConfig, declared: &mut Declared) {
         // `spawned_ships` to check.
         EventActionConfig::SpawnStartRole(config) => {
             declared.spawn_ids.push(config.id.clone());
+            declared.ship_ids.insert(config.id.clone());
         }
         EventActionConfig::ScatterObjects(config) => {
             declared.scatter_prefixes.push(config.id_prefix.clone());
@@ -2108,12 +2128,18 @@ fn check_filter(
 enum GeneratedWorldOnlyType {
     /// An event, as a handler's `name` or a step's `until` gate.
     Event(EventConfig),
+    /// A scenario query, as a watch or an inline expression factor.
+    Query(ScenarioProperty),
 }
 
 impl GeneratedWorldOnlyType {
-    fn name(self) -> &'static str {
+    /// The name an author wrote: an event's RON tag, a query's text form.
+    fn name(self) -> String {
         match self {
-            GeneratedWorldOnlyType::Event(event) => event.name(),
+            GeneratedWorldOnlyType::Event(event) => event.name().to_string(),
+            GeneratedWorldOnlyType::Query(property) => {
+                QueryConfig::Scenario(ScenarioQuery { property }).to_string()
+            }
         }
     }
 }
@@ -2129,10 +2155,15 @@ const NO_CIVILIZATION: &str =
 /// Why no sector event fires on a `Void` world.
 const NO_SECTOR: &str = "only a generated world has sectors to cross, so the event can never fire";
 
+/// Why the sector query has no value on a `Void` world.
+const NO_CURRENT_SECTOR: &str =
+    "only a generated world has sectors, so the query never has a value and every read fails";
+
 /// Everything a `Void` scenario may not name, each with why it can never
 /// happen there. The one list [`check_generated_world_only`] reads: an
-/// event joins as a row, and an action as a [`GeneratedWorldOnlyType`]
-/// variant, its rows and its uses in [`generated_world_only_uses`].
+/// event or a scenario query joins as a row, and an action as a
+/// [`GeneratedWorldOnlyType`] variant, its rows and its uses in
+/// [`generated_world_only_uses`].
 const GENERATED_WORLD_ONLY: &[(GeneratedWorldOnlyType, &str)] = &[
     (
         GeneratedWorldOnlyType::Event(EventConfig::OnJobAccepted),
@@ -2158,12 +2189,23 @@ const GENERATED_WORLD_ONLY: &[(GeneratedWorldOnlyType, &str)] = &[
         GeneratedWorldOnlyType::Event(EventConfig::OnSectorEntered),
         NO_SECTOR,
     ),
+    (
+        GeneratedWorldOnlyType::Query(ScenarioProperty::Sector),
+        NO_CURRENT_SECTOR,
+    ),
 ];
 
 /// Every use a scenario makes of vocabulary [`GENERATED_WORLD_ONLY`] could
-/// list: each handler's event and each step gate's, however deeply nested.
+/// list: each handler's event and each step gate's, however deeply nested,
+/// and each scenario query a watch or an expression reads.
 fn generated_world_only_uses(scenario: &ScenarioConfig) -> Vec<GeneratedWorldOnlyType> {
     let mut uses = Vec::new();
+    let watched = scenario.watches.iter().map(|watch| &watch.query);
+    for query in watched.chain(scenario.inline_queries()) {
+        if let QueryConfig::Scenario(query) = query {
+            uses.push(GeneratedWorldOnlyType::Query(query.property));
+        }
+    }
     for event in &scenario.events {
         uses.push(GeneratedWorldOnlyType::Event(event.name));
         for action in &event.actions {
@@ -2335,25 +2377,57 @@ fn check_payload_fields(
     }
 }
 
+/// One query a watch or an expression reads. A scenario query names nothing;
+/// [`check_generated_world_only`] holds the one that needs a generated world.
+///
+/// An entity query's id must be spawned by this scenario. `credits` and
+/// `items` read a purse and a hold, which only a ship and a station have: an
+/// id this scenario gives BY NAME to an asteroid or an area is refused. A
+/// scattered id (`<prefix><n>`) gets the id check only - nothing static says
+/// what the scatter spawned. An `items` read names an item some loaded
+/// bundle defines.
 fn check_query(
     query: &QueryConfig,
     scenario: &str,
     satisfiable: &dyn Fn(&str) -> bool,
+    declared: &Declared,
+    catalog: &Catalog,
     issues: &mut Vec<LintIssue>,
 ) {
-    if let QueryConfig::Entity(query) = query {
-        if query.filter.id.trim().is_empty() {
-            return;
-        }
-        if !satisfiable(&query.filter.id) {
+    let QueryConfig::Entity(entity) = query else {
+        return;
+    };
+    let id = &entity.filter.id;
+    if let EntityProperty::Items(item) = &entity.property {
+        if catalog.items.get(item).is_none() {
             issues.push(LintIssue::error(
                 scenario,
-                format!(
-                    "entity query targets '{}', but no scenario action can spawn that id",
-                    query.filter.id
-                ),
+                format!("`{query}` names the item '{item}', which no loaded bundle defines"),
             ));
         }
+    }
+    if id.trim().is_empty() {
+        return;
+    }
+    if !satisfiable(id) {
+        issues.push(LintIssue::error(
+            scenario,
+            format!("entity query targets '{id}', but no scenario action can spawn that id"),
+        ));
+        return;
+    }
+    let reads_a_ship = match entity.property {
+        EntityProperty::Speed => false,
+        EntityProperty::Credits | EntityProperty::Items(_) => true,
+    };
+    if reads_a_ship && declared.spawn_ids.contains(id) && !declared.ship_ids.contains(id) {
+        issues.push(LintIssue::error(
+            scenario,
+            format!(
+                "`{query}` reads '{id}', which this scenario spawns as neither a ship nor a \
+                 station; only those hold credits and items"
+            ),
+        ));
     }
 }
 
@@ -5596,6 +5670,126 @@ mod tests {
         assert!(found[0].starts_with("`OnJobDone` on a `Void` world"));
 
         assert!(void_world_errors(&on_defeated(vec![], vec![])).is_empty());
+    }
+
+    /// A void has no sector, so `scenario.sector` never has a value there
+    /// and every read of it fails: as a watch, in a filter, or under a `Not`.
+    #[test]
+    fn the_sector_query_on_a_void_world_is_an_error_however_it_is_read() {
+        let mut watched = on_defeated(vec![], vec![]);
+        watched.watches.push(WatchConfig {
+            variable: "here".to_string(),
+            query: QueryConfig::Scenario(ScenarioQuery {
+                property: ScenarioProperty::Sector,
+            }),
+        });
+        let read = condition("scenario.sector == \"sector_0_0_0\"");
+        let inline = on_defeated(vec![read.clone()], vec![]);
+        let negated = on_defeated(
+            vec![EventFilterConfig::Conditional(
+                ConditionalFilterConfig::not(read),
+            )],
+            vec![],
+        );
+
+        for mut scenario in [watched, inline, negated] {
+            let found = void_world_errors(&scenario);
+            assert_eq!(found.len(), 1, "{found:?}");
+            assert!(
+                found[0].starts_with("`scenario.sector` on a `Void` world"),
+                "{found:?}"
+            );
+            assert!(found[0].contains("never has a value"), "{found:?}");
+
+            scenario.world = generated(Some(1));
+            assert!(void_world_errors(&scenario).is_empty());
+        }
+
+        let clock = on_defeated(vec![condition("scenario.elapsed > 5")], vec![]);
+        assert!(void_world_errors(&clock).is_empty());
+    }
+
+    /// `credits` and `items` read a purse and a hold. The id must be one the
+    /// scenario spawns, and not one it gives by name to a body that is
+    /// neither a ship nor a station; the item must be one a loaded bundle
+    /// defines.
+    #[test]
+    fn a_purse_or_hold_query_reads_a_spawned_ship_and_a_known_item() {
+        use nova_gameplay::test_support::test_items;
+
+        let query_errors = |filter: &str| {
+            let s = scenario(
+                vec![
+                    spawn_ship("freighter", "hull"),
+                    EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
+                        base: BaseScenarioObjectConfig {
+                            id: "post".to_string(),
+                            name: "Post".to_string(),
+                            position: Meters3::new(0.0, 0.0, 5_000.0),
+                            rotation: Quat::IDENTITY,
+                        },
+                        kind: ScenarioObjectKind::Station(StationConfig {
+                            design: StationDesignSource::Prototype("depot".into()),
+                            allegiance: nova_gameplay::prelude::Allegiance::Neutral,
+                            derelict: false,
+                            initial_velocity: MetersPerSecond3::ZERO,
+                        }),
+                    }),
+                    EventActionConfig::CreateScenarioArea(ScenarioAreaConfig {
+                        id: "dock".to_string(),
+                        name: "Dock".to_string(),
+                        position: Meters3::ZERO,
+                        rotation: Quat::IDENTITY,
+                        radius: Meters(10.0),
+                    }),
+                ],
+                vec![condition(filter)],
+            );
+            let issues = lint_scenario(
+                &s,
+                &sections(&["hull"]),
+                &ships(&[]),
+                &stations(&["depot"]),
+                &known(&["test_scenario"]),
+                &test_items(),
+                &GameStyles::default(),
+                &GameTradeProfiles::default(),
+            );
+            errors(&issues)
+                .iter()
+                .map(|issue| issue.message.clone())
+                .collect::<Vec<_>>()
+        };
+
+        for clean in [
+            "entity(\"freighter\").credits > 5",
+            "entity(\"freighter\").items(\"IronOre\") > 0",
+            "entity(\"post\").credits > 5",
+            "entity(\"post\").items(\"IronOre\") > 0",
+            "entity(\"dock\").speed > 0",
+        ] {
+            assert!(query_errors(clean).is_empty(), "{:?}", query_errors(clean));
+        }
+
+        for (filter, reason) in [
+            ("entity(\"ghost\").credits > 5", "targets 'ghost'"),
+            (
+                "entity(\"freighter\").items(\"lost_core\") > 0",
+                "names the item 'lost_core', which no loaded bundle defines",
+            ),
+            (
+                "entity(\"dock\").credits > 5",
+                "reads 'dock', which this scenario spawns as neither a ship nor a station",
+            ),
+            (
+                "entity(\"dock\").items(\"IronOre\") > 0",
+                "reads 'dock', which this scenario spawns as neither a ship nor a station",
+            ),
+        ] {
+            let found = query_errors(filter);
+            assert_eq!(found.len(), 1, "{filter}: {found:?}");
+            assert!(found[0].contains(reason), "{filter}: {found:?}");
+        }
     }
 
     fn number(n: f64) -> VariableExpressionNode {

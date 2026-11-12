@@ -58,7 +58,7 @@ use crate::{
     event::{
         action_choice, action_config, event_label, expr_choice, filter_choice, filter_config,
         handler_text, ActionChoice, ActionNode, EventNode, ExprChoice, ExprKind, ExpressionNode,
-        FilterChoice, FilterNode, GateNode, ScriptNodes, StepNode,
+        FilterChoice, FilterNode, GateNode, QueryOperand, QueryReadType, ScriptNodes, StepNode,
     },
     node::{
         objects_of, EditContext, EditorNode, NodeId, ObjectNode, ObjectNodes, ScenarioNode,
@@ -3646,6 +3646,25 @@ impl Operand {
 /// its operators cannot disagree about which field the text is.
 pub(crate) fn operand_path() -> Vec<PathStep> {
     vec![PathStep::Field("value".to_string())]
+}
+
+/// The rows a query operand is picked by: what it reads, then the id and the
+/// item that read takes.
+///
+/// A field the read does not take is left out: `scenario.elapsed` has no
+/// object, and a row for one would be a box that changes nothing.
+pub(crate) fn query_rows(owner: Entity, operand: &QueryOperand) -> Vec<InspectorRow> {
+    let mut rows = Vec::new();
+    walk_edited(operand, FieldRoot::Config, Vec::new(), &mut rows);
+    rows.retain(|row| match row.path.first() {
+        Some(PathStep::Field(name)) if name == "id" => operand.read.reads_an_object(),
+        Some(PathStep::Field(name)) if name == "item" => operand.read == QueryReadType::Items,
+        _ => true,
+    });
+    for row in &mut rows {
+        row.owner = Some(owner);
+    }
+    rows
 }
 
 /// ONE row of an expression page: which operator this node is, and - for a

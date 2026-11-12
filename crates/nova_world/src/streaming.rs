@@ -32,7 +32,7 @@ use nova_gameplay::prelude::{
 use nova_scenario::prelude::{
     asteroid_scenario_object_prepared, base_scenario_object, planet_scenario_object_prepared,
     resolve_ship_design, spaceship_scenario_object, station_scenario_object, AsteroidKindId,
-    BaseScenarioObjectConfig, CurrentScenario, GameShipDesigns, PendingParkedHull,
+    BaseScenarioObjectConfig, CurrentScenario, GameShipDesigns, NovaEventWorld, PendingParkedHull,
     PendingParkedHulls, PlanetMarker, ShipDesignSource, StationMarker,
 };
 use nova_ship::prelude::GameSections;
@@ -641,6 +641,32 @@ pub fn fire_sector_entered(mut crossings: MessageReader<SectorCrossed>, mut comm
     for crossing in crossings.read() {
         commands
             .fire::<OnSectorEnteredEvent>(SectorEnteredEventInfo::new(crossing.from, crossing.to));
+    }
+}
+
+/// Publish the cell the observer stands in as the value of the scenario
+/// query `scenario.sector`.
+///
+/// Runs in [`crate::NovaWorldSystems::Observe`] after
+/// [`track_current_sector`], which writes [`CurrentSector`], and before
+/// `ScenarioPulseSystems`, so the sequence driver, the timers and the
+/// `OnUpdate` pulse of a frame read the cell the observer is in on that
+/// frame. The stage runs only under an armed [`WorldConfig`]: a `Void` world
+/// publishes nothing and the query has no value there.
+///
+/// Compared against what the event world holds, not against a change tick:
+/// a teardown forgets the published sector while [`CurrentSector`] stays, and
+/// the next frame must publish it again.
+pub fn sample_current_sector(
+    current: Option<Res<CurrentSector>>,
+    mut world: ResMut<NovaEventWorld>,
+) {
+    // Absent only until the tracker's first insert is applied.
+    let Some(current) = current else {
+        return;
+    };
+    if world.sampled_sector() != Some(current.0) {
+        world.sample_sector(current.0);
     }
 }
 

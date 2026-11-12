@@ -147,10 +147,20 @@ Supported queries:
 | query | result | meaning |
 |---|---|---|
 | `Scenario((property: Elapsed))` | Number | live, unpaused scenario seconds; resets on teardown |
+| `Scenario((property: Sector))` | String | slug of the generated-world sector the player stands in: `sector_0_0_0`, with `n` for a minus sign (`sector_1_0_n2`). The same text `OnSectorEntered` carries as `sector` |
 | `Entity((filter: (id: "..."), property: Speed))` | Number | speed of exactly one matching entity, in METERS PER SECOND - so a literal compared against it is a real m/s figure (the shipped manual cap is 250) |
+| `Entity((filter: (id: "..."), property: Credits))` | Number | the credits that ship or station holds |
+| `Entity((filter: (id: "..."), property: Items("IronOre")))` | Number | how many units of that item the ship's or station's hold carries; 0 for an item the hold lacks |
 
-`Entity` is strict-single. Zero matches, multiple matches, or a missing velocity
-make the query unavailable. Expressions fail closed. Missing is not zero.
+`Entity` is strict-single. Zero matches, multiple matches, a missing velocity
+for `Speed`, or a target that is neither a ship nor a station for `Credits`
+and `Items` make the query unavailable. Expressions fail closed. Missing is
+not zero.
+
+`content lint` refuses `Credits` and `Items` on an id the scenario spawns as
+neither a ship nor a station (`"player"` from `SpawnStartRole` is a ship), an
+`Items` id no loaded bundle defines, and `Sector` on a scenario with no
+generated `world`: a `Void` world has no sectors.
 
 ## Event fields
 
@@ -212,6 +222,11 @@ leaf holds one value, typed in the short form below rather than as a nest of
 `Add(Term(Factor(...`. A leaf that names a variable can PICK one instead of
 spelling it: the chip beside the box lists what the scenario declares.
 
+A query is a block of its own, `Query` in the palette. It is PICKED, not
+typed: one chip lists every read (`Elapsed`, `Sector`, `Speed`, `Credits`,
+`Items`), a read of a ship adds a chip that lists the scenario's objects, and
+`Items` adds a chip that lists the items the mod sees.
+
 A `VariableSet` action opens the SAME page under its `Key`, headed `Value`
 instead of `Condition`: what it writes is an expression, so `Writes` sits where
 `Compare` does and takes the operators a value may have - `+ - * /` and a leaf,
@@ -226,7 +241,10 @@ never a comparison.
 | `beat + 1` | `Add(Factor(Name("beat")), Term(Factor(Literal(Number(1.0)))))` |
 | `(a + b) * 2` | `Term(Multiply(Parens(..), Factor(Literal(Number(2.0)))))` |
 | `scenario.elapsed` | `Term(Factor(Query(Scenario((property: Elapsed)))))` |
+| `scenario.sector` | `Term(Factor(Query(Scenario((property: Sector)))))` |
 | `entity("courier").speed` | `Term(Factor(Query(Entity((filter: (id: "courier"), property: Speed)))))` |
+| `entity("player").credits` | `Term(Factor(Query(Entity((filter: (id: "player"), property: Credits)))))` |
+| `entity("player").items("IronOre")` | `Term(Factor(Query(Entity((filter: (id: "player"), property: Items("IronOre"))))))` |
 | `event.price_cr` | `Term(Factor(Event("price_cr")))` |
 | `beat == 3` | `Equal(Term(Factor(Name("beat"))), Term(Factor(Literal(Number(3.0)))))` |
 

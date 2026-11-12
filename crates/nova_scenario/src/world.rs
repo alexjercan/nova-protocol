@@ -24,7 +24,7 @@ use bevy::{
     platform::time::Instant,
     prelude::*,
 };
-use nova_events::prelude::EventWorld;
+use nova_events::prelude::{EventWorld, SectorCoord};
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::*;
 
@@ -202,10 +202,13 @@ pub struct NovaEventWorld {
     variables: HashMap<String, VariableLiteral>,
     watched_values: HashMap<String, VariableLiteral>,
     watches: Vec<WatchConfig>,
-    /// Whether anything in the loaded scenario can read an entity query, so the
-    /// per-frame sampler that feeds them is worth running at all. Set from
-    /// `ScenarioConfig::reads_an_entity_query` at load; false at teardown.
-    reads_entity_queries: bool,
+    /// Every entity query the loaded scenario can read: the list the
+    /// per-frame sampler answers, and whether it is worth running at all. Set
+    /// from `ScenarioConfig::entity_queries` at load; empty at teardown.
+    entity_queries: Vec<EntityQuery>,
+    /// The sector [`Self::sample_sector`] last published. `None` until the
+    /// generated world reports one, and again at teardown.
+    sector: Option<SectorCoord>,
     query_values: HashMap<QueryConfig, VariableLiteral>,
     scenario_elapsed: f64,
     /// Keyed timer deadlines on the pause-frozen scenario clock.
@@ -544,7 +547,8 @@ impl NovaEventWorld {
         self.wake = WakeProfile::EveryFrame;
         self.dirty.clear();
         self.wake_checked_at = 0.0;
-        self.reads_entity_queries = false;
+        self.entity_queries.clear();
+        self.sector = None;
         self.query_values.clear();
         self.scenario_elapsed = 0.0;
         self.timers.clear();
@@ -982,13 +986,17 @@ impl NovaEventWorld {
 
     /// Configure the watches owned by the newly loaded scenario.
     ///
-    /// `reads_entity_queries` covers the whole scenario, not just `watches`: an
+    /// `entity_queries` covers the whole scenario, not just `watches`: an
     /// entity query is equally legal as an inline expression factor, and the
-    /// sampler that answers one has to be running before the action does. Pass
-    /// `ScenarioConfig::reads_an_entity_query`.
-    pub(crate) fn set_watches(&mut self, watches: Vec<WatchConfig>, reads_entity_queries: bool) {
+    /// sampler answers only the queries listed here. Pass
+    /// `ScenarioConfig::entity_queries`.
+    pub(crate) fn set_watches(
+        &mut self,
+        watches: Vec<WatchConfig>,
+        entity_queries: Vec<EntityQuery>,
+    ) {
         self.watches = watches;
-        self.reads_entity_queries = reads_entity_queries;
+        self.entity_queries = entity_queries;
         self.query_values.insert(
             QueryConfig::Scenario(ScenarioQuery {
                 property: ScenarioProperty::Elapsed,
@@ -1040,7 +1048,12 @@ impl NovaEventWorld {
     /// Whether the loaded scenario can read an entity query - the gate on the
     /// per-frame entity sampler.
     pub(crate) fn reads_entity_queries(&self) -> bool {
-        self.reads_entity_queries
+        !self.entity_queries.is_empty()
+    }
+
+    /// Every entity query the loaded scenario can read.
+    pub(crate) fn entity_queries(&self) -> &[EntityQuery] {
+        &self.entity_queries
     }
 
     fn publish_watches(&mut self) {
@@ -1153,21 +1166,38 @@ impl NovaEventWorld {
         self.publish_watches();
     }
 
-    /// Replace sampled entity query values, then publish all watches.
-    pub(crate) fn sample_entity_speeds(&mut self, speeds: HashMap<String, Option<f64>>) {
+    /// Replace sampled entity query values, then publish all watches. A
+    /// query absent from `samples` becomes unavailable.
+    pub(crate) fn sample_entity_queries(&mut self, samples: HashMap<EntityQuery, VariableLiteral>) {
         self.query_values
             .retain(|query, _| matches!(query, QueryConfig::Scenario(_)));
-        for (id, speed) in speeds {
-            if let Some(speed) = speed {
-                self.query_values.insert(
-                    QueryConfig::Entity(EntityQuery {
-                        filter: EntityQueryFilter { id },
-                        property: EntityProperty::Speed,
-                    }),
-                    VariableLiteral::Number(speed),
-                );
-            }
+        for (query, value) in samples {
+            self.query_values.insert(QueryConfig::Entity(query), value);
         }
+        self.publish_watches();
+    }
+
+    /// The sector [`Self::sample_sector`] last published, or `None` when the
+    /// loaded scenario has heard of none.
+    pub fn sampled_sector(&self) -> Option<SectorCoord> {
+        self.sector
+    }
+
+    /// Publish the generated-world sector the player stands in as the value
+    /// of the `scenario.sector` query (its slug, as text), then publish all
+    /// watches.
+    ///
+    /// The value lives in `nova_world`, above this crate, so its sampler
+    /// calls this. Teardown forgets the sector with the other query values; a
+    /// `Void` world never calls it, and the query stays unavailable there.
+    pub fn sample_sector(&mut self, sector: SectorCoord) {
+        self.sector = Some(sector);
+        self.query_values.insert(
+            QueryConfig::Scenario(ScenarioQuery {
+                property: ScenarioProperty::Sector,
+            }),
+            VariableLiteral::String(sector.slug()),
+        );
         self.publish_watches();
     }
 
@@ -1331,10 +1361,10 @@ mod tests {
                     property: ScenarioProperty::Elapsed,
                 }),
             }],
-            false,
+            Vec::new(),
         );
         world.advance_scenario_elapsed(3.0);
-        world.sample_entity_speeds(HashMap::new());
+        world.sample_entity_queries(HashMap::new());
         assert_eq!(
             world.get_variable("elapsed"),
             Some(&VariableLiteral::Number(3.0))

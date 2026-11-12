@@ -26,41 +26,72 @@ fn scenario_reads_an_entity_query(world: Res<NovaEventWorld>) -> bool {
     world.reads_entity_queries()
 }
 
-/// Sample every exact-id entity speed once for a coherent query snapshot.
+/// Sample every entity query the scenario reads once, for a coherent query
+/// snapshot.
 ///
 /// [`ScenarioAddressable`] is what keeps ship SECTIONS out: they carry reusable
 /// section-local `EntityId`s, so an unscoped scan would report a section's
 /// speed under a name another ship reuses, and the duplicate-id error below
-/// would fire for a scenario that authored no duplicate. `&LinearVelocity` is
-/// the DATA requirement, not the gate - an entity with no velocity is outside
-/// the `Speed` query domain.
+/// would fire for a scenario that authored no duplicate. The optional
+/// components are the DATA requirement, not the gate - an entity with no
+/// velocity is outside the `Speed` query domain, one with no purse outside
+/// `Credits`, one with no hold outside `Items`, and the query is unavailable.
 fn sample_scenario_queries(
-    entities: Query<(&EntityId, &LinearVelocity), ScenarioAddressable>,
+    entities: Query<
+        (
+            &EntityId,
+            Option<&LinearVelocity>,
+            Option<&ShipCredits>,
+            Option<&ShipInventory>,
+        ),
+        ScenarioAddressable,
+    >,
     mut world: ResMut<NovaEventWorld>,
 ) {
-    let mut speeds = HashMap::new();
-    for (id, velocity) in &entities {
-        // Engine boundary: avian reports world units per second, and the
-        // expression language a scenario compares this against is SI.
-        let value = Some(f64::from(
-            MetersPerSecond::from_engine(velocity.length()).get(),
-        ));
-        match speeds.entry(id.0.clone()) {
-            bevy::platform::collections::hash_map::Entry::Vacant(entry) => {
-                entry.insert(value);
-            }
-            bevy::platform::collections::hash_map::Entry::Occupied(mut entry) => {
-                if entry.get().is_some() {
-                    error!(
-                        "entity speed query id '{}' matched more than one entity; value is unavailable",
-                        id.0
-                    );
+    let mut samples: HashMap<EntityQuery, Option<VariableLiteral>> = HashMap::new();
+    for (id, velocity, credits, inventory) in &entities {
+        let read = world
+            .entity_queries()
+            .iter()
+            .filter(|query| query.filter.id == id.0);
+        for query in read {
+            let value = match &query.property {
+                // Engine boundary: avian reports world units per second, and
+                // the expression language a scenario compares this against is
+                // SI.
+                EntityProperty::Speed => velocity.map(|velocity| {
+                    f64::from(MetersPerSecond::from_engine(velocity.length()).get())
+                }),
+                EntityProperty::Credits => credits.map(|credits| f64::from(credits.0)),
+                EntityProperty::Items(item) => {
+                    inventory.map(|inventory| f64::from(inventory.count(item)))
                 }
-                entry.insert(None);
+            };
+            let Some(value) = value else {
+                continue;
+            };
+            match samples.entry(query.clone()) {
+                bevy::platform::collections::hash_map::Entry::Vacant(entry) => {
+                    entry.insert(Some(VariableLiteral::Number(value)));
+                }
+                bevy::platform::collections::hash_map::Entry::Occupied(mut entry) => {
+                    if entry.get().is_some() {
+                        error!(
+                            "entity query `{}` matched more than one entity; value is unavailable",
+                            QueryConfig::Entity(query.clone())
+                        );
+                    }
+                    entry.insert(None);
+                }
             }
         }
     }
-    world.sample_entity_speeds(speeds);
+    world.sample_entity_queries(
+        samples
+            .into_iter()
+            .filter_map(|(query, value)| Some((query, value?)))
+            .collect(),
+    );
 }
 
 /// Read the current pause-frozen scenario clock.
@@ -93,6 +124,9 @@ pub(crate) fn tick_scenario_timers(mut commands: Commands, mut world: ResMut<Nov
 /// Only the pulse is conditional. The clock, the query sample, the sequence
 /// driver and the timers run whenever the scenario is live, because each of
 /// them is what PRODUCES a reason to wake.
+///
+/// The whole chain is [`ScenarioPulseSystems`], the handle a sampler outside
+/// this crate orders itself before.
 pub(super) fn register_clock_and_pulse(app: &mut App) {
     app.add_systems(
         Update,
@@ -107,6 +141,7 @@ pub(super) fn register_clock_and_pulse(app: &mut App) {
             fire_on_update.run_if(scenario_pulse_is_due),
         )
             .chain()
+            .in_set(ScenarioPulseSystems)
             .run_if(
                 scenario_is_live
                     .and_then(in_state(PauseStates::Unpaused))
@@ -355,8 +390,22 @@ mod tests {
         }
     }
 
-    /// The live chain plus a counter on the fired `OnUpdate` event.
+    /// The live chain plus a counter on the fired `OnUpdate` event, with the
+    /// clock watch every shipped scenario declares.
     fn pulse_app(events: Vec<ScenarioEventConfig>) -> App {
+        pulse_app_watching(
+            vec![WatchConfig {
+                variable: "scenario_elapsed".to_string(),
+                query: QueryConfig::Scenario(ScenarioQuery {
+                    property: ScenarioProperty::Elapsed,
+                }),
+            }],
+            events,
+        )
+    }
+
+    /// [`pulse_app`] for a scenario that declares `watches`.
+    fn pulse_app_watching(watches: Vec<WatchConfig>, events: Vec<ScenarioEventConfig>) -> App {
         use core::time::Duration;
 
         use bevy::time::TimeUpdateStrategy;
@@ -383,17 +432,145 @@ mod tests {
         register_clock_and_pulse(&mut app);
 
         let config = ScenarioConfig {
-            watches: vec![WatchConfig {
-                variable: "scenario_elapsed".to_string(),
-                query: QueryConfig::Scenario(ScenarioQuery {
-                    property: ScenarioProperty::Elapsed,
-                }),
-            }],
+            watches,
             ..scenario_with("pulse", events)
         };
         crate::test_support::register_scenario_handlers(&mut app, &config);
         app.insert_resource(CurrentScenario(Some(config)));
         app
+    }
+
+    /// A purse, a hold count and the sector are samples nothing marks as
+    /// written, so a handler that reads one must keep its per-frame pulse.
+    /// Each case is its own scenario: one every-frame read would keep the
+    /// pulse on for the others.
+    ///
+    /// Fail-first: with the watch collected as a content variable the wake
+    /// profile is `OnChange` on a name no write ever dirties, the handler
+    /// never runs again, and `seen` stays unset.
+    #[test]
+    fn an_on_update_handler_sees_a_purse_a_hold_and_a_sector_change() {
+        use nova_gameplay::{
+            prelude::{
+                ItemDesignId, ItemRoleType, ShipCredits, ShipInventory, SpaceshipRootMarker,
+            },
+            test_support::test_items,
+        };
+
+        let iron = ItemDesignId::from(ItemRoleType::IronOre.id());
+        let ship_watch = |variable: &str, property: EntityProperty| WatchConfig {
+            variable: variable.to_string(),
+            query: QueryConfig::Entity(EntityQuery {
+                filter: EntityQueryFilter {
+                    id: "player".to_string(),
+                },
+                property,
+            }),
+        };
+        let sector_watch = WatchConfig {
+            variable: "here".to_string(),
+            query: QueryConfig::Scenario(ScenarioQuery {
+                property: ScenarioProperty::Sector,
+            }),
+        };
+        type Change = fn(&mut World, Entity);
+        let cases: [(&str, Vec<WatchConfig>, &str, Change); 4] = [
+            (
+                "a watched purse",
+                vec![ship_watch("purse", EntityProperty::Credits)],
+                "purse > 100",
+                |world, ship| world.get_mut::<ShipCredits>(ship).unwrap().0 = 150,
+            ),
+            (
+                "a watched hold count",
+                vec![ship_watch("ore", EntityProperty::Items(iron.clone()))],
+                "ore > 2",
+                |world, ship| {
+                    let iron = ItemDesignId::from(ItemRoleType::IronOre.id());
+                    world
+                        .get_mut::<ShipInventory>(ship)
+                        .unwrap()
+                        .add(&test_items(), &iron, 2);
+                },
+            ),
+            (
+                "an inline hold count",
+                vec![],
+                "entity(\"player\").items(\"IronOre\") > 2",
+                |world, ship| {
+                    let iron = ItemDesignId::from(ItemRoleType::IronOre.id());
+                    world
+                        .get_mut::<ShipInventory>(ship)
+                        .unwrap()
+                        .add(&test_items(), &iron, 2);
+                },
+            ),
+            (
+                "a watched sector",
+                vec![sector_watch],
+                "here == \"sector_1_0_n2\"",
+                |world, _| {
+                    world
+                        .resource_mut::<NovaEventWorld>()
+                        .sample_sector(SectorCoord::new(1, 0, -2));
+                },
+            ),
+        ];
+
+        for (what, watches, filter, change) in cases {
+            let mut app = pulse_app_watching(
+                watches,
+                vec![ScenarioEventConfig {
+                    label: None,
+                    position: None,
+                    name: EventConfig::OnUpdate,
+                    filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
+                        filter.parse().expect(filter),
+                    ))],
+                    ..event_with(vec![EventActionConfig::VariableSet(
+                        VariableSetActionConfig {
+                            key: "seen".to_string(),
+                            expression: "true".parse().expect("a literal parses"),
+                        },
+                    )])
+                }],
+            );
+            let ship = app
+                .world_mut()
+                .spawn((
+                    ScenarioScopedMarker,
+                    ScenarioAddressableMarker,
+                    SpaceshipRootMarker,
+                    EntityId::new("player".to_string()),
+                    ShipCredits(50),
+                    ShipInventory::new(&test_items(), 100_000, [(iron.clone(), 1)]),
+                ))
+                .id();
+            app.world_mut()
+                .resource_mut::<NovaEventWorld>()
+                .sample_sector(SectorCoord::ORIGIN);
+            let seen = |app: &App| {
+                app.world()
+                    .resource::<NovaEventWorld>()
+                    .get_variable("seen")
+                    .cloned()
+            };
+
+            for _ in 0..4 {
+                app.update();
+            }
+            assert_eq!(seen(&app), None, "{what}: the gate holds before the change");
+
+            change(app.world_mut(), ship);
+            for _ in 0..3 {
+                app.update();
+            }
+            assert_eq!(
+                seen(&app),
+                Some(VariableLiteral::Boolean(true)),
+                "{what}: the handler runs on the frame after the change"
+            );
+        }
     }
 
     /// The OnUpdate pulse: fires every frame while a scenario is live and stays
@@ -918,7 +1095,12 @@ mod tests {
                         property: EntityProperty::Speed,
                     }),
                 }],
-                true,
+                vec![EntityQuery {
+                    filter: EntityQueryFilter {
+                        id: "player_spaceship".to_string(),
+                    },
+                    property: EntityProperty::Speed,
+                }],
             );
 
         app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
@@ -1053,7 +1235,12 @@ mod tests {
                         property: EntityProperty::Speed,
                     }),
                 }],
-                true,
+                vec![EntityQuery {
+                    filter: EntityQueryFilter {
+                        id: "cutter".to_string(),
+                    },
+                    property: EntityProperty::Speed,
+                }],
             );
         app.insert_resource(CurrentScenario(Some(scenario_with("live", vec![]))));
 

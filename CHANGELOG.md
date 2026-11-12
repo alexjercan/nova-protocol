@@ -44,6 +44,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New scenario events `OnJobDone`, `OnJobHandedIn` and `OnJobDropped` (`cause`: `Lost` or `Abandoned`) follow a held job. All job events carry `id`, `kind`, `station`, `reward_cr` and `post_key`.
 - **(breaking)** A scenario with no generated `world` that names a job event (`OnJobAccepted` included) is now a lint error and does not load: no station there posts a job board.
 - New scenario event `OnStanceChanged` fires once per step of a civilization's stance toward the player, with `civilization`, `from` and `to`. Lint refuses it on a scenario with no generated `world`.
+- Scenario expressions gain `entity("id").credits`, `entity("id").items("Item")` and `scenario.sector` (generated worlds only); the editor Query block picks every query from lists.
 - New scenario event `OnSectorEntered` fires when the player crosses into another sector, with `sector`, `x`, `y`, `z` and `from`. Lint refuses it on a scenario with no generated `world`.
 - **(breaking)** A player `input_mapping` source the flight or camera rig holds is now a lint error, not a warning. A thruster on Space or RB and a torpedo bay on LB are shared defaults and pass.
 - The editor now binds a new torpedo bay to LB and a railgun to View on a gamepad, in place of LT (raise weapons) and R3 (interface), and a ship's first mining beam to RT as well as `V`.

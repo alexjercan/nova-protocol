@@ -300,7 +300,7 @@ fn comparison_with_a_reporter(app: &mut App) -> (Entity, Entity) {
         .expect("the walk runs");
     let reporter = place_new(
         world,
-        BlockItemType::Query,
+        BlockItemType::Expr(ExprChoice::Query),
         BlockSlotType::Value {
             parent: root,
             index: 0,

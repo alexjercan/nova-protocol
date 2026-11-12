@@ -6,7 +6,8 @@
 //! 300px inspector row, where reflection would draw one row per node and a
 //! two-term comparison would fill the panel. So the grammar gets a surface
 //! syntax: `picket_warden_awake == false`, `scenario.elapsed > 90`,
-//! `entity("player_spaceship").speed * 2`, `event.kind == "Recover"`.
+//! `entity("player_spaceship").speed * 2`, `entity("player").items("IronOre")`,
+//! `event.kind == "Recover"`.
 //!
 //! ROUND-TRIP IS THE CONTRACT, in both directions. Parsing a rendering gives
 //! back the same tree, and rendering a parse gives back the same text; the
@@ -20,6 +21,8 @@
 //! authored form cannot hold.
 
 use core::{fmt, str::FromStr};
+
+use nova_gameplay::prelude::ItemDesignId;
 
 use crate::prelude::*;
 
@@ -68,11 +71,16 @@ impl fmt::Display for QueryConfig {
         match self {
             QueryConfig::Scenario(query) => match query.property {
                 ScenarioProperty::Elapsed => f.write_str("scenario.elapsed"),
+                ScenarioProperty::Sector => f.write_str("scenario.sector"),
             },
             QueryConfig::Entity(query) => {
                 write!(f, "entity(\"{}\").", query.filter.id)?;
-                match query.property {
+                match &query.property {
                     EntityProperty::Speed => f.write_str("speed"),
+                    EntityProperty::Credits => f.write_str("credits"),
+                    // The item rides in a call, like the entity id: an item
+                    // id is content text, not a word of the grammar.
+                    EntityProperty::Items(item) => write!(f, "items(\"{item}\")"),
                 }
             }
         }
@@ -372,38 +380,36 @@ impl Parser {
         match name.as_str() {
             "scenario" => {
                 self.property("scenario")?;
-                match self.property_name("scenario")?.as_str() {
-                    "elapsed" => Ok(VariableFactorNode::new_query(QueryConfig::Scenario(
-                        ScenarioQuery {
-                            property: ScenarioProperty::Elapsed,
-                        },
-                    ))),
-                    other => Err(SyntaxError(format!("'{other}' is not a scenario property"))),
-                }
+                let property = match self.property_name("scenario")?.as_str() {
+                    "elapsed" => ScenarioProperty::Elapsed,
+                    "sector" => ScenarioProperty::Sector,
+                    other => {
+                        return Err(SyntaxError(format!("'{other}' is not a scenario property")))
+                    }
+                };
+                Ok(VariableFactorNode::new_query(QueryConfig::Scenario(
+                    ScenarioQuery { property },
+                )))
             }
             "entity" => {
-                if !self.eat("(") {
-                    return Err(SyntaxError("entity needs an id: entity(\"x\")".to_string()));
-                }
-                let Some(Token::Text(id)) = self.peek().cloned() else {
-                    return Err(SyntaxError(
-                        "an entity id is a quoted string: entity(\"x\")".to_string(),
-                    ));
-                };
-                self.at += 1;
-                if !self.eat(")") {
-                    return Err(SyntaxError("missing ')' after the entity id".to_string()));
-                }
+                let id = self.quoted_id("entity", "entity id")?;
                 self.property("entity")?;
-                match self.property_name("entity")?.as_str() {
-                    "speed" => Ok(VariableFactorNode::new_query(QueryConfig::Entity(
-                        EntityQuery {
-                            filter: EntityQueryFilter { id },
-                            property: EntityProperty::Speed,
-                        },
-                    ))),
-                    other => Err(SyntaxError(format!("'{other}' is not an entity property"))),
-                }
+                let property = match self.property_name("entity")?.as_str() {
+                    "speed" => EntityProperty::Speed,
+                    "credits" => EntityProperty::Credits,
+                    "items" => EntityProperty::Items(ItemDesignId::from(
+                        self.quoted_id("items", "item id")?.as_str(),
+                    )),
+                    other => {
+                        return Err(SyntaxError(format!("'{other}' is not an entity property")))
+                    }
+                };
+                Ok(VariableFactorNode::new_query(QueryConfig::Entity(
+                    EntityQuery {
+                        filter: EntityQueryFilter { id },
+                        property,
+                    },
+                )))
             }
             "event" => {
                 self.property("event")?;
@@ -413,6 +419,24 @@ impl Parser {
             }
             _ => Ok(VariableFactorNode::new_name(name)),
         }
+    }
+
+    /// The one quoted id of `word("x")`; `noun` names it in an error
+    /// (`entity id`, `item id`).
+    fn quoted_id(&mut self, word: &str, noun: &str) -> Result<String, SyntaxError> {
+        if !self.eat("(") {
+            return Err(SyntaxError(format!("{word} needs an id: {word}(\"x\")")));
+        }
+        let Some(Token::Text(id)) = self.peek().cloned() else {
+            return Err(SyntaxError(format!(
+                "an {noun} is a quoted string: {word}(\"x\")"
+            )));
+        };
+        self.at += 1;
+        if !self.eat(")") {
+            return Err(SyntaxError(format!("missing ')' after the {noun}")));
+        }
+        Ok(id)
     }
 
     /// The dot of a query's property access.

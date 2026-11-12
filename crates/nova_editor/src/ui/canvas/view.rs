@@ -16,8 +16,8 @@ use crate::{
         ScriptNodes, ValueOperand,
     },
     inspect::{
-        action_rows, event_rows, filter_rows, gate_rows, operand_row, step_rows, variant_hint,
-        DragRule, InspectorRow, Operand, RowValue,
+        action_rows, event_rows, filter_rows, gate_rows, operand_row, query_rows, step_rows,
+        variant_hint, DragRule, InspectorRow, Operand, RowValue,
     },
     palette::{block_colour, block_lifted},
     ui::inspector::{InspectorField, Offers},
@@ -755,6 +755,9 @@ impl ViewBuilder<'_, '_, '_> {
                 },
                 field: Some(InspectorField::of_operand(node)),
             }));
+        } else if let ExprKind::Query(operand) = &expression.kind {
+            view.head
+                .extend(chips_of(node, &query_rows(node, operand), true));
         } else {
             for (index, side) in self.script.operands_of(node).iter().enumerate() {
                 view.head.push(self.value(

@@ -67,8 +67,9 @@
 //!    previous one asked for.
 //! 2. [`NovaWorldSystems::Observe`] writes which cell the [`WorldObserver`]
 //!    stands in, posts [`SectorCrossed`] when that cell changed under an
-//!    armed config and fires `OnSectorEntered` for it, and refuses a newly
-//!    armed config. The generator validates too, but on a worker, which is
+//!    armed config and fires `OnSectorEntered` for it, publishes the cell
+//!    as the scenario query `scenario.sector`, and refuses a newly armed
+//!    config. The generator validates too, but on a worker, which is
 //!    one job too late for a window the main thread enumerates whole in the
 //!    very next stage.
 //! 3. [`NovaWorldSystems::Request`] starts jobs for the desired cells that are
@@ -185,7 +186,10 @@ use nova_events::prelude::Meters;
 pub use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 pub use nova_gameplay::prelude::{advance_world_clock, WorldClock};
 use nova_gameplay::prelude::{Fnv32, SeedStream};
-use nova_scenario::prelude::{scenario_is_live, AsteroidKindId, CurrentScenario, ShipDesignError};
+use nova_scenario::prelude::{
+    scenario_is_live, AsteroidKindId, CurrentScenario, NovaEventWorld, ScenarioPulseSystems,
+    ShipDesignError,
+};
 
 mod frozen;
 mod generation;
@@ -208,9 +212,9 @@ pub use crate::{
     streaming::{
         clear_sector_work, collect_sector_jobs, desired_sectors, fire_sector_entered, live_sectors,
         materialize_pending_bodies, materialize_ready_sector, materialize_sector, request_sectors,
-        retire_sectors, track_current_sector, CurrentSector, ObserverBody, PendingSectorShip,
-        PendingSectorStation, ReadySectors, SectorClusterTypes, SectorCrossed, SectorJob,
-        SectorJobStats, SectorRoot, WorldObserver,
+        retire_sectors, sample_current_sector, track_current_sector, CurrentSector, ObserverBody,
+        PendingSectorShip, PendingSectorStation, ReadySectors, SectorClusterTypes, SectorCrossed,
+        SectorJob, SectorJobStats, SectorRoot, WorldObserver,
     },
 };
 
@@ -771,6 +775,10 @@ impl<G: SectorGenerator> Plugin for NovaWorldPlugin<G> {
         app.init_resource::<WorldClock>();
         app.init_resource::<crate::frozen::SettlingBodies>();
         app.init_resource::<crate::streaming::ClearedConfig>();
+        // `sample_current_sector` writes the scenario event world. The
+        // scenario loader inserts it in the game; a rig that streams a world
+        // with no loader still runs the stage.
+        app.init_resource::<NovaEventWorld>();
         app.add_message::<SectorCrossed>();
         app.add_observer(crate::streaming::rename_dead_generated_station);
         // `ClearedConfig` holds a `Tick` in a plain field, which bevy's
@@ -816,6 +824,10 @@ impl<G: SectorGenerator> Plugin for NovaWorldPlugin<G> {
                 fire_sector_entered
                     .in_set(NovaWorldSystems::Observe)
                     .after(track_current_sector::<G>),
+                sample_current_sector
+                    .in_set(NovaWorldSystems::Observe)
+                    .after(track_current_sector::<G>)
+                    .before(ScenarioPulseSystems),
                 request_sectors::<G>.in_set(NovaWorldSystems::Request),
                 collect_sector_jobs::<G>.in_set(NovaWorldSystems::Collect),
                 (materialize_ready_sector::<G>, materialize_pending_bodies)

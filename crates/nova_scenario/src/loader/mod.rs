@@ -73,10 +73,10 @@ pub mod prelude {
         ContentIssues, CurrentScenario, GameCampaigns, GameScenarios, GeneratedWorldConfig,
         LoadScenario, NewGameStart, RuntimeScenarioSystems, ScenarioBoundsConfig,
         ScenarioCameraMarker, ScenarioConfig, ScenarioEventConfig, ScenarioId, ScenarioLoaded,
-        ScenarioLoaderPlugin, ScenarioRole, ScenarioScopedMarker, ScenarioStartFailure,
-        ScenarioStartFailureReport, ScenarioWorldType, ScriptedCameraAnchor, ScriptedCameraBlend,
-        ScriptedCameraLookAt, ScriptedCameraPose, ScriptedCameraTransform, UnloadScenario,
-        BOUNDS_AREA_ID, ORBIT_LAP_GRACE_SECS,
+        ScenarioLoaderPlugin, ScenarioPulseSystems, ScenarioRole, ScenarioScopedMarker,
+        ScenarioStartFailure, ScenarioStartFailureReport, ScenarioWorldType, ScriptedCameraAnchor,
+        ScriptedCameraBlend, ScriptedCameraLookAt, ScriptedCameraPose, ScriptedCameraTransform,
+        UnloadScenario, BOUNDS_AREA_ID, ORBIT_LAP_GRACE_SECS,
     };
 }
 
@@ -100,6 +100,16 @@ pub struct GameScenarios(pub HashMap<ScenarioId, ScenarioConfig>);
 /// cannot refuse an id that is about to exist.
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RuntimeScenarioSystems;
+
+/// The scenario clock, the entity query sample, the sequence driver, the
+/// timers and the `OnUpdate` pulse: one chain in `Update`.
+///
+/// The ordering handle for a query sampler that lives above this crate.
+/// `nova_world` publishes the current sector `.before(ScenarioPulseSystems)`,
+/// so a step, a timer handler and the pulse of a frame read that frame's
+/// sector.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ScenarioPulseSystems;
 
 /// The collection of available campaigns, keyed by campaign id.
 ///
@@ -471,8 +481,24 @@ impl ScenarioConfig {
     /// inside a handler.
     pub fn inline_queries(&self) -> Vec<&QueryConfig> {
         fn condition<'a>(filter: &'a EventFilterConfig, out: &mut Vec<&'a QueryConfig>) {
-            if let EventFilterConfig::Expression(config) = filter {
-                collect_condition_queries(&config.0, out);
+            match filter {
+                EventFilterConfig::Expression(config) => {
+                    collect_condition_queries(&config.0, out);
+                }
+                EventFilterConfig::Conditional(ConditionalFilterConfig::Not(inner)) => {
+                    condition(inner, out);
+                }
+                EventFilterConfig::Conditional(
+                    ConditionalFilterConfig::Or(left, right)
+                    | ConditionalFilterConfig::And(left, right),
+                ) => {
+                    condition(left, out);
+                    condition(right, out);
+                }
+                EventFilterConfig::Entity(_)
+                | EventFilterConfig::Timer(_)
+                | EventFilterConfig::ShipOrder(_)
+                | EventFilterConfig::Cinematic(_) => {}
             }
         }
 
@@ -497,19 +523,23 @@ impl ScenarioConfig {
         out
     }
 
-    /// Whether anything in the scenario can READ an entity query - a watch, or
-    /// an inline expression factor.
+    /// Every distinct entity query the scenario can READ - a watch, or an
+    /// inline expression factor - in source order, watches first.
     ///
-    /// The per-frame entity sampler is gated on this. It walks every `EntityId`
-    /// in the world and allocates two `String`s per match, so its cost scales
-    /// with the WORLD (1,839 ids in a headless duel, most of them ship
-    /// sections) and not with the scenario.
-    pub fn reads_an_entity_query(&self) -> bool {
-        fn is_entity(query: &QueryConfig) -> bool {
-            matches!(query, QueryConfig::Entity(_))
+    /// The per-frame entity sampler answers exactly this list and does not
+    /// run when it is empty. It walks every scoped `EntityId` in the world,
+    /// so its cost scales with the WORLD and not with the scenario.
+    pub fn entity_queries(&self) -> Vec<EntityQuery> {
+        let mut out: Vec<EntityQuery> = Vec::new();
+        let watched = self.watches.iter().map(|watch| &watch.query);
+        for query in watched.chain(self.inline_queries()) {
+            if let QueryConfig::Entity(query) = query {
+                if !out.contains(query) {
+                    out.push(query.clone());
+                }
+            }
         }
-        self.watches.iter().any(|watch| is_entity(&watch.query))
-            || self.inline_queries().into_iter().any(is_entity)
+        out
     }
 }
 

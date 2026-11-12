@@ -198,6 +198,107 @@ fn an_expression_filter_round_trips_through_operator_nodes() {
     assert_eq!(spelled(&round_trip(script.clone())), spelled(&script));
 }
 
+/// A handler that runs only when `text` holds.
+fn guarded(text: &str) -> Vec<ScenarioEventConfig> {
+    vec![ScenarioEventConfig {
+        label: None,
+        position: None,
+        name: EventConfig::OnUpdate,
+        once: false,
+        filters: vec![EventFilterConfig::Expression(ExpressionFilterConfig(
+            text.parse().expect("the condition parses"),
+        ))],
+        actions: vec![message("held")],
+    }]
+}
+
+/// Every query the grammar has opens as a block picked from lists, and the
+/// save writes the query the file held.
+#[test]
+fn every_query_opens_as_a_picked_block_and_saves_as_written() {
+    for text in [
+        "scenario.elapsed > 1",
+        r#"scenario.sector == "sector_0_0_0""#,
+        r#"entity("courier").speed < 5"#,
+        r#"entity("player").credits > 100"#,
+        r#"entity("player").items("IronOre") > 2"#,
+    ] {
+        let script = guarded(text);
+        let (mut world, scenario) = block_world(script.clone());
+        let handler = handlers(&mut world, scenario)[0];
+        let filter = under(&mut world, handler).0[0];
+        let root = operands(&mut world, filter)[0];
+        let read = operands(&mut world, root)[0];
+
+        assert!(
+            matches!(
+                world.get::<ExpressionNode>(read).map(|node| &node.kind),
+                Some(ExprKind::Query(_))
+            ),
+            "{text}"
+        );
+        assert_eq!(
+            spelled(&lowered(&mut world, scenario)),
+            spelled(&script),
+            "{text}"
+        );
+    }
+}
+
+/// The query block offers every read. A read of a ship takes its id from the
+/// scenario's objects and its item from the catalog, and a read of the
+/// scenario takes neither.
+#[test]
+fn a_query_block_picks_its_read_its_object_and_its_item() {
+    use crate::inspect::{choose_field, query_rows, write_field, CatalogType, PathStep, RowValue};
+
+    let (mut world, scenario) = block_world(guarded("scenario.elapsed > 2"));
+    let handler = handlers(&mut world, scenario)[0];
+    let filter = under(&mut world, handler).0[0];
+    let root = operands(&mut world, filter)[0];
+    let read = operands(&mut world, root)[0];
+    let rows = |world: &World| {
+        let Some(ExprKind::Query(operand)) =
+            world.get::<ExpressionNode>(read).map(|node| &node.kind)
+        else {
+            panic!("the left side is a query");
+        };
+        query_rows(read, operand)
+    };
+    let field = |name: &str| vec![PathStep::Field(name.to_string())];
+
+    let stock = rows(&world);
+    assert_eq!(stock.len(), 1, "the scenario has no object: {stock:?}");
+    let RowValue::Choice { options, .. } = &stock[0].value else {
+        panic!("the read is a choice, not {:?}", stock[0].value);
+    };
+    assert_eq!(
+        options,
+        &["Elapsed", "Sector", "Speed", "Credits", "Items"],
+        "every query the grammar has"
+    );
+
+    let mut node = world
+        .get_mut::<ExpressionNode>(read)
+        .expect("the query stands");
+    let config = expr_config_mut(&mut node.kind).expect("a query has a config");
+    choose_field(config, &field("read"), "Items").expect("the read switches");
+    write_field(config, &field("id"), false, "player").expect("the id takes");
+    write_field(config, &field("item"), false, "IronOre").expect("the item takes");
+
+    let picked = rows(&world);
+    assert_eq!(picked.len(), 3, "{picked:?}");
+    assert_eq!(picked[1].names, Some(Names::Object));
+    assert_eq!(picked[2].catalog, Some(CatalogType::Item));
+    let text = world
+        .run_system_once(move |script: ScriptNodes| condition_text(&script, filter))
+        .expect("the walk runs");
+    assert_eq!(
+        text.as_deref(),
+        Some(r#"entity("player").items("IronOre") > 2"#)
+    );
+}
+
 /// A filter switched to an expression arrives with a condition already in it:
 /// an operator with nothing under it is a filter the save would drop.
 #[test]
@@ -1109,7 +1210,7 @@ fn a_value_socket_is_never_empty() {
 
     let elapsed = place_new(
         &mut world,
-        BlockItemType::Query,
+        BlockItemType::Expr(ExprChoice::Query),
         BlockSlotType::Value {
             parent: root,
             index: 1,
@@ -1126,7 +1227,7 @@ fn a_value_socket_is_never_empty() {
     assert!(
         place_new(
             &mut world,
-            BlockItemType::Query,
+            BlockItemType::Expr(ExprChoice::Query),
             BlockSlotType::Value {
                 parent: root,
                 index: 1,
@@ -1277,7 +1378,7 @@ fn a_reporter_dropped_on_a_retyped_operator_keeps_its_side() {
 
     place_new(
         &mut world,
-        BlockItemType::Query,
+        BlockItemType::Expr(ExprChoice::Query),
         BlockSlotType::Value {
             parent: root,
             index: 1,
@@ -1392,7 +1493,7 @@ fn a_reporter_crosses_its_own_operator_both_ways() {
     let root = operands(&mut world, filter)[0];
     let elapsed = place_new(
         &mut world,
-        BlockItemType::Query,
+        BlockItemType::Expr(ExprChoice::Query),
         BlockSlotType::Value {
             parent: root,
             index: 0,

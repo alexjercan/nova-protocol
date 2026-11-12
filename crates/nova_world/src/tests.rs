@@ -1966,6 +1966,50 @@ mod observer {
         );
         assert_eq!(world.resource::<Fired>().0, crossed, "a Load fires none");
     }
+
+    /// The cell the observer stands in is the value of `scenario.sector`:
+    /// from the first frame of an armed world, after a crossing, and again
+    /// after a teardown forgot it while the observer stood still.
+    #[test]
+    fn the_current_sector_is_the_value_of_the_sector_query() {
+        use nova_scenario::prelude::{
+            NovaEventWorld, QueryConfig, ScenarioProperty, ScenarioQuery, VariableLiteral,
+        };
+
+        let (mut world, tracker) = tracked_world();
+        world.init_resource::<NovaEventWorld>();
+        let sampler = world.register_system(crate::streaming::sample_current_sector);
+        let frame = |world: &mut World| {
+            world
+                .run_system(tracker)
+                .expect("the observer system must run");
+            world.flush();
+            world.run_system(sampler).expect("the sampler must run");
+        };
+        let sector = |world: &World| {
+            world
+                .resource::<NovaEventWorld>()
+                .query_value(&QueryConfig::Scenario(ScenarioQuery {
+                    property: ScenarioProperty::Sector,
+                }))
+                .cloned()
+        };
+        let slug = |slug: &str| Some(VariableLiteral::String(slug.to_string()));
+
+        assert_eq!(sector(&world), None, "no value before the world reports");
+        frame(&mut world);
+        assert_eq!(sector(&world), slug("sector_0_0_0"));
+
+        // 40 km along +X: the next cell at a 32 km edge.
+        move_observer(&mut world, 4_000.0);
+        frame(&mut world);
+        assert_eq!(sector(&world), slug("sector_1_0_0"));
+
+        world.resource_mut::<NovaEventWorld>().clear();
+        assert_eq!(sector(&world), None, "a teardown forgets the sector");
+        frame(&mut world);
+        assert_eq!(sector(&world), slug("sector_1_0_0"));
+    }
 }
 
 /// [`NovaWorldSystems::Cleanup`] runs once per world change and never on
