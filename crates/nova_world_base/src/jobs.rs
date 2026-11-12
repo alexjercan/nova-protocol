@@ -313,6 +313,20 @@ pub(crate) fn post_station_boards(
             "nova_world_base: the visit posting '{id}' comes off its board at {now:.1} s of play"
         );
     }
+    // A scenario posting has no window: only the hand-in or the drop takes
+    // it off, wherever its station is.
+    let gone = postings
+        .bypass_change_detection()
+        .retire_scenario_postings(&jobs);
+    if !gone.is_empty() {
+        postings.set_changed();
+    }
+    for id in gone {
+        info!(
+            "nova_world_base: the scenario posting '{id}' comes off its board at {now:.1} s of \
+             play"
+        );
+    }
     // One pass over the live bodies: a renewed slot looks its few possible
     // ids up here instead of scanning every body again.
     let worn: BTreeMap<&GeneratedBodyId, Entity> = bodies
@@ -455,10 +469,16 @@ pub(crate) fn post_station_boards(
                     .iter()
                     .map(|posting| posting.offer.clone()),
             )
+            .chain(
+                postings
+                    .scenario_postings(id)
+                    .iter()
+                    .map(|posting| posting.offer.clone()),
+            )
             .collect();
-        // The board on the root changes only when a slot renewed or a
-        // visit posting came or went: an unchanged insert would wake every
-        // reader of the board each frame.
+        // The board on the root changes only when a slot renewed or a visit
+        // or scenario posting came or went: an unchanged insert would wake
+        // every reader of the board each frame.
         if posted.is_some_and(|posted| posted.0 == board) {
             continue;
         }
@@ -2473,14 +2493,12 @@ mod tests {
         );
     }
 
-    /// A visitor's open job comes off the board at the first renewal its
-    /// station's offer window causes, and stands through a paid refresh of
-    /// another slot; a held one stands through both.
-    #[test]
-    fn an_open_visit_job_leaves_at_the_first_expiry_renewal_and_stands_through_a_paid_refresh() {
+    /// An app that runs the board pass alone, with offers that stand 1000 s
+    /// and the station [`poster`], which offers jobs, in a settled cube of
+    /// cells.
+    fn board_app() -> App {
         use nova_gameplay::prelude::{
-            GameTradeProfiles, JobSourceType, PriceClamp, PriceFactor, PriceTable, RestockRule,
-            ScarcityRule, StationVisitId, VISIT_EXTRA_OFFER_SECONDS,
+            GameTradeProfiles, PriceClamp, PriceFactor, PriceTable, RestockRule, ScarcityRule,
         };
         use nova_world::prelude::{SectorClusterTypes, SectorRoot};
 
@@ -2544,10 +2562,23 @@ mod tests {
             ChildOf(home.unwrap()),
             StationServices(vec![StationServiceType::Jobs]),
         ));
-        let set_clock = |app: &mut App, now: f64| {
-            app.world_mut().resource_mut::<WorldClock>().play_seconds = now;
-            app.update();
-        };
+        app
+    }
+
+    /// Set the play clock to `now` and run one board pass.
+    fn set_clock(app: &mut App, now: f64) {
+        app.world_mut().resource_mut::<WorldClock>().play_seconds = now;
+        app.update();
+    }
+
+    /// A visitor's open job comes off the board at the first renewal its
+    /// station's offer window causes, and stands through a paid refresh of
+    /// another slot; a held one stands through both.
+    #[test]
+    fn an_open_visit_job_leaves_at_the_first_expiry_renewal_and_stands_through_a_paid_refresh() {
+        use nova_gameplay::prelude::{JobSourceType, StationVisitId, VISIT_EXTRA_OFFER_SECONDS};
+
+        let mut app = board_app();
         let visit_job = |index: u32| Job {
             id: JobId {
                 station: poster(),
@@ -2634,5 +2665,62 @@ mod tests {
             .resource::<JobPostings>()
             .validate(900.0 + 2.0 * VISIT_EXTRA_OFFER_SECONDS)
             .unwrap();
+    }
+
+    /// A scenario's job stands beside the slots on the station's board
+    /// through every renewal, with no window of its own, and comes off when
+    /// the player hands it in.
+    #[test]
+    fn a_scenario_job_stands_on_the_board_through_every_renewal_until_handed_in() {
+        let mut app = board_app();
+        let job = Job {
+            id: JobId::scenario(poster(), "walk"),
+            kind: JobType::Procure {
+                item: item(),
+                count: 1,
+            },
+            target: poster(),
+            reward_cr: 10,
+        };
+        let on_board = |app: &mut App| {
+            let mut boards = app.world_mut().query::<&JobBoard>();
+            let board = boards
+                .single(app.world())
+                .expect("the station posts a board");
+            board.job(&job.id).is_some()
+        };
+        let slot_postings = |app: &App| -> Vec<u32> {
+            let postings = app.world().resource::<JobPostings>();
+            let slots = postings.board(&poster()).unwrap();
+            slots.iter().map(|slot| slot.posting).collect()
+        };
+
+        set_clock(&mut app, 0.0);
+        assert!(!on_board(&mut app));
+        app.world_mut()
+            .resource_mut::<JobPostings>()
+            .post_scenario(job.clone(), 10.0);
+        set_clock(&mut app, 10.0);
+        assert!(on_board(&mut app), "the board carries it beside its slots");
+
+        // Two offer windows pass: every slot renews twice and the job stands.
+        for (now, posting) in [(1_000.0, 1), (2_000.0, 2)] {
+            set_clock(&mut app, now);
+            assert_eq!(slot_postings(&app), vec![posting; JOBS_PER_BOARD as usize]);
+            assert!(
+                on_board(&mut app),
+                "it stands through the renewal at {now} s"
+            );
+        }
+
+        app.world_mut().resource_mut::<Jobs>().accept(job.clone());
+        set_clock(&mut app, 3_000.0);
+        assert!(on_board(&mut app), "a held job stands");
+        app.world_mut().resource_mut::<Jobs>().complete(&job.id);
+        set_clock(&mut app, 3_001.0);
+        assert!(!on_board(&mut app), "the hand-in takes it off the board");
+        let postings = app.world().resource::<JobPostings>();
+        assert!(postings.scenario_postings(&poster()).is_empty());
+        postings.validate(3_001.0).unwrap();
     }
 }

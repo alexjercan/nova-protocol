@@ -915,6 +915,13 @@ impl ActionChoiceExt for ActionChoice {
                 item: ItemDesignId::from(""),
                 count: 1,
             }),
+            ActionChoice::PostJob => EventActionConfig::PostJob(PostJobActionConfig {
+                station: String::new(),
+                key: "job".to_string(),
+                item: ItemDesignId::from(""),
+                count: 1,
+                reward_cr: 100,
+            }),
             ActionChoice::SetStance => EventActionConfig::SetStance(SetStanceActionConfig {
                 body: String::new(),
                 stance: StanceType::Neutral,

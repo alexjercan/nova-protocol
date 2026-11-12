@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 59 at a glance:
+never panics a scenario). All 60 at a glance:
 
 | action | group | what it does |
 |---|---|---|
@@ -54,6 +54,7 @@ never panics a scenario). All 59 at a glance:
 | [`GrantCredits`](#grantcredits) | [ship state](#ship-state) | grant credits to a ship or a station, or charge it |
 | [`GiveItems`](#giveitems) | [ship state](#ship-state) | put items into the hold of a ship or a station |
 | [`TakeItems`](#takeitems) | [ship state](#ship-state) | take items out of the hold of a ship or a station |
+| [`PostJob`](#postjob) | [ship state](#ship-state) | post a procurement on the job board of a generated station |
 | [`SetStance`](#setstance) | [ship state](#ship-state) | set the stance a civilization holds toward the player |
 | [`VariableSet`](#variableset) | [variables](#variables-timers-debugging) | evaluate an expression and store the result in a variable |
 | [`TimerStart`](#timerstart) | [variables](#variables-timers-debugging) | start (or restart) a keyed scenario timer |
@@ -1602,6 +1603,75 @@ action that cannot run takes nothing, logs an error and raises
 
 Like [`GiveItems`](#giveitems), it raises no hold event, and the same three
 authoring faults fail lint, then load.
+
+</details>
+
+### PostJob
+
+Post one procurement on the job board of a station of a generated world.
+
+```ron
+(
+    name: OnDocked,
+    once: true,
+    actions: [PostJob((station: "$id", key: "ore_run", item: "IronOre", count: 4, reward_cr: 250))],
+),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `station` | binding | required | `$id` or `$other_id`: the station that posts the job, read from the event |
+| `key` | string | required | the name of the job; the job events carry it as `post_key` |
+| `item` | item id | required | the [item](../objects/#inventory) the job asks for |
+| `count` | whole number | required | units asked, 1 or more |
+| `reward_cr` | whole number | required | credits the station pays on the hand-in, 1 or more |
+
+No author can write the id of a generated station, so `station` is a
+binding. `$id` is the subject of the event and `$other_id` its other party.
+Under [`OnDocked`](../events/#docking-lifecycle) `$id` is the station the
+player docked with.
+
+The job shows on the station's board in the Jobs pane beside the jobs the
+board drew. The player brings the items and hands the job in at the same
+station. The station pays the reward out of its own credits, and a station
+that cannot pay refuses the hand-in. The job has no time limit: it stays on
+the board until the player hands it in or drops it. A world save keeps it.
+
+A `key` is a lowercase letter, then lowercase letters, digits and `_`. The
+job's id is `<station id>#<key>`. The four
+[job events](../events/#job-events) report the job like any other, with
+`event.post_key` equal to the key, so one filter finds it:
+
+```ron
+(
+    name: OnJobHandedIn,
+    filters: [
+        Expression((Equal(
+            Term(Factor(Event("post_key"))),
+            Term(Factor(Literal(String("ore_run")))),
+        ))),
+    ],
+    actions: [NarrativeCue((speaker: "Dockmaster", text: "That ore keeps us running."))],
+),
+```
+
+A station uses a key once in a run. An action that cannot run posts nothing,
+logs an error and raises [`OnActionRefused`](../events/#onactionrefused):
+
+| `reason` | when |
+|---|---|
+| `duplicate_job` | the station offers a job under the key, or the player holds, handed in or dropped one |
+| `no_job_board` | the body is not a living generated station that offers jobs |
+| `unknown_station` | no live body carries the bound id |
+
+Lint, then load, refuses a `station` that is not a binding, a binding the
+event's payload does not carry, a `PostJob` inside a
+[`Sequence`](#sequence) or [`Cinematic`](#cinematic) step (a step has no
+payload), a bad `key`, a `count` or a `reward_cr` of 0, an item no loaded
+mod defines, and a `PostJob` in a scenario with no generated `world`.
 
 </details>
 

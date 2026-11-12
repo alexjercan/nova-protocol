@@ -224,9 +224,9 @@ changes nothing and writes an error to the log.
 
 | field | type | value |
 |---|---|---|
-| `action` | text | the action's RON name: `GrantCredits`, `GiveItems`, `TakeItems`, `SetStance` |
+| `action` | text | the action's RON name: `GrantCredits`, `GiveItems`, `TakeItems`, `PostJob`, `SetStance` |
 | `id` | text | the id the action targeted; for a binding, the id it read from the event |
-| `reason` | text | why, as a stable word: `insufficient_credits`, `credit_overflow`, `hold_full`, `short_items`, `unknown_ship`, `unknown_body`, `no_civilization` |
+| `reason` | text | why, as a stable word: `insufficient_credits`, `credit_overflow`, `hold_full`, `short_items`, `unknown_ship`, `unknown_station`, `no_job_board`, `duplicate_job`, `unknown_body`, `no_civilization` |
 
 ```ron
 (
@@ -247,7 +247,8 @@ changes nothing and writes an error to the log.
 Only the actions that list refusal reasons raise it; today those are
 [`GrantCredits`](../actions/#grantcredits),
 [`GiveItems`](../actions/#giveitems),
-[`TakeItems`](../actions/#takeitems) and
+[`TakeItems`](../actions/#takeitems),
+[`PostJob`](../actions/#postjob) and
 [`SetStance`](../actions/#setstance). `id` is the id as authored, so
 an [`Entity`](../filters/#entity) filter on `id` matches it. Lint catches
 what it can before the run: an id nothing spawns never reaches this event.
@@ -958,16 +959,17 @@ The example mod's `example_prospect` scenario runs all but `OnRebuilt`,
 ## Job events
 
 Four events follow one job of a generated world's station board from the
-accept to its end. All four carry the same job fields; `OnJobDropped` adds
+accept to its end, a job a [`PostJob`](../actions/#postjob) action posted
+included. All four carry the same job fields; `OnJobDropped` adds
 `cause`.
 
 | field | type | value |
 |---|---|---|
-| `id` | text | the job's id: `<station id>#<slot>.<posting>` for a slot job, `<station id>#<visit id>.<index>` for a visit posting |
+| `id` | text | the job's id: `<station id>#<slot>.<posting>` for a slot job, `<station id>#<visit id>.<index>` for a visit posting, `<station id>#<key>` for a `PostJob` job |
 | `kind` | text | `Procure`, `Recover`, `Escort`, `Distress` or `Neutralize` |
 | `station` | text | the scenario id of the station that posted the job, the part of `id` before `#` |
 | `reward_cr` | number | the reward the hand-in pays, in credits |
-| `post_key` | text | empty for a job a board generated |
+| `post_key` | text | the `key` of the [`PostJob`](../actions/#postjob) that posted the job; empty for a job a board or a visitor posted |
 | `cause` | text | `OnJobDropped` only: `Lost` or `Abandoned` |
 
 | a job's life | events, in order |

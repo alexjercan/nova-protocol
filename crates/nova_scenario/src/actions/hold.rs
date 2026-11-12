@@ -35,6 +35,14 @@ pub enum ActionRefusalType {
     /// The body belongs to no civilization: an authored body, a rock, a
     /// dead hull.
     NoCivilization,
+    /// No live body carries the station id, or the reference binds a
+    /// payload field the event does not carry.
+    UnknownStation,
+    /// The body is no living generated station that offers jobs.
+    NoJobBoard,
+    /// The station offers a job under the key, or the player holds, handed
+    /// in or dropped one.
+    DuplicateJob,
 }
 
 impl ActionRefusalType {
@@ -48,6 +56,9 @@ impl ActionRefusalType {
             ActionRefusalType::ShortItems => "short_items",
             ActionRefusalType::UnknownBody => "unknown_body",
             ActionRefusalType::NoCivilization => "no_civilization",
+            ActionRefusalType::UnknownStation => "unknown_station",
+            ActionRefusalType::NoJobBoard => "no_job_board",
+            ActionRefusalType::DuplicateJob => "duplicate_job",
         }
     }
 }

@@ -2093,6 +2093,104 @@ fn a_saved_posting_record_resumes_with_its_offers_and_a_held_job_outlives_its_sl
     );
 }
 
+/// A scenario's postings are written with a leave save and come back on a
+/// Load, the open one and the held one. A record with none writes no
+/// `scenario` field and reads without one, so a save written before
+/// scenarios could post opens as it did. A scenario posting naming an item
+/// the catalog lacks is a save the Load refuses.
+#[test]
+fn a_scenario_posting_is_saved_and_a_load_restores_it_and_a_save_without_one_reads_as_before() {
+    let root = tempfile::tempdir().unwrap();
+    let (mut world, _player) = armed_session(root.path());
+    frame(&mut world);
+    frame(&mut world);
+    run_until_idle(&mut world);
+
+    let poster = GeneratedBodyId::new(SectorCoord::new(1, 0, 0), "cluster_1_0_0_station", 0);
+    let job = |key: &str, item: &str| Job {
+        id: JobId::scenario(poster.clone(), key),
+        kind: JobType::Procure {
+            item: ItemDesignId::from(item),
+            count: 2,
+        },
+        target: poster.clone(),
+        reward_cr: 40,
+    };
+    let (open, held) = (job("open", "IronOre"), job("held", "IronOre"));
+    world.insert_resource(WorldClock {
+        play_seconds: 200.0,
+    });
+    for offer in [&open, &held] {
+        world
+            .resource_mut::<JobPostings>()
+            .post_scenario(offer.clone(), 50.0);
+    }
+    world.resource_mut::<Jobs>().accept(held.clone());
+    world.resource_mut::<WorldSaveSession>().request_leave();
+    run_until_idle(&mut world);
+    assert_eq!(
+        world.resource::<WorldSaveSession>().status(),
+        &WorldSaveStatus::Saved { generation: 2 }
+    );
+    let digest = world.resource::<LoadedSectionPacks>().digest.0;
+    let postings = world.resource::<JobPostings>().clone();
+    world.remove_resource::<WorldSaveSession>();
+    let open_saved = || {
+        open_world(
+            root.path(),
+            "session",
+            &catalog(digest),
+            &roles(),
+            &items(),
+            &scenarios(),
+            &designs(),
+            &profiles(),
+        )
+    };
+    let (_, lock, _, state) = open_saved().unwrap();
+    assert_eq!(
+        state.postings, postings,
+        "the leave save wrote the postings"
+    );
+    assert!(state.postings.scenario_posting(&open.id).is_some());
+    assert!(state.postings.scenario_posting(&held.id).is_some());
+    drop(lock);
+
+    let resumed = load(root.path(), digest);
+    assert_eq!(
+        *resumed.resource::<JobPostings>(),
+        postings,
+        "the Load restored the postings on the arming frame"
+    );
+    assert!(resumed.resource::<Jobs>().holds(&held.id));
+    drop(resumed);
+
+    let none = JobPostings::default();
+    let written = ron::to_string(&none).unwrap();
+    assert!(
+        !written.contains("scenario"),
+        "a record with no scenario posting writes the fields it always wrote: {written}"
+    );
+    assert_eq!(
+        ron::from_str::<JobPostings>("(boards:{},visits:{})").unwrap(),
+        none,
+        "a record written before scenarios could post reads"
+    );
+
+    let mut state = state;
+    state.postings = JobPostings::default();
+    state
+        .postings
+        .post_scenario(job("open", "Unobtainium"), 50.0);
+    let text = ron::to_string(&state).unwrap();
+    std::fs::write(root.path().join("session/state.2.ron"), text).unwrap();
+    let refused = open_saved();
+    assert!(
+        matches!(refused, Err(WorldRefusal::Unreadable(ref reason)) if reason.contains("named by a posted offer")),
+        "a scenario posting naming an unknown item refuses the save: {refused:?}"
+    );
+}
+
 /// A dropped job's id outlives the save, so the posting it retired is never
 /// offered again.
 #[test]

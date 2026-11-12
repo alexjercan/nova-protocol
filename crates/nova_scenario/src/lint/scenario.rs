@@ -5,7 +5,8 @@ use std::collections::{HashMap, HashSet};
 use bevy::prelude::Alpha;
 use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{
-    GameItems, GameTradeProfiles, GravitySettings, GravityWell, ItemDesignId, SectionClass,
+    is_job_post_key, GameItems, GameTradeProfiles, GravitySettings, GravityWell, ItemDesignId,
+    SectionClass,
 };
 use nova_input::prelude::InputSource;
 use nova_ship::prelude::GameStyles;
@@ -1424,6 +1425,54 @@ fn check_action(
                 issues,
             );
         }
+        EventActionConfig::PostJob(config) => {
+            check_generated_body_reference(
+                "PostJob",
+                "station",
+                &config.station,
+                "posts no job board",
+                scenario,
+                satisfiable,
+                issues,
+            );
+            if catalog.items.get(&config.item).is_none() {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "PostJob on '{}' asks for the item '{}', which no loaded bundle defines",
+                        config.station, config.item
+                    ),
+                ));
+            }
+            if config.count == 0 {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "PostJob on '{}' asks for 0 of '{}'; the count must be 1 or more",
+                        config.station, config.item
+                    ),
+                ));
+            }
+            if !is_job_post_key(&config.key) {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "PostJob on '{}' posts under the key '{}'; a key is a lowercase letter \
+                         followed by lowercase letters, digits and '_'",
+                        config.station, config.key
+                    ),
+                ));
+            }
+            if config.reward_cr == 0 {
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "PostJob on '{}' pays 0 cr for '{}'; the reward must be 1 cr or more",
+                        config.station, config.key
+                    ),
+                ));
+            }
+        }
         EventActionConfig::SetStance(config) => {
             check_generated_body_reference(
                 "SetStance",
@@ -1608,7 +1657,7 @@ fn check_object_names(
                     scenario,
                     format!(
                         "{tag} `{}` is '{}', a payload binding only ObjectiveMarkerAttach, \
-                         ObjectiveMarkerDetach and SetStance read",
+                         ObjectiveMarkerDetach, SetStance and PostJob read",
                         named.field, named.text
                     ),
                 ));
@@ -1676,6 +1725,7 @@ fn reads_payload_binding(action: &EventActionConfig) -> bool {
         EventActionConfig::ObjectiveMarkerAttach(_)
             | EventActionConfig::ObjectiveMarkerDetach(_)
             | EventActionConfig::SetStance(_)
+            | EventActionConfig::PostJob(_)
     )
 }
 
@@ -2303,6 +2353,10 @@ const NO_SECTOR: &str = "only a generated world has sectors to cross, so the eve
 const NO_CURRENT_SECTOR: &str =
     "only a generated world has sectors, so the query never has a value and every read fails";
 
+/// Why `PostJob` is refused on every run on a `Void` world.
+const NO_JOB_BOARD_TO_POST_ON: &str =
+    "only a generated world's stations post job boards, so the action is refused on every run";
+
 /// Why `SetStance` is refused on every run on a `Void` world.
 const NO_CIVILIZATION_TO_SET: &str =
     "only a generated world has civilizations, so the action is refused on every run";
@@ -2344,6 +2398,10 @@ const GENERATED_WORLD_ONLY: &[(GeneratedWorldOnlyType, &str)] = &[
     (
         GeneratedWorldOnlyType::Action(ActionTag::SetStance),
         NO_CIVILIZATION_TO_SET,
+    ),
+    (
+        GeneratedWorldOnlyType::Action(ActionTag::PostJob),
+        NO_JOB_BOARD_TO_POST_ON,
     ),
 ];
 
@@ -2441,8 +2499,15 @@ fn check_action_payload_reads(
         _ => {}
     }
     check_payload_fields(&fields, action.tag().label(), scope, scenario, issues);
-    if let EventActionConfig::SetStance(config) = action {
-        check_binding_payload("SetStance", "body", &config.body, scope, scenario, issues);
+    match action {
+        EventActionConfig::SetStance(config) => {
+            check_binding_payload("SetStance", "body", &config.body, scope, scenario, issues);
+        }
+        EventActionConfig::PostJob(config) => {
+            let station = &config.station;
+            check_binding_payload("PostJob", "station", station, scope, scenario, issues);
+        }
+        _ => {}
     }
 
     let Some((_, steps)) = action.step_chain() else {
@@ -2790,7 +2855,7 @@ mod tests {
              'sector_n2_0_0_background_rock_3', which exists only at runtime",
             "object 'sector_n2_0_0_background_rock_3' field 'id' spells a generated body id",
             "DespawnScenarioObject `id` is '$other_id', a payload binding only \
-             ObjectiveMarkerAttach, ObjectiveMarkerDetach and SetStance read",
+             ObjectiveMarkerAttach, ObjectiveMarkerDetach, SetStance and PostJob read",
             "ObjectiveMarkerDetach `target_id` is '$target'; a payload binding is '$id' or \
              '$other_id'",
             "entity filter names the generated body 'sector_n2_0_0_background_rock_3'",
@@ -6226,6 +6291,100 @@ mod tests {
 
         docked.world = generated(Some(1));
         assert!(void_world_errors(&docked).is_empty());
+    }
+
+    fn post_job(
+        station: &str,
+        key: &str,
+        item: &str,
+        count: u32,
+        reward_cr: u32,
+    ) -> EventActionConfig {
+        EventActionConfig::PostJob(PostJobActionConfig {
+            station: station.to_string(),
+            key: key.to_string(),
+            item: ItemDesignId::from(item),
+            count,
+            reward_cr,
+        })
+    }
+
+    /// `PostJob` names a station that posts a board, which only the
+    /// generator spawns, and a job a board can carry: a key that never reads
+    /// as a slot or a visit id, a real count of a known item and a reward.
+    /// `Job::validate` refuses the rest at the post, so each stops at lint.
+    #[test]
+    fn post_job_binds_a_station_and_posts_a_job_a_board_can_carry() {
+        let item = "IronOre";
+        for binding in ["$id", "$other_id"] {
+            let found = generated_world_errors(
+                EventConfig::OnDocked,
+                vec![post_job(binding, "ore_run_2", item, 4, 90)],
+            );
+            assert!(found.is_empty(), "{binding}: {found:?}");
+        }
+
+        for (event, action, reason) in [
+            (
+                EventConfig::OnDocked,
+                post_job("freighter", "walk", item, 4, 90),
+                "PostJob `station` is 'freighter', a body this scenario spawns; an authored \
+                 body posts no job board",
+            ),
+            (
+                EventConfig::OnTimerEnd,
+                post_job("$id", "walk", item, 4, 90),
+                "PostJob `station` is '$id' under OnTimerEnd, whose payload has no 'id'",
+            ),
+            (
+                EventConfig::OnDocked,
+                post_job("$id", "Walk", item, 4, 90),
+                "PostJob on '$id' posts under the key 'Walk'",
+            ),
+            (
+                EventConfig::OnDocked,
+                post_job("$id", "2.1", item, 4, 90),
+                "PostJob on '$id' posts under the key '2.1'",
+            ),
+            (
+                EventConfig::OnDocked,
+                post_job("$id", "", item, 4, 90),
+                "PostJob on '$id' posts under the key ''",
+            ),
+            (
+                EventConfig::OnDocked,
+                post_job("$id", "walk", item, 0, 90),
+                "asks for 0 of",
+            ),
+            (
+                EventConfig::OnDocked,
+                post_job("$id", "walk", item, 4, 0),
+                "PostJob on '$id' pays 0 cr for 'walk'",
+            ),
+            (
+                EventConfig::OnDocked,
+                post_job("$id", "walk", "Unobtainium", 4, 90),
+                "asks for the item 'Unobtainium', which no loaded bundle defines",
+            ),
+        ] {
+            let found = generated_world_errors(event, vec![action]);
+            assert_eq!(found.len(), 1, "{reason}: {found:?}");
+            assert!(found[0].contains(reason), "{reason}: {found:?}");
+        }
+    }
+
+    /// A void has no station that posts a board, so `PostJob` there is
+    /// refused on every run.
+    #[test]
+    fn post_job_on_a_void_world_is_an_error() {
+        let mut docked = scenario(vec![post_job("$id", "walk", "IronOre", 4, 90)], vec![]);
+        docked.events[0].name = EventConfig::OnDocked;
+        let found = void_world_errors(&docked);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(
+            found[0].starts_with("`PostJob` on a `Void` world: only a generated world's stations"),
+            "{found:?}"
+        );
     }
 
     fn number(n: f64) -> VariableExpressionNode {

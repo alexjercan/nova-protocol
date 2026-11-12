@@ -455,6 +455,10 @@ fn board_listing(
     }
 }
 
+/// What a board row reads where the minutes left go, for an offer with no
+/// window: a scenario's posting.
+const NO_WINDOW_TEXT: &str = "open";
+
 /// One board row as the pane shows it.
 #[derive(Clone, Debug, PartialEq)]
 struct PostedRow {
@@ -462,7 +466,8 @@ struct PostedRow {
     icon: JobIconType,
     title: String,
     reward_cr: u64,
-    /// The offer's window left: the share and the minutes.
+    /// The offer's window left: the share and the minutes. A scenario
+    /// posting has no window: a full meter and [`NO_WINDOW_TEXT`].
     time_left: (f32, String),
     /// Why Accept is greyed, if it is.
     refusal: Option<String>,
@@ -686,10 +691,14 @@ fn update_jobs_pane(
                 !jobs.holds(&job.id) && !jobs.is_completed(&job.id) && !jobs.is_dropped(&job.id)
             })
             .filter_map(|job| {
-                let remaining = postings.remaining(&job.id, rule, now)?;
-                if remaining <= 0.0 {
+                if !postings.offers(&job.id, rule, now) {
                     return None;
                 }
+                // A scenario posting has no window to count down.
+                let time_left = postings.remaining(&job.id, rule, now).map_or_else(
+                    || (1.0, NO_WINDOW_TEXT.to_string()),
+                    |remaining| time_left(job, remaining),
+                );
                 let Some(refusal) = board_listing(
                     starter,
                     plan_job_hull_fit(job, &items, fit),
@@ -711,7 +720,7 @@ fn update_jobs_pane(
                     icon: JobIconType::of(&job.kind),
                     title: job.title(&items),
                     reward_cr: job.reward_cr.into(),
-                    time_left: time_left(job, remaining),
+                    time_left,
                     refusal,
                     refreshable: postings.slot(&job.id).is_some(),
                     confirming,
@@ -2020,9 +2029,7 @@ fn apply_job_commands(
             );
             continue;
         };
-        let expired = postings
-            .remaining(&job.id, table.0.jobs, clock.play_seconds)
-            .is_none_or(|remaining| remaining <= 0.0);
+        let expired = !postings.offers(&job.id, table.0.jobs, clock.play_seconds);
         match plan_job_accept(
             job,
             Some(station_id),
@@ -3028,6 +3035,64 @@ mod tests {
         let raised = app.world().resource::<Raised>();
         assert_eq!(raised.dropped, [(distress, JobDropCauseType::Abandoned)]);
         assert!(raised.handed_in.is_empty());
+    }
+
+    /// A scenario's job on the docked station's board has no window: the
+    /// accept goes through long after any offer would have expired. The
+    /// accept and the hand-in each raise their job event with the job, whose
+    /// id carries the key.
+    #[test]
+    fn a_scenario_s_job_is_accepted_past_any_window_and_handed_in_under_its_key() {
+        #[derive(Resource, Default)]
+        struct Raised(Vec<(&'static str, Job)>);
+
+        let mut app = jobs_app();
+        app.init_resource::<Raised>();
+        app.add_observer(|accepted: On<JobAccepted>, mut raised: ResMut<Raised>| {
+            raised.0.push(("accepted", accepted.job.clone()));
+        });
+        app.add_observer(|handed_in: On<JobHandedIn>, mut raised: ResMut<Raised>| {
+            raised.0.push(("handed in", handed_in.job.clone()));
+        });
+        let (_, slot_job) = hand_in_fixture(&mut app, neutral_civilization());
+        let station_id = slot_job.id.station.clone();
+        let job = Job {
+            id: JobId::scenario(station_id.clone(), "walk"),
+            kind: JobType::Procure {
+                item: ItemDesignId::from(ItemRoleType::IronOre.id()),
+                count: 4,
+            },
+            target: station_id,
+            reward_cr: 90,
+        };
+        let world = app.world_mut();
+        world
+            .resource_mut::<JobPostings>()
+            .post_scenario(job.clone(), 0.0);
+        let mut boards = world.query::<&mut JobBoard>();
+        boards
+            .single_mut(world)
+            .expect("the fixture spawns one station")
+            .0
+            .push(job.clone());
+        world.resource_mut::<WorldClock>().play_seconds = 1.0e6;
+
+        app.world_mut()
+            .write_message(JobAcceptCommand { id: job.id.clone() });
+        app.update();
+        assert!(
+            app.world().resource::<Jobs>().holds(&job.id),
+            "{:?}",
+            notice(&app)
+        );
+        app.world_mut()
+            .write_message(JobHandInCommand { id: job.id.clone() });
+        app.update();
+        assert!(app.world().resource::<Jobs>().is_completed(&job.id));
+        assert_eq!(
+            app.world().resource::<Raised>().0,
+            [("accepted", job.clone()), ("handed in", job)]
+        );
     }
 
     /// The hand-in that takes a civilization's third merit raises one

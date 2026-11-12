@@ -79,14 +79,15 @@ use crate::{
 /// Glob-import surface: `use nova_gameplay::jobs::prelude::*`.
 pub mod prelude {
     pub use super::{
-        escort_raiders, job_title, offer_deadline_text, plan_distress_rescue, plan_job_accept,
-        plan_job_hand_in, plan_job_hull_fit, plan_job_offer_refresh, station_job_offers,
-        DistressRefusalType, DistressRefused, EscortLeg, Job, JobAcceptRefusalType, JobAccepted,
-        JobBoard, JobDone, JobDropped, JobField, JobHandInPartner, JobHandInPlan,
-        JobHandInRefusalType, JobHandedIn, JobHull, JobHullFit, JobHullRefusalType, JobId,
-        JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType, JobPostings, JobSourceType,
-        JobType, JobWreck, Jobs, SlotPosting, StarterBoardMarker, VisitPosting, ESCORT_RAIDERS_MAX,
-        JOBS_PER_BOARD, JOB_OFFER_REFRESH_FEE_CR, RAIDERS_PER_CARGO_CR, VISIT_EXTRAS_MAX,
+        escort_raiders, is_job_post_key, job_title, offer_deadline_text, plan_distress_rescue,
+        plan_job_accept, plan_job_hand_in, plan_job_hull_fit, plan_job_offer_refresh,
+        station_job_offers, DistressRefusalType, DistressRefused, EscortLeg, Job,
+        JobAcceptRefusalType, JobAccepted, JobBoard, JobDone, JobDropped, JobField,
+        JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHandedIn, JobHull, JobHullFit,
+        JobHullRefusalType, JobId, JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType,
+        JobPostings, JobSourceType, JobType, JobWreck, Jobs, ScenarioPosting, SlotPosting,
+        StarterBoardMarker, VisitPosting, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD,
+        JOB_OFFER_REFRESH_FEE_CR, RAIDERS_PER_CARGO_CR, VISIT_EXTRAS_MAX,
         VISIT_EXTRA_OFFER_SECONDS,
     };
 }
@@ -138,7 +139,7 @@ pub const ESCORT_RAIDERS_MAX: u32 = 3;
 pub struct JobId {
     /// The generated station that posted the job.
     pub station: GeneratedBodyId,
-    /// The board slot or the station visit that posted it.
+    /// The board slot, the station visit or the scenario key that posted it.
     pub source: JobSourceType,
 }
 
@@ -164,6 +165,25 @@ pub enum JobSourceType {
         /// The job's place in the visitor's profile job list.
         index: u32,
     },
+    /// A scenario's `PostJob` action ([`ScenarioPosting`]). One station
+    /// carries a key once: a second post under it is refused.
+    Scenario {
+        /// The key the scenario posted under ([`is_job_post_key`]): what
+        /// the job events carry as `post_key`.
+        key: String,
+    },
+}
+
+/// Whether `key` can key a scenario posting: a lowercase ASCII letter, then
+/// lowercase ASCII letters, digits and `_`. The text of a [`JobId`] writes
+/// the key after `#`. A slot id and a visit id each write a `.` there, and a
+/// key holds none, so the three forms never read as one another.
+pub fn is_job_post_key(key: &str) -> bool {
+    let mut letters = key.bytes();
+    letters
+        .next()
+        .is_some_and(|first| first.is_ascii_lowercase())
+        && letters.all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
 }
 
 impl JobId {
@@ -175,12 +195,29 @@ impl JobId {
         }
     }
 
+    /// The id of the job a scenario posted on `station` under `key`.
+    pub fn scenario(station: GeneratedBodyId, key: impl Into<String>) -> Self {
+        Self {
+            station,
+            source: JobSourceType::Scenario { key: key.into() },
+        }
+    }
+
     /// The slot and its posting number, for a slot job; `None` for a visit
-    /// posting.
+    /// posting and a scenario posting.
     pub fn slot_posting(&self) -> Option<(u32, u32)> {
         match self.source {
             JobSourceType::Slot { slot, posting } => Some((slot, posting)),
-            JobSourceType::Visit { .. } => None,
+            JobSourceType::Visit { .. } | JobSourceType::Scenario { .. } => None,
+        }
+    }
+
+    /// The key a scenario posted the job under; `None` for a job a board
+    /// slot or a visit posted.
+    pub fn post_key(&self) -> Option<&str> {
+        match &self.source {
+            JobSourceType::Scenario { key } => Some(key),
+            JobSourceType::Slot { .. } | JobSourceType::Visit { .. } => None,
         }
     }
 
@@ -188,7 +225,7 @@ impl JobId {
     ///
     /// # Panics
     ///
-    /// On a visit posting, which has no slot to renew.
+    /// On a visit posting or a scenario posting, which has no slot to renew.
     pub fn next_posting(&self) -> Self {
         let (slot, posting) = self
             .slot_posting()
@@ -202,12 +239,12 @@ impl JobId {
     ///
     /// # Panics
     ///
-    /// On a visit posting: [`Job::validate`] refuses a visit job that puts
-    /// a body in the world.
+    /// On a visit posting or a scenario posting: [`Job::validate`] refuses
+    /// one that puts a body in the world.
     fn spawned_body(&self, part: &str, index: u32) -> GeneratedBodyId {
-        let (slot, posting) = self
-            .slot_posting()
-            .unwrap_or_else(|| panic!("the visit job '{self}' puts no body in the world"));
+        let (slot, posting) = self.slot_posting().unwrap_or_else(|| {
+            panic!("the job '{self}' holds no slot, so it puts no body in the world")
+        });
         GeneratedBodyId::new(
             self.station.origin,
             format!("{}_job_{slot}_{posting}_{part}", self.station.stem),
@@ -218,7 +255,7 @@ impl JobId {
     /// Every body id an offer under this id could have put in the world,
     /// whatever its kind: the hauler, [`ESCORT_RAIDERS_MAX`] raiders and the
     /// caller. A renewal takes the live ones out of the world first. None
-    /// for a visit posting, which only procures.
+    /// for a visit posting and a scenario posting, which only procure.
     pub fn possible_bodies(&self) -> Vec<GeneratedBodyId> {
         if self.slot_posting().is_none() {
             return Vec::new();
@@ -232,7 +269,8 @@ impl JobId {
 
 impl fmt::Display for JobId {
     /// `<station id>#<slot>.<posting>` for a slot job,
-    /// `<station id>#<visit id>.<index>` for a visit posting.
+    /// `<station id>#<visit id>.<index>` for a visit posting,
+    /// `<station id>#<key>` for a scenario posting.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.source {
             JobSourceType::Slot { slot, posting } => {
@@ -241,6 +279,7 @@ impl fmt::Display for JobId {
             JobSourceType::Visit { visit, index } => {
                 write!(formatter, "{}#{visit}.{index}", self.station)
             }
+            JobSourceType::Scenario { key } => write!(formatter, "{}#{key}", self.station),
         }
     }
 }
@@ -311,29 +350,124 @@ impl VisitPosting {
     }
 }
 
+/// A job a scenario's `PostJob` action posted beside a station's slots, and
+/// when.
+///
+/// It never takes a slot and has no window: no slot renewal and no clock
+/// takes it off the board. It stands until the player hands it in or drops
+/// it ([`JobPostings::retire_scenario_postings`]).
+#[derive(Clone, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct ScenarioPosting {
+    /// The [`crate::clock::WorldClock`] reading when the scenario posted it.
+    pub posted_at: f64,
+    /// The job, under a [`JobSourceType::Scenario`] id.
+    pub offer: Job,
+}
+
 /// Every station's postings: the posting number, the play-time stamp and
 /// the offer of each of the [`JOBS_PER_BOARD`] slots of every board the
-/// open world has posted, and the [`VisitPosting`]s docked visitors added
-/// beside them. A session resource like [`Jobs`]: a world save carries it,
-/// a Load puts it back, and it is cleared with the chart.
+/// open world has posted, and the [`VisitPosting`]s docked visitors and the
+/// [`ScenarioPosting`]s a scenario added beside them. A session resource
+/// like [`Jobs`]: a world save carries it, a Load puts it back, and it is
+/// cleared with the chart.
 #[derive(Resource, Clone, Debug, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
 pub struct JobPostings {
     boards: BTreeMap<GeneratedBodyId, Vec<SlotPosting>>,
     visits: BTreeMap<GeneratedBodyId, Vec<VisitPosting>>,
+    // Absent from every save written before scenarios could post, and left
+    // out of a save that holds none, so those saves read and write as before.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "BTreeMap::is_empty")
+    )]
+    scenario: BTreeMap<GeneratedBodyId, Vec<ScenarioPosting>>,
 }
 
 impl JobPostings {
-    /// Whether no board has been posted and no visitor posted a job.
+    /// Whether no board has been posted and no visitor or scenario posted a
+    /// job.
     pub fn is_empty(&self) -> bool {
-        self.boards.is_empty() && self.visits.is_empty()
+        self.boards.is_empty() && self.visits.is_empty() && self.scenario.is_empty()
     }
 
-    /// Forget every board and every visit posting.
+    /// Forget every board, every visit posting and every scenario posting.
     pub fn clear(&mut self) {
         self.boards.clear();
         self.visits.clear();
+        self.scenario.clear();
+    }
+
+    /// The scenario postings of `station`, in posting order.
+    pub fn scenario_postings(&self, station: &GeneratedBodyId) -> &[ScenarioPosting] {
+        self.scenario.get(station).map_or(&[], Vec::as_slice)
+    }
+
+    /// The scenario posting `id`, while it stands.
+    pub fn scenario_posting(&self, id: &JobId) -> Option<&ScenarioPosting> {
+        self.scenario_postings(&id.station)
+            .iter()
+            .find(|posting| posting.offer.id == *id)
+    }
+
+    /// Post `offer`, a scenario's job, at `now`.
+    ///
+    /// # Panics
+    ///
+    /// When `offer` is no scenario job or is posted already: the `PostJob`
+    /// action refuses a key its station carries before it posts.
+    pub fn post_scenario(&mut self, offer: Job, now: f64) {
+        assert!(
+            matches!(offer.id.source, JobSourceType::Scenario { .. }),
+            "JobPostings posts '{}' as a scenario job",
+            offer.id
+        );
+        assert!(
+            self.scenario_posting(&offer.id).is_none(),
+            "JobPostings posts the scenario job '{}' twice",
+            offer.id
+        );
+        self.scenario
+            .entry(offer.id.station.clone())
+            .or_default()
+            .push(ScenarioPosting {
+                posted_at: now,
+                offer,
+            });
+    }
+
+    /// Take every scenario posting the player completed or dropped off the
+    /// board. One the player holds or has not accepted stands. Gives back
+    /// the ids that went.
+    pub fn retire_scenario_postings(&mut self, jobs: &Jobs) -> Vec<JobId> {
+        let mut gone = Vec::new();
+        self.scenario.retain(|_, postings| {
+            postings.retain(|posting| {
+                let id = &posting.offer.id;
+                let over = jobs.is_completed(id) || jobs.is_dropped(id);
+                if over {
+                    gone.push(id.clone());
+                }
+                !over
+            });
+            !postings.is_empty()
+        });
+        gone
+    }
+
+    /// Whether the station still offers the unheld job `id` at `now` under
+    /// `rule`: its slot or its visit posting stands inside its window, or
+    /// its scenario posting stands.
+    pub fn offers(&self, id: &JobId, rule: JobOfferRule, now: f64) -> bool {
+        match id.source {
+            JobSourceType::Slot { .. } | JobSourceType::Visit { .. } => self
+                .remaining(id, rule, now)
+                .is_some_and(|remaining| remaining > 0.0),
+            JobSourceType::Scenario { .. } => self.scenario_posting(id).is_some(),
+        }
     }
 
     /// The visit postings of `station`, in posting order.
@@ -349,13 +483,15 @@ impl JobPostings {
     }
 
     /// The play seconds the unheld offer `id` has left at `now` under
-    /// `rule`, while its slot or its visit posting stands.
+    /// `rule`, while its slot or its visit posting stands. `None` for a
+    /// scenario posting, which has no window ([`JobPostings::offers`]).
     pub fn remaining(&self, id: &JobId, rule: JobOfferRule, now: f64) -> Option<f64> {
         match id.source {
             JobSourceType::Slot { .. } => self.slot(id).map(|slot| slot.remaining(rule, now)),
             JobSourceType::Visit { .. } => {
                 self.visit_posting(id).map(|posting| posting.remaining(now))
             }
+            JobSourceType::Scenario { .. } => None,
         }
     }
 
@@ -590,6 +726,12 @@ impl JobPostings {
                     .flatten()
                     .flat_map(|posting| posting.offer.item_ids()),
             )
+            .chain(
+                self.scenario
+                    .values()
+                    .flatten()
+                    .flat_map(|posting| posting.offer.item_ids()),
+            )
     }
 
     /// Every visit posting, in station order.
@@ -599,8 +741,9 @@ impl JobPostings {
 
     /// Refuse a record a Load could not have built: a board with other than
     /// [`JOBS_PER_BOARD`] slots, a stamp that is not finite or stands ahead
-    /// of the clock at `clock_seconds`, or an offer that is not its slot's
-    /// posting or that [`Job::validate`] refuses. A held job is not read
+    /// of the clock at `clock_seconds`, an offer that is not its slot's
+    /// posting or that [`Job::validate`] refuses, or a visit or scenario
+    /// posting listed twice or under another station. A held job is not read
     /// against its slot: it stands by its own rules ([`Jobs::validate`])
     /// after its posting expires or its slot renews.
     pub fn validate(&self, clock_seconds: f64) -> Result<(), String> {
@@ -653,6 +796,35 @@ impl JobPostings {
                 if postings[..index].iter().any(|other| other.offer.id == *id) {
                     return Err(format!(
                         "the visit postings of '{station}' hold '{id}' twice"
+                    ));
+                }
+                posting.offer.validate()?;
+            }
+        }
+        for (station, postings) in &self.scenario {
+            if postings.is_empty() {
+                return Err(format!("the scenario postings of '{station}' are empty"));
+            }
+            for (index, posting) in postings.iter().enumerate() {
+                let id = &posting.offer.id;
+                if id.station != *station || id.post_key().is_none() {
+                    return Err(format!(
+                        "the scenario postings of '{station}' hold '{id}', no scenario job of it"
+                    ));
+                }
+                if !posting.posted_at.is_finite()
+                    || posting.posted_at < 0.0
+                    || posting.posted_at > clock_seconds
+                {
+                    return Err(format!(
+                        "the scenario posting '{id}' is stamped at {} s of play but the clock \
+                         reads {clock_seconds} s",
+                        posting.posted_at
+                    ));
+                }
+                if postings[..index].iter().any(|other| other.offer.id == *id) {
+                    return Err(format!(
+                        "the scenario postings of '{station}' hold '{id}' twice"
                     ));
                 }
                 posting.offer.validate()?;
@@ -960,11 +1132,12 @@ impl Job {
     }
 
     /// Refuse a job no board could have posted: a zero count, cargo or
-    /// reward, a slot past the board, a hand-in elsewhere than the poster,
-    /// or a spawned body not named by the job.
+    /// reward, a slot past the board, a visit or scenario job that is no
+    /// procurement, a scenario key [`is_job_post_key`] refuses, a hand-in
+    /// elsewhere than the poster, or a spawned body not named by the job.
     pub fn validate(&self) -> Result<(), String> {
-        match self.id.source {
-            JobSourceType::Slot { slot, .. } if slot >= JOBS_PER_BOARD => {
+        match &self.id.source {
+            JobSourceType::Slot { slot, .. } if *slot >= JOBS_PER_BOARD => {
                 return Err(format!(
                     "the job '{}' holds slot {slot}, past the {JOBS_PER_BOARD} a board posts",
                     self.id
@@ -977,7 +1150,23 @@ impl Job {
                     self.kind.label()
                 ));
             }
-            JobSourceType::Slot { .. } | JobSourceType::Visit { .. } => {}
+            JobSourceType::Scenario { .. } if !self.kind.is_procurement() => {
+                return Err(format!(
+                    "the scenario job '{}' is a {}, not a procurement",
+                    self.id,
+                    self.kind.label()
+                ));
+            }
+            JobSourceType::Scenario { key } if !is_job_post_key(key) => {
+                return Err(format!(
+                    "the scenario job '{}' is posted under the key '{key}', which is not a \
+                     lowercase letter followed by lowercase letters, digits and '_'",
+                    self.id
+                ));
+            }
+            JobSourceType::Slot { .. }
+            | JobSourceType::Visit { .. }
+            | JobSourceType::Scenario { .. } => {}
         }
         if self.reward_cr == 0 {
             return Err(format!("the job '{}' pays nothing", self.id));
@@ -3700,5 +3889,127 @@ mod tests {
             .expire_visit_postings(&jobs, deadline * 10.0)
             .is_empty());
         postings.validate(deadline * 10.0).unwrap();
+    }
+
+    /// The job a scenario posted on `station` under `key`: a procurement of
+    /// iron ore.
+    fn scenario_job(station: &GeneratedBodyId, key: &str) -> Job {
+        Job {
+            id: JobId::scenario(station.clone(), key),
+            kind: JobType::Procure {
+                item: "IronOre".into(),
+                count: 2,
+            },
+            target: station.clone(),
+            reward_cr: 40,
+        }
+    }
+
+    /// A scenario's job stands beside the slots under its key with no
+    /// window. An open one and a held one stand whatever the clock reads; a
+    /// handed-in one and a dropped one come off the board.
+    #[test]
+    fn a_scenario_posting_stands_until_the_player_hands_it_in_or_drops_it() {
+        let station = station(1);
+        let rule = JobOfferRule {
+            offer_seconds: 60.0,
+            escort_offer_seconds: 60.0,
+        };
+        let [open, held, done, dropped] =
+            ["open", "held", "done", "dropped"].map(|key| scenario_job(&station, key));
+        assert_eq!(
+            open.id.to_string(),
+            format!("{station}#open"),
+            "a scenario job is named by its station and its key"
+        );
+        assert_eq!(open.id.slot_posting(), None, "a scenario job holds no slot");
+        assert_eq!(open.id.post_key(), Some("open"));
+        assert!(open.id.possible_bodies().is_empty());
+
+        let mut postings = JobPostings::default();
+        let mut jobs = Jobs::default();
+        for job in [&open, &held, &done, &dropped] {
+            postings.post_scenario(job.clone(), 100.0);
+        }
+        for job in [&held, &done, &dropped] {
+            jobs.accept(job.clone());
+        }
+        jobs.complete(&done.id);
+        jobs.drop(&dropped.id);
+
+        let far = 1.0e9;
+        assert!(postings.offers(&open.id, rule, far), "no window passes");
+        assert_eq!(postings.remaining(&open.id, rule, far), None);
+        assert_eq!(
+            postings.retire_scenario_postings(&jobs),
+            vec![done.id.clone(), dropped.id.clone()]
+        );
+        assert!(postings.offers(&open.id, rule, far));
+        assert!(postings.scenario_posting(&held.id).is_some());
+        assert!(!postings.offers(&done.id, rule, far));
+        assert!(postings.retire_scenario_postings(&jobs).is_empty());
+        assert_eq!(postings.item_ids().count(), 2);
+        postings.validate(far).unwrap();
+        jobs.validate().unwrap();
+
+        jobs.complete(&held.id);
+        jobs.accept(open.clone());
+        jobs.drop(&open.id);
+        postings.retire_scenario_postings(&jobs);
+        assert!(
+            postings.is_empty(),
+            "the last posting takes its station out"
+        );
+    }
+
+    #[test]
+    fn a_scenario_job_is_a_procurement_under_a_key_that_never_reads_as_another_id() {
+        let station = station(1);
+        for key in ["a", "walk", "ore_run_2"] {
+            assert!(is_job_post_key(key), "{key}");
+            scenario_job(&station, key).validate().unwrap();
+        }
+        for key in ["", "2nd", "_x", "Walk", "ore run", "a.b", "a#b", "0.1"] {
+            assert!(!is_job_post_key(key), "{key}");
+            let refusal = scenario_job(&station, key).validate().unwrap_err();
+            assert!(refusal.contains("is posted under the key"), "{refusal}");
+        }
+
+        let mut escort = scenario_job(&station, "walk");
+        escort.kind = JobType::Escort {
+            hauler: body("cluster_1_0_0_station_job_0_0_hauler", 0),
+            cargo_cr: 600,
+        };
+        let refusal = escort.validate().unwrap_err();
+        assert!(refusal.contains("not a procurement"), "{refusal}");
+    }
+
+    #[test]
+    fn postings_validate_refuses_a_scenario_job_off_its_station_twice_or_ahead_of_the_clock() {
+        let other = station(2);
+        let station = station(1);
+        let job = scenario_job(&station, "walk");
+
+        let mut ahead = JobPostings::default();
+        ahead.post_scenario(job.clone(), 100.0);
+        ahead.validate(100.0).unwrap();
+        let refusal = ahead.validate(99.0).unwrap_err();
+        assert!(refusal.contains("is stamped at 100 s of play"), "{refusal}");
+
+        let posting = ScenarioPosting {
+            posted_at: 0.0,
+            offer: job.clone(),
+        };
+        let mut twice = JobPostings::default();
+        twice
+            .scenario
+            .insert(station.clone(), vec![posting.clone(), posting.clone()]);
+        let refusal = twice.validate(0.0).unwrap_err();
+        assert!(refusal.ends_with("twice"), "{refusal}");
+
+        let mut elsewhere = JobPostings::default();
+        elsewhere.scenario.insert(other, vec![posting]);
+        let refusal = elsewhere.validate(0.0).unwrap_err();
+        assert!(refusal.contains("no scenario job of it"), "{refusal}");
     }
 }

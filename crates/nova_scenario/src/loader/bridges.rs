@@ -27,15 +27,16 @@ pub(super) fn register_bridged_events(app: &mut App) {
     app.add_observer(fire_stance_changed);
 }
 
-/// The payload every job event carries for `job`. `post_key` is empty: a board
-/// generated every job there is.
+/// The payload every job event carries for `job`. `post_key` is the key a
+/// scenario's `PostJob` posted the job under, and empty for a job a board
+/// slot or a visit posted.
 fn job_event_info(job: &Job) -> JobEventInfo {
     JobEventInfo {
         id: job.id.to_string(),
         kind: job.kind.name().to_string(),
         station: job.id.station.to_string(),
         reward_cr: job.reward_cr,
-        post_key: String::new(),
+        post_key: job.id.post_key().unwrap_or_default().to_string(),
     }
 }
 
@@ -149,6 +150,49 @@ mod tests {
                 (OnJobAcceptedEvent::name(), fields(&job_fields)),
                 (OnJobDoneEvent::name(), fields(&job_fields)),
                 (OnJobHandedInEvent::name(), fields(&job_fields)),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_scenario_s_job_carries_its_key_at_every_step() {
+        let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        let job = Job {
+            id: JobId::scenario(station.clone(), "walk"),
+            kind: JobType::Procure {
+                item: ItemDesignId::from(ItemRoleType::IronOre.id()),
+                count: 4,
+            },
+            target: station.clone(),
+            reward_cr: 90,
+        };
+        let station = station.to_string();
+        let id = format!("{station}#walk");
+        let job_fields = [
+            (ENTITY_ID_COMPONENT_NAME, id.as_str()),
+            (JOB_KIND_FIELD_NAME, "Procure"),
+            (JOB_POST_KEY_FIELD_NAME, "walk"),
+            (JOB_REWARD_FIELD_NAME, "90"),
+            (JOB_STATION_FIELD_NAME, station.as_str()),
+        ];
+        let mut app = bridge_app();
+
+        app.world_mut().trigger(JobAccepted { job: job.clone() });
+        app.world_mut().trigger(JobHandedIn { job: job.clone() });
+        app.world_mut().trigger(JobDropped {
+            job: job.clone(),
+            cause: JobDropCauseType::Abandoned,
+        });
+        app.world_mut().flush();
+
+        let mut dropped = vec![(JOB_DROP_CAUSE_FIELD_NAME, "Abandoned")];
+        dropped.extend(job_fields);
+        assert_eq!(
+            app.world().resource::<Fired>().0,
+            [
+                (OnJobAcceptedEvent::name(), fields(&job_fields)),
+                (OnJobHandedInEvent::name(), fields(&job_fields)),
+                (OnJobDroppedEvent::name(), fields(&dropped)),
             ]
         );
     }

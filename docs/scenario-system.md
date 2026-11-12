@@ -106,7 +106,7 @@ that posts a job board, no civilization and no sector. `GENERATED_WORLD_ONLY`
 gate, a query or an action - is a lint Error, because the handler could never
 run or the action is refused on every run. Today the rows are the four job
 events, `OnStanceChanged`, `OnSectorEntered`, the `scenario.sector` query and
-the `SetStance` action.
+the `SetStance` and `PostJob` actions.
 
 `nova_world_base::sync_open_world` arms `WorldConfig` from this block and the
 player ship, and disarms it under a `Void` scenario or none. The base bundle's
@@ -1073,6 +1073,17 @@ through `refuse_action`, and raises the gameplay event
 same bridge. An action that binds a payload reference joins
 `reads_payload_binding` in `lint/scenario.rs`.
 
+`PostJob` needs no request: the board's state is all in `nova_gameplay`.
+The action binds its `station`, refuses `unknown_station`, `no_job_board` or
+`duplicate_job`, and calls `JobPostings::post_scenario` with a procurement
+under `JobSourceType::Scenario { key }`. From there the job takes the paths
+every job takes. `post_station_boards` puts it on the station's `JobBoard`
+and retires it after the hand-in or the drop, the Jobs pane accepts it and
+hands it in, and the world save carries `JobPostings`. The bridge reads the
+key off the `JobId` into `post_key`. A scenario posting has no offer window,
+so `JobPostings::offers` answers for it where a slot or a visit posting
+reads `remaining`.
+
 `OnSectorEntered` is fired by `nova_world`, the owner of the crossing:
 `fire_sector_entered` (`streaming.rs`) reads the `SectorCrossed` messages in
 `NovaWorldSystems::Observe`, after `track_current_sector` posts them, and fires
@@ -1096,8 +1107,8 @@ or a Retry starts in fires nothing.
   row in `GENERATED_WORLD_ONLY`. A new occurrence below `nova_scenario` pushes a
   `ShipInventoryReport` variant; it does not get a second queue.
 - Action: config struct + `EventAction<NovaEventWorld>` impl in the right
-  `actions/` submodule (`audio`/`cinematic`/`flow`/`hold`/`mission`/`sequence`/
-  `ship`/`spawn`/`stance`/`timer`/`view`), plus a row in the `registry::scenario_actions!`
+  `actions/` submodule (`audio`/`cinematic`/`flow`/`hold`/`jobs`/`mission`/
+  `sequence`/`ship`/`spawn`/`stance`/`timer`/`view`), plus a row in the `registry::scenario_actions!`
   table in `actions/mod.rs`. The `EventActionConfig` variant is GENERATED from
   that row - writing one by hand collides with the macro. An action that can
   be impossible at run time checks before it writes and calls `refuse_action`
