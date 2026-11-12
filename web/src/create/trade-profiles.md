@@ -83,9 +83,9 @@ least 1 cr.
 | id | drawn for | trades | jobs |
 |---|---|---|---|
 | `base/ore_hauler` | `Industrial`, weight 3 | sells iron ore 12, stone ore 12, carbon ore 8; buys rations 4 | procure 6 water ice for 180 cr; 3 salvaged parts for 150 cr |
-| `base/provisioner` | `Civilian`, weight 3 | sells rations 10; buys salvaged parts 4, water ice 6 | procure 3 hull plate for 220 cr |
+| `base/provisioner` | `Civilian`, weight 3 | sells rations 10, medkits 4; buys salvaged parts 4, water ice 6 | procure 3 hull plate for 220 cr |
 | `base/salvage_broker` | `Scavenger`, weight 2 | sells salvaged parts 6; buys hull plate 2, PDC round 20 | none |
-| `base/garrison_supply` | `Armored`, weight 1 | none | procure 40 PDC rounds for 200 cr; 6 rations for 160 cr |
+| `base/garrison_supply` | `Armored`, weight 1 | none | procure 40 PDC rounds for 200 cr; 6 rations for 160 cr; 2 medkits for 220 cr |
 | `base/idle_traffic` | `Civilian` 1, `Industrial` 1 | none | none |
 
 The profiles are generated into `assets/base/trade_profiles/base.content.ron`.

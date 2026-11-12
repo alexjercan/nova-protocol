@@ -89,12 +89,13 @@ fn waystation_design(assets: &BaseContentAssets) -> StationDesign {
         ],
         builds: WAYSTATION_BUILDS.iter().map(ToString::to_string).collect(),
         storage_cap_g: WAYSTATION_STORAGE_CAP_G,
-        // Repair stock, the two trade goods and enough section parts to
-        // rebuild a PDC, a small drive, a controller and a few hull blocks:
-        // 80 kg of plates, 40 kg of food, 250 kg of salvage and 500 kg of
-        // section parts in a 1.7 t hold.
+        // Repair and rescue stock, the two trade goods and enough section
+        // parts to rebuild a PDC, a small drive, a controller and a few hull
+        // blocks: 80 kg of plates, 8 kg of medkits, 40 kg of food, 250 kg of
+        // salvage and 500 kg of section parts in a 1.7 t hold.
         stock: ShipInventoryStock::new([
             (ItemRoleType::HullPlate.into(), 8),
+            (ItemRoleType::Medkit.into(), 4),
             (ItemRoleType::Rations.into(), 20),
             (ItemRoleType::SalvagedParts.into(), 10),
             (SECTION_PANEL.into(), 20),

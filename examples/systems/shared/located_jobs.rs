@@ -33,6 +33,12 @@
 //! claims ([`EscortMarkers`]): the hauler waits for the rendezvous, leaves
 //! when the escort arrives, the raiders spring with the escort in formation,
 //! and the hauler outlives its first hit by the defense window.
+//!
+//! The distress range docks with its caller twice: first with no medkit
+//! aboard, and asserts one more claim ([`LocatedJobMarkers::no_medkit`]), the
+//! call still open under the HUD line `NO MEDKIT ABOARD`; then it undocks,
+//! puts one medkit in the hold and docks again, and the done assert reads
+//! the medkit gone.
 
 use std::{collections::BTreeSet, sync::Arc};
 
@@ -60,6 +66,9 @@ pub struct LocatedJobMarkers {
     pub paid: &'static str,
     /// The escort's flight claims; `None` for every other kind.
     pub escort: Option<EscortMarkers>,
+    /// The distress range's claim that a dock with no medkit aboard leaves
+    /// the call open; `None` for every other kind.
+    pub no_medkit: Option<&'static str>,
 }
 
 /// The four `outcome:` markers the escort range emits for its flight, held
@@ -1904,6 +1913,13 @@ fn assert_the_done(world: &mut World) {
             "{tag} job: the kill alone counts no bounty"
         );
     }
+    if kind(world) == LocatedKindType::Distress {
+        assert_eq!(
+            medkits_aboard(world),
+            0,
+            "{tag} job: the rescue took the one medkit aboard"
+        );
+    }
     let body = located_body(world);
     let standing = body_wearing(world, &body).is_some();
     nova_probe::probe_marker(
@@ -1988,6 +2004,55 @@ fn assert_the_hand_in(world: &mut World) {
         }),
     );
     info!("{tag} job: PASS the hand-in paid {} cr", job.reward_cr);
+}
+
+/// The HUD line a dock with a distress caller posts with no medkit aboard.
+const NO_MEDKIT_NOTICE: &str = "NO MEDKIT ABOARD";
+
+/// How many medkits the player's hold carries.
+fn medkits_aboard(world: &World) -> u32 {
+    let medkit = &world.resource::<GameItems>().role(ItemRoleType::Medkit).id;
+    world
+        .get::<ShipInventory>(player(world))
+        .expect("the player has a hold")
+        .count(medkit)
+}
+
+/// The HUD notice slot shows `line`.
+fn the_notice_reads(line: &'static str) -> Arc<Predicate> {
+    when(move |world| {
+        world
+            .try_query_filtered::<&Text, With<HudNoticeText>>()
+            .is_some_and(|mut texts| texts.iter(world).any(|text| text.0 == line))
+    })
+}
+
+/// Distress-only claim: docked with the caller with no medkit aboard, the
+/// call is still held and not done and the HUD says why.
+fn assert_the_dock_with_no_medkit(world: &mut World) {
+    let (_, job) = the_job(world);
+    let body = located_body(world);
+    let caller =
+        body_wearing(world, &body).unwrap_or_else(|| panic!("distress job: no '{body}' stands"));
+    assert!(
+        docked_with(world, Some(caller)),
+        "distress job: the player is docked with the caller"
+    );
+    let jobs = world.resource::<Jobs>().clone();
+    assert!(
+        jobs.holds(&job.id) && !jobs.is_done(&job.id),
+        "distress job: the call stays held and open with no medkit aboard"
+    );
+    assert_eq!(medkits_aboard(world), 0);
+    let marker = markers(world)
+        .no_medkit
+        .expect("the distress range names its no-medkit marker");
+    nova_probe::probe_marker(
+        world,
+        marker,
+        serde_json::json!({ "job": job.id.to_string(), "notice": NO_MEDKIT_NOTICE }),
+    );
+    info!("distress job: PASS the dock with no medkit left the call open: '{NO_MEDKIT_NOTICE}'");
 }
 
 /// Distress-only: the caller wears the objective marker tag
@@ -2211,6 +2276,46 @@ pub fn walk_to_done(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
             .on_enter(move |world: &mut World| shoot(world, &inflight_shot_name))
             .until(shot_written(inflight_shot))
             .deadline(BEAT_SECS)
+            .add()
+            .step("distress job: dock with no medkit aboard")
+            .on_enter(|world: &mut World| {
+                assert_eq!(
+                    medkits_aboard(world),
+                    0,
+                    "distress job: the start kit carries no medkit"
+                );
+            })
+            .each(|world, _, _| {
+                let body = located_body(world);
+                if let Some(caller) = body_wearing(world, &body) {
+                    berth_and_dock(world, caller);
+                }
+            })
+            .until(and(
+                when(|world| {
+                    let body = located_body(world);
+                    docked_with(world, body_wearing(world, &body))
+                }),
+                the_notice_reads(NO_MEDKIT_NOTICE),
+            ))
+            .deadline(WORK_SECS)
+            .add()
+            .step("distress job: assert the dock with no medkit")
+            .on_enter(assert_the_dock_with_no_medkit)
+            .add()
+            .step("distress job: undock and take one medkit aboard")
+            .on_enter(|world: &mut World| {
+                let player = player(world);
+                world.trigger(DockingReleaseRequest { entity: player });
+                let items = world.resource::<GameItems>().clone();
+                let medkit = items.role(ItemRoleType::Medkit).id.clone();
+                world
+                    .get_mut::<ShipInventory>(player)
+                    .expect("the player has a hold")
+                    .add(&items, &medkit, 1);
+            })
+            .until(and(player_free(), frames(SETTLE_FRAMES)))
+            .deadline(SESSION_SECS)
             .add()
     } else if kind == LocatedKindType::Escort {
         script

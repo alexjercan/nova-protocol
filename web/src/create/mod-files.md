@@ -265,10 +265,11 @@ above 0; `price_lot` is above 0; `bid_cr` is at most `ask_cr`. `ask_cr` and
 share, rounded up for a Buy and down for a Sell, see
 [Reference price](../prices/#how-a-trader-prices). Any ship's stock, a cargo
 canister, or a trade may carry the id, mod items included. The base game
-must define ten role ids that the game itself uses: `HullPlate` feeds a
+must define eleven role ids that the game itself uses: `HullPlate` feeds a
 repair, the ammunition feeds a weapon's reload, the ores are mining yield,
-and generated ship holds draw the two trade goods `Rations` and
-`SalvagedParts`. A role id keeps its category: `HullPlate` is `Repair`;
+generated ship holds draw the two trade goods `Rations` and
+`SalvagedParts`, and a distress rescue takes one `Medkit`. A role id keeps
+its category: `HullPlate` and `Medkit` are `Repair`;
 `PdcRound`, `RailSlug` and `Torpedo` are `Ammo`; `StoneOre`, `IronOre`,
 `WaterIce` and `CarbonOre` are `Raw`; `Rations` is `Food`; `SalvagedParts`
 is `Parts`. Every item fits one cargo canister, so its `mass_g` is at most

@@ -451,7 +451,8 @@ builds: every part at advancement 0, and of the parts above 0 that its
 advancement opens, each with chance 0.5 keyed to the civilization and the
 part id. The parts hold at least one recipe of every part it builds: for each
 item, the largest count any one of those recipes asks, so the Catalogue can
-sell every part it lists from the station's own stock. Its goods hold
+sell every part it lists from the station's own stock. Its goods are hull
+plates, medkits, rations, salvaged parts and ammunition, by fixed weights. They hold
 ammunition only for the reloading weapons its civilization knows
 (`PdcRound`, `RailSlug`, `Torpedo`): at least 2,000 `PdcRound` when one of
 those weapons reloads from it, and at least one unit of each other such
@@ -580,7 +581,7 @@ Each slot draws its kind by the start role's `jobs` mix (see
 | `Procure` | `Bring 4 Iron ore` | bring that many units of the item to the poster | the goods at the ask plus half, plus a fee |
 | `Recover` | `Recover 2 Hull plate from <wreck>` | take that many off the named derelict in the cube and undock with them aboard, the wreck's stack gone | twice the ask, plus a fee |
 | `Escort` | `Escort a hauler carrying 1200 cr` | a working-hull hauler spawns 1 km off the poster on a 10 km leg and leaves at 100 m/s once you are undocked and within 1 km of it; see it reach its mark. `1 + cargo / 700` raiders, at most 3, lie in wait 2.5 km off the leg, 75 % along it, and engage within 3 km; they hunt the hauler and turn on a ship that shoots them for as long as it keeps shooting | half the cargo value, plus a fee |
-| `Distress` | `Answer a distress call` | a neutral drifting caller spawns 10 km out: dock with the caller | 200 cr plus twice a fee |
+| `Distress` | `Answer a distress call` | a neutral drifting caller spawns 10 km out: dock with the caller with one `Medkit` role item in the hold. The dock takes it; with none aboard the job stays open and the HUD posts `NO MEDKIT ABOARD` | 200 cr, the `Medkit` reference ask plus half, plus twice a fee |
 | `Neutralize` | `Neutralize <hull>` | neutralize the named Enemy hull standing in the cube | 400 cr plus twice a fee |
 
 The fee is 50 to 250 cr. The sector's clusters pick the item categories a
@@ -640,7 +641,7 @@ board is seeded from.
 
 | id | what it is |
 |---|---|
-| `block_waystation` | Waystation - a plated two-deck block about 40 m across, unarmed, with a bridge set into the top deck, a second flight computer (`lower_bridge`) in the far corner of the lower deck and a docking collar off the port flank (`port_collar`). Offers Rebuild, Refit, Trade, Storage and Refine; its hold opens with hull plates, rations, salvaged parts and a few of each hull, drive, controller and PDC part |
+| `block_waystation` | Waystation - a plated two-deck block about 40 m across, unarmed, with a bridge set into the top deck, a second flight computer (`lower_bridge`) in the far corner of the lower deck and a docking collar off the port flank (`port_collar`). Offers Rebuild, Refit, Trade, Storage and Refine; its hold opens with hull plates, medkits, rations, salvaged parts and a few of each hull, drive, controller and PDC part |
 
 The waystation collapses at half its hull pool, as every generated station
 does.

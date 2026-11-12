@@ -74,6 +74,7 @@ fn main() -> bevy::app::AppExit {
             done: "outcome: the world marks the recover job done",
             paid: "outcome: the hand-in pays the recover job",
             escort: None,
+            no_medkit: None,
         };
 
         if std::env::var_os("NOVA_AUTOPILOT").is_some() {

@@ -289,9 +289,10 @@ saved: stock and credits return to their authored values when the scenario loads
 
 The table below is the base catalog; a mod adds its own items under its own
 ids, and any ship's stock, a canister or a trade may carry them the same way.
-The base game must define all ten ids below, each in its category: `HullPlate`
-feeds a repair, the ammunition a weapon's reload, the ores mining yield, and
-generated ship holds draw `Rations` and `SalvagedParts`. A dependent mod may
+The base game must define all eleven ids below, each in its category:
+`HullPlate` feeds a repair, the ammunition a weapon's reload, the ores mining
+yield, generated ship holds draw `Rations` and `SalvagedParts`, and a
+distress rescue takes one `Medkit`. A dependent mod may
 replace one with its own mass and prices, never another category; a mod item
 of its own is generic authored stock. See [Content files](../mod-files/#content-files).
 
@@ -307,6 +308,7 @@ of its own is generic authored stock. See [Content files](../mod-files/#content-
 | `CarbonOre` | 10 kg | Raw | 1 | 8 | 6 |
 | `Rations` | 2 kg | Food | 1 | 8 | 6 |
 | `SalvagedParts` | 25 kg | Parts | 1 | 120 | 90 |
+| `Medkit` | 2 kg | Repair | 1 | 60 | 45 |
 
 Ask and Bid are credits for one lot of items, the same on every ship. A
 trade of a count that is not a whole lot pays its share, rounded up for a

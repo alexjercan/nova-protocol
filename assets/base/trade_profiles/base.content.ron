@@ -62,6 +62,12 @@
                 limit_cr: 3,
             ),
             (
+                item: "Medkit",
+                side: Sell,
+                quantity: 4,
+                limit_cr: 22,
+            ),
+            (
                 item: "SalvagedParts",
                 side: Buy,
                 quantity: 4,
@@ -131,6 +137,11 @@
                 item: "Rations",
                 count: 6,
                 reward_cr: 160,
+            ),
+            Procure(
+                item: "Medkit",
+                count: 2,
+                reward_cr: 220,
             ),
         ],
     )),

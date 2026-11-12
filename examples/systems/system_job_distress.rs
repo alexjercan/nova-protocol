@@ -6,15 +6,19 @@
 //! station posting a distress job, dock, accept it off the Jobs tab, read
 //! the hand-in refused as not done, undock, do the work in the world, see the
 //! open world mark the job done, dock again and hand it in for the reward.
+//! The work is two docks with the caller: one with no medkit aboard, which
+//! leaves the call open, then one with a medkit put in the hold, which the
+//! rescue takes.
 //!
 //! | # | marker | claim |
 //! | - | - | - |
 //! | 1 | `outcome: a distress job is posted and accepted` | a living station's board posts the kind; after the Accept click the job is held and its bodies stand under the poster's cell root |
 //! | 2 | `outcome: the hand-in is refused until the distress job is done` | docked at the poster with the job held, Your jobs greys the Hand in button with the not-done reason in its tooltip |
-//! | 3 | `outcome: the world marks the distress job done` | after the work the job is listed done while still held |
-//! | 4 | `outcome: the hand-in pays the distress job` | docked again, the Hand in click pays the reward from the station and lists the job completed |
+//! | 3 | `outcome: a dock with no medkit aboard leaves the distress call open` | docked with the caller with no medkit in the hold, the job is still held and not done and the HUD notice reads `NO MEDKIT ABOARD` |
+//! | 4 | `outcome: the world marks the distress job done` | after a second dock with one medkit aboard the job is listed done while still held, and the medkit is gone from the hold |
+//! | 5 | `outcome: the hand-in pays the distress job` | docked again, the Hand in click pays the reward from the station and lists the job completed |
 //!
-//! Between claims 1 and 3 the range also parks in flight off the caller and
+//! Between claims 2 and 3 the range also parks in flight off the caller and
 //! asserts the caller wears its in-flight objective marker chip.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
@@ -22,6 +26,7 @@
 //! NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=1800 \
 //!   cargo run --example system_job_distress --features debug
 //! # look for: `distress job: PASS the caller wears the in-flight marker`,
+//! #           `distress job: PASS the dock with no medkit left the call open`,
 //! #           `distress job: PASS the hand-in paid`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
@@ -79,6 +84,7 @@ fn main() -> bevy::app::AppExit {
             done: "outcome: the world marks the distress job done",
             paid: "outcome: the hand-in pays the distress job",
             escort: None,
+            no_medkit: Some("outcome: a dock with no medkit aboard leaves the distress call open"),
         };
 
         if std::env::var_os("NOVA_AUTOPILOT").is_some() {

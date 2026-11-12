@@ -108,14 +108,15 @@ const SHRINK: (f32, u32) = (0.9, 24);
 const STOCK_SHARE: (f32, f32) = (0.04, 0.08);
 
 /// The goods a station stocks, by weight. Ammunition for the weapons of the
-/// ships it serves, plates to patch them, food and salvage to trade. An
-/// ammunition item is stocked only when a weapon its civilization knows
-/// reloads from it.
-const GOODS: [(ItemRoleType, f32); 6] = [
+/// ships it serves, plates to patch them, medkits for the distress calls its
+/// board posts, food and salvage to trade. An ammunition item is stocked only
+/// when a weapon its civilization knows reloads from it.
+const GOODS: [(ItemRoleType, f32); 7] = [
     (ItemRoleType::PdcRound, 2.0),
     (ItemRoleType::RailSlug, 2.0),
     (ItemRoleType::Torpedo, 2.0),
     (ItemRoleType::HullPlate, 3.0),
+    (ItemRoleType::Medkit, 2.0),
     (ItemRoleType::Rations, 3.0),
     (ItemRoleType::SalvagedParts, 2.0),
 ];
@@ -1818,6 +1819,7 @@ mod tests {
         // station stocks no ammunition.
         let goods = [
             ItemRoleType::HullPlate,
+            ItemRoleType::Medkit,
             ItemRoleType::Rations,
             ItemRoleType::SalvagedParts,
         ];
@@ -1913,6 +1915,7 @@ mod tests {
         let parts = ShipPartSnapshot::build(&packs).expect("the recipe fixture builds");
         let goods = [
             ItemRoleType::HullPlate,
+            ItemRoleType::Medkit,
             ItemRoleType::Rations,
             ItemRoleType::SalvagedParts,
         ];

@@ -101,9 +101,9 @@ impl std::fmt::Display for ItemDesignId {
 
 /// Every item engine code names, with the category it must keep. Content lint
 /// and the merge refuse a catalog without one of these ids and a definition
-/// that files one under another category: the repair, the weapon reloads,
-/// the mining yield and the sector hold draws would otherwise spend or make
-/// something else. A closed enum, so a match over the roles is exhaustive
+/// that files one under another category: the repair, the rescue, the
+/// weapon reloads, the mining yield and the sector hold draws would otherwise
+/// spend or make something else. A closed enum, so a match over the roles is exhaustive
 /// where a match over id strings is not.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ItemRoleType {
@@ -129,11 +129,14 @@ pub enum ItemRoleType {
     Rations,
     /// Reusable ship components. Generated sector ship holds draw them.
     SalvagedParts,
+    /// Emergency medical supplies. A distress rescue takes one from the
+    /// hold at the dock with the caller.
+    Medkit,
 }
 
 impl ItemRoleType {
     /// Every role, in base catalog order.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::HullPlate,
         Self::PdcRound,
         Self::RailSlug,
@@ -144,6 +147,7 @@ impl ItemRoleType {
         Self::CarbonOre,
         Self::Rations,
         Self::SalvagedParts,
+        Self::Medkit,
     ];
 
     /// The authored catalog id the base game defines this role under.
@@ -159,13 +163,14 @@ impl ItemRoleType {
             Self::CarbonOre => "CarbonOre",
             Self::Rations => "Rations",
             Self::SalvagedParts => "SalvagedParts",
+            Self::Medkit => "Medkit",
         }
     }
 
     /// The category the item under [`id`](Self::id) must keep.
     pub const fn category(self) -> ItemCategoryType {
         match self {
-            Self::HullPlate => ItemCategoryType::Repair,
+            Self::HullPlate | Self::Medkit => ItemCategoryType::Repair,
             Self::PdcRound | Self::RailSlug | Self::Torpedo => ItemCategoryType::Ammo,
             Self::StoneOre | Self::IronOre | Self::WaterIce | Self::CarbonOre => {
                 ItemCategoryType::Raw
@@ -385,7 +390,7 @@ pub fn lot_cr_text(credits: u32, lot: u32) -> String {
 pub enum ItemCategoryType {
     /// Mined or salvaged bulk material.
     Raw,
-    /// Material a repair consumes.
+    /// Material a repair or a rescue consumes.
     Repair,
     /// Weapon magazine supply.
     Ammo,

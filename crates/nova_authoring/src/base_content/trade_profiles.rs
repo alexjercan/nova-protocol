@@ -84,6 +84,7 @@ pub(crate) fn trade_profile_catalog() -> Vec<TradeProfileDesign> {
             generated: generated(&[(ShipRoleType::Civilian, 3)]),
             trades: vec![
                 sell(ItemRoleType::Rations, 10),
+                sell(ItemRoleType::Medkit, 4),
                 buy(ItemRoleType::SalvagedParts, 4),
                 buy(ItemRoleType::WaterIce, 6),
             ],
@@ -106,6 +107,7 @@ pub(crate) fn trade_profile_catalog() -> Vec<TradeProfileDesign> {
             jobs: vec![
                 procure(ItemRoleType::PdcRound, 40, 200),
                 procure(ItemRoleType::Rations, 6, 160),
+                procure(ItemRoleType::Medkit, 2, 220),
             ],
         },
         // Valid traffic that only visits: no trade, no job.

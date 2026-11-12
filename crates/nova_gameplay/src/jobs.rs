@@ -44,7 +44,10 @@
 //! crate watches one existing event kind per type and marks the held job
 //! done ([`Jobs::mark_done`]); the hand-in is refused until then. An Escort
 //! and a Distress call put generated bodies in the world on the accept
-//! ([`JobAccepted`]), named by the job ([`Job::spawned_bodies`]).
+//! ([`JobAccepted`]), named by the job ([`Job::spawned_bodies`]). The dock
+//! that answers a Distress call takes one medkit from the hold
+//! ([`plan_distress_rescue`]); with none aboard the call stays open and the
+//! world raises [`DistressRefused`].
 //!
 //! [`Jobs`] is the player's record: the jobs held, the ids done, the jobs
 //! completed and each undone escort's leg ([`EscortLeg`]). It is a session resource like the chart: a world save carries
@@ -66,7 +69,9 @@ use rand::{RngExt, SeedableRng};
 use crate::{
     chart::prelude::ClusterType,
     hash::Fnv64,
-    inventory::prelude::{cr_text, GameItems, ItemCategoryType, ItemDesignId, ShipInventory},
+    inventory::prelude::{
+        cr_text, GameItems, ItemCategoryType, ItemDesignId, ItemRoleType, ShipInventory,
+    },
     market::prelude::JobOfferRule,
     station_visits::prelude::StationVisitId,
 };
@@ -74,13 +79,14 @@ use crate::{
 /// Glob-import surface: `use nova_gameplay::jobs::prelude::*`.
 pub mod prelude {
     pub use super::{
-        escort_raiders, job_title, offer_deadline_text, plan_job_accept, plan_job_hand_in,
-        plan_job_hull_fit, plan_job_offer_refresh, station_job_offers, EscortLeg, Job,
-        JobAcceptRefusalType, JobAccepted, JobBoard, JobDone, JobField, JobHandInPartner,
-        JobHandInPlan, JobHandInRefusalType, JobHull, JobHullFit, JobHullRefusalType, JobId,
-        JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType, JobPostings, JobSourceType,
-        JobType, JobWreck, Jobs, SlotPosting, StarterBoardMarker, VisitPosting, ESCORT_RAIDERS_MAX,
-        JOBS_PER_BOARD, JOB_OFFER_REFRESH_FEE_CR, RAIDERS_PER_CARGO_CR, VISIT_EXTRAS_MAX,
+        escort_raiders, job_title, offer_deadline_text, plan_distress_rescue, plan_job_accept,
+        plan_job_hand_in, plan_job_hull_fit, plan_job_offer_refresh, station_job_offers,
+        DistressRefusalType, DistressRefused, EscortLeg, Job, JobAcceptRefusalType, JobAccepted,
+        JobBoard, JobDone, JobField, JobHandInPartner, JobHandInPlan, JobHandInRefusalType,
+        JobHull, JobHullFit, JobHullRefusalType, JobId, JobMixType, JobOfferRefreshPlan,
+        JobOfferRefreshRefusalType, JobPostings, JobSourceType, JobType, JobWreck, Jobs,
+        SlotPosting, StarterBoardMarker, VisitPosting, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD,
+        JOB_OFFER_REFRESH_FEE_CR, RAIDERS_PER_CARGO_CR, VISIT_EXTRAS_MAX,
         VISIT_EXTRA_OFFER_SECONDS,
     };
 }
@@ -113,7 +119,8 @@ const FEE_STEPS: u32 = 5;
 /// The least and the most cargo an escorted hauler carries, at ask, both
 /// included; the reward is half of it plus the fee.
 const ESCORT_CARGO_CR: (u32, u32) = (300, 2_400);
-/// What a distress call pays before the fee.
+/// What a distress call pays before the fee and the medkit the rescue
+/// spends.
 const DISTRESS_BASE_CR: u32 = 200;
 /// What a neutralize pays before the fee, doubled for the risk.
 const NEUTRALIZE_BASE_CR: u32 = 400;
@@ -884,7 +891,9 @@ impl Job {
                 raiders; the job is lost if the hauler is disabled, neutralized or destroyed \
                 before arrival."
                 .to_string(),
-            JobType::Distress { .. } => "Dock with the stranded caller.".to_string(),
+            JobType::Distress { .. } => {
+                "Dock with the stranded caller. Bring one medkit.".to_string()
+            }
             JobType::Neutralize { hull_name, .. } => {
                 format!("Find {hull_name} and neutralize or destroy it.")
             }
@@ -1064,6 +1073,38 @@ pub struct JobAccepted {
 pub struct JobDone {
     /// The held job just marked done.
     pub id: JobId,
+}
+
+/// Why a dock with a distress caller rescues nobody.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DistressRefusalType {
+    /// The hold carries no medkit ([`ItemRoleType::Medkit`]).
+    NoMedkit,
+}
+
+/// Plan the rescue a dock with a distress caller makes from `hold`: it takes
+/// one `medkit`, the catalog's [`ItemRoleType::Medkit`] item. Refused, the
+/// hold is untouched and the call stays open, so a later dock with a medkit
+/// aboard answers it.
+pub fn plan_distress_rescue(
+    hold: &ShipInventory,
+    medkit: &ItemDesignId,
+) -> Result<(), DistressRefusalType> {
+    if hold.count(medkit) == 0 {
+        return Err(DistressRefusalType::NoMedkit);
+    }
+    Ok(())
+}
+
+/// Raised by the open world when the player's dock with a held distress
+/// call's caller rescues nobody ([`plan_distress_rescue`]): the job stays
+/// held and not done. Once per refused dock.
+#[derive(Event, Clone, Debug)]
+pub struct DistressRefused {
+    /// The held distress call the dock did not answer.
+    pub id: JobId,
+    /// Why.
+    pub refusal: DistressRefusalType,
 }
 
 /// An undone escort's leg: the mark its hauler flies to and whether the
@@ -1444,7 +1485,8 @@ fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
 /// units at the item's ask plus half. A recovery names a wreck of the field
 /// and one of its stacks, whole, at ask twice; an escort a hauler carrying
 /// [`ESCORT_CARGO_CR`] at ask, for half of it; a distress call pays
-/// [`DISTRESS_BASE_CR`]; a neutralize names a hostile of the field for
+/// [`DISTRESS_BASE_CR`] and the one medkit its rescue spends at ask plus
+/// half; a neutralize names a hostile of the field for
 /// [`NEUTRALIZE_BASE_CR`].
 /// Every job adds a flat fee of one to [`FEE_STEPS`] times [`FEE_STEP_CR`],
 /// doubled for a distress call and a neutralize. A kind drawn with no
@@ -1578,7 +1620,7 @@ pub fn station_job_offers(
                     )
                 }
                 JobKindType::Escort => escort_posting(&id, draw.cargo_cr, draw.fee),
-                JobKindType::Distress => distress_posting(&id, draw.fee),
+                JobKindType::Distress => distress_posting(&id, draw.fee, items),
                 JobKindType::Neutralize => {
                     let hull = hostiles.swap_remove(draw.pick as usize % hostiles.len());
                     (
@@ -1675,13 +1717,15 @@ fn escort_posting(id: &JobId, cargo_cr: u32, fee: u32) -> (JobType, u32) {
     )
 }
 
-/// The distress call `id` posts, and its reward.
-fn distress_posting(id: &JobId, fee: u32) -> (JobType, u32) {
+/// The distress call `id` posts, and its reward: the base, the medkit the
+/// rescue spends at its reference ask plus half, and twice the fee.
+fn distress_posting(id: &JobId, fee: u32, items: &GameItems) -> (JobType, u32) {
+    let medkit = items.role(ItemRoleType::Medkit).reference_price().buy_cr(1) * 3 / 2;
     (
         JobType::Distress {
             caller: id.spawned_body("caller", 0),
         },
-        job_reward(u64::from(DISTRESS_BASE_CR), fee * 2),
+        job_reward(u64::from(DISTRESS_BASE_CR) + medkit, fee * 2),
     )
 }
 
@@ -1718,7 +1762,7 @@ fn fitted_posting(
         return Some(procurement(item, count, draw.fee, items));
     }
     if fit.has_clamp {
-        return Some(distress_posting(id, draw.fee));
+        return Some(distress_posting(id, draw.fee, items));
     }
     fit.has_weapon
         .then(|| escort_posting(id, draw.cargo_cr, draw.fee))
@@ -2101,6 +2145,7 @@ mod tests {
             item("Rations", ItemCategoryType::Food, 8),
             item("FrameSpar", ItemCategoryType::Parts, 60),
             item("HullPlate", ItemCategoryType::Repair, 40),
+            item("Medkit", ItemCategoryType::Repair, 60),
             item("PdcRound", ItemCategoryType::Ammo, 4),
         ])
     }
@@ -2353,11 +2398,69 @@ mod tests {
                     JobType::Distress { caller } => {
                         assert_eq!(job.spawned_bodies(), vec![caller.clone()]);
                         assert_eq!(job.title(&items), "Answer a distress call");
+                        assert_eq!(
+                            job.task(&items),
+                            "Dock with the stranded caller. Bring one medkit."
+                        );
                     }
                     JobType::Procure { .. } => {}
                 }
             }
         }
+    }
+
+    #[test]
+    fn a_distress_call_pays_its_base_the_medkit_at_ask_plus_half_and_twice_the_fee() {
+        let items = catalog();
+        let id = JobId::slot(station(1), 0, 0);
+        let medkit = items.role(ItemRoleType::Medkit).reference_price().buy_cr(1);
+        assert_eq!(medkit, 60);
+        let (kind, reward_cr) = distress_posting(&id, 100, &items);
+        assert!(matches!(kind, JobType::Distress { .. }));
+        assert_eq!(reward_cr, DISTRESS_BASE_CR + 90 + 200);
+
+        let dearer = GameItems::new(
+            catalog()
+                .iter()
+                .filter(|design| design.id.as_str() != "Medkit")
+                .cloned()
+                .chain([item("Medkit", ItemCategoryType::Repair, 100)]),
+        );
+        assert_eq!(
+            distress_posting(&id, 100, &dearer).1,
+            DISTRESS_BASE_CR + 150 + 200,
+            "the reward follows the catalog's medkit price"
+        );
+    }
+
+    #[test]
+    fn a_distress_rescue_needs_one_medkit_in_the_hold() {
+        let items = catalog();
+        let medkit = ItemDesignId::from(ItemRoleType::Medkit);
+        let hold = |stacks: &[(&str, u32)]| {
+            ShipInventory::new(
+                &items,
+                1_000_000,
+                stacks.iter().map(|(id, count)| ((*id).into(), *count)),
+            )
+        };
+        assert_eq!(
+            plan_distress_rescue(&hold(&[]), &medkit),
+            Err(DistressRefusalType::NoMedkit)
+        );
+        assert_eq!(
+            plan_distress_rescue(&hold(&[("HullPlate", 4), ("Rations", 9)]), &medkit),
+            Err(DistressRefusalType::NoMedkit),
+            "no other item stands in for a medkit"
+        );
+        assert_eq!(
+            plan_distress_rescue(&hold(&[("Medkit", 1)]), &medkit),
+            Ok(())
+        );
+        assert_eq!(
+            plan_distress_rescue(&hold(&[("Medkit", 3)]), &medkit),
+            Ok(())
+        );
     }
 
     #[test]
@@ -2370,7 +2473,9 @@ mod tests {
 
     #[test]
     fn a_small_pool_repeats_an_item_and_an_empty_catalog_is_a_fault() {
-        let only_food = GameItems::new([item("Rations", ItemCategoryType::Food, 8)]);
+        // A distress offer reads the medkit, so every catalog carries it.
+        let medkit = || item("Medkit", ItemCategoryType::Repair, 60);
+        let only_food = GameItems::new([item("Rations", ItemCategoryType::Food, 8), medkit()]);
         let posted = board(
             3,
             &station(1),
@@ -2384,7 +2489,7 @@ mod tests {
             JobType::Procure { item, .. } => item.as_str() == "Rations",
             _ => true,
         }));
-        let ammo_only = GameItems::new([item("PdcRound", ItemCategoryType::Ammo, 4)]);
+        let ammo_only = GameItems::new([item("PdcRound", ItemCategoryType::Ammo, 4), medkit()]);
         let posted = board(
             3,
             &station(1),

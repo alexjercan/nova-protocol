@@ -376,6 +376,7 @@
                 "FlightCore": 1,
                 "FrameSpar": 2,
                 "HullPlate": 8,
+                "Medkit": 4,
                 "Rations": 20,
                 "SalvagedParts": 10,
                 "SectionPanel": 20,

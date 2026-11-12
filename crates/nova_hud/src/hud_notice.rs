@@ -7,7 +7,10 @@
 //! dock refusal ([`FlightVerbHints::dock_refusal`]) posts here when it starts
 //! or names another station; the DOCK chip only goes dark. A held job whose
 //! work is done ([`JobDone`]) posts `JOB-n done: hand in at STN-m`, naming
-//! no credits: payment stays at the hand-in. A MATCH refused for its target,
+//! no credits: payment stays at the hand-in. A dock with a held distress
+//! call's caller that rescues nobody ([`DistressRefused`]) posts why, once
+//! per dock; it is raised after the clamp closes, so it replaces that dock's
+//! `DOCKED <NAME>`. A MATCH refused for its target,
 //! RCS or magazine, or cut short ([`MatchRefusal`]), posts why. The gates the
 //! chord shares with STOP (no STOP capability, docked without the helm, the
 //! docked partner) stay silent, as STOP does. A `DOCK` press that did nothing
@@ -174,8 +177,8 @@ impl HudNoticeKeepOut<'_, '_> {
 }
 
 /// Registers [`HudNotice`], posts a station's dock refusal, a MATCH refusal,
-/// a refused `DOCK` press, the player's clamp closing and letting go and a
-/// held job's done to it, and runs
+/// a refused `DOCK` press, the player's clamp closing and letting go, a
+/// held job's done and a refused distress rescue to it, and runs
 /// `post_dock_refusal_notice`, `post_match_refusal_notice`,
 /// `post_dock_press_notice`, `show_hud_notice` and `paint_hud_notice` chained
 /// in Update within [`NovaHudSystems`]. The box itself is a player-scoped
@@ -194,6 +197,7 @@ impl Plugin for HudNoticePlugin {
         app.register_type::<HudNoticeMarker>();
         app.register_type::<HudNoticeText>();
         app.add_observer(post_job_done_notice);
+        app.add_observer(post_distress_refused_notice);
         app.add_observer(post_dock_clamped_notice);
         app.add_observer(post_dock_released_notice);
         app.add_systems(
@@ -350,6 +354,23 @@ fn post_job_done_notice(
         .station_code(&job.target)
         .expect("a held job's poster is charted: the accept docked there");
     notices.write(HudNotice(format!("{code} done: hand in at {station}")));
+}
+
+/// Post why a dock with a held distress call's caller rescued nobody.
+fn post_distress_refused_notice(
+    refused: On<DistressRefused>,
+    mut notices: MessageWriter<HudNotice>,
+) {
+    let line = distress_refusal_line(refused.refusal);
+    debug!("hud_notice: {line} ('{}')", refused.id);
+    notices.write(HudNotice(line.to_string()));
+}
+
+/// The notice line for a refused distress rescue.
+fn distress_refusal_line(refusal: DistressRefusalType) -> &'static str {
+    match refusal {
+        DistressRefusalType::NoMedkit => "NO MEDKIT ABOARD",
+    }
 }
 
 /// Age the shown notice and take the latest posting into the slot. A new text
@@ -599,6 +620,44 @@ mod tests {
             1,
             "one done, one cue"
         );
+    }
+
+    /// A refused distress rescue posts `NO MEDKIT ABOARD` with one cue, and
+    /// posts over the `DOCKED <NAME>` line of the same dock.
+    #[test]
+    fn a_refused_distress_rescue_posts_no_medkit_aboard_over_the_docked_line() {
+        use nova_events::prelude::{GeneratedBodyId, SectorCoord};
+
+        let mut app = notice_app();
+        let (_, player_port) = hull(&mut app, "Kestrel", true);
+        let (caller, _) = hull(&mut app, "Vell caller", false);
+        let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
+        let id = JobId::slot(station, 0, 0);
+
+        app.world_mut().trigger(DockClamped {
+            entity: player_port,
+            partner: caller,
+        });
+        app.world_mut().trigger(DistressRefused {
+            id: id.clone(),
+            refusal: DistressRefusalType::NoMedkit,
+        });
+        app.update();
+        assert_eq!(rendered(&mut app).0, "NO MEDKIT ABOARD");
+        assert_eq!(app.world().resource::<NoticeCues>().interface, 1);
+
+        advance(&mut app, NOTICE_DWELL_SECS + NOTICE_FADE_SECS + 1.0);
+        app.world_mut().trigger(DistressRefused {
+            id,
+            refusal: DistressRefusalType::NoMedkit,
+        });
+        app.update();
+        assert_eq!(
+            rendered(&mut app).0,
+            "NO MEDKIT ABOARD",
+            "the next refused dock posts again"
+        );
+        assert_eq!(app.world().resource::<NoticeCues>().interface, 2);
     }
 
     /// A hull with a port on it, named.

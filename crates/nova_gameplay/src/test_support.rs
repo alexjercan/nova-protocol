@@ -119,6 +119,7 @@ pub fn test_items() -> crate::inventory::GameItems {
             120,
             90,
         ),
+        role(ItemRoleType::Medkit, "Medkit", Repair, 2_000, 1, 60, 45),
         item("SectionPanel", "Section panel", Parts, 10_000, 1, 20, 15),
         item("FrameSpar", "Frame spar", Parts, 40_000, 1, 60, 45),
         item("ActuatorPack", "Actuator pack", Parts, 15_000, 1, 80, 60),

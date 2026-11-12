@@ -41,7 +41,8 @@
 //! ([`fly_escort_legs`]). Each located kind is marked done by one observer
 //! over one existing `nova_events` kind: a recovery on `onundocked`
 //! ([`recover_on_undock`]), an escort on `onshipordercomplete`
-//! ([`escort_on_arrival`]), a distress call on `ondocked`
+//! ([`escort_on_arrival`]), a distress call on the player's `ondocked`
+//! with a medkit aboard, which the rescue takes
 //! ([`distress_on_answer`]), a neutralize on `onneutralized` or `ondestroyed`
 //! ([`neutralize_on_kill`]). A held job is dropped, and its spawned bodies
 //! taken out, on the `onneutralized` or `ondestroyed` of what retires it
@@ -64,13 +65,14 @@ use nova_events::prelude::{
     OnShipOrderCompleteEvent, OnShipOrderFailedEvent, OnUndockedEvent, SectorCoord,
 };
 use nova_gameplay::prelude::{
-    plan_job_hull_fit, station_job_offers, station_offers, unit_sphere_point, Allegiance,
-    DerelictShipMarker, Fnv32, GameItems, GamePriceTable, Job, JobAccepted, JobBoard, JobDone,
-    JobField, JobHull, JobHullFit, JobId, JobMixType, JobOfferRule, JobPostings, JobType, JobWreck,
-    Jobs, NeutralizedMarker, ObjectiveMarkerTarget, PlayerSpaceshipMarker, RailgunSectionMarker,
-    SectionInactiveMarker, SectionMarker, SeedStream, ShipInventory, ShipRoleType, SlotPosting,
-    SpaceshipRootMarker, StarterBoardMarker, StationMarker, StationServiceType, StationServices,
-    TorpedoSectionMarker, TurretSectionMarker, JOBS_PER_BOARD,
+    plan_distress_rescue, plan_job_hull_fit, station_job_offers, station_offers, unit_sphere_point,
+    Allegiance, DerelictShipMarker, DistressRefused, Fnv32, GameItems, GamePriceTable,
+    ItemRoleType, Job, JobAccepted, JobBoard, JobDone, JobField, JobHull, JobHullFit, JobId,
+    JobMixType, JobOfferRule, JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker,
+    ObjectiveMarkerTarget, PlayerSpaceshipMarker, RailgunSectionMarker, SectionInactiveMarker,
+    SectionMarker, SeedStream, ShipInventory, ShipRoleType, SlotPosting, SpaceshipRootMarker,
+    StarterBoardMarker, StationMarker, StationServiceType, StationServices, TorpedoSectionMarker,
+    TurretSectionMarker, JOBS_PER_BOARD,
 };
 use nova_scenario::prelude::{
     base_scenario_object, spaceship_scenario_object, AIControllerConfig, BaseScenarioObjectConfig,
@@ -1249,11 +1251,18 @@ pub(crate) fn escort_on_arrival(
     }
 }
 
-/// Mark a held distress call done on the `ondocked` with its caller.
+/// Answer a held distress call on the `ondocked` of the player with its
+/// caller: the rescue takes one medkit ([`ItemRoleType::Medkit`]) from the
+/// player's hold and marks the job done ([`plan_distress_rescue`]). With no
+/// medkit aboard the job stays held and not done and [`DistressRefused`] is
+/// raised, once per dock; a later dock with a medkit aboard answers it.
+/// Another hull's dock with the caller answers nothing.
 pub(crate) fn distress_on_answer(
     event: On<GameEvent>,
     mut commands: Commands,
     mut jobs: ResMut<Jobs>,
+    items: Res<GameItems>,
+    mut player: Query<(&EntityId, &mut ShipInventory), With<PlayerSpaceshipMarker>>,
 ) {
     if event.name() != OnDockedEvent::name() {
         return;
@@ -1270,10 +1279,41 @@ pub(crate) fn distress_on_answer(
         })
         .map(|job| job.id.clone())
         .collect();
+    if answered.is_empty() {
+        return;
+    }
+    let Ok((own_id, mut hold)) = player.single_mut() else {
+        return;
+    };
+    let docker = event
+        .info()
+        .data
+        .as_ref()
+        .and_then(|data| data.get("other_id"))
+        .and_then(|id| id.as_str());
+    if docker != Some(own_id.0.as_str()) {
+        return;
+    }
+    let medkit = &items.role(ItemRoleType::Medkit).id;
     for id in answered {
-        jobs.mark_done(&id);
-        info!("nova_world_base: '{id}' is done: the caller '{subject}' was docked with");
-        commands.trigger(JobDone { id });
+        match plan_distress_rescue(&hold, medkit) {
+            Ok(()) => {
+                hold.remove(medkit, 1);
+                jobs.mark_done(&id);
+                info!(
+                    "nova_world_base: '{id}' is done: the caller '{subject}' was docked with \
+                     and took one {medkit}"
+                );
+                commands.trigger(JobDone { id });
+            }
+            Err(refusal) => {
+                info!(
+                    "nova_world_base: '{id}' is not done: the dock with '{subject}' was refused \
+                     ({refusal:?})"
+                );
+                commands.trigger(DistressRefused { id, refusal });
+            }
+        }
     }
 }
 
@@ -1396,7 +1436,7 @@ mod tests {
         OnShipOrderCompleteEventInfo, OnShipOrderFailedEventInfo, ShipOrderKind,
     };
     use nova_gameplay::{
-        prelude::{ItemDesignId, ESCORT_RAIDERS_MAX},
+        prelude::{DistressRefusalType, ItemDesignId, ESCORT_RAIDERS_MAX},
         test_support::test_items,
     };
     use nova_ship::prelude::DockedHelmType;
@@ -1579,6 +1619,7 @@ mod tests {
             jobs.accept(job);
         }
         app.insert_resource(jobs);
+        app.insert_resource(test_items());
         app.add_observer(recover_on_undock);
         app.add_observer(escort_on_arrival);
         app.add_observer(distress_on_answer);
@@ -2068,21 +2109,127 @@ mod tests {
         assert!(jobs(&app).is_done(&recover.id));
     }
 
+    /// The player's hull under the id `docked_with` names as the docker,
+    /// carrying `medkits` medkits.
+    fn rescuer(app: &mut App, medkits: u32) -> Entity {
+        let stock = (medkits > 0).then(|| (ItemDesignId::from(ItemRoleType::Medkit), medkits));
+        app.world_mut()
+            .spawn((
+                EntityId::new("player"),
+                PlayerSpaceshipMarker,
+                ShipInventory::new(&test_items(), 1_000_000, stock),
+            ))
+            .id()
+    }
+
+    fn medkits(app: &App, hull: Entity) -> u32 {
+        app.world()
+            .get::<ShipInventory>(hull)
+            .expect("the rescuer has a hold")
+            .count(&ItemDesignId::from(ItemRoleType::Medkit))
+    }
+
     #[test]
-    fn a_held_distress_call_is_done_on_the_dock_with_its_caller() {
+    fn a_held_distress_call_is_done_on_the_dock_with_its_caller_and_takes_one_medkit() {
         let answer = distress(0);
         let JobType::Distress { caller } = &answer.kind else {
             unreachable!()
         };
         let mut app = held_app([answer.clone()]);
         let bodies = stand(&mut app, &answer.spawned_bodies());
+        let player = rescuer(&mut app, 2);
         fire(&mut app, docked_with(caller));
         assert!(
             jobs(&app).holds(&answer.id),
             "the answered call waits for its hand-in"
         );
         assert!(jobs(&app).is_done(&answer.id));
+        assert_eq!(medkits(&app, player), 1, "the rescue took one medkit");
         assert_eq!(standing(&app, &bodies), 1, "the caller stays in the world");
+
+        fire(&mut app, docked_with(caller));
+        assert_eq!(
+            medkits(&app, player),
+            1,
+            "a dock with an answered caller takes nothing"
+        );
+    }
+
+    #[test]
+    fn a_distress_dock_with_no_medkit_aboard_stays_open_and_is_refused_once_per_dock() {
+        #[derive(Resource, Default)]
+        struct Refused(Vec<(JobId, DistressRefusalType)>);
+
+        let answer = distress(0);
+        let JobType::Distress { caller } = &answer.kind else {
+            unreachable!()
+        };
+        let mut app = held_app([answer.clone()]);
+        app.init_resource::<Refused>();
+        app.add_observer(|refused: On<DistressRefused>, mut log: ResMut<Refused>| {
+            log.0.push((refused.id.clone(), refused.refusal));
+        });
+        stand(&mut app, &answer.spawned_bodies());
+        let player = rescuer(&mut app, 0);
+
+        fire(&mut app, docked_with(caller));
+        assert!(jobs(&app).holds(&answer.id), "the call stays held");
+        assert!(!jobs(&app).is_done(&answer.id), "nobody was rescued");
+        assert_eq!(
+            app.world().resource::<Refused>().0,
+            vec![(answer.id.clone(), DistressRefusalType::NoMedkit)],
+            "the dock is refused once"
+        );
+
+        fire(&mut app, docked_with(caller));
+        assert_eq!(
+            app.world().resource::<Refused>().0.len(),
+            2,
+            "a second dock with none aboard is refused again"
+        );
+
+        let items = test_items();
+        app.world_mut()
+            .get_mut::<ShipInventory>(player)
+            .unwrap()
+            .add(&items, &ItemDesignId::from(ItemRoleType::Medkit), 1);
+        fire(&mut app, docked_with(caller));
+        assert!(
+            jobs(&app).is_done(&answer.id),
+            "the dock with a medkit aboard answers the call"
+        );
+        assert_eq!(medkits(&app, player), 0);
+        assert_eq!(
+            app.world().resource::<Refused>().0.len(),
+            2,
+            "the answered dock raises no refusal"
+        );
+    }
+
+    #[test]
+    fn another_hull_s_dock_with_the_caller_answers_nothing() {
+        let answer = distress(0);
+        let JobType::Distress { caller } = &answer.kind else {
+            unreachable!()
+        };
+        let mut app = held_app([answer.clone()]);
+        stand(&mut app, &answer.spawned_bodies());
+        let player = rescuer(&mut app, 1);
+        fire(
+            &mut app,
+            GameEvent::new(
+                OnDockedEvent::name(),
+                DockingEventInfo {
+                    id: caller.to_string(),
+                    type_name: "spaceship".to_string(),
+                    other_id: "trader".to_string(),
+                    other_type_name: "spaceship".to_string(),
+                }
+                .into(),
+            ),
+        );
+        assert!(!jobs(&app).is_done(&answer.id));
+        assert_eq!(medkits(&app, player), 1, "the player's hold is untouched");
     }
 
     #[test]

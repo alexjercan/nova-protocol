@@ -8,9 +8,10 @@
 //!
 //! The ids of [`ItemRoleType`](nova_gameplay::prelude::ItemRoleType) are the
 //! ones the game itself uses - weapons reload from them, repair spends one,
-//! mining yields them, generated sector ship holds draw them - so the base
-//! game must define each under its role's category. A dependent mod may replace one of
-//! them whole, with new mass and prices, under the same category.
+//! a distress rescue spends one, mining yields them, generated sector ship
+//! holds draw them - so the base game must define each under its role's
+//! category. A dependent mod may replace one of them whole, with new mass and
+//! prices, under the same category.
 //! Prices are provisional values, not a balance decision; each bid is below
 //! its ask, so buying and selling back loses credits. A PDC round prices by
 //! the lot of 100: one round is worth less than a credit.
@@ -153,6 +154,16 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             1,
             120,
             90,
+        ),
+        (
+            ItemRoleType::Medkit.id(),
+            "Medkit",
+            "Emergency medical supplies. Answering a distress call spends one at the dock with the caller.",
+            Repair,
+            2_000,
+            1,
+            60,
+            45,
         ),
         (
             SECTION_PANEL,

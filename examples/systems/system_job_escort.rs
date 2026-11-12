@@ -92,6 +92,7 @@ fn main() -> bevy::app::AppExit {
                 springs: "outcome: the raiders spring with the escort in formation",
                 survives: "outcome: the escorted hauler survives the ambush to its mark",
             }),
+            no_medkit: None,
         };
 
         if std::env::var_os("NOVA_AUTOPILOT").is_some() {

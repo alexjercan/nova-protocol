@@ -111,7 +111,7 @@ pub const JOBS: [JobCard; 10] = [
         window: 20,
         fits_role: false,
         hand_in: "Dust Gate",
-        task: "Dock with the stranded caller.",
+        task: "Dock with the stranded caller. Bring one medkit.",
         have: 0,
         need: 1,
         done: false,

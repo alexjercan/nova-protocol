@@ -497,6 +497,7 @@ pub fn ship_stock(
             (ItemRoleType::SalvagedParts, 3.0),
             (ItemRoleType::WaterIce, 1.0),
             (ItemRoleType::HullPlate, 1.0),
+            (ItemRoleType::Medkit, 1.0),
         ],
         ShipRoleType::Scavenger => &[
             (ItemRoleType::PdcRound, 2.0),
