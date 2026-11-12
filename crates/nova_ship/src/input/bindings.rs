@@ -57,15 +57,15 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
         // `D` because DOCK is its own undo: the same key clamps and
         // lets go, the way `O` does for ORBIT. Free on the flight rig - the
         // ship has no strafe keys, and the interface's WASD pan lives in the Viewer
-        // context. Keyboard only: every pad button the flight, camera and
-        // targeting rigs can reach is already spoken for, and the four face
-        // buttons are the autopilot verbs, so DOCK waits for the keybind
-        // rework rather than taking a maneuver's button away (the same call
-        // `ship_repair` made).
+        // context. No pad button of its own: every pad button the flight,
+        // camera and targeting rigs can reach is spoken for. On a pad DOCK is
+        // the chord `rcs_modifier` + `autopilot_goto` (L3 + Y), which the
+        // GOTO observer answers.
         ActionBinding::new("dock", "FLIGHT", "Dock").keyboard([Keyboard(KeyCode::KeyD)]),
         // `H` takes and hands back a docked pair's helm, and only that: the
         // joint stays with `D`, so handing the helm over can never undock.
-        // Keyboard only, for the reason `dock` gives.
+        // On a pad it is the chord `rcs_modifier` + `autopilot_orbit`
+        // (L3 + A), for the reason `dock` gives.
         ActionBinding::new("dock_helm", "FLIGHT", "Helm").keyboard([Keyboard(KeyCode::KeyH)]),
         // Hold and tap share the key and the threshold constant so the
         // boundary frame cannot fall between them. `radar_clear` FOLLOWS the

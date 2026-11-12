@@ -3,7 +3,7 @@
 //! fine-adjust.
 
 use avian3d::prelude::LinearVelocity;
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemParam, prelude::*};
 use bevy_enhanced_input::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
@@ -561,6 +561,13 @@ pub(super) fn on_autopilot_stop_input(
     }
 }
 
+/// GOTO, or DOCK while [`RcsModifierInput`] is held.
+///
+/// The chord follows the modifier's `TriggerState`, the rule MATCH set in
+/// [`on_autopilot_stop_input`]: it is not a binding condition, so it holds on
+/// every device and through every rebind of either action. On a gamepad it is
+/// L3 + Y, the only way to DOCK there; on a keyboard Shift + G docks as well
+/// as `D`. The press runs [`DockPress::press`] and never GOTO.
 pub(super) fn on_autopilot_goto_input(
     _: On<Start<AutopilotGotoInput>>,
     mut commands: Commands,
@@ -575,10 +582,16 @@ pub(super) fn on_autopilot_goto_input(
     >,
     q_connections: Query<&DockingConnection>,
     q_capabilities: ShipCapabilityQuery,
+    q_modifier: Query<&TriggerState, With<Action<RcsModifierInput>>>,
+    mut dock: DockPress,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
     if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
+        return;
+    }
+    if crate::camera::action_held(&q_modifier) {
+        dock.press();
         return;
     }
 
@@ -640,6 +653,9 @@ pub(super) fn on_autopilot_goto_input(
         .insert(Autopilot::engage(AutopilotAction::Goto { target }));
 }
 
+/// ORBIT, or HELM while [`RcsModifierInput`] is held: the chord rule of
+/// [`on_autopilot_goto_input`]. On a gamepad it is L3 + A, the only way to
+/// HELM there. The press runs [`HelmPress::press`] and never ORBIT.
 pub(super) fn on_autopilot_orbit_input(
     _: On<Start<AutopilotOrbitInput>>,
     mut commands: Commands,
@@ -653,10 +669,16 @@ pub(super) fn on_autopilot_orbit_input(
         With<PlayerSpaceshipMarker>,
     >,
     q_capabilities: ShipCapabilityQuery,
+    q_modifier: Query<&TriggerState, With<Action<RcsModifierInput>>>,
+    mut helm: HelmPress,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
     if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
+        return;
+    }
+    if crate::camera::action_held(&q_modifier) {
+        helm.press();
         return;
     }
 
@@ -725,93 +747,136 @@ pub(super) fn on_autopilot_off_input(
     }
 }
 
-/// Dock with the current TRAVEL lock, or let go of the dock already held.
-///
-/// The key only ASKS. Which pair of ports is used - and whether any pair is
-/// eligible at all - is decided by
-/// [`on_docking_connection_request`](crate::prelude::DockingConnectionRequest)
-/// when the request lands, so the offer the HUD drew a frame ago can never be
-/// the pair that is built.
-///
-/// A press with no candidate writes why ([`DockPressRefusal`]). That stays
-/// here, not in the request: world start and a bought hull's redock send the
-/// same request for the player with no key pressed. A target that refuses,
-/// or one that is no ship root (an asteroid or planet lock), writes nothing.
-///
-/// The same key is the way out, exactly as `ORBIT` is left by pressing
-/// `ORBIT`, whoever holds the pair's helm. The undock branch is deliberately
-/// ahead of the capability gate: a `dock_enabled` withdrawn while a hull is
-/// clamped to something must never be able to strand it.
-pub(super) fn on_dock_input(
-    _: On<Start<DockInput>>,
-    mut commands: Commands,
-    ship: Single<(Entity, Option<&TravelLock>, Option<&DockedShip>), With<PlayerSpaceshipMarker>>,
-    q_capabilities: ShipCapabilityQuery,
-    q_roots: Query<(), With<SpaceshipRootMarker>>,
-    admission: DockAdmission,
-    ports: DockingPorts,
-    mut refusals: MessageWriter<DockPressRefusal>,
-    pause: Res<State<nova_gameplay::PauseStates>>,
-    control: Option<Res<PlayerControlSuspended>>,
-) {
-    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
-        return;
-    }
-
-    let (entity, travel, docked) = ship.into_inner();
-    if docked.is_some() {
-        debug!("on_dock_input: undocking");
-        commands.trigger(DockingReleaseRequest { entity });
-        return;
-    }
-
-    if !ship_capabilities(entity, &q_capabilities).dock_enabled {
-        debug!("on_dock_input: DOCK is not enabled on this ship");
-        return;
-    }
-    let Some(target) = travel.and_then(|travel| travel.0) else {
-        debug!("on_dock_input: no travel lock, nothing to dock with");
-        refusals.write(DockPressRefusal(DockPressRefusalType::NoLock));
-        return;
-    };
-
-    if q_roots.contains(target)
-        && admission.admits(entity, target)
-        && ports.best_candidate(entity, target).is_none()
-    {
-        // With no candidate the nearest pair fails `is_eligible`, so a pair
-        // past the first two gates failed the last one.
-        refusals.write(DockPressRefusal(match ports.nearest_pair(entity, target) {
-            None => DockPressRefusalType::NoFreePort,
-            Some(pair) if !pair.gap_holds() => DockPressRefusalType::TooFar,
-            Some(pair) if !pair.facing_holds() => DockPressRefusalType::NotFacing,
-            Some(_) => DockPressRefusalType::TooFast,
-        }));
-    }
-
-    debug!("on_dock_input: requesting a dock with {target:?}");
-    commands.trigger(DockingConnectionRequest { entity, target });
+/// What a DOCK press reads and writes. [`on_dock_input`] and the chord in
+/// [`on_autopilot_goto_input`] both press through it, so the two apply one set
+/// of gates.
+#[derive(SystemParam)]
+pub(super) struct DockPress<'w, 's> {
+    commands: Commands<'w, 's>,
+    ship: Single<
+        'w,
+        's,
+        (
+            Entity,
+            Option<&'static TravelLock>,
+            Option<&'static DockedShip>,
+        ),
+        With<PlayerSpaceshipMarker>,
+    >,
+    q_capabilities: ShipCapabilityQuery<'w, 's>,
+    q_roots: Query<'w, 's, (), With<SpaceshipRootMarker>>,
+    admission: DockAdmission<'w, 's>,
+    ports: DockingPorts<'w, 's>,
+    refusals: MessageWriter<'w, DockPressRefusal>,
 }
 
-/// Take the docked pair's helm, or hand it back: the request decides which
-/// ([`DockingHelmRequest`]). The joint is never touched here; `D` owns it.
-pub(super) fn on_dock_helm_input(
-    _: On<Start<DockHelmInput>>,
-    mut commands: Commands,
-    ship: Single<(Entity, Has<DockedShip>), With<PlayerSpaceshipMarker>>,
+impl DockPress<'_, '_> {
+    /// Dock with the current TRAVEL lock, or let go of the dock already held.
+    /// The caller has passed the pause and control gates.
+    ///
+    /// The press only ASKS. Which pair of ports is used - and whether any pair
+    /// is eligible at all - is decided by
+    /// [`on_docking_connection_request`](crate::prelude::DockingConnectionRequest)
+    /// when the request lands, so the offer the HUD drew a frame ago can never
+    /// be the pair that is built.
+    ///
+    /// A press with no candidate writes why ([`DockPressRefusal`]). That stays
+    /// here, not in the request: world start and a bought hull's redock send
+    /// the same request for the player with no key pressed. A target that
+    /// refuses, or one that is no ship root (an asteroid or planet lock),
+    /// writes nothing.
+    ///
+    /// The same press is the way out, exactly as `ORBIT` is left by pressing
+    /// `ORBIT`, whoever holds the pair's helm. The undock branch is
+    /// deliberately ahead of the capability gate: a `dock_enabled` withdrawn
+    /// while a hull is clamped to something must never be able to strand it.
+    fn press(&mut self) {
+        let (entity, travel, docked) = *self.ship;
+        if docked.is_some() {
+            debug!("DockPress: undocking");
+            self.commands.trigger(DockingReleaseRequest { entity });
+            return;
+        }
+
+        if !ship_capabilities(entity, &self.q_capabilities).dock_enabled {
+            debug!("DockPress: DOCK is not enabled on this ship");
+            return;
+        }
+        let Some(target) = travel.and_then(|travel| travel.0) else {
+            debug!("DockPress: no travel lock, nothing to dock with");
+            self.refusals
+                .write(DockPressRefusal(DockPressRefusalType::NoLock));
+            return;
+        };
+
+        if self.q_roots.contains(target)
+            && self.admission.admits(entity, target)
+            && self.ports.best_candidate(entity, target).is_none()
+        {
+            // With no candidate the nearest pair fails `is_eligible`, so a
+            // pair past the first two gates failed the last one.
+            self.refusals.write(DockPressRefusal(
+                match self.ports.nearest_pair(entity, target) {
+                    None => DockPressRefusalType::NoFreePort,
+                    Some(pair) if !pair.gap_holds() => DockPressRefusalType::TooFar,
+                    Some(pair) if !pair.facing_holds() => DockPressRefusalType::NotFacing,
+                    Some(_) => DockPressRefusalType::TooFast,
+                },
+            ));
+        }
+
+        debug!("DockPress: requesting a dock with {target:?}");
+        self.commands
+            .trigger(DockingConnectionRequest { entity, target });
+    }
+}
+
+/// The DOCK key. See [`DockPress::press`].
+pub(super) fn on_dock_input(
+    _: On<Start<DockInput>>,
+    mut dock: DockPress,
     pause: Res<State<nova_gameplay::PauseStates>>,
     control: Option<Res<PlayerControlSuspended>>,
 ) {
     if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
+    dock.press();
+}
 
-    let (entity, docked) = ship.into_inner();
-    if !docked {
-        debug!("on_dock_helm_input: not docked, no helm to take");
+/// What a HELM press reads and writes. [`on_dock_helm_input`] and the chord in
+/// [`on_autopilot_orbit_input`] both press through it.
+#[derive(SystemParam)]
+pub(super) struct HelmPress<'w, 's> {
+    commands: Commands<'w, 's>,
+    ship: Single<'w, 's, (Entity, Has<DockedShip>), With<PlayerSpaceshipMarker>>,
+}
+
+impl HelmPress<'_, '_> {
+    /// Take the docked pair's helm, or hand it back: the request decides
+    /// which ([`DockingHelmRequest`]). The joint is never touched here; DOCK
+    /// owns it. The caller has passed the pause and control gates.
+    fn press(&mut self) {
+        let (entity, docked) = *self.ship;
+        if !docked {
+            debug!("HelmPress: not docked, no helm to take");
+            return;
+        }
+        self.commands.trigger(DockingHelmRequest { entity });
+    }
+}
+
+/// The HELM key. See [`HelmPress::press`].
+pub(super) fn on_dock_helm_input(
+    _: On<Start<DockHelmInput>>,
+    mut helm: HelmPress,
+    pause: Res<State<nova_gameplay::PauseStates>>,
+    control: Option<Res<PlayerControlSuspended>>,
+) {
+    if pause.get().is_frozen() || super::control::player_control_is_suspended(control) {
         return;
     }
-    commands.trigger(DockingHelmRequest { entity });
+    helm.press();
 }
 
 /// Enter RCS fine-adjust mode: while SHIFT is held on a ship whose controller
@@ -1422,6 +1487,7 @@ mod tests {
         // The autopilot observers are pause-gated.
         app.add_plugins(bevy::state::app::StatesPlugin);
         app.init_state::<nova_gameplay::PauseStates>();
+        app.add_message::<DockPressRefusal>();
         app.add_input_context::<FlightInputMarker>();
         app.add_observer(on_autopilot_goto_input);
 
@@ -2168,5 +2234,221 @@ mod tests {
             app.world().get::<Autopilot>(ship).is_none(),
             "the docked gate still refuses a fresh GOTO without the helm"
         );
+    }
+
+    /// Set a pad button the way a device does: the rig reads the analog
+    /// value, `InputSources` the digital state.
+    fn set_pad(app: &mut App, pad: Entity, button: GamepadButton, down: bool) {
+        let mut gamepad = app.world_mut().get_mut::<Gamepad>(pad).unwrap();
+        gamepad
+            .analog_mut()
+            .set(button, if down { 1.0 } else { 0.0 });
+        if down {
+            gamepad.digital_mut().press(button);
+        } else {
+            gamepad.digital_mut().release(button);
+        }
+    }
+
+    /// Press a pad button, let the rig act, and let it go again.
+    fn tap_pad(app: &mut App, pad: Entity, button: GamepadButton) {
+        set_pad(app, pad, button, true);
+        app.update();
+        app.update();
+        set_pad(app, pad, button, false);
+        app.update();
+    }
+
+    /// What the DOCK press asked for and said.
+    #[derive(Resource, Default, Debug, PartialEq)]
+    struct DockLog {
+        requests: Vec<(Entity, Entity)>,
+        refusals: Vec<DockPressRefusalType>,
+    }
+
+    fn drain_dock_log(app: &mut App) -> DockLog {
+        std::mem::take(&mut *app.world_mut().resource_mut::<DockLog>())
+    }
+
+    /// A free player ship with a travel lock and a dominant well, so the GOTO
+    /// and ORBIT buttons alone would each engage. The rig, a pad, and a log
+    /// of every dock request and refusal.
+    fn chord_rig_app() -> (App, Entity, Entity, Entity) {
+        use bevy::input::InputPlugin;
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
+        app.add_plugins(bevy::state::app::StatesPlugin);
+        app.init_state::<nova_gameplay::PauseStates>();
+        app.add_message::<DockPressRefusal>();
+        app.init_resource::<DockLog>();
+        app.add_input_context::<FlightInputMarker>();
+        app.add_observer(on_autopilot_goto_input)
+            .add_observer(on_autopilot_orbit_input)
+            .add_observer(on_dock_input)
+            .add_observer(on_dock_helm_input)
+            .add_observer(on_rcs_modifier_start)
+            .add_observer(on_rcs_modifier_released)
+            .add_observer(
+                |request: On<DockingConnectionRequest>, mut log: ResMut<DockLog>| {
+                    log.requests.push((request.entity, request.target));
+                },
+            )
+            .add_systems(
+                Update,
+                |mut refusals: MessageReader<DockPressRefusal>, mut log: ResMut<DockLog>| {
+                    for DockPressRefusal(refusal) in refusals.read() {
+                        log.refusals.push(*refusal);
+                    }
+                },
+            );
+
+        let (ship, _) = spawn_flyable_ship(app.world_mut());
+        let lock = app.world_mut().spawn(SpaceshipRootMarker).id();
+        let well = app.world_mut().spawn_empty().id();
+        app.world_mut().entity_mut(ship).insert((
+            RcsIntent::default(),
+            TravelLock(Some(lock)),
+            DominantWell(well),
+        ));
+        app.finish();
+        app.cleanup();
+        app.update();
+        spawn_flight_rig(&mut app);
+        let pad = app.world_mut().spawn(Gamepad::default()).id();
+        app.update();
+        (app, ship, lock, pad)
+    }
+
+    /// On a pad DOCK is L3 + Y. The chord asks, refuses and stays silent as
+    /// the `D` key does in the same state, and the two buttons under L3 never
+    /// fly the GOTO or the ORBIT they engage alone.
+    #[test]
+    fn the_modifier_turns_the_goto_button_into_the_dock_press() {
+        let (mut app, ship, lock, pad) = chord_rig_app();
+        tap_pad(&mut app, pad, GamepadButton::North);
+        assert_eq!(
+            engaged(&app, ship),
+            Some(AutopilotAction::Goto { target: lock }),
+            "control: Y alone is GOTO"
+        );
+        app.world_mut().entity_mut(ship).remove::<Autopilot>();
+        tap_pad(&mut app, pad, GamepadButton::South);
+        assert!(
+            matches!(engaged(&app, ship), Some(AutopilotAction::Orbit { .. })),
+            "control: A alone is ORBIT"
+        );
+        assert_eq!(drain_dock_log(&mut app), DockLog::default());
+
+        type Scene = fn(&mut World, Entity);
+        let cases: [(&str, Scene, fn(Entity, Entity) -> DockLog); 3] = [
+            (
+                "a lock",
+                |_, _| {},
+                // The lock is a hull with no port: the press asks and says so.
+                |ship, lock| DockLog {
+                    requests: vec![(ship, lock)],
+                    refusals: vec![DockPressRefusalType::NoFreePort],
+                },
+            ),
+            (
+                "no lock",
+                |world, ship| {
+                    world.entity_mut(ship).insert(TravelLock(None));
+                },
+                |_, _| DockLog {
+                    requests: vec![],
+                    refusals: vec![DockPressRefusalType::NoLock],
+                },
+            ),
+            (
+                "DOCK withheld",
+                |world, ship| {
+                    world.entity_mut(ship).insert(ShipCapabilities {
+                        dock_enabled: false,
+                        ..default()
+                    });
+                },
+                |_, _| DockLog::default(),
+            ),
+        ];
+        for (case, scene, expected) in cases {
+            let (mut app, ship, lock, pad) = chord_rig_app();
+            scene(app.world_mut(), ship);
+
+            tap(&mut app, KeyCode::KeyD);
+            assert_eq!(
+                drain_dock_log(&mut app),
+                expected(ship, lock),
+                "{case}: the key"
+            );
+
+            set_pad(&mut app, pad, GamepadButton::LeftThumb, true);
+            app.update();
+            app.update();
+            tap_pad(&mut app, pad, GamepadButton::North);
+            assert_eq!(
+                drain_dock_log(&mut app),
+                expected(ship, lock),
+                "{case}: L3 + Y answers as the key does"
+            );
+            tap_pad(&mut app, pad, GamepadButton::South);
+            assert_eq!(
+                engaged(&app, ship),
+                None,
+                "{case}: neither button under L3 engages its own maneuver"
+            );
+            assert_eq!(
+                drain_dock_log(&mut app),
+                DockLog::default(),
+                "{case}: L3 + A is HELM, which a free hull has none of"
+            );
+        }
+    }
+
+    /// Docked without the helm an L3 press enters no RCS mode, and the chord
+    /// reads the modifier itself: L3 + A takes and hands back the helm and
+    /// L3 + Y undocks, as `H` and `D` do.
+    #[test]
+    fn the_chords_take_the_helm_and_undock_a_docked_hull() {
+        let (mut app, ship, connection) = docked_rig_app();
+        let well = app.world_mut().spawn_empty().id();
+        app.world_mut().entity_mut(ship).insert(DominantWell(well));
+        let pad = app.world_mut().spawn(Gamepad::default()).id();
+        app.update();
+        let helm = |app: &App| {
+            app.world()
+                .get::<DockingConnection>(connection)
+                .map(|c| c.helm)
+        };
+
+        set_pad(&mut app, pad, GamepadButton::LeftThumb, true);
+        app.update();
+        app.update();
+        assert!(
+            app.world().get::<RcsActive>(ship).is_none(),
+            "a docked hull without the helm enters no RCS mode"
+        );
+
+        tap_pad(&mut app, pad, GamepadButton::South);
+        assert_eq!(
+            helm(&app),
+            Some(DockedHelmType::Held(ship)),
+            "L3 + A takes the helm"
+        );
+        tap_pad(&mut app, pad, GamepadButton::South);
+        assert_eq!(
+            helm(&app),
+            Some(DockedHelmType::Neutral),
+            "L3 + A hands it back"
+        );
+        assert_eq!(engaged(&app, ship), None, "and never parks an ORBIT");
+
+        tap_pad(&mut app, pad, GamepadButton::North);
+        assert!(
+            app.world().get::<DockedShip>(ship).is_none(),
+            "L3 + Y undocks"
+        );
+        assert!(app.world().get_entity(connection).is_err());
     }
 }

@@ -175,6 +175,16 @@ struct ChipGlyph;
 #[derive(Component, Debug, Clone, Reflect)]
 struct ChipKeyText;
 
+/// The keycap picture of a chord's first button ([`VerbHint::modifier`]),
+/// drawn ahead of [`ChipGlyph`]. Out of the layout for a one-button verb.
+#[derive(Component, Debug, Clone, Reflect)]
+struct ChipModifierGlyph;
+
+/// The fallback TEXT for a chord's first button, the [`ChipKeyText`] of
+/// [`ChipModifierGlyph`].
+#[derive(Component, Debug, Clone, Reflect)]
+struct ChipModifierText;
+
 /// The verb word inside a dock chip.
 #[derive(Component, Debug, Clone, Reflect)]
 struct ChipLabel;
@@ -306,6 +316,25 @@ pub fn keybind_dock_hud() -> impl Bundle {
             BorderColor::all(Color::NONE),
             Pickable::IGNORE,
             children![
+                (
+                    ChipModifierGlyph,
+                    ImageNode::default(),
+                    Node {
+                        display: Display::None,
+                        ..default()
+                    },
+                    Pickable::IGNORE,
+                ),
+                (
+                    ChipModifierText,
+                    Text::new(""),
+                    TextFont::from_font_size(CHIP_TEXT_PX),
+                    TextColor(Color::NONE),
+                    Node {
+                        display: Display::None,
+                        ..default()
+                    },
+                ),
                 (
                     ChipGlyph,
                     ImageNode::default(),
@@ -750,7 +779,31 @@ fn update_dock(
             Without<ChipLabel>,
         ),
     >,
-    mut q_text_color: Query<&mut TextColor, Or<(With<ChipLabel>, With<ChipKeyText>)>>,
+    mut q_modifier_glyph: Query<
+        (&mut ImageNode, &mut Node),
+        (
+            With<ChipModifierGlyph>,
+            Without<DockChip>,
+            Without<ChipGlyph>,
+            Without<ChipKeyText>,
+            Without<ChipModifierText>,
+        ),
+    >,
+    mut q_modifier_text: Query<
+        (&mut Text, &mut Node),
+        (
+            With<ChipModifierText>,
+            Without<DockChip>,
+            Without<ChipGlyph>,
+            Without<ChipKeyText>,
+            Without<ChipLabel>,
+            Without<ChipModifierGlyph>,
+        ),
+    >,
+    mut q_text_color: Query<
+        &mut TextColor,
+        Or<(With<ChipLabel>, With<ChipKeyText>, With<ChipModifierText>)>,
+    >,
     mut q_label: Query<&mut Text, (With<ChipLabel>, Without<ChipKeyText>)>,
     q_added: Query<(), Added<DockChip>>,
 ) {
@@ -797,6 +850,30 @@ fn update_dock(
             &mut q_glyph,
             &mut q_key_text,
         );
+        // A chord draws its first button ahead of the key, in the same paint;
+        // a one-button verb takes both modifier parts out of the layout.
+        match hint.modifier.as_deref() {
+            Some(modifier) => paint_key_visual(
+                modifier,
+                glyphs.and_then(|glyphs| glyphs.get(modifier)),
+                GLYPH_PX,
+                glyph_tint(next),
+                children,
+                &mut q_modifier_glyph,
+                &mut q_modifier_text,
+            ),
+            None => {
+                for &child in children {
+                    let node = match q_modifier_glyph.get_mut(child) {
+                        Ok((_, node)) => Some(node),
+                        Err(_) => q_modifier_text.get_mut(child).ok().map(|(_, node)| node),
+                    };
+                    if let Some(mut node) = node.filter(|node| node.display != Display::None) {
+                        node.display = Display::None;
+                    }
+                }
+            }
+        }
         if !shown {
             // A hidden chip still tracks a state, so a pulse that was running
             // when it left restores the RIGHT base. Writing `Dim` rather than
@@ -1024,7 +1101,7 @@ mod tests {
             key: key.into(),
             shown,
             available,
-            anchor: None,
+            ..default()
         }
     }
 
@@ -1047,6 +1124,7 @@ mod tests {
                 shown: true,
                 available: orbit_available,
                 anchor: well,
+                ..default()
             },
             cancel: hint("Z", true, engaged),
             radar: hint("CTRL", true, true),
@@ -1170,6 +1248,84 @@ mod tests {
     /// Whether `chip` draws: in the layout.
     fn seen(app: &App, chip: Entity) -> bool {
         app.world().entity(chip).get::<Node>().unwrap().display == Display::Flex
+    }
+
+    /// The caps a chip draws, in child order: asset path and tint of each
+    /// keycap picture that is in the layout.
+    fn caps(app: &App, chip: Entity) -> Vec<(String, Color)> {
+        let world = app.world();
+        let children = world.entity(chip).get::<Children>().unwrap();
+        children
+            .iter()
+            .filter_map(|child| {
+                let entity = world.entity(child);
+                let image = entity.get::<ImageNode>()?;
+                (entity.get::<Node>()?.display == Display::Flex)
+                    .then(|| (image.image.path().unwrap().to_string(), image.color))
+            })
+            .collect()
+    }
+
+    /// DOCK on a gamepad is a chord: the chip draws the modifier cap, then the
+    /// button, both dim until the press would dock. An emphasized chip keeps
+    /// both caps, and a one-button hint draws one cap again.
+    #[test]
+    fn a_chord_verb_draws_its_modifier_cap_ahead_of_its_button_in_one_paint() {
+        let mut app = glyph_app();
+        app.init_resource::<HintEmphasis>();
+        app.add_systems(Update, update_dock);
+        app.world_mut().spawn(keybind_dock_hud());
+        app.insert_resource(NovaHudAssets {
+            key_glyphs: real_glyphs(&app),
+            ..default()
+        });
+        let path = |label: &str| format!("{KEY_GLYPH_DIR}/{}.png", key_glyph_stem(label).unwrap());
+        let chord = |shown: bool, available: bool| VerbHint {
+            key: "Pad Y".into(),
+            modifier: Some("Pad Left Thumb".into()),
+            shown,
+            available,
+            ..default()
+        };
+        let set_dock = |app: &mut App, dock: VerbHint| {
+            let mut resource = hints(true, false, None);
+            resource.dock = dock;
+            app.insert_resource(resource);
+            app.update();
+        };
+
+        set_dock(&mut app, chord(true, false));
+        let dock = chip_of(&chips(&app), "DOCK");
+        let dim = glyph_tint(DockChipState::Dim);
+        assert_eq!(
+            caps(&app, dock),
+            [(path("Pad Left Thumb"), dim), (path("Pad Y"), dim)],
+            "an unavailable chord draws the modifier, then the button, both dim"
+        );
+
+        set_dock(&mut app, chord(true, true));
+        let lit = glyph_tint(DockChipState::Available);
+        assert_eq!(
+            caps(&app, dock),
+            [(path("Pad Left Thumb"), lit), (path("Pad Y"), lit)],
+            "both caps light together"
+        );
+
+        app.world_mut().resource_mut::<HintEmphasis>().set("DOCK");
+        set_dock(&mut app, chord(false, false));
+        assert!(seen(&app, dock), "the spotlight keeps the chip on the row");
+        assert_eq!(
+            caps(&app, dock),
+            [(path("Pad Left Thumb"), dim), (path("Pad Y"), dim)],
+            "an emphasized chord the press cannot answer draws both caps dim"
+        );
+
+        set_dock(&mut app, hint("D", true, true));
+        assert_eq!(
+            caps(&app, dock),
+            [(path("D"), lit)],
+            "a one-button hint takes the modifier cap out of the layout"
+        );
     }
 
     /// HELM keeps one word through every helm state - the paint says which way
@@ -2112,6 +2268,7 @@ mod tests {
             shown: true,
             available: true,
             anchor: Some(lock),
+            ..default()
         };
         app.insert_resource(resource.clone());
         let (_, goto_cue) = spawn_cues(&mut app);

@@ -2756,3 +2756,87 @@ fn a_dock_press_says_why_it_did_nothing_once_and_only_on_a_press() {
         "the second press undocked"
     );
 }
+
+/// Set a pad button the way a device does: the rig reads the analog value.
+fn set_pad_button(app: &mut App, pad: Entity, button: GamepadButton, down: bool) {
+    let mut gamepad = app.world_mut().get_mut::<Gamepad>(pad).unwrap();
+    gamepad
+        .analog_mut()
+        .set(button, if down { 1.0 } else { 0.0 });
+    if down {
+        gamepad.digital_mut().press(button);
+    } else {
+        gamepad.digital_mut().release(button);
+    }
+}
+
+/// Hold a pad button for [`PRESS_FRAMES`] frames, then let go and let the
+/// release land.
+fn press_pad_button(app: &mut App, pad: Entity, button: GamepadButton) {
+    set_pad_button(app, pad, button, true);
+    for _ in 0..PRESS_FRAMES {
+        app.update();
+    }
+    set_pad_button(app, pad, button, false);
+    for _ in 0..PRESS_FRAMES {
+        app.update();
+    }
+}
+
+/// The pad DOCK chord through the real rig. L3 is a flight input and enters
+/// RCS mode. The dock the Y press then asks for is a request and no maneuver,
+/// so nothing the held L3 does can cancel it: the pair holds while L3 stays
+/// down, and the next Y under the same hold undocks.
+#[test]
+fn the_pad_chord_docks_under_a_held_rcs_modifier_and_undocks_again() {
+    let mut app = piloted_app();
+    let (player, _, target, _) = facing_pair(&mut app, NOMINAL_GAP);
+    take_the_helm(&mut app, player, Some(target));
+    let pad = app.world_mut().spawn(Gamepad::default()).id();
+    settle(&mut app);
+
+    set_pad_button(&mut app, pad, GamepadButton::LeftThumb, true);
+    for _ in 0..PRESS_FRAMES {
+        app.update();
+    }
+    assert!(
+        app.world().get::<RcsActive>(player).is_some(),
+        "L3 enters RCS mode on the free hull"
+    );
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![], 0),
+        "L3 alone asks nothing"
+    );
+
+    press_pad_button(&mut app, pad, GamepadButton::North);
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![], 1),
+        "L3 + Y asks once and says nothing"
+    );
+    assert_eq!(connections(&mut app).len(), 1, "the chord docked");
+    for _ in 0..60 {
+        app.update();
+    }
+    assert!(
+        app.world().get::<DockedShip>(player).is_some(),
+        "the dock holds while L3 stays down"
+    );
+    assert!(
+        app.world().get::<RcsActive>(player).is_none(),
+        "a docked hull without the helm is out of RCS mode"
+    );
+    assert!(
+        app.world().get::<Autopilot>(player).is_none(),
+        "Y under L3 flew no GOTO at the lock"
+    );
+
+    press_pad_button(&mut app, pad, GamepadButton::North);
+    assert_eq!(
+        drain_press_log(&mut app),
+        (vec![], 0),
+        "the next L3 + Y asks for no new dock"
+    );
+    assert!(connections(&mut app).is_empty(), "and undocks");
+}

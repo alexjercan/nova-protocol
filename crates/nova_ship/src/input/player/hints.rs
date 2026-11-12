@@ -29,6 +29,11 @@ pub struct VerbHint {
     /// The verb's keycap label ("X", "G"...), read from the LIVE bindings
     /// table; empty until the flight rig exists.
     pub key: String,
+    /// The label of the button held first when the verb is a two-button chord
+    /// on the device pressed last: `Pad Left Thumb` for DOCK on a gamepad,
+    /// where [`key`](Self::key) is then the second button. `None` for a verb
+    /// one button answers.
+    pub modifier: Option<String>,
     /// Whether the verb applies to the situation, so the dock draws its chip:
     /// a GOTO with a lock to fly to, a DOCK with a port in reach, a FIRE with
     /// the weapons hot. A shown verb may still be unavailable (the chip draws
@@ -218,7 +223,7 @@ fn section_key(sources: &[InputSource], device: InputDeviceType) -> Option<Strin
         .iter()
         .find(on_device)
         .or(sources.first())
-        .map(InputSource::glyph_label)
+        .map(|source| source.glyph_label())
 }
 
 /// Whether `ship` carries a section of the kind, and the keycap of the first
@@ -310,6 +315,28 @@ pub(super) fn update_flight_verb_hints(
             .map(|source| source.glyph_label())
             .unwrap_or_default()
     };
+
+    // DOCK and HELM hold no pad button of their own: on a pad each is the RCS
+    // modifier plus the button of the verb it rides (`on_autopilot_goto_input`,
+    // `on_autopilot_orbit_input`). A verb that ships a pad button, or a table
+    // that lacks either half of the chord, draws the one-button label.
+    let chord = |action: &str, rides: &str| -> (String, Option<String>) {
+        let pad = |name: &str| {
+            bindings
+                .as_deref()
+                .and_then(|table| table.get(name))
+                .and_then(|action| action.gamepad.first())
+                .map(|source| source.glyph_label())
+        };
+        if rig_exists && *device == InputDeviceType::Pad && pad(action).is_none() {
+            if let (Some(modifier), Some(button)) = (pad("rcs_modifier"), pad(rides)) {
+                return (button, Some(modifier));
+            }
+        }
+        (label(action), None)
+    };
+    let (dock_key, dock_modifier) = chord("dock", "autopilot_goto");
+    let (helm_key, helm_modifier) = chord("dock_helm", "autopilot_orbit");
 
     // Exactly one player ship, same rule as the Single-based observers.
     let (ship, autopilot, dominant, travel, docked) = match q_ship.single() {
@@ -431,7 +458,7 @@ pub(super) fn update_flight_verb_hints(
             key,
             shown,
             available: shown,
-            anchor: None,
+            ..default()
         }
     };
 
@@ -440,7 +467,7 @@ pub(super) fn update_flight_verb_hints(
             key: label("interface_toggle"),
             shown: rig_exists,
             available: rig_exists,
-            anchor: None,
+            ..default()
         },
         drive: VerbHint {
             key: label("main_drive"),
@@ -459,7 +486,7 @@ pub(super) fn update_flight_verb_hints(
             } else {
                 helm_gate(hardware && capabilities.stop_enabled).available
             },
-            anchor: None,
+            ..default()
         },
         stop_verb,
         stop_flying,
@@ -469,26 +496,40 @@ pub(super) fn update_flight_verb_hints(
             // The partner flies with the pair: no lock to fly to, no chip.
             shown: travel.is_some() && !partner_lock,
             anchor: travel,
-            ..helm_gate(hardware && capabilities.goto_enabled && travel.is_some() && !partner_lock)
+            // With the modifier down the press is the DOCK chord, never GOTO.
+            ..helm_gate(
+                !rcs_held
+                    && hardware
+                    && capabilities.goto_enabled
+                    && travel.is_some()
+                    && !partner_lock,
+            )
         },
         orbit: VerbHint {
             key: label("autopilot_orbit"),
             shown: dominant.is_some() || orbiting,
             anchor: dominant.map(|well| **well),
-            ..helm_gate(hardware && capabilities.orbit_enabled && dominant.is_some() && !orbiting)
+            // With the modifier down the press is the HELM chord, never ORBIT.
+            ..helm_gate(
+                !rcs_held
+                    && hardware
+                    && capabilities.orbit_enabled
+                    && dominant.is_some()
+                    && !orbiting,
+            )
         },
         cancel: VerbHint {
             key: label("autopilot_off"),
             // Z always answers while engaged, even on a crippled ship.
             shown: engaged,
             available: engaged,
-            anchor: None,
+            ..default()
         },
         radar: VerbHint {
             key: label("radar_hold"),
             shown: rig_exists,
             available: capabilities.lock_enabled,
-            anchor: None,
+            ..default()
         },
         // The one verb whose availability is the real answer: the search that
         // lights the chip is the search the command runs, so a lit DOCK means
@@ -496,7 +537,8 @@ pub(super) fn update_flight_verb_hints(
         // docked the same key undocks, so the chip stays lit - and the HUD
         // draws it inverted, because that is the state the key would leave.
         dock: VerbHint {
-            key: label("dock"),
+            key: dock_key,
+            modifier: dock_modifier,
             shown: docked.is_some() || lock_has_port,
             available: docked.is_some()
                 || ship.is_some_and(|ship| {
@@ -516,7 +558,8 @@ pub(super) fn update_flight_verb_hints(
             ..helm_gate(capabilities.rcs_enabled && magazine_filled)
         },
         helm: VerbHint {
-            key: label("dock_helm"),
+            key: helm_key,
+            modifier: helm_modifier,
             shown: docked.is_some(),
             // A fault refuses taking the helm, never handing it back; a
             // living station refuses both.
@@ -534,14 +577,14 @@ pub(super) fn update_flight_verb_hints(
                 key,
                 shown,
                 available: shown,
-                anchor: None,
+                ..default()
             }
         },
         aim: VerbHint {
             key: label("combat_stance"),
             shown: turret || torpedo_bay || railgun,
             available: turret || torpedo_bay || railgun,
-            anchor: None,
+            ..default()
         },
         fire: weapon(section_label(turret_key)),
         torpedo: weapon(section_label(torpedo_key)),
@@ -580,30 +623,51 @@ mod tests {
         assert_eq!(hints.cancel.key, "Z");
     }
 
+    /// DOCK and HELM hold no pad button, so on a pad each hint is a chord: the
+    /// RCS modifier, then the button of the verb the chord rides.
     #[test]
     fn a_pad_press_moves_the_verb_labels_to_the_pad_buttons() {
         let mut world = hint_world();
         spawn_flyable_ship(&mut world);
         let table = InputBindings::from_actions(flight_bindings());
-        let stop_pad = table
-            .get("autopilot_stop")
-            .and_then(|action| action.gamepad.first())
-            .map(|source| source.glyph_label())
-            .expect("STOP has a pad binding");
-        let dock = table.get("dock").expect("DOCK is registered");
-        assert!(
-            dock.gamepad.is_empty(),
-            "DOCK is the verb with no pad button"
-        );
-        let dock_desk = dock.keyboard[0].glyph_label();
-        world.insert_resource(InputDeviceType::Pad);
+        let pad = |name: &str| {
+            table
+                .get(name)
+                .and_then(|action| action.gamepad.first())
+                .map(|source| source.glyph_label())
+        };
+        assert_eq!(pad("dock"), None, "DOCK holds no pad button of its own");
+        assert_eq!(pad("dock_helm"), None, "nor does HELM");
+        let modifier = pad("rcs_modifier");
+        assert_eq!(modifier.as_deref(), Some("Pad Left Thumb"));
 
         world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert_eq!(
+            (hints.dock.key.as_str(), &hints.dock.modifier),
+            ("D", &None)
+        );
+        assert_eq!(
+            (hints.helm.key.as_str(), &hints.helm.modifier),
+            ("H", &None)
+        );
 
-        let hints = world.resource::<FlightVerbHints>();
-        assert_eq!(hints.stop.key, stop_pad);
+        world.insert_resource(InputDeviceType::Pad);
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        let hints = world.resource::<FlightVerbHints>().clone();
+        assert_eq!(Some(hints.stop.key.clone()), pad("autopilot_stop"));
         assert_ne!(hints.stop.key, "X");
-        assert_eq!(hints.dock.key, dock_desk, "no pad binding keeps the key");
+        assert_eq!(hints.stop.modifier, None, "MATCH keeps its one cap");
+        assert_eq!(
+            (hints.dock.key.as_str(), &hints.dock.modifier),
+            ("Pad Y", &modifier),
+            "DOCK is the modifier and the GOTO button"
+        );
+        assert_eq!(
+            (hints.helm.key.as_str(), &hints.helm.modifier),
+            ("Pad A", &modifier),
+            "HELM is the modifier and the ORBIT button"
+        );
     }
 
     /// The dock follows a rebind. It read the rig's own `Bindings` before, so
@@ -794,7 +858,9 @@ mod tests {
     /// hot, AIM and MINE do not.
     #[test]
     fn weapon_hints_take_their_keys_from_the_section_bindings() {
-        use InputSource::{Gamepad, Keyboard, Mouse};
+        use InputSource::Keyboard;
+
+        use crate::input::bindings::section_default_bindings;
 
         let mut world = hint_world();
         let (ship, _controller) = spawn_flyable_ship(&mut world);
@@ -805,31 +871,30 @@ mod tests {
         assert!(!hints.aim.shown, "an unarmed hull has no AIM");
         assert!(!hints.mine.shown, "no mining section, no MINE");
 
+        // Bound off the table the editor and the start roles bind new hulls
+        // from.
+        let defaults = |class| section_default_bindings(class, &[]).unwrap();
         world.spawn((
             ChildOf(ship),
             TurretSectionMarker,
-            SpaceshipTurretInputBinding(vec![
-                Mouse(MouseButton::Left),
-                Gamepad(GamepadButton::RightTrigger2),
-            ]),
+            SpaceshipTurretInputBinding(defaults(SectionClass::Turret)),
         ));
         world.spawn((
             ChildOf(ship),
             TorpedoSectionMarker,
-            SpaceshipTorpedoInputBinding(vec![
-                Keyboard(KeyCode::KeyF),
-                Gamepad(GamepadButton::LeftTrigger2),
-            ]),
+            SpaceshipTorpedoInputBinding(defaults(SectionClass::Torpedo)),
         ));
-        world.spawn((
-            ChildOf(ship),
-            RailgunSectionMarker,
-            SpaceshipRailgunInputBinding(vec![Keyboard(KeyCode::KeyR)]),
-        ));
+        let railgun = world
+            .spawn((
+                ChildOf(ship),
+                RailgunSectionMarker,
+                SpaceshipRailgunInputBinding(defaults(SectionClass::Railgun)),
+            ))
+            .id();
         world.spawn((
             ChildOf(ship),
             MiningSectionMarker,
-            SpaceshipMiningInputBinding(vec![Keyboard(KeyCode::KeyV)]),
+            SpaceshipMiningInputBinding(defaults(SectionClass::Mining)),
         ));
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>().clone();
@@ -854,15 +919,23 @@ mod tests {
         assert_eq!(hints.torpedo.key, "F");
         assert_eq!(hints.railgun.key, "R");
 
-        // The pad in hand: a section with a pad button draws it, one without
-        // keeps its key.
+        // The pad in hand: every default carries a pad button.
         world.insert_resource(InputDeviceType::Pad);
         world.run_system_once(update_flight_verb_hints).unwrap();
         let hints = world.resource::<FlightVerbHints>().clone();
         assert_eq!(hints.fire.key, "Pad Right Trigger 2");
-        assert_eq!(hints.torpedo.key, "Pad Left Trigger 2");
-        assert_eq!(hints.railgun.key, "R", "no pad button keeps the key");
+        assert_eq!(hints.torpedo.key, "Pad Left Trigger");
+        assert_eq!(hints.railgun.key, "Pad Select");
+        assert_eq!(hints.mine.key, "Pad Right Trigger 2");
         assert_eq!(hints.aim.key, "Pad Left Trigger 2");
+
+        // A hull saved before the pad defaults keeps the binding it was saved
+        // with, so its chip keeps the key.
+        world
+            .entity_mut(railgun)
+            .insert(SpaceshipRailgunInputBinding(vec![Keyboard(KeyCode::KeyR)]));
+        world.run_system_once(update_flight_verb_hints).unwrap();
+        assert_eq!(world.resource::<FlightVerbHints>().railgun.key, "R");
     }
 
     #[test]
@@ -1070,6 +1143,10 @@ mod tests {
             world.resource::<FlightVerbHints>().stop.available,
             "a moving travel lock and a filled magazine light MATCH"
         );
+        assert!(
+            !world.resource::<FlightVerbHints>().goto.available,
+            "with the modifier down the GOTO button is the DOCK chord"
+        );
 
         let mut budget = *world.get::<RcsBudget>(ship).unwrap();
         budget.spent = budget.capacity;
@@ -1082,10 +1159,9 @@ mod tests {
 
         world.entity_mut(modifier).insert(TriggerState::None);
         world.run_system_once(update_flight_verb_hints).unwrap();
-        assert_eq!(
-            world.resource::<FlightVerbHints>().stop_verb,
-            StopVerbType::Stop
-        );
+        let hints = world.resource::<FlightVerbHints>();
+        assert_eq!(hints.stop_verb, StopVerbType::Stop);
+        assert!(hints.goto.available, "the modifier up gives GOTO back");
     }
 
     #[test]
