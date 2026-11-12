@@ -23,7 +23,7 @@ use bevy::{ecs::component::Mutable, prelude::*};
 pub mod prelude {
     pub use super::{
         CommandsGameEventExt, EventAction, EventFilter, EventHandler, EventHandlerIndex, EventKind,
-        EventWorld, GameEvent, GameEventInfo, GameEventsPlugin, HandlerRetired,
+        EventWorld, GameEvent, GameEventField, GameEventInfo, GameEventsPlugin, HandlerRetired,
     };
 }
 
@@ -219,6 +219,60 @@ impl GameEventInfo {
             }
         };
         Self { data: json_value }
+    }
+}
+
+impl GameEventInfo {
+    /// One payload field as the scalar an expression can read: text, a number
+    /// or a boolean.
+    ///
+    /// `None` for a field the payload does not carry, and for one that holds a
+    /// map or a list (`parts` on a rebuild): an expression has no value of
+    /// that shape, so such a field is absent for it rather than half-read.
+    pub fn field(&self, name: &str) -> Option<GameEventField<'_>> {
+        GameEventField::of(self.data.as_ref()?.get(name)?)
+    }
+
+    /// The name of every field [`field`](Self::field) answers for, sorted:
+    /// the map's own order depends on a `serde_json` feature another crate in
+    /// the build may switch.
+    pub fn field_names(&self) -> Vec<&str> {
+        let Some(serde_json::Value::Object(fields)) = &self.data else {
+            return Vec::new();
+        };
+        let mut names: Vec<&str> = fields
+            .iter()
+            .filter(|(_, value)| GameEventField::of(value).is_some())
+            .map(|(name, _)| name.as_str())
+            .collect();
+        names.sort_unstable();
+        names
+    }
+}
+
+/// The value of one scalar payload field, as [`GameEventInfo::field`] reads
+/// it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GameEventField<'a> {
+    /// A string field, which is also how a payload spells a unit enum
+    /// (`cause`, `trade`, `kind`).
+    Text(&'a str),
+    /// A numeric field, widened to the one number type expressions have.
+    Number(f64),
+    /// A boolean field.
+    Boolean(bool),
+}
+
+impl<'a> GameEventField<'a> {
+    fn of(value: &'a serde_json::Value) -> Option<Self> {
+        match value {
+            serde_json::Value::String(text) => Some(GameEventField::Text(text)),
+            serde_json::Value::Number(number) => number.as_f64().map(GameEventField::Number),
+            serde_json::Value::Bool(value) => Some(GameEventField::Boolean(*value)),
+            serde_json::Value::Null
+            | serde_json::Value::Array(_)
+            | serde_json::Value::Object(_) => None,
+        }
     }
 }
 

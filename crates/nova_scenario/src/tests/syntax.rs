@@ -34,6 +34,8 @@ fn every_shape_the_grammar_has_round_trips_through_its_text() {
         "a - b - c",
         "scenario.elapsed / 60",
         "entity(\"player_spaceship\").speed * 2 + 1",
+        "event.reward_cr",
+        "event.reward_cr * 2 + bonus",
     ] {
         expression_round_trips(text);
     }
@@ -43,6 +45,8 @@ fn every_shape_the_grammar_has_round_trips_through_its_text() {
         "score < 10",
         "entity(\"player_spaceship\").speed > 50",
         "kills == 3",
+        "event.kind == \"Recover\"",
+        "event.reward_cr > 500",
     ] {
         condition_round_trips(text);
     }
@@ -98,6 +102,9 @@ fn text_the_grammar_cannot_hold_is_refused_with_a_reason() {
         "a & b",
         "\"unterminated",
         "entity(\"x\")",
+        "event",
+        "event.",
+        "event.\"kind\"",
     ] {
         let parsed = text.parse::<VariableExpressionNode>();
         assert!(parsed.is_err(), "'{text}' should not parse");
@@ -118,4 +125,14 @@ fn a_condition_needs_a_comparison() {
 fn trailing_text_is_an_error_rather_than_silently_dropped() {
     let error = "a b".parse::<VariableExpressionNode>().unwrap_err();
     assert!(error.message().contains("unexpected"), "{error}");
+}
+
+#[test]
+fn an_event_field_read_parses_to_the_event_factor_and_not_a_variable() {
+    let parsed: VariableExpressionNode = "event.kind".parse().expect("parses");
+    assert!(matches!(
+        parsed,
+        VariableExpressionNode::Term(VariableTermNode::Factor(VariableFactorNode::Event(ref field)))
+            if field == "kind"
+    ));
 }

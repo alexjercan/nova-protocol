@@ -39,6 +39,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Item `category` takes `Contraband`, refused at a lawful generated station's dock. Base adds `UnmarkedCores` (10 kg, 300/240 cr) and a `Scavenger` `Contraband` price rule; a pack needs no new rule.
 - `DockingSectionConfig` gains optional `clamp_sound` and `release_sound`, played once at the port that captured or let go; the base port authors `dock_clamp.wav` and `dock_release.wav`.
 - `RailgunSectionConfig` gains optional `impact_sound`, played where the slug meets its first body in place of the impact table's Pierce row; the base lance authors `railgun_impact.wav`.
+- Scenario expressions read the firing event's payload as `event.<field>` (`event.price_cr > 100`), in a handler's filters and its own `VariableSet` and `TimerStart`; lint refuses an unknown field.
 
 ### Audio & Visuals
 

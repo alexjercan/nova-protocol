@@ -39,7 +39,8 @@ pub mod prelude {
     pub use super::{
         engine::{
             CommandsGameEventExt, EventAction, EventFilter, EventHandler, EventHandlerIndex,
-            EventKind, EventWorld, GameEvent, GameEventInfo, GameEventsPlugin, HandlerRetired,
+            EventKind, EventWorld, GameEvent, GameEventField, GameEventInfo, GameEventsPlugin,
+            HandlerRetired,
         },
         generated::{GeneratedBodyId, NotAGeneratedBodyId, SectorCoord},
         scale::LOAD_LIMIT,

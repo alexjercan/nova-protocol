@@ -300,6 +300,11 @@ fn collect_factor(
         VariableFactorNode::Literal(_) => true,
         // An inline query is answered from a snapshot resampled every frame.
         VariableFactorNode::Query(_) => false,
+        // A payload read says nothing about when the answer could change, the
+        // same as an Entity filter. `OnUpdate` carries no field, so the lint
+        // refuses this shape; the pulse stays on the fail-safe answer for a
+        // config that reached the loader without the lint.
+        VariableFactorNode::Event(_) => false,
         VariableFactorNode::Name(name) => {
             // A clock read the threshold shape did not recognise cannot be
             // scheduled - `scenario_elapsed > overspeed_deadline` is a keyed

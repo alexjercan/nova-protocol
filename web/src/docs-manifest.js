@@ -972,6 +972,7 @@ const CREATE_PAGES = [
             "Expressions: add / subtract",
             "Conditions: the boolean root",
             "Queries and watched variables",
+            "Event fields",
             "Recipes",
             "Traps for the unwary",
         ],

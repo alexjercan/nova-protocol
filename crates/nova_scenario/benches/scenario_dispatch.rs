@@ -186,15 +186,16 @@ fn bench_condition_eval(c: &mut Criterion) {
     world.insert_variable("limit".to_string(), VariableLiteral::Number(1.0));
     let simple = progress_condition();
     let nested = nested_condition();
+    let info = GameEventInfo::default();
 
     let mut group = c.benchmark_group("condition_eval");
     // Trivial `var > literal` - the floor, the shape today's milestone checks use.
     group.bench_function("greater_than", |b| {
-        b.iter(|| black_box(simple.evaluate(black_box(&world))))
+        b.iter(|| black_box(simple.evaluate(black_box(&world), &info)))
     });
     // `(progress * 2 + bonus) > (limit - 1)` - the full-AST worst case.
     group.bench_function("nested", |b| {
-        b.iter(|| black_box(nested.evaluate(black_box(&world))))
+        b.iter(|| black_box(nested.evaluate(black_box(&world), &info)))
     });
     group.finish();
 }

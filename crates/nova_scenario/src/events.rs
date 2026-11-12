@@ -129,6 +129,33 @@ macro_rules! scenario_events {
                     $( EventConfig::$variant => BlockCategoryType::$category, )*
                 }
             }
+
+            /// The payload fields an expression can read with `event.<field>`
+            /// under this trigger, sorted: every text, number and boolean
+            /// field of the payload type the row names.
+            ///
+            /// Read off a default payload rather than listed by hand, so a
+            /// field added to a payload struct is a field the lint accepts,
+            /// and one removed is one it refuses.
+            pub fn payload_fields(self) -> Vec<String> {
+                self.default_payload()
+                    .field_names()
+                    .into_iter()
+                    .map(str::to_string)
+                    .collect()
+            }
+
+            /// The payload this trigger's event type carries, with every field
+            /// at its default.
+            fn default_payload(self) -> GameEventInfo {
+                match self {
+                    $(
+                        EventConfig::$variant => GameEventInfo::from_data(
+                            <<$event as EventKind>::Info>::default(),
+                        ),
+                    )*
+                }
+            }
         }
     };
 }
@@ -335,6 +362,43 @@ mod table_tests {
             assert_eq!(values.len(), EventConfig::COUNT);
             assert!(values.iter().all(|value| !value.trim().is_empty()));
         }
+    }
+
+    /// The lint reads a trigger's readable fields off a DEFAULT payload, so a
+    /// field that serializes as nothing there (an `Option` left `None`) would
+    /// be refused in an expression although the live event carries it.
+    #[test]
+    fn no_default_payload_hides_a_field_behind_a_null() {
+        for trigger in EventConfig::ALL {
+            match trigger.default_payload().data {
+                Some(serde_json::Value::Object(fields)) => {
+                    for (name, value) in &fields {
+                        assert!(!value.is_null(), "{trigger:?} field '{name}'");
+                    }
+                }
+                // A payload with no operands at all.
+                Some(serde_json::Value::Null) => {}
+                other => panic!("{trigger:?} payload is not a struct: {other:?}"),
+            }
+        }
+        assert_eq!(
+            EventConfig::OnTraded.payload_fields(),
+            [
+                "count",
+                "id",
+                "item",
+                "other_id",
+                "other_type_name",
+                "price_cr",
+                "trade"
+            ]
+        );
+        assert!(
+            !EventConfig::OnRebuilt
+                .payload_fields()
+                .contains(&"parts".to_string()),
+            "a map is not a value an expression has"
+        );
     }
 
     /// A handler's `name` in RON is the variant, so the table's name and the

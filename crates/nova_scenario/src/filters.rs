@@ -296,15 +296,16 @@ impl EventFilter<NovaEventWorld> for ConditionalFilterConfig {
     }
 }
 
-/// Evaluate a [`VariableConditionNode`] against the scenario variables; passes
-/// when it yields true, and fails closed (false) on an evaluation error.
+/// Evaluate a [`VariableConditionNode`] against the scenario variables and the
+/// payload of the event being filtered (`event.<field>`); passes when it
+/// yields true, and fails closed (false) on an evaluation error.
 #[derive(Clone, Debug, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExpressionFilterConfig(pub VariableConditionNode);
 
 impl EventFilter<NovaEventWorld> for ExpressionFilterConfig {
-    fn filter(&self, world: &NovaEventWorld, _: &GameEventInfo) -> bool {
-        match self.0.evaluate(world) {
+    fn filter(&self, world: &NovaEventWorld, info: &GameEventInfo) -> bool {
+        match self.0.evaluate(world, info) {
             Ok(result) => result,
             // NOT-SET-YET is the fails-closed contract working, not a fault. A
             // handler that asks `beat == 3` on every update asks it before the
@@ -316,7 +317,15 @@ impl EventFilter<NovaEventWorld> for ExpressionFilterConfig {
             // nothing), and that detection belongs in `content lint`, which is
             // where every other runtime-string drift in this project is caught.
             // Until it lands, `RUST_LOG=nova=debug` shows these.
-            Err(e @ (VariableError::UndefinedVariable(_) | VariableError::UnavailableQuery(_))) => {
+            //
+            // A payload field the event does not carry reads the same way: the
+            // lint refuses it at author time, so at run time it is one more
+            // value that is not there.
+            Err(
+                e @ (VariableError::UndefinedVariable(_)
+                | VariableError::UnavailableQuery(_)
+                | VariableError::MissingEventField(_)),
+            ) => {
                 debug!("ExpressionFilterConfig: condition not evaluable yet: {e:?}");
                 false
             }
@@ -548,6 +557,91 @@ mod tests {
             Some(2.0),
             "each matching event must re-evaluate the expression against the current value"
         );
+    }
+
+    /// A trade, as `track_ship_inventory_reports` fires one.
+    fn trade(app: &mut App, item: &str, price_cr: u32) {
+        let info = TradedEventInfo {
+            id: "trader".to_string(),
+            other_id: "miner".to_string(),
+            other_type_name: SPACESHIP_TYPE_NAME.to_string(),
+            trade: ItemTradeType::Sell,
+            item: item.to_string(),
+            count: 1,
+            price_cr,
+        };
+        app.world_mut()
+            .run_system_once(move |mut commands: Commands| {
+                commands.fire::<OnTradedEvent>(info.clone());
+            })
+            .expect("fire OnTraded");
+        app.update();
+        app.update();
+    }
+
+    /// `event.<field>` is how a handler tells two firings of one event apart
+    /// by what they carry: a string field against a string, a numeric field
+    /// against a number, and the field itself as a value an action stores.
+    #[test]
+    fn an_expression_filter_passes_and_blocks_on_a_payload_string_and_number() {
+        let mut app = dispatch_app();
+        set_number(&mut app, "ore_sales", 0.0);
+        set_number(&mut app, "big_sales", 0.0);
+
+        let count = |key: &str| {
+            set_action(
+                key,
+                VariableExpressionNode::new_add(
+                    VariableTermNode::new_factor(VariableFactorNode::new_name(key)),
+                    num_expr(1.0),
+                ),
+            )
+        };
+        let condition = |text: &str| {
+            EventFilterConfig::Expression(ExpressionFilterConfig(text.parse().expect(text)))
+        };
+
+        let mut by_item = EventHandler::<NovaEventWorld>::from(EventConfig::OnTraded);
+        by_item.add_filter(condition("event.item == \"StoneOre\""));
+        by_item.add_action(count("ore_sales"));
+        by_item.add_action(set_action(
+            "last_price",
+            "event.price_cr".parse().expect("parses"),
+        ));
+        app.world_mut().spawn(by_item);
+
+        let mut by_price = EventHandler::<NovaEventWorld>::from(EventConfig::OnTraded);
+        by_price.add_filter(condition("event.price_cr > 100"));
+        by_price.add_action(count("big_sales"));
+        app.world_mut().spawn(by_price);
+
+        trade(&mut app, "IronOre", 40);
+        assert_eq!(number(&app, "ore_sales"), Some(0.0), "another item");
+        assert_eq!(number(&app, "big_sales"), Some(0.0), "a small price");
+
+        trade(&mut app, "StoneOre", 40);
+        assert_eq!(number(&app, "ore_sales"), Some(1.0));
+        assert_eq!(number(&app, "last_price"), Some(40.0));
+        assert_eq!(number(&app, "big_sales"), Some(0.0));
+
+        trade(&mut app, "IronOre", 250);
+        assert_eq!(number(&app, "ore_sales"), Some(1.0));
+        assert_eq!(number(&app, "big_sales"), Some(1.0));
+    }
+
+    /// A field the payload does not carry fails closed, the way an unset
+    /// variable does: the lint refuses it at author time, and a config that
+    /// reached dispatch without the lint must not run its actions.
+    #[test]
+    fn an_expression_filter_fails_closed_on_a_field_the_payload_lacks() {
+        let world = NovaEventWorld::default();
+        let filter = ExpressionFilterConfig("event.reward_cr > 0".parse().expect("parses"));
+        let info = GameEventInfo::from_data(OnDestroyedEventInfo {
+            id: "rock".to_string(),
+            type_name: ASTEROID_TYPE_NAME.to_string(),
+        });
+        assert!(!filter.filter(&world, &info));
+        assert!(!filter.filter(&world, &GameEventInfo::default()));
     }
 
     /// Fire the ending of one scene, exactly as the sequence driver does.

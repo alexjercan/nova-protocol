@@ -17,12 +17,12 @@ pub struct TimerStartActionConfig {
 }
 
 impl EventAction<NovaEventWorld> for TimerStartActionConfig {
-    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+    fn action(&self, world: &mut NovaEventWorld, info: &GameEventInfo) {
         if self.key.trim().is_empty() {
             error!("TimerStartActionConfig: timer key must not be empty");
             return;
         }
-        match self.seconds.evaluate(world) {
+        match self.seconds.evaluate(world, info) {
             Ok(VariableLiteral::Number(seconds)) if seconds.is_finite() && seconds > 0.0 => {
                 if !world.start_timer(self.key.clone(), seconds) {
                     error!(

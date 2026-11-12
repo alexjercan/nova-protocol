@@ -13,7 +13,7 @@ variables, and `Conditional` combines other filters with boolean logic.
 | [`Timer`](#timer) | a timer event key | "the orbit hold timer ended" |
 | [`Cinematic`](#cinematic) | a scene key | "the strike approach is the scene that ended" |
 | [`ShipOrder`](#shiporder) | one helm order's outcome | "the warship reached its firing position" |
-| [`Expression`](#expression) | a variable condition | "the counter is past 4 and the flag is unset" |
+| [`Expression`](#expression) | a condition over variables and payload fields | "the counter is past 4 and the flag is unset" |
 | [`Conditional`](#conditional) | other filters, combined | "NOT the player", "picket A down OR picket B down" |
 
 ## Entity
@@ -175,9 +175,10 @@ Expression((GreaterThan(
 <details class="explain">
 <summary>Show explanation</summary>
 
-An `Expression` filter reads ONLY the variable store - it ignores the event
-payload entirely, which is why it composes with any event, including
-`OnUpdate`.
+An `Expression` filter reads the variable store, so it composes with any
+event, including `OnUpdate`. It reads the event payload only through an
+[`Event("field")`](../expressions/#event-fields) factor: that is how a
+handler tells `OnTraded` for one item from `OnTraded` for another.
 
 </details>
 

@@ -715,13 +715,14 @@ pub struct VariableSetActionConfig {
     /// The scenario variable to write.
     #[reflect(@Names::Variable)]
     pub key: String,
-    /// The expression evaluated (against the current variables) into that key.
+    /// The expression evaluated (against the current variables and the
+    /// payload of the event the handler is running for) into that key.
     pub expression: VariableExpressionNode,
 }
 
 impl EventAction<NovaEventWorld> for VariableSetActionConfig {
-    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
-        match self.expression.evaluate(world) {
+    fn action(&self, world: &mut NovaEventWorld, info: &GameEventInfo) {
+        match self.expression.evaluate(world, info) {
             Ok(literal) => {
                 world.insert_variable(self.key.clone(), literal);
             }

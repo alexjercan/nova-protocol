@@ -14,7 +14,7 @@ The chain, from the boolean root down to the atoms:
 condition   LessThan | GreaterThan | Equal          (filters only)
 expression  Add | Subtract | Term                   (the value root)
 term        Multiply | Divide | Factor
-factor      Literal | Name | Parens                 (the atoms)
+factor      Literal | Name | Query | Event | Parens (the atoms)
 ```
 
 Every node is a tuple variant - operands are written positionally, nested
@@ -43,6 +43,8 @@ There is no null and no integer type - counters are `Number`s.
 |---|---|---|
 | `Literal(<literal>)` | a value | a constant |
 | `Name("var")` | a variable key | read that variable; an UNDEFINED name is an evaluation error (the enclosing filter fails closed, a `VariableSet` skips the write) |
+| `Query(<query>)` | a typed query | a live read of the world; see [Queries](#queries-and-watched-variables) |
+| `Event("field")` | a payload field name | read that field of the event being handled; see [Event fields](#event-fields) |
 | `Parens(<expression>)` | a whole expression | parenthesized subexpression - how you put an `Add` under a `Multiply` |
 
 ## Terms: multiply / divide
@@ -150,6 +152,56 @@ Supported queries:
 `Entity` is strict-single. Zero matches, multiple matches, or a missing velocity
 make the query unavailable. Expressions fail closed. Missing is not zero.
 
+## Event fields
+
+`Event("field")` reads one field of the payload of the event the handler is
+running for. The field names are the ones the
+[event reference](../events/) lists in its payload column.
+Typed, it is `event.field`.
+
+It is how a handler tells two firings of one event apart by what they carry:
+
+```ron
+(
+    name: OnTraded,
+    filters: [
+        Expression((Equal(
+            Term(Factor(Event("item"))),
+            Term(Factor(Literal(String("StoneOre")))),
+        ))),
+        Expression((GreaterThan(
+            Term(Factor(Event("price_cr"))),
+            Term(Factor(Literal(Number(100.0)))),
+        ))),
+    ],
+    actions: [
+        VariableSet((key: "last_sale_cr", expression: Term(Factor(Event("price_cr"))))),
+    ],
+),
+```
+
+A text field reads as a `String`, a numeric field as a `Number` and a
+boolean field as a `Boolean`. A name the payload spells as a word (`trade`,
+`cause`, `kind`) is a `String`: compare it with `Literal(String("Sell"))`. A
+field that holds a list of parts (`parts`) is not a value and cannot be read.
+
+Where a read is legal:
+
+| place | payload it reads |
+|---|---|
+| a handler's `filters` | the handler's event |
+| a handler's own `actions` (`VariableSet.expression`, `TimerStart.seconds`) | the handler's event |
+| the `filters` of a step's `until` gate | the gate's event |
+| the `actions` of a `Sequence` or `Cinematic` step | none: lint error |
+
+A step's actions run on a later frame with no payload. To use a field
+there, copy it into a variable with a `VariableSet` in the handler and read
+the variable in the step.
+
+`content lint` refuses a field the event does not carry and names the fields
+it has. At run time a missing field is an evaluation error, the same as an
+undefined name: the filter fails closed and a `VariableSet` skips the write.
+
 ## The typed form (in the editor)
 
 The RON above is the authored form, and it is the one the file holds. In the
@@ -175,6 +227,7 @@ never a comparison.
 | `(a + b) * 2` | `Term(Multiply(Parens(..), Factor(Literal(Number(2.0)))))` |
 | `scenario.elapsed` | `Term(Factor(Query(Scenario((property: Elapsed)))))` |
 | `entity("courier").speed` | `Term(Factor(Query(Entity((filter: (id: "courier"), property: Speed)))))` |
+| `event.price_cr` | `Term(Factor(Event("price_cr")))` |
 | `beat == 3` | `Equal(Term(Factor(Name("beat"))), Term(Factor(Literal(Number(3.0)))))` |
 
 Operators are `+ - * /` for values, `< > ==` for conditions, and `( )` groups.
@@ -280,8 +333,9 @@ built this way (see the scenario-engine chapter of the
 
 ## Traps for the unwary
 
-- Everything fails CLOSED: undefined names, type mismatches and division by
-  zero all log an error and make the filter false / skip the write. No
+- Everything fails CLOSED: undefined names, missing event fields, type
+  mismatches and division by zero all log an error and make the filter
+  false / skip the write. No
   crash, no default value - the handler just never fires. Seed in
   `OnStart`.
 - No boolean node exists at the VALUE level beyond the `Add`/`Multiply`

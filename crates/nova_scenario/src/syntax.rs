@@ -6,7 +6,7 @@
 //! 300px inspector row, where reflection would draw one row per node and a
 //! two-term comparison would fill the panel. So the grammar gets a surface
 //! syntax: `picket_warden_awake == false`, `scenario.elapsed > 90`,
-//! `entity("player_spaceship").speed * 2`.
+//! `entity("player_spaceship").speed * 2`, `event.kind == "Recover"`.
 //!
 //! ROUND-TRIP IS THE CONTRACT, in both directions. Parsing a rendering gives
 //! back the same tree, and rendering a parse gives back the same text; the
@@ -86,6 +86,7 @@ impl fmt::Display for VariableFactorNode {
             VariableFactorNode::Literal(literal) => write!(f, "{literal}"),
             VariableFactorNode::Name(name) => f.write_str(name),
             VariableFactorNode::Query(query) => write!(f, "{query}"),
+            VariableFactorNode::Event(field) => write!(f, "event.{field}"),
         }
     }
 }
@@ -356,11 +357,17 @@ impl Parser {
         }
     }
 
-    /// A word: a query the grammar knows, or a variable name.
+    /// A word: a query the grammar knows, a payload field read, or a variable
+    /// name.
     ///
-    /// The two query spellings are the two the grammar has. Anything else is a
-    /// variable, which is a bare word - so a dotted word is always a misspelt
-    /// query and says so rather than becoming a variable nothing ever sets.
+    /// `scenario`, `entity` and `event` are the three dotted spellings the
+    /// grammar has. Anything else is a variable, which is a bare word - so a
+    /// dotted word is always a misspelt read and says so rather than becoming
+    /// a variable nothing ever sets.
+    ///
+    /// `event` takes any field name: which fields exist depends on the event
+    /// the expression is evaluated under, which the text does not say. The
+    /// scenario lint holds the name against that event's payload.
     fn named(&mut self, name: String) -> Result<VariableFactorNode, SyntaxError> {
         match name.as_str() {
             "scenario" => {
@@ -397,6 +404,12 @@ impl Parser {
                     ))),
                     other => Err(SyntaxError(format!("'{other}' is not an entity property"))),
                 }
+            }
+            "event" => {
+                self.property("event")?;
+                Ok(VariableFactorNode::new_event_field(
+                    self.property_name("event")?,
+                ))
             }
             _ => Ok(VariableFactorNode::new_name(name)),
         }

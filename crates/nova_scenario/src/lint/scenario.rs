@@ -488,6 +488,7 @@ pub fn lint_scenario(
     // Pass 2: what the scenario references.
     let mut used_vars: HashSet<String> = HashSet::new();
     for event in &scenario.events {
+        check_payload_reads(event, id, &mut issues);
         for filter in &event.filters {
             check_filter(
                 filter,
@@ -2101,6 +2102,138 @@ fn check_filter(
     }
 }
 
+/// What `event.<field>` can read where an expression stands.
+#[derive(Clone, Copy)]
+enum PayloadScopeType {
+    /// The payload of this event. A handler's filters and its own actions
+    /// read the handler's event; a step's `until` filters read the gate's.
+    Event(EventConfig),
+    /// The actions of a `Sequence` or `Cinematic` step.
+    /// `advance_scenario_sequences` runs them with an empty payload, on a
+    /// later frame than the event that started the chain.
+    Step,
+}
+
+/// Hold every `event.<field>` under one handler against the payload that
+/// reaches it. An unknown field and a read with no payload are both errors:
+/// at runtime either one fails the expression, which a filter answers by
+/// never passing and an action by not running.
+fn check_payload_reads(event: &ScenarioEventConfig, scenario: &str, issues: &mut Vec<LintIssue>) {
+    let scope = PayloadScopeType::Event(event.name);
+    for filter in &event.filters {
+        check_filter_payload_reads(filter, scope, scenario, issues);
+    }
+    for action in &event.actions {
+        check_action_payload_reads(action, scope, scenario, issues);
+    }
+}
+
+fn check_action_payload_reads(
+    action: &EventActionConfig,
+    scope: PayloadScopeType,
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let mut fields = Vec::new();
+    match action {
+        EventActionConfig::VariableSet(config) => {
+            collect_expression_event_fields(&config.expression, &mut fields);
+        }
+        EventActionConfig::TimerStart(config) => {
+            collect_expression_event_fields(&config.seconds, &mut fields);
+        }
+        _ => {}
+    }
+    check_payload_fields(&fields, action.tag().label(), scope, scenario, issues);
+
+    let Some((_, steps)) = action.step_chain() else {
+        return;
+    };
+    for step in steps {
+        if let Some(gate) = &step.until {
+            for filter in &gate.filters {
+                check_filter_payload_reads(
+                    filter,
+                    PayloadScopeType::Event(gate.name),
+                    scenario,
+                    issues,
+                );
+            }
+        }
+        for action in &step.actions {
+            check_action_payload_reads(action, PayloadScopeType::Step, scenario, issues);
+        }
+    }
+}
+
+fn check_filter_payload_reads(
+    filter: &EventFilterConfig,
+    scope: PayloadScopeType,
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    match filter {
+        EventFilterConfig::Expression(config) => {
+            let mut fields = Vec::new();
+            collect_condition_event_fields(&config.0, &mut fields);
+            check_payload_fields(&fields, "Expression filter", scope, scenario, issues);
+        }
+        EventFilterConfig::Conditional(ConditionalFilterConfig::Not(inner)) => {
+            check_filter_payload_reads(inner, scope, scenario, issues);
+        }
+        EventFilterConfig::Conditional(
+            ConditionalFilterConfig::Or(left, right) | ConditionalFilterConfig::And(left, right),
+        ) => {
+            check_filter_payload_reads(left, scope, scenario, issues);
+            check_filter_payload_reads(right, scope, scenario, issues);
+        }
+        EventFilterConfig::Entity(_)
+        | EventFilterConfig::Timer(_)
+        | EventFilterConfig::ShipOrder(_)
+        | EventFilterConfig::Cinematic(_) => {}
+    }
+}
+
+fn check_payload_fields(
+    fields: &[&str],
+    what: &str,
+    scope: PayloadScopeType,
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    for field in fields {
+        match scope {
+            PayloadScopeType::Step => issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "`event.{field}` in a {what} inside a Sequence or Cinematic step; a \
+                     step's actions run with no event payload - copy the field into a \
+                     variable with a VariableSet in the handler and read the variable"
+                ),
+            )),
+            PayloadScopeType::Event(event) => {
+                let carried = event.payload_fields();
+                if carried.iter().any(|carried| carried == field) {
+                    continue;
+                }
+                let carries = if carried.is_empty() {
+                    "it carries no fields".to_string()
+                } else {
+                    format!("it carries {}", carried.join(", "))
+                };
+                issues.push(LintIssue::error(
+                    scenario,
+                    format!(
+                        "`event.{field}` in a {what} under {}: the event has no text, \
+                         number or boolean field '{field}' ({carries})",
+                        event.name()
+                    ),
+                ));
+            }
+        }
+    }
+}
+
 fn check_query(
     query: &QueryConfig,
     scenario: &str,
@@ -2160,7 +2293,9 @@ fn collect_factor_vars(node: &VariableFactorNode, vars: &mut HashSet<String>) {
         VariableFactorNode::Name(name) => {
             vars.insert(name.clone());
         }
-        VariableFactorNode::Query(_) | VariableFactorNode::Literal(_) => {}
+        VariableFactorNode::Query(_)
+        | VariableFactorNode::Literal(_)
+        | VariableFactorNode::Event(_) => {}
     }
 }
 
@@ -5190,6 +5325,109 @@ mod tests {
             "writing a watched speed is an error: {issues:?}"
         );
         assert!(issues[0].message.contains(PLAYER_SPEED_VAR));
+    }
+
+    /// One `OnDefeated` handler holding `filters` and `actions`.
+    fn on_defeated(
+        filters: Vec<EventFilterConfig>,
+        actions: Vec<EventActionConfig>,
+    ) -> ScenarioConfig {
+        let mut s = scenario(actions, filters);
+        s.events[0].name = EventConfig::OnDefeated;
+        s
+    }
+
+    fn payload_read_errors(s: &ScenarioConfig) -> Vec<String> {
+        let issues = lint_scenario(
+            s,
+            &sections(&[]),
+            &ships(&[]),
+            &stations(&[]),
+            &known(&[]),
+            &GameItems::default(),
+            &GameStyles::default(),
+            &GameTradeProfiles::default(),
+        );
+        errors(&issues)
+            .iter()
+            .filter(|issue| issue.message.contains("`event."))
+            .map(|issue| issue.message.clone())
+            .collect()
+    }
+
+    fn condition(text: &str) -> EventFilterConfig {
+        EventFilterConfig::Expression(ExpressionFilterConfig(text.parse().expect(text)))
+    }
+
+    fn set(key: &str, text: &str) -> EventActionConfig {
+        EventActionConfig::VariableSet(VariableSetActionConfig {
+            key: key.to_string(),
+            expression: text.parse().expect(text),
+        })
+    }
+
+    /// A field the handler's event does not carry can never be read, so the
+    /// filter would never pass. The message names the fields the event has.
+    #[test]
+    fn an_event_field_the_handlers_event_does_not_carry_is_an_error() {
+        let clean = on_defeated(
+            vec![condition("event.type_name == \"spaceship\"")],
+            vec![set("last", "event.id")],
+        );
+        assert!(
+            payload_read_errors(&clean).is_empty(),
+            "{:?}",
+            payload_read_errors(&clean)
+        );
+
+        let unknown = on_defeated(vec![condition("event.reward_cr > 5")], vec![]);
+        let found = payload_read_errors(&unknown);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found[0].contains("under OnDefeated"), "{found:?}");
+        assert!(found[0].contains("it carries id, type_name"), "{found:?}");
+
+        let in_an_action = on_defeated(vec![], vec![set("last", "event.item")]);
+        assert_eq!(payload_read_errors(&in_an_action).len(), 1);
+    }
+
+    /// A step's gate filter reads the GATE's event, and the step's actions
+    /// read none: the driver runs them with an empty payload.
+    #[test]
+    fn an_event_field_in_a_step_reads_the_gate_and_never_the_steps_actions() {
+        let gated = |filter: &str, actions: Vec<EventActionConfig>| {
+            on_defeated(
+                vec![],
+                vec![sequence(
+                    "run",
+                    vec![SequenceStepConfig {
+                        until: Some(SequenceGateConfig {
+                            name: EventConfig::OnTimerEnd,
+                            filters: vec![condition(filter)],
+                        }),
+                        deadline: Some(5.0),
+                        actions,
+                        ..default()
+                    }],
+                )],
+            )
+        };
+
+        assert!(payload_read_errors(&gated("event.key == \"go\"", vec![])).is_empty());
+
+        // `id` is the handler's field, not the gate's.
+        let wrong_event = payload_read_errors(&gated("event.id == \"go\"", vec![]));
+        assert_eq!(wrong_event.len(), 1, "{wrong_event:?}");
+        assert!(
+            wrong_event[0].contains("under OnTimerEnd"),
+            "{wrong_event:?}"
+        );
+
+        let in_a_step = payload_read_errors(&gated(
+            "event.key == \"go\"",
+            vec![set("last", "event.key")],
+        ));
+        assert_eq!(in_a_step.len(), 1, "{in_a_step:?}");
+        assert!(in_a_step[0].contains("no event payload"), "{in_a_step:?}");
     }
 
     fn number(n: f64) -> VariableExpressionNode {

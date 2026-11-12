@@ -159,6 +159,8 @@ pub(crate) enum BlockItemType {
     Variable,
     /// A live reading of the running scenario.
     Query,
+    /// A field of the event the handler is running for.
+    EventField,
     /// One more beat.
     Step,
     /// What a beat waits for.
@@ -173,7 +175,11 @@ impl BlockItemType {
         items.extend(ActionChoice::ALL.into_iter().map(BlockItemType::Action));
         items.extend(FilterChoice::ALL.into_iter().map(BlockItemType::Filter));
         items.extend(ExprChoice::ALL.into_iter().map(BlockItemType::Expr));
-        items.extend([BlockItemType::Variable, BlockItemType::Query]);
+        items.extend([
+            BlockItemType::Variable,
+            BlockItemType::Query,
+            BlockItemType::EventField,
+        ]);
         items
     }
 
@@ -187,6 +193,7 @@ impl BlockItemType {
             BlockItemType::Expr(expr) => expr.label().to_string(),
             BlockItemType::Variable => "Variable".to_string(),
             BlockItemType::Query => "Elapsed".to_string(),
+            BlockItemType::EventField => "Event Field".to_string(),
             BlockItemType::Step => "Step".to_string(),
             BlockItemType::Gate => "Wait For".to_string(),
         }
@@ -198,9 +205,10 @@ impl BlockItemType {
             BlockItemType::Hat(_) => BlockRoleType::Event,
             BlockItemType::Action(action) => BlockRoleType::of_action(action),
             BlockItemType::Filter(filter) => BlockRoleType::of_filter(filter),
-            BlockItemType::Expr(_) | BlockItemType::Variable | BlockItemType::Query => {
-                BlockRoleType::Value
-            }
+            BlockItemType::Expr(_)
+            | BlockItemType::Variable
+            | BlockItemType::Query
+            | BlockItemType::EventField => BlockRoleType::Value,
             BlockItemType::Step | BlockItemType::Gate => BlockRoleType::Flow,
         }
     }
@@ -242,9 +250,10 @@ impl BlockItemType {
             BlockItemType::Action(_) => BlockShapeType::Stack,
             BlockItemType::Filter(_) => BlockShapeType::Boolean,
             BlockItemType::Expr(expr) if expr.compares() => BlockShapeType::Comparison,
-            BlockItemType::Expr(_) | BlockItemType::Variable | BlockItemType::Query => {
-                BlockShapeType::Reporter
-            }
+            BlockItemType::Expr(_)
+            | BlockItemType::Variable
+            | BlockItemType::Query
+            | BlockItemType::EventField => BlockShapeType::Reporter,
             BlockItemType::Step => BlockShapeType::Step,
             BlockItemType::Gate => BlockShapeType::Gate,
         }
@@ -259,6 +268,9 @@ impl BlockItemType {
             BlockItemType::Expr(expr) => variant_hint(&expr),
             BlockItemType::Variable => "Read a scenario variable by name.".to_string(),
             BlockItemType::Query => "Seconds since this scenario started.".to_string(),
+            BlockItemType::EventField => "Read a field of the event this handler runs for, \
+                                          such as event.id. Not inside a step's actions."
+                .to_string(),
             BlockItemType::Step => "One beat: waits, then runs the actions in it.".to_string(),
             BlockItemType::Gate => "Hold this beat until an event happens.".to_string(),
         }
@@ -864,6 +876,14 @@ fn new_reporter(world: &mut World, parent: Entity, ordinal: u32, item: BlockItem
     let (kind, operands) = match item {
         BlockItemType::Expr(choice) => (choice.stock(), choice.operands()),
         BlockItemType::Variable => (leaf(VariableFactorNode::new_name(String::new())), 0),
+        // `id` is the field most payloads carry, so the stock block reads
+        // true under most hats; the lint names the fields of the others.
+        BlockItemType::EventField => (
+            leaf(VariableFactorNode::new_event_field(
+                nova_events::prelude::ENTITY_ID_COMPONENT_NAME,
+            )),
+            0,
+        ),
         _ => (
             leaf(VariableFactorNode::new_query(QueryConfig::Scenario(
                 ScenarioQuery {

@@ -503,8 +503,19 @@ the simulation hold all come down on one frame and one condition.
 
 Variables are typed literals (`String`, `Number`, `Boolean`) with a small
 expression tree: `VariableExpressionNode` (add/subtract), `VariableTermNode`
-(multiply/divide), `VariableFactorNode` (literal/name/parens);
+(multiply/divide), `VariableFactorNode` (literal/name/query/event/parens);
 `VariableConditionNode` (less/greater/equal) yields booleans for filters.
+
+`evaluate` takes the event world and the `GameEventInfo` of the event being
+handled. The `Event(field)` factor reads one scalar payload field through
+`GameEventInfo::field` (text, number, boolean; a map such as `parts` is not
+a value). It sees a payload in a handler's filters, a handler's own actions
+and a step's `until` filters (the gate's event). A step's actions get an
+empty payload from `advance_scenario_sequences`, so lint refuses the factor
+there (`lint/scenario.rs::check_payload_reads`). The legal field names come
+from `EventConfig::payload_fields`, read off each row's default payload. A
+missing field is `VariableError::MissingEventField`: a filter fails closed
+and an action logs an error and does nothing.
 
 The tree has a TEXT form (`syntax.rs`): `Display` renders it as
 `scenario.elapsed > 90` and `FromStr` parses that back. The authored form is

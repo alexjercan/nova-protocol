@@ -8,15 +8,16 @@
 //! write.
 
 use bevy::prelude::*;
+use nova_events::prelude::{GameEventField, GameEventInfo};
 
 use crate::prelude::*;
 
 /// The scenario variable expression nodes, `VariableLiteral`, `VariableError` and `EQUAL_EPSILON`.
 pub mod prelude {
     pub use super::{
-        collect_condition_queries, collect_expression_queries, VariableConditionNode,
-        VariableError, VariableExpressionNode, VariableFactorNode, VariableLiteral,
-        VariableTermNode, EQUAL_EPSILON,
+        collect_condition_event_fields, collect_condition_queries, collect_expression_event_fields,
+        collect_expression_queries, VariableConditionNode, VariableError, VariableExpressionNode,
+        VariableFactorNode, VariableLiteral, VariableTermNode, EQUAL_EPSILON,
     };
 }
 
@@ -27,6 +28,10 @@ pub enum VariableError {
     UndefinedVariable(String),
     /// A typed query has no value in the current world snapshot.
     UnavailableQuery(QueryConfig),
+    /// The event being handled carries no text, number or boolean field of
+    /// this name. Also what a beat's actions get for any field: they run with
+    /// an empty payload.
+    MissingEventField(String),
     /// The operands' types are incompatible with the operation.
     TypeMismatch(String),
     /// A division expression had a zero divisor.
@@ -48,7 +53,8 @@ pub enum VariableLiteral {
 #[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 /// A factor in the variables DSL: the atom of an expression (a parenthesized
-/// subexpression, a literal, or a variable name).
+/// subexpression, a literal, a variable name, a typed query, or a field of the
+/// event being handled).
 pub enum VariableFactorNode {
     /// A parenthesized subexpression.
     Parens(Box<VariableExpressionNode>),
@@ -58,6 +64,9 @@ pub enum VariableFactorNode {
     Name(String),
     /// A typed read-only query against the current world snapshot.
     Query(QueryConfig),
+    /// One field of the payload of the event being handled, by its payload
+    /// name (`event.kind`). Text, numbers and booleans only.
+    Event(String),
 }
 
 impl VariableFactorNode {
@@ -81,10 +90,20 @@ impl VariableFactorNode {
         VariableFactorNode::Parens(Box::new(expr))
     }
 
-    /// Evaluate this factor against the event world's variable bindings.
-    pub fn evaluate(&self, world: &NovaEventWorld) -> Result<VariableLiteral, VariableError> {
+    /// Build a factor reading one payload field of the event being handled.
+    pub fn new_event_field<S: Into<String>>(field: S) -> Self {
+        VariableFactorNode::Event(field.into())
+    }
+
+    /// Evaluate this factor against the event world's variable bindings and
+    /// the payload of the event being handled.
+    pub fn evaluate(
+        &self,
+        world: &NovaEventWorld,
+        info: &GameEventInfo,
+    ) -> Result<VariableLiteral, VariableError> {
         match self {
-            VariableFactorNode::Parens(expr) => expr.evaluate(world),
+            VariableFactorNode::Parens(expr) => expr.evaluate(world, info),
             VariableFactorNode::Literal(lit) => Ok(lit.clone()),
             VariableFactorNode::Name(name) => world
                 .get_variable(name)
@@ -94,6 +113,12 @@ impl VariableFactorNode {
                 .query_value(query)
                 .cloned()
                 .ok_or_else(|| VariableError::UnavailableQuery(query.clone())),
+            VariableFactorNode::Event(field) => match info.field(field) {
+                Some(GameEventField::Text(text)) => Ok(VariableLiteral::String(text.to_string())),
+                Some(GameEventField::Number(value)) => Ok(VariableLiteral::Number(value)),
+                Some(GameEventField::Boolean(value)) => Ok(VariableLiteral::Boolean(value)),
+                None => Err(VariableError::MissingEventField(field.clone())),
+            },
         }
     }
 }
@@ -127,12 +152,17 @@ impl VariableTermNode {
         VariableTermNode::Factor(factor)
     }
 
-    /// Evaluate this term against the event world's variable bindings.
-    pub fn evaluate(&self, world: &NovaEventWorld) -> Result<VariableLiteral, VariableError> {
+    /// Evaluate this term against the event world's variable bindings and the
+    /// payload of the event being handled.
+    pub fn evaluate(
+        &self,
+        world: &NovaEventWorld,
+        info: &GameEventInfo,
+    ) -> Result<VariableLiteral, VariableError> {
         match self {
             VariableTermNode::Multiply(left, right) => {
-                let left_val = left.evaluate(world)?;
-                let right_val = right.evaluate(world)?;
+                let left_val = left.evaluate(world, info)?;
+                let right_val = right.evaluate(world, info)?;
                 match (left_val, right_val) {
                     (VariableLiteral::Number(l), VariableLiteral::Number(r)) => {
                         Ok(VariableLiteral::Number(l * r))
@@ -146,8 +176,8 @@ impl VariableTermNode {
                 }
             }
             VariableTermNode::Divide(left, right) => {
-                let left_val = left.evaluate(world)?;
-                let right_val = right.evaluate(world)?;
+                let left_val = left.evaluate(world, info)?;
+                let right_val = right.evaluate(world, info)?;
                 match (left_val, right_val) {
                     (VariableLiteral::Number(l), VariableLiteral::Number(r)) => {
                         if r == 0.0 {
@@ -162,7 +192,7 @@ impl VariableTermNode {
                     ))),
                 }
             }
-            VariableTermNode::Factor(factor) => factor.evaluate(world),
+            VariableTermNode::Factor(factor) => factor.evaluate(world, info),
         }
     }
 }
@@ -197,12 +227,21 @@ impl VariableExpressionNode {
         VariableExpressionNode::Term(term)
     }
 
-    /// Evaluate this expression against the event world's variable bindings.
-    pub fn evaluate(&self, world: &NovaEventWorld) -> Result<VariableLiteral, VariableError> {
+    /// Evaluate this expression against the event world's variable bindings
+    /// and the payload of the event being handled.
+    ///
+    /// `info` is the payload the caller was dispatched with. A caller with no
+    /// event passes an empty one, and every `event.<field>` then fails as
+    /// [`VariableError::MissingEventField`].
+    pub fn evaluate(
+        &self,
+        world: &NovaEventWorld,
+        info: &GameEventInfo,
+    ) -> Result<VariableLiteral, VariableError> {
         match self {
             VariableExpressionNode::Add(left, right) => {
-                let left_val = left.evaluate(world)?;
-                let right_val = right.evaluate(world)?;
+                let left_val = left.evaluate(world, info)?;
+                let right_val = right.evaluate(world, info)?;
                 match (left_val, right_val) {
                     (VariableLiteral::Number(l), VariableLiteral::Number(r)) => {
                         Ok(VariableLiteral::Number(l + r))
@@ -219,8 +258,8 @@ impl VariableExpressionNode {
                 }
             }
             VariableExpressionNode::Subtract(left, right) => {
-                let left_val = left.evaluate(world)?;
-                let right_val = right.evaluate(world)?;
+                let left_val = left.evaluate(world, info)?;
+                let right_val = right.evaluate(world, info)?;
                 match (left_val, right_val) {
                     (VariableLiteral::Number(l), VariableLiteral::Number(r)) => {
                         Ok(VariableLiteral::Number(l - r))
@@ -230,7 +269,7 @@ impl VariableExpressionNode {
                     )),
                 }
             }
-            VariableExpressionNode::Term(term) => term.evaluate(world),
+            VariableExpressionNode::Term(term) => term.evaluate(world, info),
         }
     }
 }
@@ -273,12 +312,17 @@ impl VariableConditionNode {
         VariableConditionNode::Equal(Box::new(left), Box::new(right))
     }
 
-    /// Evaluate this condition against the event world's variable bindings.
-    pub fn evaluate(&self, world: &NovaEventWorld) -> Result<bool, VariableError> {
+    /// Evaluate this condition against the event world's variable bindings
+    /// and the payload of the event being handled.
+    pub fn evaluate(
+        &self,
+        world: &NovaEventWorld,
+        info: &GameEventInfo,
+    ) -> Result<bool, VariableError> {
         match self {
             VariableConditionNode::LessThan(left, right) => {
-                let left_val = left.evaluate(world)?;
-                let right_val = right.evaluate(world)?;
+                let left_val = left.evaluate(world, info)?;
+                let right_val = right.evaluate(world, info)?;
                 match (left_val, right_val) {
                     (VariableLiteral::Number(l), VariableLiteral::Number(r)) => Ok(l < r),
                     (left_val, right_val) => Err(VariableError::TypeMismatch(
@@ -287,8 +331,8 @@ impl VariableConditionNode {
                 }
             }
             VariableConditionNode::GreaterThan(left, right) => {
-                let left_val = left.evaluate(world)?;
-                let right_val = right.evaluate(world)?;
+                let left_val = left.evaluate(world, info)?;
+                let right_val = right.evaluate(world, info)?;
                 match (left_val, right_val) {
                     (VariableLiteral::Number(l), VariableLiteral::Number(r)) => Ok(l > r),
                     (left_val, right_val) => Err(VariableError::TypeMismatch(
@@ -297,8 +341,8 @@ impl VariableConditionNode {
                 }
             }
             VariableConditionNode::Equal(left, right) => {
-                let left_val = left.evaluate(world)?;
-                let right_val = right.evaluate(world)?;
+                let left_val = left.evaluate(world, info)?;
+                let right_val = right.evaluate(world, info)?;
                 match (left_val, right_val) {
                     (VariableLiteral::Number(l), VariableLiteral::Number(r)) => {
                         Ok((l - r).abs() <= EQUAL_EPSILON)
@@ -361,7 +405,57 @@ fn collect_factor_queries<'a>(node: &'a VariableFactorNode, out: &mut Vec<&'a Qu
     match node {
         VariableFactorNode::Parens(inner) => collect_expression_queries(inner, out),
         VariableFactorNode::Query(query) => out.push(query),
-        VariableFactorNode::Literal(_) | VariableFactorNode::Name(_) => {}
+        VariableFactorNode::Literal(_)
+        | VariableFactorNode::Name(_)
+        | VariableFactorNode::Event(_) => {}
+    }
+}
+
+/// Every payload field a comparison reads with `event.<field>`, in source
+/// order.
+pub fn collect_condition_event_fields<'a>(node: &'a VariableConditionNode, out: &mut Vec<&'a str>) {
+    match node {
+        VariableConditionNode::LessThan(left, right)
+        | VariableConditionNode::GreaterThan(left, right)
+        | VariableConditionNode::Equal(left, right) => {
+            collect_expression_event_fields(left, out);
+            collect_expression_event_fields(right, out);
+        }
+    }
+}
+
+/// Every payload field an expression reads with `event.<field>`, in source
+/// order. The lint holds each one against the event that can supply it.
+pub fn collect_expression_event_fields<'a>(
+    node: &'a VariableExpressionNode,
+    out: &mut Vec<&'a str>,
+) {
+    match node {
+        VariableExpressionNode::Add(term, rest) | VariableExpressionNode::Subtract(term, rest) => {
+            collect_term_event_fields(term, out);
+            collect_expression_event_fields(rest, out);
+        }
+        VariableExpressionNode::Term(term) => collect_term_event_fields(term, out),
+    }
+}
+
+fn collect_term_event_fields<'a>(node: &'a VariableTermNode, out: &mut Vec<&'a str>) {
+    match node {
+        VariableTermNode::Multiply(factor, rest) | VariableTermNode::Divide(factor, rest) => {
+            collect_factor_event_fields(factor, out);
+            collect_term_event_fields(rest, out);
+        }
+        VariableTermNode::Factor(factor) => collect_factor_event_fields(factor, out),
+    }
+}
+
+fn collect_factor_event_fields<'a>(node: &'a VariableFactorNode, out: &mut Vec<&'a str>) {
+    match node {
+        VariableFactorNode::Parens(inner) => collect_expression_event_fields(inner, out),
+        VariableFactorNode::Event(field) => out.push(field),
+        VariableFactorNode::Literal(_)
+        | VariableFactorNode::Name(_)
+        | VariableFactorNode::Query(_) => {}
     }
 }
 
@@ -415,13 +509,15 @@ mod tests {
         let factor = VariableFactorNode::new_query(query.clone());
         let mut world = NovaEventWorld::default();
         assert!(matches!(
-            factor.evaluate(&world),
+            factor.evaluate(&world, &GameEventInfo::default()),
             Err(VariableError::UnavailableQuery(unavailable)) if unavailable == query
         ));
 
         world.advance_scenario_elapsed(2.5);
         assert_eq!(
-            factor.evaluate(&world).expect("query is sampled"),
+            factor
+                .evaluate(&world, &GameEventInfo::default())
+                .expect("query is sampled"),
             VariableLiteral::Number(2.5)
         );
     }
@@ -461,12 +557,12 @@ mod tests {
             lit(0.2),
         );
         assert!(VariableConditionNode::new_equals(sum, lit(0.3))
-            .evaluate(&world)
+            .evaluate(&world, &GameEventInfo::default())
             .expect("evaluates"));
 
         // Still a comparison, not "always true".
         assert!(!VariableConditionNode::new_equals(lit(0.5), lit(0.6))
-            .evaluate(&world)
+            .evaluate(&world, &GameEventInfo::default())
             .expect("evaluates"));
     }
 }
