@@ -5,7 +5,7 @@ use std::collections::{HashMap, HashSet};
 use bevy::prelude::Alpha;
 use nova_events::prelude::GeneratedBodyId;
 use nova_gameplay::prelude::{
-    GameItems, GameTradeProfiles, GravitySettings, GravityWell, SectionClass,
+    GameItems, GameTradeProfiles, GravitySettings, GravityWell, ItemDesignId, SectionClass,
 };
 use nova_input::prelude::InputSource;
 use nova_ship::prelude::GameStyles;
@@ -1400,6 +1400,30 @@ fn check_action(
                 ));
             }
         }
+        EventActionConfig::GiveItems(config) => {
+            check_purse_holder(&config.ship, "GiveItems", scenario, declared, issues);
+            check_item_stack(
+                "GiveItems",
+                &config.ship,
+                &config.item,
+                config.count,
+                scenario,
+                catalog.items,
+                issues,
+            );
+        }
+        EventActionConfig::TakeItems(config) => {
+            check_purse_holder(&config.ship, "TakeItems", scenario, declared, issues);
+            check_item_stack(
+                "TakeItems",
+                &config.ship,
+                &config.item,
+                config.count,
+                scenario,
+                catalog.items,
+                issues,
+            );
+        }
         EventActionConfig::SetAILeash(config) => {
             check_ai_ship(&config.ship, "SetAILeash", scenario, declared, issues);
             if let Some(leash) = &config.leash {
@@ -1753,6 +1777,31 @@ fn check_purse_holder(
                 "{what} targets '{ship}', which this scenario spawns as neither a ship nor a \
                  station; only those hold credits and items"
             ),
+        ));
+    }
+}
+
+/// A hold action moves a real count of an item the catalog knows. The hold
+/// writers panic on either fault, so both stop at lint and at the load gate.
+fn check_item_stack(
+    what: &str,
+    ship: &str,
+    item: &ItemDesignId,
+    count: u32,
+    scenario: &str,
+    items: &GameItems,
+    issues: &mut Vec<LintIssue>,
+) {
+    if items.get(item).is_none() {
+        issues.push(LintIssue::error(
+            scenario,
+            format!("{what} on '{ship}' names the item '{item}', which no loaded bundle defines"),
+        ));
+    }
+    if count == 0 {
+        issues.push(LintIssue::error(
+            scenario,
+            format!("{what} on '{ship}' moves 0 of '{item}'; the count must be 1 or more"),
         ));
     }
 }
@@ -5837,6 +5886,61 @@ mod tests {
             ship: ship.to_string(),
             amount,
         })
+    }
+
+    fn give(ship: &str, item: &str, count: u32) -> EventActionConfig {
+        EventActionConfig::GiveItems(GiveItemsActionConfig {
+            ship: ship.to_string(),
+            item: ItemDesignId::from(item),
+            count,
+        })
+    }
+
+    fn take(ship: &str, item: &str, count: u32) -> EventActionConfig {
+        EventActionConfig::TakeItems(TakeItemsActionConfig {
+            ship: ship.to_string(),
+            item: ItemDesignId::from(item),
+            count,
+        })
+    }
+
+    /// `GiveItems` and `TakeItems` move a real count of a known item on a
+    /// ship or a station. The hold panics on a zero count and on an unknown
+    /// item, so neither may reach a run.
+    #[test]
+    fn a_hold_action_names_a_purse_holder_a_known_item_and_a_real_count() {
+        let found = purse_action_errors(vec![
+            give("freighter", "IronOre", 4),
+            take("freighter", "IronOre", 4),
+        ]);
+        assert!(found.is_empty(), "{found:?}");
+
+        for (action, reason) in [
+            (give("freighter", "IronOre", 0), "GiveItems on 'freighter' moves 0 of 'IronOre'"),
+            (take("freighter", "IronOre", 0), "TakeItems on 'freighter' moves 0 of 'IronOre'"),
+            (
+                give("freighter", "Unobtainium", 1),
+                "GiveItems on 'freighter' names the item 'Unobtainium'",
+            ),
+            (
+                take("freighter", "Unobtainium", 1),
+                "TakeItems on 'freighter' names the item 'Unobtainium'",
+            ),
+            (
+                give("dock", "IronOre", 1),
+                "GiveItems targets 'dock', which this scenario spawns as neither a ship nor a station",
+            ),
+            (
+                take("dock", "IronOre", 1),
+                "TakeItems targets 'dock', which this scenario spawns as neither a ship nor a station",
+            ),
+            (give("ghost", "IronOre", 1), "targets id 'ghost'"),
+            (take("ghost", "IronOre", 1), "targets id 'ghost'"),
+        ] {
+            let found = purse_action_errors(vec![action]);
+            assert_eq!(found.len(), 1, "{reason}: {found:?}");
+            assert!(found[0].contains(reason), "{reason}: {found:?}");
+        }
     }
 
     fn area(id: &str) -> EventActionConfig {

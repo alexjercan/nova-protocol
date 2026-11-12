@@ -490,6 +490,22 @@ registry::scenario_actions! {
         effect: Injection,
         inspect: Reflect,
     },
+    /// Put items into the hold of one ship or station.
+    GiveItems(GiveItemsActionConfig) {
+        label: "Give Items",
+        category: Trade,
+        stem: "give_items",
+        effect: Injection,
+        inspect: Reflect,
+    },
+    /// Take items out of the hold of one ship or station.
+    TakeItems(TakeItemsActionConfig) {
+        label: "Take Items",
+        category: Trade,
+        stem: "take_items",
+        effect: Injection,
+        inspect: Reflect,
+    },
     /// Set or clear one AI ship's territorial leash.
     SetAILeash(SetAILeashActionConfig) {
         label: "Set AI Leash",

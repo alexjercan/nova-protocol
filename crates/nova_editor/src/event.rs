@@ -903,6 +903,16 @@ impl ActionChoiceExt for ActionChoice {
                     amount: 100,
                 })
             }
+            ActionChoice::GiveItems => EventActionConfig::GiveItems(GiveItemsActionConfig {
+                ship: String::new(),
+                item: ItemDesignId::from(""),
+                count: 1,
+            }),
+            ActionChoice::TakeItems => EventActionConfig::TakeItems(TakeItemsActionConfig {
+                ship: String::new(),
+                item: ItemDesignId::from(""),
+                count: 1,
+            }),
             ActionChoice::SetAILeash => EventActionConfig::SetAILeash(SetAILeashActionConfig {
                 ship: String::new(),
                 leash: None,

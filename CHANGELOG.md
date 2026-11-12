@@ -46,6 +46,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New scenario event `OnStanceChanged` fires once per step of a civilization's stance toward the player, with `civilization`, `from` and `to`. Lint refuses it on a scenario with no generated `world`.
 - Scenario expressions gain `entity("id").credits`, `entity("id").items("Item")` and `scenario.sector` (generated worlds only); the editor Query block picks every query from lists.
 - The `GrantCredits` action grants or charges a ship's credits (`OnCreditsChanged` cause `Scenario`); an action that cannot run changes nothing and raises the new `OnActionRefused` event.
+- The `GiveItems` and `TakeItems` actions put items into a ship's hold or take them out, all or nothing; a full hold or a short stack raises `OnActionRefused` and changes nothing.
 - New scenario event `OnSectorEntered` fires when the player crosses into another sector, with `sector`, `x`, `y`, `z` and `from`. Lint refuses it on a scenario with no generated `world`.
 - **(breaking)** A player `input_mapping` source the flight or camera rig holds is now a lint error, not a warning. A thruster on Space or RB and a torpedo bay on LB are shared defaults and pass.
 - The editor now binds a new torpedo bay to LB and a railgun to View on a gamepad, in place of LT (raise weapons) and R3 (interface), and a ship's first mining beam to RT as well as `V`.

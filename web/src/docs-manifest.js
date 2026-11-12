@@ -882,7 +882,7 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "All 56 actions a scenario handler can run, grouped by spawning, mission, sound, pacing, flow, ship state, helm orders, forced fire, AI constraints, timers, and camera.",
+            "All 58 actions a scenario handler can run, grouped by spawning, mission, sound, pacing, flow, ship state, helm orders, forced fire, AI constraints, timers, and camera.",
         related: ["objects", "events", "expressions"],
         headings: [
             "SpawnScenarioObject",
@@ -926,6 +926,8 @@ const CREATE_PAGES = [
             "SetAIPointDefenseRange",
             "SetTradeProfile",
             "GrantCredits",
+            "GiveItems",
+            "TakeItems",
             "TimerStart",
             "TimerCancel",
             "VariableSet",

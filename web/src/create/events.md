@@ -224,9 +224,9 @@ changes nothing and writes an error to the log.
 
 | field | type | value |
 |---|---|---|
-| `action` | text | the action's RON name: `GrantCredits` |
+| `action` | text | the action's RON name: `GrantCredits`, `GiveItems`, `TakeItems` |
 | `id` | text | the id the action targeted |
-| `reason` | text | why, as a stable word: `insufficient_credits`, `credit_overflow`, `unknown_ship` |
+| `reason` | text | why, as a stable word: `insufficient_credits`, `credit_overflow`, `hold_full`, `short_items`, `unknown_ship` |
 
 ```ron
 (
@@ -244,8 +244,10 @@ changes nothing and writes an error to the log.
 <details class="explain">
 <summary>Show explanation</summary>
 
-Only the actions that list refusal reasons raise it; today that is
-[`GrantCredits`](../actions/#grantcredits). `id` is the id as authored, so
+Only the actions that list refusal reasons raise it; today those are
+[`GrantCredits`](../actions/#grantcredits),
+[`GiveItems`](../actions/#giveitems) and
+[`TakeItems`](../actions/#takeitems). `id` is the id as authored, so
 an [`Entity`](../filters/#entity) filter on `id` matches it. Lint catches
 what it can before the run: an id nothing spawns never reaches this event.
 
@@ -915,7 +917,9 @@ party with `cause: Refine`, the ship paying the fee and the station paid. A
 or `credits set` command raises one with `cause: Cheat`. A move that
 leaves the purse unchanged raises nothing. `OnStored` and `OnWithdrawn` fire
 once per confirmed move and move no credits, so they raise no
-`OnCreditsChanged`.
+`OnCreditsChanged`. A [`GiveItems`](../actions/#giveitems) or
+[`TakeItems`](../actions/#takeitems) action changes a hold and raises none
+of these events.
 
 Trades, stores, withdraws, repairs, rebuilds, swaps, adds, hull buys, escort hires and station buys come from the interface panes, which run while the world
 is paused: their events arrive on the first simulation tick after the pane

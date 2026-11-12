@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 56 at a glance:
+never panics a scenario). All 58 at a glance:
 
 | action | group | what it does |
 |---|---|---|
@@ -52,6 +52,8 @@ never panics a scenario). All 56 at a glance:
 | [`SetAIPointDefenseRange`](#setaipointdefenserange) | [ship state](#ship-state) | change how close an inbound torpedo gets before the guns answer |
 | [`SetTradeProfile`](#settradeprofile) | [ship state](#ship-state) | give a generated AI trader a trade profile for its station visits, or clear it |
 | [`GrantCredits`](#grantcredits) | [ship state](#ship-state) | grant credits to a ship or a station, or charge it |
+| [`GiveItems`](#giveitems) | [ship state](#ship-state) | put items into the hold of a ship or a station |
+| [`TakeItems`](#takeitems) | [ship state](#ship-state) | take items out of the hold of a ship or a station |
 | [`VariableSet`](#variableset) | [variables](#variables-timers-debugging) | evaluate an expression and store the result in a variable |
 | [`TimerStart`](#timerstart) | [variables](#variables-timers-debugging) | start (or restart) a keyed scenario timer |
 | [`TimerCancel`](#timercancel) | [variables](#variables-timers-debugging) | cancel a running timer |
@@ -107,6 +109,27 @@ The same spawn id twice in ONE handler is a lint Error; the same id across
 two handlers (an either-or fork) is a Warn.
 
 </details>
+
+**Spawn a lootable wreck.** A wreck is a ship nobody flies that states
+`lootable: true`. A ship docked to it can Take its stock and its credits.
+
+```ron
+SpawnScenarioObject((
+    base: (id: "wreck_1", name: "Gutted Freighter", position: (400.0, 0.0, -900.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+    kind: Spaceship((
+        design: Prototype(id: "freighter_derelict"),
+        controller: None,
+        initial_velocity: (0.0, 0.0, 0.0),
+        allegiance: Some(Neutral),
+        inventory: {"HullPlate": 4, "SalvagedParts": 2},
+        lootable: true,
+        credits: 250,
+    )),
+)),
+```
+
+The fields are those of a [`Spaceship`](../objects/#spaceship) object. The
+stock must fit the hold of the design.
 
 ### SpawnStartRole
 
@@ -1512,6 +1535,72 @@ A write that goes through raises
 [`OnCreditsChanged`](../events/#hold-events) with `cause: Scenario`. An
 `amount` of 0, and an id the scenario gives to a body that is neither a ship
 nor a station, fail lint.
+
+</details>
+
+### GiveItems
+
+Put items into the hold of one ship or station.
+
+```ron
+GiveItems((ship: "player", item: "IronOre", count: 4)),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `ship` | string | required | scoped ship or station; the id a `SpawnStartRole` gives the player's ship works |
+| `item` | item id | required | the [item](../objects/#inventory) to add |
+| `count` | whole number | required | units to add, 1 or more |
+
+The write is all or nothing. An action that cannot run adds nothing, logs an
+error and raises [`OnActionRefused`](../events/#onactionrefused):
+
+| `reason` | when |
+|---|---|
+| `hold_full` | the stack weighs more than the free room in the hold |
+| `unknown_ship` | no live ship or station carries the id |
+
+The new stack shows in the Inventory pane. The action raises no hold event:
+`OnPickedUp` reports a canister and `OnTraded` a trade, and this is
+neither. Read the result with
+[`entity("id").items("Item")`](../expressions/#queries-and-watched-variables). A `count`
+of 0, an item no loaded mod defines, and an id the scenario gives to a body
+that is neither a ship nor a station fail lint, then load.
+
+</details>
+
+### TakeItems
+
+Take items out of the hold of one ship or station. The items are gone;
+nothing drops into the world.
+
+```ron
+TakeItems((ship: "player", item: "IronOre", count: 4)),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `ship` | string | required | scoped ship or station; the id a `SpawnStartRole` gives the player's ship works |
+| `item` | item id | required | the [item](../objects/#inventory) to remove |
+| `count` | whole number | required | units to remove, 1 or more |
+
+The write is all or nothing: the action never takes a part of the count. An
+action that cannot run takes nothing, logs an error and raises
+[`OnActionRefused`](../events/#onactionrefused):
+
+| `reason` | when |
+|---|---|
+| `short_items` | the hold carries fewer of the item than `count` |
+| `unknown_ship` | no live ship or station carries the id |
+
+Like [`GiveItems`](#giveitems), it raises no hold event, and the same three
+authoring faults fail lint, then load.
 
 </details>
 

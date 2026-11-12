@@ -1,5 +1,5 @@
-//! Scenario writes to a ship's purse, and the refusal an action raises when
-//! it cannot run whole.
+//! Scenario writes to a ship's purse and hold, and the refusal an action
+//! raises when it cannot run whole.
 //!
 //! A write here is all or nothing. An action that cannot run changes
 //! nothing, logs why, and raises `OnActionRefused` so a handler can answer
@@ -25,6 +25,10 @@ pub enum ActionRefusalType {
     InsufficientCredits,
     /// A grant would pass the `u32` limit of a balance.
     CreditOverflow,
+    /// The items weigh more than the hold has room for.
+    HoldFull,
+    /// The hold carries fewer of the item than the action takes.
+    ShortItems,
 }
 
 impl ActionRefusalType {
@@ -34,6 +38,8 @@ impl ActionRefusalType {
             ActionRefusalType::UnknownShip => "unknown_ship",
             ActionRefusalType::InsufficientCredits => "insufficient_credits",
             ActionRefusalType::CreditOverflow => "credit_overflow",
+            ActionRefusalType::HoldFull => "hold_full",
+            ActionRefusalType::ShortItems => "short_items",
         }
     }
 }
@@ -131,9 +137,157 @@ fn grant_credits(world: &mut World, id: &str, amount: i32) {
     reports.change_credits(&mut credits, current_cr, CreditChangeCauseType::Scenario);
 }
 
+/// Put items into the hold of one ship or station.
+///
+/// All or nothing: a stack heavier than the free room is refused with
+/// `hold_full` and an id no live ship carries with `unknown_ship`. A
+/// refused action adds nothing. The hold raises no event of its own for a
+/// scripted write; read the result with `entity("id").items("Item")`.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct GiveItemsActionConfig {
+    /// The `EntityId` of the scoped ship or station.
+    #[reflect(@Names::Object)]
+    pub ship: String,
+    /// The item to add. An id no loaded bundle defines is a lint error.
+    pub item: ItemDesignId,
+    /// Units to add. Zero is a lint error.
+    pub count: u32,
+}
+
+impl EventAction<NovaEventWorld> for GiveItemsActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let config = self.clone();
+        debug!(
+            "GiveItems: '{}' +{} {}",
+            config.ship, config.count, config.item
+        );
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| give_items(world, &config));
+        });
+    }
+}
+
+/// Add the stack to the hold of the ship, or refuse and change nothing.
+fn give_items(world: &mut World, config: &GiveItemsActionConfig) {
+    const ACTION: &str = "GiveItems";
+    let GiveItemsActionConfig {
+        ship: id,
+        item,
+        count,
+    } = config;
+
+    let Some(ship) = scoped_ship(world, id) else {
+        refuse_action(
+            world,
+            ACTION,
+            id,
+            ActionRefusalType::UnknownShip,
+            "no live scoped ship carries the id",
+        );
+        return;
+    };
+    // The load gate lints the scenario, so the item is in the catalog and
+    // the count is above zero here.
+    let full = world.resource_scope(|world, items: Mut<GameItems>| {
+        let mut hold = world
+            .get_mut::<ShipInventory>(ship)
+            .expect("a ship root requires ShipInventory");
+        let mass_g = items.design(item).stack_mass_g(*count);
+        let free_g = hold.free_g(&items);
+        if mass_g > u64::from(free_g) {
+            return Some((mass_g, free_g));
+        }
+        hold.add(&items, item, *count);
+        None
+    });
+    if let Some((mass_g, free_g)) = full {
+        refuse_action(
+            world,
+            ACTION,
+            id,
+            ActionRefusalType::HoldFull,
+            format_args!(
+                "{count} of '{item}' weigh {mass_g} g and the hold has room for {free_g} g"
+            ),
+        );
+    }
+}
+
+/// Take items out of the hold of one ship or station.
+///
+/// All or nothing: a count above what the hold carries is refused with
+/// `short_items` and an id no live ship carries with `unknown_ship`. A
+/// refused action takes nothing. The items are gone; nothing is dropped
+/// into the world.
+#[derive(Clone, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TakeItemsActionConfig {
+    /// The `EntityId` of the scoped ship or station.
+    #[reflect(@Names::Object)]
+    pub ship: String,
+    /// The item to remove. An id no loaded bundle defines is a lint error.
+    pub item: ItemDesignId,
+    /// Units to remove. Zero is a lint error.
+    pub count: u32,
+}
+
+impl EventAction<NovaEventWorld> for TakeItemsActionConfig {
+    fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
+        let config = self.clone();
+        debug!(
+            "TakeItems: '{}' -{} {}",
+            config.ship, config.count, config.item
+        );
+
+        world.push_command(move |commands| {
+            commands.queue(move |world: &mut World| take_items(world, &config));
+        });
+    }
+}
+
+/// Remove the stack from the hold of the ship, or refuse and change nothing.
+fn take_items(world: &mut World, config: &TakeItemsActionConfig) {
+    const ACTION: &str = "TakeItems";
+    let TakeItemsActionConfig {
+        ship: id,
+        item,
+        count,
+    } = config;
+
+    let Some(ship) = scoped_ship(world, id) else {
+        refuse_action(
+            world,
+            ACTION,
+            id,
+            ActionRefusalType::UnknownShip,
+            "no live scoped ship carries the id",
+        );
+        return;
+    };
+    let mut hold = world
+        .get_mut::<ShipInventory>(ship)
+        .expect("a ship root requires ShipInventory");
+    let held = hold.count(item);
+    if *count > held {
+        refuse_action(
+            world,
+            ACTION,
+            id,
+            ActionRefusalType::ShortItems,
+            format_args!("it carries {held} of '{item}' and the action takes {count}"),
+        );
+        return;
+    }
+    // The load gate lints the scenario, so the count is above zero here.
+    hold.remove(item, *count);
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
+    use nova_gameplay::test_support::test_items;
 
     use super::*;
     use crate::loader::trackers::track_ship_inventory_reports;
@@ -207,6 +361,112 @@ mod tests {
         world.flush();
     }
 
+    /// Room for 100 kg; `test_items` ore weighs 10 kg a unit.
+    const HOLD_G: u32 = 100_000;
+
+    /// A freighter world with the test catalog and `ore` units of iron ore
+    /// in a hold of [`HOLD_G`].
+    fn world_with_ore(ore: u32) -> (World, Entity) {
+        let (mut world, ship) = world_with_a_freighter(0);
+        let items = test_items();
+        let stock = (ore > 0).then(|| (iron_ore(), ore));
+        world
+            .entity_mut(ship)
+            .insert(ShipInventory::new(&items, HOLD_G, stock));
+        world.insert_resource(items);
+        (world, ship)
+    }
+
+    fn iron_ore() -> ItemDesignId {
+        ItemDesignId::from(ItemRoleType::IronOre)
+    }
+
+    fn ore_held(world: &World, ship: Entity) -> u32 {
+        world
+            .get::<ShipInventory>(ship)
+            .expect("a ship root holds an inventory")
+            .count(&iron_ore())
+    }
+
+    fn give(ship: &str, count: u32) -> GiveItemsActionConfig {
+        GiveItemsActionConfig {
+            ship: ship.to_string(),
+            item: iron_ore(),
+            count,
+        }
+    }
+
+    fn take(ship: &str, count: u32) -> TakeItemsActionConfig {
+        TakeItemsActionConfig {
+            ship: ship.to_string(),
+            item: iron_ore(),
+            count,
+        }
+    }
+
+    fn refusal(action: &str, ship: &str, reason: &str) -> Vec<(String, String)> {
+        fields(&[
+            (REFUSED_ACTION_FIELD_NAME, action),
+            (ENTITY_ID_COMPONENT_NAME, ship),
+            (REFUSAL_REASON_FIELD_NAME, reason),
+        ])
+    }
+
+    #[test]
+    fn a_give_fills_the_hold_to_its_limit_and_a_take_empties_it() {
+        let (mut world, ship) = world_with_ore(2);
+
+        run(&mut world, give("freighter", 8));
+        assert_eq!(ore_held(&world, ship), 10);
+
+        run(&mut world, take("freighter", 10));
+        assert_eq!(ore_held(&world, ship), 0);
+        assert!(world.resource::<Fired>().0.is_empty());
+    }
+
+    #[test]
+    fn a_refused_give_or_take_leaves_the_hold_and_fires_one_refusal() {
+        let (mut world, ship) = world_with_ore(2);
+        run(&mut world, give("freighter", 9));
+        assert_eq!(ore_held(&world, ship), 2);
+        assert_eq!(
+            world.resource::<Fired>().0,
+            [(
+                OnActionRefusedEvent::name(),
+                refusal("GiveItems", "freighter", "hold_full")
+            )]
+        );
+
+        let (mut world, ship) = world_with_ore(2);
+        run(&mut world, take("freighter", 3));
+        assert_eq!(ore_held(&world, ship), 2);
+        assert_eq!(
+            world.resource::<Fired>().0,
+            [(
+                OnActionRefusedEvent::name(),
+                refusal("TakeItems", "freighter", "short_items")
+            )]
+        );
+
+        let (mut world, ship) = world_with_ore(2);
+        run(&mut world, give("ghost", 1));
+        run(&mut world, take("ghost", 1));
+        assert_eq!(ore_held(&world, ship), 2);
+        assert_eq!(
+            world.resource::<Fired>().0,
+            [
+                (
+                    OnActionRefusedEvent::name(),
+                    refusal("GiveItems", "ghost", "unknown_ship")
+                ),
+                (
+                    OnActionRefusedEvent::name(),
+                    refusal("TakeItems", "ghost", "unknown_ship")
+                ),
+            ]
+        );
+    }
+
     fn grant(ship: &str, amount: i32) -> GrantCreditsActionConfig {
         GrantCreditsActionConfig {
             ship: ship.to_string(),
@@ -259,11 +519,7 @@ mod tests {
             let fired = world.resource::<Fired>();
             assert_eq!(
                 fired.named(OnActionRefusedEvent::name()),
-                [fields(&[
-                    (REFUSED_ACTION_FIELD_NAME, "GrantCredits"),
-                    (ENTITY_ID_COMPONENT_NAME, ship),
-                    (REFUSAL_REASON_FIELD_NAME, reason),
-                ])]
+                [refusal("GrantCredits", ship, reason)]
             );
             assert!(
                 fired.named(OnCreditsChangedEvent::name()).is_empty(),
