@@ -12740,7 +12740,8 @@ function initGeneratedShipRoles(host: HTMLElement): void {
 // nova_gameplay/src/market.rs `price`: every factor is an f32, so the scope
 // rounds each step to f32 with Math.fround and lands on the game's credit.
 /** An item category the price table names. */
-export type PriceCategory = "Raw" | "Ammo" | "Repair" | "Parts" | "Food";
+export type PriceCategory =
+    "Raw" | "Ammo" | "Repair" | "Parts" | "Food" | "Contraband";
 /** A cluster type a trader stands in, in `ClusterType::ALL` order. */
 export type PriceCluster =
     "AsteroidRich" | "RockOnly" | "PlanetHeavy" | "DerelictField";
@@ -12782,6 +12783,7 @@ export const PRICE_ROLE_RULES: [PriceRole, PriceCategory, number][] = [
     ["Industrial", "Raw", 0.8],
     ["Civilian", "Food", 1.25],
     ["Scavenger", "Parts", 0.8],
+    ["Scavenger", "Contraband", 0.8],
     ["Armored", "Ammo", 1.25],
     ["Armored", "Repair", 1.15],
 ];
