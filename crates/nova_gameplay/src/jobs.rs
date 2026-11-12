@@ -63,7 +63,7 @@ use std::{
 
 use bevy::prelude::*;
 use bevy_rand::prelude::WyRand;
-use nova_events::prelude::{GeneratedBodyId, Meters3};
+use nova_events::prelude::{GeneratedBodyId, JobDropCauseType, Meters3};
 use rand::{RngExt, SeedableRng};
 
 use crate::{
@@ -82,11 +82,11 @@ pub mod prelude {
         escort_raiders, job_title, offer_deadline_text, plan_distress_rescue, plan_job_accept,
         plan_job_hand_in, plan_job_hull_fit, plan_job_offer_refresh, station_job_offers,
         DistressRefusalType, DistressRefused, EscortLeg, Job, JobAcceptRefusalType, JobAccepted,
-        JobBoard, JobDone, JobField, JobHandInPartner, JobHandInPlan, JobHandInRefusalType,
-        JobHull, JobHullFit, JobHullRefusalType, JobId, JobMixType, JobOfferRefreshPlan,
-        JobOfferRefreshRefusalType, JobPostings, JobSourceType, JobType, JobWreck, Jobs,
-        SlotPosting, StarterBoardMarker, VisitPosting, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD,
-        JOB_OFFER_REFRESH_FEE_CR, RAIDERS_PER_CARGO_CR, VISIT_EXTRAS_MAX,
+        JobBoard, JobDone, JobDropped, JobField, JobHandInPartner, JobHandInPlan,
+        JobHandInRefusalType, JobHandedIn, JobHull, JobHullFit, JobHullRefusalType, JobId,
+        JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType, JobPostings, JobSourceType,
+        JobType, JobWreck, Jobs, SlotPosting, StarterBoardMarker, VisitPosting, ESCORT_RAIDERS_MAX,
+        JOBS_PER_BOARD, JOB_OFFER_REFRESH_FEE_CR, RAIDERS_PER_CARGO_CR, VISIT_EXTRAS_MAX,
         VISIT_EXTRA_OFFER_SECONDS,
     };
 }
@@ -792,6 +792,18 @@ impl JobType {
         }
     }
 
+    /// The kind's name, which is its variant's: what a scenario event's
+    /// `kind` field carries.
+    pub const fn name(&self) -> &'static str {
+        match self {
+            JobType::Procure { .. } => "Procure",
+            JobType::Recover { .. } => "Recover",
+            JobType::Escort { .. } => "Escort",
+            JobType::Distress { .. } => "Distress",
+            JobType::Neutralize { .. } => "Neutralize",
+        }
+    }
+
     /// Whether the kind is done at the hand-in by the goods in the hold,
     /// rather than in the world before it.
     pub const fn is_procurement(&self) -> bool {
@@ -1072,7 +1084,27 @@ pub struct JobAccepted {
 #[derive(Event, Clone, Debug)]
 pub struct JobDone {
     /// The held job just marked done.
-    pub id: JobId,
+    pub job: Job,
+}
+
+/// Raised by the Jobs pane once a hand-in is paid and the job is listed
+/// completed ([`Jobs::complete`]). Only the pane raises it: a Load restores
+/// completed jobs without it.
+#[derive(Event, Clone, Debug)]
+pub struct JobHandedIn {
+    /// The job just completed.
+    pub job: Job,
+}
+
+/// Raised where a held job is dropped ([`Jobs::drop`]): by the open world
+/// for a job it lost, by the Jobs pane for one the player abandoned. A Load
+/// restores dropped ids without it.
+#[derive(Event, Clone, Debug)]
+pub struct JobDropped {
+    /// The job just dropped.
+    pub job: Job,
+    /// Who dropped it.
+    pub cause: JobDropCauseType,
 }
 
 /// Why a dock with a distress caller rescues nobody.

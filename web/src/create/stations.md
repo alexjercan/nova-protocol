@@ -621,7 +621,10 @@ and its bodies), `ondocked` with the caller (`Distress`), `onneutralized` or
 station, the job done (a `Procure` is done with the goods in the hold), and a
 station balance that covers the reward; it removes a `Procure`'s goods, pays
 `OnCreditsChanged` with cause `JobReward` on both sides and lists the job
-completed. Held, done and completed jobs are the `Jobs` session resource, and
+completed. A scenario hears each step as a [job event](../events/#job-events):
+`OnJobAccepted`, `OnJobDone` (never for a `Procure`), `OnJobHandedIn`, and
+`OnJobDropped` with cause `Lost` for a job the world took or `Abandoned` for
+the pane's Drop. Held, done and completed jobs are the `Jobs` session resource, and
 every board's slot postings and offers are the `JobPostings` session resource;
 both save in the world state's `jobs` and `postings` fields and are checked on
 load: a job held twice, held and completed, held or completed and dropped,

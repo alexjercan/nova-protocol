@@ -47,32 +47,34 @@ pub mod prelude {
         units::prelude::*,
         AddedEventInfo, CargoEventInfo, CinematicEventInfo, CreditChangeCauseType,
         CreditsChangedEventInfo, DockingEventInfo, EntityId, EntityTypeName, EscortHiredEventInfo,
-        ItemTradeType, JobAcceptedEventInfo, LockEventInfo, MinedEventInfo, OnAddedEvent,
-        OnCinematicFinishedEvent, OnCinematicSkippedEvent, OnCombatLockEndEvent,
-        OnCombatLockStartEvent, OnCreditsChangedEvent, OnDefeatedEvent, OnDefeatedEventInfo,
-        OnDestroyedEvent, OnDestroyedEventInfo, OnDockedEvent, OnEnterEvent, OnEnterEventInfo,
-        OnEscortHiredEvent, OnExitEvent, OnExitEventInfo, OnGotoCompleteEvent,
-        OnGotoCompleteEventInfo, OnJettisonedEvent, OnJobAcceptedEvent, OnMinedEvent,
-        OnNeutralizedEvent, OnNeutralizedEventInfo, OnOrbitEndEvent, OnOrbitLapEvent,
-        OnOrbitStableEvent, OnOrbitStartEvent, OnOrbitUnstableEvent, OnPickedUpEvent,
-        OnRebuiltEvent, OnRepairedEvent, OnResumeEvent, OnResumeEventInfo, OnShipBoughtEvent,
-        OnShipOrderCanceledEvent, OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent,
-        OnShipOrderCompleteEventInfo, OnShipOrderFailedEvent, OnShipOrderFailedEventInfo,
-        OnShipOrderInterruptedEvent, OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent,
-        OnShipOrderResumedEventInfo, OnStartEvent, OnStartEventInfo, OnStationBoughtEvent,
-        OnStopCompleteEvent, OnStopCompleteEventInfo, OnStoredEvent, OnStrippedEvent,
-        OnSwappedEvent, OnTimerEndEvent, OnTimerEndEventInfo, OnTradedEvent, OnTravelLockEndEvent,
-        OnTravelLockStartEvent, OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo,
-        OnWithdrawnEvent, OrbitEventInfo, RebuiltEventInfo, RepairedEventInfo,
-        ScenarioAddressableMarker, ShipBoughtEventInfo, ShipOrderKind, StationBoughtEventInfo,
-        StorageEventInfo, StrippedEventInfo, SwappedEventInfo, TradedEventInfo, ANCHOR_TYPE_NAME,
-        ASTEROID_TYPE_NAME, BEACON_TYPE_NAME, CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME,
-        CREDIT_CAUSE_FIELD_NAME, CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME,
-        DERELICT_STATION_TYPE_NAME, ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
+        ItemTradeType, JobDropCauseType, JobDroppedEventInfo, JobEventInfo, LockEventInfo,
+        MinedEventInfo, OnAddedEvent, OnCinematicFinishedEvent, OnCinematicSkippedEvent,
+        OnCombatLockEndEvent, OnCombatLockStartEvent, OnCreditsChangedEvent, OnDefeatedEvent,
+        OnDefeatedEventInfo, OnDestroyedEvent, OnDestroyedEventInfo, OnDockedEvent, OnEnterEvent,
+        OnEnterEventInfo, OnEscortHiredEvent, OnExitEvent, OnExitEventInfo, OnGotoCompleteEvent,
+        OnGotoCompleteEventInfo, OnJettisonedEvent, OnJobAcceptedEvent, OnJobDoneEvent,
+        OnJobDroppedEvent, OnJobHandedInEvent, OnMinedEvent, OnNeutralizedEvent,
+        OnNeutralizedEventInfo, OnOrbitEndEvent, OnOrbitLapEvent, OnOrbitStableEvent,
+        OnOrbitStartEvent, OnOrbitUnstableEvent, OnPickedUpEvent, OnRebuiltEvent, OnRepairedEvent,
+        OnResumeEvent, OnResumeEventInfo, OnShipBoughtEvent, OnShipOrderCanceledEvent,
+        OnShipOrderCanceledEventInfo, OnShipOrderCompleteEvent, OnShipOrderCompleteEventInfo,
+        OnShipOrderFailedEvent, OnShipOrderFailedEventInfo, OnShipOrderInterruptedEvent,
+        OnShipOrderInterruptedEventInfo, OnShipOrderResumedEvent, OnShipOrderResumedEventInfo,
+        OnStartEvent, OnStartEventInfo, OnStationBoughtEvent, OnStopCompleteEvent,
+        OnStopCompleteEventInfo, OnStoredEvent, OnStrippedEvent, OnSwappedEvent, OnTimerEndEvent,
+        OnTimerEndEventInfo, OnTradedEvent, OnTravelLockEndEvent, OnTravelLockStartEvent,
+        OnUndockedEvent, OnUpdateEvent, OnUpdateEventInfo, OnWithdrawnEvent, OrbitEventInfo,
+        RebuiltEventInfo, RepairedEventInfo, ScenarioAddressableMarker, ShipBoughtEventInfo,
+        ShipOrderKind, StationBoughtEventInfo, StorageEventInfo, StrippedEventInfo,
+        SwappedEventInfo, TradedEventInfo, ANCHOR_TYPE_NAME, ASTEROID_TYPE_NAME, BEACON_TYPE_NAME,
+        CANISTER_FIELD_NAME, CINEMATIC_KEY_FIELD_NAME, CREDIT_CAUSE_FIELD_NAME,
+        CURRENT_CREDITS_FIELD_NAME, DELTA_CREDITS_FIELD_NAME, DERELICT_STATION_TYPE_NAME,
+        ENTITY_ID_COMPONENT_NAME, ENTITY_OTHER_ID_COMPONENT_NAME,
         ENTITY_OTHER_TYPE_NAME_COMPONENT_NAME, ENTITY_TYPE_NAME_COMPONENT_NAME,
-        ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, LIGHT_TYPE_NAME, LIVING_STATION_TYPE_NAME,
-        PLANET_TYPE_NAME, PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME, SECTION_FIELD_NAME,
-        SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
+        ITEM_COUNT_FIELD_NAME, ITEM_FIELD_NAME, JOB_DROP_CAUSE_FIELD_NAME, JOB_KEY_FIELD_NAME,
+        JOB_KIND_FIELD_NAME, JOB_REWARD_FIELD_NAME, JOB_STATION_FIELD_NAME, LIGHT_TYPE_NAME,
+        LIVING_STATION_TYPE_NAME, PLANET_TYPE_NAME, PREVIOUS_CREDITS_FIELD_NAME, PRICE_FIELD_NAME,
+        SECTION_FIELD_NAME, SHIP_ORDER_FIELD_NAME, SHIP_ORDER_KIND_FIELD_NAME, SPACESHIP_TYPE_NAME,
         TIMER_KEY_FIELD_NAME, TRADE_FIELD_NAME,
     };
 }
@@ -898,6 +900,19 @@ pub const DELTA_CREDITS_FIELD_NAME: &str = "delta_cr";
 pub const CREDIT_CAUSE_FIELD_NAME: &str = "cause";
 /// Field name for the pane section code a repair named.
 pub const SECTION_FIELD_NAME: &str = "section";
+/// Field name for the kind of job a job event names: `Procure`, `Recover`,
+/// `Escort`, `Distress` or `Neutralize`.
+pub const JOB_KIND_FIELD_NAME: &str = "kind";
+/// Field name for the scenario id of the station that posted a job event's
+/// job.
+pub const JOB_STATION_FIELD_NAME: &str = "station";
+/// Field name for the reward a job event's job pays at its hand-in.
+pub const JOB_REWARD_FIELD_NAME: &str = "reward_cr";
+/// Field name for the authored key of a job event's job: empty for a job a
+/// board generated.
+pub const JOB_KEY_FIELD_NAME: &str = "key";
+/// Field name for the [`JobDropCauseType`] of a dropped job.
+pub const JOB_DROP_CAUSE_FIELD_NAME: &str = "cause";
 
 /// Which way a trade with a docked trader moves items and credits.
 ///
@@ -1401,16 +1416,130 @@ pub struct EscortHiredEventInfo {
 /// neither does a job restored by a Load.
 #[derive(Debug, Clone, EventKind, Reflect)]
 #[event_name("onjobaccepted")]
-#[event_info(JobAcceptedEventInfo)]
+#[event_info(JobEventInfo)]
 pub struct OnJobAcceptedEvent;
 
-/// Payload for [`OnJobAcceptedEvent`]: the accepted job.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Default, Reflect)]
-pub struct JobAcceptedEventInfo {
+/// A held job's work in the world is finished and the job waits for its
+/// hand-in (`onjobdone`).
+///
+/// One event per job, the moment the open world marks it done. A
+/// procurement is done by the goods in the hold at the hand-in and fires
+/// none, and neither does a done job restored by a Load.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onjobdone")]
+#[event_info(JobEventInfo)]
+pub struct OnJobDoneEvent;
+
+/// The Jobs pane handed a held job in at its posting station and the reward
+/// was paid (`onjobhandedin`).
+///
+/// One event per hand-in the rule allows; a refused hand-in fires nothing,
+/// and neither does a completed job restored by a Load.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onjobhandedin")]
+#[event_info(JobEventInfo)]
+pub struct OnJobHandedInEvent;
+
+/// A held job ended with no hand-in (`onjobdropped`).
+///
+/// One event per job the world took ([`JobDropCauseType::Lost`]) or the
+/// player dropped from the Jobs pane ([`JobDropCauseType::Abandoned`]). A
+/// dropped job restored by a Load fires nothing.
+#[derive(Debug, Clone, EventKind, Reflect)]
+#[event_name("onjobdropped")]
+#[event_info(JobDroppedEventInfo)]
+pub struct OnJobDroppedEvent;
+
+/// Payload for [`OnJobAcceptedEvent`], [`OnJobDoneEvent`] and
+/// [`OnJobHandedInEvent`]: the job.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default, Reflect)]
+pub struct JobEventInfo {
     /// The job's id, `<station id>#<slot>.<posting>` for a slot job or
     /// `<station id>#<visit id>.<index>` for a visit posting.
     #[serde(rename = "id")]
     pub id: String,
+    /// The kind of job: `Procure`, `Recover`, `Escort`, `Distress` or
+    /// `Neutralize`.
+    #[serde(rename = "kind")]
+    pub kind: String,
+    /// Scenario id of the station that posted the job: the part of `id`
+    /// before `#`.
+    #[serde(rename = "station")]
+    pub station: String,
+    /// The reward the hand-in pays, in credits.
+    #[serde(rename = "reward_cr")]
+    pub reward_cr: u32,
+    /// The job's authored key. Empty for a job a board generated, which is
+    /// every job today.
+    #[serde(rename = "key")]
+    pub key: String,
+}
+
+/// Why a held job ended with no hand-in.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, Reflect,
+)]
+pub enum JobDropCauseType {
+    /// The world took the job: its poster was neutralized or destroyed, or
+    /// before the job was done its hauler, wreck or caller was, or its
+    /// hauler's leg order failed.
+    Lost,
+    /// The player dropped the job from the Jobs pane.
+    Abandoned,
+}
+
+impl JobDropCauseType {
+    /// The name this cause carries in a serialized event payload.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            JobDropCauseType::Lost => "Lost",
+            JobDropCauseType::Abandoned => "Abandoned",
+        }
+    }
+}
+
+/// Payload for [`OnJobDroppedEvent`]: the job's [`JobEventInfo`] fields and
+/// the cause.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Reflect)]
+pub struct JobDroppedEventInfo {
+    /// The job's id; see [`JobEventInfo::id`].
+    #[serde(rename = "id")]
+    pub id: String,
+    /// The kind of job; see [`JobEventInfo::kind`].
+    #[serde(rename = "kind")]
+    pub kind: String,
+    /// Scenario id of the station that posted the job.
+    #[serde(rename = "station")]
+    pub station: String,
+    /// The reward the hand-in would have paid, in credits.
+    #[serde(rename = "reward_cr")]
+    pub reward_cr: u32,
+    /// The job's authored key; see [`JobEventInfo::key`].
+    #[serde(rename = "key")]
+    pub key: String,
+    /// Why the job ended.
+    #[serde(rename = "cause")]
+    pub cause: JobDropCauseType,
+}
+
+impl JobDroppedEventInfo {
+    /// The payload for `job` dropped for `cause`.
+    pub fn new(job: JobEventInfo, cause: JobDropCauseType) -> Self {
+        Self {
+            id: job.id,
+            kind: job.kind,
+            station: job.station,
+            reward_cr: job.reward_cr,
+            key: job.key,
+            cause,
+        }
+    }
+}
+
+impl Default for JobDroppedEventInfo {
+    fn default() -> Self {
+        Self::new(JobEventInfo::default(), JobDropCauseType::Lost)
+    }
 }
 
 /// A Ship pane buy at a docked station made the station the player's

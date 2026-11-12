@@ -40,6 +40,8 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - `DockingSectionConfig` gains optional `clamp_sound` and `release_sound`, played once at the port that captured or let go; the base port authors `dock_clamp.wav` and `dock_release.wav`.
 - `RailgunSectionConfig` gains optional `impact_sound`, played where the slug meets its first body in place of the impact table's Pierce row; the base lance authors `railgun_impact.wav`.
 - Scenario expressions read the firing event's payload as `event.<field>` (`event.price_cr > 100`), in a handler's filters and its own `VariableSet` and `TimerStart`; lint refuses an unknown field.
+- New scenario events `OnJobDone`, `OnJobHandedIn` and `OnJobDropped` (`cause`: `Lost` or `Abandoned`) follow a held job. All job events carry `id`, `kind`, `station`, `reward_cr` and `key`.
+- **(breaking)** A scenario with no generated `world` that names a job event (`OnJobAccepted` included) is now a lint error and does not load: no station there posts a job board.
 
 ### Audio & Visuals
 

@@ -298,10 +298,25 @@ scenario_events! {
     /// `hull` = the catalogue name, `price_cr` = the hire price). Once per
     /// hire.
     OnEscortHired => OnEscortHiredEvent { label: "On Escort Hired", category: Trade },
-    /// The Jobs pane accepted a board offer (`id` = the job's id). Once per
-    /// accept; a refused accept fires none, and a Load fires none for a job
-    /// it restores.
+    /// The Jobs pane accepted a board offer (`id` = the job's id, `kind`,
+    /// `station` = the poster, `reward_cr`, `key`). Once per accept; a refused
+    /// accept fires none, and a Load fires none for a job it restores.
+    /// Generated worlds only.
     OnJobAccepted => OnJobAcceptedEvent { label: "On Job Accepted", category: Trade },
+    /// A held job's work in the world is finished and it waits for its
+    /// hand-in (`id` = the job's id, `kind`, `station`, `reward_cr`, `key`).
+    /// Once per job; never for a Procure, which is done by the goods at the
+    /// hand-in. Generated worlds only.
+    OnJobDone => OnJobDoneEvent { label: "On Job Done", category: Trade },
+    /// The Jobs pane handed a job in at its posting station and the reward
+    /// was paid (`id` = the job's id, `kind`, `station`, `reward_cr`, `key`).
+    /// Once per hand-in; a refused hand-in fires none. Generated worlds only.
+    OnJobHandedIn => OnJobHandedInEvent { label: "On Job Handed In", category: Trade },
+    /// A held job ended with no hand-in (`id` = the job's id, `kind`,
+    /// `station`, `reward_cr`, `key`; `cause` = `Lost` when the world took
+    /// it, `Abandoned` for the pane's Drop). Once per job. Generated worlds
+    /// only.
+    OnJobDropped => OnJobDroppedEvent { label: "On Job Dropped", category: Trade },
     /// A Ship pane buy at a docked station made the station the player's
     /// (`id` = the buying ship; `station` = the station's scenario id,
     /// `price_cr` = the price). Once per buy.

@@ -345,13 +345,10 @@ fn post_job_done_notice(
     mut notices: MessageWriter<HudNotice>,
 ) {
     let code = jobs
-        .mark_code(&done.id)
-        .expect("a done job is held: the world marks a held job done");
-    let job = jobs
-        .job(&done.id)
+        .mark_code(&done.job.id)
         .expect("a done job is held: the world marks a held job done");
     let station = chart
-        .station_code(&job.target)
+        .station_code(&done.job.target)
         .expect("a held job's poster is charted: the accept docked there");
     notices.write(HudNotice(format!("{code} done: hand in at {station}")));
 }
@@ -578,8 +575,7 @@ mod tests {
         let mut app = notice_app();
         let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
         let id = JobId::slot(station.clone(), 0, 0);
-        let mut jobs = Jobs::default();
-        jobs.accept(Job {
+        let job = Job {
             id: id.clone(),
             kind: JobType::Escort {
                 hauler: GeneratedBodyId::new(
@@ -591,14 +587,16 @@ mod tests {
             },
             target: station.clone(),
             reward_cr: 100,
-        });
+        };
+        let mut jobs = Jobs::default();
+        jobs.accept(job.clone());
         app.insert_resource(jobs);
         let mut chart = Chart::default();
         chart.find_station(&station, false, false, None, 0.0);
         app.insert_resource(chart);
 
         app.world_mut().resource_mut::<Jobs>().mark_done(&id);
-        app.world_mut().trigger(JobDone { id: id.clone() });
+        app.world_mut().trigger(JobDone { job });
         app.update();
         assert_eq!(rendered(&mut app).0, "JOB-1 done: hand in at STN-1");
         assert_eq!(app.world().resource::<NoticeCues>().interface, 1);

@@ -63,8 +63,7 @@ use bevy::{
     ui_widgets::{Activate, Button},
 };
 use nova_events::prelude::{
-    CommandsGameEventExt, CreditChangeCauseType, GeneratedBodyId, JobAcceptedEventInfo, Meters,
-    OnJobAcceptedEvent, SectorCoord,
+    CreditChangeCauseType, GeneratedBodyId, JobDropCauseType, Meters, SectorCoord,
 };
 use nova_gameplay::prelude::*;
 use nova_ui::{
@@ -1925,17 +1924,17 @@ fn update_jobs_notice(
 
 /// Apply [`JobAcceptCommand`]s by the [`plan_job_accept`] rule and
 /// [`JobHandInCommand`]s by the [`plan_job_hand_in`] rule: an accept holds
-/// the job, raises [`JobAccepted`] and fires [`OnJobAcceptedEvent`]; a hand-in
-/// takes a procurement's goods
+/// the job and raises [`JobAccepted`]; a hand-in takes a procurement's goods
 /// out of the hold, pays the reward with `JobReward` credit changes on both
-/// sides and completes the job, and reports the payout, the new balance and
-/// the stance step it made on one Done notice. A refusal changes nothing and
+/// sides, completes the job and raises [`JobHandedIn`], and reports the
+/// payout, the new balance and the stance step it made on one Done notice. A refusal changes nothing and
 /// shows its reason on the notice line. An accept of a job the docked
 /// station's board no longer posts is refused as expired: the slot renewed
 /// between the click and this frame. A [`JobDropCommand`] drops the held job
-/// ([`Jobs::drop`]) with no payout and takes out the bodies its accept put
-/// in the world ([`Job::spawned_bodies`]), as `drop_on_loss` does in the
-/// open world crate, whatever station it is docked at; a drop of a job no
+/// ([`Jobs::drop`]) with no payout, raises [`JobDropped`] with the cause
+/// `Abandoned` and takes out the bodies its accept put in the world
+/// ([`Job::spawned_bodies`]), as `drop_on_loss` does in the open world
+/// crate, whatever station it is docked at; a drop of a job no
 /// longer held, lost or handed in since the confirm, is refused. A
 /// [`JobOfferRefreshCommand`] instead pays to delete a current, unheld
 /// board offer ahead of its window, for a fresh one in its place: planned
@@ -2035,9 +2034,6 @@ fn apply_job_commands(
                 let title = job.title(&items);
                 jobs.accept(job.clone());
                 commands.trigger(JobAccepted { job: job.clone() });
-                commands.fire::<OnJobAcceptedEvent>(JobAcceptedEventInfo {
-                    id: job.id.to_string(),
-                });
                 info!("nova_interface: accepted the job '{}' ({title})", job.id);
                 runtime
                     .notice
@@ -2105,7 +2101,8 @@ fn apply_job_commands(
             plan.station_cr,
             CreditChangeCauseType::JobReward,
         );
-        jobs.complete(&job.id);
+        let handed_in = jobs.complete(&job.id);
+        commands.trigger(JobHandedIn { job: handed_in });
         info!(
             "nova_interface: handed in the job '{}' ({title}) for {} cr",
             job.id, plan.reward_cr
@@ -2147,6 +2144,10 @@ fn apply_job_commands(
             continue;
         }
         let job = jobs.drop(&command.id);
+        commands.trigger(JobDropped {
+            job: job.clone(),
+            cause: JobDropCauseType::Abandoned,
+        });
         let gone = job.spawned_bodies();
         for (entity, id) in &q_bodies {
             if gone.contains(id) {
@@ -2980,6 +2981,52 @@ mod tests {
                 format!("dropped: {}", job.title(&test_items()))
             ))
         );
+    }
+
+    /// The pane raises one `JobHandedIn` for a paid hand-in and one
+    /// `JobDropped` with the cause `Abandoned` for a confirmed drop, each
+    /// with the whole job; a drop of the job again, no longer held, raises
+    /// none.
+    #[test]
+    fn a_hand_in_and_a_drop_each_raise_their_job_event_once() {
+        #[derive(Resource, Default)]
+        struct Raised {
+            handed_in: Vec<Job>,
+            dropped: Vec<(Job, JobDropCauseType)>,
+        }
+        fn hear(app: &mut App) {
+            app.init_resource::<Raised>();
+            app.add_observer(|handed_in: On<JobHandedIn>, mut raised: ResMut<Raised>| {
+                raised.handed_in.push(handed_in.job.clone());
+            });
+            app.add_observer(|dropped: On<JobDropped>, mut raised: ResMut<Raised>| {
+                raised.dropped.push((dropped.job.clone(), dropped.cause));
+            });
+        }
+
+        let mut app = jobs_app();
+        hear(&mut app);
+        let (_, procure) = hand_in_fixture(&mut app, neutral_civilization());
+        app.world_mut().write_message(JobHandInCommand {
+            id: procure.id.clone(),
+        });
+        app.update();
+        let raised = app.world().resource::<Raised>();
+        assert_eq!(raised.handed_in, [procure]);
+        assert!(raised.dropped.is_empty());
+
+        let mut app = jobs_app();
+        hear(&mut app);
+        let (_, _, distress) = drop_fixture(&mut app, 2_000, 10_000, false);
+        for _ in 0..2 {
+            app.world_mut().write_message(JobDropCommand {
+                id: distress.id.clone(),
+            });
+            app.update();
+        }
+        let raised = app.world().resource::<Raised>();
+        assert_eq!(raised.dropped, [(distress, JobDropCauseType::Abandoned)]);
+        assert!(raised.handed_in.is_empty());
     }
 
     /// A board row's `X` only asks and Back only cancels the ask: the offer

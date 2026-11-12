@@ -60,15 +60,15 @@ use bevy::{
     prelude::*,
 };
 use nova_events::prelude::{
-    EntityId, EventKind, GameEvent, GeneratedBodyId, Meters, Meters3, MetersPerSecond,
-    MetersPerSecond3, OnDestroyedEvent, OnDockedEvent, OnNeutralizedEvent,
+    EntityId, EventKind, GameEvent, GeneratedBodyId, JobDropCauseType, Meters, Meters3,
+    MetersPerSecond, MetersPerSecond3, OnDestroyedEvent, OnDockedEvent, OnNeutralizedEvent,
     OnShipOrderCompleteEvent, OnShipOrderFailedEvent, OnUndockedEvent, SectorCoord,
 };
 use nova_gameplay::prelude::{
     plan_distress_rescue, plan_job_hull_fit, station_job_offers, station_offers, unit_sphere_point,
     Allegiance, DerelictShipMarker, DistressRefused, Fnv32, GameItems, GamePriceTable,
-    ItemRoleType, Job, JobAccepted, JobBoard, JobDone, JobField, JobHull, JobHullFit, JobId,
-    JobMixType, JobOfferRule, JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker,
+    ItemRoleType, Job, JobAccepted, JobBoard, JobDone, JobDropped, JobField, JobHull, JobHullFit,
+    JobId, JobMixType, JobOfferRule, JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker,
     ObjectiveMarkerTarget, PlayerSpaceshipMarker, RailgunSectionMarker, SectionInactiveMarker,
     SectionMarker, SeedStream, ShipInventory, ShipRoleType, SlotPosting, SpaceshipRootMarker,
     StarterBoardMarker, StationMarker, StationServiceType, StationServices, TorpedoSectionMarker,
@@ -1136,6 +1136,10 @@ pub(crate) fn drop_on_loss(
         .collect();
     for (job, what) in lost {
         jobs.drop(&job.id);
+        commands.trigger(JobDropped {
+            job: job.clone(),
+            cause: JobDropCauseType::Lost,
+        });
         let gone = job.spawned_bodies();
         for (entity, id) in &bodies {
             if gone.contains(id) {
@@ -1193,7 +1197,7 @@ pub(crate) fn recover_on_undock(
         let carried = own.count(item);
         if carried >= *count && aboard == 0 {
             jobs.mark_done(&job.id);
-            commands.trigger(JobDone { id: job.id.clone() });
+            commands.trigger(JobDone { job: job.clone() });
             info!(
                 "nova_world_base: '{}' is done: the hold carries {carried} {item}, '{wreck}' none",
                 job.id
@@ -1243,7 +1247,7 @@ pub(crate) fn escort_on_arrival(
             unreachable!()
         };
         jobs.mark_done(&job.id);
-        commands.trigger(JobDone { id: job.id.clone() });
+        commands.trigger(JobDone { job: job.clone() });
         info!(
             "nova_world_base: '{}' is done: the hauler '{hauler}' reached its mark",
             job.id
@@ -1270,14 +1274,14 @@ pub(crate) fn distress_on_answer(
     let Some(subject) = event_subject(&event) else {
         return;
     };
-    let answered: Vec<JobId> = jobs
+    let answered: Vec<Job> = jobs
         .held()
         .iter()
         .filter(|job| {
             !jobs.is_done(&job.id)
                 && matches!(&job.kind, JobType::Distress { caller } if caller.to_string() == subject)
         })
-        .map(|job| job.id.clone())
+        .cloned()
         .collect();
     if answered.is_empty() {
         return;
@@ -1295,7 +1299,8 @@ pub(crate) fn distress_on_answer(
         return;
     }
     let medkit = &items.role(ItemRoleType::Medkit).id;
-    for id in answered {
+    for job in answered {
+        let id = job.id.clone();
         match plan_distress_rescue(&hold, medkit) {
             Ok(()) => {
                 hold.remove(medkit, 1);
@@ -1304,7 +1309,7 @@ pub(crate) fn distress_on_answer(
                     "nova_world_base: '{id}' is done: the caller '{subject}' was docked with \
                      and took one {medkit}"
                 );
-                commands.trigger(JobDone { id });
+                commands.trigger(JobDone { job });
             }
             Err(refusal) => {
                 info!(
@@ -1342,7 +1347,7 @@ pub(crate) fn neutralize_on_kill(
         };
         if is_taken_out(&event, hull) {
             jobs.mark_done(&job.id);
-            commands.trigger(JobDone { id: job.id.clone() });
+            commands.trigger(JobDone { job: job.clone() });
             info!(
                 "nova_world_base: '{}' is done: '{hull}' was {}",
                 job.id,
@@ -1665,7 +1670,7 @@ mod tests {
         let mut app = held_app([escort.clone()]);
         app.init_resource::<DoneRaised>();
         app.add_observer(|done: On<JobDone>, mut raised: ResMut<DoneRaised>| {
-            raised.0.push(done.id.clone());
+            raised.0.push(done.job.id.clone());
         });
 
         fire(&mut app, arrived(hauler));
@@ -1715,6 +1720,34 @@ mod tests {
             standing(&app, &bodies),
             0,
             "the remains and the raiders are taken out so a second accept can put them back"
+        );
+    }
+
+    /// The hauler taken out before its mark raises one `JobDropped` with the
+    /// whole escort and the cause `Lost`; the same loss again, the job gone,
+    /// raises none.
+    #[test]
+    fn a_lost_escort_raises_one_job_dropped_with_the_cause_lost() {
+        #[derive(Resource, Default)]
+        struct DroppedRaised(Vec<(Job, JobDropCauseType)>);
+
+        let escort = escort(0);
+        let JobType::Escort { hauler, .. } = &escort.kind else {
+            unreachable!()
+        };
+        let mut app = held_app([escort.clone()]);
+        app.init_resource::<DroppedRaised>();
+        app.add_observer(
+            |dropped: On<JobDropped>, mut raised: ResMut<DroppedRaised>| {
+                raised.0.push((dropped.job.clone(), dropped.cause));
+            },
+        );
+
+        fire(&mut app, taken_out(hauler));
+        fire(&mut app, taken_out(hauler));
+        assert_eq!(
+            app.world().resource::<DroppedRaised>().0,
+            [(escort, JobDropCauseType::Lost)]
         );
     }
 

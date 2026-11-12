@@ -171,6 +171,7 @@ pub fn lint_scenario(
     }
 
     check_station_posts(scenario, id, &mut issues);
+    check_generated_world_only(scenario, id, &mut issues);
 
     // The menu owns the backdrop rotation: a backdrop reports that its act is
     // finished with BackdropDone and never names its successor. All three are
@@ -2099,6 +2100,91 @@ fn check_filter(
                 check_filter(right, scenario, satisfiable, declared, used_vars, issues);
             }
         },
+    }
+}
+
+/// One piece of scenario vocabulary that only a generated world can serve.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum GeneratedWorldOnlyType {
+    /// An event, as a handler's `name` or a step's `until` gate.
+    Event(EventConfig),
+}
+
+impl GeneratedWorldOnlyType {
+    fn name(self) -> &'static str {
+        match self {
+            GeneratedWorldOnlyType::Event(event) => event.name(),
+        }
+    }
+}
+
+/// Why no job event fires on a `Void` world.
+const NO_JOB_BOARD: &str =
+    "only a generated world's stations post job boards, so the event can never fire";
+
+/// Everything a `Void` scenario may not name, each with why it can never
+/// happen there. The one list [`check_generated_world_only`] reads: an
+/// event joins as a row, and an action as a [`GeneratedWorldOnlyType`]
+/// variant, its rows and its uses in [`generated_world_only_uses`].
+const GENERATED_WORLD_ONLY: &[(GeneratedWorldOnlyType, &str)] = &[
+    (
+        GeneratedWorldOnlyType::Event(EventConfig::OnJobAccepted),
+        NO_JOB_BOARD,
+    ),
+    (
+        GeneratedWorldOnlyType::Event(EventConfig::OnJobDone),
+        NO_JOB_BOARD,
+    ),
+    (
+        GeneratedWorldOnlyType::Event(EventConfig::OnJobHandedIn),
+        NO_JOB_BOARD,
+    ),
+    (
+        GeneratedWorldOnlyType::Event(EventConfig::OnJobDropped),
+        NO_JOB_BOARD,
+    ),
+];
+
+/// Every use a scenario makes of vocabulary [`GENERATED_WORLD_ONLY`] could
+/// list: each handler's event and each step gate's, however deeply nested.
+fn generated_world_only_uses(scenario: &ScenarioConfig) -> Vec<GeneratedWorldOnlyType> {
+    let mut uses = Vec::new();
+    for event in &scenario.events {
+        uses.push(GeneratedWorldOnlyType::Event(event.name));
+        for action in &event.actions {
+            action.walk(&mut |action| {
+                let Some((_, steps)) = action.step_chain() else {
+                    return;
+                };
+                for gate in steps.iter().filter_map(|step| step.until.as_ref()) {
+                    uses.push(GeneratedWorldOnlyType::Event(gate.name));
+                }
+            });
+        }
+    }
+    uses
+}
+
+/// Refuse a `Void` scenario that names vocabulary only a generated world
+/// serves. An Error, not a warning: the handler could never run, and a beat
+/// that waits on it would wait for good. One issue per name, however many
+/// times the scenario uses it.
+fn check_generated_world_only(scenario: &ScenarioConfig, id: &str, issues: &mut Vec<LintIssue>) {
+    if !scenario.world.is_void() {
+        return;
+    }
+    let uses = generated_world_only_uses(scenario);
+    for (vocabulary, reason) in GENERATED_WORLD_ONLY {
+        if uses.contains(vocabulary) {
+            issues.push(LintIssue::error(
+                id,
+                format!(
+                    "`{}` on a `Void` world: {reason} - give the scenario `world: \
+                     Generated(..)` or remove it",
+                    vocabulary.name()
+                ),
+            ));
+        }
     }
 }
 
@@ -5428,6 +5514,70 @@ mod tests {
         ));
         assert_eq!(in_a_step.len(), 1, "{in_a_step:?}");
         assert!(in_a_step[0].contains("no event payload"), "{in_a_step:?}");
+    }
+
+    fn void_world_errors(s: &ScenarioConfig) -> Vec<String> {
+        let issues = lint_scenario(
+            s,
+            &sections(&[]),
+            &ships(&[]),
+            &stations(&[]),
+            &known(&[]),
+            &GameItems::default(),
+            &GameStyles::default(),
+            &GameTradeProfiles::default(),
+        );
+        errors(&issues)
+            .iter()
+            .filter(|issue| issue.message.contains("on a `Void` world"))
+            .map(|issue| issue.message.clone())
+            .collect()
+    }
+
+    /// A void has no station that posts a board, so a handler or a step gate
+    /// on a job event could never run. The same scenario on a generated
+    /// world may name them.
+    #[test]
+    fn a_job_event_on_a_void_world_is_an_error_that_names_the_event_and_the_reason() {
+        for event in [
+            EventConfig::OnJobAccepted,
+            EventConfig::OnJobDone,
+            EventConfig::OnJobHandedIn,
+            EventConfig::OnJobDropped,
+        ] {
+            let mut handler = scenario(vec![], vec![]);
+            handler.events[0].name = event;
+            let found = void_world_errors(&handler);
+            assert_eq!(found.len(), 1, "{found:?}");
+            assert!(
+                found[0].starts_with(&format!("`{}` on a `Void` world", event.name())),
+                "{found:?}"
+            );
+            assert!(found[0].contains("post job boards"), "{found:?}");
+
+            handler.world = generated(Some(1));
+            assert!(void_world_errors(&handler).is_empty());
+        }
+
+        let gated = on_defeated(
+            vec![],
+            vec![sequence(
+                "run",
+                vec![SequenceStepConfig {
+                    until: Some(SequenceGateConfig {
+                        name: EventConfig::OnJobDone,
+                        filters: vec![],
+                    }),
+                    deadline: Some(5.0),
+                    ..default()
+                }],
+            )],
+        );
+        let found = void_world_errors(&gated);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(found[0].starts_with("`OnJobDone` on a `Void` world"));
+
+        assert!(void_world_errors(&on_defeated(vec![], vec![])).is_empty());
     }
 
     fn number(n: f64) -> VariableExpressionNode {

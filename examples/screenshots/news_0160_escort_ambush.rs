@@ -456,23 +456,20 @@ fn count_player_pdc_hits(
 /// # Panics
 ///
 /// When the escort turns done outside the done loop: the loop missed it.
-fn note_the_done(done: On<JobDone>, jobs: Res<Jobs>, mut loops: ResMut<EscortLoops>) {
-    let escort = jobs
-        .job(&done.id)
-        .is_some_and(|job| matches!(job.kind, JobType::Escort { .. }));
-    if !escort {
+fn note_the_done(done: On<JobDone>, mut loops: ResMut<EscortLoops>) {
+    if !matches!(done.job.kind, JobType::Escort { .. }) {
         return;
     }
     assert_eq!(
         loops.phase,
         LoopPhaseType::Done,
         "escort loops: '{}' turned done outside the done loop",
-        done.id
+        done.job.id
     );
     loops.done_at = Some(loops.frames);
     info!(
         "escort loops: '{}' is done at done-loop frame {}",
-        done.id, loops.frames
+        done.job.id, loops.frames
     );
 }
 

@@ -1,7 +1,7 @@
 # Events
 
 Everything that can fire a handler. A handler's `name:` field names one of
-the FORTY-FIVE event kinds below, written bare (they are unit variants):
+the FORTY-EIGHT event kinds below, written bare (they are unit variants):
 `name: OnStart`, `name: OnEnter`, and so on. When the event fires, the
 handler's [filters](../filters/) gate it and its [actions](../actions/) run.
 
@@ -62,7 +62,10 @@ The whole vocabulary at a glance:
 | [`OnStripped`](#hold-events) | `id`, `type_name`, `hull`, `section`, `parts` | an Inventory pane strip takes a section off a docked wreck, once per section, the berth port last; or a Ship pane delete takes a section off the ship itself |
 | [`OnStored`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player stores a stack in a docked station's storage |
 | [`OnWithdrawn`](#hold-events) | `id`, `other_id`, `other_type_name`, `item`, `count` | the player withdraws a stack from a docked station's storage, or Take all or Strip takes one from a dead station's |
-| [`OnJobAccepted`](#onjobaccepted) | `id` | the Jobs pane accepts a board offer; `id` is the job's id; a refused accept and a Load fire none |
+| [`OnJobAccepted`](#onjobaccepted) | `id`, `kind`, `station`, `reward_cr`, `key` | the Jobs pane accepts a board offer; `id` is the job's id; a refused accept and a Load fire none |
+| [`OnJobDone`](#onjobdone) | `id`, `kind`, `station`, `reward_cr`, `key` | a held job's work in the world is finished and the job waits for its hand-in; a `Procure` and a Load fire none |
+| [`OnJobHandedIn`](#onjobhandedin) | `id`, `kind`, `station`, `reward_cr`, `key` | the Jobs pane hands a held job in at its posting station and the reward is paid; a refused hand-in fires none |
+| [`OnJobDropped`](#onjobdropped) | `id`, `kind`, `station`, `reward_cr`, `key`, `cause` | a held job ends with no hand-in: `cause` is `Lost` (the world took it) or `Abandoned` (the Drop button) |
 
 Entity payload fields are what an `Entity` filter can match: `id` /
 `type_name` name the event's SUBJECT, `other_id` / `other_type_name` its other
@@ -908,11 +911,64 @@ The example mod's `example_prospect` scenario runs all but `OnRebuilt`,
 
 </details>
 
+## Job events
+
+Four events follow one job of a generated world's station board from the
+accept to its end. All four carry the same job fields; `OnJobDropped` adds
+`cause`.
+
+| field | type | value |
+|---|---|---|
+| `id` | text | the job's id: `<station id>#<slot>.<posting>` for a slot job, `<station id>#<visit id>.<index>` for a visit posting |
+| `kind` | text | `Procure`, `Recover`, `Escort`, `Distress` or `Neutralize` |
+| `station` | text | the scenario id of the station that posted the job, the part of `id` before `#` |
+| `reward_cr` | number | the reward the hand-in pays, in credits |
+| `key` | text | empty for a job a board generated |
+| `cause` | text | `OnJobDropped` only: `Lost` or `Abandoned` |
+
+| a job's life | events, in order |
+|---|---|
+| accepted, worked, handed in | `OnJobAccepted`, `OnJobDone` (not for a `Procure`), `OnJobHandedIn` |
+| accepted, then its hauler, wreck, caller or poster is lost | `OnJobAccepted`, `OnJobDropped` with `cause` `Lost` |
+| accepted, then dropped from the Jobs pane | `OnJobAccepted`, `OnJobDropped` with `cause` `Abandoned` |
+
+Read a field with [`event.<field>`](../expressions/#event-fields):
+
+```ron
+(
+    name: OnJobHandedIn,
+    filters: [
+        Expression((Equal(
+            Term(Factor(Event("kind"))),
+            Term(Factor(Literal(String("Escort")))),
+        ))),
+    ],
+    actions: [
+        VariableSet((key: "last_escort_pay", expression: Term(Factor(Event("reward_cr"))))),
+    ],
+),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+`id` is the JOB's id, not an entity id: there is no `type_name` and no
+`other_id`, and an `Entity` filter on `id` matches a job id here, not a
+scenario object.
+
+Only a generated world posts job boards. A scenario with no `world:` line
+(a `Void` world) that names one of the four is a lint error: the event can
+never fire there.
+
+A Load restores held, done and completed jobs and fires none of the four,
+so a `once` handler on any of them never runs twice for one job.
+
+</details>
+
 ## OnJobAccepted
 
-Fires once per successful accept from the Jobs pane. Payload: `id` only, and
-it is the JOB's id, not an entity id. There is no `type_name` and no
-`other_id`.
+Fires once per successful accept from the Jobs pane, after the job is held.
+A refused accept fires nothing.
 
 ```ron
 (
@@ -922,17 +978,35 @@ it is the JOB's id, not an entity id. There is no `type_name` and no
 ),
 ```
 
-<details class="explain">
-<summary>Show explanation</summary>
+## OnJobDone
 
-An `Entity` filter on `id` matches a job id here, not a scenario object. A
-job id reads `<station id>#<slot>.<posting>` for a slot job and
-`<station id>#<visit id>.<index>` for a visit posting.
+Fires once when a held job's work in the world is finished: the job stays
+held and waits for its hand-in at the posting station.
 
-A refused accept fires nothing, and neither does a Load that restores held
-jobs, so a handler on this event never runs twice for one job.
+| kind | done when |
+|---|---|
+| `Recover` | the player undocks from the wreck with the asked units aboard and none left on the wreck |
+| `Escort` | the hauler reaches its mark |
+| `Distress` | the player docks with the caller with a medkit aboard |
+| `Neutralize` | the hull is neutralized or destroyed |
+| `Procure` | never: a procurement is done by the goods in the hold at the hand-in |
 
-</details>
+## OnJobHandedIn
+
+Fires once per successful hand-in from the Jobs pane, after the reward is
+paid and the job is listed completed. A refused hand-in fires nothing. The
+payout itself is two [`OnCreditsChanged`](#hold-events) events with cause
+`JobReward`, one for each party, raised before this one.
+
+## OnJobDropped
+
+Fires once when a held job ends with no hand-in. The posting is retired:
+the job is never offered or accepted again.
+
+| `cause` | what happened |
+|---|---|
+| `Lost` | the posting station was neutralized or destroyed; or, before the job was done, its hauler, wreck or caller was; or the escort hauler's leg order failed |
+| `Abandoned` | the player confirmed Drop in the Jobs pane |
 
 ## Dispatch order (what you can rely on)
 

@@ -99,6 +99,12 @@ sensor with no outcome (Warn). A `Void` scenario cannot carry `bounds`
 structurally. The example mod's `example_bounds` is the shipped instance, and
 `system_world_bounds` the asserted range.
 
+Some vocabulary only a generated world can serve: a `Void` has no station
+that posts a job board. `GENERATED_WORLD_ONLY` (`lint/scenario.rs`) is the one
+list of it, each row with its reason, and a `Void` scenario that names a row -
+as a handler's event or a step's `until` gate - is a lint Error, because the
+handler could never run. Today the rows are the four job events.
+
 `nova_world_base::sync_open_world` arms `WorldConfig` from this block and the
 player ship, and disarms it under a `Void` scenario or none. The base bundle's
 `new_game_scenario` must name a scenario whose world is
@@ -1024,6 +1030,17 @@ after it closes. `OnMined` has no queue: `pulse_mining_beams` (`mining.rs`)
 fires it per pulse that flips at least one corner, with the rock as `id` and
 the miner as `other_id`, because the pulse is already a scenario-crate system.
 
+The job events cross by OBSERVER, not by queue, because their owners already
+raise a gameplay event at each step: the Jobs pane (`nova_interface`) raises
+`JobAccepted`, `JobHandedIn` and `JobDropped` with cause `Abandoned`, and the
+open world (`nova_world_base`) raises `JobDone` and `JobDropped` with cause
+`Lost`. `loader/bridges.rs` observes the four and fires `OnJobAccepted`,
+`OnJobDone`, `OnJobHandedIn` and `OnJobDropped` from the `Job` each carries,
+through one payload builder, so neither owner names a scenario event and the
+four payloads cannot drift. Each fires in the command flush of the system
+that moved the job. A Load restores `Jobs` in place and raises none of the
+gameplay events, so it fires none of these.
+
 ## Adding new pieces
 
 - Event: event + info structs in `nova_events/src/lib.rs`, an `EventConfig`
@@ -1033,8 +1050,10 @@ the miner as `other_id`, because the pulse is already a scenario-crate system.
   `objects/area.rs`;
   `OnNeutralized` fires from `nova_gameplay`'s integrity stack, a rock's
   `OnDestroyed` from `objects/asteroid_carve.rs` when its field is exhausted,
-  the hold events from `track_ship_inventory_reports` in `trackers.rs`, and
-  `OnMined` from `mining.rs`). A new occurrence below `nova_scenario` pushes a
+  the hold events from `track_ship_inventory_reports` in `trackers.rs`,
+  `OnMined` from `mining.rs`, and the job events from the observers in
+  `loader/bridges.rs`). An event only a generated world can raise also gets a
+  row in `GENERATED_WORLD_ONLY`. A new occurrence below `nova_scenario` pushes a
   `ShipInventoryReport` variant; it does not get a second queue.
 - Action: config struct + `EventAction<NovaEventWorld>` impl in the right
   `actions/` submodule (`audio`/`cinematic`/`flow`/`mission`/`sequence`/`ship`/

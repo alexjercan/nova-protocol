@@ -18,6 +18,7 @@ use nova_ship::prelude::*;
 
 use crate::prelude::*;
 
+mod bridges;
 /// The scripted-camera layer: who owns the scenario camera while a script does.
 mod camera;
 mod clock;
@@ -31,6 +32,7 @@ pub mod preload;
 mod trackers;
 mod wake;
 
+use bridges::register_bridged_events;
 use camera::register_scripted_camera;
 pub use camera::{
     CameraEasing, CameraOffsetFrame, ScriptedCameraAnchor, ScriptedCameraBlend,
@@ -776,6 +778,11 @@ impl Plugin for ScenarioLoaderPlugin {
         );
         app.add_observer(on_next_input);
         app.add_observer(unload_scenario);
+
+        // Events bridged from gameplay events. Observers, so each fires in
+        // the command flush of the system that raised the gameplay event,
+        // with no ordering against it.
+        register_bridged_events(app);
 
         // The OnUpdate pulse is live-AND-Unpaused gated, unlike the
         // state-transition trackers below. It fires UNCONDITIONALLY every frame, so under a

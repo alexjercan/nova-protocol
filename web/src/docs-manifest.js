@@ -809,7 +809,7 @@ const CREATE_PAGES = [
         toc: true,
         tags: ["modding", "reference"],
         summary:
-            "Everything that can fire a scenario handler: forty-five event kinds, payloads, lifecycle edges, hold events, and dispatch order.",
+            "Everything that can fire a scenario handler: forty-eight event kinds, payloads, lifecycle edges, hold events, job events, and dispatch order.",
         related: ["filters", "actions", "scenarios"],
         headings: [
             "OnStart",
@@ -841,7 +841,11 @@ const CREATE_PAGES = [
             "OnDocked",
             "OnUndocked",
             "Hold events",
+            "Job events",
             "OnJobAccepted",
+            "OnJobDone",
+            "OnJobHandedIn",
+            "OnJobDropped",
             "Dispatch order",
         ],
     },
