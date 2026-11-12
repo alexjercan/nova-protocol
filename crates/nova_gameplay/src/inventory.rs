@@ -398,6 +398,10 @@ pub enum ItemCategoryType {
     Food,
     /// Scavenged objects carried for a story, objective or trade.
     Parts,
+    /// Goods a lawful station refuses a dock over
+    /// (`LawfulStationMarker`): a ship that carries one is turned away
+    /// until the item leaves its hold.
+    Contraband,
 }
 
 /// The items an authored ship carries at spawn, as a count per item id.

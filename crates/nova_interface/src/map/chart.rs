@@ -9,8 +9,8 @@
 //! generated them, and every held job ([`Jobs`]) as a mark in its target's
 //! cell. A station mark reads its state: a living station in the living
 //! colour, a dead one faint in the danger colour, the player's own in the
-//! ally colour, and a ring under one hostile enough to refuse the player a
-//! dock, whatever its ports hold. Marks and cell tags are projected UI
+//! ally colour, and a ring under one that turns the player away, for
+//! hostility or for contraband in the player's hold, whatever its ports hold. Marks and cell tags are projected UI
 //! labels, like the local blips, and each selects what it names and focuses
 //! the view on its cell; a click on the selected one, Reframe, or the
 //! selected job leaving the held list
@@ -103,9 +103,10 @@ pub(crate) enum MapChartMarkType {
 /// reads the default: it neither refuses nor posts.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ChartStationLive {
-    /// It refuses the player a dock for hostility, whatever its ports hold
-    /// ([`DockAdmission::refuses_for_hostility`]): held ports alone are no
-    /// refusal, and they never hide an Enemy or hostile station.
+    /// It turns the player away, for hostility or for contraband in the
+    /// player's hold, whatever its ports hold
+    /// ([`DockAdmission::turns_away`]): held ports alone are no refusal, and
+    /// they never hide an Enemy, hostile or contraband-refusing station.
     pub(crate) refusing: bool,
     /// How many jobs its board posts that the player neither holds nor has
     /// completed.
@@ -365,7 +366,8 @@ pub(crate) fn on_map_chart_button(_activate: On<Activate>, mut runtime: ResMut<M
 }
 
 /// The live facts of every found station standing in the streamed window,
-/// in id order: whether it refuses `player` a dock for hostility and how many
+/// in id order: whether it turns `player` away
+/// ([`DockAdmission::turns_away`]) and how many
 /// jobs its board posts that `jobs` neither holds nor has completed.
 fn chart_station_live(
     chart: &Chart,
@@ -389,8 +391,7 @@ fn chart_station_live(
                     })
                     .count() as u32
             });
-            let refusing =
-                player.is_some_and(|player| admission.refuses_for_hostility(player, entity));
+            let refusing = player.is_some_and(|player| admission.turns_away(player, entity));
             (id.clone(), ChartStationLive { refusing, posting })
         })
         .collect();

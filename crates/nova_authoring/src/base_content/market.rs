@@ -60,6 +60,8 @@ const INDUSTRIAL_RAW: f32 = 0.8;
 const CIVILIAN_FOOD: f32 = 1.25;
 /// Parts at a scavenger civilization: it salvages its own.
 const SCAVENGER_PARTS: f32 = 0.8;
+/// Contraband at a scavenger civilization: its crews bring it in.
+const SCAVENGER_CONTRABAND: f32 = 0.8;
 /// Ammunition at an armored civilization: it fires what it buys.
 const ARMORED_AMMO: f32 = 1.25;
 /// Repair stock at an armored civilization: it patches what it fights with.
@@ -123,6 +125,11 @@ pub(crate) fn price_table() -> PriceTable {
                 ShipRoleType::Scavenger,
                 ItemCategoryType::Parts,
                 SCAVENGER_PARTS,
+            ),
+            role(
+                ShipRoleType::Scavenger,
+                ItemCategoryType::Contraband,
+                SCAVENGER_CONTRABAND,
             ),
             role(ShipRoleType::Armored, ItemCategoryType::Ammo, ARMORED_AMMO),
             role(

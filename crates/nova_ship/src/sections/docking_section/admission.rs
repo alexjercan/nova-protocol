@@ -11,7 +11,10 @@
 //! else; a derelict or neutralized station admits whoever comes to loot it; a
 //! living station refuses while it is on the Enemy side (a civilization's
 //! stance to the player, or a provoked one, decides that side), or while it
-//! is hostile to the ship asking (by side, or answering its fire). A ship
+//! is hostile to the ship asking (by side, or answering its fire); a living
+//! lawful station ([`LawfulStationMarker`]) then refuses a ship whose hold
+//! carries an item of category [`ItemCategoryType::Contraband`], until the
+//! item leaves the hold. A ship
 //! holds one connection: the port search names no pair for a docked ship. A
 //! station holds one per port: a held port is no candidate, and the station
 //! branch here names the reason the HUD shows when none is free.
@@ -39,6 +42,8 @@ pub enum DockRefusalType {
     HostileStation,
     /// A station whose every live port is already held.
     StationOccupied,
+    /// A living lawful station, asked by a ship that carries contraband.
+    Contraband,
 }
 
 /// A deliberate `DOCK` press did nothing, and why. Only the press writes it:
@@ -68,7 +73,8 @@ pub enum DockPressRefusalType {
 /// The station branch of admission: what a station on `allegiance`'s side
 /// answers, dead or alive, owned or not, with or without a free port, to a
 /// ship that is `hostile` to it ([`ship_relation`]). `dead` is a derelict or
-/// a neutralized station.
+/// a neutralized station. `contraband` is a lawful station asked by a ship
+/// that carries a contraband item.
 ///
 /// # Errors
 ///
@@ -77,13 +83,15 @@ pub enum DockPressRefusalType {
 /// station admits on any side: it is a hull to loot, and a `None` side is
 /// hostile to no one. A living station refuses with [`DockRefusalType::EnemyStation`]
 /// on the Enemy side, then with [`DockRefusalType::HostileStation`] while it
-/// and the ship are hostile.
+/// and the ship are hostile, then with [`DockRefusalType::Contraband`] on
+/// `contraband`.
 pub fn station_admission(
     allegiance: Option<Allegiance>,
     dead: bool,
     occupied: bool,
     owned: bool,
     hostile: bool,
+    contraband: bool,
 ) -> Result<(), DockRefusalType> {
     if occupied {
         return Err(DockRefusalType::StationOccupied);
@@ -97,13 +105,21 @@ pub fn station_admission(
     if hostile {
         return Err(DockRefusalType::HostileStation);
     }
+    if contraband {
+        return Err(DockRefusalType::Contraband);
+    }
     Ok(())
 }
 
-/// The combat state of every ship a dock could name, and the station facts
-/// of every station.
+/// The combat state of every ship a dock could name, the station facts of
+/// every station, and the hold of the ship asking.
 #[derive(SystemParam)]
 pub struct DockAdmission<'w, 's> {
+    /// The item catalog, which says which held items are contraband. `None`
+    /// in an app with no catalog, where every hold is empty.
+    items: Option<Res<'w, GameItems>>,
+    /// The hold of every ship root.
+    holds: Query<'w, 's, &'static ShipInventory, With<SpaceshipRootMarker>>,
     ships: Query<
         'w,
         's,
@@ -115,7 +131,7 @@ pub struct DockAdmission<'w, 's> {
             Has<StationMarker>,
             Has<DerelictShipMarker>,
             Has<OwnedStationMarker>,
-            Has<PlayerSpaceshipMarker>,
+            Has<LawfulStationMarker>,
         ),
         With<SpaceshipRootMarker>,
     >,
@@ -155,22 +171,49 @@ impl DockAdmission<'_, '_> {
         self.judge(ship, target, true)
     }
 
-    /// Whether station `target` refuses `ship` for hostility
-    /// ([`DockRefusalType::EnemyStation`] or
-    /// [`DockRefusalType::HostileStation`]), whatever its ports hold.
+    /// Whether station `target` turns `ship` away
+    /// ([`DockRefusalType::EnemyStation`],
+    /// [`DockRefusalType::HostileStation`] or
+    /// [`DockRefusalType::Contraband`]), whatever its ports hold: waiting for
+    /// a port changes none of these.
     /// [`refusal`](Self::refusal) answers [`DockRefusalType::StationOccupied`]
     /// first, so a full Enemy station would read as merely full there.
-    pub fn refuses_for_hostility(&self, ship: Entity, target: Entity) -> bool {
-        matches!(
-            self.judge(ship, target, false),
-            Some(DockRefusalType::EnemyStation | DockRefusalType::HostileStation)
-        )
+    pub fn turns_away(&self, ship: Entity, target: Entity) -> bool {
+        match self.judge(ship, target, false) {
+            Some(
+                DockRefusalType::EnemyStation
+                | DockRefusalType::HostileStation
+                | DockRefusalType::Contraband,
+            ) => true,
+            Some(DockRefusalType::Combat | DockRefusalType::StationOccupied) | None => false,
+        }
+    }
+
+    /// Whether the hold of `ship` carries an item of category
+    /// [`ItemCategoryType::Contraband`]. A ship with no hold, or an empty
+    /// one, carries none.
+    ///
+    /// # Panics
+    ///
+    /// When the hold carries an item and the app has no [`GameItems`], or
+    /// the catalog lacks the item: nothing can fill a hold without the
+    /// catalog, so the app is wired wrong.
+    fn carries_contraband(&self, ship: Entity) -> bool {
+        let Ok(hold) = self.holds.get(ship) else {
+            return false;
+        };
+        hold.stacks().any(|(item, _)| {
+            let items = self.items.as_ref().unwrap_or_else(|| {
+                panic!("ship {ship:?} holds '{item}' and the app has no item catalog")
+            });
+            items.design(item).category == ItemCategoryType::Contraband
+        })
     }
 
     /// [`refusal`](Self::refusal), with a station's held ports counted only
     /// when `count_occupied`.
     fn judge(&self, ship: Entity, target: Entity, count_occupied: bool) -> Option<DockRefusalType> {
-        let Ok((allegiance, answering, state, neutralized, station, derelict, owned, _)) =
+        let Ok((allegiance, answering, state, neutralized, station, derelict, owned, lawful)) =
             self.ships.get(target)
         else {
             return None;
@@ -202,6 +245,7 @@ impl DockAdmission<'_, '_> {
                 occupied,
                 owned || berth,
                 hostile,
+                lawful && self.carries_contraband(ship),
             )
             .err();
         }

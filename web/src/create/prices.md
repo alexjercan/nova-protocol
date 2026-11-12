@@ -152,6 +152,7 @@ ask.
 | `Industrial` `Raw` | 0.8 |
 | `Civilian` `Food` | 1.25 |
 | `Scavenger` `Parts` | 0.8 |
+| `Scavenger` `Contraband` | 0.8 |
 | `Armored` `Ammo` | 1.25 |
 | `Armored` `Repair` | 1.15 |
 

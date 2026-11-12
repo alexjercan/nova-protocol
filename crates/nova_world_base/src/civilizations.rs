@@ -69,6 +69,12 @@ const ADVANCEMENT_VARIATION: f32 = 0.1;
 /// The chance a civilization is still living.
 const LIVING_CHANCE: f32 = 0.7;
 
+/// The share of civilizations that are lawful: their living stations refuse
+/// a dock to a ship that carries contraband. One half, so a contraband
+/// carrier finds a station that deals with it about as often as one that
+/// turns it away.
+pub const LAWFUL_SHARE: f32 = 0.5;
+
 /// The selection-weight ratio of a place straight outward from a centroid to
 /// one straight inward at the same distance.
 const OUTWARD_PREFERENCE: f32 = 4.0;
@@ -169,6 +175,11 @@ pub struct Civilization {
     /// player's events move the table stance off it; its crews fly the
     /// effective stance's side.
     pub stance: StanceType,
+    /// Whether its living stations refuse a dock to a ship that carries
+    /// contraband: one unit draw off its own `lawful` stream against
+    /// [`LAWFUL_SHARE`], independent of every other trait. A function of the
+    /// id alone, so no save stores it.
+    pub lawful: bool,
 }
 
 impl Civilization {
@@ -267,6 +278,8 @@ impl CivilizationField {
         let stances = [StanceType::Enemy, StanceType::Ally, StanceType::Neutral];
         let stance = stances[((id.stream(b"allegiance").unit() * 3.0) as usize).min(2)];
 
+        let lawful = id.stream(b"lawful").unit() < LAWFUL_SHARE;
+
         Civilization {
             id,
             centroid,
@@ -274,6 +287,7 @@ impl CivilizationField {
             advancement,
             role_preference,
             stance,
+            lawful,
         }
     }
 
@@ -741,6 +755,39 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// The lawful draw is a function of the seed and the node alone, reads
+    /// the same from every query, and holds about [`LAWFUL_SHARE`] of the
+    /// sweep's civilizations in every seed, living or extinct.
+    #[test]
+    fn a_civilization_is_lawful_by_its_id_alone_and_about_half_are() {
+        for seed in SWEEP_SEEDS {
+            let field = field(seed);
+            let (mut lawful, mut total) = (0_usize, 0_usize);
+            for node in sweep_nodes() {
+                let civilization = field.civilization(node);
+                assert_eq!(
+                    civilization.lawful,
+                    CivilizationField::new(seed).civilization(node).lawful,
+                    "seed {seed}: {} draws lawful the same twice",
+                    civilization.id
+                );
+                assert_eq!(
+                    civilization.lawful,
+                    civilization.id.stream(b"lawful").unit() < LAWFUL_SHARE,
+                    "seed {seed}: {} reads its own lawful stream",
+                    civilization.id
+                );
+                lawful += usize::from(civilization.lawful);
+                total += 1;
+            }
+            let share = lawful as f32 / total as f32;
+            assert!(
+                (0.42..0.58).contains(&share),
+                "seed {seed}: {lawful} of {total} civilizations are lawful"
+            );
         }
     }
 

@@ -85,12 +85,13 @@ const ABOUT_PX: f32 = ABOUT_FONT_PX * 1.2 * ABOUT_LINES;
 
 /// The category filters left to right, after All. Display order only: icon
 /// masks stay stored in [`ItemCategoryType`] declaration order.
-pub(crate) const FILTER_ORDER: [ItemCategoryType; 5] = [
+pub(crate) const FILTER_ORDER: [ItemCategoryType; 6] = [
     ItemCategoryType::Food,
     ItemCategoryType::Ammo,
     ItemCategoryType::Repair,
     ItemCategoryType::Raw,
     ItemCategoryType::Parts,
+    ItemCategoryType::Contraband,
 ];
 
 /// A category filter button; `None` shows every category.
@@ -345,6 +346,7 @@ fn category_label(category: ItemCategoryType) -> &'static str {
         ItemCategoryType::Ammo => "Ammo",
         ItemCategoryType::Food => "Food",
         ItemCategoryType::Parts => "Parts",
+        ItemCategoryType::Contraband => "Contraband",
     }
 }
 
@@ -356,6 +358,7 @@ pub(crate) fn category_color(category: ItemCategoryType) -> UiColorType {
         ItemCategoryType::Ammo => UiColorType::Danger,
         ItemCategoryType::Food => UiColorType::Accent,
         ItemCategoryType::Parts => UiColorType::AccentLight,
+        ItemCategoryType::Contraband => UiColorType::DangerText,
     }
 }
 

@@ -27,11 +27,12 @@ use crate::{
 pub mod prelude {
     pub use super::{
         station_offers, ControllerSectionMarker, DerelictShipMarker, GunRoundMarker,
-        OwnedShipMarker, OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker,
-        RailgunSectionMarker, RailgunSlugProjectileMarker, SectionInactiveMarker, SectionMarker,
-        SpaceshipRootMarker, StationBuilds, StationDesignId, StationMarker, StationServiceType,
-        StationServices, ThrusterSectionMarker, TorpedoProjectileMarker, TorpedoSectionMarker,
-        TurretBulletProjectileMarker, TurretSectionMarker,
+        LawfulStationMarker, OwnedShipMarker, OwnedStationMarker, PlayerFleetMarker,
+        PlayerSpaceshipMarker, RailgunSectionMarker, RailgunSlugProjectileMarker,
+        SectionInactiveMarker, SectionMarker, SpaceshipRootMarker, StationBuilds, StationDesignId,
+        StationMarker, StationServiceType, StationServices, ThrusterSectionMarker,
+        TorpedoProjectileMarker, TorpedoSectionMarker, TurretBulletProjectileMarker,
+        TurretSectionMarker,
     };
 }
 
@@ -157,6 +158,18 @@ pub struct StationMarker;
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub struct OwnedStationMarker;
+
+/// Marks a living station whose civilization refuses contraband carriers.
+///
+/// Docking admission refuses a ship whose hold carries an item of category
+/// `ItemCategoryType::Contraband` at a station with this marker, until the
+/// item leaves the hold. The open world derives it every frame from the
+/// station's civilization (`nova_world_base`'s `sync_lawful_stations`), so
+/// no save and no frozen record carries it. A station the player owns and a
+/// dead station never carry it.
+#[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
+#[reflect(Component)]
+pub struct LawfulStationMarker;
 
 /// What a docked ship can do at a station. The closed set the game knows; a
 /// station design lists the ones it offers.

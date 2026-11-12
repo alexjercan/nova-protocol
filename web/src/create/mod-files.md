@@ -259,7 +259,9 @@ twelve item kinds:
 
 An `Item` adds a new entry to the item catalog, or replaces one your mod
 depends on. Every field but `refine` is required: `id`, `name` and `about` are not blank;
-`category` is one of `Raw`, `Repair`, `Ammo`, `Food`, `Parts`; `mass_g` is
+`category` is one of `Raw`, `Repair`, `Ammo`, `Food`, `Parts`, `Contraband`;
+a living lawful station refuses a dock to a ship that carries a `Contraband`
+item, see [Stations](../stations/). `mass_g` is
 above 0; `price_lot` is above 0; `bid_cr` is at most `ask_cr`. `ask_cr` and
 `bid_cr` price one lot of `price_lot` items, not one item: a trade pays its
 share, rounded up for a Buy and down for a Sell, see

@@ -94,6 +94,14 @@
                 ),
             ),
             (
+                role: Scavenger,
+                category: Contraband,
+                factor: (
+                    ask: 0.8,
+                    bid: 0.8,
+                ),
+            ),
+            (
                 role: Armored,
                 category: Ammo,
                 factor: (

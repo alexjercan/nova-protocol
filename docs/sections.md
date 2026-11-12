@@ -852,8 +852,8 @@ without the hulls touching.
 read by the DOCK chip and by the request. A ship target refuses with
 `DockRefusalType::Combat` while Hostile, Enemy, answering fire or fighting
 (a neutralized target admits). A station target (`StationMarker`) answers by
-`station_admission(allegiance, derelict, occupied, owned, hostile)`, in that
-order: `StationOccupied` while every live port on its root is held (a held
+`station_admission(allegiance, derelict, occupied, owned, hostile,
+contraband)`, in that order: `StationOccupied` while every live port on its root is held (a held
 port is no candidate in the port search; this names the reason so the HUD
 can say it); admitted for a station the player owns (`OwnedStationMarker`)
 or a derelict, on any side; `EnemyStation` for a living station on the Enemy
@@ -861,9 +861,16 @@ side (a generated station's side is its civilization's effective stance to
 the player, written every frame by `nova_world_base`'s
 `sync_civilization_sides`); `HostileStation` for a living station the ship
 is hostile to by `ship_relation` (a Player station and an Enemy-flagged
-ship, or a station answering the ship's fire); and admitted otherwise.
+ship, or a station answering the ship's fire); `Contraband` for a living
+station with `LawfulStationMarker` asked by a ship whose `ShipInventory`
+carries an `ItemCategoryType::Contraband` item (`nova_world_base`'s
+`sync_lawful_stations` derives the marker every frame from the
+civilization's seeded `lawful` draw, so nothing saves it); and admitted
+otherwise. `DockAdmission::turns_away` is the three refusals that waiting
+for a port does not change: the chart ring and a failed AI Dock order read
+it.
 `FlightVerbHints::dock_refusal` carries a station's line (`<NAME> REFUSES
-DOCKING`, `<NAME> DOCK OCCUPIED`) while the travel lock is on it; the HUD
+DOCKING`, `<NAME> REFUSES CONTRABAND`, `<NAME> DOCK OCCUPIED`) while the travel lock is on it; the HUD
 posts it once as a notice (`hud_notice`), not on the mode chip, and the DOCK
 chip draws dim. A ship's refusal stays the dark chip.
 

@@ -10,7 +10,7 @@ use nova_gameplay::prelude::{
     TradeProfileDesign, TradeProfileDesignId, TradeProfileRoleWeight, VisitJobType,
 };
 
-use super::items::item_catalog;
+use super::items::{item_catalog, UNMARKED_CORES};
 
 /// A Sell earns at least this share of the reference bid, per unit: half.
 const SELL_LIMIT_DIVISOR: u32 = 2;
@@ -25,8 +25,7 @@ pub(crate) fn trade_profile_catalog() -> Vec<TradeProfileDesign> {
     let items = GameItems::new(item_catalog());
     // A reference price covers a lot of items, so the per-unit limit divides
     // by the lot and never drops below one credit.
-    let sell = |role: ItemRoleType, quantity: u32| {
-        let id = ItemDesignId::from(role);
+    let sell = |id: ItemDesignId, quantity: u32| {
         let item = items
             .get(&id)
             .unwrap_or_else(|| panic!("trade profile names '{id}', which is no base item"));
@@ -69,9 +68,9 @@ pub(crate) fn trade_profile_catalog() -> Vec<TradeProfileDesign> {
             id: TradeProfileDesignId::from("base/ore_hauler"),
             generated: generated(&[(ShipRoleType::Industrial, 3)]),
             trades: vec![
-                sell(ItemRoleType::IronOre, 12),
-                sell(ItemRoleType::StoneOre, 12),
-                sell(ItemRoleType::CarbonOre, 8),
+                sell(ItemRoleType::IronOre.into(), 12),
+                sell(ItemRoleType::StoneOre.into(), 12),
+                sell(ItemRoleType::CarbonOre.into(), 8),
                 buy(ItemRoleType::Rations, 4),
             ],
             jobs: vec![
@@ -83,8 +82,8 @@ pub(crate) fn trade_profile_catalog() -> Vec<TradeProfileDesign> {
             id: TradeProfileDesignId::from("base/provisioner"),
             generated: generated(&[(ShipRoleType::Civilian, 3)]),
             trades: vec![
-                sell(ItemRoleType::Rations, 10),
-                sell(ItemRoleType::Medkit, 4),
+                sell(ItemRoleType::Rations.into(), 10),
+                sell(ItemRoleType::Medkit.into(), 4),
                 buy(ItemRoleType::SalvagedParts, 4),
                 buy(ItemRoleType::WaterIce, 6),
             ],
@@ -94,7 +93,8 @@ pub(crate) fn trade_profile_catalog() -> Vec<TradeProfileDesign> {
             id: TradeProfileDesignId::from("base/salvage_broker"),
             generated: generated(&[(ShipRoleType::Scavenger, 2)]),
             trades: vec![
-                sell(ItemRoleType::SalvagedParts, 6),
+                sell(ItemRoleType::SalvagedParts.into(), 6),
+                sell(UNMARKED_CORES.into(), 2),
                 buy(ItemRoleType::HullPlate, 2),
                 buy(ItemRoleType::PdcRound, 20),
             ],

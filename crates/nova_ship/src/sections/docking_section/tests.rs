@@ -10,7 +10,7 @@
 use avian3d::prelude::*;
 use bevy::ecs::system::RunSystemOnce;
 use nova_events::prelude::EntityId;
-use nova_gameplay::test_support::{settle, unfinished_integrity_physics_app};
+use nova_gameplay::test_support::{settle, test_items, unfinished_integrity_physics_app};
 
 use super::*;
 use crate::{
@@ -1773,27 +1773,27 @@ fn a_pair_grades_against_the_stricter_of_its_two_ports() {
 #[test]
 fn a_station_admits_by_its_side_unless_it_is_dead_or_occupied() {
     assert_eq!(
-        station_admission(Some(Allegiance::Enemy), false, false, false, false),
+        station_admission(Some(Allegiance::Enemy), false, false, false, false, false),
         Err(DockRefusalType::EnemyStation)
     );
     for side in [Some(Allegiance::Neutral), Some(Allegiance::Player), None] {
         assert_eq!(
-            station_admission(side, false, false, false, false),
+            station_admission(side, false, false, false, false, false),
             Ok(()),
             "a living {side:?} station admits"
         );
     }
     assert_eq!(
-        station_admission(Some(Allegiance::Enemy), true, false, false, true),
+        station_admission(Some(Allegiance::Enemy), true, false, false, true, false),
         Ok(()),
         "a derelict Enemy station is a hull to loot"
     );
     assert_eq!(
-        station_admission(Some(Allegiance::Neutral), false, true, false, false),
+        station_admission(Some(Allegiance::Neutral), false, true, false, false, false),
         Err(DockRefusalType::StationOccupied)
     );
     assert_eq!(
-        station_admission(Some(Allegiance::Enemy), true, true, false, false),
+        station_admission(Some(Allegiance::Enemy), true, true, false, false, false),
         Err(DockRefusalType::StationOccupied),
         "a derelict with every port held is full"
     );
@@ -1805,7 +1805,7 @@ fn a_station_admits_by_its_side_unless_it_is_dead_or_occupied() {
 #[test]
 fn an_owned_station_refuses_nobody_and_a_hostile_one_refuses_the_ship() {
     assert_eq!(
-        station_admission(Some(Allegiance::Player), false, false, false, true),
+        station_admission(Some(Allegiance::Player), false, false, false, true, false),
         Err(DockRefusalType::HostileStation),
         "a living Player station refuses an Enemy-flagged ship"
     );
@@ -1815,15 +1815,123 @@ fn an_owned_station_refuses_nobody_and_a_hostile_one_refuses_the_ship() {
         (Some(Allegiance::Neutral), true),
     ] {
         assert_eq!(
-            station_admission(side, false, false, true, hostile),
+            station_admission(side, false, false, true, hostile, false),
             Ok(()),
             "an owned {side:?} station admits a ship hostile {hostile}"
         );
     }
     assert_eq!(
-        station_admission(Some(Allegiance::Player), false, true, true, false),
+        station_admission(Some(Allegiance::Player), false, true, true, false, false),
         Err(DockRefusalType::StationOccupied),
         "an owned station with every port held is full"
+    );
+}
+
+/// The contraband branch of admission, pure: a living station refuses a
+/// contraband carrier after its side and its hostility are read, a station
+/// the player owns and a dead one admit it, and a full one is full first.
+#[test]
+fn a_living_station_refuses_contraband_after_its_side_and_hostility() {
+    for side in [Some(Allegiance::Neutral), Some(Allegiance::Player), None] {
+        assert_eq!(
+            station_admission(side, false, false, false, false, true),
+            Err(DockRefusalType::Contraband),
+            "a living lawful {side:?} station refuses a contraband carrier"
+        );
+    }
+    assert_eq!(
+        station_admission(Some(Allegiance::Enemy), false, false, false, false, true),
+        Err(DockRefusalType::EnemyStation),
+        "the Enemy side answers before the contraband"
+    );
+    assert_eq!(
+        station_admission(Some(Allegiance::Neutral), false, false, false, true, true),
+        Err(DockRefusalType::HostileStation),
+        "hostility answers before the contraband"
+    );
+    assert_eq!(
+        station_admission(Some(Allegiance::Neutral), false, false, true, false, true),
+        Ok(()),
+        "an owned station refuses nobody"
+    );
+    assert_eq!(
+        station_admission(Some(Allegiance::Neutral), true, false, false, false, true),
+        Ok(()),
+        "a dead station is a hull to loot"
+    );
+    assert_eq!(
+        station_admission(Some(Allegiance::Neutral), false, true, false, false, true),
+        Err(DockRefusalType::StationOccupied),
+        "a full station is full first"
+    );
+}
+
+/// The player's hull with one unmarked core is refused at a living lawful
+/// station and docks at a living station that is not lawful; with the core
+/// out of its hold the lawful station lets it in. The station that turns it
+/// away for contraband is the one the chart and an AI Dock order read
+/// (`DockAdmission::turns_away`).
+#[test]
+fn a_lawful_station_refuses_a_hull_that_carries_contraband_until_it_leaves() {
+    let cores = ItemDesignId::from("UnmarkedCores");
+    let rig = |lawful: bool| {
+        let mut app = docking_app();
+        let items = test_items();
+        let hold = ShipInventory::new(&items, 50_000, [(cores.clone(), 1)]);
+        app.insert_resource(items);
+        let (player, _, station, _) = facing_pair(&mut app, NOMINAL_GAP);
+        app.world_mut()
+            .entity_mut(player)
+            .insert((PlayerSpaceshipMarker, hold));
+        let mut root = app.world_mut().entity_mut(station);
+        root.insert((StationMarker, Allegiance::Neutral));
+        if lawful {
+            root.insert(LawfulStationMarker);
+        }
+        (app, player, station)
+    };
+    let answer = |app: &mut App, ship: Entity, station: Entity| {
+        app.world_mut()
+            .run_system_once(move |admission: DockAdmission| {
+                (
+                    admission.refusal(ship, station),
+                    admission.turns_away(ship, station),
+                )
+            })
+            .expect("the admission runs")
+    };
+
+    let (mut app, player, station) = rig(false);
+    assert_eq!(answer(&mut app, player, station), (None, false));
+    request_dock(&mut app, player, station);
+    assert_eq!(
+        connections(&mut app).len(),
+        1,
+        "a station that is not lawful admits the carrier"
+    );
+
+    let (mut app, player, station) = rig(true);
+    assert_eq!(
+        answer(&mut app, player, station),
+        (Some(DockRefusalType::Contraband), true)
+    );
+    request_dock(&mut app, player, station);
+    assert_eq!(
+        connections(&mut app).len(),
+        0,
+        "a lawful station refuses the carrier"
+    );
+
+    app.world_mut()
+        .get_mut::<ShipInventory>(player)
+        .expect("the player carries a hold")
+        .remove(&cores, 1);
+    assert_eq!(answer(&mut app, player, station), (None, false));
+    request_dock(&mut app, player, station);
+    assert_eq!(
+        connections(&mut app).len(),
+        1,
+        "the lawful station admits the hull once the contraband left"
     );
 }
 

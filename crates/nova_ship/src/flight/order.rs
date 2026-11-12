@@ -120,7 +120,8 @@ pub enum ShipOrderDirective {
     /// cancelling the order is what lets it go. While every pair is held the
     /// ship moves with the station and waits; whoever installed the order
     /// owns giving up on it. The order fails when the station is gone or
-    /// refuses the ship for hostility, or when the ship docks elsewhere,
+    /// turns the ship away (for hostility, or for contraband in its hold at
+    /// a lawful station), or when the ship docks elsewhere,
     /// loses its last free port or overruns the approach deadline.
     Dock {
         /// The station. A live entity: the order is never saved or frozen,
@@ -727,10 +728,10 @@ pub(super) fn drive_ship_orders(
                     fail(&mut commands, ship, &order, &mut reports, reported);
                     continue;
                 }
-                if admission.refuses_for_hostility(ship, station) {
+                if admission.turns_away(ship, station) {
                     warn!(
-                        "drive_ship_orders: station {station:?} refuses ship {ship:?} for \
-                         hostility; DOCK order '{}' failed",
+                        "drive_ship_orders: station {station:?} turns ship {ship:?} away, for \
+                         hostility or contraband; DOCK order '{}' failed",
                         order.key
                     );
                     fail(&mut commands, ship, &order, &mut reports, reported);

@@ -23,6 +23,9 @@
 //! The alloy plate is the one item with a refine recipe: a station that
 //! offers Refine makes it from ore in the docked ship's hold for a fee, so
 //! mined ore has a use besides the sell button.
+//!
+//! The unmarked cores are the one contraband item: a lawful station refuses
+//! a dock to a ship that carries any (`nova_ship`'s `DockAdmission`).
 
 use nova_gameplay::prelude::{
     ItemCategoryType, ItemDesign, ItemDesignId, ItemRefineRecipe, ItemRoleType,
@@ -50,10 +53,12 @@ pub(crate) const TORPEDO_TUBE: &str = "TorpedoTube";
 pub(crate) const DOCKING_COLLAR: &str = "DockingCollar";
 /// Refined plate every second-tier section recipe spends one of.
 pub(crate) const ALLOY_PLATE: &str = "AlloyPlate";
+/// Flight cores with no registry marks: the base game's one contraband item.
+pub(crate) const UNMARKED_CORES: &str = "UnmarkedCores";
 
 /// The base game's items, in the order the file carries them.
 pub(crate) fn item_catalog() -> Vec<ItemDesign> {
-    use ItemCategoryType::{Ammo, Food, Parts, Raw, Repair};
+    use ItemCategoryType::{Ammo, Contraband, Food, Parts, Raw, Repair};
     [
         (
             ItemRoleType::HullPlate.id(),
@@ -274,6 +279,16 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             1,
             90,
             68,
+        ),
+        (
+            UNMARKED_CORES,
+            "Unmarked cores",
+            "Flight cores with the registry marks ground off. Lawful stations refuse a ship that carries them.",
+            Contraband,
+            10_000,
+            1,
+            300,
+            240,
         ),
     ]
     .into_iter()

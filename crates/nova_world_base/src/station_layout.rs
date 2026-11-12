@@ -1866,6 +1866,7 @@ mod tests {
             advancement: 1.0,
             role_preference: [1.0; 4],
             stance: nova_gameplay::prelude::StanceType::Neutral,
+            lawful: false,
         };
         let request = request_of(civilization, 1, StationArchetypeType::Ring, 1.0);
         let layout = generate_station(&parts, request).expect("the station generates");
@@ -1952,6 +1953,7 @@ mod tests {
             advancement: 0.0,
             role_preference: [1.0; 4],
             stance: nova_gameplay::prelude::StanceType::Neutral,
+            lawful: false,
         };
         let layout = generate_station(&parts, request).expect("the station generates");
         let hulls = layout
@@ -2051,6 +2053,7 @@ mod tests {
             advancement: 0.0,
             role_preference: [1.0; 4],
             stance: nova_gameplay::prelude::StanceType::Neutral,
+            lawful: false,
         };
         let layout = generate_station(&parts, request).expect("the station generates");
 
@@ -2113,6 +2116,7 @@ mod tests {
             advancement: 1.0,
             role_preference: [1.0; 4],
             stance: nova_gameplay::prelude::StanceType::Neutral,
+            lawful: false,
         };
         let layout = generate_station(&parts, request).expect("the station generates");
         let stock = |round_g| {
@@ -2170,6 +2174,7 @@ mod tests {
                 advancement,
                 role_preference: [1.0; 4],
                 stance: nova_gameplay::prelude::StanceType::Neutral,
+                lawful: false,
             };
             let layout = generate_station(&parts, request).expect("the station generates");
             generated_station(&parts, &items, &layout, &living)

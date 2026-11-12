@@ -43,8 +43,8 @@ use bevy::prelude::{Quat, Vec3};
 use nova_events::prelude::{GeneratedBodyId, Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{
     Allegiance, CivilizationId, ClusterType, Fnv32, GameItems, GameTradeProfiles, ItemCategoryType,
-    ItemDesignId, ItemRoleType, SeedStream, ShipInventoryStock, ShipRoleType, TradeProfileDesignId,
-    TraderMarket,
+    ItemDesign, ItemDesignId, ItemRoleType, SeedStream, ShipInventoryStock, ShipRoleType,
+    TradeProfileDesignId, TraderMarket,
 };
 use nova_scenario::prelude::{
     AIControllerConfig, ShipDesign, ShipDesignSource, SpaceshipConfig, SpaceshipController,
@@ -100,6 +100,11 @@ const WRECK_STOCK_SCALE: f32 = 0.5;
 
 /// The most distinct items one hold draws.
 const STOCK_STACKS: usize = 3;
+
+/// The chance an intact scavenger's hold also carries one unit of a
+/// contraband item. Provisional, like the mixes: half the scavengers a
+/// player boards or trades with carry it.
+const SCAVENGER_CONTRABAND_CHANCE: f32 = 0.5;
 
 /// An intact ship's credit balance, as a `(least, most)` band at advancement
 /// 0 and at advancement 1, interpolated linearly between.
@@ -450,7 +455,12 @@ pub(crate) fn plan_patrol(
 /// of that mix are drawn by weight and split the target by seeded
 /// shares; each takes the whole units its share holds, so a heavy item may
 /// take none. Stock that rounds to nothing is one unit of the role's lightest
-/// item, so every ship carries goods. Never heavier than the hold.
+/// item, so every ship carries goods. An intact scavenger then adds one unit
+/// of a contraband item at [`SCAVENGER_CONTRABAND_CHANCE`], drawn evenly among
+/// the catalog's [`ItemCategoryType::Contraband`] items in id order, when the
+/// catalog has one and the unit fits; a wreck never carries any, so no
+/// recovery job names it. Both draws are the stream's last, so they move no
+/// other stack. Never heavier than the hold.
 ///
 /// `None` when the hold cannot fit one unit of the role's lightest item: a
 /// ship is a goods source, so a design that cannot carry any fails its
@@ -565,6 +575,30 @@ pub fn ship_stock(
         .collect();
     if stacks.is_empty() {
         stacks.push((items.role(lightest).id.clone(), 1));
+    }
+    // Both draws are taken whatever the role, so a later rule can read the
+    // stream after them without moving on the role.
+    let (carries, which) = (stream.unit(), stream.unit());
+    if role == ShipRoleType::Scavenger
+        && condition == SectorShipConditionType::Intact
+        && carries < SCAVENGER_CONTRABAND_CHANCE
+    {
+        let contraband: Vec<&ItemDesign> = items
+            .iter()
+            .filter(|item| item.category == ItemCategoryType::Contraband)
+            .collect();
+        let used: u64 = stacks
+            .iter()
+            .map(|(item, count)| items.design(item).stack_mass_g(*count))
+            .sum();
+        // A catalog may author no contraband: the hold then carries none.
+        if !contraband.is_empty() {
+            let index = ((which * contraband.len() as f32) as usize).min(contraband.len() - 1);
+            let item = contraband[index];
+            if used + u64::from(item.mass_g) <= hold {
+                stacks.push((item.id.clone(), 1));
+            }
+        }
     }
     Some(ShipInventoryStock::new(stacks))
 }

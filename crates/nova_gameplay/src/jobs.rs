@@ -1436,7 +1436,9 @@ pub struct JobField {
 }
 
 /// The item categories a station in a cell with `clusters` asks for. A cell
-/// with no cluster body asks for every category but ammunition.
+/// with no cluster body asks for every category but ammunition and
+/// contraband. No cell asks for contraband: a board never posts a job a
+/// lawful station would refuse the hand-in of.
 fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
     let mut wanted = Vec::new();
     let mut want = |category: ItemCategoryType| {
@@ -1497,7 +1499,7 @@ fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
 /// the station id, the slot and its posting, in a fixed number, so the same
 /// inputs draw the same offers in every process, and a renewed slot draws
 /// afresh. A catalog with no item of the wanted categories draws from every
-/// item. A reward past a credit balance saturates.
+/// item that is not contraband. A reward past a credit balance saturates.
 ///
 /// `assured` is the hull one of these offers must fit, `None` when no such
 /// hull is asked for. When none of the drawn offers fits it, the first id's
@@ -1509,8 +1511,8 @@ fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
 /// # Panics
 ///
 /// When `ids` is empty, spans stations, repeats a slot or names one past
-/// the board, and when the catalog is empty: a board always has an item to
-/// ask for.
+/// the board, and when the catalog is empty or holds contraband alone: a
+/// board always has an item to ask for.
 #[expect(
     clippy::too_many_arguments,
     reason = "one pure draw: the seed, the slots, the cell, the catalog, the mix, the field, the standing offers and the assured hull"
@@ -1552,7 +1554,11 @@ pub fn station_job_offers(
         .map(|design| &design.id)
         .collect();
     if pool.is_empty() {
-        pool = items.iter().map(|design| &design.id).collect();
+        pool = items
+            .iter()
+            .filter(|design| design.category != ItemCategoryType::Contraband)
+            .map(|design| &design.id)
+            .collect();
     }
     assert!(
         !pool.is_empty(),
@@ -1731,7 +1737,8 @@ fn distress_posting(id: &JobId, fee: u32, items: &GameItems) -> (JobType, u32) {
 
 /// The first kind a hull of `fit` can do on the slot `id`, from `draw`, and
 /// its reward: a procurement while the hold takes the least stack of an item
-/// of `pool`, else of any catalog item, of the drawn count or the most under
+/// of `pool`, else of any catalog item that is not contraband, of the drawn
+/// count or the most under
 /// it the hold takes; else a distress call for a clamp; else an escort for a
 /// weapon. A recovery and a neutralize need a field body, so they stay with
 /// the draw. `None` for a hull that fits none of them.
@@ -1749,6 +1756,7 @@ fn fitted_posting(
     if stowable.is_empty() {
         stowable = items
             .iter()
+            .filter(|design| design.category != ItemCategoryType::Contraband)
             .map(|design| &design.id)
             .filter(|item| stowed(item))
             .collect();
@@ -2514,6 +2522,44 @@ mod tests {
             )
         });
         assert!(empty.is_err(), "an empty catalog has nothing to post");
+    }
+
+    /// No board asks for contraband: not in a cell with no cluster, and not
+    /// when no wanted item is left and the pool falls back to the catalog.
+    #[test]
+    fn a_board_never_procures_contraband() {
+        let contraband = item("UnmarkedCores", ItemCategoryType::Contraband, 300);
+        let whole = GameItems::new(catalog().iter().cloned().chain([contraband.clone()]));
+        // PdcRound and Medkit are not Raw, so a rock-only board falls back.
+        let fallback = GameItems::new([
+            item("PdcRound", ItemCategoryType::Ammo, 4),
+            item("Medkit", ItemCategoryType::Repair, 60),
+            contraband,
+        ]);
+        for (items, clusters) in [
+            (&whole, &[][..]),
+            (&whole, &ClusterType::ALL[..]),
+            (&fallback, &[ClusterType::RockOnly][..]),
+        ] {
+            for seed in 0..40 {
+                for job in board(
+                    seed,
+                    &station(1),
+                    clusters,
+                    items,
+                    JobMixType::Trade,
+                    &JobField::default(),
+                ) {
+                    if let JobType::Procure { item, .. } = &job.kind {
+                        assert_ne!(
+                            items.design(item).category,
+                            ItemCategoryType::Contraband,
+                            "seed {seed}: {job:?}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     /// The first procurement a trade board posts on seed 10.

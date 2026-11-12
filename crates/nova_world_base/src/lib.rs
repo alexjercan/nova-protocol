@@ -102,7 +102,7 @@ pub use crate::save::{
 pub use crate::{
     civilizations::{
         role_style_id, Civilization, CivilizationField, CivilizationReach, CivilizationStatusType,
-        STANCE_ALLY_SHARE, STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS,
+        LAWFUL_SHARE, STANCE_ALLY_SHARE, STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS,
     },
     clusters::{sector_clusters, ClusterSummary, SectorClusters},
     environment::{Environment, EnvironmentFieldType, EnvironmentFields},
@@ -118,8 +118,8 @@ pub use crate::{
         ShipPartSnapshot, KNOWN_CHANCE,
     },
     stance::{
-        apply_offence, enemy_neighbours, fine_cr, record_merit, seeded_stance, settle, standing,
-        StanceStanding, FINE_CR,
+        apply_offence, enemy_neighbours, fine_cr, record_merit, seeded_lawful, seeded_stance,
+        settle, standing, StanceStanding, FINE_CR,
     },
     start::{start_preview, start_session, starting_station, StartPreview, START_PREVIEW_REACH},
     station_layout::{
@@ -137,18 +137,18 @@ pub use crate::{
 pub mod prelude {
     pub use super::{
         apply_offence, enemy_neighbours, fine_cr, generate_ship, generate_station, generate_wreck,
-        generated_station, plan_ship, record_merit, role_style_id, sector_clusters, seeded_stance,
-        settle, ship_stock, standing, start_preview, start_session, starting_station,
-        station_archetype, station_ceiling, Civilization, CivilizationField, CivilizationReach,
-        CivilizationStatusType, ClusterSummary, Environment, EnvironmentFieldType,
-        EnvironmentFields, HullLineageType, HullSlot, NovaLayeredWorld, NovaWorldBasePlugin,
-        NovaWorldBaseSystems, PlannedShip, PlayerHull, SectorClusters, ShipDriveLayoutType,
-        ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure, ShipLayoutRequest, ShipPart,
-        ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack, ShipPartSnapshot,
-        StanceStanding, StartPreview, StationArchetypeType, StationLayout,
-        StationLayoutConstraintType, StationLayoutFailure, StationLayoutRequest, ARMOURED_STYLE_ID,
-        BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN, FINE_CR,
-        INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS, OPEN_WORLD_BOUNDS_RADIUS_MAX,
+        generated_station, plan_ship, record_merit, role_style_id, sector_clusters, seeded_lawful,
+        seeded_stance, settle, ship_stock, standing, start_preview, start_session,
+        starting_station, station_archetype, station_ceiling, Civilization, CivilizationField,
+        CivilizationReach, CivilizationStatusType, ClusterSummary, Environment,
+        EnvironmentFieldType, EnvironmentFields, HullLineageType, HullSlot, NovaLayeredWorld,
+        NovaWorldBasePlugin, NovaWorldBaseSystems, PlannedShip, PlayerHull, SectorClusters,
+        ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure,
+        ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault,
+        ShipPartPack, ShipPartSnapshot, StanceStanding, StartPreview, StationArchetypeType,
+        StationLayout, StationLayoutConstraintType, StationLayoutFailure, StationLayoutRequest,
+        ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN,
+        FINE_CR, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS, OPEN_WORLD_BOUNDS_RADIUS_MAX,
         OPEN_WORLD_SCENARIO_ID, REFINE_ADVANCEMENT, SALVAGE_STYLE_ID, STANCE_ALLY_SHARE,
         STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH, STATION_STYLE_ID,
     };
@@ -309,6 +309,8 @@ impl Plugin for NovaWorldBasePlugin {
                     rcs_reserve::recover_thawed_rcs_budgets,
                     stance::expire_stances,
                     stance::sync_civilization_sides,
+                    // Before the visits, whose binding asks admission.
+                    stance::sync_lawful_stations,
                     // After the thawed holds catch up and the sides follow
                     // their stances; before the boards, so a visit's posted
                     // jobs are on this frame's board.

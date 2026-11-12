@@ -540,7 +540,7 @@ fn a_dock_ending_mid_trade_hides_the_partner_column_and_closes_its_form() {
 }
 
 #[test]
-fn the_filters_read_all_food_ammo_repair_raw_parts_left_to_right() {
+fn the_filters_read_all_food_ammo_repair_raw_parts_contraband_left_to_right() {
     let (mut rig, _) = inventory_rig();
     let world = rig.app.world_mut();
     let mut chips: Vec<(f32, Option<ItemCategoryType>)> = world
@@ -559,6 +559,7 @@ fn the_filters_read_all_food_ammo_repair_raw_parts_left_to_right() {
             Some(ItemCategoryType::Repair),
             Some(ItemCategoryType::Raw),
             Some(ItemCategoryType::Parts),
+            Some(ItemCategoryType::Contraband),
         ]
     );
 }

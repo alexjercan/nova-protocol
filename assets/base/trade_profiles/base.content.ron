@@ -104,6 +104,12 @@
                 limit_cr: 45,
             ),
             (
+                item: "UnmarkedCores",
+                side: Sell,
+                quantity: 2,
+                limit_cr: 120,
+            ),
+            (
                 item: "HullPlate",
                 side: Buy,
                 quantity: 2,

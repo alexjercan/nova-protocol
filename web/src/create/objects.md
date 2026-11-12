@@ -339,6 +339,18 @@ offers `Refine` makes one from 2 `IronOre`, 1 `CarbonOre` and a 30 cr fee.
 See [Refine](../stations/#refine) for the rule and
 [Content files](../mod-files/#content-files) for the `refine` field.
 
+Base ships one `Contraband` item. It is not a role id either: a mod may add
+its own `Contraband` items, and every one is refused the same way.
+
+| Item | Mass | Category | Ask | Bid |
+| --- | --- | --- | --- | --- |
+| `UnmarkedCores` | 10 kg | Contraband | 300 | 240 |
+
+A living generated station of a lawful civilization refuses a dock to a ship
+whose hold carries any `Contraband` item. No station stocks one and no job
+board asks for one. The `base/salvage_broker` profile sells them, and an
+intact generated scavenger carries one unit in half its holds.
+
 `PdcRound` feeds both Kinetic and Pierce turret mounts - the mount decides the
 round's damage type, not the item. `Torpedo` feeds every torpedo bay type,
 Serpent, Lance and Dart alike - the bay decides the flight.

@@ -636,6 +636,7 @@ fn generate_row(
             advancement,
             role_preference: [1.0; 4],
             stance: StanceType::Neutral,
+            lawful: false,
         };
         let mut station = match generated_station(snapshot, items, &layout, &keeper) {
             Ok(station) => station,

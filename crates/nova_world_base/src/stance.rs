@@ -21,6 +21,13 @@
 //! the side they have: a bought station flies the player's, an escort the
 //! player's, and a dead hull is merchandise.
 //!
+//! [`sync_lawful_stations`] marks every living generated station of a lawful
+//! civilization ([`Civilization::lawful`](crate::Civilization::lawful)) with
+//! [`LawfulStationMarker`], which admission reads to refuse a contraband
+//! carrier. The marker is derived from the civilization id every frame, so
+//! a thaw and a Load restore it with no saved field. An authored station has
+//! no civilization and is never lawful.
+//!
 //! The fine a station of a neighbour takes to settle an Enemy
 //! ([`fine_cr`]) is flat by that civilization's advancement, between
 //! [`FINE_CR`]'s ends: a backwater forgives for about a start kit's third, a
@@ -30,9 +37,10 @@ use std::collections::BTreeMap;
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::{
-    Allegiance, CivilizationId, CivilizationStances, NeutralizedMarker, OwnedStationMarker,
-    PlayerFleetMarker, PlayerSpaceshipMarker, StanceStep, StanceType, TraderMarket,
-    ENEMY_DECAY_SECONDS, OFFENCE_WINDOW_SECONDS, PROVOKED_WINDOW_SECONDS,
+    Allegiance, CivilizationId, CivilizationStances, DerelictShipMarker, LawfulStationMarker,
+    NeutralizedMarker, OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker, StanceStep,
+    StanceType, StationMarker, TraderMarket, ENEMY_DECAY_SECONDS, OFFENCE_WINDOW_SECONDS,
+    PROVOKED_WINDOW_SECONDS,
 };
 use nova_ship::prelude::{LastAttacker, ShipProvoked};
 use nova_world::prelude::WorldClock;
@@ -49,6 +57,14 @@ pub fn seeded_stance(civilization: &CivilizationId) -> StanceType {
     CivilizationField::new(civilization.world_seed)
         .civilization(civilization.node)
         .stance
+}
+
+/// Whether the seed drew `civilization` lawful: its living stations refuse a
+/// dock to a ship that carries contraband.
+pub fn seeded_lawful(civilization: &CivilizationId) -> bool {
+    CivilizationField::new(civilization.world_seed)
+        .civilization(civilization.node)
+        .lawful
 }
 
 /// The fine a station takes to settle the player with `civilization`:
@@ -279,6 +295,42 @@ pub(crate) fn sync_civilization_sides(
     }
 }
 
+/// Keep [`LawfulStationMarker`] on exactly the living generated stations of
+/// a lawful civilization: a station the player bought, a derelict and a
+/// neutralized station lose it. The draw of each civilization met is cached:
+/// it is pure in the id.
+#[expect(
+    clippy::type_complexity,
+    reason = "the station query reads each marker the rule names"
+)]
+pub(crate) fn sync_lawful_stations(
+    mut commands: Commands,
+    stations: Query<
+        (
+            Entity,
+            &TraderMarket,
+            Has<LawfulStationMarker>,
+            Has<OwnedStationMarker>,
+            Has<DerelictShipMarker>,
+            Has<NeutralizedMarker>,
+        ),
+        With<StationMarker>,
+    >,
+    mut seeded: Local<BTreeMap<CivilizationId, bool>>,
+) {
+    for (station, market, marked, owned, derelict, neutralized) in &stations {
+        let lawful = !(owned || derelict || neutralized)
+            && *seeded
+                .entry(market.civilization)
+                .or_insert_with(|| seeded_lawful(&market.civilization));
+        if lawful && !marked {
+            commands.entity(station).insert(LawfulStationMarker);
+        } else if !lawful && marked {
+            commands.entity(station).remove::<LawfulStationMarker>();
+        }
+    }
+}
+
 fn log_step(step: &StanceStep, now: f64) {
     info!(
         "stance: {} moved from {:?} to {:?} at {now:.1} s of play",
@@ -313,6 +365,77 @@ mod tests {
                 && !field.neighbours(node).is_empty())
             .then_some(civilization.id)
         })
+    }
+
+    /// A generated station of `civilization`, living, with no stock target.
+    fn station_of(app: &mut App, civilization: CivilizationId) -> Entity {
+        app.world_mut()
+            .spawn((
+                StationMarker,
+                TraderMarket {
+                    cluster: nova_gameplay::prelude::ClusterType::RockOnly,
+                    civilization,
+                    role_preference: [1.0; 4],
+                    target: BTreeMap::new(),
+                    profile: None,
+                },
+            ))
+            .id()
+    }
+
+    /// A living civilization of the sweep that the seed drew `lawful`.
+    fn a_living_civilization(lawful: bool) -> CivilizationId {
+        SWEEP_SEEDS
+            .into_iter()
+            .find_map(|seed| {
+                let field = CivilizationField::new(seed);
+                sweep_nodes().find_map(|node| {
+                    let civilization = field.civilization(node);
+                    (civilization.status == CivilizationStatusType::Living
+                        && civilization.lawful == lawful)
+                        .then_some(civilization.id)
+                })
+            })
+            .unwrap_or_else(|| panic!("the sweep holds a living civilization lawful={lawful}"))
+    }
+
+    /// The marker follows the civilization's draw on a living station, and
+    /// leaves a station the player buys, a neutralized one and a derelict.
+    #[test]
+    fn a_living_station_of_a_lawful_civilization_alone_is_marked_lawful() {
+        let mut app = App::new();
+        app.add_systems(Update, sync_lawful_stations);
+        let lawful = station_of(&mut app, a_living_civilization(true));
+        let lawless = station_of(&mut app, a_living_civilization(false));
+        let marked =
+            |app: &App, station: Entity| app.world().get::<LawfulStationMarker>(station).is_some();
+        app.update();
+        assert!(marked(&app, lawful), "a lawful civilization's station");
+        assert!(!marked(&app, lawless), "a lawless civilization's station");
+
+        app.world_mut()
+            .entity_mut(lawful)
+            .insert(OwnedStationMarker);
+        app.update();
+        assert!(!marked(&app, lawful), "the player's station refuses nobody");
+        app.world_mut()
+            .entity_mut(lawful)
+            .remove::<OwnedStationMarker>();
+        app.update();
+        assert!(marked(&app, lawful), "the marker is derived again");
+
+        app.world_mut().entity_mut(lawful).insert(NeutralizedMarker);
+        app.update();
+        assert!(!marked(&app, lawful), "a dead station is a hull to loot");
+        app.world_mut()
+            .entity_mut(lawful)
+            .remove::<NeutralizedMarker>()
+            .insert(DerelictShipMarker);
+        app.update();
+        assert!(
+            !marked(&app, lawful),
+            "a derelict station is a hull to loot"
+        );
     }
 
     /// Three offences inside the window step a civilization down one and

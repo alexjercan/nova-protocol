@@ -44,6 +44,7 @@ pub fn generated_station_design(
         advancement,
         role_preference: [1.0; 4],
         stance: StanceType::Neutral,
+        lawful: false,
     };
     let layout = generate_station(
         &snapshot,

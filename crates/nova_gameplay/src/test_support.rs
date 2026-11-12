@@ -164,5 +164,14 @@ pub fn test_items() -> crate::inventory::GameItems {
             }),
             ..item("AlloyPlate", "Alloy plate", Parts, 30_000, 1, 90, 68)
         },
+        item(
+            "UnmarkedCores",
+            "Unmarked cores",
+            Contraband,
+            10_000,
+            1,
+            300,
+            240,
+        ),
     ])
 }

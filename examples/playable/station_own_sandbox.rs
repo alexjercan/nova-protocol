@@ -332,7 +332,7 @@ fn draw_the_station(
         },
     ) == Relation::Hostile;
     let enemy_flagged =
-        station_admission(side.copied(), derelict, false, owned, enemy_hostile).err();
+        station_admission(side.copied(), derelict, false, owned, enemy_hostile, false).err();
     let for_player = player.and_then(|(player, _)| admission.refusal(player, station));
     panel.detail(format!(
         "admission: the player {}   an Enemy-flagged ship at a free port {}",

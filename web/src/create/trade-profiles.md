@@ -55,7 +55,10 @@ A visit job is `Procure(item, count, reward_cr)`: bring `count` units of
 `item` to the station, for `reward_cr` paid on the hand-in. `count` and
 `reward_cr` are above 0.
 
-A ship whose role no profile names never visits.
+A ship whose role no profile names never visits. A ship visits only a
+station that admits it, so one that carries a `Contraband` item visits no
+lawful station: it trades where the item is not refused, and a profile that
+sells the item, like `base/salvage_broker`, clears its hold there.
 
 ## Overlay and lint
 
@@ -84,7 +87,7 @@ least 1 cr.
 |---|---|---|---|
 | `base/ore_hauler` | `Industrial`, weight 3 | sells iron ore 12, stone ore 12, carbon ore 8; buys rations 4 | procure 6 water ice for 180 cr; 3 salvaged parts for 150 cr |
 | `base/provisioner` | `Civilian`, weight 3 | sells rations 10, medkits 4; buys salvaged parts 4, water ice 6 | procure 3 hull plate for 220 cr |
-| `base/salvage_broker` | `Scavenger`, weight 2 | sells salvaged parts 6; buys hull plate 2, PDC round 20 | none |
+| `base/salvage_broker` | `Scavenger`, weight 2 | sells salvaged parts 6, unmarked cores 2; buys hull plate 2, PDC round 20 | none |
 | `base/garrison_supply` | `Armored`, weight 1 | none | procure 40 PDC rounds for 200 cr; 6 rations for 160 cr; 2 medkits for 220 cr |
 | `base/idle_traffic` | `Civilian` 1, `Industrial` 1 | none | none |
 

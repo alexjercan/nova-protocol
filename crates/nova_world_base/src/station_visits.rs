@@ -8,7 +8,8 @@
 //! - an intact AI generated ship with a profile, no helm order, no dock and
 //!   no pending visit, whose wait has passed, binds the nearest live living
 //!   station within [`VISIT_RANGE`] that offers Trade or Jobs, is not the
-//!   player's, admits it, has a free port and has no other visitor, and
+//!   player's, admits it (a lawful station admits no ship that carries
+//!   contraband), has a free port and has no other visitor, and
 //!   takes a Dock order to it. One visitor per station bounds the traffic by
 //!   the stations the window holds;
 //! - on the frame the ship stands docked at its station, the same system
@@ -206,7 +207,6 @@ pub(crate) fn drive_station_visits(
     jobs: Res<Jobs>,
     mut visits: ResMut<StationVisits>,
     mut postings: ResMut<JobPostings>,
-    admission: DockAdmission,
     ships: Query<
         (
             (
@@ -253,7 +253,9 @@ pub(crate) fn drive_station_visits(
     >,
     connections: Query<&DockingConnection>,
     envelopes: Query<&HullEnvelopeRadius>,
-    mut holds: Query<(&mut ShipInventory, &mut ShipCredits)>,
+    // Admission reads the hold of the ship asking, for contraband, and a
+    // docked visit writes both holds: one set, borrowed one at a time.
+    mut ledger: ParamSet<(DockAdmission, Query<(&mut ShipInventory, &mut ShipCredits)>)>,
 ) {
     let now = clock.play_seconds;
     // The play seconds this frame adds to the clock: the same virtual delta
@@ -359,7 +361,7 @@ pub(crate) fn drive_station_visits(
                         &mut postings,
                         now,
                         ship,
-                        &mut holds,
+                        &mut ledger.p1(),
                     );
                     info!(
                         "nova_world_base: the visit '{}' docks at '{}' at {now:.1} s of play: \
@@ -504,6 +506,7 @@ pub(crate) fn drive_station_visits(
         .filter(|((.., settled), _, flags)| *settled && free_traffic(*flags))
         .collect();
     ordered.sort_by(|a, b| a.0 .1.cmp(b.0 .1));
+    let admission = ledger.p0();
     for ((ship, id, at, market, _), (order, _, docked, has_reports), _) in ordered {
         let Some(profile) = market.and_then(|market| market.profile.as_ref()) else {
             continue;
@@ -723,8 +726,8 @@ mod tests {
     use nova_events::prelude::{OnDestroyedEventInfo, SectorCoord};
     use nova_gameplay::prelude::{
         Allegiance, CivilizationId, ClusterType, ItemDesignId, ItemRoleType, ItemTradeType,
-        JobOfferRule, PriceClamp, PriceFactor, PriceTable, RestockRule, ScarcityRule, StationVisit,
-        TradeIntent, TradeProfileDesign, TradeProfileDesignId,
+        JobOfferRule, LawfulStationMarker, PriceClamp, PriceFactor, PriceTable, RestockRule,
+        ScarcityRule, StationVisit, TradeIntent, TradeProfileDesign, TradeProfileDesignId,
     };
     use nova_ship::prelude::{DockedHelmType, DockingSectionMarker};
 
@@ -1216,6 +1219,34 @@ mod tests {
         rig.at(leaves_at + 2.0);
         assert_visit_ended(&rig, leaves_at + 2.0);
         assert_eq!(rig.ledger(), settled, "leaving moves nothing");
+    }
+
+    #[test]
+    fn a_contraband_carrier_binds_no_visit_to_a_lawful_station() {
+        let mut rig = Rig::new(empty_profile());
+        let items = nova_gameplay::test_support::test_items();
+        let cores = ItemDesignId::from("UnmarkedCores");
+        let world = rig.app.world_mut();
+        world.entity_mut(rig.station).insert(LawfulStationMarker);
+        world
+            .get_mut::<ShipInventory>(rig.ship)
+            .unwrap()
+            .add(&items, &cores, 1);
+
+        let due = rig.first_due();
+        rig.at(0.0);
+        rig.at(due);
+        assert!(rig.visit().is_none(), "a lawful station admits no carrier");
+        assert_eq!(rig.order(), None, "an unbound ship takes no Dock order");
+
+        rig.app
+            .world_mut()
+            .get_mut::<ShipInventory>(rig.ship)
+            .unwrap()
+            .remove(&cores, 1);
+        rig.at(due + 1.0);
+        let visit = rig.visit().expect("the ship binds once the cores left");
+        assert_eq!(visit.station, rig.station_id);
     }
 
     #[test]

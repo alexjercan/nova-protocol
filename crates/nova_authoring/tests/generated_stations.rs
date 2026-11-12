@@ -66,6 +66,7 @@ fn every_base_station_passes_the_station_lint_at_every_advancement() {
                     advancement,
                     role_preference: [1.0; 4],
                     stance: StanceType::Neutral,
+                    lawful: false,
                 };
                 for seed in 0..8 {
                     let context =
@@ -126,6 +127,7 @@ fn a_seeded_station_stocks_its_known_weapons_ammunition_within_its_hold() {
                     advancement,
                     role_preference: [1.0; 4],
                     stance: StanceType::Neutral,
+                    lawful: false,
                 };
                 let known: BTreeSet<ItemRoleType> = parts
                     .known(id, advancement)
@@ -210,6 +212,7 @@ fn every_base_station_stocks_one_recipe_of_every_part_it_builds() {
                     advancement,
                     role_preference: [1.0; 4],
                     stance: StanceType::Neutral,
+                    lawful: false,
                 };
                 for seed in 0..8 {
                     let context =
@@ -276,6 +279,7 @@ fn a_generated_station_builds_what_its_civilization_knows_and_no_more() {
             advancement,
             role_preference: [1.0; 4],
             stance: StanceType::Neutral,
+            lawful: false,
         };
         let request = StationLayoutRequest {
             seed: 1,
@@ -381,6 +385,7 @@ fn generated_stations_build_second_tier_sections_that_swap_for_their_base() {
             advancement: 0.5,
             role_preference: [1.0; 4],
             stance: StanceType::Neutral,
+            lawful: false,
         };
         let request = StationLayoutRequest {
             seed: 0,

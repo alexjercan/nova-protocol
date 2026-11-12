@@ -3,7 +3,9 @@ use std::{collections::BTreeMap, panic::AssertUnwindSafe};
 use bevy::ecs::system::RunSystemOnce;
 use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack};
 use nova_events::prelude::{Meters, Meters3};
-use nova_gameplay::prelude::{Allegiance, Fnv64, ItemDesignId, ItemRoleType, ShipRoleType};
+use nova_gameplay::prelude::{
+    Allegiance, Fnv64, GameItems, ItemCategoryType, ItemDesignId, ItemRoleType, ShipRoleType,
+};
 use nova_scenario::prelude::{
     resolve_ship_design, GameShipDesigns, GeneratedWorldConfig, ScenarioConfig, ScenarioRole,
     SectionSource, ShipDesign, SpaceshipController, SpaceshipSectionConfig,
@@ -299,6 +301,92 @@ fn every_planned_ship_carries_goods_its_hold_fits_and_credits() {
             "{role:?}"
         );
     }
+}
+
+/// Only an intact scavenger carries contraband: at most one unit, in about
+/// half the holds, and every other stack is the one a catalog with no
+/// contraband item draws. No other role and no wreck carries any.
+#[test]
+fn an_intact_scavenger_alone_may_carry_one_unit_of_contraband() {
+    let config = session_config();
+    let parts = config.generator.parts();
+    let items = config.generator.items();
+    let lawful_only = GameItems::new(
+        items
+            .iter()
+            .filter(|item| item.category != ItemCategoryType::Contraband)
+            .cloned(),
+    );
+    assert!(
+        lawful_only.iter().count() < items.iter().count(),
+        "the fixture catalog has a contraband item"
+    );
+    let civilization = CivilizationField::new(SEED).civilization([0, 0, 0]);
+    let (mut carriers, mut scavengers) = (0, 0);
+    for role in ShipRoleType::ALL {
+        for seed in 0..40_u32 {
+            let request = ShipLayoutRequest {
+                seed,
+                civilization: civilization.id,
+                role,
+                advancement: 0.5,
+            };
+            let Ok(layout) = generate_ship(parts, request) else {
+                continue;
+            };
+            for condition in [
+                SectorShipConditionType::Intact,
+                SectorShipConditionType::Derelict,
+            ] {
+                let stock = |items: &GameItems| {
+                    ship_stock(parts, items, &layout.design, role, condition, 0.5, seed).map(
+                        |stock| {
+                            stock
+                                .stacks()
+                                .map(|(item, count)| (item.clone(), count))
+                                .collect::<Vec<_>>()
+                        },
+                    )
+                };
+                let (Some(with), Some(without)) = (stock(items), stock(&lawful_only)) else {
+                    continue;
+                };
+                let contraband: Vec<_> = with
+                    .iter()
+                    .filter(|(item, _)| items.design(item).category == ItemCategoryType::Contraband)
+                    .collect();
+                let rest: Vec<_> = with
+                    .iter()
+                    .filter(|(item, _)| items.design(item).category != ItemCategoryType::Contraband)
+                    .cloned()
+                    .collect();
+                assert_eq!(
+                    rest, without,
+                    "{role:?} {condition:?} {seed}: the other stacks"
+                );
+                let may_carry =
+                    role == ShipRoleType::Scavenger && condition == SectorShipConditionType::Intact;
+                if may_carry {
+                    scavengers += 1;
+                    carriers += contraband.len();
+                    assert!(
+                        contraband.iter().all(|(_, count)| *count == 1) && contraband.len() <= 1,
+                        "scavenger {seed} carries {contraband:?}"
+                    );
+                } else {
+                    assert!(
+                        contraband.is_empty(),
+                        "{role:?} {condition:?} {seed} carries {contraband:?}"
+                    );
+                }
+            }
+        }
+    }
+    assert!(scavengers >= 20, "{scavengers} scavenger layouts built");
+    assert!(
+        carriers * 4 >= scavengers && carriers * 4 <= scavengers * 3,
+        "{carriers} of {scavengers} intact scavengers carry contraband"
+    );
 }
 
 /// A ship gets a loop only where at least two waypoints fit: one that fits

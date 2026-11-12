@@ -232,4 +232,14 @@
             fee_cr: 30,
         )),
     )),
+    Item((
+        id: "UnmarkedCores",
+        name: "Unmarked cores",
+        about: "Flight cores with the registry marks ground off. Lawful stations refuse a ship that carries them.",
+        category: Contraband,
+        mass_g: 10000,
+        price_lot: 1,
+        ask_cr: 300,
+        bid_cr: 240,
+    )),
 ]

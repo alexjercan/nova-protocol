@@ -721,12 +721,13 @@ impl JobIconType {
 
 /// Every item category, in declaration order, which is the order its mask is
 /// stored in: [`InterfaceIcons::category`] indexes by `category as usize`.
-pub(crate) const ITEM_CATEGORIES: [ItemCategoryType; 5] = [
+pub(crate) const ITEM_CATEGORIES: [ItemCategoryType; 6] = [
     ItemCategoryType::Raw,
     ItemCategoryType::Repair,
     ItemCategoryType::Ammo,
     ItemCategoryType::Food,
     ItemCategoryType::Parts,
+    ItemCategoryType::Contraband,
 ];
 
 // A category listed out of declaration order would draw another category's
@@ -743,7 +744,8 @@ const _: () = {
 };
 
 /// A pile of lumps for raw goods, a wrench for repair stock, three rounds for
-/// ammo, a tin for food and a gear for parts.
+/// ammo, a tin for food, a gear for parts and a struck-through crate for
+/// contraband.
 fn category_coverage(category: ItemCategoryType, p: Vec2, px: f32) -> f32 {
     match category {
         ItemCategoryType::Raw => {
@@ -809,6 +811,23 @@ fn category_coverage(category: ItemCategoryType, p: Vec2, px: f32) -> f32 {
                 .fold(f32::INFINITY, f32::min);
             let wheel = ring(p, Vec2::ZERO, 0.42, 0.26);
             solid(wheel.min(teeth), px)
+        }
+        ItemCategoryType::Contraband => {
+            // The food tin's box with no lid or band, outlined, under a bar
+            // from corner to corner.
+            let crate_box = polygon(
+                p,
+                &[
+                    Vec2::new(-0.6, -0.6),
+                    Vec2::new(0.6, -0.6),
+                    Vec2::new(0.6, 0.6),
+                    Vec2::new(-0.6, 0.6),
+                ],
+            );
+            let strike = segment(p, Vec2::new(-0.85, 0.85), Vec2::new(0.85, -0.85), 0.2);
+            (solid(crate_box, px) * 0.35)
+                .max(solid(crate_box.abs() - 0.06, px))
+                .max(solid(strike, px))
         }
     }
 }
