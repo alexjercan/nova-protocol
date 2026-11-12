@@ -25,7 +25,13 @@
 //!
 //! What is DERIVED (arithmetic, not a transaction): the replacement cost of
 //! every spent round, by the live ask's lot price ([`ItemPrice::buy_cr`]),
-//! and the net of reward minus that cost.
+//! and `net_after_buy_cr`, the credits the hand-in moved to the player minus
+//! the price the Buy paid.
+//!
+//! The walk hands in the first job of a new open world, so the base scenario
+//! also grants its first-delivery bonus at the hand-in. `credited_cr` and
+//! `net_after_buy_cr` include that bonus. `reward_cr` and `station_paid_cr`
+//! are the job reward alone; their difference from `credited_cr` is the grant.
 //!
 //! What is FIXTURE (the shared walk's moves, no cheat): the walk teleports
 //! the player beside the posting station and onto its berth before the accept
