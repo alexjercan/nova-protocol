@@ -64,13 +64,13 @@ fn waystation(assets: &BaseContentAssets) -> StationDesignPrototype {
         name: "Waystation".to_string(),
         about: "A plated two-deck block with a bridge set into the top deck, a second flight \
                 computer in the lower deck and a docking collar off the port flank. Ships \
-                dock to rebuild, refit, trade and leave cargo in its store."
+                dock to rebuild, refit, trade, refine ore and leave cargo in its store."
             .to_string(),
         design: waystation_design(assets),
     }
 }
 
-/// The waystation's design: the block hull, the four dock services, the
+/// The waystation's design: the block hull, the five dock services, the
 /// advancement-0 sections it builds and a repair and trade stock.
 fn waystation_design(assets: &BaseContentAssets) -> StationDesign {
     StationDesign {
@@ -85,6 +85,7 @@ fn waystation_design(assets: &BaseContentAssets) -> StationDesign {
             StationServiceType::Refit,
             StationServiceType::Trade,
             StationServiceType::Storage,
+            StationServiceType::Refine,
         ],
         builds: WAYSTATION_BUILDS.iter().map(ToString::to_string).collect(),
         storage_cap_g: WAYSTATION_STORAGE_CAP_G,

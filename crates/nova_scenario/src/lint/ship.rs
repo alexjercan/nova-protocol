@@ -2677,6 +2677,7 @@ mod tests {
             price_lot: 1,
             ask_cr: 100,
             bid_cr: 100,
+            refine: None,
         }]);
         // R = 1 + 2 * 100 = 201, S = 2 * 100 = 200: below, clean.
         let below = recipe_section(&[("Gold", 2)], 1, 1.0);

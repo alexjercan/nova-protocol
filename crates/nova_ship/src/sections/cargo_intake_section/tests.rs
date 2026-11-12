@@ -989,6 +989,7 @@ fn a_canister_of_a_catalog_only_item_is_taken_into_the_hold() {
         price_lot: 1,
         ask_cr: 60,
         bid_cr: 45,
+        refine: None,
     };
     let fixture_id = ItemDesignId::from("fixture_core");
     // One plate, because a stock stack may not be zero.

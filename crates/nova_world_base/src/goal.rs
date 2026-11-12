@@ -270,6 +270,7 @@ mod tests {
             price_lot: 1,
             ask_cr: 16,
             bid_cr: 12,
+            refine: None,
         };
         GameItems::new([
             item("IronOre", ItemCategoryType::Raw),

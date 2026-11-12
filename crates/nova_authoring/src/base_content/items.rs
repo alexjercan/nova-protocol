@@ -18,8 +18,14 @@
 //! The section parts below have no role: no system spends them by id. Section
 //! build recipes name them, so a lost section is rebuilt from them at a
 //! station, and the recipe lint holds each recipe above its strip value.
+//!
+//! The alloy plate is the one item with a refine recipe: a station that
+//! offers Refine makes it from ore in the docked ship's hold for a fee, so
+//! mined ore has a use besides the sell button.
 
-use nova_gameplay::prelude::{ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType};
+use nova_gameplay::prelude::{
+    ItemCategoryType, ItemDesign, ItemDesignId, ItemRefineRecipe, ItemRoleType,
+};
 
 /// Light structural panel: every section recipe spends some.
 pub(crate) const SECTION_PANEL: &str = "SectionPanel";
@@ -270,9 +276,28 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
             price_lot,
             ask_cr,
             bid_cr,
+            refine: refine_recipe(id),
         },
     )
     .collect()
+}
+
+/// Credits a station charges to refine one alloy plate. Provisional, like
+/// the prices: with the ore at ask it holds a plate's cost two credits over
+/// its bid, the margin the item lint requires to be at least zero.
+const ALLOY_PLATE_REFINE_FEE_CR: u32 = 30;
+
+/// The refine recipe of `id`, or `None` for an item no station refines. The
+/// alloy plate is the one refined item: two iron ore and one carbon ore, 30 kg
+/// in and 30 kg out.
+fn refine_recipe(id: &str) -> Option<ItemRefineRecipe> {
+    (id == ALLOY_PLATE).then(|| ItemRefineRecipe {
+        inputs: vec![
+            (ItemRoleType::IronOre.into(), 2),
+            (ItemRoleType::CarbonOre.into(), 1),
+        ],
+        fee_cr: ALLOY_PLATE_REFINE_FEE_CR,
+    })
 }
 
 #[cfg(test)]
@@ -298,6 +323,7 @@ mod tests {
                     item.price_lot,
                     item.ask_cr,
                     item.bid_cr,
+                    item.refine.clone(),
                 )
             };
             let mirrored = fixture

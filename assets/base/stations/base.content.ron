@@ -2,7 +2,7 @@
     Station((
         id: "block_waystation",
         name: "Waystation",
-        about: "A plated two-deck block with a bridge set into the top deck, a second flight computer in the lower deck and a docking collar off the port flank. Ships dock to rebuild, refit, trade and leave cargo in its store.",
+        about: "A plated two-deck block with a bridge set into the top deck, a second flight computer in the lower deck and a docking collar off the port flank. Ships dock to rebuild, refit, trade, refine ore and leave cargo in its store.",
         design: (
             hull: (
                 sections: [
@@ -355,6 +355,7 @@
                 Refit,
                 Trade,
                 Storage,
+                Refine,
             ],
             builds: [
                 "light_hull_section",

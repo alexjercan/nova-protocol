@@ -208,5 +208,18 @@
         price_lot: 1,
         ask_cr: 90,
         bid_cr: 68,
+        refine: Some((
+            inputs: [
+                (
+                    "IronOre",
+                    2,
+                ),
+                (
+                    "CarbonOre",
+                    1,
+                ),
+            ],
+            fee_cr: 30,
+        )),
     )),
 ]

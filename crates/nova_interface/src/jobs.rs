@@ -3148,6 +3148,7 @@ mod tests {
             price_lot: 1,
             ask_cr: 10,
             bid_cr: 8,
+            refine: None,
         }]);
         let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
         let job = Job {

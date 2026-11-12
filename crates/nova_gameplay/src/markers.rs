@@ -176,6 +176,10 @@ pub enum StationServiceType {
     Trade,
     /// Leave items in the station's own storage, up to its cap.
     Storage,
+    /// Turn items in the docked ship's hold into the item whose
+    /// [`ItemRefineRecipe`](crate::inventory::ItemRefineRecipe) lists them,
+    /// for the recipe's fee.
+    Refine,
     /// Take contracts posted at the station.
     Jobs,
     /// Hire and drop crew.

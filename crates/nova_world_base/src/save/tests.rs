@@ -3851,6 +3851,7 @@ fn items_with_lost_core() -> GameItems {
         price_lot: 1,
         ask_cr: 60,
         bid_cr: 45,
+        refine: None,
     });
     GameItems::new(designs)
 }

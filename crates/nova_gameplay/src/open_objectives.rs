@@ -130,6 +130,7 @@ mod tests {
             price_lot: 1,
             ask_cr: 16,
             bid_cr: 12,
+            refine: None,
         }]);
         let hold = ShipInventory::new(&items, 10_000, [("IronOre".into(), 3)]);
         let progress = GoalProgress {

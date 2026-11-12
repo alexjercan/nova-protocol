@@ -350,6 +350,7 @@ fn an_overflowing_row_name_ends_in_an_ellipsis_and_shows_whole_once_its_cell_wid
         price_lot: 1,
         ask_cr: 10,
         bid_cr: 5,
+        refine: None,
     }]));
     // The shown name, its laid-out width and its cell's content width, both
     // in physical px.
@@ -2306,6 +2307,7 @@ fn a_catalog_only_item_jettisons_sells_and_buys_through_the_pane_commands() {
         price_lot: 1,
         ask_cr: 60,
         bid_cr: 45,
+        refine: None,
     }]));
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default()));

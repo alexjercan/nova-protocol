@@ -18,6 +18,9 @@
 //! by the [`plan_item_jettison`] rule, a weapon's idle reload moves its
 //! ammunition item into the magazine, and a Buy or Sell with a docked trader
 //! moves items and [`ShipCredits`] together by the [`plan_item_trade`] rule.
+//! An item that authors an [`ItemRefineRecipe`] is made at a station that
+//! offers Refine: the [`plan_item_refine`] rule turns the recipe's inputs
+//! and fee into the item.
 //! Every section config carries a [`BuildRecipe`]; a Ship pane rebuild or
 //! swap at a docked station pays it by the [`plan_recipe_payment`] rule. A living
 //! station that offers Storage keeps a capped [`StationStorage`] beside its
@@ -41,12 +44,13 @@ pub mod prelude {
 
     pub use super::{
         cr_digits, cr_text, kg_text, lot_cr_text, plan_credit_take, plan_hull_strip,
-        plan_item_jettison, plan_item_storage, plan_item_trade, plan_item_transfer, plan_loot_take,
-        plan_plate_repair, plan_recipe_payment, plan_section_rebuild, plan_section_yield,
-        strip_duration_secs, BuildRecipe, CargoCanister, CargoCanisterIdAllocator,
-        CargoCanisterRuntimeId, CreditTakeRefusalType, GameItems, HullStrip, HullStripPartner,
-        HullStripPauseType, HullStripRefusalType, ItemCategoryType, ItemDesign, ItemDesignId,
-        ItemJettison, ItemJettisonRefusalType, ItemRoleType, ItemStorageRefusalType,
+        plan_item_jettison, plan_item_refine, plan_item_storage, plan_item_trade,
+        plan_item_transfer, plan_loot_take, plan_plate_repair, plan_recipe_payment,
+        plan_section_rebuild, plan_section_yield, strip_duration_secs, BuildRecipe, CargoCanister,
+        CargoCanisterIdAllocator, CargoCanisterRuntimeId, CreditTakeRefusalType, GameItems,
+        HullStrip, HullStripPartner, HullStripPauseType, HullStripRefusalType, ItemCategoryType,
+        ItemDesign, ItemDesignId, ItemJettison, ItemJettisonRefusalType, ItemRefine,
+        ItemRefineRecipe, ItemRefineRefusalType, ItemRoleType, ItemStorageRefusalType,
         ItemStorageType, ItemTrade, ItemTradeRefusalType, ItemTransferRefusalType,
         ItemTransferType, LootTake, LootableShipMarker, PlateRepair, PlateRepairRefusalType,
         RecipePayment, RecipePaymentRefusalType, SectionRebuildRefusalType, ShipCredits,
@@ -180,8 +184,46 @@ impl From<ItemRoleType> for ItemDesignId {
     }
 }
 
+/// What a station that offers Refine turns into one unit of an item: the
+/// items it takes from the docked ship's hold and the credits it charges.
+/// Authored as the optional `refine` field of the item it makes.
+///
+/// Content lint holds a recipe to the catalog: every input is a loaded item
+/// other than the output, listed once with a count above zero, and the
+/// inputs at their reference ask plus the fee are worth at least the
+/// output's reference bid, so buying the inputs from a station, refining
+/// them and selling the output never gains credits.
+#[derive(Clone, Debug, PartialEq, Eq, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
+pub struct ItemRefineRecipe {
+    /// The items one batch consumes, as `(item, count)` pairs in authored
+    /// order. At least one pair; each count is above zero.
+    pub inputs: Vec<(ItemDesignId, u32)>,
+    /// Credits the station takes for one batch.
+    pub fee_cr: u32,
+}
+
+impl ItemRefineRecipe {
+    /// How many whole batches the inputs `hold` carries cover: the smallest
+    /// of each input's stack over its count. Zero when one input is short.
+    ///
+    /// # Panics
+    ///
+    /// On a recipe with no inputs or an input count of zero; content lint
+    /// refuses both first.
+    pub fn batches_from(&self, hold: &ShipInventory) -> u32 {
+        self.inputs
+            .iter()
+            .map(|(item, count)| hold.count(item) / count)
+            .min()
+            .expect("content lint refuses a refine recipe with no inputs")
+    }
+}
+
 /// One authored item: what it is called, what it is for, what it weighs and
-/// what a trader pays for it. Every field is required.
+/// what a trader pays for it. Every field but [`refine`](Self::refine) is
+/// required.
 #[derive(Clone, Debug, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(deny_unknown_fields))]
@@ -208,6 +250,13 @@ pub struct ItemDesign {
     /// items: what a Sell earns. At most [`ask_cr`](Self::ask_cr), so buying
     /// and selling back never gains credits.
     pub bid_cr: u32,
+    /// How a station that offers Refine makes one of this item. `None`, or
+    /// the field left out of the RON, is an item no station refines.
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "Option::is_none")
+    )]
+    pub refine: Option<ItemRefineRecipe>,
 }
 
 impl ItemDesign {
@@ -273,6 +322,19 @@ impl GameItems {
     /// Every item, in id order.
     pub fn iter(&self) -> impl Iterator<Item = &ItemDesign> {
         self.0.values()
+    }
+
+    /// The item a station refines `input` into: the first item, in id
+    /// order, whose [`ItemRefineRecipe`] lists `input`. `None` when no
+    /// recipe consumes it. An input that feeds several recipes offers only
+    /// the first; the base game authors one recipe.
+    pub fn refined_from(&self, input: &ItemDesignId) -> Option<&ItemDesign> {
+        self.iter().find(|design| {
+            design
+                .refine
+                .as_ref()
+                .is_some_and(|recipe| recipe.inputs.iter().any(|(item, _)| item == input))
+        })
     }
 }
 
@@ -1015,6 +1077,145 @@ pub fn plan_item_trade(
     Ok(ItemTrade {
         count: quantity,
         price_cr,
+    })
+}
+
+/// A planned refine: what leaves the hold, what enters it and where the fee
+/// leaves both balances.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ItemRefine {
+    /// Inputs to remove from the ship's hold, as a count per item id; each
+    /// above zero.
+    pub inputs: BTreeMap<ItemDesignId, u32>,
+    /// The refined item to add to the ship's hold.
+    pub output: ItemDesignId,
+    /// Units of `output` to add: one per batch, above zero.
+    pub count: u32,
+    /// Credits to move from the ship to the station: the fee of every batch.
+    pub fee_cr: u32,
+    /// The ship's balance after the fee.
+    pub own_cr: u32,
+    /// The station's balance after the fee.
+    pub partner_cr: u32,
+}
+
+/// Why a refine changes nothing, in check order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ItemRefineRefusalType {
+    /// The docked partner is not a living station that offers Refine.
+    NotRefinery,
+    /// The item authors no [`ItemRefineRecipe`].
+    NotRefined,
+    /// The batch text is not a whole number.
+    NoQuantity,
+    /// A batch count of zero.
+    ZeroQuantity,
+    /// The hold carries fewer of an input than the batches consume.
+    ShortInput {
+        /// The first input, in id order, the hold is short of.
+        item: ItemDesignId,
+        /// How many of it the batches consume.
+        need: u64,
+        /// What the hold carries.
+        have: u32,
+    },
+    /// The ship holds fewer credits than the fee of every batch.
+    ShortCredits {
+        /// The fee of every batch.
+        need: u64,
+        /// What the ship holds.
+        have: u32,
+    },
+    /// The output is heavier than the room the hold has once the inputs
+    /// have left it.
+    OverCapacity {
+        /// How many grams the hold has room for once the inputs have left.
+        free_g: u32,
+    },
+    /// The station's balance after the fee would not fit in [`ShipCredits`].
+    CreditOverflow,
+}
+
+/// Plan refining `batches` units of `output` at the docked station, from
+/// the player ship's `hold` and `own_cr` balance.
+///
+/// `service` is true while the docked partner is a living station that
+/// offers Refine. Each batch takes the inputs of `output`'s
+/// [`ItemRefineRecipe`] from the hold, adds one `output` to it and moves
+/// the recipe's fee from the ship to the station, which holds `partner_cr`.
+/// The station's stock is not read: every input comes from the hold. The
+/// output must fit the hold once the inputs have left it, the room a Buy
+/// checks. Checks run in [`ItemRefineRefusalType`] order, and a refusal
+/// changes nothing. `batches` is `None` when the typed text is not a whole
+/// number. `output` and every input resolve in `items`.
+pub fn plan_item_refine(
+    items: &GameItems,
+    output: &ItemDesignId,
+    batches: Option<u32>,
+    service: bool,
+    hold: &ShipInventory,
+    own_cr: u32,
+    partner_cr: u32,
+) -> Result<ItemRefine, ItemRefineRefusalType> {
+    if !service {
+        return Err(ItemRefineRefusalType::NotRefinery);
+    }
+    let design = items.design(output);
+    let recipe = design
+        .refine
+        .as_ref()
+        .ok_or(ItemRefineRefusalType::NotRefined)?;
+    let batches = batches.ok_or(ItemRefineRefusalType::NoQuantity)?;
+    if batches == 0 {
+        return Err(ItemRefineRefusalType::ZeroQuantity);
+    }
+    // Summed per item, so a recipe that lint has not seen and that lists an
+    // input twice still takes what it states.
+    let mut needs: BTreeMap<&ItemDesignId, u64> = BTreeMap::new();
+    for (item, count) in &recipe.inputs {
+        *needs.entry(item).or_insert(0) += u64::from(*count) * u64::from(batches);
+    }
+    let mut inputs = BTreeMap::new();
+    let mut inputs_g = 0_u64;
+    for (item, need) in needs {
+        let have = hold.count(item);
+        if need > u64::from(have) {
+            return Err(ItemRefineRefusalType::ShortInput {
+                item: item.clone(),
+                need,
+                have,
+            });
+        }
+        // The need fits: it is at most the hold's u32 count.
+        let need = need as u32;
+        inputs_g += items.design(item).stack_mass_g(need);
+        inputs.insert(item.clone(), need);
+    }
+    let fee = u64::from(recipe.fee_cr) * u64::from(batches);
+    if fee > u64::from(own_cr) {
+        return Err(ItemRefineRefusalType::ShortCredits {
+            need: fee,
+            have: own_cr,
+        });
+    }
+    // The inputs are part of the hold's load, so the sum is at most its
+    // u32 capacity.
+    let free_g = (u64::from(hold.free_g(items)) + inputs_g) as u32;
+    if design.stack_mass_g(batches) > u64::from(free_g) {
+        return Err(ItemRefineRefusalType::OverCapacity { free_g });
+    }
+    // The fee fits: it is at most the ship's u32 balance.
+    let fee_cr = fee as u32;
+    let partner_cr = partner_cr
+        .checked_add(fee_cr)
+        .ok_or(ItemRefineRefusalType::CreditOverflow)?;
+    Ok(ItemRefine {
+        inputs,
+        output: output.clone(),
+        count: batches,
+        fee_cr,
+        own_cr: own_cr - fee_cr,
+        partner_cr,
     })
 }
 
@@ -2816,6 +3017,148 @@ mod transfer_tests {
             [("DriveBell".into(), 1)].into()
         );
         assert!(canister.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod refine_tests {
+    use super::*;
+
+    fn alloy() -> ItemDesignId {
+        ItemDesignId::from("AlloyPlate")
+    }
+
+    /// A 400 kg hold of iron and carbon ore, 10 kg each.
+    fn ore(items: &GameItems, iron: u32, carbon: u32) -> ShipInventory {
+        let stacks = [
+            (ItemDesignId::from(ItemRoleType::IronOre), iron),
+            (ItemDesignId::from(ItemRoleType::CarbonOre), carbon),
+        ];
+        ShipInventory::new(
+            items,
+            400_000,
+            stacks.into_iter().filter(|(_, count)| *count > 0),
+        )
+    }
+
+    /// The base alloy plate: 2 iron ore + 1 carbon ore + 30 cr a batch.
+    #[test]
+    fn a_refine_takes_the_inputs_and_the_fee_and_adds_one_output_a_batch() {
+        let items = crate::test_support::test_items();
+        let hold = ore(&items, 5, 3);
+        assert_eq!(
+            plan_item_refine(&items, &alloy(), Some(2), true, &hold, 100, 1_000),
+            Ok(ItemRefine {
+                inputs: BTreeMap::from([
+                    (ItemRoleType::CarbonOre.into(), 2),
+                    (ItemRoleType::IronOre.into(), 4),
+                ]),
+                output: alloy(),
+                count: 2,
+                fee_cr: 60,
+                own_cr: 40,
+                partner_cr: 1_060,
+            })
+        );
+        let recipe = items.design(&alloy()).refine.as_ref().unwrap();
+        assert_eq!(recipe.batches_from(&hold), 2, "iron covers two batches");
+        assert_eq!(recipe.batches_from(&ore(&items, 5, 0)), 0);
+        assert_eq!(
+            items
+                .refined_from(&ItemRoleType::IronOre.into())
+                .map(|design| &design.id),
+            Some(&alloy())
+        );
+        assert_eq!(items.refined_from(&ItemRoleType::StoneOre.into()), None);
+    }
+
+    #[test]
+    fn refine_plans_refuse_in_order() {
+        use ItemRefineRefusalType::*;
+        let items = crate::test_support::test_items();
+        let iron = ItemDesignId::from(ItemRoleType::IronOre);
+        let carbon = ItemDesignId::from(ItemRoleType::CarbonOre);
+        let hold = ore(&items, 2, 1);
+        let plan =
+            |output: &ItemDesignId, batches, service, hold: &ShipInventory, own_cr, partner_cr| {
+                plan_item_refine(&items, output, batches, service, hold, own_cr, partner_cr)
+            };
+        // The service wins over everything, then the recipe, then the count.
+        assert_eq!(plan(&iron, None, false, &hold, 0, 0), Err(NotRefinery));
+        assert_eq!(plan(&iron, None, true, &hold, 0, 0), Err(NotRefined));
+        assert_eq!(plan(&alloy(), None, true, &hold, 0, 0), Err(NoQuantity));
+        assert_eq!(
+            plan(&alloy(), Some(0), true, &hold, 0, 0),
+            Err(ZeroQuantity)
+        );
+        // Carbon sorts before iron, so a hold short of both names carbon.
+        assert_eq!(
+            plan(&alloy(), Some(2), true, &hold, 0, 0),
+            Err(ShortInput {
+                item: carbon.clone(),
+                need: 2,
+                have: 1
+            })
+        );
+        assert_eq!(
+            plan(&alloy(), Some(1), true, &ore(&items, 1, 1), 0, 0),
+            Err(ShortInput {
+                item: iron,
+                need: 2,
+                have: 1
+            })
+        );
+        assert_eq!(
+            plan(&alloy(), Some(1), true, &ore(&items, 2, 0), 0, 0),
+            Err(ShortInput {
+                item: carbon,
+                need: 1,
+                have: 0
+            })
+        );
+        // The inputs are checked before the fee.
+        assert_eq!(
+            plan(&alloy(), Some(1), true, &hold, 29, 0),
+            Err(ShortCredits { need: 30, have: 29 })
+        );
+        assert_eq!(
+            plan(&alloy(), Some(1), true, &hold, 30, u32::MAX),
+            Err(CreditOverflow)
+        );
+        assert!(plan(&alloy(), Some(1), true, &hold, 30, u32::MAX - 30).is_ok());
+    }
+
+    /// The output is weighed against the room the hold has once the inputs
+    /// are gone: a full hold still refines the 30 kg plate from 30 kg of
+    /// ore, and refuses a plate heavier than the ore it replaces.
+    #[test]
+    fn a_refine_output_must_fit_the_hold_the_inputs_leave() {
+        let items = crate::test_support::test_items();
+        let full = ShipInventory::new(
+            &items,
+            30_000,
+            [
+                (ItemRoleType::IronOre.into(), 2),
+                (ItemRoleType::CarbonOre.into(), 1),
+            ],
+        );
+        assert_eq!(full.free_g(&items), 0);
+        assert!(plan_item_refine(&items, &alloy(), Some(1), true, &full, 30, 0).is_ok());
+
+        let heavy = GameItems::new(items.iter().cloned().map(|design| {
+            if design.id == alloy() {
+                ItemDesign {
+                    mass_g: 30_001,
+                    ..design
+                }
+            } else {
+                design
+            }
+        }));
+        assert_eq!(
+            plan_item_refine(&heavy, &alloy(), Some(1), true, &full, 30, 0),
+            Err(ItemRefineRefusalType::OverCapacity { free_g: 30_000 })
+        );
     }
 }
 

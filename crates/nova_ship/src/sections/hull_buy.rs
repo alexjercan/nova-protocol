@@ -471,6 +471,7 @@ pub(crate) mod tests {
                 price_lot: 1,
                 ask_cr: 10,
                 bid_cr: 6,
+                refine: None,
             },
             ItemDesign {
                 id: "ore".into(),
@@ -481,6 +482,7 @@ pub(crate) mod tests {
                 price_lot: 1,
                 ask_cr: 4,
                 bid_cr: 2,
+                refine: None,
             },
         ])
     }

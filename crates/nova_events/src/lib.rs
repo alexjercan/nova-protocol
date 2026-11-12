@@ -957,6 +957,9 @@ pub enum CreditChangeCauseType {
     /// A fine paid at a docked station to settle with a civilization that
     /// stood Enemy to the player.
     Settle,
+    /// A refine at a docked station paid the recipe's fee: it moves from
+    /// the player to the station.
+    Refine,
     /// An armed `credits give` or `credits set` command wrote the balance.
     Cheat,
 }
@@ -976,6 +979,7 @@ impl CreditChangeCauseType {
             CreditChangeCauseType::JobReward => "JobReward",
             CreditChangeCauseType::JobRefresh => "JobRefresh",
             CreditChangeCauseType::Settle => "Settle",
+            CreditChangeCauseType::Refine => "Refine",
             CreditChangeCauseType::Cheat => "Cheat",
         }
     }

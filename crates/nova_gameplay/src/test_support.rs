@@ -72,7 +72,7 @@ pub fn settle(app: &mut App) {
     }
 }
 
-/// An item catalog with the base game's twenty items and their base values, for
+/// An item catalog with the base game's items and their base values, for
 /// tests that move stock without merging content. Mirrors the base content
 /// builder (`nova_authoring`'s `base_content::items`); a test that reads a
 /// mass or a price reads it through this catalog, never as a literal.
@@ -87,6 +87,7 @@ pub fn test_items() -> crate::inventory::GameItems {
         price_lot,
         ask_cr,
         bid_cr,
+        refine: None,
     };
     let role = |role: ItemRoleType, name: &str, category, mass_g, price_lot, ask_cr, bid_cr| {
         item(role.id(), name, category, mass_g, price_lot, ask_cr, bid_cr)
@@ -152,6 +153,15 @@ pub fn test_items() -> crate::inventory::GameItems {
             200,
             150,
         ),
-        item("AlloyPlate", "Alloy plate", Parts, 30_000, 1, 90, 68),
+        ItemDesign {
+            refine: Some(ItemRefineRecipe {
+                inputs: vec![
+                    (ItemRoleType::IronOre.into(), 2),
+                    (ItemRoleType::CarbonOre.into(), 1),
+                ],
+                fee_cr: 30,
+            }),
+            ..item("AlloyPlate", "Alloy plate", Parts, 30_000, 1, 90, 68)
+        },
     ])
 }

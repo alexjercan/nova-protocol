@@ -833,6 +833,7 @@ mod tests {
             price_lot: 1,
             ask_cr,
             bid_cr,
+            refine: None,
         }
     }
 

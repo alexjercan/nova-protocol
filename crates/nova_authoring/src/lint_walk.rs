@@ -1404,6 +1404,7 @@ mod tests {
                 price_lot: 1,
                 ask_cr: 10,
                 bid_cr: 5,
+                refine: None,
             })
         };
         let all = vec![
