@@ -67,7 +67,7 @@ The whole vocabulary at a glance:
 | [`OnJobDone`](#onjobdone) | `id`, `kind`, `station`, `reward_cr`, `post_key` | a held job's work in the world is finished and the job waits for its hand-in; a `Procure` and a Load fire none |
 | [`OnJobHandedIn`](#onjobhandedin) | `id`, `kind`, `station`, `reward_cr`, `post_key` | the Jobs pane hands a held job in at its posting station and the reward is paid; a refused hand-in fires none |
 | [`OnJobDropped`](#onjobdropped) | `id`, `kind`, `station`, `reward_cr`, `post_key`, `cause` | a held job ends with no hand-in: `cause` is `Lost` (the world took it) or `Abandoned` (the Drop button) |
-| [`OnStanceChanged`](#onstancechanged) | `civilization`, `from`, `to` | a civilization's stance toward the player moves one step; a provocation and a Load fire none |
+| [`OnStanceChanged`](#onstancechanged) | `civilization`, `from`, `to` | a civilization's stance toward the player moves; a provocation and a Load fire none |
 | [`OnSectorEntered`](#onsectorentered) | `sector`, `x`, `y`, `z`, `from` | the player crosses into another sector of a generated world; a New Game and a Load fire none |
 
 Entity payload fields are what an `Entity` filter can match: `id` /
@@ -224,9 +224,9 @@ changes nothing and writes an error to the log.
 
 | field | type | value |
 |---|---|---|
-| `action` | text | the action's RON name: `GrantCredits`, `GiveItems`, `TakeItems` |
-| `id` | text | the id the action targeted |
-| `reason` | text | why, as a stable word: `insufficient_credits`, `credit_overflow`, `hold_full`, `short_items`, `unknown_ship` |
+| `action` | text | the action's RON name: `GrantCredits`, `GiveItems`, `TakeItems`, `SetStance` |
+| `id` | text | the id the action targeted; for a binding, the id it read from the event |
+| `reason` | text | why, as a stable word: `insufficient_credits`, `credit_overflow`, `hold_full`, `short_items`, `unknown_ship`, `unknown_body`, `no_civilization` |
 
 ```ron
 (
@@ -246,8 +246,9 @@ changes nothing and writes an error to the log.
 
 Only the actions that list refusal reasons raise it; today those are
 [`GrantCredits`](../actions/#grantcredits),
-[`GiveItems`](../actions/#giveitems) and
-[`TakeItems`](../actions/#takeitems). `id` is the id as authored, so
+[`GiveItems`](../actions/#giveitems),
+[`TakeItems`](../actions/#takeitems) and
+[`SetStance`](../actions/#setstance). `id` is the id as authored, so
 an [`Entity`](../filters/#entity) filter on `id` matches it. Lint catches
 what it can before the run: an id nothing spawns never reaches this event.
 
@@ -1053,14 +1054,14 @@ the job is never offered or accepted again.
 
 ## OnStanceChanged
 
-Fires once per step of a civilization's stance toward the player on a
+Fires once each time a civilization's stance toward the player moves on a
 generated world.
 
 | field | type | value |
 |---|---|---|
 | `civilization` | text | the civilization's id, `civ_<x>_<y>_<z>@<seed>`, a negative index written `n<abs>` |
 | `from` | text | the stance before: `Ally`, `Neutral` or `Enemy` |
-| `to` | text | the stance after, one step from `from` |
+| `to` | text | the stance after: one step from `from`, or any other stance after a `SetStance` |
 
 | what steps a stance | step |
 |---|---|
@@ -1069,6 +1070,7 @@ generated world.
 | the third job handed in at a civilization's stations | one up |
 | two hours with no new offence against a civilization the player's kills made Enemy | `Enemy` to `Neutral` |
 | a fine paid at a station to settle | `Enemy` to `Neutral` |
+| a [`SetStance`](../actions/#setstance) action that names another stance | to that stance, one event |
 
 ```ron
 (

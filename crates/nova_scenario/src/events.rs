@@ -321,10 +321,11 @@ scenario_events! {
     /// it, `Abandoned` for the pane's Drop). Once per job. Generated worlds
     /// only.
     OnJobDropped => OnJobDroppedEvent { label: "On Job Dropped", category: Trade },
-    /// A civilization's stance toward the player moved one step
+    /// A civilization's stance toward the player moved
     /// (`civilization` = its id text, `from` and `to` = `Ally`, `Neutral` or
     /// `Enemy`). Once per step: an offence's, each neighbour's it reached, a
-    /// merit's, the decay's and a paid fine's; a provocation fires none.
+    /// merit's, the decay's and a paid fine's, and once per `SetStance` that
+    /// moved it; a provocation fires none.
     /// Generated worlds only.
     OnStanceChanged => OnStanceChangedEvent { label: "On Stance Changed", category: World },
     /// The player crossed into another sector of a generated world (`sector`

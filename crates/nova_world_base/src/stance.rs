@@ -11,7 +11,9 @@
 //! reaches the civilization's living neighbours once, by the seeded edge
 //! ([`CivilizationField::edge`]): an Ally follows one step down, an Enemy
 //! warms one step up, and nothing reaches further. A merit, a settlement
-//! or the decay moves the one civilization alone.
+//! or the decay moves the one civilization alone. A scenario writes a
+//! stance outright ([`apply_stance_request`], on [`SetStanceRequest`]): the
+//! one civilization moves to the stance asked for and nothing propagates.
 //!
 //! [`expire_stances`] lets the play clock pass over the table every frame,
 //! and [`sync_civilization_sides`] writes each civilization's effective
@@ -38,9 +40,9 @@ use std::collections::BTreeMap;
 use bevy::prelude::*;
 use nova_gameplay::prelude::{
     Allegiance, CivilizationId, CivilizationStances, DerelictShipMarker, LawfulStationMarker,
-    NeutralizedMarker, OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker, StanceChanged,
-    StanceStep, StanceType, StationMarker, TraderMarket, ENEMY_DECAY_SECONDS,
-    OFFENCE_WINDOW_SECONDS, PROVOKED_WINDOW_SECONDS,
+    NeutralizedMarker, OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker,
+    SetStanceRequest, StanceChanged, StanceStep, StanceType, StationMarker, TraderMarket,
+    ENEMY_DECAY_SECONDS, OFFENCE_WINDOW_SECONDS, PROVOKED_WINDOW_SECONDS,
 };
 use nova_ship::prelude::{LastAttacker, ShipProvoked};
 use nova_world::prelude::WorldClock;
@@ -258,6 +260,32 @@ pub(crate) fn record_provocation(
         seeded_stance(&market.civilization),
         clock.play_seconds,
     );
+}
+
+/// Put a civilization on the stance a scenario asked for
+/// ([`CivilizationStances::set`]) and raise one [`StanceChanged`] when it
+/// moved. A civilization already on that stance raises nothing. The write
+/// reaches no neighbour: a script names each civilization it moves.
+pub(crate) fn apply_stance_request(
+    request: On<SetStanceRequest>,
+    clock: Res<WorldClock>,
+    mut stances: ResMut<CivilizationStances>,
+    mut commands: Commands,
+) {
+    let SetStanceRequest {
+        civilization,
+        stance,
+    } = *request;
+    let Some(step) = stances.set(
+        civilization,
+        seeded_stance(&civilization),
+        stance,
+        clock.play_seconds,
+    ) else {
+        return;
+    };
+    log_step(&step, clock.play_seconds);
+    commands.trigger(StanceChanged(step));
 }
 
 /// Let the play clock pass over the table: windows close and an Enemy by
@@ -563,6 +591,7 @@ mod tests {
         app.init_resource::<CivilizationStances>();
         app.init_resource::<Raised>();
         app.add_observer(record_offence);
+        app.add_observer(apply_stance_request);
         app.add_systems(Update, expire_stances);
         app.add_observer(|changed: On<StanceChanged>, mut raised: ResMut<Raised>| {
             raised.0.push(changed.0);
@@ -661,6 +690,63 @@ mod tests {
             "the decay returns the civilization to Neutral"
         );
         assert_eq!(app.world().resource::<Raised>().0, expected);
+    }
+
+    /// A stance request moves the one civilization and raises one
+    /// `StanceChanged` for it; a request for the stance it already holds
+    /// changes nothing and raises none; a request for the seed's stance
+    /// leaves no record.
+    #[test]
+    fn a_stance_request_moves_one_civilization_and_raises_one_stance_changed() {
+        let civilization = a_neutral_civilization_with_neighbours();
+        let mut app = stance_app();
+        app.world_mut().resource_mut::<WorldClock>().play_seconds = 30.0;
+        let ask = |app: &mut App, stance: StanceType| {
+            app.world_mut().trigger(SetStanceRequest {
+                civilization,
+                stance,
+            });
+            app.world_mut().flush();
+        };
+        let step = |from: StanceType, to: StanceType| StanceStep {
+            civilization,
+            from,
+            to,
+        };
+
+        ask(&mut app, StanceType::Neutral);
+        assert!(app.world().resource::<Raised>().0.is_empty());
+        assert!(app.world().resource::<CivilizationStances>().is_empty());
+
+        ask(&mut app, StanceType::Enemy);
+        ask(&mut app, StanceType::Enemy);
+        assert_eq!(
+            app.world().resource::<Raised>().0,
+            [step(StanceType::Neutral, StanceType::Enemy)]
+        );
+        let stances = app.world().resource::<CivilizationStances>();
+        assert_eq!(
+            stances.entries().map(|(id, _)| *id).collect::<Vec<_>>(),
+            [civilization],
+            "no neighbour follows a scripted stance"
+        );
+        assert_eq!(
+            stances
+                .record(&civilization)
+                .map(|record| record.enemy_since),
+            Some(Some(30.0))
+        );
+        assert_eq!(stances.validate(30.0), Ok(()));
+
+        ask(&mut app, StanceType::Neutral);
+        assert_eq!(
+            app.world().resource::<Raised>().0,
+            [
+                step(StanceType::Neutral, StanceType::Enemy),
+                step(StanceType::Enemy, StanceType::Neutral)
+            ]
+        );
+        assert!(app.world().resource::<CivilizationStances>().is_empty());
     }
 
     /// The offences that turn a Neutral civilization Enemy take no outlaw

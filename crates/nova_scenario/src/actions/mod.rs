@@ -30,6 +30,7 @@ pub(crate) mod registry;
 mod sequence;
 mod ship;
 mod spawn;
+mod stance;
 mod timer;
 mod view;
 
@@ -41,6 +42,7 @@ pub use mission::*;
 pub use sequence::*;
 pub use ship::*;
 pub use spawn::*;
+pub use stance::*;
 pub use timer::*;
 pub use view::*;
 
@@ -156,8 +158,8 @@ pub const PAYLOAD_OTHER_REFERENCE: &str = "$other_id";
 /// Two spellings and no more: `$id` for the event's subject and `$other_id`
 /// for its other party, the two identity fields every entity event carries.
 /// `$` is outside snake_case, so no authored id can collide with a binding.
-/// Only the two objective-marker actions read a binding; the lint refuses it
-/// on every other reference field.
+/// The two objective-marker actions and `SetStance` read a binding; the lint
+/// refuses it on every other reference field.
 pub fn payload_binding(reference: &str) -> Option<&'static str> {
     match reference {
         PAYLOAD_SUBJECT_REFERENCE => Some(ENTITY_ID_COMPONENT_NAME),
@@ -503,6 +505,14 @@ registry::scenario_actions! {
         label: "Take Items",
         category: Trade,
         stem: "take_items",
+        effect: Injection,
+        inspect: Reflect,
+    },
+    /// Set the stance one civilization holds toward the player.
+    SetStance(SetStanceActionConfig) {
+        label: "Set Stance",
+        category: World,
+        stem: "stance",
         effect: Injection,
         inspect: Reflect,
     },

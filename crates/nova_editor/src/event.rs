@@ -24,7 +24,9 @@
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{default_comms_accent, Allegiance, AssetRef, ItemDesignId};
+use nova_gameplay::prelude::{
+    default_comms_accent, Allegiance, AssetRef, ItemDesignId, StanceType,
+};
 use nova_scenario::prelude::*;
 use nova_ship::prelude::WellTargetType;
 
@@ -912,6 +914,10 @@ impl ActionChoiceExt for ActionChoice {
                 ship: String::new(),
                 item: ItemDesignId::from(""),
                 count: 1,
+            }),
+            ActionChoice::SetStance => EventActionConfig::SetStance(SetStanceActionConfig {
+                body: String::new(),
+                stance: StanceType::Neutral,
             }),
             ActionChoice::SetAILeash => EventActionConfig::SetAILeash(SetAILeashActionConfig {
                 ship: String::new(),

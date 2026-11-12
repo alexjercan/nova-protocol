@@ -3,7 +3,7 @@
 Everything a handler can DO. Actions run in authored order once every filter
 passes; each is a newtype variant - `Name((field: value, ...))`, double
 parens even for one field. Failures warn and continue (a missing target id
-never panics a scenario). All 58 at a glance:
+never panics a scenario). All 59 at a glance:
 
 | action | group | what it does |
 |---|---|---|
@@ -54,6 +54,7 @@ never panics a scenario). All 58 at a glance:
 | [`GrantCredits`](#grantcredits) | [ship state](#ship-state) | grant credits to a ship or a station, or charge it |
 | [`GiveItems`](#giveitems) | [ship state](#ship-state) | put items into the hold of a ship or a station |
 | [`TakeItems`](#takeitems) | [ship state](#ship-state) | take items out of the hold of a ship or a station |
+| [`SetStance`](#setstance) | [ship state](#ship-state) | set the stance a civilization holds toward the player |
 | [`VariableSet`](#variableset) | [variables](#variables-timers-debugging) | evaluate an expression and store the result in a variable |
 | [`TimerStart`](#timerstart) | [variables](#variables-timers-debugging) | start (or restart) a keyed scenario timer |
 | [`TimerCancel`](#timercancel) | [variables](#variables-timers-debugging) | cancel a running timer |
@@ -1601,6 +1602,60 @@ action that cannot run takes nothing, logs an error and raises
 
 Like [`GiveItems`](#giveitems), it raises no hold event, and the same three
 authoring faults fail lint, then load.
+
+</details>
+
+### SetStance
+
+Set the stance one civilization of a generated world holds toward the
+player: `Ally`, `Neutral` or `Enemy`.
+
+```ron
+(
+    name: OnDocked,
+    actions: [SetStance((body: "$id", stance: Enemy))],
+),
+```
+
+<details class="explain">
+<summary>Show explanation</summary>
+
+| field | type | default | meaning |
+|---|---|---|---|
+| `body` | binding | required | `$id` or `$other_id`: a body of the civilization, read from the event |
+| `stance` | `Ally` / `Neutral` / `Enemy` | required | the stance the civilization takes |
+
+A civilization has no id an author can write. The action names a body, and
+the civilization is the one that body belongs to: a living generated station
+or an intact generated ship. `$id` is the subject of the event and
+`$other_id` its other party. Under
+[`OnDocked`](../events/#docking-lifecycle) `$id` is the station the player
+docked with.
+
+The civilization takes the stance at once. Its pending offences, merits and
+provocation clear. Its ships and stations change side on the same frame, and
+[`OnStanceChanged`](../events/#onstancechanged) fires with `from` and `to`.
+No neighbour follows. A civilization already on the stance is left as it is
+and fires nothing.
+
+An `Enemy` the action makes is like one the player earned: it returns to
+`Neutral` after two hours of play with no new offence, and a paid fine
+settles it. To hold it, set it again from an `OnStanceChanged` handler. A
+civilization set back to the stance its world drew keeps that stance with no
+clock.
+
+An action that cannot run moves no stance, logs an error and raises
+[`OnActionRefused`](../events/#onactionrefused):
+
+| `reason` | when |
+|---|---|
+| `unknown_body` | no live body carries the bound id |
+| `no_civilization` | the body belongs to none: an authored station, a rock, a dead hull |
+
+Lint, then load, refuses a `body` that is not a binding, a binding the
+event's payload does not carry, a `SetStance` inside a
+[`Sequence`](#sequence) or [`Cinematic`](#cinematic) step (a step has no
+payload), and a `SetStance` in a scenario with no generated `world`.
 
 </details>
 

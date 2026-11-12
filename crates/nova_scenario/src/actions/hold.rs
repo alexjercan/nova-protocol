@@ -29,6 +29,12 @@ pub enum ActionRefusalType {
     HoldFull,
     /// The hold carries fewer of the item than the action takes.
     ShortItems,
+    /// No live body carries the id, or the reference binds a payload field
+    /// the event does not carry.
+    UnknownBody,
+    /// The body belongs to no civilization: an authored body, a rock, a
+    /// dead hull.
+    NoCivilization,
 }
 
 impl ActionRefusalType {
@@ -40,6 +46,8 @@ impl ActionRefusalType {
             ActionRefusalType::CreditOverflow => "credit_overflow",
             ActionRefusalType::HoldFull => "hold_full",
             ActionRefusalType::ShortItems => "short_items",
+            ActionRefusalType::UnknownBody => "unknown_body",
+            ActionRefusalType::NoCivilization => "no_civilization",
         }
     }
 }

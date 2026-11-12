@@ -28,9 +28,9 @@ use crate::{
 /// Glob-import surface: `use nova_gameplay::civilization::prelude::*`.
 pub mod prelude {
     pub use super::{
-        CivilizationId, CivilizationStances, StanceChanged, StanceRecord, StanceStep, StanceType,
-        ENEMY_DECAY_SECONDS, MERIT_STEP, OFFENCE_STEP, OFFENCE_WINDOW_SECONDS,
-        PROVOKED_WINDOW_SECONDS,
+        CivilizationId, CivilizationStances, SetStanceRequest, StanceChanged, StanceRecord,
+        StanceStep, StanceType, ENEMY_DECAY_SECONDS, MERIT_STEP, OFFENCE_STEP,
+        OFFENCE_WINDOW_SECONDS, PROVOKED_WINDOW_SECONDS,
     };
 }
 
@@ -268,10 +268,25 @@ pub struct StanceStep {
 /// Raised by whatever moved a civilization's table stance, once per
 /// [`StanceStep`]: the open world for an offence, the neighbours it reaches
 /// and the decay; the Jobs pane for a merit; the station's settle for a paid
-/// fine. A provocation moves no table stance and raises none, and neither
-/// does a Load, which restores the table in place.
+/// fine; the open world again for a [`SetStanceRequest`] it applied. A
+/// provocation moves no table stance and raises none, and neither does a
+/// Load, which restores the table in place.
 #[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct StanceChanged(pub StanceStep);
+
+/// Asks the open world to put `civilization` on `stance` toward the player
+/// ([`CivilizationStances::set`]). Raised by the scenario action `SetStance`,
+/// which has resolved the civilization from a body that carries a
+/// [`crate::market::TraderMarket`]. The open world owns the seed's draw, so
+/// it applies the request and raises [`StanceChanged`] when the stance
+/// moved.
+#[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SetStanceRequest {
+    /// The civilization to move.
+    pub civilization: CivilizationId,
+    /// The table stance it takes.
+    pub stance: StanceType,
+}
 
 /// The player's table of civilization stances: sparse, one record per
 /// civilization whose standing differs from the seed or has something
@@ -360,6 +375,49 @@ impl CivilizationStances {
             record.enemy_since = None;
             record.outlaw_hulls = 0;
         }
+        Some(StanceStep {
+            civilization,
+            from,
+            to,
+        })
+    }
+
+    /// Put `civilization` on the table stance `to` at `now`, whatever moved
+    /// it before: a scenario's write, not a step the player earned.
+    ///
+    /// A civilization already on `to` keeps its record as it is and gives
+    /// `None`: nothing pending is cleared, and a provocation that holds
+    /// still reads Enemy.
+    ///
+    /// Any other write replaces the record. The offences, the merits and the
+    /// provocation clear and the outlaw count returns to zero for every
+    /// target: the civilization starts clean on its new stance, so a pending
+    /// tally cannot step it away one event later and no kill made under the
+    /// old stance counts for the pirate's charter. `enemy_since` is `now`
+    /// when `to` is Enemy and the seed drew another stance, and `None`
+    /// otherwise. So a scripted Enemy is an Enemy by events: it decays to
+    /// Neutral after [`ENEMY_DECAY_SECONDS`] with no new offence, the paid
+    /// fine settles it and its hulls count as outlaw hulls. A script that
+    /// wants it held sets it again on the `StanceChanged` the decay raises.
+    /// A write of the seed's own stance leaves nothing the seed does not
+    /// say, so the record is dropped: a seeded Enemy never decays.
+    pub fn set(
+        &mut self,
+        civilization: CivilizationId,
+        seeded: StanceType,
+        to: StanceType,
+        now: f64,
+    ) -> Option<StanceStep> {
+        let from = self.stance(&civilization, seeded);
+        if from == to {
+            return None;
+        }
+        let mut record = StanceRecord::seeded(to);
+        if to == StanceType::Enemy && seeded != StanceType::Enemy {
+            record.enemy_since = Some(now);
+        }
+        self.records.insert(civilization, record);
+        self.prune(&civilization, seeded);
         Some(StanceStep {
             civilization,
             from,
@@ -746,6 +804,85 @@ mod tests {
         let mut bad = table;
         bad.records.get_mut(&x).unwrap().provoked_at = Some(-1.0);
         assert!(bad.validate(20.0).is_err(), "a stamp below zero");
+    }
+
+    /// A set from every table stance to every other, under every seed, over
+    /// a record with every tally pending: the step names both ends, the
+    /// record is clean, only an Enemy the seed did not draw is stamped, a
+    /// write of the seed's stance drops the record, and the table is one a
+    /// save accepts.
+    #[test]
+    fn a_set_moves_any_stance_to_any_other_and_leaves_a_table_a_save_accepts() {
+        const ALL: [StanceType; 3] = [StanceType::Ally, StanceType::Neutral, StanceType::Enemy];
+        let x = civilization([0, 0, 0]);
+        for seeded in ALL {
+            for from in ALL {
+                for to in ALL {
+                    let mut table = CivilizationStances::default();
+                    table.set(x, seeded, from, 5.0);
+                    table.offence(x, seeded, 6.0);
+                    table.merit(x, seeded, 7.0);
+                    table.provoke(x, seeded, 8.0);
+                    table.count_outlaw_hull(&x);
+                    let before = table.clone();
+                    let case = format!("seed {seeded:?}, {from:?} -> {to:?}");
+
+                    let step = table.set(x, seeded, to, 10.0);
+
+                    assert_eq!(table.validate(10.0), Ok(()), "{case}");
+                    assert_eq!(table.stance(&x, seeded), to, "{case}");
+                    if from == to {
+                        assert_eq!(step, None, "{case}");
+                        assert_eq!(table, before, "{case}: nothing pending is cleared");
+                        continue;
+                    }
+                    assert_eq!(
+                        step,
+                        Some(StanceStep {
+                            civilization: x,
+                            from,
+                            to,
+                        }),
+                        "{case}"
+                    );
+                    assert_eq!(table.effective(&x, seeded, 10.0), to, "{case}");
+                    if to == seeded {
+                        assert_eq!(table.record(&x), None, "{case}: back on the seed");
+                        continue;
+                    }
+                    let mut expected = StanceRecord::seeded(to);
+                    expected.enemy_since = (to == StanceType::Enemy).then_some(10.0);
+                    assert_eq!(table.record(&x), Some(&expected), "{case}");
+                }
+            }
+        }
+    }
+
+    /// An Enemy a set made decays like one the player's offences made, and
+    /// a set of the seed's own Enemy does not.
+    #[test]
+    fn a_set_enemy_decays_unless_the_seed_drew_it() {
+        let mut table = CivilizationStances::default();
+        let x = civilization([0, 0, 0]);
+        table.set(x, StanceType::Neutral, StanceType::Enemy, 10.0);
+        assert_eq!(table.outlaw_progress(), (1, 0));
+        assert!(table
+            .expire(10.0 + ENEMY_DECAY_SECONDS - 1.0, |_| StanceType::Neutral)
+            .is_empty());
+        let steps = table.expire(10.0 + ENEMY_DECAY_SECONDS, |_| StanceType::Neutral);
+        assert_eq!(steps.len(), 1);
+        assert_eq!(steps[0].to, StanceType::Neutral);
+
+        let seeded_enemy = civilization([1, 0, 0]);
+        table.set(seeded_enemy, StanceType::Enemy, StanceType::Ally, 10.0);
+        table.set(seeded_enemy, StanceType::Enemy, StanceType::Enemy, 20.0);
+        assert!(table
+            .expire(20.0 + ENEMY_DECAY_SECONDS * 2.0, |_| StanceType::Enemy)
+            .is_empty());
+        assert_eq!(
+            table.stance(&seeded_enemy, StanceType::Enemy),
+            StanceType::Enemy
+        );
     }
 
     /// Steps saturate at both ends and a side maps to its stance and back.

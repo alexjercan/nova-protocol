@@ -246,6 +246,8 @@ impl Plugin for NovaWorldBasePlugin {
         // the moment the tally crosses.
         app.add_observer(stance::record_offence);
         app.add_observer(stance::record_provocation);
+        // A scenario's `SetStance` asks; the seed's draw lives here.
+        app.add_observer(stance::apply_stance_request);
         // An accepted job puts its bodies in the world; one observer per
         // located kind marks the held job done off the existing event kinds.
         app.add_observer(jobs::spawn_job_bodies);

@@ -1424,6 +1424,17 @@ fn check_action(
                 issues,
             );
         }
+        EventActionConfig::SetStance(config) => {
+            check_generated_body_reference(
+                "SetStance",
+                "body",
+                &config.body,
+                "belongs to no civilization",
+                scenario,
+                satisfiable,
+                issues,
+            );
+        }
         EventActionConfig::SetAILeash(config) => {
             check_ai_ship(&config.ship, "SetAILeash", scenario, declared, issues);
             if let Some(leash) = &config.leash {
@@ -1575,10 +1586,10 @@ fn check_target(
 /// A GENERATED id is refused in a reference too, and ahead of the resolve: a
 /// body like `sector_0_0_0_background_rock_3` exists only at runtime, on a
 /// seed, so no scenario spawns it and no author may name it. A handler reaches
-/// one through the firing event instead - `$id` or `$other_id` on the two
-/// objective-marker actions, the only fields that read a payload binding. A
-/// `$` spelling anywhere else is refused by name, so it cannot lint green and
-/// then resolve as a literal nobody spawned.
+/// one through the firing event instead - `$id` or `$other_id` on the actions
+/// [`reads_payload_binding`] lists, the only fields that read a payload
+/// binding. A `$` spelling anywhere else is refused by name, so it cannot lint
+/// green and then resolve as a literal nobody spawned.
 fn check_object_names(
     action: &EventActionConfig,
     scenario: &str,
@@ -1589,18 +1600,15 @@ fn check_object_names(
         return;
     };
     let tag = action.tag().name();
-    let reads_payload = matches!(
-        action,
-        EventActionConfig::ObjectiveMarkerAttach(_) | EventActionConfig::ObjectiveMarkerDetach(_)
-    );
+    let reads_payload = reads_payload_binding(action);
     walk_names(payload, &mut |named| match named.names {
         Names::Object if payload_binding(named.text).is_some() => {
             if !reads_payload {
                 issues.push(LintIssue::error(
                     scenario,
                     format!(
-                        "{tag} `{}` is '{}', a payload binding only ObjectiveMarkerAttach and \
-                         ObjectiveMarkerDetach read",
+                        "{tag} `{}` is '{}', a payload binding only ObjectiveMarkerAttach, \
+                         ObjectiveMarkerDetach and SetStance read",
                         named.field, named.text
                     ),
                 ));
@@ -1657,6 +1665,49 @@ fn check_object_names(
         }
         _ => {}
     });
+}
+
+/// Whether `action` reads a `$id` / `$other_id` object reference from the
+/// firing event's payload. The one list: an action that binds joins it here
+/// and resolves the reference with `bind_object_reference`.
+fn reads_payload_binding(action: &EventActionConfig) -> bool {
+    matches!(
+        action,
+        EventActionConfig::ObjectiveMarkerAttach(_)
+            | EventActionConfig::ObjectiveMarkerDetach(_)
+            | EventActionConfig::SetStance(_)
+    )
+}
+
+/// A reference that only a generated body can satisfy must be a payload
+/// binding. A literal that resolves names a body this scenario spawns, and
+/// an authored body is never what the action needs (`lacks` says what it
+/// lacks), so the action would be refused on every run. A literal nothing
+/// spawns, a misspelled binding and a generated id are named by
+/// [`check_object_names`].
+fn check_generated_body_reference(
+    tag: &str,
+    field: &str,
+    reference: &str,
+    lacks: &str,
+    scenario: &str,
+    satisfiable: &dyn Fn(&str) -> bool,
+    issues: &mut Vec<LintIssue>,
+) {
+    if reference.starts_with('$')
+        || reference.parse::<GeneratedBodyId>().is_ok()
+        || !satisfiable(reference)
+    {
+        return;
+    }
+    issues.push(LintIssue::error(
+        scenario,
+        format!(
+            "{tag} `{field}` is '{reference}', a body this scenario spawns; an authored body \
+             {lacks} - bind a generated body from the event with \
+             '{PAYLOAD_SUBJECT_REFERENCE}' or '{PAYLOAD_OTHER_REFERENCE}'"
+        ),
+    ));
 }
 
 /// A scripted action's actor: nothing else may be driving it.
@@ -2219,16 +2270,20 @@ enum GeneratedWorldOnlyType {
     Event(EventConfig),
     /// A scenario query, as a watch or an inline expression factor.
     Query(ScenarioProperty),
+    /// An action, in a handler or a step, however deeply nested.
+    Action(ActionTag),
 }
 
 impl GeneratedWorldOnlyType {
-    /// The name an author wrote: an event's RON tag, a query's text form.
+    /// The name an author wrote: an event's or an action's RON tag, a
+    /// query's text form.
     fn name(self) -> String {
         match self {
             GeneratedWorldOnlyType::Event(event) => event.name().to_string(),
             GeneratedWorldOnlyType::Query(property) => {
                 QueryConfig::Scenario(ScenarioQuery { property }).to_string()
             }
+            GeneratedWorldOnlyType::Action(action) => action.name().to_string(),
         }
     }
 }
@@ -2247,6 +2302,10 @@ const NO_SECTOR: &str = "only a generated world has sectors to cross, so the eve
 /// Why the sector query has no value on a `Void` world.
 const NO_CURRENT_SECTOR: &str =
     "only a generated world has sectors, so the query never has a value and every read fails";
+
+/// Why `SetStance` is refused on every run on a `Void` world.
+const NO_CIVILIZATION_TO_SET: &str =
+    "only a generated world has civilizations, so the action is refused on every run";
 
 /// Everything a `Void` scenario may not name, each with why it can never
 /// happen there. The one list [`check_generated_world_only`] reads: an
@@ -2282,11 +2341,15 @@ const GENERATED_WORLD_ONLY: &[(GeneratedWorldOnlyType, &str)] = &[
         GeneratedWorldOnlyType::Query(ScenarioProperty::Sector),
         NO_CURRENT_SECTOR,
     ),
+    (
+        GeneratedWorldOnlyType::Action(ActionTag::SetStance),
+        NO_CIVILIZATION_TO_SET,
+    ),
 ];
 
 /// Every use a scenario makes of vocabulary [`GENERATED_WORLD_ONLY`] could
-/// list: each handler's event and each step gate's, however deeply nested,
-/// and each scenario query a watch or an expression reads.
+/// list: each handler's event and each step gate's, each action, however
+/// deeply nested, and each scenario query a watch or an expression reads.
 fn generated_world_only_uses(scenario: &ScenarioConfig) -> Vec<GeneratedWorldOnlyType> {
     let mut uses = Vec::new();
     let watched = scenario.watches.iter().map(|watch| &watch.query);
@@ -2299,6 +2362,7 @@ fn generated_world_only_uses(scenario: &ScenarioConfig) -> Vec<GeneratedWorldOnl
         uses.push(GeneratedWorldOnlyType::Event(event.name));
         for action in &event.actions {
             action.walk(&mut |action| {
+                uses.push(GeneratedWorldOnlyType::Action(action.tag()));
                 let Some((_, steps)) = action.step_chain() else {
                     return;
                 };
@@ -2377,6 +2441,9 @@ fn check_action_payload_reads(
         _ => {}
     }
     check_payload_fields(&fields, action.tag().label(), scope, scenario, issues);
+    if let EventActionConfig::SetStance(config) = action {
+        check_binding_payload("SetStance", "body", &config.body, scope, scenario, issues);
+    }
 
     let Some((_, steps)) = action.step_chain() else {
         return;
@@ -2394,6 +2461,49 @@ fn check_action_payload_reads(
         }
         for action in &step.actions {
             check_action_payload_reads(action, PayloadScopeType::Step, scenario, issues);
+        }
+    }
+}
+
+/// Hold a `$id` / `$other_id` reference against the payload that reaches the
+/// action. A binding the payload lacks names nothing: at runtime the action
+/// is refused on every run.
+fn check_binding_payload(
+    tag: &str,
+    field: &str,
+    reference: &str,
+    scope: PayloadScopeType,
+    scenario: &str,
+    issues: &mut Vec<LintIssue>,
+) {
+    let Some(bound) = payload_binding(reference) else {
+        return;
+    };
+    match scope {
+        PayloadScopeType::Step => issues.push(LintIssue::error(
+            scenario,
+            format!(
+                "{tag} `{field}` is '{reference}' inside a Sequence or Cinematic step; a \
+                 step's actions run with no event payload, so the binding names nothing - \
+                 run the action from the handler"
+            ),
+        )),
+        PayloadScopeType::Event(event) => {
+            if event
+                .payload_fields()
+                .iter()
+                .any(|carried| carried == bound)
+            {
+                return;
+            }
+            issues.push(LintIssue::error(
+                scenario,
+                format!(
+                    "{tag} `{field}` is '{reference}' under {}, whose payload has no \
+                     '{bound}'",
+                    event.name()
+                ),
+            ));
         }
     }
 }
@@ -2680,7 +2790,7 @@ mod tests {
              'sector_n2_0_0_background_rock_3', which exists only at runtime",
             "object 'sector_n2_0_0_background_rock_3' field 'id' spells a generated body id",
             "DespawnScenarioObject `id` is '$other_id', a payload binding only \
-             ObjectiveMarkerAttach and ObjectiveMarkerDetach read",
+             ObjectiveMarkerAttach, ObjectiveMarkerDetach and SetStance read",
             "ObjectiveMarkerDetach `target_id` is '$target'; a payload binding is '$id' or \
              '$other_id'",
             "entity filter names the generated body 'sector_n2_0_0_background_rock_3'",
@@ -6014,6 +6124,108 @@ mod tests {
             assert_eq!(found.len(), 1, "{reason}: {found:?}");
             assert!(found[0].contains(reason), "{reason}: {found:?}");
         }
+    }
+
+    fn set_stance(body: &str) -> EventActionConfig {
+        EventActionConfig::SetStance(SetStanceActionConfig {
+            body: body.to_string(),
+            stance: nova_gameplay::prelude::StanceType::Enemy,
+        })
+    }
+
+    /// The error messages of `actions` run by an `event` handler on a
+    /// generated world, beside a start handler that spawns a freighter.
+    fn generated_world_errors(event: EventConfig, actions: Vec<EventActionConfig>) -> Vec<String> {
+        let start_role = || {
+            EventActionConfig::SpawnStartRole(StartRoleSpawnConfig {
+                id: "player".to_string(),
+            })
+        };
+        let mut s = scenario(vec![start_role(), spawn_ship("freighter", "hull")], vec![]);
+        s.world = generated(None);
+        s.events.push(on_resume(vec![start_role()]));
+        let mut handler = s.events[0].clone();
+        handler.name = event;
+        handler.actions = actions;
+        s.events.push(handler);
+        let issues = lint_scenario(
+            &s,
+            &sections(&["hull"]),
+            &ships(&[]),
+            &stations(&[]),
+            &known(&["test_scenario"]),
+            &nova_gameplay::test_support::test_items(),
+            &GameStyles::default(),
+            &GameTradeProfiles::default(),
+        );
+        errors(&issues)
+            .iter()
+            .map(|issue| issue.message.clone())
+            .collect()
+    }
+
+    /// `SetStance` names a body of a civilization, which only the generator
+    /// spawns: the reference is a binding the handler's event carries. A
+    /// spawned body, a binding the payload lacks and a step with no payload
+    /// are each refused on every run, so each is an error.
+    #[test]
+    fn set_stance_binds_a_body_the_handler_s_event_carries() {
+        for binding in ["$id", "$other_id"] {
+            let found = generated_world_errors(EventConfig::OnDocked, vec![set_stance(binding)]);
+            assert!(found.is_empty(), "{binding}: {found:?}");
+        }
+
+        for (event, action, reason) in [
+            (
+                EventConfig::OnDocked,
+                set_stance("freighter"),
+                "SetStance `body` is 'freighter', a body this scenario spawns; an authored body \
+                 belongs to no civilization",
+            ),
+            (
+                EventConfig::OnDocked,
+                set_stance("ghost"),
+                "targets id 'ghost'",
+            ),
+            (
+                EventConfig::OnTimerEnd,
+                set_stance("$id"),
+                "SetStance `body` is '$id' under OnTimerEnd, whose payload has no 'id'",
+            ),
+            (
+                EventConfig::OnDocked,
+                sequence(
+                    "later",
+                    vec![SequenceStepConfig {
+                        actions: vec![set_stance("$id")],
+                        deadline: Some(1.0),
+                        ..default()
+                    }],
+                ),
+                "SetStance `body` is '$id' inside a Sequence or Cinematic step",
+            ),
+        ] {
+            let found = generated_world_errors(event, vec![action]);
+            assert_eq!(found.len(), 1, "{reason}: {found:?}");
+            assert!(found[0].contains(reason), "{reason}: {found:?}");
+        }
+    }
+
+    /// A void has no civilization, so `SetStance` there is refused on every
+    /// run, in a handler or a step.
+    #[test]
+    fn set_stance_on_a_void_world_is_an_error() {
+        let mut docked = scenario(vec![set_stance("$id")], vec![]);
+        docked.events[0].name = EventConfig::OnDocked;
+        let found = void_world_errors(&docked);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(
+            found[0].starts_with("`SetStance` on a `Void` world: only a generated world has"),
+            "{found:?}"
+        );
+
+        docked.world = generated(Some(1));
+        assert!(void_world_errors(&docked).is_empty());
     }
 
     fn number(n: f64) -> VariableExpressionNode {

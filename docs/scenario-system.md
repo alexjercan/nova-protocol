@@ -102,9 +102,11 @@ structurally. The example mod's `example_bounds` is the shipped instance, and
 Some vocabulary only a generated world can serve: a `Void` has no station
 that posts a job board, no civilization and no sector. `GENERATED_WORLD_ONLY`
 (`lint/scenario.rs`) is the one list of it, each row with its reason, and a
-`Void` scenario that names a row - as a handler's event or a step's `until`
-gate - is a lint Error, because the handler could never run. Today the rows
-are the four job events, `OnStanceChanged` and `OnSectorEntered`.
+`Void` scenario that names a row - as a handler's event, a step's `until`
+gate, a query or an action - is a lint Error, because the handler could never
+run or the action is refused on every run. Today the rows are the four job
+events, `OnStanceChanged`, `OnSectorEntered`, the `scenario.sector` query and
+the `SetStance` action.
 
 `nova_world_base::sync_open_world` arms `WorldConfig` from this block and the
 player ship, and disarms it under a `Void` scenario or none. The base bundle's
@@ -1060,6 +1062,17 @@ fires `OnStanceChanged` with the civilization's id text and both stance names.
 A provocation moves no table stance and a Load restores the table in place, so
 neither raises it.
 
+`SetStance` crosses the other way, by a request. The seed's draw of a stance
+(`seeded_stance`) lives in `nova_world_base`, above `nova_scenario`, so the
+action cannot write the table. It binds its `body` from the payload, finds
+the body and its `TraderMarket`, refuses `unknown_body` or `no_civilization`
+through `refuse_action`, and raises the gameplay event
+`SetStanceRequest { civilization, stance }`. `apply_stance_request`
+(`nova_world_base/src/stance.rs`) calls `CivilizationStances::set` and raises
+`StanceChanged` when the stance moved, so `OnStanceChanged` fires through the
+same bridge. An action that binds a payload reference joins
+`reads_payload_binding` in `lint/scenario.rs`.
+
 `OnSectorEntered` is fired by `nova_world`, the owner of the crossing:
 `fire_sector_entered` (`streaming.rs`) reads the `SectorCrossed` messages in
 `NovaWorldSystems::Observe`, after `track_current_sector` posts them, and fires
@@ -1084,7 +1097,7 @@ or a Retry starts in fires nothing.
   `ShipInventoryReport` variant; it does not get a second queue.
 - Action: config struct + `EventAction<NovaEventWorld>` impl in the right
   `actions/` submodule (`audio`/`cinematic`/`flow`/`hold`/`mission`/`sequence`/
-  `ship`/`spawn`/`timer`/`view`), plus a row in the `registry::scenario_actions!`
+  `ship`/`spawn`/`stance`/`timer`/`view`), plus a row in the `registry::scenario_actions!`
   table in `actions/mod.rs`. The `EventActionConfig` variant is GENERATED from
   that row - writing one by hand collides with the macro. An action that can
   be impossible at run time checks before it writes and calls `refuse_action`
