@@ -124,7 +124,7 @@ fn report_pinpoints_reference_balance_and_input_findings() {
         .iter()
         .find(|f| f.category == Category::InputOverlap)
         .expect("guns-on-Space is an input-overlap finding");
-    assert_eq!(overlap.severity, Severity::Warn);
+    assert_eq!(overlap.severity, Severity::Error);
     assert_eq!(overlap.file.as_deref(), Some(file));
     assert!(
         overlap.element.contains("guns") && overlap.message.contains("Space"),
@@ -133,10 +133,10 @@ fn report_pinpoints_reference_balance_and_input_findings() {
         overlap.message
     );
 
-    // Both error classes gate the CLI; the warning does not.
+    // All three error classes gate the CLI.
     assert!(
-        report.error_count() >= 2,
-        "reference + balance errors both count: {} errors",
+        report.error_count() >= 3,
+        "reference, balance and overlap errors all count: {} errors",
         report.error_count()
     );
 

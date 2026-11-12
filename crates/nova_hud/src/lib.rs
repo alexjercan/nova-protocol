@@ -455,15 +455,23 @@ fn hud_key_is_the_players() -> impl bevy::ecs::schedule::SystemCondition<()> {
 
 /// Cycle the HUD level on whatever `hud_cinematic` is bound to.
 /// Press-to-cycle, no hold gesture: two states, so one press round-trips.
+///
+/// While the player ship is [`WeaponsHot`], only a keyboard or mouse source
+/// cycles. The pad's HUD button is the railgun default, and a railgun commits
+/// only while the weapons are hot, so one pad press must not commit a shot and
+/// drop the HUD. The source is read off the button state through the binding,
+/// not off the device used last.
 fn cycle_hud_visibility(
     sources: InputSources,
     bindings: Res<InputBindings>,
     mut level: ResMut<HudVisibility>,
+    q_hot: Query<&WeaponsHot, With<PlayerSpaceshipMarker>>,
 ) {
     let Some(action) = bindings.get("hud_cinematic") else {
         return;
     };
-    if sources.just_pressed(action) {
+    let hot = q_hot.iter().any(|hot| hot.0);
+    if sources.just_pressed_desk(action) || (!hot && sources.just_pressed_pad(action)) {
         let next = level.next();
         info!("hud visibility: {:?} -> {:?}", *level, next);
         *level = next;
@@ -979,6 +987,33 @@ mod tests {
             level(&app),
             HudVisibility::Cinematic,
             "the pad drops the instruments without a keyboard press"
+        );
+    }
+
+    /// View is the railgun default on pad, and a railgun commits only while
+    /// the weapons are hot: a hot pad press must not also drop the HUD. The
+    /// key holds no weapon, so it still cycles.
+    #[test]
+    fn the_pad_button_leaves_the_hud_alone_while_the_weapons_are_hot() {
+        let mut app = app();
+        app.world_mut()
+            .spawn((PlayerSpaceshipMarker, WeaponsHot(true)));
+        let mut pad = Gamepad::default();
+        pad.digital_mut().press(GamepadButton::Select);
+        app.world_mut().spawn(pad);
+
+        app.update();
+        assert_eq!(
+            level(&app),
+            HudVisibility::On,
+            "a hot pad press is the railgun's"
+        );
+
+        press_backquote(&mut app);
+        assert_eq!(
+            level(&app),
+            HudVisibility::Cinematic,
+            "the key cycles the HUD whatever the weapons do"
         );
     }
 

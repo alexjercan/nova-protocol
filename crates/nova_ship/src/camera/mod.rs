@@ -37,6 +37,8 @@ pub mod wasd;
 pub mod wasd_controller;
 mod zoom;
 
+#[cfg(test)]
+pub(crate) use self::rig::player_input_rig;
 pub use self::{
     authority::{CameraAuthorityPlugin, CameraAuthoritySystems},
     framing::{chase_camera_opening_pose, CAMERA_HULL_CLEARANCE},
@@ -60,10 +62,12 @@ use self::{
     rig::{
         destroy_camera_controller, insert_camera_controller, insert_camera_freelook,
         insert_camera_turret, insert_player_input, rebuild_player_input_on_rebind,
-        PlayerInputMarker,
     },
 };
-pub(crate) use self::{mode::action_held, rig::CombatInput};
+pub(crate) use self::{
+    mode::action_held,
+    rig::{CombatInput, PlayerInputMarker},
+};
 
 /// Glob-import surface: `use nova_gameplay::camera::prelude::*` re-exports the
 /// public API of this module and of the six rigs it is built on.

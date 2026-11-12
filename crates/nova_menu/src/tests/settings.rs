@@ -1203,6 +1203,146 @@ fn every_owners_actions() -> impl Iterator<Item = ActionBinding> {
         .chain(nova_scenario::prelude::scenario_bindings())
 }
 
+/// The sources every bindable section class takes by default, mining with
+/// each of its keys: what the editor and a start role hand a player.
+fn shipped_section_defaults() -> Vec<(SectionClass, Vec<InputSource>)> {
+    use nova_ship::input::bindings::section_default_bindings;
+
+    let mut defaults: Vec<(SectionClass, Vec<InputSource>)> = [
+        SectionClass::Thruster,
+        SectionClass::Turret,
+        SectionClass::Torpedo,
+        SectionClass::Railgun,
+    ]
+    .into_iter()
+    .map(|class| {
+        (
+            class,
+            section_default_bindings(class, &[]).expect("only mining can run out of keys"),
+        )
+    })
+    .collect();
+    let mut mining = Vec::new();
+    while let Some(next) = section_default_bindings(SectionClass::Mining, &mining) {
+        mining.extend(next);
+    }
+    defaults.push((SectionClass::Mining, mining));
+    defaults
+}
+
+/// What is wrong with a set of section defaults against the live table and
+/// the shared-pair rows: a source a Flight action holds, or two classes hold,
+/// with no row naming the pair and its guard; and a row that names a pair
+/// that is not there.
+fn section_default_faults(
+    table: &InputBindings,
+    defaults: &[(SectionClass, Vec<InputSource>)],
+    shared: &[nova_ship::input::bindings::SharedSectionSource],
+) -> Vec<String> {
+    use nova_input::prelude::ActionContext;
+    use nova_ship::input::bindings::SharedHolderType;
+
+    let named = |class: SectionClass, source: InputSource, holder: SharedHolderType| {
+        shared.iter().any(|row| {
+            row.class == class
+                && row.source == source
+                && row.holder == holder
+                && !row.guard.is_empty()
+        })
+    };
+    let holds = |class: SectionClass, source: InputSource| {
+        defaults
+            .iter()
+            .any(|(other, sources)| *other == class && sources.contains(&source))
+    };
+    let mut faults = Vec::new();
+    for (at, (class, sources)) in defaults.iter().enumerate() {
+        for &source in sources {
+            if let Some(action) = table.holder_in(ActionContext::Flight, source) {
+                if !named(*class, source, SharedHolderType::Action(action.name)) {
+                    faults.push(format!(
+                        "{class:?} default {} is held by `{}` with no shared-pair row",
+                        source.label(),
+                        action.name
+                    ));
+                }
+            }
+            for (other, _) in &defaults[at + 1..] {
+                if holds(*other, source)
+                    && !named(*class, source, SharedHolderType::Section(*other))
+                    && !named(*other, source, SharedHolderType::Section(*class))
+                {
+                    faults.push(format!(
+                        "{class:?} and {other:?} defaults share {} with no shared-pair row",
+                        source.label()
+                    ));
+                }
+            }
+        }
+    }
+    for row in shared {
+        let real = holds(row.class, row.source)
+            && match row.holder {
+                SharedHolderType::Action(name) => table
+                    .holder_in(ActionContext::Flight, row.source)
+                    .is_some_and(|action| action.name == name),
+                SharedHolderType::Section(other) => holds(other, row.source),
+            };
+        if !real {
+            faults.push(format!(
+                "shared-pair row {:?} on {} names a pair that is not there",
+                row.class,
+                row.source.label()
+            ));
+        }
+    }
+    faults
+}
+
+/// A section's own key is not a registry action, so `conflicts` cannot see
+/// it, and every rig runs with `consume_input: false`: a default on a source a
+/// Flight action holds drives both on one press. The rule: each default
+/// source is free in Flight and of every other class, or it is a
+/// `shared_section_sources` row that names the other holder and the code rule
+/// that keeps the two apart. Lives here for the reason the conflict check
+/// does: the HUD and interface actions are only visible from this crate.
+#[test]
+fn every_section_default_source_is_free_in_flight_or_a_named_shared_pair() {
+    let table = InputBindings::from_actions(every_owners_actions());
+    let faults = section_default_faults(
+        &table,
+        &shipped_section_defaults(),
+        &nova_ship::input::bindings::shared_section_sources(),
+    );
+    assert!(faults.is_empty(), "{}", faults.join("; "));
+}
+
+/// The two defaults the rule retired: a bay on the left trigger launched on
+/// the pull that raises the weapons, and a railgun on the right stick click
+/// committed a charge under the interface it opened.
+#[test]
+fn a_section_default_on_the_stance_trigger_or_the_interface_stick_fails_the_rule() {
+    let table = InputBindings::from_actions(every_owners_actions());
+    let retired = [
+        (
+            SectionClass::Torpedo,
+            vec![InputSource::Gamepad(GamepadButton::LeftTrigger2)],
+        ),
+        (
+            SectionClass::Railgun,
+            vec![InputSource::Gamepad(GamepadButton::RightThumb)],
+        ),
+    ];
+    let faults = section_default_faults(&table, &retired, &[]);
+    assert_eq!(
+        faults,
+        [
+            "Torpedo default Left Trigger 2 is held by `combat_stance` with no shared-pair row",
+            "Railgun default Right Thumb is held by `interface_toggle` with no shared-pair row",
+        ]
+    );
+}
+
 /// The reason the shared keys are legal, stated as a test: exactly one of the
 /// three `G` actions is live at any instant, and which one depends on what
 /// owns the screen.

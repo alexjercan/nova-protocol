@@ -59,6 +59,18 @@ impl InputSources<'_, '_> {
             .any(|source| self.edge(source))
     }
 
+    /// Whether any KEYBOARD OR MOUSE source `action` holds is down, ignoring
+    /// the pad.
+    ///
+    /// A hold whose pad button means something else in some state still
+    /// answers on the desk in that state.
+    pub fn pressed_desk(&self, action: &ActionBinding) -> bool {
+        action
+            .sources()
+            .filter(|source| !matches!(source, InputSource::Gamepad(_)))
+            .any(|source| self.level(source))
+    }
+
     /// Whether any GAMEPAD source `action` holds is down.
     ///
     /// A view whose desk keys mean something else still orbits on the pad,

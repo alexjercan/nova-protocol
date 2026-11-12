@@ -21,9 +21,10 @@
 //!   schemes), the combat balance/fairness audit (spawned-dead ERROR,
 //!   close-spawn WARN, graded against the `balance_acks.ron` each bundle
 //!   declares beside its own manifest; a stale ack is an
-//!   ERROR), and the flight-rig input-overlap check (a content
-//!   `input_mapping` section reusing a key the always-on flight rig binds
-//!   silently double-drives flight). `--target` lints one mod: a mod
+//!   ERROR), and the reserved-source input-overlap check (a content
+//!   `input_mapping` section on a source the always-on flight or camera rig
+//!   binds drives both on one press, an ERROR unless the section kind shares
+//!   that source by default). `--target` lints one mod: a mod
 //!   directory anywhere on disk (the dir name is the mod id, portal-style)
 //!   or an in-repo id (`webmods/<id>`, `assets/mods/<id>`, or `base`).
 //!   `--report <path>` writes a per-mod document that pinpoints, for every
@@ -145,8 +146,8 @@ fn run_lint(
     }
 
     // The exit-code rule (preserved from the merged lint + audit): non-zero on
-    // any Error - a broken reference, a spawned-dead hostile, or a stale ack
-    // (all Error-grade in the report). Warnings (close-spawn, input-overlap,
+    // any Error - a broken reference, a spawned-dead hostile, a stale ack or an
+    // input overlap (all Error-grade in the report). Warnings (close-spawn,
     // authoring smells) never gate.
     if report_data.error_count() > 0 {
         ExitCode::FAILURE

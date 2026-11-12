@@ -18,9 +18,9 @@ use std::collections::BTreeMap;
 
 use bevy::prelude::*;
 use nova_events::prelude::{GeneratedBodyId, Meters3};
-use nova_gameplay::prelude::{JobMixType, RoleIconType, ShipInventoryStock};
+use nova_gameplay::prelude::{JobMixType, RoleIconType, SectionClass, ShipInventoryStock};
 use nova_input::prelude::InputSource;
-use nova_ship::prelude::{SectionKind, ADDED_MINING_KEYS};
+use nova_ship::prelude::{section_default_bindings, MINING_KEYS};
 
 use crate::objects::{
     ship_design::prelude::{ResolvedShipDesign, ShipDesignId},
@@ -91,46 +91,44 @@ pub struct StartBerthMarker;
 /// The input bindings a start role's hull, or a hull bought at a station,
 /// spawns with.
 ///
-/// Every turret takes the primary trigger (left mouse and the right gamepad
-/// trigger), every railgun `R` and every torpedo bay `F`. The first mining
-/// emitter takes `V` and each later one the next of [`ADDED_MINING_KEYS`],
+/// Every weapon and mining section takes its [`section_default_bindings`]:
+/// turrets the left mouse and the right pad trigger, torpedo bays `F` and the
+/// left bumper, railguns `R` and View. The first mining emitter takes `V` and
+/// the right pad trigger, and each later one the next of [`MINING_KEYS`],
 /// since one press must deploy one emitter. No other section is bound: the
 /// flight computer drives the thrusters.
 ///
 /// # Panics
 ///
-/// On a hull with more mining emitters than [`ADDED_MINING_KEYS`]: the
-/// spawn refuses two emitters on one key, and a generated hull carries at
-/// most two.
+/// On a hull with more mining emitters than [`MINING_KEYS`]: the spawn
+/// refuses two emitters on one key, and a generated hull carries at most two.
 pub fn start_role_bindings(hull: &ResolvedShipDesign) -> BTreeMap<SectionId, Vec<InputSource>> {
-    let mut emitters = 0;
+    let mut mining_taken = Vec::new();
     hull.sections
         .iter()
         .filter_map(|section| {
-            let sources = match section.config.kind {
-                SectionKind::Turret(_) => vec![
-                    InputSource::Mouse(MouseButton::Left),
-                    InputSource::Gamepad(GamepadButton::RightTrigger2),
-                ],
-                SectionKind::Railgun(_) => vec![InputSource::Keyboard(KeyCode::KeyR)],
-                SectionKind::Torpedo(_) => vec![InputSource::Keyboard(KeyCode::KeyF)],
-                SectionKind::Mining(_) => {
-                    let Some(&key) = ADDED_MINING_KEYS.get(emitters) else {
-                        panic!(
-                            "start_role_bindings: emitter '{}' is past the {} mining keys",
-                            section.id,
-                            ADDED_MINING_KEYS.len()
-                        );
-                    };
-                    emitters += 1;
-                    vec![InputSource::Keyboard(key)]
-                }
-                SectionKind::Hull(_)
-                | SectionKind::Thruster(_)
-                | SectionKind::Controller(_)
-                | SectionKind::Docking(_)
-                | SectionKind::CargoIntake(_) => return None,
+            let class = section.config.kind.class();
+            match class {
+                SectionClass::Turret
+                | SectionClass::Torpedo
+                | SectionClass::Railgun
+                | SectionClass::Mining => {}
+                SectionClass::Hull
+                | SectionClass::Thruster
+                | SectionClass::Controller
+                | SectionClass::Docking
+                | SectionClass::CargoIntake => return None,
+            }
+            let Some(sources) = section_default_bindings(class, &mining_taken) else {
+                panic!(
+                    "start_role_bindings: emitter '{}' is past the {} mining keys",
+                    section.id,
+                    MINING_KEYS.len()
+                );
             };
+            if class == SectionClass::Mining {
+                mining_taken.extend(sources.iter().copied());
+            }
             Some((section.id.clone(), sources))
         })
         .collect()
@@ -286,7 +284,8 @@ mod tests {
     use nova_events::prelude::Meters;
     use nova_ship::prelude::{
         BaseSectionConfig, HullSectionConfig, MiningSectionConfig, RailgunSectionConfig,
-        SectionConfig, ThrusterSectionConfig, TorpedoSectionConfig, TurretSectionConfig,
+        SectionConfig, SectionKind, ThrusterSectionConfig, TorpedoSectionConfig,
+        TurretSectionConfig,
     };
 
     use super::*;
@@ -307,10 +306,25 @@ mod tests {
         }
     }
 
-    /// A start hull binds each weapon class on its own key and each mining
-    /// emitter on `V`, and leaves plating and drives unbound.
+    fn emitter() -> SectionKind {
+        SectionKind::Mining(MiningSectionConfig {
+            render_mesh: default(),
+            render_mesh_transform: None,
+            pulse_sound: default(),
+            refusal_sound: default(),
+            door_open_sound: default(),
+            door_close_sound: default(),
+            reach: Meters(100.0),
+            pulse_interval_seconds: 1.0,
+            carve_radius_cells: 1.5,
+        })
+    }
+
+    /// A start hull binds each weapon class on its own key and pad button,
+    /// the first mining emitter on `V` and the pad trigger, a later emitter
+    /// on the next key alone, and leaves plating and drives unbound.
     #[test]
-    fn a_start_hull_binds_turrets_to_the_trigger_railguns_to_r_torpedoes_to_f_and_miners_to_v() {
+    fn a_start_hull_binds_each_weapon_class_and_each_emitter_on_its_own_sources() {
         let hull = ResolvedShipDesign {
             sections: vec![
                 section("plate", SectionKind::Hull(HullSectionConfig::default())),
@@ -324,20 +338,8 @@ mod tests {
                     SectionKind::Railgun(RailgunSectionConfig::default()),
                 ),
                 section("bay", SectionKind::Torpedo(TorpedoSectionConfig::default())),
-                section(
-                    "beam",
-                    SectionKind::Mining(MiningSectionConfig {
-                        render_mesh: default(),
-                        render_mesh_transform: None,
-                        pulse_sound: default(),
-                        refusal_sound: default(),
-                        door_open_sound: default(),
-                        door_close_sound: default(),
-                        reach: Meters(100.0),
-                        pulse_interval_seconds: 1.0,
-                        carve_radius_cells: 1.5,
-                    }),
-                ),
+                section("beam", emitter()),
+                section("beam_two", emitter()),
             ],
             ..default()
         };
@@ -356,15 +358,28 @@ mod tests {
                 ),
                 (
                     "spinal".to_string(),
-                    vec![InputSource::Keyboard(KeyCode::KeyR)]
+                    vec![
+                        InputSource::Keyboard(KeyCode::KeyR),
+                        InputSource::Gamepad(GamepadButton::Select),
+                    ],
                 ),
                 (
                     "bay".to_string(),
-                    vec![InputSource::Keyboard(KeyCode::KeyF)]
+                    vec![
+                        InputSource::Keyboard(KeyCode::KeyF),
+                        InputSource::Gamepad(GamepadButton::LeftTrigger),
+                    ],
                 ),
                 (
                     "beam".to_string(),
-                    vec![InputSource::Keyboard(KeyCode::KeyV)]
+                    vec![
+                        InputSource::Keyboard(KeyCode::KeyV),
+                        InputSource::Gamepad(GamepadButton::RightTrigger2),
+                    ],
+                ),
+                (
+                    "beam_two".to_string(),
+                    vec![InputSource::Keyboard(KeyCode::KeyB)]
                 ),
             ])
         );

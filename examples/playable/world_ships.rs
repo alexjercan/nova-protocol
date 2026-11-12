@@ -1236,13 +1236,13 @@ fn ship_action(
 /// The player's keys for every weapon and mining section of `design`, by
 /// kind: turrets on the left mouse button, bays on `F`, rails on `R`, as the
 /// `wfc_arena` player slot binds them, and each mining beam its own key of
-/// [`ADDED_MINING_KEYS`], since the lint refuses an unbound player emitter
+/// [`MINING_KEYS`], since the lint refuses an unbound player emitter
 /// and two emitters on one key.
 fn player_bindings(
     design: &ShipDesign,
     sections: &GameSections,
 ) -> std::collections::BTreeMap<String, Vec<InputSource>> {
-    let mut emitters = ADDED_MINING_KEYS.iter();
+    let mut emitters = MINING_KEYS.iter();
     design
         .sections
         .iter()

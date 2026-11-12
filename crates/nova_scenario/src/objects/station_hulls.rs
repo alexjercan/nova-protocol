@@ -304,9 +304,9 @@ mod tests {
         }
     }
 
-    /// A bought hull binds its turrets to the trigger, railguns to R,
-    /// torpedoes to F and its mining emitters to V then B, and keeps none of
-    /// the old hull's bindings, a rebind included.
+    /// A bought hull binds its weapons and mining emitters as a start role's
+    /// hull does, and keeps none of the old hull's bindings, a rebind
+    /// included.
     #[test]
     fn a_bought_hull_takes_the_start_role_bindings_and_drops_the_old_ones() {
         let beam = SectionKind::Mining(MiningSectionConfig {
@@ -355,20 +355,11 @@ mod tests {
             panic!("a bought hull stays player-driven");
         };
 
-        let trigger = vec![
-            InputSource::Mouse(MouseButton::Left),
-            InputSource::Gamepad(GamepadButton::RightTrigger2),
-        ];
-        let key = |code| vec![InputSource::Keyboard(code)];
+        assert_eq!(config.input_mapping, start_role_bindings(&hull));
         assert_eq!(
-            config.input_mapping,
-            BTreeMap::from([
-                ("pdc".to_string(), trigger),
-                ("spinal".to_string(), key(KeyCode::KeyR)),
-                ("bay".to_string(), key(KeyCode::KeyF)),
-                ("beam_a".to_string(), key(KeyCode::KeyV)),
-                ("beam_b".to_string(), key(KeyCode::KeyB)),
-            ])
+            config.input_mapping.keys().collect::<Vec<_>>(),
+            ["bay", "beam_a", "beam_b", "pdc", "spinal"],
+            "every weapon and emitter of the new hull is bound and no old section is"
         );
     }
 }

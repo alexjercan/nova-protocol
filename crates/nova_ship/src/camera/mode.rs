@@ -8,6 +8,7 @@ use nova_gameplay::{
     prelude::*,
     transform::prelude::{PointRollInput, PointRotationInput},
 };
+use nova_input::prelude::{InputBindings, InputSources};
 
 use super::rig::{
     CameraInputRotate, CombatInput, FreeLookInput, SpaceshipCameraFreeLookInputMarker,
@@ -268,22 +269,39 @@ pub(crate) fn action_held<A: InputAction>(q: &Query<&TriggerState, With<Action<A
 /// unpause is a function of what is held NOW. Deliberately not pause-gated,
 /// like the camera chain it heads: the mode is a camera concern, and every
 /// gameplay consumer of [`WeaponsRaised`] is pause-gated itself.
+///
+/// While the player ship is [`WeaponsHot`], a free look hold counts only
+/// through a keyboard or mouse source. The pad's free look button is the
+/// torpedo default, and a bay launches only while the weapons are hot, so one
+/// pad press must not launch and look away. The source is read off the button
+/// state through the `free_look` binding, not off the device used last.
 pub(super) fn derive_control_mode_and_raised(
     mut commands: Commands,
     mut mode: ResMut<SpaceshipCameraControlMode>,
     q_combat: Query<&TriggerState, With<Action<CombatInput>>>,
     q_free_look: Query<&TriggerState, With<Action<FreeLookInput>>>,
     control: Option<Res<PlayerControlSuspended>>,
+    sources: InputSources,
+    bindings: Option<Res<InputBindings>>,
     mut q_ship: Query<
-        (Entity, Option<&mut WeaponsRaised>),
+        (Entity, Option<&mut WeaponsRaised>, Option<&WeaponsHot>),
         (With<SpaceshipRootMarker>, With<PlayerSpaceshipMarker>),
     >,
 ) {
     let suspended = crate::input::player::control::player_control_is_suspended(control);
     let combat_held = !suspended && action_held(&q_combat);
+    let hot = q_ship
+        .iter()
+        .any(|(_, _, hot)| hot.is_some_and(|hot| hot.0));
+    let free_look_held = action_held(&q_free_look)
+        && (!hot
+            || bindings
+                .as_deref()
+                .and_then(|bindings| bindings.get("free_look"))
+                .is_some_and(|action| sources.pressed_desk(action)));
     let next = if combat_held {
         SpaceshipCameraControlMode::Turret
-    } else if !suspended && action_held(&q_free_look) {
+    } else if !suspended && free_look_held {
         SpaceshipCameraControlMode::FreeLook
     } else {
         SpaceshipCameraControlMode::Normal
@@ -293,7 +311,7 @@ pub(super) fn derive_control_mode_and_raised(
     // The raised flag mirrors the combat hold onto the player ship root
     // (self-healing insert: a fresh ship starts lowered and gains the flag on
     // its first frame).
-    for (ship, raised) in &mut q_ship {
+    for (ship, raised, _) in &mut q_ship {
         match raised {
             Some(mut raised) => {
                 raised.set_if_neq(WeaponsRaised(combat_held));
@@ -407,6 +425,9 @@ mod tests {
         app.add_plugins(bevy::state::app::StatesPlugin);
         app.init_state::<nova_gameplay::PauseStates>();
         app.init_resource::<SpaceshipCameraControlMode>();
+        app.insert_resource(InputBindings::from_actions(
+            crate::input::bindings::camera_bindings(),
+        ));
         app.add_input_context::<PlayerInputMarker>();
         app.add_systems(
             Update,
@@ -587,6 +608,38 @@ mod tests {
         release_rmb(&mut app);
         app.update();
         assert!(matches!(mode_of(&app), SpaceshipCameraControlMode::Normal));
+    }
+
+    /// LB is the torpedo default on pad, and a bay launches only while the
+    /// weapons are hot: a hot LB hold must not also look away. Cold, LB is
+    /// free look; hot, the key still is.
+    #[test]
+    fn the_pad_free_look_button_is_dead_while_the_weapons_are_hot() {
+        let (mut app, _normal, _freelook, _turret, ship) = mode_app();
+        // Both halves: the rig reads the analog value, the guard the digital.
+        let mut pad = Gamepad::default();
+        pad.digital_mut().press(GamepadButton::LeftTrigger);
+        pad.analog_mut().set(GamepadButton::LeftTrigger, 1.0);
+        app.world_mut().spawn(pad);
+        app.update();
+        assert!(
+            matches!(mode_of(&app), SpaceshipCameraControlMode::FreeLook),
+            "cold, the pad button is free look"
+        );
+
+        app.world_mut().entity_mut(ship).insert(WeaponsHot(true));
+        app.update();
+        assert!(
+            matches!(mode_of(&app), SpaceshipCameraControlMode::Normal),
+            "hot, the pad button is the torpedo's alone"
+        );
+
+        press_alt(&mut app);
+        app.update();
+        assert!(
+            matches!(mode_of(&app), SpaceshipCameraControlMode::FreeLook),
+            "hot, the key still looks"
+        );
     }
 
     /// Transition seeding takes the OUTGOING rig's live output: raising out

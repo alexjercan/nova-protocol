@@ -24,7 +24,11 @@ pub mod targeting;
 pub mod prelude {
     pub use super::{
         ai::prelude::*,
-        bindings::{camera_bindings, flight_bindings, flight_rig_reserved_sources},
+        bindings::{
+            camera_bindings, flight_bindings, flight_rig_reserved_sources,
+            section_default_bindings, shared_section_sources, SharedHolderType,
+            SharedSectionSource, MINING_KEYS,
+        },
         player::prelude::*,
         point_defense::prelude::*,
         targeting::prelude::*,

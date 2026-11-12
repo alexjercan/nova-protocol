@@ -234,7 +234,7 @@ pub(super) fn insert_player_input(
 /// The camera rig bundle, bound from the registry. A named fn so the rebind
 /// rebuild below spawns the SAME rig the observer does, rather than a second
 /// copy that can drift from it.
-fn player_input_rig(bindings: &InputBindings) -> impl Bundle {
+pub(crate) fn player_input_rig(bindings: &InputBindings) -> impl Bundle {
     (
         Name::new("Player Input Controller"),
         PlayerInputMarker,
@@ -333,7 +333,7 @@ pub(super) fn destroy_camera_controller(
 }
 
 #[derive(Component, Debug, Clone)]
-pub(super) struct PlayerInputMarker;
+pub(crate) struct PlayerInputMarker;
 
 #[derive(InputAction)]
 #[action_output(Vec2)]

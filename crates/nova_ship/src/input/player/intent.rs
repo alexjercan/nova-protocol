@@ -793,32 +793,42 @@ mod command_lag_tests {
     use core::time::Duration;
 
     use bevy::time::TimeUpdateStrategy;
-    use nova_input::prelude::{binding_source, InputSource};
+    use nova_input::prelude::{binding_source, InputBindings, InputSource};
 
     use super::*;
     use crate::input::player::test_support::spawn_flight_rig;
 
     /// The drift guard for [`flight_rig_reserved_sources`]: build the REAL
-    /// flight rig and confirm the hand-authored reserved list names exactly the
-    /// rig's discrete-button sources - no more, no less. If a future edit adds,
-    /// removes or rebinds a flight action, this fails until the reserved list
-    /// (and the content lint that reads it) is updated, so `input-mapping-
-    /// overlays-flight-rig` cannot silently regress.
+    /// flight and camera rigs and confirm the reserved list names exactly
+    /// their discrete-button sources - no more, no less. If a future edit
+    /// adds, removes or rebinds an action of either rig, this fails until the
+    /// reserved list (and the content lint that reads it) is updated, so
+    /// `input-mapping-overlays-flight-rig` cannot silently regress.
     #[test]
-    fn flight_rig_reserves_exactly_these_sources() {
+    fn the_flight_and_camera_rigs_reserve_exactly_these_sources() {
         use std::collections::HashSet;
 
         use bevy::input::InputPlugin;
 
+        use crate::{
+            camera::{player_input_rig, PlayerInputMarker},
+            input::bindings::camera_bindings,
+        };
+
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, InputPlugin, EnhancedInputPlugin));
         app.add_input_context::<FlightInputMarker>();
+        app.add_input_context::<PlayerInputMarker>();
         // The context registry finalizes in App::finish; run the lifecycle
         // before spawning the rig, exactly as the production app does.
         app.finish();
         app.cleanup();
         app.update();
         spawn_flight_rig(&mut app);
+        app.world_mut()
+            .spawn(player_input_rig(&InputBindings::from_actions(
+                camera_bindings(),
+            )));
         app.update();
 
         let mut rig_sources: HashSet<InputSource> = HashSet::new();
@@ -838,9 +848,9 @@ mod command_lag_tests {
         let extra: Vec<_> = reserved.difference(&rig_sources).collect();
         assert!(
             missing.is_empty() && extra.is_empty(),
-            "flight_rig_reserved_sources drifted from the real rig.\n  \
-             in the rig but not reserved (add them): {missing:?}\n  \
-             reserved but not in the rig (remove them): {extra:?}"
+            "flight_rig_reserved_sources drifted from the real rigs.\n  \
+             in a rig but not reserved (add them): {missing:?}\n  \
+             reserved but not in a rig (remove them): {extra:?}"
         );
     }
 

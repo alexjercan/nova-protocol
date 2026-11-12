@@ -579,9 +579,12 @@ cargo run content lint --target <mod> --report r.md     # + write a per-mod repo
     acknowledges its OWN deliberate imbalances in a `balance_acks.ron` beside
     its manifest, so the justification travels with the mod (a stale ack that
     matches no live finding is an ERROR, so every list stays pruned);
-  - the flight-rig input-overlap check - a content `input_mapping` section
-    bound to a key the always-on flight rig also binds (W/Space/RightTrigger
-    burn, autopilot, ...) silently double-drives flight and is flagged (WARN).
+  - the reserved-source input-overlap check - a content `input_mapping`
+    section bound to a source the always-on flight or camera rig also binds
+    (W/Space/RightTrigger burn, autopilot, free look, ...) drives both on one
+    press (ERROR). A section kind's own shared default is exempt
+    (`shared_section_sources`: a thruster on Space, a torpedo bay on the left
+    bumper).
   - `--target` lints a single mod by directory or in-repo id
     (`webmods/<id>`, `assets/mods/<id>`, or `base`); `--report <path>` writes a
     per-mod document (Markdown, or HTML for a `.html` path / `--format html`)

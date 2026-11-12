@@ -47,8 +47,9 @@ pub enum Category {
     Reference,
     /// `nova_authoring::balance`: static combat fairness (spawned-dead / close-spawn).
     Balance,
-    /// A content `input_mapping` section reusing a key the always-on flight rig
-    /// already binds (`consume_input: false`), silently double-driving flight.
+    /// A content `input_mapping` section on a source the always-on flight or
+    /// camera rig already binds (`consume_input: false`), so one press drives
+    /// both.
     InputOverlap,
 }
 

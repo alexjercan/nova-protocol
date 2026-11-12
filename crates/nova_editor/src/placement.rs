@@ -93,8 +93,8 @@ where
 /// gated on an `Option<Res<ButtonInput<GamepadButton>>>`, which bevy 0.19 does
 /// not register at all - so the gate was never open, and every ship built in
 /// the editor saved an `input_mapping` with no gamepad source. A creator's
-/// published ship could not be thrust or fired on a controller. A kind with no
-/// pad default (mining: the pad has no free button) gets the desk half only.
+/// published ship could not be thrust or fired on a controller. A default with
+/// no pad source (a ship's second mining emitter) gets the desk half only.
 fn placement_binds(
     keyboard: Option<&ButtonInput<KeyCode>>,
     pad_held: Option<GamepadButton>,
@@ -137,7 +137,7 @@ pub(crate) struct HeldBind<'w, 's> {
 impl HeldBind<'_, '_> {
     /// The bindings a section of `kind` takes, given what is held right now
     /// and the keys the ship's other mining sections hold. `None` when it is
-    /// a mining section and every [`MINING_KEYS`] key is taken.
+    /// a mining section and every mining key is taken.
     fn binds_for(
         &self,
         kind: &SectionKind,
@@ -175,13 +175,6 @@ pub(crate) fn alt_held(keys: Option<&ButtonInput<KeyCode>>) -> bool {
     keys.is_some_and(|keys| keys.any_pressed([KeyCode::AltLeft, KeyCode::AltRight]))
 }
 
-/// The desk keys mining sections take, in order. A new mining section takes the
-/// first one no other mining section on its ship holds, so one press never
-/// deploys two emitters. No Flight or Always action holds any of them; `B` is
-/// the Ship pane's rebind key, which is never live beside flight. The pad has
-/// no free button for mining.
-const MINING_KEYS: [KeyCode; 4] = [KeyCode::KeyV, KeyCode::KeyB, KeyCode::KeyN, KeyCode::KeyC];
-
 /// The refusal when a ship already holds every [`MINING_KEYS`] key.
 pub(crate) const MINING_KEYS_TAKEN: &str =
     "every mining key (V, B, N, C) is held by another mining section on this ship";
@@ -202,49 +195,17 @@ pub(crate) fn mining_keys_taken<'a>(
         .collect()
 }
 
-/// The desk and pad button a section of this kind answers to before anybody
-/// rebinds it. Hull and controller sections are not bindable and take none.
-/// Mining takes the first [`MINING_KEYS`] key not in `mining_taken`, and
-/// `None` when there is none left.
-///
-/// One weapon, one button. The three guns used to share LMB between the PDC
-/// and the tubes, which meant a ship with both spent a torpedo on every burst
-/// fired at a fighter - and a lance commit cannot be aborted, so the same
-/// sharing on a railgun is worse. These are the keys the flight HUD names and
-/// the ones a generated ship comes out already wearing, so a hull nobody drew
-/// can be flown the moment it is made the player's.
-pub(crate) fn default_binds(
-    kind: &SectionKind,
-    mining_taken: &[InputSource],
-) -> Option<Vec<InputSource>> {
-    Some(match kind {
-        SectionKind::Hull(_)
-        | SectionKind::Controller(_)
-        | SectionKind::Docking(_)
-        | SectionKind::CargoIntake(_) => vec![],
-        SectionKind::Mining(_) => vec![MINING_KEYS
-            .into_iter()
-            .map(InputSource::from)
-            .find(|key| !mining_taken.contains(key))?],
-        SectionKind::Thruster(_) => vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
-        SectionKind::Turret(_) => vec![
-            MouseButton::Left.into(),
-            GamepadButton::RightTrigger2.into(),
-        ],
-        SectionKind::Torpedo(_) => vec![KeyCode::KeyF.into(), GamepadButton::LeftTrigger2.into()],
-        SectionKind::Railgun(_) => vec![KeyCode::KeyR.into(), GamepadButton::RightThumb.into()],
-    })
-}
-
-/// The bindings a section of this kind takes when PLACED: [`default_binds`],
-/// with whatever the builder was holding as they clicked taking the desk half.
+/// The bindings a section of this kind takes when PLACED:
+/// [`section_default_bindings`], with whatever the builder was holding as they
+/// clicked taking the desk half. These are the keys the flight HUD names and
+/// the ones a generated ship comes out already wearing.
 fn default_binds_for(
     kind: &SectionKind,
     keyboard: Option<&ButtonInput<KeyCode>>,
     pad_held: Option<GamepadButton>,
     mining_taken: &[InputSource],
 ) -> Option<Vec<InputSource>> {
-    let mut binds = default_binds(kind, mining_taken)?.into_iter();
+    let mut binds = section_default_bindings(kind.class(), mining_taken)?.into_iter();
     let Some(default_key) = binds.next() else {
         return Some(vec![]);
     };
@@ -2393,32 +2354,6 @@ mod tests {
         );
     }
 
-    /// One press must not deploy two emitters: each mining section on a ship
-    /// takes the next free mining key, and a ship holding all of them refuses
-    /// another rather than doubling one up.
-    #[test]
-    fn each_mining_section_on_a_ship_takes_its_own_key() {
-        let mining = SectionKind::Mining(nova_ship::prelude::MiningSectionConfig {
-            render_mesh: nova_gameplay::prelude::AssetRef::default(),
-            render_mesh_transform: None,
-            pulse_sound: nova_gameplay::prelude::AssetRef::default(),
-            refusal_sound: nova_gameplay::prelude::AssetRef::default(),
-            door_open_sound: nova_gameplay::prelude::AssetRef::default(),
-            door_close_sound: nova_gameplay::prelude::AssetRef::default(),
-            reach: nova_events::units::prelude::Meters(100.0),
-            pulse_interval_seconds: 1.0,
-            carve_radius_cells: 1.5,
-        });
-        let mut taken = Vec::new();
-        for key in ["V", "B", "N", "C"] {
-            let binds = default_binds(&mining, &taken).expect("a mining key is free");
-            assert_eq!(binds.len(), 1, "{binds:?}");
-            assert_eq!(binds[0].label(), key);
-            taken.extend(binds);
-        }
-        assert_eq!(default_binds(&mining, &taken), None);
-    }
-
     fn mining_section_config(id: &str) -> SectionConfig {
         SectionConfig {
             base: BaseSectionConfig {
@@ -2571,73 +2506,6 @@ mod tests {
                         && !line.contains(MINING_KEYS_TAKEN)
                 }),
             "the refusal names the held key, not the generic exhaustion message"
-        );
-    }
-
-    /// One weapon, one button. The tubes used to answer to the PDC's LMB, so
-    /// a ship carrying both spent a torpedo on every burst fired at a fighter,
-    /// and the lance shared a stick with nothing a pilot could name.
-    #[test]
-    fn each_kind_of_weapon_answers_to_a_button_of_its_own() {
-        let mining = || nova_ship::prelude::MiningSectionConfig {
-            render_mesh: nova_gameplay::prelude::AssetRef::default(),
-            render_mesh_transform: None,
-            pulse_sound: nova_gameplay::prelude::AssetRef::default(),
-            refusal_sound: nova_gameplay::prelude::AssetRef::default(),
-            door_open_sound: nova_gameplay::prelude::AssetRef::default(),
-            door_close_sound: nova_gameplay::prelude::AssetRef::default(),
-            reach: nova_events::units::prelude::Meters(100.0),
-            pulse_interval_seconds: 1.0,
-            carve_radius_cells: 1.5,
-        };
-        let bound = |kind: &SectionKind| {
-            default_binds(kind, &[])
-                .unwrap()
-                .iter()
-                .map(InputSource::label)
-                .collect::<Vec<_>>()
-        };
-        assert_eq!(
-            bound(&SectionKind::Thruster(ThrusterSectionConfig::default()))[0],
-            "Space"
-        );
-        assert_eq!(
-            bound(&SectionKind::Turret(TurretSectionConfig::default()))[0],
-            "LMB"
-        );
-        assert_eq!(
-            bound(&SectionKind::Torpedo(TorpedoSectionConfig::default()))[0],
-            "F"
-        );
-        assert_eq!(
-            bound(&SectionKind::Railgun(RailgunSectionConfig::default()))[0],
-            "R"
-        );
-        assert_eq!(bound(&SectionKind::Mining(mining())), vec!["V"]);
-
-        let desk: Vec<String> = [
-            SectionKind::Thruster(ThrusterSectionConfig::default()),
-            SectionKind::Turret(TurretSectionConfig::default()),
-            SectionKind::Torpedo(TorpedoSectionConfig::default()),
-            SectionKind::Railgun(RailgunSectionConfig::default()),
-            SectionKind::Mining(mining()),
-        ]
-        .iter()
-        .flat_map(|kind| default_binds(kind, &[]).unwrap())
-        .map(|source| source.label())
-        .collect();
-        let unique: std::collections::HashSet<&String> = desk.iter().collect();
-        assert_eq!(
-            unique.len(),
-            desk.len(),
-            "no two kinds may share a button on either device: {desk:?}"
-        );
-
-        assert!(
-            default_binds(&SectionKind::Hull(HullSectionConfig::default()), &[])
-                .unwrap()
-                .is_empty(),
-            "hull is not a thing a pilot presses"
         );
     }
 }

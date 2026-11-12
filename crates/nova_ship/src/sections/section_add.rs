@@ -27,6 +27,7 @@ use nova_gameplay::prelude::{
 use nova_input::prelude::InputSource;
 
 use super::{design_sections::refit_build_fault, prelude::*};
+use crate::input::bindings::section_default_bindings;
 
 /// The free-point and fit rules, the bind rule, the id rule, the plan and the
 /// add request.
@@ -34,15 +35,9 @@ pub mod prelude {
     pub use super::{
         add_build_fault, added_section_binds, added_section_id, free_link_points, plan_section_add,
         section_add_clear, section_add_fit, section_add_pose, SectionAddFaultType, SectionAddPlan,
-        SectionAddRefusalType, SectionAddRequest, ADDED_MINING_KEYS,
+        SectionAddRefusalType, SectionAddRequest,
     };
 }
-
-/// The desk keys an added mining emitter takes, in order: the first one no
-/// other emitter on the ship holds, so one press never deploys two. The same
-/// keys, in the same order, the editor gives a placed emitter.
-pub const ADDED_MINING_KEYS: [KeyCode; 4] =
-    [KeyCode::KeyV, KeyCode::KeyB, KeyCode::KeyN, KeyCode::KeyC];
 
 /// Asks to add the catalog part `prototype` to ship `entity` as design
 /// section `section`, posed at `position` and `rotation` in ship-root space,
@@ -306,9 +301,10 @@ pub fn add_build_fault(
 /// The section joins its kind: it takes the binding of the first live
 /// section of its class, by id, that has one. With none, a weapon takes an
 /// empty binding the Ship pane's Rebind sets, and a thruster takes none, so
-/// the flight computer keeps driving it. A mining emitter takes the first of
-/// [`ADDED_MINING_KEYS`] no other emitter holds, since one press must deploy
-/// one emitter. A section that takes no input takes none.
+/// the flight computer keeps driving it. A mining emitter takes its
+/// [`section_default_bindings`] against the sources the other emitters hold,
+/// since one press must deploy one emitter. A section that takes no input
+/// takes none.
 ///
 /// # Errors
 ///
@@ -328,12 +324,15 @@ pub fn added_section_binds<'a>(
         | SectionClass::Controller
         | SectionClass::Docking
         | SectionClass::CargoIntake => Ok(None),
-        SectionClass::Mining => ADDED_MINING_KEYS
-            .into_iter()
-            .map(InputSource::from)
-            .find(|key| !siblings.iter().any(|(_, sources)| sources.contains(key)))
-            .map(|key| Some(vec![key]))
-            .ok_or(SectionAddRefusalType::NoFreeKey),
+        SectionClass::Mining => {
+            let taken: Vec<InputSource> = siblings
+                .iter()
+                .flat_map(|(_, sources)| sources.iter().copied())
+                .collect();
+            section_default_bindings(class, &taken)
+                .map(Some)
+                .ok_or(SectionAddRefusalType::NoFreeKey)
+        }
         SectionClass::Thruster
         | SectionClass::Turret
         | SectionClass::Torpedo
@@ -451,6 +450,7 @@ pub fn plan_section_add<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::input::bindings::MINING_KEYS;
 
     fn part(id: &str, kind: SectionKind, size: Vec3, link_points: Vec<LinkPoint>) -> SectionConfig {
         SectionConfig {
@@ -823,7 +823,8 @@ mod tests {
 
     /// A new section joins its kind's binding; with no bound sibling a gun
     /// takes an empty binding and a drive none; an emitter takes the first
-    /// free mining key and is refused when all are held.
+    /// free mining key, the ship's first emitter the pad trigger too, and an
+    /// emitter is refused when all keys are held.
     #[test]
     fn a_new_section_takes_its_kinds_binding_or_the_next_free_mining_key() {
         let lmb = [InputSource::Mouse(MouseButton::Left)];
@@ -843,6 +844,13 @@ mod tests {
         assert_eq!(added_section_binds(SectionClass::Thruster, bound), Ok(None));
         assert_eq!(added_section_binds(SectionClass::Hull, bound), Ok(None));
 
+        assert_eq!(
+            added_section_binds(SectionClass::Mining, bound),
+            Ok(Some(vec![
+                InputSource::Keyboard(KeyCode::KeyV),
+                InputSource::Gamepad(GamepadButton::RightTrigger2),
+            ]))
+        );
         let v = [InputSource::Keyboard(KeyCode::KeyV)];
         assert_eq!(
             added_section_binds(
@@ -851,7 +859,7 @@ mod tests {
             ),
             Ok(Some(vec![InputSource::Keyboard(KeyCode::KeyB)]))
         );
-        let all: Vec<[InputSource; 1]> = ADDED_MINING_KEYS
+        let all: Vec<[InputSource; 1]> = MINING_KEYS
             .into_iter()
             .map(|key| [InputSource::from(key)])
             .collect();

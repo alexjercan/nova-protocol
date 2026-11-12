@@ -12,7 +12,7 @@ use std::{
 use nova_assets::items::{item_pack_faults, ItemPack};
 use nova_gameplay::prelude::{
     price_table_faults, trade_profile_faults, GameItems, GameTradeProfiles, ItemDesign, PriceTable,
-    TradeProfileDesign,
+    SectionClass, TradeProfileDesign,
 };
 use nova_input::prelude::InputSource;
 use nova_mod_format::{
@@ -24,9 +24,12 @@ use nova_scenario::prelude::{
     lint_campaign, lint_scenario, lint_ship_design_config, lint_start_role, lint_station_design,
     CampaignConfig, EventActionConfig, GeneratedWorldConfig, KnownSections, KnownShipDesigns,
     KnownStationDesigns, LintIssue, LintSeverity, ScenarioConfig, ScenarioObjectKind,
-    ScenarioWorldType, ShipDesignPrototype, SpaceshipController, StartRole, StationDesignPrototype,
+    ScenarioWorldType, SectionSource, ShipDesignPrototype, ShipDesignSource, SpaceshipConfig,
+    SpaceshipController, StartRole, StationDesignPrototype,
 };
-use nova_ship::prelude::{flight_rig_reserved_sources, GameStyles, SectionConfig, ShipStyleConfig};
+use nova_ship::prelude::{
+    flight_rig_reserved_sources, shared_section_sources, GameStyles, SectionConfig, ShipStyleConfig,
+};
 use nova_training::prelude::{
     lint_lessons, unused_practice_ranges, Lesson, LessonIssue, LessonSeverity,
 };
@@ -230,14 +233,37 @@ fn walk_repo_bundles() -> Vec<WalkedBundle> {
     bundles
 }
 
+/// The section prototypes and ship designs `bundle` can name: base, its
+/// declared dependencies' and its own, later ids replacing earlier ones
+/// ('base' is implicit and never declared). Full configs, so a caller can
+/// classify a section.
+fn visible_designs(
+    bundle: &WalkedBundle,
+    all: &[WalkedBundle],
+) -> (KnownSections, KnownShipDesigns) {
+    let layers = || {
+        all.iter()
+            .filter(|b| b.id == BASE_MOD_ID)
+            .chain(
+                bundle
+                    .manifest
+                    .meta
+                    .dependencies
+                    .iter()
+                    .filter_map(|dep| all.iter().find(|b| b.id == *dep)),
+            )
+            .chain(std::iter::once(bundle))
+    };
+    (
+        KnownSections::from_configs(layers().flat_map(|b| b.sections.iter())),
+        KnownShipDesigns::from_configs(layers().flat_map(|b| b.ships.iter())),
+    )
+}
+
 /// Lint `bundle`'s scenarios given the whole walked set (known sections
 /// = base + the bundle's own + its declared dependencies'; known
 /// scenarios = every id across `all` plus the bundle's own).
 fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, LintIssue)> {
-    let sections_by_bundle: HashMap<&str, &[SectionConfig]> = all
-        .iter()
-        .map(|b| (b.id.as_str(), b.sections.as_slice()))
-        .collect();
     let bundles_by_id: HashMap<&str, &WalkedBundle> =
         all.iter().map(|b| (b.id.as_str(), b)).collect();
     let mut known_scenarios: HashSet<String> = all
@@ -266,38 +292,7 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
         .filter(|(_, scenario)| !scenario.role.is_backdrop())
         .map(|(id, _)| id.clone())
         .collect();
-    // Visible prototypes: base + this bundle's own + its declared
-    // dependencies' ('base' is implicit and never declared). Full
-    // configs, so the catalog can classify mount kinds.
-    let mut visible: Vec<&SectionConfig> = sections_by_bundle
-        .get(BASE_MOD_ID)
-        .map(|s| s.iter().collect())
-        .unwrap_or_default();
-    for dep in &bundle.manifest.meta.dependencies {
-        if let Some(dep_sections) = sections_by_bundle.get(dep.as_str()) {
-            visible.extend(dep_sections.iter());
-        }
-    }
-    visible.extend(bundle.sections.iter());
-    let known_sections = KnownSections::from_configs(visible);
-
-    // Visible ships, same overlay: base + declared dependencies' + this
-    // bundle's own, so a scenario may spawn a base hull by id.
-    let ships_by_bundle: HashMap<&str, &[ShipDesignPrototype]> = all
-        .iter()
-        .map(|b| (b.id.as_str(), b.ships.as_slice()))
-        .collect();
-    let mut visible_ships: Vec<&ShipDesignPrototype> = ships_by_bundle
-        .get(BASE_MOD_ID)
-        .map(|s| s.iter().collect())
-        .unwrap_or_default();
-    for dep in &bundle.manifest.meta.dependencies {
-        if let Some(dep_ships) = ships_by_bundle.get(dep.as_str()) {
-            visible_ships.extend(dep_ships.iter());
-        }
-    }
-    visible_ships.extend(bundle.ships.iter());
-    let known_ships = KnownShipDesigns::from_configs(visible_ships);
+    let (known_sections, known_ships) = visible_designs(bundle, all);
 
     // Visible stations, the same overlay again.
     let stations_by_bundle: HashMap<&str, &[StationDesignPrototype]> = all
@@ -862,21 +857,54 @@ fn ship_part_packs(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<ShipPartP
         .collect()
 }
 
-/// The flight-rig input overlaps in one scenario: every player
-/// `input_mapping` binding whose physical source the always-on flight rig
-/// already reserves (`consume_input: false`, so both fire). Returns
-/// `(section id, colliding source, the flight verb it drives)` - the raw
+/// The class of design section `section_id` of `ship`, or `None` when the
+/// design or the section does not resolve (an error where the design is
+/// linted).
+fn section_class(
+    ship: &SpaceshipConfig,
+    section_id: &str,
+    sections: &KnownSections,
+    ships: &KnownShipDesigns,
+) -> Option<SectionClass> {
+    let design = match &ship.design {
+        ShipDesignSource::Inline(design) => design,
+        ShipDesignSource::Prototype { id, .. } => ships.get(id)?,
+    };
+    let placed = design
+        .sections
+        .iter()
+        .find(|placed| placed.id == section_id)?;
+    Some(match &placed.source {
+        SectionSource::Inline(config) => config.kind.class(),
+        SectionSource::Prototype { id, .. } => sections.get(id)?.kind.class(),
+    })
+}
+
+/// The reserved-source input overlaps in one scenario: every player
+/// `input_mapping` binding whose physical source the always-on flight or
+/// camera rig already reserves (`consume_input: false`, so both fire).
+/// Returns `(section id, colliding source, the verb it drives)` - the raw
 /// material for an `input-overlap` finding. See
-/// `nova_gameplay::flight_rig_reserved_sources` and lesson
+/// `nova_ship::flight_rig_reserved_sources` and lesson
 /// `input-mapping-overlays-flight-rig`.
 ///
-/// Through [`EventActionConfig::walk`]: the flight rig reserves its sources
+/// A binding that matches a `nova_ship::shared_section_sources` row by
+/// section class and source is not an overlap: that row names the rule that
+/// keeps the two holders apart. A section whose class does not resolve gets no
+/// such exemption.
+///
+/// Through [`EventActionConfig::walk`]: the rigs reserve their sources
 /// whenever the player's ship exists, so a player staged from inside a
 /// `Sequence` or `Cinematic` beat carries the same overlap as one a handler
 /// places itself.
-fn scenario_input_overlaps(scenario: &ScenarioConfig) -> Vec<(String, InputSource, String)> {
+fn scenario_input_overlaps(
+    scenario: &ScenarioConfig,
+    sections: &KnownSections,
+    ships: &KnownShipDesigns,
+) -> Vec<(String, InputSource, String)> {
     let reserved: HashMap<InputSource, &'static str> =
         flight_rig_reserved_sources().into_iter().collect();
+    let shared = shared_section_sources();
     let mut out = Vec::new();
     for action in scenario.events.iter().flat_map(|event| &event.actions) {
         action.walk(&mut |action| {
@@ -892,10 +920,18 @@ fn scenario_input_overlaps(scenario: &ScenarioConfig) -> Vec<(String, InputSourc
             // `input_mapping` is ordered, so the findings - and the report
             // file the CI diff compares - come out the same every run.
             for (section_id, bindings) in &player.input_mapping {
+                let class = section_class(ship, section_id, sections, ships);
                 for source in bindings {
-                    if let Some(verb) = reserved.get(source) {
-                        out.push((section_id.clone(), *source, (*verb).to_string()));
+                    let Some(verb) = reserved.get(source) else {
+                        continue;
+                    };
+                    if shared
+                        .iter()
+                        .any(|row| Some(row.class) == class && row.source == *source)
+                    {
+                        continue;
                     }
+                    out.push((section_id.clone(), *source, (*verb).to_string()));
                 }
             }
         });
@@ -1161,25 +1197,25 @@ fn build_report(
         })
         .collect();
 
-    // 3. Flight-rig input-overlap check.
+    // 3. Reserved-source input-overlap check.
     for bundle in all.iter().filter(|b| report_ids.contains(&b.id)) {
+        let (sections, ships) = visible_designs(bundle, all);
         for scenario in &bundle.scenarios {
-            for (section_id, source, verb) in scenario_input_overlaps(scenario) {
+            for (section_id, source, verb) in scenario_input_overlaps(scenario, &sections, &ships) {
                 let key = source.label();
                 findings.push(Finding {
                     bundle: bundle.id.clone(),
                     file: file_of(&bundle.id, &scenario.id),
-                    severity: ReportSeverity::Warn,
+                    severity: ReportSeverity::Error,
                     category: Category::InputOverlap,
                     element: format!("{} > {}", scenario.id, section_id),
                     message: format!(
                         "section '{section_id}' binds {key}, which the flight rig already \
-                         drives ({verb}, consume_input: false) - the key silently \
-                         double-drives flight"
+                         drives ({verb}, consume_input: false) - one press drives both"
                     ),
                     suggestion: Some(format!(
-                        "rebind '{section_id}' off {key}; LMB and the analog RightTrigger2 \
-                         are free of the flight rig"
+                        "rebind '{section_id}' off {key}; a turret takes LMB and the analog \
+                         RightTrigger2, and each section kind's default sources are free"
                     )),
                 });
             }
@@ -1260,7 +1296,8 @@ mod tests {
     use nova_mod_format::{BundleManifest, ModMeta};
     use nova_modding::prelude::Content;
     use nova_scenario::prelude::{
-        GeneratedWorldConfig, ScenarioBoundsConfig, ScenarioConfig, ScenarioWorldType,
+        GeneratedWorldConfig, KnownSections, KnownShipDesigns, ScenarioBoundsConfig,
+        ScenarioConfig, ScenarioWorldType,
     };
     use nova_world_base::prelude::{
         ShipPartFamilyType, ShipPartFault, OPEN_WORLD_BOUNDS_RADIUS_MAX,
@@ -1956,7 +1993,11 @@ mod tests {
             unreachable!("the fixture is a Scenario");
         };
 
-        let overlaps = scenario_input_overlaps(&staged);
+        let overlaps = scenario_input_overlaps(
+            &staged,
+            &KnownSections::default(),
+            &KnownShipDesigns::default(),
+        );
 
         assert_eq!(
             overlaps.len(),
@@ -1964,5 +2005,77 @@ mod tests {
             "the staged player's Space binding still collides with the flight rig: {overlaps:?}"
         );
         assert_eq!(overlaps[0].0, "guns");
+    }
+
+    /// A player ship of one section of catalog `prototype`, bound to `source`.
+    fn bound_player(prototype: &str, source: &str) -> ScenarioConfig {
+        let ron = format!(
+            r#"Scenario((
+            id: "bound",
+            name: "Bound",
+            description: "",
+            cubemap: "dep://base/textures/cubemap.png",
+            events: [
+                (
+                    name: OnStart,
+                    actions: [
+                        SpawnScenarioObject((
+                            base: (id: "player", name: "Player", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0)),
+                            kind: Spaceship((
+                                initial_velocity: (0.0, 0.0, 0.0),
+                                controller: Player((
+                                    input_mapping: {{
+                                        "part": [ {source} ],
+                                    }},
+                                )),
+                                design: Inline((
+                                    sections: [
+                                        (id: "part", position: (0.0, 0.0, 0.0), rotation: (0.0, 0.0, 0.0, 1.0), source: Prototype(id: "{prototype}")),
+                                    ],
+                                )),
+                                inventory: {{}},
+                                lootable: false,
+                                credits: 0,
+                            )),
+                        )),
+                    ],
+                ),
+            ],
+        ))"#
+        );
+        let Content::Scenario(scenario) = ron::from_str::<Content>(&ron).expect("scenario parses")
+        else {
+            unreachable!("the fixture is a Scenario");
+        };
+        scenario
+    }
+
+    /// The left bumper is free look and the torpedo default: a bay launches
+    /// only while the weapons are hot and pad free look is off while they are.
+    /// The exemption is the bay's alone: the same source on a turret is an
+    /// overlap, and so is the retired bay default on the left trigger.
+    #[test]
+    fn a_shared_default_source_is_exempt_for_its_own_section_kind_only() {
+        let catalog = crate::generation::build_section_catalog();
+        let sections = KnownSections::from_configs(&catalog);
+        let overlaps = |prototype: &str, source: &str| {
+            scenario_input_overlaps(
+                &bound_player(prototype, source),
+                &sections,
+                &KnownShipDesigns::default(),
+            )
+            .len()
+        };
+
+        assert_eq!(overlaps("torpedo_section", "Gamepad(LeftTrigger)"), 0);
+        assert_eq!(
+            overlaps("pdc_kinetic_turret_section", "Gamepad(LeftTrigger)"),
+            1
+        );
+        assert_eq!(
+            overlaps("torpedo_section", "Gamepad(LeftTrigger2)"),
+            1,
+            "the left trigger raises the weapons, so a bay on it launches on the raise"
+        );
     }
 }

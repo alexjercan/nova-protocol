@@ -20,7 +20,9 @@
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate};
 use nova_gameplay::prelude::GameItems;
 use nova_scenario::prelude::ShipDesign;
-use nova_ship::prelude::{GameSections, GameStyles, SectionFootprint, SectionKind};
+use nova_ship::prelude::{
+    section_default_bindings, GameSections, GameStyles, SectionFootprint, SectionKind,
+};
 use nova_ui::{
     prelude::{TextFieldError, TextFieldValue},
     widget::Selected,
@@ -38,7 +40,7 @@ use crate::{
         insert_lifted_section, resume_ordinals, EditContext, NextChildOrdinal, NodeId, SectionNode,
         ShipNode,
     },
-    placement::{default_binds, MINING_KEYS_TAKEN},
+    placement::MINING_KEYS_TAKEN,
 };
 
 /// The seed the next Generate collapses, as the builder last left it.
@@ -194,7 +196,8 @@ pub(crate) fn generate_ship(
             binds.push(vec![]);
             continue;
         };
-        let Some(section_binds) = default_binds(&config.kind, &mining_taken) else {
+        let Some(section_binds) = section_default_bindings(config.kind.class(), &mining_taken)
+        else {
             says.refuse(MINING_KEYS_TAKEN);
             return;
         };

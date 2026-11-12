@@ -211,8 +211,9 @@ anything) puts the part away, and the footer names `Q/Esc Put away`.
 the full recipe). The new section's binding is `added_section_binds`: the
 first live bound section of its class by id lends its binding; with none, a
 weapon takes an empty binding for Rebind, a thruster none (it fires on the
-Main Drive), and a mining emitter the first of `ADDED_MINING_KEYS` no emitter
-holds, refused when all are held. Its id is `added_section_id`: the greatest
+Main Drive), and a mining emitter its `section_default_bindings`: the first of
+`MINING_KEYS` no emitter holds (the ship's first emitter the pad trigger too),
+refused when all are held. Its id is `added_section_id`: the greatest
 id of its class plus `+`, so it sorts last and takes the next code without
 moving another. A confirmed add moves parts and credits (cause `Add`), pushes
 `ShipInventoryReport::Added` (`OnAdded`), and triggers `SectionAddRequest`;
@@ -426,9 +427,10 @@ moves no credit and reports no buy. `swap_parked_hull`
 (`nova_scenario/src/objects/station_hulls.rs`) keeps the player's ship root,
 so the HUD, the camera and the scenario id keep their owner: it freezes both
 hulls, rebuilds the root as the parked hull (`rehull_ship`) at its pose with
-the start-role bindings for the new hull (`start_role_bindings`: turrets the
-trigger, railguns R, torpedoes F, the first emitter V and each later one the
-next `ADDED_MINING_KEYS` key; no old binding carries over), and parks the old
+the start-role bindings for the new hull (`start_role_bindings`, each
+section's `section_default_bindings`: turrets LMB and RT, railguns R and View,
+torpedoes F and LB, the first emitter V and RT and each later one the next
+`MINING_KEYS` key; no old binding carries over), and parks the old
 ship where it stood as `Owned` with `OwnedShipMarker`.
 The old ship keeps its hold; the Inventory pane lists the hold of a docked
 `OwnedShipMarker` ship as storage. `OwnedShipMarker` (`nova_gameplay`) is

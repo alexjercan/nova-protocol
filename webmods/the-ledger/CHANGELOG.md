@@ -26,6 +26,9 @@ in `the-ledger.bundle.ron`; the portal keeps every published version.
 
 ### Balance
 
+- **(breaking)** Siege Line's torpedo pods move from the left trigger to the
+  left bumper on a gamepad. Needs a base game where the left trigger only
+  raises the weapons: base now refuses a section bound to it.
 - Retune the same fleet with twice-1.x sections, protected player gun
   connections and mod-owned PDCs. Reduce platform durability, stage
   reinforcements, and remove gravity from cover rocks.

@@ -5,11 +5,14 @@
 //! resource. Kept as pure functions because the content lint has no world and
 //! still has to know which sources flight reserves.
 //!
-//! Per-section actions are absent on purpose: they are built from
-//! content `input_mapping` at spawn, keyed by section entity, and their names
-//! are derived rather than fixed.
+//! Per-section actions are absent from the rig lists on purpose: they are
+//! built from content `input_mapping` at spawn, keyed by section entity, and
+//! their names are derived rather than fixed. What a section binds before
+//! anybody rebinds it is [`section_default_bindings`], and the sources a
+//! default shares with another holder are [`shared_section_sources`].
 
 use bevy::prelude::*;
+use nova_gameplay::prelude::SectionClass;
 use nova_input::prelude::*;
 
 /// The always-on flight rig's actions, in reading order.
@@ -32,8 +35,8 @@ pub fn flight_bindings() -> Vec<ActionBinding> {
             .gamepad([Gamepad(GamepadButton::RightTrigger)]),
         // Roll about the hull's nose, through the same camera rig the mouse
         // steers. Q and E hold no fixed or runtime section default in flight
-        // (start roles take R and F, mining emitters V, B, N, C). Keyboard
-        // only, for the reason `dock` gives: no pad button is free.
+        // (see `section_default_bindings`). Keyboard only: no pad button is
+        // free in every flight state.
         ActionBinding::new("roll_left", "FLIGHT", "Roll Left").keyboard([Keyboard(KeyCode::KeyQ)]),
         ActionBinding::new("roll_right", "FLIGHT", "Roll Right")
             .keyboard([Keyboard(KeyCode::KeyE)]),
@@ -146,16 +149,18 @@ pub fn camera_bindings() -> Vec<ActionBinding> {
     .collect()
 }
 
-/// The discrete input sources the always-on flight rig reserves, each paired
-/// with the action label that holds it.
+/// The discrete input sources the always-on flight and camera rigs reserve,
+/// each paired with the action label that holds it.
 ///
-/// Derived from [`flight_bindings`], so a remap moves the reservation with it
-/// and the content lint's input-overlap check cannot go stale. Wheel and
+/// Derived from [`flight_bindings`] and [`camera_bindings`], so a remap moves
+/// the reservation with it and the content lint's input-overlap check cannot
+/// go stale. Both rigs are live whenever the player ship is. Wheel, stick and
 /// motion sources are absent because they are axes, not buttons a section
 /// binding collides on.
 pub fn flight_rig_reserved_sources() -> Vec<(InputSource, &'static str)> {
     flight_bindings()
         .into_iter()
+        .chain(camera_bindings())
         .flat_map(|action| {
             action
                 .sources()
@@ -163,6 +168,124 @@ pub fn flight_rig_reserved_sources() -> Vec<(InputSource, &'static str)> {
                 .collect::<Vec<_>>()
         })
         .collect()
+}
+
+/// The desk keys mining emitters take, in order. An emitter takes the first
+/// one no other emitter on its ship holds, so one press never deploys two.
+/// No Flight or Always action holds any of them; `B` is the Ship pane's
+/// rebind key, which is never live beside flight.
+pub const MINING_KEYS: [KeyCode; 4] = [KeyCode::KeyV, KeyCode::KeyB, KeyCode::KeyN, KeyCode::KeyC];
+
+/// The sources a section of `class` answers to before anybody rebinds it:
+/// the desk source first, then the pad source when the class has one.
+///
+/// The one table the editor's placed and generated parts and a start role's
+/// hull both read. A class that takes no input returns an empty list.
+/// `mining_taken` lists the sources the ship's other mining emitters hold: a
+/// mining emitter takes the first of [`MINING_KEYS`] not in it, and the
+/// ship's first emitter (nothing taken) also takes the right analog trigger.
+///
+/// `None` only for a mining emitter when every mining key is taken.
+///
+/// Every source here is free of every Flight action, or is a row of
+/// [`shared_section_sources`].
+#[must_use]
+pub fn section_default_bindings(
+    class: SectionClass,
+    mining_taken: &[InputSource],
+) -> Option<Vec<InputSource>> {
+    Some(match class {
+        SectionClass::Hull
+        | SectionClass::Controller
+        | SectionClass::Docking
+        | SectionClass::CargoIntake => vec![],
+        SectionClass::Thruster => vec![KeyCode::Space.into(), GamepadButton::RightTrigger.into()],
+        SectionClass::Turret => vec![
+            MouseButton::Left.into(),
+            GamepadButton::RightTrigger2.into(),
+        ],
+        SectionClass::Torpedo => vec![KeyCode::KeyF.into(), GamepadButton::LeftTrigger.into()],
+        SectionClass::Railgun => vec![KeyCode::KeyR.into(), GamepadButton::Select.into()],
+        SectionClass::Mining => {
+            let key = MINING_KEYS
+                .into_iter()
+                .map(InputSource::from)
+                .find(|key| !mining_taken.contains(key))?;
+            if mining_taken.is_empty() {
+                vec![key, GamepadButton::RightTrigger2.into()]
+            } else {
+                vec![key]
+            }
+        }
+    })
+}
+
+/// What a section default shares its source with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SharedHolderType {
+    /// A registered action, by name. It may belong to another crate's rig.
+    Action(&'static str),
+    /// The default of another section class.
+    Section(SectionClass),
+}
+
+/// One source a section default holds together with another holder, and the
+/// rule that makes one press mean one thing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SharedSectionSource {
+    /// The section class whose default holds the source.
+    pub class: SectionClass,
+    /// The shared source.
+    pub source: InputSource,
+    /// The other holder.
+    pub holder: SharedHolderType,
+    /// The code rule that keeps the two apart.
+    pub guard: &'static str,
+}
+
+/// Every source a [`section_default_bindings`] row shares with a Flight
+/// action or with another class's default.
+///
+/// The content lint exempts a player binding that matches a row here, by
+/// class and source; any other binding on a reserved source is an error.
+#[must_use]
+pub fn shared_section_sources() -> Vec<SharedSectionSource> {
+    const DRIVE: &str = "a thruster with its own binding leaves the Main Drive allocation, so \
+                         the press fires each drive once";
+    vec![
+        SharedSectionSource {
+            class: SectionClass::Thruster,
+            source: KeyCode::Space.into(),
+            holder: SharedHolderType::Action("main_drive"),
+            guard: DRIVE,
+        },
+        SharedSectionSource {
+            class: SectionClass::Thruster,
+            source: GamepadButton::RightTrigger.into(),
+            holder: SharedHolderType::Action("main_drive"),
+            guard: DRIVE,
+        },
+        SharedSectionSource {
+            class: SectionClass::Mining,
+            source: GamepadButton::RightTrigger2.into(),
+            holder: SharedHolderType::Section(SectionClass::Turret),
+            guard: "a turret refuses fire while the weapons are cold, so a cold pull only mines",
+        },
+        SharedSectionSource {
+            class: SectionClass::Torpedo,
+            source: GamepadButton::LeftTrigger.into(),
+            holder: SharedHolderType::Action("free_look"),
+            guard: "a bay launches only while the weapons are hot, and pad free look is off \
+                    while they are hot",
+        },
+        SharedSectionSource {
+            class: SectionClass::Railgun,
+            source: GamepadButton::Select.into(),
+            holder: SharedHolderType::Action("hud_cinematic"),
+            guard: "a railgun commits only while the weapons are hot, and the pad HUD toggle \
+                    is off while they are hot",
+        },
+    ]
 }
 
 #[cfg(test)]
@@ -256,6 +379,30 @@ mod tests {
             })
             .collect();
         assert!(found.is_empty(), "{}", found.join("; "));
+    }
+
+    /// One press must deploy one emitter, and the pad has one mining button:
+    /// the ship's first emitter takes it, and a ship holding every mining key
+    /// refuses another emitter.
+    #[test]
+    fn each_mining_emitter_takes_its_own_key_and_only_the_first_takes_the_pad_trigger() {
+        let mut taken = Vec::new();
+        for (key, pad) in [("V", true), ("B", false), ("N", false), ("C", false)] {
+            let binds =
+                section_default_bindings(SectionClass::Mining, &taken).expect("a key is free");
+            assert_eq!(binds[0].label(), key);
+            assert_eq!(
+                binds[1..],
+                if pad {
+                    vec![InputSource::Gamepad(GamepadButton::RightTrigger2)]
+                } else {
+                    vec![]
+                },
+                "{key}"
+            );
+            taken.extend(binds);
+        }
+        assert_eq!(section_default_bindings(SectionClass::Mining, &taken), None);
     }
 
     /// What the settings screen actually prints for every shipped row. The

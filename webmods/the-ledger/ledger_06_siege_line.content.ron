@@ -31,7 +31,7 @@
                                 },
                             ),
                             controller: Player((
-                                input_mapping: {"turret_port": [Mouse(Left), Gamepad(RightTrigger2)], "turret_starboard": [Mouse(Left), Gamepad(RightTrigger2)], "pod_port": [Keyboard(KeyR), Gamepad(LeftTrigger2)], "pod_starboard": [Keyboard(KeyR), Gamepad(LeftTrigger2)]},
+                                input_mapping: {"turret_port": [Mouse(Left), Gamepad(RightTrigger2)], "turret_starboard": [Mouse(Left), Gamepad(RightTrigger2)], "pod_port": [Keyboard(KeyR), Gamepad(LeftTrigger)], "pod_starboard": [Keyboard(KeyR), Gamepad(LeftTrigger)]},
                             )),
                             initial_velocity: (0.0, 0.0, 0.0),
                             allegiance: Some(Player),
