@@ -412,8 +412,8 @@ chip in the dim band rather than doing nothing. That is how a tutorial points
 at a key before it lights up.
 
 Actions fan out to one submodule per family beside `actions/mod.rs` -
-`audio`, `cinematic`, `flow`, `mission`, `sequence`, `ship`, `spawn`, `timer`,
-`view` - plus `registry`, which is the macro and the table rather than a family.
+`audio`, `cinematic`, `flow`, `hold`, `jobs`, `mission`, `sequence`, `ship`,
+`spawn`, `stance`, `timer`, `view` - plus `registry`, which is the macro and the table rather than a family.
 Adding one is [Extend the scenario engine](guide-extend-scenarios.md).
 
 ### A beat chain keeps its cursor in the engine

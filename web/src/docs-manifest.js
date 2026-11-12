@@ -886,6 +886,7 @@ const CREATE_PAGES = [
         related: ["objects", "events", "expressions"],
         headings: [
             "SpawnScenarioObject",
+            "SpawnStartRole",
             "ScatterObjects",
             "DespawnScenarioObject",
             "CreateScenarioArea",
