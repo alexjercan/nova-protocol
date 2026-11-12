@@ -332,6 +332,11 @@ Every one has a lot of 1.
 | `DockingCollar` | 80 kg | Parts | 200 | 150 |
 | `AlloyPlate` | 30 kg | Parts | 90 | 68 |
 
+`AlloyPlate` is the one base item with a refine recipe: a station that
+offers `Refine` makes one from 2 `IronOre`, 1 `CarbonOre` and a 30 cr fee.
+See [Refine](../stations/#refine) for the rule and
+[Content files](../mod-files/#content-files) for the `refine` field.
+
 `PdcRound` feeds both Kinetic and Pierce turret mounts - the mount decides the
 round's damage type, not the item. `Torpedo` feeds every torpedo bay type,
 Serpent, Lance and Dart alike - the bay decides the flight.
@@ -357,7 +362,8 @@ credits: 0,
      (`ResolvedShipDesign::cargo_capacity_g` :402, `HULL_SECTION_CARGO_G` :393);
      overstock lint in crates/nova_scenario/src/lint/ship.rs
      `check_object_prototypes`. Item catalog: crates/nova_gameplay/src/inventory.rs
-     `ItemDesign` (`mass_g`, `category`, `price_lot`, `ask_cr`, `bid_cr`); the base
+     `ItemDesign` (`mass_g`, `category`, `price_lot`, `ask_cr`, `bid_cr`,
+     `refine`) and `plan_item_refine`; the base
      catalog's values: crates/nova_authoring/src/base_content/items.rs
      `item_catalog`. Lot pricing: crates/nova_gameplay/src/market.rs
      `ItemPrice::buy_cr`, `ItemPrice::sell_cr`. -->

@@ -1034,6 +1034,13 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
+        "system_station_refine",
+        &[
+            "ore and a fee are refined into an alloy plate",
+            "a refine short of an input is refused on the form",
+        ],
+    ),
+    (
         "system_station_add",
         &[
             "an add at an occupied point is refused",
@@ -1258,7 +1265,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 630;
+const SYSTEMS_INVARIANTS: usize = 632;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

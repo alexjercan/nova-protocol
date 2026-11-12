@@ -188,8 +188,8 @@ pub(crate) enum InspectorPart {
     Item,
     /// The transfer form, while a draft is open.
     Form,
-    /// The Give, Sell and Store switch, while a draft of one of them is open
-    /// and the partner takes more than one.
+    /// The Give, Sell, Store and Refine switch, while a draft of one of them
+    /// is open and the partner takes more than one.
     ActionChips,
     /// The draft quantity's total weight, while the quantity is a whole number.
     TotalWeight,
@@ -251,9 +251,9 @@ pub(crate) enum InventoryInspectorField {
     PriceTotal,
 }
 
-/// A draft action switch: a click turns the open Give, Sell or Store draft
-/// into this action and keeps its quantity. Shown only while the partner takes
-/// this action.
+/// A draft action switch: a click turns the open Give, Sell, Store or Refine
+/// draft into this action and keeps its quantity. Shown only while the
+/// partner takes this action.
 #[derive(Component, Clone, Copy, Debug)]
 pub(crate) struct InventoryDraftActionChip(pub(crate) InventoryActionType);
 
@@ -1255,8 +1255,8 @@ fn action_chip(
         });
 }
 
-/// The node-name part of a switch chip: `Give`, `Sell`, `Store`, or
-/// `StoreShip<entity bits>` for a Store into an own ship's hold.
+/// The node-name part of a switch chip: `Give`, `Sell`, `Store`, `Refine`,
+/// or `StoreShip<entity bits>` for a Store into an own ship's hold.
 pub(crate) fn action_chip_name(action: InventoryActionType) -> String {
     match action {
         InventoryActionType::Store(InventoryStoreType::Ship(ship)) => {
@@ -1429,8 +1429,9 @@ fn quick_inventory_action(
 
 /// Select `row` for the inspector and open the action it offers at one unit;
 /// returns whether either changed, so the caller clicks once. A player's row
-/// opens the Give, Sell or Store chip last chosen while the partner takes it,
-/// so Store picked once stays picked from row to row. A different row closes
+/// opens the Give, Sell, Store or Refine chip last chosen while the partner
+/// takes it, so Store picked once stays picked from row to row, and Refine
+/// from one refine input to the next. A different row closes
 /// the full description. The selected row again keeps its open draft, its
 /// quantity and its full description.
 fn select_inventory_row(
@@ -1441,15 +1442,16 @@ fn select_inventory_row(
     let picked = Some((row.side, row.item.clone()));
     let pair = ships.pair();
     let terms = pair.and_then(|pair| ships.partner_terms(pair));
+    let refinable = ships.items().refined_from(&row.item).is_some();
     let offer = pair
         .and_then(|pair| offered_action(row.side, terms.as_ref(), ships.intake(pair.own).is_some()))
         .map(|offer| match runtime.own_action {
-            Some(chosen) if draft_fits(offer, chosen, terms.as_ref()) => chosen,
+            Some(chosen) if draft_fits(offer, chosen, terms.as_ref(), refinable) => chosen,
             _ => offer,
         });
     let kept = match (runtime.draft.as_ref(), offer) {
         (Some(draft), Some(action)) => {
-            draft.item == row.item && draft_fits(action, draft.action, terms.as_ref())
+            draft.item == row.item && draft_fits(action, draft.action, terms.as_ref(), refinable)
         }
         (None, None) => true,
         _ => false,
@@ -1576,6 +1578,9 @@ pub(crate) struct PartnerTerms {
     pub(crate) trades: bool,
     /// It is a living station that offers Storage: Store and Withdraw.
     pub(crate) stores: bool,
+    /// It is a living station that offers Refine: the player's row of a
+    /// refine input switches to Refine.
+    pub(crate) refines: bool,
     /// It is a station the player owns: a Buy from it pays bid.
     pub(crate) owned: bool,
     /// It is one of the player's own ships: no Give, its hold is storage.
@@ -1588,8 +1593,10 @@ pub(crate) struct PartnerTerms {
 impl PartnerTerms {
     /// Whether the player's row may switch to `action`: Give unless the
     /// partner is an own ship, Sell while it trades, Store at the station
-    /// while it stores, and Store into each listed own ship hold.
-    fn takes(&self, action: InventoryActionType) -> bool {
+    /// while it stores, Store into each listed own ship hold, and Refine
+    /// while it refines and the row's item is `refinable`: an input of a
+    /// refine recipe.
+    fn takes(&self, action: InventoryActionType, refinable: bool) -> bool {
         match action {
             InventoryActionType::Give => !self.own,
             InventoryActionType::Sell => self.trades,
@@ -1597,12 +1604,14 @@ impl PartnerTerms {
             InventoryActionType::Store(InventoryStoreType::Ship(ship)) => {
                 self.holds.contains(&ship)
             }
+            InventoryActionType::Refine => self.refines && refinable,
             _ => false,
         }
     }
 
-    /// The actions the player's row switches between, in chip order.
-    fn own_row_actions(&self) -> Vec<InventoryActionType> {
+    /// The actions the player's row switches between, in chip order, for a
+    /// row whose item is `refinable` or not.
+    fn own_row_actions(&self, refinable: bool) -> Vec<InventoryActionType> {
         [
             InventoryActionType::Give,
             InventoryActionType::Sell,
@@ -1614,17 +1623,21 @@ impl PartnerTerms {
                 .iter()
                 .map(|ship| InventoryActionType::Store(InventoryStoreType::Ship(*ship))),
         )
-        .filter(|action| self.takes(*action))
+        .chain([InventoryActionType::Refine])
+        .filter(|action| self.takes(*action, refinable))
         .collect()
     }
 }
 
-/// Whether `action` is one the player's row switches between: Give, Sell or
-/// a Store.
+/// Whether `action` is one the player's row switches between: Give, Sell,
+/// a Store or Refine.
 fn own_row_action(action: InventoryActionType) -> bool {
     matches!(
         action,
-        InventoryActionType::Give | InventoryActionType::Sell | InventoryActionType::Store(_)
+        InventoryActionType::Give
+            | InventoryActionType::Sell
+            | InventoryActionType::Store(_)
+            | InventoryActionType::Refine
     )
 }
 
@@ -1634,7 +1647,8 @@ fn own_row_action(action: InventoryActionType) -> bool {
 /// Jettison while undocked with a live cargo intake. The partner's row opens
 /// Take while it is lootable, Buy while it trades, and nothing otherwise. The
 /// storage row opens Withdraw, and an own ship hold's row Withdraw from that
-/// hold. `terms` is `None` while undocked.
+/// hold. No row opens Refine: the player's row switches to it. `terms` is
+/// `None` while undocked.
 pub(crate) fn offered_action(
     side: InventorySideType,
     terms: Option<&PartnerTerms>,
@@ -1668,18 +1682,21 @@ pub(crate) fn offered_action(
 
 /// Whether an open draft of `action` still fits a row that opens `offer`: the
 /// same action, or another player's-row action the partner takes, since the
-/// switch moves between them.
+/// switch moves between them. `refinable` is whether the row's item is an
+/// input of a refine recipe.
 fn draft_fits(
     offer: InventoryActionType,
     action: InventoryActionType,
     terms: Option<&PartnerTerms>,
+    refinable: bool,
 ) -> bool {
     offer == action
-        || terms
-            .is_some_and(|terms| own_row_action(offer) && terms.takes(offer) && terms.takes(action))
+        || terms.is_some_and(|terms| {
+            own_row_action(offer) && terms.takes(offer, refinable) && terms.takes(action, refinable)
+        })
 }
 
-/// Switch the open Give, Sell or Store draft to the clicked chip's action,
+/// Switch the open Give, Sell, Store or Refine draft to the clicked chip's action,
 /// keeping its quantity, with one click if it changes, and keep the choice for
 /// the next player's row. A chip the partner does not take is hidden; this
 /// guard also drops an `Activate` triggered directly.
@@ -1697,7 +1714,11 @@ fn on_inventory_draft_action_chip(
     let Some(terms) = ships.pair().and_then(|pair| ships.partner_terms(pair)) else {
         return;
     };
-    if !terms.takes(draft.action) || !terms.takes(chip.0) || draft.action == chip.0 {
+    let refinable = ships.items().refined_from(&draft.item).is_some();
+    if !terms.takes(draft.action, refinable)
+        || !terms.takes(chip.0, refinable)
+        || draft.action == chip.0
+    {
         return;
     }
     runtime.draft = Some(InventoryDraft {
@@ -1927,8 +1948,8 @@ impl InventoryShips<'_, '_> {
     }
 
     /// What the docked partner lets the player ship do; `None` while
-    /// undocked. A station's Trade and Storage go through [`station_offers`],
-    /// the same gate the Rebuild form reads.
+    /// undocked. A station's Trade, Storage and Refine go through
+    /// [`station_offers`], the same gate the Rebuild form reads.
     pub(crate) fn partner_terms(&self, pair: InventoryPair) -> Option<PartnerTerms> {
         let partner = pair.partner?;
         let lootable = self.ship(partner).2;
@@ -1939,6 +1960,7 @@ impl InventoryShips<'_, '_> {
                 lootable,
                 trades: !lootable && station_offers(services, derelict, StationServiceType::Trade),
                 stores: station_offers(services, derelict, StationServiceType::Storage),
+                refines: station_offers(services, derelict, StationServiceType::Refine),
                 owned,
                 own,
                 holds,
@@ -1947,6 +1969,7 @@ impl InventoryShips<'_, '_> {
                 lootable,
                 trades: !lootable && !own,
                 stores: false,
+                refines: false,
                 owned: false,
                 own,
                 holds,
@@ -2134,8 +2157,18 @@ impl InventoryShips<'_, '_> {
         (hold, reports)
     }
 
-    /// What the source ship of `draft` carries of its item, and never less than
-    /// one, so the wheel's range is never empty.
+    /// The whole refine batches the player's hold covers for the recipe that
+    /// consumes `input`; zero while one input is short or no recipe does.
+    fn refine_batches(&self, pair: InventoryPair, input: &ItemDesignId) -> u32 {
+        self.items
+            .refined_from(input)
+            .and_then(|output| output.refine.as_ref())
+            .map_or(0, |recipe| recipe.batches_from(self.ship(pair.own).1))
+    }
+
+    /// What the source ship of `draft` carries of its item, or for a Refine
+    /// the batches the hold covers, and never less than one, so the wheel's
+    /// range is never empty.
     fn draft_stock(&self, draft: &InventoryDraft) -> u32 {
         let Some(pair) = self.pair() else {
             return 1;
@@ -2158,6 +2191,7 @@ impl InventoryShips<'_, '_> {
                     0
                 }
             }
+            InventoryActionType::Refine => self.refine_batches(pair, &draft.item),
         };
         have.max(1)
     }
@@ -2362,12 +2396,14 @@ pub(crate) fn sync_inventory_draft_controls(
 /// player ship and its docked partner by the [`plan_item_transfer`] rule, a
 /// Buy or Sell with a trading partner by the [`plan_item_trade`] rule, a Store
 /// or Withdraw with a living station's storage by the [`plan_item_storage`]
-/// rule, a Jettison through the player's cargo intake by the [`plan_item_jettison`]
+/// rule, a Refine at a living station by the [`plan_item_refine`] rule, a
+/// Jettison through the player's cargo intake by the [`plan_item_jettison`]
 /// rule. Flash the result on the note line.
 ///
 /// A move removes from the source and adds to the target in this one run; a
 /// trade moves the price from the buyer's credits to the seller's in the same
-/// run. A
+/// run, and a refine swaps the inputs for the output and moves the fee to the
+/// station's credits. A
 /// jettison removes the whole quantity from the player ship and queues its
 /// canisters on the intake's [`CargoIntakeEjectionQueue`] in this one run; the
 /// intake drops them one at a time once gameplay runs and its door is open.
@@ -2392,6 +2428,9 @@ pub(crate) fn apply_inventory_action_commands(
     for command in actions.read() {
         let action = command.action;
         let result = match (action.transfer(), action.trade(), action.storage()) {
+            _ if action == InventoryActionType::Refine => {
+                refine_items(&items, &mut ships, pair, command.clone())
+            }
             (Some(transfer), ..) => {
                 transfer_items(&items, &mut ships, pair, transfer, command.clone())
             }
@@ -2841,6 +2880,137 @@ fn trade_refusal_text(
     }
 }
 
+/// What `batches` refine batches of `output` take and make, as the form
+/// states them: `2 Iron ore + 1 Carbon ore + 30 cr -> 1 Alloy plate`, the
+/// inputs in the recipe's authored order. Empty for an item with no recipe.
+fn refine_batch_text(items: &GameItems, output: &ItemDesign, batches: u32) -> String {
+    let Some(recipe) = &output.refine else {
+        return String::new();
+    };
+    let batches = u64::from(batches);
+    let mut terms: Vec<String> = recipe
+        .inputs
+        .iter()
+        .map(|(input, count)| {
+            format!(
+                "{} {}",
+                u64::from(*count) * batches,
+                items.design(input).name
+            )
+        })
+        .collect();
+    terms.push(cr_text(u64::from(recipe.fee_cr) * batches));
+    format!("{} -> {batches} {}", terms.join(" + "), output.name)
+}
+
+/// The note text of a refused Refine of `output`.
+fn refine_refusal_text(
+    items: &GameItems,
+    refusal: ItemRefineRefusalType,
+    output: &ItemDesign,
+    own_title: &str,
+    partner_title: &str,
+) -> String {
+    match refusal {
+        ItemRefineRefusalType::NotRefinery => format!("Refused: {partner_title} does not refine"),
+        ItemRefineRefusalType::NotRefined => format!("Refused: {} is not refined", output.name),
+        ItemRefineRefusalType::NoQuantity => "Refused: enter a quantity".to_string(),
+        ItemRefineRefusalType::ZeroQuantity => "Refused: quantity is zero".to_string(),
+        ItemRefineRefusalType::ShortInput { item, need, have } => format!(
+            "Refused: only {have} {} in {own_title}, needs {need}",
+            items.design(&item).name
+        ),
+        ItemRefineRefusalType::ShortCredits { need, have } => format!(
+            "Refused: {own_title} has only {}, the fee is {}",
+            cr_text(have),
+            cr_text(need)
+        ),
+        ItemRefineRefusalType::OverCapacity { free_g } => format!(
+            "Refused: {own_title} has room for {} more",
+            kg_text(u64::from(free_g))
+        ),
+        ItemRefineRefusalType::CreditOverflow => {
+            format!("Refused: {partner_title} cannot hold more credits")
+        }
+    }
+}
+
+/// Plan `batches` refine batches of the recipe that consumes the player's
+/// row item `input`, at the docked `partner`, by the [`plan_item_refine`]
+/// rule. Returns the recipe's output with the plan, or the refusal text the
+/// form and the note line share. The one resolver of the form's summary and
+/// of [`refine_items`], so the form never enables a Confirm the handler
+/// refuses.
+fn plan_refine<'a>(
+    items: &'a GameItems,
+    ships: &InventoryShips,
+    pair: InventoryPair,
+    partner: Entity,
+    input: &ItemDesignId,
+    batches: Option<u32>,
+) -> Result<(&'a ItemDesign, ItemRefine), String> {
+    let Some(output) = items.refined_from(input) else {
+        return Err(format!(
+            "Refused: nothing is refined from {}",
+            items.design(input).name
+        ));
+    };
+    let service = ships.partner_terms(pair).is_some_and(|terms| terms.refines);
+    let (_, hold, _, own_cr) = ships.ship(pair.own);
+    let (_, _, _, partner_cr) = ships.ship(partner);
+    plan_item_refine(
+        items, &output.id, batches, service, hold, own_cr, partner_cr,
+    )
+    .map(|planned| (output, planned))
+    .map_err(|refusal| {
+        refine_refusal_text(
+            items,
+            refusal,
+            output,
+            &ships.title(pair.own, InventorySideType::Own),
+            &ships.title(partner, InventorySideType::Partner),
+        )
+    })
+}
+
+/// Refine one command's batches at the docked station, or say why not. Both
+/// texts are the note line. The inputs leave the player's hold, the output
+/// enters it and the fee moves from the player's credits to the station's,
+/// reported on both as a [`CreditChangeCauseType::Refine`] change.
+fn refine_items(
+    items: &GameItems,
+    ships: &mut InventoryShips,
+    pair: InventoryPair,
+    command: InventoryActionCommand,
+) -> Result<String, String> {
+    let Some(partner) = pair.partner else {
+        return Err("Refused: not docked".to_string());
+    };
+    let InventoryActionCommand { item, quantity, .. } = command;
+    let (output, planned) = plan_refine(items, ships, pair, partner, &item, quantity)?;
+    let [(_, mut hold, _, _, mut own_cr, mut own_reports), (_, _, _, _, mut station_cr, mut station_reports)] =
+        ships
+            .ships
+            .get_many_mut([pair.own, partner])
+            .expect("InventoryShips::pair checked both ships, and a ship does not dock with itself");
+    for (input, count) in &planned.inputs {
+        hold.remove(input, *count);
+    }
+    hold.add(items, &planned.output, planned.count);
+    own_reports.change_credits(&mut own_cr, planned.own_cr, CreditChangeCauseType::Refine);
+    station_reports.change_credits(
+        &mut station_cr,
+        planned.partner_cr,
+        CreditChangeCauseType::Refine,
+    );
+    Ok(format!(
+        "REFINED x{} {} -{}",
+        planned.count,
+        output.name,
+        cr_text(planned.fee_cr)
+    ))
+}
+
 /// Store one command's items in the docked station's storage, or withdraw
 /// them from it, or say why not. Both texts are the note line. No credits
 /// move. The move is reported on the player ship as
@@ -3096,8 +3266,8 @@ impl SideView {
 /// pane is left as it is. A broken ship record panics through
 /// [`InventoryShips`]. A draft its selected row no longer offers, after an
 /// undock or a filter, is closed. Confirm is disabled while no draft is open
-/// or the draft's summary is a refusal: no whole number, or a transfer or
-/// trade its plan refuses against the live stock, room and credits. A numbered
+/// or the draft's summary is a refusal: no whole number, or a transfer,
+/// trade or refine its plan refuses against the live stock, room and credits. A numbered
 /// jettison stays enabled; Confirm plans it. The note line counts down in real
 /// time, since the interface pauses virtual time.
 #[expect(
@@ -3273,8 +3443,9 @@ pub(crate) fn update_inventory_panel(
         let offer = selected.clone().and_then(|(which, item)| {
             offered_action(which, terms.as_ref(), has_intake).map(|action| (action, item))
         });
+        let refinable = items.refined_from(&draft.item).is_some();
         let fits = offer.is_some_and(|(action, item)| {
-            item == draft.item && draft_fits(action, draft.action, terms.as_ref())
+            item == draft.item && draft_fits(action, draft.action, terms.as_ref(), refinable)
         });
         if !fits {
             runtime.draft = None;
@@ -3460,9 +3631,14 @@ pub(crate) fn update_inventory_panel(
         }
     }
 
+    // The chips follow the open draft's item: only a refine input shows
+    // Refine.
+    let refinable = draft
+        .as_ref()
+        .is_some_and(|draft| items.refined_from(&draft.item).is_some());
     let chip_actions = terms
         .as_ref()
-        .map_or_else(Vec::new, PartnerTerms::own_row_actions);
+        .map_or_else(Vec::new, |terms| terms.own_row_actions(refinable));
     for (container, mut drawn) in &mut q_action_chips {
         if drawn.0 == chip_actions {
             continue;
@@ -3520,7 +3696,7 @@ pub(crate) fn update_inventory_panel(
                     chip_actions.len() > 1
                         && draft
                             .as_ref()
-                            .is_some_and(|draft| terms.takes(draft.action))
+                            .is_some_and(|draft| terms.takes(draft.action, refinable))
                 }),
                 true,
             ),
@@ -3569,9 +3745,14 @@ pub(crate) fn update_inventory_panel(
         (item, format!("x{count} in {}", view.title))
     });
     let total_weight = draft.clone().and_then(|draft| {
-        draft.quantity.map(|quantity| {
-            kg_text(u64::from(items.design(&draft.item).mass_g) * u64::from(quantity))
-        })
+        // A Refine weighs what it makes: one output a batch.
+        let weighed = match draft.action {
+            InventoryActionType::Refine => items.refined_from(&draft.item)?,
+            _ => items.design(&draft.item),
+        };
+        draft
+            .quantity
+            .map(|quantity| kg_text(weighed.stack_mass_g(quantity)))
     });
     let form = draft.map(|draft| {
         let (source, title) = match draft.action {
@@ -3598,8 +3779,13 @@ pub(crate) fn update_inventory_panel(
                     .expect("a hold draft closes above once its ship is not listed");
                 (view, format!("Withdraw from {}", view.title))
             }
+            InventoryActionType::Refine => (&own, format!("Refine at {}", partner.title)),
         };
-        let have = source.count(&draft.item).unwrap_or(0);
+        // A Refine counts batches, so its stock is the batches the hold covers.
+        let have = match draft.action {
+            InventoryActionType::Refine => ships.refine_batches(pair, &draft.item),
+            _ => source.count(&draft.item).unwrap_or(0),
+        };
         let summary = match (draft.quantity, pair.partner) {
             (None, _) => Err("Type a whole number".to_string()),
             // A jettison leaves the player's own stack.
@@ -3616,6 +3802,22 @@ pub(crate) fn update_inventory_panel(
                 let prices = ships.prices(pair, &draft.item);
                 let action = draft.action;
                 match (action.transfer(), action.trade(), action.storage()) {
+                    // The batch line stays over a refusal, so a hold short of
+                    // an input still reads what the recipe takes.
+                    _ if action == InventoryActionType::Refine => {
+                        let batch = items
+                            .refined_from(&draft.item)
+                            .map(|output| refine_batch_text(items, output, quantity));
+                        let lines = |last: String| match &batch {
+                            Some(batch) => format!("{batch}\n{last}"),
+                            None => last,
+                        };
+                        plan_refine(items, &ships, pair, other, &draft.item, Some(quantity))
+                            .map(|(_, planned)| {
+                                lines(format!("Balance {}", cr_text(planned.own_cr)))
+                            })
+                            .map_err(lines)
+                    }
                     (Some(transfer), ..) => plan_item_transfer(
                         items,
                         transfer,

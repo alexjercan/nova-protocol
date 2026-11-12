@@ -15,6 +15,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ## [Unreleased]
 
+### Gameplay & Flight
+
+- Stations that offer Refine turn 2 iron ore, 1 carbon ore and a 30 cr fee into an alloy plate from the Inventory pane. The waystation refines; generated stations do from advancement 0.25.
+
 ### Ships & Sections
 
 - Five second-tier sections swap in at a shipyard: wide intake, long mining beam, armoured controller, wide-gate docking port and heavy lance. Each recipe spends one new `AlloyPlate` part.
@@ -28,6 +32,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Modding & Mod Portal
 
+- `Item` gains optional `refine: Some((inputs, fee_cr))` and station `services` take `Refine`; lint refuses a recipe cheaper than its output's bid. `OnCreditsChanged` gains cause `Refine`.
 - `DockingSectionConfig` gains optional `clamp_sound` and `release_sound`, played once at the port that captured or let go; the base port authors `dock_clamp.wav` and `dock_release.wav`.
 - `RailgunSectionConfig` gains optional `impact_sound`, played where the slug meets its first body in place of the impact table's Pierce row; the base lance authors `railgun_impact.wav`.
 

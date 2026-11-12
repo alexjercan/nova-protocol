@@ -258,7 +258,7 @@ twelve item kinds:
 ```
 
 An `Item` adds a new entry to the item catalog, or replaces one your mod
-depends on. Every field is required: `id`, `name` and `about` are not blank;
+depends on. Every field but `refine` is required: `id`, `name` and `about` are not blank;
 `category` is one of `Raw`, `Repair`, `Ammo`, `Food`, `Parts`; `mass_g` is
 above 0; `price_lot` is above 0; `bid_cr` is at most `ask_cr`. `ask_cr` and
 `bid_cr` price one lot of `price_lot` items, not one item: a trade pays its
@@ -279,6 +279,31 @@ error. An id two unrelated packs both define is refused in both, whatever
 load order; a pack that depends on the id's owner may replace it whole. See
 [Scenario objects](../objects/#inventory) for the item table and the stock
 format.
+
+An item that a station makes carries a refine recipe. Leave `refine` out for
+an item nothing refines.
+
+```ron
+refine: Some((
+    inputs: [("IronOre", 2), ("CarbonOre", 1)],
+    fee_cr: 30,
+)),
+```
+
+One batch takes every input and `fee_cr` credits and makes one of the item,
+at a station that offers `Refine`, see [Refine](../stations/#refine). Lint,
+then load, refuse a recipe that:
+
+- lists no input, lists an input twice, or lists one with a count of `0`;
+- lists the item itself, or an id no loaded mod defines;
+- costs less than the item sells for: the inputs at their `ask_cr` plus
+  `fee_cr` must be at least the item's `bid_cr`, each price as the share of
+  its `price_lot`. Otherwise a player buys the inputs, refines and sells at a
+  profit from reference prices alone.
+
+The price rule reads the merged catalog. When a mod replaces an input or the
+refined item and breaks the rule, that mod is refused, not the pack it
+depends on.
 
 Splitting these into `campaign.content.ron`, `scenarios.content.ron`, and
 `sections.content.ron` is a readability convention, not a loader requirement.

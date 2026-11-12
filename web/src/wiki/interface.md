@@ -325,7 +325,9 @@ Docked with a derelict wreck or a neutralized ship, the Inventory pane shows a s
      Take credits: `plan_credit_take`, applied by
      `apply_credit_take_commands`; Take all: `apply_take_all_commands`; Buy and Sell: `plan_item_trade`, prices
      `ItemPrice::buy_cr` and `ItemPrice::sell_cr` of `ItemDesign::reference_price`, balance `ShipCredits` from
-     `SpaceshipConfig::credits`; Jettison: `plan_item_jettison`; all but Take
+     `SpaceshipConfig::credits`; Refine: `plan_item_refine` over `ItemDesign::refine`,
+     the recipe `GameItems::refined_from`, the gate `REFINE_ADVANCEMENT` in
+     crates/nova_world_base/src/station_layout.rs; Jettison: `plan_item_jettison`; all but Take
      credits applied by crates/nova_interface/src/inventory/app.rs
      `apply_inventory_action_commands`; the action a row opens:
      `offered_action`, the Sell/Give switch: `draft_fits`. The intake's door, drop and pickup
@@ -390,17 +392,23 @@ Docked at a living station that offers storage, a **Storage** column lists what 
 
 Your own ships are storage too. Each of your ships docked at the same station, or docked with you directly, shows as its own section of the storage column, headed by its name and its load against its own hold, for example `Escort  300 kg / 400 kg`. Click its item to **Withdraw** it into your hold. To store into it, click an item in your column, then the **To Escort** button. The note line reads `Stored 12 Hull plate in Escort` or `Withdrew 30 Hull plate from Escort`. A move that does not fit is refused whole: `Refused: <ship> has room for 0 kg more`. Docked directly with one of your ships, it does not trade and has no column of its own: its hold is the storage section.
 
+### Refine
+
+Docked at a living station that refines, your ore can become a part. Click an item a recipe uses, such as iron ore, then the **Refine** button beside **Sell**. The form now counts batches and states each one whole: `2 Iron ore + 1 Carbon ore + 30 cr -> 1 Alloy plate`, over your balance after the fee. **Confirm** takes the ore from your hold, adds the alloy plate and pays the fee to the station, and the note line reads `REFINED x1 Alloy plate -30 cr`. The base waystation refines, and so does a generated station of a civilization at advancement 0.25 or more. Alloy plates go into the second-tier section recipes a shipyard builds.
+
+A refine that cannot run changes nothing. The form keeps the batch line, shows the reason under it and disables **Confirm**: `Refused: only 1 Iron ore in <ship>, needs 2`, `Refused: <ship> has only 20 cr, the fee is 30 cr`, `Refused: <ship> has room for 10 kg more`, or `Refused: <station> does not refine`. An item no recipe uses shows no **Refine** button.
+
 ### Quick moves
 
 Double-click an item to move its whole stack at once: the double click confirms the form a click opens, with the stack as the quantity. Hold <kbd>Shift</kbd> while you double-click to move one item instead.
 
 | Double-click | Does |
 | --- | --- |
-| An item in your column | The action the form shows: **Sell** at a trader, **Store** at a station that keeps items, **Give** to a lootable ship. |
+| An item in your column | The action the form shows: **Sell** at a trader, **Store** at a station that keeps items, **Refine** at a station that refines, **Give** to a lootable ship. |
 | An item in the storage column, or in one of your ships' sections | **Withdraw** it into your hold. |
 | An item in the docked ship's or station's column | **Buy** it, or **Take** it from a lootable ship. |
 
-The Give, Sell, Store and To buttons stay as you set them from item to item, so after one click on **Store**, each double click stores. A quick move is refused exactly as **Confirm** would refuse it, with the reason on the note line and in the form, and nothing changes: double-clicking a stack the storage cannot take reads `Refused: storage full, 100 kg free`. Jettison has no quick move. Two clicks count as a double click when they land on the same item within half a second.
+The Give, Sell, Store, Refine and To buttons stay as you set them from item to item, so after one click on **Store**, each double click stores. With **Refine** set, a double click on an ore runs every batch your hold covers, or one with <kbd>Shift</kbd>; an item no recipe uses falls back to **Sell**. A quick move is refused exactly as **Confirm** would refuse it, with the reason on the note line and in the form, and nothing changes: double-clicking a stack the storage cannot take reads `Refused: storage full, 100 kg free`. Jettison has no quick move. Two clicks count as a double click when they land on the same item within half a second.
 
 ### Jettison and pickup
 

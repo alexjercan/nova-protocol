@@ -20,13 +20,17 @@
 //! docked partner itself when it is one of them, each with its own capacity.
 //! Its row opens Withdraw from that hold, and the player's row switches to a
 //! `To <ship>` Store into it. A partner that is an own ship shows no partner
-//! column and does not trade. A derelict station is lootable and offers no
+//! column and does not trade. At a living station that offers Refine, the
+//! player's row of an item some refine recipe consumes also switches to
+//! Refine: the form counts batches, and its summary states what the batches
+//! take and make. A derelict station is lootable and offers no
 //! service. While undocked with a live cargo intake,
 //! the player's row opens a Jettison form. Confirm writes an
 //! [`InventoryActionCommand`], and [`apply_inventory_action_commands`] moves
 //! the items, and for a trade the credits, by the
 //! [`plan_item_transfer`](nova_gameplay::prelude::plan_item_transfer),
 //! [`plan_item_trade`](nova_gameplay::prelude::plan_item_trade),
+//! [`plan_item_refine`](nova_gameplay::prelude::plan_item_refine),
 //! [`plan_item_storage`](nova_gameplay::prelude::plan_item_storage) or
 //! [`plan_item_jettison`](nova_gameplay::prelude::plan_item_jettison) rule, or
 //! refuses with no change. The partner column's Credits row also carries a
@@ -38,9 +42,9 @@
 //! refuses with no change.
 //!
 //! A double click on a row selects it and confirms the form it opens, at the
-//! whole stack, or one unit with Shift held: Sell or Store (whichever chip the
-//! form shows) or Give from the hold, Withdraw from storage, Buy or Take from
-//! the partner. It writes the same [`InventoryActionCommand`] Confirm does, so
+//! whole stack, or one unit with Shift held: Sell, Store or Refine (whichever
+//! chip the form shows) or Give from the hold, Withdraw from storage, Buy or
+//! Take from the partner. A Refine runs every batch the hold covers. It writes the same [`InventoryActionCommand`] Confirm does, so
 //! it refuses exactly as Confirm would. Jettison has no double click.
 //!
 //! The keyboard reaches the same selection: `viewer_next` and `viewer_prev`
@@ -194,8 +198,8 @@ pub struct InventoryRuntime {
     /// Whether `inventory_details` holds the selected item's full description
     /// open. A new selection closes it.
     pub(crate) details: bool,
-    /// The Give, Sell or Store chip last clicked; a player's row opens it
-    /// while the partner takes it, else the action the row offers.
+    /// The Give, Sell, Store or Refine chip last clicked; a player's row
+    /// opens it while the partner takes it, else the action the row offers.
     pub(crate) own_action: Option<InventoryActionType>,
     /// The row the last click landed on, for a double click.
     pub(crate) click: DoubleClick<(InventorySideType, ItemDesignId)>,
@@ -233,6 +237,12 @@ pub(crate) enum InventoryActionType {
     /// Move items from the station's storage or an own ship's hold to the
     /// player ship.
     Withdraw(InventoryStoreType),
+    /// Turn the row's item, with the other inputs of the refine recipe that
+    /// consumes it and the recipe's fee, into the recipe's output at the
+    /// docked station. The quantity counts batches, one output each. The
+    /// recipe is [`GameItems::refined_from`] of the row's item: the first by
+    /// output id when the item feeds several.
+    Refine,
 }
 
 impl InventoryActionType {
@@ -241,7 +251,12 @@ impl InventoryActionType {
         match self {
             Self::Take => Some(ItemTransferType::Take),
             Self::Give => Some(ItemTransferType::Give),
-            Self::Buy | Self::Sell | Self::Jettison | Self::Store(_) | Self::Withdraw(_) => None,
+            Self::Buy
+            | Self::Sell
+            | Self::Jettison
+            | Self::Store(_)
+            | Self::Withdraw(_)
+            | Self::Refine => None,
         }
     }
 
@@ -250,7 +265,12 @@ impl InventoryActionType {
         match self {
             Self::Buy => Some(ItemTradeType::Buy),
             Self::Sell => Some(ItemTradeType::Sell),
-            Self::Take | Self::Give | Self::Jettison | Self::Store(_) | Self::Withdraw(_) => None,
+            Self::Take
+            | Self::Give
+            | Self::Jettison
+            | Self::Store(_)
+            | Self::Withdraw(_)
+            | Self::Refine => None,
         }
     }
 
@@ -260,7 +280,9 @@ impl InventoryActionType {
         match self {
             Self::Store(target) => Some((ItemStorageType::Store, target)),
             Self::Withdraw(target) => Some((ItemStorageType::Withdraw, target)),
-            Self::Take | Self::Give | Self::Buy | Self::Sell | Self::Jettison => None,
+            Self::Take | Self::Give | Self::Buy | Self::Sell | Self::Jettison | Self::Refine => {
+                None
+            }
         }
     }
 }
@@ -270,11 +292,11 @@ impl InventoryActionType {
 pub(crate) struct InventoryDraft {
     /// What the draft or command does with its items.
     pub(crate) action: InventoryActionType,
-    /// The item to move.
+    /// The item to move; for a Refine, the row's input item.
     pub(crate) item: ItemDesignId,
-    /// The one quantity the wheel, the slider, the field and All set. `None`
-    /// while the field holds text that is not a whole number, which Confirm
-    /// refuses.
+    /// The one quantity the wheel, the slider, the field and All set; for a
+    /// Refine, the batches. `None` while the field holds text that is not a
+    /// whole number, which Confirm refuses.
     pub(crate) quantity: Option<u32>,
 }
 
@@ -284,9 +306,10 @@ pub(crate) struct InventoryDraft {
 pub(crate) struct InventoryActionCommand {
     /// What the draft or command does with its items.
     pub(crate) action: InventoryActionType,
-    /// The item to move.
+    /// The item to move; for a Refine, the row's input item.
     pub(crate) item: ItemDesignId,
-    /// The quantity; `None` when the typed text is not a whole number.
+    /// The quantity, or a Refine's batches; `None` when the typed text is
+    /// not a whole number.
     pub(crate) quantity: Option<u32>,
 }
 

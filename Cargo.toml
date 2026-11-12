@@ -895,6 +895,14 @@ name = "system_station_strip"
 path = "examples/systems/system_station_strip.rs"
 required-features = ["debug"]
 
+# Ore refined at a living station through the Inventory pane: the form states
+# the batch, Confirm takes the inputs and the fee and adds one alloy plate,
+# and a batch the hold is short of is refused on the form.
+[[example]]
+name = "system_station_refine"
+path = "examples/systems/system_station_refine.rs"
+required-features = ["debug"]
+
 # A living generated station's trade and storage through the Inventory pane:
 # buy, sell and store by clicks, the storage kept through a retire and a thaw,
 # withdrawn whole, an over-cap store refused on the form, and the storage

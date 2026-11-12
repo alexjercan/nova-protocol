@@ -69,7 +69,7 @@ Every field is required. `id`, `name` and `about` name the catalog entry;
 | `about` | string | what this station is, for a reader |
 | `design` | station | the station itself: the six fields below. A spawn can also carry one inline, see [Spawning one](#spawning-one) |
 | `hull` | design | the same fields a [ship design](../ships/#the-design) takes: `sections`, `integrity`, `presentation`. It must hold a `Docking` section and a `Controller` section and no `Thruster` section, and author `integrity.collapse_threshold`: the share of its hull a station collapses at, see below |
-| `services` | list | what a docked ship may do here, from the closed set `Rebuild`, `Refit`, `Trade`, `Storage`, `Jobs`, `Roster`. At least one |
+| `services` | list | what a docked ship may do here, from the closed set `Rebuild`, `Refit`, `Trade`, `Storage`, `Refine`, `Jobs`, `Roster`. At least one |
 | `builds` | list | the section prototype ids this station crafts, each listed once. Nonempty exactly when `services` lists `Refit` or `Rebuild`, empty otherwise |
 | `storage_cap_g` | whole number | how many grams the station's storage takes. Above zero exactly when `services` lists `Storage` |
 | `stock` | stock | what the hull's own hold opens with, in the [stock format](../objects/#inventory). It must fit the hull's hold (100 kg per hull section) |
@@ -80,7 +80,8 @@ what levels the station, see below.
 
 A docked ship trades with a living station that offers `Trade` as it trades
 with a ship, and keeps items in the storage of one that offers `Storage` (see
-[Trade and storage](#trade-and-storage)). `Rebuild` and `Refit` are in play
+[Trade and storage](#trade-and-storage)). `Refine` turns ore into a part for
+a fee (see [Refine](#refine)). `Rebuild` and `Refit` are in play
 too (see [Rebuild](#rebuild), [Swap](#swap), [Add](#add), [Buy a hull](#buy-a-hull) and [Hire an escort](#hire-an-escort)). `Jobs` posts the
 station's job board (see [Jobs](#jobs)); `Roster` is checked and carried, and
 the screen that reads it is its own task.
@@ -153,6 +154,27 @@ The proof is `system_station_storage`: on a generated world, the player docks
 at a living waystation, buys, sells and stores through the pane, leaves until
 the station's cell retires, comes back, withdraws the same stacks, meets the
 over-cap refusal, and finds the storage in the leave save and after a Load.
+
+## Refine
+
+A ship docked to a living station that offers `Refine` turns items into a
+refined item, from the Inventory pane. The recipe is the refined item's
+`refine` field, see [Content files](../mod-files/#content-files). The base
+game authors one: 2 `IronOre`, 1 `CarbonOre` and 30 cr make 1 `AlloyPlate`.
+
+| rule | what happens |
+|---|---|
+| the gate | docked to a living station whose `services` list `Refine`. A dead station and a ship refine nothing |
+| the action | the player's row of an item a recipe consumes gains a **Refine** button beside Sell and Store. An item two recipes consume offers the recipe whose output id sorts first |
+| the form | the quantity counts batches. The summary states them whole, `2 Iron ore + 1 Carbon ore + 30 cr -> 1 Alloy plate`, over the balance after the fee or the refusal |
+| a batch | every input leaves the ship's hold, one output enters it, and the fee moves from the ship to the station |
+| refusals | in this order, on the form with Confirm disabled, and on the note line: not docked, no `Refine` service, no quantity, quantity zero, an input the hold is short of (the first by id), too few credits for the fee, no room for the output once the inputs have left, a station purse that cannot take the fee |
+| events | one `OnCreditsChanged` per party with `cause: Refine`, see [Hold events](../events/#hold-events) |
+| a saved world | a station keeps the services it was built with. A station frozen in a save from before `Refine` does not gain it; a cell generated later does |
+
+The proof is `system_station_refine`: a ship docks at the base waystation,
+refines one alloy plate through the pane, and the next batch is refused by
+the carbon ore the hold no longer has.
 
 ## Rebuild
 
@@ -422,7 +444,8 @@ every cell.
 | opening stock, share of the hold, at least | 4% | 8% |
 | parts floor | one recipe of each built part | one recipe of each built part |
 
-Every generated station offers Rebuild, Refit, Trade, Storage and Jobs. Its stock
+Every generated station offers Rebuild, Refit, Trade, Storage and Jobs, and
+Refine when its civilization's advancement is 0.25 or more. Its stock
 is half goods and half the recipe parts of every section its civilization
 builds: every part at advancement 0, and of the parts above 0 that its
 advancement opens, each with chance 0.5 keyed to the civilization and the
@@ -617,7 +640,7 @@ board is seeded from.
 
 | id | what it is |
 |---|---|
-| `block_waystation` | Waystation - a plated two-deck block about 40 m across, unarmed, with a bridge set into the top deck, a second flight computer (`lower_bridge`) in the far corner of the lower deck and a docking collar off the port flank (`port_collar`). Offers Rebuild, Refit, Trade and Storage; its hold opens with hull plates, rations, salvaged parts and a few of each hull, drive, controller and PDC part |
+| `block_waystation` | Waystation - a plated two-deck block about 40 m across, unarmed, with a bridge set into the top deck, a second flight computer (`lower_bridge`) in the far corner of the lower deck and a docking collar off the port flank (`port_collar`). Offers Rebuild, Refit, Trade, Storage and Refine; its hold opens with hull plates, rations, salvaged parts and a few of each hull, drive, controller and PDC part |
 
 The waystation collapses at half its hull pool, as every generated station
 does.

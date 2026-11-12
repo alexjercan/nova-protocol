@@ -1362,6 +1362,231 @@ fn a_double_click_stores_a_hold_stack_and_withdraws_a_storage_stack() {
     assert_eq!((credits(player), credits(station)), (100, 1_000));
 }
 
+/// The ids of the base refine recipe: iron ore, carbon ore and the alloy
+/// plate two iron and one carbon make for a 30 cr fee.
+fn refine_ids() -> [ItemDesignId; 3] {
+    ["IronOre", "CarbonOre", "AlloyPlate"].map(ItemDesignId::from)
+}
+
+/// Add `count` of `item` to the hold of `ship`.
+fn load(app: &mut App, ship: Entity, item: &ItemDesignId, count: u32) {
+    app.world_mut()
+        .get_mut::<ShipInventory>(ship)
+        .expect("a ship root carries a ShipInventory")
+        .add(&test_items(), item, count);
+}
+
+/// The open form's summary text, and whether Confirm is enabled.
+fn draft_form(app: &mut App) -> (String, bool) {
+    let world = app.world_mut();
+    let confirm = only::<InventoryDraftConfirm>(world);
+    let summary = world
+        .query::<(&InventoryInspectorField, &Text)>()
+        .iter(world)
+        .find(|(each, _)| **each == InventoryInspectorField::DraftSummary)
+        .map(|(_, text)| text.0.clone())
+        .expect("the form has a summary");
+    (summary, world.get::<InteractionDisabled>(confirm).is_none())
+}
+
+/// How many Refine switch chips the form draws.
+fn refine_chips(app: &mut App) -> usize {
+    let world = app.world_mut();
+    world
+        .query::<&InventoryDraftActionChip>()
+        .iter(world)
+        .filter(|chip| chip.0 == InventoryActionType::Refine)
+        .count()
+}
+
+/// Click the row of `item` in the player's column, then the Refine chip.
+fn open_refine(rig: &mut PanePointerRig, item: &ItemDesignId) {
+    let at = row_at(rig, InventorySideType::Own, item);
+    click_at(rig, at);
+    let chip = centre_of::<InventoryDraftActionChip>(rig.app.world_mut(), |chip| {
+        chip.0 == InventoryActionType::Refine
+    });
+    click_at(rig, chip);
+}
+
+/// Docked at a living station that offers Refine, the row of a refine input
+/// switches to Refine and no other row does; the form states the whole batch;
+/// Confirm takes the inputs, adds one output and moves the fee from the
+/// player's credits to the station's.
+#[test]
+fn a_refine_station_turns_the_inputs_and_the_fee_into_one_output() {
+    let (mut rig, player) = inventory_rig();
+    let [iron, carbon, alloy] = refine_ids();
+    let plate = ItemDesignId::from(ItemRoleType::HullPlate);
+    load(&mut rig.app, player, &iron, 2);
+    load(&mut rig.app, player, &carbon, 1);
+    let station = dock_station(
+        &mut rig,
+        player,
+        vec![StationServiceType::Trade, StationServiceType::Refine],
+        1_000_000,
+    );
+    let draft_action = |rig: &PanePointerRig| {
+        rig.app
+            .world()
+            .resource::<InventoryRuntime>()
+            .draft
+            .as_ref()
+            .map(|draft| draft.action)
+    };
+
+    // A row that feeds no recipe draws no Refine chip.
+    let at = row_at(&mut rig, InventorySideType::Own, &plate);
+    click_at(&mut rig, at);
+    assert_eq!(draft_action(&rig), Some(InventoryActionType::Sell));
+    assert_eq!(refine_chips(&mut rig.app), 0);
+
+    open_refine(&mut rig, &iron);
+    assert_eq!(draft_action(&rig), Some(InventoryActionType::Refine));
+    assert_eq!(
+        draft_form(&mut rig.app),
+        (
+            "2 Iron ore + 1 Carbon ore + 30 cr -> 1 Alloy plate\nBalance 70 cr".to_string(),
+            true
+        )
+    );
+
+    // Refine stays picked on the recipe's other input, and falls back to the
+    // row's own offer where nothing refines.
+    let at = row_at(&mut rig, InventorySideType::Own, &carbon);
+    click_at(&mut rig, at);
+    assert_eq!(draft_action(&rig), Some(InventoryActionType::Refine));
+    let at = row_at(&mut rig, InventorySideType::Own, &plate);
+    click_at(&mut rig, at);
+    assert_eq!(draft_action(&rig), Some(InventoryActionType::Sell));
+    let at = row_at(&mut rig, InventorySideType::Own, &carbon);
+    click_at(&mut rig, at);
+    assert_eq!(draft_action(&rig), Some(InventoryActionType::Refine));
+    take_cues(&mut rig.app);
+
+    let confirm_at = centre_of::<InventoryDraftConfirm>(rig.app.world_mut(), |_| true);
+    click_at(&mut rig, confirm_at);
+    let held = |item| {
+        rig.app
+            .world()
+            .get::<ShipInventory>(player)
+            .expect("the player has a hold")
+            .count(item)
+    };
+    assert_eq!((held(&iron), held(&carbon), held(&alloy)), (0, 0, 1));
+    let credits = |entity| rig.app.world().get::<ShipCredits>(entity).unwrap().0;
+    assert_eq!((credits(player), credits(station)), (70, 1_030));
+    assert_eq!(
+        note(&rig.app).as_deref(),
+        Some("REFINED x1 Alloy plate -30 cr")
+    );
+    assert_eq!(rig.app.world().resource::<InventoryRuntime>().draft, None);
+    assert_eq!(
+        rig.app
+            .world()
+            .get::<ShipInventoryReports>(player)
+            .expect("a ship root carries ShipInventoryReports")
+            .0,
+        vec![ShipInventoryReport::CreditsChanged {
+            previous_cr: 100,
+            current_cr: 70,
+            cause: CreditChangeCauseType::Refine,
+        }]
+    );
+}
+
+/// A station that does not offer Refine draws no Refine chip on a refine
+/// input, and a Refine command sent at it anyway refuses with no item or
+/// credit moved.
+#[test]
+fn a_station_without_refine_offers_none_and_refuses_one() {
+    let (mut rig, player) = inventory_rig();
+    let [iron, carbon, alloy] = refine_ids();
+    load(&mut rig.app, player, &iron, 2);
+    load(&mut rig.app, player, &carbon, 1);
+    let station = dock_station(
+        &mut rig,
+        player,
+        vec![StationServiceType::Trade, StationServiceType::Storage],
+        1_000_000,
+    );
+
+    let at = row_at(&mut rig, InventorySideType::Own, &iron);
+    click_at(&mut rig, at);
+    assert_eq!(refine_chips(&mut rig.app), 0);
+
+    rig.app.world_mut().write_message(InventoryActionCommand {
+        action: InventoryActionType::Refine,
+        item: iron.clone(),
+        quantity: Some(1),
+    });
+    settle(&mut rig.app);
+    assert_eq!(
+        note(&rig.app).as_deref(),
+        Some("Refused: Waystation does not refine")
+    );
+    let held = |item| {
+        rig.app
+            .world()
+            .get::<ShipInventory>(player)
+            .expect("the player has a hold")
+            .count(item)
+    };
+    assert_eq!((held(&iron), held(&carbon), held(&alloy)), (2, 1, 0));
+    let credits = |entity| rig.app.world().get::<ShipCredits>(entity).unwrap().0;
+    assert_eq!((credits(player), credits(station)), (100, 1_000));
+}
+
+/// A hold short of one input, or a balance short of the fee, keeps the batch
+/// line on the form, names what is short under it and disables Confirm.
+#[test]
+fn a_refine_short_of_an_input_or_the_fee_names_it_and_disables_confirm() {
+    let (mut rig, player) = inventory_rig();
+    let [iron, carbon, _] = refine_ids();
+    load(&mut rig.app, player, &iron, 1);
+    load(&mut rig.app, player, &carbon, 1);
+    dock_station(
+        &mut rig,
+        player,
+        vec![StationServiceType::Trade, StationServiceType::Refine],
+        1_000_000,
+    );
+    let batch = "2 Iron ore + 1 Carbon ore + 30 cr -> 1 Alloy plate";
+
+    open_refine(&mut rig, &carbon);
+    assert_eq!(
+        draft_form(&mut rig.app),
+        (
+            format!("{batch}\nRefused: only 1 Iron ore in NOVA, needs 2"),
+            false
+        )
+    );
+
+    load(&mut rig.app, player, &iron, 1);
+    rig.app
+        .world_mut()
+        .entity_mut(player)
+        .insert(ShipCredits(29));
+    settle(&mut rig.app);
+    assert_eq!(
+        draft_form(&mut rig.app),
+        (
+            format!("{batch}\nRefused: NOVA has only 29 cr, the fee is 30 cr"),
+            false
+        )
+    );
+
+    rig.app
+        .world_mut()
+        .entity_mut(player)
+        .insert(ShipCredits(30));
+    settle(&mut rig.app);
+    assert_eq!(
+        draft_form(&mut rig.app),
+        (format!("{batch}\nBalance 0 cr"), true)
+    );
+}
+
 /// A double click whose whole stack would overfill the station's storage, or
 /// the player's hold, refuses exactly as Confirm does: the refusal on the
 /// note line and the form, the deny cue, and no item, credit or report moved.
