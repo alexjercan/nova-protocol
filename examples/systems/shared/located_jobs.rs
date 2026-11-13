@@ -150,7 +150,7 @@ impl LocatedKindType {
     const fn pinned_seed(self) -> u32 {
         match self {
             LocatedKindType::Recover => 15,
-            LocatedKindType::Escort => 2,
+            LocatedKindType::Escort => 37,
             LocatedKindType::Distress => 16,
             LocatedKindType::Neutralize => 16,
             LocatedKindType::Supply => 5,

@@ -1,7 +1,7 @@
 //! system_job_ammo_economics: What one shipped escort job costs in ammunition, what it pays, and what the posting station charges to buy the rounds back.
 //!
 //! BALANCE RESEARCH, not a balance change. Boots the shipped app and plays the
-//! same seed-2 `military` escort walk as `system_job_escort`
+//! same seed-37 `military` escort walk as `system_job_escort`
 //! ([`located_jobs::walk_to_done`] then [`located_jobs::hand_in`]): the
 //! player's own turrets fight the ambush, and the reward is paid through the
 //! Jobs pane's Hand in button. The walk's markers and asserts run unchanged.
@@ -81,7 +81,7 @@ pub mod located_jobs;
 #[command(name = "system_job_ammo_economics")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "Balance research: play the seed-2 military escort job, ledger the ammunition the \
+    about = "Balance research: play the seed-37 military escort job, ledger the ammunition the \
              fight spends and the reward the hand-in pays, then buy the spent PDC rounds back at \
              the posting station through the Inventory pane. Autopilot-only",
     long_about = None
