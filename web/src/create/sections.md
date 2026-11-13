@@ -941,8 +941,9 @@ kind: Torpedo((
     intercept, which is what the Lance authors.
   - `weave_rate` (rad/s; `1.4` on the Serpent, `0.0` on the two straight types) -
     how fast the weave spins
-    about the guidance command. The lateral acceleration a defender's lead
-    solution fails to predict scales with
+    about the guidance command. A defender's lead solution follows the
+    torpedo's acceleration, but the weave keeps turning it; the lateral
+    acceleration that lead has to chase scales with
     `max_speed * sin(weave_angle) * weave_rate`, while the helix radius
     (`max_speed * sin(weave_angle) / weave_rate`) shrinks with it - keep that
     radius comfortably inside the terminal band, `blast_radius * 0.5`, or the

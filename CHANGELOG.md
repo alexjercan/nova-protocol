@@ -22,6 +22,10 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Half the civilizations of a generated world are lawful: their station markets buy and sell no Contraband, and the trade form says so. They still dock you. Scavengers deal unmarked cores.
 - Gamepad: L3 + Y docks and L3 + A takes the helm, two caps on the key row. New hulls put torpedoes on LB, the railgun on View and mining on RT; hot weapons turn off pad free look and HUD toggle.
 
+### Combat & Weapons
+
+- Turrets now lead a target's acceleration as well as its course, so their rounds land on a ship that is burning or turning, not only on one flying straight.
+
 ### Ships & Sections
 
 - Five second-tier sections swap in at a shipyard: wide intake, long mining beam, armoured controller, wide-gate docking port and heavy lance. Each recipe spends one new `AlloyPlate` part.

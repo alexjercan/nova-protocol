@@ -101,27 +101,88 @@ pub fn muzzle_on_target(forward: Vec3, muzzle: Vec3, aim: Vec3, hit_radius: Opti
     muzzle_aim_error(forward, muzzle, aim) <= on_target_cone(hit_radius, muzzle.distance(aim))
 }
 
-/// The point a turret should aim at to hit a moving target: the intercept point,
-/// where a bullet leaving the muzzle at `projectile_speed` meets the target moving
-/// at `target_vel`. Solves `|(target - shooter) + target_vel*t| = projectile_speed*t`
-/// for the smallest positive time-to-intercept `t` and returns `target + target_vel*t`.
+/// The point a turret should aim at to hit a maneuvering target: the intercept
+/// point, where a round leaving the muzzle at `projectile_speed` meets a target
+/// at `target` moving at `target_vel` and accelerating at `target_accel`.
+/// Solves `|(target - shooter) + target_vel*t + target_accel*t^2/2| =
+/// projectile_speed*t` for the smallest positive `t` no later than `max_flight`
+/// and returns where the target is at that `t`.
 ///
-/// The solve assumes the bullet travels at `projectile_speed` from the shooter in
-/// the frame `target_vel` is expressed in. Because bullets inherit the shooter's
-/// muzzle velocity on launch, the caller passes the target velocity RELATIVE to
-/// the shooter (see `update_turret_aim_point`); pass a world velocity only for a
-/// shooter that is truly at rest.
+/// The frames. A round inherits the muzzle velocity on launch and then flies
+/// straight, so the solve runs in the frame of the muzzle AT LAUNCH: the caller
+/// passes the target velocity RELATIVE to the muzzle, and the target's own WORLD
+/// acceleration. The shooter's acceleration after the round leaves moves the
+/// shooter, never the round, so it is not part of the lead.
 ///
-/// Falls back to the target's current position when there is no valid intercept -
-/// a target with no relative motion resolves to the target itself, and a target
-/// too fast to catch (or receding faster than the bullet) has no positive solution,
-/// so the turret simply aims where the target is now.
+/// The quartic has no closed form worth carrying, so the solve brackets its first
+/// sign change on [`INTERCEPT_SCAN_STEPS`] samples of the round's flight and
+/// bisects it. A round expires at `max_flight`, so an intercept after it is no
+/// intercept: with no root inside the flight - a target that out-accelerates the
+/// round, or one beyond its reach - the solve falls back to
+/// [`velocity_lead_point`], which keeps a sane aim on a target the gun cannot
+/// reach yet. A target with no acceleration takes that exact closed form.
 ///
 /// `pub(crate)` because it is the solution the torpedo's terminal weave exists
 /// to break: the weave measurement in `torpedo_section` scores itself against
 /// THIS solve rather than a copy of it that could drift away from what turrets
 /// actually fire on.
 pub(crate) fn lead_intercept_point(
+    shooter: Vec3,
+    target: Vec3,
+    target_vel: Vec3,
+    target_accel: Vec3,
+    projectile_speed: f32,
+    max_flight: f32,
+) -> Vec3 {
+    if target_accel == Vec3::ZERO || !(max_flight > 0.0 && max_flight.is_finite()) {
+        return velocity_lead_point(shooter, target, target_vel, projectile_speed);
+    }
+    let to_target = target - shooter;
+    let half_accel = 0.5 * target_accel;
+    let at = |t: f32| to_target + target_vel * t + half_accel * t * t;
+    // Positive while the target stands outside the sphere a round has covered
+    // by `t`, and zero where the two meet.
+    let gap = |t: f32| at(t).length_squared() - (projectile_speed * t).powi(2);
+
+    let step = max_flight / INTERCEPT_SCAN_STEPS as f32;
+    let bracket = (1..=INTERCEPT_SCAN_STEPS)
+        .map(|k| step * k as f32)
+        .find(|&t| gap(t) <= 0.0);
+    let Some(mut late) = bracket else {
+        return velocity_lead_point(shooter, target, target_vel, projectile_speed);
+    };
+    let mut early = late - step;
+    for _ in 0..INTERCEPT_BISECTIONS {
+        let mid = 0.5 * (early + late);
+        if gap(mid) > 0.0 {
+            early = mid;
+        } else {
+            late = mid;
+        }
+    }
+    shooter + at(late)
+}
+
+/// Samples of the round's flight [`lead_intercept_point`] brackets its root on.
+/// At the PDC's 2 s flight one sample is 62 ms, 62 m of round travel: two roots
+/// inside one sample are a target grazing the round's reach sphere, which a
+/// barrel cannot thread anyway.
+const INTERCEPT_SCAN_STEPS: u32 = 32;
+
+/// Bisections of the bracketing sample. 24 halvings of 62 ms are finer than an
+/// `f32` flight time near one second can hold.
+const INTERCEPT_BISECTIONS: u32 = 24;
+
+/// The constant-velocity intercept: [`lead_intercept_point`] with no
+/// acceleration, in closed form. Solves `|(target - shooter) + target_vel*t| =
+/// projectile_speed*t` for the smallest positive `t` and returns
+/// `target + target_vel*t`.
+///
+/// Falls back to the target's current position when there is no valid intercept -
+/// a target with no relative motion resolves to the target itself, and a target
+/// too fast to catch (or receding faster than the bullet) has no positive solution,
+/// so the turret simply aims where the target is now.
+fn velocity_lead_point(
     shooter: Vec3,
     target: Vec3,
     target_vel: Vec3,
@@ -183,17 +244,58 @@ pub(crate) fn lead_intercept_point(
 /// tick's spike enters the track at 18% of its size and is gone within three
 /// more; shorter, and the barrel is handed back the per-tick jitter that stops
 /// it ever settling inside the fire gate.
+///
+/// The acceleration lead takes the steady `a * tau` shortfall back out: the
+/// solve leads `velocity + acceleration * tau` (see
+/// [`TurretSectionTargetTrack::lead`]). The bound above still governs whatever
+/// that estimate gets wrong - a weave turning its acceleration faster than
+/// [`TARGET_ACCEL_TAU`] follows it.
 const TARGET_TRACK_TAU: f32 = 0.08;
 
-/// One mount's filtered track of what it is shooting at: the mean course the
-/// intercept solve leads, and the entity that course belongs to.
+/// Time constant (seconds) of the target-acceleration track: the low-pass over
+/// the change in the filtered velocity, per second.
 ///
-/// **Why a track at all.** [`lead_intercept_point`] solves a CONSTANT-velocity
-/// intercept, so whatever velocity it is handed is believed for the whole
-/// flight. Handed the raw per-tick sample it chases a Serpent's corkscrew
-/// instead of predicting it: the aim point swings with the weave, and a barrel
-/// that is always slewing is never inside the fire gate. No fire-control
-/// solution has ever been laid off a single sensor return.
+/// The sample is already smoothed once, by [`TARGET_TRACK_TAU`]; this second
+/// pole is for the bang-bang drive. A ship's thrusters fire full or not at all
+/// per tick, so the per-tick acceleration jumps between zero and the drive's
+/// full figure while the mean is what moves the hull. A quarter second spans
+/// sixteen 64 Hz ticks of that chatter, and it costs little on a ship: the
+/// raider burns measured in the escort fight hold one figure for one to several
+/// seconds. The price is a weave: the Serpent turns its acceleration at 1.4
+/// rad/s, and the two poles lag that turn by
+/// `atan(1.4 * 0.08) + atan(1.4 * 0.25)`, about 26 deg. The weave model in
+/// `point_defense_cost_tests` prices a Serpent within 1% of its velocity-only
+/// cost, so the weave still does its job.
+const TARGET_ACCEL_TAU: f32 = 0.25;
+
+/// The largest acceleration sample (world units per second squared, 1 u/s^2
+/// is 10 m/s^2) the track believes: 400 m/s^2.
+///
+/// The fastest-maneuvering bodies a gun is pointed at are torpedoes: about
+/// 25 u/s^2 of thrust in the guidance model, and the Serpent's weave at
+/// `max_speed * sin(weave_angle) * weave_rate`, about 19 u/s^2. The raiders in
+/// the escort fight measured at most 8.2 u/s^2. A contact or a ram changes a
+/// velocity by tens of u/s inside one 1/64 s tick, which reads as thousands of
+/// u/s^2: physics, not a maneuver, and nothing to lead over a round's flight.
+/// Clamped here, one such tick enters the track as at most
+/// `40 * (1 - exp(-(1/64) / 0.25))`, 2.4 u/s^2.
+const TARGET_ACCEL_MAX: f32 = 40.0;
+
+/// One mount's filtered track of what it is shooting at: the mean course and
+/// the acceleration the intercept solve leads, and the entity they belong to.
+///
+/// **Why a track at all.** [`lead_intercept_point`] extrapolates whatever
+/// velocity and acceleration it is handed over the whole flight. Handed the raw
+/// per-tick sample it chases a Serpent's corkscrew instead of predicting it:
+/// the aim point swings with the weave, and a barrel that is always slewing is
+/// never inside the fire gate. No fire-control solution has ever been laid off
+/// a single sensor return.
+///
+/// **Why the acceleration is derived here.** The aim feeds publish a velocity,
+/// which is what every body carries. The acceleration is that velocity's change
+/// per second, taken off the FILTERED velocity so a contact spike does not
+/// differentiate into a wild figure, clamped at [`TARGET_ACCEL_MAX`] and
+/// smoothed at [`TARGET_ACCEL_TAU`].
 ///
 /// **Why per MOUNT.** A per-TARGET track is the better picture of a real
 /// battery - one filtered track per body, shared by every mount working it -
@@ -214,17 +316,40 @@ pub struct TurretSectionTargetTrack {
     tracking: Option<Entity>,
     /// The filtered velocity, or `None` before the track has taken a sample.
     velocity: Option<Vec3>,
+    /// The filtered acceleration. Zero until the track has seen a velocity
+    /// change.
+    acceleration: Vec3,
 }
 
 impl TurretSectionTargetTrack {
-    /// The filtered velocity to lead on, or `None` when the track holds no
-    /// sample yet.
+    /// The filtered velocity, or `None` when the track holds no sample yet.
     pub fn velocity(&self) -> Option<Vec3> {
         self.velocity
     }
 
-    /// Fold one step's `sample` into the track, at the already-computed `gain`.
-    fn observe(&mut self, target: Option<Entity>, sample: Vec3, gain: f32) {
+    /// The filtered acceleration, world units per second squared.
+    pub fn acceleration(&self) -> Vec3 {
+        self.acceleration
+    }
+
+    /// The velocity and acceleration to lead on, or `None` when the track
+    /// holds no sample yet.
+    ///
+    /// The velocity is the filtered one plus `acceleration * TARGET_TRACK_TAU`:
+    /// a one-pole filter on a target under constant acceleration settles
+    /// exactly that far behind it, so this is the target's own velocity again,
+    /// not the filter's lag led over the flight.
+    pub fn lead(&self) -> Option<(Vec3, Vec3)> {
+        self.velocity.map(|velocity| {
+            (
+                velocity + self.acceleration * TARGET_TRACK_TAU,
+                self.acceleration,
+            )
+        })
+    }
+
+    /// Fold one step of `dt` seconds of `sample` into the track.
+    pub(crate) fn observe(&mut self, target: Option<Entity>, sample: Vec3, dt: f32) {
         // TARGET SWITCH. A mount that swapped torpedoes and kept the filter
         // would lead the new one along the dead one's course for a whole time
         // constant - and the two are rarely even on the same bearing, so the
@@ -233,21 +358,34 @@ impl TurretSectionTargetTrack {
         if self.tracking != target {
             self.tracking = target;
             self.velocity = None;
+            self.acceleration = Vec3::ZERO;
         }
-        self.velocity = Some(match self.velocity {
-            Some(filtered) => filtered + (sample - filtered) * gain,
+        let Some(filtered) = self.velocity else {
             // TRACK INITIATION, on the first return of a new track. Easing up
             // from zero instead would aim at the target's CURRENT position for
             // the first time constant, which on a 30 u/s torpedo is a bigger
-            // error than having no filter at all.
-            None => sample,
-        });
+            // error than having no filter at all. One sample holds no change,
+            // so the acceleration starts at zero.
+            self.velocity = Some(sample);
+            return;
+        };
+        // A zero step (the startup frame) folds nothing and has no rate.
+        if dt <= 0.0 {
+            return;
+        }
+        // The same exponential form as `AIM_CORRECTION_RATE` below, for the
+        // same reason: it folds the same fraction of the error per unit TIME at
+        // any step length, so a track means the same thing on any host.
+        let velocity = filtered + (sample - filtered) * (1.0 - (-dt / TARGET_TRACK_TAU).exp());
+        let change = ((velocity - filtered) / dt).clamp_length_max(TARGET_ACCEL_MAX);
+        self.acceleration += (change - self.acceleration) * (1.0 - (-dt / TARGET_ACCEL_TAU).exp());
+        self.velocity = Some(velocity);
     }
 }
 
 /// Fold each mount's raw target-velocity sample into its
 /// [`TurretSectionTargetTrack`], so the intercept solve leads the target's mean
-/// course instead of the tick it happened to catch.
+/// course and acceleration instead of the tick it happened to catch.
 ///
 /// Runs on the FIXED clock at the head of the aim chain, with everything else
 /// that decides where a barrel points: a filter on the render clock would
@@ -264,18 +402,16 @@ pub(super) fn update_turret_target_track(
         With<TurretSectionMarker>,
     >,
 ) {
-    // The same exponential form as `AIM_CORRECTION_RATE` below, for the same
-    // reason: it folds the same fraction of the error per unit TIME at any step
-    // length, so a track means the same thing on any host.
-    let gain = 1.0 - (-time.delta_secs() / TARGET_TRACK_TAU).exp();
+    let dt = time.delta_secs();
     for (target, sample, mut track) in &mut q_turret {
-        track.observe(**target, **sample, gain);
+        track.observe(**target, **sample, dt);
     }
 }
 
 /// Resolve each turret's lead intercept point into [`TurretSectionAimPoint`] from
-/// its target position, target velocity, and the bullet `muzzle_speed`. Runs
-/// before the yaw/pitch systems, which steer toward this point.
+/// its target position, its tracked velocity and acceleration, and the bullet
+/// `muzzle_speed`. Runs before the yaw/pitch systems, which steer toward this
+/// point.
 ///
 /// The intercept is solved in the SHOOTER's frame: bullets inherit the full
 /// muzzle point velocity at fire time (`shoot_spawn_projectile` adds ship
@@ -283,9 +419,10 @@ pub(super) fn update_turret_target_track(
 /// the target velocity RELATIVE to that same muzzle point velocity. Aiming
 /// the barrel at the shooter-frame intercept and adding the inherited
 /// velocity on launch lands the bullet on the true world-frame intercept:
-/// dir*s*t = (target - muzzle) + (v_target - v_muzzle)*t. Solving in the
-/// world frame instead makes every shot drift off by the shooter's own
-/// motion.
+/// dir*s*t = (target - muzzle) + (v_target - v_muzzle)*t + a_target*t^2/2.
+/// Solving in the world frame instead makes every shot drift off by the
+/// shooter's own motion. The acceleration is the target's own: once the round
+/// leaves, the shooter's burn moves the shooter and not the round.
 pub(crate) fn update_turret_aim_point(
     mut q_turret: Query<
         (
@@ -341,9 +478,10 @@ pub(crate) fn update_turret_aim_point(
         };
         // The FILTERED course, never this step's sample: see
         // [`TurretSectionTargetTrack`]. A rig that runs this solve without the
-        // track pass holds no track and falls back to the sample, which is the
-        // right answer for one - it has no history to average.
-        let target_velocity = track.velocity().unwrap_or(**target_sample);
+        // track pass holds no track and falls back to the sample with no
+        // acceleration, which is the right answer for one - it has no history
+        // to average or differentiate.
+        let (target_velocity, target_accel) = track.lead().unwrap_or((**target_sample, Vec3::ZERO));
         let Ok(muzzle_transform) = transform_helper.compute_global_transform(*muzzle) else {
             continue;
         };
@@ -367,13 +505,18 @@ pub(crate) fn update_turret_aim_point(
             .unwrap_or(Vec3::ZERO);
 
         // Solved in the shooter's frame, so the target drifts at the RELATIVE
-        // velocity over the launch delay too.
+        // velocity over the launch delay too, and keeps accelerating through
+        // it.
         let target_velocity = target_velocity - shooter_velocity;
         **aim_point = Some(lead_intercept_point(
             muzzle_pos,
-            target_pos + target_velocity * launch_delay,
-            target_velocity,
+            target_pos
+                + target_velocity * launch_delay
+                + 0.5 * target_accel * launch_delay * launch_delay,
+            target_velocity + target_accel * launch_delay,
+            target_accel,
             figures.muzzle_speed,
+            figures.reach / figures.muzzle_speed,
         ));
     }
 }
@@ -714,7 +857,7 @@ mod tests {
     fn lead_of_a_stationary_target_is_the_target() {
         // No motion, no lead: aim straight at the target.
         let target = Vec3::new(0.0, 0.0, -100.0);
-        let aim = lead_intercept_point(Vec3::ZERO, target, Vec3::ZERO, 100.0);
+        let aim = lead_intercept_point(Vec3::ZERO, target, Vec3::ZERO, Vec3::ZERO, 100.0, 2.0);
         assert!(
             (aim - target).length() < 1e-3,
             "expected the target itself, got {aim:?}"
@@ -732,7 +875,7 @@ mod tests {
         let target_vel = Vec3::new(30.0, 0.0, 0.0);
         let speed = 100.0;
 
-        let aim = lead_intercept_point(shooter, target, target_vel, speed);
+        let aim = lead_intercept_point(shooter, target, target_vel, Vec3::ZERO, speed, 2.0);
 
         assert!(
             aim.x > 0.1,
@@ -748,12 +891,72 @@ mod tests {
     }
 
     #[test]
+    fn a_round_fired_on_the_lead_meets_a_target_under_constant_acceleration() {
+        // The escort fight's shape: a raider ~750 m off, crossing and burning
+        // hard across the line of fire, shot by a PDC round (100 u/s, 2 s).
+        let shooter = Vec3::ZERO;
+        let speed = 100.0;
+        let cases = [
+            // Crossing at 17 u/s, burning 5 u/s^2 across and away.
+            (
+                Vec3::new(0.0, 0.0, -75.0),
+                Vec3::new(17.0, 0.0, 0.0),
+                Vec3::new(3.0, 2.0, -3.0),
+            ),
+            // Closing while braking and side-slipping off the line.
+            (
+                Vec3::new(10.0, 5.0, -120.0),
+                Vec3::new(0.0, 0.0, 20.0),
+                Vec3::new(0.0, 5.0, -3.0),
+            ),
+            // A Serpent-hard turn at point-defence range.
+            (
+                Vec3::new(-40.0, 0.0, -60.0),
+                Vec3::new(5.0, 0.0, 30.0),
+                Vec3::new(19.0, 0.0, 0.0),
+            ),
+        ];
+        for (target, velocity, accel) in cases {
+            let aim = lead_intercept_point(shooter, target, velocity, accel, speed, 2.0);
+            // Fly the round along the barrel the solve chose and the target
+            // along its parabola, and find their closest approach.
+            let round = (aim - shooter).normalize() * speed;
+            let miss = (0..=20_000)
+                .map(|k| {
+                    let t = k as f32 * 1e-4;
+                    (target + velocity * t + 0.5 * accel * t * t - (shooter + round * t)).length()
+                })
+                .fold(f32::INFINITY, f32::min);
+            assert!(
+                miss < 0.05,
+                "a round on the lead must meet the target: {target:?} at {velocity:?} \
+                 accelerating {accel:?} is missed by {miss} u"
+            );
+            // The control: the velocity-only lead misses the same target by
+            // about half its acceleration over the flight squared.
+            let naive = velocity_lead_point(shooter, target, velocity, speed);
+            let naive_round = (naive - shooter).normalize() * speed;
+            let naive_miss = (0..=20_000)
+                .map(|k| {
+                    let t = k as f32 * 1e-4;
+                    (target + velocity * t + 0.5 * accel * t * t - (shooter + naive_round * t))
+                        .length()
+                })
+                .fold(f32::INFINITY, f32::min);
+            assert!(
+                naive_miss > 0.5,
+                "the case must be one the velocity-only lead misses: {naive_miss} u"
+            );
+        }
+    }
+
+    #[test]
     fn lead_falls_back_when_the_target_cannot_be_caught() {
         // Target receding faster than the bullet: no positive intercept, so aim at
         // where it is now rather than returning a garbage/NaN point.
         let target = Vec3::new(0.0, 0.0, -50.0);
         let target_vel = Vec3::new(0.0, 0.0, -200.0); // fleeing at 200, bullet only 100
-        let aim = lead_intercept_point(Vec3::ZERO, target, target_vel, 100.0);
+        let aim = lead_intercept_point(Vec3::ZERO, target, target_vel, Vec3::ZERO, 100.0, 2.0);
         assert!(aim.is_finite());
         assert!(
             (aim - target).length() < 1e-3,

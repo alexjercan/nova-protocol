@@ -422,8 +422,8 @@ pub struct TorpedoTypeConfig {
     pub weave_angle: f32,
     /// How fast (rad/s) the weave tilt direction rotates about the guidance
     /// command - the corkscrew's spin rate. Higher spins a tighter, faster
-    /// helix: the lateral acceleration a lead solution fails to predict scales
-    /// with `speed * sin(weave_angle) * weave_rate`, while the helix RADIUS
+    /// helix: the lateral acceleration a lead solution has to chase scales with
+    /// `speed * sin(weave_angle) * weave_rate`, while the helix RADIUS
     /// shrinks with it.
     ///
     /// **This is the LOOK knob, not the balance knob.** At a fixed
@@ -784,8 +784,9 @@ pub struct TorpedoType {
 ///
 /// No awareness of individual incoming rounds is needed, and none is used - the
 /// perturbation is open loop. It works because the defender's solution is real:
-/// `lead_intercept_point` extrapolates the torpedo's current velocity over the
-/// round's flight time, and a torpedo that is turning breaks that extrapolation.
+/// `lead_intercept_point` extrapolates the torpedo's tracked velocity and
+/// acceleration over the round's flight time, and a torpedo whose acceleration
+/// keeps turning breaks that extrapolation.
 ///
 /// It also prices itself with no tuning. A corkscrew of half-angle `angle`
 /// lengthens the flown path by `1 / cos(angle)`, so an evading torpedo spends

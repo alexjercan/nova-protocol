@@ -1491,7 +1491,8 @@ mod tests {
 /// The torpedo flies `pn_steer_direction` perturbed by `weave_steer_direction` /
 /// `weave_fade` - the same three functions the real projectile systems call -
 /// through the turn/thrust/drag model the guidance tests already use. The mount
-/// fires on `lead_intercept_point`, the exact solve `update_turret_aim_point`
+/// tracks the torpedo through `TurretSectionTargetTrack` and fires on
+/// `lead_intercept_point`, the exact track and solve `update_turret_aim_point`
 /// hands every AI turret, under the real [`muzzle_on_target`] gate, at the
 /// shipped PDC's rate, speed and damage, inside the shipped point-defense
 /// envelope. What it does NOT model is avian, the body's attitude controller,
@@ -1502,7 +1503,9 @@ mod tests {
 #[cfg(test)]
 mod point_defense_cost_tests {
     use super::*;
-    use crate::sections::turret_section::{lead_intercept_point, muzzle_on_target};
+    use crate::sections::turret_section::{
+        lead_intercept_point, muzzle_on_target, TurretSectionTargetTrack,
+    };
 
     /// Default turret `muzzle_speed`, authored as 1 000 m/s, in world units
     /// per second.
@@ -1584,6 +1587,7 @@ mod point_defense_cost_tests {
         // a cold-start slew race.
         let mut barrel = Vec3::NEG_Z;
         let mut fire_timer = 0.0f32;
+        let mut track = TurretSectionTargetTrack::default();
         // (position, velocity, age)
         let mut bullets: Vec<(Vec3, Vec3, f32)> = Vec::new();
 
@@ -1628,7 +1632,19 @@ mod point_defense_cost_tests {
             }
 
             // --- the mount: slew onto the lead solution, fire when aligned ---
-            let aim = lead_intercept_point(Vec3::ZERO, pos, torpedo_step_velocity, BULLET_SPEED);
+            track.observe(None, torpedo_step_velocity, dt);
+            let (lead_velocity, lead_accel) = track
+                .lead()
+                .expect("the track holds the sample it was just handed");
+            let aim = lead_intercept_point(
+                Vec3::ZERO,
+                pos,
+                lead_velocity,
+                lead_accel,
+                BULLET_SPEED,
+                // The shipped PDC's `projectile_lifetime`.
+                2.0,
+            );
             let desired = aim.normalize();
             let error = barrel.angle_between(desired);
             let slew_axis = barrel.cross(desired);

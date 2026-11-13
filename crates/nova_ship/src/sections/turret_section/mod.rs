@@ -148,7 +148,7 @@ pub struct TurretSectionTargetInput(pub Option<Vec3>);
 ///
 /// This is the RAW sample for one step, not what the intercept is solved on:
 /// [`update_turret_target_track`] filters it into [`TurretSectionTargetTrack`]
-/// first. The two required components travel with it because a velocity is
+/// first, and derives the target's acceleration from it there. The two required components travel with it because a velocity is
 /// always SOME target's velocity over SOME history, and an aim feed that writes
 /// one without the other leaves the track keyed to the wrong body.
 #[derive(Component, Clone, Copy, Debug, Default, Deref, DerefMut, Reflect)]
