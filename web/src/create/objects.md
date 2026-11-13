@@ -342,16 +342,19 @@ See [Refine](../stations/#refine) for the rule and
 [Content files](../mod-files/#content-files) for the `refine` field.
 
 Base ships one `Contraband` item. It is not a role id either: a mod may add
-its own `Contraband` items, and every one is refused the same way.
+its own `Contraband` items, and a lawful market refuses every one the same
+way.
 
 | Item | Mass | Category | Ask | Bid |
 | --- | --- | --- | --- | --- |
 | `UnmarkedCores` | 10 kg | Contraband | 300 | 240 |
 
-A living generated station of a lawful civilization refuses a dock to a ship
-whose hold carries any `Contraband` item. No station stocks one and no job
-board asks for one. The `base/salvage_broker` profile sells them, and an
-intact generated scavenger carries one unit in half its holds.
+The market of a living generated station of a lawful civilization does not
+buy or sell a `Contraband` item; the station still docks the ship that
+carries one and stores the item. A station that is not lawful trades it like
+any other item. No station stocks one and no job board asks for one. The
+`base/salvage_broker` profile sells them, and an intact generated scavenger
+carries one unit in half its holds.
 
 `PdcRound` feeds both Kinetic and Pierce turret mounts - the mount decides the
 round's damage type, not the item. `Torpedo` feeds every torpedo bay type,

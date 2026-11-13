@@ -19,7 +19,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - Stations that offer Refine turn 2 iron ore, 1 carbon ore and a 30 cr fee into an alloy plate from the Inventory pane. The waystation refines; generated stations do from advancement 0.25.
 - A distress rescue now takes one Medkit from your hold at the dock with the caller. With none aboard the HUD reads `NO MEDKIT ABOARD` and the call stays open. Stations sell medkits.
-- Half the civilizations of a generated world are lawful: their stations refuse a dock while your hold carries Contraband, on the HUD as `<NAME> REFUSES CONTRABAND`. Scavengers deal unmarked cores.
+- Half the civilizations of a generated world are lawful: their station markets buy and sell no Contraband, and the trade form says so. They still dock you. Scavengers deal unmarked cores.
 - Gamepad: L3 + Y docks and L3 + A takes the helm, two caps on the key row. New hulls put torpedoes on LB, the railgun on View and mining on RT; hot weapons turn off pad free look and HUD toggle.
 
 ### Ships & Sections
@@ -41,7 +41,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 - `Item` gains optional `refine: Some((inputs, fee_cr))` and station `services` take `Refine`; lint refuses a recipe cheaper than its output's bid. `OnCreditsChanged` gains cause `Refine`.
 - **(breaking)** `Medkit` is now a base role item (`Repair`, 2 kg, 60/45 cr) that a distress rescue spends. A mod item with the id `Medkit` replaces it and must keep category `Repair`.
-- Item `category` takes `Contraband`, refused at a lawful generated station's dock. Base adds `UnmarkedCores` (10 kg, 300/240 cr) and a `Scavenger` `Contraband` price rule; a pack needs no new rule.
+- Item `category` takes `Contraband`: a lawful generated station's market does not buy or sell it. Base adds `UnmarkedCores` (10 kg, 300/240 cr) and a `Scavenger` `Contraband` price rule.
 - `DockingSectionConfig` gains optional `clamp_sound` and `release_sound`, played once at the port that captured or let go; the base port authors `dock_clamp.wav` and `dock_release.wav`.
 - `RailgunSectionConfig` gains optional `impact_sound`, played where the slug meets its first body in place of the impact table's Pierce row; the base lance authors `railgun_impact.wav`.
 - Scenario expressions read the firing event's payload as `event.<field>` (`event.price_cr > 100`), in a handler's filters and its own `VariableSet` and `TimerStart`; lint refuses an unknown field.

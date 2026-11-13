@@ -56,9 +56,11 @@ A visit job is `Procure(item, count, reward_cr)`: bring `count` units of
 `reward_cr` are above 0.
 
 A ship whose role no profile names never visits. A ship visits only a
-station that admits it, so one that carries a `Contraband` item visits no
-lawful station: it trades where the item is not refused, and a profile that
-sells the item, like `base/salvage_broker`, clears its hold there.
+station that admits it. A lawful station admits a ship that carries a
+`Contraband` item, but its market does not deal in the item: the visit
+trades none of it there and posts no `Procure` job for it. A profile that
+sells the item, like `base/salvage_broker`, clears its hold at a station
+that is not lawful.
 
 ## Overlay and lint
 

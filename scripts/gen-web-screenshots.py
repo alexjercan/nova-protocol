@@ -316,7 +316,7 @@ CUTS = [
     ("news-0180-key-row.png",         "key-hints-weapons.png",        "screenshot_key_hints",   (460, 432, 1152, 648)),
     ("news-0180-pad-row.png",         "key-hints-pad-weapons.png",    "screenshot_key_hints",   (505, 432, 1152, 648)),
     ("news-0180-refine.png",          "station-refine-form.png",      "system_station_refine",  (610, 92, 1104, 621)),
-    ("news-0180-contraband.png",      "contraband-dock-refusal.png",  "system_contraband_dock", (320, 350, 1280, 720)),
+    ("news-0180-contraband.png",      "contraband-trade-refusal.png", "system_contraband_trade", (208, 18, 1504, 846)),
     ("news-0180-station-control.png", "job-recover-control.png",      "system_job_recover",     (0, 360, 1280, 720)),
     ("news-0180-no-medkit.png",       "job-distress-no-medkit.png",   "system_job_distress",    (320, 360, 1280, 720)),
     ("news-0180-second-tier.png",     "station-swap-intake-card.png", "system_station_swap_intake", (0, 0, 1920, 1080)),
