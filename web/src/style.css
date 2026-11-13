@@ -2764,6 +2764,22 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     font-family: var(--font-mono);
     font-size: 10px;
 }
+/* A line the game's own form prints, quoted on the glass in its case. */
+.widget__form {
+    margin: 14px 0 0;
+    padding: 8px 12px;
+    background: var(--screen);
+    border: 1px solid var(--edge-soft);
+    border-radius: var(--radius);
+    font-size: 0.8rem;
+    color: var(--phosphor);
+    text-shadow: var(--glow-text);
+    overflow-wrap: anywhere;
+}
+.widget__form.is-empty {
+    color: var(--phosphor-dim);
+    text-shadow: none;
+}
 /* Variant catalogs: editor-catalog-style tables on the wiki section pages,
    shipped prototypes with source-verified stats. The thumb slots reuse the
    .figure__placeholder upgrade path (site.ts), so a capture dropped into

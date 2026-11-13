@@ -14000,6 +14000,223 @@ function initAdvancementGates(host: HTMLElement): void {
     update();
 }
 
+// ---- v0.18.0: refine or sell ----------------------------------------------
+
+// The alloy plate and its refine recipe, from
+// crates/nova_authoring/src/base_content/items.rs: the plate :273-281 (90 cr
+// ask, 68 cr bid), ALLOY_PLATE_REFINE_FEE_CR :314 and `refine_recipe`
+// :319-327. The ore names and prices are the PRICE_ITEMS rows above. The
+// batch count is nova_gameplay/src/inventory.rs
+// `ItemRefineRecipe::batches_from` :220 and the fee `plan_item_refine` :1160.
+export const ALLOY_PLATE = {
+    id: "AlloyPlate",
+    name: "Alloy plate",
+    askCr: 90,
+    bidCr: 68,
+};
+/** What one batch takes: each input's item id and count, and the fee. */
+export const ALLOY_PLATE_RECIPE: { inputs: [string, number][]; feeCr: number } =
+    {
+        inputs: [
+            ["IronOre", 2],
+            ["CarbonOre", 1],
+        ],
+        feeCr: 30,
+    };
+
+/** What a hold of ore refines to, and what each choice is worth. */
+export interface RefinePlan {
+    /** The whole batches the ore covers: one alloy plate each. */
+    batches: number;
+    /** Credits the station takes for those batches. */
+    feeCr: number;
+    /** The ore left over, in recipe input order. */
+    left: number[];
+    /** Credits for selling all the ore at its base bid. */
+    sellRawCr: number;
+    /**
+     * Credits for refining, then selling the plates and the ore left over
+     * at their base bids, less the fee.
+     */
+    sellRefinedCr: number;
+    /** Credits the same plates cost to buy at the base ask. */
+    buyPlatesCr: number;
+}
+
+/**
+ * The refine plan for a hold that carries `ore[i]` of the recipe's input
+ * `i`: iron ore, then carbon ore. Prices are the base bids and ask.
+ */
+export function refinePlan(ore: number[]): RefinePlan {
+    const inputs = ALLOY_PLATE_RECIPE.inputs.map(([id, count], index) => {
+        const item = PRICE_ITEMS.find((candidate) => candidate.id === id);
+        if (!item) throw new Error(`refinePlan: unknown item ${id}`);
+        return { count, have: ore[index], bidCr: item.bidCr };
+    });
+    const batches = Math.min(
+        ...inputs.map((input) => Math.floor(input.have / input.count))
+    );
+    const feeCr = batches * ALLOY_PLATE_RECIPE.feeCr;
+    const left = inputs.map((input) => input.have - batches * input.count);
+    const bids = (counts: number[]): number =>
+        inputs.reduce(
+            (sum, input, index) => sum + counts[index] * input.bidCr,
+            0
+        );
+    return {
+        batches,
+        feeCr,
+        left,
+        sellRawCr: bids(ore),
+        sellRefinedCr: batches * ALLOY_PLATE.bidCr + bids(left) - feeCr,
+        buyPlatesCr: batches * ALLOY_PLATE.askCr,
+    };
+}
+
+function initRefineBatch(host: HTMLElement): void {
+    header(
+        host,
+        "Refinery scope: refine or sell",
+        "Set the ore in your hold. The scope counts the batches a refinery " +
+            "makes of it, states the batch line as the Refine form does, " +
+            "and compares what the hold is worth each way."
+    );
+
+    const names = ALLOY_PLATE_RECIPE.inputs.map(
+        ([id]) => PRICE_ITEMS.find((item) => item.id === id)?.name ?? String(id)
+    );
+    const faders = [
+        control(
+            names[0].toLowerCase(),
+            0,
+            200,
+            1,
+            100,
+            (v) => String(v),
+            () => update()
+        ),
+        control(
+            names[1].toLowerCase(),
+            0,
+            200,
+            1,
+            40,
+            (v) => String(v),
+            () => update()
+        ),
+    ];
+    const controls = el("div", "widget__controls");
+    for (const fader of faders) controls.appendChild(fader.row);
+
+    const form = el("p", "widget__form");
+    const stack = el("div", "widget__stack widget__stack--board");
+    const stats = el("div", "widget__stats");
+    const platesStat = stat(stats, "plates");
+    const feeStat = stat(stats, "fee");
+    const leftStat = stat(stats, "ore left");
+    const readout = el("p", "widget__readout");
+    readout.setAttribute("aria-live", "polite");
+
+    const cr = (value: number): string => `${numText(value, 0)} cr`;
+    const update = (): void => {
+        const ore = faders.map((fader) => Number(fader.input.value));
+        const plan = refinePlan(ore);
+        // The form's own batch line: crates/nova_interface/src/inventory/
+        // app.rs `refine_batch_text`.
+        const terms = ALLOY_PLATE_RECIPE.inputs.map(
+            ([, count], index) => `${count * plan.batches} ${names[index]}`
+        );
+        form.textContent = plan.batches
+            ? `${[...terms, cr(plan.feeCr)].join(" + ")} -> ${plan.batches} ${ALLOY_PLATE.name}`
+            : "No whole batch in this hold";
+        form.classList.toggle("is-empty", plan.batches === 0);
+
+        const gain = plan.sellRefinedCr - plan.sellRawCr;
+        const option = (
+            word: string,
+            kind: string,
+            detail: string,
+            state: string
+        ): HTMLElement => {
+            const cell = el("div", "widget__cell widget__cell--board");
+            if (state) cell.classList.add(state);
+            cell.appendChild(el("b", undefined, word));
+            cell.appendChild(
+                el("span", "widget__kind widget__kind--generated", kind)
+            );
+            cell.appendChild(document.createTextNode(detail));
+            return cell;
+        };
+        const plates = `${plan.batches} ${plan.batches === 1 ? "plate" : "plates"}`;
+        const leftWords = plan.left
+            .map((count, index) => `${count} ${names[index].toLowerCase()}`)
+            .join(" and ");
+        stack.replaceChildren(
+            option(
+                "SELL THE ORE",
+                cr(plan.sellRawCr),
+                `${ore[0]} ${names[0].toLowerCase()} and ${ore[1]} ` +
+                    `${names[1].toLowerCase()} at their base bids`,
+                ""
+            ),
+            option(
+                "REFINE, SELL THE PLATE",
+                plan.batches ? cr(plan.sellRefinedCr) : "NO BATCH",
+                plan.batches
+                    ? `${plates} at ${cr(ALLOY_PLATE.bidCr)}, less the ` +
+                          `${cr(plan.feeCr)} fee, and the ore left over sold`
+                    : "the hold is short of one input",
+                gain > 0 ? "is-live" : "is-off"
+            ),
+            option(
+                "REFINE, KEEP THE PLATE",
+                plan.batches ? `${cr(plan.buyPlatesCr)} TO BUY` : "NO BATCH",
+                plan.batches
+                    ? `${plates} at the base ask of ${cr(ALLOY_PLATE.askCr)}; ` +
+                          `refining costs the ${cr(plan.feeCr)} fee and the ore`
+                    : "the hold is short of one input",
+                plan.batches ? "is-live" : "is-off"
+            )
+        );
+        platesStat.textContent = String(plan.batches);
+        feeStat.textContent = cr(plan.feeCr);
+        leftStat.textContent = leftWords;
+        readout.textContent = plan.batches
+            ? `Refine ${plan.batches === 1 ? "1 batch" : `${plan.batches} batches`}, ` +
+              `sell the ${plan.batches === 1 ? "plate" : "plates"} and the ` +
+              `ore left over, and the hold earns ${cr(plan.sellRefinedCr)}: ` +
+              `${cr(gain)} more than the ${cr(plan.sellRawCr)} the raw ore ` +
+              "sells for."
+            : "A batch needs " +
+              ALLOY_PLATE_RECIPE.inputs
+                  .map(
+                      ([, count], index) =>
+                          `${count} ${names[index].toLowerCase()}`
+                  )
+                  .join(" and ") +
+              `. This hold sells for ${cr(plan.sellRawCr)} as ore.`;
+    };
+
+    host.appendChild(controls);
+    host.appendChild(form);
+    host.appendChild(stack);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "These are base prices. A generated trader moves each price by " +
+                "its stock, its cluster and its civilization, so ore sells " +
+                "for more near planets and for less in an asteroid-rich " +
+                "cluster. The fee leaves your balance at Confirm, and a " +
+                "refine you cannot pay for is refused. A batch takes 30 kg " +
+                "of ore and gives one 30 kg plate, so the hold weighs the same."
+        )
+    );
+    update();
+}
+
 const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "aim-decay": initAimDecay,
     "round-travel": initRoundTravel,
@@ -14043,6 +14260,7 @@ const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "price-factors": initPriceFactors,
     "stance-ledger": initStanceLedger,
     "advancement-gates": initAdvancementGates,
+    "refine-batch": initRefineBatch,
 };
 
 // Hydrate every declared widget on the page. The static fallback content is

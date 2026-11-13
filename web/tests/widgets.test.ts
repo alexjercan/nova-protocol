@@ -14,6 +14,8 @@ import {
     advancementBand,
     advancementCurve,
     advancementRadiusKm,
+    ALLOY_PLATE,
+    ALLOY_PLATE_RECIPE,
     CIVILIZATION_JITTER_KM,
     CIVILIZATION_LATTICE_KM,
     gateReach,
@@ -123,6 +125,7 @@ import {
     PRICE_UNKEPT,
     priceFactors,
     PROVOKED_WINDOW_SECONDS,
+    refinePlan,
     stanceStep,
     StanceEvent,
     StanceType,
@@ -1546,6 +1549,77 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     assert.equal(gateReach(every - 1, REFINE_ADVANCEMENT), "Some");
     assert.equal(gateReach(every + 1, REFINE_ADVANCEMENT), "All");
     assert.equal(gateReach(4000, 0.6), "All");
+}
+
+// ---- refine-batch ---------------------------------------------------------
+
+// The refinery scope's plate and recipe are the base item builder's.
+{
+    const ITEMS = "crates/nova_authoring/src/base_content/items.rs";
+    const constant = rustSays(
+        ITEMS,
+        new RegExp(`const (\\w+): &str = "${ALLOY_PLATE.id}";`)
+    );
+    const plate = (index: number): string =>
+        rustSays(
+            ITEMS,
+            new RegExp(
+                `\\(\\s*${constant},\\s*` +
+                    [
+                        '"([^"]+)"',
+                        '"[^"]*"',
+                        "\\w+",
+                        "[\\d_]+",
+                        "\\d+",
+                        "(\\d+)",
+                        "(\\d+)",
+                    ]
+                        .map((part, at) =>
+                            at === index ? part : part.replace(/[()]/g, "")
+                        )
+                        .join(",\\s*")
+            )
+        );
+    assert.equal(ALLOY_PLATE.name, plate(0));
+    assert.equal(ALLOY_PLATE.askCr, Number(plate(5)));
+    assert.equal(ALLOY_PLATE.bidCr, Number(plate(6)));
+    assert.equal(
+        ALLOY_PLATE_RECIPE.feeCr,
+        rustNumber(ITEMS, /const ALLOY_PLATE_REFINE_FEE_CR: u32 = (\d+);/)
+    );
+    const recipe = rustSays(ITEMS, /inputs: vec!\[([\s\S]*?)\],\s*fee_cr/);
+    assert.deepEqual(
+        ALLOY_PLATE_RECIPE.inputs,
+        [...recipe.matchAll(/ItemRoleType::(\w+)\.into\(\), (\d+)/g)].map(
+            (hit) => [hit[1], Number(hit[2])]
+        )
+    );
+}
+
+// A batch is 2 iron ore + 1 carbon ore + 30 cr -> 1 alloy plate; the ore
+// covers whole batches only (inventory.rs `batches_from`).
+{
+    const one = refinePlan([3, 1]);
+    assert.equal(one.batches, 1);
+    assert.equal(one.feeCr, 30);
+    assert.deepEqual(one.left, [1, 0]);
+    assert.equal(one.sellRawCr, 3 * 12 + 6);
+    assert.equal(one.sellRefinedCr, 68 + 12 - 30);
+    assert.equal(one.buyPlatesCr, 90);
+    // Carbon is the short input here, then iron.
+    assert.equal(refinePlan([100, 40]).batches, 40);
+    assert.deepEqual(refinePlan([100, 40]).left, [20, 0]);
+    assert.equal(refinePlan([5, 40]).batches, 2);
+    assert.deepEqual(refinePlan([5, 40]).left, [1, 38]);
+    const none = refinePlan([1, 9]);
+    assert.equal(none.batches, 0);
+    assert.equal(none.feeCr, 0);
+    assert.equal(none.sellRefinedCr, none.sellRawCr);
+    // At base prices a batch sold as plate earns 8 cr over its ore.
+    assert.equal(
+        refinePlan([200, 100]).sellRefinedCr - refinePlan([200, 100]).sellRawCr,
+        100 * 8
+    );
 }
 
 // eslint-disable-next-line no-console
