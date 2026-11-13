@@ -25,6 +25,8 @@
 //! #           `contraband dock probe: PASS the lawful station admits the hull`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
+//! Add `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` to shoot the refusal on the
+//! HUD as `contraband-dock-refusal.png`.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -58,6 +60,10 @@ const BERTH_OFFSET: Vec3 = Vec3::new(0.0, 0.0, 4.0 + BERTH_GAP);
 
 /// The base contraband item.
 const CORES: &str = "UnmarkedCores";
+
+/// The PNG the capture path shoots of the refusal on the HUD.
+#[cfg(feature = "debug")]
+const REFUSAL_SHOT: &str = "contraband-dock-refusal.png";
 
 fn main() -> bevy::app::AppExit {
     let _ = Cli::parse();
@@ -183,7 +189,9 @@ mod walk {
 
     use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
     use bevy::ecs::system::RunSystemOnce;
-    use nova_protocol::nova_debug::harness::{AutopilotPlugin, Predicate};
+    use nova_protocol::nova_debug::harness::{
+        shoot, AutopilotPlugin, Predicate, SHOT_DEADLINE_SECS,
+    };
 
     use super::*;
 
@@ -450,6 +458,11 @@ mod walk {
             .step("contraband dock: assert the HUD notice")
             .on_enter(assert_the_notice)
             .until(frames(1))
+            .add()
+            .step("contraband dock: shoot the refusal")
+            .on_enter(|world: &mut World| shoot(world, REFUSAL_SHOT))
+            .until(shot_written(REFUSAL_SHOT))
+            .deadline(SHOT_DEADLINE_SECS)
             .add()
             .step("contraband dock: ask for a dock with the core aboard")
             .each(|world, _, _| request_dock(world))

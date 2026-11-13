@@ -1,13 +1,15 @@
 //! screenshot_key_hints: the key hints name the key the player would press
 //! now, on the device in hand.
 //!
-//! Eight stills of one scene, a warship beside a hauler that coasts on an
+//! Nine stills of one scene, a warship beside a hauler that coasts on an
 //! orbit, with the hauler as the travel lock. The warship carries a mining
 //! emitter under the bow and binds each weapon and emitter from
 //! `section_default_bindings`, so the row can show every chip. The chips are
 //! found by NAME: the row is contextual, so the STOP chip's place depends on
 //! what else is shown.
 //! - `key-hints-stop.png`: the dock row at rest. The STOP chip reads `STOP`.
+//! - `key-hints-weapons.png`: the stance key held. The row adds FIRE,
+//!   TORPEDO and RAILGUN with the keys of their sections.
 //! - `key-hints-match-chord.png`: the RCS modifier held. The STOP chip reads
 //!   `MATCH` and the RCS chip is lit.
 //! - `key-hints-match-flying-chord.png`: MATCH engaged, the modifier still
@@ -404,17 +406,18 @@ fn the_player_is_docked(docked: bool) -> Arc<Predicate> {
     })
 }
 
-/// Panic unless the row draws the pad button of each weapon and mining
+/// Panic unless the row draws `device`'s source of each weapon and mining
 /// section, read off the same table the hull was bound from.
 #[cfg(feature = "debug")]
-fn assert_section_pad_labels(world: &World) {
-    let pad_of = |class| {
+fn assert_section_labels(world: &World, device: InputDeviceType) {
+    let on_pad = device == InputDeviceType::Pad;
+    let source_of = |class| {
         section_default_bindings(class, &[])
             .into_iter()
             .flatten()
-            .find(|source| matches!(source, InputSource::Gamepad(_)))
+            .find(|source| matches!(source, InputSource::Gamepad(_)) == on_pad)
             .map(|source| source.glyph_label())
-            .unwrap_or_else(|| panic!("screenshot_key_hints: {class:?} has no pad default"))
+            .unwrap_or_else(|| panic!("screenshot_key_hints: {class:?} has no {device:?} default"))
     };
     let hints = world.resource::<FlightVerbHints>();
     for (verb, hint, class) in [
@@ -425,8 +428,8 @@ fn assert_section_pad_labels(world: &World) {
     ] {
         assert_eq!(
             (hint.key.clone(), hint.shown, hint.available),
-            (pad_of(class), true, true),
-            "screenshot_key_hints: {verb} draws its section's pad button"
+            (source_of(class), true, true),
+            "screenshot_key_hints: {verb} draws its section's {device:?} source"
         );
     }
 }
@@ -455,7 +458,8 @@ fn assert_match_flying(world: &mut World) {
     );
 }
 
-/// The walk: lock the hauler, shoot the row at rest, hold the RCS modifier,
+/// The walk: lock the hauler, shoot the row at rest, raise the weapons on
+/// the keys, hold the RCS modifier,
 /// fly the MATCH chord, cancel it, press a pad button, raise the weapons on
 /// the pad, dock and undock by the pad chord, open the interface.
 #[cfg(feature = "debug")]
@@ -486,6 +490,21 @@ fn key_hints_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
     let script = still(script, "key-hints-stop.png", |world| {
         assert_stop_label(world, InputDeviceType::Desk);
     })
+    .step("hold the stance key")
+    .on_enter(press_action("combat_stance"))
+    .until(hints_where(|hints| {
+        hints.fire.shown && hints.torpedo.shown && hints.railgun.shown && hints.mine.shown
+    }))
+    .deadline(BEAT_DEADLINE_SECS)
+    .add();
+    let script = still(script, "key-hints-weapons.png", |world| {
+        assert_section_labels(world, InputDeviceType::Desk);
+    })
+    .step("let the stance key up")
+    .on_enter(release_action("combat_stance"))
+    .until(hints_where(|hints| !hints.fire.shown))
+    .deadline(BEAT_DEADLINE_SECS)
+    .add()
     .step("hold the RCS modifier")
     .on_enter(press_action("rcs_modifier"))
     .until(hints_where(|hints| {
@@ -577,7 +596,7 @@ fn key_hints_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<Gam
     .deadline(BEAT_DEADLINE_SECS)
     .add();
     let script = still(script, "key-hints-pad-weapons.png", |world| {
-        assert_section_pad_labels(world);
+        assert_section_labels(world, InputDeviceType::Pad);
     })
     .step("let the stance trigger up")
     .on_enter(pad(GamepadButton::LeftTrigger2, InputPhase::Release))

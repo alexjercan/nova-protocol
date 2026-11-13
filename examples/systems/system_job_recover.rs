@@ -14,6 +14,9 @@
 //! | 3 | `outcome: the world marks the recover job done` | after the work the job is listed done while still held |
 //! | 4 | `outcome: the hand-in pays the recover job` | docked again, the Hand in click pays the reward from the station and lists the job completed |
 //!
+//! After claim 4 the range closes the interface and waits for the comms card
+//! in which Station Control logs the world's first delivery and its bonus.
+//!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 NOVA_AUTOPILOT_DEADLINE=1800 \
@@ -24,7 +27,8 @@
 //! `NOVA_CAPTURE=1` also writes `job-recover-board.png` of the Jobs tab
 //! with the held job selected in the inspector, `job-recover-inspector-done.png`
 //! of the inspector with the job done before the hand-in, and
-//! `job-recover-done.png` after the hand-in.
+//! `job-recover-done.png` after the hand-in, and `job-recover-control.png` of
+//! the flight HUD with the Station Control line.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -85,7 +89,7 @@ fn main() -> bevy::app::AppExit {
         // No frame-time claim: the range holds the job's path.
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
         app.add_plugins(LocatedJobWalkPlugin(LocatedKindType::Recover, MARKERS));
-        app.add_plugins(script(LocatedKindType::Recover));
+        app.add_plugins(control::after_the_hand_in(script(LocatedKindType::Recover)));
         app.add_systems(
             Startup,
             (
@@ -96,4 +100,63 @@ fn main() -> bevy::app::AppExit {
     }
 
     app.run()
+}
+
+/// The beat after the hand-in: Station Control logs the first delivery.
+#[cfg(feature = "debug")]
+mod control {
+    use std::sync::Arc;
+
+    use bevy::prelude::*;
+    use nova_protocol::{
+        nova_debug::harness::{shoot, AutopilotPlugin, Predicate},
+        prelude::*,
+    };
+
+    use super::located_jobs::{tap, unpaused, BEAT_SECS, FIRST_DELIVERY_BONUS_CR, SETTLE_FRAMES};
+
+    /// Who speaks the line, as the comms card prints the speaker.
+    const SPEAKER: &str = "STATION CONTROL";
+    /// How the line opens.
+    const LINE_OPENS: &str = "First delivery logged.";
+
+    /// The PNG the capture path shoots of the flight HUD with the line.
+    const SHOT: &str = "job-recover-control.png";
+
+    /// A text on screen satisfies `check`.
+    fn a_text(check: impl Fn(&str) -> bool + Send + Sync + 'static) -> Arc<Predicate> {
+        Arc::new(move |world: &World| {
+            world
+                .try_query::<&Text>()
+                .is_some_and(|mut texts| texts.iter(world).any(|text| check(&text.0)))
+        })
+    }
+
+    /// Append the beat to a walk that ends docked at the poster with the job
+    /// handed in and the Jobs tab open: close the interface, wait for the
+    /// comms card that names the speaker and the bonus, and shoot it.
+    pub(super) fn after_the_hand_in(
+        script: AutopilotPlugin<GameStates>,
+    ) -> AutopilotPlugin<GameStates> {
+        let bonus = format!("{FIRST_DELIVERY_BONUS_CR} cr bonus");
+        tap(script, "the interface key", "interface_toggle", unpaused())
+            .step("recover job: Station Control logs the first delivery")
+            .until(and(
+                and(
+                    a_text(|text| text.to_uppercase().contains(SPEAKER)),
+                    a_text(move |text| text.starts_with(LINE_OPENS) && text.contains(&bonus)),
+                ),
+                frames(SETTLE_FRAMES),
+            ))
+            .deadline(BEAT_SECS)
+            .add()
+            .step("recover job: shoot the Station Control line")
+            .on_enter(|world: &mut World| {
+                info!("recover job: PASS Station Control logged the first delivery");
+                shoot(world, SHOT);
+            })
+            .until(shot_written(SHOT))
+            .deadline(BEAT_SECS)
+            .add()
+    }
 }
