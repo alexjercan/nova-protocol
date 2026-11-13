@@ -24,6 +24,13 @@
 //! #           `station docking probe: the enemy station refuses on the HUD`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
+//!
+//! After the three claims the walk closes on the living station's berth at
+//! 4 m/s with a dock asked for every frame and checks that the clamp posted
+//! `DOCKED WAYSTATION` on the HUD notice. With
+//! `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` that approach is recorded from an
+//! eye off the gap as `news-0180-dock-clamp.webm`: the port beacon breathing
+//! cold, the clamp light, the beacon amber and the notice.
 
 #[cfg(feature = "debug")]
 use std::sync::Arc;
@@ -69,6 +76,37 @@ const STATION_TURN: f32 = std::f32::consts::FRAC_PI_2;
 /// face sits 1.5 ahead of the hull origin. [`BERTH_GAP`] between the two
 /// faces.
 const BERTH_OFFSET: Vec3 = Vec3::new(0.0, 0.0, 4.0 + BERTH_GAP);
+
+/// The recorded approach starts this far behind the berth, engine units, and
+/// closes at this speed, engine units per second: under the port's 5 m/s
+/// capture ceiling, so the dock takes the moment the gap is inside reach.
+#[cfg(feature = "debug")]
+const APPROACH_STANDOFF: f32 = 1.4;
+#[cfg(feature = "debug")]
+const APPROACH_SPEED: f32 = 0.4;
+
+/// The loop the capture path records of that approach.
+#[cfg(feature = "debug")]
+const CLAMP_LOOP: &str = "news-0180-dock-clamp";
+
+/// The loop's eye and its aim, from the berth: off the gap's flank and above
+/// it, so the beacon's light on the station plating, both collars and the
+/// hull that closes all stand in the frame.
+#[cfg(feature = "debug")]
+const CLAMP_EYE: Meters3 = Meters3::new(55.0, 25.0, 15.0);
+#[cfg(feature = "debug")]
+const CLAMP_LOOK: Meters3 = Meters3::new(0.0, 0.0, -25.0);
+
+/// How long the hull stands off before the loop opens: the Enemy station's
+/// refusal dwells four seconds and fades, and must not open the loop.
+#[cfg(feature = "debug")]
+const NOTICE_CLEAR_SECS: f32 = 5.0;
+
+/// How long the loop holds the clamped pair: the notice dwells four seconds.
+/// No still is shot in the hold; a screenshot taken while the recorder runs
+/// leaves its drain waiting for a frame that never lands.
+#[cfg(feature = "debug")]
+const CLAMP_HOLD_SECS: f32 = 3.0;
 
 /// The script type, named once so the step list and its helpers agree.
 #[cfg(feature = "debug")]
@@ -118,7 +156,16 @@ fn main() -> bevy::app::AppExit {
     #[cfg(feature = "debug")]
     {
         app.add_plugins(nova_probe::NovaProbePlugin::default());
-        app.add_plugins(nova_screenshot(station_script()));
+        // The clamp loop is drawn at its encoded size, so the HUD notice
+        // keeps its pixels.
+        app.add_plugins(nova_protocol::nova_debug::harness::LoopCapturePlugin::new(
+            LoopProfile {
+                window_resolution: (1280, 720),
+                ..default()
+            },
+        ));
+        app.add_systems(Startup, force_capture_resolution);
+        app.add_plugins(clamp_loop(nova_screenshot(station_script())));
     }
 
     app.run()
@@ -201,10 +248,59 @@ fn station_script() -> Script {
         .until(frames(10))
         .deadline(15.0)
         .add()
-        // The script's last beat: `nova_screenshot` appends the capture beat
-        // behind it, so the run ends on the assertion.
+        // The last beat of the claims: `nova_screenshot` appends the capture
+        // beat behind it, so the claims end on the assertion.
         .step("assert the enemy station refused on the HUD")
         .on_enter(assert_enemy_station_refused)
+        .add()
+}
+
+/// Append the recorded approach to `script`. It runs after the claims: the
+/// closing hull hands its momentum to the pair, which the rest claim would
+/// read as a tow.
+#[cfg(feature = "debug")]
+fn clamp_loop(script: Script) -> Script {
+    script
+        .step("stand the player off the living station's berth and frame the gap")
+        .on_enter(|world| {
+            let player = player_root(world).expect("station docking probe: the player is up");
+            world.entity_mut(player).insert(TravelLock(None));
+            stand_off_the_berth(world, LIVING_ID, 0.0);
+            hide_dev_overlays(world);
+            hide_status_bar(world);
+            let gap = Meters3::from_engine(berth_of(world, LIVING_ID));
+            pose_camera(
+                world,
+                Meters3(gap.0 + CLAMP_EYE.0),
+                Meters3(gap.0 + CLAMP_LOOK.0),
+            );
+        })
+        .until(elapsed(NOTICE_CLEAR_SECS))
+        .add()
+        .step("close on the berth and ask for a dock")
+        .on_enter(|world| {
+            loop_start(world, CLAMP_LOOP);
+            stand_off_the_berth(world, LIVING_ID, APPROACH_SPEED);
+        })
+        .each(|world, _, _| request_dock(world, LIVING_ID))
+        .until(player_docked())
+        .deadline(15.0)
+        .diagnose(describe_ports)
+        .add()
+        .step("hold the clamped pair under the notice")
+        .until(and(
+            notice_reads(format!("DOCKED {LIVING_NAME}")),
+            elapsed(CLAMP_HOLD_SECS),
+        ))
+        .deadline(15.0)
+        .add()
+        .step("close the clamp loop")
+        .on_enter(|world| {
+            info!("station docking probe: the clamp posted DOCKED {LIVING_NAME}");
+            loop_end(world, CLAMP_LOOP);
+        })
+        .until(loop_written(CLAMP_LOOP))
+        .deadline(STEP_DEADLINE_SECS)
         .add()
 }
 
@@ -405,6 +501,30 @@ fn berth_player(world: &mut World, id: &str) {
         AngularVelocity(Vec3::ZERO),
     ));
     info!("station docking probe: parked the player on the {id} berth at {berth}");
+}
+
+/// Put the player's hull [`APPROACH_STANDOFF`] behind the berth of station
+/// `id`, on the berth's attitude, closing on it at `speed`.
+#[cfg(feature = "debug")]
+fn stand_off_the_berth(world: &mut World, id: &str, speed: f32) {
+    let start = berth_of(world, id) + Vec3::Z * APPROACH_STANDOFF;
+    let player = player_root(world).expect("station docking probe: the player is up");
+    world.entity_mut(player).insert((
+        Position(start),
+        Rotation(Quat::IDENTITY),
+        LinearVelocity(Vec3::NEG_Z * speed),
+        AngularVelocity(Vec3::ZERO),
+    ));
+}
+
+/// The HUD notice reads `line`.
+#[cfg(feature = "debug")]
+fn notice_reads(line: String) -> Arc<nova_protocol::nova_debug::harness::Predicate> {
+    Arc::new(move |world: &World| {
+        world
+            .try_query_filtered::<&Text, With<HudNoticeText>>()
+            .is_some_and(|mut lines| lines.iter(world).any(|text| text.0 == line))
+    })
 }
 
 /// The player's hull stands on the berth of station `id`, at rest.
