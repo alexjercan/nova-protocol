@@ -96,21 +96,22 @@ pub fn stock(stacks: &[(&str, u32)]) -> ShipInventoryStock {
     )
 }
 
-/// The void `id`: `objects`, and one three-point light rig around each of
-/// `lit`, because the engine spawns no light.
+/// The void `id`: `objects`, and one three-point light rig around each
+/// point of `lit` with its offsets multiplied by the point's scale, because
+/// the engine spawns no light.
 pub fn void(
     id: &str,
     name: &str,
     objects: Vec<ScenarioObjectConfig>,
-    lit: &[Meters3],
+    lit: &[(Meters3, f32)],
     game_assets: &GameAssets,
 ) -> ScenarioConfig {
     let mut actions: Vec<EventActionConfig> = objects
         .into_iter()
         .map(EventActionConfig::SpawnScenarioObject)
         .collect();
-    for (index, at) in lit.iter().enumerate() {
-        actions.extend(ThreePointRig::around(&format!("rig_{index}"), *at, 1.0).actions());
+    for (index, (at, scale)) in lit.iter().enumerate() {
+        actions.extend(ThreePointRig::around(&format!("rig_{index}"), *at, *scale).actions());
     }
     ScenarioConfig {
         description: name.to_string(),
@@ -187,12 +188,13 @@ pub fn berth_and_dock_at(world: &mut World, id: &str) -> bool {
     false
 }
 
-/// Assert that the docked pair of `player` and `station` stands still and
-/// that the two hulls are one berth apart, not one hull length.
+/// Assert that the docked pair of `player` and `station` stands still. A
+/// dock made at a stale pose throws both hulls at hundreds of meters per
+/// second.
 ///
 /// # Panics
 ///
-/// On a pair that moves faster than 1 m/s or stands more than 100 m apart.
+/// On a pair that moves faster than 1 m/s.
 pub fn assert_at_rest(world: &mut World, player: Entity, station: Entity) {
     let pose = |world: &World, entity: Entity| {
         (
@@ -210,14 +212,14 @@ pub fn assert_at_rest(world: &mut World, player: Entity, station: Entity) {
     let gap = Meters::from_engine(player_at.distance(station_at));
     let speed = Meters::from_engine(player_velocity.length().max(station_velocity.length()));
     info!(
-        "station void: the docked pair stands {:.1} m apart at {:.2} m/s",
+        "station void: the docked pair stands {:.1} m apart, origin to origin, at {:.2} m/s",
         gap.0, speed.0
     );
     assert!(
-        speed.0 < 1.0 && gap.0 < 100.0,
-        "station void: the docked pair must stand still on its berth: {:.1} m apart at {:.2} m/s",
-        gap.0,
-        speed.0
+        speed.0 < 1.0,
+        "station void: the docked pair must stand still: {:.2} m/s, {:.1} m apart",
+        speed.0,
+        gap.0
     );
 }
 

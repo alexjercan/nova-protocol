@@ -163,6 +163,16 @@ name = "refine_sandbox"
 path = "examples/playable/refine_sandbox.rs"
 required-features = ["debug"]
 
+# Second-tier sections by hand: start docked at a generated yard that builds
+# all six, on a shipped hull (--hull picket|tug|warship) with the recipe parts
+# and credits aboard. Swap in the Ship pane, undock and use the part. Nothing
+# ends it; under NOVA_AUTOPILOT a smoke walk checks that the hold pays each
+# swap.
+[[example]]
+name = "second_tier_sandbox"
+path = "examples/playable/second_tier_sandbox.rs"
+required-features = ["debug"]
+
 # The Mod Hub and one mod through New Mod, Mod Settings, Package and Import.
 # Nothing ends it; under NOVA_AUTOPILOT a smoke walk does the whole path through
 # real buttons, on a cache of its own.

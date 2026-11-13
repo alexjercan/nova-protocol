@@ -163,7 +163,7 @@ fn load_the_void(mut commands: Commands, game_assets: Res<GameAssets>, cli: Res<
             station_void::waystation(STATION_ID, STATION_NAME, STATION_POSITION),
             player,
         ],
-        &[STATION_POSITION],
+        &[(STATION_POSITION, 1.0)],
         &game_assets,
     )));
 }
