@@ -398,13 +398,19 @@ pub fn outward_port(world: &mut World, target: Entity) -> Option<Entity> {
 }
 
 /// Put `ship` on the berth at `target`'s outward port, moving and turning
-/// with it, point the mouse rig where the berth points the hull, and ask to
-/// dock. Call it each frame until the dock takes.
+/// with it, and point the mouse rig where the berth points the hull. Returns
+/// whether the hull and its rendered transform already stood on the berth
+/// before the call.
+///
+/// A dock request reads the port faces from the transforms. A request on the
+/// frame of a move joins the hulls at the old pose, and the joint then throws
+/// both hulls. A staging that moves a hull in reach of a port waits for
+/// `true` before it asks to dock.
 ///
 /// # Panics
 ///
 /// On a target or a ship with no free docking port.
-pub fn berth_and_dock(world: &mut World, ship: Entity, target: Entity) {
+pub fn berth(world: &mut World, ship: Entity, target: Entity) -> bool {
     let (Some(target_port), Some(own_port)) = (
         outward_port(world, target),
         free_ports(world, ship).into_iter().next(),
@@ -422,6 +428,17 @@ pub fn berth_and_dock(world: &mut World, ship: Entity, target: Entity) {
     let (port_at, port_rot) = local_pose(world, target_port, target);
     let (own_at, own_rot) = local_pose(world, own_port, ship);
     let (at, turn) = parked_hull_pose((position, rotation), (port_at, port_rot), (own_at, own_rot));
+    let stands = |found_at: Vec3, found_turn: Quat| {
+        found_at.distance(at) < BERTH_TOLERANCE && found_turn.angle_between(turn) < BERTH_TOLERANCE
+    };
+    let settled = world
+        .get::<Position>(ship)
+        .zip(world.get::<Rotation>(ship))
+        .is_some_and(|(found_at, found_turn)| stands(found_at.0, found_turn.0))
+        && world.get::<GlobalTransform>(ship).is_some_and(|shown| {
+            let (_, shown_turn, shown_at) = shown.to_scale_rotation_translation();
+            stands(shown_at, shown_turn)
+        });
     world.entity_mut(ship).insert((
         Position(at),
         Rotation(turn),
@@ -442,6 +459,20 @@ pub fn berth_and_dock(world: &mut World, ship: Entity, target: Entity) {
             PointRotationOutput(turn),
         ));
     }
+    settled
+}
+
+/// How close to its berth, in engine units and in radians, a hull and its
+/// rendered transform stand for [`berth`] to call the hull settled.
+const BERTH_TOLERANCE: f32 = 0.05;
+
+/// [`berth`], then ask to dock. Call it each frame until the dock takes.
+///
+/// # Panics
+///
+/// On a target or a ship with no free docking port.
+pub fn berth_and_dock(world: &mut World, ship: Entity, target: Entity) {
+    berth(world, ship, target);
     world.trigger(DockingConnectionRequest {
         entity: ship,
         target,

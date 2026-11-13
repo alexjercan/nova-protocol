@@ -154,6 +154,15 @@ name = "market_sandbox"
 path = "examples/playable/market_sandbox.rs"
 required-features = ["debug"]
 
+# Refining by hand: start docked at the waystation in a void with iron ore,
+# carbon ore and credits aboard; --short ore|credits stages a refusal. Nothing
+# ends it; under NOVA_AUTOPILOT a smoke walk opens the Refine form and checks
+# it.
+[[example]]
+name = "refine_sandbox"
+path = "examples/playable/refine_sandbox.rs"
+required-features = ["debug"]
+
 # The Mod Hub and one mod through New Mod, Mod Settings, Package and Import.
 # Nothing ends it; under NOVA_AUTOPILOT a smoke walk does the whole path through
 # real buttons, on a cache of its own.
