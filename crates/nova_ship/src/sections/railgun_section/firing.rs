@@ -1,6 +1,8 @@
 //! The lance's cycle: arming a spawned section, the charge clock, the shot,
 //! and the recoil the shot puts back through the hull.
 
+use bevy_transform_interpolation::{RotationEasingState, TranslationEasingState};
+
 use super::*;
 
 /// Seed a spawned lance with its magazine.
@@ -186,13 +188,13 @@ pub(super) fn charge_and_fire_railgun(
             muzzle_position,
         );
         let slug_velocity = bore_direction * config.slug_speed.to_engine() + muzzle_velocity;
+        let slug_rotation = Quat::from_rotation_arc(Vec3::NEG_Z, bore_direction);
 
         let mut slug = commands.spawn((
             Name::new("Railgun Slug"),
             RailgunSlugProjectileMarker,
             ProjectileOwner(spaceship),
-            Transform::from_translation(muzzle_position)
-                .with_rotation(Quat::from_rotation_arc(Vec3::NEG_Z, bore_direction)),
+            Transform::from_translation(muzzle_position).with_rotation(slug_rotation),
             RoundVelocity(slug_velocity),
             // POWER IS THE ONLY BOUND, for every Pierce round and this one
             // most of all: a lance stops when it runs out of thickness to
@@ -204,6 +206,25 @@ pub(super) fn charge_and_fire_railgun(
             },
             TempEntity(config.slug_lifetime),
             Visibility::Visible,
+            // Interpolation plus its render-clock seed, as a turret round
+            // carries them (`shoot_spawn_projectile`). The sweep moves the
+            // slug one whole step in the tick it is born, which at lance
+            // speed is more than twenty units: unseeded, its first drawn
+            // frame stood that far ahead of the bore, and every frame after
+            // stepped on the fixed clock against a ship drawn eased. Seeded
+            // with the tick-start muzzle, the first frame is drawn between
+            // the bore and the end of that step.
+            (
+                TransformInterpolation,
+                TranslationEasingState {
+                    start: Some(muzzle_position),
+                    end: None,
+                },
+                RotationEasingState {
+                    start: Some(slug_rotation),
+                    end: None,
+                },
+            ),
         ));
         // A lance with no rake spawns a slug with no rake component at all, so
         // it takes the sweep's untouched bore-width path (see

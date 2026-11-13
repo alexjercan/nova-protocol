@@ -137,6 +137,66 @@ fn a_committed_lance_fires_when_its_charge_completes_and_not_before() {
     );
 }
 
+/// The sweep moves a slug one whole step in the tick it is born. Drawn raw,
+/// its first frame stood that step - more than twenty units at lance speed -
+/// ahead of the bore, and it then stepped on the fixed clock against a ship
+/// that is drawn eased. Eased from the muzzle, the first drawn frame lies
+/// between the bore and the end of that step.
+#[test]
+fn a_fired_slug_is_first_drawn_between_the_muzzle_and_the_end_of_its_first_step() {
+    use bevy_transform_interpolation::TranslationEasingState;
+    use nova_gameplay::rounds::NovaRoundPlugin;
+
+    let mut app = unfinished_integrity_physics_app();
+    app.add_plugins(NovaRoundPlugin);
+    app.add_systems(FixedUpdate, charge_and_fire_railgun);
+    app.add_observer(insert_railgun_section);
+    app.finish();
+
+    let config = RailgunSectionConfig::default();
+    let offset = Vec3::NEG_Z * 2.0;
+    let muzzle = offset + config.muzzle_offset;
+    let speed = config.slug_speed.to_engine();
+    let (_ship, lance) = spawn_lance_ship(&mut app, config, offset);
+
+    hold_trigger(&mut app, lance, true);
+    let mut drawn = None;
+    for _ in 0..8 {
+        app.update();
+        let world = app.world_mut();
+        let mut q = world.query_filtered::<(
+            &Transform,
+            &TranslationEasingState,
+            Has<TransformInterpolation>,
+        ), With<RailgunSlugProjectileMarker>>();
+        if let Some((transform, easing, interpolated)) = q.iter(world).next() {
+            drawn = Some((transform.translation, *easing, interpolated));
+            break;
+        }
+    }
+    let (drawn, easing, interpolated) = drawn.expect("the lance fired inside eight frames");
+
+    assert!(interpolated, "a slug must be drawn eased, as a ship is");
+    let start = easing.start.expect("the easing start is seeded at spawn");
+    assert!(
+        start.abs_diff_eq(muzzle, 1.0e-4),
+        "the slug must ease out of the muzzle {muzzle}, not from {start}"
+    );
+    // The ship is at rest with its bore down -Z, so the flight is a distance
+    // along -Z from the muzzle: the part of the first step the render clock
+    // has reached, and so less than the whole step.
+    let fixed = app.world().resource::<Time<Fixed>>();
+    let step = speed * fixed.timestep().as_secs_f32();
+    let reached = fixed.overstep_fraction();
+    assert!(reached < 1.0, "the render clock is inside the tick");
+    let flown = muzzle.z - drawn.z;
+    assert!(
+        (flown - step * reached).abs() < 1.0e-2,
+        "the first drawn frame must be eased out of the muzzle: \
+         {flown} of a {step} step at {reached}"
+    );
+}
+
 /// The owner's call, made structural: POWER is the only bound on how deep one
 /// shell goes. A layer count here - any layer count - would be the cap the
 /// railgun deliberately does not have.
