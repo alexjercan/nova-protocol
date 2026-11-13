@@ -20,6 +20,7 @@ pub enum IconType {
     Escort,
     Answer,
     Neutralize,
+    Supply,
     // Chart contents and marks.
     Asteroids,
     Rocks,
@@ -42,12 +43,13 @@ pub enum IconType {
 }
 
 impl IconType {
-    pub const ALL: [IconType; 21] = [
+    pub const ALL: [IconType; 22] = [
         IconType::Bring,
         IconType::Recover,
         IconType::Escort,
         IconType::Answer,
         IconType::Neutralize,
+        IconType::Supply,
         IconType::Asteroids,
         IconType::Rocks,
         IconType::Planet,
@@ -76,6 +78,7 @@ impl IconType {
                 IconType::Escort,
                 IconType::Answer,
                 IconType::Neutralize,
+                IconType::Supply,
             ],
         ),
         (
@@ -112,6 +115,7 @@ impl IconType {
             IconType::Escort => "Escort",
             IconType::Answer => "Answer",
             IconType::Neutralize => "Neutralize",
+            IconType::Supply => "Supply",
             IconType::Asteroids => "Asteroids",
             IconType::Rocks => "Rocks",
             IconType::Planet => "Planet",
@@ -139,6 +143,7 @@ impl IconType {
             | IconType::Escort
             | IconType::Answer
             | IconType::Neutralize
+            | IconType::Supply
             | IconType::Job => UiColorType::Accent,
             IconType::Asteroids => UiColorType::Accent,
             IconType::Rocks => UiColorType::TextSecondary,
@@ -258,6 +263,13 @@ fn coverage(icon: IconType, p: Vec2, px: f32) -> f32 {
                 .min(ticks)
                 .min(circle(p, Vec2::ZERO, 0.1));
             solid(reticle, px)
+        }
+        // A strapped crate with a chevron pointing out of it.
+        IconType::Supply => {
+            let shell = box_outline(p, Vec2::new(-0.3, 0.05), Vec2::new(0.45, 0.45), 0.13);
+            let strap = segment(p, Vec2::new(-0.3, -0.4), Vec2::new(-0.3, 0.5), 0.09);
+            let out = chevron(p, Vec2::new(0.88, 0.05), 0.33, 0.15);
+            solid(shell.min(strap).min(out), px)
         }
         // Three lumps.
         IconType::Asteroids => {

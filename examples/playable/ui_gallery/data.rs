@@ -4,7 +4,7 @@
 
 use crate::icons::IconType;
 
-/// The five job kinds of the proposed board.
+/// The six job kinds of the proposed board.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum JobKind {
     Bring,
@@ -12,6 +12,7 @@ pub enum JobKind {
     Escort,
     Answer,
     Neutralize,
+    Supply,
 }
 
 impl JobKind {
@@ -22,6 +23,7 @@ impl JobKind {
             JobKind::Escort => IconType::Escort,
             JobKind::Answer => IconType::Answer,
             JobKind::Neutralize => IconType::Neutralize,
+            JobKind::Supply => IconType::Supply,
         }
     }
 }
@@ -48,7 +50,7 @@ pub struct JobCard {
     pub hand_in_here: bool,
 }
 
-pub const JOBS: [JobCard; 10] = [
+pub const JOBS: [JobCard; 11] = [
     JobCard {
         id: 1,
         kind: JobKind::Bring,
@@ -111,7 +113,7 @@ pub const JOBS: [JobCard; 10] = [
         window: 20,
         fits_role: false,
         hand_in: "Dust Gate",
-        task: "Dock with the stranded caller. Bring one medkit.",
+        task: "Dock with the stranded caller.",
         have: 0,
         need: 1,
         done: false,
@@ -218,6 +220,23 @@ pub const JOBS: [JobCard; 10] = [
         need: 1,
         done: true,
         hand_in_here: false,
+    },
+    JobCard {
+        id: 11,
+        kind: JobKind::Supply,
+        title: "Rescue a stranded crew with 4 Medkit",
+        reward: 760,
+        target: (2, 2),
+        target_name: "Ash orbit",
+        minutes_left: 11,
+        window: 20,
+        fits_role: true,
+        hand_in: "Dust Gate",
+        task: "Dock with the stranded caller with 4 Medkit in your hold for its injured crew. The dock takes them from the hold.",
+        have: 1,
+        need: 4,
+        done: false,
+        hand_in_here: true,
     },
 ];
 

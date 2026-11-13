@@ -239,7 +239,7 @@ pub enum RoleGoalType {
         /// How many distinct hulls to neutralize and hand in, above zero.
         hulls: u32,
     },
-    /// Hand in `jobs` Distress or Escort jobs.
+    /// Hand in `jobs` Distress, Supply or Escort jobs.
     Patrols {
         /// How many patrols to hand in, above zero.
         jobs: u32,

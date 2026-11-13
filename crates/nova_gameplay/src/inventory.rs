@@ -129,8 +129,9 @@ pub enum ItemRoleType {
     Rations,
     /// Reusable ship components. Generated sector ship holds draw them.
     SalvagedParts,
-    /// Emergency medical supplies. A distress rescue takes one from the
-    /// hold at the dock with the caller.
+    /// Emergency medical supplies. A supply job that asks for them reads as
+    /// a rescue (`SupplyFramingType::Rescue`), so a mod item under another id
+    /// never does.
     Medkit,
 }
 

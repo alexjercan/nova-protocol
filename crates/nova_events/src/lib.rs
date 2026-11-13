@@ -905,7 +905,7 @@ pub const CREDIT_CAUSE_FIELD_NAME: &str = "cause";
 /// Field name for the pane section code a repair named.
 pub const SECTION_FIELD_NAME: &str = "section";
 /// Field name for the kind of job a job event names: `Procure`, `Recover`,
-/// `Escort`, `Distress` or `Neutralize`.
+/// `Escort`, `Distress`, `Neutralize` or `Supply`.
 pub const JOB_KIND_FIELD_NAME: &str = "kind";
 /// Field name for the scenario id of the station that posted a job event's
 /// job.
@@ -1479,8 +1479,8 @@ pub struct JobEventInfo {
     /// `<station id>#<visit id>.<index>` for a visit posting.
     #[serde(rename = "id")]
     pub id: String,
-    /// The kind of job: `Procure`, `Recover`, `Escort`, `Distress` or
-    /// `Neutralize`.
+    /// The kind of job: `Procure`, `Recover`, `Escort`, `Distress`,
+    /// `Neutralize` or `Supply`.
     #[serde(rename = "kind")]
     pub kind: String,
     /// Scenario id of the station that posted the job: the part of `id`

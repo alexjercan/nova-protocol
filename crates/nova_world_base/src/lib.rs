@@ -254,6 +254,7 @@ impl Plugin for NovaWorldBasePlugin {
         app.add_observer(jobs::recover_on_undock);
         app.add_observer(jobs::escort_on_arrival);
         app.add_observer(jobs::distress_on_answer);
+        app.add_observer(jobs::supply_on_dock);
         app.add_observer(jobs::neutralize_on_kill);
         app.add_observer(jobs::drop_on_loss);
         app.add_observer(station_visits::end_visits_on_loss);

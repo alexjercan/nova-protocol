@@ -108,8 +108,8 @@ const SHRINK: (f32, u32) = (0.9, 24);
 const STOCK_SHARE: (f32, f32) = (0.04, 0.08);
 
 /// The goods a station stocks, by weight. Ammunition for the weapons of the
-/// ships it serves, plates to patch them, medkits for the distress calls its
-/// board posts, food and salvage to trade. An ammunition item is stocked only
+/// ships it serves, plates to patch them, medkits, food and salvage to
+/// trade and to bring to the supply jobs its board posts. An ammunition item is stocked only
 /// when a weapon its civilization knows reloads from it.
 const GOODS: [(ItemRoleType, f32); 7] = [
     (ItemRoleType::PdcRound, 2.0),

@@ -294,7 +294,10 @@ fn target_standing(job: &Job, q_targets: &JobTargets) -> bool {
         JobType::Neutralize { hull, .. } => {
             standing(hull).is_some_and(|(_, _, neutralized)| !neutralized)
         }
-        JobType::Procure { .. } | JobType::Escort { .. } | JobType::Distress { .. } => true,
+        JobType::Procure { .. }
+        | JobType::Escort { .. }
+        | JobType::Distress { .. }
+        | JobType::Supply { .. } => true,
     }
 }
 
@@ -351,7 +354,7 @@ fn target_name(job: &Job, chart: &Chart) -> String {
         JobType::Procure { .. } => station_name(chart, &job.target),
         JobType::Recover { wreck_name, .. } => wreck_name.clone(),
         JobType::Escort { .. } => "the hauler".to_string(),
-        JobType::Distress { .. } => "the caller".to_string(),
+        JobType::Distress { .. } | JobType::Supply { .. } => "the caller".to_string(),
         JobType::Neutralize { hull_name, .. } => hull_name.clone(),
     }
 }

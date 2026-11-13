@@ -102,7 +102,7 @@
     Item((
         id: "Medkit",
         name: "Medkit",
-        about: "Emergency medical supplies. Answering a distress call spends one at the dock with the caller.",
+        about: "Emergency medical supplies. A stranded crew that asks for them is a rescue: dock with its caller with the medkits aboard.",
         category: Repair,
         mass_g: 2000,
         price_lot: 1,

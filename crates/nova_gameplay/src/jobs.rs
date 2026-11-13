@@ -39,15 +39,16 @@
 //! renewal there keeps one such offer open while a slot renews; every other
 //! board lists them all and refuses the accept with the reason.
 //!
-//! Five kinds ([`JobType`]). A procurement is done at the hand-in, by the
+//! Six kinds ([`JobType`]). A procurement is done at the hand-in, by the
 //! goods in the hold. A located kind is done in the world: the open world
 //! crate watches one existing event kind per type and marks the held job
-//! done ([`Jobs::mark_done`]); the hand-in is refused until then. An Escort
-//! and a Distress call put generated bodies in the world on the accept
-//! ([`JobAccepted`]), named by the job ([`Job::spawned_bodies`]). The dock
-//! that answers a Distress call takes one medkit from the hold
-//! ([`plan_distress_rescue`]); with none aboard the call stays open and the
-//! world raises [`DistressRefused`].
+//! done ([`Jobs::mark_done`]); the hand-in is refused until then. An Escort,
+//! a Distress call and a Supply job put generated bodies in the world on the
+//! accept ([`JobAccepted`]), named by the job ([`Job::spawned_bodies`]). The
+//! dock that answers a Supply job takes the asked goods from the hold
+//! ([`plan_job_supply`]); with the hold short the job stays open and the
+//! world raises [`SupplyRefused`]. The item a Supply job asks for frames
+//! its title, task and chip ([`SupplyFramingType`]).
 //!
 //! [`Jobs`] is the player's record: the jobs held, the ids done, the jobs
 //! completed and each undone escort's leg ([`EscortLeg`]). It is a session resource like the chart: a world save carries
@@ -70,7 +71,7 @@ use crate::{
     chart::prelude::ClusterType,
     hash::Fnv64,
     inventory::prelude::{
-        cr_text, GameItems, ItemCategoryType, ItemDesignId, ItemRoleType, ShipInventory,
+        cr_text, GameItems, ItemCategoryType, ItemDesign, ItemDesignId, ItemRoleType, ShipInventory,
     },
     market::prelude::JobOfferRule,
     station_visits::prelude::StationVisitId,
@@ -79,16 +80,15 @@ use crate::{
 /// Glob-import surface: `use nova_gameplay::jobs::prelude::*`.
 pub mod prelude {
     pub use super::{
-        escort_raiders, is_job_post_key, job_title, offer_deadline_text, plan_distress_rescue,
-        plan_job_accept, plan_job_hand_in, plan_job_hull_fit, plan_job_offer_refresh,
-        station_job_offers, DistressRefusalType, DistressRefused, EscortLeg, Job,
-        JobAcceptRefusalType, JobAccepted, JobBoard, JobDone, JobDropped, JobField,
-        JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHandedIn, JobHull, JobHullFit,
-        JobHullRefusalType, JobId, JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType,
-        JobPostings, JobSourceType, JobType, JobWreck, Jobs, ScenarioPosting, SlotPosting,
-        StarterBoardMarker, VisitPosting, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD,
-        JOB_OFFER_REFRESH_FEE_CR, RAIDERS_PER_CARGO_CR, VISIT_EXTRAS_MAX,
-        VISIT_EXTRA_OFFER_SECONDS,
+        escort_raiders, is_job_post_key, job_title, offer_deadline_text, plan_job_accept,
+        plan_job_hand_in, plan_job_hull_fit, plan_job_offer_refresh, plan_job_supply,
+        station_job_offers, EscortLeg, Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobDone,
+        JobDropped, JobField, JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHandedIn,
+        JobHull, JobHullFit, JobHullRefusalType, JobId, JobMixType, JobOfferRefreshPlan,
+        JobOfferRefreshRefusalType, JobPostings, JobSourceType, JobType, JobWreck, Jobs,
+        ScenarioPosting, SlotPosting, StarterBoardMarker, SupplyFramingType, SupplyRefusalType,
+        SupplyRefused, VisitPosting, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_OFFER_REFRESH_FEE_CR,
+        RAIDERS_PER_CARGO_CR, SUPPLY_MASS_CAP_G, VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
     };
 }
 
@@ -120,9 +120,19 @@ const FEE_STEPS: u32 = 5;
 /// The least and the most cargo an escorted hauler carries, at ask, both
 /// included; the reward is half of it plus the fee.
 const ESCORT_CARGO_CR: (u32, u32) = (300, 2_400);
-/// What a distress call pays before the fee and the medkit the rescue
-/// spends.
+/// What a distress call pays before the fee.
 const DISTRESS_BASE_CR: u32 = 200;
+/// What a supply job pays for the leg out to its caller, over its goods at
+/// ask plus half and twice the fee: a distress call's base.
+const SUPPLY_BASE_CR: u32 = DISTRESS_BASE_CR;
+/// The most a supply job's goods weigh, in grams: 200 kg, two hull
+/// sections of hold. Every start hull's hold takes its start kit, and the
+/// lightest kit weighs 200 kg, so every start hold takes any supply stack.
+pub const SUPPLY_MASS_CAP_G: u32 = 200_000;
+/// The most a raw or parts item may ask per unit, in credits, to stand in a
+/// supply job's pool: cheap bulk a stranded ship can use, not salvage worth
+/// more than the leg.
+const SUPPLY_RUN_ASK_MAX_CR: u32 = 20;
 /// What a neutralize pays before the fee, doubled for the risk.
 const NEUTRALIZE_BASE_CR: u32 = 400;
 /// One raider lies in wait per this many credits of hauler cargo, after the
@@ -853,7 +863,7 @@ pub enum JobMixType {
     Combat,
 }
 
-/// The five kinds, for the weighted draw.
+/// The six kinds, for the weighted draw.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum JobKindType {
     Procure,
@@ -861,30 +871,34 @@ enum JobKindType {
     Escort,
     Distress,
     Neutralize,
+    Supply,
 }
 
 impl JobMixType {
     /// The draw weight of each kind, in [`JobKindType`] order: Procure,
-    /// Recover, Escort, Distress, Neutralize. Every kind keeps a weight, so
-    /// no start sees one kind only.
+    /// Recover, Escort, Distress, Neutralize, Supply. Every kind keeps a
+    /// weight, so no start sees one kind only. A Supply job weighs what a
+    /// Distress call weighs in each mix.
     ///
-    /// Agent decision 2026-10-16 for owner review.
-    pub const fn weights(self) -> [u32; 5] {
+    /// Agent decision 2026-10-16 for owner review; the Supply weight is the
+    /// owner's decision of 2026-11-13.
+    pub const fn weights(self) -> [u32; 6] {
         match self {
-            JobMixType::Trade => [4, 1, 4, 1, 1],
-            JobMixType::Salvage => [1, 5, 1, 2, 1],
-            JobMixType::Combat => [1, 1, 1, 3, 4],
+            JobMixType::Trade => [4, 1, 4, 1, 1, 1],
+            JobMixType::Salvage => [1, 5, 1, 2, 1, 2],
+            JobMixType::Combat => [1, 1, 1, 3, 4, 3],
         }
     }
 
     /// Draw a kind off `rng` by this mix's weights.
     fn draw(self, rng: &mut WyRand) -> JobKindType {
-        const KINDS: [JobKindType; 5] = [
+        const KINDS: [JobKindType; 6] = [
             JobKindType::Procure,
             JobKindType::Recover,
             JobKindType::Escort,
             JobKindType::Distress,
             JobKindType::Neutralize,
+            JobKindType::Supply,
         ];
         let weights = self.weights();
         let total: u32 = weights.iter().sum();
@@ -950,6 +964,20 @@ pub enum JobType {
         /// What the hull is called, for the title.
         hull_name: String,
     },
+    /// Bring `count` of `item` to the caller the accept puts in the world: a
+    /// neutral derelict civilian hull. Done on the player's dock with it
+    /// while the hold carries the whole stack, which the dock takes and
+    /// destroys ([`plan_job_supply`]); a dock with the hold short leaves the
+    /// job open. A caller neutralized or destroyed before the dock drops the
+    /// job. The item frames the job ([`SupplyFramingType`]).
+    Supply {
+        /// The caller's id.
+        caller: GeneratedBodyId,
+        /// The item the caller asks for.
+        item: ItemDesignId,
+        /// How many units, above zero.
+        count: u32,
+    },
 }
 
 impl JobType {
@@ -961,6 +989,7 @@ impl JobType {
             JobType::Escort { .. } => "Escort",
             JobType::Distress { .. } => "Answer",
             JobType::Neutralize { .. } => "Neutralize",
+            JobType::Supply { .. } => "Supply",
         }
     }
 
@@ -973,6 +1002,7 @@ impl JobType {
             JobType::Escort { .. } => "Escort",
             JobType::Distress { .. } => "Distress",
             JobType::Neutralize { .. } => "Neutralize",
+            JobType::Supply { .. } => "Supply",
         }
     }
 
@@ -980,6 +1010,93 @@ impl JobType {
     /// rather than in the world before it.
     pub const fn is_procurement(&self) -> bool {
         matches!(self, JobType::Procure { .. })
+    }
+}
+
+/// How a supply job reads, by the item it asks for: the title, the task and
+/// the verb on the caller's chip. The medkit role item frames a rescue
+/// first, since a medkit files under Repair beside the hull plate; every
+/// other item frames by its category.
+///
+/// Owner decision 2026-11-13.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SupplyFramingType {
+    /// Medkits for an injured crew ([`ItemRoleType::Medkit`]).
+    Rescue,
+    /// Food for a crew out of it ([`ItemCategoryType::Food`]).
+    Resupply,
+    /// Ammunition for empty magazines ([`ItemCategoryType::Ammo`]).
+    Rearm,
+    /// Repair stock other than a medkit for a breached hull
+    /// ([`ItemCategoryType::Repair`]).
+    Repair,
+    /// Raw material or parts, the plain run ([`ItemCategoryType::Raw`],
+    /// [`ItemCategoryType::Parts`]). A board never draws contraband for a
+    /// supply job ([`station_job_offers`]); were one named, it would read
+    /// as a plain run too.
+    SupplyRun,
+}
+
+impl SupplyFramingType {
+    /// Every framing, in the order a board's draw picks among them.
+    pub const ALL: [Self; 5] = [
+        Self::Rescue,
+        Self::Resupply,
+        Self::Rearm,
+        Self::Repair,
+        Self::SupplyRun,
+    ];
+
+    /// The framing of a supply job that asks for `design`.
+    pub fn of(design: &ItemDesign) -> Self {
+        if design.id.as_str() == ItemRoleType::Medkit.id() {
+            return Self::Rescue;
+        }
+        match design.category {
+            ItemCategoryType::Food => Self::Resupply,
+            ItemCategoryType::Ammo => Self::Rearm,
+            ItemCategoryType::Repair => Self::Repair,
+            ItemCategoryType::Raw | ItemCategoryType::Parts | ItemCategoryType::Contraband => {
+                Self::SupplyRun
+            }
+        }
+    }
+
+    /// The verb the caller's objective chip reads while the job is undone.
+    pub const fn verb(self) -> &'static str {
+        match self {
+            Self::Rescue => "Rescue",
+            Self::Resupply => "Resupply",
+            Self::Rearm => "Rearm",
+            Self::Repair => "Repair",
+            Self::SupplyRun => "Supply",
+        }
+    }
+
+    /// The job's title for `count` of the item called `name`:
+    /// `Rescue a stranded crew with 3 Medkit`.
+    pub fn title(self, count: u32, name: &str) -> String {
+        let whom = match self {
+            Self::Rescue => "a stranded crew",
+            Self::Resupply | Self::Rearm | Self::Repair | Self::SupplyRun => "a stranded ship",
+        };
+        format!("{} {whom} with {count} {name}", self.verb())
+    }
+
+    /// What the player does before the hand-in, for `count` of the item
+    /// called `name`.
+    pub fn task(self, count: u32, name: &str) -> String {
+        let why = match self {
+            Self::Rescue => "for its injured crew",
+            Self::Resupply => "to feed its crew",
+            Self::Rearm => "to refill its magazines",
+            Self::Repair => "to patch its breached hull",
+            Self::SupplyRun => "to get it under way",
+        };
+        format!(
+            "Dock with the stranded caller with {count} {name} in your hold {why}. The dock \
+             takes them from the hold."
+        )
     }
 }
 
@@ -1006,9 +1123,10 @@ impl Job {
 
     /// The one line a board or a list calls the job by: `Bring 4 Iron ore`,
     /// `Recover 3 Frame spar from Vell derelict`, `Escort a hauler carrying
-    /// 1200 cr`, `Answer a distress call`, `Neutralize Harrow armored`. An
-    /// item the catalog lacks reads by its id; the save check refuses one
-    /// before a Load.
+    /// 1200 cr`, `Answer a distress call`, `Neutralize Harrow armored`,
+    /// `Rescue a stranded crew with 3 Medkit` ([`SupplyFramingType::title`]).
+    /// An item the catalog lacks reads by its id, and a supply job for one
+    /// as a plain run; the save check refuses one before a Load.
     pub fn title(&self, items: &GameItems) -> String {
         let item_name = |item: &ItemDesignId| {
             items
@@ -1028,15 +1146,35 @@ impl Job {
             }
             JobType::Distress { .. } => "Answer a distress call".to_string(),
             JobType::Neutralize { hull_name, .. } => format!("Neutralize {hull_name}"),
+            JobType::Supply { item, count, .. } => {
+                supply_framing(item, items).title(*count, &item_name(item))
+            }
+        }
+    }
+
+    /// The verb the objective chip on the job's target reads while the job
+    /// is undone: the kind's [`JobType::label`], or a supply job's framing
+    /// verb ([`SupplyFramingType::verb`]).
+    pub fn verb(&self, items: &GameItems) -> &'static str {
+        match &self.kind {
+            JobType::Supply { item, .. } => supply_framing(item, items).verb(),
+            JobType::Procure { .. }
+            | JobType::Recover { .. }
+            | JobType::Escort { .. }
+            | JobType::Distress { .. }
+            | JobType::Neutralize { .. } => self.kind.label(),
         }
     }
 
     /// The held job's progress as `have / need`: the units in `hold`
-    /// against the stack for a procurement and a recovery, `done` or not for
-    /// the rest.
+    /// against the stack for a procurement, a recovery and an undone supply
+    /// job, `done` or not for the rest. A done supply job reads full: its
+    /// dock took the stack.
     pub fn progress(&self, hold: Option<&ShipInventory>, done: bool) -> (u32, u32) {
         match &self.kind {
-            JobType::Procure { item, count } | JobType::Recover { item, count, .. } => {
+            JobType::Procure { item, count }
+            | JobType::Recover { item, count, .. }
+            | JobType::Supply { item, count, .. } => {
                 let have = hold.map_or(0, |hold| hold.count(item)).min(*count);
                 (if done { *count } else { have }, *count)
             }
@@ -1075,11 +1213,12 @@ impl Job {
                 raiders; the job is lost if the hauler is disabled, neutralized or destroyed \
                 before arrival."
                 .to_string(),
-            JobType::Distress { .. } => {
-                "Dock with the stranded caller. Bring one medkit.".to_string()
-            }
+            JobType::Distress { .. } => "Dock with the stranded caller.".to_string(),
             JobType::Neutralize { hull_name, .. } => {
                 format!("Find {hull_name} and neutralize or destroy it.")
+            }
+            JobType::Supply { item, count, .. } => {
+                supply_framing(item, items).task(*count, &item_name(item))
             }
         }
     }
@@ -1087,7 +1226,9 @@ impl Job {
     /// Every item id the job names.
     pub fn item_ids(&self) -> impl Iterator<Item = &ItemDesignId> {
         match &self.kind {
-            JobType::Procure { item, .. } | JobType::Recover { item, .. } => Some(item),
+            JobType::Procure { item, .. }
+            | JobType::Recover { item, .. }
+            | JobType::Supply { item, .. } => Some(item),
             JobType::Escort { .. } | JobType::Distress { .. } | JobType::Neutralize { .. } => None,
         }
         .into_iter()
@@ -1100,7 +1241,7 @@ impl Job {
             JobType::Procure { .. } => None,
             JobType::Recover { wreck, .. } => Some(wreck),
             JobType::Escort { hauler, .. } => Some(hauler),
-            JobType::Distress { caller } => Some(caller),
+            JobType::Distress { caller } | JobType::Supply { caller, .. } => Some(caller),
             JobType::Neutralize { hull, .. } => Some(hull),
         }
     }
@@ -1117,14 +1258,15 @@ impl Job {
     }
 
     /// Every body the accept puts in the world: the hauler and its raiders,
-    /// or the caller. Empty for a procurement, a recovery and a neutralize,
-    /// which name bodies that already stand.
+    /// or the caller of a distress call or a supply job. Empty for a
+    /// procurement, a recovery and a neutralize, which name bodies that
+    /// already stand.
     pub fn spawned_bodies(&self) -> Vec<GeneratedBodyId> {
         match &self.kind {
             JobType::Escort { hauler, .. } => std::iter::once(hauler.clone())
                 .chain(self.raider_ids())
                 .collect(),
-            JobType::Distress { caller } => vec![caller.clone()],
+            JobType::Distress { caller } | JobType::Supply { caller, .. } => vec![caller.clone()],
             JobType::Procure { .. } | JobType::Recover { .. } | JobType::Neutralize { .. } => {
                 Vec::new()
             }
@@ -1202,10 +1344,36 @@ impl Job {
                     ));
                 }
             }
+            JobType::Supply {
+                caller,
+                item,
+                count,
+            } => {
+                if *count == 0 {
+                    return Err(format!(
+                        "the supply job '{}' asks for 0 of '{item}'",
+                        self.id
+                    ));
+                }
+                if *caller != self.id.spawned_body("caller", 0) {
+                    return Err(format!(
+                        "the supply job '{}' names the caller '{caller}', not its own",
+                        self.id
+                    ));
+                }
+            }
             JobType::Neutralize { .. } => {}
         }
         Ok(())
     }
+}
+
+/// The framing of a supply job for `item`: a plain run for an item the
+/// catalog lacks, which the save check refuses before a Load.
+fn supply_framing(item: &ItemDesignId, items: &GameItems) -> SupplyFramingType {
+    items
+        .get(item)
+        .map_or(SupplyFramingType::SupplyRun, SupplyFramingType::of)
 }
 
 /// The one line a job is called by: its title from the catalog, or by its
@@ -1220,9 +1388,10 @@ pub fn job_title(job: &Job, items: Option<&GameItems>) -> String {
                 count,
                 ..
             } => format!("Recover {count} {item} from {wreck_name}"),
-            JobType::Escort { .. } | JobType::Distress { .. } | JobType::Neutralize { .. } => {
-                job.title(&GameItems::default())
-            }
+            JobType::Escort { .. }
+            | JobType::Distress { .. }
+            | JobType::Neutralize { .. }
+            | JobType::Supply { .. } => job.title(&GameItems::default()),
         },
         |items| job.title(items),
     )
@@ -1296,36 +1465,51 @@ pub struct JobDropped {
     pub cause: JobDropCauseType,
 }
 
-/// Why a dock with a distress caller rescues nobody.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DistressRefusalType {
-    /// The hold carries no medkit ([`ItemRoleType::Medkit`]).
-    NoMedkit,
+/// Why a dock with a held supply job's caller delivers nothing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SupplyRefusalType {
+    /// The hold carries fewer units than the job asks: all or nothing, so
+    /// the dock takes none.
+    ShortItems {
+        /// The item asked for.
+        item: ItemDesignId,
+        /// Units asked for.
+        need: u32,
+        /// Units in the hold.
+        have: u32,
+    },
 }
 
-/// Plan the rescue a dock with a distress caller makes from `hold`: it takes
-/// one `medkit`, the catalog's [`ItemRoleType::Medkit`] item. Refused, the
-/// hold is untouched and the call stays open, so a later dock with a medkit
-/// aboard answers it.
-pub fn plan_distress_rescue(
+/// Plan the delivery a dock with a supply job's caller makes from `hold`:
+/// it takes all `count` of `item`, which the caller of the plan removes and
+/// destroys, as a procurement's hand-in does. Refused, the hold is
+/// untouched and the job stays open, so a later dock with the whole stack
+/// aboard delivers it.
+pub fn plan_job_supply(
     hold: &ShipInventory,
-    medkit: &ItemDesignId,
-) -> Result<(), DistressRefusalType> {
-    if hold.count(medkit) == 0 {
-        return Err(DistressRefusalType::NoMedkit);
+    item: &ItemDesignId,
+    count: u32,
+) -> Result<(), SupplyRefusalType> {
+    let have = hold.count(item);
+    if have < count {
+        return Err(SupplyRefusalType::ShortItems {
+            item: item.clone(),
+            need: count,
+            have,
+        });
     }
     Ok(())
 }
 
-/// Raised by the open world when the player's dock with a held distress
-/// call's caller rescues nobody ([`plan_distress_rescue`]): the job stays
-/// held and not done. Once per refused dock.
+/// Raised by the open world when the player's dock with a held supply job's
+/// caller delivers nothing ([`plan_job_supply`]): the job stays held and
+/// not done. Once per refused dock.
 #[derive(Event, Clone, Debug)]
-pub struct DistressRefused {
-    /// The held distress call the dock did not answer.
+pub struct SupplyRefused {
+    /// The held supply job the dock did not deliver.
     pub id: JobId,
     /// Why.
-    pub refusal: DistressRefusalType,
+    pub refusal: SupplyRefusalType,
 }
 
 /// An undone escort's leg: the mark its hauler flies to and whether the
@@ -1708,13 +1892,14 @@ fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
 /// units at the item's ask plus half. A recovery names a wreck of the field
 /// and one of its stacks, whole, at ask twice; an escort a hauler carrying
 /// [`ESCORT_CARGO_CR`] at ask, for half of it; a distress call pays
-/// [`DISTRESS_BASE_CR`] and the one medkit its rescue spends at ask plus
-/// half; a neutralize names a hostile of the field for
-/// [`NEUTRALIZE_BASE_CR`].
+/// [`DISTRESS_BASE_CR`]; a neutralize names a hostile of the field for
+/// [`NEUTRALIZE_BASE_CR`]. A supply job draws a framing, then an item of it
+/// from its own pool ([`supply_pool`]), [`supply_count`] units, and pays
+/// [`SUPPLY_BASE_CR`] and the goods at ask plus half.
 /// Every job adds a flat fee of one to [`FEE_STEPS`] times [`FEE_STEP_CR`],
-/// doubled for a distress call and a neutralize. A kind drawn with no
-/// candidate left in the field posts a procurement instead; a wreck or a
-/// hull is named once per board.
+/// doubled for a distress call, a neutralize and a supply job. A kind drawn
+/// with no candidate left in the field, or a supply job with an empty pool,
+/// posts a procurement instead; a wreck or a hull is named once per board.
 ///
 /// Each slot's draws come off its own `WyRand`, seeded from the world seed,
 /// the station id, the slot and its posting, in a fixed number, so the same
@@ -1806,6 +1991,7 @@ pub fn station_job_offers(
         .iter()
         .filter(|hull| !standing_bodies.contains(&&hull.id))
         .collect();
+    let supplies = supply_pool(items);
     let mut offers: Vec<Job> = ids
         .iter()
         .map(|id| {
@@ -1814,6 +2000,7 @@ pub fn station_job_offers(
             let mut kind = draw.kind;
             if kind == JobKindType::Recover && wrecks.is_empty()
                 || kind == JobKindType::Neutralize && hostiles.is_empty()
+                || kind == JobKindType::Supply && supplies.is_empty()
             {
                 kind = JobKindType::Procure;
             }
@@ -1847,7 +2034,8 @@ pub fn station_job_offers(
                     )
                 }
                 JobKindType::Escort => escort_posting(&id, draw.cargo_cr, draw.fee),
-                JobKindType::Distress => distress_posting(&id, draw.fee, items),
+                JobKindType::Distress => distress_posting(&id, draw.fee),
+                JobKindType::Supply => supply_posting(&id, draw, &supplies),
                 JobKindType::Neutralize => {
                     let hull = hostiles.swap_remove(draw.pick as usize % hostiles.len());
                     (
@@ -1944,15 +2132,80 @@ fn escort_posting(id: &JobId, cargo_cr: u32, fee: u32) -> (JobType, u32) {
     )
 }
 
-/// The distress call `id` posts, and its reward: the base, the medkit the
-/// rescue spends at its reference ask plus half, and twice the fee.
-fn distress_posting(id: &JobId, fee: u32, items: &GameItems) -> (JobType, u32) {
-    let medkit = items.role(ItemRoleType::Medkit).reference_price().buy_cr(1) * 3 / 2;
+/// The distress call `id` posts, and its reward: the base and twice the
+/// fee.
+fn distress_posting(id: &JobId, fee: u32) -> (JobType, u32) {
     (
         JobType::Distress {
             caller: id.spawned_body("caller", 0),
         },
-        job_reward(u64::from(DISTRESS_BASE_CR) + medkit, fee * 2),
+        job_reward(u64::from(DISTRESS_BASE_CR), fee * 2),
+    )
+}
+
+/// The items a supply job may ask for, in id order: the medkit and every
+/// food, ammunition and repair item, and every raw or parts item that asks
+/// at most [`SUPPLY_RUN_ASK_MAX_CR`] a unit; each lighter than
+/// [`SUPPLY_MASS_CAP_G`] a unit. Never contraband: a board is drawn without
+/// its station's law.
+///
+/// Owner decision 2026-11-13.
+fn supply_pool(items: &GameItems) -> Vec<&ItemDesign> {
+    items
+        .iter()
+        .filter(|design| {
+            let wanted = match design.category {
+                ItemCategoryType::Food | ItemCategoryType::Ammo | ItemCategoryType::Repair => true,
+                ItemCategoryType::Raw | ItemCategoryType::Parts => {
+                    design.reference_price().buy_cr(1) <= u64::from(SUPPLY_RUN_ASK_MAX_CR)
+                }
+                ItemCategoryType::Contraband => false,
+            };
+            wanted && design.mass_g <= SUPPLY_MASS_CAP_G
+        })
+        .collect()
+}
+
+/// How many units of `design` a supply job asks for on a draw of `drawn`:
+/// `drawn` price lots, so PDC rounds come by the hundred, cut to the most
+/// [`SUPPLY_MASS_CAP_G`] carries, never below one. An item of the pool
+/// ([`supply_pool`]) weighs at most the cap, so the stack never outweighs
+/// it.
+fn supply_count(design: &ItemDesign, drawn: u32) -> u32 {
+    drawn
+        .saturating_mul(design.price_lot)
+        .min(SUPPLY_MASS_CAP_G / design.mass_g)
+        .max(1)
+}
+
+/// The supply job `id` posts on `draw` from `pool` ([`supply_pool`], not
+/// empty), and its reward: [`SUPPLY_BASE_CR`], the goods at their reference
+/// ask plus half, and twice the fee. The draw picks a framing among the ones
+/// the pool fills, in [`SupplyFramingType`] order, then an item of it, so a
+/// pool rich in raw material does not crowd out the rescue.
+fn supply_posting(id: &JobId, draw: SlotDraw, pool: &[&ItemDesign]) -> (JobType, u32) {
+    let framings: Vec<SupplyFramingType> = SupplyFramingType::ALL
+        .into_iter()
+        .filter(|framing| {
+            pool.iter()
+                .any(|design| SupplyFramingType::of(design) == *framing)
+        })
+        .collect();
+    let framing = framings[draw.pick as usize % framings.len()];
+    let framed: Vec<&&ItemDesign> = pool
+        .iter()
+        .filter(|design| SupplyFramingType::of(design) == framing)
+        .collect();
+    let design = framed[(draw.pick / 7) as usize % framed.len()];
+    let count = supply_count(design, draw.count);
+    let goods = design.reference_price().buy_cr(count) * 3 / 2;
+    (
+        JobType::Supply {
+            caller: id.spawned_body("caller", 0),
+            item: design.id.clone(),
+            count,
+        },
+        job_reward(u64::from(SUPPLY_BASE_CR) + goods, draw.fee * 2),
     )
 }
 
@@ -1991,7 +2244,7 @@ fn fitted_posting(
         return Some(procurement(item, count, draw.fee, items));
     }
     if fit.has_clamp {
-        return Some(distress_posting(id, draw.fee, items));
+        return Some(distress_posting(id, draw.fee));
     }
     fit.has_weapon
         .then(|| escort_posting(id, draw.cargo_cr, draw.fee))
@@ -2089,15 +2342,15 @@ pub struct JobHullFit {
 /// Why the current hull cannot do a job.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum JobHullRefusalType {
-    /// A procurement's whole stack outweighs the hold.
+    /// A procurement's or a supply job's whole stack outweighs the hold.
     HoldTooSmall {
         /// The stack's mass.
         need_g: u64,
         /// The hold's capacity.
         have_g: u32,
     },
-    /// A recovery or a distress call docks with its target, and the hull has
-    /// no docking section.
+    /// A recovery, a distress call or a supply job docks with its target,
+    /// and the hull has no docking section.
     NoClamp,
     /// An escort or a neutralize fights, and the hull has no weapon section.
     NoWeapon,
@@ -2105,7 +2358,8 @@ pub enum JobHullRefusalType {
 
 /// Plan whether a hull of `fit` can do `job`: a procurement needs hold
 /// capacity for its whole stack, a recovery and a distress call need a
-/// docking section, an escort and a neutralize need a weapon section. The
+/// docking section, a supply job needs both, checked in that order, and an
+/// escort and a neutralize need a weapon section. The
 /// starter board hides a refused job; every other board lists it and greys
 /// its Accept with the refusal.
 ///
@@ -2114,21 +2368,30 @@ pub enum JobHullRefusalType {
 ///
 /// # Panics
 ///
-/// When a procurement names an item the catalog lacks: the board drew it
-/// from the catalog, and the save check refuses one before a Load.
+/// When a procurement or a supply job names an item the catalog lacks: the
+/// board drew it from the catalog, and the save check refuses one before a
+/// Load.
 pub fn plan_job_hull_fit(
     job: &Job,
     items: &GameItems,
     fit: JobHullFit,
 ) -> Result<(), JobHullRefusalType> {
+    let holds = |item: &ItemDesignId, count: u32| {
+        let need_g = items.design(item).stack_mass_g(count);
+        if need_g > u64::from(fit.hold_capacity_g) {
+            return Err(JobHullRefusalType::HoldTooSmall {
+                need_g,
+                have_g: fit.hold_capacity_g,
+            });
+        }
+        Ok(())
+    };
     match &job.kind {
-        JobType::Procure { item, count } => {
-            let need_g = items.design(item).stack_mass_g(*count);
-            if need_g > u64::from(fit.hold_capacity_g) {
-                return Err(JobHullRefusalType::HoldTooSmall {
-                    need_g,
-                    have_g: fit.hold_capacity_g,
-                });
+        JobType::Procure { item, count } => holds(item, *count)?,
+        JobType::Supply { item, count, .. } => {
+            holds(item, *count)?;
+            if !fit.has_clamp {
+                return Err(JobHullRefusalType::NoClamp);
             }
         }
         JobType::Recover { .. } | JobType::Distress { .. } => {
@@ -2190,7 +2453,8 @@ pub enum JobHandInRefusalType {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JobHandInPlan {
     /// The item and units taken out of the hold, for a procurement; a
-    /// located job takes nothing.
+    /// located job takes nothing, a supply job's dock having taken its
+    /// goods.
     pub goods: Option<(ItemDesignId, u32)>,
     /// The reward paid.
     pub reward_cr: u32,
@@ -2233,7 +2497,8 @@ pub fn plan_job_hand_in(
         JobType::Recover { .. }
         | JobType::Escort { .. }
         | JobType::Distress { .. }
-        | JobType::Neutralize { .. } => {
+        | JobType::Neutralize { .. }
+        | JobType::Supply { .. } => {
             if !done {
                 return Err(JobHandInRefusalType::NotDone);
             }
@@ -2460,8 +2725,8 @@ mod tests {
             .collect()
     }
 
-    fn kind_counts(jobs: &[Job]) -> [usize; 5] {
-        let mut counts = [0; 5];
+    fn kind_counts(jobs: &[Job]) -> [usize; 6] {
+        let mut counts = [0; 6];
         for job in jobs {
             let at = match job.kind {
                 JobType::Procure { .. } => 0,
@@ -2469,6 +2734,7 @@ mod tests {
                 JobType::Escort { .. } => 2,
                 JobType::Distress { .. } => 3,
                 JobType::Neutralize { .. } => 4,
+                JobType::Supply { .. } => 5,
             };
             counts[at] += 1;
         }
@@ -2525,7 +2791,7 @@ mod tests {
                 JobType::Recover { .. } | JobType::Neutralize { .. } => {
                     panic!("an empty field names no wreck and no hull: {job:?}")
                 }
-                JobType::Escort { .. } | JobType::Distress { .. } => {}
+                JobType::Escort { .. } | JobType::Distress { .. } | JobType::Supply { .. } => {}
             }
         }
         assert!(seen.contains(&"IronOre".into()) && seen.contains(&"StoneOre".into()));
@@ -2557,7 +2823,7 @@ mod tests {
         let salvage = kind_counts(&boards(JobMixType::Salvage, &field));
         let combat = kind_counts(&boards(JobMixType::Combat, &field));
         assert!(
-            trade[0] + trade[2] > trade[1] + trade[3] + trade[4],
+            trade[0] + trade[2] > trade[1] + trade[3] + trade[4] + trade[5],
             "a trade start sees mostly procurements and escorts: {trade:?}"
         );
         assert!(
@@ -2565,8 +2831,8 @@ mod tests {
             "a salvage start sees mostly recoveries: {salvage:?}"
         );
         assert!(
-            combat[3] + combat[4] > combat[0] + combat[1] + combat[2],
-            "a combat start sees mostly calls and neutralizes: {combat:?}"
+            combat[3] + combat[4] + combat[5] > combat[0] + combat[1] + combat[2],
+            "a combat start sees mostly calls, supply jobs and neutralizes: {combat:?}"
         );
         for counts in [trade, salvage, combat] {
             assert!(
@@ -2627,9 +2893,21 @@ mod tests {
                     JobType::Distress { caller } => {
                         assert_eq!(job.spawned_bodies(), vec![caller.clone()]);
                         assert_eq!(job.title(&items), "Answer a distress call");
-                        assert_eq!(
-                            job.task(&items),
-                            "Dock with the stranded caller. Bring one medkit."
+                        assert_eq!(job.task(&items), "Dock with the stranded caller.");
+                        assert_eq!(job.item_ids().count(), 0);
+                    }
+                    JobType::Supply {
+                        caller,
+                        item,
+                        count,
+                    } => {
+                        assert_eq!(job.spawned_bodies(), vec![caller.clone()]);
+                        assert_eq!(job.located_body(), Some(caller));
+                        assert_eq!(job.item_ids().collect::<Vec<_>>(), vec![item]);
+                        let goods = items.design(item).reference_price().buy_cr(*count) * 3 / 2;
+                        assert!(
+                            u64::from(job.reward_cr)
+                                >= u64::from(SUPPLY_BASE_CR) + goods + u64::from(2 * FEE_STEP_CR)
                         );
                     }
                     JobType::Procure { .. } => {}
@@ -2639,32 +2917,197 @@ mod tests {
     }
 
     #[test]
-    fn a_distress_call_pays_its_base_the_medkit_at_ask_plus_half_and_twice_the_fee() {
-        let items = catalog();
+    fn a_distress_call_pays_its_base_and_twice_the_fee() {
         let id = JobId::slot(station(1), 0, 0);
-        let medkit = items.role(ItemRoleType::Medkit).reference_price().buy_cr(1);
-        assert_eq!(medkit, 60);
-        let (kind, reward_cr) = distress_posting(&id, 100, &items);
+        let (kind, reward_cr) = distress_posting(&id, 100);
         assert!(matches!(kind, JobType::Distress { .. }));
-        assert_eq!(reward_cr, DISTRESS_BASE_CR + 90 + 200);
+        assert_eq!(reward_cr, DISTRESS_BASE_CR + 200);
+    }
 
-        let dearer = GameItems::new(
-            catalog()
-                .iter()
-                .filter(|design| design.id.as_str() != "Medkit")
-                .cloned()
-                .chain([item("Medkit", ItemCategoryType::Repair, 100)]),
-        );
+    /// The base-like catalog: real masses, lots and prices.
+    fn base_items() -> GameItems {
+        crate::test_support::test_items()
+    }
+
+    #[test]
+    fn a_supply_job_is_framed_by_the_medkit_role_first_then_by_category() {
+        let items = base_items();
+        let framing = |id: &str| SupplyFramingType::of(items.design(&id.into()));
+        assert_eq!(framing("Medkit"), SupplyFramingType::Rescue);
         assert_eq!(
-            distress_posting(&id, 100, &dearer).1,
-            DISTRESS_BASE_CR + 150 + 200,
-            "the reward follows the catalog's medkit price"
+            framing("HullPlate"),
+            SupplyFramingType::Repair,
+            "a hull plate files under Repair beside the medkit but is no rescue"
+        );
+        assert_eq!(framing("Rations"), SupplyFramingType::Resupply);
+        for ammo in ["PdcRound", "RailSlug", "Torpedo"] {
+            assert_eq!(framing(ammo), SupplyFramingType::Rearm);
+        }
+        assert_eq!(framing("IronOre"), SupplyFramingType::SupplyRun);
+        assert_eq!(framing("SectionPanel"), SupplyFramingType::SupplyRun);
+
+        let job = |item: &str, count| Job {
+            id: JobId::slot(station(1), 0, 0),
+            kind: JobType::Supply {
+                caller: JobId::slot(station(1), 0, 0).spawned_body("caller", 0),
+                item: item.into(),
+                count,
+            },
+            target: station(1),
+            reward_cr: 500,
+        };
+        for (item, count, title, task, verb) in [
+            (
+                "Medkit",
+                3,
+                "Rescue a stranded crew with 3 Medkit",
+                "Dock with the stranded caller with 3 Medkit in your hold for its injured \
+                 crew. The dock takes them from the hold.",
+                "Rescue",
+            ),
+            (
+                "Rations",
+                6,
+                "Resupply a stranded ship with 6 Rations",
+                "Dock with the stranded caller with 6 Rations in your hold to feed its crew. \
+                 The dock takes them from the hold.",
+                "Resupply",
+            ),
+            (
+                "PdcRound",
+                400,
+                "Rearm a stranded ship with 400 PDC round",
+                "Dock with the stranded caller with 400 PDC round in your hold to refill its \
+                 magazines. The dock takes them from the hold.",
+                "Rearm",
+            ),
+            (
+                "HullPlate",
+                4,
+                "Repair a stranded ship with 4 Hull plate",
+                "Dock with the stranded caller with 4 Hull plate in your hold to patch its \
+                 breached hull. The dock takes them from the hold.",
+                "Repair",
+            ),
+            (
+                "WaterIce",
+                5,
+                "Supply a stranded ship with 5 Water ice",
+                "Dock with the stranded caller with 5 Water ice in your hold to get it under \
+                 way. The dock takes them from the hold.",
+                "Supply",
+            ),
+        ] {
+            let job = job(item, count);
+            job.validate().unwrap();
+            assert_eq!(job.title(&items), title);
+            assert_eq!(job.task(&items), task);
+            assert_eq!(job.verb(&items), verb);
+        }
+        assert_eq!(
+            job("Medkit", 3).verb(&GameItems::default()),
+            "Supply",
+            "an item the catalog lacks reads as a plain run"
+        );
+        assert!(job("Medkit", 0).validate().is_err(), "a zero count");
+        let mut stranger = job("Medkit", 3);
+        stranger.kind = JobType::Supply {
+            caller: JobId::slot(station(1), 1, 0).spawned_body("caller", 0),
+            item: "Medkit".into(),
+            count: 3,
+        };
+        assert!(
+            stranger.validate().is_err(),
+            "another slot's caller is not the job's own"
         );
     }
 
     #[test]
-    fn a_distress_rescue_needs_one_medkit_in_the_hold() {
-        let items = catalog();
+    fn a_supply_count_comes_in_lots_and_stays_under_the_mass_cap_for_every_pool_item() {
+        let items = base_items();
+        let pool = supply_pool(&items);
+        let ids: Vec<&str> = pool.iter().map(|design| design.id.as_str()).collect();
+        for wanted in [
+            "Medkit",
+            "Rations",
+            "PdcRound",
+            "RailSlug",
+            "Torpedo",
+            "HullPlate",
+        ] {
+            assert!(ids.contains(&wanted), "{wanted} is in the pool: {ids:?}");
+        }
+        for unwanted in ["UnmarkedCores", "SalvagedParts", "FrameSpar", "TurretBody"] {
+            assert!(
+                !ids.contains(&unwanted),
+                "{unwanted} is contraband or dear salvage: {ids:?}"
+            );
+        }
+        for design in &pool {
+            for drawn in PROCURE_COUNT.0..=PROCURE_COUNT.1 {
+                let count = supply_count(design, drawn);
+                assert!(count > 0);
+                assert!(
+                    design.stack_mass_g(count) <= u64::from(SUPPLY_MASS_CAP_G),
+                    "{count} {} outweigh the cap",
+                    design.id
+                );
+            }
+        }
+        let count = |id: &str, drawn| supply_count(items.design(&id.into()), drawn);
+        assert_eq!(count("PdcRound", 5), 500, "PDC rounds come by the lot");
+        assert_eq!(count("Torpedo", 8), 1, "one torpedo weighs 150 kg");
+        assert_eq!(count("RailSlug", 8), 8);
+        assert_eq!(count("Medkit", 3), 3);
+    }
+
+    #[test]
+    fn a_supply_job_pays_its_base_the_goods_at_ask_plus_half_and_twice_the_fee() {
+        let items = base_items();
+        let pool = supply_pool(&items);
+        let id = JobId::slot(station(1), 0, 0);
+        for (pick, drawn, fee) in [(0, 3, 100), (2, 5, 50), (2 + 7, 8, 150)] {
+            let draw = SlotDraw {
+                kind: JobKindType::Supply,
+                fee,
+                pick,
+                count: drawn,
+                cargo_cr: 300,
+            };
+            let (kind, reward_cr) = supply_posting(&id, draw, &pool);
+            let JobType::Supply { item, count, .. } = &kind else {
+                panic!("a supply posting is a supply job: {kind:?}")
+            };
+            let goods = items.design(item).reference_price().buy_cr(*count) * 3 / 2;
+            assert_eq!(
+                u64::from(reward_cr),
+                u64::from(SUPPLY_BASE_CR) + goods + u64::from(fee * 2)
+            );
+        }
+        let rescue = SlotDraw {
+            kind: JobKindType::Supply,
+            fee: 100,
+            pick: 0,
+            count: 3,
+            cargo_cr: 300,
+        };
+        assert_eq!(
+            supply_posting(&id, rescue, &pool),
+            (
+                JobType::Supply {
+                    caller: id.spawned_body("caller", 0),
+                    item: "Medkit".into(),
+                    count: 3,
+                },
+                200 + 270 + 200
+            ),
+            "pick 0 draws the first framing, a rescue: three medkits at 60 cr"
+        );
+    }
+
+    #[test]
+    fn a_supply_dock_takes_the_whole_stack_or_nothing() {
+        let items = base_items();
         let medkit = ItemDesignId::from(ItemRoleType::Medkit);
         let hold = |stacks: &[(&str, u32)]| {
             ShipInventory::new(
@@ -2673,22 +3116,25 @@ mod tests {
                 stacks.iter().map(|(id, count)| ((*id).into(), *count)),
             )
         };
+        assert_eq!(plan_job_supply(&hold(&[("Medkit", 3)]), &medkit, 3), Ok(()));
+        assert_eq!(plan_job_supply(&hold(&[("Medkit", 5)]), &medkit, 3), Ok(()));
         assert_eq!(
-            plan_distress_rescue(&hold(&[]), &medkit),
-            Err(DistressRefusalType::NoMedkit)
+            plan_job_supply(&hold(&[("Medkit", 1)]), &medkit, 3),
+            Err(SupplyRefusalType::ShortItems {
+                item: medkit.clone(),
+                need: 3,
+                have: 1
+            }),
+            "a short hold delivers nothing"
         );
         assert_eq!(
-            plan_distress_rescue(&hold(&[("HullPlate", 4), ("Rations", 9)]), &medkit),
-            Err(DistressRefusalType::NoMedkit),
-            "no other item stands in for a medkit"
-        );
-        assert_eq!(
-            plan_distress_rescue(&hold(&[("Medkit", 1)]), &medkit),
-            Ok(())
-        );
-        assert_eq!(
-            plan_distress_rescue(&hold(&[("Medkit", 3)]), &medkit),
-            Ok(())
+            plan_job_supply(&hold(&[("HullPlate", 4), ("Rations", 9)]), &medkit, 3),
+            Err(SupplyRefusalType::ShortItems {
+                item: medkit,
+                need: 3,
+                have: 0
+            }),
+            "no other item stands in for the asked one"
         );
     }
 
@@ -2702,7 +3148,6 @@ mod tests {
 
     #[test]
     fn a_small_pool_repeats_an_item_and_an_empty_catalog_is_a_fault() {
-        // A distress offer reads the medkit, so every catalog carries it.
         let medkit = || item("Medkit", ItemCategoryType::Repair, 60);
         let only_food = GameItems::new([item("Rations", ItemCategoryType::Food, 8), medkit()]);
         let posted = board(
@@ -2745,10 +3190,11 @@ mod tests {
         assert!(empty.is_err(), "an empty catalog has nothing to post");
     }
 
-    /// No board asks for contraband: not in a cell with no cluster, and not
-    /// when no wanted item is left and the pool falls back to the catalog.
+    /// No board asks for contraband: not in a cell with no cluster, not
+    /// when no wanted item is left and the pool falls back to the catalog,
+    /// and never for a supply job, whatever the mix.
     #[test]
-    fn a_board_never_procures_contraband() {
+    fn a_board_never_procures_or_supplies_contraband() {
         let contraband = item("UnmarkedCores", ItemCategoryType::Contraband, 300);
         let whole = GameItems::new(catalog().iter().cloned().chain([contraband.clone()]));
         // PdcRound and Medkit are not Raw, so a rock-only board falls back.
@@ -2757,30 +3203,43 @@ mod tests {
             item("Medkit", ItemCategoryType::Repair, 60),
             contraband,
         ]);
+        let only_contraband =
+            GameItems::new([item("UnmarkedCores", ItemCategoryType::Contraband, 300)]);
+        assert!(
+            supply_pool(&only_contraband).is_empty(),
+            "contraband never stands in a supply pool"
+        );
+        let mut supplies = 0;
         for (items, clusters) in [
             (&whole, &[][..]),
             (&whole, &ClusterType::ALL[..]),
             (&fallback, &[ClusterType::RockOnly][..]),
         ] {
-            for seed in 0..40 {
-                for job in board(
-                    seed,
-                    &station(1),
-                    clusters,
-                    items,
-                    JobMixType::Trade,
-                    &JobField::default(),
-                ) {
-                    if let JobType::Procure { item, .. } = &job.kind {
-                        assert_ne!(
-                            items.design(item).category,
-                            ItemCategoryType::Contraband,
-                            "seed {seed}: {job:?}"
-                        );
+            for mix in [JobMixType::Trade, JobMixType::Combat] {
+                for seed in 0..40 {
+                    for job in board(
+                        seed,
+                        &station(1),
+                        clusters,
+                        items,
+                        mix,
+                        &JobField::default(),
+                    ) {
+                        if let JobType::Procure { item, .. } | JobType::Supply { item, .. } =
+                            &job.kind
+                        {
+                            supplies += usize::from(matches!(job.kind, JobType::Supply { .. }));
+                            assert_ne!(
+                                items.design(item).category,
+                                ItemCategoryType::Contraband,
+                                "seed {seed}: {job:?}"
+                            );
+                        }
                     }
                 }
             }
         }
+        assert!(supplies > 0, "the boards drew supply jobs to check");
     }
 
     /// The first procurement a trade board posts on seed 10.
@@ -3487,15 +3946,21 @@ mod tests {
             assert!(
                 matches!(
                     job.kind,
-                    JobType::Procure { .. } | JobType::Escort { .. } | JobType::Distress { .. }
+                    JobType::Procure { .. }
+                        | JobType::Escort { .. }
+                        | JobType::Distress { .. }
+                        | JobType::Supply { .. }
                 ),
-                "a board with no candidate names no body: {:?}",
+                "a board with no candidate names no field body: {:?}",
                 job.kind
             );
         }
 
-        let expired = postings.named_bodies(rule, 100.0, &Jobs::default());
-        assert!(expired.is_empty(), "an expired offer frees its body");
+        let expired = postings.named_bodies(rule, 300.0, &Jobs::default());
+        assert!(
+            expired.is_empty(),
+            "an expired offer, an escort's included, frees its body"
+        );
         if let Some(offer) = posted_a.iter().find(|job| job.located_body().is_some()) {
             let mut handed = Jobs::default();
             handed.accept(offer.clone());
@@ -3687,6 +4152,14 @@ mod tests {
                 hull_name: "Harrow".into(),
             },
         );
+        let supply = job(
+            2,
+            JobType::Supply {
+                caller: id(2).spawned_body("caller", 0),
+                item: "Medkit".into(),
+                count: 4,
+            },
+        );
         let bare = JobHullFit {
             hold_capacity_g: 3_999,
             has_clamp: false,
@@ -3709,6 +4182,26 @@ mod tests {
             Err(JobHullRefusalType::NoClamp)
         );
         assert_eq!(
+            plan_job_hull_fit(&supply, &items, bare),
+            Err(JobHullRefusalType::HoldTooSmall {
+                need_g: 4_000,
+                have_g: 3_999
+            }),
+            "a supply job's stack must fit the hold first"
+        );
+        assert_eq!(
+            plan_job_hull_fit(
+                &supply,
+                &items,
+                JobHullFit {
+                    hold_capacity_g: 4_000,
+                    ..bare
+                }
+            ),
+            Err(JobHullRefusalType::NoClamp),
+            "and the hull must dock with the caller"
+        );
+        assert_eq!(
             plan_job_hull_fit(&escort, &items, bare),
             Err(JobHullRefusalType::NoWeapon)
         );
@@ -3721,7 +4214,7 @@ mod tests {
             has_clamp: true,
             has_weapon: true,
         };
-        for job in [&procure, &recover, &escort, &distress, &neutralize] {
+        for job in [&procure, &recover, &escort, &distress, &neutralize, &supply] {
             assert_eq!(
                 plan_job_hull_fit(job, &items, fit),
                 Ok(()),

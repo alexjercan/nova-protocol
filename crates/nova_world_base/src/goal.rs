@@ -56,7 +56,7 @@ pub(crate) struct GoalFacts<'a> {
 /// An ore delivery is a Procure whose item is in the `Raw` category; a
 /// recovery is a Recover; a station served is a distinct poster of a Procure
 /// or an Escort; a bounty is a distinct hull named by a Neutralize; a patrol
-/// is a Distress or an Escort. A Procure for an item the catalog lacks
+/// is a Distress, a Supply or an Escort. A Procure for an item the catalog lacks
 /// counts no delivery: the save check refuses such a job before a Load.
 pub(crate) fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgress {
     let completed =
@@ -76,7 +76,11 @@ pub(crate) fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgr
                         .items
                         .get(item)
                         .is_some_and(|design| design.category == ItemCategoryType::Raw),
-                    _ => false,
+                    JobType::Recover { .. }
+                    | JobType::Escort { .. }
+                    | JobType::Distress { .. }
+                    | JobType::Neutralize { .. }
+                    | JobType::Supply { .. } => false,
                 })
                 .count();
             lines.push(GoalLine::new(
@@ -86,7 +90,15 @@ pub(crate) fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgr
             ));
         }
         RoleGoalType::Recoveries { jobs } => {
-            let have = completed(|kind| matches!(kind, JobType::Recover { .. })).count();
+            let have = completed(|kind| match kind {
+                JobType::Recover { .. } => true,
+                JobType::Procure { .. }
+                | JobType::Escort { .. }
+                | JobType::Distress { .. }
+                | JobType::Neutralize { .. }
+                | JobType::Supply { .. } => false,
+            })
+            .count();
             lines.push(GoalLine::new(
                 "Wrecks recovered",
                 have as u64,
@@ -94,10 +106,15 @@ pub(crate) fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgr
             ));
         }
         RoleGoalType::StationNetwork { stations } => {
-            let served: BTreeSet<_> =
-                completed(|kind| matches!(kind, JobType::Procure { .. } | JobType::Escort { .. }))
-                    .map(Job::posted_by)
-                    .collect();
+            let served: BTreeSet<_> = completed(|kind| match kind {
+                JobType::Procure { .. } | JobType::Escort { .. } => true,
+                JobType::Recover { .. }
+                | JobType::Distress { .. }
+                | JobType::Neutralize { .. }
+                | JobType::Supply { .. } => false,
+            })
+            .map(Job::posted_by)
+            .collect();
             lines.push(GoalLine::new(
                 "Stations served",
                 served.len() as u64,
@@ -110,7 +127,11 @@ pub(crate) fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgr
                 .iter()
                 .filter_map(|job| match &job.kind {
                     JobType::Neutralize { hull, .. } => Some(hull),
-                    _ => None,
+                    JobType::Procure { .. }
+                    | JobType::Recover { .. }
+                    | JobType::Escort { .. }
+                    | JobType::Distress { .. }
+                    | JobType::Supply { .. } => None,
                 })
                 .collect();
             lines.push(GoalLine::new(
@@ -120,9 +141,13 @@ pub(crate) fn goal_progress(goal: &RoleGoal, facts: &GoalFacts<'_>) -> GoalProgr
             ));
         }
         RoleGoalType::Patrols { jobs } => {
-            let have =
-                completed(|kind| matches!(kind, JobType::Distress { .. } | JobType::Escort { .. }))
-                    .count();
+            let have = completed(|kind| match kind {
+                JobType::Distress { .. } | JobType::Supply { .. } | JobType::Escort { .. } => true,
+                JobType::Procure { .. } | JobType::Recover { .. } | JobType::Neutralize { .. } => {
+                    false
+                }
+            })
+            .count();
             lines.push(GoalLine::new(
                 "Patrols flown",
                 have as u64,
@@ -249,6 +274,14 @@ mod tests {
     fn distress(x: i32) -> JobType {
         JobType::Distress {
             caller: GeneratedBodyId::new(SectorCoord::new(x, 0, 0), "cluster_caller", 0),
+        }
+    }
+
+    fn supply(x: i32) -> JobType {
+        JobType::Supply {
+            caller: GeneratedBodyId::new(SectorCoord::new(x, 0, 0), "cluster_caller", 0),
+            item: "Rations".into(),
+            count: 4,
         }
     }
 
@@ -455,16 +488,16 @@ mod tests {
         assert!(goal_progress(&goal, &facts(&six, &items, 1)).is_met());
     }
 
-    /// Distress and Escort hand-ins both count a patrol; six meet the record
-    /// with one owned station; a Neutralize counts none.
+    /// Distress, Supply and Escort hand-ins each count a patrol; six meet
+    /// the record with one owned station; a Neutralize counts none.
     #[test]
-    fn patrols_count_distress_and_escort_hand_ins() {
+    fn patrols_count_distress_supply_and_escort_hand_ins() {
         let items = items();
         let goal = goal("Patrol record", RoleGoalType::Patrols { jobs: 6 });
         let five: Vec<Job> = vec![
             handed_in(1, 0, distress(1)),
             handed_in(1, 1, escort(1)),
-            handed_in(2, 0, distress(2)),
+            handed_in(2, 0, supply(2)),
             handed_in(2, 1, escort(2)),
             handed_in(3, 0, distress(3)),
             handed_in(3, 1, kill(3, 0)),

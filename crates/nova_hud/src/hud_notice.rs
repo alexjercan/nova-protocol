@@ -7,10 +7,11 @@
 //! dock refusal ([`FlightVerbHints::dock_refusal`]) posts here when it starts
 //! or names another station; the DOCK chip only goes dark. A held job whose
 //! work is done ([`JobDone`]) posts `JOB-n done: hand in at STN-m`, naming
-//! no credits: payment stays at the hand-in. A dock with a held distress
-//! call's caller that rescues nobody ([`DistressRefused`]) posts why, once
-//! per dock; it is raised after the clamp closes, so it replaces that dock's
-//! `DOCKED <NAME>`. A MATCH refused for its target,
+//! no credits: payment stays at the hand-in. A dock with a held supply job's
+//! caller that delivers nothing ([`SupplyRefused`]) posts what the hold
+//! lacks, `JOB-n: SHORT 3 MEDKIT`, once per dock; it is raised after the
+//! clamp closes, so it replaces that dock's `DOCKED <NAME>`. A MATCH refused
+//! for its target,
 //! RCS or magazine, or cut short ([`MatchRefusal`]), posts why. The gates the
 //! chord shares with STOP (no STOP capability, docked without the helm, the
 //! docked partner) stay silent, as STOP does. A `DOCK` press that did nothing
@@ -178,7 +179,7 @@ impl HudNoticeKeepOut<'_, '_> {
 
 /// Registers [`HudNotice`], posts a station's dock refusal, a MATCH refusal,
 /// a refused `DOCK` press, the player's clamp closing and letting go, a
-/// held job's done and a refused distress rescue to it, and runs
+/// held job's done and a refused supply dock to it, and runs
 /// `post_dock_refusal_notice`, `post_match_refusal_notice`,
 /// `post_dock_press_notice`, `show_hud_notice` and `paint_hud_notice` chained
 /// in Update within [`NovaHudSystems`]. The box itself is a player-scoped
@@ -197,7 +198,7 @@ impl Plugin for HudNoticePlugin {
         app.register_type::<HudNoticeMarker>();
         app.register_type::<HudNoticeText>();
         app.add_observer(post_job_done_notice);
-        app.add_observer(post_distress_refused_notice);
+        app.add_observer(post_supply_refused_notice);
         app.add_observer(post_dock_clamped_notice);
         app.add_observer(post_dock_released_notice);
         app.add_systems(
@@ -353,20 +354,36 @@ fn post_job_done_notice(
     notices.write(HudNotice(format!("{code} done: hand in at {station}")));
 }
 
-/// Post why a dock with a held distress call's caller rescued nobody.
-fn post_distress_refused_notice(
-    refused: On<DistressRefused>,
+/// Post what the hold lacks when a dock with a held supply job's caller
+/// delivered nothing: `JOB-n: SHORT <missing> <ITEM>`. An item the catalog
+/// lacks reads by its id.
+///
+/// # Panics
+///
+/// When the refused job is not held: the world refuses a held job's dock.
+fn post_supply_refused_notice(
+    refused: On<SupplyRefused>,
+    jobs: Res<Jobs>,
+    items: Res<GameItems>,
     mut notices: MessageWriter<HudNotice>,
 ) {
-    let line = distress_refusal_line(refused.refusal);
+    let code = jobs
+        .mark_code(&refused.id)
+        .expect("a refused supply job is held: the world refuses a held job's dock");
+    let line = supply_refusal_line(&code, &refused.refusal, &items);
     debug!("hud_notice: {line} ('{}')", refused.id);
-    notices.write(HudNotice(line.to_string()));
+    notices.write(HudNotice(line));
 }
 
-/// The notice line for a refused distress rescue.
-fn distress_refusal_line(refusal: DistressRefusalType) -> &'static str {
+/// The notice line of the held job `code` for a refused supply dock.
+fn supply_refusal_line(code: &str, refusal: &SupplyRefusalType, items: &GameItems) -> String {
     match refusal {
-        DistressRefusalType::NoMedkit => "NO MEDKIT ABOARD",
+        SupplyRefusalType::ShortItems { item, need, have } => {
+            let name = items
+                .get(item)
+                .map_or_else(|| item.to_string(), |design| design.name.clone());
+            format!("{code}: SHORT {} {}", need - have, name.to_uppercase())
+        }
     }
 }
 
@@ -620,39 +637,59 @@ mod tests {
         );
     }
 
-    /// A refused distress rescue posts `NO MEDKIT ABOARD` with one cue, and
-    /// posts over the `DOCKED <NAME>` line of the same dock.
+    /// A refused supply dock posts `JOB-n: SHORT <missing> <ITEM>` with one
+    /// cue, over the `DOCKED <NAME>` line of the same dock, and again on the
+    /// next refused dock.
     #[test]
-    fn a_refused_distress_rescue_posts_no_medkit_aboard_over_the_docked_line() {
+    fn a_refused_supply_dock_posts_what_the_hold_lacks_over_the_docked_line() {
         use nova_events::prelude::{GeneratedBodyId, SectorCoord};
 
         let mut app = notice_app();
+        app.insert_resource(nova_gameplay::test_support::test_items());
         let (_, player_port) = hull(&mut app, "Kestrel", true);
         let (caller, _) = hull(&mut app, "Vell caller", false);
         let station = GeneratedBodyId::new(SectorCoord::ORIGIN, "cluster_0_0_0_station", 0);
-        let id = JobId::slot(station, 0, 0);
+        let id = JobId::slot(station.clone(), 0, 0);
+        let mut jobs = Jobs::default();
+        jobs.accept(Job {
+            id: id.clone(),
+            kind: JobType::Supply {
+                caller: GeneratedBodyId::new(
+                    SectorCoord::ORIGIN,
+                    "cluster_0_0_0_station_job_0_0_caller",
+                    0,
+                ),
+                item: ItemRoleType::Medkit.into(),
+                count: 4,
+            },
+            target: station,
+            reward_cr: 700,
+        });
+        app.insert_resource(jobs);
+        let short = || SupplyRefused {
+            id: id.clone(),
+            refusal: SupplyRefusalType::ShortItems {
+                item: ItemRoleType::Medkit.into(),
+                need: 4,
+                have: 1,
+            },
+        };
 
         app.world_mut().trigger(DockClamped {
             entity: player_port,
             partner: caller,
         });
-        app.world_mut().trigger(DistressRefused {
-            id: id.clone(),
-            refusal: DistressRefusalType::NoMedkit,
-        });
+        app.world_mut().trigger(short());
         app.update();
-        assert_eq!(rendered(&mut app).0, "NO MEDKIT ABOARD");
+        assert_eq!(rendered(&mut app).0, "JOB-1: SHORT 3 MEDKIT");
         assert_eq!(app.world().resource::<NoticeCues>().interface, 1);
 
         advance(&mut app, NOTICE_DWELL_SECS + NOTICE_FADE_SECS + 1.0);
-        app.world_mut().trigger(DistressRefused {
-            id,
-            refusal: DistressRefusalType::NoMedkit,
-        });
+        app.world_mut().trigger(short());
         app.update();
         assert_eq!(
             rendered(&mut app).0,
-            "NO MEDKIT ABOARD",
+            "JOB-1: SHORT 3 MEDKIT",
             "the next refused dock posts again"
         );
         assert_eq!(app.world().resource::<NoticeCues>().interface, 2);

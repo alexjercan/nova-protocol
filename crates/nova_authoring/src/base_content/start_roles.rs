@@ -10,10 +10,10 @@
 //! Goals are the roles' finite milestones over saved facts. Every role's
 //! progress opens with the same first line, one owned station, a rule in
 //! code; the goal here is the flavour line after it. Each count rests on
-//! the role's board mix: the trade mix draws Procure 4 of 11 and Procure or
-//! Escort 8 of 11, the salvage mix Recover 5 of 10, the combat mix
-//! Neutralize 4 of 10 and Distress or Escort 4 of 10, so six hand-ins of a
-//! role's dominant kind is about one board cycle, and four distinct posting
+//! the role's board mix: the trade mix draws Procure 4 of 12 and Procure or
+//! Escort 8 of 12, the salvage mix Recover 5 of 12, the combat mix
+//! Neutralize 4 of 13 and Distress, Supply or Escort 7 of 13, so six
+//! hand-ins of a role's dominant kind is about one board cycle, and four distinct posting
 //! stations is two trips out. The pirate's outlaw count is twice the
 //! offence step: the stance graph turns a Neutral civilization Enemy at
 //! three neutralized hulls within an hour of play, and six more of its hulls

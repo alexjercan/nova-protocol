@@ -69,6 +69,7 @@ pub(crate) enum JobIconType {
     Escort,
     Answer,
     Neutralize,
+    Supply,
 }
 
 /// Every icon mask the panes and the menu draw, each family in the order of
@@ -643,12 +644,13 @@ impl ChartIconType {
 }
 
 impl JobIconType {
-    pub(crate) const ALL: [Self; 5] = [
+    pub(crate) const ALL: [Self; 6] = [
         Self::Bring,
         Self::Recover,
         Self::Escort,
         Self::Answer,
         Self::Neutralize,
+        Self::Supply,
     ];
 
     /// The icon of a job kind.
@@ -659,6 +661,7 @@ impl JobIconType {
             JobType::Escort { .. } => Self::Escort,
             JobType::Distress { .. } => Self::Answer,
             JobType::Neutralize { .. } => Self::Neutralize,
+            JobType::Supply { .. } => Self::Supply,
         }
     }
 
@@ -669,7 +672,8 @@ impl JobIconType {
 
     /// A strapped crate for a procurement, a hook over a cracked hull for a
     /// recovery, two chevrons for an escort, a ringed exclamation mark for a
-    /// distress call and a reticle for a neutralize.
+    /// distress call, a reticle for a neutralize and a strapped crate with a
+    /// chevron out for a supply job.
     fn coverage(self, p: Vec2, px: f32) -> f32 {
         match self {
             Self::Bring => {
@@ -714,6 +718,12 @@ impl JobIconType {
                         .min(ticks)
                         .min(circle(p, Vec2::ZERO, 0.1));
                 solid(reticle, px)
+            }
+            Self::Supply => {
+                let shell = box_outline(p, Vec2::new(-0.3, 0.05), Vec2::new(0.45, 0.45), 0.13);
+                let strap = segment(p, Vec2::new(-0.3, -0.4), Vec2::new(-0.3, 0.5), 0.09);
+                let out = chevron(p, Vec2::new(0.88, 0.05), 0.33, 0.15);
+                solid(shell.min(strap).min(out), px)
             }
         }
     }
