@@ -319,6 +319,7 @@ CUTS = [
     ("news-0180-contraband.png",      "contraband-dock-refusal.png",  "system_contraband_dock", (320, 350, 1280, 720)),
     ("news-0180-station-control.png", "job-recover-control.png",      "system_job_recover",     (0, 360, 1280, 720)),
     ("news-0180-no-medkit.png",       "job-distress-no-medkit.png",   "system_job_distress",    (320, 360, 1280, 720)),
+    ("news-0180-second-tier.png",     "station-swap-intake-card.png", "system_station_swap_intake", (0, 0, 1920, 1080)),
 ]
 
 # Composite output frame (16:9, the figure resolution the capture examples use).
