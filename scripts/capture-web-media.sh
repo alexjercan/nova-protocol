@@ -142,6 +142,14 @@ LOOPS=(
     # The v0.18.0 post. The dock clamp is the approach the station docking
     # walk appends to its three claims.
     "system_station_docking|news-0180-dock-clamp||"
+    # The pickup tick is the cargo lesson's own flown pickup, recorded from
+    # the intake reaching the canister until the tick line leaves the HUD.
+    "lesson_cargo|news-0180-pickup-tick||NOVA_CARGO_PICKUP_LOOP=1"
+    # A slug landing on a raider at a tenth of game speed, on a range yawed
+    # off world -Z.
+    "news_0180_railgun_impact|news-0180-railgun-impact||"
+    # One Dart from a fixture hull's bay, from the cold launch to the run.
+    "news_0180_dart_torpedo|news-0180-dart-torpedo||"
 )
 
 # A second name for footage already captured above, when a second producer
