@@ -185,3 +185,14 @@ two raiders). `system_job_escort`, `system_job_ammo_economics` and
 `news_0160_escort_ambush` then lose the hauler in the fight under lavapipe
 (known limit); no hardware-GPU run yet. `news_0160_release_lead` keeps its
 own `WORLD_SEED = 2` and is expected to fail; not run.
+
+Escort walk diagnosis (GPU, no fix): seed 2 passes at `59e2d7361` and
+`3c8ba9189` and fails at `971ae4659` and `ef2ae33a5`, so Supply did not
+cause it. `971ae4659` is render-only (an observer on `RoundFired`); the flip
+is frame timing in a fight decided by single 4 hp rounds. The PDC lands
+about 1 of 237 rounds on a raider even at 0.7-0.9 km: the lead
+(`turret_section/aim.rs:124-156`) assumes constant velocity over a 0.9 s
+flight, and raider acceleration moves the section off the point (raider
+acceleration not logged; unverified). The hauler is lost at 84% hp, likely
+disabled. A close-in walk patch did not help (not committed). Also seen:
+`system_turret_gunnery` stalls 180 s at `track the sweeping gate` on master.
