@@ -177,3 +177,11 @@ Not rerun: escort, neutralize, ammo-economics, scenario-jobs walks and
 `news_0160_escort_ambush`; the sixth kind moves every board draw. Seen: the
 caller chip shows a distance while docked; a medkit Rescue is rare on the
 start board (1 of 14 seeds).
+
+Rerun after Supply: `system_job_neutralize` and `system_scenario_jobs`
+pass. Seed 2 posts no Escort now; the shared escort pin moved 2 -> 37
+(`f3dfe0adf`, seeds 0-59 scanned, no one-raider escort found; seed 37 has
+two raiders). `system_job_escort`, `system_job_ammo_economics` and
+`news_0160_escort_ambush` then lose the hauler in the fight under lavapipe
+(known limit); no hardware-GPU run yet. `news_0160_release_lead` keeps its
+own `WORLD_SEED = 2` and is expected to fail; not run.
