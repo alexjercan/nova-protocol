@@ -52,8 +52,8 @@ use std::{
 use bevy::prelude::*;
 use nova_events::prelude::Meters;
 use nova_gameplay::prelude::{
-    CivilizationId, Fnv32, GameItems, ItemCategoryType, ItemDesignId, ItemRoleType, SeedStream,
-    ShipInventoryStock,
+    market_deals_in, CivilizationId, Fnv32, GameItems, ItemCategoryType, ItemDesignId,
+    ItemRoleType, SeedStream, ShipInventoryStock,
 };
 use nova_scenario::prelude::{
     SectionSource, ShipDesign, ShipIntegrityConfig, ShipPresentationConfig, SpaceshipSectionConfig,
@@ -456,8 +456,10 @@ pub fn generate_station(
 /// can be built once from the station's own stock. The goods hold at least
 /// one unit of each item a weapon the civilization knows reloads from, at
 /// least [`PDC_OPENING_ROUNDS`] PDC rounds when one reloads from them, and
-/// no other ammunition. An extinct civilization's dead station keeps the same
-/// stock and credits as loot.
+/// no other ammunition. A lawful civilization's station stocks no part its
+/// market does not deal in ([`market_deals_in`]): a contraband recipe part
+/// is left out, and a rebuild there spends the hold's. An extinct
+/// civilization's dead station keeps the same stock and credits as loot.
 ///
 /// PURE: the same layout and civilization give the same design.
 ///
@@ -528,6 +530,9 @@ pub fn generated_station(
     let mut floor: BTreeMap<&ItemDesignId, u32> = BTreeMap::new();
     for part in &known {
         for (item, count) in &part.config.base.build.parts {
+            if !market_deals_in(items.design(item), civilization.lawful) {
+                continue;
+            }
             *kit.entry(item).or_default() += count;
             let most = floor.entry(item).or_default();
             *most = (*most).max(*count);
@@ -2007,6 +2012,80 @@ mod tests {
             "{} g in a {hulls}-hull hold",
             station.stock.mass_g(&items)
         );
+    }
+
+    /// A lawful civilization's station stocks no contraband recipe part,
+    /// and every other part of the same recipes; a civilization that is not
+    /// lawful stocks the contraband part too.
+    #[test]
+    fn a_lawful_station_stocks_no_contraband_recipe_part() {
+        use nova_gameplay::prelude::{BuildRecipe, ItemDesign};
+
+        use crate::civilizations::CivilizationStatusType;
+
+        let mut packs = fixture::packs();
+        for section in &mut packs[0].sections {
+            section.base.build = BuildRecipe {
+                credits: 10,
+                parts: [("SectionPanel", 2), ("UnmarkedCores", 1)]
+                    .into_iter()
+                    .map(|(item, count)| (ItemDesignId::from(item), count))
+                    .collect(),
+                strip_yield: 0.5,
+            };
+        }
+        let parts = ShipPartSnapshot::build(&packs).expect("the recipe fixture builds");
+        let items = GameItems::new(
+            [
+                ItemRoleType::HullPlate,
+                ItemRoleType::Medkit,
+                ItemRoleType::Rations,
+                ItemRoleType::SalvagedParts,
+            ]
+            .iter()
+            .map(|role| (role.id(), ItemCategoryType::Raw))
+            .chain([
+                ("SectionPanel", ItemCategoryType::Parts),
+                ("UnmarkedCores", ItemCategoryType::Contraband),
+            ])
+            .map(|(id, category)| ItemDesign {
+                id: id.into(),
+                name: id.to_string(),
+                about: String::new(),
+                category,
+                mass_g: 1_000,
+                price_lot: 1,
+                ask_cr: 10,
+                bid_cr: 5,
+                refine: None,
+            }),
+        );
+        let request = request(1, StationArchetypeType::Ring, 1.0);
+        let layout = generate_station(&parts, request).expect("the station generates");
+        let stocked = |lawful: bool| {
+            let civilization = Civilization {
+                id: request.civilization,
+                centroid: nova_events::prelude::Meters3::new(0.0, 0.0, 0.0),
+                status: CivilizationStatusType::Living,
+                advancement: 1.0,
+                role_preference: [1.0; 4],
+                stance: nova_gameplay::prelude::StanceType::Neutral,
+                lawful,
+            };
+            let station = generated_station(&parts, &items, &layout, &civilization)
+                .expect("the stock fits the hold");
+            let count = |item: &str| {
+                station
+                    .stock
+                    .stacks()
+                    .find(|(stocked, _)| stocked.as_str() == item)
+                    .map_or(0, |(_, count)| count)
+            };
+            (count("SectionPanel") > 0, count("UnmarkedCores") > 0)
+        };
+
+        assert_eq!(stocked(true), (true, false));
+        assert_eq!(stocked(false), (true, true));
     }
 
     /// A known weapon's ammunition is stocked at one unit even where its share

@@ -246,11 +246,18 @@ impl GameTradeProfiles {
 /// for the item, and whose lot price keeps the limit: a Buy pays at most
 /// `limit_cr` per unit, a Sell earns at least that. `None` when no count
 /// does: the station lacks the stock or the room, a side lacks the
-/// credits, or the price breaks the limit.
+/// credits, the price breaks the limit, or the station is `lawful` and the
+/// item is contraband
+/// ([`market_deals_in`](crate::inventory::prelude::market_deals_in)).
+#[expect(
+    clippy::too_many_arguments,
+    reason = "both parties' holds and balances and the station's terms, read as one plan"
+)]
 pub fn plan_visit_trade(
     items: &GameItems,
     intent: &TradeIntent,
     price: TradePriceType,
+    lawful: bool,
     own: &ShipInventory,
     own_cr: u32,
     station: &ShipInventory,
@@ -263,6 +270,7 @@ pub fn plan_visit_trade(
                 items,
                 intent.side,
                 Some(price),
+                lawful,
                 &intent.item,
                 Some(count),
                 own,
@@ -285,11 +293,12 @@ pub fn plan_visit_trade(
 ///
 /// Each intention is planned afresh ([`plan_visit_trade`]) against the
 /// holds and balances the earlier ones left and the station's quote by
-/// `table` and `market` at its current stock of the item, then applied
+/// `table` and `market` at its current stock of the item, and against its
+/// law (`lawful`: the station carries `LawfulStationMarker`), then applied
 /// whole: the items leave one hold and enter the other, the price leaves
 /// one balance and enters the other. Nothing is created or destroyed. An
 /// intention no count can trade moves nothing and is listed with a count of
-/// zero.
+/// zero: a contraband intention at a lawful station is one.
 #[expect(
     clippy::too_many_arguments,
     reason = "both parties' holds and balances, changed as one atomic run"
@@ -298,6 +307,7 @@ pub fn apply_visit_trades(
     items: &GameItems,
     table: &PriceTable,
     market: &TraderMarket,
+    lawful: bool,
     trades: &[TradeIntent],
     ship_hold: &mut ShipInventory,
     ship_cr: &mut u32,
@@ -313,6 +323,7 @@ pub fn apply_visit_trades(
                 items,
                 intent,
                 TradePriceType::Market(quote.price),
+                lawful,
                 ship_hold,
                 *ship_cr,
                 station_hold,
@@ -445,6 +456,7 @@ mod tests {
             &items,
             &table(),
             &market(),
+            false,
             &trades,
             &mut ship,
             &mut ship_cr,
@@ -475,5 +487,58 @@ mod tests {
             "no item or credit is created or destroyed"
         );
         assert_eq!(ship_cr, 10_000 + lines[0].price_cr - lines[1].price_cr);
+    }
+
+    /// A visitor's contraband intentions move nothing at a lawful station,
+    /// selling or buying, while its other intentions trade there; the same
+    /// intentions trade at a station that is not lawful.
+    #[test]
+    fn a_visitor_trades_no_contraband_at_a_lawful_station() {
+        let items = crate::test_support::test_items();
+        let cores = ItemDesignId::from("UnmarkedCores");
+        let ore = ItemDesignId::from(ItemRoleType::IronOre);
+        let intent = |item: &ItemDesignId, side, limit_cr| TradeIntent {
+            item: item.clone(),
+            side,
+            quantity: 2,
+            limit_cr,
+        };
+        let sells = [
+            intent(&cores, ItemTradeType::Sell, 1),
+            intent(&ore, ItemTradeType::Sell, 1),
+        ];
+        let buys = [intent(&cores, ItemTradeType::Buy, 10_000)];
+        let run = |lawful: bool, trades: &[TradeIntent]| {
+            let stock = [(cores.clone(), 2), (ore.clone(), 2)];
+            let mut ship = ShipInventory::new(&items, 1_000_000, stock.clone());
+            let mut station = ShipInventory::new(&items, 1_000_000, stock);
+            let (mut ship_cr, mut station_cr) = (10_000_u32, 10_000_u32);
+            let lines = apply_visit_trades(
+                &items,
+                &table(),
+                &market(),
+                lawful,
+                trades,
+                &mut ship,
+                &mut ship_cr,
+                &mut station,
+                &mut station_cr,
+            );
+            let counts: Vec<u32> = lines.iter().map(|line| line.count).collect();
+            (counts, ship.count(&cores), station.count(&cores), ship_cr)
+        };
+
+        let (counts, aboard, stocked, ship_cr) = run(true, &sells);
+        assert_eq!(counts, [0, 2], "the ore sells and the cores do not");
+        assert_eq!((aboard, stocked), (2, 2), "no core moved");
+        assert!(ship_cr > 10_000, "the ore was paid for");
+        assert_eq!(run(true, &buys), (vec![0], 2, 2, 10_000));
+
+        let (counts, aboard, stocked, _) = run(false, &sells);
+        assert_eq!(counts, [2, 2]);
+        assert_eq!((aboard, stocked), (0, 4));
+        let (counts, aboard, stocked, _) = run(false, &buys);
+        assert_eq!(counts, [2]);
+        assert_eq!((aboard, stocked), (4, 0));
     }
 }

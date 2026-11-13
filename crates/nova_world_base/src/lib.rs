@@ -311,7 +311,8 @@ impl Plugin for NovaWorldBasePlugin {
                     rcs_reserve::recover_thawed_rcs_budgets,
                     stance::expire_stances,
                     stance::sync_civilization_sides,
-                    // Before the visits, whose binding asks admission.
+                    // Before the visits, whose trades and postings read the
+                    // marker.
                     stance::sync_lawful_stations,
                     // After the thawed holds catch up and the sides follow
                     // their stances; before the boards, so a visit's posted

@@ -25,8 +25,8 @@
 //!
 //! [`sync_lawful_stations`] marks every living generated station of a lawful
 //! civilization ([`Civilization::lawful`](crate::Civilization::lawful)) with
-//! [`LawfulStationMarker`], which admission reads to refuse a contraband
-//! carrier. The marker is derived from the civilization id every frame, so
+//! [`LawfulStationMarker`], which a trade reads: such a station's market
+//! does not deal in contraband. The marker is derived from the civilization id every frame, so
 //! a thaw and a Load restore it with no saved field. An authored station has
 //! no civilization and is never lawful.
 //!
@@ -61,8 +61,8 @@ pub fn seeded_stance(civilization: &CivilizationId) -> StanceType {
         .stance
 }
 
-/// Whether the seed drew `civilization` lawful: its living stations refuse a
-/// dock to a ship that carries contraband.
+/// Whether the seed drew `civilization` lawful: the markets of its living
+/// stations do not deal in contraband.
 pub fn seeded_lawful(civilization: &CivilizationId) -> bool {
     CivilizationField::new(civilization.world_seed)
         .civilization(civilization.node)
@@ -453,7 +453,10 @@ mod tests {
             .entity_mut(lawful)
             .insert(OwnedStationMarker);
         app.update();
-        assert!(!marked(&app, lawful), "the player's station refuses nobody");
+        assert!(
+            !marked(&app, lawful),
+            "the player's station deals in anything"
+        );
         app.world_mut()
             .entity_mut(lawful)
             .remove::<OwnedStationMarker>();

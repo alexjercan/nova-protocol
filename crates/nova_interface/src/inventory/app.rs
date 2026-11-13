@@ -1793,6 +1793,8 @@ pub(crate) struct InventoryShips<'w, 's> {
     connections: Query<'w, 's, &'static DockingConnection>,
     fleet: Query<'w, 's, (Entity, Option<&'static DockedShip>), With<OwnedShipMarker>>,
     station_roots: Query<'w, 's, (), With<StationMarker>>,
+    /// The stations whose market does not deal in contraband.
+    lawful: Query<'w, 's, (), With<LawfulStationMarker>>,
     ships: Query<
         'w,
         's,
@@ -2022,16 +2024,32 @@ impl InventoryShips<'_, '_> {
         Some((table, market, self.ship(partner).1))
     }
 
+    /// Whether the docked partner is a lawful station: its market does not
+    /// deal in contraband ([`market_deals_in`]). False while undocked.
+    pub(crate) fn lawful(&self, pair: InventoryPair) -> bool {
+        pair.partner
+            .is_some_and(|partner| self.lawful.contains(partner))
+    }
+
+    /// Whether the docked partner's market deals in `item`
+    /// ([`market_deals_in`]): a lawful station's shows no price for a
+    /// contraband item.
+    pub(crate) fn deals_in(&self, pair: InventoryPair, item: &ItemDesignId) -> bool {
+        market_deals_in(self.items.design(item), self.lawful(pair))
+    }
+
     /// What a row of `item` on `side` shows as its price while the docked
     /// partner trades: the bid a Sell earns on the player's rows, the ask a
     /// Buy pays on the partner's, each against the reference on its side.
-    /// `None` on any other side or partner.
+    /// `None` on any other side or partner, and for an item the partner's
+    /// market does not deal in.
     fn row_price(
         &self,
         pair: InventoryPair,
         side: InventorySideType,
         item: &ItemDesignId,
     ) -> Option<RowPrice> {
+        self.deals_in(pair, item).then_some(())?;
         let prices = self.prices(pair, item)?;
         let reference = self.items.design(item).reference_price();
         let (cr, reference_cr, trade) = match (side, prices) {
@@ -2780,10 +2798,11 @@ fn trade_items(
         ItemTradeType::Sell => (pair.own, partner, &own_title, &partner_title),
     };
     let prices = ships.prices(pair, &item);
+    let lawful = ships.lawful(pair);
     let (_, own, _, own_cr) = ships.ship(pair.own);
     let (_, theirs, _, partner_cr) = ships.ship(partner);
     let planned = plan_item_trade(
-        items, trade, prices, &item, quantity, own, own_cr, theirs, partner_cr,
+        items, trade, prices, lawful, &item, quantity, own, own_cr, theirs, partner_cr,
     )
     .map_err(|refusal| {
         trade_refusal_text(
@@ -2864,6 +2883,9 @@ fn trade_refusal_text(
     let label = &items.design(item).name;
     match refusal {
         ItemTradeRefusalType::NotTrader => format!("Refused: {partner_title} does not trade"),
+        ItemTradeRefusalType::Contraband => {
+            format!("Refused: {partner_title} does not deal in contraband")
+        }
         ItemTradeRefusalType::NoQuantity => "Refused: enter a quantity".to_string(),
         ItemTradeRefusalType::ZeroQuantity => "Refused: quantity is zero".to_string(),
         ItemTradeRefusalType::ZeroCredits => "Refused: sale pays 0 cr".to_string(),
@@ -3676,8 +3698,10 @@ pub(crate) fn update_inventory_panel(
     }
 
     // The selected item's price at the partner, what a trade deals at, and
-    // the partner's market when it is a generated trader.
+    // the partner's market when it is a generated trader. An item the
+    // partner's market does not deal in has no price there.
     let priced = selected.as_ref().and_then(|(_, item)| {
+        ships.deals_in(pair, item).then_some(())?;
         let quote = ships.quote(pair, item)?;
         let prices = ships.prices(pair, item)?;
         let market = pair
@@ -3849,6 +3873,7 @@ pub(crate) fn update_inventory_panel(
                         items,
                         trade,
                         prices,
+                        ships.lawful(pair),
                         &draft.item,
                         Some(quantity),
                         own_stock,
@@ -4126,6 +4151,7 @@ pub(crate) fn update_inventory_trade_controls(
             &ships.items,
             trade,
             ships.prices(pair, &draft.item),
+            ships.lawful(pair),
             &draft.item,
             Some(ships.draft_stock(draft)),
             own,

@@ -4,9 +4,9 @@
 //! civilization's generated station, by the base price table.
 //!
 //! The sale is `apply_visit_trades`, the rule the visit writer runs on the
-//! frame a visitor stands docked. The bind, the dock and the lawful refusal
-//! are the writer's and are proven on fixture items in
-//! `nova_world_base::station_visits`.
+//! frame a visitor stands docked, with the station's law as the writer reads
+//! it. The bind and the dock are the writer's and are proven on fixture
+//! items in `nova_world_base::station_visits`.
 
 use std::collections::BTreeMap;
 
@@ -38,9 +38,9 @@ const CLUSTER: ClusterType = ClusterType::RockOnly;
 /// three stacks; half the intact scavengers carry a core.
 const SLOTS: usize = 64;
 
-/// The living civilization whose station the traffic visits. Not lawful: a
-/// lawful station binds no visit from a contraband carrier.
-fn civilization() -> Civilization {
+/// The living civilization whose station the traffic visits, `lawful` or
+/// not: the market of a lawful one's station does not deal in contraband.
+fn civilization(lawful: bool) -> Civilization {
     Civilization {
         id: CivilizationId {
             world_seed: SEED,
@@ -51,7 +51,7 @@ fn civilization() -> Civilization {
         advancement: 0.5,
         role_preference: [1.0; 4],
         stance: StanceType::Neutral,
-        lawful: false,
+        lawful,
     }
 }
 
@@ -77,15 +77,20 @@ fn hold(
 }
 
 /// The first generated hull of `role` in the station's traffic that carries
-/// `good`, on the base profile `profile`, sells it to the civilization's
-/// generated station. Gives back how many units the station stocked before
-/// the visit and how many the visit sold.
+/// `good`, on the base profile `profile`, runs its trades at the generated
+/// station of a civilization that is `lawful` or not. Gives back how many
+/// units the station stocked before the visit and how many the visit sold.
 ///
 /// # Panics
 ///
 /// When no hull of [`SLOTS`] carries the good, the profile is not one the
-/// role draws, or the sale moves nothing or breaks the ledger.
-fn sell_at_a_generated_station(role: ShipRoleType, profile: &str, good: &str) -> (u32, u32) {
+/// role draws, or a sale breaks the profile's limit or the ledger.
+fn sell_at_a_generated_station(
+    role: ShipRoleType,
+    profile: &str,
+    good: &str,
+    lawful: bool,
+) -> (u32, u32) {
     let parts = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
         .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
     let sections = GameSections(build_section_catalog());
@@ -98,7 +103,7 @@ fn sell_at_a_generated_station(role: ShipRoleType, profile: &str, good: &str) ->
             .collect(),
     );
     let good = ItemDesignId::from(good);
-    let civilization = civilization();
+    let civilization = civilization(lawful);
 
     let profile = profiles
         .0
@@ -196,6 +201,9 @@ fn sell_at_a_generated_station(role: ShipRoleType, profile: &str, good: &str) ->
         &items,
         &table,
         &market,
+        // A living generated station carries the marker of its
+        // civilization's draw.
+        civilization.lawful,
         &profile.trades,
         &mut ship_hold,
         &mut ship_cr,
@@ -207,10 +215,9 @@ fn sell_at_a_generated_station(role: ShipRoleType, profile: &str, good: &str) ->
         .find(|line| line.item == good && line.side == ItemTradeType::Sell)
         .unwrap_or_else(|| panic!("the receipt lists the {good} sale: {lines:?}"));
     assert!(
-        line.count > 0,
-        "the {role:?} sells no {good} of {carried} to a station that holds {stocked}: {lines:?}"
+        line.count == 0 || line.count == carried.min(intent.quantity),
+        "the {role:?} sells none or its whole intention of {carried} {good}: {lines:?}"
     );
-    assert_eq!(line.count, carried.min(intent.quantity), "{lines:?}");
     assert!(
         line.price_cr >= intent.limit_cr * line.count,
         "the sale keeps the profile's limit: {line:?}"
@@ -226,9 +233,9 @@ fn sell_at_a_generated_station(role: ShipRoleType, profile: &str, good: &str) ->
 #[test]
 fn a_generated_provisioner_sells_its_medkits_to_a_station_that_stocks_them() {
     let (stocked, sold) =
-        sell_at_a_generated_station(ShipRoleType::Civilian, "base/provisioner", "Medkit");
+        sell_at_a_generated_station(ShipRoleType::Civilian, "base/provisioner", "Medkit", true);
     assert!(stocked > 0, "the generated station stocks medkits");
-    assert!(sold > 0);
+    assert!(sold > 0, "a lawful station deals in medkits");
 }
 
 /// A generated scavenger on `base/salvage_broker` sells its unmarked core to
@@ -240,7 +247,25 @@ fn a_generated_salvage_broker_sells_its_unmarked_cores_to_a_station_that_is_not_
         ShipRoleType::Scavenger,
         "base/salvage_broker",
         "UnmarkedCores",
+        false,
     );
     assert_eq!(stocked, 0, "no generated station stocks contraband");
     assert!(sold > 0);
+}
+
+/// The same scavenger sells no core to a lawful generated station, which
+/// stocks none either: its market does not deal in contraband.
+#[test]
+fn a_generated_salvage_broker_sells_no_unmarked_cores_to_a_lawful_station() {
+    let (stocked, sold) = sell_at_a_generated_station(
+        ShipRoleType::Scavenger,
+        "base/salvage_broker",
+        "UnmarkedCores",
+        true,
+    );
+    assert_eq!(
+        stocked, 0,
+        "a lawful generated station stocks no contraband"
+    );
+    assert_eq!(sold, 0, "a lawful station buys no contraband");
 }

@@ -114,6 +114,7 @@ pub(crate) fn update_market_strip(
     let Ok((strip, mut state, mut node)) = q_strip.single_mut() else {
         return;
     };
+    let lawful = ships.pair().is_some_and(|pair| ships.lawful(pair));
     let draw =
         ships
             .pair()
@@ -125,7 +126,11 @@ pub(crate) fn update_market_strip(
                     name: name(&lead.item),
                     delta_percent: lead.delta_percent,
                 };
-                let summary = market_summary(table, market, items.iter(), |item| hold.count(item));
+                // The leads name only what this market deals in.
+                let dealt = items
+                    .iter()
+                    .filter(|design| market_deals_in(design, lawful));
+                let summary = market_summary(table, market, dealt, |item| hold.count(item));
                 let restock =
                     restock_gap(table, market, |item| hold.count(item)).map(|gap| RestockDraw {
                         name: name(&gap.item),

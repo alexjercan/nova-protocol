@@ -69,10 +69,9 @@ const ADVANCEMENT_VARIATION: f32 = 0.1;
 /// The chance a civilization is still living.
 const LIVING_CHANCE: f32 = 0.7;
 
-/// The share of civilizations that are lawful: their living stations refuse
-/// a dock to a ship that carries contraband. One half, so a contraband
-/// carrier finds a station that deals with it about as often as one that
-/// turns it away.
+/// The share of civilizations that are lawful: the markets of their living
+/// stations do not deal in contraband. One half, so a contraband carrier
+/// finds a station that buys it about as often as one that does not.
 pub const LAWFUL_SHARE: f32 = 0.5;
 
 /// The selection-weight ratio of a place straight outward from a centroid to
@@ -175,7 +174,7 @@ pub struct Civilization {
     /// player's events move the table stance off it; its crews fly the
     /// effective stance's side.
     pub stance: StanceType,
-    /// Whether its living stations refuse a dock to a ship that carries
+    /// Whether the markets of its living stations refuse to deal in
     /// contraband: one unit draw off its own `lawful` stream against
     /// [`LAWFUL_SHARE`], independent of every other trait. A function of the
     /// id alone, so no save stores it.

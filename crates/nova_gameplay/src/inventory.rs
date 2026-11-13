@@ -43,8 +43,8 @@ pub mod prelude {
     pub use nova_events::prelude::{CreditChangeCauseType, ItemTradeType};
 
     pub use super::{
-        cr_digits, cr_text, kg_text, lot_cr_text, plan_credit_take, plan_hull_strip,
-        plan_item_jettison, plan_item_refine, plan_item_storage, plan_item_trade,
+        cr_digits, cr_text, kg_text, lot_cr_text, market_deals_in, plan_credit_take,
+        plan_hull_strip, plan_item_jettison, plan_item_refine, plan_item_storage, plan_item_trade,
         plan_item_transfer, plan_loot_take, plan_plate_repair, plan_recipe_payment,
         plan_section_rebuild, plan_section_yield, strip_duration_secs, BuildRecipe, CargoCanister,
         CargoCanisterIdAllocator, CargoCanisterRuntimeId, CreditTakeRefusalType, GameItems,
@@ -398,10 +398,24 @@ pub enum ItemCategoryType {
     Food,
     /// Scavenged objects carried for a story, objective or trade.
     Parts,
-    /// Goods a lawful station refuses a dock over
-    /// (`LawfulStationMarker`): a ship that carries one is turned away
-    /// until the item leaves its hold.
+    /// Goods a lawful station's market does not deal in
+    /// (`LawfulStationMarker`, [`market_deals_in`]): it neither buys nor
+    /// sells one. Every other trader deals in them.
     Contraband,
+}
+
+/// Whether a trading partner's market deals in `design`. `lawful` is true
+/// for a station that carries `LawfulStationMarker`: its market neither
+/// buys nor sells an item of category [`ItemCategoryType::Contraband`].
+/// Every other market deals in every item.
+///
+/// The one statement of the rule: [`plan_item_trade`] refuses by it, the
+/// open world leaves such items out of a lawful station's opening stock and
+/// its visitors' postings by it, and the interface hides the price of such
+/// an item by it. Storage is not a market: a lawful station stores
+/// anything.
+pub fn market_deals_in(design: &ItemDesign, lawful: bool) -> bool {
+    !(lawful && design.category == ItemCategoryType::Contraband)
 }
 
 /// The items an authored ship carries at spawn, as a count per item id.
@@ -978,6 +992,9 @@ pub enum ItemTradeRefusalType {
     /// The docked partner is neutralized or lootable: a derelict does not
     /// trade.
     NotTrader,
+    /// The partner is a lawful station and the item is contraband
+    /// ([`market_deals_in`]): its market neither buys nor sells it.
+    Contraband,
     /// The quantity text is not a whole number.
     NoQuantity,
     /// A quantity of zero.
@@ -1021,6 +1038,8 @@ pub enum TradePriceType {
 ///
 /// `prices` is `None` when the partner does not trade: it is neutralized or
 /// carries [`LootableShipMarker`], or it is a station that offers no Trade.
+/// `lawful` is true while the partner is a lawful station: it trades no
+/// contraband item either way ([`market_deals_in`]), whatever the quantity.
 /// A Buy moves items from the partner to the player at the ask, or at the
 /// bid from a station the player owns ([`TradePriceType::Owned`]), rounded
 /// up by [`ItemPrice::buy_cr`]; a Sell moves them from the player to the
@@ -1036,6 +1055,7 @@ pub fn plan_item_trade(
     items: &GameItems,
     trade: ItemTradeType,
     prices: Option<TradePriceType>,
+    lawful: bool,
     item: &ItemDesignId,
     quantity: Option<u32>,
     own: &ShipInventory,
@@ -1044,11 +1064,14 @@ pub fn plan_item_trade(
     partner_cr: u32,
 ) -> Result<ItemTrade, ItemTradeRefusalType> {
     let prices = prices.ok_or(ItemTradeRefusalType::NotTrader)?;
+    let design = items.design(item);
+    if !market_deals_in(design, lawful) {
+        return Err(ItemTradeRefusalType::Contraband);
+    }
     let quantity = quantity.ok_or(ItemTradeRefusalType::NoQuantity)?;
     if quantity == 0 {
         return Err(ItemTradeRefusalType::ZeroQuantity);
     }
-    let design = items.design(item);
     let (seller, buyer, buyer_cr, seller_cr, price) = match (trade, prices) {
         (ItemTradeType::Buy, TradePriceType::Market(price)) => {
             (partner, own, own_cr, partner_cr, price.buy_cr(quantity))
@@ -2574,6 +2597,7 @@ mod transfer_tests {
                 &items,
                 trade,
                 Some(prices),
+                false,
                 &round,
                 Some(quantity),
                 &own,
@@ -2612,6 +2636,7 @@ mod transfer_tests {
                 &items,
                 ItemTradeType::Sell,
                 Some(TradePriceType::Market(price)),
+                false,
                 &round,
                 Some(quantity),
                 &own,
@@ -2658,6 +2683,7 @@ mod transfer_tests {
                 &items,
                 trade,
                 trades.then_some(TradePriceType::Market(stone_price)),
+                false,
                 &ItemDesignId::from(ItemRoleType::StoneOre),
                 quantity,
                 own,
@@ -2688,6 +2714,7 @@ mod transfer_tests {
                 &items,
                 Buy,
                 Some(TradePriceType::Owned(stone_price)),
+                false,
                 &ItemDesignId::from(ItemRoleType::StoneOre),
                 Some(5),
                 &own,
@@ -2823,6 +2850,103 @@ mod transfer_tests {
             40
         );
         assert_eq!((own_cr, partner_cr), (80, 27));
+    }
+
+    /// A lawful station's market deals in no contraband item, either way
+    /// and before the quantity is read, and in every other item as any
+    /// market does. A market that is not lawful deals in contraband. The
+    /// storage plan reads no law: a station stores what its market refuses.
+    #[test]
+    fn a_lawful_market_refuses_contraband_and_a_market_that_is_not_lawful_deals_in_it() {
+        let items = crate::test_support::test_items();
+        use ItemTradeType::{Buy, Sell};
+        let cores = ItemDesignId::from("UnmarkedCores");
+        let stone = ItemDesignId::from(ItemRoleType::StoneOre);
+        let hold = |count: u32| {
+            ShipInventory::new(
+                &items,
+                400_000,
+                [(cores.clone(), count), (stone.clone(), count)],
+            )
+        };
+        let (own, partner) = (hold(2), hold(2));
+        let plan = |trade, lawful, item: &ItemDesignId, quantity| {
+            let price = items.design(item).reference_price();
+            plan_item_trade(
+                &items,
+                trade,
+                Some(TradePriceType::Market(price)),
+                lawful,
+                item,
+                quantity,
+                &own,
+                1_000,
+                &partner,
+                1_000,
+            )
+        };
+
+        for trade in [Buy, Sell] {
+            for quantity in [Some(1), Some(0), None] {
+                assert_eq!(
+                    plan(trade, true, &cores, quantity),
+                    Err(ItemTradeRefusalType::Contraband),
+                    "a lawful market refuses a {trade:?} of {quantity:?} cores"
+                );
+            }
+            assert!(
+                plan(trade, true, &stone, Some(1)).is_ok(),
+                "a lawful market deals {trade:?} in ore"
+            );
+        }
+        // The cores: 10 kg, ask 300 and bid 240.
+        assert_eq!(
+            plan(Sell, false, &cores, Some(1)),
+            Ok(ItemTrade {
+                count: 1,
+                price_cr: 240
+            })
+        );
+        assert_eq!(
+            plan(Buy, false, &cores, Some(2)),
+            Ok(ItemTrade {
+                count: 2,
+                price_cr: 600
+            })
+        );
+        assert_eq!(
+            plan_item_trade(
+                &items,
+                Sell,
+                None,
+                true,
+                &cores,
+                Some(1),
+                &own,
+                0,
+                &partner,
+                0
+            ),
+            Err(ItemTradeRefusalType::NotTrader),
+            "a partner that does not trade is refused first"
+        );
+
+        assert!(!market_deals_in(items.design(&cores), true));
+        assert!(market_deals_in(items.design(&cores), false));
+        assert!(market_deals_in(items.design(&stone), true));
+        assert_eq!(
+            plan_item_storage(
+                &items,
+                ItemStorageType::Store,
+                true,
+                Some(&StationStorage::new(25_000)),
+                &cores,
+                Some(2),
+                &own,
+            ),
+            Ok(2),
+            "the storage of any station takes contraband"
+        );
     }
 
     #[test]

@@ -8,14 +8,17 @@
 //! - an intact AI generated ship with a profile, no helm order, no dock and
 //!   no pending visit, whose wait has passed, binds the nearest live living
 //!   station within [`VISIT_RANGE`] that offers Trade or Jobs, is not the
-//!   player's, admits it (a lawful station admits no ship that carries
-//!   contraband), has a free port and has no other visitor, and
+//!   player's, admits it, has a free port and has no other visitor, and
 //!   takes a Dock order to it. One visitor per station bounds the traffic by
 //!   the stations the window holds;
 //! - on the frame the ship stands docked at its station, the same system
 //!   runs the profile's trades against the station's stock, balance and
 //!   price, posts its jobs beside the station's slots up to
-//!   [`VISIT_EXTRAS_MAX`] unaccepted ones, and stores the receipt. The
+//!   [`VISIT_EXTRAS_MAX`] unaccepted ones, and stores the receipt. A lawful
+//!   station's market does not deal in contraband
+//!   ([`market_deals_in`](nova_gameplay::prelude::market_deals_in)): there a
+//!   contraband intention trades nothing and a contraband job is not
+//!   posted. The
 //!   receipt marks the visit docked, so nothing runs twice, whatever
 //!   freezes, thaws or Loads come after;
 //! - [`VISIT_DWELL`] of play after the capture the ship cancels its order
@@ -57,12 +60,13 @@ use nova_events::prelude::{
     EventKind, GameEvent, GeneratedBodyId, Meters, Meters3, OnDestroyedEvent,
 };
 use nova_gameplay::prelude::{
-    apply_visit_trades, station_offers, DerelictShipMarker, Fnv32, GameItems, GamePriceTable,
-    GameTradeProfiles, Job, JobId, JobPostings, JobSourceType, JobType, Jobs, NeutralizedMarker,
-    OwnedShipMarker, OwnedStationMarker, PlayerFleetMarker, PlayerSpaceshipMarker, SeedStream,
-    ShipCredits, ShipInventory, SpaceshipRootMarker, StationMarker, StationServiceType,
-    StationServices, StationVisit, StationVisitId, StationVisitPhaseType, StationVisitReceipt,
-    StationVisits, TraderMarket, VisitJobType, WorldClock, VISIT_EXTRAS_MAX,
+    apply_visit_trades, market_deals_in, station_offers, DerelictShipMarker, Fnv32, GameItems,
+    GamePriceTable, GameTradeProfiles, Job, JobId, JobPostings, JobSourceType, JobType, Jobs,
+    LawfulStationMarker, NeutralizedMarker, OwnedShipMarker, OwnedStationMarker, PlayerFleetMarker,
+    PlayerSpaceshipMarker, SeedStream, ShipCredits, ShipInventory, SpaceshipRootMarker,
+    StationMarker, StationServiceType, StationServices, StationVisit, StationVisitId,
+    StationVisitPhaseType, StationVisitReceipt, StationVisits, TraderMarket, VisitJobType,
+    WorldClock, VISIT_EXTRAS_MAX,
 };
 use nova_ship::prelude::{
     cancel_ship_order, AISpaceshipMarker, DockAdmission, DockedShip, DockingConnection,
@@ -151,6 +155,8 @@ struct LiveStation<'w> {
     living: bool,
     trades: bool,
     posts: bool,
+    /// Its market does not deal in contraband ([`LawfulStationMarker`]).
+    lawful: bool,
     market: Option<&'w TraderMarket>,
 }
 
@@ -207,6 +213,7 @@ pub(crate) fn drive_station_visits(
     jobs: Res<Jobs>,
     mut visits: ResMut<StationVisits>,
     mut postings: ResMut<JobPostings>,
+    admission: DockAdmission,
     ships: Query<
         (
             (
@@ -247,15 +254,14 @@ pub(crate) fn drive_station_visits(
                 Has<DerelictShipMarker>,
                 Has<NeutralizedMarker>,
                 Has<OwnedStationMarker>,
+                Has<LawfulStationMarker>,
             ),
         ),
         With<StationMarker>,
     >,
     connections: Query<&DockingConnection>,
     envelopes: Query<&HullEnvelopeRadius>,
-    // Admission reads the hold of the ship asking, for contraband, and a
-    // docked visit writes both holds: one set, borrowed one at a time.
-    mut ledger: ParamSet<(DockAdmission, Query<(&mut ShipInventory, &mut ShipCredits)>)>,
+    mut holds: Query<(&mut ShipInventory, &mut ShipCredits)>,
 ) {
     let now = clock.play_seconds;
     // The play seconds this frame adds to the clock: the same virtual delta
@@ -265,7 +271,10 @@ pub(crate) fn drive_station_visits(
     let live_stations: BTreeMap<&GeneratedBodyId, LiveStation> = stations
         .iter()
         .map(
-            |((entity, id, at, services, market), (settled, derelict, neutralized, owned))| {
+            |(
+                (entity, id, at, services, market),
+                (settled, derelict, neutralized, owned, lawful),
+            )| {
                 (
                     id,
                     LiveStation {
@@ -275,6 +284,7 @@ pub(crate) fn drive_station_visits(
                         living: !(derelict || neutralized || owned),
                         trades: station_offers(services, false, StationServiceType::Trade),
                         posts: station_offers(services, false, StationServiceType::Jobs),
+                        lawful,
                         market,
                     },
                 )
@@ -361,7 +371,7 @@ pub(crate) fn drive_station_visits(
                         &mut postings,
                         now,
                         ship,
-                        &mut ledger.p1(),
+                        &mut holds,
                     );
                     info!(
                         "nova_world_base: the visit '{}' docks at '{}' at {now:.1} s of play: \
@@ -506,7 +516,6 @@ pub(crate) fn drive_station_visits(
         .filter(|((.., settled), _, flags)| *settled && free_traffic(*flags))
         .collect();
     ordered.sort_by(|a, b| a.0 .1.cmp(b.0 .1));
-    let admission = ledger.p0();
     for ((ship, id, at, market, _), (order, _, docked, has_reports), _) in ordered {
         let Some(profile) = market.and_then(|market| market.profile.as_ref()) else {
             continue;
@@ -570,7 +579,9 @@ pub(crate) fn drive_station_visits(
 
 /// Run `visit`'s profile at `station` on the frame its ship stands docked
 /// there: its trades, when the station offers Trade, and its jobs, when it
-/// offers Jobs, each in list order, and give back the receipt.
+/// offers Jobs, each in list order, and give back the receipt. A lawful
+/// station trades no contraband intention (its line reads a count of zero)
+/// and posts no job that asks for a contraband item.
 ///
 /// # Panics
 ///
@@ -619,6 +630,7 @@ fn dock_visit(
             items,
             &table.0,
             market,
+            station.lawful,
             &profile.trades,
             &mut ship_hold,
             &mut ship_cr.0,
@@ -643,6 +655,14 @@ fn dock_visit(
                 count,
                 reward_cr,
             } = template;
+            if !market_deals_in(items.design(item), station.lawful) {
+                info!(
+                    "nova_world_base: the visit '{}' posts no job for '{item}': '{}' is lawful \
+                     and does not deal in contraband",
+                    visit.id, visit.station
+                );
+                continue;
+            }
             let job = Job {
                 id: JobId {
                     station: visit.station.clone(),
@@ -1221,32 +1241,87 @@ mod tests {
         assert_eq!(rig.ledger(), settled, "leaving moves nothing");
     }
 
-    #[test]
-    fn a_contraband_carrier_binds_no_visit_to_a_lawful_station() {
-        let mut rig = Rig::new(empty_profile());
+    /// A profile that sells two cores and six ore, and asks for a core and
+    /// for ore.
+    fn contraband_profile() -> TradeProfileDesign {
+        let cores = ItemDesignId::from("UnmarkedCores");
+        let sell = |item: ItemDesignId, quantity| TradeIntent {
+            item,
+            side: ItemTradeType::Sell,
+            quantity,
+            limit_cr: 1,
+        };
+        TradeProfileDesign {
+            trades: vec![sell(cores.clone(), 2), sell(ore(), 6)],
+            jobs: vec![
+                VisitJobType::Procure {
+                    item: cores,
+                    count: 1,
+                    reward_cr: 400,
+                },
+                procure(2),
+            ],
+            ..trading_profile(0)
+        }
+    }
+
+    /// Dock a visitor that carries two cores under [`contraband_profile`] at
+    /// a station that is `lawful` or not, and give back the counts its
+    /// trades moved, the cores it and the station hold, and the jobs it
+    /// posted.
+    fn contraband_visit(lawful: bool) -> (Vec<u32>, (u32, u32), Vec<JobId>, Rig) {
+        let mut rig = Rig::new(contraband_profile());
         let items = nova_gameplay::test_support::test_items();
         let cores = ItemDesignId::from("UnmarkedCores");
         let world = rig.app.world_mut();
-        world.entity_mut(rig.station).insert(LawfulStationMarker);
+        if lawful {
+            world.entity_mut(rig.station).insert(LawfulStationMarker);
+        }
         world
             .get_mut::<ShipInventory>(rig.ship)
             .unwrap()
-            .add(&items, &cores, 1);
+            .add(&items, &cores, 2);
+        let (_, bound_at) = rig.bind();
+        rig.capture(rig.ship);
+        rig.at(bound_at + 30.0);
+        let (_, receipt) = docked_receipt(&rig.visit().expect("the visit is pending"));
+        let world = rig.app.world();
+        let held = |entity| world.get::<ShipInventory>(entity).unwrap().count(&cores);
+        (
+            receipt.trades.iter().map(|line| line.count).collect(),
+            (held(rig.ship), held(rig.station)),
+            receipt.jobs,
+            rig,
+        )
+    }
 
-        let due = rig.first_due();
-        rig.at(0.0);
-        rig.at(due);
-        assert!(rig.visit().is_none(), "a lawful station admits no carrier");
-        assert_eq!(rig.order(), None, "an unbound ship takes no Dock order");
+    #[test]
+    fn a_lawful_station_docks_a_contraband_carrier_and_deals_in_none_of_it() {
+        let (trades, cores, jobs, rig) = contraband_visit(true);
+        assert_eq!(trades, [0, 6], "the ore sells and the cores do not");
+        assert_eq!(cores, (2, 0), "the cores stay aboard");
+        let visit = rig.visit().expect("the visit is pending").id;
+        assert_eq!(
+            jobs,
+            rig.visit_job_ids(&visit, 2)[1..],
+            "the ore job alone is posted, under its own profile index"
+        );
+        assert_eq!(
+            rig.app
+                .world()
+                .resource::<JobPostings>()
+                .open_visit_postings(&rig.station_id, &Jobs::default()),
+            1
+        );
+    }
 
-        rig.app
-            .world_mut()
-            .get_mut::<ShipInventory>(rig.ship)
-            .unwrap()
-            .remove(&cores, 1);
-        rig.at(due + 1.0);
-        let visit = rig.visit().expect("the ship binds once the cores left");
-        assert_eq!(visit.station, rig.station_id);
+    #[test]
+    fn a_station_that_is_not_lawful_buys_a_visitors_contraband_and_posts_its_job() {
+        let (trades, cores, jobs, rig) = contraband_visit(false);
+        assert_eq!(trades, [2, 6]);
+        assert_eq!(cores, (0, 2), "the cores are sold");
+        let visit = rig.visit().expect("the visit is pending").id;
+        assert_eq!(jobs, rig.visit_job_ids(&visit, 2));
     }
 
     #[test]

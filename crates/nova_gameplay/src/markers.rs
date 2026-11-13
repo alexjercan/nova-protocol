@@ -159,14 +159,15 @@ pub struct StationMarker;
 #[reflect(Component)]
 pub struct OwnedStationMarker;
 
-/// Marks a living station whose civilization refuses contraband carriers.
+/// Marks a living station whose market does not deal in contraband.
 ///
-/// Docking admission refuses a ship whose hold carries an item of category
-/// `ItemCategoryType::Contraband` at a station with this marker, until the
-/// item leaves the hold. The open world derives it every frame from the
-/// station's civilization (`nova_world_base`'s `sync_lawful_stations`), so
-/// no save and no frozen record carries it. A station the player owns and a
-/// dead station never carry it.
+/// A trade at a station with this marker neither buys nor sells an item of
+/// category `ItemCategoryType::Contraband` (`market_deals_in`,
+/// `plan_item_trade`); the station admits any hold to its dock and stores
+/// any item. The open world derives it every frame from the station's
+/// civilization (`nova_world_base`'s `sync_lawful_stations`), so no save
+/// and no frozen record carries it. A station the player owns and a dead
+/// station never carry it.
 #[derive(Component, Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 #[reflect(Component)]
 pub struct LawfulStationMarker;

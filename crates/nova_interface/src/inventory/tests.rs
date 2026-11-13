@@ -1233,6 +1233,74 @@ fn held_and_stored(
     )
 }
 
+/// At a lawful station the Sell form of a contraband item states the
+/// refusal with Confirm disabled, a double click on the row refuses the same
+/// way on the note line and moves nothing, and the Store chip still stores
+/// it. At a station that is not lawful the same form sells it.
+#[test]
+fn a_lawful_station_refuses_a_contraband_sale_and_still_stores_the_item() {
+    use InventorySideType::Own;
+
+    let (mut rig, player) = inventory_rig();
+    let cores = ItemDesignId::from("UnmarkedCores");
+    load(&mut rig.app, player, &cores, 2);
+    let station = dock_station(
+        &mut rig,
+        player,
+        vec![StationServiceType::Trade, StationServiceType::Storage],
+        1_000_000,
+    );
+    rig.app
+        .world_mut()
+        .entity_mut(station)
+        .insert(LawfulStationMarker);
+    settle(&mut rig.app);
+    let credits = |rig: &PanePointerRig| rig.app.world().get::<ShipCredits>(player).unwrap().0;
+    let refusal = "Refused: Waystation does not deal in contraband";
+
+    let at = row_at(&mut rig, Own, &cores);
+    click_at(&mut rig, at);
+    assert_eq!(draft_form(&mut rig.app), (refusal.to_string(), false));
+    take_cues(&mut rig.app);
+    double_click_at(&mut rig, at);
+    assert_eq!(note(&rig.app).as_deref(), Some(refusal));
+    assert_eq!(
+        held_and_stored(rig.app.world(), player, station, &cores),
+        (2, 0)
+    );
+    assert_eq!(credits(&rig), 100, "no credit moved");
+    assert!(take_cues(&mut rig.app).contains(&UiSfx::EditorDeny));
+
+    // The cores bid 240 cr and the double click left the draft at the whole
+    // stack of two; the station that is not lawful buys them.
+    rig.app
+        .world_mut()
+        .entity_mut(station)
+        .remove::<LawfulStationMarker>();
+    settle(&mut rig.app);
+    assert_eq!(
+        draft_form(&mut rig.app),
+        ("Price 480 cr  Balance 580 cr".to_string(), true)
+    );
+
+    rig.app
+        .world_mut()
+        .entity_mut(station)
+        .insert(LawfulStationMarker);
+    settle(&mut rig.app);
+    let store_chip = centre_of::<InventoryDraftActionChip>(rig.app.world_mut(), |chip| {
+        chip.0 == InventoryActionType::Store(InventoryStoreType::Station)
+    });
+    click_at(&mut rig, store_chip);
+    let confirm = centre_of::<InventoryDraftConfirm>(rig.app.world_mut(), |_| true);
+    click_at(&mut rig, confirm);
+    assert_eq!(
+        held_and_stored(rig.app.world(), player, station, &cores),
+        (0, 2),
+        "the lawful station stores what its market refuses"
+    );
+}
+
 /// A double click on a hold row confirms the form the row opens at the whole
 /// stack: Store once the Store chip is picked, which sticks from row to row
 /// over the Sell a trading station opens with. A double click on a storage

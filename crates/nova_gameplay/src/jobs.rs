@@ -1658,8 +1658,8 @@ pub struct JobField {
 
 /// The item categories a station in a cell with `clusters` asks for. A cell
 /// with no cluster body asks for every category but ammunition and
-/// contraband. No cell asks for contraband: a board never posts a job a
-/// lawful station would refuse the hand-in of.
+/// contraband. No cell asks for contraband: a board is drawn without its
+/// station's law, and a lawful station's market does not deal in it.
 fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
     let mut wanted = Vec::new();
     let mut want = |category: ItemCategoryType| {

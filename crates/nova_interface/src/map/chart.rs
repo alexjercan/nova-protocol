@@ -9,8 +9,8 @@
 //! generated them, and every held job ([`Jobs`]) as a mark in its target's
 //! cell. A station mark reads its state: a living station in the living
 //! colour, a dead one faint in the danger colour, the player's own in the
-//! ally colour, and a ring under one that turns the player away, for
-//! hostility or for contraband in the player's hold, whatever its ports hold. Marks and cell tags are projected UI
+//! ally colour, and a ring under one hostile enough to turn the player away,
+//! whatever its ports hold. Marks and cell tags are projected UI
 //! labels, like the local blips, and each selects what it names and focuses
 //! the view on its cell; a click on the selected one, Reframe, or the
 //! selected job leaving the held list
@@ -103,10 +103,9 @@ pub(crate) enum MapChartMarkType {
 /// reads the default: it neither refuses nor posts.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ChartStationLive {
-    /// It turns the player away, for hostility or for contraband in the
-    /// player's hold, whatever its ports hold
+    /// It turns the player away for hostility, whatever its ports hold
     /// ([`DockAdmission::turns_away`]): held ports alone are no refusal, and
-    /// they never hide an Enemy, hostile or contraband-refusing station.
+    /// they never hide an Enemy or hostile station.
     pub(crate) refusing: bool,
     /// How many jobs its board posts that the player neither holds nor has
     /// completed.

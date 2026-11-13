@@ -24,8 +24,8 @@
 //! offers Refine makes it from ore in the docked ship's hold for a fee, so
 //! mined ore has a use besides the sell button.
 //!
-//! The unmarked cores are the one contraband item: a lawful station refuses
-//! a dock to a ship that carries any (`nova_ship`'s `DockAdmission`).
+//! The unmarked cores are the one contraband item: a lawful station's
+//! market neither buys nor sells them (`nova_gameplay`'s `market_deals_in`).
 
 use nova_gameplay::prelude::{
     ItemCategoryType, ItemDesign, ItemDesignId, ItemRefineRecipe, ItemRoleType,
@@ -283,7 +283,7 @@ pub(crate) fn item_catalog() -> Vec<ItemDesign> {
         (
             UNMARKED_CORES,
             "Unmarked cores",
-            "Flight cores with the registry marks ground off. Lawful stations refuse a ship that carries them.",
+            "Flight cores with the registry marks ground off. Lawful stations do not buy or sell them.",
             Contraband,
             10_000,
             1,
