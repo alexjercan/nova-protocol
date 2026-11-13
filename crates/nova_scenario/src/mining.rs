@@ -974,9 +974,17 @@ fn flash_mining_beam(
     let sparks = tier.as_deref().is_none_or(|tier| tier.particles);
     let (_, rotation, position) = frame.to_scale_rotation_translation();
     let (face, _) = mining_emitter_face(position, rotation, *collider);
-    let outward = (face - hit.at).normalize_or(Vec3::Y);
+    // Hanabi carries a new particle's velocity through the emitter's whole
+    // transform, and the sparks emitter is a child of the section. The fan's
+    // basis is therefore handed in the SECTION's frame, as its origin is:
+    // handed in world space it was turned a second time, and the sparks left
+    // back up the beam only from a section that stood unrotated in the world.
+    let to_section = frame.affine().inverse();
+    let outward = to_section
+        .transform_vector3(face - hit.at)
+        .normalize_or(Vec3::Y);
     let (right, up) = outward.any_orthonormal_pair();
-    let local_hit = frame.affine().inverse().transform_point3(hit.at);
+    let local_hit = to_section.transform_point3(hit.at);
     for child in children.iter() {
         if let Ok(mut laser) = q_lasers.get_mut(child) {
             laser.flash = 1.0;
