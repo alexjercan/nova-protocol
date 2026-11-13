@@ -146,3 +146,13 @@ Limits:
 - No section kind has a single variant.
 - At least three items have a consumer other than the sell button.
 - Generated ships and shipyards show the new content without authoring.
+
+## Follow-up (2026-11-13, owner feedback)
+The owner did not like the contraband dock refusal. It is gone before
+release (`e55f10344`, `e81dfd681`, `f05afe2cc`): every station docks a
+contraband carrier; a lawful station's market neither buys nor sells
+`Contraband`, and the trade form reads `Refused: <station> does not deal in
+contraband`. `DockRefusalType::Contraband` and the HUD line
+`<NAME> REFUSES CONTRABAND` no longer exist. The walk is now
+`examples/systems/system_contraband_trade.rs`. The owner has not yet said
+whether the restricted-trade form stays or contraband goes entirely.
