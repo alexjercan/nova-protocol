@@ -2282,6 +2282,8 @@ pub fn walk_to_done(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
     let script = if kind == LocatedKindType::Distress {
         let inflight_shot = format!("job-{tag}-inflight.png");
         let inflight_shot_name = inflight_shot.clone();
+        let no_medkit_shot = format!("job-{tag}-no-medkit.png");
+        let no_medkit_shot_name = no_medkit_shot.clone();
         script
             .step("distress job: park in flight off the caller")
             .on_enter(|world: &mut World| {
@@ -2331,6 +2333,11 @@ pub fn walk_to_done(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
             .add()
             .step("distress job: assert the dock with no medkit")
             .on_enter(assert_the_dock_with_no_medkit)
+            .add()
+            .step("distress job: shoot the dock with no medkit")
+            .on_enter(move |world: &mut World| shoot(world, &no_medkit_shot_name))
+            .until(shot_written(no_medkit_shot))
+            .deadline(BEAT_SECS)
             .add()
             .step("distress job: undock and take one medkit aboard")
             .on_enter(|world: &mut World| {

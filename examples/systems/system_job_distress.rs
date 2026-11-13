@@ -33,7 +33,8 @@
 //! `NOVA_CAPTURE=1` also writes `job-distress-board.png` of the Jobs tab
 //! with the held job selected in the inspector, `job-distress-inflight.png`
 //! of the caller in flight wearing its marker chip,
-//! `job-distress-inspector-done.png` of the inspector with the job done
+//! `job-distress-no-medkit.png` of the HUD notice at the dock with no medkit
+//! aboard, `job-distress-inspector-done.png` of the inspector with the job done
 //! before the hand-in, and `job-distress-done.png` after the hand-in.
 
 use bevy::prelude::*;
