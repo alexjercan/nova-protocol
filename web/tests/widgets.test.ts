@@ -20,6 +20,9 @@ import {
     CIVILIZATION_LATTICE_KM,
     gateReach,
     INFLUENCE_REACH_KM,
+    KEY_ROW_CORE_LEN,
+    KEY_ROW_VERBS,
+    keyRowChips,
     PART_KNOWN_CHANCE,
     REFINE_ADVANCEMENT,
     START_BLOCK_KM,
@@ -1619,6 +1622,157 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     assert.equal(
         refinePlan([200, 100]).sellRefinedCr - refinePlan([200, 100]).sellRawCr,
         100 * 8
+    );
+}
+
+// ---- key-row --------------------------------------------------------------
+
+// The key row scope's verbs, order, core group and default sources are the
+// game's.
+{
+    const DOCK = "crates/nova_hud/src/keybind_dock.rs";
+    const SHIP = "crates/nova_ship/src/input/bindings.rs";
+    const INTERFACE = "crates/nova_interface/src/bindings.rs";
+    const verbs = rustSays(
+        DOCK,
+        /pub const DOCK_VERBS: \[&str; \d+\] = \[([\s\S]*?)\];/
+    );
+    assert.deepEqual(
+        KEY_ROW_VERBS.map((entry) => entry.verb),
+        [...verbs.matchAll(/"(\w+)"/g)].map((hit) => hit[1])
+    );
+    assert.equal(
+        KEY_ROW_CORE_LEN,
+        rustNumber(DOCK, /pub const DOCK_CORE_LEN: usize = (\d+);/)
+    );
+
+    // The first desk source and the first pad source an action declares.
+    const action = (name: string): { desk: string; pad?: string } => {
+        const rel = name === "interface_toggle" ? INTERFACE : SHIP;
+        const body = rustSays(
+            rel,
+            new RegExp(
+                `ActionBinding::new\\("${name}",([\\s\\S]*?)(?=ActionBinding::new|\\n    \\])`
+            )
+        );
+        return {
+            desk: /(?:KeyCode|MouseButton)::(\w+)/.exec(body)?.[1] ?? "",
+            pad: /GamepadButton::(\w+)/.exec(body)?.[1],
+        };
+    };
+    // The desk source and the pad source of a section class's default.
+    const section = (name: string): { desk: string; pad?: string } => {
+        if (name === "Mining") {
+            return {
+                desk: rustSays(
+                    SHIP,
+                    /pub const MINING_KEYS: \[KeyCode; \d+\] = \[KeyCode::(\w+)/
+                ),
+                pad: rustSays(
+                    SHIP,
+                    /vec!\[key, GamepadButton::(\w+)\.into\(\)\]/
+                ),
+            };
+        }
+        const pair = new RegExp(
+            `SectionClass::${name} => vec!\\[\\s*(?:KeyCode|MouseButton)::` +
+                "(\\w+)\\.into\\(\\),\\s*GamepadButton::(\\w+)\\.into\\(\\)"
+        );
+        const at = (index: number): string =>
+            rustSays(
+                SHIP,
+                new RegExp(
+                    pair.source.replace(
+                        index === 0 ? "GamepadButton::(\\w+)" : "::(\\w+)",
+                        index === 0 ? "GamepadButton::\\w+" : "::\\w+"
+                    )
+                )
+            );
+        return { desk: at(0), pad: at(1) };
+    };
+    const rcs = action("rcs_modifier").pad;
+    for (const { verb, from, desk, pad } of KEY_ROW_VERBS) {
+        const game = /^[a-z]/.test(from) ? action(from) : section(from);
+        assert.equal(desk, game.desk, `${verb} desk source`);
+        // DOCK and HELM hold no pad button: the chord is RCS plus the
+        // button of the verb each rides.
+        const rides = { DOCK: "autopilot_goto", HELM: "autopilot_orbit" }[verb];
+        if (rides) {
+            assert.equal(game.pad, undefined, `${verb} has no pad button`);
+            assert.deepEqual(pad, [rcs, action(rides).pad]);
+        } else {
+            assert.deepEqual(pad, [game.pad], `${verb} pad source`);
+        }
+    }
+}
+
+// The row's rules, on the cases the post names.
+{
+    const cold = {
+        pad: false,
+        lock: "None" as const,
+        well: false,
+        armed: true,
+        weaponsHot: false,
+        mining: false,
+    };
+    const row = (context: Parameters<typeof keyRowChips>[0]): string =>
+        keyRowChips(context)
+            .map(
+                (chip) =>
+                    chip.verb +
+                    { Dim: "-", Available: "", Hot: "+" }[chip.state]
+            )
+            .join(" ");
+    assert.equal(row(cold), "INTERFACE DRIVE STOP RCS RADAR AIM");
+    assert.equal(
+        row({ ...cold, armed: false }),
+        "INTERFACE DRIVE STOP RCS RADAR"
+    );
+    // The post's fullest row: a lock with a port out of reach, a gravity
+    // well, a mining beam and hot weapons.
+    assert.equal(
+        row({
+            ...cold,
+            lock: "PortFar",
+            well: true,
+            mining: true,
+            weaponsHot: true,
+        }),
+        "INTERFACE DRIVE STOP RCS RADAR GOTO ORBIT DOCK- MINE AIM+ FIRE " +
+            "TORPEDO RAILGUN"
+    );
+    assert.equal(
+        row({ ...cold, lock: "PortReady" }),
+        "INTERFACE DRIVE STOP RCS RADAR GOTO DOCK AIM"
+    );
+    // A held hull flies nothing; HELM takes the pair from a ship, never
+    // from a living station.
+    assert.equal(
+        row({ ...cold, lock: "DockedShip", well: true }),
+        "INTERFACE DRIVE- STOP- RCS- RADAR ORBIT- DOCK+ HELM AIM"
+    );
+    assert.equal(
+        row({ ...cold, lock: "DockedHeld", well: true }),
+        "INTERFACE DRIVE STOP RCS RADAR ORBIT DOCK+ HELM+ AIM"
+    );
+    assert.equal(
+        row({ ...cold, lock: "DockedStation" }),
+        "INTERFACE DRIVE- STOP- RCS- RADAR DOCK+ HELM- AIM"
+    );
+    // On a pad DOCK and HELM draw two caps.
+    const pad = keyRowChips({ ...cold, pad: true, lock: "DockedShip" });
+    assert.deepEqual(pad.find((chip) => chip.verb === "DOCK")?.caps, [
+        "L3",
+        "Y",
+    ]);
+    assert.deepEqual(pad.find((chip) => chip.verb === "HELM")?.caps, [
+        "L3",
+        "A",
+    ]);
+    assert.deepEqual(
+        keyRowChips(cold).map((chip) => chip.caps[0]),
+        ["Tab", "W", "X", "Shift", "Ctrl", "RMB"]
     );
 }
 

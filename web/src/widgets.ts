@@ -14217,6 +14217,308 @@ function initRefineBatch(host: HTMLElement): void {
     update();
 }
 
+// ---- v0.18.0: the key row -------------------------------------------------
+
+// The flight key row, mirrored from the game as data. The verbs, their order
+// and the core group: crates/nova_hud/src/keybind_dock.rs DOCK_VERBS :109 and
+// DOCK_CORE_LEN :129. `from` names the action or the section class whose
+// default sources the chip draws, in Rust spelling: flight_bindings :30,
+// camera_bindings :133 and section_default_bindings :193 of
+// crates/nova_ship/src/input/bindings.rs, and interface_toggle at
+// crates/nova_interface/src/bindings.rs :50. DOCK and HELM hold no pad button:
+// on a pad each is the RCS button plus the GOTO or ORBIT button
+// (crates/nova_ship/src/input/player/hints.rs `chord` :322).
+export const KEY_ROW_CORE_LEN = 5;
+export const KEY_ROW_VERBS: {
+    verb: string;
+    from: string;
+    desk: string;
+    pad: string[];
+}[] = [
+    {
+        verb: "INTERFACE",
+        from: "interface_toggle",
+        desk: "Tab",
+        pad: ["RightThumb"],
+    },
+    { verb: "DRIVE", from: "main_drive", desk: "KeyW", pad: ["RightTrigger"] },
+    { verb: "STOP", from: "autopilot_stop", desk: "KeyX", pad: ["East"] },
+    {
+        verb: "RCS",
+        from: "rcs_modifier",
+        desk: "ShiftLeft",
+        pad: ["LeftThumb"],
+    },
+    { verb: "RADAR", from: "radar_hold", desk: "ControlLeft", pad: ["DPadUp"] },
+    { verb: "GOTO", from: "autopilot_goto", desk: "KeyG", pad: ["North"] },
+    { verb: "ORBIT", from: "autopilot_orbit", desk: "KeyO", pad: ["South"] },
+    { verb: "CANCEL", from: "autopilot_off", desk: "KeyZ", pad: ["West"] },
+    { verb: "DOCK", from: "dock", desk: "KeyD", pad: ["LeftThumb", "North"] },
+    {
+        verb: "HELM",
+        from: "dock_helm",
+        desk: "KeyH",
+        pad: ["LeftThumb", "South"],
+    },
+    { verb: "MINE", from: "Mining", desk: "KeyV", pad: ["RightTrigger2"] },
+    {
+        verb: "AIM",
+        from: "combat_stance",
+        desk: "Right",
+        pad: ["LeftTrigger2"],
+    },
+    { verb: "FIRE", from: "Turret", desk: "Left", pad: ["RightTrigger2"] },
+    { verb: "TORPEDO", from: "Torpedo", desk: "KeyF", pad: ["LeftTrigger"] },
+    { verb: "RAILGUN", from: "Railgun", desk: "KeyR", pad: ["Select"] },
+];
+
+// The cap a player reads for a Rust source name. Any other key is its name
+// less the `Key` prefix.
+const KEY_ROW_CAPS: Record<string, string> = {
+    ShiftLeft: "Shift",
+    ControlLeft: "Ctrl",
+    Right: "RMB",
+    Left: "LMB",
+    RightThumb: "R3",
+    LeftThumb: "L3",
+    RightTrigger: "RB",
+    LeftTrigger: "LB",
+    RightTrigger2: "RT",
+    LeftTrigger2: "LT",
+    North: "Y",
+    South: "A",
+    East: "B",
+    West: "X",
+    DPadUp: "D-Pad Up",
+    Select: "View",
+};
+
+/**
+ * What the travel lock is, or what holds the ship. A docked ship keeps its
+ * lock on the partner. `DockedShip` is a new dock on a living ship, which
+ * flies the pair; `DockedHeld` is that dock after HELM; `DockedStation` is a
+ * living station, which owns the helm.
+ */
+export type KeyRowLockType =
+    | "None"
+    | "NoPort"
+    | "PortFar"
+    | "PortReady"
+    | "DockedShip"
+    | "DockedHeld"
+    | "DockedStation";
+
+/** The flight context the key row reads. */
+export interface KeyRowContext {
+    pad: boolean;
+    lock: KeyRowLockType;
+    /** A gravity well dominates the ship. */
+    well: boolean;
+    /** The hull carries a turret, a torpedo bay and a railgun. */
+    armed: boolean;
+    weaponsHot: boolean;
+    /** The hull carries a mining beam. */
+    mining: boolean;
+}
+
+/** How the row paints a chip: dark, lit, or inverted for a live state. */
+export type KeyChipStateType = "Dim" | "Available" | "Hot";
+
+/** One chip on the row. */
+export interface KeyChip {
+    verb: string;
+    caps: string[];
+    state: KeyChipStateType;
+}
+
+/**
+ * The chips the key row draws in `context`, in row order, for a flyable hull
+ * that grants every maneuver, has RCS propellant, holds no key down and flies
+ * no autopilot maneuver. Each rule cites its line in
+ * crates/nova_ship/src/input/player/hints.rs `update_flight_verb_hints`; the
+ * hot states are keybind_dock.rs `chip_state` :676.
+ */
+export function keyRowChips(context: KeyRowContext): KeyChip[] {
+    const { lock } = context;
+    const docked = lock.startsWith("Docked");
+    // :358 `docked_without_helm`: a hull that does not drive its pair.
+    const flies = !docked || lock === "DockedHeld";
+    const lit = (ready: boolean): KeyChipStateType =>
+        ready ? "Available" : "Dim";
+    // :455 a weapon chip shows while the weapons are hot and it has a key.
+    const weapon = context.armed && context.weaponsHot ? "Available" : null;
+    // A verb that maps to null is off the row.
+    const states: Record<string, KeyChipStateType | null> = {
+        // :466 and :528: on the row and lit while the flight rig exists.
+        INTERFACE: "Available",
+        RADAR: "Available",
+        // :472, :478, :553 and the gate :414: dark on a hull that is held.
+        DRIVE: lit(flies),
+        STOP: lit(flies),
+        RCS: lit(flies),
+        // :494 on the row while a lock is not the docked partner.
+        GOTO: lock !== "None" && !docked ? "Available" : null,
+        // :508 on the row near a dominant well; :414 dark on a held hull.
+        ORBIT: context.well ? lit(flies) : null,
+        // :521 on the row only while the autopilot is engaged.
+        CANCEL: null,
+        // :539 on the row while docked or while the lock carries a port
+        // (:447), lit when the hull admits you and a port pair is in reach,
+        // hot while docked.
+        DOCK: docked
+            ? "Hot"
+            : lock === "PortFar" || lock === "PortReady"
+              ? lit(lock === "PortReady")
+              : null,
+        // :560 on the row while docked; a living station refuses it; hot
+        // while you hold the helm.
+        HELM: !docked
+            ? null
+            : lock === "DockedHeld"
+              ? "Hot"
+              : lit(lock === "DockedShip"),
+        // :573 on the row while the first mining beam holds a key.
+        MINE: context.mining ? "Available" : null,
+        // :583 on the row of an armed hull; hot while the weapons are hot.
+        AIM: !context.armed ? null : context.weaponsHot ? "Hot" : "Available",
+        // :589 to :591.
+        FIRE: weapon,
+        TORPEDO: weapon,
+        RAILGUN: weapon,
+    };
+    return KEY_ROW_VERBS.flatMap(({ verb, desk, pad }) => {
+        const state = states[verb];
+        if (!state) return [];
+        const caps = (context.pad ? pad : [desk]).map(
+            (name) => KEY_ROW_CAPS[name] ?? name.replace(/^Key/, "")
+        );
+        return [{ verb, caps, state }];
+    });
+}
+
+function initKeyRow(host: HTMLElement): void {
+    header(
+        host,
+        "Key row scope: the chips that apply",
+        "Set the flight context. The row draws the chips the game draws: " +
+            "five core chips before the centre line, the rest after it. " +
+            "A dark chip is on the row but the press does nothing now; an " +
+            "inverted chip names a state the ship is in."
+    );
+
+    const context: KeyRowContext = {
+        pad: false,
+        lock: "None",
+        well: false,
+        armed: true,
+        weaponsHot: false,
+        mining: false,
+    };
+    const locks: [KeyRowLockType, string][] = [
+        ["None", "no lock"],
+        ["NoPort", "lock, no port"],
+        ["PortFar", "port, far"],
+        ["PortReady", "port, in reach"],
+        ["DockedShip", "docked: ship"],
+        ["DockedHeld", "docked: helm taken"],
+        ["DockedStation", "docked: station"],
+    ];
+    const lockKeys = keyRow(
+        locks.map(([, label]) => label),
+        0,
+        (index) => {
+            context.lock = locks[index][0];
+            update();
+        }
+    );
+    lockKeys.row.prepend(el("span", "widget__keys-label", "lock"));
+
+    const flags = el("div", "widget__keys");
+    flags.appendChild(el("span", "widget__keys-label", "ship"));
+    const toggles: [
+        "well" | "armed" | "weaponsHot" | "mining" | "pad",
+        string,
+    ][] = [
+        ["well", "gravity well"],
+        ["armed", "weapons aboard"],
+        ["weaponsHot", "weapons hot"],
+        ["mining", "mining beam"],
+        ["pad", "gamepad"],
+    ];
+    for (const [key, label] of toggles) {
+        const button = el("button", "widget__btn", label);
+        button.type = "button";
+        const paint = (): void => {
+            button.classList.toggle("is-on", context[key]);
+            button.setAttribute("aria-pressed", String(context[key]));
+        };
+        button.addEventListener("click", () => {
+            context[key] = !context[key];
+            paint();
+            update();
+        });
+        paint();
+        flags.appendChild(button);
+    }
+
+    const dock = el("div", "widget__dock");
+    const readout = el("p", "widget__readout");
+    readout.setAttribute("aria-live", "polite");
+
+    const update = (): void => {
+        const chips = keyRowChips(context);
+        const core = KEY_ROW_VERBS.slice(0, KEY_ROW_CORE_LEN).map(
+            (entry) => entry.verb
+        );
+        const groups = [
+            el("div", "widget__dock-side"),
+            el("div", "widget__dock-side"),
+        ];
+        for (const chip of chips) {
+            const node = el("span", "widget__chip");
+            node.classList.add(`is-${chip.state.toLowerCase()}`);
+            for (const cap of chip.caps) {
+                node.appendChild(el("kbd", "widget__cap", cap));
+            }
+            node.appendChild(el("b", undefined, chip.verb));
+            groups[core.includes(chip.verb) ? 0 : 1].appendChild(node);
+        }
+        dock.replaceChildren(groups[0], groups[1]);
+
+        const words = (state: KeyChipStateType): string =>
+            chips
+                .filter((chip) => chip.state === state)
+                .map((chip) => chip.verb)
+                .join(", ");
+        const dim = words("Dim");
+        const hot = words("Hot");
+        readout.textContent =
+            `${chips.length} of ${KEY_ROW_VERBS.length} chips. ` +
+            (dim ? `Dark: ${dim}. ` : "No chip is dark. ") +
+            (hot ? `Inverted: ${hot}.` : "");
+    };
+
+    host.appendChild(lockKeys.row);
+    host.appendChild(flags);
+    host.appendChild(dock);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "The scope assumes a hull that can fly, with RCS propellant, no " +
+                "key held and no autopilot maneuver. It draws the default " +
+                "keys; the game draws the keys you bound. Not shown: CANCEL " +
+                "joins the row while the autopilot is engaged, and RADAR, " +
+                "DRIVE, RCS, STOP, GOTO, ORBIT and FIRE invert while their " +
+                "state is live. A new dock on a living ship leaves the " +
+                "partner flying the pair, so your flight chips go dark " +
+                "until you take the helm."
+        )
+    );
+    update();
+}
+
 const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "aim-decay": initAimDecay,
     "round-travel": initRoundTravel,
@@ -14261,6 +14563,7 @@ const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "stance-ledger": initStanceLedger,
     "advancement-gates": initAdvancementGates,
     "refine-batch": initRefineBatch,
+    "key-row": initKeyRow,
 };
 
 // Hydrate every declared widget on the page. The static fallback content is
