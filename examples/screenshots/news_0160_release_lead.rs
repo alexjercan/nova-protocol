@@ -20,8 +20,8 @@
 //! The seed is pinned for its start: the starting station must be a ring
 //! (it wears [`StationArchetypeType::Ring`]'s style) and its board must post
 //! an Escort the hull can fly. A seed or role that gives any of these up
-//! stops the run, naming it. The board draws by the role's job mix; the
-//! escort loops fly this same seed-2 Military offer.
+//! stops the run, naming it. The board draws by the role's job mix; seed 41
+//! posts a 1,325 cr Escort.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the whole walk with its
@@ -59,7 +59,7 @@ struct Cli {
 
 /// The seed the lead plays: its military start docks at a ring station
 /// whose starter board posts an Escort.
-const WORLD_SEED: u32 = 2;
+const WORLD_SEED: u32 = 41;
 
 /// The start role the lead flies: an armed hull, so the starter board lists
 /// the Escort.
