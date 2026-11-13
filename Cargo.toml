@@ -182,6 +182,15 @@ name = "contraband_sandbox"
 path = "examples/playable/contraband_sandbox.rs"
 required-features = ["debug"]
 
+# A distress rescue by hand: New Game on a pinned seed, the call accepted at
+# its poster, the player 500 m off the caller; --medkit none empties the hold
+# of Medkits for the NO MEDKIT ABOARD refusal. Nothing ends it; under
+# NOVA_AUTOPILOT a smoke walk checks the staging.
+[[example]]
+name = "medkit_rescue_sandbox"
+path = "examples/playable/medkit_rescue_sandbox.rs"
+required-features = ["debug"]
+
 # The Mod Hub and one mod through New Mod, Mod Settings, Package and Import.
 # Nothing ends it; under NOVA_AUTOPILOT a smoke walk does the whole path through
 # real buttons, on a cache of its own.
