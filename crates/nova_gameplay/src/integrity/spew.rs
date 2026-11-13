@@ -376,9 +376,10 @@ const SHARD_CAPACITY: u32 = 1024;
 
 /// The names the per-crater values are written under, in both graphs.
 ///
-/// `bevy_hanabi` adds only the emitter's TRANSLATION to a global-space
-/// particle, never its rotation, so the cone's basis is handed to the graph
-/// as three vectors rather than as the emitter's orientation.
+/// The cone's basis is handed to the graph as three WORLD vectors, and the
+/// emitter is only ever moved, never turned: `bevy_hanabi` carries a
+/// global-space particle through the emitter's whole transform, so a rotated
+/// emitter would turn these vectors a second time.
 const OUTWARD_PROPERTY: &str = "outward";
 const RIGHT_PROPERTY: &str = "right";
 const UP_PROPERTY: &str = "up";

@@ -67,6 +67,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Fixes
 
 - The RCS chip now draws dark while the RCS magazine is empty, as the MATCH chord already did.
+- The railgun wake, PDC muzzle flash, torpedo launch puff and mining sparks now follow the weapon on every heading, and a railgun slug is drawn from the muzzle, not a step ahead of it.
 
 ## [0.17.0] - 2026-11-09
 
