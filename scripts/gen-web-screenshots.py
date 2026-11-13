@@ -308,6 +308,13 @@ CUTS = [
     ("news-0170-theme-picker.png",    "views-1920-picker.png",        "editor_views",          (335, 195, 960, 540)),
     ("news-0170-events-drag.png",     "editor-blocks-drag.png",       "editor_blocks",         (0, 36, 768, 432)),
     ("news-0170-add-search.png",      "editor-shell-add-search.png",  "editor_shell",          (720, 250, 640, 360)),
+    # The v0.18.0 post. Each window is the part of a 1920x1080 walk frame
+    # that holds the line, the row or the form the figure is about.
+    ("news-0180-key-row.png",         "key-hints-weapons.png",        "screenshot_key_hints",   (460, 432, 1152, 648)),
+    ("news-0180-pad-row.png",         "key-hints-pad-weapons.png",    "screenshot_key_hints",   (505, 432, 1152, 648)),
+    ("news-0180-refine.png",          "station-refine-form.png",      "system_station_refine",  (610, 92, 1104, 621)),
+    ("news-0180-contraband.png",      "contraband-dock-refusal.png",  "system_contraband_dock", (320, 350, 1280, 720)),
+    ("news-0180-station-control.png", "job-recover-control.png",      "system_job_recover",     (0, 360, 1280, 720)),
 ]
 
 # Composite output frame (16:9, the figure resolution the capture examples use).
