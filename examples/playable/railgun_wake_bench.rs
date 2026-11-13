@@ -18,12 +18,18 @@
 //! `T` switches off the spread of each frame's particles along the ground the
 //! slug covered, to show the row of puffs a point spawner draws at 15 km/s.
 //!
+//! `B` turns the whole range - lanes, plates and camera - onto another bore
+//! ([`HEADINGS`]). The picture must not change with it: a wake that is right
+//! only down world -Z is handing the particle system a vector in the wrong
+//! frame.
+//!
 //! Hand-run (the bench fires by itself every couple of seconds):
 //! ```text
 //! cargo run --example railgun_wake_bench --features debug
 //! # Enter: volley    F: auto-fire    P: pause    [ ]: slow motion
 //! # 1-3: wake policy    Up/Down + Left/Right: tune (Shift = coarse)
-//! # H haze  J filaments  L light  T spread  G quality  C camera  R reset
+//! # H haze  J filaments  L light  T spread  G quality  C camera  B bore
+//! # R reset
 //! ```
 //!
 //! Two harnessed modes, the fleet's capture idiom:
@@ -69,8 +75,27 @@ const LANE_SPEEDS: [f32; 3] = [250.0, 750.0, 1500.0];
 /// The shipped half-second wake is longer than this behind the two fast
 /// lanes, so on those the whole lane is wake while the slug is in flight and
 /// the tail fades after it is gone. A slug is born at `+LANE_LENGTH / 2` on
-/// its lane and flies down -Z, exactly as a fired slug does.
+/// its lane and flies down the range's -Z, exactly as a fired slug does.
 const LANE_LENGTH: f32 = 240.0;
+
+/// The bores `B` turns the range to: a label, then yaw and pitch in degrees.
+///
+/// World -Z is the one bore a slug's rotation is the identity on, so it is the
+/// one bore that cannot show a wake vector applied in the wrong frame. +X is
+/// where a ship that spawned facing its enemy across the X axis fires, and the
+/// third is on no world axis at all.
+const HEADINGS: [(&str, f32, f32); 3] = [
+    ("-Z", 0.0, 0.0),
+    ("+X", -90.0, 0.0),
+    ("35 yaw 20 pitch", 35.0, 20.0),
+];
+
+/// The rotation that turns the range's own -Z onto bore `index` of
+/// [`HEADINGS`].
+fn heading_rotation(index: usize) -> Quat {
+    let (_, yaw, pitch) = HEADINGS[index];
+    Quat::from_euler(EulerRot::YXZ, yaw.to_radians(), pitch.to_radians(), 0.0)
+}
 
 /// Half of [`LANE_LENGTH`], the lane's start and end.
 const LANE_HALF: f32 = LANE_LENGTH / 2.0;
@@ -151,6 +176,7 @@ fn bench_plugin(app: &mut App) {
         (
             read_keys,
             apply_clock,
+            apply_heading,
             apply_camera,
             fire_volleys,
             tune_wakes,
@@ -235,7 +261,8 @@ impl CameraPose {
     }
 
     /// Position and look-at in engine world units, or `None` for the free-fly
-    /// rig. They are laid out against [`LANE_HALF`], which is Bevy-space.
+    /// rig. They are laid out against [`LANE_HALF`], which is Bevy-space, in
+    /// the range's own frame: [`apply_camera`] turns them with the bore.
     fn pose(self) -> Option<(Vec3, Vec3)> {
         match self {
             // At bevy's 45 degree vertical fov and 16:9 the whole lane fits
@@ -427,6 +454,8 @@ struct Bench {
     /// Index into [`Tune::ALL`]: the slider the arrows move.
     selected: usize,
     camera: CameraPose,
+    /// Index into [`HEADINGS`]: the bore the range is turned to.
+    heading: usize,
 }
 
 impl Default for Bench {
@@ -453,6 +482,7 @@ impl Default for Bench {
             speed_step: 0,
             selected: 0,
             camera: CameraPose::default(),
+            heading: 0,
         }
     }
 }
@@ -501,6 +531,10 @@ impl Default for VolleyClock {
 #[derive(Component, Clone, Copy, Debug)]
 struct LaneSlug(usize);
 
+/// The parent of every plate and deck, so one rotation turns the range.
+#[derive(Component)]
+struct RangeRoot;
+
 /// Where a lane's middle sits.
 fn lane_origin(lane: usize) -> Vec3 {
     LANE_STEP * (lane as f32 - 1.0)
@@ -526,6 +560,14 @@ fn load_scene(
     });
     let plate_mesh = meshes.add(Cuboid::from_size(PLATE_SIZE));
     let deck_mesh = meshes.add(Cuboid::from_size(DECK_SIZE));
+    let root = commands
+        .spawn((
+            Name::new("Range Root"),
+            RangeRoot,
+            Transform::default(),
+            Visibility::default(),
+        ))
+        .id();
 
     for lane in 0..LANE_SPEEDS.len() {
         let origin = lane_origin(lane);
@@ -535,6 +577,7 @@ fn load_scene(
                 Mesh3d(plate_mesh.clone()),
                 MeshMaterial3d(plate_material.clone()),
                 Transform::from_translation(origin + Vec3::new(-PLATE_STANDOFF, 0.0, station)),
+                ChildOf(root),
             ));
         }
         commands.spawn((
@@ -542,6 +585,7 @@ fn load_scene(
             Mesh3d(deck_mesh.clone()),
             MeshMaterial3d(plate_material.clone()),
             Transform::from_translation(origin + Vec3::new(-1.0, -DECK_DROP, 0.0)),
+            ChildOf(root),
         ));
         spawn_lane_label(&mut commands, lane);
     }
@@ -607,16 +651,18 @@ fn fire_volleys(
     clock.requested = false;
     clock.since_last = 0.0;
 
+    let heading = heading_rotation(bench.heading);
     for (lane, &speed) in LANE_SPEEDS.iter().enumerate() {
-        let start = lane_origin(lane) + Vec3::Z * LANE_HALF;
+        let start = heading * (lane_origin(lane) + Vec3::Z * LANE_HALF);
         // The production slug's own components, minus damage: there is
-        // nothing on the range to hit.
+        // nothing on the range to hit. Its rotation is its bore, as the
+        // weapon spawns it.
         commands.spawn((
             Name::new(format!("Bench Slug {lane}")),
             RailgunSlugProjectileMarker,
             LaneSlug(lane),
-            Transform::from_translation(start),
-            RoundVelocity(Vec3::NEG_Z * speed),
+            Transform::from_translation(start).with_rotation(heading),
+            RoundVelocity(heading * Vec3::NEG_Z * speed),
             TempEntity(LANE_LENGTH / speed),
             Visibility::Visible,
         ));
@@ -732,9 +778,13 @@ fn read_keys(
             .unwrap_or(0);
         bench.camera = CameraPose::ALL[(index + 1) % CameraPose::ALL.len()];
     }
+    if keys.just_pressed(KeyCode::KeyB) {
+        bench.heading = (bench.heading + 1) % HEADINGS.len();
+    }
     if keys.just_pressed(KeyCode::KeyR) {
         *bench = Bench {
             camera: bench.camera,
+            heading: bench.heading,
             ..Bench::default()
         };
     }
@@ -788,6 +838,20 @@ fn apply_clock(
     }
 }
 
+/// Turn the plates and decks onto the chosen bore. Slugs already in flight
+/// keep the bore they were fired on.
+fn apply_heading(bench: Res<Bench>, mut q_root: Query<&mut Transform, With<RangeRoot>>) {
+    if !bench.is_changed() {
+        return;
+    }
+    let heading = heading_rotation(bench.heading);
+    for mut transform in &mut q_root {
+        if transform.rotation != heading {
+            transform.rotation = heading;
+        }
+    }
+}
+
 /// Pin the scenario camera to the chosen framing, or hand it back to the
 /// free-fly rig.
 ///
@@ -803,6 +867,7 @@ fn apply_camera(
     if !bench.is_changed() && q_new.is_empty() {
         return;
     }
+    let heading = heading_rotation(bench.heading);
     for camera in &q_camera {
         match bench.camera.pose() {
             Some((position, look_at)) => {
@@ -810,8 +875,8 @@ fn apply_camera(
                     .entity(camera)
                     .remove::<WASDCameraController>()
                     .insert(ScriptedCameraPose {
-                        position: Meters3::from_engine(position),
-                        look_at: Meters3::from_engine(look_at),
+                        position: Meters3::from_engine(heading * position),
+                        look_at: Meters3::from_engine(heading * look_at),
                     });
             }
             None => {
@@ -899,8 +964,9 @@ fn update_readout(
     let on = |flag: bool| if flag { "on" } else { "off" };
     let mut lines = vec![
         format!(
-            "RAILGUN WAKE BENCH   policy {}   quality {}   lights {}/{}   time {}x{}",
+            "RAILGUN WAKE BENCH   policy {}   bore {}   quality {}   lights {}/{}   time {}x{}",
             bench.policy.label(),
+            HEADINGS[bench.heading].0,
             budget.preset().map_or("Custom", GraphicsQuality::label),
             q_lit.iter().count(),
             budget.transient_lights,
@@ -931,7 +997,7 @@ fn update_readout(
         on(bench.spread),
     ));
     lines.push(format!(
-        "[1-3] policy   [Enter] volley   [F] auto-fire {}   [P] pause   [ [ ] ] slow motion   [C] camera {}   [G] quality   [R] reset",
+        "[1-3] policy   [Enter] volley   [F] auto-fire {}   [P] pause   [ [ ] ] slow motion   [C] camera {}   [B] bore   [G] quality   [R] reset",
         on(bench.auto_fire),
         bench.camera.label(),
     ));
@@ -957,7 +1023,8 @@ fn place_lane_labels(
     for (label, mut text, mut node, mut visibility) in &mut q_labels {
         let speed = LANE_SPEEDS[label.0];
         **text = lane_line(&bench, speed);
-        let anchor = lane_origin(label.0) + Vec3::Y * LABEL_LIFT;
+        let anchor =
+            heading_rotation(bench.heading) * (lane_origin(label.0) + Vec3::Y * LABEL_LIFT);
         match camera.world_to_viewport(camera_transform, anchor) {
             Ok(position) => {
                 node.left = Val::Px(position.x - LABEL_WIDTH / 2.0);
@@ -1044,6 +1111,8 @@ fn loop_cut() -> bool {
 struct Shot {
     policy: WakePolicy,
     camera: CameraPose,
+    /// Index into [`HEADINGS`]: the bore the range is turned to.
+    heading: usize,
     quality: GraphicsQuality,
     /// The lane whose slug the shutter waits on.
     lane: usize,
@@ -1061,14 +1130,16 @@ struct Shot {
 
 /// The shots, in order: one wide frame per policy, then the shipped policy
 /// from the two closer poses, each layer of the wake alone from the close
-/// pose, and the close pose again on the Medium and Low presets.
+/// pose, the close pose again on the Medium and Low presets, and last the wide
+/// and close poses with the range turned to each other bore of [`HEADINGS`].
 #[cfg(feature = "debug")]
-const SHOTS: [Shot; 9] = [
+const SHOTS: [Shot; 13] = [
     // 1.6 km at 15 km/s is 0.107 s of flight: the slowest slug has covered
     // 270 m and every lane is in flight.
     Shot {
         policy: WakePolicy::FixedLifetime,
         camera: CameraPose::Wide,
+        heading: 0,
         quality: GraphicsQuality::High,
         lane: 2,
         travel: 160.0,
@@ -1079,6 +1150,7 @@ const SHOTS: [Shot; 9] = [
     Shot {
         policy: WakePolicy::FixedDistance,
         camera: CameraPose::Wide,
+        heading: 0,
         quality: GraphicsQuality::High,
         lane: 2,
         travel: 160.0,
@@ -1089,6 +1161,7 @@ const SHOTS: [Shot; 9] = [
     Shot {
         policy: WakePolicy::ClampedLifetime,
         camera: CameraPose::Wide,
+        heading: 0,
         quality: GraphicsQuality::High,
         lane: 2,
         travel: 160.0,
@@ -1099,6 +1172,7 @@ const SHOTS: [Shot; 9] = [
     Shot {
         policy: WakePolicy::FixedLifetime,
         camera: CameraPose::Chase,
+        heading: 0,
         quality: GraphicsQuality::High,
         lane: 2,
         travel: 120.0,
@@ -1111,6 +1185,7 @@ const SHOTS: [Shot; 9] = [
     Shot {
         policy: WakePolicy::FixedLifetime,
         camera: CameraPose::Close,
+        heading: 0,
         quality: GraphicsQuality::High,
         lane: 1,
         travel: 148.0,
@@ -1121,6 +1196,7 @@ const SHOTS: [Shot; 9] = [
     Shot {
         policy: WakePolicy::FixedLifetime,
         camera: CameraPose::Close,
+        heading: 0,
         quality: GraphicsQuality::High,
         lane: 1,
         travel: 148.0,
@@ -1131,6 +1207,7 @@ const SHOTS: [Shot; 9] = [
     Shot {
         policy: WakePolicy::FixedLifetime,
         camera: CameraPose::Close,
+        heading: 0,
         quality: GraphicsQuality::High,
         lane: 1,
         travel: 148.0,
@@ -1141,6 +1218,7 @@ const SHOTS: [Shot; 9] = [
     Shot {
         policy: WakePolicy::FixedLifetime,
         camera: CameraPose::Close,
+        heading: 0,
         quality: GraphicsQuality::Medium,
         lane: 1,
         travel: 148.0,
@@ -1153,12 +1231,60 @@ const SHOTS: [Shot; 9] = [
     Shot {
         policy: WakePolicy::FixedLifetime,
         camera: CameraPose::Close,
+        heading: 0,
         quality: GraphicsQuality::Low,
         lane: 1,
         travel: 148.0,
         haze: true,
         filaments: true,
         path: "railgun-wake-close-low.png",
+    },
+    // The same two framings on the other bores. The camera turns with the
+    // range, so each of these must match its -Z frame above: a wake that lies
+    // across the lane here is a wake vector applied in the wrong frame.
+    Shot {
+        policy: WakePolicy::FixedLifetime,
+        camera: CameraPose::Wide,
+        heading: 1,
+        quality: GraphicsQuality::High,
+        lane: 2,
+        travel: 160.0,
+        haze: true,
+        filaments: true,
+        path: "railgun-wake-bore-x-wide.png",
+    },
+    Shot {
+        policy: WakePolicy::FixedLifetime,
+        camera: CameraPose::Close,
+        heading: 1,
+        quality: GraphicsQuality::High,
+        lane: 1,
+        travel: 148.0,
+        haze: true,
+        filaments: true,
+        path: "railgun-wake-bore-x-close.png",
+    },
+    Shot {
+        policy: WakePolicy::FixedLifetime,
+        camera: CameraPose::Wide,
+        heading: 2,
+        quality: GraphicsQuality::High,
+        lane: 2,
+        travel: 160.0,
+        haze: true,
+        filaments: true,
+        path: "railgun-wake-bore-oblique-wide.png",
+    },
+    Shot {
+        policy: WakePolicy::FixedLifetime,
+        camera: CameraPose::Close,
+        heading: 2,
+        quality: GraphicsQuality::High,
+        lane: 1,
+        travel: 148.0,
+        haze: true,
+        filaments: true,
+        path: "railgun-wake-bore-oblique-close.png",
     },
 ];
 
@@ -1178,17 +1304,18 @@ fn budget_follows(quality: GraphicsQuality) -> Arc<Predicate> {
 }
 
 /// Advance once the slug on `lane` has flown `travel` engine world units down
-/// it.
+/// it, on whichever bore the range is turned to.
 #[cfg(feature = "debug")]
 fn slug_flew(lane: usize, travel: f32) -> Arc<Predicate> {
     let reached = LANE_HALF - travel;
     Arc::new(move |world: &World| {
+        let to_range = heading_rotation(world.resource::<Bench>().heading).inverse();
         world
             .try_query::<(&LaneSlug, &Transform)>()
             .is_some_and(|mut query| {
-                query
-                    .iter(world)
-                    .any(|(slug, transform)| slug.0 == lane && transform.translation.z <= reached)
+                query.iter(world).any(|(slug, transform)| {
+                    slug.0 == lane && (to_range * transform.translation).z <= reached
+                })
             })
     })
 }
@@ -1306,6 +1433,7 @@ fn bench_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
         let Shot {
             policy,
             camera,
+            heading,
             quality,
             lane,
             travel,
@@ -1314,11 +1442,17 @@ fn bench_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSta
             path,
         } = shot;
         script = script
-            .step(format!("select {} from {}", policy.label(), camera.label()))
+            .step(format!(
+                "select {} from {} on bore {}",
+                policy.label(),
+                camera.label(),
+                HEADINGS[heading].0
+            ))
             .on_enter(move |world: &mut World| {
                 let mut bench = world.resource_mut::<Bench>();
                 bench.policy = policy;
                 bench.camera = camera;
+                bench.heading = heading;
                 bench.haze = haze;
                 bench.filaments = filaments;
                 bench.speed_step = CAPTURE_SPEED_STEP;

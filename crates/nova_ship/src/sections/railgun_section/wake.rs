@@ -35,9 +35,13 @@
 //! last spawn, and born that much older ([`count_railgun_wake_spawns`]), so
 //! the wake is one continuous line at any speed and any frame rate.
 //!
-//! Hanabi's global simulation space adds the emitter's TRANSLATION to a new
-//! particle and nothing else, so everything the graph is handed is in world
-//! orientation: the segment back to the last spawn, and the axis of flight.
+//! Hanabi's global simulation space carries a new particle's position and
+//! velocity through the emitter's WHOLE transform, rotation and scale as well
+//! as translation. Everything the graph is handed is in world orientation -
+//! the segment back to the last spawn, and the axis of flight - so an emitter
+//! takes its slug's TRANSLATION and never its rotation. An emitter that wore
+//! the slug's rotation turned those world vectors a second time, and the wake
+//! lay across every bore that was not world -Z.
 //!
 //! # The light
 //!
@@ -253,6 +257,9 @@ pub struct RailgunWakeSpawner<'w> {
 
 impl RailgunWakeSpawner<'_> {
     /// Spawn both layers of a wake following `slug`, which is at `transform`.
+    ///
+    /// The emitters stand at the slug's translation with no rotation of their
+    /// own: see the module docs.
     pub fn spawn(
         &mut self,
         commands: &mut Commands,
@@ -280,7 +287,7 @@ impl RailgunWakeSpawner<'_> {
                     remainder: 0.0,
                     retiring: false,
                 },
-                transform,
+                Transform::from_translation(transform.translation),
                 ParticleEffect::new(self.art.handle(layer, &mut self.effects)),
                 EffectMaterial {
                     images: vec![mask.clone()],
@@ -343,8 +350,8 @@ fn owed_particles(covered: f32, per_unit: f32, remainder: f32) -> (u32, f32) {
     ((count as u32).min(WAKE_SPAWN_CAP), wanted - count)
 }
 
-/// Ride each emitter on its slug and hand it the frame's properties; retire
-/// the ones whose slug has gone without one.
+/// Ride each emitter on its slug's position and hand it the frame's
+/// properties; retire the ones whose slug has gone without one.
 pub(super) fn follow_railgun_wakes(
     mut commands: Commands,
     time: Res<Time>,
@@ -376,7 +383,7 @@ pub(super) fn follow_railgun_wakes(
             continue;
         };
 
-        *transform = *slug;
+        transform.translation = slug.translation;
         emitter.anchor_age += time.delta_secs();
         paint_wake(&emitter, *slug, &mut properties);
     }
@@ -416,7 +423,7 @@ pub(super) fn close_railgun_wakes(
         if emitter.slug != slug || emitter.retiring {
             continue;
         }
-        *transform = final_pose;
+        transform.translation = final_pose.translation;
         emitter.retiring = true;
         paint_wake(&emitter, final_pose, &mut properties);
         retire_after_the_last_particle(&mut commands, entity, &emitter);
@@ -437,9 +444,9 @@ fn retire_after_the_last_particle(
 
 /// Hand one emitter the values this frame's particles are born with.
 fn paint_wake(emitter: &RailgunWakeEmitter, pose: Transform, properties: &mut EffectProperties) {
-    // World vectors, because that is the frame the particles are born in
-    // (see the module docs). Zero puts every spawn at the emitter, which
-    // is the clustering the spread exists to remove.
+    // World vectors, which the unrotated emitter hands to the particles as
+    // they are (see the module docs). Zero puts every spawn at the emitter,
+    // which is the clustering the spread exists to remove.
     let back = if emitter.tuning.spread {
         emitter.anchor - pose.translation
     } else {
@@ -853,6 +860,74 @@ mod tests {
         assert!(
             app.world().get::<TempEntity>(emitter).is_some(),
             "a retired emitter must be given a lifetime of its own"
+        );
+    }
+
+    /// The graph is handed world-space vectors, and hanabi turns whatever it is
+    /// handed by the emitter's own rotation. An emitter that copied the slug's
+    /// rotation turned them twice: on a bore along world +X the haze lay
+    /// across the line of flight. Down world -Z a slug's rotation is the
+    /// identity, which is why no range on that bore showed it.
+    #[test]
+    fn a_wake_on_a_yawed_bore_keeps_its_emitter_unrotated_and_its_vectors_in_world_space() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.add_systems(Update, follow_railgun_wakes);
+
+        // Bore along world +X, one step of flight from the origin.
+        let bore = Quat::from_rotation_y(-std::f32::consts::FRAC_PI_2);
+        let flown = Transform::from_xyz(24.0, 0.0, 0.0).with_rotation(bore);
+        let slug = app
+            .world_mut()
+            .spawn((RailgunSlugProjectileMarker, flown))
+            .id();
+        let emitter = app
+            .world_mut()
+            .spawn((
+                RailgunWakeEmitter {
+                    slug,
+                    layer: RailgunWakeLayer::Filaments,
+                    tuning: RailgunWakeTuning::default(),
+                    anchor: Vec3::ZERO,
+                    anchor_age: 0.0,
+                    remainder: 0.0,
+                    retiring: false,
+                },
+                Transform::default(),
+                EffectProperties::default(),
+            ))
+            .id();
+
+        app.update();
+
+        let transform = app.world().get::<Transform>(emitter).unwrap();
+        assert_eq!(
+            transform.translation, flown.translation,
+            "the emitter must stand where the slug is"
+        );
+        assert_eq!(
+            transform.rotation,
+            Quat::IDENTITY,
+            "the emitter must not wear the slug's rotation"
+        );
+
+        let properties = app.world().get::<EffectProperties>(emitter).unwrap();
+        let stored = |name: &str| {
+            properties
+                .get_stored(name)
+                .unwrap_or_else(|| panic!("property {name} was not painted"))
+                .as_vector()
+                .as_vec3()
+        };
+        assert!(
+            stored("axis").abs_diff_eq(Vec3::NEG_X, 1.0e-4),
+            "the wake must run back along world -X, got {}",
+            stored("axis")
+        );
+        assert!(
+            stored("back").abs_diff_eq(Vec3::new(-24.0, 0.0, 0.0), 1.0e-4),
+            "the segment must reach back to the last spawn in world space, got {}",
+            stored("back")
         );
     }
 
