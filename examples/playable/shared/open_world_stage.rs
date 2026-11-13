@@ -327,6 +327,36 @@ pub fn jump_to(world: &mut World, ship: Entity, at: Meters3) {
     ));
 }
 
+/// Jump `ship` to `at`, at rest, bow along `forward` (engine axes), with the
+/// flight rig on the same heading: left on the old heading, the rig turns the
+/// hull back the moment the jump lands.
+pub fn jump_facing(world: &mut World, ship: Entity, at: Meters3, forward: Vec3) {
+    let up = if forward.cross(Vec3::Y).length_squared() < 1e-6 {
+        Vec3::Z
+    } else {
+        Vec3::Y
+    };
+    let turn = Transform::IDENTITY.looking_to(forward, up).rotation;
+    world.entity_mut(ship).insert((
+        Position(at.to_engine()),
+        Rotation(turn),
+        LinearVelocity::ZERO,
+        AngularVelocity::ZERO,
+    ));
+    let rigs: Vec<Entity> = world
+        .query_filtered::<Entity, With<PointRotationOutput>>()
+        .iter(world)
+        .collect();
+    for rig in rigs {
+        world.entity_mut(rig).insert((
+            PointRotation {
+                initial_rotation: turn,
+            },
+            PointRotationOutput(turn),
+        ));
+    }
+}
+
 /// Jump `ship` `distance` from `target` toward the origin, at rest, so the
 /// target's window streams in around it.
 pub fn park_beside(world: &mut World, ship: Entity, target: Meters3, distance: Meters) {

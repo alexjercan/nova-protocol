@@ -191,6 +191,15 @@ name = "medkit_rescue_sandbox"
 path = "examples/playable/medkit_rescue_sandbox.rs"
 required-features = ["debug"]
 
+# The scenario job, stance, sector and refusal blocks by hand: New Game under
+# the open world plus handlers that answer each event with a comms line;
+# --start edge starts 300 m inside a sector face. Nothing ends it; under
+# NOVA_AUTOPILOT a smoke walk checks the posted job or the counted crossing.
+[[example]]
+name = "scenario_vocabulary_sandbox"
+path = "examples/playable/scenario_vocabulary_sandbox.rs"
+required-features = ["debug"]
+
 # The Mod Hub and one mod through New Mod, Mod Settings, Package and Import.
 # Nothing ends it; under NOVA_AUTOPILOT a smoke walk does the whole path through
 # real buttons, on a cache of its own.

@@ -39,7 +39,7 @@
 #[path = "shared/open_world_stage.rs"]
 mod open_world_stage;
 
-use avian3d::prelude::{AngularVelocity, LinearVelocity, Position, Rotation};
+use avian3d::prelude::{LinearVelocity, Position};
 use bevy::prelude::*;
 use clap::{Parser, ValueEnum};
 use diagnostics::{palette, DiagnosticsGizmos, DiagnosticsPanel, DiagnosticsSystems};
@@ -231,28 +231,8 @@ fn set_the_hold(world: &mut World, player: Entity, fixture: MedkitFixtureType) {
 /// rest, bow on the caller.
 fn stand_off_the_caller(world: &mut World, player: Entity, caller: Vec3, poster: Vec3) {
     let back = (poster - caller).normalize_or(Vec3::Z);
-    let at = caller + back * CALLER_STANDOFF.to_engine();
-    let turn = Transform::IDENTITY.looking_to(-back, Vec3::Y).rotation;
-    world.entity_mut(player).insert((
-        Position(at),
-        Rotation(turn),
-        LinearVelocity::ZERO,
-        AngularVelocity::ZERO,
-    ));
-    // Left on the berth heading, the rig turns the hull away from the
-    // caller the moment the jump lands.
-    let rigs: Vec<Entity> = world
-        .query_filtered::<Entity, With<PointRotationOutput>>()
-        .iter(world)
-        .collect();
-    for rig in rigs {
-        world.entity_mut(rig).insert((
-            PointRotation {
-                initial_rotation: turn,
-            },
-            PointRotationOutput(turn),
-        ));
-    }
+    let at = Meters3::from_engine(caller + back * CALLER_STANDOFF.to_engine());
+    open_world_stage::jump_facing(world, player, at, -back);
 }
 
 /// Advance the staging one phase at a time.
