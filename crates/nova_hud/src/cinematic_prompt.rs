@@ -30,7 +30,7 @@ use nova_ui::{
     widget::ThemedRadius,
 };
 
-use super::keybind_dock::prelude::{KeybindDockMarker, DOCK_BOTTOM_PX};
+use super::keybind_dock::{dock_top_px, LaidOutDock};
 
 /// The `CinematicPrompt` resource.
 pub mod prelude {
@@ -169,19 +169,11 @@ fn sync_cinematic_prompt(
 /// invisible here, because control is suspended for the scene the prompt is
 /// offering to leave, so the dock's contents are not changing under it.
 fn keep_the_prompt_clear_of_the_dock(
-    q_dock: Query<(&ComputedNode, &InheritedVisibility), With<KeybindDockMarker>>,
+    q_dock: LaidOutDock,
     mut q_row: Query<&mut Node, With<CinematicPromptMarker>>,
 ) {
-    let dock = q_dock
-        .iter()
-        .filter(|(_, visible)| visible.get())
-        .map(|(node, _)| node.size().y * node.inverse_scale_factor)
-        .fold(0.0_f32, f32::max);
-    let bottom = Val::Px(if dock > 0.0 {
-        DOCK_BOTTOM_PX + dock + PROMPT_DOCK_GAP_PX
-    } else {
-        PROMPT_BOTTOM_PX
-    });
+    let bottom =
+        Val::Px(dock_top_px(&q_dock).map_or(PROMPT_BOTTOM_PX, |top| top + PROMPT_DOCK_GAP_PX));
     for mut node in &mut q_row {
         if node.bottom != bottom {
             node.bottom = bottom;
@@ -195,6 +187,7 @@ mod tests {
     use nova_input::prelude::{ActionBinding, BindingSpec, InputSource};
 
     use super::*;
+    use crate::keybind_dock::prelude::{KeybindDockMarker, DOCK_BOTTOM_PX};
 
     /// The scenario's own binding, as `scenario_bindings` registers it: the
     /// skip FOLLOWS Advance, so the prompt has to print whatever Advance is

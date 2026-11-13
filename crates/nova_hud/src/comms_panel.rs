@@ -30,7 +30,10 @@ use nova_gameplay::{
 };
 use nova_ui::hud::{body_colour, CHIP_BORDER_ALPHA, CHIP_FILL};
 
-use super::{HudSelfDrivenVisibility, HudTier};
+use super::{
+    keybind_dock::{dock_top_px, LaidOutDock},
+    HudSelfDrivenVisibility, HudTier,
+};
 
 /// The `StoryFeed` queue, `StoryLine`, and the comms dwell and fade timing
 /// constants. The accent a line carries is `nova_gameplay`'s, because both
@@ -112,6 +115,12 @@ pub const COMMS_FADE_OUT_SECS: f32 = 0.4;
 const COMMS_BLIP_VOLUME: f32 = 0.22;
 /// Screen-relative panel width. The pixel ceiling keeps ultrawide displays
 /// from turning a transmission into one long subtitle line.
+/// How far off the bottom of the screen the newest card sits with no keybind
+/// dock on screen.
+const COMMS_BOTTOM_PX: f32 = 48.0;
+/// Clearance between the keybind dock's top and the newest card. A hot chip
+/// draws 8 % larger than its slot, which this covers.
+const COMMS_DOCK_GAP_PX: f32 = 8.0;
 const COMMS_PANEL_WIDTH_PERCENT: f32 = 48.0;
 const COMMS_PANEL_MAX_WIDTH_PX: f32 = 960.0;
 /// Square speaker icon size inside a comms card.
@@ -263,6 +272,10 @@ impl Plugin for CommsPanelPlugin {
                 .chain()
                 .in_set(super::NovaHudSystems),
         );
+        app.add_systems(
+            Update,
+            keep_the_cards_clear_of_the_dock.in_set(super::NovaHudSystems),
+        );
     }
 }
 
@@ -281,7 +294,7 @@ fn spawn_comms_panel(mut commands: Commands) {
         Node {
             position_type: PositionType::Absolute,
             left: Val::Px(16.0),
-            bottom: Val::Px(48.0),
+            bottom: Val::Px(COMMS_BOTTOM_PX),
             width: Val::Percent(COMMS_PANEL_WIDTH_PERCENT),
             max_width: Val::Px(COMMS_PANEL_MAX_WIDTH_PX),
             flex_direction: FlexDirection::Column,
@@ -289,6 +302,26 @@ fn spawn_comms_panel(mut commands: Commands) {
             ..default()
         },
     ));
+}
+
+/// Ride above the keybind dock rather than through it.
+///
+/// The panel spans the bottom-left to 48 % of the width and the dock's core
+/// chips end on the screen's centre line, so the two share a strip of screen.
+/// The stack grows upward from its bottom edge, so that edge is the one thing
+/// to place: a clearance above the dock's measured top, and never under the
+/// panel's own floor. A card of any length then clears a row of any height.
+fn keep_the_cards_clear_of_the_dock(
+    q_dock: LaidOutDock,
+    mut q_panel: Query<&mut Node, With<CommsPanelMarker>>,
+) {
+    let over_dock = dock_top_px(&q_dock).map_or(0.0, |top| top + COMMS_DOCK_GAP_PX);
+    let bottom = Val::Px(over_dock.max(COMMS_BOTTOM_PX));
+    for mut node in &mut q_panel {
+        if node.bottom != bottom {
+            node.bottom = bottom;
+        }
+    }
 }
 
 /// Feed changes drive the pending queue, bounded by [`COMMS_PENDING_CAP`]; an
@@ -1445,5 +1478,145 @@ mod tests {
             rgb(DISTRESS),
             "the words are the accent LIFTED, not the accent itself"
         );
+    }
+    /// The rig's render target, in physical px (`chip_layout_rig`).
+    const RIG_VIEW: Vec2 = Vec2::new(1280.0, 720.0);
+
+    /// What one card and the key row measure on a real layout pass, in
+    /// physical px with y down.
+    struct CardOverDock {
+        card: Rect,
+        /// The top edge of the highest chip on the row.
+        row_top: f32,
+        /// The bottom edge of the lowest chip on the row.
+        row_bottom: f32,
+        /// The left edge of the first chip on the row.
+        row_left: f32,
+        /// The left edge of the pickup tick column.
+        tick_left: f32,
+    }
+
+    /// The real dock with every verb on the row, the comms panel with one
+    /// card of `text`, and the pickup tick column, laid out at UI scale
+    /// `scale`. With every verb shown the row is the tallest it gets (the AIM
+    /// chip draws a mouse cap) and the furthest left.
+    fn card_over_the_dock(scale: f32, text: &str) -> CardOverDock {
+        use bevy::ecs::system::RunSystemOnce;
+
+        use crate::{
+            chip_layout_rig::{measure, settle},
+            keybind_dock::{keycap_sizing_tests::dock_app, prelude::KeybindDockMarker},
+            pickup_tick::prelude::pickup_tick_hud,
+        };
+
+        let (mut app, chips) = dock_app();
+        app.insert_resource(UiScale(scale));
+        // The rig runs no visibility propagation, and the panel yields only
+        // to a dock that is on screen.
+        let dock = app
+            .world_mut()
+            .query_filtered::<Entity, With<KeybindDockMarker>>()
+            .single(app.world())
+            .expect("the rig spawned one dock");
+        app.world_mut()
+            .entity_mut(dock)
+            .insert(InheritedVisibility::VISIBLE);
+        app.init_resource::<StoryFeed>();
+        app.init_resource::<CommsQueue>();
+        app.world_mut()
+            .run_system_once(spawn_comms_panel)
+            .expect("the panel spawns");
+        app.add_systems(
+            Update,
+            (
+                (
+                    enqueue_new_lines.run_if(resource_changed::<StoryFeed>),
+                    drive_comms_stack,
+                    reconcile_comms_cards,
+                    paint_comms_cards,
+                )
+                    .chain(),
+                keep_the_cards_clear_of_the_dock,
+            ),
+        );
+        let tick = app.world_mut().spawn(pickup_tick_hud()).id();
+        push_line(&mut app, "STATION CONTROL", text, None);
+        // The panel reads the dock's last layout, so its own layout settles a
+        // pass after the dock's.
+        settle(&mut app);
+        settle(&mut app);
+
+        let card = cards_in_stack_order(&mut app);
+        assert_eq!(card.len(), 1, "delivery guard: one card shows");
+        let shown: Vec<Rect> = chips
+            .iter()
+            .filter(|&&chip| app.world().get::<Node>(chip).unwrap().display != Display::None)
+            .map(|&chip| measure(&app, chip).rect)
+            .collect();
+        assert!(!shown.is_empty(), "delivery guard: the row draws chips");
+        CardOverDock {
+            card: measure(&app, card[0]).rect,
+            row_top: shown.iter().map(|chip| chip.min.y).fold(f32::MAX, f32::min),
+            row_bottom: shown.iter().map(|chip| chip.max.y).fold(0.0, f32::max),
+            row_left: shown.iter().map(|chip| chip.min.x).fold(f32::MAX, f32::min),
+            tick_left: measure(&app, tick).rect.min.x,
+        }
+    }
+
+    /// The card and the key row share the bottom-left strip of the screen:
+    /// the panel spans to 48 % of the width and the row's core chips end on
+    /// the centre line. The card gives way upward. Its bottom edge stays
+    /// above the row's measured top for a line that wraps to any length, at
+    /// 100 % and at 150 % UI scale, and it stays left of the pickup tick.
+    #[test]
+    fn a_card_of_any_length_sits_above_the_key_row() {
+        let one = "Docked.";
+        let two = "First delivery logged. A 50 cr bonus is on your account. The board has more \
+                   work.";
+        let three = "First delivery logged. A 50 cr bonus is on your account. The board has \
+                     more work. Open the Jobs pane at this station to take the next one.";
+        for scale in [1.0, 1.5] {
+            let mut last_height = 0.0;
+            for text in [one, two, three] {
+                let found = card_over_the_dock(scale, text);
+                let CardOverDock {
+                    card,
+                    row_top,
+                    row_bottom,
+                    row_left,
+                    tick_left,
+                } = found;
+                assert!(
+                    card.height() > last_height,
+                    "delivery guard: a longer line is a taller card at {scale}: {card:?}"
+                );
+                last_height = card.height();
+                assert!(
+                    RIG_VIEW.y - row_top > COMMS_BOTTOM_PX * scale,
+                    "delivery guard: the row stands over the panel's floor at {scale}: {row_top}"
+                );
+                assert!(
+                    row_left < card.max.x,
+                    "delivery guard: the row reaches under the card at {scale}: {row_left} vs \
+                     {card:?}"
+                );
+                assert!(
+                    card.max.y <= row_top,
+                    "the card prints through the key row at {scale}: {card:?} vs row top {row_top}"
+                );
+                assert!(
+                    card.min.x >= 0.0 && card.min.y >= 0.0 && card.max.x <= RIG_VIEW.x,
+                    "the card leaves the window at {scale}: {card:?}"
+                );
+                assert!(
+                    row_bottom <= RIG_VIEW.y,
+                    "the key row leaves the window at {scale}: {row_bottom}"
+                );
+                assert!(
+                    tick_left >= card.max.x,
+                    "the card reaches the pickup tick column at {scale}: {card:?} vs {tick_left}"
+                );
+            }
+        }
     }
 }

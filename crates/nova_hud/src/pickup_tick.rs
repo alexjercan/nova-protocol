@@ -25,7 +25,7 @@ use nova_ui::hud::{ChipText, ChipTone, CHIP_FONT};
 
 use super::{
     hud_notice::{NOTICE_BOTTOM_PX, NOTICE_MAX_HEIGHT_PX},
-    keybind_dock::prelude::{KeybindDockMarker, DOCK_BOTTOM_PX},
+    keybind_dock::{dock_top_px, LaidOutDock},
     NovaHudSystems,
 };
 
@@ -170,19 +170,10 @@ fn age_pickup_ticks(
 /// Ride above the keybind dock and above the notice box, whichever stands
 /// taller: the dock's height is measured, the notice box's is its ceiling.
 fn keep_the_ticks_clear_of_the_dock(
-    q_dock: Query<(&ComputedNode, &InheritedVisibility), With<KeybindDockMarker>>,
+    q_dock: LaidOutDock,
     mut q_column: Query<&mut Node, With<PickupTickMarker>>,
 ) {
-    let dock = q_dock
-        .iter()
-        .filter(|(_, visible)| visible.get())
-        .map(|(node, _)| node.size().y * node.inverse_scale_factor)
-        .fold(0.0_f32, f32::max);
-    let over_dock = if dock > 0.0 {
-        DOCK_BOTTOM_PX + dock + TICK_GAP_PX
-    } else {
-        0.0
-    };
+    let over_dock = dock_top_px(&q_dock).map_or(0.0, |top| top + TICK_GAP_PX);
     let bottom = Val::Px(over_dock.max(NOTICE_BOTTOM_PX + NOTICE_MAX_HEIGHT_PX + TICK_GAP_PX));
     for mut node in &mut q_column {
         if node.bottom != bottom {

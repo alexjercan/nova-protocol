@@ -93,8 +93,28 @@ use nova_ui::{
 ///
 /// Public because the dock is the floor of the bottom-centre column: anything
 /// else that wants that spot stacks ON it, measuring the row's live height
-/// rather than assuming one (see `cinematic_prompt`).
+/// rather than assuming one (see [`dock_top_px`]).
 pub const DOCK_BOTTOM_PX: f32 = 14.0;
+
+/// The dock root as the last layout pass left it, for [`dock_top_px`].
+pub(crate) type LaidOutDock<'w, 's> =
+    Query<'w, 's, (&'static ComputedNode, &'static InheritedVisibility), With<KeybindDockMarker>>;
+
+/// How far off the bottom of the screen the dock row's top edge is, in
+/// logical px. `None` with no dock on screen: a hidden dock, or one with no
+/// flight rig, which measures zero.
+///
+/// MEASURED, not assumed: the row is as tall as the tallest keycap picture
+/// in it, and a mouse cap stands 13 px over a letter cap. One frame stale by
+/// construction, because it reads the last layout pass.
+pub(crate) fn dock_top_px(q_dock: &LaidOutDock) -> Option<f32> {
+    let height = q_dock
+        .iter()
+        .filter(|(_, visible)| visible.get())
+        .map(|(node, _)| node.size().y * node.inverse_scale_factor)
+        .fold(0.0_f32, f32::max);
+    (height > 0.0).then_some(DOCK_BOTTOM_PX + height)
+}
 
 /// The margin the dock row keeps from the left and right screen edges.
 const DOCK_SIDE_PX: f32 = 12.0;
@@ -2332,7 +2352,7 @@ mod tests {
 /// laid-out `ComputedNode` of a chip's keycap and check it against
 /// INDEPENDENTLY measured art bounds.
 #[cfg(test)]
-mod keycap_sizing_tests {
+pub(crate) mod keycap_sizing_tests {
     use bevy::ecs::system::RunSystemOnce;
 
     use super::{
@@ -2406,7 +2426,7 @@ mod keycap_sizing_tests {
 
     /// A dock laid out for real, with every keycap decoded and the glyph
     /// metrics scanned exactly as asset loading scans them.
-    fn dock_app() -> (App, Vec<Entity>) {
+    pub(crate) fn dock_app() -> (App, Vec<Entity>) {
         let mut app = chip_layout_app();
         app.init_resource::<HudSituations>();
         app.init_resource::<HintEmphasis>();
