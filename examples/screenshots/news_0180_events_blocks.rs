@@ -1,14 +1,16 @@
 //! news_0180_events_blocks: the v0.18.0 news editor still - the Events canvas
-//! of the mod editor on a mod whose scenario is a generated world with three
-//! handlers: `OnStart` spawns the start role as `player`, an `OnJobHandedIn`
-//! hat stands over a `GrantCredits` block, and an `OnDocked` hat stands over
-//! a `PostJob` block whose station is `$id`, the hull docked with.
+//! of the mod editor on a mod whose scenario is a generated world with four
+//! handlers: `OnStart` and `OnResume` each spawn the start role as `player`,
+//! an `OnJobHandedIn` hat stands over a `GrantCredits` block, and an
+//! `OnDocked` hat stands over a `PostJob` block whose station is `$id`, the
+//! hull docked with.
 //!
 //! Boots the shipped app on a profile folder of its own with that mod
 //! installed in it. THE MOD IS WRITTEN BY HAND, in [`CONTENT`]: nobody drags
 //! a block in this walk. The walk opens the mod from the Mod Hub with the
 //! harness pointer, takes the Events tab, checks that the editor draws the
-//! six blocks with none at fault, and shoots the canvas.
+//! eight blocks with none at fault and that the Problems tab lists no error,
+//! and shoots the canvas.
 //!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the walk with its asserts,
@@ -19,7 +21,7 @@
 //! ```text
 //! NOVA_CAPTURE_DIR=target/news-0180-shots NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 \
 //!   cargo run --example news_0180_events_blocks --features debug
-//! # look for: `events blocks: PASS the three handlers draw with no fault`
+//! # look for: `events blocks: PASS the four handlers draw with no fault and no error`
 //! ```
 
 use std::sync::Arc;
@@ -38,7 +40,7 @@ mod open_world_stage;
 #[command(name = "news_0180_events_blocks")]
 #[command(version = "1.0.0")]
 #[command(
-    about = "Capture the v0.18.0 editor still: two job handlers on the Events canvas",
+    about = "Capture the v0.18.0 editor still: the job handlers on the Events canvas",
     long_about = None
 )]
 struct Cli;
@@ -49,6 +51,8 @@ const MOD_ID: &str = "editor_events_blocks";
 /// The mod's one content file. The world is generated, because only a
 /// generated station posts jobs, and `OnStart` spawns the `player` that
 /// `GrantCredits` pays: lint refuses an id that the scenario does not spawn.
+/// The world takes its seed from New Game, so it saves, and lint refuses one
+/// with no `OnResume` handler that spawns the player again.
 const CONTENT: &str = r#"[
     Scenario((
         id: "events_blocks",
@@ -63,6 +67,15 @@ const CONTENT: &str = r#"[
         events: [
             (
                 name: OnStart,
+                once: true,
+                actions: [
+                    SpawnStartRole((
+                        id: "player",
+                    )),
+                ],
+            ),
+            (
+                name: OnResume,
                 once: true,
                 actions: [
                     SpawnStartRole((
@@ -98,10 +111,10 @@ const CONTENT: &str = r#"[
 ]
 "#;
 
-/// The hub row of the mod, and the blocks the three handlers draw: three
-/// hats and one action under each.
+/// The hub row of the mod, and the blocks the four handlers draw: four hats
+/// and one action under each.
 const OPEN: &str = "Hub Row editor_events_blocks";
-const HANDLER_BLOCKS: usize = 6;
+const HANDLER_BLOCKS: usize = 8;
 
 /// The still this producer writes.
 const SHOT: &str = "events-blocks-jobs.png";
@@ -117,7 +130,7 @@ fn install_the_demo_mod() {
     let file = format!("{MOD_ID}.content.ron");
     let manifest = format!(
         "(\n    content: [\n        \"{file}\",\n    ],\n    meta: (\n        name: \"Events Blocks Demo\",\n        \
-         description: \"Three handlers.\",\n        author: \"\",\n        version: \"1.0.0\",\n        \
+         description: \"Four handlers.\",\n        author: \"\",\n        version: \"1.0.0\",\n        \
          dependencies: [],\n        icon: None,\n        screenshots: [],\n    ),\n)\n"
     );
     nova_assets::mod_cache::install_local(
@@ -172,20 +185,14 @@ fn editor(check: impl Fn(&EditorProbe) -> bool + Send + Sync + 'static) -> Arc<P
     Arc::new(move |world: &World| world.get_resource::<EditorProbe>().is_some_and(&check))
 }
 
-/// Panic unless the editor draws the three handlers with no block at fault.
+/// Panic unless the editor draws the four handlers with no block at fault
+/// and the Problems tab lists no error.
 fn assert_the_handlers(world: &mut World) {
     let shell = &world.resource::<EditorProbe>().shell;
     assert_eq!(shell.block_faults, 0, "events blocks: {shell:?}");
     assert_eq!(shell.blocks, HANDLER_BLOCKS, "events blocks: {shell:?}");
-    // TODO: the editor lints the open document as a `Void` world, because the
-    // scenario it lowers for the lint does not carry the file's `world`. The
-    // Problems tab then lists three errors for this valid file. Assert
-    // `shell.errors == 0` here when the lint reads the file's world.
-    info!(
-        "events blocks: PASS the three handlers draw with no fault; the Problems tab lists {} \
-         error(s)",
-        shell.errors
-    );
+    assert_eq!(shell.errors, 0, "events blocks: {shell:?}");
+    info!("events blocks: PASS the four handlers draw with no fault and no error");
 }
 
 fn script() -> AutopilotPlugin<GameStates> {
@@ -208,7 +215,7 @@ fn script() -> AutopilotPlugin<GameStates> {
             editor(|probe| probe.shell.rail_tab == "Events" && probe.shell.blocks > 0),
             BEAT_SECS,
         )
-        .step("events blocks: assert the three handlers")
+        .step("events blocks: assert the four handlers")
         .on_enter(assert_the_handlers)
         .until(frames(SETTLE_FRAMES))
         .add()

@@ -11,10 +11,7 @@ use bevy::{ecs::system::RunSystemOnce, prelude::*};
 use nova_assets::mod_refs::prelude::{map_string_leaves, string_leaves, DEP_SCHEME};
 use nova_mod_format::deps::{transitive_deps, DepGraph};
 use nova_modding::prelude::{Content, ModMeta, BASE_MOD_ID};
-use nova_scenario::prelude::{
-    GeneratedWorldConfig, ScenarioConfig, ScenarioObjectConfig, ScenarioObjectKind,
-    ScenarioWorldType, BOUNDS_AREA_ID,
-};
+use nova_scenario::prelude::{ScenarioConfig, ScenarioObjectConfig, ScenarioObjectKind};
 use nova_ship::prelude::{GameSections, TargetingSettings};
 use nova_ui::theme::UiColorType;
 
@@ -123,7 +120,11 @@ fn lowered_items(
         .as_deref()
         .and_then(|project| project.data.scenario(&id));
     let unsigned = held.map_or_else(Vec::new, |held| unsigned_beacons(held, &world));
-    let world_ids = held.map_or_else(Vec::new, world_ids);
+    // A scenario the mod does not hold yet is new work, on a `Void`.
+    let file = FileFacts {
+        unsigned: &unsigned,
+        world: held.map_or(FileFacts::default().world, |held| &held.world),
+    };
     // A station design the lint refuses is still written: the file is the
     // builder's work, and Play is where a refused station is stopped.
     let fleet = lower_fleet(&q_ships, &nodes);
@@ -135,26 +136,13 @@ fn lowered_items(
     document_content(
         &world_settings(&context, &q_settings),
         &id,
-        FileFacts {
-            unsigned: &unsigned,
-            world_ids: &world_ids,
-        },
+        file,
         world,
         &fleet,
         stations,
         world_script(&context, &script),
         &targeting,
     )
-}
-
-/// The ids `held`'s world brings with it.
-fn world_ids(held: &ScenarioConfig) -> Vec<String> {
-    match &held.world {
-        ScenarioWorldType::Generated(GeneratedWorldConfig {
-            bounds: Some(_), ..
-        }) => vec![BOUNDS_AREA_ID.to_string()],
-        _ => Vec::new(),
-    }
 }
 
 /// The beacons of `world` that state no signature and whose spawn in `held`

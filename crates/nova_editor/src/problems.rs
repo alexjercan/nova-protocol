@@ -1,8 +1,10 @@
 //! Live validation of the document: the Problems tab and the Inspector's
 //! validity word both read [`Problems`].
 //!
-//! The lint runs on the lowered document, the same config Play would load, so a
-//! problem here is one the start gate would raise. It runs when the history
+//! The lint runs on the lowered document: the range Play would load, on the
+//! world the open file states, so a problem here is one the start gate raises
+//! when the game loads the file. Play itself flies every range as a `Void`
+//! ([`crate::scenario::SANDBOX`]). It runs when the history
 //! revision moves, after [`SETTLE_SECS`], and never while a mouse button is
 //! held. A frame with no edit costs one comparison.
 
@@ -26,8 +28,8 @@ use crate::{
     },
     project::{package::asset_findings, ModProject, ProjectData},
     scenario::{
-        lower_fleet, lower_ship, sandbox_scenario, ship_design, world_objects, world_script,
-        world_settings, HullForm,
+        linted_range, lower_fleet, lower_ship, range_scenario, ship_design, world_objects,
+        world_script, world_settings, HullForm,
     },
     station::{short_fault, StationCatalogs},
 };
@@ -341,8 +343,17 @@ impl ProblemSources<'_, '_> {
         }
         let targeting = self.targeting.as_deref().cloned().unwrap_or_default();
         let fleet = lower_fleet(&self.q_ships, &self.nodes);
-        let scenario = self.assets.resolved(sandbox_scenario(
+        // The world is the open file's: no node holds it. A document that no
+        // file stands behind is a `Void`, as a new scenario is.
+        let void = ScenarioWorldType::Void;
+        let world = self
+            .project
+            .as_deref()
+            .and_then(|project| project.data.scenario(project.data.open_scenario()?))
+            .map_or(&void, |held| &held.world);
+        let scenario = self.assets.resolved(range_scenario(
             &world_settings(&self.context, &self.q_settings),
+            linted_range(world),
             world_objects(&self.context, &self.q_objects),
             &fleet,
             world_script(&self.context, &self.script),
@@ -523,10 +534,139 @@ pub(crate) fn reset_problems(mut problems: ResMut<Problems>) {
 
 #[cfg(test)]
 mod tests {
-    use bevy::prelude::*;
+    use std::sync::Arc;
 
-    use super::{named_node, Problem, ProblemSeverityType, Problems};
-    use crate::history::mark_document_switched;
+    use bevy::{ecs::system::RunSystemOnce, prelude::*};
+    use nova_modding::prelude::parse_content;
+
+    use super::{named_node, Problem, ProblemSeverityType, ProblemSources, Problems};
+    use crate::{
+        history::mark_document_switched,
+        project::{
+            tests::{data, open, project_app},
+            verbs::lower_open_document,
+            ContentFile, ModProject, OpenAsset,
+        },
+    };
+
+    /// The scenario id the job fixture writes.
+    const JOBS: &str = "jobs";
+
+    /// Open a hand-written scenario that hears a hand-in, posts a job and
+    /// spawns the start role, on the world `world_line` states. An empty
+    /// line leaves the world out, which is a `Void`.
+    fn open_a_job_scenario(app: &mut App, world_line: &str) {
+        let content = format!(
+            r#"[
+    Scenario((
+        id: "{JOBS}",
+        name: "Jobs",
+        description: "A bonus on a hand-in.",
+        cubemap: "base/textures/cubemap.png",
+        thumbnail: None,
+        {world_line}
+        events: [
+            (name: OnStart, once: true, actions: [SpawnStartRole((id: "player"))]),
+            (name: OnResume, once: true, actions: [SpawnStartRole((id: "player"))]),
+            (name: OnJobHandedIn, once: false, actions: [GrantCredits((ship: "player", amount: 50))]),
+            (
+                name: OnDocked,
+                once: true,
+                actions: [
+                    PostJob((station: "$id", key: "ore_run", item: "IronOre", count: 4, reward_cr: 250)),
+                ],
+            ),
+        ],
+    )),
+]"#
+        );
+        let items = parse_content(content.as_bytes()).expect("the scenario parses");
+        let held = app.world().resource::<ModProject>();
+        let mut project = ModProject {
+            data: Arc::clone(&held.data),
+            on_disk: None,
+            id: None,
+            namespace: held.namespace.clone(),
+            bundle: held.bundle.clone(),
+            migrate: None,
+            seed: None,
+        };
+        let data = project.edit();
+        data.files.push(ContentFile {
+            path: "jobs.content.ron".to_string(),
+            items: items.into_iter().map(Arc::new).collect(),
+        });
+        data.open = Some(OpenAsset::scenario(JOBS));
+        open(app, project);
+    }
+
+    /// The findings on the open document that speak about its world, errors
+    /// and warnings alike.
+    fn world_findings(app: &mut App) -> Vec<Problem> {
+        app.world_mut()
+            .run_system_once(|sources: ProblemSources| sources.lint())
+            .expect("the lint runs")
+            .into_iter()
+            .filter(|problem| {
+                problem.message.contains("world") || problem.message.contains("Generated")
+            })
+            .collect()
+    }
+
+    /// The Problems tab reads the world the open file states. A file on a
+    /// session-seeded generated world may hear a job, post one, spawn the
+    /// start role and answer a Load.
+    #[test]
+    fn a_generated_world_file_may_use_the_job_blocks() {
+        let mut app = project_app();
+        open_a_job_scenario(&mut app, "world: Generated((seed: None, bounds: None)),");
+
+        assert_eq!(world_findings(&mut app), Vec::<Problem>::new());
+    }
+
+    /// The same blocks with no generated world could never run, and the tab
+    /// says so for each.
+    #[test]
+    fn a_void_file_that_uses_the_job_blocks_shows_each_as_an_error() {
+        let mut app = project_app();
+        open_a_job_scenario(&mut app, "");
+
+        let found = world_findings(&mut app);
+
+        for block in ["`OnJobHandedIn`", "`PostJob`", "SpawnStartRole"] {
+            assert!(
+                found.iter().any(|problem| {
+                    problem.severity == ProblemSeverityType::Error
+                        && problem.message.starts_with(block)
+                }),
+                "{block}: {found:#?}"
+            );
+        }
+    }
+
+    /// The document has no node for the world, so a lowering has to keep the
+    /// one the file states.
+    #[test]
+    fn a_lowering_keeps_the_world_of_the_file() {
+        let mut app = project_app();
+        open_a_job_scenario(&mut app, "world: Generated((seed: None, bounds: None)),");
+        let root = app
+            .world()
+            .resource::<crate::node::EditContext>()
+            .scenario()
+            .expect("it opened");
+        app.world_mut()
+            .get_mut::<crate::node::ScenarioNode>(root)
+            .expect("the root holds the settings")
+            .description = "One edit".to_string();
+
+        lower_open_document(app.world_mut());
+
+        let held = data(&app);
+        let scenario = held.scenario(JOBS).expect("the scenario stands");
+        assert_eq!(scenario.description, "One edit");
+        assert!(scenario.world.needs_session(), "{:?}", scenario.world);
+    }
 
     /// A row left over from the asset before the switch names a node that is
     /// gone, and a finding the new asset does not have.

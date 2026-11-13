@@ -674,9 +674,10 @@ pub(crate) fn range_scenario(
     ScenarioConfig {
         description: settings.description.clone(),
         skybox_brightness: settings.skybox_brightness,
+        world: range.file.world.clone(),
         events: range_events(
             range,
-            sandbox_objects(world, fleet, range, targeting),
+            sandbox_objects(world, fleet, range, &script, targeting),
             script,
         ),
         ..ScenarioConfig::new(
@@ -723,30 +724,73 @@ pub(crate) struct Range<'a> {
 }
 
 /// What a scenario's file says about its range that no node holds.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct FileFacts<'a> {
     /// The beacons left to the engine's default signature. A file that leaves
     /// one unset chose that, and writing a measured one back would change how
     /// far the beacon locks.
     pub(crate) unsigned: &'a [String],
-    /// The ids the scenario's world brings with no spawn of its own. A handler
-    /// naming one names something real.
-    pub(crate) world_ids: &'a [String],
+    /// The world the file runs on. The range is built on it, so the lint
+    /// holds each block against the world it would run in.
+    pub(crate) world: &'a ScenarioWorldType,
+}
+
+impl Default for FileFacts<'_> {
+    fn default() -> Self {
+        Self {
+            unsigned: &[],
+            world: &ScenarioWorldType::Void,
+        }
+    }
+}
+
+impl FileFacts<'_> {
+    /// The ids the world brings with no spawn of its own. A handler naming
+    /// one names something real.
+    fn world_ids(&self) -> impl Iterator<Item = String> {
+        let bounded = matches!(
+            self.world,
+            ScenarioWorldType::Generated(GeneratedWorldConfig {
+                bounds: Some(_),
+                ..
+            })
+        );
+        bounded.then(|| BOUNDS_AREA_ID.to_string()).into_iter()
+    }
 }
 
 /// The range Play hands off to: registered so the DEFEAT overlay's Retry can
 /// find it by id, skipped by the picker because it is the editor's stage rather
 /// than installed content, and carrying its hulls inline because nothing has
 /// registered them as prototypes.
+///
+/// A `Void`, whatever world the open file states: Play has no New Game
+/// session, and a session-seeded world cannot arm without one.
 pub(crate) const SANDBOX: Range<'static> = Range {
     id: SANDBOX_ID,
     form: HullForm::Inline,
     flight: true,
     file: FileFacts {
         unsigned: &[],
-        world_ids: &[],
+        world: &ScenarioWorldType::Void,
     },
 };
+
+/// The range the Problems tab lints: the one Play flies, on the world the
+/// open file states.
+///
+/// Play's own range is a `Void`, and on a `Void` the lint refuses every block
+/// that only a generated world serves. The game loads the file on the file's
+/// world, so that is the world its blocks are held against.
+pub(crate) fn linted_range(world: &ScenarioWorldType) -> Range<'_> {
+    Range {
+        file: FileFacts {
+            unsigned: &[],
+            world,
+        },
+        ..SANDBOX
+    }
+}
 
 /// Build the sandbox the editor plays: the range above, with the document in it.
 ///
@@ -778,6 +822,7 @@ fn sandbox_objects(
     mut objects: Vec<ScenarioObjectConfig>,
     fleet: &LoweredFleet,
     range: Range,
+    script: &[ScenarioEventConfig],
     targeting: &TargetingSettings,
 ) -> Vec<ScenarioObjectConfig> {
     let Range { form, flight, .. } = range;
@@ -790,8 +835,10 @@ fn sandbox_objects(
     sign_beacons(&mut objects, spawn, range.file.unsigned, targeting);
     // A document with no player ship still has to be flyable, so Play hands
     // the runtime a bare hull to sit in. Saving one would write a ship node
-    // the builder never added.
-    if (flight && flown.is_none()) || !fleet.player.id.is_empty() {
+    // the builder never added. A script that spawns the start role brings the
+    // player ship itself, and a hull beside it would be a second one.
+    let unflown = flown.is_none() && !spawns_the_start_role(script);
+    if (flight && unflown) || !fleet.player.id.is_empty() {
         objects.push(player_ship(&fleet.player, form));
     }
     // A blank Add Ship is a decision not yet made rather than a zero-section
@@ -806,6 +853,18 @@ fn sandbox_objects(
     );
 
     objects
+}
+
+/// Whether any handler of `script` spawns the start role, however deeply
+/// nested.
+fn spawns_the_start_role(script: &[ScenarioEventConfig]) -> bool {
+    let mut found = false;
+    for action in script.iter().flat_map(|event| &event.actions) {
+        action.walk(&mut |action| {
+            found |= matches!(action, EventActionConfig::SpawnStartRole(_));
+        });
+    }
+    found
 }
 
 /// Whether this object spawns the ship the player flies.
@@ -1344,7 +1403,7 @@ fn range_events(
     let spawned: HashSet<String> = objects
         .iter()
         .map(|object| object.base.id.clone())
-        .chain(range.file.world_ids.iter().cloned())
+        .chain(range.file.world_ids())
         .collect();
     let mut events = vec![ScenarioEventConfig {
         label: None,
@@ -1586,6 +1645,7 @@ mod tests {
             vec![kept],
             &LoweredFleet::default(),
             SANDBOX,
+            &[],
             &TargetingSettings::default(),
         );
 
@@ -1614,6 +1674,7 @@ mod tests {
             default_world_objects(),
             &LoweredFleet::default(),
             SANDBOX,
+            &[],
             &TargetingSettings::default(),
         )
     }
@@ -1724,6 +1785,7 @@ mod tests {
                         flight: false,
                         ..SANDBOX
                     },
+                    &[],
                     &TargetingSettings::default(),
                 ),
             ),
@@ -1736,6 +1798,7 @@ mod tests {
                         flight: false,
                         ..SANDBOX
                     },
+                    &[],
                     &TargetingSettings::default(),
                 ),
             ),
@@ -1787,6 +1850,7 @@ mod tests {
                         world_objects(&context, &q_objects),
                         &lower_fleet(&q_ships, &nodes),
                         SANDBOX,
+                        &[],
                         &TargetingSettings::default(),
                     )
                 },
@@ -2377,6 +2441,7 @@ mod tests {
             default_world_objects(),
             &fleet,
             SANDBOX,
+            &[],
             &TargetingSettings::default(),
         );
         let escort = find(&objects, "ship_2");
@@ -2447,6 +2512,7 @@ mod tests {
             default_world_objects(),
             &fleet,
             SANDBOX,
+            &[],
             &TargetingSettings::default(),
         );
         assert_eq!(
@@ -2533,6 +2599,7 @@ mod tests {
                     default_world_objects(),
                     &lowered,
                     SANDBOX,
+                    &[],
                     &TargetingSettings::default(),
                 ),
                 PLAYER_ID,
