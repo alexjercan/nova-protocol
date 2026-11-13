@@ -29,6 +29,10 @@
 //! #           `station swap intake probe: PASS the swap kept the hold`,
 //! #           `autopilot: cycle complete, no panic`
 //! ```
+//!
+//! With `NOVA_CAPTURE=1 NOVA_CAPTURE_DIR=<dir>` the walk also shoots
+//! `station-swap-intake-card.png`: the Structure catalogue with the wide
+//! intake's card open, before `Swap` is pressed.
 
 use bevy::prelude::*;
 use clap::Parser;
@@ -61,6 +65,11 @@ const STATION_SEEDS: u32 = 32;
 /// Where the player spawns, clear of the yard's clearance; the walk berths
 /// it.
 const PLAYER_POSITION: Meters3 = Meters3::new(0.0, 0.0, 400.0);
+
+/// The still a capture run shoots of the wide intake's card, with `Swap` on
+/// it, before the walk presses it.
+#[cfg(feature = "debug")]
+const CARD_SHOT: &str = "station-swap-intake-card.png";
 
 /// The intake's design section id, and the two parts. `nova_ship` exports no
 /// id for either: fixture ids stay local.
@@ -787,6 +796,11 @@ mod walk {
         .add()
         .step("station swap intake: settle the card")
         .until(frames(SETTLE_FRAMES))
+        .add()
+        .step("station swap intake: shoot the card")
+        .on_enter(|world: &mut World| shoot(world, CARD_SHOT))
+        .until(shot_written(CARD_SHOT))
+        .deadline(SHOT_DEADLINE_SECS)
         .add()
         .click_named(
             "station swap intake: swap the intake for the wide intake",
