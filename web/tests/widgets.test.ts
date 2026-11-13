@@ -8,6 +8,19 @@ import { strict as assert } from "node:assert";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
+    ADVANCEMENT_GATES,
+    ADVANCEMENT_SATURATION_KM,
+    ADVANCEMENT_VARIATION,
+    advancementBand,
+    advancementCurve,
+    advancementRadiusKm,
+    CIVILIZATION_JITTER_KM,
+    CIVILIZATION_LATTICE_KM,
+    gateReach,
+    INFLUENCE_REACH_KM,
+    PART_KNOWN_CHANCE,
+    REFINE_ADVANCEMENT,
+    START_BLOCK_KM,
     ARRIVAL_STANDOFF,
     CHIPS_PER_WIDE_CRATER,
     CHUNK_ACTIVATIONS_PER_FRAME,
@@ -1416,6 +1429,123 @@ console.log("widgets: the corridor scope reproduces the stand bank");
     ]);
     assert.deepEqual(fined.world.civilizations[2].offences, []);
     assert.deepEqual(stances(fined.world), ["Ally", "Ally", "Neutral"]);
+}
+
+// ---- advancement-gates ----------------------------------------------------
+
+// The chart scope's constants and gates are the world generator's and the
+// section builders'.
+{
+    const CIVILIZATIONS = "crates/nova_world_base/src/civilizations.rs";
+    const SECTIONS = "crates/nova_authoring/src/base_content/sections";
+    const rustKm = (name: string): number =>
+        Number(
+            rustSays(
+                CIVILIZATIONS,
+                new RegExp(`const ${name}: Meters = Meters\\(([\\d_.]+)\\);`)
+            ).replace(/_/g, "")
+        ) / 1000;
+    assert.equal(ADVANCEMENT_SATURATION_KM, rustKm("ADVANCEMENT_SATURATION"));
+    assert.equal(CIVILIZATION_LATTICE_KM, rustKm("CIVILIZATION_LATTICE"));
+    assert.equal(CIVILIZATION_JITTER_KM, rustKm("CIVILIZATION_JITTER"));
+    assert.equal(INFLUENCE_REACH_KM, rustKm("INFLUENCE_REACH"));
+    assert.equal(
+        ADVANCEMENT_VARIATION,
+        rustNumber(
+            CIVILIZATIONS,
+            /const ADVANCEMENT_VARIATION: f32 = ([\d.]+);/
+        )
+    );
+    assert.equal(
+        REFINE_ADVANCEMENT,
+        rustNumber(
+            "crates/nova_world_base/src/station_layout.rs",
+            /const REFINE_ADVANCEMENT: f32 = ([\d.]+);/
+        )
+    );
+    assert.equal(
+        PART_KNOWN_CHANCE,
+        rustNumber(
+            "crates/nova_world_base/src/ship_parts.rs",
+            /const KNOWN_CHANCE: f32 = ([\d.]+);/
+        )
+    );
+    // The start looks one lattice step out on each axis: start.rs.
+    assert.equal(
+        rustNumber(
+            "crates/nova_world_base/src/start.rs",
+            /const START_CIVILIZATION_SEARCH: i32 = (\d+);/
+        ),
+        1
+    );
+    assert.equal(Math.round(START_BLOCK_KM), 485);
+    assert.equal(ADVANCEMENT_GATES[0].advancement, REFINE_ADVANCEMENT);
+    const builders: Record<string, string> = {
+        dart_torpedo_section: "torpedo_bay.rs",
+        wide_intake_section: "cargo_intake.rs",
+        long_mining_beam_section: "mining_beam.rs",
+        armoured_controller_section: "controller.rs",
+        wide_docking_port_section: "docking_port.rs",
+        heavy_railgun_section: "railgun.rs",
+    };
+    for (const gate of ADVANCEMENT_GATES.slice(1)) {
+        const file = `${SECTIONS}/${builders[gate.id]}`;
+        // The id constant, then the first `advancement` of the spec that
+        // names it.
+        const constant = rustSays(
+            file,
+            new RegExp(`const (\\w+): &str = "${gate.id}";`)
+        );
+        assert.equal(
+            gate.advancement,
+            rustNumber(
+                file,
+                new RegExp(`id: ${constant},[\\s\\S]*?advancement: ([\\d.]+),`)
+            ),
+            `${gate.id} gate`
+        );
+    }
+}
+
+// The curve reads the ring table of civilizations.rs
+// `advancement_reads_the_ring_table_and_varies_by_a_tenth_of_its_curve`.
+{
+    const table: [number, number][] = [
+        [1 * CIVILIZATION_LATTICE_KM, 0.01],
+        [2 * CIVILIZATION_LATTICE_KM, 0.04],
+        [3 * CIVILIZATION_LATTICE_KM, 0.09],
+        [4 * CIVILIZATION_LATTICE_KM, 0.15],
+        [2000, 0.5],
+        [3000, 0.84],
+        [4000, 1.0],
+    ];
+    for (const [km, expected] of table) {
+        assert.equal(
+            Math.round(advancementCurve(km) * 100) / 100,
+            expected,
+            `${km} km reads ${advancementCurve(km)}`
+        );
+    }
+    assert.equal(advancementCurve(0), 0);
+    assert.equal(advancementCurve(9000), 1, "the curve saturates");
+    // A civilization varies by a tenth of its own curve value, never past 1.
+    const band = advancementBand(2000);
+    assert.ok(Math.abs(band.low - 0.45) < 1e-9 && band.high - 0.55 < 1e-9);
+    assert.equal(advancementBand(4000).high, 1);
+    assert.ok(
+        Math.abs(advancementCurve(advancementRadiusKm(0.25)) - 0.25) < 1e-6
+    );
+    // The start block reads under every v0.18.0 gate, whatever the offset.
+    for (const gate of ADVANCEMENT_GATES)
+        assert.equal(gateReach(START_BLOCK_KM, gate.advancement), "None");
+    // A gate opens to some civilizations first, then to all of them.
+    const first = advancementRadiusKm(REFINE_ADVANCEMENT / 1.1);
+    const every = advancementRadiusKm(REFINE_ADVANCEMENT / 0.9);
+    assert.equal(gateReach(first - 1, REFINE_ADVANCEMENT), "None");
+    assert.equal(gateReach(first + 1, REFINE_ADVANCEMENT), "Some");
+    assert.equal(gateReach(every - 1, REFINE_ADVANCEMENT), "Some");
+    assert.equal(gateReach(every + 1, REFINE_ADVANCEMENT), "All");
+    assert.equal(gateReach(4000, 0.6), "All");
 }
 
 // eslint-disable-next-line no-console

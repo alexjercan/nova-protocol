@@ -2746,6 +2746,24 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     opacity: 0.55;
     border-style: dashed;
 }
+/* The advancement chart: the band the civilizations at one distance read
+   in, and the advancements that open content. A tier line is amber, never
+   red: it is a threshold to reach, not a fault. */
+.widget-mark--spread {
+    fill: var(--phosphor);
+    fill-opacity: 0.16;
+    stroke: none;
+}
+.widget-mark--tier {
+    stroke: var(--amber);
+    stroke-width: 1;
+    stroke-dasharray: 4 4;
+}
+.widget-mark--label-tier {
+    fill: var(--amber);
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
 /* Variant catalogs: editor-catalog-style tables on the wiki section pages,
    shipped prototypes with source-verified stats. The thumb slots reuse the
    .figure__placeholder upgrade path (site.ts), so a capture dropped into
@@ -4398,5 +4416,11 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     .comic-panel--crt::after {
         right: 3px;
         bottom: 3px;
+    }
+    /* The advancement chart draws at half size on a phone, so its text
+       doubles in chart units and reads near 8 px. */
+    [data-widget="advancement-gates"] .widget-mark--axis,
+    [data-widget="advancement-gates"] .widget-mark--label-tier {
+        font-size: 15px;
     }
 }

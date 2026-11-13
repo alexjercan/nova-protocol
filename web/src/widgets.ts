@@ -13556,6 +13556,450 @@ function initStanceLedger(host: HTMLElement): void {
     update();
 }
 
+// ---- v0.18.0: where it opens ----------------------------------------------
+
+// A civilization's advancement by the distance of its centre from the world
+// origin, and what that advancement opens. From
+// crates/nova_world_base/src/civilizations.rs: CIVILIZATION_LATTICE :42,
+// CIVILIZATION_JITTER :45, INFLUENCE_REACH :51, ADVANCEMENT_SATURATION :61,
+// ADVANCEMENT_VARIATION :67, the draw `curve * (1 + offset)` :257-259 and
+// `advancement_curve` :460, a smoothstep (`ramp`, clusters.rs:1207). A New
+// Game starts at a station of the 3x3x3 block of civilizations round the
+// origin (start.rs:48 START_CIVILIZATION_SEARCH). A station offers Refine
+// from REFINE_ADVANCEMENT (station_layout.rs:143, :563) and builds the parts
+// its civilization knows (:495, :565): the parts its advancement opens, each
+// part above advancement 0 on one KNOWN_CHANCE draw (ship_parts.rs:51,
+// `known` :524).
+export const ADVANCEMENT_SATURATION_KM = 4000; // civilizations.rs:61
+export const ADVANCEMENT_VARIATION = 0.1; // civilizations.rs:67
+export const CIVILIZATION_LATTICE_KM = 240; // civilizations.rs:42
+export const CIVILIZATION_JITTER_KM = 40; // civilizations.rs:45
+export const INFLUENCE_REACH_KM = 320; // civilizations.rs:51
+export const REFINE_ADVANCEMENT = 0.25; // station_layout.rs:143
+export const PART_KNOWN_CHANCE = 0.5; // ship_parts.rs:51
+/**
+ * The farthest a civilization of the New Game start block can have its
+ * centre: one lattice step and the whole jitter on each of the three axes.
+ */
+export const START_BLOCK_KM =
+    Math.sqrt(3) * (CIVILIZATION_LATTICE_KM + CIVILIZATION_JITTER_KM);
+
+/** One thing v0.18.0 added that a civilization's advancement opens. */
+export interface AdvancementGate {
+    /** The section id, or `Refine` for the station service. */
+    id: string;
+    name: string;
+    kind: "service" | "section";
+    /** The lowest civilization advancement that opens it. */
+    advancement: number;
+}
+/** In gate order. Each section gate is its builder's `advancement` field. */
+export const ADVANCEMENT_GATES: AdvancementGate[] = [
+    {
+        id: "Refine",
+        name: "Refine service",
+        kind: "service",
+        advancement: REFINE_ADVANCEMENT,
+    },
+    {
+        id: "dart_torpedo_section", // sections/torpedo_bay.rs:398
+        name: "Dart torpedo bay",
+        kind: "section",
+        advancement: 0.25,
+    },
+    {
+        id: "wide_intake_section", // sections/cargo_intake.rs:186
+        name: "Wide Intake",
+        kind: "section",
+        advancement: 0.3,
+    },
+    {
+        id: "long_mining_beam_section", // sections/mining_beam.rs:166
+        name: "Long Mining Beam",
+        kind: "section",
+        advancement: 0.3,
+    },
+    {
+        id: "armoured_controller_section", // sections/controller.rs:107
+        name: "Armoured Controller",
+        kind: "section",
+        advancement: 0.3,
+    },
+    {
+        id: "wide_docking_port_section", // sections/docking_port.rs:157
+        name: "Wide-Gate Docking Port",
+        kind: "section",
+        advancement: 0.3,
+    },
+    {
+        id: "heavy_railgun_section", // sections/railgun.rs:237
+        name: "Heavy Lance",
+        kind: "section",
+        advancement: 0.6,
+    },
+];
+
+/**
+ * The advancement a civilization whose centre lies `km` from the world
+ * origin reads before its seeded offset: `advancement_curve`.
+ */
+export function advancementCurve(km: number): number {
+    const t = Math.min(Math.max(km / ADVANCEMENT_SATURATION_KM, 0), 1);
+    return t * t * (3 - 2 * t);
+}
+
+/**
+ * The advancements the civilizations at `km` read: the curve less a tenth
+ * of itself, up to the curve plus a tenth, never past one. The low end is
+ * reached and the high end is not: the offset is drawn in `[-0.1, 0.1)`.
+ */
+export function advancementBand(km: number): { low: number; high: number } {
+    const curve = advancementCurve(km);
+    return {
+        low: curve * (1 - ADVANCEMENT_VARIATION),
+        high: Math.min(curve * (1 + ADVANCEMENT_VARIATION), 1),
+    };
+}
+
+/** The distance in km at which the curve first reads `advancement`. */
+export function advancementRadiusKm(advancement: number): number {
+    let low = 0;
+    let high = ADVANCEMENT_SATURATION_KM;
+    for (let i = 0; i < 48; i++) {
+        const mid = (low + high) / 2;
+        if (advancementCurve(mid) < advancement) low = mid;
+        else high = mid;
+    }
+    return high;
+}
+
+/** Which of the civilizations at one distance a gate is open to. */
+export type GateReachType = "None" | "Some" | "All";
+
+/**
+ * Whether a gate at `advancement` is open to none, some or all of the
+ * civilizations whose centres lie `km` from the origin.
+ */
+export function gateReach(km: number, advancement: number): GateReachType {
+    const curve = advancementCurve(km);
+    if (curve * (1 - ADVANCEMENT_VARIATION) >= advancement) return "All";
+    // The offset stays under a tenth, so the high end itself is not read.
+    if (Math.min(curve * (1 + ADVANCEMENT_VARIATION), 1) > advancement)
+        return "Some";
+    return "None";
+}
+
+function initAdvancementGates(host: HTMLElement): void {
+    header(
+        host,
+        "Chart scope: where v0.18.0 opens",
+        "Move the fader out from the world origin. The line is the " +
+            "advancement of a civilization whose centre lies that far out, " +
+            "and the band is the tenth each civilization varies by. The " +
+            "ticks under the axis are the rings of civilizations, " +
+            `${CIVILIZATION_LATTICE_KM} km apart.`
+    );
+
+    // Text on this glass is placed by its edge, not its baseline, so the
+    // phone-width style can enlarge it without moving it over a line.
+    const X0 = 40;
+    const X1 = 548;
+    const Y0 = 204;
+    const Y1 = 14;
+    const x = (km: number): number =>
+        X0 + (km / ADVANCEMENT_SATURATION_KM) * (X1 - X0);
+    const y = (advancement: number): number => Y0 - advancement * (Y0 - Y1);
+    const km = (value: number): string => `${numText(value, 0)} km`;
+
+    const svg = svgEl("svg", {
+        viewBox: "0 0 560 232",
+        role: "img",
+        "aria-label":
+            "Civilization advancement against distance from the world " +
+            "origin, with the band each civilization varies in and the " +
+            "advancements that open Refine, the Dart, the second-tier " +
+            "sections and the Heavy Lance.",
+    });
+    // The block a New Game starts in.
+    svg.appendChild(
+        svgEl("rect", {
+            x: String(x(0)),
+            y: String(Y1),
+            width: String(x(START_BLOCK_KM) - x(0)),
+            height: String(Y0 - Y1),
+            class: "widget-mark--band",
+        })
+    );
+    svg.appendChild(
+        svgEl(
+            "text",
+            {
+                x: String(x(0) + 4),
+                y: String(Y1 + 4),
+                "dominant-baseline": "hanging",
+                class: "widget-mark--axis",
+            },
+            "START"
+        )
+    );
+    for (const mark of [0, 0.5, 1]) {
+        svg.appendChild(
+            svgEl("line", {
+                x1: String(X0),
+                y1: String(y(mark)),
+                x2: String(X1),
+                y2: String(y(mark)),
+                class: "widget-mark--grid",
+            })
+        );
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(X0 - 6),
+                    y: String(y(mark)),
+                    "text-anchor": "end",
+                    "dominant-baseline": "middle",
+                    class: "widget-mark--axis",
+                },
+                mark.toFixed(1)
+            )
+        );
+    }
+    for (let ring = 1; ring * CIVILIZATION_LATTICE_KM <= 4000; ring++) {
+        const at = x(ring * CIVILIZATION_LATTICE_KM);
+        svg.appendChild(
+            svgEl("line", {
+                x1: String(at),
+                y1: String(Y0),
+                x2: String(at),
+                y2: String(Y0 + 5),
+                class: "widget-mark--cursor",
+            })
+        );
+    }
+    for (const mark of [0, 1000, 2000, 3000, 4000]) {
+        const last = mark === 4000;
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(last ? X1 : x(mark)),
+                    y: String(Y0 + 9),
+                    "text-anchor": last ? "end" : mark ? "middle" : "start",
+                    "dominant-baseline": "hanging",
+                    class: "widget-mark--axis",
+                },
+                last ? km(mark) : numText(mark, 0)
+            )
+        );
+    }
+    // One dashed line per gate value, named at the right end where the
+    // curve is far above it. The two lowest lines are close, so one name
+    // hangs under its line and the other stands on its own.
+    const gateWords: [number, string, boolean][] = [
+        [0.25, "0.25 Refine, Dart", true],
+        [0.3, "0.30 second tier", false],
+        [0.6, "0.60 Heavy Lance", false],
+    ];
+    for (const [advancement, words, under] of gateWords) {
+        svg.appendChild(
+            svgEl("line", {
+                x1: String(X0),
+                y1: String(y(advancement)),
+                x2: String(X1),
+                y2: String(y(advancement)),
+                class: "widget-mark--tier",
+            })
+        );
+        svg.appendChild(
+            svgEl(
+                "text",
+                {
+                    x: String(X1 - 2),
+                    y: String(y(advancement) + (under ? 4 : -4)),
+                    "text-anchor": "end",
+                    "dominant-baseline": under ? "hanging" : "auto",
+                    class: "widget-mark--label-tier",
+                },
+                words
+            )
+        );
+    }
+    const trace = (reads: (at: number) => number): string[] => {
+        const points: string[] = [];
+        for (let at = 0; at <= ADVANCEMENT_SATURATION_KM; at += 40) {
+            points.push(`${x(at).toFixed(1)},${y(reads(at)).toFixed(1)}`);
+        }
+        return points;
+    };
+    svg.appendChild(
+        svgEl("polygon", {
+            points: [
+                ...trace((at) => advancementBand(at).high),
+                ...trace((at) => advancementBand(at).low).reverse(),
+            ].join(" "),
+            class: "widget-mark--spread",
+        })
+    );
+    svg.appendChild(
+        svgEl("path", {
+            d: `M${trace(advancementCurve).join(" L")}`,
+            class: "widget-mark--now",
+        })
+    );
+    const cursor = svgEl("line", {
+        y1: String(Y1),
+        y2: String(Y0),
+        class: "widget-mark--cursor",
+    });
+    const whisker = svgEl("line", { class: "widget-mark--dwell" });
+    const dot = svgEl("circle", { r: "4", class: "widget-mark--dot-now" });
+    svg.appendChild(cursor);
+    svg.appendChild(whisker);
+    svg.appendChild(dot);
+    const plot = el("div", "widget__plot");
+    plot.appendChild(svg);
+
+    const board = el("div", "widget__stack widget__stack--board");
+    const stats = el("div", "widget__stats");
+    const distanceStat = stat(stats, "distance");
+    const ringStat = stat(stats, "rings out");
+    const readsStat = stat(stats, "civilizations read");
+    const readout = el("p", "widget__readout");
+    readout.setAttribute("aria-live", "polite");
+
+    const fader = control(
+        "civilization centre",
+        0,
+        ADVANCEMENT_SATURATION_KM,
+        20,
+        2 * CIVILIZATION_LATTICE_KM,
+        (value) => `${km(value)} from the origin`,
+        () => update()
+    );
+    const controls = el("div", "widget__controls");
+    controls.appendChild(fader.row);
+
+    const fixed = (value: number): string => value.toFixed(2);
+    // The first distance a gate is open to some and to all, to the 10 km.
+    const opensAt = (gate: AdvancementGate, share: number): string =>
+        km(Math.round(advancementRadiusKm(gate.advancement / share) / 10) * 10);
+    const update = (): void => {
+        const at = Number(fader.input.value);
+        const band = advancementBand(at);
+        const curve = advancementCurve(at);
+        for (const mark of [cursor, whisker]) {
+            mark.setAttribute("x1", String(x(at)));
+            mark.setAttribute("x2", String(x(at)));
+        }
+        whisker.setAttribute("y1", String(y(band.low)));
+        whisker.setAttribute("y2", String(y(band.high)));
+        dot.setAttribute("cx", String(x(at)));
+        dot.setAttribute("cy", String(y(curve)));
+
+        board.replaceChildren();
+        const open: Record<GateReachType, string[]> = {
+            None: [],
+            Some: [],
+            All: [],
+        };
+        for (const gate of ADVANCEMENT_GATES) {
+            const reach = gateReach(at, gate.advancement);
+            open[reach].push(gate.name);
+            const service = gate.kind === "service";
+            const cell = el("div", "widget__cell widget__cell--board");
+            cell.classList.add(
+                reach === "All"
+                    ? "is-live"
+                    : reach === "Some"
+                      ? "is-hit"
+                      : "is-off"
+            );
+            cell.appendChild(el("b", undefined, gate.name));
+            cell.appendChild(
+                el(
+                    "span",
+                    "widget__kind widget__kind--generated",
+                    `${gate.kind.toUpperCase()} AT ${fixed(gate.advancement)} - ` +
+                        (reach === "All"
+                            ? "OPEN"
+                            : reach === "Some"
+                              ? "OPEN TO SOME"
+                              : "CLOSED")
+                )
+            );
+            cell.appendChild(
+                document.createTextNode(
+                    reach === "All"
+                        ? service
+                            ? "every living station this far out refines"
+                            : "open to every civilization this far out; half of them know it"
+                        : reach === "Some"
+                          ? `only where the civilization reads high; all of them from ${opensAt(gate, 1 - ADVANCEMENT_VARIATION)}`
+                          : `first from about ${opensAt(gate, 1 + ADVANCEMENT_VARIATION)}`
+                )
+            );
+            board.appendChild(cell);
+        }
+        distanceStat.textContent = km(at);
+        ringStat.textContent = (at / CIVILIZATION_LATTICE_KM).toFixed(1);
+        // Near the origin the band is narrower than a hundredth.
+        const reads =
+            fixed(band.low) === fixed(band.high)
+                ? `about ${fixed(curve)}`
+                : `${fixed(band.low)} to ${fixed(band.high)}`;
+        readsStat.textContent = reads;
+        const list = (names: string[]): string =>
+            names.length > 2
+                ? `${names.length} of the ${ADVANCEMENT_GATES.length}`
+                : names.join(" and ");
+        const words = [`${km(at)} out a civilization reads ${reads}.`];
+        if (at <= START_BLOCK_KM)
+            words.push(
+                "A New Game starts in this block, so the start station " +
+                    "neither refines nor builds any of these."
+            );
+        if (open.All.length === ADVANCEMENT_GATES.length)
+            words.push("Everything here is open.");
+        else if (open.All.length || open.Some.length)
+            words.push(
+                [
+                    open.All.length ? `Open: ${list(open.All)}.` : "",
+                    open.Some.length ? `Open to some: ${list(open.Some)}.` : "",
+                ]
+                    .filter(Boolean)
+                    .join(" ")
+            );
+        else if (at > START_BLOCK_KM)
+            words.push(
+                "Nothing new opens yet: the first refinery is about " +
+                    `${opensAt(ADVANCEMENT_GATES[0], 1 + ADVANCEMENT_VARIATION)} out.`
+            );
+        readout.textContent = words.join(" ");
+    };
+    host.appendChild(controls);
+    host.appendChild(plot);
+    host.appendChild(board);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "The distance is the civilization's centre, not the station: a " +
+                `civilization keeps stations up to ${INFLUENCE_REACH_KM} km from its ` +
+                "centre, and each one reads its civilization's advancement. " +
+                "A New Game starts at a station of a civilization whose " +
+                `centre is within ${km(Math.round(START_BLOCK_KM))} of the origin. ` +
+                "An open section is not a known one: each civilization " +
+                "knows an open section on one even draw, so about half of " +
+                "them build it. Refine has no draw."
+        )
+    );
+    update();
+}
+
 const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "aim-decay": initAimDecay,
     "round-travel": initRoundTravel,
@@ -13598,6 +14042,7 @@ const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "generated-ship-roles": initGeneratedShipRoles,
     "price-factors": initPriceFactors,
     "stance-ledger": initStanceLedger,
+    "advancement-gates": initAdvancementGates,
 };
 
 // Hydrate every declared widget on the page. The static fallback content is
