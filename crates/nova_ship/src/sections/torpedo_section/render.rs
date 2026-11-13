@@ -983,10 +983,19 @@ pub(super) fn on_torpedo_launch_effect(
         return;
     };
 
+    // Hanabi carries a new particle's velocity through the emitter's whole
+    // transform, and this emitter is a child of the spawner. Both vectors are
+    // therefore handed in the SPAWNER's frame: handed in world space they were
+    // turned a second time, and the puff left along the launch axis only from
+    // a bay that stood unrotated in the world.
+    let to_spawner = spawner_transform.affine().inverse();
+
     // The launch axis is the spawner's forward (`up`), matching the direction
-    // `shoot_spawn_projectile` gives the torpedo. `up()` is already a unit `Dir3`.
-    let normal = spawner_transform.up();
-    properties.set("normal", Vec3::from(normal).into());
+    // `shoot_spawn_projectile` gives the torpedo.
+    let normal = to_spawner
+        .transform_vector3(*spawner_transform.up())
+        .normalize();
+    properties.set("normal", normal.into());
     // The charge leaves with the SHIP. Pinned to zero the puff hung at the
     // point in space the bay had been at, which at any closing speed is a cloud
     // the launching ship drives out of - the same defect the muzzle flash and
@@ -994,6 +1003,7 @@ pub(super) fn on_torpedo_launch_effect(
     let base_velocity = owner
         .and_then(|owner| q_ship_velocity.get(**owner).ok())
         .map_or(Vec3::ZERO, |velocity| velocity.0);
+    let base_velocity = to_spawner.transform_vector3(base_velocity);
     properties.set(BASE_VELOCITY_PROPERTY, base_velocity.into());
 
     effect_spawner.reset();
