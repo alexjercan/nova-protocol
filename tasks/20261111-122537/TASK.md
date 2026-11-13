@@ -196,3 +196,11 @@ flight, and raider acceleration moves the section off the point (raider
 acceleration not logged; unverified). The hauler is lost at 84% hp, likely
 disabled. A close-in walk patch did not help (not committed). Also seen:
 `system_turret_gunnery` stalls 180 s at `track the sweeping gate` on master.
+
+Owner decision 2026-11-13: turrets lead acceleration and velocity
+(`359d260a2`). The "1 of 237" figure above was wrong: the PDC landed 57-60%
+of its rounds on the raider before and 68% after (escort seed 37, GPU, one
+after-run). `system_turret_gunnery` passes again (the sweeping gate stall is
+gone); `stress_point_defense` passes. The escort walks still lose the
+hauler at about t=82 s: raider_0 (8090 hp, never targeted) cuts it from
+1.27 km while the walk keeps the player on raider_1.
