@@ -1048,10 +1048,11 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         ],
     ),
     (
-        "system_contraband_dock",
+        "system_contraband_trade",
         &[
-            "a lawful station refuses a hull that carries contraband",
-            "the lawful station admits the hull once the contraband left",
+            "a lawful station docks a hull that carries contraband",
+            "a lawful station's market refuses a contraband sale",
+            "a station that is not lawful buys contraband at its bid",
         ],
     ),
     (
@@ -1293,7 +1294,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 645;
+const SYSTEMS_INVARIANTS: usize = 646;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///

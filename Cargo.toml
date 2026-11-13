@@ -911,11 +911,12 @@ name = "system_station_refine"
 path = "examples/systems/system_station_refine.rs"
 required-features = ["debug"]
 
-# A living lawful station refuses a hull with one unmarked core in its hold,
-# on the HUD, and docks the same hull once the core left.
+# A living lawful station docks a hull with one unmarked core in its hold and
+# refuses the sale on the Inventory form; a station that is not lawful buys
+# the core at its bid.
 [[example]]
-name = "system_contraband_dock"
-path = "examples/systems/system_contraband_dock.rs"
+name = "system_contraband_trade"
+path = "examples/systems/system_contraband_trade.rs"
 required-features = ["debug"]
 
 # A living generated station's trade and storage through the Inventory pane:
