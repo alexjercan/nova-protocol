@@ -102,8 +102,15 @@ pub(super) fn on_projectile_marker_effect(
     let color = 0xFF000000u32 | ((b as u32) << 16) | ((g as u32) << 8) | (r as u32);
     properties.set("spawn_color", color.into());
 
+    // Hanabi carries a new particle's velocity through the emitter's whole
+    // transform, and this emitter is a child of the muzzle. Both vectors are
+    // therefore handed in the MUZZLE's frame: handed in world space they were
+    // turned a second time, and the flash left along the bore only on a
+    // turret laid down world -Z.
+    let to_muzzle = muzzle_transform.affine().inverse();
+
     // Set the collision normal
-    let normal = normal.normalize();
+    let normal = to_muzzle.transform_vector3(*normal).normalize();
     properties.set("normal", normal.into());
 
     // The gas leaves with the SHIP, not with the round and not with the world.
@@ -118,6 +125,7 @@ pub(super) fn on_projectile_marker_effect(
     let base_velocity = owner
         .and_then(|owner| q_ship_velocity.get(**owner).ok())
         .map_or(Vec3::ZERO, |velocity| velocity.0);
+    let base_velocity = to_muzzle.transform_vector3(base_velocity);
     properties.set(BASE_VELOCITY_PROPERTY, base_velocity.into());
 
     // Spawn the particles
