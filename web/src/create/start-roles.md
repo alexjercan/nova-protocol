@@ -82,7 +82,7 @@ fields, both required:
 | `Recoveries` | `jobs` | the player handed in `jobs` Recover jobs |
 | `StationNetwork` | `stations` | the player handed in Procure or Escort jobs posted by `stations` distinct stations |
 | `KillList` | `hulls` | the player handed in Neutralize jobs naming `hulls` distinct hulls |
-| `Patrols` | `jobs` | the player handed in `jobs` Distress or Escort jobs |
+| `Patrols` | `jobs` | the player handed in `jobs` Distress, Supply or Escort jobs |
 | `Outlaw` | `hulls` | the player's own kills turned a civilization `Enemy` (a seeded `Enemy` does not count) and the player neutralized `hulls` more intact hulls of it while it stands `Enemy`; the kill that flips it does not count, and a settlement or the decay clears the count, see [Civilization stances](../stations/#civilization-stances) |
 
 Every count is a whole number above zero. The base `industrial` role asks

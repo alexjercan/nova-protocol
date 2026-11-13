@@ -18,7 +18,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Gameplay & Flight
 
 - Stations that offer Refine turn 2 iron ore, 1 carbon ore and a 30 cr fee into an alloy plate from the Inventory pane. The waystation refines; generated stations do from advancement 0.25.
-- A distress rescue now takes one Medkit from your hold at the dock with the caller. With none aboard the HUD reads `NO MEDKIT ABOARD` and the call stays open. Stations sell medkits.
+- New Supply job: dock with a stranded caller with the goods it asks for in your hold. Medkits make it a rescue, rations a resupply, ammo a rearm, plates a repair. A short hold says what is missing.
 - Half the civilizations of a generated world are lawful: their station markets buy and sell no Contraband, and the trade form says so. They still dock you. Scavengers deal unmarked cores.
 - Gamepad: L3 + Y docks and L3 + A takes the helm, two caps on the key row. New hulls put torpedoes on LB, the railgun on View and mining on RT; hot weapons turn off pad free look and HUD toggle.
 
@@ -40,7 +40,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 ### Modding & Mod Portal
 
 - `Item` gains optional `refine: Some((inputs, fee_cr))` and station `services` take `Refine`; lint refuses a recipe cheaper than its output's bid. `OnCreditsChanged` gains cause `Refine`.
-- **(breaking)** `Medkit` is now a base role item (`Repair`, 2 kg, 60/45 cr) that a distress rescue spends. A mod item with the id `Medkit` replaces it and must keep category `Repair`.
+- **(breaking)** `Medkit` is now a base role item (`Repair`, 2 kg, 60/45 cr) that a Supply job asks for as a rescue. A mod item with the id `Medkit` replaces it and must keep category `Repair`.
 - Item `category` takes `Contraband`: a lawful generated station's market does not buy or sell it. Base adds `UnmarkedCores` (10 kg, 300/240 cr) and a `Scavenger` `Contraband` price rule.
 - `DockingSectionConfig` gains optional `clamp_sound` and `release_sound`, played once at the port that captured or let go; the base port authors `dock_clamp.wav` and `dock_release.wav`.
 - `RailgunSectionConfig` gains optional `impact_sound`, played where the slug meets its first body in place of the impact table's Pierce row; the base lance authors `railgun_impact.wav`.

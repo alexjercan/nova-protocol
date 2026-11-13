@@ -318,7 +318,7 @@ CUTS = [
     ("news-0180-refine.png",          "station-refine-form.png",      "system_station_refine",  (610, 92, 1104, 621)),
     ("news-0180-contraband.png",      "contraband-trade-refusal.png", "system_contraband_trade", (208, 18, 1504, 846)),
     ("news-0180-station-control.png", "job-recover-control.png",      "system_job_recover",     (0, 360, 1280, 720)),
-    ("news-0180-no-medkit.png",       "job-distress-no-medkit.png",   "system_job_distress",    (320, 360, 1280, 720)),
+    ("news-0180-supply.png",          "job-supply-short.png",         "system_job_supply",      (240, 264, 1440, 810)),
     ("news-0180-second-tier.png",     "station-swap-intake-card.png", "system_station_swap_intake", (0, 0, 1920, 1080)),
     ("news-0180-sector-notice.png",   "sector-first-visit.png",       "news_0180_sector_notice", (320, 360, 1280, 720)),
     ("news-0180-events-blocks.png",   "events-blocks-jobs.png",       "news_0180_events_blocks", (0, 0, 1280, 720)),

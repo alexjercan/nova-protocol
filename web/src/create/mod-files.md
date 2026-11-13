@@ -270,8 +270,8 @@ canister, or a trade may carry the id, mod items included. The base game
 must define eleven role ids that the game itself uses: `HullPlate` feeds a
 repair, the ammunition feeds a weapon's reload, the ores are mining yield,
 generated ship holds draw the two trade goods `Rations` and
-`SalvagedParts`, and a distress rescue takes one `Medkit`. A role id keeps
-its category: `HullPlate` and `Medkit` are `Repair`;
+`SalvagedParts`, and a supply job that asks for `Medkit` reads as a
+rescue. A role id keeps its category: `HullPlate` and `Medkit` are `Repair`;
 `PdcRound`, `RailSlug` and `Torpedo` are `Ammo`; `StoneOre`, `IronOre`,
 `WaterIce` and `CarbonOre` are `Raw`; `Rations` is `Food`; `SalvagedParts`
 is `Parts`. Every item fits one cargo canister, so its `mass_g` is at most

@@ -294,7 +294,7 @@ ids, and any ship's stock, a canister or a trade may carry them the same way.
 The base game must define all eleven ids below, each in its category:
 `HullPlate` feeds a repair, the ammunition a weapon's reload, the ores mining
 yield, generated ship holds draw `Rations` and `SalvagedParts`, and a
-distress rescue takes one `Medkit`. A dependent mod may
+supply job that asks for `Medkit` reads as a rescue. A dependent mod may
 replace one with its own mass and prices, never another category; a mod item
 of its own is generic authored stock. See [Content files](../mod-files/#content-files).
 

@@ -569,21 +569,38 @@ renews; the old offer's Accept is refused as expired.
 
 Each slot draws its kind by the start role's `jobs` mix (see
 [start roles](../start-roles/)), as weights over `Procure`, `Recover`,
-`Escort`, `Distress` and `Neutralize`:
+`Escort`, `Distress`, `Neutralize` and `Supply`:
 
-| mix | roles | Procure | Recover | Escort | Distress | Neutralize |
-|---|---|---|---|---|---|---|
-| `Trade` | industrial, transport; no session | 4 | 1 | 4 | 1 | 1 |
-| `Salvage` | scavenger | 1 | 5 | 1 | 2 | 1 |
-| `Combat` | bounty hunter, military, pirate | 1 | 1 | 1 | 3 | 4 |
+| mix | roles | Procure | Recover | Escort | Distress | Neutralize | Supply |
+|---|---|---|---|---|---|---|---|
+| `Trade` | industrial, transport; no session | 4 | 1 | 4 | 1 | 1 | 1 |
+| `Salvage` | scavenger | 1 | 5 | 1 | 2 | 1 | 2 |
+| `Combat` | bounty hunter, military, pirate | 1 | 1 | 1 | 3 | 4 | 3 |
 
 | kind | title | what it asks | reward |
 |---|---|---|---|
 | `Procure` | `Bring 4 Iron ore` | bring that many units of the item to the poster | the goods at the ask plus half, plus a fee |
 | `Recover` | `Recover 2 Hull plate from <wreck>` | take that many off the named derelict in the cube and undock with them aboard, the wreck's stack gone | twice the ask, plus a fee |
 | `Escort` | `Escort a hauler carrying 1200 cr` | a working-hull hauler spawns 1 km off the poster on a 10 km leg and leaves at 100 m/s once you are undocked and within 1 km of it; see it reach its mark. `1 + cargo / 700` raiders, at most 3, lie in wait 2.5 km off the leg, 75 % along it, and engage within 3 km; they hunt the hauler and turn on a ship that shoots them for as long as it keeps shooting | half the cargo value, plus a fee |
-| `Distress` | `Answer a distress call` | a neutral drifting caller spawns 10 km out: dock with the caller with one `Medkit` role item in the hold. The dock takes it; with none aboard the job stays open and the HUD posts `NO MEDKIT ABOARD` | 200 cr, the `Medkit` reference ask plus half, plus twice a fee |
+| `Distress` | `Answer a distress call` | a neutral drifting caller spawns 10 km out: dock with the caller | 200 cr plus twice a fee |
 | `Neutralize` | `Neutralize <hull>` | neutralize the named Enemy hull standing in the cube | 400 cr plus twice a fee |
+| `Supply` | `Rescue a stranded crew with 3 Medkit` | a neutral drifting caller spawns 10 km out, with none of the asked item aboard: dock with the caller with the whole stack in the hold. The dock takes the stack. With the hold short the dock takes nothing, the job stays open and the HUD posts `JOB-1: SHORT 2 MEDKIT` | 200 cr, the goods at the ask plus half, plus twice a fee |
+
+A `Supply` draws its item from its own pool: every `Food`, `Ammo` and
+`Repair` item, and a `Raw` or `Parts` item that asks at most 20 cr a unit,
+never `Contraband`. It draws the framing first and then an item of that
+framing, so a cheap raw item never crowds out a rescue. The count is 2 to 8
+lots of the item's `price_lot`, capped at the units that fit in 200 kg, the
+smallest start hold, and at least one. The item frames the title and the
+task:
+
+| item | frame | title | task |
+|---|---|---|---|
+| the `Medkit` role | rescue | `Rescue a stranded crew with <n> <item>` | dock with the stranded caller with the stack aboard for its injured crew |
+| `Food` | resupply | `Resupply a stranded ship with <n> <item>` | ... to feed its crew |
+| `Ammo` | rearm | `Rearm a stranded ship with <n> <item>` | ... to refill its magazines |
+| other `Repair` | repair | `Repair a stranded ship with <n> <item>` | ... to patch its breached hull |
+| `Raw`, `Parts` | supply run | `Supply a stranded ship with <n> <item>` | ... to get it under way |
 
 The fee is 50 to 250 cr. The sector's clusters pick the item categories a
 `Procure` or `Recover` asks for:
@@ -612,12 +629,13 @@ while the job is held or completed, while its offer's window has passed
 spawns its hauler and its raiders, and the hauler waits with no helm order
 until the player stands undocked from the poster and within 1 km of the
 hauler, then flies a `Move` to its mark under a 100 m/s cruise cap; a
-`Distress` spawns its caller. A job is DONE when the open world sees its
+`Distress` or a `Supply` spawns its caller. A job is DONE when the open world sees its
 completion over the shipped event kinds: `onundocked` naming the wreck with
 the stack aboard and the wreck's stack gone (`Recover`), `onshipordercomplete`
 for the hauler's `Move` (`Escort`; the hauler neutralized or destroyed, or its
 `Move` failed because it lost its drives or its flight computer, drops the job
-and its bodies), `ondocked` with the caller (`Distress`), `onneutralized` or
+and its bodies), `ondocked` with the caller (`Distress`; a `Supply` with the whole stack in
+the hold, which the dock removes), `onneutralized` or
 `ondestroyed` naming the hull (`Neutralize`). A hand-in needs the posting
 station, the job done (a `Procure` is done with the goods in the hold), and a
 station balance that covers the reward; it removes a `Procure`'s goods, pays

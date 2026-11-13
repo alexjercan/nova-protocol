@@ -1049,7 +1049,10 @@ open world (`nova_world_base`) raises `JobDone` and `JobDropped` with cause
 `Lost`. `loader/bridges.rs` observes the four and fires `OnJobAccepted`,
 `OnJobDone`, `OnJobHandedIn` and `OnJobDropped` from the `Job` each carries,
 through one payload builder, so neither owner names a scenario event and the
-four payloads cannot drift. Each fires in the command flush of the system
+four payloads cannot drift. The payload's `kind` is `JobType::name`, one of
+`Procure`, `Recover`, `Escort`, `Distress`, `Neutralize` or `Supply`; a new
+job kind reaches scenarios through that name with no bridge change. Only a
+board slot posts a `Supply`: `PostJob` and a visit post procurements. Each fires in the command flush of the system
 that moved the job. A Load restores `Jobs` in place and raises none of the
 gameplay events, so it fires none of these.
 

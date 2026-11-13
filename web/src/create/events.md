@@ -966,7 +966,7 @@ included. All four carry the same job fields; `OnJobDropped` adds
 | field | type | value |
 |---|---|---|
 | `id` | text | the job's id: `<station id>#<slot>.<posting>` for a slot job, `<station id>#<visit id>.<index>` for a visit posting, `<station id>#<key>` for a `PostJob` job |
-| `kind` | text | `Procure`, `Recover`, `Escort`, `Distress` or `Neutralize` |
+| `kind` | text | `Procure`, `Recover`, `Escort`, `Distress`, `Neutralize` or `Supply` |
 | `station` | text | the scenario id of the station that posted the job, the part of `id` before `#` |
 | `reward_cr` | number | the reward the hand-in pays, in credits |
 | `post_key` | text | the `key` of the [`PostJob`](../actions/#postjob) that posted the job; empty for a job a board or a visitor posted |
@@ -1033,8 +1033,9 @@ held and waits for its hand-in at the posting station.
 |---|---|
 | `Recover` | the player undocks from the wreck with the asked units aboard and none left on the wreck |
 | `Escort` | the hauler reaches its mark |
-| `Distress` | the player docks with the caller with a medkit aboard |
+| `Distress` | the player docks with the caller |
 | `Neutralize` | the hull is neutralized or destroyed |
+| `Supply` | the player docks with the caller with the whole stack aboard, and the dock takes it |
 | `Procure` | never: a procurement is done by the goods in the hold at the hand-in |
 
 ## OnJobHandedIn

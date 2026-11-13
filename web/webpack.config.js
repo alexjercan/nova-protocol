@@ -115,7 +115,7 @@ const NEWS_POSTS = [
         version: "v0.18.0",
         date: "2026-11-13",
         description:
-            "Nova Protocol v0.18.0: stations that refine ore, second-tier sections, medkit rescues, contraband and lawful stations, a contextual key row, gamepad docking, an audible docking clamp, and scenario job events and actions.",
+            "Nova Protocol v0.18.0: stations that refine ore, second-tier sections, supply jobs, contraband and lawful stations, a contextual key row, gamepad docking, an audible docking clamp, and scenario job events and actions.",
     },
     {
         slug: "0.17.0",
