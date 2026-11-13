@@ -1,4 +1,4 @@
-//! The walk the four located-job ranges share: New Game on a pinned seed as
+//! The walk the five located-job ranges share: New Game on a pinned seed as
 //! the start role whose boards lean to the wanted kind, stream the window,
 //! find a living station whose board posts a job of that kind, dock there,
 //! accept it off the Jobs tab, read the hand-in refused as not done,
@@ -34,11 +34,13 @@
 //! when the escort arrives, the raiders spring with the escort in formation,
 //! and the hauler outlives its first hit by the defense window.
 //!
-//! The distress range docks with its caller twice: first with no medkit
-//! aboard, and asserts one more claim ([`LocatedJobMarkers::no_medkit`]), the
-//! call still open under the HUD line `NO MEDKIT ABOARD`; then it undocks,
-//! puts one medkit in the hold and docks again, and the done assert reads
-//! the medkit gone.
+//! The distress and supply ranges park in flight off the caller first and
+//! assert its objective marker chip. The supply range walks a medkit rescue
+//! and docks with its caller twice: first with the hold one medkit short,
+//! and asserts one more claim ([`LocatedJobMarkers::short`]), the job still
+//! open under the HUD line `JOB-n: SHORT 1 MEDKIT` with the hold unchanged;
+//! then it undocks, puts the last medkit in the hold and docks again, and
+//! the done assert reads every medkit gone.
 
 use std::{collections::BTreeSet, sync::Arc};
 
@@ -66,9 +68,9 @@ pub struct LocatedJobMarkers {
     pub paid: &'static str,
     /// The escort's flight claims; `None` for every other kind.
     pub escort: Option<EscortMarkers>,
-    /// The distress range's claim that a dock with no medkit aboard leaves
-    /// the call open; `None` for every other kind.
-    pub no_medkit: Option<&'static str>,
+    /// The supply range's claim that a dock with the hold short leaves the
+    /// job open and the hold unchanged; `None` for every other kind.
+    pub short: Option<&'static str>,
 }
 
 /// The four `outcome:` markers the escort range emits for its flight, held
@@ -101,6 +103,8 @@ pub enum LocatedKindType {
     Distress,
     /// Neutralize a named hostile hull.
     Neutralize,
+    /// Bring a caller the goods it asks for: dock with it with them aboard.
+    Supply,
 }
 
 impl LocatedKindType {
@@ -111,6 +115,7 @@ impl LocatedKindType {
             LocatedKindType::Escort => "escort",
             LocatedKindType::Distress => "distress",
             LocatedKindType::Neutralize => "neutralize",
+            LocatedKindType::Supply => "supply",
         }
     }
 
@@ -118,13 +123,15 @@ impl LocatedKindType {
     /// it. Escort plays the military start: the Trade starts that lean to
     /// it fly unarmed hulls, and the starting station's board hides a job
     /// the hull cannot do. Neutralize plays the bounty hunter, whose kill
-    /// list counts the hand-in.
+    /// list counts the hand-in. Supply plays the bounty hunter too: the
+    /// Combat mix weighs it as it weighs a distress call.
     pub const fn role(self) -> &'static str {
         match self {
             LocatedKindType::Recover => "scavenger",
             LocatedKindType::Escort => "military",
             LocatedKindType::Distress => "bounty_hunter",
             LocatedKindType::Neutralize => "bounty_hunter",
+            LocatedKindType::Supply => "bounty_hunter",
         }
     }
 
@@ -146,18 +153,23 @@ impl LocatedKindType {
             LocatedKindType::Escort => 2,
             LocatedKindType::Distress => 16,
             LocatedKindType::Neutralize => 16,
+            LocatedKindType::Supply => 5,
         }
     }
 
-    /// Whether `kind` is this kind.
-    pub const fn wants(self, kind: &JobType) -> bool {
-        matches!(
-            (self, kind),
+    /// Whether `kind` is this kind. A supply walk takes only a medkit
+    /// rescue: the framing the range proves.
+    pub fn wants(self, kind: &JobType, items: &GameItems) -> bool {
+        match (self, kind) {
             (LocatedKindType::Recover, JobType::Recover { .. })
-                | (LocatedKindType::Escort, JobType::Escort { .. })
-                | (LocatedKindType::Distress, JobType::Distress { .. })
-                | (LocatedKindType::Neutralize, JobType::Neutralize { .. })
-        )
+            | (LocatedKindType::Escort, JobType::Escort { .. })
+            | (LocatedKindType::Distress, JobType::Distress { .. })
+            | (LocatedKindType::Neutralize, JobType::Neutralize { .. }) => true,
+            (LocatedKindType::Supply, JobType::Supply { item, .. }) => {
+                *item == items.role(ItemRoleType::Medkit).id
+            }
+            _ => false,
+        }
     }
 }
 
@@ -309,6 +321,11 @@ impl Plugin for LocatedJobWalkPlugin {
             self.1.escort.is_some(),
             self.0 == LocatedKindType::Escort,
             "located jobs: the escort range, and only it, names its flight markers"
+        );
+        assert_eq!(
+            self.1.short.is_some(),
+            self.0 == LocatedKindType::Supply,
+            "located jobs: the supply range, and only it, names its short-dock marker"
         );
         app.insert_resource(LocatedJobWatch::new(self.0, self.1));
         if !app.world().contains_resource::<HandInGrant>() {
@@ -797,9 +814,11 @@ fn posted_boards(
     boards
 }
 
-/// Whether the player's hold takes the whole stack a recovery asks for.
+/// Whether the player's hold takes the whole stack a recovery or a supply
+/// asks for.
 fn stack_fits(world: &World, job: &Job) -> bool {
-    let JobType::Recover { item, count, .. } = &job.kind else {
+    let (JobType::Recover { item, count, .. } | JobType::Supply { item, count, .. }) = &job.kind
+    else {
         return true;
     };
     let items = world.resource::<GameItems>();
@@ -957,7 +976,7 @@ fn choose_the_job(world: &mut World) {
                 .iter()
                 .enumerate()
                 .find(|(_, job)| {
-                    kind.wants(&job.kind)
+                    kind.wants(&job.kind, items)
                         && stack_fits(world, job)
                         && (!starter || plan_job_hull_fit(job, items, fit).is_ok())
                 })
@@ -1089,7 +1108,7 @@ fn assert_the_accept(world: &mut World) {
                 "{tag} job: the raiders scale with the cargo"
             );
         }
-        JobType::Distress { caller } => {
+        JobType::Distress { caller } | JobType::Supply { caller, .. } => {
             let entity = body_wearing(world, caller).expect("the caller stands");
             assert!(
                 world.get::<DerelictShipMarker>(entity).is_some(),
@@ -1100,6 +1119,15 @@ fn assert_the_accept(world: &mut World) {
                 Some(&Allegiance::Neutral),
                 "{tag} job: the caller is neutral"
             );
+            if let JobType::Supply { item, .. } = &job.kind {
+                assert_eq!(
+                    world
+                        .get::<ShipInventory>(entity)
+                        .map_or(0, |hold| hold.count(item)),
+                    0,
+                    "{tag} job: the caller carries none of the {item} it asks for"
+                );
+            }
         }
         JobType::Recover {
             wreck, item, count, ..
@@ -1904,7 +1932,8 @@ fn do_the_work(world: &mut World) {
         (LocatedKindType::Escort, JobType::Escort { .. }) => {
             fight_the_ambush(world, player, target, &job);
         }
-        (LocatedKindType::Distress, JobType::Distress { .. }) => {
+        (LocatedKindType::Distress, JobType::Distress { .. })
+        | (LocatedKindType::Supply, JobType::Supply { .. }) => {
             berth_and_dock(world, target);
         }
         (LocatedKindType::Neutralize, JobType::Neutralize { .. }) => {
@@ -1936,11 +1965,11 @@ fn assert_the_done(world: &mut World) {
             "{tag} job: the kill alone counts no bounty"
         );
     }
-    if kind(world) == LocatedKindType::Distress {
+    if let JobType::Supply { item, .. } = &job.kind {
         assert_eq!(
-            medkits_aboard(world),
+            aboard(world, item),
             0,
-            "{tag} job: the rescue took the one medkit aboard"
+            "{tag} job: the dock took every {item} aboard"
         );
     }
     let body = located_body(world);
@@ -2035,56 +2064,102 @@ fn assert_the_hand_in(world: &mut World) {
     );
 }
 
-/// The HUD line a dock with a distress caller posts with no medkit aboard.
-const NO_MEDKIT_NOTICE: &str = "NO MEDKIT ABOARD";
-
-/// How many medkits the player's hold carries.
-fn medkits_aboard(world: &World) -> u32 {
-    let medkit = &world.resource::<GameItems>().role(ItemRoleType::Medkit).id;
+/// How many of `item` the player's hold carries.
+fn aboard(world: &World, item: &ItemDesignId) -> u32 {
     world
         .get::<ShipInventory>(player(world))
         .expect("the player has a hold")
-        .count(medkit)
+        .count(item)
 }
 
-/// The HUD notice slot shows `line`.
-fn the_notice_reads(line: &'static str) -> Arc<Predicate> {
-    when(move |world| {
+/// The supply job's item and count.
+fn the_supply(world: &World) -> (ItemDesignId, u32) {
+    let (_, job) = the_job(world);
+    let JobType::Supply { item, count, .. } = job.kind else {
+        panic!("supply job: the chosen job is {:?}", job.kind);
+    };
+    (item, count)
+}
+
+/// Set the player's hold to carry exactly `count` of `item`.
+fn stage_aboard(world: &mut World, item: &ItemDesignId, count: u32) {
+    let items = world.resource::<GameItems>().clone();
+    let player = player(world);
+    let mut hold = world
+        .get_mut::<ShipInventory>(player)
+        .expect("the player has a hold");
+    let have = hold.count(item);
+    // The hold refuses a move of zero units.
+    if have > count {
+        hold.remove(item, have - count);
+    } else if have < count {
+        hold.add(&items, item, count - have);
+    }
+    info!("supply job: the hold carries {count} {item}");
+}
+
+/// The HUD line a dock with the caller posts with the hold one short.
+fn short_notice(world: &World) -> String {
+    let (_, job) = the_job(world);
+    let (item, _) = the_supply(world);
+    let code = world
+        .resource::<Jobs>()
+        .mark_code(&job.id)
+        .expect("supply job: the job is held");
+    let name = world
+        .resource::<GameItems>()
+        .design(&item)
+        .name
+        .to_uppercase();
+    format!("{code}: SHORT 1 {name}")
+}
+
+/// The HUD notice slot shows the short-dock line.
+fn the_short_notice_shows() -> Arc<Predicate> {
+    when(|world| {
+        let line = short_notice(world);
         world
             .try_query_filtered::<&Text, With<HudNoticeText>>()
             .is_some_and(|mut texts| texts.iter(world).any(|text| text.0 == line))
     })
 }
 
-/// Distress-only claim: docked with the caller with no medkit aboard, the
-/// call is still held and not done and the HUD says why.
-fn assert_the_dock_with_no_medkit(world: &mut World) {
+/// Supply-only claim: docked with the caller with the hold one short, the
+/// job is still held and not done, the hold is unchanged and the HUD says
+/// what is missing.
+fn assert_the_short_dock(world: &mut World) {
     let (_, job) = the_job(world);
+    let (item, count) = the_supply(world);
     let body = located_body(world);
     let caller =
-        body_wearing(world, &body).unwrap_or_else(|| panic!("distress job: no '{body}' stands"));
+        body_wearing(world, &body).unwrap_or_else(|| panic!("supply job: no '{body}' stands"));
     assert!(
         docked_with(world, Some(caller)),
-        "distress job: the player is docked with the caller"
+        "supply job: the player is docked with the caller"
     );
     let jobs = world.resource::<Jobs>().clone();
     assert!(
         jobs.holds(&job.id) && !jobs.is_done(&job.id),
-        "distress job: the call stays held and open with no medkit aboard"
+        "supply job: the job stays held and open with the hold short"
     );
-    assert_eq!(medkits_aboard(world), 0);
+    assert_eq!(
+        aboard(world, &item),
+        count - 1,
+        "supply job: the short dock takes nothing from the hold"
+    );
+    let notice = short_notice(world);
     let marker = markers(world)
-        .no_medkit
-        .expect("the distress range names its no-medkit marker");
+        .short
+        .expect("the supply range names its short-dock marker");
     nova_probe::probe_marker(
         world,
         marker,
-        serde_json::json!({ "job": job.id.to_string(), "notice": NO_MEDKIT_NOTICE }),
+        serde_json::json!({ "job": job.id.to_string(), "notice": notice, "aboard": count - 1 }),
     );
-    info!("distress job: PASS the dock with no medkit left the call open: '{NO_MEDKIT_NOTICE}'");
+    info!("supply job: PASS the short dock left the job open and the hold unchanged: '{notice}'");
 }
 
-/// Distress-only: the caller wears the objective marker tag
+/// Distress and supply: the caller wears the objective marker tag
 /// `mark_held_job_targets` gives the held job's located body.
 fn the_caller_wears_its_marker() -> Arc<Predicate> {
     when(|world| {
@@ -2094,7 +2169,7 @@ fn the_caller_wears_its_marker() -> Arc<Predicate> {
     })
 }
 
-/// Distress-only: the HUD has grown the caller's marker chip.
+/// Distress and supply: the HUD has grown the caller's marker chip.
 fn a_chip_targets_the_caller() -> Arc<Predicate> {
     when(|world| {
         let body = located_body(world);
@@ -2107,39 +2182,38 @@ fn a_chip_targets_the_caller() -> Arc<Predicate> {
     })
 }
 
-/// Distress-only claim: the caller carries the in-flight marker chip while
-/// the player holds off it undocked.
+/// Distress and supply claim: the caller carries the in-flight marker chip
+/// while the player holds off it undocked, labelled with the job's code and
+/// verb.
 fn assert_the_in_flight_marker(world: &mut World) {
+    let tag = tag(world);
     let (_, job) = the_job(world);
     let body = located_body(world);
     let caller =
-        body_wearing(world, &body).unwrap_or_else(|| panic!("distress job: no '{body}' stands"));
+        body_wearing(world, &body).unwrap_or_else(|| panic!("{tag} job: no '{body}' stands"));
     let jobs = world.resource::<Jobs>().clone();
     let code = jobs
         .mark_code(&job.id)
-        .expect("distress job: the job is held");
-    let label = format!("{code} Answer");
+        .unwrap_or_else(|| panic!("{tag} job: the job is held"));
+    let label = format!("{code} {}", job.verb(world.resource::<GameItems>()));
     let marker = world
         .get::<ObjectiveMarkerTarget>(caller)
-        .unwrap_or_else(|| panic!("distress job: '{body}' wears no objective marker"));
+        .unwrap_or_else(|| panic!("{tag} job: '{body}' wears no objective marker"));
     assert_eq!(
         marker.label, label,
-        "distress job: the caller's marker reads '{label}'"
+        "{tag} job: the caller's marker reads '{label}'"
     );
     let chips = world
         .query_filtered::<&AnchoredChipTarget, With<ObjectiveMarkerChipHudMarker>>()
         .iter(world)
         .filter(|&target| **target == caller)
         .count();
-    assert_eq!(
-        chips, 1,
-        "distress job: exactly one chip targets the caller"
-    );
+    assert_eq!(chips, 1, "{tag} job: exactly one chip targets the caller");
     assert!(
         world.get::<DockedShip>(player(world)).is_none(),
-        "distress job: the player is undocked"
+        "{tag} job: the player is undocked"
     );
-    info!("distress job: PASS the caller wears the in-flight marker '{label}'");
+    info!("{tag} job: PASS the caller wears the in-flight marker '{label}'");
 }
 
 /// The walk for `kind`: [`walk_to_done`], then [`hand_in`]. Every beat waits
@@ -2279,19 +2353,17 @@ pub fn walk_to_done(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
         .until(and(player_free(), frames(SETTLE_FRAMES)))
         .deadline(SESSION_SECS)
         .add();
-    let script = if kind == LocatedKindType::Distress {
+    let script = if matches!(kind, LocatedKindType::Distress | LocatedKindType::Supply) {
         let inflight_shot = format!("job-{tag}-inflight.png");
         let inflight_shot_name = inflight_shot.clone();
-        let no_medkit_shot = format!("job-{tag}-no-medkit.png");
-        let no_medkit_shot_name = no_medkit_shot.clone();
         script
-            .step("distress job: park in flight off the caller")
+            .step(format!("{tag} job: park in flight off the caller"))
             .on_enter(|world: &mut World| {
                 // The chip pins to the screen edge when the caller is off
                 // screen, so the shot proves it whichever way the view faces.
                 let body = located_body(world);
                 let caller = body_wearing(world, &body)
-                    .unwrap_or_else(|| panic!("distress job: no '{body}' stands"));
+                    .unwrap_or_else(|| panic!("located jobs: no '{body}' stands"));
                 park_beside(world, caller);
             })
             .until(and(
@@ -2300,21 +2372,25 @@ pub fn walk_to_done(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
             ))
             .deadline(BEAT_SECS)
             .add()
-            .step("distress job: assert the in-flight marker")
+            .step(format!("{tag} job: assert the in-flight marker"))
             .on_enter(assert_the_in_flight_marker)
             .add()
-            .step("distress job: shoot the caller in flight")
+            .step(format!("{tag} job: shoot the caller in flight"))
             .on_enter(move |world: &mut World| shoot(world, &inflight_shot_name))
             .until(shot_written(inflight_shot))
             .deadline(BEAT_SECS)
             .add()
-            .step("distress job: dock with no medkit aboard")
+    } else {
+        script
+    };
+    let script = if kind == LocatedKindType::Supply {
+        let short_shot = format!("job-{tag}-short.png");
+        let short_shot_name = short_shot.clone();
+        script
+            .step("supply job: dock with the hold one short")
             .on_enter(|world: &mut World| {
-                assert_eq!(
-                    medkits_aboard(world),
-                    0,
-                    "distress job: the start kit carries no medkit"
-                );
+                let (item, count) = the_supply(world);
+                stage_aboard(world, &item, count - 1);
             })
             .each(|world, _, _| {
                 let body = located_body(world);
@@ -2327,28 +2403,24 @@ pub fn walk_to_done(kind: LocatedKindType) -> AutopilotPlugin<GameStates> {
                     let body = located_body(world);
                     docked_with(world, body_wearing(world, &body))
                 }),
-                the_notice_reads(NO_MEDKIT_NOTICE),
+                the_short_notice_shows(),
             ))
             .deadline(WORK_SECS)
             .add()
-            .step("distress job: assert the dock with no medkit")
-            .on_enter(assert_the_dock_with_no_medkit)
+            .step("supply job: assert the short dock")
+            .on_enter(assert_the_short_dock)
             .add()
-            .step("distress job: shoot the dock with no medkit")
-            .on_enter(move |world: &mut World| shoot(world, &no_medkit_shot_name))
-            .until(shot_written(no_medkit_shot))
+            .step("supply job: shoot the short dock")
+            .on_enter(move |world: &mut World| shoot(world, &short_shot_name))
+            .until(shot_written(short_shot))
             .deadline(BEAT_SECS)
             .add()
-            .step("distress job: undock and take one medkit aboard")
+            .step("supply job: undock and take the rest aboard")
             .on_enter(|world: &mut World| {
                 let player = player(world);
                 world.trigger(DockingReleaseRequest { entity: player });
-                let items = world.resource::<GameItems>().clone();
-                let medkit = items.role(ItemRoleType::Medkit).id.clone();
-                world
-                    .get_mut::<ShipInventory>(player)
-                    .expect("the player has a hold")
-                    .add(&items, &medkit, 1);
+                let (item, count) = the_supply(world);
+                stage_aboard(world, &item, count);
             })
             .until(and(player_free(), frames(SETTLE_FRAMES)))
             .deadline(SESSION_SECS)

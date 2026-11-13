@@ -182,13 +182,13 @@ name = "contraband_sandbox"
 path = "examples/playable/contraband_sandbox.rs"
 required-features = ["debug"]
 
-# A distress rescue by hand: New Game on a pinned seed, the call accepted at
-# its poster, the player 500 m off the caller; --medkit none empties the hold
-# of Medkits for the NO MEDKIT ABOARD refusal. Nothing ends it; under
-# NOVA_AUTOPILOT a smoke walk checks the staging.
+# A supply job by hand: New Game on a pinned seed, the job accepted at its
+# poster with its goods set by --item, the player 500 m off the caller with
+# the stack aboard; --short leaves the hold one short for the refusal.
+# Nothing ends it; under NOVA_AUTOPILOT a smoke walk checks the staging.
 [[example]]
-name = "medkit_rescue_sandbox"
-path = "examples/playable/medkit_rescue_sandbox.rs"
+name = "supply_sandbox"
+path = "examples/playable/supply_sandbox.rs"
 required-features = ["debug"]
 
 # The scenario job, stance, sector and refusal blocks by hand: New Game under
@@ -1049,6 +1049,11 @@ required-features = ["debug"]
 [[example]]
 name = "system_job_distress"
 path = "examples/systems/system_job_distress.rs"
+required-features = ["debug"]
+
+[[example]]
+name = "system_job_supply"
+path = "examples/systems/system_job_supply.rs"
 required-features = ["debug"]
 
 [[example]]

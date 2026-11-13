@@ -85,7 +85,7 @@ fn main() -> bevy::app::AppExit {
             done: "outcome: the scenario walk sees the recover job done",
             paid: "outcome: the scenario walk is paid the reward and the scenario grants",
             escort: None,
-            no_medkit: None,
+            short: None,
         };
 
         if std::env::var_os("NOVA_AUTOPILOT").is_some() {
