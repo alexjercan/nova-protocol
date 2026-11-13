@@ -238,6 +238,9 @@ THUMBNAILS = [
     # The same window of the docked trader as news-0170-trader-docked.png;
     # a CUTS row writes it.
     ("thumb-news-0.17.0.png", None),
+    # A frame of the news-0180-dock-clamp loop, cut into the stage by
+    # scripts/capture-web-media.sh (`STILL_CUTS`); run that script first.
+    ("thumb-news-0.18.0.png", None),
     ("thumb-devlog-3.png", None),
     ("thumb-devlog-4.png", None),
     ("thumb-devlog-5.png", None),
@@ -315,6 +318,7 @@ CUTS = [
     ("news-0180-refine.png",          "station-refine-form.png",      "system_station_refine",  (610, 92, 1104, 621)),
     ("news-0180-contraband.png",      "contraband-dock-refusal.png",  "system_contraband_dock", (320, 350, 1280, 720)),
     ("news-0180-station-control.png", "job-recover-control.png",      "system_job_recover",     (0, 360, 1280, 720)),
+    ("news-0180-no-medkit.png",       "job-distress-no-medkit.png",   "system_job_distress",    (320, 360, 1280, 720)),
 ]
 
 # Composite output frame (16:9, the figure resolution the capture examples use).

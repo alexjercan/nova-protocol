@@ -139,6 +139,9 @@ LOOPS=(
     # The v0.17.0 post: Q and E roll the warship, then Shift + X matches a
     # hauler on an orbit.
     "news_0170_match_roll|news-0170-match-roll||"
+    # The v0.18.0 post. The dock clamp is the approach the station docking
+    # walk appends to its three claims.
+    "system_station_docking|news-0180-dock-clamp||"
 )
 
 # A second name for footage already captured above, when a second producer
@@ -218,6 +221,8 @@ STILL_CUTS=(
     # the small job-chip text is for the full loop, not the thumbnail.
     # Recheck against the final release-candidate capture.
     "news-0160-release-lead|12.0|thumb-news-0.16.0.png"
+    # The clamped pair under the DOCKED notice, both sleeves out.
+    "news-0180-dock-clamp|5.0|thumb-news-0.18.0.png"
 )
 SHOTS="${CARGO_TARGET_DIR:-target}/shots"
 mkdir -p "$SHOTS"
