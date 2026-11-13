@@ -204,3 +204,11 @@ after-run). `system_turret_gunnery` passes again (the sweeping gate stall is
 gone); `stress_point_defense` passes. The escort walks still lose the
 hauler at about t=82 s: raider_0 (8090 hp, never targeted) cuts it from
 1.27 km while the walk keeps the player on raider_1.
+
+Threat targeting in the walk (not committed; patches in the session
+scratchpad) does not save the hauler: in three GPU runs on seed 37 it
+lost only about 15% hp, but both raiders engaged it from t~69 and its
+engines were cut within about 8 s of the first hit, so its Move order
+failed and the job dropped (t~81-86). The player held fire on raider_0 at
+960-990 m for about 10 s with no hp change (cause unknown, no hit
+counter). Open for the owner: an escort balance lever.
