@@ -41,6 +41,13 @@
 //! 720p) instead of the three sheets on the lesson profile (10 fps), and ends
 //! once the loop is written. `scripts/capture-web-media.sh` sets it.
 //!
+//! ## The pickup loop mode
+//!
+//! `NOVA_CARGO_PICKUP_LOOP=1` records the take as the v0.18.0 post's
+//! `news-0180-pickup-tick` webm on the default loop profile instead of the
+//! three sheets: the last 3 s of the lift, the take, and the `+N <ITEM>` line
+//! over the key row until it goes. The run fails if no tick line shows.
+//!
 //! Run modes, all under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the whole walk, recording
 //!   nothing.
@@ -48,6 +55,8 @@
 //!   under `NOVA_CAPTURE_DIR`).
 //! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CARGO_WEB_LOOP=1`: record the
 //!   jettison webm instead.
+//! - `NOVA_AUTOPILOT=1 NOVA_CAPTURE=1 NOVA_CARGO_PICKUP_LOOP=1`: record the
+//!   pickup webm instead.
 //!
 //! Capture (windowed, real GPU):
 //! ```text
@@ -182,6 +191,8 @@ mod walk {
     const PICKUP_LESSON: &str = "flight_cargo_pickup";
     /// The site's jettison loop, recorded in the web loop mode.
     const JETTISON_LOOP: &str = "loop-section-cargo-jettison";
+    /// The v0.18.0 post's pickup loop, recorded in the pickup loop mode.
+    const PICKUP_LOOP: &str = "news-0180-pickup-tick";
 
     /// Real-seconds backstop for a state wait, long enough for lavapipe
     /// frames.
@@ -223,6 +234,11 @@ mod walk {
     /// The canister's nearest-side gap to the face at which the pickup sheet
     /// opens, in engine units: about 1.3 s of lift before the take.
     const PICKUP_SHEET_GAP: f32 = 0.25;
+    /// The same gap for the pickup loop: about 3 s of lift before the take.
+    const PICKUP_LOOP_GAP: f32 = 0.75;
+    /// Game seconds the pickup loop keeps recording after the tick line
+    /// shows: the line holds 1.5 s and goes.
+    const PICKUP_LOOP_HOLD_SECS: f32 = 2.5;
 
     /// Where the jettison eye stands from the intake face, in world axes and
     /// engine units: to starboard, above and aft.
@@ -263,9 +279,21 @@ mod walk {
         std::env::var_os("NOVA_CARGO_WEB_LOOP").is_some()
     }
 
+    /// Whether this run records the v0.18.0 post's pickup webm instead of the
+    /// lesson sheets.
+    fn pickup_loop() -> bool {
+        std::env::var_os("NOVA_CARGO_PICKUP_LOOP").is_some()
+    }
+
+    /// Whether this run records a webm on the default loop profile, and so
+    /// no sheet.
+    fn records_a_webm() -> bool {
+        web_loop() || pickup_loop()
+    }
+
     pub(super) fn add(app: &mut App) {
         app.add_plugins(nova_probe::NovaProbePlugin::default().without_frametime());
-        app.add_plugins(LoopCapturePlugin::new(if web_loop() {
+        app.add_plugins(LoopCapturePlugin::new(if records_a_webm() {
             LoopProfile::default()
         } else {
             lesson_profile()
@@ -289,17 +317,17 @@ mod walk {
         app.add_plugins(script());
     }
 
-    /// Open a lesson sheet, unless this run records the web loop.
+    /// Open a lesson sheet, unless this run records a webm.
     fn open_sheet(world: &mut World, name: &str) {
-        if !web_loop() {
+        if !records_a_webm() {
             sheet_start(world, name, LESSON_GRID);
         }
     }
 
-    /// Advance once a lesson sheet is written, or at once in the web loop
-    /// mode, which records none.
+    /// Advance once a lesson sheet is written, or at once in a webm mode,
+    /// which records none.
     fn sheet_done(name: &str) -> Arc<Predicate> {
-        if web_loop() {
+        if records_a_webm() {
             when(|_| true)
         } else {
             sheet_written(name)
@@ -738,7 +766,12 @@ mod walk {
                 .add();
         }
         // PICKUP.
-        script
+        let open_gap = if pickup_loop() {
+            PICKUP_LOOP_GAP
+        } else {
+            PICKUP_SHEET_GAP
+        };
+        let script = script
             .step("let the canister drift clear")
             .until(when(|world| {
                 let now = world.resource::<Time<Virtual>>().elapsed_secs();
@@ -755,14 +788,19 @@ mod walk {
                 };
                 chase_the_intake(world, PICKUP_EYE, PICKUP_AIM);
             })
-            .until(when(|world| {
+            .until(when(move |world| {
                 matches!(*world.resource::<Helm>(), Helm::Track { lift: true, .. })
-                    && pickup_gap(world).is_some_and(|gap| gap <= PICKUP_SHEET_GAP)
+                    && pickup_gap(world).is_some_and(|gap| gap <= open_gap)
             }))
             .deadline(FLIGHT_DEADLINE)
             .add()
             .step("open the pickup sheet and wait for the take")
-            .on_enter(|world: &mut World| open_sheet(world, PICKUP_LESSON))
+            .on_enter(|world: &mut World| {
+                open_sheet(world, PICKUP_LESSON);
+                if pickup_loop() {
+                    loop_start(world, PICKUP_LOOP);
+                }
+            })
             .until(when(|world| world.resource::<CargoProof>().taken >= 1))
             .deadline(STEP_DEADLINE)
             .add()
@@ -773,6 +811,40 @@ mod walk {
             .step("hold the taken canister until the pickup sheet is written")
             .until(sheet_done(PICKUP_LESSON))
             .deadline(60.0)
+            .add();
+        if !pickup_loop() {
+            return script;
+        }
+        script
+            .step("wait for the tick line over the key row")
+            .until(when(tick_line_shows))
+            .deadline(STEP_DEADLINE)
             .add()
+            .step("hold until the tick line is gone")
+            .on_enter(|world: &mut World| {
+                let line = tick_line(world).expect("the tick line shows");
+                info!("lesson_cargo: PASS the pickup tick reads '{line}'");
+            })
+            .until(elapsed(PICKUP_LOOP_HOLD_SECS))
+            .add()
+            .step("close the pickup loop")
+            .on_enter(|world: &mut World| loop_end(world, PICKUP_LOOP))
+            .until(loop_written(PICKUP_LOOP))
+            .deadline(STEP_DEADLINE)
+            .add()
+    }
+
+    /// What the pickup tick reads: its first line, a `+N <ITEM>` for the
+    /// stack the intake took.
+    fn tick_line(world: &World) -> Option<String> {
+        world
+            .try_query_filtered::<&Text, With<PickupTickLine>>()?
+            .iter(world)
+            .map(|text| text.0.clone())
+            .find(|line| line.starts_with('+'))
+    }
+
+    fn tick_line_shows(world: &World) -> bool {
+        tick_line(world).is_some()
     }
 }
