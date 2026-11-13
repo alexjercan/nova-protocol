@@ -159,3 +159,21 @@ form the same day: only some stations deal in contraband, normal stations
 refuse the trade, no station refuses the dock. Open: the owner's words were
 "some pirate stations"; the split is still one half (`LAWFUL_SHARE`) and
 nothing in the game labels the dealing stations.
+
+The owner did not like "a rescue needs a medkit" and asked for a separate
+item-delivery job framed by its item. Distress is plain again (dock with the
+caller). The new `JobType::Supply { caller, item, count }` (`74e377458`,
+`be4d3e38b`, `9430b8d58`) asks for a count of one item, all or nothing; the
+caller dock takes the goods and the poster pays at hand-in. A short dock
+leaves the job open under `JOB-N: SHORT <n> <ITEM>`. Frame by item: Medkit
+Rescue, Food Resupply, Ammo Rearm, other Repair Repair, Raw or Parts Supply
+run; never Contraband. Count = max(1, min(drawn x lot, floor(200 kg / mass)));
+reward = 200 + 1.5 x goods ask + 2 x fee (50..250). Same board weight as
+Distress; the caller's lootable stock loses the asked item. Walk
+`system_job_supply` (seed 5) and reruns of `system_job_distress`,
+`system_job_recover`, `system_station_jobs` pass; `medkit_rescue_sandbox` is
+now `supply_sandbox` (`--item`, `--short`). Still: `news-0180-supply.png`.
+Not rerun: escort, neutralize, ammo-economics, scenario-jobs walks and
+`news_0160_escort_ambush`; the sixth kind moves every board draw. Seen: the
+caller chip shows a distance while docked; a medkit Rescue is rare on the
+start board (1 of 14 seeds).
