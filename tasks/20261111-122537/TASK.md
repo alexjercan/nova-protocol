@@ -154,5 +154,8 @@ contraband carrier; a lawful station's market neither buys nor sells
 `Contraband`, and the trade form reads `Refused: <station> does not deal in
 contraband`. `DockRefusalType::Contraband` and the HUD line
 `<NAME> REFUSES CONTRABAND` no longer exist. The walk is now
-`examples/systems/system_contraband_trade.rs`. The owner has not yet said
-whether the restricted-trade form stays or contraband goes entirely.
+`examples/systems/system_contraband_trade.rs`. The owner confirmed this
+form the same day: only some stations deal in contraband, normal stations
+refuse the trade, no station refuses the dock. Open: the owner's words were
+"some pirate stations"; the split is still one half (`LAWFUL_SHARE`) and
+nothing in the game labels the dealing stations.
