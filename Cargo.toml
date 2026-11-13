@@ -173,6 +173,15 @@ name = "second_tier_sandbox"
 path = "examples/playable/second_tier_sandbox.rs"
 required-features = ["debug"]
 
+# Contraband by hand: start docked at a waystation marked lawful with
+# unmarked cores aboard and a freeport 400 m off; --at freeport starts there.
+# Nothing ends it; under NOVA_AUTOPILOT a smoke walk opens the Sell form and
+# checks the refusal or the price.
+[[example]]
+name = "contraband_sandbox"
+path = "examples/playable/contraband_sandbox.rs"
+required-features = ["debug"]
+
 # The Mod Hub and one mod through New Mod, Mod Settings, Package and Import.
 # Nothing ends it; under NOVA_AUTOPILOT a smoke walk does the whole path through
 # real buttons, on a cache of its own.
