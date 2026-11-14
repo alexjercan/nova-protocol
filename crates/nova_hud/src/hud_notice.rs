@@ -601,6 +601,7 @@ mod tests {
                     0,
                 ),
                 cargo_cr: 1_500,
+                raiders: 1,
             },
             target: station.clone(),
             reward_cr: 100,

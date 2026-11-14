@@ -1,4 +1,4 @@
-//! system_job_escort: Escort a hauler to its mark past the raiders its cargo draws, from the board to the hand-in.
+//! system_job_escort: Escort a hauler to its mark past the raiders its poster's advancement draws, from the board to the hand-in.
 //!
 //! Boots the shipped app (via [`editor_app`]), starts New Game on a pinned
 //! seed as the armed `military` start role (the Trade starts that lean to

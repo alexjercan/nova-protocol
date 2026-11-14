@@ -80,15 +80,15 @@ use crate::{
 /// Glob-import surface: `use nova_gameplay::jobs::prelude::*`.
 pub mod prelude {
     pub use super::{
-        escort_raiders, is_job_post_key, job_title, offer_deadline_text, plan_job_accept,
-        plan_job_hand_in, plan_job_hull_fit, plan_job_offer_refresh, plan_job_supply,
-        station_job_offers, EscortLeg, Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobDone,
-        JobDropped, JobField, JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHandedIn,
-        JobHull, JobHullFit, JobHullRefusalType, JobId, JobMixType, JobOfferRefreshPlan,
-        JobOfferRefreshRefusalType, JobPostings, JobSourceType, JobType, JobWreck, Jobs,
-        ScenarioPosting, SlotPosting, StarterBoardMarker, SupplyFramingType, SupplyRefusalType,
-        SupplyRefused, VisitPosting, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_OFFER_REFRESH_FEE_CR,
-        RAIDERS_PER_CARGO_CR, SUPPLY_MASS_CAP_G, VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
+        is_job_post_key, job_title, offer_deadline_text, plan_job_accept, plan_job_hand_in,
+        plan_job_hull_fit, plan_job_offer_refresh, plan_job_supply, station_job_offers, EscortLeg,
+        Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobDone, JobDropped, JobField,
+        JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHandedIn, JobHull, JobHullFit,
+        JobHullRefusalType, JobId, JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType,
+        JobPostings, JobSourceType, JobType, JobWreck, Jobs, ScenarioPosting, SlotPosting,
+        StarterBoardMarker, SupplyFramingType, SupplyRefusalType, SupplyRefused, VisitPosting,
+        ESCORT_PAY_PER_RAIDER_CR, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_OFFER_REFRESH_FEE_CR,
+        SUPPLY_MASS_CAP_G, VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
     };
 }
 
@@ -118,7 +118,8 @@ const FEE_STEP_CR: u32 = 50;
 /// How many fee steps a job may add.
 const FEE_STEPS: u32 = 5;
 /// The least and the most cargo an escorted hauler carries, at ask, both
-/// included; the reward is half of it plus the fee.
+/// included; the reward is half of it, [`ESCORT_PAY_PER_RAIDER_CR`] a
+/// raider and the fee.
 const ESCORT_CARGO_CR: (u32, u32) = (300, 2_400);
 /// What a distress call pays before the fee.
 const DISTRESS_BASE_CR: u32 = 200;
@@ -135,11 +136,21 @@ pub const SUPPLY_MASS_CAP_G: u32 = 200_000;
 const SUPPLY_RUN_ASK_MAX_CR: u32 = 20;
 /// What a neutralize pays before the fee, doubled for the risk.
 const NEUTRALIZE_BASE_CR: u32 = 400;
-/// One raider lies in wait per this many credits of hauler cargo, after the
-/// first.
-pub const RAIDERS_PER_CARGO_CR: u32 = 700;
 /// The most raiders one escort meets.
 pub const ESCORT_RAIDERS_MAX: u32 = 3;
+/// What an escort pays per raider lying in wait, before the cargo share and
+/// the fee.
+pub const ESCORT_PAY_PER_RAIDER_CR: u32 = 150;
+/// The raiders an escort meets by its poster's civilization's advancement,
+/// in rising order: each band's least advancement, and the least and the
+/// most raiders it draws, both included. A band runs up to the next one's
+/// least advancement; the last runs to 1. Owner decision 2026-11-14.
+const ESCORT_RAIDER_BANDS: [(f32, u32, u32); 4] = [
+    (0.0, 1, 1),
+    (0.25, 1, 2),
+    (0.5, 2, 3),
+    (0.75, 3, ESCORT_RAIDERS_MAX),
+];
 
 /// The identity of a posted job: the station that posted it and what
 /// posted it there. The poster is read off the id, never kept twice.
@@ -940,15 +951,18 @@ pub enum JobType {
         count: u32,
     },
     /// Escort the hauler the accept puts beside the poster to its mark, a
-    /// leg into the poster's cell, past the raiders lying in wait on the
-    /// way, [`escort_raiders`] of them for `cargo_cr`. Done when the hauler's
-    /// helm order completes; a hauler neutralized or destroyed on the way
-    /// drops the job.
+    /// leg into the poster's cell, past the `raiders` lying in wait on the
+    /// way. Done when the hauler's helm order completes; a hauler
+    /// neutralized or destroyed on the way drops the job.
     Escort {
         /// The hauler's id.
         hauler: GeneratedBodyId,
         /// What its hold is worth at ask, above zero.
         cargo_cr: u32,
+        /// The raiders lying in wait, drawn at posting by the poster's
+        /// civilization's advancement ([`draw_escort_raiders`]): from one
+        /// to [`ESCORT_RAIDERS_MAX`].
+        raiders: u32,
     },
     /// Answer the call the accept puts in the world: a neutral derelict
     /// civilian hull. Done on the dock with it; a caller neutralized or
@@ -1250,7 +1264,7 @@ impl Job {
     /// kind.
     pub fn raider_ids(&self) -> Vec<GeneratedBodyId> {
         match &self.kind {
-            JobType::Escort { cargo_cr, .. } => (0..escort_raiders(*cargo_cr))
+            JobType::Escort { raiders, .. } => (0..*raiders)
                 .map(|index| self.id.spawned_body("raider", index))
                 .collect(),
             _ => Vec::new(),
@@ -1325,9 +1339,20 @@ impl Job {
                     return Err(format!("the job '{}' asks for 0 of '{item}'", self.id));
                 }
             }
-            JobType::Escort { hauler, cargo_cr } => {
+            JobType::Escort {
+                hauler,
+                cargo_cr,
+                raiders,
+            } => {
                 if *cargo_cr == 0 {
                     return Err(format!("the escort '{}' carries nothing", self.id));
+                }
+                if !(1..=ESCORT_RAIDERS_MAX).contains(raiders) {
+                    return Err(format!(
+                        "the escort '{}' meets {raiders} raider(s), not 1 to \
+                         {ESCORT_RAIDERS_MAX}",
+                        self.id
+                    ));
                 }
                 if *hauler != self.id.spawned_body("hauler", 0) {
                     return Err(format!(
@@ -1397,10 +1422,24 @@ pub fn job_title(job: &Job, items: Option<&GameItems>) -> String {
     )
 }
 
-/// How many raiders lie in wait for a hauler carrying `cargo_cr`: one, plus
-/// one per [`RAIDERS_PER_CARGO_CR`], at most [`ESCORT_RAIDERS_MAX`].
-pub fn escort_raiders(cargo_cr: u32) -> u32 {
-    (1 + cargo_cr / RAIDERS_PER_CARGO_CR).min(ESCORT_RAIDERS_MAX)
+/// How many raiders lie in wait for an escort posted by a civilization of
+/// `advancement`: one draw off `rng` inside its [`ESCORT_RAIDER_BANDS`] row.
+///
+/// # Panics
+///
+/// When `advancement` lies outside `[0, 1]`: a civilization's advancement
+/// is clamped there, so another value is an assembly fault.
+fn draw_escort_raiders(advancement: f32, rng: &mut WyRand) -> u32 {
+    assert!(
+        (0.0..=1.0).contains(&advancement),
+        "draw_escort_raiders: the advancement {advancement} lies outside [0, 1]"
+    );
+    let (_, least, most) = ESCORT_RAIDER_BANDS
+        .iter()
+        .rev()
+        .find(|(from, _, _)| advancement >= *from)
+        .expect("the first band starts at 0");
+    rng.random_range(*least..=*most)
 }
 
 /// The board a living generated station posts, on its root: its slots'
@@ -1921,12 +1960,13 @@ fn wanted_categories(clusters: &[ClusterType]) -> Vec<ItemCategoryType> {
 /// board always has an item to ask for.
 #[expect(
     clippy::too_many_arguments,
-    reason = "one pure draw: the seed, the slots, the cell, the catalog, the mix, the field, the standing offers and the assured hull"
+    reason = "one pure draw: the seed, the slots, the cell, the poster's advancement, the catalog, the mix, the field, the standing offers and the assured hull"
 )]
 pub fn station_job_offers(
     seed: u32,
     ids: &[JobId],
     clusters: &[ClusterType],
+    advancement: f32,
     items: &GameItems,
     mix: JobMixType,
     field: &JobField,
@@ -1996,7 +2036,7 @@ pub fn station_job_offers(
         .iter()
         .map(|id| {
             let id = id.clone();
-            let draw = SlotDraw::of(seed, &id, mix);
+            let draw = SlotDraw::of(seed, &id, mix, advancement);
             let mut kind = draw.kind;
             if kind == JobKindType::Recover && wrecks.is_empty()
                 || kind == JobKindType::Neutralize && hostiles.is_empty()
@@ -2033,7 +2073,7 @@ pub fn station_job_offers(
                         job_reward(goods, draw.fee),
                     )
                 }
-                JobKindType::Escort => escort_posting(&id, draw.cargo_cr, draw.fee),
+                JobKindType::Escort => escort_posting(&id, draw.cargo_cr, draw.raiders, draw.fee),
                 JobKindType::Distress => distress_posting(&id, draw.fee),
                 JobKindType::Supply => supply_posting(&id, draw, &supplies),
                 JobKindType::Neutralize => {
@@ -2060,7 +2100,7 @@ pub fn station_job_offers(
             .iter()
             .any(|offer| plan_job_hull_fit(offer, items, fit).is_ok());
         if !fitted {
-            let draw = SlotDraw::of(seed, &offers[0].id, mix);
+            let draw = SlotDraw::of(seed, &offers[0].id, mix, advancement);
             if let Some((kind, reward_cr)) = fitted_posting(&offers[0].id, draw, &pool, items, fit)
             {
                 offers[0].kind = kind;
@@ -2080,11 +2120,14 @@ struct SlotDraw {
     pick: u32,
     count: u32,
     cargo_cr: u32,
+    raiders: u32,
 }
 
 impl SlotDraw {
-    /// The draws of the slot job `id` on a world of `seed` under `mix`.
-    fn of(seed: u32, id: &JobId, mix: JobMixType) -> Self {
+    /// The draws of the slot job `id` on a world of `seed` under `mix`, at a
+    /// station whose civilization has `advancement`. A new draw goes last,
+    /// so the draws before it keep their numbers.
+    fn of(seed: u32, id: &JobId, mix: JobMixType, advancement: f32) -> Self {
         let (slot, posting) = id.slot_posting().expect("checked by the caller: a slot id");
         let key = Fnv64::new()
             .write(&seed.to_le_bytes())
@@ -2100,6 +2143,7 @@ impl SlotDraw {
             pick: rng.random_range(0..u32::MAX),
             count: rng.random_range(PROCURE_COUNT.0..=PROCURE_COUNT.1),
             cargo_cr: rng.random_range(ESCORT_CARGO_CR.0..=ESCORT_CARGO_CR.1),
+            raiders: draw_escort_raiders(advancement, &mut rng),
         }
     }
 }
@@ -2121,14 +2165,20 @@ fn procurement(item: &ItemDesignId, count: u32, fee: u32, items: &GameItems) -> 
     )
 }
 
-/// The escort `id` posts with `cargo_cr` aboard its hauler, and its reward.
-fn escort_posting(id: &JobId, cargo_cr: u32, fee: u32) -> (JobType, u32) {
+/// The escort `id` posts with `cargo_cr` aboard its hauler and `raiders`
+/// lying in wait, and its reward: half the cargo,
+/// [`ESCORT_PAY_PER_RAIDER_CR`] a raider and the fee.
+fn escort_posting(id: &JobId, cargo_cr: u32, raiders: u32, fee: u32) -> (JobType, u32) {
     (
         JobType::Escort {
             hauler: id.spawned_body("hauler", 0),
             cargo_cr,
+            raiders,
         },
-        job_reward(u64::from(cargo_cr / 2), fee),
+        job_reward(
+            u64::from(cargo_cr / 2) + u64::from(ESCORT_PAY_PER_RAIDER_CR) * u64::from(raiders),
+            fee,
+        ),
     )
 }
 
@@ -2247,7 +2297,7 @@ fn fitted_posting(
         return Some(distress_posting(id, draw.fee));
     }
     fit.has_weapon
-        .then(|| escort_posting(id, draw.cargo_cr, draw.fee))
+        .then(|| escort_posting(id, draw.cargo_cr, draw.raiders, draw.fee))
 }
 
 /// Why an accept changes nothing, in check order.
@@ -2700,6 +2750,7 @@ mod tests {
             seed,
             &first_ids(station),
             clusters,
+            0.0,
             items,
             mix,
             field,
@@ -2875,11 +2926,13 @@ mod tests {
                         assert_eq!(job.title(&items), format!("Neutralize {hull_name}"));
                         assert!(job.reward_cr >= NEUTRALIZE_BASE_CR + 2 * FEE_STEP_CR);
                     }
-                    JobType::Escort { hauler, cargo_cr } => {
-                        assert_eq!(
-                            job.spawned_bodies().len() as u32,
-                            1 + escort_raiders(*cargo_cr)
-                        );
+                    JobType::Escort {
+                        hauler,
+                        cargo_cr,
+                        raiders,
+                    } => {
+                        assert_eq!(*raiders, 1, "a poster below 0.25 advancement posts one");
+                        assert_eq!(job.spawned_bodies().len() as u32, 1 + raiders);
                         assert_eq!(job.spawned_bodies()[0], *hauler);
                         assert_eq!(
                             hauler.to_string(),
@@ -2888,7 +2941,7 @@ mod tests {
                                 job.id.slot_posting().unwrap().0
                             )
                         );
-                        assert!(job.reward_cr > cargo_cr / 2);
+                        assert!(job.reward_cr > cargo_cr / 2 + ESCORT_PAY_PER_RAIDER_CR * raiders);
                     }
                     JobType::Distress { caller } => {
                         assert_eq!(job.spawned_bodies(), vec![caller.clone()]);
@@ -3073,6 +3126,7 @@ mod tests {
                 pick,
                 count: drawn,
                 cargo_cr: 300,
+                raiders: 1,
             };
             let (kind, reward_cr) = supply_posting(&id, draw, &pool);
             let JobType::Supply { item, count, .. } = &kind else {
@@ -3090,6 +3144,7 @@ mod tests {
             pick: 0,
             count: 3,
             cargo_cr: 300,
+            raiders: 1,
         };
         assert_eq!(
             supply_posting(&id, rescue, &pool),
@@ -3139,11 +3194,36 @@ mod tests {
     }
 
     #[test]
-    fn raiders_scale_with_the_cargo_up_to_the_cap() {
-        assert_eq!(escort_raiders(0), 1);
-        assert_eq!(escort_raiders(RAIDERS_PER_CARGO_CR - 1), 1);
-        assert_eq!(escort_raiders(RAIDERS_PER_CARGO_CR), 2);
-        assert_eq!(escort_raiders(u32::MAX), ESCORT_RAIDERS_MAX);
+    fn each_advancement_band_draws_a_raider_count_inside_its_row() {
+        let rows: [(&[f32], u32, u32); 4] = [
+            (&[0.0, 0.1, 0.249], 1, 1),
+            (&[0.25, 0.4, 0.499], 1, 2),
+            (&[0.5, 0.6, 0.749], 2, 3),
+            (&[0.75, 0.9, 1.0], 3, 3),
+        ];
+        for (advancements, least, most) in rows {
+            for advancement in advancements {
+                let drawn: BTreeSet<u32> = (0..64_u64)
+                    .map(|seed| {
+                        let mut rng = WyRand::from_seed(seed.to_le_bytes());
+                        draw_escort_raiders(*advancement, &mut rng)
+                    })
+                    .collect();
+                assert_eq!(
+                    drawn,
+                    (least..=most).collect(),
+                    "advancement {advancement} draws every count of its row and no other"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_escort_pays_150_cr_per_raider_over_half_its_cargo_and_the_fee() {
+        let id = JobId::slot(station(1), 0, 0);
+        let pay = |raiders| escort_posting(&id, 1_000, raiders, 50).1;
+        assert_eq!(pay(1), 500 + 150 + 50);
+        assert_eq!(pay(3), 500 + 450 + 50);
     }
 
     #[test]
@@ -3445,6 +3525,7 @@ mod tests {
             10,
             std::slice::from_ref(&renewed),
             &[],
+            0.0,
             &items,
             JobMixType::Combat,
             &field,
@@ -3581,6 +3662,7 @@ mod tests {
             kind: JobType::Escort {
                 hauler: body("other_hauler", 0),
                 cargo_cr: 500,
+                raiders: 1,
             },
             target: poster,
             reward_cr: 300,
@@ -3589,8 +3671,17 @@ mod tests {
         foreign.kind = JobType::Escort {
             hauler: foreign.id.spawned_body("hauler", 0),
             cargo_cr: 0,
+            raiders: 1,
         };
         assert!(foreign.validate().unwrap_err().contains("carries nothing"));
+        for raiders in [0, ESCORT_RAIDERS_MAX + 1] {
+            foreign.kind = JobType::Escort {
+                hauler: foreign.id.spawned_body("hauler", 0),
+                cargo_cr: 500,
+                raiders,
+            };
+            assert!(foreign.validate().unwrap_err().contains("raider(s)"));
+        }
     }
 
     #[test]
@@ -3601,6 +3692,7 @@ mod tests {
             kind: JobType::Escort {
                 hauler: id.spawned_body("hauler", 0),
                 cargo_cr: 500,
+                raiders: 1,
             },
             id,
             target: poster,
@@ -3684,6 +3776,7 @@ mod tests {
             10,
             std::slice::from_ref(&renewed),
             &[],
+            0.0,
             &items,
             JobMixType::Combat,
             &field,
@@ -3768,6 +3861,7 @@ mod tests {
             10,
             std::slice::from_ref(&renewed),
             &[],
+            0.0,
             &items,
             JobMixType::Combat,
             &field,
@@ -3844,6 +3938,7 @@ mod tests {
             7,
             std::slice::from_ref(&next),
             &[],
+            0.0,
             &items,
             JobMixType::Salvage,
             &gone,
@@ -3876,6 +3971,7 @@ mod tests {
             7,
             std::slice::from_ref(&renewed),
             &[],
+            0.0,
             &items,
             JobMixType::Salvage,
             &gone,
@@ -4022,6 +4118,7 @@ mod tests {
                 kind: JobType::Escort {
                     hauler: job.id.spawned_body("hauler", 0),
                     cargo_cr: 600,
+                    raiders: 1,
                 },
                 ..job.clone()
             },
@@ -4137,6 +4234,7 @@ mod tests {
             JobType::Escort {
                 hauler: id(2).spawned_body("hauler", 0),
                 cargo_cr: 600,
+                raiders: 1,
             },
         );
         let distress = job(
@@ -4275,6 +4373,7 @@ mod tests {
                     0,
                 ),
                 cargo_cr: 600,
+                raiders: 1,
             },
             target: poster,
             reward_cr: 100,
@@ -4472,6 +4571,7 @@ mod tests {
         escort.kind = JobType::Escort {
             hauler: body("cluster_1_0_0_station_job_0_0_hauler", 0),
             cargo_cr: 600,
+            raiders: 1,
         };
         let refusal = escort.validate().unwrap_err();
         assert!(refusal.contains("not a procurement"), "{refusal}");

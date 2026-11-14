@@ -268,6 +268,7 @@ mod tests {
         JobType::Escort {
             hauler: GeneratedBodyId::new(SectorCoord::new(x, 0, 0), "cluster_hauler", 0),
             cargo_cr: 500,
+            raiders: 1,
         }
     }
 

@@ -388,8 +388,12 @@ mod economics {
     }
 
     fn job_json(job: &Job) -> Value {
-        let (hauler, cargo_cr) = match &job.kind {
-            JobType::Escort { hauler, cargo_cr } => (hauler.to_string(), *cargo_cr),
+        let (hauler, cargo_cr, raiders) = match &job.kind {
+            JobType::Escort {
+                hauler,
+                cargo_cr,
+                raiders,
+            } => (hauler.to_string(), *cargo_cr, *raiders),
             other => panic!("ammo economics: the held job is {other:?}"),
         };
         json!({
@@ -397,7 +401,7 @@ mod economics {
             "poster": job.posted_by().to_string(),
             "hauler": hauler,
             "cargo_cr": cargo_cr,
-            "raiders": job.raider_ids().len(),
+            "raiders": raiders,
             "reward_cr": job.reward_cr,
         })
     }

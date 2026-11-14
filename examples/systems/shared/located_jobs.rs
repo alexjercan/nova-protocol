@@ -1092,7 +1092,9 @@ fn assert_the_accept(world: &mut World) {
         bodies.push(id.to_string());
     }
     match &job.kind {
-        JobType::Escort { hauler, cargo_cr } => {
+        JobType::Escort {
+            hauler, raiders, ..
+        } => {
             let entity = body_wearing(world, hauler).expect("the hauler stands");
             assert!(
                 world.get::<ShipHelmOrder>(entity).is_none(),
@@ -1102,10 +1104,15 @@ fn assert_the_accept(world: &mut World) {
                 jobs.legs().any(|(id, leg)| *id == job.id && !leg.started),
                 "{tag} job: the hauler's leg is laid and not started"
             );
+            let waiting = job
+                .id
+                .possible_bodies()
+                .iter()
+                .filter(|id| id.stem.ends_with("_raider") && body_wearing(world, id).is_some())
+                .count();
             assert_eq!(
-                job.raider_ids().len() as u32,
-                escort_raiders(*cargo_cr),
-                "{tag} job: the raiders scale with the cargo"
+                waiting as u32, *raiders,
+                "{tag} job: the accept puts the posted raider count in wait"
             );
         }
         JobType::Distress { caller } | JobType::Supply { caller, .. } => {
