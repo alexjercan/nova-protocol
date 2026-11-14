@@ -160,8 +160,8 @@ pub const PAYLOAD_OTHER_REFERENCE: &str = "$other_id";
 /// Two spellings and no more: `$id` for the event's subject and `$other_id`
 /// for its other party, the two identity fields every entity event carries.
 /// `$` is outside snake_case, so no authored id can collide with a binding.
-/// The two objective-marker actions, `SetStance` and `PostJob` read a
-/// binding; the lint refuses it on every other reference field.
+/// The two objective-marker actions, `SetStance`, `PostJob` and `PlaySound`
+/// read a binding; the lint refuses it on every other reference field.
 pub fn payload_binding(reference: &str) -> Option<&'static str> {
     match reference {
         PAYLOAD_SUBJECT_REFERENCE => Some(ENTITY_ID_COMPONENT_NAME),

@@ -7,6 +7,7 @@
 use bevy::prelude::{AudioSource, Color};
 use nova_gameplay::prelude::{default_comms_accent, AssetRef};
 use nova_scenario::prelude::*;
+use nova_sound::prelude::SoundCategoryType;
 use nova_ui::theme::semantic;
 
 /// Glob-import surface for generic scenario authoring constructors.
@@ -246,12 +247,16 @@ pub fn scene(key: impl Into<String>) -> EventFilterConfig {
     EventFilterConfig::Cinematic(CinematicFilterConfig { key: key.into() })
 }
 
-/// Play one authored sound at full volume.
-pub fn play_sound(sound: AssetRef<AudioSource>, route: SoundRouteConfig) -> EventActionConfig {
+/// Play one authored sound as `category`, at `at`.
+pub fn play_sound(
+    sound: AssetRef<AudioSource>,
+    category: SoundCategoryType,
+    at: SoundAtConfig,
+) -> EventActionConfig {
     EventActionConfig::PlaySound(PlaySoundActionConfig {
         sound,
-        route,
-        volume: None,
+        category,
+        at,
     })
 }
 

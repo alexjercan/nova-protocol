@@ -10,6 +10,7 @@ use nova_gameplay::prelude::{
 };
 use nova_input::prelude::InputSource;
 use nova_ship::prelude::GameStyles;
+use nova_sound::prelude::SoundBus;
 
 use super::{
     ship::check_object_prototypes, KnownSections, KnownShipDesigns, KnownStationDesigns, LintIssue,
@@ -1149,20 +1150,28 @@ fn check_action(
             }
         }
         EventActionConfig::PlaySound(config) => {
-            // Nothing downstream clamps this: the gain rides `PlaySfx` straight
-            // into the voice, so `Some(40.0)` is a 40x gain in the player's
-            // headphones. An unauthorable value is an error at lint, not a
-            // surprise at play.
-            if let Some(volume) = config.volume {
-                if !volume.is_finite() || !(0.0..=1.0).contains(&volume) {
-                    issues.push(LintIssue::error(
-                        scenario,
-                        format!(
-                            "PlaySound '{}' volume {volume} is outside [0, 1]",
-                            config.sound.path().unwrap_or("<unset>")
-                        ),
-                    ));
+            // The engine drops a cue whose category cannot play where it is
+            // put. Caught here, so the load refuses it instead of a beat that
+            // is silent on every run.
+            let category = config.category;
+            let fault = match config.fault() {
+                None => None,
+                Some(SoundActionFault::LoopCategory) => Some(format!(
+                    "PlaySound category {category:?} is a loop; the action plays a one-shot"
+                )),
+                Some(SoundActionFault::BusMismatch) if category.bus() == SoundBus::Ui => {
+                    Some(format!(
+                        "PlaySound category {category:?} is an interface sound; it plays at \
+                         Ui, not at a body"
+                    ))
                 }
+                Some(SoundActionFault::BusMismatch) => Some(format!(
+                    "PlaySound category {category:?} is a world sound; it plays at a body, \
+                     not at Ui"
+                )),
+            };
+            if let Some(fault) = fault {
+                issues.push(LintIssue::error(scenario, fault));
             }
         }
         EventActionConfig::Outcome(config) => {
@@ -1657,7 +1666,7 @@ fn check_object_names(
                     scenario,
                     format!(
                         "{tag} `{}` is '{}', a payload binding only ObjectiveMarkerAttach, \
-                         ObjectiveMarkerDetach, SetStance and PostJob read",
+                         ObjectiveMarkerDetach, SetStance, PostJob and PlaySound read",
                         named.field, named.text
                     ),
                 ));
@@ -1726,6 +1735,7 @@ fn reads_payload_binding(action: &EventActionConfig) -> bool {
             | EventActionConfig::ObjectiveMarkerDetach(_)
             | EventActionConfig::SetStance(_)
             | EventActionConfig::PostJob(_)
+            | EventActionConfig::PlaySound(_)
     )
 }
 
@@ -2507,6 +2517,12 @@ fn check_action_payload_reads(
             let station = &config.station;
             check_binding_payload("PostJob", "station", station, scope, scenario, issues);
         }
+        EventActionConfig::PlaySound(PlaySoundActionConfig {
+            at: SoundAtConfig::Body(body),
+            ..
+        }) => {
+            check_binding_payload("PlaySound", "at", body, scope, scenario, issues);
+        }
         _ => {}
     }
 
@@ -2805,6 +2821,7 @@ mod tests {
     use bevy::prelude::*;
     use nova_events::prelude::*;
     use nova_gameplay::prelude::default_comms_accent;
+    use nova_sound::prelude::SoundCategoryType;
 
     use super::*;
     use crate::lint::{fixtures::*, LintSeverity};
@@ -2855,7 +2872,7 @@ mod tests {
              'sector_n2_0_0_background_rock_3', which exists only at runtime",
             "object 'sector_n2_0_0_background_rock_3' field 'id' spells a generated body id",
             "DespawnScenarioObject `id` is '$other_id', a payload binding only \
-             ObjectiveMarkerAttach, ObjectiveMarkerDetach, SetStance and PostJob read",
+             ObjectiveMarkerAttach, ObjectiveMarkerDetach, SetStance, PostJob and PlaySound read",
             "ObjectiveMarkerDetach `target_id` is '$target'; a payload binding is '$id' or \
              '$other_id'",
             "entity filter names the generated body 'sector_n2_0_0_background_rock_3'",
@@ -6851,18 +6868,19 @@ mod tests {
         );
     }
 
-    /// The gain rides straight into the voice, so a value the author cannot
-    /// have meant has to be caught here rather than in the player's ears.
+    /// The engine drops a cue whose category cannot play where it is put, so
+    /// the lint refuses it: an interface category at a body, a world category
+    /// at Ui, and a loop category anywhere.
     #[test]
-    fn a_sound_gain_outside_zero_to_one_errors_and_a_gain_inside_it_does_not() {
-        let play = |volume: Option<f32>| {
+    fn a_sound_cue_whose_category_cannot_play_where_it_is_put_errors() {
+        let play = |category: SoundCategoryType, at: SoundAtConfig| {
             let s = scenario(
                 vec![EventActionConfig::PlaySound(PlaySoundActionConfig {
                     sound: nova_gameplay::prelude::AssetRef::from(
                         "self://sounds/alarm.wav".to_string(),
                     ),
-                    route: SoundRouteConfig::Interface,
-                    volume,
+                    category,
+                    at,
                 })],
                 vec![],
             );
@@ -6878,20 +6896,27 @@ mod tests {
             );
             errors(&issues)
                 .iter()
-                .filter(|issue| issue.message.contains("PlaySound"))
+                .filter(|issue| issue.message.contains("PlaySound category"))
                 .count()
         };
-        assert_eq!(play(Some(40.0)), 1, "a 40x gain must error");
-        assert_eq!(play(Some(-0.5)), 1, "a negative gain must error");
-        assert_eq!(play(Some(f32::NAN)), 1, "a non-finite gain must error");
-        assert_eq!(play(Some(0.4)), 0, "a cue under a comms line is authorable");
-        assert_eq!(play(Some(0.0)), 0, "silence is a choice");
+        let body = || SoundAtConfig::Body("$id".to_string());
+        assert_eq!(play(SoundCategoryType::Alarm, SoundAtConfig::Ui), 0);
+        assert_eq!(play(SoundCategoryType::Explosion, body()), 0);
         assert_eq!(
-            play(Some(1.0)),
-            0,
-            "full volume is the default, spelled out"
+            play(SoundCategoryType::Alarm, body()),
+            1,
+            "an interface sound is never placed in the world"
         );
-        assert_eq!(play(None), 0, "an omitted gain is full volume");
+        assert_eq!(
+            play(SoundCategoryType::Explosion, SoundAtConfig::Ui),
+            1,
+            "a world sound is never heard flat"
+        );
+        assert_eq!(
+            play(SoundCategoryType::Drive, body()),
+            1,
+            "a loop is not a one-shot"
+        );
     }
 
     /// An empty scene is two errors, not a scene that ends on the frame it

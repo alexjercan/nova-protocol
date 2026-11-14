@@ -26,8 +26,10 @@ pub enum SoundBus {
 }
 
 /// What kind of sound a cue is. Closed: a new kind is a new row in
-/// [`SoundCategoryType::spec`], never a number at a call site.
+/// [`SoundCategoryType::spec`], never a number at a call site. Content names
+/// one by its variant in a scenario's `PlaySound` action.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SoundCategoryType {
     /// A whole ship coming apart: the loudest sound in the game.
     Collapse,

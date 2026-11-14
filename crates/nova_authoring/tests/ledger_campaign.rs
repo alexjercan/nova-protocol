@@ -379,8 +379,8 @@ fn the_racer_course_arms_only_the_next_gate_and_freezes_its_clock_at_finish() {
             gate.actions.iter().any(|action| {
                 matches!(action, EventActionConfig::PlaySound(cue)
                 if cue.sound.path() == Some("dep://base/sounds/radar_retarget.wav")
-                    && cue.route == SoundRouteConfig::Interface
-                    && cue.volume == Some(0.7))
+                    && cue.category == nova_sound::prelude::SoundCategoryType::CockpitTick
+                    && cue.at == SoundAtConfig::Ui)
             }),
             "{id} crossing has one cockpit checkpoint cue"
         );

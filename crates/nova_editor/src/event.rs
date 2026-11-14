@@ -997,8 +997,8 @@ impl ActionChoiceExt for ActionChoice {
             }
             ActionChoice::PlaySound => EventActionConfig::PlaySound(PlaySoundActionConfig {
                 sound: AssetRef::default(),
-                route: SoundRouteConfig::default(),
-                volume: None,
+                category: nova_sound::prelude::SoundCategoryType::Cockpit,
+                at: SoundAtConfig::Ui,
             }),
             ActionChoice::TimerStart => EventActionConfig::TimerStart(TimerStartActionConfig {
                 key: String::new(),
