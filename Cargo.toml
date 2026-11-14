@@ -191,6 +191,16 @@ name = "supply_sandbox"
 path = "examples/playable/supply_sandbox.rs"
 required-features = ["debug"]
 
+# An escort job by hand: New Game on a pinned seed as the military start,
+# every station's market named for a civilization of the --band picked
+# (start|frontier|developed|core), the escort accepted at its poster so its
+# raiders come from that band. Nothing ends it; under NOVA_AUTOPILOT a smoke
+# walk checks the raider count and each raider's size against the band.
+[[example]]
+name = "escort_job_sandbox"
+path = "examples/playable/escort_job_sandbox.rs"
+required-features = ["debug"]
+
 # The scenario job, stance, sector and refusal blocks by hand: New Game under
 # the open world plus handlers that answer each event with a comms line;
 # --start edge starts 300 m inside a sector face. Nothing ends it; under

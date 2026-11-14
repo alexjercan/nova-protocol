@@ -80,16 +80,16 @@ use crate::{
 /// Glob-import surface: `use nova_gameplay::jobs::prelude::*`.
 pub mod prelude {
     pub use super::{
-        escort_raider_size, is_job_post_key, job_title, offer_deadline_text, plan_job_accept,
-        plan_job_hand_in, plan_job_hull_fit, plan_job_offer_refresh, plan_job_supply,
-        station_job_offers, EscortLeg, Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobDone,
-        JobDropped, JobField, JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHandedIn,
-        JobHull, JobHullFit, JobHullRefusalType, JobId, JobMixType, JobOfferRefreshPlan,
-        JobOfferRefreshRefusalType, JobPostings, JobSourceType, JobType, JobWreck, Jobs,
-        ScenarioPosting, ShipSizeType, SlotPosting, StarterBoardMarker, SupplyFramingType,
-        SupplyRefusalType, SupplyRefused, VisitPosting, ESCORT_PAY_PER_RAIDER_CR,
-        ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_OFFER_REFRESH_FEE_CR, SUPPLY_MASS_CAP_G,
-        VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
+        escort_raider_counts, escort_raider_size, is_job_post_key, job_title, offer_deadline_text,
+        plan_job_accept, plan_job_hand_in, plan_job_hull_fit, plan_job_offer_refresh,
+        plan_job_supply, station_job_offers, EscortLeg, Job, JobAcceptRefusalType, JobAccepted,
+        JobBoard, JobDone, JobDropped, JobField, JobHandInPartner, JobHandInPlan,
+        JobHandInRefusalType, JobHandedIn, JobHull, JobHullFit, JobHullRefusalType, JobId,
+        JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType, JobPostings, JobSourceType,
+        JobType, JobWreck, Jobs, ScenarioPosting, ShipSizeType, SlotPosting, StarterBoardMarker,
+        SupplyFramingType, SupplyRefusalType, SupplyRefused, VisitPosting,
+        ESCORT_PAY_PER_RAIDER_CR, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_OFFER_REFRESH_FEE_CR,
+        SUPPLY_MASS_CAP_G, VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
     };
 }
 
@@ -1485,6 +1485,18 @@ pub fn job_title(job: &Job, items: Option<&GameItems>) -> String {
 fn draw_escort_raiders(advancement: f32, rng: &mut WyRand) -> u32 {
     let (_, least, most, _) = escort_raider_band(advancement, "draw_escort_raiders");
     rng.random_range(least..=most)
+}
+
+/// The least and the most raiders an escort posted by a civilization of
+/// `advancement` draws, both included: its [`ESCORT_RAIDER_BANDS`] row.
+///
+/// # Panics
+///
+/// When `advancement` lies outside `[0, 1]`: a civilization's advancement
+/// is clamped there, so another value is an assembly fault.
+pub fn escort_raider_counts(advancement: f32) -> (u32, u32) {
+    let (_, least, most, _) = escort_raider_band(advancement, "escort_raider_counts");
+    (least, most)
 }
 
 /// How large each raider of an escort posted by a civilization of
