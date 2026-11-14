@@ -80,15 +80,16 @@ use crate::{
 /// Glob-import surface: `use nova_gameplay::jobs::prelude::*`.
 pub mod prelude {
     pub use super::{
-        is_job_post_key, job_title, offer_deadline_text, plan_job_accept, plan_job_hand_in,
-        plan_job_hull_fit, plan_job_offer_refresh, plan_job_supply, station_job_offers, EscortLeg,
-        Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobDone, JobDropped, JobField,
-        JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHandedIn, JobHull, JobHullFit,
-        JobHullRefusalType, JobId, JobMixType, JobOfferRefreshPlan, JobOfferRefreshRefusalType,
-        JobPostings, JobSourceType, JobType, JobWreck, Jobs, ScenarioPosting, SlotPosting,
-        StarterBoardMarker, SupplyFramingType, SupplyRefusalType, SupplyRefused, VisitPosting,
-        ESCORT_PAY_PER_RAIDER_CR, ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_OFFER_REFRESH_FEE_CR,
-        SUPPLY_MASS_CAP_G, VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
+        escort_raider_size, is_job_post_key, job_title, offer_deadline_text, plan_job_accept,
+        plan_job_hand_in, plan_job_hull_fit, plan_job_offer_refresh, plan_job_supply,
+        station_job_offers, EscortLeg, Job, JobAcceptRefusalType, JobAccepted, JobBoard, JobDone,
+        JobDropped, JobField, JobHandInPartner, JobHandInPlan, JobHandInRefusalType, JobHandedIn,
+        JobHull, JobHullFit, JobHullRefusalType, JobId, JobMixType, JobOfferRefreshPlan,
+        JobOfferRefreshRefusalType, JobPostings, JobSourceType, JobType, JobWreck, Jobs,
+        ScenarioPosting, ShipSizeType, SlotPosting, StarterBoardMarker, SupplyFramingType,
+        SupplyRefusalType, SupplyRefused, VisitPosting, ESCORT_PAY_PER_RAIDER_CR,
+        ESCORT_RAIDERS_MAX, JOBS_PER_BOARD, JOB_OFFER_REFRESH_FEE_CR, SUPPLY_MASS_CAP_G,
+        VISIT_EXTRAS_MAX, VISIT_EXTRA_OFFER_SECONDS,
     };
 }
 
@@ -142,15 +143,67 @@ pub const ESCORT_RAIDERS_MAX: u32 = 3;
 /// the fee.
 pub const ESCORT_PAY_PER_RAIDER_CR: u32 = 150;
 /// The raiders an escort meets by its poster's civilization's advancement,
-/// in rising order: each band's least advancement, and the least and the
-/// most raiders it draws, both included. A band runs up to the next one's
-/// least advancement; the last runs to 1. Owner decision 2026-11-14.
-const ESCORT_RAIDER_BANDS: [(f32, u32, u32); 4] = [
-    (0.0, 1, 1),
-    (0.25, 1, 2),
-    (0.5, 2, 3),
-    (0.75, 3, ESCORT_RAIDERS_MAX),
+/// in rising order: each band's least advancement, the least and the most
+/// raiders it draws, both included, and how large each raider's hull may
+/// grow. A band runs up to the next one's least advancement; the last runs
+/// to 1. Owner decision 2026-11-14.
+///
+/// Below 0.25 a raider is about the player's start ship (27 sections, one
+/// turret), so the first escort is a fair fight; the budgets grow with the
+/// bands until a raider is the civilization's own scavenger. Over the base
+/// parts the bands lay out 22-36, 29-64 and 46-111 sections.
+const ESCORT_RAIDER_BANDS: [(f32, u32, u32, ShipSizeType); 4] = [
+    (
+        0.0,
+        1,
+        1,
+        ShipSizeType::Budget {
+            sections: 40,
+            turrets: 1,
+        },
+    ),
+    (
+        0.25,
+        1,
+        2,
+        ShipSizeType::Budget {
+            sections: 68,
+            turrets: 2,
+        },
+    ),
+    (
+        0.5,
+        2,
+        3,
+        ShipSizeType::Budget {
+            sections: 108,
+            turrets: 3,
+        },
+    ),
+    (0.75, 3, ESCORT_RAIDERS_MAX, ShipSizeType::Advancement),
 ];
+
+/// How large a generated hull may grow.
+///
+/// Here rather than beside the generator so [`ESCORT_RAIDER_BANDS`] can
+/// state a raider's budget without the world crates.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ShipSizeType {
+    /// The advancement's own ceiling: the hull fills its clearance ceiling
+    /// and the role's weapon slots grow with the advancement.
+    Advancement,
+    /// A smaller hull than the advancement allows, for a job that must stay
+    /// a fair fight. The spine is planned to leave its fittings room under
+    /// `sections`, and at most `turrets` turrets mount, one on the
+    /// centreline per weapon slot. No torpedo bay or lance mounts: one
+    /// torpedo from a small raider can end a fight before it starts.
+    Budget {
+        /// The sections the whole hull is planned to.
+        sections: u32,
+        /// The most turrets the hull mounts.
+        turrets: u32,
+    },
+}
 
 /// The identity of a posted job: the station that posted it and what
 /// posted it there. The poster is read off the id, never kept twice.
@@ -1430,16 +1483,33 @@ pub fn job_title(job: &Job, items: Option<&GameItems>) -> String {
 /// When `advancement` lies outside `[0, 1]`: a civilization's advancement
 /// is clamped there, so another value is an assembly fault.
 fn draw_escort_raiders(advancement: f32, rng: &mut WyRand) -> u32 {
+    let (_, least, most, _) = escort_raider_band(advancement, "draw_escort_raiders");
+    rng.random_range(least..=most)
+}
+
+/// How large each raider of an escort posted by a civilization of
+/// `advancement` may grow: its [`ESCORT_RAIDER_BANDS`] row.
+///
+/// # Panics
+///
+/// When `advancement` lies outside `[0, 1]`: a civilization's advancement
+/// is clamped there, so another value is an assembly fault.
+pub fn escort_raider_size(advancement: f32) -> ShipSizeType {
+    escort_raider_band(advancement, "escort_raider_size").3
+}
+
+/// The [`ESCORT_RAIDER_BANDS`] row `advancement` falls in, for `caller`'s
+/// panic.
+fn escort_raider_band(advancement: f32, caller: &str) -> (f32, u32, u32, ShipSizeType) {
     assert!(
         (0.0..=1.0).contains(&advancement),
-        "draw_escort_raiders: the advancement {advancement} lies outside [0, 1]"
+        "{caller}: the advancement {advancement} lies outside [0, 1]"
     );
-    let (_, least, most) = ESCORT_RAIDER_BANDS
+    *ESCORT_RAIDER_BANDS
         .iter()
         .rev()
-        .find(|(from, _, _)| advancement >= *from)
-        .expect("the first band starts at 0");
-    rng.random_range(*least..=*most)
+        .find(|(from, ..)| advancement >= *from)
+        .expect("the first band starts at 0")
 }
 
 /// The board a living generated station posts, on its root: its slots'

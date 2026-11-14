@@ -3026,6 +3026,7 @@ mod generated_wreck {
             },
             role: ShipRoleType::Armored,
             advancement: 0.5,
+            size: ShipSizeType::Advancement,
         };
         let wreck =
             generate_wreck(&snapshot, request).unwrap_or_else(|failure| panic!("{failure}"));

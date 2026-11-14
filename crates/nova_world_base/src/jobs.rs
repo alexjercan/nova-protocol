@@ -67,14 +67,14 @@ use nova_events::prelude::{
     OnShipOrderCompleteEvent, OnShipOrderFailedEvent, OnUndockedEvent, SectorCoord,
 };
 use nova_gameplay::prelude::{
-    plan_job_hull_fit, plan_job_supply, station_job_offers, station_offers, unit_sphere_point,
-    Allegiance, DerelictShipMarker, Fnv32, GameItems, GamePriceTable, Job, JobAccepted, JobBoard,
-    JobDone, JobDropped, JobField, JobHull, JobHullFit, JobId, JobMixType, JobOfferRule,
-    JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker, ObjectiveMarkerTarget,
+    escort_raider_size, plan_job_hull_fit, plan_job_supply, station_job_offers, station_offers,
+    unit_sphere_point, Allegiance, DerelictShipMarker, Fnv32, GameItems, GamePriceTable, Job,
+    JobAccepted, JobBoard, JobDone, JobDropped, JobField, JobHull, JobHullFit, JobId, JobMixType,
+    JobOfferRule, JobPostings, JobType, JobWreck, Jobs, NeutralizedMarker, ObjectiveMarkerTarget,
     PlayerSpaceshipMarker, RailgunSectionMarker, SectionInactiveMarker, SectionMarker, SeedStream,
-    ShipInventory, ShipInventoryStock, ShipRoleType, SlotPosting, SpaceshipRootMarker,
-    StarterBoardMarker, StationMarker, StationServiceType, StationServices, SupplyRefused,
-    TorpedoSectionMarker, TraderMarket, TurretSectionMarker, JOBS_PER_BOARD,
+    ShipInventory, ShipInventoryStock, ShipRoleType, ShipSizeType, SlotPosting,
+    SpaceshipRootMarker, StarterBoardMarker, StationMarker, StationServiceType, StationServices,
+    SupplyRefused, TorpedoSectionMarker, TraderMarket, TurretSectionMarker, JOBS_PER_BOARD,
 };
 use nova_scenario::prelude::{
     base_scenario_object, spaceship_scenario_object, AIControllerConfig, BaseScenarioObjectConfig,
@@ -755,12 +755,13 @@ pub(crate) fn spawn_job_bodies(
     // escort's raiders at posting, so the ambush matches the posting.
     let civilization = poster_civilization(job.posted_by(), market, "spawn_job_bodies");
     let facing = Quat::from_rotation_arc(Vec3::NEG_Z, direction);
-    let hull = |id: &GeneratedBodyId, aspect: &[u8], role: ShipRoleType, condition| {
+    let hull = |id: &GeneratedBodyId, aspect: &[u8], role: ShipRoleType, size, condition| {
         let request = ShipLayoutRequest {
             seed: key(aspect),
             civilization: civilization.id,
             role,
             advancement: civilization.advancement,
+            size,
         };
         let layout = generate_ship(parts, request)
             .unwrap_or_else(|failure| panic!("spawn_job_bodies: '{id}': {failure}"));
@@ -784,6 +785,9 @@ pub(crate) fn spawn_job_bodies(
             id,
             format!("job_raider_{index}").as_bytes(),
             ShipRoleType::Scavenger,
+            // A raider stays a fair fight for the escort its poster's
+            // advancement offers.
+            escort_raider_size(civilization.advancement),
             SectorShipConditionType::Intact,
         );
         (
@@ -828,6 +832,7 @@ pub(crate) fn spawn_job_bodies(
                 hauler,
                 b"job_hauler",
                 ShipRoleType::Industrial,
+                ShipSizeType::Advancement,
                 SectorShipConditionType::Intact,
             );
             let start = Meters3(station_at.get() + direction * HAULER_STANDOFF.get());
@@ -878,6 +883,7 @@ pub(crate) fn spawn_job_bodies(
                 caller,
                 b"job_caller",
                 ShipRoleType::Civilian,
+                ShipSizeType::Advancement,
                 SectorShipConditionType::Derelict,
             );
             let stock = caller_stock(&job.kind, stock);

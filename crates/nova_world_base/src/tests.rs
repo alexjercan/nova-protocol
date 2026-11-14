@@ -5,6 +5,7 @@ use nova_assets::prelude::{ContentCatalogDigest, LoadedSectionPack};
 use nova_events::prelude::{Meters, Meters3};
 use nova_gameplay::prelude::{
     Allegiance, Fnv64, GameItems, ItemCategoryType, ItemDesignId, ItemRoleType, ShipRoleType,
+    ShipSizeType,
 };
 use nova_scenario::prelude::{
     resolve_ship_design, GameShipDesigns, GeneratedWorldConfig, ScenarioConfig, ScenarioRole,
@@ -330,6 +331,7 @@ fn an_intact_scavenger_alone_may_carry_one_unit_of_contraband() {
                 civilization: civilization.id,
                 role,
                 advancement: 0.5,
+                size: ShipSizeType::Advancement,
             };
             let Ok(layout) = generate_ship(parts, request) else {
                 continue;

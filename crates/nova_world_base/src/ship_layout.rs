@@ -71,7 +71,7 @@ use std::{
 
 use bevy::prelude::*;
 use nova_events::prelude::Meters;
-use nova_gameplay::prelude::{CivilizationId, Fnv32, SeedStream, ShipRoleType};
+use nova_gameplay::prelude::{CivilizationId, Fnv32, SeedStream, ShipRoleType, ShipSizeType};
 use nova_scenario::prelude::{
     SectionSource, ShipDesign, ShipPresentationConfig, SpaceshipSectionConfig,
 };
@@ -117,6 +117,12 @@ pub const MAX_SHIP_SECTIONS: usize = 2000;
 /// docking ports and the mining beams. The base parts fit at most about 80 on
 /// a full-advancement armored hull.
 const FITTING_SECTIONS: usize = 100;
+
+/// Sections a spine plan leaves for the fittings under a
+/// [`ShipSizeType::Budget`]: the drive bank, a flight computer or two, the
+/// weapons, the intake and the docking ports of a small hull. The base parts
+/// fit 8 to 13 on a scavenger at advancement 0.
+const BUDGET_FITTING_SECTIONS: usize = 12;
 
 /// How far below a request's advancement a drive may be tiered and still be
 /// drawn before the lower parts of its source, see [`tier_floor`].
@@ -179,6 +185,8 @@ pub struct ShipLayoutRequest {
     pub role: ShipRoleType,
     /// The civilization's advancement in `[0, 1]`: the part and size ceiling.
     pub advancement: f32,
+    /// How large the hull may grow under that ceiling.
+    pub size: ShipSizeType,
 }
 
 /// How a generated ship's drive bank stands behind its stern. A bank is
@@ -413,6 +421,7 @@ impl fmt::Display for ShipLayoutFailure {
             civilization,
             role,
             advancement,
+            size: _,
         } = self.request;
         write!(
             f,
@@ -1696,13 +1705,27 @@ impl<'a> Draw<'a> {
         // weighted draw's order.
         let mut mounted: HashSet<&str> = HashSet::new();
         let coherent = request.role != ShipRoleType::Scavenger;
-        for slot in 0..weapon_slots(request.role, request.advancement) {
+        // A budget mounts one turret alone on the centreline per slot, so
+        // its turret count is its slot count.
+        let (slots, weapon_mount, turrets_only) = match request.size {
+            ShipSizeType::Advancement => (
+                weapon_slots(request.role, request.advancement),
+                MountType::Mirrored,
+                false,
+            ),
+            ShipSizeType::Budget { turrets, .. } => (
+                weapon_slots(request.role, request.advancement).min(turrets),
+                MountType::Centred,
+                true,
+            ),
+        };
+        for slot in 0..slots {
             let aspect = format!("weapon_{slot}");
             let mut weapons = self.ranked(
                 ShipPartFamilyType::Weapon,
                 Some(source),
                 aspect.as_bytes(),
-                |_| true,
+                |part| !turrets_only || matches!(part.config.kind, SectionKind::Turret(_)),
             );
             weapons.sort_by_key(|part| {
                 (
@@ -1715,7 +1738,7 @@ impl<'a> Draw<'a> {
                 &weapons,
                 &aspect,
                 weapon_aim,
-                MountType::Mirrored,
+                weapon_mount,
                 format!("{aspect}_slot").as_bytes(),
             );
             if placed {
@@ -1830,7 +1853,8 @@ impl<'a> Draw<'a> {
     /// [`RoleShape::min_aspect`], and shrunk, narrower and flatter first and
     /// shorter last, until the spine and a bank `drive_depth` cells deep fit
     /// the advancement's size ceiling with room for fittings, and its cubes
-    /// leave [`FITTING_SECTIONS`] under [`MAX_SHIP_SECTIONS`].
+    /// leave [`FITTING_SECTIONS`] under [`MAX_SHIP_SECTIONS`], or
+    /// [`BUDGET_FITTING_SECTIONS`] under a [`ShipSizeType::Budget`].
     fn plan(
         &self,
         stern: Section,
@@ -1864,6 +1888,10 @@ impl<'a> Draw<'a> {
         let aft = [stream.unit(), stream.unit()];
 
         let ceiling = ceiling(request.advancement);
+        let (fittings, most_sections) = match request.size {
+            ShipSizeType::Advancement => (FITTING_SECTIONS, MAX_SHIP_SECTIONS),
+            ShipSizeType::Budget { sections, .. } => (BUDGET_FITTING_SECTIONS, sections as usize),
+        };
         // Once the ceiling or the section budget has cut the length, the
         // aspect no longer lengthens it: a stern as wide as its drive bank
         // cannot narrow.
@@ -1889,7 +1917,7 @@ impl<'a> Draw<'a> {
                     ((2 * section.half_width + 1) * (section.high - section.low + 1)) as usize
                 })
                 .sum();
-            if planned.0 <= ceiling.0 && cubes + FITTING_SECTIONS <= MAX_SHIP_SECTIONS {
+            if planned.0 <= ceiling.0 && cubes + fittings <= most_sections {
                 if cut || length as f32 >= shape.min_aspect * (2 * width + 1) as f32 {
                     return Ok(stations);
                 }
@@ -2658,6 +2686,7 @@ pub(crate) mod tests {
             civilization,
             role,
             advancement,
+            size: ShipSizeType::Advancement,
         }
     }
 
@@ -3489,6 +3518,7 @@ pub(crate) mod tests {
             },
             role: ShipRoleType::Scavenger,
             advancement: 0.1,
+            size: ShipSizeType::Advancement,
         };
         let intact = generate_ship(&snapshot, request).expect("the ship generates");
         let (cells, cubes) = filled_cells(&snapshot, &intact.design);

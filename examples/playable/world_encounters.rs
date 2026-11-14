@@ -237,6 +237,7 @@ fn generated_hull(
         civilization,
         role,
         advancement,
+        size: ShipSizeType::Advancement,
     };
     generate_ship(snapshot, request)
         .unwrap_or_else(|failure| panic!("world_encounters: {failure}"))

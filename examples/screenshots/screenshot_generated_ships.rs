@@ -214,6 +214,7 @@ fn first_hull_layout(
             civilization,
             role,
             advancement,
+            size: ShipSizeType::Advancement,
         };
         match generate_ship(snapshot, request) {
             Ok(layout) => return (request, layout),

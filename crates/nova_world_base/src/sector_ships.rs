@@ -44,7 +44,7 @@ use nova_events::prelude::{GeneratedBodyId, Meters, Meters3, MetersPerSecond3};
 use nova_gameplay::prelude::{
     Allegiance, CivilizationId, ClusterType, Fnv32, GameItems, GameTradeProfiles, ItemCategoryType,
     ItemDesign, ItemDesignId, ItemRoleType, SeedStream, ShipInventoryStock, ShipRoleType,
-    TradeProfileDesignId, TraderMarket,
+    ShipSizeType, TradeProfileDesignId, TraderMarket,
 };
 use nova_scenario::prelude::{
     AIControllerConfig, ShipDesign, ShipDesignSource, SpaceshipConfig, SpaceshipController,
@@ -250,6 +250,7 @@ pub fn plan_ship(
         civilization: civilization.id,
         role,
         advancement: civilization.advancement,
+        size: ShipSizeType::Advancement,
     };
     let (layout, condition) = match civilization.status {
         CivilizationStatusType::Living => (

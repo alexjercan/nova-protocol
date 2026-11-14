@@ -582,6 +582,7 @@ fn generate_row(
             civilization,
             role: controls.role,
             advancement,
+            size: ShipSizeType::Advancement,
         };
         let layout = match controls.condition {
             ConditionType::Intact => generate_ship(snapshot, request),

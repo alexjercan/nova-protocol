@@ -4,7 +4,7 @@
 
 use bevy::math::Vec3;
 use nova_authoring::lint_walk::repo_ship_part_packs;
-use nova_gameplay::prelude::{CivilizationId, ShipRoleType};
+use nova_gameplay::prelude::{CivilizationId, ShipRoleType, ShipSizeType};
 use nova_scenario::prelude::SpaceshipSectionConfig;
 use nova_ship::prelude::{intake_in_dock_approach, RefitPlacedSection, SectionKind, GRID_EPSILON};
 use nova_world_base::prelude::{
@@ -95,6 +95,7 @@ fn request(seed: u32, role: ShipRoleType, advancement: f32) -> ShipLayoutRequest
         civilization: CIVILIZATION,
         role,
         advancement,
+        size: ShipSizeType::Advancement,
     }
 }
 

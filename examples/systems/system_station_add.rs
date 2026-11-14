@@ -249,6 +249,7 @@ fn generated_hull() -> ShipDesign {
         civilization,
         role,
         advancement,
+        size: ShipSizeType::Advancement,
     };
     generate_ship(&snapshot, request)
         .unwrap_or_else(|failure| panic!("station add: {failure}"))

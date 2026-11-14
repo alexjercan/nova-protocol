@@ -7,7 +7,8 @@ use std::collections::BTreeSet;
 
 use nova_authoring::{generation::build_items, lint_walk::repo_ship_part_packs};
 use nova_gameplay::prelude::{
-    CivilizationId, GameItems, ItemCategoryType, ItemRoleType, ShipRoleType,
+    escort_raider_size, CivilizationId, GameItems, ItemCategoryType, ItemRoleType, ShipRoleType,
+    ShipSizeType,
 };
 use nova_ship::prelude::SectionKind;
 use nova_world::prelude::SectorShipConditionType;
@@ -33,6 +34,7 @@ fn census(snapshot: &ShipPartSnapshot, advancement: f32, seeds: u32) -> (usize, 
                     civilization,
                     role,
                     advancement,
+                    size: ShipSizeType::Advancement,
                 };
                 let ship = generate_ship(snapshot, request).unwrap_or_else(|failure| {
                     panic!("{civilization:?}, seed {seed}, {role:?}: {failure}")
@@ -115,6 +117,7 @@ fn a_generated_hold_carries_only_the_ammunition_its_weapons_reload_from() {
                         civilization,
                         role,
                         advancement,
+                        size: ShipSizeType::Advancement,
                     };
                     let ship = generate_ship(&snapshot, request)
                         .unwrap_or_else(|failure| panic!("{context}: {failure}"));
@@ -161,4 +164,74 @@ fn a_generated_hold_carries_only_the_ammunition_its_weapons_reload_from() {
         }
     }
     assert!(!stocked.is_empty(), "no armed ship holds ammunition");
+}
+
+/// An escort raider posted below advancement 0.25 is about the player's
+/// 27-section start ship with one turret and no other weapon, across eight civilizations and
+/// sixteen seeds through the band; a normal scavenger at the same advancement
+/// can be four times that with two turrets.
+#[test]
+fn an_escort_raider_below_advancement_a_quarter_stays_within_the_small_budget_with_one_turret() {
+    let snapshot = ShipPartSnapshot::build(&repo_ship_part_packs(&["base"]))
+        .unwrap_or_else(|faults| panic!("the base snapshot builds: {faults:?}"));
+    for advancement in [0.0, 0.008, 0.12, 0.249] {
+        let size = escort_raider_size(advancement);
+        assert_eq!(
+            size,
+            ShipSizeType::Budget {
+                sections: 40,
+                turrets: 1
+            },
+            "the band below 0.25 at {advancement}"
+        );
+        for node in 0..8 {
+            let civilization = CivilizationId {
+                world_seed: 37,
+                node: [node, 0, 0],
+            };
+            if !snapshot
+                .eligible_roles(civilization, advancement)
+                .contains(&ShipRoleType::Scavenger)
+            {
+                continue;
+            }
+            for seed in 0..16 {
+                let context = format!("{civilization:?}, seed {seed}, {advancement}");
+                let request = ShipLayoutRequest {
+                    seed,
+                    civilization,
+                    role: ShipRoleType::Scavenger,
+                    advancement,
+                    size,
+                };
+                let ship = generate_ship(&snapshot, request)
+                    .unwrap_or_else(|failure| panic!("{context}: {failure}"));
+                let sections = ship.design.sections.len();
+                assert!(
+                    (20..=40).contains(&sections),
+                    "{context}: {sections} sections"
+                );
+                let weapons: Vec<&SectionKind> = ship
+                    .design
+                    .sections
+                    .iter()
+                    .filter_map(|section| {
+                        let id = section.source.prototype_id();
+                        let part = snapshot.parts().iter().find(|part| part.id() == id)?;
+                        matches!(
+                            part.config.kind,
+                            SectionKind::Turret(_)
+                                | SectionKind::Torpedo(_)
+                                | SectionKind::Railgun(_)
+                        )
+                        .then_some(&part.config.kind)
+                    })
+                    .collect();
+                assert!(
+                    matches!(weapons.as_slice(), [SectionKind::Turret(_)]),
+                    "{context}: weapons {weapons:?}"
+                );
+            }
+        }
+    }
 }

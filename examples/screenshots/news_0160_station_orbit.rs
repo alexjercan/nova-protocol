@@ -264,6 +264,7 @@ fn small_hull(
             civilization,
             role,
             advancement: STATION_ADVANCEMENT,
+            size: ShipSizeType::Advancement,
         };
         match generate_ship(snapshot, request) {
             Ok(layout) if layout.clearance.0 <= HULL_CLEARANCE.0 => {
