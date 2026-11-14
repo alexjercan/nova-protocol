@@ -7,20 +7,13 @@
 //! authors the sound, and this module is the only place that turns the two
 //! into a voice.
 //!
-//! Every cue is placed at the mechanism and routed by whose hull it is on, so
-//! a raider folding its guns two hundred meters away is heard from over there
-//! or not at all.
+//! Every cue plays at the mechanism, on its hull. The category sets the level
+//! and the reach, and its repeat interval and voice cap hold per ship, so
+//! three bays opening on one hull are one iris.
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::*;
-use nova_sound::{prelude::*, SfxThrottle, ThrottleKey};
+use nova_sound::prelude::*;
 
-use super::{
-    routing::{owning_root, route_for, route_from},
-    BAY_DOOR_CLOSE_VOLUME, BAY_DOOR_OPEN_VOLUME, CARGO_EJECT_VOLUME, DOCK_CLAMP_VOLUME,
-    DOCK_MIN_INTERVAL, DOCK_RELEASE_VOLUME, INTAKE_DOOR_CLOSE_VOLUME, INTAKE_DOOR_OPEN_VOLUME,
-    MINING_DOOR_CLOSE_VOLUME, MINING_DOOR_OPEN_VOLUME, STOW_CLOSE_VOLUME, STOW_OPEN_VOLUME,
-};
 use crate::sections::{
     cargo_intake_section::{
         CargoCanisterEjected, CargoCanisterTaken, CargoIntakeDoorMoved,
@@ -32,20 +25,28 @@ use crate::sections::{
     turret_section::{TurretSectionStowSounds, TurretStowDoorsMoved},
 };
 
+/// One machinery cue at `section`, which carries the voice's ship.
+fn play_at(
+    commands: &mut Commands,
+    sound: Handle<AudioSource>,
+    category: SoundCategoryType,
+    section: Entity,
+) {
+    commands.trigger(PlaySound {
+        sound,
+        category,
+        at: SoundAt::Entity(section),
+    });
+}
+
 /// The housing servo, on the frame the lids are told to move.
 ///
 /// AUTHORED-OR-SILENT per DIRECTION: a mount may voice its rise, its fold, both
-/// or neither. The two directions carry different gains because they are
-/// different recordings - matching their linear numbers would not match their
-/// loudness, which is the trap the rest of this table already fell into once.
+/// or neither.
 pub(super) fn on_stow_doors_play_sfx(
     moved: On<TurretStowDoorsMoved>,
     asset_server: Res<AssetServer>,
     q_sounds: Query<&TurretSectionStowSounds>,
-    q_where: Query<&GlobalTransform>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut commands: Commands,
 ) {
     let turret = moved.entity;
@@ -60,24 +61,14 @@ pub(super) fn on_stow_doors_play_sfx(
     let Some(handle) = authored.as_ref().map(|r| r.resolve(&asset_server)) else {
         return;
     };
-    let Ok(at) = q_where.get(turret) else {
-        return;
-    };
-    let volume = if moved.opening {
-        STOW_OPEN_VOLUME
-    } else {
-        STOW_CLOSE_VOLUME
-    };
-    let route = route_for(turret, &q_child_of, &q_is_root, &q_is_player);
-    commands.play_sfx_at(handle, route, volume, at.translation());
+    play_at(&mut commands, handle, SoundCategoryType::Machinery, turret);
 }
 
 /// The bay's muzzle iris, on the frame the petals are told to move.
 ///
 /// ONE authored file for both directions, unlike the housing above: the iris is
 /// one servo turning one way or the other, where the housing's rise and fold
-/// are two mechanisms. The levels still differ - petals seating is a heavier
-/// event than petals unseating - which is a gain decision, not a second sound.
+/// are two mechanisms.
 ///
 /// A doorless bay never reports, so the authored-or-silent test here is only
 /// about a bay that HAS an iris and chose not to voice it.
@@ -85,10 +76,6 @@ pub(super) fn on_bay_doors_play_sfx(
     moved: On<TorpedoBayDoorsMoved>,
     asset_server: Res<AssetServer>,
     q_sounds: Query<&TorpedoSectionDoorSound>,
-    q_where: Query<&GlobalTransform>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut commands: Commands,
 ) {
     let bay = moved.entity;
@@ -100,16 +87,7 @@ pub(super) fn on_bay_doors_play_sfx(
     else {
         return;
     };
-    let Ok(at) = q_where.get(bay) else {
-        return;
-    };
-    let volume = if moved.opening {
-        BAY_DOOR_OPEN_VOLUME
-    } else {
-        BAY_DOOR_CLOSE_VOLUME
-    };
-    let route = route_for(bay, &q_child_of, &q_is_root, &q_is_player);
-    commands.play_sfx_at(handle, route, volume, at.translation());
+    play_at(&mut commands, handle, SoundCategoryType::Machinery, bay);
 }
 
 /// The intake's door servo, on the frame the door is told to move. One
@@ -117,27 +95,18 @@ pub(super) fn on_bay_doors_play_sfx(
 pub(super) fn on_intake_door_play_sfx(
     moved: On<CargoIntakeDoorMoved>,
     asset_server: Res<AssetServer>,
-    q_intakes: Query<(&CargoIntakeSectionConfigHelper, &GlobalTransform)>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    q_intakes: Query<&CargoIntakeSectionConfigHelper>,
     mut commands: Commands,
 ) {
     let intake = moved.entity;
-    let Ok((config, at)) = q_intakes.get(intake) else {
+    let Ok(config) = q_intakes.get(intake) else {
         return;
     };
-    let volume = if moved.opening {
-        INTAKE_DOOR_OPEN_VOLUME
-    } else {
-        INTAKE_DOOR_CLOSE_VOLUME
-    };
-    let route = route_for(intake, &q_child_of, &q_is_root, &q_is_player);
-    commands.play_sfx_at(
+    play_at(
+        &mut commands,
         config.door_sound.resolve(&asset_server),
-        route,
-        volume,
-        at.translation(),
+        SoundCategoryType::Machinery,
+        intake,
     );
 }
 
@@ -146,27 +115,23 @@ pub(super) fn on_intake_door_play_sfx(
 pub(super) fn on_mining_doors_play_sfx(
     moved: On<MiningDoorsMoved>,
     asset_server: Res<AssetServer>,
-    q_emitters: Query<(&MiningSectionConfigHelper, &GlobalTransform)>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    q_emitters: Query<&MiningSectionConfigHelper>,
     mut commands: Commands,
 ) {
     let emitter = moved.entity;
-    let Ok((config, at)) = q_emitters.get(emitter) else {
+    let Ok(config) = q_emitters.get(emitter) else {
         return;
     };
-    let (sound, volume) = if moved.opening {
-        (&config.door_open_sound, MINING_DOOR_OPEN_VOLUME)
+    let sound = if moved.opening {
+        &config.door_open_sound
     } else {
-        (&config.door_close_sound, MINING_DOOR_CLOSE_VOLUME)
+        &config.door_close_sound
     };
-    let route = route_for(emitter, &q_child_of, &q_is_root, &q_is_player);
-    commands.play_sfx_at(
+    play_at(
+        &mut commands,
         sound.resolve(&asset_server),
-        route,
-        volume,
-        at.translation(),
+        SoundCategoryType::Machinery,
+        emitter,
     );
 }
 
@@ -174,22 +139,18 @@ pub(super) fn on_mining_doors_play_sfx(
 pub(super) fn on_canister_ejected_play_sfx(
     ejected: On<CargoCanisterEjected>,
     asset_server: Res<AssetServer>,
-    q_intakes: Query<(&CargoIntakeSectionConfigHelper, &GlobalTransform)>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    q_intakes: Query<&CargoIntakeSectionConfigHelper>,
     mut commands: Commands,
 ) {
     let intake = ejected.entity;
-    let Ok((config, at)) = q_intakes.get(intake) else {
+    let Ok(config) = q_intakes.get(intake) else {
         return;
     };
-    let route = route_for(intake, &q_child_of, &q_is_root, &q_is_player);
-    commands.play_sfx_at(
+    play_at(
+        &mut commands,
         config.eject_sound.resolve(&asset_server),
-        route,
-        CARGO_EJECT_VOLUME,
-        at.translation(),
+        SoundCategoryType::Machinery,
+        intake,
     );
 }
 
@@ -197,51 +158,40 @@ pub(super) fn on_canister_ejected_play_sfx(
 pub(super) fn on_canister_taken_play_sfx(
     taken: On<CargoCanisterTaken>,
     asset_server: Res<AssetServer>,
-    q_intakes: Query<(&CargoIntakeSectionConfigHelper, &GlobalTransform)>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    q_intakes: Query<&CargoIntakeSectionConfigHelper>,
     mut commands: Commands,
 ) {
     let intake = taken.entity;
-    let Ok((config, at)) = q_intakes.get(intake) else {
+    let Ok(config) = q_intakes.get(intake) else {
         return;
     };
-    let route = route_for(intake, &q_child_of, &q_is_root, &q_is_player);
-    commands.play_sfx_at(
+    play_at(
+        &mut commands,
         config.take_sound.resolve(&asset_server),
-        route,
-        SALVAGE_PICKUP_VOLUME,
-        at.translation(),
+        SoundCategoryType::Pickup,
+        intake,
     );
 }
 
 /// The clamp closing, at the port of the hull that pressed `DOCK`, the
 /// frame the joint holds. AUTHORED-OR-SILENT: the port's own `clamp_sound`.
+/// A request echoed on one frame plays once through the category's repeat
+/// interval, which holds per hull.
 pub(super) fn on_dock_clamped_play_sfx(
     clamped: On<DockClamped>,
     asset_server: Res<AssetServer>,
-    time: Res<Time>,
-    mut throttle: ResMut<SfxThrottle>,
-    q_ports: Query<(&DockingSectionConfigHelper, &GlobalTransform)>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    q_ports: Query<&DockingSectionConfigHelper>,
     mut commands: Commands,
 ) {
-    play_dock_cue(
-        clamped.entity,
-        |config| config.clamp_sound.as_ref(),
-        ThrottleKey::DockClamp,
-        DOCK_CLAMP_VOLUME,
-        &asset_server,
-        &time,
-        &mut throttle,
-        &q_ports,
-        &q_child_of,
-        &q_is_root,
-        &q_is_player,
+    let port = clamped.entity;
+    let Some(sound) = q_ports.get(port).ok().and_then(|c| c.clamp_sound.as_ref()) else {
+        return;
+    };
+    play_at(
         &mut commands,
+        sound.resolve(&asset_server),
+        SoundCategoryType::Machinery,
+        port,
     );
 }
 
@@ -251,71 +201,29 @@ pub(super) fn on_dock_clamped_play_sfx(
 pub(super) fn on_dock_released_play_sfx(
     released: On<DockReleased>,
     asset_server: Res<AssetServer>,
-    time: Res<Time>,
-    mut throttle: ResMut<SfxThrottle>,
-    q_ports: Query<(&DockingSectionConfigHelper, &GlobalTransform)>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    q_ports: Query<&DockingSectionConfigHelper>,
     mut commands: Commands,
 ) {
-    play_dock_cue(
-        released.entity,
-        |config| config.release_sound.as_ref(),
-        ThrottleKey::DockRelease,
-        DOCK_RELEASE_VOLUME,
-        &asset_server,
-        &time,
-        &mut throttle,
-        &q_ports,
-        &q_child_of,
-        &q_is_root,
-        &q_is_player,
+    let port = released.entity;
+    let Some(sound) = q_ports
+        .get(port)
+        .ok()
+        .and_then(|c| c.release_sound.as_ref())
+    else {
+        return;
+    };
+    play_at(
         &mut commands,
-    );
-}
-
-/// One docking cue at `port`: the authored file `pick` names, throttled per
-/// hull so a request echoed on one frame plays once.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the two dock observers share one body: the bank, the clock, the throttle, the port and its route"
-)]
-fn play_dock_cue(
-    port: Entity,
-    pick: impl FnOnce(&DockingSectionConfigHelper) -> Option<&AssetRef<AudioSource>>,
-    key: impl FnOnce(Entity) -> ThrottleKey,
-    volume: f32,
-    asset_server: &AssetServer,
-    time: &Time,
-    throttle: &mut SfxThrottle,
-    q_ports: &Query<(&DockingSectionConfigHelper, &GlobalTransform)>,
-    q_child_of: &Query<&ChildOf>,
-    q_is_root: &Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: &Query<(), With<PlayerSpaceshipMarker>>,
-    commands: &mut Commands,
-) {
-    let Ok((config, at)) = q_ports.get(port) else {
-        return;
-    };
-    let Some(sound) = pick(config) else {
-        return;
-    };
-    let root = owning_root(port, q_child_of, q_is_root);
-    if !throttle.allow(key(root), time.elapsed_secs(), DOCK_MIN_INTERVAL) {
-        return;
-    }
-    commands.play_sfx_at(
-        sound.resolve(asset_server),
-        route_from(root, q_is_player),
-        volume,
-        at.translation(),
+        sound.resolve(&asset_server),
+        SoundCategoryType::Machinery,
+        port,
     );
 }
 
 #[cfg(test)]
 mod tests {
     use nova_events::units::prelude::*;
+    use nova_gameplay::prelude::*;
 
     use super::{super::test_support::LastPlayed, *};
     use crate::sections::{
@@ -331,8 +239,8 @@ mod tests {
         app.init_asset::<AudioSource>();
         app.init_resource::<LastPlayed>();
         app.add_observer(on_stow_doors_play_sfx);
-        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
-            last.0 = Some(ev.handle.clone());
+        app.add_observer(|ev: On<PlaySound>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.sound.clone());
         });
         let ship = app.world_mut().spawn(SpaceshipRootMarker).id();
         let turret = app
@@ -410,8 +318,8 @@ mod tests {
         app.init_asset::<AudioSource>();
         app.init_resource::<LastPlayed>();
         app.add_observer(on_bay_doors_play_sfx);
-        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
-            last.0 = Some(ev.handle.clone());
+        app.add_observer(|ev: On<PlaySound>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.sound.clone());
         });
         let ship = app.world_mut().spawn(SpaceshipRootMarker).id();
         let bay = app
@@ -425,52 +333,12 @@ mod tests {
         (app, bay)
     }
 
-    /// Every `PlaySfx` the iris rig sees, as `(handle, volume)`.
     fn move_iris(app: &mut App, bay: Entity, opening: bool) {
         app.world_mut().trigger(TorpedoBayDoorsMoved {
             entity: bay,
             opening,
         });
         app.world_mut().flush();
-    }
-
-    #[test]
-    fn one_iris_file_plays_both_ways_at_two_different_levels() {
-        // The counterpart to the housing above, and deliberately the other
-        // answer: one servo, one recording, and the DIRECTION is a gain
-        // decision rather than a second file.
-        let mut app = App::new();
-        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
-        app.init_asset::<AudioSource>();
-        app.add_observer(on_bay_doors_play_sfx);
-        #[derive(Resource, Default)]
-        struct Heard(Vec<(Handle<AudioSource>, f32)>);
-        app.init_resource::<Heard>();
-        app.add_observer(|ev: On<PlaySfx>, mut heard: ResMut<Heard>| {
-            heard.0.push((ev.handle.clone(), ev.volume));
-        });
-        let ship = app.world_mut().spawn(SpaceshipRootMarker).id();
-        let bay = app
-            .world_mut()
-            .spawn((
-                TorpedoSectionDoorSound(Some(AssetRef::from("base/sounds/bay_door.wav"))),
-                GlobalTransform::default(),
-                ChildOf(ship),
-            ))
-            .id();
-
-        move_iris(&mut app, bay, true);
-        move_iris(&mut app, bay, false);
-
-        let heard = &app.world().resource::<Heard>().0;
-        assert_eq!(heard.len(), 2, "each command to the petals is one cue");
-        assert_eq!(heard[0].0, heard[1].0, "one iris is one recording");
-        assert!(
-            (heard[0].1 - BAY_DOOR_OPEN_VOLUME).abs() < 1e-6
-                && (heard[1].1 - BAY_DOOR_CLOSE_VOLUME).abs() < 1e-6,
-            "petals seating is the heavier event, got {:?}",
-            (heard[0].1, heard[1].1)
-        );
     }
 
     #[test]
@@ -492,14 +360,13 @@ mod tests {
         app.add_observer(on_canister_ejected_play_sfx);
         app.add_observer(on_canister_taken_play_sfx);
         #[derive(Resource, Default)]
-        struct Heard(Vec<(Handle<AudioSource>, f32, SfxSource)>);
+        struct Heard(Vec<(Handle<AudioSource>, SoundCategoryType, SoundAt)>);
         app.init_resource::<Heard>();
-        app.add_observer(|ev: On<PlaySfx>, mut heard: ResMut<Heard>| {
-            heard.0.push((ev.handle.clone(), ev.volume, ev.source));
+        app.add_observer(|ev: On<PlaySound>, mut heard: ResMut<Heard>| {
+            heard.0.push((ev.sound.clone(), ev.category, ev.at));
         });
         let ship = app.world_mut().spawn(SpaceshipRootMarker).id();
         let point = Vec3::new(3.0, -1.0, 2.0);
-        let at = SfxSource::At(point);
         let intake = app
             .world_mut()
             .spawn((
@@ -537,19 +404,20 @@ mod tests {
 
         let server = app.world().resource::<AssetServer>().clone();
         let door = server.load("base/sounds/bay_door.wav");
+        let at = SoundAt::Entity(intake);
         assert_eq!(
             app.world().resource::<Heard>().0,
             vec![
-                (door.clone(), INTAKE_DOOR_OPEN_VOLUME, at),
-                (door, INTAKE_DOOR_CLOSE_VOLUME, at),
+                (door.clone(), SoundCategoryType::Machinery, at),
+                (door, SoundCategoryType::Machinery, at),
                 (
                     server.load("base/sounds/cargo_eject.wav"),
-                    CARGO_EJECT_VOLUME,
+                    SoundCategoryType::Machinery,
                     at
                 ),
                 (
                     server.load("base/sounds/salvage_pickup.wav"),
-                    SALVAGE_PICKUP_VOLUME,
+                    SoundCategoryType::Pickup,
                     at
                 ),
             ]
@@ -563,14 +431,13 @@ mod tests {
         app.init_asset::<AudioSource>();
         app.add_observer(on_mining_doors_play_sfx);
         #[derive(Resource, Default)]
-        struct Heard(Vec<(Handle<AudioSource>, f32, SfxSource)>);
+        struct Heard(Vec<(Handle<AudioSource>, SoundCategoryType, SoundAt)>);
         app.init_resource::<Heard>();
-        app.add_observer(|ev: On<PlaySfx>, mut heard: ResMut<Heard>| {
-            heard.0.push((ev.handle.clone(), ev.volume, ev.source));
+        app.add_observer(|ev: On<PlaySound>, mut heard: ResMut<Heard>| {
+            heard.0.push((ev.sound.clone(), ev.category, ev.at));
         });
         let ship = app.world_mut().spawn(SpaceshipRootMarker).id();
         let point = Vec3::new(-2.0, 4.0, 1.0);
-        let at = SfxSource::At(point);
         let emitter = app
             .world_mut()
             .spawn((
@@ -599,17 +466,18 @@ mod tests {
         app.world_mut().flush();
 
         let server = app.world().resource::<AssetServer>().clone();
+        let at = SoundAt::Entity(emitter);
         assert_eq!(
             app.world().resource::<Heard>().0,
             vec![
                 (
                     server.load("base/sounds/mining_door_open.wav"),
-                    MINING_DOOR_OPEN_VOLUME,
+                    SoundCategoryType::Machinery,
                     at
                 ),
                 (
                     server.load("base/sounds/mining_door_close.wav"),
-                    MINING_DOOR_CLOSE_VOLUME,
+                    SoundCategoryType::Machinery,
                     at
                 ),
             ]
@@ -623,19 +491,17 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
-        app.init_resource::<SfxThrottle>();
         app.add_observer(on_dock_clamped_play_sfx);
         app.add_observer(on_dock_released_play_sfx);
         #[derive(Resource, Default)]
-        struct Heard(Vec<(Handle<AudioSource>, f32, SfxSource)>);
+        struct Heard(Vec<(Handle<AudioSource>, SoundCategoryType, SoundAt)>);
         app.init_resource::<Heard>();
-        app.add_observer(|ev: On<PlaySfx>, mut heard: ResMut<Heard>| {
-            heard.0.push((ev.handle.clone(), ev.volume, ev.source));
+        app.add_observer(|ev: On<PlaySound>, mut heard: ResMut<Heard>| {
+            heard.0.push((ev.sound.clone(), ev.category, ev.at));
         });
         let ship = app.world_mut().spawn(SpaceshipRootMarker).id();
         let partner = app.world_mut().spawn(SpaceshipRootMarker).id();
         let point = Vec3::new(1.0, 2.0, -3.0);
-        let at = SfxSource::At(point);
         let voiced = app
             .world_mut()
             .spawn((
@@ -670,17 +536,18 @@ mod tests {
         app.world_mut().flush();
 
         let server = app.world().resource::<AssetServer>().clone();
+        let at = SoundAt::Entity(voiced);
         assert_eq!(
             app.world().resource::<Heard>().0,
             vec![
                 (
                     server.load("base/sounds/dock_clamp.wav"),
-                    DOCK_CLAMP_VOLUME,
+                    SoundCategoryType::Machinery,
                     at
                 ),
                 (
                     server.load("base/sounds/dock_release.wav"),
-                    DOCK_RELEASE_VOLUME,
+                    SoundCategoryType::Machinery,
                     at
                 ),
             ]

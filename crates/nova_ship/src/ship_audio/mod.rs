@@ -28,12 +28,10 @@
 //! The continuous cues - the thruster hum and the RCS hiss - are one looping
 //! voice per (ship, authored sound) pair, each following its own ship.
 //!
-//! Every world cue is ROUTED by `routing`: a cue from the player's own ship is
-//! [`AudioRoute::Hull`] and one from anything else is [`AudioRoute::Exterior`].
-//! That single fact is what decides whether it is distance-attenuated and
-//! panned, so nothing here computes a distance or a bearing - the engine reads
-//! the route and does it. The cockpit cues (lock, safety, dry fire) are Hull
-//! too: they are the player's own computer talking.
+//! Every cue names a `nova_sound` category and where it happens. The category
+//! table owns the level, the reach and the repeat budget, so nothing here
+//! holds a gain. World cues play in the world, the player's own ship
+//! included; the cockpit cues are interface feedback, heard flat.
 //!
 //! Every system here degrades gracefully (does nothing) until the resources it
 //! needs exist. World sounds carry no bank at all - each cue resolves its
@@ -52,10 +50,8 @@ pub mod prelude {
 mod combat;
 mod cues;
 pub mod feedback;
-mod levels;
 mod loops;
 mod machinery;
-mod routing;
 
 #[cfg(test)]
 mod test_support;
@@ -79,190 +75,10 @@ use self::{
     },
 };
 
-/// Per-cue *base* playback volumes (at point-blank; distance attenuation scales
-/// them down from here). The PDC fires ~100 rounds/s and impacts arrive in
-/// blast-sized bursts, so those two are quiet; destruction and launch are the
-/// punchy moments. Kept modest so nothing is harsh up close.
-const TURRET_FIRE_VOLUME: f32 = 0.10;
-const IMPACT_VOLUME: f32 = 0.22;
-/// A railgun slug's authored impact, in place of the table's Pierce row. Over
-/// the table's hit (the slug is one round every thirteen seconds, not a
-/// stream) and well under its own shot ([`RAILGUN_FIRE_VOLUME`]): the arrival
-/// is heard across the gap, the discharge is heard through the hull.
-const RAILGUN_IMPACT_VOLUME: f32 = 0.34;
-const EXPLOSION_VOLUME: f32 = 0.40;
-/// Was 0.45, which measured as the LOUDEST cue in the game A-weighted - louder
-/// than the explosion it is quieter than on paper, and 8 dB over the railgun
-/// the comment below calls the loudest. Same spectral trap as
-/// [`levels::RCS_MAX_VOLUME`]: the launch's energy sits an octave and a half
-/// above the boom's, so equal numbers are not equal loudness. 0.30 puts it
-/// just under the explosion, where a launch belongs.
-const TORPEDO_LAUNCH_VOLUME: f32 = 0.30;
-/// A torpedo's drive lighting, a beat after the launch and further out. Under
-/// the launch: the launch is the pilot's own trigger answering, and the
-/// ignition is the torpedo going about its business.
-const TORPEDO_IGNITION_VOLUME: f32 = 0.24;
-/// The loudest cue in the set BY NUMBER, and the intent is that it be the
-/// loudest by ear too: a lance fires once a reload cycle, so it can afford to
-/// be the punctuation the PDC stream never is. It is not there yet - the slug
-/// report is almost all sub-100 Hz, so A-weighted it measures ~7 dB under the
-/// explosion. Raising it is a call for the seat, not for a spreadsheet.
-const RAILGUN_FIRE_VOLUME: f32 = 0.55;
-
-/// A torpedo breaking up on contact, its warhead unfired. About 2 dB under
-/// the explosion: a dud is a hit with no blast, and the gap between this and
-/// [`EXPLOSION_VOLUME`] is the message.
-///
-/// The level also sets the reach, because every positional cue shares one
-/// rolloff and one audible cut. A dud has to be heard where a section
-/// explosion is: 0.32 carries to about 273 u, the explosion to 281 u, and
-/// 0.24 fell under the cut at 260 u. Only the explosion's own level reaches
-/// exactly as far.
-const TORPEDO_DUD_VOLUME: f32 = 0.32;
-/// A torpedo shot down. A little over the dud - it is the defender's win -
-/// and still under the explosion, so a salvo broken up by point defense never
-/// sounds like a salvo landing. Its sample is also about 8 dB quieter than
-/// the warhead's. Carries to about 275 u; see [`TORPEDO_DUD_VOLUME`].
-const TORPEDO_INTERCEPT_VOLUME: f32 = 0.34;
-
-/// UI (non-positional) volumes for the lock/safety cues - informational
-/// ticks, kept under the combat sounds.
-const LOCK_ON_VOLUME: f32 = 0.30;
-const LOCK_OFF_VOLUME: f32 = 0.28;
-const SAFETY_ON_VOLUME: f32 = 0.30;
-const RADAR_DENY_VOLUME: f32 = 0.26;
-/// The kill stinger. At the lock chirp's level: both are the computer
-/// reporting a thing the pilot did, and this one must stay under the threat
-/// alarm ([`WARN_LOCK_VOLUME`]).
-const KILL_CONFIRM_VOLUME: f32 = 0.30;
-
-/// The turret dry-fire click and the radar retarget tick. The retarget tick is
-/// the quietest cue of the set - it can repeat several times within one held
-/// gesture, so it must stay well under the once-per-gesture
-/// [`LOCK_ON_VOLUME`] acquire cue.
-const DRY_FIRE_VOLUME: f32 = 0.22;
-const RADAR_RETARGET_VOLUME: f32 = 0.18;
-/// The closing tone. Under the retarget tick: it repeats up to twelve times a
-/// second for the last seconds of a run, and a cue that often has to sit
-/// under everything the pilot chose to hear.
-const TORPEDO_CLOSING_VOLUME: f32 = 0.14;
-
-/// The retractable PDC housing, rising and folding. Background machinery, so
-/// both land just under the dry-fire click and above the PDC's own report.
-///
-/// The two numbers differ because the two RECORDINGS differ - matching the
-/// gains would put the fold 4 dB over the rise. Set A-weighted, like every
-/// level in this table now is.
-const STOW_OPEN_VOLUME: f32 = 0.09;
-const STOW_CLOSE_VOLUME: f32 = 0.14;
-
-/// The magazine gauge inside the cockpit, alongside the gun's own dead-trigger
-/// click ([`DRY_FIRE_VOLUME`]) out on the mount. About 4 dB over it: the panel
-/// is nearer than the mount, and it is the half of the pair that says WHY.
-const AMMO_DRY_VOLUME: f32 = 0.17;
-
-/// The threat alarm. Louder than the ship's own lock chirp
-/// ([`LOCK_ON_VOLUME`]) by about 4 dB, because acquiring a target is a thing
-/// the pilot chose and being acquired is not. Still under the guns: it has to
-/// cut through a fight without being the fight.
-const WARN_LOCK_VOLUME: f32 = 0.37;
-
-/// The hull alarm - the gravest thing the cockpit says, and about 4 dB over the
-/// threat alarm ([`WARN_LOCK_VOLUME`]) by the same step that one takes over the
-/// lock chirp: being aimed at is bad, and being nearly dead is worse. It stops
-/// just under a section failing ([`EXPLOSION_VOLUME`]), which is the ceiling a
-/// warning must not cross - the instrument reporting the hull coming apart
-/// cannot be louder than the hull coming apart.
-const WARN_HULL_VOLUME: f32 = 0.32;
-
-/// The torpedo bay's muzzle iris. Machinery, in the same band as the PDC stow
-/// doors, and the two numbers differ for the same reason theirs do: seating is
-/// a heavier event than unseating, and one file plays both directions.
-const BAY_DOOR_OPEN_VOLUME: f32 = 0.16;
-const BAY_DOOR_CLOSE_VOLUME: f32 = 0.20;
-
-/// The cargo intake's accordion door: the bay iris's servo band and levels,
-/// since the base intake plays the same file.
-const INTAKE_DOOR_OPEN_VOLUME: f32 = 0.16;
-const INTAKE_DOOR_CLOSE_VOLUME: f32 = 0.20;
-
-/// The mining emitter's lids parting and shutting: the PDC housing's lid
-/// band and levels, since both are small lid servos on the hull.
-const MINING_DOOR_OPEN_VOLUME: f32 = 0.09;
-const MINING_DOOR_CLOSE_VOLUME: f32 = 0.14;
-
-/// A canister leaving the intake: at the heavier door edge, since the push
-/// and the door are one piece of machinery. The take plays at
-/// [`nova_sound::SALVAGE_PICKUP_VOLUME`].
-const CARGO_EJECT_VOLUME: f32 = 0.20;
-
-/// The docking clamp closing and letting go. The heaviest latch on the hull,
-/// so the clamp sits over the bay iris seating ([`BAY_DOOR_CLOSE_VOLUME`])
-/// and the release, the same hardware unloading, back at the iris's level.
-/// Still under the salvage take: a dock is a service event, not a reward.
-const DOCK_CLAMP_VOLUME: f32 = 0.24;
-const DOCK_RELEASE_VOLUME: f32 = 0.20;
-
-/// A reload batch landing: a shell going back into the lance, a torpedo
-/// seating in the bay's rack. Well under the lance's shot
-/// ([`RAILGUN_FIRE_VOLUME`], about 6 dB) - it is an answer to a silence, not an
-/// event in the fight - but clearly above the machinery band, because twelve
-/// seconds of nothing is exactly when a pilot has stopped listening. One level
-/// for every section: the clunk is the same kind of news on each.
-const SECTION_RELOAD_VOLUME: f32 = 0.17;
-
-/// The capacitor bank, at FULL charge. The loop is driven up to this from
-/// [`RAILGUN_CHARGE_FLOOR`] as the shot approaches, and its playback rate rises
-/// with it - so the gun sounds like it is arriving at something rather than
-/// holding a note. Sits under the main drive: a lance charging is a telegraph,
-/// and a telegraph that drowns the burn is a mix error.
-const RAILGUN_CHARGE_MAX_VOLUME: f32 = 0.15;
-/// Fraction of [`RAILGUN_CHARGE_MAX_VOLUME`] the bank starts at, so the commit
-/// is audible without the build having nowhere left to go.
-const RAILGUN_CHARGE_FLOOR: f32 = 0.35;
-/// Playback rate at full charge. The loop is authored on even partials for
-/// exactly this (see `scripts/gen-world-sfx.py`), so the seam stays silent at
-/// any rate in between.
+/// The capacitor loop's playback rate at full charge. The loop is authored on
+/// even partials for exactly this (see `scripts/gen-world-sfx.py`), so the
+/// seam stays silent at any rate in between.
 const RAILGUN_CHARGE_TOP_SPEED: f32 = 1.6;
-
-/// A whole hull failing, on the STRUCTURAL COLLAPSE edge. About 4 dB over the
-/// section explosion ([`EXPLOSION_VOLUME`]) and the loudest thing in the game,
-/// which is the point: a ship coming apart has to be obviously bigger than a
-/// piece of one coming off, and the only two levers are length and level. The
-/// cue uses both - 2.4 seconds of debris over the frames the sections actually
-/// peel away.
-const DESTROY_SHIP_VOLUME: f32 = 0.65;
-
-/// Minimum seconds between successive turret-fire and impact one-shots. Without
-/// this the ~100/s PDC and the many-collider blast hits would each spawn a
-/// storm of overlapping audio entities that reads as a wall of noise;
-/// collapsing them to a bounded rate keeps the cue legible and the entity churn
-/// sane.
-const TURRET_FIRE_MIN_INTERVAL: f32 = 0.05;
-const IMPACT_MIN_INTERVAL: f32 = 0.04;
-
-/// A dying multi-section ship marks every section destroyed in the same frame;
-/// this collapses that burst into a single explosion instead of N overlapping
-/// ones (which would clip). Short enough that genuinely separate kills >60ms
-/// apart still each sound.
-const EXPLOSION_MIN_INTERVAL: f32 = 0.06;
-
-/// One report per SALVO. Every bay on a ship shares a trigger and a 1 s reload,
-/// so a multi-bay hull launches its whole load on one frame; without this the
-/// pilot hears N launch thumps summing at once, which is loud rather than
-/// impressive. Comfortably under the bay's own cycle, so a second volley still
-/// sounds.
-const TORPEDO_LAUNCH_MIN_INTERVAL: f32 = 0.15;
-
-/// Minimum seconds between torpedo-death cues in one area cell. Point defense
-/// breaks a salvo up a few hundredths of a second apart; this keeps the pops
-/// from stacking into one loud one while two kills a beat apart still both
-/// sound.
-const TORPEDO_DEATH_MIN_INTERVAL: f32 = 0.08;
-
-/// Minimum seconds between docking cues on one hull. A hull holds one dock,
-/// so this only collapses a request echoed on one frame into one clamp.
-const DOCK_MIN_INTERVAL: f32 = 0.15;
 
 /// The ship's one-shot CUE systems: the cockpit's lock, safety, dry-fire,
 /// threat, hull-warning and torpedo closing voices.
@@ -348,10 +164,10 @@ impl Plugin for ShipAudioPlugin {
         // need no gating: they fire on spawn/damage/destroy events that only
         // occur inside this same gated set.)
         //
-        // Both write the loops' LEVELS in `Update`; the engine's
+        // Both write the loops' INTENSITIES in `Update`; the engine's
         // `SoundSystems` pass reads them in `PostUpdate` and owns everything
-        // after - the rolloff, the pan, the master, the freeze behind a paused
-        // sim and the teardown on scenario unload.
+        // after - the level, the fade, the pan, the master, the freeze behind
+        // a paused sim and the teardown on scenario unload.
         app.add_systems(
             Update,
             (

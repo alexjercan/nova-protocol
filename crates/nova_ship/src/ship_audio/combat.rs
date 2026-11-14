@@ -2,25 +2,17 @@
 //! deaths, the railgun's report and the kill stinger, each resolving the
 //! target's authored sound or staying silent.
 //!
-//! Every cue here is ROUTED before it is played: `route_for` walks to the ship
-//! the noise belongs to, and the player's own ship is
-//! [`AudioRoute::Hull`] while everything else is [`AudioRoute::Exterior`]. The
-//! rolloff and the pan follow from that, so no observer here looks up the
-//! listener.
+//! Every cue names a category and where it happens; `nova_sound` owns the
+//! level, the reach, the pan and the repeat budget. A cue on a section or a
+//! hull plays at that entity and groups with its ship, so one hull's salvo or
+//! one hull shedding its sections is one report. A cue with no body - a
+//! torpedo's drive, its blast, its death - plays at a point and groups with
+//! its world cell.
 
-use avian3d::prelude::{ComputedCenterOfMass, RigidBody};
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
-use nova_sound::{area_cell, cue_group, prelude::*, SfxThrottle, ThrottleKey};
+use nova_sound::prelude::*;
 
-use super::{
-    routing::{owning_root, route_for, route_from},
-    DESTROY_SHIP_VOLUME, EXPLOSION_MIN_INTERVAL, EXPLOSION_VOLUME, IMPACT_MIN_INTERVAL,
-    IMPACT_VOLUME, KILL_CONFIRM_VOLUME, RAILGUN_FIRE_VOLUME, RAILGUN_IMPACT_VOLUME,
-    SECTION_RELOAD_VOLUME, TORPEDO_DEATH_MIN_INTERVAL, TORPEDO_DUD_VOLUME, TORPEDO_IGNITION_VOLUME,
-    TORPEDO_INTERCEPT_VOLUME, TORPEDO_LAUNCH_MIN_INTERVAL, TORPEDO_LAUNCH_VOLUME,
-    TURRET_FIRE_MIN_INTERVAL, TURRET_FIRE_VOLUME,
-};
 use crate::{
     prelude::*,
     sections::{
@@ -35,8 +27,7 @@ use crate::{
 /// Find the nearest `C` on `entity` or an ancestor. The damage/destroy
 /// observers' target is the entity carrying Health - for sections that IS the
 /// section entity, but an asteroid keeps its Health on a child node while the
-/// snapshots sit on the rock's parent bundle, so the lookup walks up (bounded
-/// by the hierarchy, like `hum_source_root`).
+/// snapshots sit on the rock's parent bundle, so the lookup walks up.
 fn nearest<'a, C: Component>(
     entity: Entity,
     q: &'a Query<&C>,
@@ -54,25 +45,32 @@ fn nearest<'a, C: Component>(
     }
 }
 
+/// Trigger one world cue.
+fn play(
+    commands: &mut Commands,
+    sound: Handle<AudioSource>,
+    category: SoundCategoryType,
+    at: SoundAt,
+) {
+    commands.trigger(PlaySound {
+        sound,
+        category,
+        at,
+    });
+}
+
 /// Explosion cue on any destruction that funnels through
 /// `IntegrityDestroyMarker`: a section or an asteroid. A torpedo section is
 /// skipped (see [`QuietDestroyMarker`]).
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one observer: the bank, the clock, where the death was, what came apart, its voice, its route and the throttle"
-)]
+///
+/// Played at the destroyed entity, so a dying hull's sections share its
+/// group: one structure coming apart is one explosion.
 pub(super) fn on_destroyed_play_explosion(
     add: On<Add<IntegrityDestroyMarker>>,
     asset_server: Res<AssetServer>,
-    time: Res<Time>,
-    q_transform: Query<&GlobalTransform>,
-    q_bodies: Query<(&GlobalTransform, Option<&ComputedCenterOfMass>), With<RigidBody>>,
     q_sounds: Query<&DestroySound>,
     q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     q_quiet: Query<(), With<QuietDestroyMarker>>,
-    mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
     // A torpedo section's death is a dud or an intercept, voiced on
@@ -80,40 +78,23 @@ pub(super) fn on_destroyed_play_explosion(
     if q_quiet.contains(add.entity) {
         return;
     }
-    // The destroyed entity has existed for frames, so its GlobalTransform is
-    // valid world-space.
-    let Ok(source) = q_transform.get(add.entity) else {
-        return;
-    };
     // AUTHORED-OR-SILENT: the destruction voice is the TARGET's authored
     // destroy_sound (per-target = per-material), found on the entity or an
     // ancestor (asteroid node shape) and resolved here.
     let Some(sound) = nearest(add.entity, &q_sounds, &q_child_of).and_then(|s| s.0.as_ref()) else {
         return;
     };
-    // One structure coming apart is ONE explosion, wherever its sections
-    // stood, and it is heard from the middle of the wreck rather than from
-    // whichever of them was destroyed first.
-    let body = cue_body(add.entity, &q_bodies, &q_child_of);
-    let pos = body
-        .and_then(|body| body_middle(body, &q_bodies))
-        .unwrap_or_else(|| source.translation());
-    if throttle_state.allow(
-        ThrottleKey::Explosion(cue_group(body, pos)),
-        time.elapsed_secs(),
-        EXPLOSION_MIN_INTERVAL,
-    ) {
-        let route = route_for(add.entity, &q_child_of, &q_is_root, &q_is_player);
-        commands.play_sfx_at(sound.resolve(&asset_server), route, EXPLOSION_VOLUME, pos);
-    }
+    play(
+        &mut commands,
+        sound.resolve(&asset_server),
+        SoundCategoryType::Explosion,
+        SoundAt::Entity(add.entity),
+    );
 }
 
 /// The reload cue, each time a batch lands in a magazine: the lance's breech,
-/// the torpedo bay's rack.
-///
-/// Placed at the SECTION and routed by whose hull it is on, like the shot: a
-/// raider's lance chambering across the arena is a thing worth hearing, and it
-/// is exactly the tell that says the next one is coming.
+/// the torpedo bay's rack. Played at the SECTION: a raider's lance chambering
+/// across the arena is the tell that says the next one is coming.
 ///
 /// AUTHORED-OR-SILENT on the section's [`SectionReloadSound`]. Every weapon
 /// with a magazine reports a batch, and only the ones that author a reload
@@ -123,10 +104,6 @@ pub(super) fn on_reload_landed_play_sfx(
     landed: On<SectionReloadLanded>,
     asset_server: Res<AssetServer>,
     q_sound: Query<&SectionReloadSound>,
-    q_where: Query<&GlobalTransform>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut commands: Commands,
 ) {
     let section = landed.entity;
@@ -138,11 +115,12 @@ pub(super) fn on_reload_landed_play_sfx(
     else {
         return;
     };
-    let Ok(at) = q_where.get(section) else {
-        return;
-    };
-    let route = route_for(section, &q_child_of, &q_is_root, &q_is_player);
-    commands.play_sfx_at(handle, route, SECTION_RELOAD_VOLUME, at.translation());
+    play(
+        &mut commands,
+        handle,
+        SoundCategoryType::Reload,
+        SoundAt::Entity(section),
+    );
 }
 
 /// The hull-loss cue, on the frame a ship COLLAPSES.
@@ -151,25 +129,16 @@ pub(super) fn on_reload_landed_play_sfx(
 /// moment it falls under its structural threshold, and what follows is several
 /// frames of its sections peeling away one at a time
 /// (`cascade_structural_collapse`). Hanging the cue on the root's eventual
-/// despawn would put it after the wreck had already come apart on screen. It
-/// also gives the sound the length it was written for - two and a half seconds
-/// of debris, running OVER the frames the sections actually leave.
+/// despawn would put it after the wreck had already come apart on screen.
 ///
-/// Deliberately NOT throttled against the section explosions it overlaps.
-/// Those share a cell key and collapse into one cue between them; this is a
-/// different event at a different scale, and letting the cell swallow it would
-/// mean a hull dying sounded exactly like one more piece coming off.
+/// Its own category, so the section explosions it overlaps never swallow it.
 ///
 /// AUTHORED-OR-SILENT on the hull's own [`ShipCollapseSound`]: a ship that
 /// names none still comes apart, to the sound of its sections.
 pub(super) fn on_collapse_play_hull_loss(
     add: On<Add<StructuralCollapseMarker>>,
     asset_server: Res<AssetServer>,
-    q_transform: Query<&GlobalTransform>,
     q_sound: Query<&ShipCollapseSound>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut commands: Commands,
 ) {
     let ship = add.entity;
@@ -181,16 +150,16 @@ pub(super) fn on_collapse_play_hull_loss(
     else {
         return;
     };
-    let Ok(at) = q_transform.get(ship) else {
-        return;
-    };
-    let route = route_for(ship, &q_child_of, &q_is_root, &q_is_player);
-    commands.play_sfx_at(handle, route, DESTROY_SHIP_VOLUME, at.translation());
+    play(
+        &mut commands,
+        handle,
+        SoundCategoryType::Collapse,
+        SoundAt::Entity(ship),
+    );
 }
 
 /// The hit voice: what the round that just landed sounds like against what it
-/// landed on. Throttled per area cell, because a single blast reaches many
-/// colliders in one frame.
+/// landed on.
 ///
 /// Both halves of "what hit what" are read here, and neither is authored. The
 /// round side is [`SurfaceImpact::kind`]; the target side is the struck body's
@@ -201,141 +170,90 @@ pub(super) fn on_collapse_play_hull_loss(
 ///
 /// One round overrides the table: a railgun slug whose lance authored an
 /// `impact_sound` carries it as [`RailgunSlugImpactSound`], and that plays in
-/// the table's place at the lance's own level. The throttle is the same
-/// either way, so a raking slug's cells collapse exactly as a blast's do.
+/// the table's place as a [`SoundCategoryType::HeavyImpact`].
 ///
-/// [`SurfaceImpact`] does not propagate, which is why there is no
-/// "am I the original target" guard here: the old cue rode `HealthApplyDamage`
-/// up `ChildOf` to the ship root and had to filter the hops back out. It also
-/// carries the CONTACT POINT rather than the struck entity's origin, so the cue
-/// plays where the round actually bit.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one observer: the clock, the sample bank, the slug's own voice, the struck surface, what it is part of, its route and the throttle"
-)]
+/// Played at the struck entity, so a blast raking a dozen of one hull's
+/// colliders groups as one hull.
 pub(super) fn on_surface_impact_play_sfx(
     impact: On<SurfaceImpact>,
-    time: Res<Time>,
     asset_server: Res<AssetServer>,
     impacts: Res<ImpactSounds>,
     q_slug_sound: Query<&RailgunSlugImpactSound>,
     q_surface: Query<&ImpactSurface>,
-    q_bodies: Query<(&GlobalTransform, Option<&ComputedCenterOfMass>), With<RigidBody>>,
     q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
-    mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
     let authored = impact
         .source
         .and_then(|source| q_slug_sound.get(source).ok())
         .map(|sound| sound.0.resolve(&asset_server));
-    let (sound, volume) = match authored {
-        Some(sound) => (sound, RAILGUN_IMPACT_VOLUME),
+    let (sound, category) = match authored {
+        Some(sound) => (sound, SoundCategoryType::HeavyImpact),
         None => {
             let surface = nearest(impact.entity, &q_surface, &q_child_of)
                 .copied()
                 .unwrap_or_default();
-            (impacts.sound(impact.kind, surface).clone(), IMPACT_VOLUME)
+            (
+                impacts.sound(impact.kind, surface).clone(),
+                SoundCategoryType::Impact,
+            )
         }
     };
-    let pos = impact.at;
-    // Grouped by the hull that was hit - a blast raking a dozen of one ship's
-    // colliders is one report - and played at the CONTACT, because where on
-    // the hull a round bit is the whole read of a hit.
-    let body = cue_body(impact.entity, &q_bodies, &q_child_of);
-    if throttle_state.allow(
-        ThrottleKey::Impact(cue_group(body, pos)),
-        time.elapsed_secs(),
-        IMPACT_MIN_INTERVAL,
-    ) {
-        // Damage landing on YOUR hull is heard through it, not across the gap.
-        let route = route_for(impact.entity, &q_child_of, &q_is_root, &q_is_player);
-        commands.play_sfx_at(sound, route, volume, pos);
-    }
+    play(
+        &mut commands,
+        sound,
+        category,
+        SoundAt::Entity(impact.entity),
+    );
 }
 
-/// Turret-fire cue when a round spawns. Throttled hard because the PDC fires at
-/// a high rate.
+/// Turret-fire cue when a round spawns, at the firing turret.
 ///
 /// AUTHORED-OR-SILENT: the sound is the firing turret's
 /// [`TurretSectionConfig::fire_sound`], snapshotted at spawn as
 /// [`TurretSectionFireSound`] and resolved here - content owns the sound, and a
-/// turret that authors none fires silently (every base turret authors it via
-/// gen_content, so the shipped game is unchanged; the old global bank fallback
-/// is gone with its `WorldSfx::TurretFire` key). Everything else (per-turret
-/// throttle key, distance attenuation, positioning) is unchanged.
+/// turret that authors none fires silently.
 pub(super) fn on_turret_fire_play_sfx(
     fired: On<RoundFired>,
     asset_server: Res<AssetServer>,
-    time: Res<Time>,
-    q_projectile: Query<(&Transform, &TurretSectionPartOf)>,
+    q_projectile: Query<&TurretSectionPartOf>,
     q_fire_sound: Query<&TurretSectionFireSound>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
-    mut throttle_state: ResMut<SfxThrottle>,
     mut commands: Commands,
 ) {
-    // The projectile is a freshly-spawned ROOT entity, so its GlobalTransform
-    // is still identity this frame; its local Transform is already world-space.
-    // `TurretSectionPartOf` names the firing turret, so each gun throttles on
-    // its own key - the fix for "only one of several guns is audible".
-    let Ok((transform, part_of)) = q_projectile.get(fired.round) else {
+    // `TurretSectionPartOf` names the firing turret: the shell is a fresh
+    // root with no ship above it, and whose gun it left is the question.
+    let Ok(part_of) = q_projectile.get(fired.round) else {
         return;
     };
-    // No authored sound -> silent, and BEFORE the throttle: an unauthored
-    // turret plays nothing, so there is nothing to rate-limit. Only the
-    // resolve waits, because it is an `AssetServer::load` and most calls here
-    // are about to be thrown away by the throttle.
     let Some(sound) = q_fire_sound.get(part_of.0).ok().and_then(|s| s.0.as_ref()) else {
         return;
     };
-    if throttle_state.allow(
-        ThrottleKey::TurretFire(part_of.0),
-        time.elapsed_secs(),
-        TURRET_FIRE_MIN_INTERVAL,
-    ) {
-        // Routed off the FIRING TURRET, not the round: the shell is a fresh
-        // root with no ship above it, and whose gun it left is the question.
-        let route = route_for(part_of.0, &q_child_of, &q_is_root, &q_is_player);
-        commands.play_sfx_at(
-            sound.resolve(&asset_server),
-            route,
-            TURRET_FIRE_VOLUME,
-            transform.translation,
-        );
-    }
+    play(
+        &mut commands,
+        sound.resolve(&asset_server),
+        SoundCategoryType::Weapon,
+        SoundAt::Entity(part_of.0),
+    );
 }
 
-/// Launch cue when a torpedo projectile spawns.
+/// Launch cue when a torpedo projectile spawns, at the firing bay.
 ///
 /// AUTHORED-OR-SILENT: the sound is the firing bay's
 /// [`TorpedoSectionConfig::launch_sound`], snapshotted onto the bay's spawner
 /// as [`TorpedoSectionLaunchSound`] and reached from the projectile via its
 /// [`TorpedoSectionSpawnerEntity`] back-ref (the same path the launch flash
-/// effect takes). A bay that authors none launches silently; base bays author
-/// it via gen_content, so the shipped game is unchanged.
+/// effect takes).
 ///
-/// THROTTLED PER SHIP, not per bay: a hull's tubes share a trigger, so they all
-/// launch on the same frame and eight thumps sum into one clipped one. The key
-/// is the firing ship, so a salvo is a single report while two ships firing at
-/// once are still two.
+/// Every bay on a hull fires on one frame, and the bays share the hull's
+/// group, so a salvo is one report while two ships firing at once are two.
 pub(super) fn on_torpedo_launch_play_sfx(
     launched: On<TorpedoLaunched>,
     asset_server: Res<AssetServer>,
-    time: Res<Time>,
-    mut throttle: ResMut<SfxThrottle>,
-    q_projectile: Query<(&Transform, &TorpedoSectionSpawnerEntity)>,
+    q_projectile: Query<&TorpedoSectionSpawnerEntity>,
     q_launch_sound: Query<&TorpedoSectionLaunchSound>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut commands: Commands,
 ) {
-    // Freshly-spawned root entity: use local Transform (== world) this frame.
-    let Ok((source, spawner)) = q_projectile.get(launched.torpedo) else {
+    let Ok(spawner) = q_projectile.get(launched.torpedo) else {
         return;
     };
     let Some(sound) = q_launch_sound
@@ -345,22 +263,11 @@ pub(super) fn on_torpedo_launch_play_sfx(
     else {
         return;
     };
-    // Routed off the firing BAY, for the same reason the turret is - and the
-    // same walk gives the throttle the ship to collapse the salvo onto.
-    let root = owning_root(spawner.0, &q_child_of, &q_is_root);
-    if !throttle.allow(
-        ThrottleKey::TorpedoLaunch(root),
-        time.elapsed_secs(),
-        TORPEDO_LAUNCH_MIN_INTERVAL,
-    ) {
-        return;
-    }
-    let route = route_from(root, &q_is_player);
-    commands.play_sfx_at(
+    play(
+        &mut commands,
         sound.resolve(&asset_server),
-        route,
-        TORPEDO_LAUNCH_VOLUME,
-        source.translation,
+        SoundCategoryType::Launch,
+        SoundAt::Entity(spawner.0),
     );
 }
 
@@ -368,47 +275,26 @@ pub(super) fn on_torpedo_launch_play_sfx(
 ///
 /// AUTHORED-OR-SILENT: the bay's `ignition_sound`, read off the torpedo's own
 /// [`TorpedoLaunchConfig`] snapshot, so a torpedo thawed mid-coast still has
-/// it. Placed where the drive lit and routed off the torpedo, which has no
-/// ship above it: the exterior route, whoever fired it.
-///
-/// THROTTLED PER SHIP like the launch: a salvo's drives light on one frame,
-/// and that is one ignition.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one observer: the bank, the clock, the throttle, the torpedo's voice, its owner and its route"
-)]
+/// it. A torpedo has no ship above it, so the cue plays at the point where the
+/// drive lit; a salvo's drives light in one cell on one frame, and that is one
+/// ignition.
 pub(super) fn on_torpedo_ignited_play_sfx(
     ignited: On<TorpedoIgnited>,
     asset_server: Res<AssetServer>,
-    time: Res<Time>,
-    mut throttle: ResMut<SfxThrottle>,
-    q_torpedo: Query<(&TorpedoLaunchConfig, &ProjectileOwner)>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
+    q_torpedo: Query<&TorpedoLaunchConfig>,
     mut commands: Commands,
 ) {
-    let Ok((config, owner)) = q_torpedo.get(ignited.torpedo) else {
+    let Ok(config) = q_torpedo.get(ignited.torpedo) else {
         return;
     };
     let Some(sound) = config.ignition_sound.as_ref() else {
         return;
     };
-    // The same interval as the launch: the salvo it collapses is the same
-    // salvo, one `ignition_delay` later.
-    if !throttle.allow(
-        ThrottleKey::TorpedoIgnition(owner.0),
-        time.elapsed_secs(),
-        TORPEDO_LAUNCH_MIN_INTERVAL,
-    ) {
-        return;
-    }
-    let route = route_for(ignited.torpedo, &q_child_of, &q_is_root, &q_is_player);
-    commands.play_sfx_at(
+    play(
+        &mut commands,
         sound.resolve(&asset_server),
-        route,
-        TORPEDO_IGNITION_VOLUME,
-        ignited.at,
+        SoundCategoryType::Ignition,
+        SoundAt::Point(ignited.at),
     );
 }
 
@@ -419,22 +305,12 @@ pub(super) fn on_torpedo_ignited_play_sfx(
 /// torpedo is despawned in the same flush. A dud or an intercept spawns no
 /// blast, so neither ever plays it.
 ///
-/// Throttled per area cell with the other explosions: a salvo bursting on one
-/// hull is one boom. The blast has no ship above it, so the route is the
-/// exterior one.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one observer: the bank, the clock, the throttle, the blast's voice and its route"
-)]
+/// The blast has no ship above it: it plays at its point, and a salvo
+/// bursting in one cell is one boom.
 pub(super) fn on_torpedo_blast_play_detonation(
     add: On<Add<NovaBlast>>,
     asset_server: Res<AssetServer>,
-    time: Res<Time>,
-    mut throttle: ResMut<SfxThrottle>,
     q_blast: Query<(&Transform, &DestroySound), With<TorpedoSectionPartOf>>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut commands: Commands,
 ) {
     let Ok((transform, sound)) = q_blast.get(add.entity) else {
@@ -444,16 +320,12 @@ pub(super) fn on_torpedo_blast_play_detonation(
         return;
     };
     // Spawned this flush and unparented: the Transform is the world pose.
-    let at = transform.translation;
-    if !throttle.allow(
-        ThrottleKey::Explosion(cue_group(None, at)),
-        time.elapsed_secs(),
-        EXPLOSION_MIN_INTERVAL,
-    ) {
-        return;
-    }
-    let route = route_for(add.entity, &q_child_of, &q_is_root, &q_is_player);
-    commands.play_sfx_at(sound.resolve(&asset_server), route, EXPLOSION_VOLUME, at);
+    play(
+        &mut commands,
+        sound.resolve(&asset_server),
+        SoundCategoryType::Explosion,
+        SoundAt::Point(transform.translation),
+    );
 }
 
 /// The dud or the intercept, when a torpedo dies with its warhead unfired.
@@ -462,50 +334,37 @@ pub(super) fn on_torpedo_blast_play_detonation(
 /// the torpedo's own [`TorpedoLaunchConfig`] snapshot, so a torpedo whose bay
 /// is gone still has its voice. Every torpedo, the player's and a hostile's.
 ///
-/// Throttled per AREA CELL, not per ship: point defense breaks up a salvo in
-/// one patch of sky, and that is one burst. The torpedo has no ship above it,
-/// so the route is the exterior one whoever fired it.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one observer: the bank, the clock, the throttle, the torpedo's voice and its route"
-)]
+/// At the point it died: point defense breaks up a salvo in one patch of sky,
+/// and that cell is one burst.
 pub(super) fn on_torpedo_killed_play_sfx(
     killed: On<TorpedoKilled>,
     asset_server: Res<AssetServer>,
-    time: Res<Time>,
-    mut throttle: ResMut<SfxThrottle>,
     q_config: Query<&TorpedoLaunchConfig>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut commands: Commands,
 ) {
     let Ok(config) = q_config.get(killed.torpedo) else {
         return;
     };
-    let (sound, volume) = match killed.death {
-        TorpedoDeathType::Contact => (&config.dud_sound, TORPEDO_DUD_VOLUME),
-        TorpedoDeathType::Damage => (&config.intercept_sound, TORPEDO_INTERCEPT_VOLUME),
+    let sound = match killed.death {
+        TorpedoDeathType::Contact => &config.dud_sound,
+        TorpedoDeathType::Damage => &config.intercept_sound,
     };
     let Some(sound) = sound.as_ref() else {
         return;
     };
-    if !throttle.allow(
-        ThrottleKey::TorpedoDeath(area_cell(killed.at)),
-        time.elapsed_secs(),
-        TORPEDO_DEATH_MIN_INTERVAL,
-    ) {
-        return;
-    }
-    let route = route_for(killed.torpedo, &q_child_of, &q_is_root, &q_is_player);
-    commands.play_sfx_at(sound.resolve(&asset_server), route, volume, killed.at);
+    play(
+        &mut commands,
+        sound.resolve(&asset_server),
+        SoundCategoryType::TorpedoDeath,
+        SoundAt::Point(killed.at),
+    );
 }
 
 /// The kill stinger, once per hull the player's own fire got: a round, a
 /// slug, a blast or a ram, whichever landed inside the credit window.
 ///
-/// A cockpit cue, on [`AudioRoute::Hull`]: the computer confirming the kill,
-/// not the kill itself, which has its own explosion out in the world.
+/// A cockpit cue, on [`SoundBus::Ui`]: the computer confirming the kill, not
+/// the kill itself, which has its own explosion out in the world.
 /// AUTHORED-OR-SILENT on the player ship's [`ShipFeedbackSounds::kill_confirm`].
 pub(super) fn on_player_kill_play_stinger(
     _confirmed: On<PlayerKillConfirmed>,
@@ -521,25 +380,23 @@ pub(super) fn on_player_kill_play_stinger(
     else {
         return;
     };
-    commands.play_sfx(handle, AudioRoute::Hull, KILL_CONFIRM_VOLUME);
+    play(
+        &mut commands,
+        handle,
+        SoundCategoryType::Cockpit,
+        SoundAt::Ui,
+    );
 }
 
-/// The lance's report, on the tick the shot leaves.
+/// The lance's report, on the tick the shot leaves, at the lance.
 ///
-/// AUTHORED-OR-SILENT like the turret and the bay, and UNTHROTTLED unlike the
-/// turret: one lance fires once per reload cycle, so there is no stream here
-/// to rate-limit and a throttle could only ever swallow the one shot.
-///
-/// Answers [`RailgunFired`] rather than the slug's spawn: the shot is the
-/// event, the slug is one consequence of it, and a lance that somehow spends
-/// its charge without a shell still has a bore that discharged.
+/// AUTHORED-OR-SILENT like the turret and the bay. Answers [`RailgunFired`]
+/// rather than the slug's spawn: the shot is the event, the slug is one
+/// consequence of it.
 pub(super) fn on_railgun_fire_play_sfx(
     fired: On<RailgunFired>,
     asset_server: Res<AssetServer>,
     q_fire_sound: Query<&RailgunSectionFireSound>,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut commands: Commands,
 ) {
     let Some(handle) = q_fire_sound
@@ -550,13 +407,17 @@ pub(super) fn on_railgun_fire_play_sfx(
     else {
         return;
     };
-    let route = route_for(fired.entity, &q_child_of, &q_is_root, &q_is_player);
-    commands.play_sfx_at(handle, route, RAILGUN_FIRE_VOLUME, fired.muzzle);
+    play(
+        &mut commands,
+        handle,
+        SoundCategoryType::HeavyWeapon,
+        SoundAt::Entity(fired.entity),
+    );
 }
 
 #[cfg(test)]
 mod tests {
-    use nova_sound::{area_cell, CueGroup, SFX_AREA_CELL};
+    use nova_sound::SFX_AREA_CELL;
 
     use super::*;
     use crate::ship_audio::test_support::{LastPlayed, PlayedSfx};
@@ -567,14 +428,13 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
-        app.init_resource::<SfxThrottle>();
         app.init_resource::<PlayedSfx>();
         app.init_resource::<LastPlayed>();
         app.init_resource::<ImpactSounds>();
         app.add_observer(on_surface_impact_play_sfx);
-        app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
-        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
-            last.0 = Some(ev.handle.clone());
+        app.add_observer(|_: On<PlaySound>, mut played: ResMut<PlayedSfx>| played.0 += 1);
+        app.add_observer(|ev: On<PlaySound>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.sound.clone());
         });
         app
     }
@@ -676,18 +536,17 @@ mod tests {
     }
 
     #[test]
-    fn the_hit_sounds_where_it_landed_and_not_where_the_target_sits() {
+    fn one_hit_is_one_cue_on_the_struck_collider() {
         // The old cue rode `HealthApplyDamage` up `ChildOf` and had to filter
-        // the hops back out, positioning itself at the struck entity's origin.
-        // `SurfaceImpact` does not propagate and carries the contact point, so
-        // one hit is one cue and it is keyed at the point, not the body.
+        // the hops back out. `SurfaceImpact` does not propagate, so one hit is
+        // one cue, placed on the collider the round bit: its ship is the
+        // group.
+        #[derive(Resource, Default)]
+        struct Heard(Vec<SoundAt>);
         let mut app = impact_app();
-        let parent = app
-            .world_mut()
-            .spawn(GlobalTransform::from(Transform::from_translation(
-                Vec3::new(SFX_AREA_CELL * 4.0, 0.0, 0.0),
-            )))
-            .id();
+        app.init_resource::<Heard>();
+        app.add_observer(|ev: On<PlaySound>, mut heard: ResMut<Heard>| heard.0.push(ev.at));
+        let parent = app.world_mut().spawn(GlobalTransform::default()).id();
         let child = app
             .world_mut()
             .spawn((
@@ -697,26 +556,13 @@ mod tests {
             ))
             .id();
 
-        strike(
-            &mut app,
-            child,
-            DamageType::Kinetic,
-            Vec3::new(SFX_AREA_CELL * 4.0, 0.0, 0.0),
-        );
+        strike(&mut app, child, DamageType::Kinetic, Vec3::X);
 
         assert_eq!(
-            app.world().resource::<PlayedSfx>().0,
-            1,
-            "one hit must play exactly one impact sound"
+            app.world().resource::<Heard>().0,
+            vec![SoundAt::Entity(child)],
+            "one hit must play exactly one impact sound, on the struck collider"
         );
-        let throttle = app.world().resource::<SfxThrottle>();
-        assert!(throttle
-            .tracked_keys()
-            .eq([ThrottleKey::Impact(CueGroup::Cell(area_cell(Vec3::new(
-                SFX_AREA_CELL * 4.0,
-                0.0,
-                0.0
-            ))))]));
     }
 
     #[test]
@@ -766,11 +612,10 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
-        app.init_resource::<SfxThrottle>();
         app.init_resource::<LastPlayed>();
         app.add_observer(on_turret_fire_play_sfx);
-        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
-            last.0 = Some(ev.handle.clone());
+        app.add_observer(|ev: On<PlaySound>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.sound.clone());
         });
         app
     }
@@ -854,11 +699,10 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
-        app.init_resource::<SfxThrottle>();
         app.init_resource::<LastPlayed>();
         app.add_observer(on_torpedo_launch_play_sfx);
-        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
-            last.0 = Some(ev.handle.clone());
+        app.add_observer(|ev: On<PlaySound>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.sound.clone());
         });
         let expected: Handle<AudioSource> = app
             .world()
@@ -909,57 +753,6 @@ mod tests {
     }
 
     #[test]
-    fn a_ships_whole_salvo_is_one_report_and_two_ships_are_two() {
-        // The fix for "a lot of torpedo bays is really loud on launch": every
-        // tube on a hull fires on the same frame, so the throttle keys on the
-        // SHIP and the salvo collapses to one thump. Two hulls firing together
-        // are still two, which is what a cell or a global key would have lost.
-        #[derive(Resource, Default)]
-        struct Reports(usize);
-
-        let mut app = App::new();
-        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
-        app.init_asset::<AudioSource>();
-        app.init_resource::<SfxThrottle>();
-        app.init_resource::<Reports>();
-        app.add_observer(on_torpedo_launch_play_sfx);
-        app.add_observer(|_: On<PlaySfx>, mut reports: ResMut<Reports>| reports.0 += 1);
-
-        // Two hulls, four bays each, every tube launching on the same frame.
-        for _ in 0..2 {
-            let ship = app.world_mut().spawn(SpaceshipRootMarker).id();
-            for _ in 0..4 {
-                let bay = app
-                    .world_mut()
-                    .spawn((
-                        TorpedoSectionLaunchSound(Some(AssetRef::from(
-                            "base/sounds/torpedo_launch.wav",
-                        ))),
-                        ChildOf(ship),
-                    ))
-                    .id();
-                let torpedo = app
-                    .world_mut()
-                    .spawn((
-                        TorpedoProjectileMarker,
-                        Transform::default(),
-                        TorpedoSectionSpawnerEntity(bay),
-                    ))
-                    .id();
-                app.world_mut().flush();
-                app.world_mut().trigger(TorpedoLaunched { torpedo });
-                app.world_mut().flush();
-            }
-        }
-
-        assert_eq!(
-            app.world().resource::<Reports>().0,
-            2,
-            "eight tubes on two hulls must report twice, once per salvo"
-        );
-    }
-
-    #[test]
     fn a_destroyed_target_plays_the_voice_it_authored_or_stays_silent() {
         // The destruction voice stayed per-target when the hit voice moved to
         // the table: the destroyed entity's own authored ref plays, and an
@@ -968,11 +761,10 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
-        app.init_resource::<SfxThrottle>();
         app.init_resource::<LastPlayed>();
         app.add_observer(on_destroyed_play_explosion);
-        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
-            last.0 = Some(ev.handle.clone());
+        app.add_observer(|ev: On<PlaySound>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.sound.clone());
         });
         let boom: Handle<AudioSource> = app
             .world()
@@ -1013,60 +805,6 @@ mod tests {
     }
 
     #[test]
-    fn one_hull_shedding_every_section_is_one_explosion_from_the_middle_of_it() {
-        // A capital sheds its sections over hundreds of world units, so the
-        // old cell key heard a collapse as two dozen separate bangs walking
-        // across the wreck. One body is one death.
-        let mut app = App::new();
-        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
-        app.init_asset::<AudioSource>();
-        app.init_resource::<SfxThrottle>();
-        app.init_resource::<PlayedSfx>();
-        app.add_observer(on_destroyed_play_explosion);
-        app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
-
-        let hull = app
-            .world_mut()
-            .spawn((
-                RigidBody::Dynamic,
-                ComputedCenterOfMass::default(),
-                GlobalTransform::default(),
-                DestroySound(Some(AssetRef::from("base/sounds/explosion.wav"))),
-            ))
-            .id();
-        let sections: Vec<Entity> = (0..8)
-            .map(|cell: u8| {
-                let at = Vec3::X * (f32::from(cell) * SFX_AREA_CELL * 3.0);
-                app.world_mut()
-                    .spawn((
-                        GlobalTransform::from(Transform::from_translation(at)),
-                        ChildOf(hull),
-                    ))
-                    .id()
-            })
-            .collect();
-        for section in sections {
-            app.world_mut()
-                .entity_mut(section)
-                .insert(IntegrityDestroyMarker);
-        }
-        app.world_mut().flush();
-
-        assert_eq!(
-            app.world().resource::<PlayedSfx>().0,
-            1,
-            "eight cells of one hull are one collapse, not eight bangs"
-        );
-        let throttle = app.world().resource::<SfxThrottle>();
-        assert!(
-            throttle
-                .tracked_keys()
-                .eq([ThrottleKey::Explosion(CueGroup::Body(hull))]),
-            "and it is keyed by the hull that came apart"
-        );
-    }
-
-    #[test]
     fn the_destroy_lookup_walks_up_to_the_asteroid_parent() {
         // The asteroid shape: Health (and the destroy marker) live on a CHILD
         // node while the destruction voice sits on the rock's parent bundle -
@@ -1074,11 +812,10 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
-        app.init_resource::<SfxThrottle>();
         app.init_resource::<LastPlayed>();
         app.add_observer(on_destroyed_play_explosion);
-        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
-            last.0 = Some(ev.handle.clone());
+        app.add_observer(|ev: On<PlaySound>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.sound.clone());
         });
         let crack: Handle<AudioSource> = app
             .world()
@@ -1116,8 +853,8 @@ mod tests {
         app.init_asset::<AudioSource>();
         app.init_resource::<LastPlayed>();
         app.add_observer(on_reload_landed_play_sfx);
-        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
-            last.0 = Some(ev.handle.clone());
+        app.add_observer(|ev: On<PlaySound>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.sound.clone());
         });
         let breech: Handle<AudioSource> = app
             .world()
@@ -1161,12 +898,11 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
-        app.init_resource::<SfxThrottle>();
         app.init_resource::<LastPlayed>();
         app.add_observer(on_collapse_play_hull_loss);
         app.add_observer(on_destroyed_play_explosion);
-        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
-            last.0 = Some(ev.handle.clone());
+        app.add_observer(|ev: On<PlaySound>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.sound.clone());
         });
         let debris: Handle<AudioSource> = app
             .world()
@@ -1209,8 +945,8 @@ mod tests {
         app.init_asset::<AudioSource>();
         app.init_resource::<LastPlayed>();
         app.add_observer(on_collapse_play_hull_loss);
-        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
-            last.0 = Some(ev.handle.clone());
+        app.add_observer(|ev: On<PlaySound>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.sound.clone());
         });
         let ship = app
             .world_mut()
@@ -1239,12 +975,11 @@ mod tests {
         // An empty broad phase: no skin to find, so the fuze arms on the
         // frozen aim point under the torpedo.
         app.init_resource::<ColliderTrees>();
-        app.init_resource::<SfxThrottle>();
         app.init_resource::<LastPlayed>();
         app.add_systems(Update, torpedo_detonate_system);
         app.add_observer(on_torpedo_blast_play_detonation);
-        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
-            last.0 = Some(ev.handle.clone());
+        app.add_observer(|ev: On<PlaySound>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.sound.clone());
         });
         let warhead: Handle<AudioSource> = app
             .world()

@@ -136,7 +136,7 @@ mod tests {
     };
     use bevy_hanabi::prelude::*;
     use nova_gameplay::{prelude::*, test_log::CapturedLog};
-    use nova_sound::prelude::PlaySfx;
+    use nova_sound::prelude::PlaySound;
 
     use super::*;
     use crate::{
@@ -147,7 +147,7 @@ mod tests {
         },
     };
 
-    /// Count of `PlaySfx` triggers observed, local to this test - the
+    /// Count of `PlaySound` triggers observed, local to this test - the
     /// ship_audio crate's own `PlayedSfx`/`LastPlayed` are `pub(super)` to
     /// `ship_audio` and unreachable from here.
     #[derive(Resource, Default)]
@@ -195,7 +195,7 @@ mod tests {
         app.add_plugins(ShipAudioPlugin);
 
         app.init_resource::<PlaySfxCount>();
-        app.add_observer(|_: On<PlaySfx>, mut count: ResMut<PlaySfxCount>| count.0 += 1);
+        app.add_observer(|_: On<PlaySound>, mut count: ResMut<PlaySfxCount>| count.0 += 1);
         app
     }
 

@@ -1,25 +1,17 @@
-//! The continuous loops: one engine-hum voice per (ship, authored hum sound)
-//! pair, the RCS fine-adjust loop on the same shape, and the railgun's
-//! capacitor bank - which is deliberately NOT on that shape, because a weapon
-//! winding up is the one loop in the game that must not ease.
+//! The continuous loops: the drive hum on every thruster, the RCS hiss on the
+//! ship root, and the railgun's capacitor bank on the lance.
 //!
-//! PER SOURCE, not per sound: two ships burning past the camera are two voices
-//! following two ships, so they attenuate and pan independently. Everything
-//! after "how hard is this ship burning" belongs to the engine - the rolloff,
-//! the pan, the master, the freeze behind a paused sim, the teardown when a
-//! scenario unloads, and the cap on how many exterior loops may sound at once.
-
-use std::collections::HashMap;
+//! Each pass only reports how hard its source is working, as a
+//! [`SoundLoop`]'s intensity. Everything after that belongs to `nova_sound`:
+//! the category's level and dB range, the distance fade, the pan, the freeze
+//! behind a paused sim, and the voice caps. A ship's thrusters share one drive
+//! voice through the category's per-ship voice count.
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_sound::prelude::*;
 
-use super::{
-    levels::{engine_volume, rcs_exterior_volume, rcs_volume},
-    routing::{owning_root, route_from},
-    RAILGUN_CHARGE_FLOOR, RAILGUN_CHARGE_MAX_VOLUME, RAILGUN_CHARGE_TOP_SPEED,
-};
+use super::RAILGUN_CHARGE_TOP_SPEED;
 use crate::{
     prelude::*,
     sections::{
@@ -27,130 +19,101 @@ use crate::{
     },
 };
 
-/// How fast a loop's level chases its target, in units per second.
+/// How fast a hum's intensity chases its target, in units per second.
 /// Framerate-independent, and slow enough that a throttle change fades rather
 /// than clicks.
 const LOOP_SMOOTHING_RATE: f32 = 8.0;
 
-/// The line between "this source has a voice" and "it does not". A loop with
-/// nothing left to track is retired below it, and a source under it is never
-/// given one: its owner is gone or idle, and holding an open sink for silence
-/// buys nothing. One number for both arms of `reconcile_loops`, so a silent
-/// source cannot be spawned by one and retired by the other on alternate
-/// frames.
-const LOOP_RETIRE_LEVEL: f32 = 1e-4;
+/// Under this, an easing intensity has arrived. Without it a fade toward zero
+/// would write a smaller float every frame for ever.
+const LOOP_SETTLE: f32 = 1e-4;
 
-/// The handle a section's one authored LOOP resolved to, cached the first frame
-/// its pass sees the section.
-///
-/// [`AssetRef::resolve`] is idempotent - the file is not re-read - but it still
-/// parses the path, takes the `AssetServer` lock and hashes it, and these
-/// passes run once per source per frame to arrive at a handle that has not
-/// moved since the section spawned.
-///
-/// ONE component for all three passes rather than three: a section is exactly
-/// one kind, so the thruster's hum, the controller's hiss and the lance's
-/// capacitor bank never meet on the same entity.
-#[derive(Component)]
-pub(super) struct CachedLoopSound(Handle<AudioSource>);
+/// `current` eased toward `target` by `alpha` of the gap.
+fn ease(current: f32, target: f32, alpha: f32) -> f32 {
+    let next = current + (target - current) * alpha;
+    if (target - next).abs() < LOOP_SETTLE {
+        target
+    } else {
+        next
+    }
+}
 
-/// The handle for `section`'s authored loop, resolving and caching it once.
+/// Ease `owner`'s hum toward `target`, or start it once the source first works.
 ///
-/// AUTHORED-OR-SILENT is the `None` arm and stays free to re-ask every frame: a
-/// section that authors no loop never reaches the asset server at all.
-fn loop_handle(
+/// AUTHORED-OR-SILENT: an owner with no authored loop never gets one. An idle
+/// source never opens a voice at all: a torpedo coasting at zero headroom is
+/// exactly this case, and there are many of them in a salvo.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one body for both hums: the owner, its authored loop, its category, its live loop and the step"
+)]
+fn ease_hum(
     commands: &mut Commands,
     asset_server: &AssetServer,
-    section: Entity,
+    owner: Entity,
     authored: Option<&AssetRef<AudioSource>>,
-    cached: Option<&CachedLoopSound>,
-) -> Option<Handle<AudioSource>> {
-    if let Some(CachedLoopSound(handle)) = cached {
-        return Some(handle.clone());
+    category: SoundCategoryType,
+    sound_loop: Option<Mut<SoundLoop>>,
+    target: f32,
+    alpha: f32,
+) {
+    match sound_loop {
+        Some(mut sound_loop) => {
+            let next = ease(sound_loop.intensity, target, alpha);
+            if next != sound_loop.intensity {
+                sound_loop.intensity = next;
+            }
+        }
+        None if target > 0.0 => {
+            let Some(authored) = authored else {
+                return;
+            };
+            commands.entity(owner).try_insert(SoundLoop {
+                intensity: target * alpha,
+                ..SoundLoop::new(authored.resolve(asset_server), category)
+            });
+        }
+        None => {}
     }
-    let handle = authored?.resolve(asset_server);
-    commands
-        .entity(section)
-        .insert(CachedLoopSound(handle.clone()));
-    Some(handle)
 }
 
-/// One ship's engine hum: whose burn it tracks, and which authored sound it
-/// plays. One voice per pair, so a ship authoring two different hums gets two
-/// and two ships sharing one hum still pan apart.
-#[derive(Component)]
-pub(super) struct ThrusterLoopSfx {
-    source: Entity,
-    handle: Handle<AudioSource>,
-}
-
-/// One ship's RCS hiss, on the same per-pair shape as [`ThrusterLoopSfx`].
-#[derive(Component)]
-pub(super) struct RcsLoopSfx {
-    source: Entity,
-    handle: Handle<AudioSource>,
-}
-
-/// Drive the engine hum from how hard each ship is burning.
+/// Drive each thruster's hum from its own throttle.
 ///
-/// The throttle is averaged over each ship's own active thrusters (summing
-/// would pin to max the moment more than one fires) and smoothed toward the
-/// target so throttle changes fade. There is no attenuation here and no player
-/// special case: the voice's ROUTE says whether it is the pilot's own hull or a
-/// ship out in the world, and the engine takes it from there.
+/// A ship's thrusters share one voice: the drive category allows one per
+/// sound per ship, and the loudest thruster holds it.
 pub(super) fn drive_thruster_loops(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
-    q_thrusters: Query<
+    mut q_thrusters: Query<
         (
             Entity,
             &ThrusterSectionInput,
             &ThrusterSectionLoopSound,
-            Option<&CachedLoopSound>,
+            Has<SectionInactiveMarker>,
+            Option<&mut SoundLoop>,
         ),
-        (With<ThrusterSectionMarker>, Without<SectionInactiveMarker>),
+        With<ThrusterSectionMarker>,
     >,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
-    q_loops: Query<(Entity, &ThrusterLoopSfx, &mut SfxVoice)>,
 ) {
-    // AUTHORED-OR-SILENT: a thruster with no loop_sound contributes to no hum.
-    // The handle is resolved once and kept on the thruster, so thrusters
-    // authoring the same ref still share one handle and the busy frame pays
-    // nothing for it.
-    let mut burn: HashMap<(Entity, Handle<AudioSource>), (f32, u32)> = HashMap::new();
-    for (thruster, input, loop_sound, cached) in &q_thrusters {
-        let Some(handle) = loop_handle(
+    let alpha = (time.delta_secs() * LOOP_SMOOTHING_RATE).clamp(0.0, 1.0);
+    for (thruster, input, authored, inactive, sound_loop) in &mut q_thrusters {
+        let target = if inactive {
+            0.0
+        } else {
+            input.0.abs().min(1.0)
+        };
+        ease_hum(
             &mut commands,
             &asset_server,
             thruster,
-            loop_sound.0.as_ref(),
-            cached,
-        ) else {
-            continue;
-        };
-        let source = owning_root(thruster, &q_child_of, &q_is_root);
-        let slot = burn.entry((source, handle)).or_insert((0.0, 0));
-        slot.0 += input.0.abs();
-        slot.1 += 1;
+            authored.0.as_ref(),
+            SoundCategoryType::Drive,
+            sound_loop,
+            target,
+            alpha,
+        );
     }
-    let targets: HashMap<(Entity, Handle<AudioSource>), f32> = burn
-        .into_iter()
-        .map(|(pair, (sum, count))| (pair, engine_volume(sum / count as f32)))
-        .collect();
-
-    reconcile_loops(
-        &mut commands,
-        &time,
-        &q_is_player,
-        targets,
-        q_loops,
-        |sfx: &ThrusterLoopSfx| (sfx.source, sfx.handle.clone()),
-        |source, handle| ThrusterLoopSfx { source, handle },
-        "Thruster Loop Sfx",
-    );
 }
 
 /// Drive the RCS hiss from how hard each ship is fine-adjusting.
@@ -160,229 +123,107 @@ pub(super) fn drive_thruster_loops(
 /// player's modal or the autopilot wrote the command. A command the burn
 /// refused - no capability, a suppressed partner, an empty magazine - pushed
 /// nothing, so it hisses nothing.
-///
-/// Two curves, by route: the pilot's own hull hiss is [`rcs_volume`], and
-/// every other ship's is the louder, floored [`rcs_exterior_volume`], so a
-/// light push out in the world is still heard past the rolloff and the cap.
 pub(super) fn drive_rcs_loops(
     mut commands: Commands,
     time: Res<Time>,
     asset_server: Res<AssetServer>,
-    q_ships: Query<
+    mut q_ships: Query<
         (
             Entity,
             &ShipFeedbackSounds,
             &RcsBudget,
-            Option<&CachedLoopSound>,
+            Option<&mut SoundLoop>,
         ),
         With<SpaceshipRootMarker>,
     >,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
-    q_loops: Query<(Entity, &RcsLoopSfx, &mut SfxVoice)>,
 ) {
-    let mut targets: HashMap<(Entity, Handle<AudioSource>), f32> = HashMap::new();
-    for (root, sounds, budget, cached) in &q_ships {
-        // AUTHORED-OR-SILENT: a ship with no rcs_loop makes no sound.
-        let Some(handle) = loop_handle(
+    let alpha = (time.delta_secs() * LOOP_SMOOTHING_RATE).clamp(0.0, 1.0);
+    for (root, sounds, budget, sound_loop) in &mut q_ships {
+        ease_hum(
             &mut commands,
             &asset_server,
             root,
             sounds.rcs_loop.as_ref(),
-            cached,
-        ) else {
-            continue;
-        };
-        let effort = budget.applied;
-        if effort <= 1e-4 {
-            continue;
-        }
-        let level = if q_is_player.contains(root) {
-            rcs_volume(effort)
-        } else {
-            rcs_exterior_volume(effort)
-        };
-        let slot = targets.entry((root, handle)).or_insert(0.0);
-        *slot = slot.max(level);
+            SoundCategoryType::Rcs,
+            sound_loop,
+            budget.applied.clamp(0.0, 1.0),
+            alpha,
+        );
     }
-
-    reconcile_loops(
-        &mut commands,
-        &time,
-        &q_is_player,
-        targets,
-        q_loops,
-        |sfx: &RcsLoopSfx| (sfx.source, sfx.handle.clone()),
-        |source, handle| RcsLoopSfx { source, handle },
-        "RCS Loop Sfx",
-    );
-}
-
-/// One charging lance's capacitor bank. Per SECTION, not per ship: the charge
-/// clock is the gun's, so two lances on one hull wind up independently.
-#[derive(Component)]
-pub(super) struct RailgunChargeLoopSfx {
-    section: Entity,
 }
 
 /// Drive the lance's charge loop from where each gun is in its cycle.
 ///
-/// NOT on [`reconcile_loops`], and the difference is the point. The hum loops
-/// EASE, because a throttle change that clicked would be a fault; this one must
-/// not. A commit has to be audible on the frame it happens - it is the tell the
-/// whole weapon is balanced around - and the shot has to cut the bank dead,
-/// because the report is 20 dB louder and a fading capacitor smeared under it
-/// is just mud. So the voice opens at its floor level and is despawned outright
-/// the frame the gun leaves [`RailgunCharge::Charging`].
+/// The hums EASE; this loop must not. A commit has to be audible on the frame
+/// it happens - it is the tell the whole weapon is balanced around - and the
+/// shot has to cut the bank dead, because a capacitor tail smeared under the
+/// report is just mud. So the loop opens at the bottom of its category's range
+/// and is removed outright the frame the gun leaves
+/// [`RailgunCharge::Charging`].
 ///
-/// Two things rise together with progress: the LEVEL, from
-/// [`RAILGUN_CHARGE_FLOOR`] of the ceiling to all of it, and the playback RATE,
-/// to [`RAILGUN_CHARGE_TOP_SPEED`]. The rate is what makes it read as
-/// approaching something rather than holding a note, and the loop is authored
-/// on even partials so its seam stays silent at any rate in between.
+/// The intensity and the playback RATE rise together with progress, to
+/// [`RAILGUN_CHARGE_TOP_SPEED`]. The rate is what makes it read as approaching
+/// something rather than holding a note, and the loop is authored on even
+/// partials so its seam stays silent at any rate in between.
 ///
 /// AUTHORED-OR-SILENT: a lance with no `charge_sound` charges quietly.
 pub(super) fn drive_railgun_charge_loops(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    q_railgun: Query<
+    mut q_railgun: Query<
         (
             Entity,
             &RailgunSectionConfigHelper,
             &RailgunCharge,
             &RailgunSectionChargeSound,
-            Option<&CachedLoopSound>,
+            Has<SectionInactiveMarker>,
+            Option<&mut SoundLoop>,
         ),
-        (With<RailgunSectionMarker>, Without<SectionInactiveMarker>),
+        With<RailgunSectionMarker>,
     >,
-    q_child_of: Query<&ChildOf>,
-    q_is_root: Query<(), With<SpaceshipRootMarker>>,
-    q_is_player: Query<(), With<PlayerSpaceshipMarker>>,
-    mut q_loops: Query<(Entity, &RailgunChargeLoopSfx, &mut SfxVoice)>,
 ) {
-    let mut charging: HashMap<Entity, (Handle<AudioSource>, f32)> = HashMap::new();
-    for (section, config, charge, sound, cached) in &q_railgun {
-        if !matches!(charge, RailgunCharge::Charging { .. }) {
+    for (section, config, charge, authored, inactive, sound_loop) in &mut q_railgun {
+        if inactive || !matches!(charge, RailgunCharge::Charging { .. }) {
+            if sound_loop.is_some() {
+                commands.entity(section).try_remove::<SoundLoop>();
+            }
             continue;
         }
-        let Some(handle) = loop_handle(
-            &mut commands,
-            &asset_server,
-            section,
-            sound.0.as_ref(),
-            cached,
-        ) else {
-            continue;
-        };
-        charging.insert(section, (handle, charge.progress(config.charge_seconds)));
-    }
-
-    for (voice_entity, loop_sfx, mut voice) in &mut q_loops {
-        let Some((_, progress)) = charging.remove(&loop_sfx.section) else {
-            commands.entity(voice_entity).despawn();
-            continue;
-        };
-        voice.volume = charge_volume(progress);
-        voice.speed = charge_speed(progress);
-        // Refreshed every frame, like the hum loops': a gun can change hands
-        // between one scenario and the next.
-        let root = owning_root(loop_sfx.section, &q_child_of, &q_is_root);
-        voice.route = route_from(root, &q_is_player);
-    }
-
-    for (section, (handle, progress)) in charging {
-        let root = owning_root(section, &q_child_of, &q_is_root);
-        commands.spawn((
-            Name::new("Railgun Charge Loop Sfx"),
-            RailgunChargeLoopSfx { section },
-            SfxVoice::looping(handle, route_from(root, &q_is_player))
-                .following(section)
-                .with_volume(charge_volume(progress))
-                .with_speed(charge_speed(progress)),
-        ));
-    }
-}
-
-/// The bank's level at `progress`, from the floor to the ceiling.
-fn charge_volume(progress: f32) -> f32 {
-    RAILGUN_CHARGE_MAX_VOLUME * (RAILGUN_CHARGE_FLOOR + (1.0 - RAILGUN_CHARGE_FLOOR) * progress)
-}
-
-/// The bank's playback rate at `progress`, from normal to the top speed.
-fn charge_speed(progress: f32) -> f32 {
-    1.0 + (RAILGUN_CHARGE_TOP_SPEED - 1.0) * progress
-}
-
-/// Bring the live loop voices in line with what is burning this frame: ease the
-/// ones that still have a source, retire the ones that have faded out, and open
-/// a voice for a pair that has none.
-///
-/// Shared by the two loop passes because the ONLY thing that differs between an
-/// engine hum and an RCS hiss is the level curve that produced `targets`.
-///
-/// [`LOOP_RETIRE_LEVEL`] is the hinge, and both arms read it: a source below it
-/// gets no voice and a voice below it is retired, so a silent source settles at
-/// "no voice" instead of trading between the two arms every frame.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the generic reconciler takes both marker adapters plus the queries it drives"
-)]
-fn reconcile_loops<M: Component>(
-    commands: &mut Commands,
-    time: &Time,
-    q_is_player: &Query<(), With<PlayerSpaceshipMarker>>,
-    mut targets: HashMap<(Entity, Handle<AudioSource>), f32>,
-    mut q_loops: Query<(Entity, &M, &mut SfxVoice)>,
-    pair_of: impl Fn(&M) -> (Entity, Handle<AudioSource>),
-    marker_of: impl Fn(Entity, Handle<AudioSource>) -> M,
-    name: &'static str,
-) {
-    let alpha = (time.delta_secs() * LOOP_SMOOTHING_RATE).clamp(0.0, 1.0);
-    for (entity, marker, mut voice) in &mut q_loops {
-        let pair = pair_of(marker);
-        let target = targets.remove(&pair).unwrap_or(0.0);
-        voice.volume += (target - voice.volume) * alpha;
-        if target < LOOP_RETIRE_LEVEL && voice.volume < LOOP_RETIRE_LEVEL {
-            commands.entity(entity).despawn();
-            continue;
+        let progress = charge.progress(config.charge_seconds).clamp(0.0, 1.0);
+        // Never zero while charging: zero is silence, and the bank must be
+        // heard from the frame the charge commits.
+        let intensity = progress.max(f32::MIN_POSITIVE);
+        let rate = 1.0 + (RAILGUN_CHARGE_TOP_SPEED - 1.0) * progress;
+        match sound_loop {
+            Some(mut sound_loop) => {
+                sound_loop.intensity = intensity;
+                sound_loop.rate = rate;
+            }
+            None => {
+                let Some(authored) = authored.0.as_ref() else {
+                    continue;
+                };
+                commands.entity(section).try_insert(SoundLoop {
+                    intensity,
+                    rate,
+                    ..SoundLoop::new(authored.resolve(&asset_server), SoundCategoryType::Charge)
+                });
+            }
         }
-        // Refreshed rather than fixed at spawn: a ship can become (or stop
-        // being) the player's between one scenario and the next.
-        voice.route = route_from(pair.0, q_is_player);
-    }
-    for ((source, handle), target) in targets {
-        // The SAME threshold the retire arm just used, and the two must stay
-        // the same one. A source under it - an idle thruster, a torpedo
-        // coasting at zero headroom - would otherwise be spawned on one frame
-        // and retired on the next, opening and closing a rodio sink forever.
-        if target < LOOP_RETIRE_LEVEL {
-            continue;
-        }
-        commands.spawn((
-            Name::new(name),
-            marker_of(source, handle.clone()),
-            SfxVoice::looping(handle, route_from(source, q_is_player))
-                .following(source)
-                .with_volume(target * alpha),
-        ));
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        super::levels::{ENGINE_MAX_VOLUME, RCS_MAX_VOLUME},
-        *,
-    };
+    use super::*;
 
     /// One test frame, long enough that the smoothing moves visibly and short
     /// enough that it still takes several frames to arrive.
     const TEST_FRAME: std::time::Duration = std::time::Duration::from_millis(16);
 
-    /// App rig for the loop passes: the real systems over production markers,
-    /// no audio device needed (the engine owns every sink write, and this
-    /// layer only reports how hard a ship is burning). Time is stepped by hand
-    /// so the smoothing is deterministic; the first update still runs at dt 0,
-    /// so every assertion below takes at least two.
+    /// App rig for the hum passes: the real systems, no audio device. Time is
+    /// stepped by hand so the smoothing is deterministic; the first update
+    /// still runs at dt 0, so every assertion below takes at least two.
     fn loop_app() -> App {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
@@ -397,46 +238,25 @@ mod tests {
     /// The base RCS loop path.
     const RIG_RCS: &str = "base/sounds/rcs_loop.wav";
 
-    /// Every live loop voice as `(route, volume, followed entity)`.
-    fn voices(app: &mut App) -> Vec<(AudioRoute, f32, Option<Entity>)> {
-        let mut query = app.world_mut().query::<&SfxVoice>();
-        query
-            .iter(app.world())
-            .map(|voice| {
-                let followed = match voice.source {
-                    SfxSource::Follow(entity) => Some(entity),
-                    _ => None,
-                };
-                (voice.route, voice.volume, followed)
-            })
-            .collect()
+    /// `owner`'s loop, if it has one.
+    fn loop_of(app: &App, owner: Entity) -> Option<SoundLoop> {
+        app.world().get::<SoundLoop>(owner).cloned()
     }
 
-    /// The one voice following `source`, or `None`.
-    fn voice_for(app: &mut App, source: Entity) -> Option<(AudioRoute, f32)> {
-        voices(app)
-            .into_iter()
-            .find(|(_, _, followed)| *followed == Some(source))
-            .map(|(route, volume, _)| (route, volume))
-    }
-
-    /// A one-thruster ship at `pos`. The root carries the marker + pose; the
-    /// thruster is a plain child, like the shipped assembly.
-    fn spawn_burning_ship(app: &mut App, pos: Vec3, throttle: f32) -> Entity {
+    /// A one-thruster ship; returns the thruster.
+    fn spawn_burning_thruster(app: &mut App, throttle: f32) -> Entity {
         let root = app
             .world_mut()
-            .spawn((
-                SpaceshipRootMarker,
-                GlobalTransform::from(Transform::from_translation(pos)),
-            ))
+            .spawn((SpaceshipRootMarker, GlobalTransform::default()))
             .id();
-        app.world_mut().spawn((
-            ThrusterSectionMarker,
-            ThrusterSectionInput(throttle),
-            ThrusterSectionLoopSound(Some(AssetRef::from(RIG_HUM))),
-            ChildOf(root),
-        ));
-        root
+        app.world_mut()
+            .spawn((
+                ThrusterSectionMarker,
+                ThrusterSectionInput(throttle),
+                ThrusterSectionLoopSound(Some(AssetRef::from(RIG_HUM))),
+                ChildOf(root),
+            ))
+            .id()
     }
 
     /// Run until the smoothing has caught up, so a test can assert on the level
@@ -448,241 +268,83 @@ mod tests {
     }
 
     #[test]
-    fn every_burning_ship_gets_its_own_voice_following_its_own_hull() {
-        // The fix for the one global position-less loop: two ships burning are
-        // two voices at two places, so the engine can pan them apart.
+    fn a_thruster_hums_at_its_own_throttle_on_the_drive_category() {
         let mut app = loop_app();
-        let near = spawn_burning_ship(&mut app, Vec3::new(30.0, 0.0, 0.0), 1.0);
-        let far = spawn_burning_ship(&mut app, Vec3::new(-400.0, 0.0, 0.0), 1.0);
+        let thruster = spawn_burning_thruster(&mut app, 0.5);
         settle(&mut app);
 
-        let followed: Vec<Option<Entity>> = voices(&mut app).into_iter().map(|v| v.2).collect();
-        assert_eq!(followed.len(), 2, "one voice per burning ship");
-        assert!(followed.contains(&Some(near)) && followed.contains(&Some(far)));
-    }
-
-    #[test]
-    fn a_thruster_resolves_its_authored_hum_once_and_plays_the_cached_handle() {
-        // The busy-scene cost this removes: `AssetRef::resolve` parses the
-        // path and takes the `AssetServer` lock, and the pass paid that per
-        // thruster per frame for a handle that had not moved since spawn.
-        // Re-authoring the ref afterwards is what proves the resolve stopped:
-        // the hum keeps the handle it cached.
-        let mut app = loop_app();
-        spawn_burning_ship(&mut app, Vec3::ZERO, 1.0);
-        settle(&mut app);
-
-        let mut q_thruster = app
-            .world_mut()
-            .query_filtered::<Entity, With<ThrusterSectionMarker>>();
-        let thruster = q_thruster
-            .iter(app.world())
-            .next()
-            .expect("the rig's one thruster");
-        let cached = app
-            .world()
-            .get::<CachedLoopSound>(thruster)
-            .expect("the resolved hum is kept on the thruster")
-            .0
-            .clone();
-
-        app.world_mut()
-            .entity_mut(thruster)
-            .insert(ThrusterSectionLoopSound(Some(AssetRef::from(
-                "mods/x/sounds/ion_whine.wav",
-            ))));
-        settle(&mut app);
-
-        let mut q_voice = app.world_mut().query::<&SfxVoice>();
-        let handles: Vec<Handle<AudioSource>> = q_voice
-            .iter(app.world())
-            .map(|voice| voice.handle.clone())
-            .collect();
-        assert_eq!(handles, vec![cached], "the cache is read, not re-resolved");
-    }
-
-    #[test]
-    fn the_players_own_burn_is_routed_to_the_hull_and_everyone_elses_outside() {
-        // The routing fact that replaced `if player { skip attenuation }`: your
-        // engines are the room you are sitting in, whatever the camera does.
-        let mut app = loop_app();
-        let player = spawn_burning_ship(&mut app, Vec3::ZERO, 1.0);
-        app.world_mut()
-            .entity_mut(player)
-            .insert(PlayerSpaceshipMarker);
-        let raider = spawn_burning_ship(&mut app, Vec3::new(60.0, 0.0, 0.0), 1.0);
-        settle(&mut app);
-
-        assert_eq!(
-            voice_for(&mut app, player).map(|v| v.0),
-            Some(AudioRoute::Hull)
-        );
-        assert_eq!(
-            voice_for(&mut app, raider).map(|v| v.0),
-            Some(AudioRoute::Exterior)
-        );
-    }
-
-    #[test]
-    fn the_hum_level_is_the_ships_own_throttle_undimmed_by_distance() {
-        // Distance is the engine's business now: this layer reports the burn
-        // and nothing else, so a ship 400 world units (4 km) out still reports
-        // its full curve.
-        let mut app = loop_app();
-        let ship = spawn_burning_ship(&mut app, Vec3::new(400.0, 0.0, 0.0), 0.5);
-        settle(&mut app);
-
-        let (_, level) = voice_for(&mut app, ship).expect("the burning ship has a voice");
-        assert!(
-            (level - engine_volume(0.5)).abs() < 1e-3,
-            "expected the raw throttle curve {}, got {level}",
-            engine_volume(0.5)
-        );
-        assert!(engine_volume(1.0) == ENGINE_MAX_VOLUME);
+        let hum = loop_of(&app, thruster).expect("a burning thruster hums");
+        let server = app.world().resource::<AssetServer>().clone();
+        assert_eq!(hum.sound, server.load(RIG_HUM));
+        assert_eq!(hum.category, SoundCategoryType::Drive);
+        assert!((hum.intensity - 0.5).abs() < 1e-3, "got {}", hum.intensity);
     }
 
     #[test]
     fn the_hum_eases_toward_its_target_instead_of_snapping() {
         let mut app = loop_app();
-        let ship = spawn_burning_ship(&mut app, Vec3::ZERO, 1.0);
+        let thruster = spawn_burning_thruster(&mut app, 1.0);
         app.update(); // first frame: dt = 0
 
         let mut last = 0.0;
         for _ in 0..5 {
             app.update();
-            let (_, level) = voice_for(&mut app, ship).expect("the voice exists");
+            let level = loop_of(&app, thruster).map_or(0.0, |hum| hum.intensity);
             assert!(
-                level >= last && level <= ENGINE_MAX_VOLUME,
-                "the level must rise monotonically toward the target, got {level} after {last}"
+                level >= last && level < 1.0,
+                "the intensity must rise toward the target, got {level} after {last}"
             );
             last = level;
         }
-        assert!(last > 0.0, "the level must have started chasing the target");
+        assert!(
+            last > 0.0,
+            "the intensity must have started chasing the target"
+        );
     }
 
     #[test]
-    fn a_ship_that_stops_burning_fades_out_and_retires_its_voice() {
+    fn a_thruster_that_stops_burning_fades_to_silence() {
         let mut app = loop_app();
-        let ship = spawn_burning_ship(&mut app, Vec3::ZERO, 1.0);
+        let thruster = spawn_burning_thruster(&mut app, 1.0);
         settle(&mut app);
-        assert!(voice_for(&mut app, ship).is_some());
 
-        // Cut the throttle: the voice must fade rather than cut, then go.
-        let mut thrusters = app
-            .world_mut()
-            .query_filtered::<&mut ThrusterSectionInput, With<ThrusterSectionMarker>>();
-        for mut input in thrusters.iter_mut(app.world_mut()) {
-            input.0 = 0.0;
-        }
+        app.world_mut()
+            .get_mut::<ThrusterSectionInput>(thruster)
+            .unwrap()
+            .0 = 0.0;
         app.update();
-        let mid = voice_for(&mut app, ship).map(|v| v.1);
+        let mid = loop_of(&app, thruster).map(|hum| hum.intensity);
         assert!(
-            mid.is_some_and(|level| level > 0.0 && level < ENGINE_MAX_VOLUME),
-            "the level must ease down, not cut, got {mid:?}"
+            mid.is_some_and(|level| level > 0.0 && level < 1.0),
+            "the intensity must ease down, not cut, got {mid:?}"
         );
 
         settle(&mut app);
-        assert!(
-            voice_for(&mut app, ship).is_none(),
-            "a faded-out loop retires instead of holding an open sink at silence"
-        );
-
-        // And STAYS gone. This assertion used to hold on frame parity alone:
-        // the retired source was respawned on the next frame and retired on
-        // the one after, forever.
-        for frame in 0..9 {
-            app.update();
-            assert!(
-                voice_for(&mut app, ship).is_none(),
-                "the idle ship took its voice back on frame {frame}"
-            );
-        }
+        assert_eq!(loop_of(&app, thruster).map(|hum| hum.intensity), Some(0.0));
     }
 
     #[test]
     fn an_idle_thruster_never_opens_a_voice_at_all() {
-        // A torpedo coasting at zero headroom is exactly this case, and there
-        // are hundreds of them in a salvo. Spawning one silent voice per
-        // source per frame - and retiring it the next - churned a rodio sink
-        // open and closed for every one.
         let mut app = loop_app();
-        let ship = spawn_burning_ship(&mut app, Vec3::ZERO, 0.0);
-
-        for frame in 0..24 {
-            app.update();
-            assert!(
-                voice_for(&mut app, ship).is_none(),
-                "an idle thruster opened a sink on frame {frame}"
-            );
-        }
-    }
-
-    #[test]
-    fn a_ship_with_two_authored_hums_gets_a_voice_for_each() {
-        let mut app = loop_app();
-        let ship = spawn_burning_ship(&mut app, Vec3::ZERO, 1.0);
-        app.world_mut().spawn((
-            ThrusterSectionMarker,
-            ThrusterSectionInput(1.0),
-            ThrusterSectionLoopSound(Some(AssetRef::from("mods/x/sounds/ion_whine.wav"))),
-            ChildOf(ship),
-        ));
+        let thruster = spawn_burning_thruster(&mut app, 0.0);
         settle(&mut app);
-
-        let following_ship = voices(&mut app)
-            .into_iter()
-            .filter(|(_, _, followed)| *followed == Some(ship))
-            .count();
-        assert_eq!(following_ship, 2, "one voice per distinct authored hum");
+        assert!(loop_of(&app, thruster).is_none());
     }
 
     #[test]
     fn an_unauthored_thruster_makes_no_voice() {
-        // Authored-or-silent. The burning-ship rigs above are the delivery
-        // guard (same spawn shape WITH the ref hums).
         let mut app = loop_app();
-        let root = app
-            .world_mut()
-            .spawn((SpaceshipRootMarker, GlobalTransform::default()))
-            .id();
-        app.world_mut().spawn((
-            ThrusterSectionMarker,
-            ThrusterSectionInput(1.0),
-            ThrusterSectionLoopSound(None),
-            ChildOf(root),
-        ));
+        let thruster = spawn_burning_thruster(&mut app, 1.0);
+        app.world_mut()
+            .entity_mut(thruster)
+            .insert(ThrusterSectionLoopSound(None));
         settle(&mut app);
-        assert!(voices(&mut app).is_empty());
+        assert!(loop_of(&app, thruster).is_none());
     }
 
-    #[test]
-    fn a_rootless_thruster_is_heard_at_its_own_pose() {
-        // Torpedo shape: the thruster hangs off a projectile root that is NOT a
-        // SpaceshipRootMarker, so it follows itself.
-        let mut app = loop_app();
-        let torpedo = app.world_mut().spawn(GlobalTransform::default()).id();
-        let thruster = app
-            .world_mut()
-            .spawn((
-                ThrusterSectionMarker,
-                ThrusterSectionInput(1.0),
-                ThrusterSectionLoopSound(Some(AssetRef::from(RIG_HUM))),
-                ChildOf(torpedo),
-                GlobalTransform::from(Transform::from_translation(Vec3::new(40.0, 0.0, 0.0))),
-            ))
-            .id();
-        settle(&mut app);
-
-        assert_eq!(
-            voice_for(&mut app, thruster).map(|v| v.0),
-            Some(AudioRoute::Exterior),
-            "a torpedo's own thruster follows the torpedo, not a ship"
-        );
-    }
-
-    /// A ship at `at` carrying its RCS voice on the ROOT, holding a full
-    /// command and delivering `applied` of it.
-    fn spawn_rcs_ship_at(app: &mut App, at: Vec3, applied: f32) -> Entity {
+    /// A ship carrying its RCS voice on the ROOT, delivering `applied` of a
+    /// full command.
+    fn spawn_rcs_ship(app: &mut App, applied: f32) -> Entity {
         let sounds = ShipFeedbackSounds {
             rcs_loop: Some(AssetRef::from(RIG_RCS)),
             ..Default::default()
@@ -690,7 +352,7 @@ mod tests {
         app.world_mut()
             .spawn((
                 SpaceshipRootMarker,
-                GlobalTransform::from(Transform::from_translation(at)),
+                GlobalTransform::default(),
                 RcsIntent(Vec3::X),
                 RcsBudget {
                     applied,
@@ -701,78 +363,26 @@ mod tests {
             .id()
     }
 
-    /// [`spawn_rcs_ship_at`] at the origin.
-    fn spawn_rcs_ship(app: &mut App, applied: f32) -> Entity {
-        spawn_rcs_ship_at(app, Vec3::ZERO, applied)
-    }
-
     #[test]
-    fn the_rcs_loop_plays_while_the_controller_burns_and_retires_at_rest() {
+    fn the_rcs_loop_follows_the_delivered_burn_and_fades_at_rest() {
         let mut app = loop_app();
         let ship = spawn_rcs_ship(&mut app, 1.0);
-        app.world_mut()
-            .entity_mut(ship)
-            .insert(PlayerSpaceshipMarker);
         settle(&mut app);
-        let (route, level) = voice_for(&mut app, ship).expect("a burning ship hisses");
-        assert_eq!(route, AudioRoute::Hull);
-        assert!(
-            (level - RCS_MAX_VOLUME).abs() < 1e-3,
-            "a full-deflection burn drives the pilot's own loop to its ceiling, got {level}"
-        );
+        let hiss = loop_of(&app, ship).expect("a burning ship hisses");
+        assert_eq!(hiss.category, SoundCategoryType::Rcs);
+        assert!((hiss.intensity - 1.0).abs() < 1e-3);
 
-        // The burn stops delivering (the mouse stopped / the autopilot
-        // settled).
         app.world_mut().get_mut::<RcsBudget>(ship).unwrap().applied = 0.0;
         settle(&mut app);
-        assert!(
-            voice_for(&mut app, ship).is_none(),
-            "the loop mutes and goes"
-        );
+        assert_eq!(loop_of(&app, ship).map(|hiss| hiss.intensity), Some(0.0));
     }
 
-    /// An escort holds its slot 200 m off the leader, so a hiss that only
-    /// reads beside the camera is one the pilot never hears.
-    const ESCORT_RANGE: f32 = 30.0;
-
-    /// An escort's RCS must be heard. Through the engine's own mix, a light push from another ship at escort range
-    /// must sound at least as loud as the pilot's own hull hiss at full
-    /// deflection, and the cap must not hold it silent.
-    #[test]
-    fn another_ships_light_rcs_push_is_heard_at_escort_range() {
-        let mut app = loop_app();
-        app.add_plugins(NovaSoundPlugin);
-        app.world_mut()
-            .spawn((SfxListenerMarker, GlobalTransform::IDENTITY));
-        let ship = spawn_rcs_ship_at(&mut app, Vec3::X * ESCORT_RANGE, 0.25);
-        settle(&mut app);
-
-        let mut q_voice = app
-            .world_mut()
-            .query::<(&RcsLoopSfx, &SfxVoice, &VoiceMix)>();
-        let (_, voice, mix) = q_voice
-            .iter(app.world())
-            .find(|(sfx, ..)| sfx.source == ship)
-            .expect("another ship's RCS push opens a voice");
-        assert_eq!(voice.route, AudioRoute::Exterior);
-        assert!(!mix.capped, "a lone hiss is not capped");
-        assert!(
-            mix.level >= RCS_MAX_VOLUME,
-            "a quarter push at {} m resolves to {}, under the pilot's own full hiss {}",
-            ESCORT_RANGE * 10.0,
-            mix.level,
-            RCS_MAX_VOLUME
-        );
-    }
-
-    /// A held command the burn refused or starved delivered nothing, so it
-    /// makes no sound.
     #[test]
     fn the_rcs_loop_is_silent_while_the_burn_delivers_nothing() {
         let mut app = loop_app();
         let ship = spawn_rcs_ship(&mut app, 0.0);
         settle(&mut app);
-        assert!(voice_for(&mut app, ship).is_none());
+        assert!(loop_of(&app, ship).is_none());
     }
 
     /// The base lance's charge sound path.
@@ -802,64 +412,49 @@ mod tests {
             .id()
     }
 
-    /// The one charge voice following `gun`, as `(volume, speed)`.
-    fn charge_voice(app: &mut App, gun: Entity) -> Option<(f32, f32)> {
-        let mut query = app
-            .world_mut()
-            .query::<(&RailgunChargeLoopSfx, &SfxVoice)>();
-        query
-            .iter(app.world())
-            .find(|(loop_sfx, _)| loop_sfx.section == gun)
-            .map(|(_, voice)| (voice.volume, voice.speed))
+    /// App rig for the capacitor pass. Separate from [`loop_app`] because the
+    /// charge loop is deliberately not smoothed.
+    fn charge_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        app.add_systems(Update, drive_railgun_charge_loops);
+        app
     }
 
     #[test]
-    fn the_capacitor_opens_at_its_floor_and_arrives_loud_and_fast() {
-        // The one loop that must NOT ease: a bank winding up has to be at its
-        // authored floor on the FIRST frame of the charge, and the rise the
-        // player hears is the charge itself, not a smoothing envelope.
+    fn the_capacitor_opens_audible_and_arrives_full_and_fast() {
+        // The one loop that must NOT ease: a bank winding up is heard on the
+        // FIRST frame of the charge, and the rise is the charge itself.
         let mut app = charge_app();
         let gun = spawn_charging_lance(&mut app, Some(RIG_CHARGE), 0.0);
         app.update();
-        let (opened, opening_speed) = charge_voice(&mut app, gun).expect("the bank opens a voice");
-        assert!(
-            (opened - RAILGUN_CHARGE_MAX_VOLUME * RAILGUN_CHARGE_FLOOR).abs() < 1e-5,
-            "an opening bank starts at its floor, got {opened}"
-        );
-        assert!(
-            (opening_speed - 1.0).abs() < 1e-5,
-            "an opening bank plays at its authored rate, got {opening_speed}"
-        );
+        let opened = loop_of(&app, gun).expect("the bank opens a voice");
+        assert_eq!(opened.category, SoundCategoryType::Charge);
+        assert!(opened.intensity > 0.0, "an opening bank is not silent");
+        assert!((opened.rate - 1.0).abs() < 1e-5);
 
         app.world_mut()
             .entity_mut(gun)
             .insert(RailgunCharge::Charging { elapsed: 2.0 });
         app.update();
-        let (full, full_speed) = charge_voice(&mut app, gun).expect("the voice stays open");
-        assert!(
-            (full - RAILGUN_CHARGE_MAX_VOLUME).abs() < 1e-5,
-            "a full bank is at the ceiling, got {full}"
-        );
-        assert!(
-            (full_speed - RAILGUN_CHARGE_TOP_SPEED).abs() < 1e-5,
-            "a full bank is at top speed, got {full_speed}"
-        );
+        let full = loop_of(&app, gun).expect("the voice stays open");
+        assert!((full.intensity - 1.0).abs() < 1e-5);
+        assert!((full.rate - RAILGUN_CHARGE_TOP_SPEED).abs() < 1e-5);
     }
 
     #[test]
     fn the_bank_goes_silent_the_frame_the_charge_ends() {
-        // The shot cuts to the muzzle report; a capacitor tail fading under it
-        // would read as the gun still winding up after it fired.
         let mut app = charge_app();
         let gun = spawn_charging_lance(&mut app, Some(RIG_CHARGE), 0.5);
         app.update();
-        assert!(charge_voice(&mut app, gun).is_some());
+        assert!(loop_of(&app, gun).is_some());
 
         app.world_mut().entity_mut(gun).insert(RailgunCharge::Ready);
         app.update();
         assert!(
-            charge_voice(&mut app, gun).is_none(),
-            "leaving the charge retires the voice outright, with no tail"
+            loop_of(&app, gun).is_none(),
+            "leaving the charge removes the loop outright, with no tail"
         );
     }
 
@@ -868,16 +463,6 @@ mod tests {
         let mut app = charge_app();
         let gun = spawn_charging_lance(&mut app, None, 0.5);
         app.update();
-        assert!(charge_voice(&mut app, gun).is_none());
-    }
-
-    /// App rig for the capacitor pass. Separate from [`loop_app`] because the
-    /// charge loop is deliberately not on the smoothed reconciler.
-    fn charge_app() -> App {
-        let mut app = App::new();
-        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
-        app.init_asset::<AudioSource>();
-        app.add_systems(Update, drive_railgun_charge_loops);
-        app
+        assert!(loop_of(&app, gun).is_none());
     }
 }

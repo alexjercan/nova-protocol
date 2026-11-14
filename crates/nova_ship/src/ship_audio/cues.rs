@@ -4,9 +4,9 @@
 //! authored sounds, so a ship without them is silent rather than borrowing
 //! another hull's voice.
 //!
-//! All on [`AudioRoute::Hull`]: these are the player's own computer talking to
-//! them, so they ride the world track with everything else their ship makes,
-//! and they are never placed, attenuated or panned.
+//! The computer's voice is interface feedback on [`SoundBus::Ui`], heard flat.
+//! The dry-fire click is the exception: it is the gun mount's own hardware,
+//! so it plays in the world at the turret.
 
 use std::collections::HashMap;
 
@@ -14,11 +14,6 @@ use bevy::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_sound::prelude::*;
 
-use super::{
-    AMMO_DRY_VOLUME, DRY_FIRE_VOLUME, LOCK_OFF_VOLUME, LOCK_ON_VOLUME, RADAR_DENY_VOLUME,
-    RADAR_RETARGET_VOLUME, SAFETY_ON_VOLUME, TORPEDO_CLOSING_VOLUME, WARN_HULL_VOLUME,
-    WARN_LOCK_VOLUME,
-};
 use crate::{prelude::*, sections::turret_section::TurretSectionDryFireSound};
 
 /// The lock-gesture UI cues (non-positional one-shots, like the objective
@@ -39,6 +34,15 @@ fn player_ship_sounds<'a>(q_player: &'a PlayerShipSounds) -> Option<&'a ShipFeed
 /// player-scoped, and the marker is unique.
 type PlayerShipSounds<'w, 's> =
     Query<'w, 's, &'static ShipFeedbackSounds, With<PlayerSpaceshipMarker>>;
+
+/// Trigger one cockpit cue, heard flat.
+fn play_cockpit(commands: &mut Commands, sound: Handle<AudioSource>, category: SoundCategoryType) {
+    commands.trigger(PlaySound {
+        sound,
+        category,
+        at: SoundAt::Ui,
+    });
+}
 
 pub(super) fn play_lock_cues(
     mut commands: Commands,
@@ -63,13 +67,13 @@ pub(super) fn play_lock_cues(
     // AUTHORED-OR-SILENT: each cue plays the player ship's own authored ref,
     // resolved here; an unauthored cue is silent. Base designs author all of
     // them via gen_content.
-    let mut play = |ref_opt: &Option<AssetRef<AudioSource>>, volume: f32| {
+    let mut play = |ref_opt: &Option<AssetRef<AudioSource>>, category: SoundCategoryType| {
         if let Some(handle) = ref_opt.as_ref().map(|r| r.resolve(&asset_server)) {
-            commands.play_sfx(handle, AudioRoute::Hull, volume);
+            play_cockpit(&mut commands, handle, category);
         }
     };
     if acquired_now {
-        play(&sounds.lock_on, LOCK_ON_VOLUME);
+        play(&sounds.lock_on, SoundCategoryType::Cockpit);
     }
     // The acquire and a retarget can both land in the frames of one gesture,
     // but never the same frame for the same slot (acquire is the first resolve,
@@ -77,13 +81,13 @@ pub(super) fn play_lock_cues(
     // anyway so a gesture that resolves and immediately settles plays only the
     // richer LockOn, never LockOn + tick.
     if retargeted_now && !acquired_now {
-        play(&sounds.radar_retarget, RADAR_RETARGET_VOLUME);
+        play(&sounds.radar_retarget, SoundCategoryType::CockpitTick);
     }
     if cleared_now {
-        play(&sounds.lock_off, LOCK_OFF_VOLUME);
+        play(&sounds.lock_off, SoundCategoryType::Cockpit);
     }
     if denied_now {
-        play(&sounds.radar_deny, RADAR_DENY_VOLUME);
+        play(&sounds.radar_deny, SoundCategoryType::Cockpit);
     }
 }
 
@@ -116,7 +120,7 @@ pub(super) struct ClosingTone {
 /// estimate goes away: the torpedo hit, died, or stopped closing.
 ///
 /// On every graphics tier, like the rest of the cockpit's voice, and on
-/// [`AudioRoute::Hull`], unplaced.
+/// [`SoundBus::Ui`], heard flat.
 pub(super) fn play_torpedo_closing_tone(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -141,7 +145,7 @@ pub(super) fn play_torpedo_closing_tone(
         .and_then(|sounds| sounds.torpedo_closing.as_ref())
         .map(|r| r.resolve(&asset_server))
     {
-        commands.play_sfx(handle, AudioRoute::Hull, TORPEDO_CLOSING_VOLUME);
+        play_cockpit(&mut commands, handle, SoundCategoryType::CockpitTick);
     }
 }
 
@@ -172,7 +176,7 @@ pub(super) fn play_safety_engaged_cue(
                 .and_then(|sounds| sounds.safety_on.as_ref())
                 .map(|r| r.resolve(&asset_server))
             {
-                commands.play_sfx(handle, AudioRoute::Hull, SAFETY_ON_VOLUME);
+                play_cockpit(&mut commands, handle, SoundCategoryType::Cockpit);
             }
         }
         *was_hot = is_hot;
@@ -231,7 +235,11 @@ pub(super) fn play_dry_fire_cue(
                 .and_then(|s| s.0.as_ref())
                 .map(|r| r.resolve(&asset_server))
             {
-                commands.play_sfx(handle, AudioRoute::Hull, DRY_FIRE_VOLUME);
+                commands.trigger(PlaySound {
+                    sound: handle,
+                    category: SoundCategoryType::DryFire,
+                    at: SoundAt::Entity(turret),
+                });
             }
         }
         live.insert(turret, dry);
@@ -255,7 +263,7 @@ pub(super) fn play_dry_fire_cue(
     else {
         return;
     };
-    commands.play_sfx(handle, AudioRoute::Hull, AMMO_DRY_VOLUME);
+    play_cockpit(&mut commands, handle, SoundCategoryType::CockpitTick);
 }
 
 /// The threat alarm: a HOSTILE has this ship in its combat lock.
@@ -272,8 +280,8 @@ pub(super) fn play_dry_fire_cue(
 /// changes the answer for free.
 ///
 /// Player-only. An AI being locked is not news to anybody in the seat, and the
-/// alarm is a cockpit instrument - it plays on [`AudioRoute::Hull`] with the
-/// rest of the computer's voice, unplaced.
+/// alarm is a cockpit instrument - it plays on [`SoundBus::Ui`] with the rest
+/// of the computer's voice, heard flat.
 pub(super) fn play_threat_lock_cue(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -316,7 +324,7 @@ pub(super) fn play_threat_lock_cue(
     else {
         return;
     };
-    commands.play_sfx(handle, AudioRoute::Hull, WARN_LOCK_VOLUME);
+    play_cockpit(&mut commands, handle, SoundCategoryType::Alarm);
 }
 
 /// How far back above its threshold a hull must come before the alarm can
@@ -347,7 +355,7 @@ const WARN_HULL_REARM_MARGIN: f32 = 0.05;
 /// coming apart is noise. A one-shot kill from full therefore plays the
 /// collapse and not this.
 ///
-/// Player-only and unplaced, like the rest of the computer's voice - an AI's
+/// Player-only and heard flat, like the rest of the computer's voice - an AI's
 /// hull integrity is not news to anybody in the seat.
 pub(super) fn play_hull_warning_cue(
     mut commands: Commands,
@@ -387,7 +395,7 @@ pub(super) fn play_hull_warning_cue(
     let Some(handle) = sounds.warn_hull.as_ref().map(|r| r.resolve(&asset_server)) else {
         return;
     };
-    commands.play_sfx(handle, AudioRoute::Hull, WARN_HULL_VOLUME);
+    play_cockpit(&mut commands, handle, SoundCategoryType::Alarm);
 }
 
 #[cfg(test)]
@@ -395,7 +403,7 @@ mod tests {
     use super::*;
     use crate::ship_audio::test_support::{LastPlayed, PlayedSfx};
 
-    /// App rig for the lock/safety cues: the real systems with a `PlaySfx`
+    /// App rig for the lock/safety cues: the real systems with a `PlaySound`
     /// capture. No bank - the cues resolve the player ship's own authored refs
     /// (authored-or-silent).
     fn ship_cue_app() -> App {
@@ -408,8 +416,8 @@ mod tests {
         app.add_message::<LockClearedToast>();
         app.add_message::<RadarDenied>();
         app.add_systems(Update, (play_lock_cues, play_safety_engaged_cue));
-        app.add_observer(|ev: On<PlaySfx>, mut last: ResMut<LastPlayed>| {
-            last.0 = Some(ev.handle.clone());
+        app.add_observer(|ev: On<PlaySound>, mut last: ResMut<LastPlayed>| {
+            last.0 = Some(ev.sound.clone());
         });
         app
     }
@@ -543,7 +551,7 @@ mod tests {
     }
 
     /// An App rig for the dry-fire cue: the real `play_dry_fire_cue` system
-    /// with a `PlaySfx` counter, no audio device needed. No bank: the cue is
+    /// with a `PlaySound` counter, no audio device needed. No bank: the cue is
     /// authored-or-silent, so each test turret authors its own click via
     /// [`dry_click`].
     fn dry_fire_app() -> App {
@@ -552,7 +560,7 @@ mod tests {
         app.init_asset::<AudioSource>();
         app.init_resource::<PlayedSfx>();
         app.add_systems(Update, play_dry_fire_cue);
-        app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
+        app.add_observer(|_: On<PlaySound>, mut played: ResMut<PlayedSfx>| played.0 += 1);
         app
     }
 
@@ -715,7 +723,7 @@ mod tests {
         app.init_asset::<AudioSource>();
         app.init_resource::<PlayedSfx>();
         app.add_systems(Update, play_threat_lock_cue);
-        app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
+        app.add_observer(|_: On<PlaySound>, mut played: ResMut<PlayedSfx>| played.0 += 1);
         app
     }
 
@@ -796,7 +804,7 @@ mod tests {
         app.init_asset::<AudioSource>();
         app.init_resource::<PlayedSfx>();
         app.add_systems(Update, play_hull_warning_cue);
-        app.add_observer(|_: On<PlaySfx>, mut played: ResMut<PlayedSfx>| played.0 += 1);
+        app.add_observer(|_: On<PlaySound>, mut played: ResMut<PlayedSfx>| played.0 += 1);
         app
     }
 

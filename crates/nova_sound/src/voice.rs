@@ -562,6 +562,9 @@ pub(super) fn drive_sfx_voices(
     let mut grouped: HashMap<(AssetId<AudioSource>, VoiceGroup), (u8, Vec<LoopRank>)> =
         HashMap::new();
     let mut loose: Vec<LoopRank> = Vec::new();
+    // A loop its owner has turned down to nothing holds its sink instead of
+    // mixing silence, and takes no slot under the cap.
+    let mut silenced = HashSet::new();
     for (entity, legacy, sound, ..) in &q_voices {
         let Some(placement) = place(
             legacy,
@@ -576,7 +579,9 @@ pub(super) fn drive_sfx_voices(
         let Some(view) = VoiceView::of(legacy, sound) else {
             continue;
         };
-        if view.looping && view.spatial {
+        if view.looping && placement.level < SFX_AUDIBLE_THRESHOLD {
+            silenced.insert(entity);
+        } else if view.looping && view.spatial {
             let priority = sound.map_or(0, |voice| voice.category.spec().priority);
             let rank = LoopRank {
                 priority,
@@ -594,7 +599,6 @@ pub(super) fn drive_sfx_voices(
         }
         placements.insert(entity, placement);
     }
-    let mut silenced = HashSet::new();
     for (max_voices, mut ranks) in grouped.into_values() {
         let over = loops_over_the_cap(&mut ranks, &sounding, usize::from(max_voices));
         loose.extend(
