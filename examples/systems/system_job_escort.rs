@@ -7,9 +7,10 @@
 //! [`located_jobs`]: find a living station posting a escort job, dock,
 //! accept it off the Jobs tab, read the hand-in refused as not done, undock,
 //! fly GOTO to the waiting hauler, hold formation on its leg, meet the
-//! ambush by intercepting the weakest raider with the hull's turrets pinned
-//! on its mounts until the hauler reaches its mark, see the open world mark
-//! the job done, dock again and hand it in for the reward. The raiders hunt
+//! ambush by intercepting the raider firing on the hauler with the hull's
+//! turrets pinned on its mounts until the hauler reaches its mark, see the
+//! open world mark the job done, dock again and hand it in for the reward.
+//! The raiders hunt
 //! the hauler and turn on the escort that shoots them. Nothing teleports the
 //! hauler: the leg is flown in full.
 //!

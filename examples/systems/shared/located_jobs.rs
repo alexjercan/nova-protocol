@@ -27,10 +27,10 @@
 //!
 //! The escort range flies its work instead of editing the world: the player
 //! flies to the waiting hauler with GOTO, holds formation on the leg, meets
-//! the ambush and fights it with the hull's own turrets, the weakest raider
-//! first and its mounts pinned, until the hauler reaches its mark. Nothing
-//! teleports the hauler. It asserts four more
-//! claims ([`EscortMarkers`]): the hauler waits for the rendezvous, leaves
+//! the ambush and fights it with the hull's own turrets, the raider firing on
+//! the hauler first and its mounts pinned, until the hauler reaches its
+//! mark. Nothing teleports the hauler. It asserts four more claims
+//! ([`EscortMarkers`]): the hauler waits for the rendezvous, leaves
 //! when the escort arrives, the raiders spring with the escort in formation,
 //! and the hauler outlives its first hit by the defense window.
 //!
@@ -1374,42 +1374,92 @@ fn hold_formation(world: &mut World) {
     log_the_flight(world, "formation");
 }
 
-/// One frame of the fight: intercept the weakest living raider, the one
-/// with the fewest working mounts and then the least hit points, on a GOTO,
-/// lock it, raise the weapons and hold the turret trigger once they are hot
-/// and it stands inside [`TURRET_REACH`], pin the component lock on its
-/// first working mount once the lock focus completes and on the next as
-/// each dies, re-pick as raiders fall, and note each raider's hit points,
-/// the raiders neutralized, the seconds a raider spent in Engage, and the
-/// hauler's first hit and lowest hit points. The trigger is released on a
-/// re-lock: the fire inputs latch and a safety interrupt needs a fresh press.
+/// How much nearer the hauler another raider must stand before the fight
+/// drops a lock on a raider that is not firing on it, meters: two raiders
+/// closing on the hauler side by side would otherwise trade the lock every
+/// frame and the lock focus would never complete.
+const THREAT_SWITCH_MARGIN: Meters = Meters(300.0);
+
+/// The raider the escort shoots: one in Engage on the hauler, keeping the
+/// current lock while it still is one, else the one nearest the hauler; a
+/// lock on a raider that is not firing on the hauler holds unless another
+/// stands [`THREAT_SWITCH_MARGIN`] nearer the hauler.
+fn the_threat(
+    world: &World,
+    hauler: Entity,
+    raiders: &[(Entity, GeneratedBodyId, Option<AIBehaviorState>)],
+    lock: Option<Entity>,
+) -> Option<Entity> {
+    let to_hauler = |raider: Entity| distance_between(world, raider, hauler);
+    let firing: Vec<Entity> = raiders
+        .iter()
+        .filter(|(raider, _, state)| {
+            *state == Some(AIBehaviorState::Engage)
+                && world.get::<AITarget>(*raider).and_then(|target| **target) == Some(hauler)
+        })
+        .map(|(raider, ..)| *raider)
+        .collect();
+    if let Some(lock) = lock.filter(|lock| firing.contains(lock)) {
+        return Some(lock);
+    }
+    if let Some(nearest) = firing
+        .iter()
+        .copied()
+        .min_by(|a, b| to_hauler(*a).total_cmp(&to_hauler(*b)))
+    {
+        return Some(nearest);
+    }
+    let nearest = raiders
+        .iter()
+        .map(|(raider, ..)| *raider)
+        .min_by(|a, b| to_hauler(*a).total_cmp(&to_hauler(*b)))?;
+    match lock.filter(|lock| raiders.iter().any(|(living, ..)| living == lock)) {
+        Some(lock) if to_hauler(lock) - to_hauler(nearest) < THREAT_SWITCH_MARGIN.get() => {
+            Some(lock)
+        }
+        _ => Some(nearest),
+    }
+}
+
+/// One frame of the fight: intercept the raider that threatens the hauler
+/// ([`the_threat`]) on a GOTO, lock it, raise the weapons and hold the turret
+/// trigger once they are hot and it stands inside [`TURRET_REACH`], pin the
+/// component lock on its first working mount once the lock focus completes
+/// and on the next as each dies, retarget when the threat changes or falls,
+/// and note each raider's hit points, the raiders neutralized, the seconds a
+/// raider spent in Engage, and the hauler's first hit and lowest hit points.
+/// The trigger is released on a re-lock: the fire inputs latch and a safety
+/// interrupt needs a fresh press.
 fn fight_the_ambush(world: &mut World, player: Entity, hauler: Entity, job: &Job) {
     let (now, dt) = {
         let time = world.resource::<Time<Virtual>>();
         (time.elapsed_secs(), time.delta_secs())
     };
     let raiders = living_raiders(world);
-    let weakest = raiders
-        .iter()
-        .map(|(raider, id, _)| {
-            let mounts = working_mounts(world, *raider);
-            let hp = world
-                .get::<Health>(*raider)
-                .map_or(f32::INFINITY, |health| health.current);
-            (
-                *raider,
-                id.clone(),
-                distance_between(world, *raider, player),
-                mounts,
-                hp,
-            )
-        })
-        .min_by(|a, b| a.3.len().cmp(&b.3.len()).then(a.4.total_cmp(&b.4)));
+    let lock_now = world.resource::<LocatedJobWatch>().escort.lock;
+    let threat = the_threat(world, hauler, &raiders, lock_now).map(|raider| {
+        let id = raiders
+            .iter()
+            .find(|(living, ..)| *living == raider)
+            .map(|(_, id, _)| id.clone())
+            .expect("the threat is one of the living raiders");
+        let mounts = working_mounts(world, raider);
+        let hp = world
+            .get::<Health>(raider)
+            .map_or(f32::INFINITY, |health| health.current);
+        (
+            raider,
+            id,
+            distance_between(world, raider, player),
+            mounts,
+            hp,
+        )
+    });
     let (lock, raised, trigger, in_reach) = {
         let escort = &world.resource::<LocatedJobWatch>().escort;
         (escort.lock, escort.raised, escort.trigger, escort.in_reach)
     };
-    let picked = weakest.as_ref().map(|(raider, ..)| *raider);
+    let picked = threat.as_ref().map(|(raider, ..)| *raider);
     if picked != lock {
         if trigger {
             release_mouse(MouseButton::Left)(world);
@@ -1421,21 +1471,22 @@ fn fight_the_ambush(world: &mut World, player: Entity, hauler: Entity, job: &Job
         watch.escort.in_reach = false;
         watch.escort.pinned = None;
         info!(
-            "escort job: fight: the player locks {:?}, the weakest raider with {} working \
-             mount(s), for '{}'",
-            weakest.as_ref().map(|(_, id, ..)| id.to_string()),
-            weakest.as_ref().map_or(0, |(.., mounts, _)| mounts.len()),
+            "escort job: fight: the player locks {:?}, the raider threatening the hauler \
+             {:.0} m from it, with {} working mount(s), for '{}'",
+            threat.as_ref().map(|(_, id, ..)| id.to_string()),
+            picked.map_or(0.0, |raider| distance_between(world, raider, hauler)),
+            threat.as_ref().map_or(0, |(.., mounts, _)| mounts.len()),
             job.id
         );
     }
     pin_a_mount(
         world,
         player,
-        weakest
+        threat
             .as_ref()
             .map(|(raider, id, _, mounts, _)| (*raider, id, mounts.as_slice())),
     );
-    let nearest = weakest
+    let nearest = threat
         .as_ref()
         .map(|(raider, id, distance, ..)| (*raider, id.clone(), *distance));
     match &nearest {
