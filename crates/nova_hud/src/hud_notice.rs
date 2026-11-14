@@ -74,10 +74,6 @@ const NOTICE_FONT_PX: f32 = 13.0;
 /// [`NOTICE_FONT_PX`], and `chip_node` adds 10 px of padding and border.
 pub(crate) const NOTICE_MAX_HEIGHT_PX: f32 = 26.0;
 
-/// Notice cue volume: over the comms blip (0.22), under the objective posting
-/// blip (0.30).
-const HUD_NOTICE_VOLUME: f32 = 0.26;
-
 /// A line to post to the HUD notice slot.
 #[derive(Message, Clone, Debug, PartialEq, Eq)]
 pub struct HudNotice(pub String);
@@ -431,11 +427,10 @@ fn show_hud_notice(
     });
     if !repeat {
         if let Some(bank) = bank {
-            commands.play_sfx(
+            commands.trigger(PlaySound::ui(
                 bank.get(UiSfx::HudNotice),
-                AudioRoute::Interface,
-                HUD_NOTICE_VOLUME,
-            );
+                SoundCategoryType::Notice,
+            ));
         }
     }
 }
@@ -483,7 +478,7 @@ mod tests {
     /// frame to 0.25 s (the first frame advances 0.0).
     const FRAME_SECS: f32 = 0.25;
 
-    /// Which cues reached `PlaySfx`, by handle identity and route.
+    /// Which cues reached `PlaySound`, by handle identity and category.
     #[derive(Resource, Default)]
     struct NoticeCues {
         interface: usize,
@@ -491,7 +486,7 @@ mod tests {
     }
 
     /// The notice wiring on a manual clock, with a real UI sound bank and a
-    /// `PlaySfx` capture.
+    /// `PlaySound` capture.
     fn notice_app() -> App {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
@@ -510,8 +505,11 @@ mod tests {
         app.insert_resource(bank);
         app.init_resource::<NoticeCues>();
         app.add_observer(
-            |sfx: On<PlaySfx>, bank: Res<SoundBank<UiSfx>>, mut cues: ResMut<NoticeCues>| {
-                if sfx.handle == bank.get(UiSfx::HudNotice) && sfx.route == AudioRoute::Interface {
+            |sfx: On<PlaySound>, bank: Res<SoundBank<UiSfx>>, mut cues: ResMut<NoticeCues>| {
+                if sfx.sound == bank.get(UiSfx::HudNotice)
+                    && sfx.category == SoundCategoryType::Notice
+                    && sfx.at == SoundAt::Ui
+                {
                     cues.interface += 1;
                 } else {
                     cues.other += 1;

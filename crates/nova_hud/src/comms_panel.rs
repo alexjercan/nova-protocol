@@ -25,7 +25,7 @@ use std::collections::VecDeque;
 
 use bevy::prelude::*;
 use nova_gameplay::asset_ref::AssetRef;
-use nova_sound::prelude::{AudioRoute, SfxCommandsExt, SoundBank, UiSfx};
+use nova_sound::prelude::{PlaySound, SoundBank, SoundCategoryType, UiSfx};
 use nova_ui::hud::{body_colour, CHIP_BORDER_ALPHA, CHIP_FILL};
 
 use super::{
@@ -108,9 +108,6 @@ const COMMS_FADE_IN_SECS: f32 = 0.25;
 /// Fade-out duration (s) after a line's dwell elapses; the pacing layer adds
 /// this to the dwell so the objective posts as the line clears, not mid-fade.
 pub const COMMS_FADE_OUT_SECS: f32 = 0.4;
-/// Comms blip volume, under the objective cues (0.30/0.38) - chatter, not
-/// a milestone.
-const COMMS_BLIP_VOLUME: f32 = 0.22;
 /// Screen-relative panel width. The pixel ceiling keeps ultrawide displays
 /// from turning a transmission into one long subtitle line.
 /// How far off the bottom of the screen the newest card sits with no keybind
@@ -377,11 +374,10 @@ fn drive_comms_stack(
             age_secs: 0.0,
         });
         if let Some(bank) = &bank {
-            commands.play_sfx(
+            commands.trigger(PlaySound::ui(
                 bank.get(UiSfx::CommsLine),
-                AudioRoute::Interface,
-                COMMS_BLIP_VOLUME,
-            );
+                SoundCategoryType::Comms,
+            ));
         }
     }
 

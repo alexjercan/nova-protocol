@@ -55,11 +55,6 @@ struct NewCueState {
     pending: Option<Timer>,
 }
 
-/// UI cue volumes: legible over the engine hum, no attenuation (these are
-/// panel sounds, not world sounds).
-const OBJECTIVE_NEW_VOLUME: f32 = 0.30;
-const OBJECTIVE_COMPLETE_VOLUME: f32 = 0.38;
-
 /// Answers each [`GameObjectives`] change with a UI cue per completion and
 /// per addition.
 ///
@@ -127,11 +122,10 @@ fn objective_change_feedback(
         // One cue per change kind per frame: a complete+re-add tally swap
         // plays both once, not per objective.
         if !completed.is_empty() {
-            commands.play_sfx(
+            commands.trigger(PlaySound::ui(
                 bank.get(UiSfx::ObjectiveComplete),
-                AudioRoute::Interface,
-                OBJECTIVE_COMPLETE_VOLUME,
-            );
+                SoundCategoryType::Objective,
+            ));
             // A chime just played: restart any pending blip's clock, or a
             // completion-only change late in the window would land the
             // blip right on this chime's tail - the exact masking this
@@ -144,11 +138,10 @@ fn objective_change_feedback(
             if completed.is_empty() {
                 // Nothing finished in this change: the posting blip plays
                 // immediately.
-                commands.play_sfx(
+                commands.trigger(PlaySound::ui(
                     bank.get(UiSfx::ObjectiveNew),
-                    AudioRoute::Interface,
-                    OBJECTIVE_NEW_VOLUME,
-                );
+                    SoundCategoryType::Objective,
+                ));
             } else {
                 // The completion chime just played - hold the posting blip
                 // back so the two cues do not mask each other. Latest change
@@ -180,11 +173,10 @@ fn play_pending_new_cue(
     }
     new_cue.pending = None;
     if let Some(bank) = &bank {
-        commands.play_sfx(
+        commands.trigger(PlaySound::ui(
             bank.get(UiSfx::ObjectiveNew),
-            AudioRoute::Interface,
-            OBJECTIVE_NEW_VOLUME,
-        );
+            SoundCategoryType::Objective,
+        ));
     }
 }
 
@@ -209,14 +201,14 @@ mod tests {
         app
     }
 
-    /// Which cue a PlaySfx trigger carried, resolved by handle identity.
+    /// Which cue a PlaySound trigger carried, resolved by handle identity.
     #[derive(Resource, Default)]
     struct CueCounts {
         complete: usize,
         new: usize,
     }
 
-    /// The feedback rig plus a real SoundBank and a PlaySfx capture, so
+    /// The feedback rig plus a real SoundBank and a PlaySound capture, so
     /// tests can assert WHICH cue played and WHEN.
     fn sfx_app() -> App {
         let mut app = feedback_app();
@@ -229,10 +221,10 @@ mod tests {
         app.insert_resource(bank);
         app.init_resource::<CueCounts>();
         app.add_observer(
-            |sfx: On<PlaySfx>, bank: Res<SoundBank<UiSfx>>, mut counts: ResMut<CueCounts>| {
-                if sfx.handle == bank.get(UiSfx::ObjectiveComplete) {
+            |sfx: On<PlaySound>, bank: Res<SoundBank<UiSfx>>, mut counts: ResMut<CueCounts>| {
+                if sfx.sound == bank.get(UiSfx::ObjectiveComplete) {
                     counts.complete += 1;
-                } else if sfx.handle == bank.get(UiSfx::ObjectiveNew) {
+                } else if sfx.sound == bank.get(UiSfx::ObjectiveNew) {
                     counts.new += 1;
                 }
             },
