@@ -563,7 +563,7 @@ nothing in the world produces.
 
 ```ron
 PlaySound((sound: "self://sounds/warn_lock.wav", route: Interface)),
-PlaySound((sound: "self://sounds/warn_hull.wav", route: Hull, volume: Some(0.4))),
+PlaySound((sound: "self://sounds/warn_hull.wav", route: Hull)),
 ```
 
 <details class="explain">
@@ -573,17 +573,17 @@ PlaySound((sound: "self://sounds/warn_hull.wav", route: Hull, volume: Some(0.4))
 |---|---|---|---|
 | `sound` | asset ref | required | the clip, resolved like any other content sound ref |
 | `route` | `Interface` \| `Hull` | required | where it is heard |
-| `volume` | `Option` number | `None` | gain; omitted is full volume, `Some(0.4)` sits a cue UNDER a comms line |
+| `volume` | `Option` number | `None` | gain of an `Interface` cue; omitted is full volume, `Some(0.4)` sits a cue UNDER a comms line |
 
-`Interface` is UI chrome - a prompt, a stinger, a chapter tone - scaled by the
-interface track. `Hull` is structure-borne through the player's own ship,
-something they feel rather than hear, scaled by the world track. The route is
-authored because those are different cues and neither is the safe guess.
+`Interface` is UI chrome - a prompt, a stinger, a chapter tone - heard flat and
+scaled by the Interface slider. `Hull` plays in the world at the player's own
+ship as a machinery sound, scaled by the Effects slider; the engine sets its
+level, so `volume` does not apply to it, and with no player ship the cue is
+dropped with a warning. The route is authored because those are different cues
+and neither is the safe guess.
 
-Non-positional on purpose. An exterior cue is attenuated and panned by where it
-happened, and a beat has no position to give one; a cue authored here is heard
-in the cockpit, which is where the player is. Author the positional kind on the
-object that makes it.
+A beat has no position to give a sound. Author a sound that happens somewhere
+else on the object that makes it.
 
 </details>
 

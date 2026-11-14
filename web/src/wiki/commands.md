@@ -147,7 +147,7 @@ One rule: the command **without** a value prints the setting, the command **with
 | command | what it does |
 | --- | --- |
 | `graphics [low\|medium\|high]` | the graphics-quality preset |
-| `volume [master\|music\|world\|interface [0..1]]` | one mixer channel |
+| `volume [master\|effects\|interface [0..1]]` | one mixer channel |
 | `window [windowed\|borderless]` | the window mode |
 | `bind <action> <source>` | rebind one action by its bare name, e.g. `bind interface_toggle F1` |
 | `bind reset <action>` | put an action back on its default |

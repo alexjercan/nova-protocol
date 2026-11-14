@@ -298,6 +298,14 @@ Asset fields use namespaced strings:
 Never use a bare path. Most mesh, sound, and effect fields are optional. Omit
 them for the built-in visual or silent audio behavior described below.
 
+A sound field names the file only. The engine measures each file's loudness as
+it loads and sets the level, reach and repeat rate from the kind of sound the
+field is: a gun report, a door, a drive hum. Every section sound plays in the
+world at the section, on your own ship too, and fades with its distance from
+the player's ship. The cockpit cues of the controller (lock, safety and alarm
+tones) are the exception: they play flat on the Interface slider. So a quiet
+or loud file does not make a quiet or loud cue.
+
 Hull, thruster, controller, and torpedo sections can move their render mesh
 without moving the collider:
 
@@ -470,9 +478,10 @@ kind: Thruster((
 - `render_mesh` (optional) - custom mesh; omit for the default thruster body.
 - `render_mesh_transform` (optional) - visual-only position, rotation and scale.
 - `loop_sound` (optional) - the engine hum this thruster contributes to
-  (`dep://base/sounds/thruster_loop.wav` is the base drone); thrusters sharing
-  a sound share one loop whose volume tracks the loudest ship burning it. An
-  omitted sound hums nothing.
+  (`dep://base/sounds/thruster_loop.wav` is the base drone); one ship's
+  thrusters that share a sound share one voice, held by the thruster at the
+  highest throttle, and its level follows that throttle. An omitted sound hums
+  nothing.
 - `exhaust` (optional) - custom flame placement and shape. `None` uses the
   standard cone. Write `Some((...))` when fitting exhaust to custom art.
 

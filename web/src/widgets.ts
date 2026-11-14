@@ -10999,7 +10999,7 @@ export const COMMAND_ROWS: CommandRow[] = [
     },
     {
         name: "volume",
-        usage: "volume [master|music|world|interface [0..1]]",
+        usage: "volume [master|effects|interface [0..1]]",
         cls: "Setting",
         what: "one mixer channel",
     },

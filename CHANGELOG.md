@@ -69,6 +69,11 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - A docking clamp now latches audibly, blinks a cold light on the collar and posts `DOCKED <NAME>` on the HUD; letting go plays the release and posts `UNDOCKED`. A Load or damage stays quiet.
 - A railgun slug landing now flashes steel blue at the entry face, throws a dense spall burst and plays its own impact sound, once per shot however many cells the corridor crosses.
 - The kill stinger and jolt now confirm any hull the player's own fire defeated - PDC rounds, a railgun slug, a torpedo blast or a ram - not only a torpedo kill.
+- Your own ship's sounds now play in the world like every other ship's: they pan with the camera and fade from your ship, so a hit on your plate is heard where it landed.
+- Sounds are evened out: every clip is measured to one loudness, and each kind of sound - guns, doors, blasts, alarms - has one level, one reach and one repeat rate.
+- The torpedo bay door no longer blasts over the guns: it is a quiet machinery sound, and one ship's doors share one voice however many bays open at once.
+- The volume sliders now fade evenly in decibels over their whole travel, so a slider no longer does most of its work in the last few notches.
+- The World volume slider is now Effects and the unused Music slider is gone; saved levels carry over. The console takes `volume effects`.
 
 ### Fixes
 

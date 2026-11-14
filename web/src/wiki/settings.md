@@ -17,17 +17,17 @@ on the web.
 
 ## Audio
 
-Four draggable sliders, top to bottom. Each shows its level as a whole percent
-and takes effect live as you drag.
+Three draggable sliders, top to bottom. Each shows its level as a whole percent
+and takes effect live as you drag. Each step of a slider changes the level by
+the same number of decibels, so the sound fades evenly across the whole travel.
 
 | Slider | What it moves |
 | --- | --- |
 | Master | Everything at once. The one control most players ever touch. |
 | Interface | Menu clicks, HUD ticks, the editor and the flight computer - the sounds that come from the cockpit, not from the world. |
-| World | The engine hum, weapons, hits, the rocks breaking up - everything out there, heard at the distance it happens. |
-| Music | Reserved. The slider moves and the setting is saved, but the game ships no music yet. |
+| Effects | The engine hum, weapons, hits, the rocks breaking up - everything out there, your own ship included, heard from your ship at the distance it happens. |
 
-Master multiplies the other three, so a track you have turned down stays down
+Master multiplies the other two, so a track you have turned down stays down
 when you raise Master.
 
 Most buttons tick when the pointer reaches them and play a press sound, at the
