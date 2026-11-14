@@ -58,7 +58,20 @@ pub struct PlaySound {
     pub at: SoundAt,
 }
 
-/// A looping sound on this entity, heard from its world position.
+impl PlaySound {
+    /// Interface feedback: `sound` heard flat as a `category` cue. The
+    /// category must be a [`SoundBus::Ui`] one.
+    pub fn ui(sound: Handle<AudioSource>, category: SoundCategoryType) -> Self {
+        Self {
+            sound,
+            category,
+            at: SoundAt::Ui,
+        }
+    }
+}
+
+/// A looping sound on this entity: heard from its world position on
+/// [`SoundBus::Effect`], flat on [`SoundBus::Ui`].
 ///
 /// The owner writes [`Self::intensity`] and [`Self::rate`] each frame; the
 /// category maps the intensity onto its loop dB range. Remove the component,

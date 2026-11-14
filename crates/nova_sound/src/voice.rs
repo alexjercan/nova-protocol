@@ -722,14 +722,15 @@ pub fn resume_world_voices(mut freeze: ResMut<SoundFreeze>, q_voices: WorldSinkQ
     }
 }
 
-/// Retire every world voice when gameplay ends, and silence every
+/// Retire every world voice when gameplay ends, and silence every world
 /// [`SoundLoop`].
 ///
 /// A loop's level is only driven inside a scenario-gated set, so between one
 /// scenario ending and the next becoming live the last engine hum would keep
 /// roaring at its final level through the whole load. Its voice comes back
-/// silent and waits for its owner to raise it again. Interface voices are left
-/// alone: they belong to the UI that spawned them and are torn down with it.
+/// silent and waits for its owner to raise it again. Interface voices and
+/// loops are left alone: they belong to the UI that spawned them and are torn
+/// down with it.
 pub fn stop_world_voices(
     mut commands: Commands,
     q_voices: Query<(Entity, Option<&SfxVoice>, Option<&SoundVoice>), With<VoiceMarker>>,
@@ -743,7 +744,9 @@ pub fn stop_world_voices(
         }
     }
     for mut sound_loop in &mut q_loops {
-        sound_loop.intensity = 0.0;
+        if sound_loop.category.bus() == SoundBus::Effect {
+            sound_loop.intensity = 0.0;
+        }
     }
 }
 

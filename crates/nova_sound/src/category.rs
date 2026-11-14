@@ -69,6 +69,29 @@ pub enum SoundCategoryType {
     Cockpit,
     /// A small cockpit tick: retarget, torpedo closing, ammo dry.
     CockpitTick,
+    /// A button press, a panel opening or closing, an accepted action.
+    UiClick,
+    /// The smallest interface cue: the pointer arriving on a button, a slider
+    /// detent, a keystroke, a rotation step. Fired in streams, so it is the
+    /// quietest row and repeats at most every 30 ms.
+    UiTick,
+    /// A command or an operation that succeeded, and the terminal's power
+    /// sweeps.
+    UiConfirm,
+    /// A refused press, a failed command: the deny buzz.
+    UiError,
+    /// A line posted to the HUD notice slot.
+    Notice,
+    /// An objective posted, completed or failed.
+    Objective,
+    /// A comms line showing on the panel.
+    Comms,
+    /// A part seated in or lifted out of the editor grid.
+    Editor,
+    /// A creator listening to a sound file in the editor.
+    Preview,
+    /// The terminal's ambient bed. Loop: intensity is on or off.
+    TerminalBed,
 }
 
 /// One row of the balance table.
@@ -104,7 +127,7 @@ const FADE_OUT_SHARE: f32 = 0.25;
 
 impl SoundCategoryType {
     /// Every category, for the table checks.
-    pub const ALL: [Self; 20] = [
+    pub const ALL: [Self; 30] = [
         Self::Collapse,
         Self::Explosion,
         Self::HeavyWeapon,
@@ -125,6 +148,16 @@ impl SoundCategoryType {
         Self::Alarm,
         Self::Cockpit,
         Self::CockpitTick,
+        Self::UiClick,
+        Self::UiTick,
+        Self::UiConfirm,
+        Self::UiError,
+        Self::Notice,
+        Self::Objective,
+        Self::Comms,
+        Self::Editor,
+        Self::Preview,
+        Self::TerminalBed,
     ];
 
     /// The balance table.
@@ -133,6 +166,11 @@ impl SoundCategoryType {
     /// guns sit under the explosions and the railgun, and a ship collapsing is
     /// the loudest thing there is. The levels started from the mix the game
     /// had before equalization, then moved the machinery down past the guns.
+    ///
+    /// The interface sits under the loud half of the world: a click is heard
+    /// at about the level of a nearby gun, never over a launch or the drive.
+    /// Objective cues are the loudest interface rows because they must read
+    /// in a fight; the tick is the quietest because it fires in streams.
     pub const fn spec(self) -> SoundCategory {
         use SoundBus::{Effect, Ui};
         //                      bus     dB     ref m   max m   voices repeat prio loop dB
@@ -157,6 +195,16 @@ impl SoundCategoryType {
             Self::Alarm => row(Ui, -5.0, 0.0, 0.0, 1, 0.0, 0, None),
             Self::Cockpit => row(Ui, -6.0, 0.0, 0.0, 1, 0.0, 0, None),
             Self::CockpitTick => row(Ui, -12.0, 0.0, 0.0, 1, 0.0, 0, None),
+            Self::UiClick => row(Ui, -8.0, 0.0, 0.0, 1, 0.0, 0, None),
+            Self::UiTick => row(Ui, -15.0, 0.0, 0.0, 1, 0.03, 0, None),
+            Self::UiConfirm => row(Ui, -9.0, 0.0, 0.0, 1, 0.0, 0, None),
+            Self::UiError => row(Ui, -9.0, 0.0, 0.0, 1, 0.0, 0, None),
+            Self::Notice => row(Ui, -8.0, 0.0, 0.0, 1, 0.0, 0, None),
+            Self::Objective => row(Ui, -5.0, 0.0, 0.0, 1, 0.0, 0, None),
+            Self::Comms => row(Ui, -11.0, 0.0, 0.0, 1, 0.0, 0, None),
+            Self::Editor => row(Ui, -9.0, 0.0, 0.0, 1, 0.0, 0, None),
+            Self::Preview => row(Ui, -6.0, 0.0, 0.0, 1, 0.0, 0, None),
+            Self::TerminalBed => row(Ui, -24.0, 0.0, 0.0, 1, 0.0, 0, Some((0.0, 0.0))),
         }
     }
 
@@ -322,10 +370,7 @@ mod tests {
                     spec.reference.get() > 0.0 && spec.max.get() > spec.reference.get(),
                     "{category:?} needs a reference inside its max"
                 ),
-                SoundBus::Ui => assert!(
-                    spec.loop_db.is_none() && spec.max.get() == 0.0,
-                    "{category:?} is flat feedback"
-                ),
+                SoundBus::Ui => assert!(spec.max.get() == 0.0, "{category:?} is flat feedback"),
             }
             assert!(spec.max_voices > 0, "{category:?} must be able to sound");
         }
