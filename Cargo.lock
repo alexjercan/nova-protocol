@@ -4891,6 +4891,7 @@ dependencies = [
  "nova_modding",
  "nova_scenario",
  "nova_ship",
+ "nova_sound",
  "nova_training",
  "nova_ui",
  "nova_world",

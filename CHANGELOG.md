@@ -53,6 +53,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - New scenario events `OnJobDone`, `OnJobHandedIn` and `OnJobDropped` (`cause`: `Lost` or `Abandoned`) follow a held job. All job events carry `id`, `kind`, `station`, `reward_cr` and `post_key`.
 - **(breaking)** A scenario with no generated `world` that names a job event (`OnJobAccepted` included) is now a lint error and does not load: no station there posts a job board.
 - New scenario event `OnStanceChanged` fires once per step of a civilization's stance toward the player, with `civilization`, `from` and `to`. Lint refuses it on a scenario with no generated `world`.
+- Lint now decodes and measures every sound file a bundle declares in `resources`: one the game cannot decode, or a silent one, is an error.
 - Scenario expressions gain `entity("id").credits`, `entity("id").items("Item")` and `scenario.sector` (generated worlds only); the editor Query block picks every query from lists.
 - The `GrantCredits` action grants or charges a ship's credits (`OnCreditsChanged` cause `Scenario`); an action that cannot run changes nothing and raises the new `OnActionRefused` event.
 - The `GiveItems` and `TakeItems` actions put items into a ship's hold or take them out, all or nothing; a full hold or a short stack raises `OnActionRefused` and changes nothing.

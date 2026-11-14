@@ -201,6 +201,10 @@ unpaintable.
 404. A `#Scene0`-style gltf label is stripped before the membership check,
 so `dep://base/gltf/hull-01.glb#Scene0` is fine.
 
+Every declared sound file (`wav`, `ogg`, `oga`, `spx`, `flac`, `mp3`) is also
+decoded and measured: one the game cannot decode, or one that is silent, is a
+lint Error.
+
 The editor reads this same list. A row holding an image, a sound or a model
 opens a picker of the files the installed bundles declare, writes the `dep://`
 ref for the one you pick (with the `#Scene0` label where a mesh needs it), and

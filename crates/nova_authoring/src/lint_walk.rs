@@ -30,6 +30,7 @@ use nova_scenario::prelude::{
 use nova_ship::prelude::{
     flight_rig_reserved_sources, shared_section_sources, GameStyles, SectionConfig, ShipStyleConfig,
 };
+use nova_sound::loudness::{measure_clip, SOUND_EXTENSIONS};
 use nova_training::prelude::{
     lint_lessons, unused_practice_ranges, Lesson, LessonIssue, LessonSeverity,
 };
@@ -81,6 +82,10 @@ struct WalkedBundle {
     /// its own [`BALANCE_ACKS_FILE`]. Empty when the file is absent - most
     /// bundles ack nothing.
     acks: Vec<BalanceAck>,
+    /// Every declared sound resource that cannot be read, decoded or heard,
+    /// with the reason. Measured when the bundle is read, because that is
+    /// where its files are on disk.
+    sound_faults: Vec<(String, String)>,
 }
 
 impl WalkedBundle {
@@ -159,7 +164,6 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
     }
     WalkedBundle {
         id: id.to_string(),
-        manifest,
         items,
         sections,
         ships,
@@ -172,9 +176,38 @@ fn read_bundle(id: &str, dir: &Path) -> WalkedBundle {
         lessons,
         ui_themes,
         styles,
+        sound_faults: sound_faults(dir, &manifest.resources),
+        manifest,
         content,
         acks: read_acks(dir),
     }
+}
+
+/// Measure every declared sound resource of a bundle the way the engine does
+/// when it loads one ([`nova_sound::loudness::measure_clip`]). A file that
+/// cannot be read or decoded, or is silent, is a fault: the engine cannot
+/// level it, and a silent cue is a cue that never plays.
+fn sound_faults(dir: &Path, resources: &[String]) -> Vec<(String, String)> {
+    resources
+        .iter()
+        .filter(|resource| {
+            Path::new(resource.as_str())
+                .extension()
+                .and_then(|extension| extension.to_str())
+                .is_some_and(|extension| {
+                    SOUND_EXTENSIONS
+                        .iter()
+                        .any(|sound| extension.eq_ignore_ascii_case(sound))
+                })
+        })
+        .filter_map(|resource| {
+            let fault = match std::fs::read(dir.join(resource)) {
+                Ok(bytes) => measure_clip(&bytes).err()?.to_string(),
+                Err(error) => format!("cannot be read: {error}"),
+            };
+            Some((resource.clone(), fault))
+        })
+        .collect()
 }
 
 /// A lesson finding in the scenario checks' own vocabulary: the report groups
@@ -678,6 +711,16 @@ fn lint_bundle(bundle: &WalkedBundle, all: &[WalkedBundle]) -> Vec<(String, Lint
                 },
             ));
         }
+    }
+    for (resource, fault) in &bundle.sound_faults {
+        issues.push((
+            bundle.id.clone(),
+            LintIssue {
+                severity: LintSeverity::Error,
+                scenario: resource.clone(),
+                message: format!("sound '{resource}' {fault}"),
+            },
+        ));
     }
     issues
 }
@@ -1296,7 +1339,7 @@ mod tests {
     use nova_mod_format::{BundleManifest, ModMeta};
     use nova_modding::prelude::Content;
     use nova_scenario::prelude::{
-        GeneratedWorldConfig, KnownSections, KnownShipDesigns, ScenarioBoundsConfig,
+        GeneratedWorldConfig, KnownSections, KnownShipDesigns, LintSeverity, ScenarioBoundsConfig,
         ScenarioConfig, ScenarioWorldType,
     };
     use nova_world_base::prelude::{
@@ -1408,6 +1451,7 @@ mod tests {
                 .map(|c| ("content.ron".to_string(), c))
                 .collect(),
             acks: Vec::new(),
+            sound_faults: Vec::new(),
         }
     }
 
@@ -1421,6 +1465,100 @@ mod tests {
 
     fn count_containing(msgs: &[String], needle: &str) -> usize {
         msgs.iter().filter(|m| m.contains(needle)).count()
+    }
+
+    /// A 16-bit mono PCM WAV of `samples` at 44.1 kHz.
+    fn wav(samples: impl ExactSizeIterator<Item = f32>) -> Vec<u8> {
+        let data_len = (samples.len() * 2) as u32;
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"RIFF");
+        bytes.extend_from_slice(&(36 + data_len).to_le_bytes());
+        bytes.extend_from_slice(b"WAVEfmt ");
+        for field in [
+            16u32.to_le_bytes().as_slice(),
+            &1u16.to_le_bytes(),
+            &1u16.to_le_bytes(),
+        ] {
+            bytes.extend_from_slice(field);
+        }
+        bytes.extend_from_slice(&44_100u32.to_le_bytes());
+        bytes.extend_from_slice(&88_200u32.to_le_bytes());
+        bytes.extend_from_slice(&2u16.to_le_bytes());
+        bytes.extend_from_slice(&16u16.to_le_bytes());
+        bytes.extend_from_slice(b"data");
+        bytes.extend_from_slice(&data_len.to_le_bytes());
+        for sample in samples {
+            bytes.extend_from_slice(&((sample * f32::from(i16::MAX)) as i16).to_le_bytes());
+        }
+        bytes
+    }
+
+    /// The engine levels every sound at load, so a file it cannot level is an
+    /// authoring error: undecodable, silent, or not there. A sound that plays
+    /// passes, and a declared resource that is not a sound is not measured.
+    #[test]
+    fn a_sound_file_that_cannot_be_decoded_or_is_silent_is_an_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let sounds = dir.path().join("sounds");
+        std::fs::create_dir_all(&sounds).unwrap();
+        let tone =
+            (0..22_050).map(|n| 0.1 * (std::f32::consts::TAU * 1000.0 * n as f32 / 44_100.0).sin());
+        std::fs::write(sounds.join("tone.wav"), wav(tone)).unwrap();
+        std::fs::write(
+            sounds.join("silent.wav"),
+            wav(std::iter::repeat_n(0.0, 22_050)),
+        )
+        .unwrap();
+        std::fs::write(sounds.join("broken.wav"), b"not a sound file").unwrap();
+        std::fs::write(dir.path().join("notes.txt"), b"not a sound either").unwrap();
+        let manifest = BundleManifest {
+            content: Vec::new(),
+            resources: [
+                "sounds/tone.wav",
+                "sounds/silent.wav",
+                "sounds/broken.wav",
+                "sounds/gone.ogg",
+                "notes.txt",
+            ]
+            .map(str::to_string)
+            .to_vec(),
+            meta: ModMeta::default(),
+            new_game_scenario: None,
+        };
+        std::fs::write(
+            dir.path().join("sounds.bundle.ron"),
+            ron::ser::to_string(&manifest).unwrap(),
+        )
+        .unwrap();
+
+        let bundle = super::read_bundle("sounds", dir.path());
+        let issues: Vec<_> = lint_bundle(&bundle, &[])
+            .into_iter()
+            .filter(|(_, issue)| issue.message.starts_with("sound "))
+            .collect();
+        let refused: Vec<&str> = issues
+            .iter()
+            .map(|(_, issue)| issue.scenario.as_str())
+            .collect();
+        assert_eq!(
+            refused,
+            ["sounds/silent.wav", "sounds/broken.wav", "sounds/gone.ogg"],
+            "only the files the engine cannot level are refused: {issues:?}"
+        );
+        assert!(issues
+            .iter()
+            .all(|(_, issue)| issue.severity == LintSeverity::Error));
+        let message = |resource: &str| {
+            &issues
+                .iter()
+                .find(|(_, issue)| issue.scenario == resource)
+                .unwrap()
+                .1
+                .message
+        };
+        assert!(message("sounds/silent.wav").contains("is silent"));
+        assert!(message("sounds/broken.wav").contains("cannot be decoded"));
+        assert!(message("sounds/gone.ogg").contains("cannot be read"));
     }
 
     /// A generated-ship part fault belongs to the pack that authored the bad

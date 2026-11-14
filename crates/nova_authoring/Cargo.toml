@@ -29,6 +29,9 @@ nova_hud = { path = "../nova_hud" }
 nova_mod_format = { path = "../nova_mod_format" }
 nova_modding = { path = "../nova_modding" }
 nova_scenario = { path = "../nova_scenario" }
+# The clip loudness measure the engine runs at load; the lint refuses a sound
+# file it cannot level.
+nova_sound = { path = "../nova_sound" }
 nova_training = { path = "../nova_training" }
 # The base mod's two UI themes are builders in nova_ui, serialized here like
 # every other piece of base content.
