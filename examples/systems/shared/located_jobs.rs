@@ -291,6 +291,11 @@ struct EscortWatch {
     sprung_at: Option<f32>,
     /// Play seconds of the fight that a living raider spent in Engage.
     threatened_secs: f32,
+    /// Each raider that engaged, in the order it first did.
+    engaged: Vec<RaiderEngage>,
+    /// Each body's last damage before it was neutralized: play seconds, and
+    /// whether a round the player owns dealt it ([`note_the_last_damage`]).
+    last_damage: Vec<(GeneratedBodyId, f32, bool)>,
     /// Each raider's hit points when first seen in the fight, and its lowest
     /// since. The hauler flies unarmed, so a drop is the player's fire.
     raider_hp: Vec<(GeneratedBodyId, f32, f32)>,
@@ -317,6 +322,21 @@ impl LocatedJobWatch {
     }
 }
 
+/// One raider's Engage over the fight.
+#[derive(Debug)]
+struct RaiderEngage {
+    id: GeneratedBodyId,
+    /// Play seconds it first engaged at.
+    engaged_at: f32,
+    /// Play seconds it first stood out of Engage and Evade at while not yet
+    /// neutralized: a raider that broke off, whatever the reason.
+    left_at: Option<f32>,
+    /// Play seconds it was neutralized at, and whether that was the player's
+    /// fire: it carries [`NeutralizedMarker`] and the last damage it took
+    /// before the marker was a round the player owns.
+    neutralized: Option<(f32, bool)>,
+}
+
 /// The walk's record and its clock hold.
 pub struct LocatedJobWalkPlugin(pub LocatedKindType, pub LocatedJobMarkers);
 
@@ -337,6 +357,9 @@ impl Plugin for LocatedJobWalkPlugin {
             app.insert_resource(HandInGrant(FIRST_DELIVERY_BONUS_CR));
         }
         app.add_systems(Update, hold_the_walk_clock);
+        if self.0 == LocatedKindType::Escort {
+            app.add_observer(note_the_last_damage);
+        }
         if self.0 == LocatedKindType::Neutralize {
             // Every frame from boot: the spawn cell's board can post while
             // the world still loads, before the walk's first step runs.
@@ -393,6 +416,36 @@ fn player_cell(world: &World) -> Option<SectorCoord> {
 /// The one player ship.
 pub fn player(world: &World) -> Entity {
     the_player(world).expect("located jobs: exactly one player ship")
+}
+
+/// Note the last damage each generated body takes before it is neutralized,
+/// and whether a round the player owns dealt it: what tells a raider the
+/// player's fire neutralized from one that fell to something else. Rounds
+/// into the wreck after the marker lands are not the cause and are skipped.
+fn note_the_last_damage(
+    damage: On<HealthApplyDamage>,
+    bodies: Query<&GeneratedBodyId, Without<NeutralizedMarker>>,
+    rounds: Query<&ProjectileOwner>,
+    players: Query<(), With<PlayerSpaceshipMarker>>,
+    time: Res<Time<Virtual>>,
+    mut watch: ResMut<LocatedJobWatch>,
+) {
+    if damage.amount <= 0.0 {
+        return;
+    }
+    let Ok(id) = bodies.get(damage.entity) else {
+        return;
+    };
+    let by_player = damage
+        .source
+        .and_then(|source| rounds.get(source).ok())
+        .is_some_and(|ProjectileOwner(owner)| players.contains(*owner));
+    let now = time.elapsed_secs();
+    let last = &mut watch.escort.last_damage;
+    match last.iter_mut().find(|(seen, ..)| seen == id) {
+        Some(entry) => *entry = (id.clone(), now, by_player),
+        None => last.push((id.clone(), now, by_player)),
+    }
 }
 
 /// The entity wearing the generated id `id`, if one does.
@@ -1601,6 +1654,29 @@ fn fight_the_ambush(world: &mut World, player: Entity, hauler: Entity, job: &Job
             .escort
             .threatened_secs += dt;
     }
+    for (_, id, state) in &raiders {
+        // Evade is the fight's own under-fire jink: the guns stay on target
+        // and it decays back to Engage. Any other state breaks off.
+        let engaging = matches!(
+            state,
+            Some(AIBehaviorState::Engage | AIBehaviorState::Evade)
+        );
+        let mut watch = world.resource_mut::<LocatedJobWatch>();
+        let engaged = &mut watch.escort.engaged;
+        match engaged.iter_mut().find(|engage| engage.id == *id) {
+            None if engaging => engaged.push(RaiderEngage {
+                id: id.clone(),
+                engaged_at: now,
+                left_at: None,
+                neutralized: None,
+            }),
+            Some(engage) if !engaging && engage.left_at.is_none() => {
+                engage.left_at = Some(now);
+                info!("escort job: fight: '{id}' leaves Engage at t={now:.1} ({state:?})");
+            }
+            _ => {}
+        }
+    }
     for (raider, id, _) in &raiders {
         let Some(current) = world.get::<Health>(*raider).map(|health| health.current) else {
             continue;
@@ -1641,12 +1717,29 @@ fn fight_the_ambush(world: &mut World, player: Entity, hauler: Entity, job: &Job
             .disarmed
             .contains(&id);
         if !living && !noted {
-            world
-                .resource_mut::<LocatedJobWatch>()
+            let marked = body_wearing(world, &id)
+                .is_some_and(|raider| world.get::<NeutralizedMarker>(raider).is_some());
+            let mut watch = world.resource_mut::<LocatedJobWatch>();
+            let by_player = marked
+                && watch
+                    .escort
+                    .last_damage
+                    .iter()
+                    .any(|(seen, _, by_player)| *seen == id && *by_player);
+            watch.escort.disarmed.push(id.clone());
+            let engaged_at = watch
                 .escort
-                .disarmed
-                .push(id.clone());
-            info!("escort job: fight: '{id}' is neutralized at t={now:.1}");
+                .engaged
+                .iter_mut()
+                .find(|engage| engage.id == id)
+                .map(|engage| {
+                    engage.neutralized = Some((now, by_player));
+                    engage.engaged_at
+                });
+            info!(
+                "escort job: fight: '{id}' is neutralized at t={now:.1}, engaged since \
+                 {engaged_at:?} (marked {marked}, the player's fire {by_player})"
+            );
         }
     }
     if let Some((current, max)) = world
@@ -1885,9 +1978,12 @@ fn assert_the_ambush(world: &mut World) {
 }
 
 /// Escort claim: the job is done, not lost; the player's fire landed on a
-/// raider; a living raider spent [`DEFENSE_WINDOW_SECS`] of the flight in
-/// Engage; and when the hauler took a hit it outlived the first one by the
-/// same window. An unhit hauler is reported as unhit, not as surviving.
+/// raider; the raiders made a real fight of it: a living raider spent
+/// [`DEFENSE_WINDOW_SECS`] of the flight in Engage, or every raider that
+/// engaged held Engage (or its under-fire Evade) until the player's fire
+/// neutralized it, so the player's guns, not a leash or a retreat, ended the
+/// threat early; and when the hauler took a hit it outlived the first one by
+/// the same window. An unhit hauler is reported as unhit, not as surviving.
 fn assert_the_survival(world: &mut World) {
     let (_, job) = the_job(world);
     let markers = markers(world)
@@ -1921,11 +2017,18 @@ fn assert_the_survival(world: &mut World) {
         .sprung_at
         .expect("the ambush assert ran before the fight");
     let threatened = escort.threatened_secs;
+    let fought_down = !escort.engaged.is_empty()
+        && escort
+            .engaged
+            .iter()
+            .all(|engage| engage.left_at.is_none() && engage.neutralized.is_some_and(|(_, by)| by));
     assert!(
-        threatened >= DEFENSE_WINDOW_SECS,
+        threatened >= DEFENSE_WINDOW_SECS || fought_down,
         "escort job: a raider engaged for {threatened:.1} s of the {:.1} s flight after the \
-         spring, under the {DEFENSE_WINDOW_SECS} s window",
-        now - sprung_at
+         spring, under the {DEFENSE_WINDOW_SECS} s window, and not every raider that engaged \
+         held Engage or Evade until the player's fire neutralized it: {:?}",
+        now - sprung_at,
+        escort.engaged
     );
     let survived = escort.first_hit_at.map(|hit| now - hit);
     if let Some(survived) = survived {
@@ -1941,6 +2044,7 @@ fn assert_the_survival(world: &mut World) {
         "job": job.id.to_string(),
         "sprung_at_secs": sprung_at,
         "threatened_secs": threatened,
+        "raiders_fought_down": fought_down,
         "raiders_hit": hit_raiders,
         "raiders_disarmed": disarmed,
         "first_hit_at_secs": escort.first_hit_at,
