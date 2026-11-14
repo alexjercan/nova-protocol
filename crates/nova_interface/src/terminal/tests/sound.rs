@@ -230,9 +230,9 @@ fn nova_os_snd_off_silences_cues() {
 }
 
 #[test]
-fn nova_os_bed_gain_follows_the_snd_toggle() {
-    // The bed's own level. The interface bus, the master and the harness mute
-    // are the engine's, applied on top of this.
-    assert_eq!(nova_os_bed_gain(true), NOVA_OS_BED_VOLUME);
-    assert_eq!(nova_os_bed_gain(false), 0.0, "SND off is dead silent");
+fn nova_os_bed_intensity_follows_the_snd_toggle() {
+    // On or off. The level is the TerminalBed row's; the interface bus, the
+    // master and the harness mute are the engine's, applied on top of this.
+    assert_eq!(nova_os_bed_intensity(true), 1.0);
+    assert_eq!(nova_os_bed_intensity(false), 0.0, "SND off is dead silent");
 }

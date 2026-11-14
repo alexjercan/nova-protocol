@@ -4,7 +4,7 @@
 use bevy::ui::{ComputedNode, UiGlobalTransform};
 use nova_input::prelude::{BindingSpec, InputSource, RegisterInputActions};
 use nova_ship::prelude::{GameSections, PartsGalleryPlugin};
-use nova_sound::prelude::PlaySfx;
+use nova_sound::prelude::{PlaySound, SoundAt};
 use nova_ui::widget::button_on_setting;
 
 use super::*;
@@ -471,15 +471,15 @@ fn a_narrow_window_puts_the_footer_hints_under_the_legend_and_nothing_overlaps()
 #[test]
 fn the_catalogue_button_opens_the_gallery_and_clicks_once() {
     #[derive(Resource, Default)]
-    struct HeardRoutes(Vec<AudioRoute>);
+    struct HeardPlaces(Vec<SoundAt>);
 
     let mut rig = card_rig();
     rig.app.add_plugins(PartsGalleryPlugin);
     rig.app.init_resource::<GameSections>();
-    rig.app.init_resource::<HeardRoutes>();
+    rig.app.init_resource::<HeardPlaces>();
     rig.app
-        .add_observer(|sfx: On<PlaySfx>, mut heard: ResMut<HeardRoutes>| {
-            heard.0.push(sfx.route);
+        .add_observer(|sfx: On<PlaySound>, mut heard: ResMut<HeardPlaces>| {
+            heard.0.push(sfx.at);
         });
     *rig.app.world_mut().resource_mut::<InterfacePaneType>() = InterfacePaneType::Ship;
     rig.app.insert_resource(ShipRuntime {
@@ -488,7 +488,7 @@ fn the_catalogue_button_opens_the_gallery_and_clicks_once() {
     });
     settle(&mut rig.app);
     take_cues(&mut rig.app);
-    rig.app.world_mut().resource_mut::<HeardRoutes>().0.clear();
+    rig.app.world_mut().resource_mut::<HeardPlaces>().0.clear();
 
     let catalogue = rect_named(rig.app.world_mut(), "ShipCatalogue").center();
     click_at(&mut rig, catalogue);
@@ -502,8 +502,8 @@ fn the_catalogue_button_opens_the_gallery_and_clicks_once() {
         [UiSfx::MenuFocus, UiSfx::MenuSelect]
     );
     assert_eq!(
-        rig.app.world().resource::<HeardRoutes>().0,
-        [AudioRoute::Interface, AudioRoute::Interface]
+        rig.app.world().resource::<HeardPlaces>().0,
+        [SoundAt::Ui, SoundAt::Ui]
     );
 }
 

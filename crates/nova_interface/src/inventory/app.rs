@@ -2220,9 +2220,14 @@ impl InventoryShips<'_, '_> {
 }
 
 /// Play one interface cue, if the sound bank has loaded.
-fn play_cue(commands: &mut Commands, bank: Option<&SoundBank<UiSfx>>, cue: UiSfx, volume: f32) {
+fn play_cue(
+    commands: &mut Commands,
+    bank: Option<&SoundBank<UiSfx>>,
+    cue: UiSfx,
+    category: SoundCategoryType,
+) {
     if let Some(bank) = bank {
-        commands.play_sfx(bank.get(cue), AudioRoute::Interface, volume);
+        commands.trigger(PlaySound::ui(bank.get(cue), category));
     }
 }
 
@@ -2244,7 +2249,7 @@ fn set_draft_quantity(
     }
     runtime.draft = Some(InventoryDraft { quantity, ..draft });
     if quantity.is_some() {
-        play_cue(commands, bank, UiSfx::UiTick, UI_TICK_VOLUME);
+        play_cue(commands, bank, UiSfx::UiTick, SoundCategoryType::UiTick);
     }
 }
 
@@ -2472,15 +2477,15 @@ pub(crate) fn apply_inventory_action_commands(
                 &mut commands,
             ),
         };
-        let (note, cue, volume) = match result {
+        let (note, cue, category) = match result {
             Ok(note) => {
                 runtime.draft = None;
-                (note, UiSfx::MenuSelect, MENU_SELECT_VOLUME)
+                (note, UiSfx::MenuSelect, SoundCategoryType::UiClick)
             }
-            Err(note) => (note, UiSfx::EditorDeny, EDITOR_DENY_VOLUME),
+            Err(note) => (note, UiSfx::EditorDeny, SoundCategoryType::UiError),
         };
         runtime.note = Some((note, NOTE_SECONDS));
-        play_cue(&mut commands, bank.as_deref(), cue, volume);
+        play_cue(&mut commands, bank.as_deref(), cue, category);
     }
 }
 
@@ -2508,20 +2513,20 @@ pub(crate) fn apply_credit_take_commands(
     };
     for _ in actions.read() {
         let partner_title = ships.title(partner, InventorySideType::Partner);
-        let (note, cue, volume) = match take_credits(&mut ships, pair.own, partner) {
+        let (note, cue, category) = match take_credits(&mut ships, pair.own, partner) {
             Ok(amount) => (
                 format!("TOOK +{}", cr_text(amount)),
                 UiSfx::MenuSelect,
-                MENU_SELECT_VOLUME,
+                SoundCategoryType::UiClick,
             ),
             Err(refusal) => (
                 credit_take_refusal_text(refusal, &partner_title),
                 UiSfx::EditorDeny,
-                EDITOR_DENY_VOLUME,
+                SoundCategoryType::UiError,
             ),
         };
         runtime.note = Some((note, NOTE_SECONDS));
-        play_cue(&mut commands, bank.as_deref(), cue, volume);
+        play_cue(&mut commands, bank.as_deref(), cue, category);
     }
 }
 
@@ -2572,15 +2577,15 @@ pub(crate) fn apply_take_all_commands(
         return;
     };
     for _ in actions.read() {
-        let (note, cue, volume) = match take_all(&items, &mut ships, pair, partner) {
+        let (note, cue, category) = match take_all(&items, &mut ships, pair, partner) {
             Ok(note) => {
                 runtime.draft = None;
-                (note, UiSfx::MenuSelect, MENU_SELECT_VOLUME)
+                (note, UiSfx::MenuSelect, SoundCategoryType::UiClick)
             }
-            Err(note) => (note, UiSfx::EditorDeny, EDITOR_DENY_VOLUME),
+            Err(note) => (note, UiSfx::EditorDeny, SoundCategoryType::UiError),
         };
         runtime.note = Some((note, NOTE_SECONDS));
-        play_cue(&mut commands, bank.as_deref(), cue, volume);
+        play_cue(&mut commands, bank.as_deref(), cue, category);
     }
 }
 

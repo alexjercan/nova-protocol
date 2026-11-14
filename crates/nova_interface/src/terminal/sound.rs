@@ -1,26 +1,24 @@
 //! The NOVA OS audio: keypress and control cues, the continuous power-on bed,
 //! and the power-down sting.
 //!
-//! Every cue and the bed are on [`AudioRoute::Interface`] - the terminal is
-//! chrome, not a thing in the world - so none of them is placed, attenuated or
-//! panned, and the bed keeps humming while the sim behind it is frozen.
+//! Every cue and the bed are [`SoundBus::Ui`](nova_sound::prelude::SoundBus)
+//! categories - the terminal is chrome, not a thing in the world - so none of
+//! them is placed, attenuated or panned, and the bed keeps humming while the
+//! sim behind it is frozen.
 //!
-//! The bed is a single entity so its gain can track the sound toggle live
-//! rather than being restarted.
+//! The bed is a single [`SoundLoop`] owner so the sound toggle can turn it on
+//! and off live rather than restarting it.
 //!
 //! Touch this module when adding a sound the monitor makes.
 
 use bevy::prelude::*;
-use nova_sound::prelude::{
-    AudioRoute, SfxCommandsExt, SfxVoice, SoundBank, UiSfx, NOVA_OS_BED_VOLUME,
-    NOVA_OS_POWER_VOLUME,
-};
+use nova_sound::prelude::{PlaySound, SoundBank, SoundCategoryType, SoundLoop, UiSfx};
 
 use super::components::*;
 
 /// The looping ambient CRT bed, spawned while the NOVA OS monitor is open.
 ///
-/// Its ROUTE is what keeps it playing through the sim freeze on
+/// Its CATEGORY is what keeps it playing through the sim freeze on
 /// `OnEnter(Commands)`: the engine pauses the world voices and leaves the
 /// interface alone, so the bed is exempt by construction rather than by a guard
 /// (`audit-state-gates-on-new-entry-path`). The SND toggle is applied live by
@@ -29,8 +27,8 @@ use super::components::*;
 pub(crate) struct NovaOsBedSfx;
 
 /// Fire a one-shot NOVA OS terminal cue, honoring the SND toggle
-/// ([`NovaOsMonitorSettings::sound_enabled`]). The interface-bus and master
-/// gains are applied downstream by the engine, like every other cue.
+/// ([`NovaOsMonitorSettings::sound_enabled`]). The category sets the level;
+/// the interface-bus and master gains are the engine's, like every other cue.
 ///
 /// Public because the command dispatcher lives above this crate and cues its
 /// own answer: a command's ok/error lands after the world has been touched, not
@@ -40,12 +38,12 @@ pub fn play_nova_os_cue(
     bank: &SoundBank<UiSfx>,
     settings: &NovaOsMonitorSettings,
     cue: UiSfx,
-    volume: f32,
+    category: SoundCategoryType,
 ) {
     if !settings.sound_enabled {
         return;
     }
-    commands.play_sfx(bank.get(cue), AudioRoute::Interface, volume);
+    commands.trigger(PlaySound::ui(bank.get(cue), category));
 }
 
 /// Power-up sweep + start the ambient bed when the monitor opens
@@ -64,12 +62,12 @@ pub(crate) fn start_nova_os_sound(
         &bank,
         &settings,
         UiSfx::NovaOsPowerUp,
-        NOVA_OS_POWER_VOLUME,
+        SoundCategoryType::UiConfirm,
     );
     commands.spawn((
         Name::new("NOVA OS Ambient Bed"),
         NovaOsBedSfx,
-        SfxVoice::looping(bank.get(UiSfx::NovaOsBed), AudioRoute::Interface),
+        SoundLoop::new(bank.get(UiSfx::NovaOsBed), SoundCategoryType::TerminalBed),
     ));
 }
 
@@ -99,31 +97,31 @@ pub(crate) fn play_nova_os_power_down(
                 bank,
                 &settings,
                 UiSfx::NovaOsPowerDown,
-                NOVA_OS_POWER_VOLUME,
+                SoundCategoryType::UiConfirm,
             );
         }
     }
     *was_closing = close.closing;
 }
 
-/// Drive the ambient bed's level from the SND toggle, so muting SND silences the
-/// hum live without despawning the loop. The interface-bus, master and
-/// harness-mute gains are the engine's, applied on top of what this writes.
+/// Turn the ambient bed on or off from the SND toggle, so muting SND silences
+/// the hum live without despawning the loop. The level is the TerminalBed
+/// row's; the interface-bus, master and harness-mute gains are the engine's.
 pub(crate) fn apply_nova_os_bed_volume(
     settings: Res<NovaOsMonitorSettings>,
-    mut q_bed: Query<&mut SfxVoice, With<NovaOsBedSfx>>,
+    mut q_bed: Query<&mut SoundLoop, With<NovaOsBedSfx>>,
 ) {
-    let target = nova_os_bed_gain(settings.sound_enabled);
-    for mut voice in &mut q_bed {
-        voice.volume = target;
+    let intensity = nova_os_bed_intensity(settings.sound_enabled);
+    for mut bed in &mut q_bed {
+        bed.intensity = intensity;
     }
 }
 
-/// The ambient bed's level: its base volume, or ZERO when SND is muted. Pure so
+/// The ambient bed's loop intensity: on, or ZERO when SND is muted. Pure so
 /// the SND-off silence is testable without an audio device.
-pub(crate) fn nova_os_bed_gain(sound_enabled: bool) -> f32 {
+pub(crate) fn nova_os_bed_intensity(sound_enabled: bool) -> f32 {
     if sound_enabled {
-        NOVA_OS_BED_VOLUME
+        1.0
     } else {
         0.0
     }

@@ -29,10 +29,7 @@ use nova_input::prelude::{
     ActionContext, ActiveContexts, InputBindings, InputDeviceType, InputSources,
 };
 use nova_ship::prelude::{GalleryAction, GalleryState, HeldPart};
-use nova_sound::prelude::{
-    AudioRoute, SfxCommandsExt, SoundBank, UiSfx, EDITOR_DENY_VOLUME, MENU_SELECT_VOLUME,
-    UI_TOGGLE_VOLUME,
-};
+use nova_sound::prelude::{PlaySound, SoundBank, SoundCategoryType, UiSfx};
 use nova_ui::{
     prelude::*,
     theme::UiColorType,
@@ -188,11 +185,10 @@ pub(crate) fn play_interface_toggle(mut commands: Commands, bank: Option<Res<Sou
     let Some(bank) = bank else {
         return;
     };
-    commands.play_sfx(
+    commands.trigger(PlaySound::ui(
         bank.get(UiSfx::UiToggle),
-        AudioRoute::Interface,
-        UI_TOGGLE_VOLUME,
-    );
+        SoundCategoryType::UiClick,
+    ));
 }
 
 /// `interface_next_tab` steps to the next pane while the interface owns the
@@ -784,11 +780,11 @@ pub(crate) fn play_outcome_cue(
     let Some(bank) = bank else {
         return;
     };
-    let (cue, volume) = match outcome {
-        ActionOutcomeType::Done => (UiSfx::MenuSelect, MENU_SELECT_VOLUME),
-        ActionOutcomeType::Refused => (UiSfx::EditorDeny, EDITOR_DENY_VOLUME),
+    let (cue, category) = match outcome {
+        ActionOutcomeType::Done => (UiSfx::MenuSelect, SoundCategoryType::UiClick),
+        ActionOutcomeType::Refused => (UiSfx::EditorDeny, SoundCategoryType::UiError),
     };
-    commands.play_sfx(bank.get(cue), AudioRoute::Interface, volume);
+    commands.trigger(PlaySound::ui(bank.get(cue), category));
 }
 
 /// Seconds an action result stays on a pane's notice line, on the real

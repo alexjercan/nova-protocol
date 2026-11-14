@@ -20,10 +20,7 @@ use nova_command::prelude::*;
 use nova_gameplay::PauseStates;
 use nova_input::prelude::*;
 use nova_ship::prelude::HeldPart;
-use nova_sound::prelude::{
-    SoundBank, UiSfx, NOVA_OS_BACK_VOLUME, NOVA_OS_ENTER_VOLUME, NOVA_OS_ERROR_VOLUME,
-    NOVA_OS_KEY_MIN_INTERVAL, NOVA_OS_KEY_VOLUME, NOVA_OS_OK_VOLUME, NOVA_OS_TICK_VOLUME,
-};
+use nova_sound::prelude::{SoundBank, SoundCategoryType, UiSfx};
 use nova_ui::{
     input_mode::prelude::InputMode,
     screen::{drive_wheel_scroll, max_scroll_y, page_step},
@@ -178,8 +175,6 @@ pub(crate) fn handle_terminal_keyboard(
     mut commands: Commands,
     bank: Option<Res<SoundBank<UiSfx>>>,
     settings: Res<NovaOsMonitorSettings>,
-    time: Res<Time<Real>>,
-    mut last_key_click: Local<Option<f32>>,
     mut q_scrollback: Query<
         (&mut ScrollPosition, Option<&ComputedNode>),
         With<NovaOsTerminalScrollbackMarker>,
@@ -188,7 +183,6 @@ pub(crate) fn handle_terminal_keyboard(
     let modal_open = *pause.get() == PauseStates::Commands;
     // The `bank` is absent on rigs without the sound assets (headless), so each
     // branch guards on it and cues are a no-op there.
-    let now = time.elapsed_secs();
     for event in keyboard.read() {
         if !modal_open {
             continue;
@@ -218,22 +212,24 @@ pub(crate) fn handle_terminal_keyboard(
                             bank,
                             &settings,
                             UiSfx::NovaOsEnter,
-                            NOVA_OS_ENTER_VOLUME,
+                            SoundCategoryType::UiClick,
                         );
                     }
-                    let (cue, volume) = match outcome {
-                        TerminalSubmitOutcome::Empty => (None, 0.0),
+                    let cue = match outcome {
+                        TerminalSubmitOutcome::Empty => None,
                         // The command dispatcher runs between this system and
                         // the paint, and it cues its own answer: an ok here
                         // would fire before the command had one.
-                        TerminalSubmitOutcome::Dispatched => (None, 0.0),
-                        TerminalSubmitOutcome::Ran => (Some(UiSfx::NovaOsOk), NOVA_OS_OK_VOLUME),
+                        TerminalSubmitOutcome::Dispatched => None,
+                        TerminalSubmitOutcome::Ran => {
+                            Some((UiSfx::NovaOsOk, SoundCategoryType::UiConfirm))
+                        }
                         TerminalSubmitOutcome::Errored => {
-                            (Some(UiSfx::NovaOsError), NOVA_OS_ERROR_VOLUME)
+                            Some((UiSfx::NovaOsError, SoundCategoryType::UiError))
                         }
                     };
-                    if let Some(cue) = cue {
-                        play_nova_os_cue(&mut commands, bank, &settings, cue, volume);
+                    if let Some((cue, category)) = cue {
+                        play_nova_os_cue(&mut commands, bank, &settings, cue, category);
                     }
                 }
             }
@@ -245,7 +241,7 @@ pub(crate) fn handle_terminal_keyboard(
                             bank,
                             &settings,
                             UiSfx::NovaOsTick,
-                            NOVA_OS_TICK_VOLUME,
+                            SoundCategoryType::UiTick,
                         );
                     }
                 }
@@ -258,7 +254,7 @@ pub(crate) fn handle_terminal_keyboard(
                         bank,
                         &settings,
                         UiSfx::NovaOsBack,
-                        NOVA_OS_BACK_VOLUME,
+                        SoundCategoryType::UiTick,
                     );
                 }
             }
@@ -270,7 +266,7 @@ pub(crate) fn handle_terminal_keyboard(
                         bank,
                         &settings,
                         UiSfx::NovaOsBack,
-                        NOVA_OS_BACK_VOLUME,
+                        SoundCategoryType::UiTick,
                     );
                 }
             }
@@ -313,22 +309,16 @@ pub(crate) fn handle_terminal_keyboard(
                 } else if matches!(event.logical_key, Key::Space) {
                     terminal.insert_text(" ");
                 }
-                // Typing click, throttled so OS key-repeat cannot machine-gun.
-                // The first click always fires (last is `None`).
+                // Typing click. The UiTick repeat interval keeps OS key-repeat
+                // from machine-gunning it.
                 if let Some(bank) = &bank {
-                    let due = last_key_click
-                        .map(|last| now - last >= NOVA_OS_KEY_MIN_INTERVAL)
-                        .unwrap_or(true);
-                    if due {
-                        *last_key_click = Some(now);
-                        play_nova_os_cue(
-                            &mut commands,
-                            bank,
-                            &settings,
-                            UiSfx::NovaOsKey,
-                            NOVA_OS_KEY_VOLUME,
-                        );
-                    }
+                    play_nova_os_cue(
+                        &mut commands,
+                        bank,
+                        &settings,
+                        UiSfx::NovaOsKey,
+                        SoundCategoryType::UiTick,
+                    );
                 }
             }
             _ => {}

@@ -35,7 +35,7 @@ use bevy::prelude::*;
 use nova_command::prelude::*;
 use nova_gameplay::prelude::{PauseStates, RunCheats};
 use nova_interface::terminal::prelude::{play_nova_os_cue, CommandsSystems, NovaOsMonitorSettings};
-use nova_sound::prelude::{SoundBank, UiSfx, NOVA_OS_ERROR_VOLUME, NOVA_OS_OK_VOLUME};
+use nova_sound::prelude::{SoundBank, SoundCategoryType, UiSfx};
 
 use crate::{completion::publish_live_values, surface::world_line};
 
@@ -190,11 +190,13 @@ fn answer_the_shell(world: &mut World, result: &CommandResult) {
 /// Cued here rather than at submit time because a command's answer lands after
 /// the world has been touched: the note follows the outcome, not the keystroke.
 fn cue_the_answer(world: &mut World, status: CommandStatus) {
-    let (cue, volume) = match status {
-        CommandStatus::Ok => (UiSfx::NovaOsOk, NOVA_OS_OK_VOLUME),
+    let (cue, category) = match status {
+        CommandStatus::Ok => (UiSfx::NovaOsOk, SoundCategoryType::UiConfirm),
         // A refusal is as wrong a note as an error: the command was understood
         // and still did nothing.
-        CommandStatus::Refused | CommandStatus::Error => (UiSfx::NovaOsError, NOVA_OS_ERROR_VOLUME),
+        CommandStatus::Refused | CommandStatus::Error => {
+            (UiSfx::NovaOsError, SoundCategoryType::UiError)
+        }
     };
     let Some(bank) = world.get_resource::<SoundBank<UiSfx>>().cloned() else {
         return;
@@ -204,6 +206,6 @@ fn cue_the_answer(world: &mut World, status: CommandStatus) {
         .copied()
         .unwrap_or_default();
     let mut queue = world.commands();
-    play_nova_os_cue(&mut queue, &bank, &settings, cue, volume);
+    play_nova_os_cue(&mut queue, &bank, &settings, cue, category);
     world.flush();
 }

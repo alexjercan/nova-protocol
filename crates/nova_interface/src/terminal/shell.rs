@@ -9,7 +9,7 @@ use nova_command::prelude::*;
 use nova_gameplay::{cheats::prelude::RunCheats, PauseStates};
 use nova_hud::prelude::HudInterfaceExempt;
 use nova_input::prelude::InputBindings;
-use nova_sound::prelude::{SoundBank, UiSfx, NOVA_OS_TICK_VOLUME};
+use nova_sound::prelude::{SoundBank, SoundCategoryType, UiSfx};
 use nova_ui::{font::UiFont, screen::clamp_stored_scroll, theme, widget::ButtonCueMute};
 
 use super::{casing::*, components::*, content::*, sound::play_nova_os_cue, style::*};
@@ -63,7 +63,7 @@ fn play_chin_tick(
             bank,
             settings,
             UiSfx::NovaOsTick,
-            NOVA_OS_TICK_VOLUME,
+            SoundCategoryType::UiTick,
         );
     }
 }

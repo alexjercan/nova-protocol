@@ -29,7 +29,7 @@ use bevy::{
     window::{CursorMoved, PrimaryWindow, Window, WindowEvent, WindowResolution},
 };
 use nova_gameplay::prelude::ButtonCuePlugin;
-use nova_sound::prelude::{PlaySfx, SoundBank, UiSfx, UI_SFX_FILES};
+use nova_sound::prelude::{PlaySound, SoundBank, UiSfx, UI_SFX_FILES};
 
 /// Agreement budget between the pointer's mapping and the shader's, in image
 /// pixels, over the whole screen. Half a pixel: below the level anything can be
@@ -323,11 +323,11 @@ pub(super) fn hear_ui_cues(app: &mut App) {
     app.init_resource::<HeardCues>();
     app.add_plugins(ButtonCuePlugin);
     app.add_observer(
-        |sfx: On<PlaySfx>, bank: Res<SoundBank<UiSfx>>, mut heard: ResMut<HeardCues>| {
+        |sfx: On<PlaySound>, bank: Res<SoundBank<UiSfx>>, mut heard: ResMut<HeardCues>| {
             let cue = UI_SFX_FILES
                 .iter()
                 .map(|(cue, _)| *cue)
-                .find(|cue| bank.get(*cue) == sfx.handle)
+                .find(|cue| bank.get(*cue) == sfx.sound)
                 .expect("every played cue comes from the UI bank");
             heard.0.push(cue);
         },

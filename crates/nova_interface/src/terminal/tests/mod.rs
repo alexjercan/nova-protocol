@@ -35,7 +35,7 @@ use nova_gameplay::{
 };
 use nova_hud::prelude::*;
 use nova_input::prelude::RegisterInputActions;
-use nova_sound::prelude::{PlaySfx, SoundBank, UiSfx, NOVA_OS_BED_VOLUME, UI_SFX_FILES};
+use nova_sound::prelude::{PlaySound, SoundBank, UiSfx, UI_SFX_FILES};
 use nova_ui::theme;
 
 use super::{
@@ -160,9 +160,9 @@ fn nova_os_sound_app() -> App {
     app.insert_resource(bank);
     app.init_resource::<SoundCapture>();
     app.add_observer(
-        |sfx: On<PlaySfx>, bank: Res<SoundBank<UiSfx>>, mut cap: ResMut<SoundCapture>| {
+        |sfx: On<PlaySound>, bank: Res<SoundBank<UiSfx>>, mut cap: ResMut<SoundCapture>| {
             for (key, _) in UI_SFX_FILES {
-                if sfx.handle == bank.get(key) {
+                if sfx.sound == bank.get(key) {
                     cap.0.push(key);
                     break;
                 }
