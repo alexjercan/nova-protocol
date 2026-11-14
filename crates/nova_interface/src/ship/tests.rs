@@ -13,6 +13,7 @@ use nova_events::prelude::EntityId;
 use nova_gameplay::{prelude::*, test_support::test_items, PauseStates};
 use nova_input::prelude::{InputSource, RegisterInputActions};
 use nova_ship::prelude::*;
+use nova_sound::prelude::*;
 use nova_ui::{
     theme::{ActiveUiTheme, UiColorType},
     widget::{

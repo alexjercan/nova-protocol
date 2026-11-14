@@ -18,6 +18,7 @@ use nova_ship::prelude::{
     CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedHelmType, DockedShip,
     DockingConnection,
 };
+use nova_sound::prelude::*;
 use nova_ui::{
     screen::EllipsisText,
     widget::{TextFieldError, TextFieldValue},

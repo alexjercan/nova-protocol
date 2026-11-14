@@ -729,8 +729,8 @@ fn assert_the_burst_reads_as_two_reports(world: &mut World) {
         );
     };
     let listener = listener_pose(world).expect("ship audio: the scenario camera has the ears");
-    let bearing = nova_gameplay::audio::local_bearing(&listener, contact);
-    let expected = nova_gameplay::audio::emitter_point(&listener, bearing);
+    let bearing = nova_protocol::nova_sound::local_bearing(&listener, contact);
+    let expected = nova_protocol::nova_sound::emitter_point(&listener, bearing);
     let placed = world
         .get::<GlobalTransform>(theirs.voice)
         .expect("ship audio: the exterior report retired before it could be read")

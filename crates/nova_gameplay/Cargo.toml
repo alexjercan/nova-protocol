@@ -8,13 +8,7 @@ description = "Gameplay systems and logic for the Nova Protocol game"
 
 [dependencies]
 avian3d = { version = "0.8.0" }
-# `wav` enables bevy's WAV audio decoder so the shipped binary can play the
-# placeholder sound effects under `assets/base/sounds/*.wav`. It is a normal (not
-# dev-only) feature because the game itself decodes them at runtime; cargo
-# unifies it across the workspace, so this single declaration covers every crate
-# and example. Vorbis stays default-on, so `.ogg` swap-ins work with only a
-# path-extension change.
-bevy = { version = "0.20.1", features = ["wav"] }
+bevy = { version = "0.20.1" }
 noise = { version = "0.9" }
 rand = { version = "0.10.2" }
 bevy_hanabi = { version = "0.20.0", default-features = false, features = ["2d", "3d"] }
@@ -27,6 +21,7 @@ bevy_rand = { version = "0.16.0", default-features = false, features = ["chacha2
 # resolves.
 bevy_transform_interpolation = { version = "0.6.0" }
 nova_events = { path = "../nova_events" }
+nova_sound = { path = "../nova_sound" }
 nova_ui = { path = "../nova_ui" }
 
 [target.'cfg(all(target_family = "wasm", any(target_os = "unknown", target_os = "none")))'.dependencies]
@@ -41,7 +36,7 @@ workspace = true
 
 [features]
 debug = ["bevy/track_location"]
-serde = ["dep:serde", "bevy/serialize"]
+serde = ["dep:serde", "bevy/serialize", "nova_sound/serde"]
 # The headless avian app in `test_support`, for crates split out of this one
 # that test against the same harness. Off by default so avian's test wiring
 # never reaches a release build; enable it as a dev-dependency feature only.

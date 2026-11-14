@@ -27,6 +27,7 @@ nova_mod_format = { path = "../nova_mod_format" }
 # `serde` enables the Serialize/Deserialize derives on the settings resources
 # (GraphicsQuality/MasterVolume) so the settings store can persist them.
 nova_gameplay = { path = "../nova_gameplay", features = ["serde"] }
+nova_sound = { path = "../nova_sound", features = ["serde"] }
 nova_ship = { path = "../nova_ship", features = ["serde"] }
 nova_hud = { path = "../nova_hud" }
 # The settings screen drives the NOVA OS monitor hardware (BRIGHT/SCAN/SND) and

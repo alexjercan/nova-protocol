@@ -34,7 +34,7 @@ use nova_autopilot::loops::{
     LoopCaptureEnded, LoopCaptureFrame, LoopCaptureStarted, LOOP_AUDIO_SAMPLE_RATE,
     LOOP_STAGING_DIR,
 };
-use nova_gameplay::prelude::{SfxVoice, VoiceMix};
+use nova_sound::prelude::{SfxVoice, VoiceMix};
 
 /// The version of the sidecar format this writes.
 const SIDECAR_VERSION: u32 = 1;
@@ -629,7 +629,7 @@ fn sample_at(sample: &[[f32; 2]], position: f64, looping: bool) -> [f32; 2] {
 #[cfg(test)]
 mod tests {
     use bevy::ecs::entity::EntityIndex;
-    use nova_gameplay::prelude::AudioRoute;
+    use nova_sound::prelude::AudioRoute;
 
     use super::*;
 

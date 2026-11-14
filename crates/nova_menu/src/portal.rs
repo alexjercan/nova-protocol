@@ -13,7 +13,8 @@ use nova_assets::prelude::{
     DownloadedMods, EnabledMods, FetchPortalCatalog, InstallJobs, InstallPortalMod, InstallStatus,
     PendingRemovals, PortalEntry, RemoteCatalog, RemoteCatalogState, UninstallPortalMod,
 };
-use nova_gameplay::prelude::{play_menu_deny, play_menu_select, SoundBank, UiSfx};
+use nova_gameplay::prelude::{play_menu_deny, play_menu_select};
+use nova_sound::prelude::{SoundBank, UiSfx};
 use nova_ui::{
     theme,
     theme::UiColorType,

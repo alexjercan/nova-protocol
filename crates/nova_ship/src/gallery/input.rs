@@ -9,7 +9,8 @@
 //! when the browse keys change.
 
 use bevy::{input::keyboard::KeyboardInput, picking::hover::Hovered, prelude::*};
-use nova_gameplay::prelude::{play_menu_back, play_menu_select, SoundBank, UiSfx};
+use nova_gameplay::prelude::{play_menu_back, play_menu_select};
+use nova_sound::prelude::{SoundBank, UiSfx};
 
 use super::{
     catalog, ui::GalleryCell, GalleryHost, GalleryLayout, GalleryListing, GalleryState, HeldPart,

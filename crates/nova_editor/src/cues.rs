@@ -8,7 +8,7 @@
 //! [`AudioRoute::Interface`] - the editor has no world to hear them in.
 
 use bevy::{ecs::system::SystemParam, prelude::*};
-use nova_gameplay::prelude::*;
+use nova_sound::prelude::*;
 
 use crate::config::PlacementPose;
 
@@ -20,7 +20,7 @@ use crate::config::PlacementPose;
 /// part and cycles its socket at once is one detent and not two. Deliberately
 /// not gated on an input mode - the two Ship-menu rows turn the part from
 /// `Browse` - and gated on the editor state, so the tick does not survive a
-/// trip out to a test flight. The engine's `AudioSystems` pass mixes what it
+/// trip out to a test flight. The engine's `SoundSystems` pass mixes what it
 /// raises one schedule later, in `PostUpdate`.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct EditorCueSystems;
@@ -109,7 +109,7 @@ pub(crate) struct PlacementPoseHeard(pub(crate) Option<PlacementPose>);
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::audio::UI_SFX_FILES;
+    use nova_sound::UI_SFX_FILES;
 
     use super::*;
 

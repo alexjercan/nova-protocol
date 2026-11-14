@@ -10,10 +10,8 @@
 
 use avian3d::prelude::{ComputedCenterOfMass, RigidBody};
 use bevy::prelude::*;
-use nova_gameplay::{
-    audio::{area_cell, body_middle, cue_body, cue_group, SfxThrottle, ThrottleKey},
-    prelude::*,
-};
+use nova_gameplay::prelude::*;
+use nova_sound::{area_cell, cue_group, prelude::*, SfxThrottle, ThrottleKey};
 
 use super::{
     routing::{owning_root, route_for, route_from},
@@ -558,7 +556,7 @@ pub(super) fn on_railgun_fire_play_sfx(
 
 #[cfg(test)]
 mod tests {
-    use nova_gameplay::audio::{area_cell, CueGroup, SFX_AREA_CELL};
+    use nova_sound::{area_cell, CueGroup, SFX_AREA_CELL};
 
     use super::*;
     use crate::ship_audio::test_support::{LastPlayed, PlayedSfx};

@@ -2,9 +2,9 @@
 //! its title row and its tabs and replaces only the pane body.
 
 use bevy::ui::{ComputedNode, UiGlobalTransform};
-use nova_gameplay::prelude::PlaySfx;
 use nova_input::prelude::{BindingSpec, InputSource, RegisterInputActions};
 use nova_ship::prelude::{GameSections, PartsGalleryPlugin};
+use nova_sound::prelude::PlaySfx;
 use nova_ui::widget::button_on_setting;
 
 use super::*;

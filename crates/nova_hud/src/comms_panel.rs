@@ -24,10 +24,8 @@
 use std::collections::VecDeque;
 
 use bevy::prelude::*;
-use nova_gameplay::{
-    asset_ref::AssetRef,
-    audio::{AudioRoute, SfxCommandsExt, SoundBank, UiSfx},
-};
+use nova_gameplay::asset_ref::AssetRef;
+use nova_sound::prelude::{AudioRoute, SfxCommandsExt, SoundBank, UiSfx};
 use nova_ui::hud::{body_colour, CHIP_BORDER_ALPHA, CHIP_FILL};
 
 use super::{

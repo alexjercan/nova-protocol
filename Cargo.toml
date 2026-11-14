@@ -1768,6 +1768,7 @@ nova_autopilot = { path = "crates/nova_autopilot" }
 # whatever features a run enables. It links no nova crate, so the edge is free.
 nova_bench = { path = "crates/nova_bench" }
 nova_gameplay = { path = "crates/nova_gameplay" }
+nova_sound = { path = "crates/nova_sound" }
 # The bindings vocabulary: every example that gives a ship an `input_mapping`
 # names its sources as `InputSource`.
 nova_input = { path = "crates/nova_input" }
@@ -1992,6 +1993,9 @@ members = [
   "crates/nova_probe_cli",
   "crates/nova_scenario",
   "crates/nova_ship",
+  # The audio engine: buses, mixing and the one playback path. A LEAF over bevy,
+  # below nova_gameplay, so a crate that makes a sound need not reach gameplay.
+  "crates/nova_sound",
   # The training handbook's material: the lesson catalog, the player's
   # progress record, and the field notes. A LEAF over bevy alone, because
   # nova_menu draws the handbook and nova_core's loading screen draws the
@@ -2012,8 +2016,8 @@ members = [
   "crates/nova_world_base",
   # Web-build tooling, not a game crate. `nova_meta_gen` stays a workspace
   # MEMBER (so Cargo's feature unification auto-pins its Bevy version AND
-  # features - the `wav` feature via nova_modding -> nova_gameplay - to the
-  # game's), but lives under tools/. It is never a game dependency, so a bare
+  # features - the `wav` feature via nova_modding -> nova_gameplay ->
+  # nova_sound - to the game's), but lives under tools/. It is never a game dependency, so a bare
   # `cargo build`/`run` of the root package does not compile it; it is reached
   # explicitly by `cargo run -p nova_meta_gen` (Trunk post_build) and by CI's
   # `--workspace`.

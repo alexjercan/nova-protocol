@@ -15,7 +15,7 @@
 //!
 //! ```rust
 //! # use bevy::prelude::*;
-//! # use nova_gameplay::prelude::*;
+//! # use nova_sound::prelude::*;
 //! #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 //! enum Sfx {
 //!     Click,
@@ -36,7 +36,7 @@
 //! ```
 //!
 //! Nova owns this because the bank is what `nova_assets` fills with
-//! [`crate::audio::UI_SFX_FILES`] and what every HUD and menu cue reads back
+//! [`crate::UI_SFX_FILES`] and what every HUD and menu cue reads back
 //! through `SoundBank<UiSfx>` - which sounds exist and what they are called is
 //! a content decision, not an engine one.
 
@@ -128,7 +128,7 @@ impl<K: SoundKey> SoundBank<K> {
 ///
 /// ```rust
 /// # use bevy::prelude::*;
-/// # use nova_gameplay::prelude::*;
+/// # use nova_sound::prelude::*;
 /// # #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)] enum Sfx { Click }
 /// # #[derive(States, Clone, PartialEq, Eq, Hash, Debug, Default)] enum Game { #[default] Loading, Menu }
 /// # fn to_menu(mut next: ResMut<NextState<Game>>) { next.set(Game::Menu); }

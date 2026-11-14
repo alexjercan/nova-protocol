@@ -39,6 +39,7 @@ pub use nova_scenario;
 use nova_scenario::prelude::*;
 pub use nova_ship;
 use nova_ship::prelude::*;
+pub use nova_sound;
 use nova_ui::status_bar::{
     status_bar, status_bar_item, status_fps_color_fn, status_fps_value_fn, status_version_color_fn,
     status_version_value_fn, StatusBarItemConfig, StatusBarItemMarker, StatusBarRootConfig,
@@ -65,6 +66,7 @@ pub mod prelude {
     pub use nova_menu::prelude::*;
     pub use nova_scenario::prelude::*;
     pub use nova_ship::prelude::*;
+    pub use nova_sound::prelude::*;
     pub use nova_world_base::prelude::*;
 
     pub use super::{
@@ -392,6 +394,10 @@ impl AppBuilder {
         self.app.add_plugins(nova_input::NovaInputPlugin);
         self.app.add_plugins(GameAssetsPlugin);
         self.app.add_plugins(LoadingScreenPlugin);
+        // The audio engine, before every plugin that plays a sound - the
+        // gameplay layer adds it when it is missing, so it is named here to
+        // keep the order a statement.
+        self.app.add_plugins(nova_sound::NovaSoundPlugin);
         self.app.add_plugins(NovaGameplayPlugin {
             render: self.render,
         });
@@ -663,7 +669,7 @@ fn report_session_startup_scenario(id: &str) {
 /// child, the same route [`PROBE_ENV`] takes.
 ///
 /// One half of the outputs-off pair: this drops the renderer, and
-/// [`MUTE_ENV`](nova_gameplay::prelude::MUTE_ENV) (`NOVA_MUTE`) silences the
+/// [`MUTE_ENV`](nova_sound::prelude::MUTE_ENV) (`NOVA_MUTE`) silences the
 /// speakers. Each has a matching debug-only flag on the game binary -
 /// `--norender` and `--mute` - and each lives in the crate that owns the device
 /// it turns off.

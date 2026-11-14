@@ -23,6 +23,7 @@ use bevy::{ecs::system::SystemParam, prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{CreditChangeCauseType, EntityId, GeneratedBodyId};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
+use nova_sound::prelude::*;
 use nova_ui::{prelude::*, theme::UiColorType};
 
 use super::{card_actions, offer_cell, spawn_card_price, StationRuntime};

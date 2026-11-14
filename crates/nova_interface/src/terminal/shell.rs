@@ -6,13 +6,10 @@
 
 use bevy::{prelude::*, ui_widgets::Activate};
 use nova_command::prelude::*;
-use nova_gameplay::{
-    cheats::prelude::RunCheats,
-    prelude::{SoundBank, UiSfx, NOVA_OS_TICK_VOLUME},
-    PauseStates,
-};
+use nova_gameplay::{cheats::prelude::RunCheats, PauseStates};
 use nova_hud::prelude::HudInterfaceExempt;
 use nova_input::prelude::InputBindings;
+use nova_sound::prelude::{SoundBank, UiSfx, NOVA_OS_TICK_VOLUME};
 use nova_ui::{font::UiFont, screen::clamp_stored_scroll, theme, widget::ButtonCueMute};
 
 use super::{casing::*, components::*, content::*, sound::play_nova_os_cue, style::*};

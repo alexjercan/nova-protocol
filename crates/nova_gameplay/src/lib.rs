@@ -3,15 +3,16 @@
 //! `NovaGameplayPlugin` composes it and owns the top-level [`GameStates`] state
 //! machine and the physics, entropy and particle registrations its peers build
 //! on. The modules are `integrity` and `damage` (health, disable, destroy),
-//! `gravity` (gravity wells), `inventory` (the items a ship carries), `audio`
-//! (the SFX engine), `juice` (combat feedback) over the reusable trauma rig in
-//! `shake` and the burst in `impact_spark`, `objectives` (the mission
-//! objective list and its conveyance tags), `mesh` and `transform` (the mesh
+//! `gravity` (gravity wells), `inventory` (the items a ship carries),
+//! `button_cue` (the button voice over `nova_sound`), `juice` (combat
+//! feedback) over the reusable trauma rig in `shake` and the burst in
+//! `impact_spark`, `objectives` (the mission objective list and its
+//! conveyance tags), `mesh` and `transform` (the mesh
 //! toolkit and the rotation/orbit rigs), `markers` and `projectile_hooks` (the
 //! entity vocabulary the layers above tag with), `lifetime` and `cooldown`
 //! (transient entities and the countdowns that gate actions), `math`,
-//! `relations`, `beacon`, `asset_ref` and `settings` (volume + graphics
-//! presets), `transient_light` (the capped brief lights combat throws),
+//! `relations`, `beacon`, `asset_ref` and `settings` (graphics presets and
+//! the harness mute hand-over), `transient_light` (the capped brief lights combat throws),
 //! `soft_dot` (the round mask every glowing billboard is drawn through),
 //! `render_target` (the WebGL2-safe offscreen render-to-texture recipe every
 //! viewer above this crate is born through), `bounds` (how big a body
@@ -20,8 +21,7 @@
 //! reads and a world save carries), `jobs` (station job boards and the
 //! player's held jobs, saved beside the chart) and `hash` (the reproducible FNV-1a derivation every seeded look is
 //! drawn from). Nova owns all of it, engine layers included: health, damage and
-//! destruction (`integrity`), the transform rigs, the mesh toolkit and SFX
-//! playback were vendored in from the shared-helpers crate and are nova's to
+//! destruction (`integrity`), the transform rigs and the mesh toolkit were vendored in from the shared-helpers crate and are nova's to
 //! shape now.
 //!
 //! The ship itself - `sections`, `input`, `flight`, `camera`, `physics` and the
@@ -31,9 +31,9 @@
 use bevy::prelude::*;
 
 pub mod asset_ref;
-pub mod audio;
 pub mod beacon;
 pub mod bounds;
+pub mod button_cue;
 pub mod chart;
 pub mod cheats;
 pub mod civilization;
@@ -123,7 +123,7 @@ pub mod prelude {
     // boot the example INERT. The glob is gone with the dependency, but the
     // lesson outlives it: adding a name below is a decision.
     pub use super::{
-        asset_ref::prelude::*, audio::prelude::*, beacon::prelude::*, bounds::prelude::*,
+        asset_ref::prelude::*, beacon::prelude::*, bounds::prelude::*, button_cue::prelude::*,
         chart::prelude::*, cheats::prelude::*, civilization::prelude::*, clock::prelude::*,
         contact_model::prelude::*, cooldown::prelude::*, damage::prelude::*, freeze::prelude::*,
         goal::prelude::*, gravity::prelude::*, hash::prelude::*, impact_sound::prelude::*,

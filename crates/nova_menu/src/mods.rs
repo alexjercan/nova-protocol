@@ -10,8 +10,9 @@ use nova_assets::prelude::{
     DownloadedMods, EnabledMods, FetchPortalCatalog, InstallJobs, ModCatalog, ModInfo, ModMeta,
     PortalEntry, ReloadContent, RemoteCatalog, RemoteCatalogState,
 };
-use nova_gameplay::prelude::{play_menu_deny, play_menu_select, SoundBank, UiSfx};
+use nova_gameplay::prelude::{play_menu_deny, play_menu_select};
 use nova_mod_format::BASE_MOD_ID;
+use nova_sound::prelude::{SoundBank, UiSfx};
 use nova_ui::{
     theme,
     theme::UiColorType,

@@ -12,6 +12,7 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_sound::prelude::*;
 
 use super::{
     AMMO_DRY_VOLUME, DRY_FIRE_VOLUME, LOCK_OFF_VOLUME, LOCK_ON_VOLUME, RADAR_DENY_VOLUME,

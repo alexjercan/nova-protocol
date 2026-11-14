@@ -7,6 +7,7 @@ use bevy::{asset::AssetPlugin, prelude::*, time::TimeUpdateStrategy};
 use nova_events::prelude::{EntityId, GeneratedBodyId, SectorCoord};
 use nova_gameplay::{prelude::*, test_support::test_items};
 use nova_ship::prelude::*;
+use nova_sound::prelude::*;
 
 use super::*;
 use crate::{

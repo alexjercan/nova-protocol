@@ -66,6 +66,7 @@ use nova_events::prelude::{
     CreditChangeCauseType, GeneratedBodyId, JobDropCauseType, Meters, SectorCoord,
 };
 use nova_gameplay::prelude::*;
+use nova_sound::prelude::*;
 use nova_ui::{
     prelude::*,
     theme::UiColorType,

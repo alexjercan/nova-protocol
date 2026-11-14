@@ -25,6 +25,7 @@ use nova_input::prelude::InputBindings;
 use nova_ship::prelude::{
     CargoIntakeEjectionQueue, CargoIntakeSectionMarker, DockedShip, DockingConnection,
 };
+use nova_sound::prelude::*;
 use nova_ui::{
     screen::{drive_wheel_scroll, EllipsisText},
     theme::UiColorType,

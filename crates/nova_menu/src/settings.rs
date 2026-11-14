@@ -20,6 +20,7 @@ use nova_ship::prelude::{
     SpaceshipMiningInputBinding, SpaceshipRailgunInputBinding, SpaceshipThrusterInputBinding,
     SpaceshipTorpedoInputBinding, SpaceshipTurretInputBinding,
 };
+use nova_sound::prelude::*;
 use nova_ui::{
     theme::{GameUiThemes, SelectedUiTheme, UiColorType, UiThemeDiagnostic},
     widget::{

@@ -12,6 +12,7 @@ use nova_command::prelude::*;
 use nova_gameplay::prelude::*;
 use nova_input::prelude::*;
 use nova_menu::prelude::WindowModeSetting;
+use nova_sound::prelude::*;
 
 const CLASS: CommandClass = CommandClass::Setting;
 

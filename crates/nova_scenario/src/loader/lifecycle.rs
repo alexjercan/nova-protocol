@@ -10,6 +10,7 @@ use nova_gameplay::prelude::*;
 use nova_hud::prelude::*;
 use nova_input::prelude::*;
 use nova_ship::prelude::*;
+use nova_sound::prelude::*;
 
 use super::{scenario_is_live, ScenarioLoaded};
 use crate::prelude::*;

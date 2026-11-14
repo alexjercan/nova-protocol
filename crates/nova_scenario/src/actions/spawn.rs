@@ -945,7 +945,7 @@ mod tests {
     // thing through an `App`.
     use crate::test_support::drain_spawns as drain;
 
-    /// The one-frame origin bug the audio engine hears: `AudioSystems` places
+    /// The one-frame origin bug the audio engine hears: `SoundSystems` places
     /// its emitters in `PostUpdate` BEFORE `TransformSystems::Propagate` - so
     /// that no cue is ever heard at the wrong volume for a frame - which means
     /// a freshly spawned object's `GlobalTransform` has never been propagated

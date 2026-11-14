@@ -3,13 +3,13 @@
 //!
 //! # The rule
 //!
-//! ALL audio goes through this module. Nothing else in the game may build a
+//! ALL audio goes through this crate. Nothing else in the game may build a
 //! bevy `AudioPlayer` - a voice spawned outside the engine is unrouted,
 //! unattenuated, unpannable and deaf to every setting. The rule is enforced,
 //! not just written down: `voice`'s
-//! `the_engine_is_the_only_place_an_audio_player_is_built` reads the crates'
-//! sources and fails on a second constructor. To make a sound, spawn an
-//! [`SfxVoice`] (a loop) or trigger a [`PlaySfx`] (a one-shot).
+//! `the_engine_is_the_only_place_an_audio_player_is_built` reads the
+//! workspace's sources and fails on a constructor outside this crate. To make a
+//! sound, spawn an [`SfxVoice`] (a loop) or trigger a [`PlaySfx`] (a one-shot).
 //!
 //! # The buses
 //!
@@ -26,8 +26,8 @@
 //! ```
 //!
 //! "What scales this cue?" has exactly one answer: its bus volume, times
-//! [`MasterVolume`](crate::settings::MasterVolume). The old `SfxMasterVolume`
-//! is gone - it was a second master with no way to tell the two apart.
+//! [`MasterVolume`]. The old `SfxMasterVolume` is gone - it was a second master
+//! with no way to tell the two apart.
 //!
 //! # Hull and Exterior
 //!
@@ -47,53 +47,58 @@
 //! if-statement. It is also the seam any later "no sound in vacuum" mode would
 //! gate on - which is deliberately NOT built here.
 //!
-//! # The submodules
+//! # The modules
 //!
-//! `bus` decides how loud a route may be, `mixing` owns the amplitude law (the
-//! listener, the tuned rolloff, the per-source throttle), `spatial` owns the
-//! stereo placement, `voice` owns playback, `sfx` is the one-shot front door
-//! and `registry` is the keyed handle bank. Nothing here knows what a ship is -
-//! the mapping from gameplay events to sounds is `nova_ship`'s `ship_audio`.
+//! `bus` decides how loud a route may be, `master` owns the master volume and
+//! the harness mute, `mixing` owns the amplitude law (the listener, the tuned
+//! rolloff, the per-source throttle), `spatial` owns the stereo placement,
+//! `voice` owns playback, `sfx` is the one-shot front door and `registry` is the
+//! keyed handle bank. Nothing here knows what a ship is - the mapping from
+//! gameplay events to sounds is `nova_ship`'s `ship_audio`.
 //!
-//! This stays a MODULE rather than a `nova_sound` crate. It is already
-//! self-contained behind its prelude and depends on nothing but bevy and
-//! `crate::settings`; lifting it out would buy no capability and cost every
-//! import in the game.
+//! A crate of its own, below `nova_gameplay`, so a crate that makes a sound
+//! does not have to reach gameplay to do it. It depends on bevy
+//! alone. Game state reaches it through one hook: the world freeze. The
+//! engine does not know the game's states; `nova_gameplay` runs
+//! [`pause_world_voices`] and [`resume_world_voices`] on its frozen overlays
+//! and [`stop_world_voices`] when gameplay ends, and the freeze they set is
+//! [`SoundFreeze`].
 //!
 //! Everything degrades gracefully: a rig missing the mixer resources or the
 //! listener plays at full volume rather than panicking or going silent. The
 //! [`SoundBank<UiSfx>`] resource is inserted by `nova_assets` once assets load.
 //! World sounds carry no bank at all - each cue resolves its target's authored
 //! `AssetRef` (authored-or-silent).
+#![warn(missing_docs)]
 
 use bevy::prelude::*;
 
 mod bus;
-mod button_cue;
+mod master;
 mod mixing;
 mod registry;
 mod sfx;
 mod spatial;
 mod voice;
 
-/// Glob-import surface: `use nova_gameplay::audio::prelude::*`.
+/// Glob-import surface: `use nova_sound::prelude::*`.
 ///
 /// The generic engine only. The ship's soundtrack is `nova_ship`'s
 /// `ship_audio`, and the mixing internals (`SfxThrottle`, `area_cell`,
 /// `distance_attenuation`, the pan math) stay off the boundary - they are the
-/// engine's own machinery, re-exported at module root for the tests that pin
+/// engine's own machinery, re-exported at the crate root for the tests that pin
 /// them.
 ///
-/// The `NOVA_OS_*` cue volumes are on the boundary because every cue volume is
-/// defined here while the cues themselves fire from `nova_interface`.
+/// Every cue volume is on the boundary because every cue volume is defined here
+/// while the cues themselves fire from the crates above.
 pub mod prelude {
     pub use super::{
-        play_menu_back, play_menu_deny, play_menu_select, sounds_loaded, AudioBus, AudioRoute,
-        ButtonCuePlugin, ButtonCueSystems, InterfaceVolume, MusicVolume, NovaAudioPlugin, PlaySfx,
-        SfxAudioMarker, SfxCommandsExt, SfxListenerMarker, SfxPlugin, SfxSource, SfxVoice,
-        SoundBank, UiSfx, VoiceMix, WorldVolume, EDITOR_DENY_VOLUME, EDITOR_PLACE_VOLUME,
-        EDITOR_REMOVE_VOLUME, EDITOR_ROTATE_VOLUME, MENU_BACK_VOLUME, MENU_FOCUS_VOLUME,
-        MENU_SELECT_VOLUME, MINING_PULSE_VOLUME, MINING_REFUSAL_VOLUME, NOVA_OS_BACK_VOLUME,
+        sounds_loaded, AudioBus, AudioRoute, HarnessMute, InterfaceVolume, MasterVolume,
+        MusicVolume, NovaSoundPlugin, PlaySfx, SfxAudioMarker, SfxCommandsExt, SfxListenerMarker,
+        SfxPlugin, SfxSource, SfxVoice, SoundBank, SoundFreeze, SoundSystems, UiSfx, VoiceMix,
+        WorldVolume, EDITOR_DENY_VOLUME, EDITOR_PLACE_VOLUME, EDITOR_REMOVE_VOLUME,
+        EDITOR_ROTATE_VOLUME, MENU_BACK_VOLUME, MENU_FOCUS_VOLUME, MENU_SELECT_VOLUME,
+        MINING_PULSE_VOLUME, MINING_REFUSAL_VOLUME, MUTE_ENV, NOVA_OS_BACK_VOLUME,
         NOVA_OS_BED_VOLUME, NOVA_OS_COIL_VOLUME, NOVA_OS_ENTER_VOLUME, NOVA_OS_ERROR_VOLUME,
         NOVA_OS_KEY_MIN_INTERVAL, NOVA_OS_KEY_VOLUME, NOVA_OS_OK_VOLUME, NOVA_OS_POWER_VOLUME,
         NOVA_OS_TICK_VOLUME, OBJECTIVE_FAIL_VOLUME, SALVAGE_PICKUP_VOLUME, UI_SFX_FILES,
@@ -103,13 +108,11 @@ pub mod prelude {
 
 pub use self::{
     bus::{bus_gain, AudioBus, AudioRoute, InterfaceVolume, Mixer, MusicVolume, WorldVolume},
-    button_cue::{
-        play_menu_back, play_menu_deny, play_menu_select, ButtonCuePlugin, ButtonCueSystems,
-    },
+    master::{HarnessMute, MasterVolume, MUTE_ENV},
     mixing::{
-        area_cell, body_middle, cue_body, cue_group, distance_attenuation, listener_position,
-        CueGroup, CueThrottle, SfxListenerMarker, SfxThrottle, ThrottleKey, SFX_AREA_CELL,
-        SFX_AUDIBLE_THRESHOLD, SFX_FAR_DISTANCE, SFX_NEAR_DISTANCE,
+        area_cell, cue_group, distance_attenuation, listener_position, CueGroup, CueThrottle,
+        SfxListenerMarker, SfxThrottle, ThrottleKey, SFX_AREA_CELL, SFX_AUDIBLE_THRESHOLD,
+        SFX_FAR_DISTANCE, SFX_NEAR_DISTANCE,
     },
     registry::{sounds_loaded, SoundBank},
     sfx::{PlaySfx, SfxAudioMarker, SfxCommandsExt, SfxPlugin},
@@ -117,14 +120,15 @@ pub use self::{
         emitter_point, listener_ears, local_bearing, pan_compensation, pan_gains, SPATIAL_EAR_GAP,
         SPATIAL_EMITTER_RADIUS,
     },
-    voice::{SfxSource, SfxVoice, VoiceMix, MAX_EXTERIOR_LOOP_VOICES},
+    voice::{
+        pause_world_voices, resume_world_voices, stop_world_voices, SfxSource, SfxVoice,
+        SoundFreeze, VoiceMix, MAX_EXTERIOR_LOOP_VOICES,
+    },
 };
 use self::{
+    master::{apply_master_volume, report_harness_mute},
     mixing::prune_sfx_throttle,
-    voice::{
-        drive_sfx_voices, on_add_listener, pause_world_voices, resume_world_voices,
-        retire_unplayable_one_shots, start_sfx_voices, stop_world_voices,
-    },
+    voice::{drive_sfx_voices, on_add_listener, retire_unplayable_one_shots, start_sfx_voices},
 };
 
 /// Keys for the game's UI/interface sound effects - engine chrome, like
@@ -139,7 +143,8 @@ pub enum UiSfx {
     /// An objective was completed (non-positional).
     ObjectiveComplete,
     /// A button was pressed - a crisp UI click, from any screen. Fired by
-    /// [`ButtonCuePlugin`]'s global `On<Activate>` observer.
+    /// `nova_gameplay`'s `ButtonCuePlugin`, from its global `On<Activate>`
+    /// observer.
     MenuSelect,
     /// A button that POPS a panel was pressed - `menu_select` inverted, so
     /// going in and coming back out are audibly a direction rather than two
@@ -286,7 +291,7 @@ pub const EDITOR_DENY_VOLUME: f32 = 0.32;
 /// informational-tick band. Typing is the quietest and is throttled
 /// ([`NOVA_OS_KEY_MIN_INTERVAL`]) so a held key cannot machine-gun; the coil
 /// and power sweeps are the loudest "moment" cues. `pub` because the cues are
-/// fired from `nova_interface`, keeping every cue volume defined in this module.
+/// fired from `nova_interface`, keeping every cue volume defined in this crate.
 /// One keystroke.
 pub const NOVA_OS_KEY_VOLUME: f32 = 0.10;
 /// Backspace / delete.
@@ -304,7 +309,7 @@ pub const NOVA_OS_COIL_VOLUME: f32 = 0.26;
 /// The power-up / power-down sweep.
 pub const NOVA_OS_POWER_VOLUME: f32 = 0.30;
 /// Base volume of the ambient bed loop, before
-/// [`MasterVolume`](crate::settings::MasterVolume). The bed WAV is
+/// [`MasterVolume`]. The bed WAV is
 /// authored quiet (~-35 dBFS), so this sits it as a soft under-hum.
 pub const NOVA_OS_BED_VOLUME: f32 = 0.7;
 /// Minimum real seconds between successive typing clicks, so OS key-repeat on a
@@ -316,9 +321,12 @@ pub const NOVA_OS_KEY_MIN_INTERVAL: f32 = 0.03;
 /// sound in the game goes through.
 ///
 /// The cues themselves are added by their own subsystems - the ship's by
-/// `nova_ship`'s `ShipAudioPlugin`, the terminal's by `nova_interface`.
+/// `nova_ship`'s `ShipAudioPlugin`, the terminal's by `nova_interface`, the
+/// button voice by `nova_gameplay`'s `ButtonCuePlugin`. Build it before any of
+/// them: `AppBuilder` adds it after the assets and before gameplay, and
+/// `NovaGameplayPlugin` adds it when an app has not.
 #[derive(Default)]
-pub struct NovaAudioPlugin;
+pub struct NovaSoundPlugin;
 
 /// The engine's per-frame mixing pass.
 ///
@@ -329,24 +337,28 @@ pub struct NovaAudioPlugin;
 /// thruster and RCS passes, the terminal's bed) writes it in `Update`, upstream
 /// of this.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct AudioSystems;
+pub struct SoundSystems;
 
-impl Plugin for NovaAudioPlugin {
+impl Plugin for NovaSoundPlugin {
     fn build(&self, app: &mut App) {
-        trace!("NovaAudioPlugin: build");
+        trace!("NovaSoundPlugin: build");
 
         // One-shot cues (PlaySfx -> SfxVoice).
         if !app.is_plugin_added::<SfxPlugin>() {
             app.add_plugins(SfxPlugin);
         }
-        if !app.is_plugin_added::<ButtonCuePlugin>() {
-            app.add_plugins(ButtonCuePlugin);
-        }
 
+        app.init_resource::<MasterVolume>();
+        // Unmuted until the app says otherwise: `nova_gameplay`'s settings
+        // plugin resolves the harness mute from the environment, and the game
+        // binary's `--mute` inserts it after that.
+        app.init_resource::<HarnessMute>();
         app.init_resource::<InterfaceVolume>();
         app.init_resource::<WorldVolume>();
         app.init_resource::<MusicVolume>();
         app.init_resource::<SfxThrottle>();
+        app.init_resource::<SoundFreeze>();
+        app.register_type::<MasterVolume>();
         app.register_type::<InterfaceVolume>();
         app.register_type::<WorldVolume>();
         app.register_type::<MusicVolume>();
@@ -356,7 +368,7 @@ impl Plugin for NovaAudioPlugin {
 
         app.configure_sets(
             PostUpdate,
-            AudioSystems.before(bevy::transform::TransformSystems::Propagate),
+            SoundSystems.before(bevy::transform::TransformSystems::Propagate),
         );
         app.add_systems(
             PostUpdate,
@@ -366,23 +378,23 @@ impl Plugin for NovaAudioPlugin {
                 drive_sfx_voices,
             )
                 .chain()
-                .in_set(AudioSystems),
+                .in_set(SoundSystems),
         );
 
-        // Audio sinks do not follow `Time<Virtual>`: without this a loop keeps
-        // roaring at its last volume behind a frozen sim. Every frozen overlay
-        // needs it - the pause overlay, the TAB interface, the command modal
-        // and the debug window.
-        for frozen in [
-            crate::PauseStates::Paused,
-            crate::PauseStates::Interface,
-            crate::PauseStates::Commands,
-            crate::PauseStates::Debug,
-        ] {
-            app.add_systems(OnEnter(frozen), pause_world_voices);
-            app.add_systems(OnExit(frozen), resume_world_voices);
-        }
-        app.add_systems(OnExit(crate::GameStates::Playing), stop_world_voices);
+        // `PostStartup` and not `Startup`: the persisted master volume is
+        // loaded by one of `nova_menu`'s own `Startup` systems, and two
+        // systems in the same schedule have no order between them. Then on
+        // change, for as long as the run lasts; `resource_changed` is true on
+        // the first frame too, so the two passes agree.
+        app.add_systems(PostStartup, apply_master_volume);
+        app.add_systems(
+            Update,
+            apply_master_volume.run_if(resource_changed::<MasterVolume>),
+        );
+        // Startup, not build: the game binary's `--mute` inserts the resource
+        // AFTER this plugin, so only a system can read the value the run
+        // actually uses.
+        app.add_systems(Startup, report_harness_mute);
 
         // Pure map cleanup; harmless to run always and keeps memory bounded.
         app.add_systems(Update, prune_sfx_throttle);

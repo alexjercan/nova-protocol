@@ -13,6 +13,7 @@
 use bevy::{audio::AudioSource, prelude::*};
 use nova_events::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_sound::prelude::*;
 
 use crate::prelude::*;
 

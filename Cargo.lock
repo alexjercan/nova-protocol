@@ -4834,6 +4834,7 @@ dependencies = [
  "nova_probe",
  "nova_probe_cli",
  "nova_scenario",
+ "nova_sound",
  "nova_training",
  "nova_ui",
  "nova_wfc",
@@ -4858,6 +4859,7 @@ dependencies = [
  "nova_modding",
  "nova_scenario",
  "nova_ship",
+ "nova_sound",
  "nova_training",
  "nova_ui",
  "ron",
@@ -4956,6 +4958,7 @@ dependencies = [
  "nova_menu",
  "nova_scenario",
  "nova_ship",
+ "nova_sound",
 ]
 
 [[package]]
@@ -4978,6 +4981,7 @@ dependencies = [
  "nova_menu",
  "nova_scenario",
  "nova_ship",
+ "nova_sound",
  "nova_training",
  "nova_ui",
  "nova_world",
@@ -5007,6 +5011,7 @@ dependencies = [
  "nova_menu",
  "nova_scenario",
  "nova_ship",
+ "nova_sound",
  "nova_ui",
  "nova_world",
 ]
@@ -5028,6 +5033,7 @@ dependencies = [
  "nova_modding",
  "nova_scenario",
  "nova_ship",
+ "nova_sound",
  "nova_training",
  "nova_ui",
  "nova_wfc",
@@ -5068,6 +5074,7 @@ dependencies = [
  "bevy_transform_interpolation",
  "noise",
  "nova_events",
+ "nova_sound",
  "nova_ui",
  "rand 0.10.2",
  "ron",
@@ -5084,6 +5091,7 @@ dependencies = [
  "nova_gameplay",
  "nova_input",
  "nova_ship",
+ "nova_sound",
  "nova_ui",
 ]
 
@@ -5114,6 +5122,7 @@ dependencies = [
  "nova_input",
  "nova_scenario",
  "nova_ship",
+ "nova_sound",
  "nova_ui",
  "nova_world",
  "nova_world_base",
@@ -5139,6 +5148,7 @@ dependencies = [
  "nova_mod_format",
  "nova_scenario",
  "nova_ship",
+ "nova_sound",
  "nova_training",
  "nova_ui",
  "nova_world_base",
@@ -5239,6 +5249,7 @@ dependencies = [
  "nova_input",
  "nova_scenario",
  "nova_ship",
+ "nova_sound",
  "rand 0.10.2",
  "ron",
  "serde",
@@ -5258,9 +5269,18 @@ dependencies = [
  "nova_events",
  "nova_gameplay",
  "nova_input",
+ "nova_sound",
  "nova_ui",
  "rand 0.10.2",
  "ron",
+ "serde",
+]
+
+[[package]]
+name = "nova_sound"
+version = "0.17.0"
+dependencies = [
+ "bevy",
  "serde",
 ]
 

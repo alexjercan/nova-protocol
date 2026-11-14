@@ -13,9 +13,9 @@ use bevy::{
     render::render_resource::{TextureViewDescriptor, TextureViewDimension},
 };
 use bevy_asset_loader::prelude::*;
-use nova_gameplay::prelude::*;
 use nova_hud::prelude::*;
 use nova_modding::prelude::InstalledCatalog;
+use nova_sound::prelude::*;
 use nova_ui::font::UiFont;
 
 /// The boot collection: the handful of assets the boot loading screen needs to
@@ -37,7 +37,7 @@ pub(crate) fn fill_ui_font(mut commands: Commands, boot: Res<BootAssets>) {
 
 /// The canonical UI-SFX asset paths held by the `GameAssets::ui_sfx` mapped
 /// collection - the single distinct file per entry in
-/// [`nova_gameplay::audio::UI_SFX_FILES`]. The collection's
+/// [`nova_sound::UI_SFX_FILES`]. The collection's
 /// `#[asset(paths(...))]` list MUST mirror this (kept adjacent so they move
 /// together); `ui_sfx_collection_matches_ui_sfx_files`
 /// pins that this set covers exactly the files `UI_SFX_FILES` references, and
@@ -227,7 +227,7 @@ pub struct GameAssets {
     /// part of this collection so the WAVs are ready before `Processing`; the
     /// `SoundBank<UiSfx>` built in `register_sounds` references these same
     /// already-loaded assets (the AssetServer dedups by path). The explicit
-    /// `paths(...)` list is kept in sync with `nova_gameplay::audio::UI_SFX_FILES`
+    /// `paths(...)` list is kept in sync with `nova_sound::UI_SFX_FILES`
     /// by `ui_sfx_collection_matches_ui_sfx_files`; a folder collection is not
     /// used because folder collections do not work on wasm.
     #[asset(
@@ -560,7 +560,7 @@ mod tests {
     /// files the UI `SoundBank<UiSfx>` plays: its path list
     /// ([`UI_SFX_COLLECTION_PATHS`], mirrored into the `#[asset(paths(...))]`
     /// attribute) must equal the distinct files
-    /// [`nova_gameplay::audio::UI_SFX_FILES`] references, and each must exist on
+    /// [`nova_sound::UI_SFX_FILES`] references, and each must exist on
     /// disk. A sound added to `UI_SFX_FILES` without a matching collection path
     /// would load lazily (ungated) again; this pins them together.
     #[test]

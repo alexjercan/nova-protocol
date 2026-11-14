@@ -136,6 +136,7 @@ mod tests {
     };
     use bevy_hanabi::prelude::*;
     use nova_gameplay::{prelude::*, test_log::CapturedLog};
+    use nova_sound::prelude::PlaySfx;
 
     use super::*;
     use crate::{

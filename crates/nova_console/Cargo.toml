@@ -10,6 +10,7 @@ description = "The Command shell's dispatcher: the executor behind the CRT promp
 bevy = { version = "0.20.1" }
 nova_events = { path = "../nova_events" }
 nova_gameplay = { path = "../nova_gameplay" }
+nova_sound = { path = "../nova_sound" }
 nova_input = { path = "../nova_input" }
 nova_menu = { path = "../nova_menu" }
 nova_command = { path = "../nova_command" }

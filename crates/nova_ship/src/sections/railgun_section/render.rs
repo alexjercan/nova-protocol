@@ -11,6 +11,7 @@
 //! reads in the content file.
 
 use nova_gameplay::transient_light::prelude::LightFlash;
+use nova_sound::prelude::*;
 
 use super::*;
 use crate::sections::{nose_cone_mesh, turret_section::RoundTracer};

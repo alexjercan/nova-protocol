@@ -10,6 +10,7 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_input::prelude::{BindingSpec, InputBindings, InputDeviceType, InputSource};
 use nova_scenario::prelude::*;
+use nova_sound::prelude::*;
 use nova_ui::theme::ActiveUiTheme;
 
 use super::support::{

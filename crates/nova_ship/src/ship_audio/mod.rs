@@ -1,5 +1,5 @@
 //! The ship's soundtrack: the mapping from Nova gameplay events to sounds,
-//! played through the generic engine in [`nova_gameplay::audio`].
+//! played through the generic engine in [`nova_sound`].
 //!
 //! The one-shots are fired from existing seams via observers, so no gameplay
 //! system has to know about audio:
@@ -193,7 +193,7 @@ const MINING_DOOR_CLOSE_VOLUME: f32 = 0.14;
 
 /// A canister leaving the intake: at the heavier door edge, since the push
 /// and the door are one piece of machinery. The take plays at
-/// [`nova_gameplay::audio::SALVAGE_PICKUP_VOLUME`].
+/// [`nova_sound::SALVAGE_PICKUP_VOLUME`].
 const CARGO_EJECT_VOLUME: f32 = 0.20;
 
 /// The docking clamp closing and letting go. The heaviest latch on the hull,
@@ -272,7 +272,7 @@ const DOCK_MIN_INTERVAL: f32 = 0.15;
 /// turret off this frame's trigger and magazine, the hull alarm off this
 /// frame's health, and the closing tone off this frame's
 /// `PlayerTorpedoEta` - so the set answers the tick the sections just took
-/// rather than the one before it. The engine's own `AudioSystems`
+/// rather than the one before it. The engine's own `SoundSystems`
 /// mixing pass is in `PostUpdate`, so every voice raised here is placed and
 /// levelled before a sink opens for it.
 ///
@@ -285,7 +285,7 @@ pub struct ShipAudioSystems;
 
 /// Plugin wiring the ship's gameplay events to sound effects: the combat
 /// observers, the cockpit cues, and the thruster/RCS loops. Requires the
-/// engine ([`nova_gameplay::audio::NovaAudioPlugin`]), which it adds if absent.
+/// engine ([`nova_sound::NovaSoundPlugin`]), which it adds if absent.
 #[derive(Default)]
 pub struct ShipAudioPlugin;
 
@@ -293,8 +293,8 @@ impl Plugin for ShipAudioPlugin {
     fn build(&self, app: &mut App) {
         trace!("ShipAudioPlugin: build");
 
-        if !app.is_plugin_added::<nova_gameplay::audio::NovaAudioPlugin>() {
-            app.add_plugins(nova_gameplay::audio::NovaAudioPlugin);
+        if !app.is_plugin_added::<nova_sound::NovaSoundPlugin>() {
+            app.add_plugins(nova_sound::NovaSoundPlugin);
         }
 
         app.add_observer(on_destroyed_play_explosion);
@@ -349,7 +349,7 @@ impl Plugin for ShipAudioPlugin {
         // occur inside this same gated set.)
         //
         // Both write the loops' LEVELS in `Update`; the engine's
-        // `AudioSystems` pass reads them in `PostUpdate` and owns everything
+        // `SoundSystems` pass reads them in `PostUpdate` and owns everything
         // after - the rolloff, the pan, the master, the freeze behind a paused
         // sim and the teardown on scenario unload.
         app.add_systems(

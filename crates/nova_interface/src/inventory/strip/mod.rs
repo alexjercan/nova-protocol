@@ -45,6 +45,7 @@ use bevy::{ecs::system::SystemParam, prelude::*, ui::InteractionDisabled, ui_wid
 use nova_events::prelude::EntityId;
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
+use nova_sound::prelude::*;
 use nova_ui::{
     theme::UiColorType,
     widget::{

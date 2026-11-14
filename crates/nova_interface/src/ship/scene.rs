@@ -24,6 +24,7 @@ use nova_ship::prelude::{
     derive_link_point_graph, GameSections, HeldPart, MountPose, PlacedSectionCollider,
     PlacedSectionLinkPoints,
 };
+use nova_sound::prelude::*;
 use nova_ui::{
     theme::{ActiveUiTheme, UiColorType},
     widget::{

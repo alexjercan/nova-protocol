@@ -12,6 +12,7 @@ bevy = { version = "0.20.1" }
 bevy_enhanced_input = { version = "0.27.2" }
 nova_input = { path = "../nova_input" }
 nova_gameplay = { path = "../nova_gameplay" }
+nova_sound = { path = "../nova_sound" }
 nova_ship = { path = "../nova_ship" }
 nova_world = { path = "../nova_world" }
 nova_world_base = { path = "../nova_world_base" }

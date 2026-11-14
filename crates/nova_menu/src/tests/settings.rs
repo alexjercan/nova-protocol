@@ -10,6 +10,7 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::{
     ActionBinding, InputBindings, InputSource, MousePath, MouseSensitivity, MouseSensitivityRange,
 };
+use nova_sound::prelude::*;
 use nova_ui::{
     theme::{
         base::base_ui_themes, ActiveUiTheme, SelectedUiTheme, HARDWARE_THEME_ID, PHOSPHOR_THEME_ID,

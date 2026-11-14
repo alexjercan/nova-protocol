@@ -11,8 +11,9 @@
 //! what is running beside it.
 
 use bevy::prelude::*;
-use nova_gameplay::prelude::{GraphicsBudget, GraphicsQuality, MasterVolume};
+use nova_gameplay::prelude::{GraphicsBudget, GraphicsQuality};
 use nova_input::prelude::{MousePath, MouseSensitivity};
+use nova_sound::prelude::MasterVolume;
 
 use crate::{
     settings_store::{

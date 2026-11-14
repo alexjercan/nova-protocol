@@ -25,6 +25,7 @@ use nova_events::prelude::{CreditChangeCauseType, EntityId};
 use nova_gameplay::prelude::*;
 use nova_input::prelude::InputSource;
 use nova_ship::prelude::*;
+use nova_sound::prelude::*;
 
 use super::{
     rebuild::{payment_refusal_text, rebuild_price_text, ResolvedSite, StationSite},

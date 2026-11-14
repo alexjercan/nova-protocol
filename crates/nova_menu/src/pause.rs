@@ -19,6 +19,7 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_interface::prelude::{NovaOsCloseTransition, ShipRuntime};
 use nova_scenario::prelude::*;
+use nova_sound::prelude::*;
 use nova_ui::{
     input_mode::prelude::InputMode,
     prelude::{window_root, PAUSE_SETTINGS_Z, PAUSE_Z},

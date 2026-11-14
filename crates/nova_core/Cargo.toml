@@ -18,6 +18,8 @@ nova_editor = { path = "../nova_editor" }
 nova_gameplay = { path = "../nova_gameplay" }
 nova_input = { path = "../nova_input" }
 nova_ship = { path = "../nova_ship" }
+# The audio engine. `AppBuilder` adds it ahead of gameplay.
+nova_sound = { path = "../nova_sound" }
 nova_hud = { path = "../nova_hud" }
 nova_info = { path = "../nova_info" }
 nova_menu = { path = "../nova_menu" }

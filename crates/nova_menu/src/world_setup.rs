@@ -33,6 +33,7 @@ use nova_scenario::prelude::{
 use nova_ship::prelude::{
     DesignSection, GameSections, GameStyles, SectionConfig, SectionKind, ShipStyle,
 };
+use nova_sound::prelude::*;
 use nova_ui::{
     prelude::REPORT_Z,
     screen::{scroll_bar, scroll_column, scroll_row, scroll_viewport},

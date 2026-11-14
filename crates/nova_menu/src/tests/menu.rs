@@ -9,6 +9,7 @@ use bevy::{
 use nova_gameplay::prelude::*;
 use nova_hud::prelude::HudVisibility;
 use nova_scenario::prelude::*;
+use nova_sound::prelude::*;
 use nova_ui::widget::ButtonVariant;
 
 #[cfg(not(target_arch = "wasm32"))]

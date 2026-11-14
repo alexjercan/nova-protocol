@@ -24,7 +24,7 @@ use nova_assets::{
 };
 use nova_autopilot::prelude::*;
 use nova_bench::prelude::{PI_ENV, SOCKET_ENV};
-use nova_gameplay::prelude::{HARNESS_ENVS, MUTE_ENV, SEED_ENV};
+use nova_gameplay::prelude::{HARNESS_ENVS, SEED_ENV};
 use nova_menu::prelude::MENU_BACKDROP_ENV;
 use nova_probe::{
     probe_env, CONTRACT_PARAM, FRAMES_PARAM, INVARIANTS_PARAM, LABEL_PARAM, NORENDER_ENV,
@@ -32,6 +32,7 @@ use nova_probe::{
     STEPDIAG_BODIES_PARAM, STEPDIAG_PARAM, TIMELINE_PARAM, WARMUP_PARAM,
 };
 use nova_scenario::prelude::CAPTURE_DIR_ENV;
+use nova_sound::prelude::MUTE_ENV;
 
 /// The harness: what drives a run and where its pictures go. Owned by
 /// `nova_autopilot`.

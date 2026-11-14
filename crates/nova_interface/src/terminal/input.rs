@@ -17,15 +17,13 @@ use bevy::{
     prelude::*,
 };
 use nova_command::prelude::*;
-use nova_gameplay::{
-    audio::prelude::{
-        SoundBank, UiSfx, NOVA_OS_BACK_VOLUME, NOVA_OS_ENTER_VOLUME, NOVA_OS_ERROR_VOLUME,
-        NOVA_OS_KEY_MIN_INTERVAL, NOVA_OS_KEY_VOLUME, NOVA_OS_OK_VOLUME, NOVA_OS_TICK_VOLUME,
-    },
-    PauseStates,
-};
+use nova_gameplay::PauseStates;
 use nova_input::prelude::*;
 use nova_ship::prelude::HeldPart;
+use nova_sound::prelude::{
+    SoundBank, UiSfx, NOVA_OS_BACK_VOLUME, NOVA_OS_ENTER_VOLUME, NOVA_OS_ERROR_VOLUME,
+    NOVA_OS_KEY_MIN_INTERVAL, NOVA_OS_KEY_VOLUME, NOVA_OS_OK_VOLUME, NOVA_OS_TICK_VOLUME,
+};
 use nova_ui::{
     input_mode::prelude::InputMode,
     screen::{drive_wheel_scroll, max_scroll_y, page_step},

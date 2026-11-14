@@ -11,7 +11,7 @@
 //! Touch this module when adding a sound the monitor makes.
 
 use bevy::prelude::*;
-use nova_gameplay::audio::prelude::{
+use nova_sound::prelude::{
     AudioRoute, SfxCommandsExt, SfxVoice, SoundBank, UiSfx, NOVA_OS_BED_VOLUME,
     NOVA_OS_POWER_VOLUME,
 };

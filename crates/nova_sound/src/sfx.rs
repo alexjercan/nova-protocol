@@ -11,7 +11,7 @@
 //!
 //! ```rust
 //! # use bevy::prelude::*;
-//! # use nova_gameplay::prelude::*;
+//! # use nova_sound::prelude::*;
 //! # fn demo(mut commands: Commands, click: Handle<AudioSource>, blast: Handle<AudioSource>) {
 //! // UI chrome: no position, no rolloff, no pan.
 //! commands.play_sfx(click, AudioRoute::Interface, 0.3);
@@ -133,7 +133,7 @@ impl SfxCommandsExt for Commands<'_, '_> {
 
 /// Plugin that enables fire-and-forget one-shots via [`PlaySfx`].
 ///
-/// Playback itself belongs to [`NovaAudioPlugin`](super::NovaAudioPlugin),
+/// Playback itself belongs to [`NovaSoundPlugin`](super::NovaSoundPlugin),
 /// which adds this one; on its own this only turns triggers into voices.
 #[derive(Default)]
 pub struct SfxPlugin;

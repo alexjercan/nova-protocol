@@ -69,6 +69,7 @@ use nova_events::prelude::{
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
+use nova_sound::prelude::*;
 
 use crate::{
     loader::prelude::ScenarioScopedMarker,

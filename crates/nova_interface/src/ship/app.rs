@@ -20,6 +20,7 @@ use bevy::{
 };
 use nova_command::prelude::TerminalRowKind;
 use nova_gameplay::prelude::*;
+use nova_sound::prelude::*;
 use nova_ui::{
     screen::drive_wheel_scroll,
     theme::UiColorType,

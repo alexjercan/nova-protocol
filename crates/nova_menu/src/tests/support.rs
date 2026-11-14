@@ -17,6 +17,7 @@ use nova_gameplay::prelude::*;
 use nova_input::prelude::RegisterInputActions;
 use nova_scenario::prelude::*;
 use nova_ship::prelude::{camera_bindings, flight_bindings};
+use nova_sound::prelude::*;
 use nova_training::prelude::{Lesson, TrainingCatalog};
 use nova_ui::theme::{base::base_ui_themes, GameUiThemes};
 

@@ -13,6 +13,7 @@ use std::collections::HashMap;
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_sound::prelude::*;
 
 use super::{
     levels::{engine_volume, rcs_exterior_volume, rcs_volume},
@@ -740,7 +741,7 @@ mod tests {
     #[test]
     fn another_ships_light_rcs_push_is_heard_at_escort_range() {
         let mut app = loop_app();
-        app.add_plugins(NovaAudioPlugin);
+        app.add_plugins(NovaSoundPlugin);
         app.world_mut()
             .spawn((SfxListenerMarker, GlobalTransform::IDENTITY));
         let ship = spawn_rcs_ship_at(&mut app, Vec3::X * ESCORT_RANGE, 0.25);

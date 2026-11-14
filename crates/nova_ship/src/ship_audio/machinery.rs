@@ -12,10 +12,8 @@
 //! or not at all.
 
 use bevy::prelude::*;
-use nova_gameplay::{
-    audio::{SfxThrottle, ThrottleKey},
-    prelude::*,
-};
+use nova_gameplay::prelude::*;
+use nova_sound::{prelude::*, SfxThrottle, ThrottleKey};
 
 use super::{
     routing::{owning_root, route_for, route_from},

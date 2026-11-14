@@ -361,7 +361,7 @@ pub(super) fn retire_unplayable_one_shots(
 pub(super) fn drive_sfx_voices(
     mut commands: Commands,
     mixer: Mixer,
-    pause: Option<Res<State<crate::PauseStates>>>,
+    freeze: Option<Res<SoundFreeze>>,
     mut sounding: Local<HashSet<Entity>>,
     q_listener: Query<&GlobalTransform, (With<SfxListenerMarker>, Without<SfxVoice>)>,
     q_pose: Query<&GlobalTransform, Without<SfxVoice>>,
@@ -396,7 +396,7 @@ pub(super) fn drive_sfx_voices(
     // resuming one behind a pause overlay would be a loop playing through a
     // stopped world. The RANKING still runs, so the frame the overlay closes
     // resumes exactly the voices that should sound.
-    let frozen = pause.is_some_and(|state| state.is_frozen());
+    let frozen = freeze.is_some_and(|freeze| freeze.0);
     let master = mixer.master_gain();
 
     for (entity, voice, mut pose, sink, spatial_sink, voice_mix) in &mut q_voices {
@@ -502,6 +502,17 @@ fn resolve_point(
     }
 }
 
+/// Whether the sim is frozen, so every WORLD voice is held paused.
+///
+/// The engine's one hook into game state. The engine does not know the game's
+/// states: whoever freezes the world runs [`pause_world_voices`] on the way in
+/// and [`resume_world_voices`] on the way out (`nova_gameplay` does, on every
+/// frozen `PauseStates` variant), and those two set this. The per-frame pass
+/// reads it so the cap never resumes a voice behind the freeze and the capture
+/// hears world voices as [`VoiceMix::paused`].
+#[derive(Resource, Clone, Copy, Default, Debug, PartialEq, Eq)]
+pub struct SoundFreeze(pub bool);
+
 /// Freeze the WORLD voices while the sim is frozen (the pause overlay or the
 /// Tab ship computer). Audio sinks do not follow `Time<Virtual>`, so without
 /// this a loop keeps roaring at its last volume behind a stopped world.
@@ -509,9 +520,11 @@ fn resolve_point(
 /// Interface voices play THROUGH the freeze, by routing rather than by a guard:
 /// the interface is what the player is looking at while the world is stopped,
 /// and its own hum is not part of the world that stopped.
-pub(super) fn pause_world_voices(
+pub fn pause_world_voices(
+    mut freeze: ResMut<SoundFreeze>,
     q_voices: Query<(&SfxVoice, Option<&AudioSink>, Option<&SpatialAudioSink>)>,
 ) {
+    freeze.set_if_neq(SoundFreeze(true));
     for (voice, sink, spatial_sink) in &q_voices {
         if voice.route.bus() != super::bus::AudioBus::World {
             continue;
@@ -526,9 +539,11 @@ pub(super) fn pause_world_voices(
 }
 
 /// Unfreeze what [`pause_world_voices`] stopped.
-pub(super) fn resume_world_voices(
+pub fn resume_world_voices(
+    mut freeze: ResMut<SoundFreeze>,
     q_voices: Query<(&SfxVoice, Option<&AudioSink>, Option<&SpatialAudioSink>)>,
 ) {
+    freeze.set_if_neq(SoundFreeze(false));
     for (voice, sink, spatial_sink) in &q_voices {
         if voice.route.bus() != super::bus::AudioBus::World {
             continue;
@@ -549,7 +564,7 @@ pub(super) fn resume_world_voices(
 /// next becoming live the last engine hum would keep roaring at its final
 /// volume through the whole load. Interface voices are left alone: they belong
 /// to the UI that spawned them and are torn down with it.
-pub(super) fn stop_world_voices(mut commands: Commands, q_voices: Query<(Entity, &SfxVoice)>) {
+pub fn stop_world_voices(mut commands: Commands, q_voices: Query<(Entity, &SfxVoice)>) {
     for (entity, voice) in &q_voices {
         if voice.route.bus() == super::bus::AudioBus::World {
             // try_despawn: this runs on the way out of a scenario, which is
@@ -865,7 +880,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
-        app.insert_resource(State::new(crate::PauseStates::Interface));
+        app.insert_resource(SoundFreeze(true));
         app.add_systems(Update, (start_sfx_voices, drive_sfx_voices).chain());
         let hull = app
             .world_mut()
@@ -1009,15 +1024,35 @@ mod tests {
     /// sink, and the world voice the end of a scenario silences.
     ///
     /// Asserted on the LOG, not on a panic: `EntityCommands::despawn` bakes in
-    /// the WARN handler at queue time (see `nova_gameplay::test_log`), so a
+    /// the WARN handler at queue time, so a
     /// stale one is a warn line rather than a crash - and the probe's clean
     /// pass fails a run that logs it, which is the same reason
     /// `teardown_scenario_entities` reaches for `try_despawn`.
     #[test]
     fn a_voice_the_teardown_already_took_is_retired_without_a_stale_command() {
+        use std::sync::{Arc, Mutex};
+
         use bevy::log::tracing_subscriber::{self, util::SubscriberInitExt};
 
-        use crate::test_log::CapturedLog;
+        /// Cloneable in-memory log sink; every clone shares the same buffer.
+        #[derive(Clone, Default)]
+        struct CapturedLog(Arc<Mutex<Vec<u8>>>);
+
+        impl CapturedLog {
+            fn contents(&self) -> String {
+                String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
+            }
+        }
+
+        impl std::io::Write for CapturedLog {
+            fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(buf);
+                Ok(buf.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
 
         fn tear_down_every_voice(mut commands: Commands, q_voices: Query<Entity, With<SfxVoice>>) {
             for entity in &q_voices {
@@ -1133,7 +1168,7 @@ mod tests {
 
     /// The one file allowed to name bevy's playback component, as a path
     /// suffix so the check reads the same from any checkout.
-    const THE_ONE_PLACE: &str = "nova_gameplay/src/audio/voice.rs";
+    const THE_ONE_PLACE: &str = "nova_sound/src/voice.rs";
 
     /// Every hand-written Rust root in the workspace. `examples/` matters as
     /// much as `crates/`: a playable example that spawns its own player is the
@@ -1141,7 +1176,7 @@ mod tests {
     const SCANNED_ROOTS: [&str; 5] = ["crates", "examples", "src", "tests", "tools"];
 
     fn workspace_root() -> PathBuf {
-        // CARGO_MANIFEST_DIR is `<root>/crates/nova_gameplay`.
+        // CARGO_MANIFEST_DIR is `<root>/crates/nova_sound`.
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .ancestors()
             .nth(2)

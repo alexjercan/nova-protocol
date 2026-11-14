@@ -237,7 +237,7 @@ The monitor is a physical one - a NOVACRT 9000, per its brand plate - and its ch
 <!-- CRT composite + pointer forwarding: crates/nova_interface/src/terminal/crt.rs.
      Shader physics: assets/shaders/nova_os_crt.wesl (hum bar, mains flicker,
      retrace beam, power collapse, degauss). Casing detail: terminal/casing.rs.
-     Sounds: terminal/sound.rs, crates/nova_gameplay/src/audio/mod.rs. -->
+     Sounds: terminal/sound.rs, crates/nova_sound/src/lib.rs. -->
 
 The picture is a real tube, not a flat overlay: the terminal renders offscreen and is shown through one screen shader, so the green glyphs bloom into a phosphor halo, the image bows with barrel curvature under scanlines, grain and an edge vignette, a hum bar drifts, the mains flicker breathes, and a retrace beam sweeps by every few seconds. Your mouse works through all of it: clicks on the glass are mapped through the same curvature, so the control you see under the cursor is the one you hit.
 

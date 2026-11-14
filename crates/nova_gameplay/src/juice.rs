@@ -43,11 +43,9 @@
 
 use avian3d::prelude::{ComputedCenterOfMass, RigidBody};
 use bevy::prelude::*;
+use nova_sound::{cue_group, prelude::SfxListenerMarker, CueGroup, CueThrottle};
 
-use crate::{
-    audio::{body_middle, cue_body, cue_group, CueGroup, CueThrottle},
-    prelude::*,
-};
+use crate::prelude::*;
 
 /// The shake and spark settings, `JuiceSettings` and `NovaJuicePlugin`.
 pub mod prelude {
@@ -586,8 +584,9 @@ fn on_player_kill_juice(
 
 #[cfg(test)]
 mod tests {
+    use nova_sound::SFX_AREA_CELL;
+
     use super::*;
-    use crate::audio::SFX_AREA_CELL;
 
     #[test]
     fn throttle_blocks_one_key_until_the_interval_elapses() {
@@ -675,7 +674,7 @@ mod tests {
 
         let group = CueGroup::Cell(IVec3::ZERO);
         one_burst_then_silence(JuiceThrottleKey::Impact(group), "the kick");
-        one_burst_then_silence(crate::audio::ThrottleKey::Impact(group), "the bang");
+        one_burst_then_silence(nova_sound::ThrottleKey::Impact(group), "the bang");
     }
 
     #[test]

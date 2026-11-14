@@ -33,11 +33,9 @@ pub mod prelude {
 
 use bevy::prelude::*;
 use nova_command::prelude::*;
-use nova_gameplay::{
-    audio::prelude::{SoundBank, UiSfx, NOVA_OS_ERROR_VOLUME, NOVA_OS_OK_VOLUME},
-    prelude::{PauseStates, RunCheats},
-};
+use nova_gameplay::prelude::{PauseStates, RunCheats};
 use nova_interface::terminal::prelude::{play_nova_os_cue, CommandsSystems, NovaOsMonitorSettings};
+use nova_sound::prelude::{SoundBank, UiSfx, NOVA_OS_ERROR_VOLUME, NOVA_OS_OK_VOLUME};
 
 use crate::{completion::publish_live_values, surface::world_line};
 

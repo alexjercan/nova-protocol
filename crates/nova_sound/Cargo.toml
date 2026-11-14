@@ -1,0 +1,23 @@
+[package]
+name = "nova_sound"
+version = { workspace = true }
+edition = { workspace = true }
+license = { workspace = true }
+publish = false
+description = "The audio engine of the Nova Protocol game: buses, mixing and the one playback path"
+
+[dependencies]
+# `wav` enables bevy's WAV audio decoder so the shipped binary can play the
+# placeholder sound effects under `assets/base/sounds/*.wav`. It is a normal (not
+# dev-only) feature because the game itself decodes them at runtime; cargo
+# unifies it across the workspace, so this single declaration covers every crate
+# and example. Vorbis stays default-on, so `.ogg` swap-ins work with only a
+# path-extension change.
+bevy = { version = "0.20.1", features = ["wav"] }
+serde = { version = "1", features = ["derive"], optional = true }
+
+[lints]
+workspace = true
+
+[features]
+serde = ["dep:serde", "bevy/serialize"]

@@ -1,7 +1,7 @@
 //! The gameplay composition root: [`NovaGameplayPlugin`] adds every shared
-//! gameplay plugin (integrity, damage, gravity, relations, audio, juice,
-//! transform, lifetime, mesh, settings) plus the third-party plugins the whole
-//! game builds on (avian3d physics with [`ProjectileHooks`] collision hooks,
+//! gameplay plugin (integrity, damage, gravity, relations, the button voice,
+//! juice, transform, lifetime, mesh, settings) over the `nova_sound` engine,
+//! plus the third-party plugins the whole game builds on (avian3d physics with [`ProjectileHooks`] collision hooks,
 //! `bevy_hanabi` particles, and `bevy_rand` entropy). Every gameplay layer it
 //! composes is nova's own. It also declares the top-level [`SpaceshipSystems`]
 //! brackets; `nova_ship` chains its per-subsystem sets inside them.
@@ -130,7 +130,16 @@ impl Plugin for NovaGameplayPlugin {
         app.add_plugins(crate::gravity::NovaGravityPlugin);
         app.add_plugins(crate::relations::NovaRelationsPlugin);
         app.add_plugins(crate::rounds::NovaRoundPlugin);
-        app.add_plugins(crate::audio::NovaAudioPlugin);
+        // The audio engine builds before every plugin that plays a sound.
+        // `AppBuilder` adds it ahead of this plugin; an app that skips the
+        // builder (the examples, the test rigs) gets it here.
+        if !app.is_plugin_added::<nova_sound::NovaSoundPlugin>() {
+            app.add_plugins(nova_sound::NovaSoundPlugin);
+        }
+        if !app.is_plugin_added::<crate::button_cue::ButtonCuePlugin>() {
+            app.add_plugins(crate::button_cue::ButtonCuePlugin);
+        }
+        add_sound_freeze(app);
         app.add_plugins(crate::juice::NovaJuicePlugin);
         app.add_plugins(crate::transient_light::TransientLightPlugin);
         app.add_plugins(crate::settings::NovaSettingsPlugin);
@@ -139,6 +148,27 @@ impl Plugin for NovaGameplayPlugin {
             app.add_plugins(bevy::diagnostic::FrameTimeDiagnosticsPlugin::default());
         }
     }
+}
+
+/// The audio engine's freeze hook. Audio sinks do not follow `Time<Virtual>`:
+/// without this a loop keeps roaring at its last volume behind a frozen sim.
+/// Every frozen overlay needs it - the pause overlay, the TAB interface, the
+/// command modal and the debug window - and the end of `Playing` retires the
+/// world voices.
+fn add_sound_freeze(app: &mut App) {
+    for frozen in [
+        crate::PauseStates::Paused,
+        crate::PauseStates::Interface,
+        crate::PauseStates::Commands,
+        crate::PauseStates::Debug,
+    ] {
+        app.add_systems(OnEnter(frozen), nova_sound::pause_world_voices);
+        app.add_systems(OnExit(frozen), nova_sound::resume_world_voices);
+    }
+    app.add_systems(
+        OnExit(crate::GameStates::Playing),
+        nova_sound::stop_world_voices,
+    );
 }
 
 #[cfg(test)]
@@ -172,5 +202,44 @@ mod tests {
             1,
             "gameplay must compose exactly one seeded GlobalRng"
         );
+    }
+
+    /// The engine knows no game state, so a frozen overlay reaches the voices
+    /// only through this wiring: every frozen `PauseStates` holds the world
+    /// voices, and a handover between two frozen overlays keeps them held.
+    #[test]
+    fn every_frozen_pause_state_freezes_the_world_voices() {
+        let mut app = App::new();
+        app.add_plugins((
+            MinimalPlugins,
+            AssetPlugin::default(),
+            bevy::state::app::StatesPlugin,
+        ));
+        app.init_asset::<AudioSource>();
+        app.add_plugins(nova_sound::NovaSoundPlugin);
+        app.init_state::<crate::GameStates>();
+        app.init_state::<crate::PauseStates>();
+        add_sound_freeze(&mut app);
+        let frozen = |app: &App| app.world().resource::<nova_sound::SoundFreeze>().0;
+
+        app.update();
+        assert!(!frozen(&app), "a running sim holds nothing");
+        for state in [
+            crate::PauseStates::Paused,
+            crate::PauseStates::Commands,
+            crate::PauseStates::Interface,
+            crate::PauseStates::Debug,
+        ] {
+            app.world_mut()
+                .resource_mut::<NextState<crate::PauseStates>>()
+                .set(state);
+            app.update();
+            assert!(frozen(&app), "{state:?} holds the world voices");
+        }
+        app.world_mut()
+            .resource_mut::<NextState<crate::PauseStates>>()
+            .set(crate::PauseStates::Unpaused);
+        app.update();
+        assert!(!frozen(&app), "closing the overlay lets them play");
     }
 }

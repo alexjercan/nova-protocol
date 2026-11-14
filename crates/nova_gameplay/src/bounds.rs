@@ -11,13 +11,16 @@
 
 use avian3d::{
     parry::math::Pose3,
-    prelude::{Collider, ColliderAabb, Sensor},
+    prelude::{Collider, ColliderAabb, ComputedCenterOfMass, RigidBody, Sensor},
 };
 use bevy::prelude::*;
 
 /// The subtree collider walks, and the bounding sphere read off the world one.
 pub mod prelude {
-    pub use super::{subtree_bounding_sphere, subtree_collider_aabb, subtree_local_collider_aabb};
+    pub use super::{
+        body_middle, cue_body, subtree_bounding_sphere, subtree_collider_aabb,
+        subtree_local_collider_aabb,
+    };
 }
 
 /// Union the world-space [`ColliderAabb`]s of `entity` and all of its
@@ -150,9 +153,51 @@ pub fn subtree_local_collider_aabb(
     acc
 }
 
+/// The physical body an event happened on: the nearest `RigidBody` at or above
+/// `entity`. A sound cue groups by it (`nova_sound`'s `CueGroup::Body`), and so
+/// does the juice layer's camera kick.
+///
+/// A walk and not a lookup, because the thing an event names is almost never
+/// the body: a section, a plate, a health node and an asteroid's collider node
+/// are all children of the body that carries them. `None` for anything with no
+/// body over it at all.
+pub fn cue_body(
+    entity: Entity,
+    q_bodies: &Query<(&GlobalTransform, Option<&ComputedCenterOfMass>), With<RigidBody>>,
+    q_parents: &Query<&ChildOf>,
+) -> Option<Entity> {
+    let mut current = entity;
+    loop {
+        if q_bodies.contains(current) {
+            return Some(current);
+        }
+        current = q_parents.get(current).ok()?.parent();
+    }
+}
+
+/// Where a cue about a whole BODY plays from: its centre of mass.
+///
+/// A death that groups a body's sections together must not also play at
+/// whichever of them happened to be destroyed first - on a capital that is a
+/// bang at one shoulder standing in for the whole ship. The centre of mass is
+/// the one point that is about the body rather than about the event, and it is
+/// where the wreck is. `None` when the body has not been weighed yet, which
+/// leaves the caller with the event's own position.
+pub fn body_middle(
+    body: Entity,
+    q_bodies: &Query<(&GlobalTransform, Option<&ComputedCenterOfMass>), With<RigidBody>>,
+) -> Option<Vec3> {
+    let (frame, center_of_mass) = q_bodies.get(body).ok()?;
+    Some(center_of_mass.map_or_else(
+        || frame.translation(),
+        |middle| frame.transform_point(middle.0),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::SystemState;
+    use nova_sound::{area_cell, cue_group, CueGroup, SFX_AREA_CELL};
 
     use super::*;
 
@@ -476,6 +521,68 @@ mod tests {
         assert!(
             message.contains(&format!("{:?} has no Transform", [ship, section])),
             "the refusal names the chain to the bare entity: {message}"
+        );
+    }
+
+    /// A body with a node hanging under a node, which is the shape a section's
+    /// health node and an asteroid's collider both have.
+    fn a_body_with_a_deep_node(world: &mut World, at: Vec3, middle: Vec3) -> (Entity, Entity) {
+        let body = world
+            .spawn((
+                RigidBody::Dynamic,
+                ComputedCenterOfMass(middle),
+                GlobalTransform::from(Transform::from_translation(at)),
+            ))
+            .id();
+        let section = world.spawn(ChildOf(body)).id();
+        let node = world.spawn(ChildOf(section)).id();
+        (body, node)
+    }
+
+    #[test]
+    fn a_cue_names_the_body_it_happened_on_however_deep_it_was_raised() {
+        let mut world = World::new();
+        let (body, node) = a_body_with_a_deep_node(&mut world, Vec3::ZERO, Vec3::ZERO);
+        let loose = world.spawn_empty().id();
+        let mut bodies = world
+            .query_filtered::<(&GlobalTransform, Option<&ComputedCenterOfMass>), With<RigidBody>>();
+        let mut parents = world.query::<&ChildOf>();
+        let (bodies, parents) = (bodies.query(&world), parents.query(&world));
+
+        assert_eq!(
+            cue_body(node, &bodies, &parents),
+            Some(body),
+            "a health node two hops under the hull is still the hull's event",
+        );
+        assert_eq!(
+            cue_body(body, &bodies, &parents),
+            Some(body),
+            "and the body itself needs no walk at all",
+        );
+        assert_eq!(
+            cue_body(loose, &bodies, &parents),
+            None,
+            "an event with nothing physical over it names no body",
+        );
+        assert_eq!(
+            cue_group(None, Vec3::splat(SFX_AREA_CELL * 1.5)),
+            CueGroup::Cell(area_cell(Vec3::splat(SFX_AREA_CELL * 1.5))),
+            "which is what leaves it grouped by where it happened",
+        );
+    }
+
+    #[test]
+    fn a_body_cue_plays_from_the_centre_of_mass_and_not_the_origin() {
+        let mut world = World::new();
+        let (body, _) = a_body_with_a_deep_node(&mut world, Vec3::X * 100.0, Vec3::Y * 3.0);
+        let mut bodies = world
+            .query_filtered::<(&GlobalTransform, Option<&ComputedCenterOfMass>), With<RigidBody>>();
+        let bodies = bodies.query(&world);
+
+        assert_eq!(
+            body_middle(body, &bodies),
+            Some(Vec3::new(100.0, 3.0, 0.0)),
+            "the wreck is where its mass is, in world space",
         );
     }
 }

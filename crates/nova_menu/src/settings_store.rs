@@ -13,12 +13,10 @@ use std::collections::BTreeMap;
 
 use bevy::prelude::*;
 use nova_assets::persist;
-use nova_gameplay::prelude::{
-    harness_env_active, GraphicsBudget, GraphicsQuality, InterfaceVolume, MasterVolume,
-    MusicVolume, WorldVolume,
-};
+use nova_gameplay::prelude::{harness_env_active, GraphicsBudget, GraphicsQuality};
 use nova_input::prelude::{BindingSpec, InputBindings, MouseInvertY, MousePath, MouseSensitivity};
 use nova_interface::prelude::NovaOsMonitorSettings;
+use nova_sound::prelude::{InterfaceVolume, MasterVolume, MusicVolume, WorldVolume};
 use nova_ui::theme::{SelectedUiTheme, PHOSPHOR_THEME_ID};
 use serde::{Deserialize, Serialize};
 
@@ -812,11 +810,10 @@ mod tests {
         persist::{load_from, save_to},
         storage::NativeStorage,
     };
-    use nova_gameplay::prelude::{
-        GraphicsBudget, GraphicsQuality, InterfaceVolume, MusicVolume, WorldVolume,
-    };
+    use nova_gameplay::prelude::{GraphicsBudget, GraphicsQuality};
     use nova_input::prelude::{MousePath, MouseSensitivity};
     use nova_interface::prelude::NovaOsMonitorSettings;
+    use nova_sound::prelude::{InterfaceVolume, MusicVolume, WorldVolume};
     use nova_ui::theme::{HARDWARE_THEME_ID, PHOSPHOR_THEME_ID};
 
     use super::{GraphicsPresetSetting, PersistedSettings, KEY};

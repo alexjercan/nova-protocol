@@ -29,13 +29,13 @@ use bevy::{
 };
 use nova_command::prelude::*;
 use nova_gameplay::{
-    audio::prelude::{PlaySfx, SoundBank, UiSfx, NOVA_OS_BED_VOLUME},
     objectives::prelude::{GameObjectives, Objective},
     prelude::*,
     GameStates, PauseStates,
 };
 use nova_hud::prelude::*;
 use nova_input::prelude::RegisterInputActions;
+use nova_sound::prelude::{PlaySfx, SoundBank, UiSfx, NOVA_OS_BED_VOLUME, UI_SFX_FILES};
 use nova_ui::theme;
 
 use super::{
@@ -156,15 +156,12 @@ fn nova_os_sound_app() -> App {
     app.init_resource::<NovaOsCloseTransition>();
     app.add_plugins(bevy::asset::AssetPlugin::default());
     app.init_asset::<AudioSource>();
-    let bank = SoundBank::load(
-        app.world().resource::<AssetServer>(),
-        nova_gameplay::audio::UI_SFX_FILES,
-    );
+    let bank = SoundBank::load(app.world().resource::<AssetServer>(), UI_SFX_FILES);
     app.insert_resource(bank);
     app.init_resource::<SoundCapture>();
     app.add_observer(
         |sfx: On<PlaySfx>, bank: Res<SoundBank<UiSfx>>, mut cap: ResMut<SoundCapture>| {
-            for (key, _) in nova_gameplay::audio::UI_SFX_FILES {
+            for (key, _) in UI_SFX_FILES {
                 if sfx.handle == bank.get(key) {
                     cap.0.push(key);
                     break;

@@ -28,10 +28,8 @@ use bevy::{
     ui_widgets::ButtonPlugin,
     window::{CursorMoved, PrimaryWindow, Window, WindowEvent, WindowResolution},
 };
-use nova_gameplay::{
-    audio::UI_SFX_FILES,
-    prelude::{ButtonCuePlugin, PlaySfx, SoundBank, UiSfx},
-};
+use nova_gameplay::prelude::ButtonCuePlugin;
+use nova_sound::prelude::{PlaySfx, SoundBank, UiSfx, UI_SFX_FILES};
 
 /// Agreement budget between the pointer's mapping and the shader's, in image
 /// pixels, over the whole screen. Half a pixel: below the level anything can be

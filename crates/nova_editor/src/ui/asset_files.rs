@@ -14,7 +14,7 @@ use bevy::{
     window::PrimaryWindow,
 };
 use nova_assets::mod_cache::prelude::MODS_SOURCE;
-use nova_gameplay::prelude::{AudioRoute, PlaySfx};
+use nova_sound::prelude::{AudioRoute, PlaySfx};
 use nova_ui::{prelude::*, theme::UiColorType};
 
 use super::{

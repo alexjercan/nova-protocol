@@ -3,6 +3,7 @@
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_sound::prelude::*;
 
 /// The [`SpaceshipRootMarker`] ancestor of `entity`, or `entity` itself when the
 /// walk leaves the tree without finding one - torpedo thrusters hang off the

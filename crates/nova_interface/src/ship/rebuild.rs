@@ -18,6 +18,7 @@ use bevy::{ecs::system::SystemParam, prelude::*, ui_widgets::Activate};
 use nova_events::prelude::{CreditChangeCauseType, EntityId};
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
+use nova_sound::prelude::*;
 use nova_ui::{
     theme::UiColorType,
     widget::{ButtonCueType, ButtonSpec},

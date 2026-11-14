@@ -18,6 +18,7 @@
 
 use bevy::prelude::*;
 use nova_gameplay::prelude::*;
+use nova_sound::prelude::*;
 
 /// `ObjectiveFeedbackPlugin`.
 pub mod prelude {
@@ -223,7 +224,7 @@ mod tests {
         app.init_asset::<AudioSource>();
         let bank = SoundBank::load(
             app.world().resource::<AssetServer>(),
-            nova_gameplay::audio::UI_SFX_FILES,
+            nova_sound::UI_SFX_FILES,
         );
         app.insert_resource(bank);
         app.init_resource::<CueCounts>();

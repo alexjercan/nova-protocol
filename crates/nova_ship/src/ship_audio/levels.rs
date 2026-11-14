@@ -1,7 +1,7 @@
 //! How hard the ship's continuous loops read: the throttle-to-volume and
 //! intent-to-volume curves for the engine hum and the RCS fine-adjust loop.
 //! Ship tuning, not mixing - the generic rolloff and throttle live in
-//! [`nova_gameplay::audio`].
+//! [`nova_sound`].
 
 /// Loudest the engine hum ever gets (at full thrust), on the linear scale.
 pub const ENGINE_MAX_VOLUME: f32 = 0.3;

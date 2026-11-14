@@ -7,7 +7,8 @@
 //! time someone renames it.
 //!
 //! This lives here rather than in `nova_ui` because `nova_ui` has no sound bank:
-//! the sounds are the one thing it cannot depend on.
+//! the sounds are the one thing it cannot depend on. It is not in `nova_sound`
+//! either, because the engine does not know what a button is.
 
 use bevy::{
     picking::{
@@ -18,12 +19,18 @@ use bevy::{
     ui::InteractionDisabled,
     ui_widgets::{Activate, Button},
 };
-use nova_ui::widget::{ButtonCueMute, ButtonCueType};
-
-use super::{
+use nova_sound::prelude::{
     AudioRoute, SfxCommandsExt, SoundBank, UiSfx, EDITOR_DENY_VOLUME, MENU_BACK_VOLUME,
     MENU_FOCUS_VOLUME, MENU_SELECT_VOLUME,
 };
+use nova_ui::widget::{ButtonCueMute, ButtonCueType};
+
+/// Glob-import surface: `use nova_gameplay::button_cue::prelude::*`.
+pub mod prelude {
+    pub use super::{
+        play_menu_back, play_menu_deny, play_menu_select, ButtonCuePlugin, ButtonCueSystems,
+    };
+}
 
 /// The button voice's systems: today the hover tick, the one cue that is not
 /// an observer.
@@ -31,15 +38,14 @@ use super::{
 /// Runs in `Update` with no ordering constraint inside that schedule, and the
 /// absence is the statement: the tick reads `Hovered`, which bevy's picking
 /// writes back in `PreUpdate`, and it raises a voice the engine's
-/// `AudioSystems` pass mixes in `PostUpdate`. Both edges are schedule
+/// `SoundSystems` pass mixes in `PostUpdate`. Both edges are schedule
 /// boundaries, so nothing in `Update` can come between them.
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ButtonCueSystems;
 
-/// Plays every button's press cue and hover tick. [`NovaAudioPlugin`] adds it;
-/// a test rig that hears cues without the audio engine adds it alone.
-///
-/// [`NovaAudioPlugin`]: super::NovaAudioPlugin
+/// Plays every button's press cue and hover tick.
+/// [`NovaGameplayPlugin`](crate::plugin::NovaGameplayPlugin) adds it; a test
+/// rig that hears cues without the gameplay layer adds it alone.
 pub struct ButtonCuePlugin;
 
 impl Plugin for ButtonCuePlugin {

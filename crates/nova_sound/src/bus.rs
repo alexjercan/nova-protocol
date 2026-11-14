@@ -8,7 +8,7 @@
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 
-use crate::settings::prelude::{HarnessMute, MasterVolume};
+use crate::master::{HarnessMute, MasterVolume};
 
 /// A mixer track. Every voice belongs to exactly one, and a track's volume is
 /// the only per-track control there is: nothing scales a cue except its bus
@@ -147,7 +147,7 @@ impl MusicVolume {
 /// master.
 ///
 /// Every resource is optional so an audio-only test rig that never adds
-/// [`NovaAudioPlugin`](super::NovaAudioPlugin) or the settings plugin keeps full
+/// [`NovaSoundPlugin`](super::NovaSoundPlugin) keeps full
 /// volume instead of panicking on a missing resource - the same graceful
 /// degradation the rest of the engine promises.
 #[derive(SystemParam)]

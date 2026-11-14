@@ -9,6 +9,7 @@
 use bevy::prelude::*;
 use nova_assets::prelude::ReloadContent;
 use nova_gameplay::prelude::*;
+use nova_sound::prelude::*;
 use nova_ui::input_mode::prelude::InputMode;
 
 #[cfg(not(target_arch = "wasm32"))]

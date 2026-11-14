@@ -20,9 +20,8 @@
 use bevy::{prelude::*, ui::InteractionDisabled, ui_widgets::Activate, window::PrimaryWindow};
 use nova_gameplay::{
     prelude::{
-        cr_digits, play_menu_select, play_time_text, AudioRoute, Chart, GameItems, ItemDesignId,
-        PlayerSpaceshipMarker, SfxCommandsExt, ShipCredits, SoundBank, SpaceshipRootMarker, UiSfx,
-        WorldClock, EDITOR_DENY_VOLUME, MENU_SELECT_VOLUME, UI_TOGGLE_VOLUME,
+        cr_digits, play_menu_select, play_time_text, Chart, GameItems, ItemDesignId,
+        PlayerSpaceshipMarker, ShipCredits, SpaceshipRootMarker, WorldClock,
     },
     PauseStates,
 };
@@ -30,6 +29,10 @@ use nova_input::prelude::{
     ActionContext, ActiveContexts, InputBindings, InputDeviceType, InputSources,
 };
 use nova_ship::prelude::{GalleryAction, GalleryState, HeldPart};
+use nova_sound::prelude::{
+    AudioRoute, SfxCommandsExt, SoundBank, UiSfx, EDITOR_DENY_VOLUME, MENU_SELECT_VOLUME,
+    UI_TOGGLE_VOLUME,
+};
 use nova_ui::{
     prelude::*,
     theme::UiColorType,

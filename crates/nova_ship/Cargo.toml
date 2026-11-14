@@ -25,6 +25,7 @@ serde = { version = "1", features = ["derive"], optional = true }
 bevy_transform_interpolation = { version = "0.6.0" }
 nova_events = { path = "../nova_events" }
 nova_gameplay = { path = "../nova_gameplay" }
+nova_sound = { path = "../nova_sound" }
 # The bindings registry the flight and camera rigs are built from.
 nova_input = { path = "../nova_input" }
 # The parts gallery's widgets, theme and keyboard modes. Already in the graph

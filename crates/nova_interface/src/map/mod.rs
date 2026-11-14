@@ -62,8 +62,9 @@ mod tests;
 
 use bevy::prelude::*;
 use nova_events::units::prelude::*;
-use nova_gameplay::prelude::{Chart, JobPostings, Jobs, SoundBank, UiSfx, WorldClock};
+use nova_gameplay::prelude::{Chart, JobPostings, Jobs, WorldClock};
 use nova_hud::prelude::PreviewPlugin;
+use nova_sound::prelude::{SoundBank, UiSfx};
 use nova_ui::widget::ThemedText;
 
 pub use self::contacts::{MapContactCode, MapContactKind, MapContacts};

@@ -23,6 +23,7 @@ rand = { version = "0.10.2" }
 nova_input = { path = "../nova_input" }
 nova_assets = { path = "../nova_assets" }
 nova_gameplay = { path = "../nova_gameplay" }
+nova_sound = { path = "../nova_sound" }
 # The save file IS the mod format: `Content`, its RON writer and its reader.
 nova_modding = { path = "../nova_modding" }
 # The dependency graph the Mod Settings window refuses a cycle against.

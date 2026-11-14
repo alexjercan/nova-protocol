@@ -39,6 +39,7 @@ use nova_ship::{
     input::prelude::FlightVerbHints,
     sections::prelude::{DockClamped, DockPressRefusal, DockPressRefusalType, DockReleased},
 };
+use nova_sound::prelude::*;
 use nova_ui::{
     hud::{chip_node, ChipTone},
     theme::ActiveUiTheme,
@@ -504,7 +505,7 @@ mod tests {
         )));
         let bank = SoundBank::load(
             app.world().resource::<AssetServer>(),
-            nova_gameplay::audio::UI_SFX_FILES,
+            nova_sound::UI_SFX_FILES,
         );
         app.insert_resource(bank);
         app.init_resource::<NoticeCues>();

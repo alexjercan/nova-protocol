@@ -55,7 +55,7 @@ pub(super) const MENU_PLANETOID_SEED: u32 = 7;
 ///
 /// The pose is an AUDIO decision as well as a framing one. A backdrop is
 /// heard through the same rolloff flight uses
-/// (`nova_gameplay::audio::SFX_FAR_DISTANCE`, 3.2 km to silence), so an actor
+/// (`nova_sound::SFX_FAR_DISTANCE`, 3.2 km to silence), so an actor
 /// further out than that is mute however good the shot is. The duel and the
 /// weave are framed inside that distance for this reason: at 3,130 m the whole
 /// fight sits past the rolloff's far end. The gauntlet and the

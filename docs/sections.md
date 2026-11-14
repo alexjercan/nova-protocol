@@ -1423,7 +1423,7 @@ indistinguishable from one that came apart badly.
 What the frame SOUNDS and FEELS like is grouped the same way, by the STRUCTURE
 rather than by the place. An impact or a destruction cue - the explosion, the
 surface hit, the camera kick and the spark burst - is throttled on its
-`CueGroup` (`nova_gameplay::audio::mixing`), which is the nearest `RigidBody` at
+`CueGroup` (`nova_sound::mixing`), which is the nearest `RigidBody` at
 or above the entity the event named: a section, a plate, a health node and an
 asteroid's collider node all hang under one. A severed fragment, a rock and a
 torpedo each resolve to their own body, so each is its own event, and only a cue
@@ -2010,8 +2010,8 @@ per contact. A symmetric rule - ram damage - wants both.
   `crates/nova_gameplay/src/integrity/explode.rs`; the fireball over it,
   `SECTION_PYRE`, `HULK_PYRE`, `frame_cap`, `warm_the_pyres` -
   `crates/nova_gameplay/src/integrity/pyre.rs`; what it sounds and feels like,
-  `CueGroup`, `cue_body`, `body_middle` -
-  `crates/nova_gameplay/src/audio/mixing.rs`.
+  `CueGroup` - `crates/nova_sound/src/mixing.rs`, and `cue_body`,
+  `body_middle` - `crates/nova_gameplay/src/bounds.rs`.
 - Authored damage looks: `DamageEffect`, `fit_damage_effects` -
   `crates/nova_ship/src/sections/damage_effects.rs`, with one module per look in
   `damage_cracks.rs`, `damage_sparks.rs` and `damage_plume.rs`.

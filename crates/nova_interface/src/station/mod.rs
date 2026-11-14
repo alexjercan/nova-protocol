@@ -59,6 +59,7 @@ use bevy::{
 };
 use nova_gameplay::prelude::*;
 use nova_ship::prelude::*;
+use nova_sound::prelude::*;
 use nova_ui::{
     screen::drive_wheel_scroll,
     theme::UiColorType,

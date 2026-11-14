@@ -33,6 +33,7 @@ use bevy::{
 use nova_gameplay::{prelude::*, PauseStates};
 use nova_input::prelude::{InputBindings, InputSources};
 use nova_ship::prelude::*;
+use nova_sound::prelude::*;
 use nova_ui::{
     theme::UiColorType,
     widget::{ThemedFill, ThemedText},
