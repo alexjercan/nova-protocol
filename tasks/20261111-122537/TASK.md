@@ -226,3 +226,15 @@ survives five splits, but the hauler is still lost at t~86 to the two
 raiders' fire. Player rounds on raider_0 at ~1 km likely hit cladding
 plates (`HealthIsolated`, `fixture.rs:180`) that never reach root health;
 unverified.
+
+Owner decision 2026-11-14: escort difficulty follows the poster's
+advancement (`329fa2aef`..`7c55f134f`): one raider below 0.25, pay +150 cr
+per raider, every job hull at the poster's civilization. Supply, distress,
+recover, station jobs, neutralize, scenario jobs and the release lead pass
+on the GPU. The escort still fails with one raider. Measured (no commit):
+the player's turrets fire 0 rounds; the fire gate on a 4 m mount at
+1.6-2 km allows 0.002-0.004 rad, tighter than the 0.004 rad hinge
+deadband, and the error grows to 0.05-1.3 rad after the trigger. The
+plate-isolation guess was wrong. The raider at advancement 0.008 is 127
+sections (8090 hp) with 2 turrets, about 4x the player ship, not the
+"smallest gunboat" the approved table promised.
