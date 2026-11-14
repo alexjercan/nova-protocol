@@ -14,6 +14,12 @@ description = "The audio engine of the Nova Protocol game: buses, mixing and the
 # and example. Vorbis stays default-on, so `.ogg` swap-ins work with only a
 # path-extension change.
 bevy = { version = "0.20.1", features = ["wav"] }
+# The decoder the loudness measure reads a clip through. bevy's own
+# `Decodable` for `AudioSource` panics on a bad file, and a bad file is
+# exactly what the measure must report. No default features: the formats are
+# the ones bevy enables on the same rodio, so the measure decodes what
+# playback decodes.
+rodio = { version = "0.22.2", default-features = false }
 serde = { version = "1", features = ["derive"], optional = true }
 
 [lints]

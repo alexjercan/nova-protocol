@@ -50,16 +50,17 @@
 //! # The modules
 //!
 //! `bus` decides how loud a route may be, `master` owns the master volume and
-//! the harness mute, `mixing` owns the amplitude law (the listener, the tuned
-//! rolloff, the per-source throttle), `spatial` owns the stereo placement,
-//! `voice` owns playback, `sfx` is the one-shot front door and `registry` is the
+//! the harness mute, `loudness` measures every clip as it loads, `mixing` owns
+//! the amplitude law (the listener, the tuned rolloff, the per-source
+//! throttle), `spatial` owns the stereo placement, `voice` owns playback, `sfx` is the one-shot front door and `registry` is the
 //! keyed handle bank. Nothing here knows what a ship is - the mapping from
 //! gameplay events to sounds is `nova_ship`'s `ship_audio`.
 //!
 //! A crate of its own, below `nova_gameplay`, so a crate that makes a sound
-//! does not have to reach gameplay to do it. It depends on bevy
-//! alone. Game state reaches it through one hook: the world freeze. The
-//! engine does not know the game's states; `nova_gameplay` runs
+//! does not have to reach gameplay to do it. It depends on bevy, and on the
+//! rodio decoder bevy plays through, which the loudness measure reads. Game
+//! state reaches it through one hook: the world freeze. The engine does not
+//! know the game's states; `nova_gameplay` runs
 //! [`pause_world_voices`] and [`resume_world_voices`] on its frozen overlays
 //! and [`stop_world_voices`] when gameplay ends, and the freeze they set is
 //! [`SoundFreeze`].
@@ -74,6 +75,7 @@
 use bevy::prelude::*;
 
 mod bus;
+pub mod loudness;
 mod master;
 mod mixing;
 mod registry;
@@ -93,21 +95,24 @@ mod voice;
 /// while the cues themselves fire from the crates above.
 pub mod prelude {
     pub use super::{
-        sounds_loaded, AudioBus, AudioRoute, HarnessMute, InterfaceVolume, MasterVolume,
-        MusicVolume, NovaSoundPlugin, PlaySfx, SfxAudioMarker, SfxCommandsExt, SfxListenerMarker,
-        SfxPlugin, SfxSource, SfxVoice, SoundBank, SoundFreeze, SoundSystems, UiSfx, VoiceMix,
-        WorldVolume, EDITOR_DENY_VOLUME, EDITOR_PLACE_VOLUME, EDITOR_REMOVE_VOLUME,
-        EDITOR_ROTATE_VOLUME, MENU_BACK_VOLUME, MENU_FOCUS_VOLUME, MENU_SELECT_VOLUME,
-        MINING_PULSE_VOLUME, MINING_REFUSAL_VOLUME, MUTE_ENV, NOVA_OS_BACK_VOLUME,
-        NOVA_OS_BED_VOLUME, NOVA_OS_COIL_VOLUME, NOVA_OS_ENTER_VOLUME, NOVA_OS_ERROR_VOLUME,
-        NOVA_OS_KEY_MIN_INTERVAL, NOVA_OS_KEY_VOLUME, NOVA_OS_OK_VOLUME, NOVA_OS_POWER_VOLUME,
-        NOVA_OS_TICK_VOLUME, OBJECTIVE_FAIL_VOLUME, SALVAGE_PICKUP_VOLUME, UI_SFX_FILES,
-        UI_TICK_VOLUME, UI_TOGGLE_VOLUME,
+        sounds_loaded, AudioBus, AudioRoute, ClipLoudness, HarnessMute, InterfaceVolume,
+        MasterVolume, MusicVolume, NovaSoundPlugin, PlaySfx, SfxAudioMarker, SfxCommandsExt,
+        SfxListenerMarker, SfxPlugin, SfxSource, SfxVoice, SoundBank, SoundFreeze, SoundLoudness,
+        SoundSystems, UiSfx, VoiceMix, WorldVolume, EDITOR_DENY_VOLUME, EDITOR_PLACE_VOLUME,
+        EDITOR_REMOVE_VOLUME, EDITOR_ROTATE_VOLUME, MENU_BACK_VOLUME, MENU_FOCUS_VOLUME,
+        MENU_SELECT_VOLUME, MINING_PULSE_VOLUME, MINING_REFUSAL_VOLUME, MUTE_ENV,
+        NOVA_OS_BACK_VOLUME, NOVA_OS_BED_VOLUME, NOVA_OS_COIL_VOLUME, NOVA_OS_ENTER_VOLUME,
+        NOVA_OS_ERROR_VOLUME, NOVA_OS_KEY_MIN_INTERVAL, NOVA_OS_KEY_VOLUME, NOVA_OS_OK_VOLUME,
+        NOVA_OS_POWER_VOLUME, NOVA_OS_TICK_VOLUME, OBJECTIVE_FAIL_VOLUME, SALVAGE_PICKUP_VOLUME,
+        UI_SFX_FILES, UI_TICK_VOLUME, UI_TOGGLE_VOLUME,
     };
 }
 
 pub use self::{
     bus::{bus_gain, AudioBus, AudioRoute, InterfaceVolume, Mixer, MusicVolume, WorldVolume},
+    loudness::{
+        ClipLoudness, LoudnessError, SoundLoudness, LOUDNESS_TARGET_LUFS, SILENT_BELOW_LUFS,
+    },
     master::{HarnessMute, MasterVolume, MUTE_ENV},
     mixing::{
         area_cell, cue_group, distance_attenuation, listener_position, CueGroup, CueThrottle,
@@ -126,6 +131,7 @@ pub use self::{
     },
 };
 use self::{
+    loudness::measure_loaded_sounds,
     master::{apply_master_volume, report_harness_mute},
     mixing::prune_sfx_throttle,
     voice::{drive_sfx_voices, on_add_listener, retire_unplayable_one_shots, start_sfx_voices},
@@ -358,6 +364,7 @@ impl Plugin for NovaSoundPlugin {
         app.init_resource::<MusicVolume>();
         app.init_resource::<SfxThrottle>();
         app.init_resource::<SoundFreeze>();
+        app.init_resource::<SoundLoudness>();
         app.register_type::<MasterVolume>();
         app.register_type::<InterfaceVolume>();
         app.register_type::<WorldVolume>();
@@ -398,6 +405,9 @@ impl Plugin for NovaSoundPlugin {
 
         // Pure map cleanup; harmless to run always and keeps memory bounded.
         app.add_systems(Update, prune_sfx_throttle);
+        // Every clip is measured once as it loads; nothing reads the table
+        // yet, so it has no ordering.
+        app.add_systems(Update, measure_loaded_sounds);
     }
 }
 

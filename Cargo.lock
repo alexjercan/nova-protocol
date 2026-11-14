@@ -5281,6 +5281,7 @@ name = "nova_sound"
 version = "0.17.0"
 dependencies = [
  "bevy",
+ "rodio",
  "serde",
 ]
 
