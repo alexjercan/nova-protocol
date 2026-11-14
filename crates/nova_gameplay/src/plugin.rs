@@ -140,6 +140,7 @@ impl Plugin for NovaGameplayPlugin {
             app.add_plugins(crate::button_cue::ButtonCuePlugin);
         }
         add_sound_freeze(app);
+        add_sound_listener(app);
         app.add_plugins(crate::juice::NovaJuicePlugin);
         app.add_plugins(crate::transient_light::TransientLightPlugin);
         app.add_plugins(crate::settings::NovaSettingsPlugin);
@@ -168,6 +169,26 @@ fn add_sound_freeze(app: &mut App) {
     app.add_systems(
         OnExit(crate::GameStates::Playing),
         nova_sound::stop_world_voices,
+    );
+}
+
+/// The audio engine's listener hook: the engine hears the world from the
+/// entity carrying `SoundListenerAnchor`, and the player's ship is that entity.
+/// Without a player ship the engine hears from the camera.
+fn add_sound_listener(app: &mut App) {
+    app.add_observer(
+        |add: On<Add<PlayerSpaceshipMarker>>, mut commands: Commands| {
+            commands
+                .entity(add.entity)
+                .try_insert(nova_sound::SoundListenerAnchor);
+        },
+    );
+    app.add_observer(
+        |remove: On<Remove<PlayerSpaceshipMarker>>, mut commands: Commands| {
+            commands
+                .entity(remove.entity)
+                .try_remove::<nova_sound::SoundListenerAnchor>();
+        },
     );
 }
 
@@ -207,6 +228,29 @@ mod tests {
     /// The engine knows no game state, so a frozen overlay reaches the voices
     /// only through this wiring: every frozen `PauseStates` holds the world
     /// voices, and a handover between two frozen overlays keeps them held.
+    /// The listener stands on the player's ship for as long as it is the
+    /// player's, and on nothing once it is not.
+    #[test]
+    fn the_player_ship_carries_the_sound_listener() {
+        let mut app = App::new();
+        add_sound_listener(&mut app);
+        let ship = app.world_mut().spawn(PlayerSpaceshipMarker).id();
+        app.update();
+        assert!(app
+            .world()
+            .entity(ship)
+            .contains::<nova_sound::SoundListenerAnchor>());
+
+        app.world_mut()
+            .entity_mut(ship)
+            .remove::<PlayerSpaceshipMarker>();
+        app.update();
+        assert!(!app
+            .world()
+            .entity(ship)
+            .contains::<nova_sound::SoundListenerAnchor>());
+    }
+
     #[test]
     fn every_frozen_pause_state_freezes_the_world_voices() {
         let mut app = App::new();
