@@ -6,9 +6,9 @@
 //! produces. A door tone under a comms line, the hit that lands off-screen,
 //! the alarm that starts a chapter.
 //!
-//! Non-positional on purpose. An exterior cue is attenuated and panned by
-//! where it happened, and a scene beat has no position to give it; a sound
-//! authored here is heard in the cockpit, which is where the player is.
+//! An Interface cue is heard flat. A Hull cue plays in the world at the
+//! player's ship, as a [`SoundCategoryType::Machinery`] sound: the category
+//! sets its level, so `volume` applies to Interface cues only.
 
 use bevy::{audio::AudioSource, prelude::*};
 use nova_events::prelude::*;
@@ -21,10 +21,6 @@ use crate::prelude::*;
 const DEFAULT_SOUND_VOLUME: f32 = 1.0;
 
 /// Where an authored cue is heard.
-///
-/// Mirrors the two non-positional halves of nova_gameplay's `AudioRoute`; the
-/// third is exterior, which needs a place in the world and is therefore
-/// authored on the object that makes the sound rather than here.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Reflect)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SoundRouteConfig {
@@ -32,18 +28,9 @@ pub enum SoundRouteConfig {
     /// track.
     #[default]
     Interface,
-    /// Structure-borne through the player's own ship: something they feel
-    /// through the hull. Scaled by the world track.
+    /// On the player's own ship, in the world. Scaled by the effects track.
+    /// Dropped with a warning when there is no player ship.
     Hull,
-}
-
-impl From<SoundRouteConfig> for AudioRoute {
-    fn from(value: SoundRouteConfig) -> Self {
-        match value {
-            SoundRouteConfig::Interface => AudioRoute::Interface,
-            SoundRouteConfig::Hull => AudioRoute::Hull,
-        }
-    }
 }
 
 /// Play one authored sound. RON:
@@ -56,8 +43,8 @@ pub struct PlaySoundActionConfig {
     /// Where it is heard. Authored, because "in the cockpit" and "through the
     /// hull" are different cues and neither is the safe guess.
     pub route: SoundRouteConfig,
-    /// Optional gain. Omit for full volume; `Some(0.4)` for a cue that sits
-    /// under a comms line rather than over it.
+    /// Optional gain for an Interface cue. Omit for full volume; `Some(0.4)`
+    /// for a cue that sits under a comms line rather than over it.
     #[cfg_attr(
         feature = "serde",
         serde(default, skip_serializing_if = "Option::is_none")
@@ -68,7 +55,7 @@ pub struct PlaySoundActionConfig {
 impl EventAction<NovaEventWorld> for PlaySoundActionConfig {
     fn action(&self, world: &mut NovaEventWorld, _: &GameEventInfo) {
         let sound = self.sound.clone();
-        let route = AudioRoute::from(self.route);
+        let route = self.route;
         let volume = self.volume.unwrap_or(DEFAULT_SOUND_VOLUME);
         debug!("PlaySound: {:?} on {route:?}", sound.path());
 
@@ -78,7 +65,28 @@ impl EventAction<NovaEventWorld> for PlaySoundActionConfig {
                     let asset_server = world.resource::<AssetServer>();
                     sound.resolve(asset_server)
                 };
-                world.commands().play_sfx(handle, route, volume);
+                match route {
+                    SoundRouteConfig::Interface => {
+                        world
+                            .commands()
+                            .play_sfx(handle, AudioRoute::Interface, volume);
+                    }
+                    SoundRouteConfig::Hull => {
+                        let ship = world
+                            .query_filtered::<Entity, With<PlayerSpaceshipMarker>>()
+                            .iter(world)
+                            .next();
+                        let Some(ship) = ship else {
+                            warn!("PlaySound: dropped a Hull cue: there is no player ship");
+                            return;
+                        };
+                        world.trigger(PlaySound {
+                            sound: handle,
+                            category: SoundCategoryType::Machinery,
+                            at: SoundAt::Entity(ship),
+                        });
+                    }
+                }
             });
         });
     }
@@ -99,6 +107,14 @@ mod tests {
         heard.0.push(play.event().clone());
     }
 
+    /// Every world cue the app heard.
+    #[derive(Resource, Default)]
+    struct HeardInWorld(Vec<PlaySound>);
+
+    fn record_world(play: On<PlaySound>, mut heard: ResMut<HeardInWorld>) {
+        heard.0.push(play.event().clone());
+    }
+
     /// A headless app that can resolve an `AssetRef` and observe the cue,
     /// without an output device: the action's whole job is turning an authored
     /// row into one `PlaySfx`, and the mixer is nova_gameplay's to test.
@@ -109,7 +125,9 @@ mod tests {
         app.init_resource::<NovaEventWorld>();
         app.init_resource::<GameObjectives>();
         app.init_resource::<Heard>();
+        app.init_resource::<HeardInWorld>();
         app.add_observer(record);
+        app.add_observer(record_world);
         app
     }
 
@@ -120,27 +138,25 @@ mod tests {
         app.update();
     }
 
-    /// The authored row reaches the mixer as one cue, on the route it names.
+    /// A Hull cue plays in the world at the player's ship.
     #[test]
-    fn an_authored_cue_is_played_on_the_route_it_names() {
+    fn a_hull_cue_plays_at_the_player_ship() {
         let mut app = audio_app();
+        let ship = app.world_mut().spawn(PlayerSpaceshipMarker).id();
         fire(
             &mut app,
             PlaySoundActionConfig {
                 sound: AssetRef::from("sounds/alarm.ogg"),
                 route: SoundRouteConfig::Hull,
-                volume: Some(0.4),
+                volume: None,
             },
         );
 
-        let heard = &app.world().resource::<Heard>().0;
+        let heard = &app.world().resource::<HeardInWorld>().0;
         assert_eq!(heard.len(), 1, "one row, one cue");
-        assert_eq!(heard[0].route, AudioRoute::Hull);
-        assert_eq!(heard[0].volume, 0.4);
-        assert!(
-            matches!(heard[0].source, SfxSource::Unplaced),
-            "a beat has no world position to give a cue"
-        );
+        assert_eq!(heard[0].category, SoundCategoryType::Machinery);
+        assert_eq!(heard[0].at, SoundAt::Entity(ship));
+        assert!(app.world().resource::<Heard>().0.is_empty());
     }
 
     /// An omitted volume is full volume, not silence.
@@ -159,22 +175,6 @@ mod tests {
         let heard = &app.world().resource::<Heard>().0;
         assert_eq!(heard[0].volume, DEFAULT_SOUND_VOLUME);
         assert_eq!(heard[0].route, AudioRoute::Interface);
-    }
-
-    /// The route mapping stays inside the two non-positional halves. Exterior
-    /// is attenuated and panned by WHERE it happened, and a scene beat has no
-    /// answer to that; a cue that silently routed there would be inaudible
-    /// depending on where the player was pointing.
-    #[test]
-    fn no_authored_route_reaches_the_positional_one() {
-        for route in [SoundRouteConfig::Interface, SoundRouteConfig::Hull] {
-            assert_ne!(AudioRoute::from(route), AudioRoute::Exterior);
-        }
-        assert_eq!(
-            AudioRoute::from(SoundRouteConfig::default()),
-            AudioRoute::Interface,
-            "a cue that says nothing is heard in the cockpit"
-        );
     }
 
     #[cfg(feature = "serde")]
