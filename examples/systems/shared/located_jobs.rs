@@ -205,12 +205,17 @@ const DEFENSE_WINDOW_SECS: f32 = 20.0;
 /// How far the base turret sections reach: 1000 m/s muzzle speed over a 2 s
 /// projectile lifetime. The player holds fire outside it.
 const TURRET_REACH: Meters = Meters(2_000.0);
-/// Inside this distance to the raider it intercepts, the player matches the
-/// raider's velocity and lets the turrets work; GOTO re-engages when the
-/// raider pulls past it. Inside the raiders' own 1.8 km fire gate, so the
-/// hold is a stand-off, not a range exploit; a light-plate hull that closed
-/// to 1 km was shredded in 1.5 s.
+/// The stand-off the player closes to on the raider it intercepts and holds
+/// at while the turrets work, see [`CLOSE_SECONDS`]. Inside the raiders' own
+/// 1.8 km fire gate, so the hold is a stand-off, not a range exploit; a
+/// light-plate hull that closed to 1 km was shredded in 1.5 s.
 const INTERCEPT_HOLD: Meters = Meters(1_600.0);
+/// Seconds the player's closing speed takes to fall off toward
+/// [`INTERCEPT_HOLD`]: the speed is the gap over this, so it eases out over
+/// several seconds the RCS can brake without turning the hull.
+const CLOSE_SECONDS: f32 = 8.0;
+/// The fastest the player closes on, or opens from, the raider.
+const CLOSE_SPEED_MAX: MetersPerSecond = MetersPerSecond(240.0);
 /// Seconds the fight pins the component lock on the raider's mount for, and
 /// refreshes it well inside: the game's own cycle pin is 2 s. A raider is
 /// beaten when it has no working weapon left, so the escort shoots the
@@ -1249,6 +1254,17 @@ fn distance_between(world: &World, a: Entity, b: Entity) -> f32 {
     at(a).distance(at(b)).get()
 }
 
+/// The unit direction from `from` to `to`, or `None` when they coincide.
+fn facing_toward(world: &World, from: Entity, to: Entity) -> Option<Dir3> {
+    let at = |entity: Entity| {
+        world
+            .get::<Position>(entity)
+            .unwrap_or_else(|| panic!("escort job: {entity:?} has no position"))
+            .0
+    };
+    Dir3::new(at(to) - at(from)).ok()
+}
+
 /// A body's speed, meters per second.
 fn speed_of(world: &World, entity: Entity) -> f32 {
     world.get::<LinearVelocity>(entity).map_or(0.0, |velocity| {
@@ -1430,14 +1446,14 @@ fn the_threat(
 }
 
 /// One frame of the fight: intercept the raider that threatens the hauler
-/// ([`the_threat`]) on a GOTO, lock it, raise the weapons and hold the turret
-/// trigger once they are hot and it stands inside [`TURRET_REACH`], pin the
-/// component lock on its first working mount once the lock focus completes
-/// and on the next as each dies, retarget when the threat changes or falls,
-/// and note each raider's hit points, the raiders neutralized, the seconds a
-/// raider spent in Engage, and the hauler's first hit and lowest hit points.
-/// The trigger is released on a re-lock: the fire inputs latch and a safety
-/// interrupt needs a fresh press.
+/// ([`the_threat`]) on a steered velocity hold with the nose on it, lock it,
+/// raise the weapons and hold the turret trigger once they are hot and it
+/// stands inside [`TURRET_REACH`], pin the component lock on its first working
+/// mount once the lock focus completes and on the next as each dies, retarget
+/// when the threat changes or falls, and note each raider's hit points, the
+/// raiders neutralized, the seconds a raider spent in Engage, and the hauler's
+/// first hit and lowest hit points. The trigger is released on a re-lock: the
+/// fire inputs latch and a safety interrupt needs a fresh press.
 fn fight_the_ambush(world: &mut World, player: Entity, hauler: Entity, job: &Job) {
     let (now, dt) = {
         let time = world.resource::<Time<Virtual>>();
@@ -1499,34 +1515,50 @@ fn fight_the_ambush(world: &mut World, player: Entity, hauler: Entity, job: &Job
         .map(|(raider, id, distance, ..)| (*raider, id.clone(), *distance));
     match &nearest {
         Some((raider, id, distance)) => {
-            let action = world
-                .get::<Autopilot>(player)
-                .map(|autopilot| autopilot.action);
-            let flying =
-                matches!(action, Some(AutopilotAction::Goto { target }) if target == *raider);
-            let holding = matches!(action, Some(AutopilotAction::MatchVelocity { .. }));
-            if *distance > INTERCEPT_HOLD.get() {
-                if !flying {
-                    world
-                        .entity_mut(player)
-                        .insert(Autopilot::engage(AutopilotAction::Goto { target: *raider }));
-                    info!("escort job: fight: the player intercepts '{id}' {distance:.0} m out");
-                }
-            } else if !holding {
-                let velocity = world
-                    .get::<LinearVelocity>(*raider)
-                    .map_or(Vec3::ZERO, |velocity| velocity.0);
+            // One steered velocity hold for the whole fight, renewed every
+            // frame: the raider's velocity plus a closing speed that tapers
+            // to nothing at the stand-off, with the nose on the raider. A
+            // GOTO flipped the hull to brake on arrival, and a hold left to
+            // its burn did too, putting the raider under the keel in every
+            // mount's blind cone for the whole fight; a velocity that moves
+            // this little a frame stays inside the RCS's reach, so the nose
+            // holds.
+            let raider_velocity = world
+                .get::<LinearVelocity>(*raider)
+                .map_or(Vec3::ZERO, |velocity| velocity.0);
+            let facing = facing_toward(world, player, *raider);
+            let closing = MetersPerSecond(
+                ((distance - INTERCEPT_HOLD.get()) / CLOSE_SECONDS)
+                    .clamp(-CLOSE_SPEED_MAX.get(), CLOSE_SPEED_MAX.get()),
+            )
+            .to_engine();
+            let velocity = raider_velocity + facing.map_or(Vec3::ZERO, |dir| *dir * closing);
+            let held = world
+                .get_mut::<Autopilot>(player)
+                .and_then(|mut autopilot| match &mut autopilot.action {
+                    AutopilotAction::MatchVelocity {
+                        velocity: held_velocity,
+                        facing: held_facing,
+                        ..
+                    } => {
+                        *held_velocity = velocity;
+                        *held_facing = facing;
+                        Some(())
+                    }
+                    _ => None,
+                });
+            if held.is_none() {
                 world.entity_mut(player).insert(Autopilot::engage(
                     AutopilotAction::MatchVelocity {
                         velocity,
-                        facing: None,
+                        facing,
                         rcs: true,
                     },
                 ));
                 info!(
-                    "escort job: fight: the player holds {distance:.0} m off '{id}' and matches its \
-                     {:.0} m/s",
-                    MetersPerSecond3::from_engine(velocity).get().length()
+                    "escort job: fight: the player closes on '{id}' from {distance:.0} m to a \
+                     {:.0} m stand-off, nose on it",
+                    INTERCEPT_HOLD.get()
                 );
             }
         }
