@@ -5,8 +5,8 @@
 //! `the_engine_is_the_only_place_an_audio_player_is_built`, which reads every
 //! Rust source in the workspace. A category sound is a [`SoundVoice`] the
 //! engine spawns from a [`PlaySound`](super::PlaySound) or a
-//! [`SoundLoop`](super::SoundLoop); a legacy caller-levelled sound is an
-//! [`SfxVoice`].
+//! [`SoundLoop`](super::SoundLoop); a legacy caller-levelled interface
+//! sound is an [`SfxVoice`].
 //!
 //! What the engine owns, so no caller re-implements it: the file's loudness
 //! gain, the category level, the bus gain, the distance fade, the stereo
@@ -25,11 +25,11 @@ use bevy::{
 use nova_events::prelude::Meters;
 
 use super::{
-    bus::{AudioBus, AudioRoute, Mixer},
+    bus::{AudioRoute, Mixer},
     category::SoundBus,
     listener::{resolve_hearing, Hearing, SoundListenerAnchor},
     loudness::SoundLoudness,
-    mixing::{distance_attenuation, SfxListenerMarker, SFX_AUDIBLE_THRESHOLD},
+    mixing::{SfxListenerMarker, SFX_AUDIBLE_THRESHOLD},
     play::{SoundLoop, SoundVoice, VoiceGroup, VoicePlace},
     spatial::{listener_ears, pan_compensation, pan_gains},
 };
@@ -59,24 +59,8 @@ const VOICE_CAP_HYSTERESIS: f32 = 1.15;
 #[derive(Component, Clone, Copy, Debug, Default)]
 pub struct VoiceMarker;
 
-/// Where a legacy voice is heard from. Read only for [`AudioRoute::Exterior`] -
-/// interface and hull voices are non-positional by definition.
-#[derive(Clone, Copy, PartialEq, Debug, Default, Reflect)]
-pub enum SfxSource {
-    /// No position: the voice plays unattenuated and unpanned.
-    #[default]
-    Unplaced,
-    /// A fixed point in the world, for a cue that happened somewhere and is
-    /// over.
-    At(Vec3),
-    /// An entity's world pose, re-read every frame so a moving source keeps its
-    /// bearing. A voice whose entity is gone holds silence until its owner
-    /// despawns it.
-    Follow(Entity),
-}
-
-/// One legacy sound the engine is playing: what it is, which track scales it,
-/// how loud its owner wants it, and where it is heard from.
+/// One legacy interface sound the engine is playing: what it is, which track
+/// scales it and how loud its owner wants it. It is heard flat.
 ///
 /// Spawn one to start a sound. For a loop, keep the entity and write
 /// [`volume`](Self::volume) each frame; the engine reads it and does the rest.
@@ -87,17 +71,15 @@ pub enum SfxSource {
 pub struct SfxVoice {
     /// The sound to play.
     pub handle: Handle<AudioSource>,
-    /// Which track scales it, and whether it is placed in the world.
+    /// Which track scales it.
     pub route: AudioRoute,
-    /// The owner's linear level, before the bus gain, the rolloff and the pan.
+    /// The owner's linear level, before the bus gain.
     pub volume: f32,
     /// Playback speed, which also shifts pitch (1.0 is normal).
     ///
     /// LIVE, like the volume: `drive_sfx_voices` pushes it to the sink every
     /// frame.
     pub speed: f32,
-    /// Where the sound is coming from.
-    pub source: SfxSource,
     /// Whether the clip repeats forever. A one-shot retires itself; a loop
     /// plays until its owner despawns the entity.
     pub looping: bool,
@@ -111,7 +93,6 @@ impl SfxVoice {
             route,
             volume: 1.0,
             speed: 1.0,
-            source: SfxSource::Unplaced,
             looping: false,
         }
     }
@@ -124,7 +105,6 @@ impl SfxVoice {
             route,
             volume: 0.0,
             speed: 1.0,
-            source: SfxSource::Unplaced,
             looping: true,
         }
     }
@@ -138,18 +118,6 @@ impl SfxVoice {
     /// Set the playback speed (and pitch).
     pub fn with_speed(mut self, speed: f32) -> Self {
         self.speed = speed;
-        self
-    }
-
-    /// Hear the voice from a fixed world point.
-    pub fn at(mut self, position: Vec3) -> Self {
-        self.source = SfxSource::At(position);
-        self
-    }
-
-    /// Hear the voice from `entity`, following it as it moves.
-    pub fn following(mut self, entity: Entity) -> Self {
-        self.source = SfxSource::Follow(entity);
         self
     }
 }
@@ -240,29 +208,6 @@ impl VoicePlacement {
     }
 }
 
-/// Mix one legacy voice: bus gain, rolloff, pan.
-///
-/// A positional legacy voice with no listener (early startup, the editor) or
-/// no place to be heard from falls back to non-positional at full range.
-fn place_legacy(
-    voice: &SfxVoice,
-    bus_gain: f32,
-    hearing: Option<&Hearing>,
-    point: &VoicePoint,
-) -> VoicePlacement {
-    if matches!(point, VoicePoint::Lost) {
-        return VoicePlacement::flat(0.0);
-    }
-    let base = voice.volume.max(0.0) * bus_gain;
-    let (VoicePoint::At(source), true, Some(hearing)) =
-        (point, voice.route.is_positional(), hearing)
-    else {
-        return VoicePlacement::flat(base);
-    };
-    let level = base * distance_attenuation(hearing.distance(*source));
-    VoicePlacement::placed(level, hearing, *source)
-}
-
 /// Mix one category voice: the clip's loudness gain, the category level and
 /// loop intensity, the bus gain, the distance fade and the pan.
 ///
@@ -347,8 +292,8 @@ impl<'a> VoiceView<'a> {
             handle: &voice.handle,
             looping: voice.looping,
             speed: voice.speed,
-            spatial: voice.route.is_positional(),
-            world: voice.route.bus() == AudioBus::World,
+            spatial: false,
+            world: false,
         })
     }
 }
@@ -383,20 +328,12 @@ fn place(
             VoicePlace::At(point) => VoicePoint::At(point),
             VoicePlace::Follow(entity) => follow(entity, q_pose),
         };
-        let bus_gain = mixer.sound_bus_gain(voice.category.bus());
+        let bus_gain = mixer.bus_gain(voice.category.bus());
         return Some(place_sound(voice, clip.gain(), bus_gain, hearing, &point));
     }
     let voice = legacy?;
-    let point = match voice.source {
-        SfxSource::Unplaced => VoicePoint::Unplaced,
-        SfxSource::At(point) => VoicePoint::At(point),
-        SfxSource::Follow(entity) => follow(entity, q_pose),
-    };
-    Some(place_legacy(
-        voice,
-        mixer.bus_gain(voice.route),
-        hearing,
-        &point,
+    Some(VoicePlacement::flat(
+        voice.volume.max(0.0) * mixer.bus_gain(voice.route.bus()),
     ))
 }
 
@@ -817,12 +754,6 @@ mod tests {
     use super::*;
     use crate::{ClipLoudness, SoundCategoryType, LOUDNESS_TARGET_LUFS};
 
-    fn voice_at(route: AudioRoute, volume: f32, point: Vec3) -> SfxVoice {
-        SfxVoice::one_shot(Handle::default(), route)
-            .with_volume(volume)
-            .at(point)
-    }
-
     fn listener_at(position: Vec3) -> Hearing {
         Hearing::new(
             GlobalTransform::from(Transform::from_translation(position)),
@@ -831,84 +762,38 @@ mod tests {
     }
 
     #[test]
-    fn a_hull_voice_is_never_attenuated_however_far_the_camera_pulls_back() {
-        // The routing fact that replaces the old "if this is the player, skip
-        // attenuation" special case: the survey dolly stretches the camera to
-        // 250 world units (2.5 km) and your own engines must not fade for it.
-        let listener = listener_at(Vec3::new(0.0, 0.0, 250.0));
-        let voice = voice_at(AudioRoute::Hull, 0.3, Vec3::ZERO);
-        let placement = place_legacy(&voice, 1.0, Some(&listener), &VoicePoint::At(Vec3::ZERO));
-        assert_eq!(placement.level, 0.3);
-        assert!(
-            placement.emitter.is_none(),
-            "a hull voice is not placed in the world at all"
-        );
-    }
-
-    #[test]
-    fn an_exterior_voice_keeps_the_tuned_rolloff_as_its_amplitude_law() {
-        // The pan must not smuggle in rodio's own 1/d law: the LEVEL is exactly
-        // the engine's curve, and the pan rides on top as a ratio.
-        let listener = listener_at(Vec3::ZERO);
-        let source = Vec3::new(170.0, 0.0, 0.0);
-        let voice = voice_at(AudioRoute::Exterior, 0.4, source);
-        let placement = place_legacy(&voice, 1.0, Some(&listener), &VoicePoint::At(source));
-        let expected = 0.4 * distance_attenuation(170.0);
-        assert!(
-            (placement.level - expected).abs() < 1e-6,
-            "expected the tuned rolloff {expected}, got {}",
-            placement.level
-        );
-        assert!(expected > 0.0 && expected < 0.4, "the rolloff must bite");
-        let emitter = placement.emitter.expect("an exterior voice is placed");
-        assert!(
-            (emitter.length() - super::super::spatial::SPATIAL_EMITTER_RADIUS).abs() < 1e-4,
-            "and parked on the fixed-radius sphere, not at 170 u"
-        );
-    }
-
-    #[test]
-    fn an_exterior_voice_beyond_the_far_distance_is_silent() {
-        let listener = listener_at(Vec3::ZERO);
-        let source = Vec3::new(1000.0, 0.0, 0.0);
-        let voice = voice_at(AudioRoute::Exterior, 1.0, source);
-        let placement = place_legacy(&voice, 1.0, Some(&listener), &VoicePoint::At(source));
-        assert_eq!(placement.level, 0.0);
-        assert!(placement.level < SFX_AUDIBLE_THRESHOLD);
-    }
-
-    #[test]
     fn a_voice_following_a_despawned_entity_holds_silence() {
         // The alternative - falling back to non-positional - would make a dead
         // ship's engine jump to full volume in the player's ear.
         let listener = listener_at(Vec3::ZERO);
-        let voice = SfxVoice::looping(Handle::default(), AudioRoute::Exterior).with_volume(0.5);
-        let placement = place_legacy(&voice, 1.0, Some(&listener), &VoicePoint::Lost);
+        let voice = SoundVoice {
+            looping: true,
+            ..sound_voice(
+                SoundCategoryType::Drive,
+                VoicePlace::Follow(Entity::PLACEHOLDER),
+            )
+        };
+        let placement = place_sound(&voice, 1.0, 1.0, Some(&listener), &VoicePoint::Lost);
         assert_eq!(placement.level, 0.0);
         assert_eq!(placement.gain, 0.0);
     }
 
     #[test]
-    fn a_positional_voice_without_a_listener_degrades_to_full_volume() {
-        let voice = voice_at(AudioRoute::Exterior, 0.5, Vec3::new(500.0, 0.0, 0.0));
-        let placement = place_legacy(
-            &voice,
-            1.0,
-            None,
-            &VoicePoint::At(Vec3::new(500.0, 0.0, 0.0)),
-        );
-        assert_eq!(placement.level, 0.5, "no listener yet: play, do not vanish");
-        assert!(placement.emitter.is_none());
-    }
-
-    #[test]
-    fn the_bus_gain_scales_the_level() {
-        let listener = listener_at(Vec3::ZERO);
-        let voice = voice_at(AudioRoute::Exterior, 0.8, Vec3::ZERO);
-        let half = place_legacy(&voice, 0.5, Some(&listener), &VoicePoint::At(Vec3::ZERO));
-        assert!((half.level - 0.4).abs() < 1e-6);
-        let silenced = place_legacy(&voice, 0.0, Some(&listener), &VoicePoint::At(Vec3::ZERO));
-        assert_eq!(silenced.level, 0.0, "a track at zero plays nothing");
+    fn a_legacy_interface_voice_is_heard_flat_at_its_level_times_the_bus() {
+        let voice = SfxVoice::one_shot(Handle::default(), AudioRoute::Interface).with_volume(0.8);
+        let mut app = App::new();
+        app.insert_resource(crate::InterfaceVolume(1.0));
+        app.add_systems(Update, start_sfx_voices);
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()));
+        app.init_asset::<AudioSource>();
+        let entity = app.world_mut().spawn(voice).id();
+        app.update();
+        let player = app
+            .world()
+            .get::<PlaybackSettings>(entity)
+            .expect("an audible interface cue opens a player");
+        assert!(!player.spatial, "an interface cue is never placed");
+        assert_eq!(player.volume, Volume::Linear(0.8));
     }
 
     fn loops(levels: impl IntoIterator<Item = f32>) -> Vec<LoopRank> {
@@ -1030,9 +915,12 @@ mod tests {
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
         app.add_systems(Update, start_sfx_voices);
+        app.insert_resource(measured());
+        app.world_mut()
+            .spawn((SfxListenerMarker, GlobalTransform::IDENTITY));
         let voice = app
             .world_mut()
-            .spawn(SfxVoice::looping(Handle::default(), AudioRoute::Exterior).with_volume(0.5))
+            .spawn(drive_loop(Vec3::X * 60.0, IVec3::ZERO))
             .id();
 
         app.update();
@@ -1059,27 +947,25 @@ mod tests {
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
         app.add_systems(Update, (start_sfx_voices, drive_sfx_voices).chain());
+        app.insert_resource(measured());
         app.world_mut()
             .spawn((SfxListenerMarker, GlobalTransform::IDENTITY));
-        let exterior = |point: Vec3| {
-            SfxVoice::looping(Handle::default(), AudioRoute::Exterior)
-                .with_volume(1.0)
-                .with_speed(0.5)
-                .at(point)
+        let slow = |point: Vec3, cell: IVec3| SoundVoice {
+            rate: 0.5,
+            ..drive_loop(point, cell)
         };
-        let near = app.world_mut().spawn(exterior(Vec3::X * 60.0)).id();
-        let far = app.world_mut().spawn(exterior(Vec3::X * 200.0)).id();
+        let near = app.world_mut().spawn(slow(Vec3::X * 60.0, IVec3::X)).id();
+        let far = app.world_mut().spawn(slow(Vec3::X * 200.0, IVec3::Y)).id();
         let source = app
             .world_mut()
             .spawn(GlobalTransform::from_translation(Vec3::X * 60.0))
             .id();
         let leaving = app
             .world_mut()
-            .spawn(
-                SfxVoice::looping(Handle::default(), AudioRoute::Exterior)
-                    .with_volume(1.0)
-                    .following(source),
-            )
+            .spawn(SoundVoice {
+                place: VoicePlace::Follow(source),
+                ..drive_loop(Vec3::ZERO, IVec3::Z)
+            })
             .id();
 
         let mut leaving_gains = Vec::new();
@@ -1098,7 +984,10 @@ mod tests {
 
         let mix = |entity| *app.world().get::<VoiceMix>(entity).unwrap();
         assert!(mix(near).gain > mix(far).gain, "near is louder than far");
-        assert!(mix(far).gain > 0.0, "far is still inside the rolloff");
+        assert!(
+            mix(far).gain > 0.0,
+            "far is still inside the category's reach"
+        );
         let (left, right) = pan_gains(Vec3::X);
         assert_eq!(
             mix(near).channel_gains,
@@ -1115,7 +1004,7 @@ mod tests {
         );
     }
 
-    /// A frozen sim pauses World-bus sinks, so capture must hear them paused
+    /// A frozen sim pauses Effect-bus sinks, so capture must hear them paused
     /// too; interface voices keep playing behind the overlay.
     #[test]
     fn a_frozen_sim_publishes_world_voices_as_paused() {
@@ -1123,11 +1012,11 @@ mod tests {
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
         app.insert_resource(SoundFreeze(true));
+        app.insert_resource(measured());
         app.add_systems(Update, (start_sfx_voices, drive_sfx_voices).chain());
-        let hull = app
-            .world_mut()
-            .spawn(SfxVoice::looping(Handle::default(), AudioRoute::Hull).with_volume(1.0))
-            .id();
+        app.world_mut()
+            .spawn((SfxListenerMarker, GlobalTransform::IDENTITY));
+        let world = app.world_mut().spawn(drive_loop(Vec3::X, IVec3::ZERO)).id();
         let interface = app
             .world_mut()
             .spawn(SfxVoice::looping(Handle::default(), AudioRoute::Interface).with_volume(1.0))
@@ -1136,29 +1025,26 @@ mod tests {
         app.update();
 
         let paused = |entity| app.world().get::<VoiceMix>(entity).unwrap().paused;
-        assert!(paused(hull), "a World-bus voice is held by the freeze");
+        assert!(paused(world), "an Effect-bus voice is held by the freeze");
         assert!(!paused(interface), "an interface voice plays through it");
     }
 
     /// Capture silences a voice only on the engine's word: past the cap, the
-    /// quietest exterior loop publishes `capped` and the rest do not.
+    /// quietest world loop publishes `capped` and the rest do not.
     #[test]
     fn the_quietest_loop_past_the_cap_publishes_as_capped() {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()));
         app.init_asset::<AudioSource>();
         app.add_systems(Update, (start_sfx_voices, drive_sfx_voices).chain());
+        app.insert_resource(measured());
         app.world_mut()
             .spawn((SfxListenerMarker, GlobalTransform::IDENTITY));
         let voices: Vec<Entity> = (0..=MAX_EFFECT_LOOP_VOICES)
             .map(|i| {
                 let point = Vec3::X * (40.0 + 10.0 * i as f32);
                 app.world_mut()
-                    .spawn(
-                        SfxVoice::looping(Handle::default(), AudioRoute::Exterior)
-                            .with_volume(1.0)
-                            .at(point),
-                    )
+                    .spawn(drive_loop(point, IVec3::new(i as i32, 0, 0)))
                     .id()
             })
             .collect();
@@ -1191,6 +1077,16 @@ mod tests {
             intensity: 1.0,
             rate: 1.0,
             started: Duration::ZERO,
+        }
+    }
+
+    /// A full drive loop at `point`, alone in the world cell `cell`, so the
+    /// per-group voice count never silences it.
+    fn drive_loop(point: Vec3, cell: IVec3) -> SoundVoice {
+        SoundVoice {
+            looping: true,
+            group: VoiceGroup::Cell(cell),
+            ..sound_voice(SoundCategoryType::Drive, VoicePlace::At(point))
         }
     }
 
@@ -1452,7 +1348,7 @@ mod tests {
         // the end of a scenario silences.
         let inaudible = app
             .world_mut()
-            .spawn(voice_at(AudioRoute::Exterior, 0.0, Vec3::ZERO))
+            .spawn(SfxVoice::one_shot(Handle::default(), AudioRoute::Interface).with_volume(0.0))
             .id();
         let stranded = app
             .world_mut()
@@ -1463,7 +1359,7 @@ mod tests {
             .id();
         let world_loop = app
             .world_mut()
-            .spawn(SfxVoice::looping(Handle::default(), AudioRoute::Hull))
+            .spawn(drive_loop(Vec3::ZERO, IVec3::ZERO))
             .id();
 
         app.update();

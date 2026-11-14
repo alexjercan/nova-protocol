@@ -1,35 +1,13 @@
-//! The mixing layer every cue goes through: where the listener is, how far a
-//! sound falls off, and the per-source throttle that keeps a burst of events
-//! from stacking into mud. Game-independent - the per-cue volumes and
-//! intervals that use it are the caller's tuning, not this module's.
-//!
-//! This is the AMPLITUDE half of the mix. The stereo half is `spatial`, which
-//! rides on top as a pure left/right ratio and adds no loudness of its own.
+//! Shared mixing pieces: the listener camera's marker, the audible threshold,
+//! and the world-cell grouping and burst budget that the juice layer shares
+//! with the audio layer's own grouping.
 
 use std::{collections::HashMap, hash::Hash};
 
 use bevy::prelude::*;
 
-/// Distance-attenuation rolloff for positional cues, in world units. A cue
-/// plays at full base volume within `SFX_NEAR_DISTANCE`, is inaudible beyond
-/// `SFX_FAR_DISTANCE`, and rolls off between (see [`distance_attenuation`]).
-/// Tune by ear for the scene scale (Nova ships are a few units across; combat
-/// happens over dozens).
-pub const SFX_NEAR_DISTANCE: f32 = 20.0;
-/// The far end of the rolloff: beyond this a positional cue is silent.
-pub const SFX_FAR_DISTANCE: f32 = 320.0;
-
-/// Shape of the distance rolloff between NEAR and FAR. Loudness perception is
-/// logarithmic, so a linear *amplitude* ramp sounds flat for most of the range
-/// and then cliffs to silence near the end. Decaying the amplitude
-/// geometrically toward this floor instead gives a roughly constant
-/// dB-per-distance falloff, so the *perceived* volume fades evenly. Smaller
-/// floor = steeper decay / more perceived range; 0.05 is about -26 dB at the
-/// far end (before the final remap to true zero).
-const SFX_ROLLOFF_FLOOR: f32 = 0.05;
-
-/// Below this final (attenuated) linear volume a one-shot is not worth an audio
-/// sink - it would be inaudible. Skipping it avoids sink churn for far events.
+/// Below this final (faded) linear level a one-shot is not worth an audio sink
+/// - it would be inaudible - and a loop holds its sink paused.
 pub const SFX_AUDIBLE_THRESHOLD: f32 = 0.01;
 
 /// World-cell size (units) for grouping co-located area cues that have no body
@@ -38,13 +16,8 @@ pub const SFX_AUDIBLE_THRESHOLD: f32 = 0.01;
 /// A cue that CAN name a body is grouped by the body instead (see
 /// [`CueGroup`]): six units is a gunship, so a cell groups a skiff's whole
 /// death and a carrier's into two dozen separate ones, which is the same
-/// mistake in both directions. Turret fire is keyed by entity, and a salvo by
-/// the ship, so neither uses this.
+/// mistake in both directions.
 pub const SFX_AREA_CELL: f32 = 6.0;
-
-/// Drop throttle keys not touched within this many seconds, so the per-source
-/// map stays bounded as ships move through new cells and turrets come and go.
-const SFX_THROTTLE_PRUNE_WINDOW: f32 = 2.0;
 
 /// What a body-bound cue is grouped with.
 ///
@@ -62,47 +35,6 @@ pub enum CueGroup {
     Cell(IVec3),
 }
 
-/// Per-source throttle key. Turret fire is keyed by the firing turret entity so
-/// each gun sounds independently (even two guns on one ship); the area cues are
-/// keyed by whatever the event happened TO. Keying globally (one timestamp per
-/// cue) was the bug where a second gun firing in the same window was silenced.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum ThrottleKey {
-    /// One firing gun, so two guns on one ship sound independently.
-    TurretFire(Entity),
-    /// Impacts grouped by what was hit.
-    Impact(CueGroup),
-    /// Destruction grouped by what came apart.
-    Explosion(CueGroup),
-    /// One SALVO, keyed by the ship that fired it rather than by the bay or a
-    /// world cell. A ship's tubes share a trigger and a reload, so eight bays
-    /// launch on one frame and the report is "that ship fired", not eight
-    /// thumps summing into a clipped one. Deliberately the opposite policy to
-    /// [`ThrottleKey::TurretFire`]: a gun stream reads as many guns, a salvo
-    /// reads as one event. A cell key would not do it - a capital ship's tubes
-    /// sit further apart than [`SFX_AREA_CELL`].
-    TorpedoLaunch(Entity),
-    /// One salvo's drives lighting, keyed by the ship that fired it, for the
-    /// same reason as [`ThrottleKey::TorpedoLaunch`]: tubes that launch on one
-    /// frame with one `ignition_delay` light on one frame too. Its own key, so
-    /// a launch report never swallows the ignition that follows it.
-    TorpedoIgnition(Entity),
-    /// A torpedo dying without its warhead, a dud or an intercept, keyed by
-    /// the [`area_cell`] it died in. Point defense breaks up a salvo inside a
-    /// fraction of a second in one patch of sky, and that is one burst of
-    /// pops, not six on top of each other. Torpedoes dying in different cells
-    /// are still heard apart.
-    TorpedoDeath(IVec3),
-    /// A docking clamp closing, keyed by the hull whose port reported it. One
-    /// hull holds one dock, so this only collapses a request echoed on one
-    /// frame; a station's several ports stay distinct through the visitors'
-    /// own keys. Its own key beside [`ThrottleKey::DockRelease`], so a dock
-    /// let go at once still says so.
-    DockClamp(Entity),
-    /// A docking clamp letting go, keyed like [`ThrottleKey::DockClamp`].
-    DockRelease(Entity),
-}
-
 /// Quantize a world position to a [`SFX_AREA_CELL`]-sized integer cell, so
 /// nearby events share a key and far ones do not.
 pub fn area_cell(pos: Vec3) -> IVec3 {
@@ -118,13 +50,10 @@ pub fn cue_group(body: Option<Entity>, at: Vec3) -> CueGroup {
 /// Last-fired timestamp per throttle key, in seconds since startup. A key that
 /// is absent has never fired, so its first event always passes.
 ///
-/// ONE budget algorithm for every layer that collapses a burst. The audio
-/// layer's [`SfxThrottle`] and the juice layer's camera-kick budget are two
-/// instances of this type over their own key vocabularies, not two
-/// implementations of the same rule: they already share [`CueGroup`] because a
-/// frame that is one bang has to be one kick, and an `allow` that drifted
-/// between them would split the bang from the kick again. They stay separate
-/// RESOURCES so their intervals and their prune windows tune independently.
+/// The juice layer's camera-kick budget runs on this, grouped by [`CueGroup`],
+/// so a frame that is one body's bang is one kick. The sound engine's own
+/// repeat interval is [`SoundRepeat`](super::SoundRepeat), keyed by sound and
+/// `ChildOf` root.
 #[derive(Resource)]
 pub struct CueThrottle<K: Copy + Eq + Hash + Send + Sync + 'static> {
     last: HashMap<K, f32>,
@@ -164,28 +93,6 @@ impl<K: Copy + Eq + Hash + Send + Sync + 'static> CueThrottle<K> {
     }
 }
 
-/// The audio layer's cue budget: one timestamp per [`ThrottleKey`].
-pub type SfxThrottle = CueThrottle<ThrottleKey>;
-
-/// Distance rolloff in [0, 1]: full within [`SFX_NEAR_DISTANCE`], zero beyond
-/// [`SFX_FAR_DISTANCE`]. Between them the amplitude decays *geometrically*
-/// toward the private `SFX_ROLLOFF_FLOOR` (constant dB per distance), not linearly, so
-/// the perceived loudness fades evenly instead of staying flat and then
-/// cliffing - the fix for "same volume then instantly zero". The geometric
-/// curve is remapped from `[floor, 1]` back to `[0, 1]` so it still reaches
-/// exactly zero at FAR. Pure for unit testing.
-pub fn distance_attenuation(distance: f32) -> f32 {
-    if distance <= SFX_NEAR_DISTANCE {
-        1.0
-    } else if distance >= SFX_FAR_DISTANCE {
-        0.0
-    } else {
-        let t = (distance - SFX_NEAR_DISTANCE) / (SFX_FAR_DISTANCE - SFX_NEAR_DISTANCE);
-        let decayed = SFX_ROLLOFF_FLOOR.powf(t);
-        (decayed - SFX_ROLLOFF_FLOOR) / (1.0 - SFX_ROLLOFF_FLOOR)
-    }
-}
-
 /// Marks the camera that acts as the SFX/juice listener: distance attenuation
 /// for the one-shot cues, camera-shake trauma, and the flash-ring facing all
 /// key off this entity. Exactly one camera should carry it at a time - the
@@ -204,28 +111,20 @@ pub fn distance_attenuation(distance: f32) -> f32 {
 #[reflect(Component)]
 pub struct SfxListenerMarker;
 
-/// The listener position for distance attenuation: the marked gameplay camera's
-/// world translation, or `None` if no listener exists yet (early startup, or
-/// the editor).
-pub fn listener_position(
-    q_camera: &Query<&GlobalTransform, With<SfxListenerMarker>>,
-) -> Option<Vec3> {
-    q_camera.iter().next().map(|t| t.translation())
-}
-
-/// Keep the per-source throttle map bounded by dropping idle keys.
-pub fn prune_sfx_throttle(time: Res<Time>, mut throttle_state: ResMut<SfxThrottle>) {
-    throttle_state.prune(time.elapsed_secs(), SFX_THROTTLE_PRUNE_WINDOW);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+    enum Key {
+        Impact(CueGroup),
+        Destroy(CueGroup),
+    }
+
     #[test]
     fn throttle_blocks_one_key_until_the_interval_elapses() {
-        let key = ThrottleKey::Explosion(CueGroup::Cell(IVec3::ZERO));
-        let mut state = SfxThrottle::default();
+        let key = Key::Destroy(CueGroup::Cell(IVec3::ZERO));
+        let mut state = CueThrottle::<Key>::default();
         // First event of a key always fires (absent -> NEG_INFINITY).
         assert!(state.allow(key, 0.0, 0.05));
         // Too soon: blocked.
@@ -238,37 +137,21 @@ mod tests {
 
     #[test]
     fn throttle_is_independent_per_key() {
-        // The bug fix: two distinct sources firing in the same instant both
-        // play.
-        let mut world = World::new();
-        let gun_a = ThrottleKey::TurretFire(world.spawn_empty().id());
-        let gun_b = ThrottleKey::TurretFire(world.spawn_empty().id());
-        let mut state = SfxThrottle::default();
-        assert!(state.allow(gun_a, 0.0, 0.05));
-        assert!(
-            state.allow(gun_b, 0.0, 0.05),
-            "a second gun must not be silenced"
-        );
-        // Same gun again in the same window is still throttled.
-        assert!(!state.allow(gun_a, 0.0, 0.05));
-        // Different cue kinds at the same cell are independent too.
-        assert!(state.allow(ThrottleKey::Impact(CueGroup::Cell(IVec3::ZERO)), 0.0, 0.04));
-        assert!(state.allow(
-            ThrottleKey::Explosion(CueGroup::Cell(IVec3::ZERO)),
-            0.0,
-            0.06
-        ));
+        let mut state = CueThrottle::<Key>::default();
+        assert!(state.allow(Key::Impact(CueGroup::Cell(IVec3::ZERO)), 0.0, 0.04));
+        assert!(state.allow(Key::Impact(CueGroup::Cell(IVec3::ONE)), 0.0, 0.04));
+        assert!(state.allow(Key::Destroy(CueGroup::Cell(IVec3::ZERO)), 0.0, 0.06));
     }
 
     #[test]
     fn prune_drops_only_idle_keys() {
-        let mut state = SfxThrottle::default();
-        state.allow(ThrottleKey::Impact(CueGroup::Cell(IVec3::ZERO)), 0.0, 0.04); // last = 0.0
-        state.allow(ThrottleKey::Impact(CueGroup::Cell(IVec3::ONE)), 9.5, 0.04); // last = 9.5
+        let mut state = CueThrottle::<Key>::default();
+        state.allow(Key::Impact(CueGroup::Cell(IVec3::ZERO)), 0.0, 0.04); // last = 0.0
+        state.allow(Key::Impact(CueGroup::Cell(IVec3::ONE)), 9.5, 0.04); // last = 9.5
         state.prune(10.0, 2.0); // window 2s at now=10 -> keep >8.0
         assert!(state
             .tracked_keys()
-            .eq([ThrottleKey::Impact(CueGroup::Cell(IVec3::ONE))]));
+            .eq([Key::Impact(CueGroup::Cell(IVec3::ONE))]));
     }
 
     #[test]
@@ -282,67 +165,5 @@ mod tests {
             area_cell(Vec3::ZERO),
             area_cell(Vec3::splat(SFX_AREA_CELL * 1.5))
         );
-    }
-
-    #[test]
-    fn distance_attenuation_rolls_off_between_near_and_far() {
-        // Full within the near radius (including at exactly near).
-        assert_eq!(distance_attenuation(0.0), 1.0);
-        assert_eq!(distance_attenuation(SFX_NEAR_DISTANCE), 1.0);
-        // Silent at/beyond the far radius (endpoints are clean 1 and 0).
-        assert_eq!(distance_attenuation(SFX_FAR_DISTANCE), 0.0);
-        assert_eq!(distance_attenuation(SFX_FAR_DISTANCE + 100.0), 0.0);
-
-        // Monotonic decreasing in the rolloff band.
-        let mid = (SFX_NEAR_DISTANCE + SFX_FAR_DISTANCE) / 2.0;
-        let a = distance_attenuation(SFX_NEAR_DISTANCE + 10.0);
-        let m = distance_attenuation(mid);
-        let b = distance_attenuation(SFX_FAR_DISTANCE - 10.0);
-        assert!(a > m && m > b, "attenuation should decrease with distance");
-
-        // Convex/perceptual: the geometric curve sits *below* the old linear
-        // line (which would be 0.5 at the midpoint), so loudness is already
-        // clearly reduced by the middle distances instead of staying flat then
-        // cliffing.
-        assert!(
-            m < 0.5,
-            "midpoint should be well below the linear 0.5, got {m}"
-        );
-        // Values stay in range.
-        for d in [30.0, 100.0, 200.0, 300.0] {
-            let v = distance_attenuation(d);
-            assert!(
-                (0.0..=1.0).contains(&v),
-                "attenuation out of range at {d}: {v}"
-            );
-        }
-    }
-
-    #[test]
-    fn listener_position_uses_the_marked_camera_not_any_camera3d() {
-        use bevy::ecs::system::SystemState;
-
-        let mut world = World::new();
-        // An unmarked Camera3d must not be the listener...
-        world.spawn((
-            Camera3d::default(),
-            GlobalTransform::from(Transform::from_translation(Vec3::new(5.0, 0.0, 0.0))),
-        ));
-        let mut state: SystemState<Query<&GlobalTransform, With<SfxListenerMarker>>> =
-            SystemState::new(&mut world);
-        assert_eq!(
-            listener_position(&state.get(&world).unwrap()),
-            None,
-            "no marked listener -> None (graceful full-volume fallback)"
-        );
-
-        // ...only the camera carrying the marker is.
-        let pos = Vec3::new(0.0, 3.0, -7.0);
-        world.spawn((
-            Camera3d::default(),
-            SfxListenerMarker,
-            GlobalTransform::from(Transform::from_translation(pos)),
-        ));
-        assert_eq!(listener_position(&state.get(&world).unwrap()), Some(pos));
     }
 }

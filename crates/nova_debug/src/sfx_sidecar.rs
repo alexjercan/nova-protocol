@@ -135,10 +135,10 @@ impl OpenSidecar {
     fn sample<'a>(
         &mut self,
         frame: u32,
-        voices: impl IntoIterator<Item = (Entity, &'a AudioPlayer, &'a VoiceMix)>,
+        voices: impl IntoIterator<Item = (Entity, &'a Handle<AudioSource>, &'a VoiceMix)>,
         clip_of: impl Fn(&Handle<AudioSource>) -> Option<String>,
     ) {
-        for (entity, player, mix) in voices {
+        for (entity, clip, mix) in voices {
             let held = mix.capped || mix.paused;
             let gain = if held { 0.0 } else { mix.gain };
             let (number, row) = match self.numbers.get(&entity) {
@@ -147,7 +147,8 @@ impl OpenSidecar {
                     format!(r#"{{"f":{frame},"v":{number},"gain":{gain:.5}}}"#),
                 ),
                 None => {
-                    let Some(clip) = clip_of(&player.0) else {
+                    let handle = clip;
+                    let Some(clip) = clip_of(handle) else {
                         // Version 1 names every voice by its asset path, and
                         // dropping one would ship a mix missing a sound.
                         self.failure.get_or_insert_with(|| {
@@ -174,7 +175,7 @@ impl OpenSidecar {
                     );
                     self.voices.push(VoiceTrack {
                         clip,
-                        handle: player.0.clone(),
+                        handle: handle.clone(),
                         looping: mix.looping,
                         downmix: mix.spatial,
                         frames: Vec::new(),
@@ -254,7 +255,10 @@ fn sample_sidecar(
     let Some(open) = sidecar.open.as_mut() else {
         return;
     };
-    open.sample(frame.frame, q_voices, |handle| {
+    let voices = q_voices
+        .iter()
+        .map(|(entity, player, mix)| (entity, &player.0, mix));
+    open.sample(frame.frame, voices, |handle| {
         assets
             .get_path(handle.id())
             .map(|path| path.path().to_string_lossy().replace('\\', "/"))
@@ -657,7 +661,7 @@ mod tests {
     fn the_sidecar_writes_version_one_rows_exactly() {
         let mut world = World::new();
         let entity = world.spawn_empty().id();
-        let voice = AudioPlayer(Handle::default());
+        let voice = Handle::<AudioSource>::default();
         let looped = |gain, capped| VoiceMix {
             spatial: true,
             looping: true,
@@ -692,7 +696,7 @@ mod tests {
     /// two must never splice into one clip.
     #[test]
     fn voice_numbers_only_go_up_across_entity_index_reuse() {
-        let voice = AudioPlayer(Handle::default());
+        let voice = Handle::<AudioSource>::default();
         let mut open = OpenSidecar::new("reuse", 30);
 
         let first = Entity::from_index(EntityIndex::from_raw_u32(7).unwrap());
@@ -710,7 +714,7 @@ mod tests {
     /// writes no row. Plain nested and dot-prefixed names stay accepted.
     #[test]
     fn only_sample_paths_inside_the_capture_directory_and_outside_staging_are_accepted() {
-        let voice = AudioPlayer(Handle::default());
+        let voice = Handle::<AudioSource>::default();
         for safe_path in ["sfx/impact/hit.wav", "sounds/.hidden.wav"] {
             let mut open = OpenSidecar::new("safe", 30);
             let entity = Entity::from_index(EntityIndex::from_raw_u32(1).unwrap());
@@ -795,7 +799,7 @@ mod tests {
             audio_path,
             failure: None,
         };
-        let voice = AudioPlayer(Handle::default());
+        let voice = Handle::<AudioSource>::default();
 
         assert_eq!(check_sample_destination(&dir, "plain/new/hit.wav"), Ok(()));
         for (clip, reason) in [
@@ -820,7 +824,7 @@ mod tests {
     /// stays a valid JSON string.
     #[test]
     fn loop_names_and_clip_paths_are_json_escaped() {
-        let voice = AudioPlayer(Handle::default());
+        let voice = Handle::<AudioSource>::default();
         let mut open = OpenSidecar::new("say \"hi\"\\\n", 30);
         let entity = Entity::from_index(EntityIndex::from_raw_u32(1).unwrap());
         open.sample(0, [(entity, &voice, &mix(1.0, false))], |_| {

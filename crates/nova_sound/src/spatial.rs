@@ -1,11 +1,9 @@
-//! Directional sound: how an [`AudioRoute::Exterior`](super::AudioRoute::Exterior)
-//! voice reaches the listener's two ears.
+//! Directional sound: how a world voice reaches the listener's two ears.
 //!
 //! bevy's spatial audio hands the mixing to rodio, which pans by comparing the
 //! emitter's distance to each ear and folds its own `1/d^2` loudness law into
-//! the same number. That law is not the tuned rolloff
-//! [`distance_attenuation`](super::distance_attenuation) owns, so the emitter is
-//! NOT parked at the source. It is parked on a sphere of FIXED radius
+//! the same number. That law is not the category's distance fade, so the
+//! emitter is NOT parked at the source. It is parked on a sphere of FIXED radius
 //! [`SPATIAL_EMITTER_RADIUS`] around the listener, in the true bearing
 //! direction: rodio's distance term is then the same for every cue at every
 //! range, its output is a pure left/right split, and [`pan_compensation`]
@@ -87,8 +85,8 @@ pub fn pan_gains(bearing: Vec3) -> (f32, f32) {
 /// [`pan_gains`] while leaving its left/right RATIO - the pan itself - intact.
 ///
 /// The two ears end up at RMS 1, which is exactly where a non-spatial voice
-/// sits, so routing a cue `Exterior` changes where it sits in the stereo field
-/// and nothing else.
+/// sits, so placing a cue in the world changes where it sits in the stereo
+/// field and nothing else.
 pub fn pan_compensation(bearing: Vec3) -> f32 {
     let (left, right) = pan_gains(bearing);
     let power = ((left * left + right * right) / 2.0).sqrt();
@@ -139,8 +137,8 @@ mod tests {
 
     #[test]
     fn compensation_holds_the_two_ears_at_unit_rms_whatever_the_bearing() {
-        // The amplitude law stays `distance_attenuation`'s: turning a cue
-        // Exterior must not make it louder or quieter, only place it.
+        // The amplitude law stays the category's distance fade: placing a cue
+        // must not make it louder or quieter, only place it.
         for bearing in [
             Vec3::NEG_Z,
             Vec3::X,

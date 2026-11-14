@@ -53,12 +53,12 @@ pub(super) const MENU_PLANETOID_SEED: u32 = 7;
 /// a 4:3 half-width is ~0.55 x the camera's distance, so pull further back for
 /// a wider stage.
 ///
-/// The pose is an AUDIO decision as well as a framing one. A backdrop is
-/// heard through the same rolloff flight uses
-/// (`nova_sound::SFX_FAR_DISTANCE`, 3.2 km to silence), so an actor
-/// further out than that is mute however good the shot is. The duel and the
-/// weave are framed inside that distance for this reason: at 3,130 m the whole
-/// fight sits past the rolloff's far end. The gauntlet and the
+/// The pose is an AUDIO decision as well as a framing one. A backdrop has no
+/// player ship, so it is heard from the camera, and each sound category has
+/// its own reach (`SoundCategoryType` in `nova_sound`: 2.5 km for a hit, 3 km
+/// for a gun, 8 km for a blast), so an actor further out than that is mute
+/// however good the shot is. The duel and the weave are framed inside the gun
+/// reach for this reason: at 3,130 m the guns and the hits sit past it. The gauntlet and the
 /// waystation did NOT: each is pinned by its own composition, and both say so
 /// at their own `SetCamera`.
 pub(super) fn backdrop_camera(position: Meters3) -> EventActionConfig {

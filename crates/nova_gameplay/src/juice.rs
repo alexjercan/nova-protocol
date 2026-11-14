@@ -255,9 +255,7 @@ impl JuiceSettings {
 /// What a juice event is throttled against: the event kind and what the event
 /// happened TO, so one structure's burst collapses while distinct structures
 /// each fire. The grouping is the audio layer's [`CueGroup`], shared
-/// deliberately: a frame that is one bang has to be one kick. Spelled apart
-/// from the audio layer's own `ThrottleKey` because the two vocabularies are
-/// not the same - the juice has no per-gun or per-salvo cue to budget.
+/// deliberately: a frame that is one bang has to be one kick.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 enum JuiceThrottleKey {
     Impact(CueGroup),
@@ -265,9 +263,9 @@ enum JuiceThrottleKey {
 }
 
 /// The juice layer's own cue budget, running the shared [`CueThrottle`]
-/// algorithm over [`JuiceThrottleKey`]. A separate RESOURCE from the audio
-/// layer's `SfxThrottle` because the two tune their intervals independently -
-/// `IMPACT_MIN_INTERVAL` here is not the cue interval the sound uses.
+/// algorithm over [`JuiceThrottleKey`]. Its intervals are the juice layer's
+/// own: `IMPACT_MIN_INTERVAL` here is not the sound category's repeat
+/// interval.
 type JuiceThrottle = CueThrottle<JuiceThrottleKey>;
 
 /// Distance attenuation in `[0, 1]`: full within `near`, zero at/beyond `far`, with
@@ -648,33 +646,6 @@ mod tests {
         state.allow(fresh, 9.5, 0.04); // last = 9.5
         state.prune(10.0, 2.0); // keep last > 8.0
         assert!(state.tracked_keys().eq([fresh]));
-    }
-
-    /// The reason the two layers run ONE budget: a frame that is one bang has
-    /// to be one kick. Written against `CueThrottle` itself - the same
-    /// generic code path both resources instantiate - so it cannot be
-    /// satisfied by two implementations that merely happen to agree today.
-    #[test]
-    fn the_juice_and_the_audio_budget_collapse_a_burst_identically() {
-        fn one_burst_then_silence<K: Copy + Eq + std::hash::Hash + Send + Sync + 'static>(
-            key: K,
-            what: &str,
-        ) {
-            let mut budget = CueThrottle::default();
-            assert!(budget.allow(key, 0.0, 0.04), "{what}: the first cue fires");
-            assert!(
-                !budget.allow(key, 0.0, 0.04),
-                "{what}: the rest of the frame collapses into it"
-            );
-            assert!(
-                budget.allow(key, 0.04, 0.04),
-                "{what}: the next window fires again"
-            );
-        }
-
-        let group = CueGroup::Cell(IVec3::ZERO);
-        one_burst_then_silence(JuiceThrottleKey::Impact(group), "the kick");
-        one_burst_then_silence(nova_sound::ThrottleKey::Impact(group), "the bang");
     }
 
     #[test]

@@ -31,40 +31,23 @@ pub fn slider_gain(setting: f32) -> f32 {
     }
 }
 
-/// A legacy mixer track. Every legacy voice belongs to exactly one.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum AudioBus {
-    /// UI chrome: menu clicks, objective chimes, the NOVA OS terminal.
-    Interface,
-    /// Everything diegetic - the sounds the fiction says exist.
-    World,
-}
-
-/// The route of a legacy caller-levelled voice.
+/// The route of a legacy caller-levelled voice. Only the interface is left on
+/// it: the interface producers still pass their own volume through
+/// [`PlaySfx`](super::PlaySfx) and [`SfxVoice`](super::SfxVoice), and move to
+/// [`PlaySound`](super::PlaySound) with the rest of the interface.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
 pub enum AudioRoute {
-    /// UI chrome, on [`AudioBus::Interface`]. Non-positional.
+    /// UI chrome, on [`SoundBus::Ui`]. Non-positional.
     #[default]
     Interface,
-    /// Structure-borne through the player's own ship. Non-positional.
-    Hull,
-    /// Everything else in the world. Distance-attenuated and panned.
-    Exterior,
 }
 
 impl AudioRoute {
     /// The track this route is scaled by.
-    pub fn bus(self) -> AudioBus {
+    pub fn bus(self) -> SoundBus {
         match self {
-            Self::Interface => AudioBus::Interface,
-            Self::Hull | Self::Exterior => AudioBus::World,
+            Self::Interface => SoundBus::Ui,
         }
-    }
-
-    /// Whether the voice is placed in the world. True for [`Self::Exterior`]
-    /// alone.
-    pub fn is_positional(self) -> bool {
-        matches!(self, Self::Exterior)
     }
 }
 
@@ -132,19 +115,11 @@ pub struct Mixer<'w> {
 }
 
 impl Mixer<'_> {
-    /// The gain a legacy `route`'s slider applies, WITHOUT the master.
-    pub fn bus_gain(&self, route: AudioRoute) -> f32 {
-        match route.bus() {
-            AudioBus::Interface => self.sound_bus_gain(SoundBus::Ui),
-            AudioBus::World => self.sound_bus_gain(SoundBus::Effect),
-        }
-    }
-
     /// The gain `bus`'s slider applies, WITHOUT the master.
     ///
     /// This is what a freshly spawned sink is given, because bevy's
     /// `audio_output` multiplies the master in for us through `GlobalVolume`.
-    pub fn sound_bus_gain(&self, bus: SoundBus) -> f32 {
+    pub fn bus_gain(&self, bus: SoundBus) -> f32 {
         match bus {
             SoundBus::Ui => self
                 .interface
