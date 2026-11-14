@@ -52,6 +52,14 @@
 //! as they spawn. The same cycle with a bare slug is the wake's BEFORE
 //! number, on the same revision as its after.
 //!
+//! `NOVA_VFX_RANGE_PLAYER_SHOOTER=1` marks the shooter as the player's ship
+//! once the range stands. Its guns, bay doors and launches are then the
+//! player's own cues, which is the case the SFX sidecar of an audio change
+//! has to record. The marker brings the player's weapons safety with it, and
+//! the safety is taken off again at once, so the guns stay unmanaged and fire
+//! on the script. The shooter still has no controller, and the camera is
+//! still scripted.
+//!
 //! Two run modes, both under the autopilot (`NOVA_AUTOPILOT`):
 //! - `NOVA_AUTOPILOT=1` alone: the smoke path - the full walk, recording
 //!   nothing.
@@ -102,6 +110,10 @@ const LANCE_PLATFORM_ID: &str = "vfx_lance";
 
 /// The environment variable that flies the slug bare: no wake, no light.
 const BARE_SLUG_ENV: &str = "NOVA_VFX_RANGE_BARE_SLUG";
+
+/// The environment variable that makes the shooter the player's ship.
+#[cfg(feature = "debug")]
+const PLAYER_SHOOTER_ENV: &str = "NOVA_VFX_RANGE_PLAYER_SHOOTER";
 
 /// How high above the shooter the lance platform is parked.
 ///
@@ -428,6 +440,9 @@ fn vfx_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameState
         .step("frame the range")
         .on_enter(|world| {
             pin_lance_platform(world);
+            if std::env::var_os(PLAYER_SHOOTER_ENV).is_some() {
+                mark_shooter_as_player(world);
+            }
             frame_range(world);
         })
         .until(elapsed(0.8))
@@ -531,6 +546,22 @@ fn pin_lance_platform(world: &mut World) {
     if let Some(platform) = ship_by_id(world, LANCE_PLATFORM_ID) {
         world.entity_mut(platform).insert(LockedAxes::ALL_LOCKED);
     }
+}
+
+/// Under [`PLAYER_SHOOTER_ENV`]: make the shooter the player's ship, so its
+/// cues take the player's route.
+#[cfg(feature = "debug")]
+fn mark_shooter_as_player(world: &mut World) {
+    let shooter = ship_by_id(world, SHOOTER_ID).expect("the range stands before it is framed");
+    world.entity_mut(shooter).insert(PlayerSpaceshipMarker);
+    // The marker's observer queues the player's targeting state, weapons
+    // safety included, and a safe ship never fires. Apply it, then drop the
+    // safety: a ship with no `WeaponsHot` is unmanaged and fires freely.
+    world.flush();
+    world
+        .entity_mut(shooter)
+        .remove::<(WeaponsHot, CombatLock)>();
+    info!("vfx range: the shooter is the player's ship");
 }
 
 /// [`range_is_standing`] as a walk predicate.

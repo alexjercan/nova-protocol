@@ -193,6 +193,37 @@ impl OpenSidecar {
         self.frames += 1;
     }
 
+    /// Per clip, in first-heard order: how many voices played it and the
+    /// loudest pre-master level any of them reached either ear at, as the RMS
+    /// of its two channel gains.
+    ///
+    /// The comparable number across routes. A positional voice's `gain`
+    /// carries the pan compensation that its spatial sink takes back out, so
+    /// it reads several times louder than a flat voice the listener hears at
+    /// the same level; the channel gains are what reaches the ears.
+    fn ear_levels(&self) -> Vec<(&str, usize, f32)> {
+        let mut levels: Vec<(&str, usize, f32)> = Vec::new();
+        for voice in &self.voices {
+            let peak = voice
+                .frames
+                .iter()
+                .filter(|frame| !frame.held)
+                .map(|frame| {
+                    let [left, right] = frame.channels;
+                    ((left * left + right * right) / 2.0).sqrt()
+                })
+                .fold(0.0, f32::max);
+            match levels.iter_mut().find(|(clip, ..)| *clip == voice.clip) {
+                Some((_, voices, loudest)) => {
+                    *voices += 1;
+                    *loudest = loudest.max(peak);
+                }
+                None => levels.push((&voice.clip, 1, peak)),
+            }
+        }
+        levels
+    }
+
     /// The whole version 1 file: header, then rows in frame order.
     fn jsonl(&self) -> String {
         let mut text = format!(
@@ -312,6 +343,13 @@ fn finish(
         bytes.len(),
         20.0 * scale.recip().log10()
     );
+    for (clip, voices, peak) in open.ear_levels() {
+        info!(
+            "sfx sidecar: `{}` clip `{clip}`: {voices} voices, peak ear level {:.2} dB",
+            open.name,
+            20.0 * peak.max(f32::MIN_POSITIVE).log10()
+        );
+    }
     Ok(())
 }
 
