@@ -4526,7 +4526,7 @@ fn inspect_row(
             &mut commands,
             bank.as_deref(),
             UiSfx::MenuSelect,
-            MENU_SELECT_VOLUME,
+            SoundCategoryType::UiClick,
         );
     }
 }
@@ -4855,15 +4855,20 @@ fn click_cue(
             &mut commands,
             bank.as_deref(),
             UiSfx::MenuSelect,
-            MENU_SELECT_VOLUME,
+            SoundCategoryType::UiClick,
         );
     }
 }
 
 /// Play one UI cue, if the sound bank has loaded.
-fn play_cue(commands: &mut Commands, bank: Option<&SoundBank<UiSfx>>, cue: UiSfx, volume: f32) {
+fn play_cue(
+    commands: &mut Commands,
+    bank: Option<&SoundBank<UiSfx>>,
+    cue: UiSfx,
+    category: SoundCategoryType,
+) {
     if let Some(bank) = bank {
-        commands.play_sfx(bank.get(cue), AudioRoute::Interface, volume);
+        commands.trigger(PlaySound::ui(bank.get(cue), category));
     }
 }
 
@@ -4885,7 +4890,7 @@ fn set_draft_qty(
     }
     draft.0 = Some(DealDraft { qty, ..open });
     if qty.is_some() {
-        play_cue(commands, bank, UiSfx::UiTick, UI_TICK_VOLUME);
+        play_cue(commands, bank, UiSfx::UiTick, SoundCategoryType::UiTick);
     }
 }
 
@@ -5038,15 +5043,15 @@ fn confirm_draft(
     let Some(open) = draft.0 else {
         return;
     };
-    let (notice, cue, volume) = match fixture.transfer(*context, open) {
+    let (notice, cue, category) = match fixture.transfer(*context, open) {
         Ok(result) => {
             draft.0 = None;
-            (result, UiSfx::MenuSelect, MENU_SELECT_VOLUME)
+            (result, UiSfx::MenuSelect, SoundCategoryType::UiClick)
         }
-        Err(refusal) => (refusal, UiSfx::EditorDeny, EDITOR_DENY_VOLUME),
+        Err(refusal) => (refusal, UiSfx::EditorDeny, SoundCategoryType::UiError),
     };
     fixture.notice = notice;
-    play_cue(&mut commands, bank.as_deref(), cue, volume);
+    play_cue(&mut commands, bank.as_deref(), cue, category);
 }
 
 fn repair_selected(
@@ -5067,12 +5072,12 @@ fn repair_selected(
     }) else {
         return;
     };
-    let (notice, cue, volume) = match fixture.repair(*context, &code) {
-        Ok(result) => (result, UiSfx::MenuSelect, MENU_SELECT_VOLUME),
-        Err(refusal) => (refusal, UiSfx::EditorDeny, EDITOR_DENY_VOLUME),
+    let (notice, cue, category) = match fixture.repair(*context, &code) {
+        Ok(result) => (result, UiSfx::MenuSelect, SoundCategoryType::UiClick),
+        Err(refusal) => (refusal, UiSfx::EditorDeny, SoundCategoryType::UiError),
     };
     fixture.notice = notice;
-    play_cue(&mut commands, bank.as_deref(), cue, volume);
+    play_cue(&mut commands, bank.as_deref(), cue, category);
 }
 
 fn toggle_repair_bay(_: On<Activate>, mut fixture: ResMut<SketchFixture>) {
@@ -6148,8 +6153,8 @@ fn type_qty(script: Script, what: &'static str, text: &'static str) -> Script {
 struct HeardCues(Vec<Handle<AudioSource>>);
 
 #[cfg(feature = "debug")]
-fn hear_cue(play: On<PlaySfx>, mut heard: ResMut<HeardCues>) {
-    heard.0.push(play.handle.clone());
+fn hear_cue(play: On<PlaySound>, mut heard: ResMut<HeardCues>) {
+    heard.0.push(play.sound.clone());
 }
 
 /// Drain the cues heard since the last drain: the interface cues among them
