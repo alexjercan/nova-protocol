@@ -5,7 +5,7 @@
 //! An armed run pins the clock to one tick per rendered frame and runs far
 //! slower than real time, so there is no live signal to record. Instead, each
 //! [`LoopCaptureFrame`] samples the [`VoiceMix`] the engine resolved for every
-//! [`SfxVoice`] that frame, and [`LoopCaptureEnded`] renders the loop offline
+//! playing voice that frame, and [`LoopCaptureEnded`] renders the loop offline
 //! from the loaded sample bytes.
 //!
 //! The sidecar is version 1 of the format in `content-machine:docs/sfx-sidecar.md`:
@@ -34,7 +34,7 @@ use nova_autopilot::loops::{
     LoopCaptureEnded, LoopCaptureFrame, LoopCaptureStarted, LOOP_AUDIO_SAMPLE_RATE,
     LOOP_STAGING_DIR,
 };
-use nova_sound::prelude::{SfxVoice, VoiceMix};
+use nova_sound::prelude::VoiceMix;
 
 /// The version of the sidecar format this writes.
 const SIDECAR_VERSION: u32 = 1;
@@ -135,10 +135,10 @@ impl OpenSidecar {
     fn sample<'a>(
         &mut self,
         frame: u32,
-        voices: impl IntoIterator<Item = (Entity, &'a SfxVoice, &'a VoiceMix)>,
+        voices: impl IntoIterator<Item = (Entity, &'a AudioPlayer, &'a VoiceMix)>,
         clip_of: impl Fn(&Handle<AudioSource>) -> Option<String>,
     ) {
-        for (entity, voice, mix) in voices {
+        for (entity, player, mix) in voices {
             let held = mix.capped || mix.paused;
             let gain = if held { 0.0 } else { mix.gain };
             let (number, row) = match self.numbers.get(&entity) {
@@ -147,7 +147,7 @@ impl OpenSidecar {
                     format!(r#"{{"f":{frame},"v":{number},"gain":{gain:.5}}}"#),
                 ),
                 None => {
-                    let Some(clip) = clip_of(&voice.handle) else {
+                    let Some(clip) = clip_of(&player.0) else {
                         // Version 1 names every voice by its asset path, and
                         // dropping one would ship a mix missing a sound.
                         self.failure.get_or_insert_with(|| {
@@ -170,13 +170,13 @@ impl OpenSidecar {
                     let row = format!(
                         r#"{{"f":{frame},"v":{number},"clip":{},"gain":{gain:.5},"looping":{}}}"#,
                         json_string(&clip),
-                        voice.looping
+                        mix.looping
                     );
                     self.voices.push(VoiceTrack {
                         clip,
-                        handle: voice.handle.clone(),
-                        looping: voice.looping,
-                        downmix: voice.route.is_positional(),
+                        handle: player.0.clone(),
+                        looping: mix.looping,
+                        downmix: mix.spatial,
                         frames: Vec::new(),
                     });
                     (number, row)
@@ -249,7 +249,7 @@ fn sample_sidecar(
     frame: On<LoopCaptureFrame>,
     mut sidecar: ResMut<SfxSidecar>,
     assets: Res<AssetServer>,
-    q_voices: Query<(Entity, &SfxVoice, &VoiceMix)>,
+    q_voices: Query<(Entity, &AudioPlayer, &VoiceMix)>,
 ) {
     let Some(open) = sidecar.open.as_mut() else {
         return;
@@ -629,7 +629,6 @@ fn sample_at(sample: &[[f32; 2]], position: f64, looping: bool) -> [f32; 2] {
 #[cfg(test)]
 mod tests {
     use bevy::ecs::entity::EntityIndex;
-    use nova_sound::prelude::AudioRoute;
 
     use super::*;
 
@@ -639,6 +638,8 @@ mod tests {
             gain,
             channel_gains: [gain; 2],
             emitter: None,
+            spatial: false,
+            looping: false,
             speed: 1.25,
             capped,
             paused: false,
@@ -656,14 +657,19 @@ mod tests {
     fn the_sidecar_writes_version_one_rows_exactly() {
         let mut world = World::new();
         let entity = world.spawn_empty().id();
-        let voice = SfxVoice::looping(Handle::default(), AudioRoute::Exterior);
+        let voice = AudioPlayer(Handle::default());
+        let looped = |gain, capped| VoiceMix {
+            spatial: true,
+            looping: true,
+            ..mix(gain, capped)
+        };
         let mut open = OpenSidecar::new("strike", 30);
 
-        open.sample(0, [(entity, &voice, &mix(0.123_456, false))], clip_path);
-        open.sample(1, [(entity, &voice, &mix(0.5, true))], clip_path);
+        open.sample(0, [(entity, &voice, &looped(0.123_456, false))], clip_path);
+        open.sample(1, [(entity, &voice, &looped(0.5, true))], clip_path);
         let paused = VoiceMix {
             paused: true,
-            ..mix(0.5, false)
+            ..looped(0.5, false)
         };
         open.sample(2, [(entity, &voice, &paused)], clip_path);
 
@@ -686,7 +692,7 @@ mod tests {
     /// two must never splice into one clip.
     #[test]
     fn voice_numbers_only_go_up_across_entity_index_reuse() {
-        let voice = SfxVoice::one_shot(Handle::default(), AudioRoute::Interface);
+        let voice = AudioPlayer(Handle::default());
         let mut open = OpenSidecar::new("reuse", 30);
 
         let first = Entity::from_index(EntityIndex::from_raw_u32(7).unwrap());
@@ -704,7 +710,7 @@ mod tests {
     /// writes no row. Plain nested and dot-prefixed names stay accepted.
     #[test]
     fn only_sample_paths_inside_the_capture_directory_and_outside_staging_are_accepted() {
-        let voice = SfxVoice::one_shot(Handle::default(), AudioRoute::Interface);
+        let voice = AudioPlayer(Handle::default());
         for safe_path in ["sfx/impact/hit.wav", "sounds/.hidden.wav"] {
             let mut open = OpenSidecar::new("safe", 30);
             let entity = Entity::from_index(EntityIndex::from_raw_u32(1).unwrap());
@@ -789,7 +795,7 @@ mod tests {
             audio_path,
             failure: None,
         };
-        let voice = SfxVoice::one_shot(Handle::default(), AudioRoute::Interface);
+        let voice = AudioPlayer(Handle::default());
 
         assert_eq!(check_sample_destination(&dir, "plain/new/hit.wav"), Ok(()));
         for (clip, reason) in [
@@ -814,7 +820,7 @@ mod tests {
     /// stays a valid JSON string.
     #[test]
     fn loop_names_and_clip_paths_are_json_escaped() {
-        let voice = SfxVoice::one_shot(Handle::default(), AudioRoute::Interface);
+        let voice = AudioPlayer(Handle::default());
         let mut open = OpenSidecar::new("say \"hi\"\\\n", 30);
         let entity = Entity::from_index(EntityIndex::from_raw_u32(1).unwrap());
         open.sample(0, [(entity, &voice, &mix(1.0, false))], |_| {

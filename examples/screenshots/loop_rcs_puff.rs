@@ -8,9 +8,9 @@
 //! `RcsBudget::applied`.
 //!
 //! What the run asserts, per push: the engine resolved an RCS loop voice
-//! following the ship at an exterior level at least the pilot's own full hull
-//! hiss, the cap did not hold it silent, and RCS puffs were in the world. After
-//! the release: no puffs and no RCS voice.
+//! following the ship at an audible level, the cap did not hold it silent, and
+//! RCS puffs were in the world. After the release: no puffs, and the RCS voice
+//! is held silent.
 //!
 //! The listener is the posed scenario camera, so the level is the one heard
 //! 300 m off. A capture run renders the loop's audio offline from the same
@@ -34,7 +34,7 @@ mod kit;
 
 use bevy::prelude::*;
 use clap::Parser;
-use nova_protocol::prelude::*;
+use nova_protocol::{nova_sound::SFX_AUDIBLE_THRESHOLD, prelude::*};
 
 #[derive(Parser)]
 #[command(name = "loop_rcs_puff")]
@@ -54,12 +54,6 @@ const SHIP_ID: &str = "rcs_ship";
 /// and both flanks the gas leaves from face the lens.
 #[cfg(feature = "debug")]
 const LENS_OFFSET: Meters3 = Meters3::new(-110.0, 90.0, 270.0);
-
-/// The pilot's own RCS hiss at full deflection: `RCS_MAX_VOLUME` in
-/// `crates/nova_ship/src/ship_audio/levels.rs`. Another ship's push at escort
-/// range must resolve to at least this.
-#[cfg(feature = "debug")]
-const HULL_HISS_CEILING: f32 = 0.05;
 
 /// The command the script holds on the ship this frame, ship-local.
 #[cfg(feature = "debug")]
@@ -113,8 +107,8 @@ fn load_scene(mut commands: Commands, game_assets: Res<GameAssets>, ships: Res<G
     commands.trigger(LoadScenario(rcs_range(&game_assets, &ships)));
 }
 
-/// The set: one inert interceptor and the photo rig. No player ship, so every
-/// ship cue routes exterior and is heard from the posed lens.
+/// The set: one inert interceptor and the photo rig. No player ship, so the
+/// listener stands at the posed lens.
 fn rcs_range(game_assets: &GameAssets, ships: &GameShipDesigns) -> ScenarioConfig {
     let ship = EventActionConfig::SpawnScenarioObject(ScenarioObjectConfig {
         base: BaseScenarioObjectConfig {
@@ -192,15 +186,13 @@ fn hold_push(
 fn trace_rcs(
     mut trace: ResMut<RcsTrace>,
     q_ship: Query<(Entity, &EntityId, &RcsBudget), With<SpaceshipRootMarker>>,
-    q_voices: Query<(&Name, &SfxVoice, &VoiceMix)>,
+    q_voices: Query<(&SoundVoice, &VoiceMix)>,
     q_puffs: Query<(), With<RcsPuffMarker>>,
 ) {
     let Some((ship, _, budget)) = q_ship.iter().find(|(_, id, _)| id.0 == SHIP_ID) else {
         return;
     };
-    let voice = q_voices.iter().find(|(name, voice, _)| {
-        name.as_str() == "RCS Loop Sfx" && voice.source == SfxSource::Follow(ship)
-    });
+    let voice = q_voices.iter().find(|(voice, _)| is_rcs_hiss(voice, ship));
     let puffs = q_puffs.iter().count();
     let phase = trace.phase;
     if trace.samples.last().is_none_or(|(last, _)| *last != phase) {
@@ -208,17 +200,23 @@ fn trace_rcs(
     }
     let (_, sample) = trace.samples.last_mut().expect("pushed above");
     sample.frames += 1;
-    sample.level = voice.map_or(0.0, |(_, _, mix)| mix.level);
-    sample.capped |= voice.is_some_and(|(_, _, mix)| mix.capped);
+    sample.level = voice.map_or(0.0, |(_, mix)| mix.level);
+    sample.capped |= voice.is_some_and(|(_, mix)| mix.capped);
     sample.puffs = puffs;
     if sample.frames % 15 == 1 {
         info!(
             "rcs puff loop: {phase} applied {:.2} voice level {:.4} capped {} puffs {puffs}",
             budget.applied,
-            voice.map_or(0.0, |(_, _, mix)| mix.level),
-            voice.is_some_and(|(_, _, mix)| mix.capped),
+            voice.map_or(0.0, |(_, mix)| mix.level),
+            voice.is_some_and(|(_, mix)| mix.capped),
         );
     }
+}
+
+/// Whether `voice` is the RCS hiss on `ship`.
+#[cfg(feature = "debug")]
+fn is_rcs_hiss(voice: &SoundVoice, ship: Entity) -> bool {
+    voice.category == SoundCategoryType::Rcs && voice.place == VoicePlace::Follow(ship)
 }
 
 /// Start a push phase: hold `command` and sample under `phase`.
@@ -231,7 +229,7 @@ fn push(phase: &'static str, command: Vec3) -> impl Fn(&mut World) + Send + Sync
 }
 
 /// Every push phase was heard at escort range and shown, and the release left
-/// nothing behind.
+/// no puff and no sounding hiss.
 #[cfg(feature = "debug")]
 fn assert_trace(world: &mut World) {
     let trace = world.resource::<RcsTrace>();
@@ -244,9 +242,9 @@ fn assert_trace(world: &mut World) {
             .map(|(_, sample)| *sample)
             .unwrap_or_else(|| panic!("rcs puff loop: no '{phase}' samples"));
         assert!(
-            sample.level >= HULL_HISS_CEILING,
-            "rcs puff loop: '{phase}' resolved the RCS hiss at {:.4}, under the pilot's own \
-             full hiss {HULL_HISS_CEILING}",
+            sample.level >= SFX_AUDIBLE_THRESHOLD,
+            "rcs puff loop: '{phase}' resolved the RCS hiss at {:.4}, under the audible \
+             threshold {SFX_AUDIBLE_THRESHOLD}",
             sample.level
         );
         assert!(
@@ -264,14 +262,12 @@ fn assert_trace(world: &mut World) {
         .iter(world)
         .count();
     assert_eq!(puffs, 0, "rcs puff loop: puffs outlived the release");
-    let voices = world
-        .query::<(&Name, &SfxVoice)>()
+    let sounding = world
+        .query::<(&SoundVoice, &VoiceMix)>()
         .iter(world)
-        .filter(|(name, voice)| {
-            name.as_str() == "RCS Loop Sfx" && voice.source == SfxSource::Follow(ship)
-        })
+        .filter(|(voice, mix)| is_rcs_hiss(voice, ship) && !mix.capped)
         .count();
-    assert_eq!(voices, 0, "rcs puff loop: the hiss outlived the release");
+    assert_eq!(sounding, 0, "rcs puff loop: the hiss outlived the release");
 }
 
 #[cfg(feature = "debug")]

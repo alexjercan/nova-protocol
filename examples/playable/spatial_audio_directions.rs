@@ -98,7 +98,7 @@ fn advance_listening(
     assets: Res<AssetServer>,
     mut cycle: ResMut<ListeningCycle>,
     listener: Query<(&GlobalTransform, &SpatialListener), With<SfxListenerMarker>>,
-    voices: Query<(Entity, &SfxVoice, &VoiceMix, Option<&SpatialAudioSink>)>,
+    voices: Query<(Entity, &SoundVoice, &VoiceMix, Option<&SpatialAudioSink>)>,
     mut readout: Single<&mut Text, With<ListeningReadout>>,
 ) {
     let now = time.elapsed_secs_f64();
@@ -138,7 +138,11 @@ fn advance_listening(
     if cycle.fired_at.is_none() {
         let (label, direction) = DIRECTIONS[cycle.phase];
         let source = pose.transform_point(direction * RADIUS);
-        commands.trigger(PlaySfx::new(cycle.clip.clone(), AudioRoute::Exterior).at(source));
+        commands.trigger(PlaySound {
+            sound: cycle.clip.clone(),
+            category: SoundCategoryType::Impact,
+            at: SoundAt::Point(source),
+        });
         cycle.fired_at = Some(now);
         cycle.voice = None;
         cycle.source = source;
@@ -147,9 +151,8 @@ fn advance_listening(
         info!("spatial audio: {label} source={source:?}");
     }
     if let Some((entity, _, mix, sink)) = voices.iter().find(|(entity, voice, _, _)| {
-        voice.handle.id() == cycle.clip.id()
-            && voice.route == AudioRoute::Exterior
-            && voice.source == SfxSource::At(cycle.source)
+        voice.sound.id() == cycle.clip.id()
+            && voice.place == VoicePlace::At(cycle.source)
             && (cycle.voice.is_none() || cycle.voice == Some(*entity))
     }) {
         cycle.voice = Some(entity);
@@ -165,7 +168,7 @@ fn advance_listening(
     if now - cycle.fired_at.unwrap_or(now) > VOICE_DEADLINE_SECS {
         if cycle.last_mix.is_none() {
             cycle.error =
-                Some("No mixed exterior voice: check listener, route, and volume".to_string());
+                Some("No mixed world voice: check listener, category, and volume".to_string());
         } else if !cycle.sink_seen {
             cycle.error = Some("No spatial audio sink: check the audio device and cue".to_string());
         }

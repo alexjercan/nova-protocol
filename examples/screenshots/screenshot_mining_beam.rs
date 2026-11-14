@@ -133,9 +133,10 @@ const EMITTER_NODE_PREFIXES: [&str; 2] = ["stow_lid_", "beam_tip"];
 #[derive(Resource, Default)]
 struct PulseLog(Vec<Result<u32, MiningRefusalType>>);
 
-/// The route of every mining pulse sound the game played, in order.
+/// The category and place of every mining pulse sound the game played, in
+/// order.
 #[derive(Resource, Default)]
-struct PulseSounds(Vec<AudioRoute>);
+struct PulseSounds(Vec<(SoundCategoryType, SoundAt)>);
 
 /// The pulse sound's file, as the base bundle ships it.
 const PULSE_SOUND: &str = "sounds/mining_pulse.wav";
@@ -195,12 +196,12 @@ fn custom_plugin(app: &mut App) {
     });
     app.init_resource::<PulseSounds>();
     app.add_observer(
-        |sfx: On<PlaySfx>, server: Res<AssetServer>, mut sounds: ResMut<PulseSounds>| {
+        |play: On<PlaySound>, server: Res<AssetServer>, mut sounds: ResMut<PulseSounds>| {
             if server
-                .get_path(sfx.handle.id())
+                .get_path(play.sound.id())
                 .is_some_and(|path| path.path().ends_with(PULSE_SOUND))
             {
-                sounds.0.push(sfx.route);
+                sounds.0.push((play.category, play.at));
             }
         },
     );
@@ -805,14 +806,17 @@ fn mining_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<GameSt
             );
             let sounds = world.resource::<PulseSounds>().0.clone();
             info!(
-                "mining_beam: {} pulse sound(s) for {} pulse(s), routes {sounds:?}",
+                "mining_beam: {} pulse sound(s) for {} pulse(s), played as {sounds:?}",
                 sounds.len(),
                 log.len()
             );
             assert_eq!(sounds.len(), log.len(), "one pulse sound per pulse");
             assert!(
-                sounds.iter().all(|route| *route == AudioRoute::Hull),
-                "the player's pulses are heard through the hull: {sounds:?}"
+                sounds
+                    .iter()
+                    .all(|(category, at)| *category == SoundCategoryType::Mining
+                        && matches!(at, SoundAt::Point(_))),
+                "the player's pulses play in the world as Mining sounds: {sounds:?}"
             );
         })
         .until(frames(1))

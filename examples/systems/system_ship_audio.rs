@@ -1,41 +1,41 @@
 //! system_ship_audio: what the ship's soundtrack ASKS the engine for, read off
 //! the live voices while the run is muted.
 //!
-//! The audio layer has focused unit coverage for routing, the rolloff, the pan
-//! law, the throttle and the hum curve, and every one of those tests builds its
-//! own two-entity `World`. None of them asks what a real hull, a real camera
+//! The audio layer has focused unit coverage for the category table, the
+//! distance fade, the pan law, the repeat interval and the loop intensity, and
+//! every one of those tests builds its own two-entity `World`. None of them asks what a real hull, a real camera
 //! and a real magazine produce together. This range asks exactly that and
 //! nothing else.
 //!
 //! The subject is the REQUEST, not the sound. A probe run is
-//! [`HarnessMute`]d, and mute masks the output gain only - it changes no route,
-//! no placement, no level a cue asks for and no voice that gets spawned - so
+//! [`HarnessMute`]d, and mute masks the output gain only - it changes no
+//! category, no placement, no intensity and no voice that gets spawned - so
 //! every claim below is an ECS reading and none of them needs a device. The
 //! range asserts that mute is on before it asserts anything else.
 //!
-//! Two hulls, and the difference between them is the whole routing model: one
-//! is the player's and one is not.
+//! Two hulls, one the player's and one not, and the sound model treats them
+//! the same: every world sound plays in the world, the player's own included.
 //!
 //! - One frame rakes both hulls with several hits each. Each hull's burst
-//!   collapses to ONE report, because impacts are throttled per struck BODY,
-//!   and two hulls hit in the same frame are two reports rather than one.
-//! - The two reports carry the SAME authored sound and different routes: the
-//!   player's own plate is heard through the hull, the bogey's across the gap.
-//! - The exterior one is parked on the listener's own emitter sphere, on the
-//!   true bearing to the contact, which is where the engine hears a placed cue
-//!   from.
+//!   collapses to ONE report, because the repeat interval holds per sound and
+//!   ship, and two hulls hit in the same frame are two reports rather than one.
+//! - Both reports are the same authored sound in the same category, each
+//!   grouped with its own hull.
+//! - Each is parked on the listener's emitter sphere, on the bearing from the
+//!   player's ship to the contact in the camera's frame, which is where the
+//!   engine hears a placed cue from.
 //! - The player's gun runs its magazine dry under a held trigger. The dead
-//!   trigger clicks ONCE; holding it clicks no more; letting go and pulling
-//!   again clicks again.
-//! - The drive's hum tracks the throttle: two settled levels in the ratio the
-//!   throttles were in, and a released throttle retires the voice outright.
+//!   trigger clicks ONCE, at the gun; holding it clicks no more; letting go
+//!   and pulling again clicks again.
+//! - The drive's hum tracks the throttle: two settled intensities in the ratio
+//!   the throttles were in, and a released throttle holds the voice silent.
 //!
 //! Headless smoke test (needs a display, e.g. `Xvfb :99 & DISPLAY=:99`):
 //! ```text
 //! NOVA_AUTOPILOT=1 cargo run --example system_ship_audio --features debug
 //! # look for: `nova harness: reached Playing`,
 //! #           `ship audio: the burst read as 2 reports`,
-//! #           `ship audio: the exterior report is parked ...`,
+//! #           `ship audio: the reports are parked ...`,
 //! #           `ship audio: the dead trigger clicked 2 times over 2 pulls`,
 //! #           `ship audio: the hum settled at ... and ...`,
 //! #           `autopilot: cycle complete, no panic`
@@ -68,8 +68,8 @@ const PILOT_DRIVE: &str = "pilot_drive";
 const PILOT_GUN: &str = "pilot_gun";
 const PILOT_PLATE: &str = "pilot_plate";
 
-/// The other hull: same parts, no pilot. It exists to be NOT the player, which
-/// is the only input the routing decision takes.
+/// The other hull: same parts, no pilot. It exists to be NOT the player, so
+/// the range can show both hulls are heard the same way.
 const BOGEY_ID: &str = "bogey";
 const BOGEY_HELM: &str = "bogey_helm";
 const BOGEY_PLATE_A: &str = "bogey_plate_a";
@@ -79,9 +79,9 @@ const BOGEY_PLATE_B: &str = "bogey_plate_b";
 ///
 /// Off the bow rather than dead ahead, so the bearing to it has a real left/right
 /// component and the emitter reading below is a direction rather than a sign.
-/// Close enough that the rolloff leaves the report well over
-/// `SFX_AUDIBLE_THRESHOLD` - a cue the engine judges inaudible is never given a
-/// voice at all, which would make the burst claim vacuous.
+/// Well inside the impact category's reach - a cue the engine judges
+/// inaudible is never given a voice at all, which would make the burst claim
+/// vacuous.
 const BOGEY_AT: Meters3 = Meters3::new(400.0, 0.0, -200.0);
 
 /// The authored voice each claim reads, matched on the tail of the resolved
@@ -97,12 +97,6 @@ const IMPACT_SOUND: &str = "impact.wav";
 const TURRET_FIRE_SOUND: &str = "turret_fire.wav";
 #[cfg(feature = "debug")]
 const DRY_FIRE_SOUND: &str = "dry_fire.wav";
-
-/// The `Name` the loop pass gives the drive's hum voice. The marker component
-/// behind it is private to `nova_ship`, and the name is the layer's own public
-/// handle on the voice.
-#[cfg(feature = "debug")]
-const HUM_VOICE_NAME: &str = "Thruster Loop Sfx";
 
 /// Rounds left in the gun when the trigger goes down, so the magazine empties
 /// under a held trigger rather than before one.
@@ -133,11 +127,11 @@ const EASED_BURN: f32 = 0.4;
 /// How far the measured hum ratio may sit from the measured throttle ratio.
 ///
 /// Both halves are this run's own readings, taken in the same beat off the same
-/// ship: the hum curve is linear in the ship's average throttle, so two settled
-/// levels must stand in the ratio their two settled throttles do. The allowance
-/// covers the last of the loop's easing and the f32 arithmetic on either side
-/// of the ratio - nothing here is graded on a level, which is just as well,
-/// since the ceiling the curve saturates at is private to `nova_ship`.
+/// ship: the hum's intensity is the thruster's throttle, so two settled
+/// intensities must stand in the ratio their two settled throttles do. The
+/// allowance covers the last of the loop's easing and the f32 arithmetic on
+/// either side of the ratio. The dB the intensity maps to is the category
+/// table's, and nothing here is graded on it.
 #[cfg(feature = "debug")]
 const HUM_RATIO_TOLERANCE: f32 = 0.02;
 
@@ -162,7 +156,7 @@ const DEAD_TRIGGER_HOLD_SECS: f32 = 1.0;
 #[cfg(feature = "debug")]
 const TRIGGER_RELEASE_SECS: f32 = 0.5;
 
-/// How far (world units) the placed emitter may sit from where the pan law puts
+/// How far (world units) a placed emitter may sit from where the pan law puts
 /// it.
 ///
 /// The engine writes the emitter from the SAME listener pose the range reads,
@@ -171,11 +165,6 @@ const TRIGGER_RELEASE_SECS: f32 = 0.5;
 /// a frame of rig easing cannot open the gap either.
 #[cfg(feature = "debug")]
 const EMITTER_TOLERANCE_UNITS: f32 = 0.01;
-
-/// Which hull a contact belongs to, decided by range: every section of one hull
-/// is far inside this of its own root and far outside it of the other's.
-#[cfg(feature = "debug")]
-const HULL_REACH_UNITS: f32 = 20.0;
 
 /// What "the camera has stopped" means: a frame's movement under this much
 /// translation and this much rotation, held for this many consecutive frames.
@@ -211,9 +200,9 @@ fn main() -> bevy::app::AppExit {
         // reports did that frame ask for" has an answer only at the frame the
         // voices were born.
         app.add_observer(
-            |add: On<Add<SfxVoice>>,
+            |add: On<Add<SoundVoice>>,
              asset_server: Res<AssetServer>,
-             q_voice: Query<&SfxVoice>,
+             q_voice: Query<&SoundVoice>,
              mut log: ResMut<VoiceLog>| {
                 let Ok(voice) = q_voice.get(add.entity) else {
                     return;
@@ -221,12 +210,12 @@ fn main() -> bevy::app::AppExit {
                 log.0.push(VoiceRequest {
                     voice: add.entity,
                     sound: asset_server
-                        .get_path(voice.handle.id())
+                        .get_path(voice.sound.id())
                         .map(|path| path.to_string())
                         .unwrap_or_default(),
-                    route: voice.route,
-                    source: voice.source,
-                    volume: voice.volume,
+                    category: voice.category,
+                    place: voice.place,
+                    group: voice.group,
                 });
             },
         );
@@ -366,12 +355,12 @@ struct VoiceRequest {
     voice: Entity,
     /// The resolved asset path, or the empty string for a handle with none.
     sound: String,
-    /// Which track scales it, and whether it is placed.
-    route: AudioRoute,
+    /// What kind of sound it is: the category sets its level and reach.
+    category: SoundCategoryType,
     /// Where it is heard from.
-    source: SfxSource,
-    /// The owner's requested level, before the bus gain and the master.
-    volume: f32,
+    place: VoicePlace,
+    /// What it is counted with for the repeat interval and the voice cap.
+    group: VoiceGroup,
 }
 
 /// Every voice asked for since the log was last cleared.
@@ -396,15 +385,17 @@ impl VoiceLog {
 #[cfg(feature = "debug")]
 #[derive(Clone, Copy, Debug)]
 struct HumSample {
-    /// The hum voice's requested level.
+    /// The hum voice's intensity.
     level: f32,
-    /// The ship's average live thruster throttle - the same average the loop
-    /// pass takes, read off the same components.
+    /// The ship's average live thruster throttle, read off the same
+    /// components the loop pass reads.
     throttle: f32,
-    /// Which track the hum is on.
-    route: AudioRoute,
+    /// What kind of loop the hum is.
+    category: SoundCategoryType,
     /// What the hum is following.
-    source: SfxSource,
+    place: VoicePlace,
+    /// What the hum is counted with.
+    group: VoiceGroup,
 }
 
 /// The two settled readings, filled in by the beats that move the throttle.
@@ -472,7 +463,7 @@ fn audio_script() -> Script {
         .step("rake both hulls in one frame")
         .on_enter(rake_both_hulls)
         // Two frames, not zero: the cue observer plays through `Commands`, so
-        // the `PlaySfx` triggers land on the next flush and the engine places
+        // the `PlaySound` triggers land on the next flush and the engine places
         // the voices the frame after that.
         .until(frames(3))
         .deadline(STEP_DEADLINE_SECS)
@@ -536,7 +527,7 @@ fn work_the_throttle(script: Script) -> Script {
         .add()
         .step("close the throttle")
         .on_enter(sample_the_hum_and_close_the_throttle)
-        .until(the_hum_is_gone())
+        .until(the_hum_is_silent())
         .deadline(STEP_DEADLINE_SECS)
         .add()
         .step("read what the drive asked for")
@@ -693,72 +684,84 @@ fn assert_the_burst_reads_as_two_reports(world: &mut World) {
 
     let pilot = object_by_id(world, PILOT_ID).expect("ship audio: the player's hull is gone");
     let bogey = object_by_id(world, BOGEY_ID).expect("ship audio: the bogey is gone");
-    let mine = report_on(world, &reports, pilot);
-    let theirs = report_on(world, &reports, bogey);
+    let mine = report_on(&reports, pilot);
+    let theirs = report_on(&reports, bogey);
     assert_eq!(
-        (mine.route, theirs.route),
-        (AudioRoute::Hull, AudioRoute::Exterior),
-        "ship audio: the same authored hit should reach the pilot through their own hull and \
-         across the gap from the bogey's"
+        (mine.category, theirs.category),
+        (SoundCategoryType::Impact, SoundCategoryType::Impact),
+        "ship audio: the same hit is the same kind of sound on either hull"
     );
     assert_eq!(
         mine.sound, theirs.sound,
         "ship audio: both hulls are plate struck by the same round, so the two reports are the \
-         same authored voice heard two ways"
+         same authored voice"
     );
     info!(
-        "ship audio: '{}' reached the pilot as {:?} and the bogey as {:?}",
-        mine.sound, mine.route, theirs.route
-    );
-    nova_probe::probe_marker(
-        world,
-        "outcome: an authored cue is heard through the hull it belongs to",
-        serde_json::json!({
-            "sound": mine.sound,
-            "player_route": format!("{:?}", mine.route),
-            "other_route": format!("{:?}", theirs.route),
-            "player_level": mine.volume,
-            "other_level": theirs.volume,
-        }),
+        "ship audio: '{}' reached both hulls as {:?}",
+        mine.sound, mine.category
     );
 
-    let SfxSource::At(contact) = theirs.source else {
-        panic!(
-            "ship audio: an exterior report must carry the point it happened at, got {:?}",
-            theirs.source
-        );
-    };
     let listener = listener_pose(world).expect("ship audio: the scenario camera has the ears");
-    let bearing = nova_protocol::nova_sound::local_bearing(&listener, contact);
-    let expected = nova_protocol::nova_sound::emitter_point(&listener, bearing);
-    let placed = world
-        .get::<GlobalTransform>(theirs.voice)
-        .expect("ship audio: the exterior report retired before it could be read")
-        .translation();
-    let drift = placed.distance(expected);
-    let radius = placed.distance(listener.translation());
-    assert!(
-        drift <= EMITTER_TOLERANCE_UNITS,
-        "ship audio: the exterior report is placed at {placed:?}, {drift:.4} units off the \
-         {expected:?} the pan law puts a contact at {contact:?} on"
+    let (anchored, anchor) = world
+        .try_query_filtered::<(Entity, &GlobalTransform), With<SoundListenerAnchor>>()
+        .and_then(|mut query| {
+            query
+                .iter(world)
+                .next()
+                .map(|(e, at)| (e, at.translation()))
+        })
+        .expect("ship audio: nothing carries the listener anchor");
+    assert_eq!(
+        anchored, pilot,
+        "ship audio: the listener stands on the player's ship"
     );
+    let hearing = nova_protocol::nova_sound::Hearing::new(listener, Some(anchor));
+    let mut placements = Vec::new();
+    for (who, report) in [("player", &mine), ("other", &theirs)] {
+        let VoicePlace::At(contact) = report.place else {
+            panic!(
+                "ship audio: the {who} report must play in the world at its contact, got {:?}",
+                report.place
+            );
+        };
+        let expected = hearing.emitter(hearing.bearing(contact));
+        let placed = world
+            .get::<GlobalTransform>(report.voice)
+            .unwrap_or_else(|| {
+                panic!("ship audio: the {who} report retired before it could be read")
+            })
+            .translation();
+        let drift = placed.distance(expected);
+        assert!(
+            drift <= EMITTER_TOLERANCE_UNITS,
+            "ship audio: the {who} report is placed at {placed:?}, {drift:.4} units off the \
+             {expected:?} the pan law puts a contact at {contact:?} on"
+        );
+        placements.push(serde_json::json!({
+            "hull": who,
+            "contact": [contact.x, contact.y, contact.z],
+            "placed": [placed.x, placed.y, placed.z],
+            "distance_units": hearing.distance(contact),
+            "drift_units": drift,
+        }));
+    }
     info!(
-        "ship audio: the exterior report is parked {radius:.3} units from the listener on the \
-         bearing to its contact, {drift:.4} off"
+        "ship audio: the reports are parked on the bearings from the player's ship to their \
+         contacts, own hull included"
     );
     nova_probe::probe_marker(
         world,
-        "outcome: an exterior cue is parked on the listener's bearing to it",
+        "outcome: every hull's hit plays in the world, the player's own included",
         serde_json::json!({
-            "contact": [contact.x, contact.y, contact.z],
+            "sound": mine.sound,
+            "category": format!("{:?}", mine.category),
             "listener": [
                 listener.translation().x,
                 listener.translation().y,
                 listener.translation().z,
             ],
-            "placed": [placed.x, placed.y, placed.z],
-            "emitter_radius_units": radius,
-            "drift_units": drift,
+            "anchor": [anchor.x, anchor.y, anchor.z],
+            "reports": placements,
         }),
     );
 }
@@ -788,10 +791,15 @@ fn assert_a_dead_trigger_clicks_once_a_pull(world: &mut World) {
         "ship audio: two pulls on a dead trigger - one held for {DEAD_TRIGGER_HOLD_SECS}s - \
          should click twice, got {clicks:?}"
     );
+    let pilot = object_by_id(world, PILOT_ID).expect("ship audio: the player's hull is gone");
     assert!(
-        clicks.iter().all(|click| click.route == AudioRoute::Hull),
-        "ship audio: a dead trigger is the pilot's own gun, so its click is heard through the \
-         hull: {clicks:?}"
+        clicks
+            .iter()
+            .all(|click| click.category == SoundCategoryType::DryFire
+                && matches!(click.place, VoicePlace::At(_))
+                && click.group == VoiceGroup::Root(pilot)),
+        "ship audio: a dead trigger is the gun mount's hardware, so its click plays in the \
+         world at the pilot's gun: {clicks:?}"
     );
     info!(
         "ship audio: the dead trigger clicked {} times over 2 pulls, after {} fire requests",
@@ -832,10 +840,16 @@ fn assert_the_hum_tracks_the_drive(world: &mut World) {
     );
 
     let pilot = object_by_id(world, PILOT_ID).expect("ship audio: the player's hull is gone");
+    let drive = section_by_id(world, PILOT_DRIVE).expect("ship audio: the player's drive is gone");
     assert_eq!(
-        (full.route, full.source),
-        (AudioRoute::Hull, SfxSource::Follow(pilot)),
-        "ship audio: the pilot's own drive is heard through their hull, following their hull"
+        (full.category, full.place, full.group),
+        (
+            SoundCategoryType::Drive,
+            VoicePlace::Follow(drive),
+            VoiceGroup::Root(pilot)
+        ),
+        "ship audio: the pilot's own drive plays in the world, following the thruster, \
+         counted with the pilot's hull"
     );
 
     let wanted = eased.throttle / full.throttle;
@@ -851,17 +865,18 @@ fn assert_the_hum_tracks_the_drive(world: &mut World) {
         eased.level
     );
     assert!(
-        hum_voice(world).is_none(),
-        "ship audio: a closed throttle must retire the hum voice, not hold an open sink at zero"
+        hum_is_silent(world),
+        "ship audio: a closed throttle must hold the hum silent, not mix an open sink at zero"
     );
     info!(
         "ship audio: the hum settled at {:.4} and {:.4} while the drive held {:.4} and {:.4} - \
-         a level ratio of {measured:.4} against the drive's {wanted:.4}, and gone at rest",
+         an intensity ratio of {measured:.4} against the drive's {wanted:.4}, and silent at \
+         rest",
         full.level, eased.level, full.throttle, eased.throttle
     );
     nova_probe::probe_marker(
         world,
-        "outcome: the drive's hum tracks the throttle and leaves at rest",
+        "outcome: the drive's hum tracks the throttle and falls silent at rest",
         serde_json::json!({
             "full_burn": FULL_BURN,
             "eased_burn": EASED_BURN,
@@ -871,7 +886,7 @@ fn assert_the_hum_tracks_the_drive(world: &mut World) {
             "eased_level": eased.level,
             "level_ratio": measured,
             "throttle_ratio": wanted,
-            "route": format!("{:?}", full.route),
+            "category": format!("{:?}", full.category),
         }),
     );
 }
@@ -906,10 +921,10 @@ fn the_magazine_is_empty() -> std::sync::Arc<nova_protocol::nova_debug::harness:
     })
 }
 
-/// No hum voice is left in the world.
+/// The hum is at zero and its sink is held.
 #[cfg(feature = "debug")]
-fn the_hum_is_gone() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
-    std::sync::Arc::new(|world: &World| hum_voice(world).is_none())
+fn the_hum_is_silent() -> std::sync::Arc<nova_protocol::nova_debug::harness::Predicate> {
+    std::sync::Arc::new(hum_is_silent)
 }
 
 /// The listener camera has stopped moving.
@@ -985,32 +1000,48 @@ fn listener_pose(world: &World) -> Option<GlobalTransform> {
 /// The live hum voice entity, if the drive has one.
 #[cfg(feature = "debug")]
 fn hum_voice(world: &World) -> Option<Entity> {
+    let pilot = player_root(world)?;
     world
-        .try_query_filtered::<(Entity, &Name), With<SfxVoice>>()
+        .try_query::<(Entity, &SoundVoice)>()
         .and_then(|mut query| {
             query
                 .iter(world)
-                .find(|(_, name)| name.as_str() == HUM_VOICE_NAME)
+                .find(|(_, voice)| {
+                    voice.category == SoundCategoryType::Drive
+                        && voice.group == VoiceGroup::Root(pilot)
+                })
                 .map(|(entity, _)| entity)
         })
 }
 
-/// The hum's requested level beside the throttle the drive is holding, both
-/// read in the same frame.
+/// The hum voice is at zero intensity and the engine holds its sink.
+#[cfg(feature = "debug")]
+fn hum_is_silent(world: &World) -> bool {
+    hum_voice(world).is_some_and(|voice| {
+        world
+            .get::<SoundVoice>(voice)
+            .is_some_and(|hum| hum.intensity == 0.0)
+            && world.get::<VoiceMix>(voice).is_some_and(|mix| mix.capped)
+    })
+}
+
+/// The hum's intensity beside the throttle the drive is holding, both read in
+/// the same frame.
 #[cfg(feature = "debug")]
 fn sample_the_hum(world: &mut World) -> Option<HumSample> {
     let voice = hum_voice(world)?;
     let throttle = player_throttle(world);
-    world.get::<SfxVoice>(voice).map(|hum| HumSample {
-        level: hum.volume,
+    world.get::<SoundVoice>(voice).map(|hum| HumSample {
+        level: hum.intensity,
         throttle,
-        route: hum.route,
-        source: hum.source,
+        category: hum.category,
+        place: hum.place,
+        group: hum.group,
     })
 }
 
-/// The player's average live thruster throttle: the same average the hum pass
-/// takes, over the same components, so the two readings are of one thing.
+/// The player's average live thruster throttle, over the same components the
+/// hum pass reads.
 #[cfg(feature = "debug")]
 fn player_throttle(world: &mut World) -> f32 {
     let player = player_root(world).expect("ship audio: no player ship to read a throttle off");
@@ -1038,28 +1069,18 @@ fn player_root(world: &World) -> Option<Entity> {
         .and_then(|mut query| query.iter(world).next())
 }
 
-/// The one report among `reports` whose contact point is on `hull`.
-///
-/// By RANGE, because a placed cue carries where it happened and not what it
-/// happened to: the two hulls are 45 units apart and each is a couple of units
-/// across, so [`HULL_REACH_UNITS`] separates them with two orders of magnitude
-/// to spare.
+/// The one report among `reports` counted with `hull`.
 #[cfg(feature = "debug")]
-fn report_on(world: &World, reports: &[VoiceRequest], hull: Entity) -> VoiceRequest {
-    let at = world
-        .get::<GlobalTransform>(hull)
-        .expect("ship audio: a live hull has a GlobalTransform")
-        .translation();
-    let mut near = reports.iter().filter(|report| match report.source {
-        SfxSource::At(point) => point.distance(at) <= HULL_REACH_UNITS,
-        _ => false,
-    });
-    let found = near
+fn report_on(reports: &[VoiceRequest], hull: Entity) -> VoiceRequest {
+    let mut on_hull = reports
+        .iter()
+        .filter(|report| report.group == VoiceGroup::Root(hull));
+    let found = on_hull
         .next()
-        .unwrap_or_else(|| panic!("ship audio: no report landed on {hull:?} at {at:?}"))
+        .unwrap_or_else(|| panic!("ship audio: no report landed on {hull:?}"))
         .clone();
     assert!(
-        near.next().is_none(),
+        on_hull.next().is_none(),
         "ship audio: one hull's burst must be one report, and {hull:?} got more than one"
     );
     found

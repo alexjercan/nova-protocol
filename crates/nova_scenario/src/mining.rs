@@ -1675,8 +1675,8 @@ mod tests {
         assert!(app.world().get::<MiningBeamHit>(aimed).is_none());
     }
 
-    /// A held ship's emitters play one sound for every pulse, through the hull
-    /// of the player's own ship: the authored pulse sound at the beam's hit
+    /// A held ship's emitters play one sound for every pulse, in the world as
+    /// a Mining sound: the authored pulse sound at the beam's hit
     /// for a pulse that passes its checks, and the authored refusal sound at
     /// the emitter face for a refused one. The turned emitter refuses every
     /// pulse, and its held key plays the refusal once a pulse, not a frame.

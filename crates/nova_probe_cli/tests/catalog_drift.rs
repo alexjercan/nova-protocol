@@ -321,10 +321,9 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
         "system_ship_audio",
         &[
             "a burst raking a hull collapses to one report per hull",
-            "an authored cue is heard through the hull it belongs to",
-            "an exterior cue is parked on the listener's bearing to it",
+            "every hull's hit plays in the world, the player's own included",
             "a dead trigger clicks once a pull and not once a frame",
-            "the drive's hum tracks the throttle and leaves at rest",
+            "the drive's hum tracks the throttle and falls silent at rest",
         ],
     ),
     (
@@ -1303,7 +1302,7 @@ const SYSTEMS_ROSTER: &[(&str, &[&str])] = &[
 ];
 
 /// How many invariants the `systems/` ranges assert between them.
-const SYSTEMS_INVARIANTS: usize = 650;
+const SYSTEMS_INVARIANTS: usize = 649;
 
 /// Every `systems/` range names EXACTLY the invariants on its roster.
 ///
