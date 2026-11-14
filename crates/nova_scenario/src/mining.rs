@@ -1005,39 +1005,35 @@ fn flash_mining_beam(
 
 /// Play one sound per pulse: the section's pulse sound at its hit for a pulse
 /// that passes its checks, its refusal sound at the emitter face for a refused
-/// one. On the player's own ship it is heard through the hull; on any other,
-/// from out there.
+/// one. In the world on every ship, the player's own included.
 fn play_mining_pulse_sfx(
     pulse: On<MiningPulse>,
     asset_server: Res<AssetServer>,
     q_sections: Query<(
         &MiningSectionConfigHelper,
-        &ChildOf,
         &GlobalTransform,
         &SectionCollider,
         Option<&MiningBeamHit>,
     )>,
-    q_player: Query<(), With<PlayerSpaceshipMarker>>,
     mut commands: Commands,
 ) {
-    let Ok((config, &ChildOf(ship), frame, collider, hit)) = q_sections.get(pulse.entity) else {
+    let Ok((config, frame, collider, hit)) = q_sections.get(pulse.entity) else {
         return;
     };
-    let route = if q_player.contains(ship) {
-        AudioRoute::Hull
-    } else {
-        AudioRoute::Exterior
-    };
-    let (sound, volume, at) = match (pulse.outcome, hit) {
-        (Ok(_), Some(hit)) => (&config.pulse_sound, MINING_PULSE_VOLUME, hit.at),
+    let (sound, at) = match (pulse.outcome, hit) {
+        (Ok(_), Some(hit)) => (&config.pulse_sound, hit.at),
         (Ok(_), None) => return,
         (Err(_), _) => {
             let (_, rotation, position) = frame.to_scale_rotation_translation();
             let (face, _) = mining_emitter_face(position, rotation, *collider);
-            (&config.refusal_sound, MINING_REFUSAL_VOLUME, face)
+            (&config.refusal_sound, face)
         }
     };
-    commands.play_sfx_at(sound.resolve(&asset_server), route, volume, at);
+    commands.trigger(PlaySound {
+        sound: sound.resolve(&asset_server),
+        category: SoundCategoryType::Mining,
+        at: SoundAt::Point(at),
+    });
 }
 
 /// Turn the ore a rock owes into queued canisters once its carve is drawn and
@@ -1283,11 +1279,11 @@ mod tests {
     #[derive(Resource, Default)]
     struct Remeshes(u32);
 
-    /// Every sound played, in order: its route, whether it was placed at a
+    /// Every sound played, in order: its category, whether it was placed at a
     /// live beam hit, whether it was placed at an emitter face, and the path
     /// it loads.
     #[derive(Resource, Default)]
-    struct Played(Vec<(AudioRoute, bool, bool, Option<String>)>);
+    struct Played(Vec<(SoundCategoryType, bool, bool, Option<String>)>);
 
     fn mining_app() -> App {
         let mut app = unfinished_integrity_physics_app();
@@ -1312,21 +1308,19 @@ mod tests {
             pulses.0.push((pulse.entity, pulse.outcome));
         });
         app.add_observer(
-            |sfx: On<PlaySfx>,
+            |sfx: On<PlaySound>,
              server: Res<AssetServer>,
              q_hits: Query<&MiningBeamHit>,
              q_faces: Query<(&GlobalTransform, &SectionCollider), With<MiningSectionMarker>>,
              mut played: ResMut<Played>| {
-                let at_hit = q_hits.iter().any(|hit| sfx.source == SfxSource::At(hit.at));
+                let at_hit = q_hits.iter().any(|hit| sfx.at == SoundAt::Point(hit.at));
                 let at_face = q_faces.iter().any(|(frame, collider)| {
                     let (_, rotation, position) = frame.to_scale_rotation_translation();
                     let (face, _) = mining_emitter_face(position, rotation, *collider);
-                    sfx.source == SfxSource::At(face)
+                    sfx.at == SoundAt::Point(face)
                 });
-                let path = server
-                    .get_path(sfx.handle.id())
-                    .map(|path| path.to_string());
-                played.0.push((sfx.route, at_hit, at_face, path));
+                let path = server.get_path(sfx.sound.id()).map(|path| path.to_string());
+                played.0.push((sfx.category, at_hit, at_face, path));
             },
         );
         app.add_observer(|_: On<AsteroidRemeshed>, mut remeshes: ResMut<Remeshes>| {
@@ -1712,8 +1706,8 @@ mod tests {
         let played = &app.world().resource::<Played>().0;
         assert_eq!(played.len(), pulses.len(), "{played:?}");
         let mut pulse_sounds = 0;
-        for (route, at_hit, at_face, path) in played {
-            assert_eq!(*route, AudioRoute::Hull);
+        for (category, at_hit, at_face, path) in played {
+            assert_eq!(*category, SoundCategoryType::Mining);
             match path.as_deref() {
                 Some("base/sounds/mining_pulse.wav") => {
                     assert!(*at_hit, "a pulse sound was not placed at the beam hit");
