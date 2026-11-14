@@ -5282,6 +5282,7 @@ name = "nova_sound"
 version = "0.17.0"
 dependencies = [
  "bevy",
+ "nova_events",
  "rodio",
  "serde",
 ]

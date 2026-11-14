@@ -8,7 +8,10 @@
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 
-use crate::master::{HarnessMute, MasterVolume};
+use crate::{
+    category::SoundBus,
+    master::{HarnessMute, MasterVolume},
+};
 
 /// A mixer track. Every voice belongs to exactly one, and a track's volume is
 /// the only per-track control there is: nothing scales a cue except its bus
@@ -171,6 +174,14 @@ impl Mixer<'_> {
             self.world.as_deref().copied().unwrap_or_default(),
             self.music.as_deref().copied().unwrap_or_default(),
         )
+    }
+
+    /// The gain `bus`'s slider applies, WITHOUT the master.
+    pub fn sound_bus_gain(&self, bus: SoundBus) -> f32 {
+        match bus {
+            SoundBus::Ui => self.bus_gain(AudioRoute::Interface),
+            SoundBus::Effect => self.bus_gain(AudioRoute::Exterior),
+        }
     }
 
     /// The master output gain, which a PER-FRAME sink write must fold in by

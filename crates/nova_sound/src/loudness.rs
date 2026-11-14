@@ -11,8 +11,10 @@
 //! clip's mean K-weighted level - the same number a loop plays at.
 //!
 //! The per-file gain to [`LOUDNESS_TARGET_LUFS`] is stored in
-//! [`SoundLoudness`], keyed by the asset id. It is MEASURED here and not yet
-//! applied: playback still uses the authored volumes.
+//! [`SoundLoudness`], keyed by the asset id. Every category sound plays through
+//! it, so a [`SoundCategoryType`](super::SoundCategoryType) level is relative
+//! to the target, whatever level the file was recorded at. A category voice
+//! waits for its clip's measure before it starts.
 //!
 //! A clip that cannot be decoded, or that measures below
 //! [`SILENT_BELOW_LUFS`], is an authoring error: content lint refuses it, and a
@@ -265,8 +267,7 @@ impl ClipLoudness {
 
 /// The measured loudness of every loaded [`AudioSource`], keyed by asset id.
 ///
-/// Filled by the engine as each clip loads and emptied as it unloads. Not yet
-/// applied to playback.
+/// Filled by the engine as each clip loads and emptied as it unloads.
 #[derive(Resource, Default, Debug)]
 pub struct SoundLoudness {
     clips: HashMap<AssetId<AudioSource>, ClipLoudness>,
@@ -287,6 +288,12 @@ impl SoundLoudness {
     /// Whether no clip is measured.
     pub fn is_empty(&self) -> bool {
         self.clips.is_empty()
+    }
+
+    /// Record a clip's measure without loading it.
+    #[cfg(test)]
+    pub(crate) fn insert(&mut self, id: AssetId<AudioSource>, clip: ClipLoudness) {
+        self.clips.insert(id, clip);
     }
 }
 
