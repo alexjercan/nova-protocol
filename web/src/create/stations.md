@@ -546,8 +546,8 @@ board slot carries a posting number, the play-time stamp it was posted at and
 the offer it posted (`SlotPosting`, kept per station in the `JobPostings`
 session resource, saved with the world). A slot's offer is drawn once, when
 the slot posts, from the world seed, the station's generated id, the slot, the
-posting number, the cluster types of its sector, the start role's job mix, the
-board's standing offers, the field around the station and, on the starting
+posting number, the cluster types of its sector, the advancement of the
+station's civilization, the start role's job mix, the board's standing offers, the field around the station and, on the starting
 station's board, the player's hull, off its own `WyRand` seeded from FNV-64 of
 `(seed, "station_jobs", station id, slot, posting)`. The offer then stands as drawn until its slot renews: a
 looted wreck, a job held elsewhere, a thaw or a Load never changes it. A job's
@@ -581,7 +581,7 @@ Each slot draws its kind by the start role's `jobs` mix (see
 |---|---|---|---|
 | `Procure` | `Bring 4 Iron ore` | bring that many units of the item to the poster | the goods at the ask plus half, plus a fee |
 | `Recover` | `Recover 2 Hull plate from <wreck>` | take that many off the named derelict in the cube and undock with them aboard, the wreck's stack gone | twice the ask, plus a fee |
-| `Escort` | `Escort a hauler carrying 1200 cr` | a working-hull hauler spawns 1 km off the poster on a 10 km leg and leaves at 100 m/s once you are undocked and within 1 km of it; see it reach its mark. `1 + cargo / 700` raiders, at most 3, lie in wait 2.5 km off the leg, 75 % along it, and engage within 3 km; they hunt the hauler and turn on a ship that shoots them for as long as it keeps shooting | half the cargo value, plus a fee |
+| `Escort` | `Escort a hauler carrying 1200 cr` | a working-hull hauler spawns 1 km off the poster on a 10 km leg and leaves at 100 m/s once you are undocked and within 1 km of it; see it reach its mark. Raiders lie in wait 2.5 km off the leg, 75 % along it, and engage within 3 km; they hunt the hauler and turn on a ship that shoots them for as long as it keeps shooting. The posting draws their count once from its civilization's advancement: 1 below 0.25, 1 or 2 below 0.5, 2 or 3 below 0.75, then 3 | half the cargo value, plus 150 cr per raider, plus a fee |
 | `Distress` | `Answer a distress call` | a neutral drifting caller spawns 10 km out: dock with the caller | 200 cr plus twice a fee |
 | `Neutralize` | `Neutralize <hull>` | neutralize the named Enemy hull standing in the cube | 400 cr plus twice a fee |
 | `Supply` | `Rescue a stranded crew with 3 Medkit` | a neutral drifting caller spawns 10 km out, with none of the asked item aboard: dock with the caller with the whole stack in the hold. The dock takes the stack. With the hold short the dock takes nothing, the job stays open and the HUD posts `JOB-1: SHORT 2 MEDKIT` | 200 cr, the goods at the ask plus half, plus twice a fee |
