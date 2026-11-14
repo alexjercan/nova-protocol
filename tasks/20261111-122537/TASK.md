@@ -255,3 +255,7 @@ Escort closed out 2026-11-14 (GPU, seed 37, one raider):
   jobs, release lead, turret gunnery, stress point defense.
 Not rerun after `f5ebec539`: the design hash, the release lead, and the
 seven non-escort job walks.
+Rerun at `d5c17c5e7`: the design hash over 864 designs is
+73d9300eb25ec465 on master and on `7c55f134f`; release lead, supply,
+distress, recover, station jobs, neutralize and scenario jobs pass on the
+GPU. No re-pins.
