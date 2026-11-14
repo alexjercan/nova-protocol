@@ -20,7 +20,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 - Stations that offer Refine turn 2 iron ore, 1 carbon ore and a 30 cr fee into an alloy plate from the Inventory pane. The waystation refines; generated stations do from advancement 0.25.
 - New Supply job: dock with a stranded caller with the goods it asks for in your hold. Medkits make it a rescue, rations a resupply, ammo a rearm, plates a repair. A short hold says what is missing.
 - Half the civilizations of a generated world are lawful: their station markets buy and sell no Contraband, and the trade form says so. They still dock you. Scavengers deal unmarked cores.
-- Escort ambushes grow with the posting civilization's advancement: one raider near the start, up to three far out. Cargo no longer adds raiders, and each raider adds 150 cr to the pay.
+- Escort ambushes grow with the posting civilization's advancement: near the start one small raider about your ship's size, far out up to three full scavengers. Each raider adds 150 cr to the pay.
 - Gamepad: L3 + Y docks and L3 + A takes the helm, two caps on the key row. New hulls put torpedoes on LB, the railgun on View and mining on RT; hot weapons turn off pad free look and HUD toggle.
 
 ### Combat & Weapons
@@ -71,6 +71,7 @@ does NOT get an entry. Another page that states a different rule is wrong.
 
 ### Fixes
 
+- Turrets no longer hold fire on a small target at long range, such as one turret of a raider 2 km out: a barrel settled on its aim now fires, however small the mark looks.
 - The RCS chip now draws dark while the RCS magazine is empty, as the MATCH chord already did.
 - The mod editor's Problems tab now checks a scenario on the world its file states. A generated-world scenario no longer lists `SpawnStartRole` as an error or `OnResume` as a warning.
 - The railgun wake, PDC muzzle flash, torpedo launch puff and mining sparks now follow the weapon on every heading, and a railgun slug is drawn from the muzzle, not a step ahead of it.
