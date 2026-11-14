@@ -259,3 +259,10 @@ Rerun at `d5c17c5e7`: the design hash over 864 designs is
 73d9300eb25ec465 on master and on `7c55f134f`; release lead, supply,
 distress, recover, station jobs, neutralize and scenario jobs pass on the
 GPU. No re-pins.
+Playable: `escort_job_sandbox --band start|frontier|developed|core`
+(`e69afb740`; `escort_sandbox` is the hired-escorts example). Seed 37,
+poster civilization picked per band (0.100, 0.351, 0.598, 0.850): 1 raider
+28 sections; 2 raiders 34/55; 3 raiders 51/88/73; 3 raiders 416-497
+sections, 54-66k hp each. Smoke and manual launches pass for every band.
+Seen in the frames: the job chip `JOB-1 Escort` sits over the RCS, RADAR
+and AIM key caps.
