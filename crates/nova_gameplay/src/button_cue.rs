@@ -19,10 +19,7 @@ use bevy::{
     ui::InteractionDisabled,
     ui_widgets::{Activate, Button},
 };
-use nova_sound::prelude::{
-    AudioRoute, SfxCommandsExt, SoundBank, UiSfx, EDITOR_DENY_VOLUME, MENU_BACK_VOLUME,
-    MENU_FOCUS_VOLUME, MENU_SELECT_VOLUME,
-};
+use nova_sound::prelude::{PlaySound, SoundBank, SoundCategoryType, UiSfx};
 use nova_ui::widget::{ButtonCueMute, ButtonCueType};
 
 /// Glob-import surface: `use nova_gameplay::button_cue::prelude::*`.
@@ -59,11 +56,10 @@ impl Plugin for ButtonCuePlugin {
 /// no button under it, and for a [`ButtonCueType::Owned`] handler.
 pub fn play_menu_select(commands: &mut Commands, bank: Option<&SoundBank<UiSfx>>) {
     if let Some(bank) = bank {
-        commands.play_sfx(
+        commands.trigger(PlaySound::ui(
             bank.get(UiSfx::MenuSelect),
-            AudioRoute::Interface,
-            MENU_SELECT_VOLUME,
-        );
+            SoundCategoryType::UiClick,
+        ));
     }
 }
 
@@ -71,11 +67,10 @@ pub fn play_menu_select(commands: &mut Commands, bank: Option<&SoundBank<UiSfx>>
 /// with no button to press.
 pub fn play_menu_back(commands: &mut Commands, bank: Option<&SoundBank<UiSfx>>) {
     if let Some(bank) = bank {
-        commands.play_sfx(
+        commands.trigger(PlaySound::ui(
             bank.get(UiSfx::MenuBack),
-            AudioRoute::Interface,
-            MENU_BACK_VOLUME,
-        );
+            SoundCategoryType::UiClick,
+        ));
     }
 }
 
@@ -84,11 +79,10 @@ pub fn play_menu_back(commands: &mut Commands, bank: Option<&SoundBank<UiSfx>>) 
 /// click.
 pub fn play_menu_deny(commands: &mut Commands, bank: Option<&SoundBank<UiSfx>>) {
     if let Some(bank) = bank {
-        commands.play_sfx(
+        commands.trigger(PlaySound::ui(
             bank.get(UiSfx::EditorDeny),
-            AudioRoute::Interface,
-            EDITOR_DENY_VOLUME,
-        );
+            SoundCategoryType::UiError,
+        ));
     }
 }
 
@@ -156,10 +150,9 @@ fn play_button_focus_cue(
     if q_hovered.iter().any(|(hovered, disabled, mute)| {
         hovered.get() && !disabled && !mute.is_some_and(|mute| mute.0)
     }) {
-        commands.play_sfx(
+        commands.trigger(PlaySound::ui(
             bank.get(UiSfx::MenuFocus),
-            AudioRoute::Interface,
-            MENU_FOCUS_VOLUME,
-        );
+            SoundCategoryType::UiTick,
+        ));
     }
 }

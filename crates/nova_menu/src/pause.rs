@@ -144,11 +144,10 @@ pub(crate) fn toggle_pause(
         // Resume/Exit buttons close it with their own MenuSelect click, so only the
         // ESC/pad toggle needs this.
         if let Some(bank) = bank {
-            commands.play_sfx(
+            commands.trigger(PlaySound::ui(
                 bank.get(UiSfx::UiToggle),
-                AudioRoute::Interface,
-                UI_TOGGLE_VOLUME,
-            );
+                SoundCategoryType::UiClick,
+            ));
         }
     }
 }

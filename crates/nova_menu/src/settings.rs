@@ -1997,11 +1997,10 @@ pub(crate) fn on_sensitivity_slider_change(
 /// sliders cannot end up ticking differently.
 fn play_detent_tick(commands: &mut Commands, bank: Option<&SoundBank<UiSfx>>) {
     if let Some(bank) = bank {
-        commands.play_sfx(
+        commands.trigger(PlaySound::ui(
             bank.get(UiSfx::UiTick),
-            AudioRoute::Interface,
-            UI_TICK_VOLUME,
-        );
+            SoundCategoryType::UiTick,
+        ));
     }
 }
 

@@ -456,7 +456,7 @@ pub(crate) struct PlayedCues(pub(crate) usize);
 #[derive(Resource, Default)]
 pub(crate) struct PlayedHandles(pub(crate) Vec<Handle<AudioSource>>);
 
-/// A headless app with a loaded [`SoundBank`] and a `PlaySfx` counter, on
+/// A headless app with a loaded [`SoundBank`] and a `PlaySound` counter, on
 /// MinimalPlugins so the AssetPlugin task pools exist.
 pub(crate) fn cue_app() -> App {
     let mut app = App::new();
@@ -469,9 +469,9 @@ pub(crate) fn cue_app() -> App {
     app.init_resource::<PlayedCues>();
     app.init_resource::<PlayedHandles>();
     app.add_observer(
-        |play: On<PlaySfx>, mut cues: ResMut<PlayedCues>, mut played: ResMut<PlayedHandles>| {
+        |play: On<PlaySound>, mut cues: ResMut<PlayedCues>, mut played: ResMut<PlayedHandles>| {
             cues.0 += 1;
-            played.0.push(play.handle.clone());
+            played.0.push(play.sound.clone());
         },
     );
     app

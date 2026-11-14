@@ -92,11 +92,10 @@ pub(crate) fn sync_outcome_overlay(
     // loss.
     if outcome.is_changed() && matches!(config.outcome, ScenarioOutcomeKind::Defeat) {
         if let Some(bank) = bank.as_ref() {
-            commands.play_sfx(
+            commands.trigger(PlaySound::ui(
                 bank.get(UiSfx::ObjectiveFail),
-                AudioRoute::Interface,
-                OBJECTIVE_FAIL_VOLUME,
-            );
+                SoundCategoryType::Objective,
+            ));
         }
     }
     let primary = queued.then_some(match config.outcome {
