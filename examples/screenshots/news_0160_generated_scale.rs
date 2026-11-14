@@ -221,6 +221,7 @@ fn band_hull(
                 role: ShipRoleType::Armored,
                 advancement: civilization.advancement,
                 size: ShipSizeType::Advancement,
+                spare_drive: ShipSpareDriveType::Without,
             };
             let layout = generate_ship(snapshot, request).ok()?;
             let fittings = Fittings::of(&layout.design, &parts);

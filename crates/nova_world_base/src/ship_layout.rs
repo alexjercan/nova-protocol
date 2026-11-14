@@ -187,6 +187,26 @@ pub struct ShipLayoutRequest {
     pub advancement: f32,
     /// How large the hull may grow under that ceiling.
     pub size: ShipSizeType,
+    /// Whether the ship carries a spare drive pair beside its primary flight
+    /// computer.
+    pub spare_drive: ShipSpareDriveType,
+}
+
+/// Whether a generated ship carries a spare drive pair beside its primary
+/// flight computer, the first one a quarter back from the bow.
+///
+/// A structural split keeps the piece with more live flight computers. A hull
+/// that narrows between that computer and the drive bank loses every drive to
+/// one cut, so a ship that must keep flying under fire carries a pair of its
+/// drive on the computer's side of the hull.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ShipSpareDriveType {
+    /// The drive bank behind the stern is the ship's only drive.
+    Without,
+    /// A mirrored pair of the bank's drive, turned to fire aft, mounts as near
+    /// the primary flight computer along the hull as the lanes allow. A
+    /// layout with no room for the pair fails like any unplaced part.
+    BesidePrimaryComputer,
 }
 
 /// How a generated ship's drive bank stands behind its stern. A bank is
@@ -422,11 +442,12 @@ impl fmt::Display for ShipLayoutFailure {
             role,
             advancement,
             size: _,
+            spare_drive,
         } = self.request;
         write!(
             f,
-            "ship seed {seed} of {civilization} ({}, advancement {advancement:.2}) failed after \
-             {} layout attempts: {}",
+            "ship seed {seed} of {civilization} ({}, advancement {advancement:.2}, spare drive \
+             {spare_drive:?}) failed after {} layout attempts: {}",
             role.label(),
             self.attempts,
             self.constraint
@@ -1094,6 +1115,16 @@ impl<'a> Grid<'a> {
         placement_blocks_an_exit(&ship, &last.placed())
     }
 
+    /// Whether any of the last `count` placements blocks an exit lane.
+    pub(crate) fn any_of_last_blocks_an_exit(&self, count: usize) -> bool {
+        let placed: Vec<PlacedPart> = self.placements.iter().map(Placement::placed).collect();
+        (placed.len() - count..placed.len()).any(|index| {
+            let mut ship = placed.clone();
+            let part = ship.remove(index);
+            placement_blocks_an_exit(&ship, &part)
+        })
+    }
+
     /// Every empty cell beside a filled one on the starboard half or the
     /// centreline, in a fixed order.
     fn surface(&self) -> BTreeSet<[i32; 3]> {
@@ -1372,6 +1403,19 @@ fn bridges(stations: &[Section], count: usize) -> Vec<IVec3> {
     }
     cells.truncate(count);
     cells
+}
+
+/// The slot of the primary flight computer: the first, a quarter back from
+/// the bow where it fits there.
+const PRIMARY_CONTROLLER_SLOT: &str = "controller_0";
+
+/// The most cubes one arm of a spare drive pair grows out of the hull: wide
+/// enough to clear the beam of a generated hull behind it.
+const MAX_SPARE_DRIVE_ARM: i32 = 8;
+
+/// How a spare drive may point: aft only, like the bank behind the stern.
+fn aft_aim(_: &SectionKind, aims: Option<usize>) -> Option<u32> {
+    (aims? == AFT).then_some(1)
 }
 
 /// A flight computer fires nowhere and may stand anywhere it mates.
@@ -1656,7 +1700,11 @@ impl<'a> Draw<'a> {
             |_| true,
         );
         for index in 0..controllers {
-            let slot = format!("controller_{index}");
+            let slot = if index == 0 {
+                PRIMARY_CONTROLLER_SLOT.to_string()
+            } else {
+                format!("controller_{index}")
+            };
             let bridge = bridges.get(index).copied();
             let inside = bridge.and_then(|bridge| {
                 parts.iter().find_map(|part| {
@@ -1796,6 +1844,19 @@ impl<'a> Draw<'a> {
                 return Err(ShipLayoutConstraintType::Unplaced(
                     ShipPartFamilyType::Mining,
                 ));
+            }
+        }
+
+        // A spare drive pair beside the primary flight computer, last, so it
+        // takes no room an earlier fitting needs.
+        match request.spare_drive {
+            ShipSpareDriveType::Without => {}
+            ShipSpareDriveType::BesidePrimaryComputer => {
+                if !self.fit_spare_drive(&mut grid, drive.part, palette[0]) {
+                    return Err(ShipLayoutConstraintType::Unplaced(
+                        ShipPartFamilyType::Thruster,
+                    ));
+                }
             }
         }
 
@@ -2012,88 +2073,259 @@ impl Draw<'_> {
         mount: MountType,
         aspect: &[u8],
     ) -> bool {
-        let backed = matches!(mount, MountType::BackedMirrored | MountType::BackedLone);
-        let lone = mount == MountType::BackedLone;
         let surface = grid.surface();
         for part in parts {
-            let mut candidates = Vec::new();
-            for rotation in cube_rotations() {
-                let Ok(oriented) = oriented_part(&part.config, rotation) else {
-                    continue;
-                };
-                let Some(score) = aim(&part.config.kind, oriented.aims) else {
-                    continue;
-                };
-                let span = oriented.span.as_ivec3();
-                let centred = reflects(&oriented, &oriented);
-                let port = oriented_part(&part.config, mirror_rotation(rotation))
-                    .ok()
-                    .filter(|port| reflects(&oriented, port));
-                let mut anchors = BTreeSet::new();
-                for cell in &surface {
-                    for own in &oriented.cells {
-                        let anchor = IVec3::from_array(*cell) - own.cell.as_ivec3();
-                        let on_centreline = anchor.x == -(anchor.x + span.x - 1);
-                        let starboard = anchor.x >= 1;
-                        let paired = starboard && port.is_some();
-                        let admitted = match mount {
-                            MountType::BackedLone => anchor.x >= 0,
-                            MountType::Centred => on_centreline && centred,
-                            MountType::Paired => paired,
-                            MountType::Mirrored | MountType::BackedMirrored => {
-                                (on_centreline && centred) || paired
-                            }
-                        };
-                        if admitted {
-                            anchors.insert(anchor.to_array());
-                        }
-                    }
-                }
-                for anchor in anchors {
-                    let anchor = IVec3::from_array(anchor);
-                    if grid.fits(&oriented, anchor) && (!backed || grid.backed(&oriented, anchor)) {
-                        candidates.push((score, oriented.clone(), port.clone(), anchor));
-                    }
-                }
-            }
+            let candidates = candidates(grid, &surface, part, aim, mount);
             let mut stream = self.stream(aspect);
             let mut candidates = shuffled(candidates, &mut stream);
-            candidates.sort_by_key(|(score, ..)| std::cmp::Reverse(*score));
-
-            for (_, oriented, port, anchor) in candidates {
-                let span = oriented.span.as_ivec3();
-                if anchor.x >= 1 && !lone {
-                    let port = port.expect("a starboard candidate pairs");
-                    let port_anchor = IVec3::new(-(anchor.x + span.x - 1), anchor.y, anchor.z);
-                    grid.insert(format!("{slot}_starboard"), part, oriented, anchor, false);
-                    if grid.last_blocks_an_exit() {
-                        grid.pop();
-                        continue;
-                    }
-                    if !grid.fits(&port, port_anchor)
-                        || (backed && !grid.backed(&port, port_anchor))
-                    {
-                        grid.pop();
-                        continue;
-                    }
-                    grid.insert(format!("{slot}_port"), part, port, port_anchor, false);
-                    if grid.last_blocks_an_exit() {
-                        grid.pop();
-                        grid.pop();
-                        continue;
-                    }
-                } else {
-                    grid.insert(slot.to_string(), part, oriented, anchor, false);
-                    if grid.last_blocks_an_exit() {
-                        grid.pop();
-                        continue;
-                    }
-                }
+            candidates.sort_by_key(|candidate| std::cmp::Reverse(candidate.score));
+            if place(grid, part, slot, candidates, mount) {
                 return true;
             }
         }
         false
     }
+
+    /// Mount a mirrored pair of `drive`, turned to fire aft, as near the
+    /// primary flight computer along the hull as a clear lane allows: the
+    /// piece a structural split keeps then still has a drive. A drive bolts
+    /// to an exposed aft face of the hull, or behind the tip of a mirrored
+    /// pair of `cube` arms grown out of the hull's surface where that is
+    /// nearer. A hull that widens toward its stern has no exposed aft face but
+    /// the stern's, and a drive close against its side fires into the wider
+    /// hull behind it, so an arm grows, up to [`MAX_SPARE_DRIVE_ARM`] cubes,
+    /// until the drive behind its tip fires clear. At one distance a bare
+    /// mount goes before an arm, and mounts as near as each other are tried
+    /// in a seeded order. Returns whether the pair was mounted.
+    fn fit_spare_drive<'a>(
+        &self,
+        grid: &mut Grid<'a>,
+        drive: &'a ShipPart,
+        cube: &'a ShipPart,
+    ) -> bool {
+        enum Spare {
+            Bare(Candidate),
+            Arm { root: IVec3, out: IVec3 },
+        }
+        let primary = grid
+            .placements
+            .iter()
+            .find(|placement| placement.id == PRIMARY_CONTROLLER_SLOT)
+            .expect("the spare drive pair mounts after the flight computers")
+            .anchor
+            .z;
+        let cube_cell = oriented_part(&cube.config, Quat::IDENTITY)
+            .expect("a structural cube stands on the grid");
+        let mirror = IVec3::new(-1, 1, 1);
+        let surface = grid.surface();
+        let bare = candidates(grid, &surface, drive, aft_aim, MountType::Paired);
+        // An arm grows straight out of the hull: outboard, up or down from a
+        // starboard surface cell, the way that cell faces off the hull.
+        let filled = &grid.filled;
+        let arms: Vec<(IVec3, IVec3)> = surface
+            .iter()
+            .map(|cell| IVec3::from_array(*cell))
+            .filter(|root| root.x >= 1)
+            .flat_map(|root| {
+                [IVec3::X, IVec3::Y, IVec3::NEG_Y]
+                    .into_iter()
+                    .filter(move |out| filled.contains_key(&(root - *out)))
+                    .map(move |out| (root, out))
+            })
+            .collect();
+        // A drive turned aft bolts by the face at its anchor's station to the
+        // station before it.
+        let mut spares: Vec<(i32, Spare)> = shuffled(bare, &mut self.stream(b"spare_drive_slot"))
+            .into_iter()
+            .map(|candidate| {
+                (
+                    2 * (candidate.anchor.z - 1 - primary).abs(),
+                    Spare::Bare(candidate),
+                )
+            })
+            .chain(
+                shuffled(arms, &mut self.stream(b"spare_drive_arm"))
+                    .into_iter()
+                    .map(|(root, out)| {
+                        (2 * (root.z - primary).abs() + 1, Spare::Arm { root, out })
+                    }),
+            )
+            .collect();
+        spares.sort_by_key(|(distance, _)| *distance);
+
+        for (_, spare) in spares {
+            let (root, out) = match spare {
+                Spare::Bare(candidate) => {
+                    if place(
+                        grid,
+                        drive,
+                        "spare_drive",
+                        vec![candidate],
+                        MountType::Paired,
+                    ) {
+                        return true;
+                    }
+                    continue;
+                }
+                Spare::Arm { root, out } => (root, out),
+            };
+            let mut length = 0;
+            let mounted = loop {
+                let tip = root + out * length;
+                if length == MAX_SPARE_DRIVE_ARM
+                    || !grid.fits(&cube_cell, tip)
+                    || !grid.fits(&cube_cell, tip * mirror)
+                {
+                    break false;
+                }
+                for (side, cell) in [("starboard", tip), ("port", tip * mirror)] {
+                    grid.insert(
+                        format!("spare_drive_arm_{length}_{side}"),
+                        cube,
+                        cube_cell.clone(),
+                        cell,
+                        true,
+                    );
+                }
+                length += 1;
+                // Only a drive over the cell behind the tip bolts to it. The
+                // lane checks run once one can stand there: each walks the
+                // whole ship, and most tips have no such drive.
+                let behind = BTreeSet::from([(tip + IVec3::Z).to_array()]);
+                let mounts = candidates(grid, &behind, drive, aft_aim, MountType::Paired);
+                if !mounts.is_empty()
+                    && !grid.any_of_last_blocks_an_exit(2 * length as usize)
+                    && place(grid, drive, "spare_drive", mounts, MountType::Paired)
+                {
+                    break true;
+                }
+            };
+            if mounted {
+                return true;
+            }
+            for _ in 0..2 * length {
+                grid.pop();
+            }
+        }
+        false
+    }
+}
+
+/// One way a part may stand on a hull's surface: its aim score, its
+/// orientation, its mirrored twin when it has one, and its anchor cell.
+struct Candidate {
+    score: u32,
+    oriented: OrientedPart,
+    port: Option<OrientedPart>,
+    anchor: IVec3,
+}
+
+/// Every way `part` may stand on `surface` as `mount` allows, scored by
+/// `aim`, in rotation then anchor order.
+fn candidates(
+    grid: &Grid<'_>,
+    surface: &BTreeSet<[i32; 3]>,
+    part: &ShipPart,
+    aim: fn(&SectionKind, Option<usize>) -> Option<u32>,
+    mount: MountType,
+) -> Vec<Candidate> {
+    let backed = matches!(mount, MountType::BackedMirrored | MountType::BackedLone);
+    let mut candidates = Vec::new();
+    for rotation in cube_rotations() {
+        let Ok(oriented) = oriented_part(&part.config, rotation) else {
+            continue;
+        };
+        let Some(score) = aim(&part.config.kind, oriented.aims) else {
+            continue;
+        };
+        let span = oriented.span.as_ivec3();
+        let centred = reflects(&oriented, &oriented);
+        let port = oriented_part(&part.config, mirror_rotation(rotation))
+            .ok()
+            .filter(|port| reflects(&oriented, port));
+        let mut anchors = BTreeSet::new();
+        for cell in surface {
+            for own in &oriented.cells {
+                let anchor = IVec3::from_array(*cell) - own.cell.as_ivec3();
+                let on_centreline = anchor.x == -(anchor.x + span.x - 1);
+                let starboard = anchor.x >= 1;
+                let paired = starboard && port.is_some();
+                let admitted = match mount {
+                    MountType::BackedLone => anchor.x >= 0,
+                    MountType::Centred => on_centreline && centred,
+                    MountType::Paired => paired,
+                    MountType::Mirrored | MountType::BackedMirrored => {
+                        (on_centreline && centred) || paired
+                    }
+                };
+                if admitted {
+                    anchors.insert(anchor.to_array());
+                }
+            }
+        }
+        for anchor in anchors {
+            let anchor = IVec3::from_array(anchor);
+            if grid.fits(&oriented, anchor) && (!backed || grid.backed(&oriented, anchor)) {
+                candidates.push(Candidate {
+                    score,
+                    oriented: oriented.clone(),
+                    port: port.clone(),
+                    anchor,
+                });
+            }
+        }
+    }
+    candidates
+}
+
+/// Mount `part` at the first of `candidates` whose lanes stay clear, with
+/// its mirrored twin for a starboard anchor unless `mount` is lone. Returns
+/// whether it was mounted.
+fn place<'a>(
+    grid: &mut Grid<'a>,
+    part: &'a ShipPart,
+    slot: &str,
+    candidates: Vec<Candidate>,
+    mount: MountType,
+) -> bool {
+    let backed = matches!(mount, MountType::BackedMirrored | MountType::BackedLone);
+    let lone = mount == MountType::BackedLone;
+    for Candidate {
+        oriented,
+        port,
+        anchor,
+        ..
+    } in candidates
+    {
+        let span = oriented.span.as_ivec3();
+        if anchor.x >= 1 && !lone {
+            let port = port.expect("a starboard candidate pairs");
+            let port_anchor = IVec3::new(-(anchor.x + span.x - 1), anchor.y, anchor.z);
+            grid.insert(format!("{slot}_starboard"), part, oriented, anchor, false);
+            if grid.last_blocks_an_exit() {
+                grid.pop();
+                continue;
+            }
+            if !grid.fits(&port, port_anchor) || (backed && !grid.backed(&port, port_anchor)) {
+                grid.pop();
+                continue;
+            }
+            grid.insert(format!("{slot}_port"), part, port, port_anchor, false);
+            if grid.last_blocks_an_exit() {
+                grid.pop();
+                grid.pop();
+                continue;
+            }
+        } else {
+            grid.insert(slot.to_string(), part, oriented, anchor, false);
+            if grid.last_blocks_an_exit() {
+                grid.pop();
+                continue;
+            }
+        }
+        return true;
+    }
+    false
 }
 
 /// Every constraint an intact generated design must hold, in the order they
@@ -2687,6 +2919,7 @@ pub(crate) mod tests {
             role,
             advancement,
             size: ShipSizeType::Advancement,
+            spare_drive: ShipSpareDriveType::Without,
         }
     }
 
@@ -2720,6 +2953,98 @@ pub(crate) mod tests {
         }
         assert_eq!(layouts.len(), 2, "the seeds reach both drive layouts");
         assert_eq!(sources.len(), 2, "the seeds prefer both sources");
+    }
+
+    /// Cut an escort hauler through any one cross-section aft of its spare
+    /// drive pair and its primary flight computer, and the sections still
+    /// joined to that computer by mated faces hold a drive: the piece a split
+    /// keeps can fly.
+    #[test]
+    fn an_escort_hauler_keeps_a_drive_on_the_body_with_its_primary_flight_computer() {
+        let snapshot = ShipPartSnapshot::build(&packs()).expect("the packs build");
+        let parts: HashMap<&str, &ShipPart> = snapshot
+            .parts()
+            .iter()
+            .map(|part| (part.id(), part))
+            .collect();
+        for advancement in [0.0, 0.5, 1.0] {
+            for seed in 0..24 {
+                let request = ShipLayoutRequest {
+                    spare_drive: ShipSpareDriveType::BesidePrimaryComputer,
+                    ..request(seed, ShipRoleType::Industrial, advancement)
+                };
+                let context = format!("seed {seed}, advancement {advancement}");
+                let layout = generate_ship(&snapshot, request)
+                    .unwrap_or_else(|failure| panic!("{context}: {failure}"));
+                let sections = &layout.design.sections;
+                let index_of = |id: &str| {
+                    sections
+                        .iter()
+                        .position(|section| section.id == id)
+                        .unwrap_or_else(|| panic!("{context}: no section '{id}'"))
+                };
+                let primary = index_of(PRIMARY_CONTROLLER_SLOT);
+                let spares = [
+                    index_of("spare_drive_starboard"),
+                    index_of("spare_drive_port"),
+                ];
+                let is_drive = |index: usize| {
+                    let id = prototype_of(&sections[index]).expect("a generated prototype");
+                    parts[id].family == ShipPartFamilyType::Thruster
+                };
+                assert!(spares.iter().all(|spare| is_drive(*spare)), "{context}");
+
+                let (cells, _) = filled_cells(&snapshot, &layout.design);
+                let station_of = |index: usize| {
+                    cells
+                        .iter()
+                        .filter(|(_, (owner, _))| *owner == index)
+                        .map(|(cell, _)| cell.z)
+                        .max()
+                        .expect("a section fills a cell")
+                };
+                let from = spares
+                    .iter()
+                    .map(|spare| station_of(*spare))
+                    .chain([station_of(primary)])
+                    .max()
+                    .expect("three sections");
+                let stern = cells.keys().map(|cell| cell.z).max().expect("cells");
+                for cut in from + 1..=stern {
+                    let severed: HashSet<usize> = cells
+                        .iter()
+                        .filter(|(cell, _)| cell.z == cut)
+                        .map(|(_, (owner, _))| *owner)
+                        .collect();
+                    let mut joined = BTreeSet::from([primary]);
+                    let mut queue = vec![primary];
+                    while let Some(section) = queue.pop() {
+                        for (cell, (owner, faces)) in &cells {
+                            if *owner != section {
+                                continue;
+                            }
+                            for (face, step) in STEPS.iter().enumerate() {
+                                let Some((other, other_faces)) = cells.get(&(*cell + *step)) else {
+                                    continue;
+                                };
+                                if faces[face]
+                                    && other_faces[face ^ 1]
+                                    && !severed.contains(other)
+                                    && joined.insert(*other)
+                                {
+                                    queue.push(*other);
+                                }
+                            }
+                        }
+                    }
+                    assert!(
+                        joined.iter().any(|section| is_drive(*section)),
+                        "{context}: a cut at station {cut} leaves the primary flight computer \
+                         with no drive"
+                    );
+                }
+            }
+        }
     }
 
     #[test]
@@ -3519,6 +3844,7 @@ pub(crate) mod tests {
             role: ShipRoleType::Scavenger,
             advancement: 0.1,
             size: ShipSizeType::Advancement,
+            spare_drive: ShipSpareDriveType::Without,
         };
         let intact = generate_ship(&snapshot, request).expect("the ship generates");
         let (cells, cubes) = filled_cells(&snapshot, &intact.design);

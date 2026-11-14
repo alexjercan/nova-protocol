@@ -57,7 +57,7 @@ use crate::{
     civilizations::{Civilization, CivilizationField, CivilizationStatusType},
     clusters::pick,
     environment::Environment,
-    ship_layout::{generate_ship, generate_wreck, ShipLayoutRequest},
+    ship_layout::{generate_ship, generate_wreck, ShipLayoutRequest, ShipSpareDriveType},
     ship_parts::ShipPartSnapshot,
 };
 
@@ -251,6 +251,7 @@ pub fn plan_ship(
         role,
         advancement: civilization.advancement,
         size: ShipSizeType::Advancement,
+        spare_drive: ShipSpareDriveType::Without,
     };
     let (layout, condition) = match civilization.status {
         CivilizationStatusType::Living => (

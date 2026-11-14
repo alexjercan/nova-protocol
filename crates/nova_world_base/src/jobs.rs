@@ -92,7 +92,7 @@ use nova_world::prelude::{
 use crate::{
     civilizations::{Civilization, CivilizationField},
     sector_ships::ship_stock,
-    ship_layout::{generate_ship, ShipLayoutRequest},
+    ship_layout::{generate_ship, ShipLayoutRequest, ShipSpareDriveType},
     NovaLayeredWorld,
 };
 
@@ -755,13 +755,19 @@ pub(crate) fn spawn_job_bodies(
     // escort's raiders at posting, so the ambush matches the posting.
     let civilization = poster_civilization(job.posted_by(), market, "spawn_job_bodies");
     let facing = Quat::from_rotation_arc(Vec3::NEG_Z, direction);
-    let hull = |id: &GeneratedBodyId, aspect: &[u8], role: ShipRoleType, size, condition| {
+    let hull = |id: &GeneratedBodyId,
+                aspect: &[u8],
+                role: ShipRoleType,
+                size,
+                condition,
+                spare_drive: ShipSpareDriveType| {
         let request = ShipLayoutRequest {
             seed: key(aspect),
             civilization: civilization.id,
             role,
             advancement: civilization.advancement,
             size,
+            spare_drive,
         };
         let layout = generate_ship(parts, request)
             .unwrap_or_else(|failure| panic!("spawn_job_bodies: '{id}': {failure}"));
@@ -789,6 +795,7 @@ pub(crate) fn spawn_job_bodies(
             // advancement offers.
             escort_raider_size(civilization.advancement),
             SectorShipConditionType::Intact,
+            ShipSpareDriveType::Without,
         );
         (
             base_scenario_object(&BaseScenarioObjectConfig {
@@ -825,15 +832,19 @@ pub(crate) fn spawn_job_bodies(
         JobType::Escort {
             hauler, cargo_cr, ..
         } => {
-            // A working hull, cells deep above and below its keel: a narrow
-            // civilian fuselage is severed by the first raider volley and
-            // loses its engines before the escort can act.
+            // A working hull with a spare drive pair beside its primary
+            // flight computer. Raider fire aims at the hull's centre of mass,
+            // and an industrial hull can narrow there to one row of cubes
+            // between that computer and the drive bank: a split keeps the
+            // piece with more live flight computers, so without the pair one
+            // cut there leaves the hauler with no drive and fails its leg.
             let (design, stock) = hull(
                 hauler,
                 b"job_hauler",
                 ShipRoleType::Industrial,
                 ShipSizeType::Advancement,
                 SectorShipConditionType::Intact,
+                ShipSpareDriveType::BesidePrimaryComputer,
             );
             let start = Meters3(station_at.get() + direction * HAULER_STANDOFF.get());
             let hauler_root = commands
@@ -885,6 +896,7 @@ pub(crate) fn spawn_job_bodies(
                 ShipRoleType::Civilian,
                 ShipSizeType::Advancement,
                 SectorShipConditionType::Derelict,
+                ShipSpareDriveType::Without,
             );
             let stock = caller_stock(&job.kind, stock);
             commands.spawn((

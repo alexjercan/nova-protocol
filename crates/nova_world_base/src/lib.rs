@@ -111,7 +111,7 @@ pub use crate::{
     sector_ships::{plan_ship, ship_stock, HullLineageType, HullSlot, PlannedShip},
     ship_layout::{
         generate_ship, generate_wreck, ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType,
-        ShipLayoutFailure, ShipLayoutRequest, MAX_SHIP_SECTIONS,
+        ShipLayoutFailure, ShipLayoutRequest, ShipSpareDriveType, MAX_SHIP_SECTIONS,
     },
     ship_parts::{
         ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault, ShipPartPack,
@@ -145,12 +145,13 @@ pub mod prelude {
         NovaWorldBasePlugin, NovaWorldBaseSystems, PlannedShip, PlayerHull, SectorClusters,
         ShipDriveLayoutType, ShipLayout, ShipLayoutConstraintType, ShipLayoutFailure,
         ShipLayoutRequest, ShipPart, ShipPartExclusionType, ShipPartFamilyType, ShipPartFault,
-        ShipPartPack, ShipPartSnapshot, StanceStanding, StartPreview, StationArchetypeType,
-        StationLayout, StationLayoutConstraintType, StationLayoutFailure, StationLayoutRequest,
-        ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID, CLEARANCE_MARGIN,
-        FINE_CR, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS, OPEN_WORLD_BOUNDS_RADIUS_MAX,
-        OPEN_WORLD_SCENARIO_ID, REFINE_ADVANCEMENT, SALVAGE_STYLE_ID, STANCE_ALLY_SHARE,
-        STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH, STATION_STYLE_ID,
+        ShipPartPack, ShipPartSnapshot, ShipSpareDriveType, StanceStanding, StartPreview,
+        StationArchetypeType, StationLayout, StationLayoutConstraintType, StationLayoutFailure,
+        StationLayoutRequest, ARMOURED_STYLE_ID, BLOCK_WAYSTATION_STATION_ID, CIVILIAN_STYLE_ID,
+        CLEARANCE_MARGIN, FINE_CR, INDUSTRIAL_STYLE_ID, MAX_SHIP_SECTIONS,
+        OPEN_WORLD_BOUNDS_RADIUS_MAX, OPEN_WORLD_SCENARIO_ID, REFINE_ADVANCEMENT, SALVAGE_STYLE_ID,
+        STANCE_ALLY_SHARE, STANCE_ENEMY_SHARE, STANCE_NEIGHBOUR_RADIUS, START_PREVIEW_REACH,
+        STATION_STYLE_ID,
     };
     #[cfg(not(target_arch = "wasm32"))]
     pub use super::{

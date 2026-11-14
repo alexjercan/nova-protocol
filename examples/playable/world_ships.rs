@@ -479,6 +479,7 @@ impl Matrix {
                     role,
                     advancement: twin.advancement,
                     size: ShipSizeType::Advancement,
+                    spare_drive: ShipSpareDriveType::Without,
                 };
                 let layout = generate_wreck(snapshot, request)
                     .unwrap_or_else(|failure| panic!("world_ships: wreck: {failure}"));
@@ -505,6 +506,7 @@ impl Matrix {
             role: ship.role,
             advancement: ship.advancement,
             size: ShipSizeType::Advancement,
+            spare_drive: ShipSpareDriveType::Without,
         })
     }
 
@@ -530,6 +532,7 @@ fn first_seed_with(
             role,
             advancement,
             size: ShipSizeType::Advancement,
+            spare_drive: ShipSpareDriveType::Without,
         };
         let layout = generate_ship(snapshot, request)
             .unwrap_or_else(|failure| panic!("world_ships: {failure}"));

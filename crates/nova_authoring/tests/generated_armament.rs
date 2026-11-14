@@ -12,7 +12,9 @@ use nova_gameplay::prelude::{
 };
 use nova_ship::prelude::SectionKind;
 use nova_world::prelude::SectorShipConditionType;
-use nova_world_base::prelude::{generate_ship, ship_stock, ShipLayoutRequest, ShipPartSnapshot};
+use nova_world_base::prelude::{
+    generate_ship, ship_stock, ShipLayoutRequest, ShipPartSnapshot, ShipSpareDriveType,
+};
 
 /// Weapon sections mounted across eight civilizations, `seeds` seeds and
 /// every armed role at `advancement`: turrets, torpedo bays and railgun
@@ -35,6 +37,7 @@ fn census(snapshot: &ShipPartSnapshot, advancement: f32, seeds: u32) -> (usize, 
                     role,
                     advancement,
                     size: ShipSizeType::Advancement,
+                    spare_drive: ShipSpareDriveType::Without,
                 };
                 let ship = generate_ship(snapshot, request).unwrap_or_else(|failure| {
                     panic!("{civilization:?}, seed {seed}, {role:?}: {failure}")
@@ -118,6 +121,7 @@ fn a_generated_hold_carries_only_the_ammunition_its_weapons_reload_from() {
                         role,
                         advancement,
                         size: ShipSizeType::Advancement,
+                        spare_drive: ShipSpareDriveType::Without,
                     };
                     let ship = generate_ship(&snapshot, request)
                         .unwrap_or_else(|failure| panic!("{context}: {failure}"));
@@ -203,6 +207,7 @@ fn an_escort_raider_below_advancement_a_quarter_stays_within_the_small_budget_wi
                     role: ShipRoleType::Scavenger,
                     advancement,
                     size,
+                    spare_drive: ShipSpareDriveType::Without,
                 };
                 let ship = generate_ship(&snapshot, request)
                     .unwrap_or_else(|failure| panic!("{context}: {failure}"));

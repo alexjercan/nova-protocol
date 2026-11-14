@@ -238,6 +238,7 @@ fn generated_hull(
         role,
         advancement,
         size: ShipSizeType::Advancement,
+        spare_drive: ShipSpareDriveType::Without,
     };
     generate_ship(snapshot, request)
         .unwrap_or_else(|failure| panic!("world_encounters: {failure}"))

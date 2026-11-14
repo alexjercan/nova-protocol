@@ -2902,7 +2902,7 @@ mod generated_wreck {
     use nova_world::{materialize_sector, prelude::*, ObserverBody};
     use nova_world_base::prelude::{
         generate_wreck, ship_stock, ShipLayoutRequest, ShipPartFamilyType, ShipPartPack,
-        ShipPartSnapshot,
+        ShipPartSnapshot, ShipSpareDriveType,
     };
     use serde::Deserialize;
 
@@ -3027,6 +3027,7 @@ mod generated_wreck {
             role: ShipRoleType::Armored,
             advancement: 0.5,
             size: ShipSizeType::Advancement,
+            spare_drive: ShipSpareDriveType::Without,
         };
         let wreck =
             generate_wreck(&snapshot, request).unwrap_or_else(|failure| panic!("{failure}"));

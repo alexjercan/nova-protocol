@@ -583,6 +583,7 @@ fn generate_row(
             role: controls.role,
             advancement,
             size: ShipSizeType::Advancement,
+            spare_drive: ShipSpareDriveType::Without,
         };
         let layout = match controls.condition {
             ConditionType::Intact => generate_ship(snapshot, request),

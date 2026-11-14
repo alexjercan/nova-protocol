@@ -8,7 +8,8 @@ use nova_gameplay::prelude::{CivilizationId, ShipRoleType, ShipSizeType};
 use nova_scenario::prelude::SpaceshipSectionConfig;
 use nova_ship::prelude::{intake_in_dock_approach, RefitPlacedSection, SectionKind, GRID_EPSILON};
 use nova_world_base::prelude::{
-    generate_ship, generate_wreck, ShipLayoutRequest, ShipPartSnapshot, MAX_SHIP_SECTIONS,
+    generate_ship, generate_wreck, ShipLayoutRequest, ShipPartSnapshot, ShipSpareDriveType,
+    MAX_SHIP_SECTIONS,
 };
 
 /// The one civilization every sweep below builds for.
@@ -96,6 +97,7 @@ fn request(seed: u32, role: ShipRoleType, advancement: f32) -> ShipLayoutRequest
         role,
         advancement,
         size: ShipSizeType::Advancement,
+        spare_drive: ShipSpareDriveType::Without,
     }
 }
 

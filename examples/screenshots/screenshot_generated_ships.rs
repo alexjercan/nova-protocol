@@ -215,6 +215,7 @@ fn first_hull_layout(
             role,
             advancement,
             size: ShipSizeType::Advancement,
+            spare_drive: ShipSpareDriveType::Without,
         };
         match generate_ship(snapshot, request) {
             Ok(layout) => return (request, layout),

@@ -332,6 +332,7 @@ fn an_intact_scavenger_alone_may_carry_one_unit_of_contraband() {
                 role,
                 advancement: 0.5,
                 size: ShipSizeType::Advancement,
+                spare_drive: ShipSpareDriveType::Without,
             };
             let Ok(layout) = generate_ship(parts, request) else {
                 continue;

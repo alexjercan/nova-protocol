@@ -25,7 +25,9 @@ use nova_ship::prelude::HullOfferType;
 
 use crate::{
     civilizations::Civilization,
-    ship_layout::{generate_ship, ShipLayout, ShipLayoutFailure, ShipLayoutRequest},
+    ship_layout::{
+        generate_ship, ShipLayout, ShipLayoutFailure, ShipLayoutRequest, ShipSpareDriveType,
+    },
     ship_parts::ShipPartSnapshot,
 };
 
@@ -72,6 +74,7 @@ pub(crate) fn station_hull_layouts(
                 role,
                 advancement: civilization.advancement,
                 size: ShipSizeType::Advancement,
+                spare_drive: ShipSpareDriveType::Without,
             },
         )
     };

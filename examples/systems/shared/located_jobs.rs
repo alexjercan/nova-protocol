@@ -950,6 +950,7 @@ fn plant_a_hostile(world: &mut World) {
             role: ShipRoleType::Armored,
             advancement: civilization.advancement,
             size: ShipSizeType::Advancement,
+            spare_drive: ShipSpareDriveType::Without,
         };
         let layout = generate_ship(parts, request)
             .unwrap_or_else(|failure| panic!("neutralize job: the plant: {failure}"));
