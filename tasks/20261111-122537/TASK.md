@@ -212,3 +212,17 @@ engines were cut within about 8 s of the first hit, so its Move order
 failed and the job dropped (t~81-86). The player held fire on raider_0 at
 960-990 m for about 10 s with no hp change (cause unknown, no hit
 counter). Open for the owner: an escort balance lever.
+
+Owner chose "protect the hauler's engines" 2026-11-14. Cause: raiders aim
+at the centre of mass (`nova_ship/src/input/ai/maneuver.rs:342`) and cut
+the one-cube waist of the generated Industrial hauler; the split keeps the
+piece with more flight computers (`integrity.rs`
+`sever_disconnected_structures`), the bow, and all six drives drift off.
+3x section health did not delay the split. Walk threat targeting landed
+(`14a9e8d17`). A hauler-only spare drive pair beside the primary flight
+computer (`ShipSpareDriveType`, outrigger arms 2-6 cubes; patch in the
+session scratchpad, not committed; other designs hash-identical over 864)
+survives five splits, but the hauler is still lost at t~86 to the two
+raiders' fire. Player rounds on raider_0 at ~1 km likely hit cladding
+plates (`HealthIsolated`, `fixture.rs:180`) that never reach root health;
+unverified.
