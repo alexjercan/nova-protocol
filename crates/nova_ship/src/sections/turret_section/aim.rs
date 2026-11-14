@@ -62,17 +62,34 @@ pub const POINT_AIM_ON_TARGET_RAD: f32 = POINT_AIM_RADIUS / CLOSE_ENGAGEMENT_RAN
 ///
 /// Two bounds. `None` - no body, a commanded point - is
 /// [`POINT_AIM_ON_TARGET_RAD`]. And no gate is ever tighter than
-/// [`MUZZLE_SPREAD_RAD`], because a barrel cannot aim better than it scatters:
-/// grading inside its own spread would hold fire on shots it was never going
-/// to place any better.
+/// [`FIRE_GATE_FLOOR_RAD`], the best a settled barrel can point plus its
+/// scatter: a gate inside it holds fire on a barrel that has stopped
+/// correcting, for good.
 pub fn on_target_cone(hit_radius: Option<f32>, distance: f32) -> f32 {
     let Some(hit_radius) = hit_radius else {
         return POINT_AIM_ON_TARGET_RAD;
     };
     (hit_radius.max(0.0) / distance.max(f32::EPSILON))
         .atan()
-        .max(MUZZLE_SPREAD_RAD)
+        .max(FIRE_GATE_FLOOR_RAD)
 }
+
+/// The widest a muzzle may sit off its aim point once its hinges have
+/// settled: about 0.32 deg.
+///
+/// Each hinge HOLDS once its own correction is inside [`AIM_DEADBAND_RAD`],
+/// so it can rest anywhere inside that band. A turret's yaw and pitch hinges
+/// turn the muzzle in square planes, so their residuals add in quadrature.
+const AIM_SETTLED_RAD: f32 = AIM_DEADBAND_RAD * std::f32::consts::SQRT_2;
+
+/// The tightest any fire gate gets: [`AIM_SETTLED_RAD`] plus
+/// [`MUZZLE_SPREAD_RAD`], about 0.42 deg.
+///
+/// A small mount at long range is a smaller angle than a settled barrel can
+/// hold: a 4 m turret mount at 2 km is 0.002 rad, half the hinge deadband. A
+/// gate graded there never opens, and the turret holds fire with the trigger
+/// down. At this floor a round still lands within 15 m of the mark at 2 km.
+const FIRE_GATE_FLOOR_RAD: f32 = AIM_SETTLED_RAD + MUZZLE_SPREAD_RAD;
 
 /// The angle (radians) between where a muzzle POINTS and where it should point
 /// to put a round on `aim`. Zero for a degenerate line (the aim point sitting on
@@ -816,8 +833,36 @@ mod tests {
 
         assert_eq!(
             on_target_cone(Some(0.0), far),
-            MUZZLE_SPREAD_RAD,
-            "a barrel is never graded inside its own scatter"
+            FIRE_GATE_FLOOR_RAD,
+            "a barrel is never graded inside what it can settle to plus its scatter"
+        );
+    }
+
+    #[test]
+    fn a_turret_settled_inside_its_deadband_on_a_small_target_at_long_range_may_fire() {
+        // The escort fight: the player pins a raider's turret mount, 0.43 u
+        // across, at 2 km. Its own size is 0.002 rad, half a hinge deadband.
+        let muzzle = Vec3::ZERO;
+        let aim = Vec3::new(0.0, 0.0, -200.0);
+        let mount_radius = 0.43;
+        assert!((mount_radius / 200.0_f32).atan() < AIM_DEADBAND_RAD);
+
+        // Both hinges rest at the edge of their deadband: the worst a settled
+        // barrel holds.
+        let settled = Quat::from_rotation_y(AIM_DEADBAND_RAD)
+            * Quat::from_rotation_x(AIM_DEADBAND_RAD)
+            * Vec3::NEG_Z;
+        assert!(
+            muzzle_on_target(settled, muzzle, aim, Some(mount_radius)),
+            "a barrel that stopped correcting must open its gate"
+        );
+
+        // The gate still means something: half a degree off is a slew, not
+        // a settle, and holds.
+        let slewing = Quat::from_rotation_y(0.5_f32.to_radians()) * Vec3::NEG_Z;
+        assert!(
+            !muzzle_on_target(slewing, muzzle, aim, Some(mount_radius)),
+            "a barrel half a degree off a small target must hold"
         );
     }
 

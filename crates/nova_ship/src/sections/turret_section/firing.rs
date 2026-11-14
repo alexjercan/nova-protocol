@@ -33,9 +33,9 @@ const MAX_SHOTS_PER_TICK: u32 = 8;
 ///
 /// A LOOK number, and it cannot be read as a balance lever in either
 /// direction. The fire gate ([`on_target_cone`]) never grades a barrel tighter
-/// than this, precisely because a barrel cannot aim better than it scatters,
-/// so the extra spread makes each round at worst as good as the aim it was
-/// fired on and never better. Spread cannot raise a hit rate; it is here so a
+/// than what its hinges settle to plus this, precisely because a barrel cannot
+/// aim better than it settles and scatters, so the extra spread makes each
+/// round at worst as good as the aim it was fired on and never better. Spread cannot raise a hit rate; it is here so a
 /// stream reads as a gun throwing rounds instead of one laser-straight line of
 /// them.
 ///
