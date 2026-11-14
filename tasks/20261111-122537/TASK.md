@@ -238,3 +238,20 @@ deadband, and the error grows to 0.05-1.3 rad after the trigger. The
 plate-isolation guess was wrong. The raider at advancement 0.008 is 127
 sections (8090 hp) with 2 turrets, about 4x the player ship, not the
 "smallest gunboat" the approved table promised.
+
+Escort closed out 2026-11-14 (GPU, seed 37, one raider):
+- `7f0a10a63` turret fire gate floored at the settled aim plus spread
+  (~0.42 deg); v0.17.0 held fire on small marks at range.
+- `80c1bcede` escort raiders get a job-only size budget by band (start
+  band 22-35 sections, one turret; turrets only); 864 other designs hash
+  unchanged (73d9300eb25ec465).
+- `d3ffc2ef3` the walk keeps the nose on the raider; `13fd36fbb` the engage
+  window also passes when every raider fought until the player's fire
+  neutralized it.
+- `f5ebec539` hauler spare drive pair by its primary computer; the lost
+  ambush run was drives cut off by a split.
+- Passing with all of it: escort x2, ambush x2, ammo economics. Earlier in
+  the round: supply, distress, recover, station jobs, neutralize, scenario
+  jobs, release lead, turret gunnery, stress point defense.
+Not rerun after `f5ebec539`: the design hash, the release lead, and the
+seven non-escort job walks.
