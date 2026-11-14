@@ -16,7 +16,7 @@ use nova_assets::persist;
 use nova_gameplay::prelude::{harness_env_active, GraphicsBudget, GraphicsQuality};
 use nova_input::prelude::{BindingSpec, InputBindings, MouseInvertY, MousePath, MouseSensitivity};
 use nova_interface::prelude::NovaOsMonitorSettings;
-use nova_sound::prelude::{InterfaceVolume, MasterVolume, MusicVolume, WorldVolume};
+use nova_sound::prelude::{InterfaceVolume, MasterVolume, WorldVolume};
 use nova_ui::theme::{SelectedUiTheme, PHOSPHOR_THEME_ID};
 use serde::{Deserialize, Serialize};
 
@@ -39,13 +39,10 @@ pub struct PersistedSettings {
     /// Linear volume of the Interface mixer bus (UI chrome).
     #[serde(default = "default_volume")]
     pub interface_volume: f32,
-    /// Linear volume of the World mixer bus (everything diegetic).
+    /// The Effects slider (everything in the world). Stored under its old
+    /// name, `world_volume`.
     #[serde(default = "default_volume")]
     pub world_volume: f32,
-    /// Linear volume of the RESERVED Music mixer bus. Saved so the format does
-    /// not break when music lands.
-    #[serde(default = "default_volume")]
-    pub music_volume: f32,
     /// Raw mouse-look gain (ship steering, free look, turret aim).
     #[serde(default = "default_look_sensitivity")]
     pub mouse_look_sensitivity: f32,
@@ -219,7 +216,6 @@ impl Default for PersistedSettings {
             master_volume: default_volume(),
             interface_volume: default_volume(),
             world_volume: default_volume(),
-            music_volume: default_volume(),
             mouse_look_sensitivity: default_look_sensitivity(),
             mouse_rcs_sensitivity: default_rcs_sensitivity(),
             mouse_free_camera_sensitivity: default_free_camera_sensitivity(),
@@ -473,7 +469,6 @@ impl Plugin for SettingsStorePlugin {
         app.init_resource::<MasterVolume>();
         app.init_resource::<InterfaceVolume>();
         app.init_resource::<WorldVolume>();
-        app.init_resource::<MusicVolume>();
         app.init_resource::<MouseSensitivity>();
         app.init_resource::<MouseInvertY>();
         app.init_resource::<GraphicsBudget>();
@@ -541,7 +536,6 @@ pub(crate) fn load_persisted_settings(mut live: LiveSettingsMut, root: Res<Setti
     *live.volume = MasterVolume(saved.master_volume.clamp(0.0, 1.0));
     *live.interface_volume = InterfaceVolume(saved.interface_volume.clamp(0.0, 1.0));
     *live.world_volume = WorldVolume(saved.world_volume.clamp(0.0, 1.0));
-    *live.music_volume = MusicVolume(saved.music_volume.clamp(0.0, 1.0));
     *live.sensitivity = saved.mouse_sensitivity();
     *live.invert_y = saved.mouse_invert_y();
     *live.budget = saved.graphics_budget();
@@ -573,7 +567,6 @@ pub(crate) struct LiveSettingsMut<'w> {
     volume: ResMut<'w, MasterVolume>,
     interface_volume: ResMut<'w, InterfaceVolume>,
     world_volume: ResMut<'w, WorldVolume>,
-    music_volume: ResMut<'w, MusicVolume>,
     sensitivity: ResMut<'w, MouseSensitivity>,
     invert_y: ResMut<'w, MouseInvertY>,
     budget: ResMut<'w, GraphicsBudget>,
@@ -694,7 +687,6 @@ pub(crate) struct LiveSettings<'w> {
     volume: Res<'w, MasterVolume>,
     interface_volume: Res<'w, InterfaceVolume>,
     world_volume: Res<'w, WorldVolume>,
-    music_volume: Res<'w, MusicVolume>,
     sensitivity: Res<'w, MouseSensitivity>,
     invert_y: Res<'w, MouseInvertY>,
     budget: Res<'w, GraphicsBudget>,
@@ -721,7 +713,6 @@ impl LiveSettings<'_> {
                 self.interface_volume.is_added(),
             )
             || moved(self.world_volume.is_changed(), self.world_volume.is_added())
-            || moved(self.music_volume.is_changed(), self.music_volume.is_added())
             || moved(self.sensitivity.is_changed(), self.sensitivity.is_added())
             || moved(self.invert_y.is_changed(), self.invert_y.is_added())
             || moved(self.budget.is_changed(), self.budget.is_added())
@@ -745,7 +736,6 @@ impl LiveSettings<'_> {
             master_volume: self.volume.factor(),
             interface_volume: self.interface_volume.factor(),
             world_volume: self.world_volume.factor(),
-            music_volume: self.music_volume.factor(),
             mouse_look_sensitivity: self.sensitivity.raw(MousePath::Look),
             mouse_rcs_sensitivity: self.sensitivity.raw(MousePath::Rcs),
             mouse_free_camera_sensitivity: self.sensitivity.raw(MousePath::FreeCamera),
@@ -813,7 +803,7 @@ mod tests {
     use nova_gameplay::prelude::{GraphicsBudget, GraphicsQuality};
     use nova_input::prelude::{MousePath, MouseSensitivity};
     use nova_interface::prelude::NovaOsMonitorSettings;
-    use nova_sound::prelude::{InterfaceVolume, MusicVolume, WorldVolume};
+    use nova_sound::prelude::{InterfaceVolume, WorldVolume};
     use nova_ui::theme::{HARDWARE_THEME_ID, PHOSPHOR_THEME_ID};
 
     use super::{GraphicsPresetSetting, PersistedSettings, KEY};
@@ -848,7 +838,6 @@ mod tests {
             master_volume: 0.4,
             interface_volume: 0.6,
             world_volume: 0.7,
-            music_volume: 0.2,
             mouse_look_sensitivity: MousePath::Look.range().raw(150.0),
             mouse_rcs_sensitivity: MousePath::Rcs.range().raw(300.0),
             mouse_free_camera_sensitivity: MousePath::FreeCamera.range().raw(250.0),
@@ -933,7 +922,6 @@ mod tests {
                 master_volume: 0.5,
                 interface_volume: InterfaceVolume::default().0,
                 world_volume: WorldVolume::default().0,
-                music_volume: MusicVolume::default().0,
                 mouse_look_sensitivity: MousePath::Look.default_raw(),
                 mouse_rcs_sensitivity: MousePath::Rcs.default_raw(),
                 mouse_free_camera_sensitivity: MousePath::FreeCamera.default_raw(),
@@ -1100,9 +1088,9 @@ mod tests {
         clear(&store);
     }
 
-    /// The three mixer-bus volumes persist, and a store written before they
-    /// existed still loads on their defaults - the compatibility the whole
-    /// serde-default rule buys, checked on the setting that just used it.
+    /// The two mixer-bus volumes persist, a store written before they existed
+    /// still loads on their defaults, and a store that still carries the
+    /// dropped music volume loads with it ignored.
     #[test]
     fn the_mixer_bus_volumes_persist_and_an_older_store_still_loads() {
         let store = temp_store("bus_volumes");
@@ -1111,37 +1099,22 @@ mod tests {
         let settings = PersistedSettings {
             interface_volume: 0.35,
             world_volume: 0.85,
-            music_volume: 0.15,
             ..PersistedSettings::default()
         };
         save_to(&store, KEY, &settings);
         let saved = load_from::<PersistedSettings>(&store, KEY).expect("the store round-trips");
-        assert_eq!(
-            (
-                saved.interface_volume,
-                saved.world_volume,
-                saved.music_volume
-            ),
-            (0.35, 0.85, 0.15)
-        );
+        assert_eq!((saved.interface_volume, saved.world_volume), (0.35, 0.85));
 
-        // A store written before the buses existed: every one falls back to its
-        // default rather than failing the load.
-        write_raw(&store, b"(master_volume: 0.5)");
+        // A store written before the buses existed, and after the music bus
+        // was saved: every bus falls back to its default and the music volume
+        // is ignored rather than failing the load.
+        write_raw(&store, b"(master_volume: 0.5, music_volume: 0.15)");
         let older =
             load_from::<PersistedSettings>(&store, KEY).expect("an older store still loads");
         assert_eq!(older.master_volume, 0.5);
         assert_eq!(
-            (
-                older.interface_volume,
-                older.world_volume,
-                older.music_volume
-            ),
-            (
-                InterfaceVolume::default().0,
-                WorldVolume::default().0,
-                MusicVolume::default().0
-            )
+            (older.interface_volume, older.world_volume),
+            (InterfaceVolume::default().0, WorldVolume::default().0)
         );
         clear(&store);
     }

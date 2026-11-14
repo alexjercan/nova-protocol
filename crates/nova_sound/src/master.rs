@@ -12,8 +12,9 @@
 
 use bevy::prelude::*;
 
-/// Master audio volume, linear `0.0..=1.0`. Default full. Scales every sound in
-/// the game (see the module docs for the two application paths).
+/// The master slider setting, `0.0..=1.0`. Default full. Scales every sound in
+/// the game through the slider dB taper (see the module docs for the two
+/// application paths).
 #[derive(Resource, Clone, Copy, PartialEq, Debug, Reflect)]
 #[reflect(Resource)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -26,8 +27,8 @@ impl Default for MasterVolume {
 }
 
 impl MasterVolume {
-    /// The clamped linear factor, so a corrupt persisted value can never push
-    /// the mixer out of range.
+    /// The clamped setting, so a corrupt persisted value can never push the
+    /// mixer out of range.
     ///
     /// This is the SETTING - what persistence saves and the menu slider shows.
     /// The gain the mixer actually applies is [`Self::output_gain`], which a
@@ -37,7 +38,8 @@ impl MasterVolume {
         self.0.clamp(0.0, 1.0)
     }
 
-    /// The gain audio output applies: the setting, masked to silence when the
+    /// The gain audio output applies: the setting through
+    /// [`slider_gain`](crate::bus::slider_gain), masked to silence when the
     /// run is [`HarnessMute`]d. ONLY the output sites (the `GlobalVolume`
     /// push and the per-frame loop-sink writes in `voice`) call this;
     /// everything that means "the player's chosen volume" reads
@@ -46,7 +48,7 @@ impl MasterVolume {
         if mute.0 {
             0.0
         } else {
-            self.factor()
+            crate::bus::slider_gain(self.0)
         }
     }
 }
@@ -154,8 +156,8 @@ mod tests {
         app.update();
         assert_eq!(
             app.world().resource::<GlobalVolume>().volume,
-            bevy::audio::Volume::Linear(0.3),
-            "changing MasterVolume pushes onto GlobalVolume"
+            bevy::audio::Volume::Linear(crate::bus::slider_gain(0.3)),
+            "changing MasterVolume pushes its tapered gain onto GlobalVolume"
         );
     }
 

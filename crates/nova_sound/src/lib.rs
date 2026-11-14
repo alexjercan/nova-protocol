@@ -22,7 +22,6 @@
 //!   World      (WorldVolume)      Everything diegetic:
 //!       Hull       structure-borne through the player's OWN ship
 //!       Exterior   everything else out there
-//!   Music      (MusicVolume)      RESERVED - nothing routes here yet
 //! ```
 //!
 //! "What scales this cue?" has exactly one answer: its bus volume, times
@@ -99,9 +98,9 @@ mod voice;
 pub mod prelude {
     pub use super::{
         sounds_loaded, AudioBus, AudioRoute, ClipLoudness, HarnessMute, InterfaceVolume,
-        MasterVolume, MusicVolume, NovaSoundPlugin, PlaySfx, PlaySound, SfxAudioMarker,
-        SfxCommandsExt, SfxListenerMarker, SfxPlugin, SfxSource, SfxVoice, SoundAt, SoundBank,
-        SoundBus, SoundCategoryType, SoundFreeze, SoundListenerAnchor, SoundLoop, SoundLoudness,
+        MasterVolume, NovaSoundPlugin, PlaySfx, PlaySound, SfxAudioMarker, SfxCommandsExt,
+        SfxListenerMarker, SfxPlugin, SfxSource, SfxVoice, SoundAt, SoundBank, SoundBus,
+        SoundCategoryType, SoundFreeze, SoundListenerAnchor, SoundLoop, SoundLoudness,
         SoundSystems, SoundVoice, UiSfx, VoiceMix, WorldVolume, EDITOR_DENY_VOLUME,
         EDITOR_PLACE_VOLUME, EDITOR_REMOVE_VOLUME, EDITOR_ROTATE_VOLUME, MENU_BACK_VOLUME,
         MENU_FOCUS_VOLUME, MENU_SELECT_VOLUME, MINING_PULSE_VOLUME, MINING_REFUSAL_VOLUME,
@@ -113,7 +112,9 @@ pub mod prelude {
 }
 
 pub use self::{
-    bus::{bus_gain, AudioBus, AudioRoute, InterfaceVolume, Mixer, MusicVolume, WorldVolume},
+    bus::{
+        slider_gain, AudioBus, AudioRoute, InterfaceVolume, Mixer, WorldVolume, SLIDER_FLOOR_DB,
+    },
     category::{db_to_gain, SoundBus, SoundCategory, SoundCategoryType},
     listener::{resolve_hearing, Hearing, SoundListenerAnchor},
     loudness::{
@@ -372,7 +373,6 @@ impl Plugin for NovaSoundPlugin {
         app.init_resource::<HarnessMute>();
         app.init_resource::<InterfaceVolume>();
         app.init_resource::<WorldVolume>();
-        app.init_resource::<MusicVolume>();
         app.init_resource::<SfxThrottle>();
         app.init_resource::<SoundFreeze>();
         app.init_resource::<SoundLoudness>();
@@ -380,7 +380,6 @@ impl Plugin for NovaSoundPlugin {
         app.register_type::<MasterVolume>();
         app.register_type::<InterfaceVolume>();
         app.register_type::<WorldVolume>();
-        app.register_type::<MusicVolume>();
         app.register_type::<SfxListenerMarker>();
         app.register_type::<SoundListenerAnchor>();
 

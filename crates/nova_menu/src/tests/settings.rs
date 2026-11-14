@@ -297,18 +297,13 @@ fn dragging_a_volume_slider_sets_only_its_own_track() {
     };
 
     drag(&mut app, "Master Volume Slider Track", 0.3);
-    drag(&mut app, "World Volume Slider Track", 0.7);
+    drag(&mut app, "Effects Volume Slider Track", 0.7);
     drag(&mut app, "Interface Volume Slider Track", 0.5);
-    drag(&mut app, "Music Volume Slider Track", 0.1);
 
     let world = app.world();
     assert!((world.resource::<MasterVolume>().0 - 0.3).abs() < 1e-6);
     assert!((world.resource::<WorldVolume>().0 - 0.7).abs() < 1e-6);
     assert!((world.resource::<InterfaceVolume>().0 - 0.5).abs() < 1e-6);
-    assert!(
-        (world.resource::<MusicVolume>().0 - 0.1).abs() < 1e-6,
-        "the reserved music track is wired too, so it needs no format break later"
-    );
 }
 
 /// DoD at the CALLER, not just the widget: the SHIPPED settings volume slider -
@@ -1401,7 +1396,6 @@ fn dragging_a_volume_slider_ticks_once_per_detent_and_not_while_it_rests() {
     app.init_resource::<MasterVolume>();
     app.init_resource::<InterfaceVolume>();
     app.init_resource::<WorldVolume>();
-    app.init_resource::<MusicVolume>();
     app.add_observer(on_volume_slider_change);
     let slider = app
         .world_mut()

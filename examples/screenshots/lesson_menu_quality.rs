@@ -123,8 +123,7 @@ fn menu_quality_script() -> nova_protocol::nova_debug::harness::AutopilotPlugin<
         .on_enter(|world: &mut World| {
             assert_named_visible("Master Volume Row")(world);
             assert_named_visible("Interface Volume Row")(world);
-            assert_named_visible("World Volume Row")(world);
-            assert_named_visible("Music Volume Row")(world);
+            assert_named_visible("Effects Volume Row")(world);
         })
         .add()
         .step("capture the audio tab")

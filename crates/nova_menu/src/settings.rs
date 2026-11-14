@@ -99,7 +99,7 @@ pub(crate) fn on_settings_back(
 
 /// One row of the Audio tab: which mixer track its slider moves.
 ///
-/// The tab is four of these, so adding a track is a variant plus its resource
+/// The tab is three of these, so adding a track is a variant plus its resource
 /// rather than another hand-wired slider.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum VolumeChannel {
@@ -107,25 +107,22 @@ pub(crate) enum VolumeChannel {
     Master,
     /// UI chrome.
     Interface,
-    /// Everything diegetic - the ship, the guns, the world.
+    /// Every sound in the world - the ship, the guns, the explosions. Labelled
+    /// "Effects"; it moves `WorldVolume`, the name the store keeps.
     World,
-    /// RESERVED: the slider moves `MusicVolume` and the store saves it, but no
-    /// sound routes to that bus yet.
-    Music,
 }
 
 impl VolumeChannel {
     /// The rows, top to bottom. Master first: it is the one every player
     /// reaches for.
-    pub(crate) const ALL: [Self; 4] = [Self::Master, Self::Interface, Self::World, Self::Music];
+    pub(crate) const ALL: [Self; 3] = [Self::Master, Self::Interface, Self::World];
 
     /// What the row reads.
     pub(crate) fn label(self) -> &'static str {
         match self {
             Self::Master => "Master",
             Self::Interface => "Interface",
-            Self::World => "World",
-            Self::Music => "Music",
+            Self::World => "Effects",
         }
     }
 }
@@ -136,7 +133,6 @@ pub(crate) struct AudioLevels {
     master: f32,
     interface: f32,
     world: f32,
-    music: f32,
 }
 
 impl AudioLevels {
@@ -145,7 +141,6 @@ impl AudioLevels {
             VolumeChannel::Master => self.master,
             VolumeChannel::Interface => self.interface,
             VolumeChannel::World => self.world,
-            VolumeChannel::Music => self.music,
         }
     }
 }
@@ -828,7 +823,6 @@ pub(crate) struct SettingsValues<'w> {
     volume: Res<'w, MasterVolume>,
     interface_volume: Res<'w, InterfaceVolume>,
     world_volume: Res<'w, WorldVolume>,
-    music_volume: Res<'w, MusicVolume>,
     sensitivity: Res<'w, MouseSensitivity>,
     invert_y: Res<'w, MouseInvertY>,
     budget: Res<'w, GraphicsBudget>,
@@ -863,7 +857,6 @@ pub(crate) fn refresh_settings_tab(
         master: values.volume.factor(),
         interface: values.interface_volume.factor(),
         world: values.world_volume.factor(),
-        music: values.music_volume.factor(),
     };
     // The fixed strip above the body. Emptied on every tab so a group bar left
     // over from Controls cannot sit above the Audio page.
@@ -920,10 +913,9 @@ pub(crate) fn refresh_settings_tab(
 /// committed by `slider_self_update` and mirrored to its resource by
 /// `on_volume_slider_change`, both registered in the plugin).
 ///
-/// Master scales everything through bevy's `GlobalVolume`; Interface and World
-/// are the engine's two live buses. Music is RESERVED - the slider and the
-/// saved value are here so the surface and the store do not need a format break
-/// when music lands.
+/// Master scales everything through bevy's `GlobalVolume`; Interface and
+/// Effects are the engine's two buses. Every slider fades through the engine's
+/// dB taper, so equal travel is an equal step in loudness.
 fn build_audio_tab(list: &mut ChildSpawnerCommands, levels: AudioLevels) {
     for channel in VolumeChannel::ALL {
         build_volume_row(list, channel, levels.of(channel));
@@ -1938,7 +1930,6 @@ pub(crate) fn on_volume_slider_change(
     mut master: ResMut<MasterVolume>,
     mut interface: ResMut<InterfaceVolume>,
     mut world: ResMut<WorldVolume>,
-    mut music: ResMut<MusicVolume>,
 ) {
     let Ok(slider) = sliders.get(change.source) else {
         return;
@@ -1948,13 +1939,11 @@ pub(crate) fn on_volume_slider_change(
         VolumeChannel::Master => master.0,
         VolumeChannel::Interface => interface.0,
         VolumeChannel::World => world.0,
-        VolumeChannel::Music => music.0,
     };
     match slider.0 {
         VolumeChannel::Master => *master = MasterVolume(value),
         VolumeChannel::Interface => *interface = InterfaceVolume(value),
         VolumeChannel::World => *world = WorldVolume(value),
-        VolumeChannel::Music => *music = MusicVolume(value),
     }
 
     // The detent, and it has to be counted here. `SliderStep` governs the

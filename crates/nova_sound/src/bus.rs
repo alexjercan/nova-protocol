@@ -1,71 +1,55 @@
-//! The mixer's routing model: which track scales a cue, and - inside the world
-//! track - whether the pilot hears it through their own hull or out in space.
+//! The two slider-driven tracks and the dB taper every slider goes through.
 //!
-//! Owns the per-bus volume resources. The amplitude
-//! law is [`super::mixing`], the stereo placement is [`super::spatial`], and the
-//! playback is [`super::voice`]; this module only decides HOW LOUD a route is
-//! allowed to be.
+//! Owns the per-bus volume resources. The level of a sound is its
+//! [`SoundCategoryType`](super::SoundCategoryType) row; this module only
+//! decides how far the player's sliders turn a whole track down.
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 
 use crate::{
-    category::SoundBus,
+    category::{db_to_gain, SoundBus},
     master::{HarnessMute, MasterVolume},
 };
 
-/// A mixer track. Every voice belongs to exactly one, and a track's volume is
-/// the only per-track control there is: nothing scales a cue except its bus
-/// volume and the master.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub enum AudioBus {
-    /// UI chrome: menu clicks, objective chimes, the NOVA OS terminal. Never
-    /// positional, never attenuated, never panned.
-    Interface,
-    /// Everything diegetic - the sounds the fiction says exist.
-    World,
-    /// RESERVED. The bus and its volume exist so the settings surface and the
-    /// saved-settings format carry three sliders today; no voice routes here
-    /// yet.
-    Music,
-}
+/// The bottom of every slider's range, in dB: the gain one notch above zero.
+///
+/// A linear slider spends its whole top half inside the last 6 dB, so the
+/// player hears nothing move until the knob is nearly at the bottom. A dB
+/// taper spreads the change evenly over the travel.
+pub const SLIDER_FLOOR_DB: f32 = -40.0;
 
-impl AudioBus {
-    /// Short display label for the settings surface.
-    pub fn label(self) -> &'static str {
-        match self {
-            Self::Interface => "Interface",
-            Self::World => "World",
-            Self::Music => "Music",
-        }
+/// The gain a slider setting applies: zero is silent, and above zero the
+/// setting maps linearly onto dB from [`SLIDER_FLOOR_DB`] at the bottom to
+/// 0 dB at the top. The setting is clamped to `0.0..=1.0` first, so a corrupt
+/// persisted value can never drive the mixer past unity.
+pub fn slider_gain(setting: f32) -> f32 {
+    let setting = setting.clamp(0.0, 1.0);
+    if setting <= 0.0 {
+        0.0
+    } else {
+        db_to_gain(SLIDER_FLOOR_DB * (1.0 - setting))
     }
 }
 
-/// Where a voice sits in the mix: its [`AudioBus`], and - inside
-/// [`AudioBus::World`] - where the pilot hears it FROM.
-///
-/// This is one flat enum rather than a bus plus a separate tag because the two
-/// world tags are the only place the distinction exists: an Interface cue heard
-/// "through the hull" is not a thing, and a route that cannot be spelled cannot
-/// be miswired.
+/// A legacy mixer track. Every legacy voice belongs to exactly one.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum AudioBus {
+    /// UI chrome: menu clicks, objective chimes, the NOVA OS terminal.
+    Interface,
+    /// Everything diegetic - the sounds the fiction says exist.
+    World,
+}
+
+/// The route of a legacy caller-levelled voice.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
 pub enum AudioRoute {
     /// UI chrome, on [`AudioBus::Interface`]. Non-positional.
     #[default]
     Interface,
-    /// Structure-borne through the PLAYER'S OWN ship: your guns, your engines,
-    /// your RCS, damage landing on your hull, your own reload and charge cues.
-    /// Non-positional by definition - it is the room the pilot is sitting in,
-    /// not a place out in the world - so it is never distance-attenuated and
-    /// never panned. This routing fact REPLACES the old "if this is the player,
-    /// skip attenuation" special case: your own engines are Hull, so there is
-    /// no exemption left to write.
+    /// Structure-borne through the player's own ship. Non-positional.
     Hull,
-    /// Everything else in the world: another ship's guns, a distant explosion,
-    /// an asteroid breaking up. Distance-attenuated AND panned by bearing - the
-    /// only route that is either.
+    /// Everything else in the world. Distance-attenuated and panned.
     Exterior,
-    /// RESERVED, on [`AudioBus::Music`]. Nothing routes here yet.
-    Music,
 }
 
 impl AudioRoute {
@@ -74,18 +58,17 @@ impl AudioRoute {
         match self {
             Self::Interface => AudioBus::Interface,
             Self::Hull | Self::Exterior => AudioBus::World,
-            Self::Music => AudioBus::Music,
         }
     }
 
-    /// Whether the voice is placed in the world: attenuated by distance and
-    /// panned by bearing. True for [`Self::Exterior`] alone.
+    /// Whether the voice is placed in the world. True for [`Self::Exterior`]
+    /// alone.
     pub fn is_positional(self) -> bool {
         matches!(self, Self::Exterior)
     }
 }
 
-/// Linear volume of the [`AudioBus::Interface`] track, `0.0..=1.0`.
+/// The Interface slider setting, `0.0..=1.0`. Scales [`SoundBus::Ui`].
 #[derive(Resource, Clone, Copy, PartialEq, Debug, Reflect)]
 #[reflect(Resource)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -98,16 +81,19 @@ impl Default for InterfaceVolume {
 }
 
 impl InterfaceVolume {
-    /// The clamped linear factor, so a corrupt persisted value can never push
-    /// the mixer out of range.
+    /// The clamped setting: what the menu shows and the store saves.
     pub fn factor(self) -> f32 {
         self.0.clamp(0.0, 1.0)
     }
+
+    /// The gain the setting applies, through [`slider_gain`].
+    pub fn gain(self) -> f32 {
+        slider_gain(self.0)
+    }
 }
 
-/// Linear volume of the [`AudioBus::World`] track, `0.0..=1.0`. Scales both
-/// world routes - [`AudioRoute::Hull`] and [`AudioRoute::Exterior`] - because
-/// they are one track heard two ways, not two tracks.
+/// The Effects slider setting, `0.0..=1.0`. Scales [`SoundBus::Effect`]. The
+/// name stays `World` because the saved settings store it under that name.
 #[derive(Resource, Clone, Copy, PartialEq, Debug, Reflect)]
 #[reflect(Resource)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -120,67 +106,53 @@ impl Default for WorldVolume {
 }
 
 impl WorldVolume {
-    /// The clamped linear factor.
+    /// The clamped setting: what the menu shows and the store saves.
     pub fn factor(self) -> f32 {
         self.0.clamp(0.0, 1.0)
     }
-}
 
-/// Linear volume of the RESERVED [`AudioBus::Music`] track, `0.0..=1.0`. The
-/// slider moves it and the store saves it; no voice reads it yet.
-#[derive(Resource, Clone, Copy, PartialEq, Debug, Reflect)]
-#[reflect(Resource)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct MusicVolume(pub f32);
-
-impl Default for MusicVolume {
-    fn default() -> Self {
-        Self(1.0)
+    /// The gain the setting applies, through [`slider_gain`].
+    pub fn gain(self) -> f32 {
+        slider_gain(self.0)
     }
 }
 
-impl MusicVolume {
-    /// The clamped linear factor.
-    pub fn factor(self) -> f32 {
-        self.0.clamp(0.0, 1.0)
-    }
-}
-
-/// Read access to every knob that scales a voice: the three bus volumes and the
+/// Read access to every knob that scales a voice: the two bus sliders and the
 /// master.
 ///
 /// Every resource is optional so an audio-only test rig that never adds
-/// [`NovaSoundPlugin`](super::NovaSoundPlugin) keeps full
-/// volume instead of panicking on a missing resource - the same graceful
-/// degradation the rest of the engine promises.
+/// [`NovaSoundPlugin`](super::NovaSoundPlugin) runs at full volume instead of
+/// panicking on a missing resource.
 #[derive(SystemParam)]
 pub struct Mixer<'w> {
     interface: Option<Res<'w, InterfaceVolume>>,
     world: Option<Res<'w, WorldVolume>>,
-    music: Option<Res<'w, MusicVolume>>,
     master: Option<Res<'w, MasterVolume>>,
     mute: Option<Res<'w, HarnessMute>>,
 }
 
 impl Mixer<'_> {
-    /// The gain `route`'s bus applies, WITHOUT the master.
-    ///
-    /// This is what a freshly spawned sink is given, because bevy's
-    /// `audio_output` multiplies the master in for us through `GlobalVolume`.
+    /// The gain a legacy `route`'s slider applies, WITHOUT the master.
     pub fn bus_gain(&self, route: AudioRoute) -> f32 {
-        bus_gain(
-            route,
-            self.interface.as_deref().copied().unwrap_or_default(),
-            self.world.as_deref().copied().unwrap_or_default(),
-            self.music.as_deref().copied().unwrap_or_default(),
-        )
+        match route.bus() {
+            AudioBus::Interface => self.sound_bus_gain(SoundBus::Ui),
+            AudioBus::World => self.sound_bus_gain(SoundBus::Effect),
+        }
     }
 
     /// The gain `bus`'s slider applies, WITHOUT the master.
+    ///
+    /// This is what a freshly spawned sink is given, because bevy's
+    /// `audio_output` multiplies the master in for us through `GlobalVolume`.
     pub fn sound_bus_gain(&self, bus: SoundBus) -> f32 {
         match bus {
-            SoundBus::Ui => self.bus_gain(AudioRoute::Interface),
-            SoundBus::Effect => self.bus_gain(AudioRoute::Exterior),
+            SoundBus::Ui => self
+                .interface
+                .as_deref()
+                .copied()
+                .unwrap_or_default()
+                .gain(),
+            SoundBus::Effect => self.world.as_deref().copied().unwrap_or_default().gain(),
         }
     }
 
@@ -195,28 +167,6 @@ impl Mixer<'_> {
         let mute = self.mute.as_deref().copied().unwrap_or_default();
         self.master.as_deref().map_or(1.0, |m| m.output_gain(mute))
     }
-
-    /// The full gain a per-frame sink write applies: [`Self::bus_gain`] times
-    /// [`Self::master_gain`].
-    pub fn output_gain(&self, route: AudioRoute) -> f32 {
-        self.bus_gain(route) * self.master_gain()
-    }
-}
-
-/// The bus gain for one route, as a pure function of the knobs. Both world
-/// routes read the same track: `Hull` and `Exterior` are one bus heard two
-/// ways, and what separates them is the rolloff and the pan, not the volume.
-pub fn bus_gain(
-    route: AudioRoute,
-    interface: InterfaceVolume,
-    world: WorldVolume,
-    music: MusicVolume,
-) -> f32 {
-    match route {
-        AudioRoute::Interface => interface.factor(),
-        AudioRoute::Hull | AudioRoute::Exterior => world.factor(),
-        AudioRoute::Music => music.factor(),
-    }
 }
 
 #[cfg(test)]
@@ -224,47 +174,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn every_route_names_the_one_track_that_scales_it() {
-        assert_eq!(AudioRoute::Interface.bus(), AudioBus::Interface);
-        assert_eq!(AudioRoute::Hull.bus(), AudioBus::World);
-        assert_eq!(AudioRoute::Exterior.bus(), AudioBus::World);
-        assert_eq!(AudioRoute::Music.bus(), AudioBus::Music);
-        // Only the exterior is placed in the world.
-        assert!(AudioRoute::Exterior.is_positional());
-        for route in [AudioRoute::Interface, AudioRoute::Hull, AudioRoute::Music] {
-            assert!(!route.is_positional(), "{route:?} must be non-positional");
-        }
+    fn a_slider_at_zero_is_silent_and_at_full_is_unity() {
+        assert_eq!(slider_gain(0.0), 0.0);
+        assert_eq!(slider_gain(1.0), 1.0);
     }
 
     #[test]
-    fn a_bus_volume_scales_only_its_own_routes() {
-        let quiet_world = WorldVolume(0.25);
-        let gain = |route| {
-            bus_gain(
-                route,
-                InterfaceVolume::default(),
-                quiet_world,
-                MusicVolume::default(),
-            )
-        };
-        assert_eq!(gain(AudioRoute::Hull), 0.25);
-        assert_eq!(
-            gain(AudioRoute::Exterior),
-            0.25,
-            "the two world routes are one track heard two ways"
-        );
-        assert_eq!(
-            gain(AudioRoute::Interface),
-            1.0,
-            "interface is its own track"
-        );
-        assert_eq!(gain(AudioRoute::Music), 1.0, "music is its own track");
+    fn a_slider_moves_the_level_by_equal_db_steps() {
+        let db = |setting: f32| 20.0 * slider_gain(setting).log10();
+        assert!((db(0.5) - SLIDER_FLOOR_DB / 2.0).abs() < 1e-3);
+        assert!((db(0.25) - db(0.5) - (db(0.5) - db(0.75))).abs() < 1e-3);
+        assert!((db(f32::MIN_POSITIVE) - SLIDER_FLOOR_DB).abs() < 1e-3);
     }
 
     #[test]
     fn a_corrupt_persisted_volume_cannot_push_the_mixer_out_of_range() {
+        assert_eq!(InterfaceVolume(4.0).gain(), 1.0);
+        assert_eq!(WorldVolume(-1.0).gain(), 0.0);
         assert_eq!(InterfaceVolume(4.0).factor(), 1.0);
-        assert_eq!(WorldVolume(-1.0).factor(), 0.0);
-        assert_eq!(MusicVolume(2.5).factor(), 1.0);
     }
 }
