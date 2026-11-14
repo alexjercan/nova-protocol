@@ -14,7 +14,7 @@ use bevy::{
     window::PrimaryWindow,
 };
 use nova_assets::mod_cache::prelude::MODS_SOURCE;
-use nova_sound::prelude::{AudioRoute, PlaySfx};
+use nova_sound::prelude::{PlaySound, SoundCategoryType};
 use nova_ui::{prelude::*, theme::UiColorType};
 
 use super::{
@@ -339,7 +339,7 @@ pub(crate) fn view_file(world: &mut World, file: &ModFile) {
         }
         AUDIO_KIND => {
             let sound = world.resource::<AssetServer>().load(path);
-            world.trigger(PlaySfx::new(sound, AudioRoute::Interface));
+            world.trigger(PlaySound::ui(sound, SoundCategoryType::Preview));
             note(world, format!("playing {}", file.path));
         }
         _ => note(

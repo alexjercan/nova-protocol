@@ -1,11 +1,10 @@
 //! The editor's voices: seating a part, lifting one out, turning the ghost a
 //! detent, refusing a gesture, and the click of a press that went through.
 //!
-//! One [`SystemParam`] rather than a bank lookup at each call site, because
-//! the first four are a SET: they are placed a band under the menus (the editor
-//! is a workspace a builder sits in for an hour, not a screen they pass through),
-//! and that only holds if their levels stay together. Every cue routes
-//! [`AudioRoute::Interface`] - the editor has no world to hear them in.
+//! One [`SystemParam`] rather than a bank lookup at each call site, so each
+//! cue names its sound and its interface category in one place. Every cue is a
+//! [`SoundBus::Ui`] category heard flat - the editor has no world to hear them
+//! in - and the category table sets every level.
 
 use bevy::{ecs::system::SystemParam, prelude::*};
 use nova_sound::prelude::*;
@@ -37,39 +36,39 @@ pub(crate) struct EditorCues<'w, 's> {
 }
 
 impl EditorCues<'_, '_> {
-    fn play(&mut self, key: UiSfx, volume: f32) {
+    fn play(&mut self, key: UiSfx, category: SoundCategoryType) {
         let Some(bank) = self.bank.as_ref() else {
             return;
         };
         self.commands
-            .play_sfx(bank.get(key), AudioRoute::Interface, volume);
+            .trigger(PlaySound::ui(bank.get(key), category));
     }
 
     /// A part seated in the grid.
     pub(crate) fn place(&mut self) {
-        self.play(UiSfx::EditorPlace, EDITOR_PLACE_VOLUME);
+        self.play(UiSfx::EditorPlace, SoundCategoryType::Editor);
     }
 
     /// A part deleted off the ship, by the Del key or the Ship menu row. The
     /// caller cues it past its own guards, so a delete the editor refuses
     /// stays silent.
     pub(crate) fn remove(&mut self) {
-        self.play(UiSfx::EditorRemove, EDITOR_REMOVE_VOLUME);
+        self.play(UiSfx::EditorRemove, SoundCategoryType::Editor);
     }
 
     /// The ghost turned one detent.
     pub(crate) fn rotate(&mut self) {
-        self.play(UiSfx::EditorRotate, EDITOR_ROTATE_VOLUME);
+        self.play(UiSfx::EditorRotate, SoundCategoryType::UiTick);
     }
 
     /// A gesture the editor refused.
     pub(crate) fn deny(&mut self) {
-        self.play(UiSfx::EditorDeny, EDITOR_DENY_VOLUME);
+        self.play(UiSfx::EditorDeny, SoundCategoryType::UiError);
     }
 
     /// A press that went through, on a button that could have been refused.
     pub(crate) fn select(&mut self) {
-        self.play(UiSfx::MenuSelect, MENU_SELECT_VOLUME);
+        self.play(UiSfx::MenuSelect, SoundCategoryType::UiClick);
     }
 }
 
@@ -114,7 +113,7 @@ mod tests {
     use super::*;
 
     /// A headless rig for the pose watcher: the real system, a loaded bank, and
-    /// a `PlaySfx` capture. No audio device - `PlaySfx` is a report, and the
+    /// a `PlaySound` capture. No audio device - `PlaySound` is a report, and the
     /// engine owns every sink write.
     fn pose_app() -> App {
         let mut app = App::new();
@@ -127,7 +126,7 @@ mod tests {
         app.init_resource::<PlacementPose>();
         app.init_resource::<PlacementPoseHeard>();
         app.init_resource::<Ticks>();
-        app.add_observer(|_: On<PlaySfx>, mut ticks: ResMut<Ticks>| ticks.0 += 1);
+        app.add_observer(|_: On<PlaySound>, mut ticks: ResMut<Ticks>| ticks.0 += 1);
         app.add_systems(Update, play_placement_pose_cue);
         app
     }
