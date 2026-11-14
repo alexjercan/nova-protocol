@@ -39,7 +39,7 @@ use nova_ui::hud as chip;
 
 use super::{
     emphasis::prelude::*,
-    hud_notice::{HudNoticeKeepOut, NOTICE_BOTTOM_PX},
+    hud_notice::{HudNoticeKeepOut, NOTICE_BOTTOM_PX, NOTICE_MAX_HEIGHT_PX},
     key_glyphs::prelude::*,
     screen_indicator::{fit_box, prelude::*},
     situation::prelude::*,
@@ -114,6 +114,18 @@ pub(crate) fn dock_top_px(q_dock: &LaidOutDock) -> Option<f32> {
         .map(|(node, _)| node.size().y * node.inverse_scale_factor)
         .fold(0.0_f32, f32::max);
     (height > 0.0).then_some(DOCK_BOTTOM_PX + height)
+}
+
+/// Clearance (px) between the column floor and what stands under it.
+const COLUMN_GAP_PX: f32 = 8.0;
+
+/// The lowest a piece may stand over the bottom-centre column, in logical px
+/// off the bottom of the screen: clear of the key row's measured top and of
+/// the notice box's ceiling, whichever stands taller. The notice box posts
+/// at the midline, so a piece that can reach the centre stacks over it too.
+/// `None` with no dock on screen.
+pub(crate) fn column_floor_px(q_dock: &LaidOutDock) -> Option<f32> {
+    dock_top_px(q_dock).map(|top| top.max(NOTICE_BOTTOM_PX + NOTICE_MAX_HEIGHT_PX) + COLUMN_GAP_PX)
 }
 
 /// The margin the dock row keeps from the left and right screen edges.

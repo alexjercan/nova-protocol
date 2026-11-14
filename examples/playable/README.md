@@ -27,13 +27,13 @@ seconds into play. `F3`, or the Diagnostics checkbox in the Nova Debug window
 - labels over world points, which carry the numbers next to the thing they
   measure;
 - a short panel at the top left;
-- a row of key hints above the HUD's key chips, each shown only while its
-  action is possible.
+- a row of key hints under the panel, each shown only while its action is
+  possible.
 
 `Shift+F3`, or the Diagnostics detail checkbox, adds the full value list to
 the panel. While a surface is up (the TAB interface, the command modal, the
-pause menu or the Nova Debug window) the panel moves to the bottom left, the
-hints drop to the bottom edge, and the world labels hide. These examples need
+pause menu or the Nova Debug window) the panel and its hints move to the
+bottom left, and the world labels hide. These examples need
 `--features debug`.
 
 ## Features and examples

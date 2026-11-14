@@ -25,7 +25,7 @@ use nova_ui::hud::{ChipText, ChipTone, CHIP_FONT};
 
 use super::{
     hud_notice::{NOTICE_BOTTOM_PX, NOTICE_MAX_HEIGHT_PX},
-    keybind_dock::{dock_top_px, LaidOutDock},
+    keybind_dock::{column_floor_px, LaidOutDock},
     NovaHudSystems,
 };
 
@@ -40,8 +40,8 @@ const TICK_SECS: f32 = 1.5;
 /// The most lines showing at once. A fourth take drops the oldest line.
 const TICK_LINES: usize = 3;
 
-/// Clearance between the keybind dock's top and the column, and between the
-/// notice box's top and the column.
+/// Clearance between the notice box's top and the column while no dock is on
+/// screen to measure.
 const TICK_GAP_PX: f32 = 8.0;
 
 /// Marker for the column; spawned by [`pickup_tick_hud`] for the player's
@@ -167,14 +167,15 @@ fn age_pickup_ticks(
     }
 }
 
-/// Ride above the keybind dock and above the notice box, whichever stands
-/// taller: the dock's height is measured, the notice box's is its ceiling.
+/// Ride on the column floor, above the keybind dock and the notice box, and
+/// above the notice box alone while no dock is on screen.
 fn keep_the_ticks_clear_of_the_dock(
     q_dock: LaidOutDock,
     mut q_column: Query<&mut Node, With<PickupTickMarker>>,
 ) {
-    let over_dock = dock_top_px(&q_dock).map_or(0.0, |top| top + TICK_GAP_PX);
-    let bottom = Val::Px(over_dock.max(NOTICE_BOTTOM_PX + NOTICE_MAX_HEIGHT_PX + TICK_GAP_PX));
+    let bottom = Val::Px(
+        column_floor_px(&q_dock).unwrap_or(NOTICE_BOTTOM_PX + NOTICE_MAX_HEIGHT_PX + TICK_GAP_PX),
+    );
     for mut node in &mut q_column {
         if node.bottom != bottom {
             node.bottom = bottom;

@@ -454,6 +454,85 @@ mod tests {
         );
     }
 
+    /// A held job's chip whose target is behind the camera clamps to the
+    /// bottom edge, where the key row and the notice box stand. It stands
+    /// above both, at 100 % and at 150 % UI scale.
+    #[test]
+    fn the_job_chip_sits_above_the_key_row() {
+        use std::f32::consts::FRAC_PI_2;
+
+        use crate::{
+            hud_notice::{NOTICE_BOTTOM_PX, NOTICE_MAX_HEIGHT_PX},
+            keybind_dock::{keycap_sizing_tests::dock_app, prelude::KeybindDockMarker},
+        };
+
+        const VIEW: Vec2 = Vec2::new(1280.0, 720.0);
+        for scale in [1.0, 1.5] {
+            let (mut app, dock_chips) = dock_app();
+            app.insert_resource(UiScale(scale));
+            app.add_plugins((ScreenIndicatorPlugin, ObjectiveMarkersHudPlugin));
+            // The rig runs no visibility propagation, and the column floor
+            // counts only a dock that is on screen.
+            let dock = app
+                .world_mut()
+                .query_filtered::<Entity, With<KeybindDockMarker>>()
+                .single(app.world())
+                .expect("the rig spawned one dock");
+            app.world_mut()
+                .entity_mut(dock)
+                .insert(InheritedVisibility::VISIBLE);
+            // The rig's camera projects the chips: at the origin, looking
+            // down -Z, so the escort's hauler at +Z is behind it.
+            let mut q_camera = app.world_mut().query::<(Entity, &mut Camera)>();
+            let (camera, mut lens) = q_camera
+                .single_mut(app.world_mut())
+                .expect("the rig has one camera");
+            lens.computed.clip_from_view =
+                bevy::math::proj::perspective_infinite_reverse(FRAC_PI_2, VIEW.x / VIEW.y, 0.1);
+            app.world_mut()
+                .entity_mut(camera)
+                .insert(ScreenIndicatorCamera);
+            app.world_mut().spawn((
+                ObjectiveMarkerTarget::new("JOB-1 Escort"),
+                Transform::from_xyz(0.0, 0.0, 10.0),
+            ));
+            // The chip reads the dock's last layout, so its own place settles
+            // a pass after the dock's.
+            settle(&mut app);
+            settle(&mut app);
+
+            let layer = app
+                .world_mut()
+                .query_filtered::<Entity, With<ObjectiveMarkerChipHudMarker>>()
+                .single(app.world())
+                .expect("the marker grew a chip layer");
+            let chip = only_descendant_with::<AnchoredChipNodeMarker>(&mut app, layer);
+            let chip = measure(&app, chip).rect;
+            let row_top = dock_chips
+                .iter()
+                .filter(|&&chip| app.world().get::<Node>(chip).unwrap().display != Display::None)
+                .map(|&chip| measure(&app, chip).rect.min.y)
+                .fold(f32::MAX, f32::min);
+            assert!(
+                row_top < VIEW.y,
+                "delivery guard: the row draws chips at {scale}"
+            );
+            assert!(
+                chip.max.y > VIEW.y / 2.0 && (chip.center().x - VIEW.x / 2.0).abs() <= 1.0,
+                "delivery guard: the chip clamps to the bottom centre at {scale}: {chip:?}"
+            );
+            assert!(
+                chip.max.y <= row_top,
+                "the job chip prints through the key row at {scale}: {chip:?} vs row top {row_top}"
+            );
+            let notice_top = VIEW.y - (NOTICE_BOTTOM_PX + NOTICE_MAX_HEIGHT_PX) * scale;
+            assert!(
+                chip.max.y <= notice_top,
+                "the job chip prints through the notice box at {scale}: {chip:?} vs {notice_top}"
+            );
+        }
+    }
+
     /// The breath wave stays inside its authored band and actually moves -
     /// a flat wave would mean the pulse is decorative dead code.
     #[test]

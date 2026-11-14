@@ -28,8 +28,10 @@
 //! Put a number on a world label next to the thing it measures; keep the
 //! panel to a few short lines. [`DiagnosticsPanel::detail`] lines show only
 //! while [`DebugOverlays::diagnostics_detail`] is on. A key hint shows in one
-//! row above the HUD's key chips for each frame an example writes it, so
-//! write it only while its action is possible.
+//! row under the panel for each frame an example writes it, so write it only
+//! while its action is possible. The row stays out of the bottom-centre
+//! column over the HUD's key chips: the HUD's notice box and edge-clamped
+//! chips stand there.
 //!
 //! [`DIAGNOSTICS_TOGGLE_KEY`] and the Nova Debug window's Diagnostics checkbox
 //! flip [`DebugOverlays::diagnostics`]; Shift with the key, or the Diagnostics
@@ -39,8 +41,8 @@
 //!
 //! In flight the panel sits at the top left. While a surface is up (the TAB
 //! interface, the command modal, the pause menu or the Nova Debug window) it
-//! moves to the bottom left, clear of the pane's title row and filter
-//! buttons, the hint row drops to the bottom edge, and the world labels hide:
+//! moves to the bottom left with its hint row, clear of the pane's title row
+//! and filter buttons, and the world labels hide:
 //! the flight camera's points do not show through a pane. Gizmos stay: the
 //! world's draw under the pane's card, and an example that draws in the Ship
 //! view puts them there with [`draw_on_layers`].
@@ -230,10 +232,6 @@ struct PanelText;
 #[derive(Component)]
 struct HintText;
 
-/// The node that centres the hint row.
-#[derive(Component)]
-struct HintRow;
-
 /// One pooled world label node.
 #[derive(Component)]
 struct WorldLabel(usize);
@@ -249,10 +247,6 @@ const OVERLAY_INSET_PX: f32 = 12.0;
 /// Distance (px) of the panel from the screen's top edge in flight: under
 /// the frame-rate readout.
 const OVERLAY_TOP_PX: f32 = 44.0;
-
-/// Distance (px) of the hint row from the screen's bottom edge in flight:
-/// above the HUD's key chips.
-const HINT_ROW_BOTTOM_PX: f32 = 64.0;
 
 /// The intro and how long play has shown it.
 #[derive(Resource)]
@@ -389,8 +383,8 @@ fn text_node(text: &str) -> impl Bundle {
     )
 }
 
-/// The intro at the top left (when an example names one), the panel under
-/// it, the hint row, and the label pool. Over the HUD and the interface, and
+/// The intro at the top left (when an example names one), the panel and the
+/// hint row under it, and the label pool. Over the HUD and the interface, and
 /// never in the pointer's way.
 fn spawn_the_overlay(mut commands: Commands, intro: Option<Res<Intro>>) {
     commands
@@ -414,23 +408,6 @@ fn spawn_the_overlay(mut commands: Commands, intro: Option<Res<Intro>>) {
                 parent.spawn((IntroText, Pickable::IGNORE, text_node(&intro.text)));
             }
             parent.spawn((PanelText, Pickable::IGNORE, text_node("")));
-        });
-    commands
-        .spawn((
-            HintRow,
-            Name::new("PlayableDiagnosticsHints"),
-            Node {
-                position_type: PositionType::Absolute,
-                left: Val::Px(0.0),
-                right: Val::Px(0.0),
-                bottom: Val::Px(HINT_ROW_BOTTOM_PX),
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            GlobalZIndex(i32::MAX - 2),
-            Pickable::IGNORE,
-        ))
-        .with_children(|parent| {
             parent.spawn((HintText, Pickable::IGNORE, text_node("")));
         });
     for index in 0..MAX_LABELS {
@@ -544,13 +521,11 @@ fn surface_up(pause: Option<&State<PauseStates>>) -> bool {
     pause.is_some_and(|pause| *pause.get() != PauseStates::Unpaused)
 }
 
-/// Hold the panel at the top left and the hint row over the HUD's key chips
-/// in flight; while a surface is up, the panel goes to the bottom left and
-/// the hint row to the bottom edge.
+/// Hold the panel and its hint row at the top left in flight, and at the
+/// bottom left while a surface is up.
 fn move_the_overlay(
     pause: Option<Res<State<PauseStates>>>,
-    mut q_root: Query<&mut Node, (With<OverlayRoot>, Without<HintRow>)>,
-    mut q_row: Query<&mut Node, (With<HintRow>, Without<OverlayRoot>)>,
+    mut q_root: Query<&mut Node, With<OverlayRoot>>,
 ) {
     let up = surface_up(pause.as_deref());
     let (top, bottom) = if up {
@@ -562,16 +537,6 @@ fn move_the_overlay(
         if node.top != top || node.bottom != bottom {
             node.top = top;
             node.bottom = bottom;
-        }
-    }
-    let row_bottom = Val::Px(if up {
-        OVERLAY_INSET_PX
-    } else {
-        HINT_ROW_BOTTOM_PX
-    });
-    for mut node in &mut q_row {
-        if node.bottom != row_bottom {
-            node.bottom = row_bottom;
         }
     }
 }

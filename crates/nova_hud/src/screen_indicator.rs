@@ -22,6 +22,8 @@ use bevy::{prelude::*, ui::UiSystems};
 use nova_gameplay::prelude::subtree_bounding_sphere;
 use nova_ship::prelude::{BodyRadius, CameraAuthoritySystems};
 
+use crate::keybind_dock::{column_floor_px, LaidOutDock};
+
 /// The screen-indicator spawners, its anchor, offset, size and offscreen components, and
 /// `ScreenIndicatorPlugin` with `ScreenIndicatorSystems`.
 pub mod prelude {
@@ -133,6 +135,10 @@ pub enum ScreenIndicatorOffscreen {
     /// `margin_px`. A descendant tagged [`ScreenIndicatorArrowMarker`] is
     /// shown and rotated to point toward the anchor while clamped, and hidden
     /// while the anchor is on-screen.
+    ///
+    /// While the keybind dock is on screen, the bottom inset is at least the
+    /// bottom-centre column's floor, so a clamped indicator stands above the
+    /// key row and the notice box rather than on them.
     ClampToEdge {
         /// Inset (px) from the viewport edges the indicator is clamped to.
         margin_px: f32,
@@ -289,11 +295,13 @@ enum Placement {
 /// `projected` is the viewport projection of the (offset) anchor point, or
 /// `None` when the anchor does not project (behind the camera); `view_pos` is
 /// the anchor in camera space, used to keep a direction in that case.
+/// `floor_px` is the least bottom inset of a clamped indicator.
 fn place(
     viewport: Vec2,
     projected: Option<Vec2>,
     view_pos: Vec3,
     policy: ScreenIndicatorOffscreen,
+    floor_px: f32,
 ) -> Placement {
     let center = viewport / 2.0;
     match projected {
@@ -308,7 +316,7 @@ fn place(
             ScreenIndicatorOffscreen::ClampToEdge { margin_px } => {
                 let dir = direction_from_center(pos, center);
                 Placement::Visible {
-                    center: clamp_to_rect(pos, viewport, margin_px),
+                    center: clamp_to_rect(pos, viewport, margin_px, floor_px),
                     arrow: Some(dir),
                 }
             }
@@ -321,7 +329,7 @@ fn place(
                 // the edge rect, lands the indicator on the correct edge.
                 let pos = center + dir * viewport.max_element();
                 Placement::Visible {
-                    center: clamp_to_rect(pos, viewport, margin_px),
+                    center: clamp_to_rect(pos, viewport, margin_px, floor_px),
                     arrow: Some(dir),
                 }
             }
@@ -329,27 +337,43 @@ fn place(
     }
 }
 
-/// Clamp `pos` to the viewport rect inset by `margin_px` on every side. A
-/// negative margin is treated as zero (the indicator never leaves the
-/// viewport), and a margin wider than half the viewport degenerates to the
-/// viewport center instead of panicking.
-fn clamp_to_rect(pos: Vec2, viewport: Vec2, margin_px: f32) -> Vec2 {
+/// The viewport insets (px) of a clamped indicator: `margin_px` on the left,
+/// top and right, and the larger of it and `floor_px` at the bottom. A
+/// negative value is treated as zero.
+fn clamp_insets(margin_px: f32, floor_px: f32) -> (Vec2, Vec2) {
     let margin_px = margin_px.max(0.0);
-    let min = Vec2::splat(margin_px).min(viewport / 2.0);
-    let max = (viewport - margin_px).max(viewport / 2.0);
+    (
+        Vec2::splat(margin_px),
+        Vec2::new(margin_px, margin_px.max(floor_px)),
+    )
+}
+
+/// Clamp `pos` to the viewport rect inset by [`clamp_insets`]. The indicator
+/// never leaves the viewport, and an inset wider than half the viewport
+/// degenerates to the viewport center instead of panicking.
+fn clamp_to_rect(pos: Vec2, viewport: Vec2, margin_px: f32, floor_px: f32) -> Vec2 {
+    let (low, high) = clamp_insets(margin_px, floor_px);
+    let min = low.min(viewport / 2.0);
+    let max = (viewport - high).max(viewport / 2.0);
     pos.clamp(min, max)
 }
 
 /// Clamp the center of a box of `size` so the WHOLE box stays inside the
-/// viewport inset by `margin_px`. [`clamp_to_rect`] keeps only the center
+/// viewport inset by [`clamp_insets`]. [`clamp_to_rect`] keeps only the center
 /// inside, which is right for a point and wrong for anything as wide as a
-/// labelled chip. Degenerate cases (negative margin, a box or margin wider than
-/// the viewport) collapse to the viewport center rather than panicking.
-fn clamp_box_to_rect(center: Vec2, size: Vec2, viewport: Vec2, margin_px: f32) -> Vec2 {
-    let margin_px = margin_px.max(0.0);
+/// labelled chip. Degenerate cases (a box or inset wider than the viewport)
+/// collapse to the viewport center rather than panicking.
+fn clamp_box_to_rect(
+    center: Vec2,
+    size: Vec2,
+    viewport: Vec2,
+    margin_px: f32,
+    floor_px: f32,
+) -> Vec2 {
+    let (low, high) = clamp_insets(margin_px, floor_px);
     let half = size.max(Vec2::ZERO) / 2.0;
-    let min = (Vec2::splat(margin_px) + half).min(viewport / 2.0);
-    let max = (viewport - margin_px - half).max(viewport / 2.0);
+    let min = (low + half).min(viewport / 2.0);
+    let max = (viewport - high - half).max(viewport / 2.0);
     center.clamp(min, max)
 }
 
@@ -651,7 +675,9 @@ fn update_screen_indicators(
     >,
     q_camera: Query<(Entity, &Camera), With<ScreenIndicatorCamera>>,
     ui_scale: Res<UiScale>,
+    q_dock: LaidOutDock,
 ) {
+    let floor_px = column_floor_px(&q_dock).unwrap_or(0.0);
     // Without a projection camera every indicator hides, rather than freezing
     // at a stale position. More than one tagged camera is a consumer bug:
     // warn and project through the first, so indicators stay live and the
@@ -753,6 +779,7 @@ fn update_screen_indicators(
             projected.map(|pos| pos + offset),
             view_pos,
             *offscreen,
+            floor_px,
         );
         let Placement::Visible { center, arrow } = placement else {
             visibility.set_if_neq(Visibility::Hidden);
@@ -774,7 +801,7 @@ fn update_screen_indicators(
         // chip that changes width is off by that change for exactly one frame.
         let center = match (arrow, *offscreen) {
             (Some(_), ScreenIndicatorOffscreen::ClampToEdge { margin_px }) => {
-                clamp_box_to_rect(center, size, viewport, margin_px)
+                clamp_box_to_rect(center, size, viewport, margin_px, floor_px)
             }
             _ => center,
         };
@@ -857,16 +884,16 @@ mod tests {
     fn clamp_to_rect_respects_margin() {
         let viewport = Vec2::new(800.0, 600.0);
         assert_eq!(
-            clamp_to_rect(Vec2::new(900.0, 300.0), viewport, 20.0),
+            clamp_to_rect(Vec2::new(900.0, 300.0), viewport, 20.0, 0.0),
             Vec2::new(780.0, 300.0)
         );
         assert_eq!(
-            clamp_to_rect(Vec2::new(-50.0, -50.0), viewport, 20.0),
+            clamp_to_rect(Vec2::new(-50.0, -50.0), viewport, 20.0, 0.0),
             Vec2::new(20.0, 20.0)
         );
         // Inside the rect: untouched.
         assert_eq!(
-            clamp_to_rect(Vec2::new(400.0, 300.0), viewport, 20.0),
+            clamp_to_rect(Vec2::new(400.0, 300.0), viewport, 20.0, 0.0),
             Vec2::new(400.0, 300.0)
         );
     }
@@ -878,16 +905,16 @@ mod tests {
         // The clamped centre leaves room for the half-width: at the plain
         // point clamp (x = 780) the chip would draw out to x = 870.
         assert_eq!(
-            clamp_box_to_rect(Vec2::new(900.0, 300.0), chip, viewport, 20.0),
+            clamp_box_to_rect(Vec2::new(900.0, 300.0), chip, viewport, 20.0, 0.0),
             Vec2::new(690.0, 300.0)
         );
         assert_eq!(
-            clamp_box_to_rect(Vec2::new(-50.0, -50.0), chip, viewport, 20.0),
+            clamp_box_to_rect(Vec2::new(-50.0, -50.0), chip, viewport, 20.0, 0.0),
             Vec2::new(110.0, 35.0)
         );
         // Inside with room to spare: untouched.
         assert_eq!(
-            clamp_box_to_rect(Vec2::new(400.0, 300.0), chip, viewport, 20.0),
+            clamp_box_to_rect(Vec2::new(400.0, 300.0), chip, viewport, 20.0, 0.0),
             Vec2::new(400.0, 300.0)
         );
     }
@@ -982,7 +1009,7 @@ mod tests {
         // min > max); it degenerates to the center.
         let viewport = Vec2::new(100.0, 100.0);
         assert_eq!(
-            clamp_box_to_rect(Vec2::ZERO, Vec2::splat(400.0), viewport, 10.0),
+            clamp_box_to_rect(Vec2::ZERO, Vec2::splat(400.0), viewport, 10.0, 0.0),
             Vec2::new(50.0, 50.0)
         );
     }
@@ -993,7 +1020,7 @@ mod tests {
         // panics on min > max); it degenerates to the center.
         let viewport = Vec2::new(100.0, 100.0);
         assert_eq!(
-            clamp_to_rect(Vec2::new(0.0, 0.0), viewport, 500.0),
+            clamp_to_rect(Vec2::new(0.0, 0.0), viewport, 500.0, 0.0),
             Vec2::new(50.0, 50.0)
         );
     }
@@ -1018,6 +1045,7 @@ mod tests {
             Some(Vec2::new(100.0, 100.0)),
             Vec3::new(0.0, 0.0, -10.0),
             ScreenIndicatorOffscreen::Hide,
+            0.0,
         );
         assert_eq!(
             placement,
@@ -1035,6 +1063,7 @@ mod tests {
             Some(Vec2::new(900.0, 300.0)),
             Vec3::new(5.0, 0.0, -10.0),
             ScreenIndicatorOffscreen::Hide,
+            0.0,
         );
         assert_eq!(placement, Placement::Hidden);
     }
@@ -1046,6 +1075,7 @@ mod tests {
             Some(Vec2::new(900.0, 300.0)),
             Vec3::new(5.0, 0.0, -10.0),
             ScreenIndicatorOffscreen::ClampToEdge { margin_px: 20.0 },
+            0.0,
         );
         assert_eq!(
             placement,
@@ -1065,6 +1095,7 @@ mod tests {
             None,
             Vec3::new(0.0, 0.0, 5.0),
             ScreenIndicatorOffscreen::ClampToEdge { margin_px: 20.0 },
+            0.0,
         );
         assert_eq!(
             placement,
@@ -1082,6 +1113,7 @@ mod tests {
             None,
             Vec3::new(0.0, 0.0, 5.0),
             ScreenIndicatorOffscreen::Hide,
+            0.0,
         );
         assert_eq!(placement, Placement::Hidden);
     }
