@@ -28,6 +28,14 @@ const LOOP_SMOOTHING_RATE: f32 = 8.0;
 /// would write a smaller float every frame for ever.
 const LOOP_SETTLE: f32 = 1e-4;
 
+/// Under this a hum's source is idle and its target is zero.
+///
+/// A thruster spools down exponentially and never reaches zero, and any
+/// intensity above zero plays at least the bottom of the category's loop dB
+/// range. Without this floor a ship that closed its throttle would hold its
+/// hum at that level for ever.
+const HUM_IDLE: f32 = 0.01;
+
 /// `current` eased toward `target` by `alpha` of the gap.
 fn ease(current: f32, target: f32, alpha: f32) -> f32 {
     let next = current + (target - current) * alpha;
@@ -57,6 +65,7 @@ fn ease_hum(
     target: f32,
     alpha: f32,
 ) {
+    let target = if target < HUM_IDLE { 0.0 } else { target };
     match sound_loop {
         Some(mut sound_loop) => {
             let next = ease(sound_loop.intensity, target, alpha);
@@ -319,6 +328,22 @@ mod tests {
             "the intensity must ease down, not cut, got {mid:?}"
         );
 
+        settle(&mut app);
+        assert_eq!(loop_of(&app, thruster).map(|hum| hum.intensity), Some(0.0));
+    }
+
+    /// The spool-down tail: a closed throttle leaves the input a tiny
+    /// positive number, and the hum must still reach zero.
+    #[test]
+    fn a_thruster_spooled_almost_to_zero_falls_silent() {
+        let mut app = loop_app();
+        let thruster = spawn_burning_thruster(&mut app, 1.0);
+        settle(&mut app);
+
+        app.world_mut()
+            .get_mut::<ThrusterSectionInput>(thruster)
+            .unwrap()
+            .0 = 1e-6;
         settle(&mut app);
         assert_eq!(loop_of(&app, thruster).map(|hum| hum.intensity), Some(0.0));
     }
