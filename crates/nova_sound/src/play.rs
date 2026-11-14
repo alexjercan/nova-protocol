@@ -157,9 +157,28 @@ pub enum SoundRefusal {
     NoPose,
 }
 
-/// The ROOT of `entity`: the top of its `ChildOf` chain.
-pub fn sound_root(entity: Entity, q_parents: &Query<&ChildOf>) -> Entity {
-    q_parents.root_ancestor(entity)
+/// Marks a container whose children are separate bodies: a world sector that
+/// owns the ships and rocks standing in it. [`sound_root`] stops below it, so
+/// two ships in one sector are two groups.
+#[derive(Component, Clone, Copy, Debug, Default, Reflect)]
+#[reflect(Component)]
+pub struct SoundGroupBoundary;
+
+/// The ROOT of `entity`: the top of its `ChildOf` chain, or the last entity
+/// below a [`SoundGroupBoundary`].
+pub fn sound_root(
+    entity: Entity,
+    q_parents: &Query<&ChildOf>,
+    q_boundaries: &Query<(), With<SoundGroupBoundary>>,
+) -> Entity {
+    let mut current = entity;
+    while let Ok(&ChildOf(parent)) = q_parents.get(current) {
+        if q_boundaries.contains(parent) {
+            break;
+        }
+        current = parent;
+    }
+    current
 }
 
 /// Resolve where a one-shot plays and what it groups with. Pure, so the
@@ -198,6 +217,7 @@ pub(crate) fn on_play_sound(
     mut repeat: ResMut<SoundRepeat>,
     q_pose: Query<&GlobalTransform>,
     q_parents: Query<&ChildOf>,
+    q_boundaries: Query<(), With<SoundGroupBoundary>>,
     q_voices: Query<(Entity, &SoundVoice)>,
 ) {
     let PlaySound {
@@ -208,7 +228,7 @@ pub(crate) fn on_play_sound(
     let (pose, root) = match at {
         SoundAt::Entity(entity) => (
             q_pose.get(entity).ok().map(GlobalTransform::translation),
-            sound_root(entity, &q_parents),
+            sound_root(entity, &q_parents, &q_boundaries),
         ),
         SoundAt::Ui | SoundAt::Point(_) => (None, Entity::PLACEHOLDER),
     };
@@ -275,6 +295,7 @@ pub(crate) fn sync_sound_loops(
     mut commands: Commands,
     time: Res<Time<Real>>,
     q_parents: Query<&ChildOf>,
+    q_boundaries: Query<(), With<SoundGroupBoundary>>,
     q_owners: Query<(Entity, &SoundLoop, Option<&LoopVoice>)>,
     mut q_voices: Query<&mut SoundVoice>,
 ) {
@@ -304,7 +325,7 @@ pub(crate) fn sync_sound_loops(
                     sound: sound_loop.sound.clone(),
                     category: sound_loop.category,
                     place: VoicePlace::Follow(owner),
-                    group: VoiceGroup::Root(sound_root(owner, &q_parents)),
+                    group: VoiceGroup::Root(sound_root(owner, &q_parents, &q_boundaries)),
                     looping: true,
                     intensity: sound_loop.intensity,
                     rate: sound_loop.rate,
@@ -405,7 +426,15 @@ mod tests {
     #[test]
     fn the_repeat_interval_holds_per_sound_and_root() {
         let mut app = app();
-        let ship = app.world_mut().spawn(GlobalTransform::IDENTITY).id();
+        // Both ships stand in one world sector, which is not their root.
+        let sector = app
+            .world_mut()
+            .spawn((GlobalTransform::IDENTITY, SoundGroupBoundary))
+            .id();
+        let ship = app
+            .world_mut()
+            .spawn((GlobalTransform::IDENTITY, ChildOf(sector)))
+            .id();
         let bays: Vec<Entity> = (0..3)
             .map(|_| {
                 app.world_mut()
@@ -413,7 +442,10 @@ mod tests {
                     .id()
             })
             .collect();
-        let other_ship = app.world_mut().spawn(GlobalTransform::IDENTITY).id();
+        let other_ship = app
+            .world_mut()
+            .spawn((GlobalTransform::IDENTITY, ChildOf(sector)))
+            .id();
         let door: Handle<AudioSource> = Handle::default();
         let open = |entity| PlaySound {
             sound: door.clone(),

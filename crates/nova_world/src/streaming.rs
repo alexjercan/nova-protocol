@@ -63,8 +63,10 @@ pub struct WorldObserver;
 ///
 /// The narrow cleanup scope. The root's children are the sector's objects, so
 /// despawning it retires exactly one sector; the `ScenarioScopedMarker` it
-/// also carries keeps the session sweep able to take it.
+/// also carries keeps the session sweep able to take it. Its children are
+/// separate bodies, so sounds group per child, not per sector.
 #[derive(Component, Clone, Copy, Debug)]
+#[require(nova_sound::SoundGroupBoundary)]
 pub struct SectorRoot(pub SectorCoord);
 
 /// The type of every cluster with a body in a live cell, as its

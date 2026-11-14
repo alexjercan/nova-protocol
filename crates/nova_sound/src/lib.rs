@@ -127,8 +127,8 @@ pub use self::{
         SFX_FAR_DISTANCE, SFX_NEAR_DISTANCE,
     },
     play::{
-        place_one_shot, sound_root, PlaySound, SoundAt, SoundLoop, SoundRefusal, SoundRepeat,
-        SoundVoice, VoiceGroup, VoicePlace,
+        place_one_shot, sound_root, PlaySound, SoundAt, SoundGroupBoundary, SoundLoop,
+        SoundRefusal, SoundRepeat, SoundVoice, VoiceGroup, VoicePlace,
     },
     registry::{sounds_loaded, SoundBank},
     sfx::{PlaySfx, SfxAudioMarker, SfxCommandsExt, SfxPlugin},
@@ -382,6 +382,7 @@ impl Plugin for NovaSoundPlugin {
         app.register_type::<WorldVolume>();
         app.register_type::<SfxListenerMarker>();
         app.register_type::<SoundListenerAnchor>();
+        app.register_type::<SoundGroupBoundary>();
 
         app.add_observer(on_add_listener);
         app.add_observer(on_play_sound);

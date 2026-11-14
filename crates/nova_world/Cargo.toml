@@ -23,6 +23,8 @@ nova_gameplay = { path = "../nova_gameplay" }
 # scenario loader calls - plus `PlanetType`, the ship design resolver, the
 # asteroid kind table and the session liveness the outer cleanup is gated on.
 nova_scenario = { path = "../nova_scenario" }
+# `SoundGroupBoundary`: a sector's children are separate bodies to the mixer.
+nova_sound = { path = "../nova_sound" }
 # `GameSections`: the loaded section catalog a generated ship's inline design
 # is resolved against before its sector spawns.
 nova_ship = { path = "../nova_ship" }

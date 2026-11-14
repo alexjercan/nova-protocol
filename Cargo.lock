@@ -5330,6 +5330,7 @@ dependencies = [
  "nova_gameplay",
  "nova_scenario",
  "nova_ship",
+ "nova_sound",
  "ron",
  "serde",
 ]
