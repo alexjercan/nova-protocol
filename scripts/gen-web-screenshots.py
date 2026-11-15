@@ -322,6 +322,11 @@ CUTS = [
     ("news-0180-second-tier.png",     "station-swap-intake-card.png", "system_station_swap_intake", (0, 0, 1920, 1080)),
     ("news-0180-sector-notice.png",   "sector-first-visit.png",       "news_0180_sector_notice", (320, 360, 1280, 720)),
     ("news-0180-events-blocks.png",   "events-blocks-jobs.png",       "news_0180_events_blocks", (0, 0, 1280, 720)),
+    # The escort raiders of two advancement bands, cut at one size so the two
+    # hulls share a scale. The sweep runs the default `--band start`; the core
+    # frame is staged by `escort_job_sandbox -- --band core`.
+    ("news-0180-escort-bands-start.png", "escort-job-sandbox-start.png", "escort_job_sandbox", (400, 150, 1120, 630)),
+    ("news-0180-escort-bands-core.png",  "escort-job-sandbox-core.png",  "escort_job_sandbox", (400, 30, 1120, 630)),
 ]
 
 # Composite output frame (16:9, the figure resolution the capture examples use).
