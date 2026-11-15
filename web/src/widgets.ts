@@ -14519,6 +14519,360 @@ function initKeyRow(host: HTMLElement): void {
     update();
 }
 
+// ---- v0.18.0: how loud at what range ---------------------------------------
+
+/** The track that scales a sound category: crates/nova_sound `SoundBus`. */
+export type SoundBusType = "Effect" | "Ui";
+
+/** One row of the game's sound balance table. */
+export interface SoundLevelRow {
+    /** The `SoundCategoryType` variant, as a scenario `PlaySound` names it. */
+    category: string;
+    /** What kind of sound plays in the row. */
+    what: string;
+    bus: SoundBusType;
+    /** The level relative to the loudness every clip is measured to, in dB. */
+    levelDb: number;
+    /** Full level inside this distance, in meters. 0 for an interface row. */
+    referenceM: number;
+    /** Silent at and past this distance, in meters. 0 for an interface row. */
+    maxM: number;
+    /** A loop's `(at zero, at full)` intensity offsets in dB, or null. */
+    loopDb: [number, number] | null;
+}
+
+/** One balance row, in the table's column order. */
+function soundLevelRow(
+    category: string,
+    what: string,
+    bus: SoundBusType,
+    levelDb: number,
+    referenceM: number,
+    maxM: number,
+    loopDb: [number, number] | null = null
+): SoundLevelRow {
+    return { category, what, bus, levelDb, referenceM, maxM, loopDb };
+}
+
+// The balance table, row for row and in its order, from
+// crates/nova_sound/src/category.rs `SoundCategoryType::spec` :185-214 (bus,
+// dB, reference m, max m and loop dB columns; the `what` words follow each
+// variant's doc comment). The widget test reads the rows back from that file.
+export const SOUND_ROWS: SoundLevelRow[] = [
+    soundLevelRow("Collapse", "a ship coming apart", "Effect", -1, 600, 10000),
+    soundLevelRow(
+        "Explosion",
+        "a section, rock or warhead",
+        "Effect",
+        -3,
+        400,
+        8000
+    ),
+    soundLevelRow("HeavyWeapon", "the railgun report", "Effect", -1, 400, 8000),
+    soundLevelRow(
+        "Launch",
+        "a torpedo leaving its tube",
+        "Effect",
+        -9,
+        250,
+        5000
+    ),
+    soundLevelRow(
+        "Ignition",
+        "a torpedo drive lighting",
+        "Effect",
+        -12,
+        250,
+        5000
+    ),
+    soundLevelRow("Weapon", "a point-defense gun", "Effect", -14, 200, 3000),
+    soundLevelRow(
+        "Impact",
+        "a round on plate or stone",
+        "Effect",
+        -13,
+        150,
+        2500
+    ),
+    soundLevelRow(
+        "HeavyImpact",
+        "a railgun slug landing",
+        "Effect",
+        -8,
+        250,
+        5000
+    ),
+    soundLevelRow(
+        "TorpedoDeath",
+        "a dud or an intercept",
+        "Effect",
+        -10,
+        200,
+        3000
+    ),
+    soundLevelRow("Reload", "a weapon reloading", "Effect", -16, 40, 800),
+    soundLevelRow("Machinery", "doors, stows, clamps", "Effect", -22, 30, 600),
+    soundLevelRow(
+        "Pickup",
+        "the intake taking a canister",
+        "Effect",
+        -16,
+        30,
+        600
+    ),
+    soundLevelRow("Mining", "a mining beam pulse", "Effect", -14, 60, 1500),
+    soundLevelRow(
+        "DryFire",
+        "a gun on an empty magazine",
+        "Effect",
+        -20,
+        20,
+        300
+    ),
+    soundLevelRow(
+        "Drive",
+        "a main drive hum",
+        "Effect",
+        -2,
+        250,
+        6000,
+        [-18, 0]
+    ),
+    soundLevelRow("Rcs", "the RCS hiss", "Effect", -18, 200, 1500, [-8, 0]),
+    soundLevelRow(
+        "Charge",
+        "a railgun charging",
+        "Effect",
+        -6,
+        100,
+        3000,
+        [-9, 0]
+    ),
+    soundLevelRow("Alarm", "incoming lock, hull warning", "Ui", -5, 0, 0),
+    soundLevelRow("Cockpit", "lock, safety, kill confirm", "Ui", -6, 0, 0),
+    soundLevelRow("CockpitTick", "retarget, ammo dry", "Ui", -12, 0, 0),
+    soundLevelRow("UiClick", "a button press", "Ui", -14, 0, 0),
+    soundLevelRow("UiTick", "pointer, detent, keystroke", "Ui", -15, 0, 0),
+    soundLevelRow("UiConfirm", "a command that worked", "Ui", -9, 0, 0),
+    soundLevelRow("UiError", "the deny buzz", "Ui", -9, 0, 0),
+    soundLevelRow("Notice", "a HUD notice line", "Ui", -8, 0, 0),
+    soundLevelRow("Objective", "an objective posted or ended", "Ui", -5, 0, 0),
+    soundLevelRow("Comms", "a comms line", "Ui", -11, 0, 0),
+    soundLevelRow("Editor", "a part seated in the editor", "Ui", -9, 0, 0),
+    soundLevelRow(
+        "Preview",
+        "a sound file played in the editor",
+        "Ui",
+        -6,
+        0,
+        0
+    ),
+    soundLevelRow(
+        "TerminalBed",
+        "the terminal's ambient bed",
+        "Ui",
+        -24,
+        0,
+        0,
+        [0, 0]
+    ),
+];
+
+/**
+ * The share of a row's max distance over which the fade to silence runs:
+ * crates/nova_sound/src/category.rs `FADE_OUT_SHARE` :128.
+ */
+export const SOUND_FADE_OUT_SHARE = 0.25;
+
+/** The loudness every clip is brought to when it loads, in LUFS:
+ * crates/nova_sound/src/loudness.rs `LOUDNESS_TARGET_LUFS` :29. */
+export const SOUND_LOUDNESS_TARGET_LUFS = -23;
+
+/**
+ * The distance fade of an Effect row `distanceM` from the listener, as
+ * crates/nova_sound/src/category.rs `SoundCategory::distance_fade` :282:
+ * 1 inside the reference distance, then reference / distance, times
+ * (1 - smoothstep) over the last quarter before max, and 0 at max.
+ */
+export function soundFade(row: SoundLevelRow, distanceM: number): number {
+    const distance = Math.max(0, distanceM);
+    if (distance >= row.maxM) return 0;
+    const reference = Math.max(row.referenceM, Number.MIN_VALUE);
+    const inverse = distance <= reference ? 1 : reference / distance;
+    const fadeStart = row.maxM * (1 - SOUND_FADE_OUT_SHARE);
+    if (distance <= fadeStart) return inverse;
+    const t = (distance - fadeStart) / (row.maxM - fadeStart);
+    return inverse * (1 - t * t * (3 - 2 * t));
+}
+
+/**
+ * The level a row plays at `distanceM` away, in dB, or null when it is
+ * silent there. An interface row plays flat at its level.
+ */
+export function soundLevelDb(
+    row: SoundLevelRow,
+    distanceM: number
+): number | null {
+    if (row.bus === "Ui") return row.levelDb;
+    const fade = soundFade(row, distanceM);
+    return fade > 0 ? row.levelDb + 20 * Math.log10(fade) : null;
+}
+
+// The fader is logarithmic: the near rows change over tens of meters and
+// the far ones over kilometers. Step 0 is 10 m and the last step 10 km.
+const SOUND_FADER_STEPS = 120;
+function soundFaderMeters(step: number): number {
+    const raw = 10 * Math.pow(1000, step / SOUND_FADER_STEPS);
+    const grain = raw < 100 ? 1 : raw < 1000 ? 10 : 100;
+    return Math.round(raw / grain) * grain;
+}
+
+function initSoundLevels(host: HTMLElement): void {
+    header(
+        host,
+        "Sound scope: how loud at what range",
+        "Move the listener away from the sound. Each world row keeps its " +
+            "full level out to its first distance, then falls, and is " +
+            "silent at its second. The interface rows play flat."
+    );
+
+    // The bar spans 48 dB: a sound 48 dB under the loudness target reads
+    // as an empty bar, and its number still shows.
+    const FLOOR_DB = -48;
+    const width = (db: number): string =>
+        `${(Math.min(1, Math.max(0, (db - FLOOR_DB) / -FLOOR_DB)) * 100).toFixed(1)}%`;
+    const dbText = (db: number): string =>
+        `${db < -0.5 ? "-" : ""}${numText(Math.abs(db), 0)} dB`;
+
+    const fader = control(
+        "distance",
+        0,
+        SOUND_FADER_STEPS,
+        1,
+        59,
+        (step) => meters(soundFaderMeters(step)),
+        () => update()
+    );
+    const controls = el("div", "widget__controls");
+    controls.appendChild(fader.row);
+
+    interface Line {
+        row: SoundLevelRow;
+        line: HTMLElement;
+        live: HTMLElement;
+        value: HTMLElement;
+    }
+    const lines: Line[] = [];
+    const block = (bus: SoundBusType, label: string): HTMLElement => {
+        const list = el("div", "widget__levels");
+        for (const row of SOUND_ROWS.filter((r) => r.bus === bus)) {
+            const line = el("div", "widget__level");
+            const name = el("span", "widget__level-name");
+            name.appendChild(el("b", undefined, row.category));
+            name.appendChild(
+                el(
+                    "span",
+                    undefined,
+                    bus === "Effect"
+                        ? `${row.what}, ${meters(row.referenceM)} / ${meters(row.maxM)}`
+                        : row.what
+                )
+            );
+            const bar = el("span", "widget__level-bar");
+            const full = el("span", "widget__level-full");
+            full.style.width = width(row.levelDb);
+            const live = el("span", "widget__level-live");
+            bar.appendChild(full);
+            bar.appendChild(live);
+            const value = el("span", "widget__level-db");
+            line.appendChild(name);
+            line.appendChild(bar);
+            line.appendChild(value);
+            list.appendChild(line);
+            lines.push({ row, line, live, value });
+        }
+        const wrap = el("div");
+        wrap.appendChild(el("p", "widget__rowlabel", label));
+        wrap.appendChild(list);
+        return wrap;
+    };
+    const effects = block(
+        "Effect",
+        "World sounds, Effects slider: full to / silent at"
+    );
+    const interfaceRows = block(
+        "Ui",
+        "Interface sounds, Interface slider: flat"
+    );
+
+    const stats = el("div", "widget__stats");
+    const distanceStat = stat(stats, "distance");
+    const heardStat = stat(stats, "world rows heard");
+    const loudestStat = stat(stats, "loudest");
+    const readout = el("p", "widget__readout");
+    readout.setAttribute("aria-live", "polite");
+
+    const update = (): void => {
+        const distance = soundFaderMeters(Number(fader.input.value));
+        for (const { row, line, live, value } of lines) {
+            const db = soundLevelDb(row, distance);
+            live.style.width = db === null ? "0%" : width(db);
+            value.textContent = db === null ? "silent" : dbText(db);
+            line.classList.toggle("is-off", db === null);
+        }
+        const world = SOUND_ROWS.filter((row) => row.bus === "Effect");
+        const heard = world
+            .map((row) => ({ row, db: soundLevelDb(row, distance) }))
+            .filter(
+                (hit): hit is { row: SoundLevelRow; db: number } =>
+                    hit.db !== null
+            );
+        const silent = world.filter(
+            (row) => soundLevelDb(row, distance) === null
+        );
+        heard.sort((a, b) => b.db - a.db);
+        distanceStat.textContent = meters(distance);
+        heardStat.textContent = `${heard.length} of ${world.length}`;
+        loudestStat.textContent = heard.length
+            ? `${heard[0].row.category} ${dbText(heard[0].db)}`
+            : "none";
+        const click = SOUND_ROWS.find((row) => row.category === "UiClick");
+        const over = click
+            ? heard.filter((hit) => hit.db > click.levelDb).length
+            : 0;
+        readout.textContent =
+            `At ${meters(distance)} ` +
+            (heard.length
+                ? `the loudest world sound is ${heard[0].row.category} at ` +
+                  `${dbText(heard[0].db)}, and ${over} of the ${heard.length} ` +
+                  `world rows heard sit over a button click (${dbText(click?.levelDb ?? 0)}).`
+                : "every world sound is silent.") +
+            (silent.length
+                ? ` Out of reach: ${silent.map((row) => row.category).join(", ")}.`
+                : "");
+    };
+
+    host.appendChild(controls);
+    host.appendChild(effects);
+    host.appendChild(interfaceRows);
+    host.appendChild(stats);
+    host.appendChild(readout);
+    host.appendChild(
+        el(
+            "p",
+            "widget__note",
+            "A level is relative to the loudness every clip is measured to " +
+                `when it loads (${SOUND_LOUDNESS_TARGET_LUFS} LUFS), before ` +
+                "the sliders. The dim bar is the row's full level. A world " +
+                "sound fades from the player's ship and pans by its " +
+                "direction, your own ship's included. A loop also follows " +
+                "its intensity: a drive at low throttle plays up to 18 dB " +
+                "under its row, the RCS up to 8 and a railgun charge up to 9."
+        )
+    );
+    update();
+}
+
 const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "aim-decay": initAimDecay,
     "round-travel": initRoundTravel,
@@ -14564,6 +14918,7 @@ const WIDGETS: Record<string, (host: HTMLElement) => void> = {
     "advancement-gates": initAdvancementGates,
     "refine-batch": initRefineBatch,
     "key-row": initKeyRow,
+    "sound-levels": initSoundLevels,
 };
 
 // Hydrate every declared widget on the page. The static fallback content is

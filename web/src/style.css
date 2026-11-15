@@ -2839,6 +2839,74 @@ a.wiki-index__card:hover .wiki-index__cardtitle {
     background: var(--phosphor);
     box-shadow: var(--glow-key);
 }
+/* The sound scope: one meter per balance row. The dim fill is the row's
+   full level, the lit fill what reaches the listener; a silent row recedes
+   and its number says so. */
+.widget__levels {
+    display: grid;
+    gap: 4px;
+    margin: 6px 0 0;
+    padding: 8px 10px;
+    background: var(--screen);
+    border: 1px solid var(--edge-faint);
+    border-radius: var(--radius);
+}
+.widget__level {
+    display: grid;
+    grid-template-columns: minmax(0, 15rem) minmax(0, 1fr) 3.6rem;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.7rem;
+    color: var(--phosphor-dim);
+}
+.widget__level-name b {
+    margin-right: 6px;
+    font-weight: 700;
+    color: var(--text);
+}
+.widget__level-bar {
+    position: relative;
+    height: 10px;
+    background: var(--recess);
+    border: 1px solid var(--edge-faint);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+.widget__level-full,
+.widget__level-live {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+}
+.widget__level-full {
+    background: var(--phosphor);
+    opacity: 0.22;
+}
+.widget__level-live {
+    background: var(--phosphor);
+    box-shadow: var(--glow-key);
+}
+.widget__level-db {
+    text-align: right;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+.widget__level.is-off {
+    opacity: 0.55;
+}
+.widget__level.is-off .widget__level-db {
+    color: var(--phosphor-muted);
+}
+@media (max-width: 640px) {
+    .widget__level {
+        grid-template-columns: minmax(0, 1fr) 3.6rem;
+        gap: 2px 8px;
+    }
+    .widget__level-name {
+        grid-column: 1 / -1;
+    }
+}
 /* Variant catalogs: editor-catalog-style tables on the wiki section pages,
    shipped prototypes with source-verified stats. The thumb slots reuse the
    .figure__placeholder upgrade path (site.ts), so a capture dropped into

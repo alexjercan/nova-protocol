@@ -126,6 +126,11 @@ import {
     priceFactors,
     PROVOKED_WINDOW_SECONDS,
     refinePlan,
+    SOUND_FADE_OUT_SHARE,
+    SOUND_LOUDNESS_TARGET_LUFS,
+    SOUND_ROWS,
+    soundFade,
+    soundLevelDb,
     stanceStep,
     StanceEvent,
     StanceType,
@@ -1762,6 +1767,73 @@ console.log("widgets: the corridor scope reproduces the stand bank");
         keyRowChips(cold).map((chip) => chip.caps[0]),
         ["Tab", "W", "X", "Shift", "Ctrl", "RMB"]
     );
+}
+
+// ---- sound-levels ---------------------------------------------------------
+
+// The sound scope's rows are the game's balance table, row for row.
+{
+    const CATEGORY = "crates/nova_sound/src/category.rs";
+    const table = readFileSync(join(REPO, CATEGORY), "utf8");
+    const rows = [
+        ...table.matchAll(
+            /Self::(\w+) => row\((Effect|Ui), (-?[\d.]+), ([\d_.]+), ([\d_.]+), \d+, [\d.]+, \d+, (?:None|Some\(\((-?[\d.]+), (-?[\d.]+)\)\))\)/g
+        ),
+    ].map((hit) => ({
+        category: hit[1],
+        bus: hit[2],
+        levelDb: Number(hit[3]),
+        referenceM: Number(hit[4].replace(/_/g, "")),
+        maxM: Number(hit[5].replace(/_/g, "")),
+        loopDb: hit[6] === undefined ? null : [Number(hit[6]), Number(hit[7])],
+    }));
+    assert.equal(rows.length, 30, `${CATEGORY}: the table has 30 rows`);
+    assert.deepEqual(
+        SOUND_ROWS.map(
+            ({ category, bus, levelDb, referenceM, maxM, loopDb }) => ({
+                category,
+                bus,
+                levelDb,
+                referenceM,
+                maxM,
+                loopDb,
+            })
+        ),
+        rows
+    );
+    assert.equal(
+        SOUND_FADE_OUT_SHARE,
+        rustNumber(CATEGORY, /const FADE_OUT_SHARE: f32 = ([\d.]+);/)
+    );
+    assert.equal(
+        SOUND_LOUDNESS_TARGET_LUFS,
+        rustNumber(
+            "crates/nova_sound/src/loudness.rs",
+            /pub const LOUDNESS_TARGET_LUFS: f32 = (-?[\d.]+);/
+        )
+    );
+}
+
+// The fade is the game's `distance_fade`: full inside the reference, then
+// reference / distance, eased to silence over the last quarter before max.
+{
+    const weapon = SOUND_ROWS.find((row) => row.category === "Weapon");
+    assert.ok(weapon);
+    assert.equal(soundFade(weapon, 0), 1);
+    assert.equal(soundFade(weapon, 200), 1);
+    assert.ok(Math.abs(soundFade(weapon, 400) - 0.5) < 1e-9);
+    assert.ok(Math.abs(soundFade(weapon, 800) - 0.25) < 1e-9);
+    assert.ok(Math.abs(soundFade(weapon, 2250) - 200 / 2250) < 1e-9);
+    assert.ok(soundFade(weapon, 2970) > 0);
+    assert.ok(soundFade(weapon, 2970) < 0.01 * soundFade(weapon, 2250));
+    assert.equal(soundFade(weapon, 3000), 0);
+    assert.equal(soundLevelDb(weapon, 3000), null);
+    assert.ok(
+        Math.abs((soundLevelDb(weapon, 400) ?? 0) - (-14 - 6.0206)) < 1e-3
+    );
+    const click = SOUND_ROWS.find((row) => row.category === "UiClick");
+    assert.ok(click);
+    assert.equal(soundLevelDb(click, 9000), -14, "an interface row is flat");
 }
 
 // eslint-disable-next-line no-console
