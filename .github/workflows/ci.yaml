@@ -240,7 +240,8 @@ jobs:
   # and one runner avoids repeated cold builds.
   probe-smoke:
     name: probe / smoke
-    runs-on: ubuntu-latest
+    # Same pinned image as probe-full.yaml, which says why.
+    runs-on: ubuntu-24.04
     # Sized for a COLD cache: no `probe-debug` cache to restore means a full
     # ~20-minute build before anything runs, on top of the smoke walks. A warm
     # run is far under this. The cap is a hang backstop for the job as a whole;
@@ -277,7 +278,7 @@ jobs:
       # rather than evict each other out of the repository's cache budget.
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: probe-debug
+          shared-key: probe-debug-ubuntu-24.04
           cache-on-failure: true
 
       # The windowed run gate: correctness-only probe spawns each named example

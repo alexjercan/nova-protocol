@@ -38,7 +38,11 @@ jobs:
   # A new Cargo example need not join either runtime gate.
   probe:
     name: probe / ${{ matrix.shard }}
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: on the 26.04 image (LLVM 21, Mesa 26) lavapipe
+    # ran every walk 1.5-2.5x slower than on 24.04, and the v0.18.0 gate
+    # stalled system_scenario_picker and system_open_world_identity on their
+    # real-second deadlines. Move it only with a green full run on the new image.
+    runs-on: ubuntu-24.04
     # Leave room for a cold Rust build before the curated examples run.
     # A Cargo.lock change or cache eviction can force that build again.
     timeout-minutes: 75
@@ -90,7 +94,9 @@ jobs:
       # same `--features debug` graph. A shard still links its own binaries.
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: probe-debug
+          # The image is part of the key: build scripts linked on 26.04 do not
+          # run on the older glibc of 24.04.
+          shared-key: probe-debug-ubuntu-24.04
           cache-on-failure: true
 
       # The windowed run gate: correctness-only probe spawns each curated
