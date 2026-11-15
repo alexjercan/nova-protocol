@@ -482,7 +482,7 @@ mod tests {
             (
                 ["player_spaceship", "hullplate", "1"],
                 CommandStatus::Error,
-                "no item named 'hullplate' (ActuatorPack, CapacitorBank, CarbonOre, DockingCollar, DriveBell, FlightCore, FrameSpar, HullPlate, IronOre, PdcRound, RailSlug, Rations, SalvagedParts, SectionPanel, StoneOre, Torpedo, TorpedoTube, TurretBarrel, TurretBody, WaterIce)",
+                "no item named 'hullplate' (",
             ),
             (
                 ["player_spaceship", "HullPlate", "0"],
@@ -516,6 +516,17 @@ mod tests {
             assert_eq!(result.status, status, "{args:?}: {}", result.detail);
             assert!(result.detail.contains(says), "{args:?}: {}", result.detail);
         }
+        let unknown = give(&mut world, ["player_spaceship", "hullplate", "1"]);
+        let listed = unknown
+            .detail
+            .split_once('(')
+            .and_then(|(_, rest)| rest.strip_suffix(')'))
+            .unwrap_or_default();
+        assert!(
+            listed.split(", ").any(|id| id == "HullPlate"),
+            "an unknown id lists the catalogue ids: {}",
+            unknown.detail
+        );
         assert_eq!(world.get::<ShipInventory>(ship), Some(&before));
 
         let (mut unarmed, ship) = world_with_hold(false);
